@@ -88,6 +88,8 @@ const COMMISSION_CCIH = 'a0000000-0000-0000-0000-0000000000a1'
 const USER_CHEFE = '00000000-0000-0000-0000-000000000002'
 const CHEFE = 'chefe.ccih@test.local'
 const STAFF1 = 'staff1.ccih@test.local'
+/** Rede B — a different ORGANISATION entirely; the outsider for the read-path boundary. */
+const STAFF_B = 'staff1.qual.b@test.local'
 
 /** The banner `handleNext` raises when any field is highlighted. */
 const REVISE_BANNER = 'Revise os campos destacados antes de continuar.'
@@ -2050,6 +2052,483 @@ test('FF3-14 date_range and datetime_order evaluate, render and gate submit', as
     timeout: 25_000,
   })
   expect(responseStatus(responseId)).toBe('submitted')
+})
+
+// ===========================================================================
+// FF3-15 (ADR 0090 Amendment 4) — `regex` has NO client twin; the server is its
+// sole authority.
+//
+// This is a DELIBERATE removal of live feedback, not a regression. The two
+// engines disagree on 13 of 26 measured constructs — `\b` is a word boundary in
+// JS and a BACKSPACE in POSIX ARE — and because `handleNext` blocks on
+// client-computed errors, a dialect disagreement produced an UNSUBMITTABLE
+// response with no server recourse.
+//
+// The absence is asserted explicitly, per the amendment: if anyone re-mirrors the
+// arm, the live message reappears and this test reds. Asserting only "submit is
+// refused" would stay green under a re-mirroring.
+// ===========================================================================
+
+test('FF3-15 a regex rule gives NO live feedback and is enforced only at submit', async ({
+  page,
+}) => {
+  const title = `${SPEC_TAG} regex sem espelho`
+  seedForm(title, ({ versionId, section, id }) =>
+    [
+      itemInsert({
+        id: id('lote'),
+        section: section(),
+        version: versionId,
+        position: 0,
+        type: 'short_text',
+        key: 'lote',
+        label: 'Código do lote',
+      }),
+      ruleInsert({
+        item: id('lote'),
+        version: versionId,
+        ruleType: 'regex',
+        config: '{"pattern": "^LOTE-[0-9]+$"}',
+        message: 'Use o formato LOTE-123.',
+      }),
+    ].join('\n'),
+  )
+
+  await signInAs(page, STAFF1)
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+
+  await field(page, 'Código do lote').fill('nao-bate')
+
+  // NOTHING live: no message, no `aria-invalid`. The client does not evaluate it.
+  await expect(page.getByText('Use o formato LOTE-123.')).toHaveCount(0)
+  expect(await ariaInvalid(page, 'Código do lote')).toBeNull()
+
+  // And it does not block navigation either — the client has no opinion at all,
+  // which is the whole point: it cannot be wrong and blocking.
+  await advance(page)
+  await expect(page.getByRole('button', { name: /Enviar respostas/i })).toBeVisible({
+    timeout: 20_000,
+  })
+  await expect(page.getByText(REVISE_BANNER)).toHaveCount(0)
+
+  // The SERVER refuses, with the author's own pt-BR message placed on the field.
+  await submitFromReview(page)
+  await expect(page.getByText('Use o formato LOTE-123.').first()).toBeVisible({
+    timeout: 25_000,
+  })
+  expect(responseStatus(responseId)).toBe('in_progress')
+  expect(await ariaInvalid(page, 'Código do lote')).toBe('true')
+
+  // A conforming value submits.
+  await field(page, 'Código do lote').fill('LOTE-42')
+  await advance(page)
+  await submitFromReview(page)
+  await expect(page.getByText(/resposta enviada|enviada com sucesso/i).first()).toBeVisible({
+    timeout: 25_000,
+  })
+  expect(responseStatus(responseId)).toBe('submitted')
+})
+
+// ===========================================================================
+// FF3-16 (QA r1 M-4) — a `required_if` child of a PLAIN group
+//
+// `GroupBlock` never received FF-3's props, so such an item announced itself
+// OPTIONAL while blocking `Próximo` and `HC011` — the worst pairing for a screen
+// reader, since the only signal that the field is mandatory was the refusal.
+//
+// The keying is the point: a plain-group child answers at TOP LEVEL, so its
+// feedback key is the bare item id, NOT the `${instanceId}:${itemId}` shape a
+// repeating-group child uses. A fix that reused the instance key would look right
+// and mark nothing.
+// ===========================================================================
+
+test('FF3-16 a required_if child of a plain group is marked, announced and blocking', async ({
+  page,
+}) => {
+  const title = `${SPEC_TAG} grupo simples required_if`
+  const cond = `{"question_key": "houve", "op": "equals", "value": "sim"}`
+  seedForm(title, ({ versionId, section, id }) =>
+    [
+      itemInsert({
+        id: id('gatilho'),
+        section: section(),
+        version: versionId,
+        position: 0,
+        type: 'multiple_choice',
+        key: 'houve',
+        label: 'Houve desvio?',
+        required: true,
+      }),
+      optionsInsert(id('gatilho'), versionId, [
+        { code: 'sim', label: 'Sim' },
+        { code: 'nao', label: 'Não' },
+      ]),
+      itemInsert({
+        id: id('grupo'),
+        section: section(),
+        version: versionId,
+        position: 1,
+        type: 'group',
+        key: null,
+        label: 'Detalhamento',
+      }),
+      itemInsert({
+        id: id('filho'),
+        section: section(),
+        version: versionId,
+        position: 2,
+        type: 'short_text',
+        key: 'detalhe',
+        label: 'Descrição do desvio',
+        requiredIf: cond,
+        parent: id('grupo'),
+      }),
+    ].join('\n'),
+  )
+
+  await signInAs(page, STAFF1)
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+
+  // --- condition FALSE: optional, unmarked, unannounced ---------------------
+  await page.getByRole('radio', { name: 'Não', exact: true }).check()
+  await expect(field(page, 'Descrição do desvio')).toBeVisible()
+  expect(await ariaInvalid(page, 'Descrição do desvio')).toBeNull()
+  expect(await field(page, 'Descrição do desvio').getAttribute('aria-required')).toBeNull()
+  await expect(requiredMarker(page, 'Descrição do desvio')).toHaveCount(0)
+
+  // --- condition TRUE: marked, announced AND blocking ----------------------
+  await page.getByRole('radio', { name: 'Sim', exact: true }).check()
+  await expect(field(page, 'Descrição do desvio')).toHaveAttribute('aria-required', 'true', {
+    timeout: 10_000,
+  })
+  await expect(requiredMarker(page, 'Descrição do desvio')).toHaveCount(1)
+
+  // The announcement and the block must agree — that they disagreed is the bug.
+  await advance(page)
+  await expect(page.getByText(REVISE_BANNER)).toBeVisible()
+  expect(responseStatus(responseId)).toBe('in_progress')
+
+  await field(page, 'Descrição do desvio').fill('Temperatura fora da faixa')
+  await advance(page)
+  await submitFromReview(page)
+  await expect(page.getByText(/resposta enviada|enviada com sucesso/i).first()).toBeVisible({
+    timeout: 25_000,
+  })
+  expect(responseStatus(responseId)).toBe('submitted')
+})
+
+// ===========================================================================
+// FF3-17 (QA r1 M-1) — an unanswered PER-INSTANCE `required_if` reaching
+// `submit_response`.
+//
+// QA recorded this as unreachable by E2E. It is reachable — not through the
+// wizard's own buttons (the client blocks first, which FF3-5 already proves) but
+// through the CANONICAL SERVER PATH, which is where the authority lives anyway.
+// The draft is built in the real UI, then `submit_response` is called directly,
+// exactly as the section-signoff and matrix specs do for their server arms.
+// ===========================================================================
+
+test('FF3-17 submit_response refuses an unanswered per-instance required_if, and accepts once filled', async ({
+  page,
+}) => {
+  const title = `${SPEC_TAG} required_if por repetição`
+  const cond = `{"question_key": "tipo", "op": "equals", "value": "sim"}`
+  seedForm(title, ({ versionId, section, id }) =>
+    [
+      itemInsert({
+        id: id('grupo'),
+        section: section(),
+        version: versionId,
+        position: 0,
+        type: 'repeating_group',
+        key: null,
+        label: 'Amostras',
+        config: '{"minInstances": 1, "maxInstances": 5}',
+      }),
+      itemInsert({
+        id: id('tipo'),
+        section: section(),
+        version: versionId,
+        position: 1,
+        type: 'multiple_choice',
+        key: 'tipo',
+        label: 'Houve não conformidade?',
+        parent: id('grupo'),
+      }),
+      optionsInsert(id('tipo'), versionId, [
+        { code: 'sim', label: 'Sim' },
+        { code: 'nao', label: 'Não' },
+      ]),
+      itemInsert({
+        id: id('justificativa'),
+        section: section(),
+        version: versionId,
+        position: 2,
+        type: 'short_text',
+        key: 'justificativa',
+        label: 'Justificativa',
+        requiredIf: cond,
+        parent: id('grupo'),
+      }),
+    ].join('\n'),
+  )
+
+  await signInAs(page, STAFF1)
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+  const token = await getToken(page, STAFF1)
+
+  const add = page.getByRole('button', { name: 'Adicionar repetição' })
+  await add.click()
+  const rep1 = page.locator('li').filter({ hasText: /Amostras 1 de/ }).first()
+  await expect(rep1).toBeVisible({ timeout: 15_000 })
+
+  // Answer the trigger INSIDE the repetition; leave the conditional child blank.
+  await rep1.getByRole('radio', { name: 'Sim', exact: true }).check()
+
+  // The per-instance announcement fires too (the FF-1 instance key path).
+  await expect(field(rep1, 'Justificativa')).toHaveAttribute('aria-required', 'true', {
+    timeout: 10_000,
+  })
+
+  // PERSIST the incomplete state. This has to go through "Salvar e sair", NOT
+  // `Revisar`: `handleNext` returns before `persistSection` whenever the client
+  // has an error, so navigating would save nothing and leave the instance EMPTY.
+  //
+  // That distinction is the whole test. On the first draft of this spec the
+  // instance was never persisted, `submit_response` refused with **HC0N5** —
+  // FF-1's `minInstances` bound, "o bloco Amostras exige ao menos 1 item(ns)
+  // preenchido(s)" — and the test passed while never once exercising M-1's arm.
+  // A refusal is not evidence until you read WHICH refusal.
+  await page.getByRole('button', { name: 'Salvar e sair' }).click()
+  await page.waitForURL(/\/forms(\?|$)/, { timeout: 25_000 })
+
+  // The instance is now NON-EMPTY in the database, which is what removes the
+  // `minInstances` arm from the picture entirely.
+  expect(
+    sqlOne(
+      `select count(*) from public.answers a` +
+        ` where a.response_id = '${responseId}' and a.group_instance_id is not null;`,
+    ),
+    'the repetition did not persist — the gate below would refuse on minInstances instead',
+  ).toBe('1')
+
+  // Now the gate itself, called directly. THIS is M-1's arm.
+  const refused = await rpcAs<{ code?: string; message?: string }>(
+    page,
+    token,
+    'submit_response',
+    { p_response_id: responseId },
+  )
+  expect(
+    refused.ok,
+    'submit_response ACCEPTED a response whose per-instance required_if is unanswered',
+  ).toBeFalsy()
+  // Pinned NEGATIVELY as well: whatever the completeness arm raises, it must not
+  // be the cardinality bound this test was accidentally measuring before.
+  expect(
+    refused.json?.code,
+    `refused with the WRONG rule (${refused.text}) — HC0N5 is minInstances, not required_if`,
+  ).not.toBe('HC0N5')
+  expect(responseStatus(responseId)).toBe('in_progress')
+
+  // Fill it and the same call succeeds — the positive twin, so the refusal above
+  // cannot be passing for an unrelated reason.
+  await enterWizard(page, title)
+  const rep1again = page.locator('li').filter({ hasText: /Amostras 1 de/ }).first()
+  await expect(rep1again).toBeVisible({ timeout: 15_000 })
+  await field(rep1again, 'Justificativa').fill('Amostra reprocessada')
+  await advance(page)
+  await submitFromReview(page)
+  await expect(page.getByText(/resposta enviada|enviada com sucesso/i).first()).toBeVisible({
+    timeout: 25_000,
+  })
+  expect(responseStatus(responseId)).toBe('submitted')
+})
+
+// ===========================================================================
+// FF3-18 (QA r1 M-2) — the read path's authorization boundary.
+//
+// Also recorded as unreachable by E2E; also reachable, because
+// `get_response_validation_errors` is a PostgREST RPC an outsider can simply
+// call. This is the standard foreign-tenant probe the brief asks for, pointed at
+// FF-3's new read path: a rede-B member must learn NOTHING about a rede-A
+// response — not the messages, not the item ids, not even the row count.
+// ===========================================================================
+
+test('FF3-18 an outsider gets no validation errors for a foreign response, and no leakage', async ({
+  page,
+}) => {
+  const title = `${SPEC_TAG} porta de leitura`
+  const f = seedForm(title, ({ versionId, section, id }) =>
+    [
+      itemInsert({
+        id: id('n'),
+        section: section(),
+        version: versionId,
+        position: 0,
+        type: 'number',
+        key: 'n',
+        label: 'Valor auditado',
+      }),
+      ruleInsert({
+        item: id('n'),
+        version: versionId,
+        ruleType: 'number_range',
+        config: '{"min": 1, "max": 9}',
+        message: 'Segredo da rede A: informe de 1 a 9.',
+      }),
+    ].join('\n'),
+  )
+
+  await signInAs(page, STAFF1)
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+  const ownerToken = await getToken(page, STAFF1)
+
+  // A real violation exists, so "no rows" for the outsider cannot be vacuous.
+  const saved = await rpcAs(page, ownerToken, 'save_section_answers', {
+    p_response_id: responseId,
+    p_section_id: f.sectionIds[0],
+    p_answers: { [f.items['n']]: 500 },
+  })
+  expect(saved.ok, saved.text).toBeTruthy()
+
+  const mine = await rpcAs<{ item_id: string; message: string }[]>(
+    page,
+    ownerToken,
+    'get_response_validation_errors',
+    { p_response_id: responseId },
+  )
+  expect(mine.ok, mine.text).toBeTruthy()
+  expect(
+    (mine.json ?? []).length,
+    'the OWNER must see the violation — otherwise the outsider check below proves nothing',
+  ).toBeGreaterThan(0)
+
+  // The outsider: a member of a different ORGANISATION entirely.
+  const outsiderToken = await getToken(page, STAFF_B)
+  // PROVE THE TOKEN IS LIVE first. Without this the boundary assertion below is
+  // vacuous by construction — a dead or malformed token yields the same "no rows"
+  // as a working authorization gate, and the test would pass with the gate
+  // removed entirely.
+  const outsiderSelf = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1`,
+    {
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${outsiderToken}` },
+    },
+  )
+  expect(
+    outsiderSelf.ok(),
+    `the outsider token is not usable at all (${await outsiderSelf.text()}) — the ` +
+      'boundary check below would prove nothing',
+  ).toBeTruthy()
+  expect((await outsiderSelf.json()).length, 'the outsider reads nothing at all').toBeGreaterThan(0)
+  const theirs = await rpcAs<unknown[]>(page, outsiderToken, 'get_response_validation_errors', {
+    p_response_id: responseId,
+  })
+  // Either a refusal or an empty set is acceptable; leaking a row is not.
+  if (theirs.ok) {
+    expect(
+      theirs.json ?? [],
+      'an outsider received validation rows for a foreign response',
+    ).toEqual([])
+  } else {
+    expect([401, 403, 404]).toContain(theirs.status)
+  }
+  // And the author's message must not appear ANYWHERE in the response body —
+  // not in a row, not in an error string.
+  expect(
+    theirs.text.includes('Segredo da rede A'),
+    'the author-supplied message leaked to an outsider',
+  ).toBe(false)
+})
+
+// ===========================================================================
+// FF3-19 (QA r1 B-1) — the flag is flipped by a MIGRATION, not only by seed.sql
+//
+// `supabase db push` carries migrations, not the seed, and `db reset` will not be
+// run against the data-bearing pilot database. With the flip living only in
+// `seed.sql`, local dev and this entire suite would be green *because the seed
+// turns it on* while the deployed pilot ran with the phase dark.
+// ===========================================================================
+
+test('FF3-19 item_validations is enabled by its own migration, not by the seed alone', async ({
+  page,
+}) => {
+  expect(
+    sqlOne(
+      `select count(*) from supabase_migrations.schema_migrations where version = '20260901000800';`,
+    ),
+    'the enable migration is not registered — db push would leave the phase dark',
+  ).toBe('1')
+  expect(sqlOne(`select enabled::text from app.feature_flags where key = 'item_validations';`)).toBe(
+    'true',
+  )
+
+  // And the user-visible consequence: the rules editor is offered at all. The
+  // builder is flag-gated fail-closed, so this is the same claim from the UI side.
+  await signInAs(page, CHEFE)
+  const title = `${SPEC_TAG} flag por migracao`
+  await createForm(page, title)
+  await addQuestion(await openAddBlock(page, /^Número/), 'Campo com flag')
+  await expect(
+    blockCard(page, 'Campo com flag').getByRole('button', {
+      name: 'Adicionar regras de validação',
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 15_000 })
+})
+
+// ===========================================================================
+// FF3-20 — the builder's regex pre-flight is ADVISORY, never blocking
+//
+// `'literal' ~ '***=literal'` is TRUE in Postgres while `new RegExp` throws, so a
+// JS-compilability gate refused a CORRECT rule. The note stays as a hint; the
+// server keeps the real veto (`HC0Q2`).
+// ===========================================================================
+
+test('FF3-20 a pattern JS cannot compile is advised against but still saves', async ({ page }) => {
+  await signInAs(page, CHEFE)
+  const title = `${SPEC_TAG} regex advisory`
+  const formId = await createForm(page, title)
+  await addQuestion(await openAddBlock(page, /^Resposta curta/), 'Campo com padrão')
+
+  const dialog = await openValidationsDialog(page, 'Campo com padrão', 0)
+  await dialog.getByRole('button', { name: 'Adicionar regra' }).click()
+  await fillRule(ruleRow(dialog, 1), {
+    ruleType: 'regex',
+    // Valid POSIX ARE, uncompilable by `new RegExp`.
+    pattern: '***=literal',
+    message: 'Precisa conter o literal.',
+  })
+
+  // Advisory: a polite live region, NOT the blocking error banner.
+  await expect(
+    dialog.locator('[role="status"]').filter({ hasText: /não foi reconhecido aqui/i }),
+  ).toHaveCount(1, { timeout: 10_000 })
+
+  // …and the save goes through anyway.
+  await saveRules(dialog)
+  const itemId = sqlOne(
+    `select i.id from public.form_items i join public.form_versions v on v.id = i.form_version_id` +
+      ` where v.form_id = '${formId}' and i.question_key is not null;`,
+  )
+  expect(
+    sqlRows(
+      `select rule_type, config::text from public.form_item_validations where item_id = '${itemId}';`,
+    ),
+  ).toEqual([['regex', '{"pattern": "***=literal"}']])
+
+  // The block card reflects the stored rule, so the save was real.
+  await expect(
+    blockCard(page, 'Campo com padrão').getByRole('button', {
+      name: 'Editar regras de validação (1 regra)',
+      exact: true,
+    }),
+  ).toBeVisible()
 })
 
 // ===========================================================================
