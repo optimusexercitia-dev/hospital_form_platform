@@ -50,6 +50,7 @@ export function ValidationRulesEditor({
   itemType,
   parentItemType,
   datetimeTargets,
+  problem,
   disabled = false,
 }: {
   drafts: RuleDraft[];
@@ -58,6 +59,12 @@ export function ValidationRulesEditor({
   parentItemType: string | null;
   /** Date/time questions in scope for a `datetime_order` comparison. */
   datetimeTargets: { questionKey: string; label: string }[];
+  /**
+   * m-5b — the failed pre-flight, if any. Rendered INSIDE the offending rule's
+   * card as well as in the dialog banner, so the message is where the rule is
+   * rather than something to go looking for.
+   */
+  problem?: { index: number; message: string } | null;
   disabled?: boolean;
 }) {
   const groupId = useId();
@@ -102,7 +109,12 @@ export function ValidationRulesEditor({
             return (
               <li
                 key={draft.key}
-                className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4"
+                aria-invalid={problem?.index === index ? true : undefined}
+                className={
+                  problem?.index === index
+                    ? "flex flex-col gap-3 rounded-xl border border-destructive/50 bg-card p-4"
+                    : "flex flex-col gap-3 rounded-xl border border-border bg-card p-4"
+                }
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-[0.7rem] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -142,6 +154,15 @@ export function ValidationRulesEditor({
                     </Button>
                   </div>
                 </div>
+
+                {problem?.index === index ? (
+                  <p
+                    role="alert"
+                    className="text-sm font-medium text-destructive text-pretty"
+                  >
+                    {problem.message}
+                  </p>
+                ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-1.5 text-sm">
@@ -303,7 +324,17 @@ function RuleConfigFields({
     case "regex":
       return (
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">Padrão</legend>
+          <legend className="sr-only">Padrão</legend>
+          {/* m-5a — an explicit `<label>`, matching every other field in this
+              editor. A `<legend>` names the FIELDSET, not the input inside it, so
+              the control was reaching assistive tech unnamed while its sighted
+              label looked present. */}
+          <label
+            htmlFor={`${rowId}-pattern`}
+            className="mb-1 text-sm font-medium"
+          >
+            Padrão
+          </label>
           <Input
             id={`${rowId}-pattern`}
             type="text"

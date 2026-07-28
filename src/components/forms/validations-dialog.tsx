@@ -11,6 +11,7 @@ import {
   toRulePayload,
   validateRuleDrafts,
   type RuleDraft,
+  type RuleDraftProblem,
 } from "@/components/forms/validation-drafts";
 import { ValidationRulesEditor } from "@/components/forms/validation-rules-editor";
 import { useBuilderAction } from "@/components/forms/use-builder-action";
@@ -62,7 +63,10 @@ export function ValidationsDialog({
   const [drafts, setDrafts] = useState<RuleDraft[]>(() =>
     toRuleDrafts(item.validations),
   );
-  const [validation, setValidation] = useState<string | null>(null);
+  // m-5b — the PROBLEM, not just its sentence: the index is what lets the editor
+  // put the message inside the offending rule's card instead of leaving a screen-
+  // reader user to hunt for "Regra 2".
+  const [validation, setValidation] = useState<RuleDraftProblem | null>(null);
 
   const datetimeTargets = useMemo(
     () => datetimeOrderTargets(sections, item.id),
@@ -105,7 +109,9 @@ export function ValidationsDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
           {actionError ? <FormBanner tone="error">{actionError}</FormBanner> : null}
-          {validation ? <FormBanner tone="error">{validation}</FormBanner> : null}
+          {validation ? (
+            <FormBanner tone="error">{validation.message}</FormBanner>
+          ) : null}
 
           <ValidationRulesEditor
             drafts={drafts}
@@ -113,6 +119,7 @@ export function ValidationsDialog({
             itemType={item.itemType}
             parentItemType={parentItemType}
             datetimeTargets={datetimeTargets}
+            problem={validation}
             disabled={isPending}
           />
 

@@ -24,6 +24,7 @@ import { InputItem } from "./input-item";
 import { MatrixGrid } from "./matrix-grid";
 import { RiskMatrixPicker } from "./risk-matrix-picker";
 import { AnswerSummary } from "./answer-summary";
+import { GroupBlock } from "./group-block";
 
 function baseItem(over: Partial<Item> = {}): Item {
   return {
@@ -272,5 +273,82 @@ describe("InputItem — aria-invalid follows the error prop (BUG-FF3-001)", () =
     render(<InputItem item={baseItem()} {...props} warning="Confira o valor." />);
     expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("status")).toHaveTextContent("Confira o valor.");
+  });
+});
+
+/**
+ * M-4 — the CONTAINMENT axis.
+ *
+ * The item-type enumeration was complete (all ten types, three render paths,
+ * verified programmatically) and still missed this, because "which item types can
+ * be required?" and "which containers relay required-ness?" are different
+ * questions and only the first was asked. A plain `group`'s children render
+ * through `GroupBlock`, which received neither new prop.
+ *
+ * Keying matters here and is easy to get right for the wrong reason: a plain
+ * group's children answer at TOP LEVEL (ADR 0087 ruling 6), so both maps are
+ * looked up by BARE item id — the same keys `validateSectionRules` writes when it
+ * flattens `group` children into the flat pass. An instance-shaped key would look
+ * correct in a one-group form and drift as soon as anything nests differently, so
+ * the bare-key lookup is asserted explicitly below.
+ */
+describe("GroupBlock — relays FF-3 props to plain-group children (M-4)", () => {
+  const child = baseItem({ id: "c1", questionKey: "qc", label: "Motivo" });
+  const group = {
+    ...baseItem({ id: "g1", label: "Dados da internação" }),
+    itemType: "group",
+    questionKey: null,
+    children: [child],
+  } as unknown as Item;
+
+  const common = {
+    item: group,
+    imageUrls: {},
+    answers: {},
+    errors: {},
+    handlers: new Map(),
+  };
+
+  it("marks a child made required only by required_if", () => {
+    render(<GroupBlock {...common} requiredNow={new Set(["c1"])} />);
+    expect(markers()).toHaveLength(1);
+  });
+
+  it("sets aria-required on that child's control", () => {
+    render(<GroupBlock {...common} requiredNow={new Set(["c1"])} />);
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-required", "true");
+  });
+
+  it("leaves the child unmarked when it is not effectively required", () => {
+    render(<GroupBlock {...common} requiredNow={new Set()} />);
+    expect(markers()).toHaveLength(0);
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-required");
+  });
+
+  it("renders a failing `warn` rule INLINE, not only on the review screen", () => {
+    render(<GroupBlock {...common} warnings={{ c1: "Confira o motivo." }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Confira o motivo.");
+  });
+
+  it("does not announce the warning as invalid (the same channel argument)", () => {
+    render(<GroupBlock {...common} warnings={{ c1: "Confira o motivo." }} />);
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
+  });
+
+  /**
+   * The keying assertion: an INSTANCE-shaped key must NOT match a plain-group
+   * child. This is what fails if someone "fixes" the lookup by copying the
+   * repeating-group form.
+   */
+  it("looks the child up by BARE id, not by an instance-shaped key", () => {
+    render(
+      <GroupBlock
+        {...common}
+        requiredNow={new Set(["inst-1:c1"])}
+        warnings={{ "inst-1:c1": "Não deve aparecer." }}
+      />,
+    );
+    expect(markers()).toHaveLength(0);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });

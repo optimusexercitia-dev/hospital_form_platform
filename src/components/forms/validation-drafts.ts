@@ -197,12 +197,28 @@ export function toRulePayload(drafts: RuleDraft[]): ValidationRuleInput[] {
  * saveable. Mirrors the server's per-rule config validator + the non-blank
  * `message` CHECK; the server remains the authority.
  */
-export function validateRuleDrafts(drafts: RuleDraft[]): string | null {
+export function validateRuleDrafts(
+  drafts: RuleDraft[],
+): RuleDraftProblem | null {
   for (const [index, draft] of drafts.entries()) {
-    const problem = validateRuleDraft(draft, index + 1);
-    if (problem) return problem;
+    const message = validateRuleDraft(draft, index + 1);
+    if (message) return { index, message };
   }
   return null;
+}
+
+/**
+ * The first problem found, with the 0-based index of the rule that caused it.
+ *
+ * m-5b — the index is the point: a banner that says "A regra 2 precisa de…" and
+ * nothing else makes a screen-reader user hunt for rule 2. Carrying the index
+ * lets the editor put the message INSIDE that rule's card, where anyone
+ * navigating the list meets it in place.
+ */
+export interface RuleDraftProblem {
+  /** 0-based position in the draft list. The message says the 1-based one. */
+  index: number;
+  message: string;
 }
 
 /**

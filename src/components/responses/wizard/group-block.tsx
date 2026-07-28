@@ -30,6 +30,8 @@ export function GroupBlock({
   matrixCells,
   riskMatrix,
   errors,
+  warnings,
+  requiredNow,
   visibleItemIds,
   handlers,
 }: {
@@ -41,6 +43,19 @@ export function GroupBlock({
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
   errors: Record<string, string>;
+  /**
+   * FF-3 — failing `warn` rules and the effective-required set, both keyed by
+   * BARE item id.
+   *
+   * A plain group's children answer at TOP LEVEL (ADR 0087 ruling 6), which is
+   * why these are the section's top-level maps and not instance-scoped ones:
+   * `validateSectionRules` flattens `group` children into the SAME flat pass and
+   * keys them by `item.id`, and `app.response_required_complete` treats them as
+   * top-level too. Keying them like repeating-group children would look right in
+   * a one-group form and drift the moment anything nests differently.
+   */
+  warnings?: Record<string, string>;
+  requiredNow?: Set<string>;
   /** Top-level visible item ids — a plain group's children are in this set. */
   visibleItemIds?: Set<string>;
   handlers: ItemHandlerMap;
@@ -93,6 +108,8 @@ export function GroupBlock({
                 imageUrls={imageUrls}
                 value={scalar ? answers[child.id]?.value : undefined}
                 error={answerable ? errors[child.id] : undefined}
+                warning={answerable ? warnings?.[child.id] : undefined}
+                requiredNow={requiredNow?.has(child.id)}
                 onChange={childHandlers?.onChange ?? NO_OP}
                 observation={
                   scalar ? answers[child.id]?.observation : undefined

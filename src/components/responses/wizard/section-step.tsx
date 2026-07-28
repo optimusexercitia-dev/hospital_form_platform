@@ -251,6 +251,8 @@ export function SectionStep({
                     matrixCells={matrixCells}
                     riskMatrix={riskMatrix}
                     errors={errors}
+                    warnings={warnings}
+                    requiredNow={requiredNow}
                     visibleItemIds={visibleItemIds}
                     handlers={itemHandlers}
                   />

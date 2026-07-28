@@ -25,6 +25,14 @@ import {
  * database would refuse with a CHECK the author cannot read).
  */
 
+/** The pre-flight's message, or undefined when the list is clean. m-5b turned the
+ *  return into `{ index, message }`; the assertions below care about the text. */
+function problemText(
+  drafts: RuleDraft[],
+): string | undefined {
+  return validateRuleDrafts(drafts)?.message;
+}
+
 function draft(over: Partial<RuleDraft> = {}): RuleDraft {
   return {
     key: "k1",
@@ -269,22 +277,23 @@ describe("validateRuleDrafts — the pre-flight", () => {
   });
 
   it("requires a message — the database CHECK the author cannot read", () => {
-    const problem = validateRuleDrafts([draft({ min: "1", message: "   " })]);
-    expect(problem).toMatch(/mensagem/i);
+    expect(problemText([draft({ min: "1", message: "   " })])).toMatch(
+      /mensagem/i,
+    );
   });
 
   it("requires at least one bound on the bounded types", () => {
     for (const t of ["number_range", "text_length", "date_range"] as const) {
-      expect(validateRuleDrafts([draft({ ruleType: t })])).toMatch(/limite/i);
+      expect(problemText([draft({ ruleType: t })])).toMatch(/limite/i);
     }
   });
 
   it("rejects min > max", () => {
     expect(
-      validateRuleDrafts([draft({ ruleType: "number_range", min: "10", max: "2" })]),
+      problemText([draft({ ruleType: "number_range", min: "10", max: "2" })]),
     ).toMatch(/maior que o máximo/i);
     expect(
-      validateRuleDrafts([
+      problemText([
         draft({ ruleType: "date_range", min: "2026-12-31", max: "2026-01-01" }),
       ]),
     ).toMatch(/posterior ao final/i);
@@ -292,25 +301,25 @@ describe("validateRuleDrafts — the pre-flight", () => {
 
   it("rejects a negative character count", () => {
     expect(
-      validateRuleDrafts([draft({ ruleType: "text_length", min: "-1" })]),
+      problemText([draft({ ruleType: "text_length", min: "-1" })]),
     ).toMatch(/negativo/i);
   });
 
   it("rejects an empty, over-long, or uncompilable regex", () => {
-    expect(validateRuleDrafts([draft({ ruleType: "regex" })])).toMatch(/padrão/i);
+    expect(problemText([draft({ ruleType: "regex" })])).toMatch(/padrão/i);
     expect(
-      validateRuleDrafts([
+      problemText([
         draft({ ruleType: "regex", pattern: "a".repeat(201) }),
       ]),
     ).toMatch(/200/);
     expect(
-      validateRuleDrafts([draft({ ruleType: "regex", pattern: "([unclosed" })]),
+      problemText([draft({ ruleType: "regex", pattern: "([unclosed" })]),
     ).toMatch(/express/i);
   });
 
   it("requires the compared question on datetime_order", () => {
     expect(
-      validateRuleDrafts([draft({ ruleType: "datetime_order", questionKey: "" })]),
+      problemText([draft({ ruleType: "datetime_order", questionKey: "" })]),
     ).toMatch(/pergunta/i);
   });
 
@@ -331,13 +340,16 @@ describe("validateRuleDrafts — the pre-flight", () => {
       draft({ key: "bad", ruleType: "regex", pattern: "" }),
     ]);
     expect(problem).not.toBeNull();
-    // ...and it names the offending rule by its 1-based position.
-    expect(problem).toMatch(/regra 3/i);
+    // ...and it names the offending rule by its 1-based position...
+    expect(problem?.message).toMatch(/regra 3/i);
+    // ...while carrying the 0-based INDEX, which is what lets the editor render
+    // the message inside that rule's card rather than only in a banner (m-5b).
+    expect(problem?.index).toBe(2);
   });
 
   it("names the offending rule by its 1-based position", () => {
     expect(
-      validateRuleDrafts([
+      problemText([
         draft({ key: "a", min: "1" }),
         draft({ key: "b", message: "" }),
       ]),
