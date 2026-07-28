@@ -300,3 +300,16 @@ test space (risk 2). Logged as **O-4**.
   intact, while a reader of `frontend`'s note would reasonably believe O-6 was discharged. Either
   duplication may be collapsed independently; **O-6 is not closed until both are, or until a
   drift-detector covers each pair.**
+
+  **A live cost of the TS half, accepted deliberately (BUG-FF3-001's fix, 2026-07-28).**
+  `unique_within_group` is the only rule whose violation is **symmetric** — two peers collide and a
+  blocked navigation marks both — so clearing had to be keyed to the rule's **participant set**
+  rather than to the edited field, or the untouched peer kept `aria-invalid="true"` for a field no
+  longer in violation. Clearing that set also drops a peer's sticky message for a *different* rule.
+  For every **live-evaluated** rule this is invisible: the live pass merges *under* the sticky map,
+  so anything still true re-renders on the same frame. The exception is plain `required`, owned by
+  the **non-live** `validateInstances` — its message does not return until the next *Próximo*.
+  Accepted because it fails toward showing **nothing** on a visibly empty field rather than toward
+  calling a valid field invalid, and `handleNext` re-blocks regardless. **The precise fix is making
+  plain `required` live**, which is this entry's territory: live-vs-non-live is the same split as
+  walk-vs-walk.
