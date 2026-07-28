@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState } from "react";
-import { Eraser, MessageSquarePlus } from "lucide-react";
+import { Eraser, MessageSquarePlus, TriangleAlert } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
 import type { Item, ItemOption } from "@/lib/queries/forms";
@@ -56,6 +56,7 @@ export const InputItem = memo(function InputItem({
   value,
   onChange,
   error,
+  warning,
   observation,
   onObservationChange,
   otherText,
@@ -67,6 +68,14 @@ export const InputItem = memo(function InputItem({
   value: Json | undefined;
   onChange: (value: Json) => void;
   error?: string;
+  /**
+   * FF-3 (ADR 0090 ruling 3) — a failing `warn` validation rule. NEVER blocks:
+   * it is advisory, so it renders as a polite live region beside the control
+   * rather than through the `error` channel (which drives `aria-invalid` and
+   * gates progression). Marking an input invalid for a non-blocking rule would
+   * tell assistive tech the answer is unacceptable when it is in fact accepted.
+   */
+  warning?: string;
   /** Current observation note (form-builder-enhancements). */
   observation?: string;
   /** Persist an observation note; absent for read-only contexts. */
@@ -158,6 +167,16 @@ export const InputItem = memo(function InputItem({
         </div>
       )}
       {control}
+      {warning && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3 py-2 text-sm text-warning"
+        >
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          {/* The author's own text, rendered as TEXT — never markup (Rule 7). */}
+          <span className="text-pretty">{warning}</span>
+        </p>
+      )}
       {observationEnabled && (
         <ObservationField
           fieldScope={fieldScope}

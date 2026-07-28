@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, TriangleAlert } from "lucide-react";
 
 import type { Item, Section } from "@/lib/queries/forms";
 import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
@@ -42,6 +42,7 @@ export function ReviewScreen({
   saving,
   onSignSection,
   onEditSection,
+  warnings,
   phaseResultSlot,
   submitSlot,
 }: {
@@ -66,6 +67,12 @@ export function ReviewScreen({
   /** Record a respondent sign-off for a section (F3). */
   onSignSection: (sectionId: string, note: string | null) => void;
   onEditSection: (sectionId: string) => void;
+  /**
+   * FF-3 (ADR 0090 ruling 3 / O-1) — failing `warn` rules across the whole
+   * response. Advisory only: v1 needs no acknowledgement, so these are surfaced
+   * as a badge list and the submit button stays enabled.
+   */
+  warnings?: { label: string; message: string }[];
   /**
    * The per-phase result panel (phase-results feature; task #8), a sibling of the
    * sign-off blocks — case-phase fills only; `null`/undefined for standalone forms.
@@ -107,6 +114,39 @@ export function ReviewScreen({
           />
         ))}
       </div>
+
+      {warnings && warnings.length > 0 ? (
+        <section
+          aria-labelledby="review-warnings-heading"
+          className="flex flex-col gap-3 rounded-2xl border border-warning/30 bg-warning/12 p-5"
+        >
+          <h2
+            id="review-warnings-heading"
+            className="flex items-center gap-2 text-base font-semibold text-warning"
+          >
+            <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
+            {warnings.length === 1
+              ? "1 alerta a revisar"
+              : `${warnings.length} alertas a revisar`}
+          </h2>
+          <p className="text-sm text-warning/90 text-pretty">
+            Alertas não impedem o envio. Revise se fazem sentido antes de enviar.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {warnings.map((warning, i) => (
+              <li
+                key={i}
+                className="rounded-lg bg-card/60 px-3 py-2 text-sm text-foreground"
+              >
+                <span className="font-medium">{warning.label}</span>
+                {": "}
+                {/* The author's own rule text — TEXT, never markup (Rule 7). */}
+                <span className="text-muted-foreground">{warning.message}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {phaseResultSlot}
 

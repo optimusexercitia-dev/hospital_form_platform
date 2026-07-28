@@ -46,6 +46,7 @@ export function RepeatingGroupBlock({
   instances,
   imageUrls,
   errors,
+  warnings,
   visibleItemIdsByInstance,
   saving,
   onAddInstance,
@@ -65,6 +66,8 @@ export function RepeatingGroupBlock({
   imageUrls: Record<string, string>;
   /** Validation errors keyed by `${instanceId}:${itemId}`. */
   errors: Record<string, string>;
+  /** FF-3 — failing `warn` rules, keyed the same way. Advisory; never blocks. */
+  warnings?: Record<string, string>;
   visibleItemIdsByInstance: Map<string, Set<string>>;
   /** True while any instance action is in flight — disables the controls. */
   saving: boolean;
@@ -153,6 +156,7 @@ export function RepeatingGroupBlock({
                 total={instances.length}
                 imageUrls={imageUrls}
                 errors={errors}
+                warnings={warnings}
                 visibleItemIds={
                   visibleItemIdsByInstance.get(instance.id) ?? EMPTY_SET
                 }
@@ -216,6 +220,7 @@ function InstanceCard({
   total,
   imageUrls,
   errors,
+  warnings,
   visibleItemIds,
   saving,
   onRemove,
@@ -235,6 +240,8 @@ function InstanceCard({
   total: number;
   imageUrls: Record<string, string>;
   errors: Record<string, string>;
+  /** FF-3 — failing `warn` rules for this instance's fields. */
+  warnings?: Record<string, string>;
   visibleItemIds: Set<string>;
   saving: boolean;
   onRemove: () => void;
@@ -385,6 +392,11 @@ function InstanceCard({
                 error={
                   answerable
                     ? errors[`${instance.id}:${child.id}`]
+                    : undefined
+                }
+                warning={
+                  answerable
+                    ? warnings?.[`${instance.id}:${child.id}`]
                     : undefined
                 }
                 onChange={childHandlers?.onChange ?? NO_OP}

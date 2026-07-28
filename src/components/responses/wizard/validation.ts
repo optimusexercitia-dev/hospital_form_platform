@@ -1,9 +1,18 @@
 import type { Item, Section } from "@/lib/queries/forms";
 import { isMatrixComplete, isRiskComplete } from "@/lib/forms/matrix";
+import type { AnswerMap } from "@/lib/queries/conditions";
+import { overlayAnswerMap } from "@/lib/queries/conditions";
+import {
+  evalValidation,
+  itemIsRequired,
+  type ValidationRuleSpec,
+} from "@/lib/forms/validation-rules";
+import type { Json } from "@/lib/types/database";
 
 import type { ScopeState } from "./collect";
 import {
   describeInstanceShortfall,
+  instanceAnswerMap,
   isEmptyInstance,
   type InstanceState,
 } from "./instances";
@@ -179,6 +188,191 @@ export function isSectionComplete(
   return (
     Object.keys(validateSection(section, scope, visibleItemIds)).length === 0
   );
+}
+
+// ---------------------------------------------------------------------------
+// FF-3 (ADR 0090) — authored validation rules + `required_if`
+// ---------------------------------------------------------------------------
+
+/**
+ * FF-3 feedback for one scope, split by SEVERITY.
+ *
+ * `errors` block progression and submit; `warnings` never block, anywhere. Both
+ * are keyed the way the wizard already keys its error maps — bare `itemId` at top
+ * level, `${instanceId}:${itemId}` inside a repeating group — so they drop
+ * straight into the existing per-field plumbing.
+ */
+export interface RuleFeedback {
+  errors: Record<string, string>;
+  warnings: Record<string, string>;
+}
+
+/** The shared no-feedback value — a stable reference, so a memo that falls back
+ *  to it does not invalidate its consumers on every render. */
+export const EMPTY_FEEDBACK: RuleFeedback = { errors: {}, warnings: {} };
+
+/**
+ * Why this is a SEPARATE pass rather than more arms inside
+ * {@link validateSection} / {@link validateInstances}:
+ *
+ *  - it needs the ANSWER MAP in scope (`question_key → value`), which the older
+ *    validators never took — `required_if` and `datetime_order` are both
+ *    expressed against question keys, not item ids;
+ *  - it produces two severities, where the originals produce one string per field.
+ *
+ * Adding an optional map parameter to the originals was the alternative and it
+ * fails OPEN: a caller that forgot to pass it would silently stop enforcing
+ * `required_if` while still looking like it validated. Two explicit passes that
+ * the caller merges cannot do that.
+ *
+ * This is UX. `submit_response` (HC0P9) is the authority, and it evaluates the
+ * SAME rules through `app.eval_validation`, the SQL twin of `evalValidation`.
+ */
+export function validateSectionRules(
+  section: Section,
+  scope: ScopeState,
+  answerMap: AnswerMap,
+  visibleItemIds?: Set<string>,
+): RuleFeedback {
+  const feedback: RuleFeedback = { errors: {}, warnings: {} };
+
+  // Same flattening as validateSection: a plain `group`'s children answer at top
+  // level, so they validate here; a `repeating_group`'s children are per-instance.
+  const flat = section.items.flatMap((item) =>
+    item.itemType === "group" ? item.children : [item],
+  );
+
+  for (const item of flat) {
+    // Visibility wins, unconditionally — a hidden item is never required and its
+    // rules never fire (ADR 0090 ruling 4). The caller owns this filter on both
+    // sides of the mirror, which is what keeps "visibility wins" structural.
+    if (visibleItemIds && !visibleItemIds.has(item.id)) continue;
+    if (!isInputItem(item.itemType)) continue;
+
+    applyToField(feedback, item, item.id, answerMap, hasAnswer(scope.answers[item.id]));
+  }
+
+  return feedback;
+}
+
+/**
+ * The per-INSTANCE half. Rules are evaluated once per NON-EMPTY instance against
+ * that instance's overlaid map, so a violation in repetition 2 is reported on
+ * repetition 2 and leaves repetition 1 alone.
+ *
+ * `baseAnswerMap` is the response's top-level map; each instance's own answers
+ * are overlaid on it (FF-1's two-tier resolution, instance wins), which is what
+ * makes a `datetime_order` rule compare against the SAME-instance sibling with
+ * no instance-specific code in the evaluator.
+ */
+export function validateInstanceRules(
+  section: Section,
+  instancesByGroup: Record<string, InstanceState[]>,
+  baseAnswerMap: AnswerMap,
+  visibleItemIdsByInstance: Map<string, Set<string>>,
+  visibleContainerIds?: Set<string>,
+): RuleFeedback {
+  const feedback: RuleFeedback = { errors: {}, warnings: {} };
+
+  for (const container of section.items) {
+    if (container.itemType !== "repeating_group") continue;
+    if (visibleContainerIds && !visibleContainerIds.has(container.id)) continue;
+
+    const instances = instancesByGroup[container.id] ?? [];
+    // Prune FIRST, exactly as the server does: a wholly blank repetition is not
+    // there, so it reports nothing AND contributes no `unique_within_group` peer.
+    const surviving = instances.filter((i) => !isEmptyInstance(i));
+
+    for (const instance of surviving) {
+      const scopeMap = overlayAnswerMap(
+        baseAnswerMap,
+        instanceAnswerMap(instance),
+      );
+      const visible = visibleItemIdsByInstance.get(instance.id);
+
+      for (const child of container.children) {
+        if (visible && !visible.has(child.id)) continue;
+        if (!isInputItem(child.itemType)) continue;
+
+        applyToField(
+          feedback,
+          child,
+          `${instance.id}:${child.id}`,
+          scopeMap,
+          hasAnswer(instance.answers[child.id]),
+          peerValuesFor(child, instance, surviving),
+        );
+      }
+    }
+  }
+
+  return feedback;
+}
+
+/**
+ * The same child's value in every OTHER surviving instance — the only input
+ * `unique_within_group` needs, which is what lets the evaluator stay pure.
+ *
+ * Read from each peer's own instance map rather than the overlay: a peer that
+ * left this child blank must contribute NOTHING, not the top-level fallback,
+ * or two blank rows would collide against an unrelated top-level answer.
+ */
+function peerValuesFor(
+  child: Item,
+  instance: InstanceState,
+  surviving: InstanceState[],
+): Json[] {
+  if (!child.questionKey) return [];
+  const key = child.questionKey;
+  return surviving
+    .filter((other) => other.id !== instance.id)
+    .map((other) => instanceAnswerMap(other)[key])
+    .filter((value): value is Json => value !== undefined);
+}
+
+/**
+ * Evaluate `required_if` and the authored rules for one field, writing into
+ * `feedback` under `key`.
+ *
+ * Only the FIRST failing rule of each severity is recorded: a field shows one
+ * error and one warning at a time, in the author's own `position` order, because
+ * a stack of simultaneous complaints on one input is noise rather than guidance.
+ */
+function applyToField(
+  feedback: RuleFeedback,
+  item: Item,
+  key: string,
+  answers: AnswerMap,
+  answered: boolean,
+  peerValues?: Json[],
+): void {
+  // `required_if` only — plain `required` is {@link validateSection}'s job, and
+  // reporting it twice would put the same message in two passes.
+  if (!item.required && item.requiredIf) {
+    if (itemIsRequired(false, item.requiredIf, answers) && !answered) {
+      feedback.errors[key] = "Esta pergunta é obrigatória.";
+      return;
+    }
+  }
+
+  const rules = item.validations ?? [];
+  if (rules.length === 0 || !item.questionKey) return;
+  const value = answers[item.questionKey];
+
+  for (const rule of rules) {
+    const target = rule.severity === "error" ? feedback.errors : feedback.warnings;
+    if (target[key] !== undefined) continue;
+    // `ruleType` and `config` come from a row the database validated per type,
+    // so the pairing is sound; TS cannot correlate the two fields across the
+    // discriminated union on its own.
+    const spec = {
+      ruleType: rule.ruleType,
+      config: rule.config,
+    } as ValidationRuleSpec;
+    if (!evalValidation(spec, value, { answers, peerValues })) {
+      target[key] = rule.message;
+    }
+  }
 }
 
 /**

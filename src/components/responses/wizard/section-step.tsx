@@ -36,6 +36,7 @@ export function SectionStep({
   matrixCells,
   riskMatrix,
   errors,
+  warnings,
   onChange,
   onMatrixCellChange,
   onMatrixClear,
@@ -46,6 +47,7 @@ export function SectionStep({
   instancesByGroup,
   visibleItemIdsByInstance,
   instanceErrors,
+  instanceWarnings,
   saving = false,
   onObservationChange,
   onOtherTextChange,
@@ -71,6 +73,8 @@ export function SectionStep({
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
   errors: Record<string, string>;
+  /** FF-3 — failing `warn` rules, keyed by item id. Advisory; never blocks. */
+  warnings?: Record<string, string>;
   onChange: (item: { id: string; questionKey: string }, value: Json) => void;
   /** FF-2 — commit one row of a `matrix`. */
   onMatrixCellChange?: (
@@ -101,6 +105,8 @@ export function SectionStep({
   visibleItemIdsByInstance?: Map<string, Set<string>>;
   /** FF-1 — validation errors keyed `${instanceId}:${itemId}`. */
   instanceErrors?: Record<string, string>;
+  /** FF-3 — failing `warn` rules inside repetitions, keyed `${instanceId}:${itemId}`. */
+  instanceWarnings?: Record<string, string>;
   /** True while a save or instance action is in flight. */
   saving?: boolean;
   /** Persist a per-item observation note (form-builder-enhancements). */
@@ -251,6 +257,7 @@ export function SectionStep({
                   instances={instancesByGroup?.[item.id] ?? EMPTY_INSTANCES}
                   imageUrls={imageUrls}
                   errors={instanceErrors ?? EMPTY_ERRORS}
+                  warnings={instanceWarnings ?? EMPTY_ERRORS}
                   visibleItemIdsByInstance={
                     visibleItemIdsByInstance ?? EMPTY_VISIBILITY
                   }
@@ -303,6 +310,7 @@ export function SectionStep({
                 imageUrls={imageUrls}
                 value={scalar ? answers[item.id]?.value : undefined}
                 error={answerable ? errors[item.id] : undefined}
+                warning={answerable ? warnings?.[item.id] : undefined}
                 onChange={handlers?.onChange ?? NO_OP}
                 observation={
                   scalar ? answers[item.id]?.observation : undefined

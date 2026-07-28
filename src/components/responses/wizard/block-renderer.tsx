@@ -34,6 +34,7 @@ export function BlockRenderer({
   value,
   onChange,
   error,
+  warning,
   observation,
   onObservationChange,
   otherText,
@@ -50,6 +51,8 @@ export function BlockRenderer({
   value: Json | undefined;
   onChange: (value: Json) => void;
   error?: string;
+  /** FF-3 — a failing `warn` rule. Advisory; never blocks. */
+  warning?: string;
   /** FF-2 — this scope's saved grid for a `matrix` item. */
   matrixCells?: Record<string, string>;
   onMatrixCellChange?: (rowCode: string, colCode: string) => void;
@@ -139,6 +142,7 @@ export function BlockRenderer({
         value={value}
         onChange={onChange}
         error={error}
+        warning={warning}
         observation={observation}
         onObservationChange={onObservationChange}
         otherText={otherText}

@@ -1,7 +1,7 @@
 "use client";
 
 import { commissionHref } from "@/lib/routing";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { Json } from "@/lib/types/database";
@@ -17,7 +17,14 @@ import {
   isChoiceItem,
   type OrphanedSection,
 } from "./use-wizard";
-import { validateSection, validateInstances } from "./validation";
+import {
+  validateSection,
+  validateInstances,
+  validateSectionRules,
+  validateInstanceRules,
+  EMPTY_FEEDBACK,
+} from "./validation";
+import type { ValidationErrorRow } from "@/lib/forms/validation-rules";
 import type { InstanceAnswers } from "./collect";
 import { collectInstances, collectScope, topLevelItems } from "./collect";
 import { WizardProgress } from "./wizard-progress";
@@ -104,7 +111,18 @@ export interface WizardActions {
   submit: (override?: {
     overrideResultId: string | null | undefined;
     reason: string | null;
-  }) => Promise<{ ok: boolean; error?: string }>;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    /**
+     * FF-3 (ADR 0090 ruling 3) — on an `HC0P9` refusal the server returns the
+     * violations themselves, not just a sentence, so the wizard can put each
+     * message back on the field (and the INSTANCE) that caused it. Produced by
+     * the same `app` predicate the submit gate queried, which is what makes
+     * "the list the user sees" and "the gate that blocked them" one thing.
+     */
+    validationErrors?: ValidationErrorRow[];
+  }>;
   /**
    * Record a respondent sign-off for a `requires_signoff(respondent)` section
    * (F3) via B3's `signSection`. The server (RLS + the RPC's visibility check)
@@ -165,6 +183,13 @@ export function WizardClient({
   const [instanceErrors, setInstanceErrors] = useState<Record<string, string>>(
     {},
   );
+  // FF-3 — `warn` rows returned by an HC0P9 refusal. Separate from the live
+  // warnings (which are derived) because these came from the SERVER's evaluation
+  // and must not vanish on the next keystroke-triggered recompute.
+  const [serverWarnings, setServerWarnings] = useState<Record<string, string>>({});
+  const [serverInstanceWarnings, setServerInstanceWarnings] = useState<
+    Record<string, string>
+  >({});
   // Instance add/remove/reorder have no visual anchor for a keyboard or screen
   // reader user, so every outcome is announced politely here (FE-5).
   const [liveMessage, setLiveMessage] = useState<string>("");
@@ -626,6 +651,206 @@ export function WizardClient({
     [setInstanceRiskMatrix, clearInstanceFieldError],
   );
 
+  /**
+   * FF-3 — LIVE validation-rule feedback for the section on screen, derived
+   * during render rather than on navigation.
+   *
+   * Live is safe because `evalValidation` treats an EMPTY value as satisfied on
+   * both sides of the mirror: an untouched field never accuses anyone. What the
+   * author's rule reacts to is a value that is present and out of bounds, which
+   * is exactly when the guidance is useful.
+   *
+   * `answerMap` (not the visibility-pruned effective map) is passed on purpose —
+   * it mirrors what the SQL side hands `app.eval_validation`, which reads the
+   * stored answers. Visibility is applied by SKIPPING hidden items, which is how
+   * "visibility wins" stays structural on both sides.
+   */
+  const liveFeedback = useMemo(
+    () =>
+      currentSection
+        ? validateSectionRules(
+            currentSection,
+            { answers, matrixCells, riskMatrix },
+            answerMap,
+            visibleItemIds,
+          )
+        : EMPTY_FEEDBACK,
+    [currentSection, answers, matrixCells, riskMatrix, answerMap, visibleItemIds],
+  );
+
+  /** The same, per repetition — a violation in instance 2 must leave instance 1 alone. */
+  const liveInstanceFeedback = useMemo(
+    () =>
+      currentSection
+        ? validateInstanceRules(
+            currentSection,
+            instancesByGroup,
+            answerMap,
+            visibleItemIdsByInstance,
+            visibleContainerIds,
+          )
+        : EMPTY_FEEDBACK,
+    [
+      currentSection,
+      instancesByGroup,
+      answerMap,
+      visibleItemIdsByInstance,
+      visibleContainerIds,
+    ],
+  );
+
+  /**
+   * What the fields actually render. The live rule errors come first so a
+   * navigation- or SERVER-set message wins on the same field: the server's text
+   * is the authoritative refusal, and silently replacing it with a locally
+   * recomputed one would hide a genuine SQL↔TS disagreement.
+   */
+  const shownErrors = useMemo(
+    () => ({ ...liveFeedback.errors, ...errors }),
+    [liveFeedback.errors, errors],
+  );
+  const shownInstanceErrors = useMemo(
+    () => ({ ...liveInstanceFeedback.errors, ...instanceErrors }),
+    [liveInstanceFeedback.errors, instanceErrors],
+  );
+  const shownWarnings = useMemo(
+    () => ({ ...liveFeedback.warnings, ...serverWarnings }),
+    [liveFeedback.warnings, serverWarnings],
+  );
+  const shownInstanceWarnings = useMemo(
+    () => ({ ...liveInstanceFeedback.warnings, ...serverInstanceWarnings }),
+    [liveInstanceFeedback.warnings, serverInstanceWarnings],
+  );
+
+  /**
+   * FF-3 — every failing `warn` rule across the WHOLE response, labelled for the
+   * review screen.
+   *
+   * The inline `warning` props cover the section on screen; the review screen is
+   * the one place the filler sees the response as a whole, so the advisories are
+   * gathered across every visible section there. Errors are deliberately absent:
+   * they are already blocking, and the server's refusal places them per field.
+   */
+  const reviewWarnings = useMemo(() => {
+    if (!isReview) return [];
+    const out: { label: string; message: string }[] = [];
+    for (const section of visibleSections) {
+      const flat = validateSectionRules(
+        section,
+        { answers, matrixCells, riskMatrix },
+        answerMap,
+        visibleItemIds,
+      );
+      const perInstance = validateInstanceRules(
+        section,
+        instancesByGroup,
+        answerMap,
+        visibleItemIdsByInstance,
+        visibleContainerIds,
+      );
+
+      const labelOf = (itemId: string): string => {
+        for (const item of section.items) {
+          if (item.id === itemId) return item.label ?? "Pergunta";
+          const child = item.children.find((c) => c.id === itemId);
+          if (child) return child.label ?? "Pergunta";
+        }
+        return "Pergunta";
+      };
+
+      for (const [itemId, message] of Object.entries(flat.warnings)) {
+        out.push({ label: labelOf(itemId), message });
+      }
+      for (const [key, message] of Object.entries(perInstance.warnings)) {
+        // `${instanceId}:${itemId}` — resolve the child's label, and number the
+        // repetition so "Dose" does not appear three identical times.
+        const [instanceId, itemId] = key.split(":");
+        const container = section.items.find((item) =>
+          item.children.some((c) => c.id === itemId),
+        );
+        const ordinal = container
+          ? (instancesByGroup[container.id] ?? []).findIndex(
+              (i) => i.id === instanceId,
+            ) + 1
+          : 0;
+        out.push({
+          label: ordinal > 0
+            ? `${labelOf(itemId)} (repetição ${ordinal})`
+            : labelOf(itemId),
+          message,
+        });
+      }
+    }
+    return out;
+  }, [
+    isReview,
+    visibleSections,
+    answers,
+    matrixCells,
+    riskMatrix,
+    answerMap,
+    visibleItemIds,
+    instancesByGroup,
+    visibleItemIdsByInstance,
+    visibleContainerIds,
+  ]);
+
+  /**
+   * FF-3 — place an HC0P9 refusal back onto the fields that caused it.
+   *
+   * `groupInstanceId` maps 1:1 onto the wizard's existing per-instance key
+   * format, so a violation inside repetition 2 lands on repetition 2. Severity is
+   * honoured: only `error` rows go through the blocking channel, while the `warn`
+   * rows the server also returns are shown as advisories rather than being
+   * silently dropped.
+   *
+   * Returns the id of the section holding the first ERROR, so the caller can take
+   * the user there — a banner on the review screen with the offending field three
+   * steps back is a dead end.
+   */
+  const placeValidationErrors = useCallback(
+    (rows: ValidationErrorRow[]): string | null => {
+      const nextErrors: Record<string, string> = {};
+      const nextInstanceErrors: Record<string, string> = {};
+      const nextWarnings: Record<string, string> = {};
+      const nextInstanceWarnings: Record<string, string> = {};
+
+      for (const row of rows) {
+        const key = row.groupInstanceId
+          ? `${row.groupInstanceId}:${row.itemId}`
+          : row.itemId;
+        const isError = row.severity === "error";
+        const target = row.groupInstanceId
+          ? isError
+            ? nextInstanceErrors
+            : nextInstanceWarnings
+          : isError
+            ? nextErrors
+            : nextWarnings;
+        // First row per field wins — the server returns them in document order,
+        // which is the author's own rule order.
+        if (target[key] === undefined) target[key] = row.message;
+      }
+
+      setErrors(nextErrors);
+      setInstanceErrors(nextInstanceErrors);
+      setServerWarnings(nextWarnings);
+      setServerInstanceWarnings(nextInstanceWarnings);
+
+      const firstError = rows.find((row) => row.severity === "error");
+      if (!firstError) return null;
+      const owning = visibleSections.find((section) =>
+        section.items.some(
+          (item) =>
+            item.id === firstError.itemId ||
+            item.children.some((child) => child.id === firstError.itemId),
+        ),
+      );
+      return owning?.id ?? null;
+    },
+    [visibleSections],
+  );
+
   /** Advance: validate the current section, persist, then move forward. */
   const handleNext = useCallback(async () => {
     const section = currentSection;
@@ -645,12 +870,20 @@ export function WizardClient({
       visibleItemIdsByInstance,
       visibleContainerIds,
     );
+    // FF-3 — the authored `error` rules and `required_if` block progression too.
+    // Merged into the same maps so one banner covers every reason a field is
+    // highlighted; `warn` rules are deliberately absent (they never block).
+    const mergedSection = { ...liveFeedback.errors, ...sectionErrors };
+    const mergedInstance = {
+      ...liveInstanceFeedback.errors,
+      ...perInstanceErrors,
+    };
     if (
-      Object.keys(sectionErrors).length > 0 ||
-      Object.keys(perInstanceErrors).length > 0
+      Object.keys(mergedSection).length > 0 ||
+      Object.keys(mergedInstance).length > 0
     ) {
-      setErrors(sectionErrors);
-      setInstanceErrors(perInstanceErrors);
+      setErrors(mergedSection);
+      setInstanceErrors(mergedInstance);
       setBanner("Revise os campos destacados antes de continuar.");
       return;
     }
@@ -671,6 +904,8 @@ export function WizardClient({
     instancesByGroup,
     visibleItemIdsByInstance,
     visibleContainerIds,
+    liveFeedback,
+    liveInstanceFeedback,
     persistSection,
     currentStepIndex,
     stepCount,
@@ -737,13 +972,35 @@ export function WizardClient({
     const result = await actions.submit(override);
     setSaving(false);
     if (!result.ok) {
+      // FF-3 — an HC0P9 refusal carries the violations themselves. Place them on
+      // the offending fields and take the user to the first one, instead of
+      // leaving a bare banner on the review screen with no way to find the field.
+      // `result.error` is the AUTHOR's own rule text: rendered as TEXT by the
+      // banner and the field messages, never as markup (Rule 7).
+      if (result.validationErrors && result.validationErrors.length > 0) {
+        const sectionId = placeValidationErrors(result.validationErrors);
+        setBanner(
+          result.error ??
+            "Revise os campos destacados antes de enviar a resposta.",
+        );
+        if (sectionId) goToSection(sectionId);
+        return;
+      }
       setBanner(
         result.error ?? "Não foi possível enviar a resposta. Tente novamente.",
       );
       return;
     }
     setSubmitted(true);
-  }, [actions, phaseResult, overrideEnabled, overrideResultId, overrideReason]);
+  }, [
+    actions,
+    phaseResult,
+    overrideEnabled,
+    overrideResultId,
+    overrideReason,
+    placeValidationErrors,
+    goToSection,
+  ]);
 
   /**
    * Record a respondent sign-off for a visible `requires_signoff(respondent)`
@@ -880,6 +1137,7 @@ export function WizardClient({
       return (
         <>
           <ReviewScreen
+            warnings={reviewWarnings}
             visibleSections={visibleSections}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
@@ -910,13 +1168,15 @@ export function WizardClient({
           answers={answers}
           matrixCells={matrixCells}
           riskMatrix={riskMatrix}
-          errors={errors}
+          errors={shownErrors}
+          warnings={shownWarnings}
           onChange={onChange}
           visibleItemIds={visibleItemIds}
           visibleContainerIds={visibleContainerIds}
           instancesByGroup={instancesByGroup}
           visibleItemIdsByInstance={visibleItemIdsByInstance}
-          instanceErrors={instanceErrors}
+          instanceErrors={shownInstanceErrors}
+          instanceWarnings={shownInstanceWarnings}
           saving={saving}
           onObservationChange={setObservation}
           onOtherTextChange={setOtherText}
@@ -969,6 +1229,7 @@ export function WizardClient({
 
       {isReview ? (
         <ReviewScreen
+          warnings={reviewWarnings}
           visibleSections={visibleSections}
           visibleItemIds={visibleItemIds}
           visibleContainerIds={visibleContainerIds}
@@ -996,13 +1257,15 @@ export function WizardClient({
             answers={answers}
             matrixCells={matrixCells}
             riskMatrix={riskMatrix}
-            errors={errors}
+            errors={shownErrors}
+            warnings={shownWarnings}
             onChange={onChange}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
             instancesByGroup={instancesByGroup}
             visibleItemIdsByInstance={visibleItemIdsByInstance}
-            instanceErrors={instanceErrors}
+            instanceErrors={shownInstanceErrors}
+            instanceWarnings={shownInstanceWarnings}
             saving={saving}
             onObservationChange={setObservation}
             onOtherTextChange={setOtherText}
