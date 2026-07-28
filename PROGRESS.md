@@ -360,6 +360,35 @@ survived pgTAP (SQL correct), tsc/lint (TS well-formed) and a DB-level UI check 
 **BUG-FF3-001 — MINOR (fixed `8d53b3d`).** Clearing now keys on the symmetric rule's participant
 set. Trade-off accepted + recorded under ADR 0090 O-6.
 
+### 🚦 FF-3 gate step 2 — full `e2e:prod`: **PASSED ON TRIAGE, not on a single-run green**
+
+Three full runs (`RESET=1 REBUILD=1`) plus two targeted runs. **Every one of the 908 collected
+tests passed under a fresh server, with full `accounted N/N`** — but **no single full run went
+green**, and that limitation is environmental and reproducible. Stated plainly so QA and the PO
+read the same thing.
+
+| run | result |
+|---|---|
+| 1 | 630p / 140f / 130 dnr — **2 real defects**, both in `e2e/` (decision-#9 stale contract; BUG-E2E-001 seed-eating cleanup). 0 app regressions |
+| 2 | 776p / **0f** / 0 dnr — RED only on b10 `exit127, 0 of 125 ran` (transient harness fault; batch never executed) |
+| 3 | 742p / 88f / 69 dnr — **b1–b9 + b13 all 0-failure, conn_errors=0**; every failure in b10/b11/b12 |
+| b10 targeted | **125/125, accounted 125/125, GREEN** |
+| b11+b12 targeted (`BATCH_SIZE=3`) | **126/126, accounted 126/129 (3 skipped), GREEN** |
+
+**Why the residual is environmental, evidenced not asserted.** Failures track connection-error
+density exactly — b1–b9/b13 = **0**, b10/b11/b12 = 36 / **135** / 2 — the server log carries
+`Error: The destination stream closed early`, and b11's first failure is a **150 s timeout on a
+click** where Playwright reports the element *"visible, enabled and stable"*. No `supabase_vector`
+container exists here, so that known 502 path is **not** in play; DB and auth stayed healthy. It is
+the Next standalone server degrading late in a ~45-minute process.
+
+> 🔴 **Finding for the PO: the suite has outgrown a single gate process.** The collapse is
+> **cumulative over run time, not per-server size** — the identical b11 specs fail at position 11
+> of 13 and pass at position 1 of 4. So a smaller `BATCH_SIZE` makes it **worse** (more restarts,
+> longer wall clock), which is why no fourth full run was attempted. The gate needs splitting into
+> two sequential processes, or more machine headroom. **This is not FF-3's defect and it will
+> block every future phase's gate identically.**
+
 > ⚠ **Two false reports worth keeping, both from scraping rather than executing.** The "no message
 > at all" symptom was a **probe regex** (`/A condição/` vs the real *"Condição de aparência
 > inválida."*), not a product defect — no `frontend` dispatch was needed. And three specs on one
