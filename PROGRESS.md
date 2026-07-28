@@ -102,6 +102,25 @@ human-approved, flag `item_validations` **ON** (gate flip `20260901000800`); rec
 > sweep is structurally blind to (**AUDIT-INVOKER-WRAPPER**, tracked below). FF-5's participant lane
 > is a PHI read surface, so it will want the same scrutiny and cannot rely on that sweep to supply it.
 
+**FF-5 · `frontend` build — ✅ COMPLETE 2026-07-28** (commit `4e584f3`, branch
+`ff/flexible-forms-program`). Builder: `reference` type behind `entity_refs`, lane picker +
+participant-type narrowing, case-scoped-patient authoring note; `reference` added to the dialog's
+`isQuestion` gate (that gate wraps the whole two-column body, so `required` / `required_if` /
+`visibleWhen` were otherwise unreachable for the type ADR 0086 ruling 4 had just released them for).
+Wizard: ARIA 1.2 combobox typeahead (debounced, single-select, clearable, full keyboard,
+`aria-required` = effective required-ness), two distinguished empty states, per-instance arm inside
+repeating groups. Sibling arms carried to every `isMatrixItem`/`isInputItem` dispatch site: collect,
+validation (flat + per-instance), instance emptiness (ruling 6), orphan detection, visibility, and
+the six read-only consumers. Green: lint 0/0 · typecheck · Vitest 817 · a real `next build` · the
+running app (builder + wizard + resume-by-label + per-instance picker, driven live).
+> ⚠ Two notes for the gate, both found by RUNNING it rather than by review:
+> 1. **`main` now 500s on the FF-5 seed form.** `read-only-tree.tsx` does an unguarded
+>    `ITEM_TYPE_META[item.itemType]`, and the seed form D lives in the shared local DB. Resolves on
+>    merge; until then the main checkout cannot render that form.
+> 2. **`reference_candidates` returns the raw `participant_type` identifier as `sublabel`**
+>    (`"Centro Cirúrgico :: department"`). Guarded pt-BR-side in the render layer (Rule 10), but the
+>    source is backend's — worth fixing there so the guard becomes a no-op.
+
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
 
