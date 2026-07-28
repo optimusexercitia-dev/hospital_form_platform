@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * NSP-per-org cross-org isolation (the UI analog of the `173` pgTAP gate).
@@ -35,14 +36,9 @@ test.use({ viewport: { width: 1280, height: 900 } })
 const EV_B = 'e4000000-0000-0000-0000-0000000000b1' // rede-b event (has PHI)
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.context().clearCookies()
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 15_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 // The cross-committee patient index + referral surfaces are flag-gated and ship OFF

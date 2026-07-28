@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * ADR 0078 Gate 2 — Stage C: meeting confidentiality (reserved sessions).
@@ -93,13 +94,9 @@ const PW = 'Test1234!'
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = PW) {
-  await page.goto('/login')
-  await page.getByLabel(/e-mail/i).fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { fillTimeField } from './helpers/date-pickers'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * Form Builder Enhancements — seven additive author/respondent capabilities.
@@ -104,18 +105,9 @@ let signoffS1Id: string // "Revisão" section — requires_signoff=true, staff_a
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  // Clear existing auth cookies so the middleware does not redirect an already-
-  // authenticated session away from /login before the form can render.
-  await page.context().clearCookies()
-
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  await page.getByLabel('E-mail').waitFor({ state: 'visible', timeout: 30_000 })
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 async function getToken(req: APIRequestContext, email: string): Promise<string> {

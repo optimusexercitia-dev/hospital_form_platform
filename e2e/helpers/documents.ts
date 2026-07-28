@@ -1,4 +1,4 @@
-import { expect, type Cookie, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { execSync } from 'node:child_process'
 import { pickDate, readHiddenDateValue } from './date-pickers'
 
@@ -42,38 +42,13 @@ export function setControlledDocsFlag(enabled: boolean): void {
 }
 
 /**
- * Per-persona auth-cookie cache. These specs switch personas MANY times; a fresh
- * `/login` on every switch exhausts the local GoTrue rate-limit (→ "Não foi
- * possível concluir"). So we log each persona in ONCE, cache its cookies, and on
- * later switches just restore the cookies (no login round-trip). Scoped by
- * browser-context (cleared on re-login). Shared across spec FILES within a run
- * since each file gets its own worker/module instance in practice, but the cache
- * being per-module is harmless — worst case it just re-logs in once per file.
+ * This file pioneered the per-persona cookie cache (a fresh `/login` on every switch
+ * exhausts the local GoTrue rate-limit → "Não foi possível concluir"). That idea now
+ * lives in `./auth` and backs all 66 spec files, with a disk tier so the cache also
+ * survives across workers and batches. Re-exported here so existing imports keep working.
  */
-const cookieJar = new Map<string, Cookie[]>()
-
-async function loginFresh(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
-}
-
-export async function signInAs(page: Page, email: string, password = 'Test1234!'): Promise<void> {
-  // Always clear first — navigating to /login while still authenticated redirects to
-  // the previous user's home (no login form appears).
-  await page.context().clearCookies()
-
-  const cached = cookieJar.get(email)
-  if (cached && cached.length > 0) {
-    await page.context().addCookies(cached)
-    return
-  }
-
-  await loginFresh(page, email, password)
-  cookieJar.set(email, await page.context().cookies())
-}
+import { cachedSignIn as signInAs } from './auth'
+export { signInAs }
 
 /** Service-role REST query (DB-truth assertions only — never mutates data under test). */
 export async function serviceQuery<T>(page: Page, path: string): Promise<T[]> {

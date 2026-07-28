@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * Ethics E3a — Terminology/UX surfacing (build plan
@@ -113,11 +114,9 @@ const PW = 'Test1234!'
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, pw = PW) {
-  await page.goto('/login')
-  await page.getByLabel(/e-mail/i).fill(email)
-  await page.locator('input[name="password"]').fill(pw)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL(/\/(o|c)(\/|$)/)
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, pw)
 }
 
 async function signOut(page: Page) {

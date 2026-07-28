@@ -29,17 +29,8 @@ export const USER_CHEFE = '00000000-0000-0000-0000-000000000002'
 // Auth / RPC
 // ---------------------------------------------------------------------------
 
-export async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.context().clearCookies()
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  await page.getByLabel('E-mail').waitFor({ state: 'visible', timeout: 30_000 })
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
-}
+// Shared session cache — see ./auth. Re-exported so existing imports keep working.
+export { cachedSignIn as signInAs } from './auth'
 
 export async function getToken(
   page: Page,

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * Phase 3 — Admin Area & User Management
@@ -74,14 +75,9 @@ async function signInAs(
   email: string,
   password = 'Test1234!',
 ) {
-  await page.context().clearCookies()
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 15_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /**

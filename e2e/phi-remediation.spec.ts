@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * PHI/HIPAA-Readiness Remediation — E2E acceptance tests
@@ -81,13 +82,9 @@ const PHI_ENC  = 'ENC-2026'
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string) {
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill('Test1234!')
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email)
 }
 
 /** Obtain a real JWT for a persona (RLS evaluated under that identity). */

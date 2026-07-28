@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Page, type Locator } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * FF-2 — Matrix & Risk Matrix (ADR 0089, four PO rulings). Acceptance criteria
@@ -84,15 +85,9 @@ const USER_CHEFE = '00000000-0000-0000-0000-000000000002'
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.context().clearCookies()
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
-  await page.getByLabel('E-mail').waitFor({ state: 'visible', timeout: 30_000 })
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /** A real JWT for a persona so RLS + every DEFINER gate sees their identity. */

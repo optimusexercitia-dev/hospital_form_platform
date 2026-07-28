@@ -114,6 +114,100 @@ fix — set `RESET=0` for just the server-restart behavior. Each batch's Playwri
 in `$TMPDIR/e2e-prod-gate/batch-N.log`; the run prints an aggregate `GATE GREEN/RED` and exits
 non-zero on any hard failure. Smoke-tested 2026-07-12 (2 batches, fresh server each → 21/21).
 
+## Stack preflight (added 2026-07-28) — why the gate no longer trusts `/health`
+
+Across six gates (CH, FF-1, FF-2, ETH·E3a, AUTHZ-1, RV2) roughly **320 of ~370 E2E failures were
+infra, against 3 real regressions**. FF-2 is the cleanest data point: 762 passed / 55 failed →
+**52 infra, 3 real**. The gate used to poll `/auth/v1/health` and, on failure, print
+`WARN … proceeding` — so a dead stack produced batch after batch of
+`net::ERR_CONNECTION_REFUSED` that a human then hand-triaged against a folklore baseline.
+
+Two measurements changed the design:
+
+1. **`/auth/v1/health` returns 200 while password grants 502.** The preflight now issues a **real
+   `grant_type=password` request**. Port 54321 *is* Kong, so this single probe covers Kong DNS
+   staleness, GoTrue death and gateway 502s at once.
+2. **Our notes blamed `supabase_vector`; it is the victim, not the cause.** Measured live, vector
+   had `RestartCount=0` while **`supabase_analytics` (Logflare — vector's log sink) sat at 47**,
+   and analytics *still reported `healthy`*. A detector written against vector would never fire,
+   and one written against `.State.Health.Status` fires never at all. `RestartCount` is the
+   honest signal.
+
+On failure the gate escalates cheap → expensive (restart `kong` → cycle the stack) and then
+**aborts with exit 4**. Exit 4 is not a test result: nothing was proven, so fix the stack and
+re-run rather than triaging the output.
+
+```bash
+SELFTEST=1 bash scripts/e2e-prod-gate.sh    # "is the stack fit for a gate run?" — ~1s
+MAX_RECOVER=0 …                             # detect only; never touch my stack
+```
+
+### Fault-injection checklist (how each arm was proven, and how to re-prove it)
+
+Run these after changing `preflight()`. Each must fail *and* pass in the right direction — an arm
+that only ever passes is vacuous (`docs/progress/authz-handoff.md` §7.1).
+
+| # | Inject | Expect |
+|---|---|---|
+| 1 | nothing (healthy stack) | `SELFTEST=1` → **exit 0 in ~1s**, no recovery attempted |
+| 2 | `docker pause supabase_auth_$REF` | `MAX_RECOVER=0` → **exit 4**, stack untouched. Undo: `docker unpause` |
+| 3a | double `token_ok` → true | `recover_stack` stops at the **cheap** kong restart, never cycles |
+| 3b | double `token_ok` → false | escalates to the full cycle, then returns failure so the gate aborts |
+| 4 | `SPECS="e2e/home.spec.ts" RESET=0 REBUILD=0` | the gate still **runs tests** and reports GREEN |
+
+3a/3b are unit tests against shell doubles, so they do not reset the local DB. Two real bugs were
+caught this way and neither would have shown up in review:
+
+- **Brace expansion split the JSON body.** `[ "$(curl … -d "{\"email\":…,\"password\":…}")" = 200 ]`
+  — nesting escaped double quotes inside `"$( … )"` closes the outer quote early, exposing the
+  braces to brace expansion. curl fired **twice**, `[` saw `400 400 = 200`, and `token_ok` was
+  *always false* → every run would have aborted as "unrecoverable". Build the payload in a
+  variable; never inline it.
+- **`seq 1 0` emits `1 0` on macOS.** BSD `seq` counts *down* when first > last, so
+  `MAX_RECOVER=0` ran recovery **twice** — the exact opposite of its meaning. Use an arithmetic
+  `while` loop. (GNU `seq` emits nothing, so this is macOS-only and CI would not have caught it.)
+
+## Batch accounting (added 2026-07-28) — a batch can no longer pass by producing nothing
+
+The gate scraped its verdict from the batch log and piped Playwright through `tee | tail`,
+so `$?` was **`tail`'s exit code** and Playwright's own verdict was discarded. A batch that
+crashed before printing a summary scraped as `0 passed / 0 failed` and contributed **nothing**
+to `RED_BATCHES` — a silent false green. Now each batch is RED if any of these hold:
+
+| Condition | Catches |
+|---|---|
+| `failed > 0` | the ordinary case |
+| `PIPESTATUS[0] != 0` with no failure line | crash / config error / collection failure |
+| nothing parsed at all | truncated or empty log |
+| `did not run > 0` | `describe.serial` masking (the standing recommendation below) |
+| `interrupted > 0` | killed mid-run |
+| accounted ≠ `--list` count | a spec silently never executed |
+
+Every batch line now prints `accounted N/M · pw_exit R`, and the summary prints a
+`COVERAGE:` line. Verified by injecting a spec that throws at collection time: previously
+green, now `b1(exit1,no-summary)` → RED.
+
+## Auth session cache (added 2026-07-28) — ~865 logins → ~300
+
+67 of 72 spec files each defined their own `signInAs` driving the real `/login` form:
+**~865 UI logins + ~54 token grants per full run, against only 28 distinct personas**
+(610 of them `chefe.ccih@test.local`). That is ~40 min of pure login wall-clock and the
+direct cause of the GoTrue-exhaustion failures (~50 across 10 gate runs).
+
+All 66 now delegate to `e2e/helpers/auth.ts`, which logs each persona in once per worker
+process and injects the cached cookies on later switches. The codemod replaced each local
+function's **body** and kept its signature, so no call site changed. `phase2-auth-shell`
+and `user-registration` deliberately keep real logins — they test the auth flow itself.
+
+Measured A/B on an identical 4-spec prod batch: **91 → 32 logins, 77 passed / 3 failed in
+both** (those 3 are pre-existing; see below).
+
+> ⚠ **Baseline the way this A/B did.** The 3 failures were first read as a regression
+> because the "baseline" ran 2 specs on a **dev server** while the failure needed the
+> 4-spec **prod batch**. Unmodified code then reproduced them exactly. A baseline that
+> does not match the failing configuration in *every* dimension — spec set, order, build
+> type, reset state — is not a baseline. Cost: one wrong root-cause theory, acted on.
+
 ## Recommendations
 
 1. **✅ DONE (2026-07-12) — `npm run e2e:prod`** ([`scripts/e2e-prod-gate.sh`](../../scripts/e2e-prod-gate.sh))

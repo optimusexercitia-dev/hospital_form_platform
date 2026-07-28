@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator, type APIRequestContext } from '@playwright/test'
 
 import { pasteText, toTsv } from './helpers/clipboard'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * "Múltiplos casos" — bulk case creation wizard (ADR 0084; plan
@@ -111,11 +112,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = PW) {
-  await page.goto('/login')
-  await page.getByLabel(/e-mail/i).fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /** Service-role GET against PostgREST. */
