@@ -117,9 +117,16 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 > 1. **`main` now 500s on the FF-5 seed form.** `read-only-tree.tsx` does an unguarded
 >    `ITEM_TYPE_META[item.itemType]`, and the seed form D lives in the shared local DB. Resolves on
 >    merge; until then the main checkout cannot render that form.
-> 2. **`reference_candidates` returns the raw `participant_type` identifier as `sublabel`**
->    (`"Centro Cirúrgico :: department"`). Guarded pt-BR-side in the render layer (Rule 10), but the
->    source is backend's — worth fixing there so the guard becomes a no-op.
+> 2. ~~**`reference_candidates` returns the raw `participant_type` identifier as `sublabel`**~~
+>    — **RESOLVED at source, backend `3c997eb`.** Live now: `Centro Cirúrgico :: Setor`. My
+>    render-layer guard (`displaySublabel`) is deliberately kept but is now a delegation to the
+>    shared `participantTypeLabel` and therefore an exact no-op.
+>    **Worth carrying into the review:** it was **three** sites, not the one I reported — the
+>    typeahead, `app.references_by_item` (the **sign-off projection**), and `buildReferenceAnswers`.
+>    The sign-off one is the site that mattered and renders through a **different component tree**,
+>    so my render-layer map never covered it. Found by sweeping `pg_proc` for `participant_type`,
+>    not by reviewing the reported site. SQL↔TS label parity is now pinned both ways (pgTAP 276 §L +
+>    `participant-type-labels.test.ts`), so changing one alone reds a suite.
 
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.

@@ -2,6 +2,7 @@ import {
   CASE_SCOPED_PARTICIPANT_TYPES,
   PARTICIPANT_TYPE_LABELS,
   REFERENCE_KIND_LABELS,
+  participantTypeLabel,
   type ParticipantType,
   type ReferenceKind,
 } from "@/lib/forms/reference-constants";
@@ -67,28 +68,31 @@ export function referenceKindLabel(kind: ReferenceKind): string {
 /**
  * Render a candidate's `sublabel` as pt-BR text (Rule 10).
  *
- * The participant lane's sublabel is the participant's `participant_type` for
- * every type EXCEPT the case-scoped patient (whose sublabel is the case role).
- * `participant_type` is a database IDENTIFIER — `department`, `external_person`,
- * `regulatory_body` — and putting it on screen unmapped puts English enum values
- * in a pt-BR clinical UI, in the one place the sublabel is load-bearing: it is
- * the only thing telling two same-named candidates apart.
+ * ## Status: idempotent belt-and-braces, NOT the fix
  *
- * Verified against the live RPC on 2026-07-28, not assumed: `reference_candidates`
- * returned `Centro Cirúrgico :: department` and `Dra. Denunciada :: professional`.
+ * The source normalizes already. `app.participant_type_label` is the SQL
+ * authority (used by `reference_candidates` and `app.references_by_item`) and
+ * `participantTypeLabel` the TS one (used by `buildReferenceAnswers`), pinned to
+ * each other by pgTAP 276 §L + `participant-type-labels.test.ts` — backend
+ * `3c997eb`. So on every path this component can reach today, this call returns
+ * its input unchanged.
  *
- * The mapping is deliberately EXACT-MATCH-ONLY and total: a sublabel that is not
- * precisely one of the seven enum values is passed through untouched, so a case
- * role, a hospital name or an e-mail (the commission and user lanes) can never be
- * rewritten by accident. If the query layer starts returning pt-BR itself, this
- * becomes a no-op rather than a double translation — which is why it matches on
- * the identifier rather than trying to detect "looks English".
+ * It stays because it costs nothing and is exactly idempotent: it delegates to
+ * that same `participantTypeLabel`, whose mapping is EXACT-MATCH-ONLY over the
+ * seven `participant_type` identifiers and returns anything else untouched. A
+ * case role, a hospital name or an e-mail (the patient, commission and user
+ * lanes) therefore cannot be rewritten by accident, and an already-pt-BR label
+ * cannot be double-translated.
+ *
+ * ⚠ It is NOT a general defence. It guards this component tree only — the
+ * sign-off projection renders references through a different tree entirely, so
+ * the same defect there (found by backend's `pg_proc` sweep, not by this) was
+ * invisible to it. The lesson to carry, if a raw identifier ever surfaces again:
+ * fix the producer and sweep for siblings; a render-layer map is the symptom's
+ * bandage, never the cure.
  */
 export function displaySublabel(sublabel: string | null): string | null {
-  if (sublabel === null) return null;
-  return (
-    PARTICIPANT_TYPE_LABELS[sublabel as ParticipantType] ?? sublabel
-  );
+  return participantTypeLabel(sublabel);
 }
 
 /**
