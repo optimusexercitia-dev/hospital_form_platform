@@ -111,6 +111,8 @@ const MESSAGES = {
   validationInvalid:
     'Verifique a validação: informe os limites e uma mensagem para quem responde.',
   validationsSaved: 'Validações atualizadas com sucesso.',
+  requiredIfShapeInvalid:
+    'A condição de obrigatoriedade deve ser uma única condição (sem E/OU).',
 } as const
 
 /** Postgres SQLSTATEs we translate to friendly pt-BR copy. */
@@ -669,6 +671,13 @@ type ItemColumns = {
   config: Json
   visible_when: Json
   required: boolean
+  /**
+   * FF-3 (ADR 0090 ruling 4): the conditional-requirement rule, or null. Forced
+   * null for containers, display items and `reference` — the
+   * `form_items_input_vs_display` CHECK forbids it there, because a type whose
+   * required-ness nothing checks must not be made required by a second door.
+   */
+  required_if: Json
   content: Json
   /**
    * answer-model-v2 (BE-0 contract, ADR 0046 / P2.4): the parsed per-input
@@ -856,6 +865,46 @@ function parseVisibleWhen(
 }
 
 /**
+ * FF-3 (ADR 0090 ruling 4): parse the optional `requiredIf` FormData field into
+ * the `required_if` jsonb.
+ *
+ * SINGLE CONDITION ONLY — deliberately narrower than {@link parseVisibleWhen},
+ * because `form_items_required_if_shape` runs `app.is_valid_condition`, which
+ * requires `question_key`/`op` at the top level and therefore REJECTS the
+ * `{match, conditions[]}` group shape (verified against the live catalog, not
+ * inferred). Accepting a group here would hand the author a 23514 from the
+ * database instead of a sentence they can act on.
+ *
+ * Shape only. The publish-time authority is `public.validate_visible_when`, which
+ * FF-3 extended to cover `required_if`: existence of the referenced key, the
+ * earlier-question rule, and FF-1's outside-in ban.
+ */
+function parseRequiredIf(
+  formData: FormData,
+): { error: ActionState } | { requiredIf: Json } {
+  const raw = String(formData.get('requiredIf') ?? '').trim()
+  if (!raw) return { requiredIf: null }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
+  }
+  if (parsed === null || typeof parsed !== 'object') {
+    return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
+  }
+  // The group shape is storable for `visible_when` and NOT for this column.
+  if ('conditions' in (parsed as Record<string, unknown>)) {
+    return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
+  }
+  if (!isValidCondition(parsed)) {
+    return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
+  }
+  return { requiredIf: parsed as Json }
+}
+
+/**
  * answer-model-v2 (BE-0 contract, ADR 0046 / P2.4): parse the optional
  * `defaultValue` FormData field into the `default_value` jsonb. The field is a
  * JSON-encoded scalar (free_text/short_text/number/date/time) or option code /
@@ -929,6 +978,10 @@ function parseItemFields(
     const parsedVisible = parseVisibleWhen(formData)
     if ('error' in parsedVisible) return { error: parsedVisible.error }
 
+    // FF-3 (ADR 0090 ruling 4): the conditional-requirement rule.
+    const parsedRequiredIf = parseRequiredIf(formData)
+    if ('error' in parsedRequiredIf) return { error: parsedRequiredIf.error }
+
     // answer-model-v2 (BE-0): parse the optional per-input default value.
     const parsedDefault = parseDefaultValue(itemType, formData)
     if ('error' in parsedDefault) return { error: parsedDefault.error }
@@ -955,6 +1008,7 @@ function parseItemFields(
         config: parsedConfig.config,
         visible_when: parsedVisible.visibleWhen,
         required,
+        required_if: parsedRequiredIf.requiredIf,
         content: null,
         default_value: parsedDefault.defaultValue,
       },
@@ -995,6 +1049,8 @@ function parseItemFields(
         config: parsedConfig.config,
         visible_when: parsedVisible.visibleWhen,
         required: false,
+        // A container's requirement is `config.minInstances`, never a condition.
+        required_if: null,
         content: null,
         default_value: null,
       },
@@ -1032,6 +1088,10 @@ function parseItemFields(
     const parsedVisible = parseVisibleWhen(formData)
     if ('error' in parsedVisible) return { error: parsedVisible.error }
 
+    // FF-3 (ADR 0090 ruling 4): the conditional-requirement rule.
+    const parsedRequiredIf = parseRequiredIf(formData)
+    if ('error' in parsedRequiredIf) return { error: parsedRequiredIf.error }
+
     // ruling 3 + ruling 4: `required` is persisted AS SUBMITTED, including
     // alongside a visibility condition — a hidden matrix requires nothing, which
     // `app.item_required_satisfied`'s callers enforce by never asking about it.
@@ -1044,6 +1104,10 @@ function parseItemFields(
         config: parsedConfig.config,
         visible_when: parsedVisible.visibleWhen,
         required,
+        // A matrix MAY carry one: the shape CHECK allows it and
+        // `app.item_required_satisfied` has a row-complete arm, so a
+        // conditionally-required grid is a coherent state.
+        required_if: parsedRequiredIf.requiredIf,
         content: null,
         default_value: null,
       },
@@ -1063,6 +1127,8 @@ function parseItemFields(
         config: null,
         visible_when: null,
         required: false,
+        // A display item is never required, by either door.
+        required_if: null,
         content: { markdown },
         default_value: null,
       },
@@ -1087,6 +1153,7 @@ function parseItemFields(
         config: null,
         visible_when: null,
         required: false,
+        required_if: null,
         content: { storage_path: storagePath, alt, caption: caption || null },
         default_value: null,
       },
@@ -1316,6 +1383,10 @@ export async function addItem(
         config: columns.config,
         visible_when: columns.visible_when,
         required: columns.required,
+        // FF-3 (ADR 0090 ruling 4): required = the flag OR this condition. Both
+        // are persisted; `app.item_is_required` composes them, and visibility
+        // still wins over the pair.
+        required_if: columns.required_if,
         content: columns.content,
         // answer-model-v2: the per-input default value (scalar or option code/
         // code[]); null for display items. Validated at publish time (HC080).
@@ -1393,6 +1464,7 @@ export async function updateItem(
       config: columns.config,
       visible_when: columns.visible_when,
       required: columns.required,
+      required_if: columns.required_if,
       content: columns.content,
       // answer-model-v2: the per-input default value (scalar or option code/
       // code[]); null for display items. Validated at publish time (HC080).

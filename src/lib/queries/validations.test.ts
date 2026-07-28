@@ -12,7 +12,8 @@ import {
   type ValidationContext,
   type ValidationRuleSpec,
   type ValidationRuleType,
-} from './validations'
+} from '@/lib/forms/validation-rules'
+import * as queriesModule from './validations'
 import type { AnswerMap } from './conditions'
 import vectorsFile from './__fixtures__/validation-vectors.json'
 
@@ -168,5 +169,46 @@ describe('validationValueIsEmpty', () => {
     expect(validationValueIsEmpty(false)).toBe(false)
     expect(validationValueIsEmpty(' ')).toBe(false)
     expect(validationValueIsEmpty([null])).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// THE CLIENT-SAFETY GUARD (BUG-FBE-005).
+//
+// `evalValidation` and friends are value-imported by CLIENT components. If the
+// pure module ever regains a value import of something that reaches
+// `server-only`, `next build` ABORTS — and tsc, lint and this whole suite stay
+// green, which is exactly how BUG-FBE-005 shipped. A static read of the source is
+// the only cheap check that fails at the same moment the mistake is made.
+// ---------------------------------------------------------------------------
+describe('validation-rules stays client-safe', () => {
+  const purePath = join(process.cwd(), 'src', 'lib', 'forms', 'validation-rules.ts')
+
+  it('has no VALUE import of a server-only module', () => {
+    const src = readFileSync(purePath, 'utf8')
+    // Lines that import BINDINGS (not `import type`), and what they import from.
+    const valueImports = src
+      .split(/\r?\n/)
+      .filter((line) => /^import\s/.test(line) && !/^import\s+type\s/.test(line))
+      .map((line) => /from\s+'([^']+)'/.exec(line)?.[1])
+      .filter((spec): spec is string => Boolean(spec))
+
+    // Type-only imports are fine — they erase. These are the value ones.
+    expect(valueImports).not.toContain('@/lib/supabase/server')
+    expect(valueImports).not.toContain('server-only')
+    for (const spec of valueImports) {
+      expect(spec, `${spec} must not be a server module`).not.toMatch(/lib\/supabase\//)
+    }
+  })
+
+  it('the queries module still re-exports the pure surface (server callers unchanged)', () => {
+    // The split must be invisible to everything that already imported from
+    // `@/lib/queries/validations`.
+    expect(typeof queriesModule.evalValidation).toBe('function')
+    expect(typeof queriesModule.itemIsRequired).toBe('function')
+    expect(typeof queriesModule.isValidationRuleAllowed).toBe('function')
+    expect(typeof queriesModule.validationValueIsEmpty).toBe('function')
+    expect(typeof queriesModule.getResponseValidationErrors).toBe('function')
+    expect(queriesModule.VALIDATION_RULE_TYPES).toEqual(VALIDATION_RULE_TYPES)
   })
 })

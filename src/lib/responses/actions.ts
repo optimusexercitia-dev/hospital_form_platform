@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import { getResponseValidationErrors } from '@/lib/queries/validations'
+import type { ValidationErrorRow } from '@/lib/forms/validation-rules'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
@@ -30,6 +32,25 @@ import type { Database, Json } from '@/lib/types/database'
 export interface ActionState {
   ok: boolean
   error?: string
+}
+
+/**
+ * FF-3 (ADR 0090 §3) — what a SUBMIT returns.
+ *
+ * `error` is the sentence for the banner. `validationErrors` is the same refusal
+ * as ROWS, so the wizard can place each message on its field IN ITS INSTANCE —
+ * `groupInstanceId` maps onto the wizard's `${instanceId}:${itemId}` error keys.
+ * A single string cannot address a field inside the third repetition of a block.
+ *
+ * Populated ONLY on an HC0P9 refusal, from the SAME `app` predicate the gate
+ * queried, which is what ADR 0090 §3 means by "the list the user sees and the
+ * gate that blocks them cannot disagree". `warn` rows are included so the wizard
+ * can badge them; they never block.
+ *
+ * Optional, so every other `ActionState` return in this file stays valid.
+ */
+export interface SubmitActionState extends ActionState {
+  validationErrors?: ValidationErrorRow[]
 }
 
 const MESSAGES = {
@@ -756,7 +777,9 @@ function mapGroupError(error: { code?: string } | null): string {
  * the authority (e.g. a required answer removed in a second tab is rejected
  * HERE).
  */
-export async function submitResponse(responseId: string): Promise<ActionState> {
+export async function submitResponse(
+  responseId: string,
+): Promise<SubmitActionState> {
   if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
 
   const supabase = await createClient()
@@ -783,7 +806,14 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
         // distinguishes them (see the constant's note).
         return { ok: false, error: error.message || MESSAGES.resultRequired }
       case SUBMIT_VALIDATION_ERROR:
-        return { ok: false, error: error.message || MESSAGES.validationBlocked }
+        // Re-read the SAME predicate the gate blocked on, so the wizard can put
+        // each message on the right field in the right instance instead of
+        // showing one sentence for a form-wide refusal.
+        return {
+          ok: false,
+          error: error.message || MESSAGES.validationBlocked,
+          validationErrors: await getResponseValidationErrors(responseId),
+        }
       case SUBMIT_GROUP_MIN_INSTANCES:
         // Prefer the DB message: it names the block and the required count.
         return { ok: false, error: error.message || MESSAGES.groupMinInstances }
@@ -823,7 +853,7 @@ export async function submitCasePhaseResponse(
   casePhaseId: string,
   overrideResultId: string | null | undefined,
   reason: string | null,
-): Promise<ActionState> {
+): Promise<SubmitActionState> {
   if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
 
   const supabase = await createClient()
@@ -885,7 +915,14 @@ export async function submitCasePhaseResponse(
         // distinguishes them (see the constant's note).
         return { ok: false, error: error.message || MESSAGES.resultRequired }
       case SUBMIT_VALIDATION_ERROR:
-        return { ok: false, error: error.message || MESSAGES.validationBlocked }
+        // Re-read the SAME predicate the gate blocked on, so the wizard can put
+        // each message on the right field in the right instance instead of
+        // showing one sentence for a form-wide refusal.
+        return {
+          ok: false,
+          error: error.message || MESSAGES.validationBlocked,
+          validationErrors: await getResponseValidationErrors(responseId),
+        }
       case SUBMIT_GROUP_MIN_INSTANCES:
         // Prefer the DB message: it names the block and the required count.
         return { ok: false, error: error.message || MESSAGES.groupMinInstances }

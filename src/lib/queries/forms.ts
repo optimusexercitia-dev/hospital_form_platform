@@ -9,6 +9,10 @@ import {
 import { isConditionTargetInScope } from '@/lib/queries/conditions'
 import type { Json } from '@/lib/types/database'
 import type { Visibility, FlaggedWhen } from '@/lib/queries/conditions'
+import type {
+  ItemValidationRule,
+  RequiredIf,
+} from '@/lib/forms/validation-rules'
 import type { CaseStatusColorToken } from '@/lib/cases/case-status'
 
 // Re-export the condition shapes so the builder can import every form type from
@@ -20,6 +24,18 @@ export type {
   Visibility,
   FlaggedWhen,
 } from '@/lib/queries/conditions'
+
+// FF-3: the validation shapes travel with the item tree, so re-export them here
+// too. The IMPLEMENTATION stays in the pure module — a value re-export from this
+// server module would drag `server-only` into any client that imported it.
+export type {
+  ItemValidationRule,
+  ValidationRuleType,
+  ValidationSeverity,
+  ValidationConfig,
+  ValidationRuleSpec,
+  RequiredIf,
+} from '@/lib/forms/validation-rules'
 
 /**
  * The constrained colour-token palette for per-option colours (decision #4),
@@ -411,6 +427,31 @@ export interface Item {
    */
   matrixRows?: MatrixAxisEntry[] | null
   matrixColumns?: MatrixAxisEntry[] | null
+  /**
+   * FF-3 (ADR 0090 ruling 4) — the item's conditional-requirement rule, or null.
+   * A SINGLE condition (`app.is_valid_condition`), never the `{match,
+   * conditions[]}` group `visibleWhen` accepts.
+   *
+   * Read alongside `required`: the item is required when `required` is true OR
+   * this evaluates true against the map in scope — `itemIsRequired` in
+   * `@/lib/forms/validation-rules` is the one predicate for that, mirrored in SQL
+   * as `app.item_is_required`. Visibility still wins over both.
+   */
+  requiredIf?: RequiredIf | null
+  /**
+   * FF-3 — the item's validation rules, in `position` order. `[]` for an item
+   * with none.
+   *
+   * UNLIKE `matrixRows`, the empty array is NOT a distinct state here: an item
+   * with no rules and a matrix with no axes are different kinds of thing (the
+   * latter blocks publish, the former is the norm), so `[]` is the honest empty.
+   *
+   * ⚠ THE BUILDER MUST HYDRATE FROM THIS BEFORE SAVING. `setItemValidations` has
+   * REPLACE semantics — the payload is the complete desired list — so an editor
+   * that opens without these rows and then saves would DELETE every rule on the
+   * item. That is the data-loss path this field exists to close.
+   */
+  validations?: ItemValidationRule[]
   // display-only
   content: SectionTextContent | ImageContent | null
 }
@@ -547,6 +588,18 @@ interface AxisRow {
   position: number
 }
 
+/** FF-3: one embedded `form_item_validations` row, as PostgREST returns it. */
+interface ValidationRuleRow {
+  id: string
+  item_id: string
+  form_version_id: string
+  position: number
+  rule_type: string
+  config: Json | null
+  severity: string
+  message: string | null
+}
+
 interface ItemRow {
   id: string
   section_id: string
@@ -563,8 +616,11 @@ interface ItemRow {
   /** FF-2: the embedded axis rows. Empty for every non-matrix item. */
   form_matrix_rows?: AxisRow[] | null
   form_matrix_columns?: AxisRow[] | null
+  /** FF-3: the embedded validation rules. Empty for an item with none. */
+  form_item_validations?: ValidationRuleRow[] | null
   config: Json | null
   visible_when: Json | null
+  required_if?: Json | null
   required: boolean
   content: Json | null
   // answer-model-v2 (BE-0): new columns, selected by VERSION_TREE_SELECT once
@@ -788,9 +844,40 @@ function toItem(row: ItemRow): Item {
     matrixColumns: MATRIX_ITEM_TYPES.includes(row.item_type as ItemType)
       ? toAxis(row.form_matrix_columns)
       : null,
+    // FF-3: the conditional requirement + the validation rules. Both are plain
+    // reads — no item_type gate, because the CHECK already forbids them on the
+    // types that may not carry them, so a gate here could only ever HIDE a row
+    // the database accepted.
+    requiredIf: (row.required_if as RequiredIf | null) ?? null,
+    validations: toValidations(row.form_item_validations),
     // content is a plain jsonb object for display items, null for inputs.
     content: (row.content as Item['content']) ?? null,
   }
+}
+
+/**
+ * FF-3: map the embedded validation rows to {@link ItemValidationRule}[], sorted
+ * by `position`. Returns `[]` (never null) — an item with no rules is the norm.
+ *
+ * `message` is non-null at the database (`form_item_validations_message_present`),
+ * so the coalesce is a type bridge, not a real case.
+ */
+function toValidations(
+  rows: ValidationRuleRow[] | null | undefined,
+): ItemValidationRule[] {
+  if (!rows || rows.length === 0) return []
+  return [...rows]
+    .sort((a, b) => a.position - b.position)
+    .map((r): ItemValidationRule => ({
+      id: r.id,
+      itemId: r.item_id,
+      formVersionId: r.form_version_id,
+      position: r.position,
+      ruleType: r.rule_type as ItemValidationRule['ruleType'],
+      config: (r.config ?? {}) as ItemValidationRule['config'],
+      severity: r.severity as ItemValidationRule['severity'],
+      message: r.message ?? '',
+    }))
 }
 
 /**
@@ -858,14 +945,19 @@ const VERSION_TREE_SELECT =
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
-  'default_value, parent_item_id, ' +
+  'default_value, parent_item_id, required_if, ' +
   'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, flagged, is_other, position), ' +
   // FF-2: the matrix axes. Both embeds are FK-HINTED for the same reason the
   // options embed is — `answer_matrix_cells` adds a second inferred path between
   // form_items and each axis table (item -> answers -> answer_matrix_cells ->
   // form_matrix_rows/columns), which makes a bare embed ambiguous (PGRST201).
   'form_matrix_rows!form_matrix_rows_item_id_fkey(id, code, label, weight, position), ' +
-  'form_matrix_columns!form_matrix_columns_item_id_fkey(id, code, label, weight, position)))'
+  'form_matrix_columns!form_matrix_columns_item_id_fkey(id, code, label, weight, position), ' +
+  // FF-3: the validation rules. FK-HINTED like its neighbours — form_item_validations
+  // carries FKs to BOTH form_items and form_versions, and an un-hinted embed on a
+  // table reachable by more than one path is the PGRST201 shape this repo has
+  // already eaten once (pqs_members -> hospitals, BUG-NPH-003).
+  'form_item_validations!form_item_validations_item_id_fkey(id, item_id, form_version_id, position, rule_type, config, severity, message)))'
 
 // ---------------------------------------------------------------------------
 // Queries

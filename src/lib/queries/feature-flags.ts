@@ -76,6 +76,16 @@ export interface FeatureFlags {
   // local/E2E this flag is OFF. Resolve the VALUE in `app.feature_flags.enabled`,
   // never this comment.
   matrix_fields: boolean
+  // FF-3 (ADR 0090): the validation engine — the six `form_item_validations` rule
+  // types, `set_item_validations`, `form_items.required_if`, and the HC0P9 submit
+  // gate. Seeded OFF in 20260901000000_ff3_validation_schema; `seed.sql` forces it
+  // ON for local/E2E.
+  // ⚠ CURRENT TRUTH: the production gate-flip migration is NOT WRITTEN YET — it
+  // is authored at the FF-3 gate, like `matrix_fields` above and unlike
+  // `repeating_groups` (whose `20260828000900` already landed). So outside
+  // local/E2E this flag is OFF. Resolve the VALUE in `app.feature_flags.enabled`,
+  // never this comment.
+  item_validations: boolean
 }
 
 /** A flag key. */
@@ -241,4 +251,30 @@ export async function repeatingGroupsEnabled(): Promise<boolean> {
  */
 export async function matrixFieldsEnabled(): Promise<boolean> {
   return featureEnabled('matrix_fields')
+}
+
+/**
+ * FF-3 (ADR 0090): is the validation engine available? A thin, typed wrapper over
+ * {@link featureEnabled} (consistent with the other per-flag `*Enabled()`
+ * readers), so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}.
+ *
+ * Seeded OFF in `20260901000000_ff3_validation_schema`; `seed.sql` forces it ON
+ * for local/E2E. **The production gate-flip migration is not written yet** — it
+ * is authored at the FF-3 gate — so this reads false anywhere but local/E2E.
+ *
+ * Gates the BUILDER's rules editor and `required_if` authoring, and the wizard's
+ * inline feedback. The server checks the SAME flag on both write and read
+ * (`app.feature_enabled('item_validations')` → `HC0Q0` from
+ * `set_item_validations`; the empty set from
+ * `public.get_response_validation_errors`; and the `required_if` layer plus the
+ * HC0P9 gate are skipped inside `submit_response`), so the feature is dark on
+ * both sides of the boundary and hiding the UI is never the control (Rule 1).
+ *
+ * Fail-closed matters here in a specific way: with the flag OFF,
+ * `set_item_validations` raises HC0Q0, so a rules editor offered anyway would be
+ * a dialog whose save can never succeed.
+ */
+export async function itemValidationsEnabled(): Promise<boolean> {
+  return featureEnabled('item_validations')
 }
