@@ -130,6 +130,33 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >    so my render-layer map never covered it. Found by sweeping `pg_proc` for `participant_type`,
 >    not by reviewing the reported site. SQL↔TS label parity is now pinned both ways (pgTAP 276 §L +
 >    `participant-type-labels.test.ts`), so changing one alone reds a suite.
+> 3. 🟠 **KNOWN LIMITATION — the patient lane's sublabel degenerates on the READ path.** Surfaced by
+>    `backend` re-sweeping the `sublabel` producers after (2) removed the client-side net; verified
+>    independently here against the code and the live DB. **Not a regression and not blocking — but
+>    it should be a PO/lead decision, not a code comment, and I do not think "cosmetic" is right.**
+>    - The three producers all normalize, but they resolve the participant sublabel DIFFERENTLY:
+>      `reference_candidates` (picker) and `app.references_by_item` (sign-off) emit the
+>      **case-participant role**; `buildReferenceAnswers` emits the **type label only** — provably,
+>      since `ScopedReferenceRow.participants` carries `{display_name, participant_type}` and no case
+>      data at all, so it *cannot* resolve a role.
+>    - `buildReferenceAnswers` feeds **`getResponseForFill`** (wizard resume + the review screen after
+>      a reload) and **`getSubmissionDetail`** (the durable submitted record). The sign-off surface is
+>      unaffected.
+>    - Every patient's `display_name` is the literal `Paciente` (verified: `select distinct
+>      display_name … where participant_type='patient'` → one row). So on those paths a patient
+>      reference renders **`Paciente / Paciente`** — zero information, in the one field whose entire
+>      purpose is to disambiguate identical labels. Two patient references in one form become
+>      indistinguishable at the confirm-before-submit moment and in the permanent record.
+>    - **Why "latent" understates it:** it needs a case-bound response carrying a patient reference,
+>      which no fixture has — but that is precisely the patient lane's *primary intended use* (ADR 0091
+>      ruling 2 exists to make patient references work on case-linked forms). The first real case-phase
+>      form with one hits it. It is unexercised, not unlikely.
+>    - Closing it means giving `buildReferenceAnswers` case scope — a new query and new risk. **I agree
+>      with `backend` that that is not a gate-time change**; recording it so the call is made
+>      deliberately rather than by default.
+>    - Frontend deliberately does **nothing** here: suppressing the duplicate when `label === sublabel`
+>      would make the degenerate case *look* intentional, which is the same asymmetric-masking mistake
+>      that got the render-layer guard deleted in (2). The ugly duplicate is the honest signal.
 
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
