@@ -94,10 +94,37 @@ _No active build phase._ **FF-1 (Repeating Groups) ✅ COMPLETE 2026-07-27** —
 `matrix_fields` **ON** (gate flip `20260830001200`); record →
 [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md).
 
-**FF-3 (Validation Engine, `item_validations`) is the next build phase — NOT started.** It begins
-with its own ADR (**0090+**) per ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md); scope,
-dependencies and gate keystones → [flexible-forms-program.md](docs/plans/flexible-forms-program.md)
-§3 FF-3.
+### 🏗️ FF-3 — Validation Engine (`item_validations`) · IN PROGRESS (started 2026-07-28)
+
+ADR [0090](docs/decisions/0090-ff3-validation-engine.md) **accepted** — PO rulings taken
+2026-07-28: rule vocabulary = the plan's set · coverage = scalars + repeating-group children
+per-instance (matrix cells **out** of v1) · `error` blocks **submit only**, server-side.
+Migration window `20260901000000`+ · SQLSTATEs from **`HC0P9`** (live high-water `HC0P8`) ·
+pgTAP **274+** (highest today `273`). Worktree `ff/flexible-forms-program`, branch of the same
+name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
+
+> 🔎 **Catalog finding that changed the scope (ADR 0090 ruling 1).** The plan lists "group
+> cardinality" as an FF-3 `rule_type`. It is **already shipped by FF-1** — `minInstances` in
+> `app.response_required_complete`'s group arm, `maxInstances` in `add_group_instance` (the only
+> `prosrc` in the catalog mentioning it), both via `app.item_cardinality(form_items.config, …)`.
+> Adding it as a rule would create a second source of truth for one bound. **FF-3 ships six new
+> rule types, not seven**, and the seventh is recorded as already-satisfied rather than dropped.
+
+| # | Task | Owner | Status |
+| - | ---- | ----- | ------ |
+| B1 | Schema wave — `rule_type` allowlist CHECK + `item_type` coverage CHECK · `form_items.required_if` (+ `input_vs_display` arm) · flag `item_validations` seeded **OFF** | `backend` | 🔜 |
+| B2 | Door parity — `set_item_validations` DEFINER writer · targeted SELECT arm · `staff_admin` FOR-ALL write arm · `app.copy_version_children` validations block (INFO-1 remainder), **same wave as the writer** | `backend` | 🔜 |
+| B3 | Evaluator pair — `app.eval_validation` + TS twin under `src/lib/queries/` + golden vectors (Rule 3 mirror, phase-blocking) | `backend` | 🔜 |
+| B4 | Authority — `required_if` in **both** arms of `app.response_required_complete` (visibility wins) · `error` gate in `submit_response` (`HC0P9`) · `get_response_validation_errors` read path | `backend` | 🔜 |
+| B5 | Operator authorability — widen `app.is_valid_condition` to `contains`/`not_contains`/`is_empty`/`is_not_empty` (+ the no-`value` relaxation) + vectors | `backend` | 🔜 |
+| B6 | pgTAP `274+` — the 8 SQL keystones of ADR 0090, each mutation-proven; re-pin `209` §B/§C and `272` door-parity | `backend` | 🔜 |
+| F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the 4 new operator pickers | `frontend` | ⏸ blocked on B1–B3 contract |
+| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ⏸ blocked on B4 contract |
+
+**Lead notes.** Contract-first: `backend` posts the typed stubs for
+`get_response_validation_errors` + the TS validation twin before `frontend` starts F1/F2.
+File ownership — `backend` owns `src/lib/queries/**` incl. the new evaluator module and
+`conditions.ts`; `frontend` owns `src/components/forms/**` + `src/components/responses/**`.
 
 > 🔴 **FF-3 inherits two obligations from FF-2, both binding.**
 > 1. **`form_item_validations` is missing the targeted and correction policy arms** (deliberately
