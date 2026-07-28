@@ -278,3 +278,25 @@ test space (risk 2). Logged as **O-4**.
   is that the two walks **agree in general**. The durable fix is either a single shared traversal or a
   drift-detector over a fixture matrix; deferred rather than attempted at the gate, because the
   refactor target is the Rule 3 submit authority. **Whoever changes required-ness must change both.**
+
+  ⚠ **Amended 2026-07-28 — it is FOUR traversals, not two, and they are two *separate* duplications.**
+  `frontend` read this entry as describing its client-side pair and agreed with it; that is a
+  different pair. The full set:
+
+  | layer | traversal | scope |
+  |---|---|---|
+  | SQL | `app.response_required_complete` | all sections → boolean |
+  | SQL | `submit_response` | all sections → *which* items, and prunes empty instances |
+  | TS | `liveFeedback` | **current section** only |
+  | TS | `reviewFeedback` | all sections (review screen) |
+
+  Each layer's pair shares that layer's predicate — the SQL pair both call
+  `app.item_is_required`/`app.item_required_satisfied`, the TS pair both call `itemIsRequired` — so
+  neither pair can disagree on the *answer*, only on *which items it asks about*. The SQL↔TS gap
+  across layers is separately governed by Rule 3's mirror discipline.
+
+  **Why the distinction is load-bearing:** collapsing the TS pair (the shape `frontend` proposed —
+  one all-sections pass the current section reads a slice of) would leave the **SQL** pair fully
+  intact, while a reader of `frontend`'s note would reasonably believe O-6 was discharged. Either
+  duplication may be collapsed independently; **O-6 is not closed until both are, or until a
+  drift-detector covers each pair.**

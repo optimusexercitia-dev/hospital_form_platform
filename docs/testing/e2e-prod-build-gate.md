@@ -243,6 +243,38 @@ both** (those 3 are pre-existing; see below).
   (choice-default publish rejected). Left untouched (the spec is correctly catching a real
   bug) and flagged for the owning engineers.
 
+## Two collisions when an engineer works while the gate is up (FF-3, 2026-07-28)
+
+Both cost time before being diagnosed; both look like defects and are not.
+
+**1. `next build` fails with Windows `EBUSY` on `.next/standalone` while a prod-standalone
+server is running.** The running `node .next/standalone/server.js` holds the directory, so a
+concurrent build cannot replace it. This will hit **any** engineer running `next build` while a
+tester's gate is up — and the gate can run 18–40 minutes.
+
+*Do not kill the other session's server to unblock yourself.* One owner per stack: killing a
+process mid-run is how a local DB was corrupted for ~30 minutes previously (memory
+`shared-local-stack-single-owner`), and `TaskStop` does not reap the gate's process tree anyway.
+The clean workaround, used successfully in FF-3: build to a scratch `distDir` behind an
+**env-gated** `next.config.ts` branch — inert without the env var, so a concurrent build is
+unaffected — then restore the config byte-for-byte and confirm it `git`-clean.
+
+**2. A query issued within ~30 s of `supabase db reset` can report a catalog that looks
+destroyed** — the `app` schema and RPCs like `submit_response` appearing "missing", and pgTAP
+reporting mass failures. The queries are racing the reset's *"Restarting containers…"* step. It
+also makes a **successful** reset look failed, because `reset ok` never prints, so inferring from
+the absent success line points the wrong way.
+
+Gate on container health before querying, not on elapsed time:
+
+```bash
+docker inspect -f '{{.State.Health.Status}}' supabase_db_azkbbhskturikxpgmafq
+```
+
+Wait for `healthy`. If you see a catalog that looks wiped, check this **before** concluding
+anything and do not re-reset reflexively. Same triage family as the `supabase_vector` crash-loop
+(memory `supabase-vector-crashloop-502`): infra masquerading as regression.
+
 ## References
 
 - Plan: [pre-pilot-foundations-program.md §7](../plans/pre-pilot-foundations-program.md)
