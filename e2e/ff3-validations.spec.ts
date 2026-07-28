@@ -1889,6 +1889,109 @@ test('FF3-12 a legacy config bound is reported with rule_id null and gates submi
 })
 
 // ===========================================================================
+// FF3-14 — the two DATE rule types: `date_range` and `datetime_order`
+//
+// The remaining two of the six. Values are set through the canonical
+// `save_section_answers` path rather than the calendar popover: a `date` renders
+// as a `DatePicker` (a button + hidden input), so driving it would test
+// react-day-picker's month navigation, not the rule engine. The SUBJECT here is
+// the rendered evaluation and the submit gate, and both are asserted after a
+// real reload of the wizard.
+// ===========================================================================
+
+test('FF3-14 date_range and datetime_order evaluate, render and gate submit', async ({
+  page,
+}) => {
+  const title = `${SPEC_TAG} regras de data`
+  const f = seedForm(title, ({ versionId, section, id }) =>
+    [
+      itemInsert({
+        id: id('inicio'),
+        section: section(),
+        version: versionId,
+        position: 0,
+        type: 'date',
+        key: 'inicio',
+        label: 'Início da vigência',
+      }),
+      itemInsert({
+        id: id('fim'),
+        section: section(),
+        version: versionId,
+        position: 1,
+        type: 'date',
+        key: 'fim',
+        label: 'Fim da vigência',
+      }),
+      ruleInsert({
+        item: id('inicio'),
+        version: versionId,
+        ruleType: 'date_range',
+        config: '{"min": "2026-01-01", "max": "2026-12-31"}',
+        message: 'A vigência precisa começar dentro de 2026.',
+      }),
+      // The ONLY cross-field rule in the vocabulary (ADR 0090 ruling 1).
+      ruleInsert({
+        item: id('fim'),
+        version: versionId,
+        ruleType: 'datetime_order',
+        config: '{"op": "not_before", "question_key": "inicio"}',
+        message: 'O fim não pode ser anterior ao início.',
+      }),
+    ].join('\n'),
+  )
+
+  await signInAs(page, STAFF1)
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+  const token = await getToken(page, STAFF1)
+
+  const save = async (inicio: string, fim: string) => {
+    const r = await rpcAs(page, token, 'save_section_answers', {
+      p_response_id: responseId,
+      p_section_id: f.sectionIds[0],
+      p_answers: { [f.items['inicio']]: inicio, [f.items['fim']]: fim },
+    })
+    // Still the resume contract: a draft holds violating dates too.
+    expect(r.ok, `save_section_answers recusou ${inicio}/${fim}: ${r.text}`).toBeTruthy()
+    await page.reload()
+    await waitForWizard(page)
+  }
+
+  const rangeMsg = 'A vigência precisa começar dentro de 2026.'
+  const orderMsg = 'O fim não pode ser anterior ao início.'
+
+  // --- date_range: out of bounds, order fine -------------------------------
+  await save('2025-06-01', '2025-07-01')
+  await expect(page.getByText(rangeMsg)).toHaveCount(1)
+  await expect(page.getByText(orderMsg)).toHaveCount(0)
+  await advance(page)
+  await expect(page.getByText(REVISE_BANNER)).toBeVisible()
+  expect(responseStatus(responseId)).toBe('in_progress')
+
+  // --- datetime_order: in bounds, but `fim` precedes `inicio` --------------
+  await save('2026-06-01', '2026-03-01')
+  await expect(page.getByText(rangeMsg)).toHaveCount(0)
+  await expect(page.getByText(orderMsg)).toHaveCount(1)
+  await advance(page)
+  await expect(page.getByText(REVISE_BANNER)).toBeVisible()
+  expect(responseStatus(responseId)).toBe('in_progress')
+
+  // --- the boundary is INCLUSIVE, both rules ------------------------------
+  // Equal dates satisfy `not_before`, and 2026-01-01 is exactly `min`. If either
+  // bound were exclusive this would still be blocked.
+  await save('2026-01-01', '2026-01-01')
+  await expect(page.getByText(rangeMsg)).toHaveCount(0)
+  await expect(page.getByText(orderMsg)).toHaveCount(0)
+  await advance(page)
+  await submitFromReview(page)
+  await expect(page.getByText(/resposta enviada|enviada com sucesso/i).first()).toBeVisible({
+    timeout: 25_000,
+  })
+  expect(responseStatus(responseId)).toBe('submitted')
+})
+
+// ===========================================================================
 // FF3-13 — the grant boundary (keystone C5, through an app-reachable door)
 // ===========================================================================
 
