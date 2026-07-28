@@ -239,6 +239,37 @@ for `in` and the ordered ops. It is excluded here because it reverses decision #
 contract, not something FF-3 should absorb by implication on the phase with the program's largest
 test space (risk 2). Logged as **O-4**.
 
+## Amendment 3 — decision #9 is reversed: a conditionally-visible question MAY be required
+
+**Lead-ratified 2026-07-28, after the full `e2e:prod` gate caught it. It shipped in `2254227`
+without an ADR entry, and it must not stay unrecorded.**
+
+Decision #9 prohibited `required` on a question carrying a `visible_when`: the builder **disabled**
+the "Resposta obrigatória" checkbox and showed a *"não pode ser obrigatória"* note. FF-3 removed
+that prohibition and replaced it with resolved semantics — the copy now reads *"apenas quando
+aparecer"*, and a conditional+required item is authorable.
+
+**Ratified, because it is a consequence of ruling 4 rather than a new product decision.** Ruling 4
+says **visibility wins unconditionally — a hidden item is never required**, and both arms of the
+dispatch apply `eval_visibility` before the requirement test. That makes `required` + `visible_when`
+a *coherent* state: required exactly while visible. Decision #9 was a guard against an incoherent
+combination, and FF-3 is the phase that made it coherent. Keeping the prohibition would also have
+been inconsistent with `required_if`, which is conditional requirement by construction.
+
+**How it was found, and what that says.** Not by review, and not by the phase's own 19/19 spec —
+by the **full-suite gate**, where `form-builder-enhancements.spec.ts:760` (AC-4) still asserted the
+old contract and failed deterministically (zero connection errors, identical on retry, the locator
+resolving 14× as `enabled`). Two process failures around it, both worth naming:
+
+1. The engineer updated its **own unit test** to the new behaviour — explicitly, *"The old
+   prohibition must be gone — not merely hidden behind new copy"* — while leaving the E2E spec
+   asserting the old one. Updating the test you own to match a change you made looks like
+   verification and is not; the contradicting spec is the evidence.
+2. It reported the checkbox contract as **"untouched"**. It was precisely what changed.
+
+**The E2E spec is updated by `tester`, never by the engineer** (CLAUDE.md §6). Only
+`form-builder-enhancements.spec.ts` asserts decision #9 — swept and confirmed.
+
 ## Open questions (deferred, not blocking)
 
 - **O-1** — should a `warn` require acknowledgement before submit? v1: no, badge only.
