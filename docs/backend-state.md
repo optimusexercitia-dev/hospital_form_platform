@@ -280,12 +280,20 @@ of a fix proves nothing** - revert each arm separately.
 | `form_matrix_rows` / `form_matrix_columns` | yes | n/a | yes (`...001400`) | **none** (K9) |
 | `response_group_instances` | yes | **no** | yes (ETH `...001500`) | own-draft + targeted |
 | **`answer_references`** (FF-5, inert) | yes | **no** | **no** | none |
-| **`form_item_validations`** (FF-3, inert) | yes | **no** | **no** | none |
+| `form_item_validations` | yes | **no** | **yes** (FF-3 `20260901000100`) | **none** (K9 - DEFINER door; policy present, GRANT withheld) |
 
-> **INHERITED OBLIGATION - FF-3 and FF-5.** The last two rows are missing arms **deliberately**: both
-> tables are write-inert (0 rows), so there is no live impact today. **Each phase's writer landing is
-> exactly when that stops being true** and must add the arms in the same change. FF-1 handed FF-2 its
-> P0-1 obligation this way and it is the only reason FF-2 caught it.
+> **INHERITED OBLIGATION - FF-3 DISCHARGED, FF-5 OUTSTANDING.** A row missing arms is only safe while its
+> table is write-inert (0 rows). **A phase's writer landing is exactly when that stops being true** and must
+> add the arms in the same change. FF-1 handed FF-2 its P0-1 obligation this way and it is the only reason
+> FF-2 caught it; FF-2 handed FF-3 the two `form_item_validations` arms, and FF-3 landed them in
+> `20260901000100` **together with** its writer and its `copy_version_children` block.
+>
+> **`answer_references` is now the ONLY row still owing**, and FF-5 inherits the full set: the targeted
+> arm, the `can_read_correction_response` arm, the correction-copy blocks in BOTH RPCs with the instance
+> remap, and an `app.instance_is_empty` arm (without which `submit_response` prunes an instance holding only
+> a reference and cascades it away - FF-2 ADR 0089 section A, identical shape). FF-5 also inherits the
+> `required = false` pin on `reference` in `form_items_input_vs_display` **and** the `required_if is null`
+> pin FF-3 added beside it - relaxing one without the other reopens the Flag-5 deadlock by the other door.
 
 ### Out-of-phase fixes carried in this window
 
@@ -300,6 +308,165 @@ of a fix proves nothing** - revert each arm separately.
   **no options**, could not persist a selection, and could not fill a repeating group.
   `app.assert_group_writable` also carried its own creator-only check (`HC0N2`), so widening the policies
   alone would have done nothing - it now takes the union. Keystone `273_eth_targeted_choice_lane.sql`.
+
+## FF-3 - Validation Engine (2026-07-28; ADR 0090 + Amendment 1; migrations `20260901000000`-`...000700`; flag `item_validations` seeded **OFF** - **gate-flip migration NOT WRITTEN YET**)
+
+**EIGHT migrations** (`...000000` schema * `...000100` door+writer+clone * `...000200` evaluator *
+`...000300` `required_if` in the dispatch * `...000400` the error surface + the `HC0P9` gate *
+`...000500` operator authorability * `...000600` publish-validates-`required_if` * `...000700`
+unary-ops-publishable). *I twice reported "seven" in-phase - the count drifted when `...000700`
+landed as a defect fix. Count the files, not the prose.*
+
+Activates F3's `form_item_validations` bones, write-inert since 2026-07-12, and adds
+`form_items.required_if`. **K9 preserved**: `form_item_validations` stays `authenticated` SELECT-only and
+`set_item_validations` is the only door.
+
+- **Vocabulary (ruling 1)** - SIX rule types, pinned by an allowlist CHECK: `number_range`,
+  `text_length`, `regex`, `date_range`, `datetime_order`, `unique_within_group`. **Group cardinality is
+  NOT one** - `minInstances`/`maxInstances` shipped in FF-1 and a second spelling would be a second source
+  of truth for one bound. The column was `not blank` and nothing more, which is the shape that lets a TYPO
+  (`number_rang`) store and evaluate to "no rule".
+- **Coverage (ruling 2) is a TRIGGER, not a CHECK** - `app.guard_item_validation_row`. A CHECK cannot
+  subquery, and coverage is a statement about the JOINED `form_items` row (`item_type`, and for
+  `unique_within_group` the PARENT's type). It also enforces version coherence and test-compiles a `regex`
+  pattern at write time (an uncompilable pattern would otherwise raise raw inside `submit_response`, after
+  publish). `message` is **required non-blank** by CHECK - which is also what keeps a generated pt-BR
+  string out of the SQL/TS parity surface.
+- **Triggers** - `app.guard_item_validation_row` (BEFORE INSERT/UPDATE: coverage + version
+  coherence + the `regex` compile probe; `HC0Q1`/`HC0Q2`) * **`guard_published_structure` REUSED**
+  as `guard_published_validations_trg`, giving the table the Rule 5 freeze its `form_item_options`
+  sibling already had and the matrix tables still lack * `app.guard_item_type_vs_validations`
+  (BEFORE UPDATE OF `item_type`, `parent_item_id` on **`form_items`**) - the other direction:
+  `authenticated` holds full DML on `form_items` (unlike `form_item_validations`), so a staff_admin
+  could re-type an item through PostgREST and orphan a rule into a pair the coverage trigger would
+  have refused.
+- **`required_if` (ruling 4)** - a **SINGLE** condition (`app.is_valid_condition`), NOT the
+  `{match, conditions[]}` group shape `visible_when` accepts. `form_items_input_vs_display` forbids it on
+  containers, display items **and `reference`** (which pins `required = false` until FF-5 - `required_if`
+  would be a back door around that pin). Composed into **both** arms of the dispatch via
+  `app.item_is_required(required, required_if, answers)`: top-level map in the flat arm,
+  `app.instance_answer_map` in the group arm, so per-instance requirement works by construction.
+  **VISIBILITY WINS STRUCTURALLY** - both arms already FILTER by `app.eval_visibility` before the
+  requirement test, and `required_if` composes as another conjunct INSIDE that filter, never around it.
+- **Enforcement topology (ruling 3)** - `severity='error'` blocks **`submit_response` only** (`HC0P9`);
+  `warn` never blocks anywhere; **`save_section_answers` never rejects on a validation rule** (a draft must
+  stay saveable mid-edit - the Rule 3 resume contract).
+- **`app.eval_validation(rule_type, config, value, answers, peer_values)`** - the phase's second dual
+  evaluator, IMMUTABLE and **pure**: `unique_within_group` receives its cross-instance peers as an argument
+  rather than reaching into the DB, which is what lets one fixture drive both engines. `p_value` is the
+  value **from the answer map in scope**, never `answers.value` (a choice item keeps its payload in
+  `answer_selected_options` and only resolves to a code in the map). An **empty value always satisfies** -
+  presence belongs to `required`/`required_if`, and "empty" is the same notion `eval_condition`'s
+  `is_empty` uses, so the platform has one definition of it.
+- **`app.response_validation_errors(response)`** - **THE predicate.**
+  `public.get_response_validation_errors` reads it and `submit_response` gates on it, which is what makes
+  ADR 0090 section 3's "the list the user sees and the gate that blocks them cannot disagree" true rather
+  than aspirational. **Amendment 1**: the legacy `app.assert_item_bounds` config-bound lane (`min`/`max` on
+  number+date, `minLength`/`maxLength` on the two text types) was extracted into
+  `app.item_bound_violations` and folded into this walker with `rule_id = null`, because that lane is a
+  SECOND validation surface over the same fields and left alone it breaks the contract in the worst
+  direction - **a submit refused with an EMPTY error list.** `HC061` still raises FIRST, from inside the
+  item loop, so no behaviour moved.
+- **Operator authorability (ruling 5)** - `app.is_valid_condition` widened to `contains`,
+  `not_contains`, `is_empty`, `is_not_empty` (implemented by `eval_condition` since F3, refused by the
+  storage gate). The `value` requirement is relaxed for the two unary ops **BY NAME**, not by making
+  `value` optional - the latter would also admit an `equals` with no value.
+- **RPCs added** - `set_item_validations(item, rules)` **DEFINER** (flag `HC0Q0`; authority FIRST
+  `42501`; draft-only `HC0P4`; coverage `HC0Q1`; config `HC0Q2`; audited; **REPLACE semantics** - the
+  payload is the item's complete rule list, so an omitted rule is DELETED) *
+  `get_response_validation_errors(response)` **INVOKER**, gated by an RLS-evaluated probe on `responses`,
+  returning `(item_id, group_instance_id, rule_id, rule_type, severity, message)`.
+- **`app.copy_version_children`** gains the `form_item_validations` block **and** copies `required_if` -
+  landed in the SAME wave as the writer, because the Rule 5 clone gap opens the instant the definition
+  table has rows. The block runs LAST, after the `parent_item_id` re-link, since the coverage trigger
+  resolves the new item's PARENT to validate `unique_within_group`.
+- **Publish** - `public.validate_visible_when`'s item loop generalised over
+  (`visible_when`, `required_if`), so `required_if` inherits existence, earlier-question and FF-1's
+  outside-in ban. Without it a `required_if` pointing into a repeating group resolves against a map where
+  the key is absent, so the item is **silently never required** - fail-open, and invisible to any test that
+  only asks "does an unmet `required_if` block".
+
+### FF-3 door parity - DISCHARGED, and it CORRECTS ADR 0090 section 6
+
+Measured against `pg_policies`, not asserted. `form_item_validations` gained the two missing arms
+(`_select_targeted` and `_staff_admin_write`), closing the FF-2 hand-forward. **The ADR's parity table was
+wrong on one cell**: it recorded the matrix tables as carrying a write policy. They do not - they carry ONE
+policy each, and their write boundary is the SELECT-only GRANT plus the DEFINER door. `form_item_options` is
+the outlier that misled it: it holds a full `arwdDxtm` grant, so for *that* table the `FOR ALL` policy IS
+the boundary.
+
+**FF-3 took the stricter shape**: both policy arms added per the ADR, **grant left SELECT-only**, so K9
+holds by privilege and the writer is the only door. The `FOR ALL` policy is documented intent plus
+defence-in-depth, **not** today's boundary. Keystone `274` section C pins both facts, including a computed
+sibling diff (`form_item_validations` carries no FEWER arms than `form_item_options`) so a future arm added
+to one shows up as missing on the other. The lead's rule from this: **where siblings disagree, the tighter
+posture wins.**
+
+### Four fail-open defects, none catchable by tsc/lint/unit/build
+
+1. **`app.validation_rule_allowed` returned NULL, not false**, for a top-level item
+   (`p_parent_item_type = NULL` gives `NULL and true` = NULL). Every caller wrote `if not allowed(...)`,
+   and `not NULL` is NULL, so the `if` never fired and a forbidden pair was **accepted**. A coverage
+   predicate must be TOTAL - fixed with an outer `coalesce(..., false)`, and `eval_validation`'s regex arm
+   plus `item_is_required` hardened the same way. Same family as FF-2 defect 1: a three-valued predicate
+   read as if it were two-valued.
+2. **`validate_visible_when` never validated `required_if`** (above) - fixed in `...000600`.
+3. **`HC061` has TWO unrelated raise sites** - `app.assert_item_bounds` (a field bound) and
+   `app.compute_case_phase_result` (a MANUAL phase with no result) - and `submitResponse` mapped it to
+   *"Selecione o resultado da fase"*. Reachable by ORDINARY USE: type two characters into a `minLength: 5`
+   field and be told about a phase result. Both raise sites produce good pt-BR, so the mapping now prefers
+   the DB message. **A third site exists** (`public.approve_correction` re-raises it) and is separately
+   mapped in `corrections/actions.ts`.
+4. **The unary operators were STORABLE but UNPUBLISHABLE** (`...000700`). `is_valid_condition` was
+   widened; the two publish-time assertions were not. `is_empty` on a NUMBER target raised "exige um valor
+   numerico"; on a CHOICE target it raised `referencia a opcao "nula"` - naming an option the author never
+   wrote. The author could SAVE the draft and then fail publish with a nonsense message.
+   **`app.assert_condition_value_codes` gained a REQUIRED `p_op`**; requiredness is the point, since a
+   defaulted parameter lets a caller silently keep the old behaviour. All FOUR call sites wired in the same
+   transaction.
+
+> **The complete gate set for a `visible_when`/`required_if` operator, from `pg_proc` - check ALL of these
+> when widening the vocabulary.** `app.is_valid_condition` (storage CHECK) * `app.is_valid_visibility`
+> (group wrapper - **delegates**, so it inherits any widening) * `app.assert_condition_op_target`
+> (publish) * `app.assert_condition_value_codes` (publish). There is no fifth. Two ADJACENT lanes keep
+> their own **narrower** allowlists and are deliberately untouched: `app.is_valid_recommend_cond`
+> (`equals`/`not_equals`/`in`) and `app.is_valid_flagged_when` - different columns, different vocabularies.
+
+### Two lessons worth more than the code
+
+- **`validate_visible_when` calls the same helper TWICE** (a section loop and an item loop) and the two
+  call sites do not share a call text. A re-signature that rewrote only one applied cleanly - plpgsql
+  resolves calls at EXECUTION time - and then broke publish with a raw `42883` for any form carrying a
+  SECTION condition, a path shipped long before FF-3. The migration's own belt missed it because it counted
+  caller **functions** (found the expected 3) while one of them called **twice**. It now counts call
+  **SITES** and inspects each site's arguments. Sweep call SITES, never callers.
+- **Mutate BEFORE writing a keystone, not after.** Two guards in this phase could not fail and were
+  caught by something other than review. The one that held was pre-checked: the narrowings `frontend`
+  feared were already covered (E4, I2/I5), and the *actual* uncovered case was a MIXED severity set from
+  ONE call - no fixture had ever held both. `274` section M pins it, and its comment block records the
+  **OBSERVED** mutation output because two of three predictions were wrong.
+
+### Verified catalog shape (2026-07-28, post-`db reset`; re-derive, do not trust this text)
+
+`set_item_validations(uuid,jsonb)` **prosecdef=true** * `get_response_validation_errors(uuid)`
+**prosecdef=false** (INVOKER - the RLS-evaluated probe on `responses` is the read gate, so it is
+exactly as strong as the `responses` SELECT policy, neither weaker nor stronger) *
+`app.response_validation_errors` DEFINER/STABLE * `app.assert_condition_value_codes` DEFINER/STABLE,
+**6 arguments** * IMMUTABLE and pure: `eval_validation`, `item_is_required`,
+`validation_rule_allowed`, `is_valid_validation_config`, `validation_value_is_empty`,
+`item_bound_violations`, `is_valid_condition`, `is_valid_visibility`,
+`assert_condition_op_target` * `form_item_validations`: **3 policies**, `authenticated` SELECT=true
+INSERT=**false** * 3 triggers as listed above. Plans: `274` 81, `209` 44, `272` 30.
+
+### pgTAP
+
+`274_ff3_validations.sql` - **81 assertions**, every ADR 0090 keystone, each mutation-proven. The
+artifact is not a mutation COUNT (I cannot defend a precise one) but the **observed red output
+recorded per section**, naming the exact revert and which assertions went red - so `qa` can re-run
+any proof from the note alone. Re-pins: `209` section B **+4** (the `required_if` half of the
+Flag-5 freeze, with a POSITIVE twin so the three negatives cannot pass vacuously) and `272` **section S
++3** (a TARGETED respondent READS validation ROWS - `274` section C can only prove the policy EXISTS,
+which ETH-E1 established is a different claim).
 
 ## N — Notifications (S1·N, 2026-07-13; ADR 0076; migrations `20260720000700`–`…000730`; flag `notifications` ON)
 
@@ -831,6 +998,21 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 
 ## Helper functions
 
+- **FF-3 validation predicates (ADR 0090)** - `app.eval_validation(rule_type, config, value, answers,
+  peer_values)` **IMMUTABLE + pure** (the SQL half of the second dual evaluator; TS twin `evalValidation`
+  in `src/lib/forms/validation-rules.ts`, locked by `__fixtures__/validation-vectors.json`) *
+  `app.item_is_required(required, required_if, answers)` **IMMUTABLE**, total by `coalesce` (visibility is
+  NOT consulted - the CALLERS filter by `app.eval_visibility` first, which is what makes "visibility wins"
+  structural) * `app.validation_rule_allowed(rule_type, item_type, parent_item_type)` **IMMUTABLE**, total
+  by `coalesce(..., false)` (the NULL-returning version admitted forbidden pairs) *
+  `app.is_valid_validation_config(rule_type, config)` (every key test resolves the ABSENT case via
+  `coalesce(jsonb_typeof(...), 'missing')` - the FF-2 defect-1 fail-open shape) *
+  `app.validation_value_is_empty(value)` (the ONE notion of empty, shared with `eval_condition`'s
+  `is_empty`) * `app.item_bound_violations(item_type, config, label, value)` (the legacy config-bound lane,
+  made enumerable; `app.assert_item_bounds` is now a thin `HC061`-raising wrapper over it) *
+  `app.response_validation_errors(response)` **DEFINER** - the single walker both the read path and the
+  submit gate consume.
+
 - `is_member_of(commission)` / `is_staff_admin_of(commission)` — `security definer`,
   used throughout RLS.
 - `app.is_admin()` — from the verified JWT claim, DB fallback as defense-in-depth.
@@ -976,6 +1158,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `notifications` | **ON** (S1·N, migration `…000720`; ADR 0076) | **21st flag.** Gates the notification engine — `app.assert_notifications_enabled()` on the write RPCs, and `app.enqueue_notification`/`app.resolve_notifications_for`/`compute_due_notifications` all no-op when OFF (so the 9 event-hook splices are inert + a scheduled scan is harmless). TS layer reads via `notificationsEnabled()` (delegates to `get_feature_flags()`). Inserted OFF in `20260720000700`; flipped ON by the gate-flip `…000720`; `seed.sql` forces ON for local/E2E. Flag-OFF preserves byte-for-byte pre-N behaviour (shell renders no bell). PHI-free by construction (Rule 12). |
 | `case_participants` | **ON** (E1, migration `…001040`; ADR 0064/0072) | **The m2 hard gate — released by E1.** Seeded OFF at F1; flipped ON only once respondent-exclusion RLS landed. Gates the ethics write spine via `app.assert_case_participants_enabled()`. **Local only** — never `db push`ed this phase; prod flips at the deliberate pilot reset. RLS is live regardless of the flag (the flag gates RPC reachability, never the boundary). |
 | `matrix_fields` | **ON** (FF-2, migration `…001200`; ADR 0089) | Gates `upsert_matrix_axes` + both matrix answer writers (`HC0P2`) and the builder's matrix types; TS reads via `matrixFieldsEnabled()`. Seeded **OFF** in `20260830000100`; flipped ON by the gate-flip `…001200`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - a stored grid renders either way, so the flag governs authoring + filling only. |
+| `item_validations` | **OFF in prod - SEED-ON only** (FF-3; ADR 0090) | **The gate-flip migration does NOT exist yet** - it lands in the FF-3 gate-close wave after QA approves, so this reads FALSE anywhere but local/E2E. Seeded OFF in `20260901000000`; `seed.sql` forces ON for local/E2E. Gates BOTH sides: `set_item_validations` raises `HC0Q0`, `get_response_validation_errors` returns the EMPTY SET, and the `required_if` layer + the `HC0P9` gate are skipped inside `submit_response`/`app.response_required_complete` (the flag is read ONCE per call and the `required_if` argument nulled at the call site, so the predicate stays IMMUTABLE). TS reads via `itemValidationsEnabled()`. **Fail-closed in a specific way**: with the flag OFF the writer raises `HC0Q0`, so a rules editor offered anyway is a dialog whose save can never succeed. ⚠ Without the flip, `db push` ships the phase DARK while local stays green - FF-2's review blocker. |
 | `case_types` | **ON** (E1, migration `…001040`; ADR 0064/0072) | The other half of the m2 gate. Gates the `create_case_from_template` type→case snapshot (`p_case_type_id` is ignored while OFF ⇒ `commission_default`/`non_phi_internal`). |
 
 ## RLS authorization surface (who can do what)
@@ -1129,12 +1312,41 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC0P6` | `risk_matrix` axis entry without a weight (FF-2 ruling 2) | "A matriz de risco exige um peso em todas as linhas e colunas." |
 | `HC0P7` | unknown row/column code in an answer payload (FF-2) | "A linha/coluna ... nao pertence a esta matriz." |
 | `HC0P8` | incomplete risk answer - needs BOTH severity and likelihood (FF-2) | "Informe a severidade e a probabilidade da matriz de risco." |
-| - | **`HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE). **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
+| `HC0P9` | an **`error`-severity validation rule** blocked the submit (FF-3, ADR 0090 ruling 3) | The AUTHOR's own pt-BR rule message, raised verbatim - a constant here would defeat the point of letting a staff_admin write it. Rendered as **TEXT**, never markup (Rule 7). `submitResponse` prefers `error.message` and also returns the rows as `SubmitActionState.validationErrors`. |
+| `HC0Q0` | `item_validations` flag OFF (FF-3) | "O recurso de validacoes nao esta disponivel." |
+| `HC0Q1` | item not found / **coverage** denial - this `item_type` (or parent) may not carry this `rule_type` / version incoherence (FF-3 ruling 2) | "A pergunta do tipo X nao aceita a validacao Y." Raised by BOTH `set_item_validations` and the `app.guard_item_validation_row` trigger, plus `app.guard_item_type_vs_validations` when an item_type change would orphan a rule. |
+| `HC0Q2` | invalid rule **config** - no bound, inverted range, uncompilable/over-long `regex`, blank `message` (FF-3) | "Verifique a validacao: informe os limites e uma mensagem para quem responde." The DB message NAMES the offending rule and is preferred. |
+| - | **`HC0O*` and `HC0Q3`+ are unallocated; `HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE). FF-3 reuses **`HC0P4`** for draft-only rather than minting a second code with the same meaning and copy. **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
 
 ## Data-access & action modules (Rule 9 — no inline supabase-js in UI)
+
+- **FF-3 (ADR 0090) - the module SPLIT, and why it is not cosmetic.**
+  `src/lib/forms/validation-rules.ts` holds the PURE half: the vocabulary consts, the per-rule config
+  types, `ValidationRuleSpec`/`ItemValidationRule`/`ValidationRuleInput`/`RequiredIf`/`ValidationErrorRow`,
+  and `evalValidation` / `itemIsRequired` / `isValidationRuleAllowed` / `validationValueIsEmpty`.
+  `src/lib/queries/validations.ts` holds ONLY `getResponseValidationErrors` and **re-exports** the pure
+  surface, so server callers import from one place.
+  **The split is load-bearing**: the builder and the wizard value-import those helpers in the BROWSER, and
+  a client component value-importing a module that transitively pulls `@/lib/supabase/server`
+  (`import 'server-only'`) **aborts `next build`** while tsc, lint and Vitest all stay green
+  (BUG-FBE-005). The precedent is `src/lib/forms/matrix.ts`, not `queries/conditions.ts` - the latter is
+  pure but no client value-imports it, so it never proved the property. A static test in
+  `queries/validations.test.ts` fails if the pure module regains a server import; it is the only check
+  that fires at the moment the mistake is made.
+- **FF-3 writers/readers** - `setItemValidations({itemId, rules})` in `src/lib/forms/actions.ts`
+  (REPLACE semantics; maps `HC0Q0`/`HC0Q1`/`HC0Q2`/`HC0P4`/`42501`) * `required_if` rides the existing
+  `addItem`/`updateItem` on the `requiredIf` FormData field, parsed by `parseRequiredIf` which accepts the
+  SINGLE condition shape ONLY (the group shape is refused before the round trip, because
+  `app.is_valid_condition` rejects it) * `Item.requiredIf` + `Item.validations` on the version tree in
+  `src/lib/queries/forms.ts`, via an **FK-HINTED** `form_item_validations!form_item_validations_item_id_fkey`
+  embed (the table FKs BOTH `form_items` and `form_versions`, the PGRST201 shape this repo already ate once)
+  * `SubmitActionState.validationErrors` on **both** submit paths in `src/lib/responses/actions.ts`.
+  ⚠ **The read path is what makes the writer safe**: `set_item_validations` REPLACES, so a builder that
+  opened without hydrating `Item.validations` and then saved would DELETE every existing rule on the item.
+  `itemValidationsEnabled()` in `src/lib/queries/feature-flags.ts`.
 
 - Queries: `src/lib/queries/{session,commissions,members,forms,responses,signoffs,
   process-templates,cases}.ts` + the canonical helpers `answerableItems(tree)` and the
