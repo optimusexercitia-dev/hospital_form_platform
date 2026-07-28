@@ -417,10 +417,24 @@ export const DATETIME_ORDER_OP_LABELS: Record<
  *
  * ADVISORY ONLY. A `false` here does NOT mean the rule is invalid: Postgres ARE
  * accepts constructs JS rejects (`***=`, the literal-string director, is the
- * measured example). It is worth surfacing because a pattern that compiles in
- * NEITHER engine is almost always an authoring typo, and the server's validator
- * checks the pattern's shape and length but never compiles it — so a broken
- * pattern would otherwise be discovered by the fillers, not the author.
+ * measured example — Postgres both accepts it and matches with it).
+ *
+ * It is worth surfacing because a pattern that compiles in NEITHER engine is
+ * almost always an authoring typo, and this note reaches the author at the
+ * keyboard rather than after a round trip.
+ *
+ * ⚠ It is NOT the only guard, and an earlier version of this comment said it was.
+ * The server refuses a malformed pattern in TWO artifacts, not one:
+ *   - `app.validation_config_valid` (the CHECK) validates the pattern's shape and
+ *     length and does NOT compile it — which is the part that was known;
+ *   - `app.guard_item_validation_row` (a BEFORE INSERT/UPDATE TRIGGER) DOES
+ *     compile it, via `'x' ~ (new.config ->> 'pattern')` wrapped in
+ *     `exception when others`, and raises `HC0Q2` with a pt-BR message.
+ * So a both-engines-invalid pattern cannot store, and no raw `2201B` reaches a
+ * filler. The two cases compose: JS throws while PG accepts → this note warns and
+ * the save succeeds; both throw → this note warns and the write is refused with
+ * `HC0Q2`. Knowing of one artifact where there were two is this phase's signature
+ * failure, so the correction is recorded rather than quietly edited away.
  */
 export function regexCompilesInJs(pattern: string): boolean {
   try {
