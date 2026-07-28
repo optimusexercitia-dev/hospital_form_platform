@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(93);
+select plan(96);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -854,6 +854,45 @@ select is(
   (select count(*)::int from public.form_item_validations
     where item_id = 'ff300000-0000-0000-0000-000000000011'),
   1, 'B16. the RPC really persisted the rule (B15 is not a silent no-op)');
+
+-- QA r1 m-4 · RULE 11. The plan's FF-3 scope says the writer is "draft-only,
+-- AUDITED", and `set_item_validations` does emit `app.audit_write(...)` — but
+-- `grep -n "audit" 274` returned zero hits, so the behaviour was correct and
+-- entirely unobserved. QA proved it live rather than reading the `perform` line;
+-- this is that proof, in the suite, where a regression can be seen.
+--
+-- B16c is the half that is about Rule 11 rather than about audit existing: the
+-- trail records THAT and WHO, never the payload. The author's message is
+-- arbitrary text they typed, and it must not be copied into `audit_log`.
+--   MUTATION: delete the `perform app.audit_write(...)` block from
+--     set_item_validations -> B16a/B16b red, B16c GREEN (it is vacuously true
+--     with no row), which is why B16a is asserted first and separately.
+select ok(
+  exists (
+    select 1 from public.audit_log
+     where action = 'form_item_validations.set'
+       and entity_type = 'form_item'
+       and entity_id = 'ff300000-0000-0000-0000-000000000011'
+  ),
+  'B16a. …and the write is AUDITED (Rule 11) — action + entity, on this item');
+
+select is(
+  (select a.metadata ->> 'rules'
+     from public.audit_log a
+    where a.action = 'form_item_validations.set'
+      and a.entity_id = 'ff300000-0000-0000-0000-000000000011'
+    order by a.occurred_at desc, a.seq desc
+    limit 1),
+  '1', 'B16b. …recording the rule COUNT of that call (B15 sent exactly one)');
+
+select is(
+  (select count(*)::int from public.audit_log a
+    where a.action = 'form_item_validations.set'
+      and a.entity_id = 'ff300000-0000-0000-0000-000000000011'
+      and (coalesce(a.summary, '') || coalesce(a.metadata::text, ''))
+          like '%Informe um valor%'),
+  0,
+  'B16c. …and the author''s own message text is NOT in the trail (Rule 11: that + who, never payloads)');
 
 -- REPLACE semantics: the payload is the COMPLETE list, not a patch.
 select lives_ok(

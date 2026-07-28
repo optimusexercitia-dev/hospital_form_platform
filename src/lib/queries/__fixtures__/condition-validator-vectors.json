@@ -1,7 +1,9 @@
 {
   "_comment": [
     "BUG-FF3-002 — the golden vectors for the VALIDATOR pair:",
-    "SQL app.is_valid_condition  <->  TS isValidCondition (src/lib/forms/actions.ts).",
+    "SQL app.is_valid_condition  <->  TS isValidCondition (src/lib/forms/condition-shape.ts;",
+    "`actions.ts` only IMPORTS it — the predicate was extracted there because a",
+    "'use server' module may export only async functions, which is why it was untestable).",
     "",
     "The evaluator pair (eval_condition <-> evalCondition) has had vectors since ADR",
     "0005. The VALIDATOR pair had none, and that is how B5 widened SQL to eleven",
@@ -12,7 +14,7 @@
     "The matrix is OPERATOR x VALUE-PRESENCE, because that is the axis the two sides",
     "disagreed on. `expected` is: may this be STORED?",
     "",
-    "Run by Vitest (src/lib/forms/condition-validator-parity.test.ts) and by pgTAP",
+    "Run by Vitest (src/lib/forms/condition-shape.test.ts) and by pgTAP",
     "(supabase/tests/275_condition_validator_parity.sql). Drift is phase-blocking",
     "under ARCHITECTURE Rule 3 — which names the evaluator pair, and which this bug",
     "proved applies to the validator pair identically.",
@@ -20,10 +22,12 @@
     "EVERY vector here is a MIRROR fact: both engines must return `expected`. Cases",
     "where the TS twin is deliberately STRICTER than SQL are deliberately NOT here —",
     "they live in the `TS-only narrowings` block of the Vitest file, enumerated and",
-    "justified, so that this file can never quietly absorb a divergence. There is",
-    "currently ONE such case (a blank question_key: SQL stores it, TS refuses it",
-    "because publish would reject it anyway and an authoring-time message is better",
-    "than a publish-time one)."
+    "justified, so that this file can never quietly absorb a divergence. There are",
+    "currently THREE, all in the safe direction (TS accepts a strict SUBSET of SQL):",
+    "a blank question_key, `in` with a non-array value, and an ordered op with an",
+    "array value. Each is backstopped by an independent publish-time rejection in",
+    "app.assert_condition_op_target, so refusing early costs the author nothing and",
+    "buys an authoring-time message instead of a publish-time dead end."
   ],
   "vectors": [
     { "name": "equals with a value", "condition": { "question_key": "q", "op": "equals", "value": "a" }, "expected": true },
