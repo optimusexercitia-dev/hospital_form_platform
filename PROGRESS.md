@@ -685,6 +685,91 @@ disagrees with the `9 × 3 = 27` the weights would give, so a recomputing implem
 > the 6 mutation-proven tests above and the door by backend's pgTAP, so what is unproven is
 > specifically **their composition on that route**. → a spec for `tester`.
 
+#### `backend` — Wave 4 (QA r1 remediation) ✅ COMPLETE 2026-07-27
+
+Migrations `20260830001200`–`…001400`; **`registered == files == 215`**. Full ordered
+`supabase test db` **from a clean reset: 138 files, 4044 tests, `Result: PASS`** · Vitest
+**593/593** · lint 0/0 · typecheck clean · `next build` succeeded · types regenerated with pgtap
+absent (0 pollution matches).
+
+| Finding | Fix | Keystone (in the new `272_ff2_door_parity.sql`) |
+|---|---|---|
+| **B-1** targeted respondent cannot save a matrix cell | `app.assert_matrix_answer_writable` takes the UNION of the `answers` write arms | §O1–O5 |
+| **B-2** corrector reads 0 cells | `can_read_correction_response` added to both matrix SELECT policies | §P1–P3 |
+| **B-3** no gate-flip migration | `20260830001200_enable_matrix_fields.sql` | §0a asserts the flag |
+| **M-1** ruling 3's per-instance half uncovered | (behaviour was correct) | §Q1–Q6 |
+| **M-2** `start_correction_draft` copy blocks uncovered | (behaviour was correct) | §R1–R6 |
+
+#### 🔴 THE SWEEP — every FF-2 door and policy vs the surface beside it
+
+`qa` was right that the *rule* was named and never *applied*. Swept arm-by-arm against
+`pg_policies` / `pg_proc`, not against the review. **It found a fourth gap the review did not.**
+
+**A · Policies** (read arms; `base` = creator / commission-admin / submitted+staff_admin):
+
+| Surface | Sibling | base | `can_read_correction_response` | `can_access_targeted_*` | Verdict |
+|---|---|---|---|---|---|
+| `answer_matrix_cells_select` | `answer_selected_options_select` + `answers_select*` | ✅ | ✅ *(added)* | ✅ *(added)* | **match** |
+| `answer_risk_matrix_select` | same | ✅ | ✅ *(added)* | ✅ *(added)* | **match** |
+| `form_matrix_rows_select` | `form_items_select` + `form_items_select_targeted` | ✅ | n/a | ✅ *(added)* | **match** |
+| `form_matrix_columns_select` | same | ✅ | n/a | ✅ *(added)* | **match** |
+| *(write policies)* | `answer_selected_options_write_own_draft` | — | — | — | **deliberately absent** — K9: SELECT-only grants, every write through a DEFINER RPC |
+
+**B · Doors** (all `prosecdef = true`):
+
+| Door | Surface it replaces | Arms required | Verdict |
+|---|---|---|---|
+| `app.assert_matrix_answer_writable` | `answers` write policies | (creator ∧ in_progress) ∨ `can_write_targeted_response` | **match** *(B-1 fix)* |
+| `public.upsert_matrix_axes` | `form_items_staff_admin_write` | `is_staff_admin_of` ∨ `is_commission_admin_of` | match |
+| `app.copy_version_children` | `form_*_staff_admin_write` | same, **scoped to `auth.uid() is not null`** so it is not *stronger* than the RLS it displaces | match *(Wave 2 fix)* |
+| `dashboard_matrix_cells` / `_risk_scores` | `dashboard_distributions` | `is_staff_admin_of` ∨ `is_admin` | match |
+| `app.matrix_cells_by_item` / `_risk_matrix_by_item` | — | none: called only from the already-gated `get_response_for_signoff`; `app` is not PostgREST-exposed | deliberately none |
+| `app.item_required_satisfied` / `app.instance_is_empty` | — | none: read-only booleans over the caller's own response, conferring no authority | deliberately none |
+
+##### 🔴 FOURTH GAP, found by the sweep and not in the review — `20260830001400`
+
+`form_matrix_rows` / `form_matrix_columns` lacked the `can_access_targeted_version` arm that
+`form_versions` / `form_sections` / `form_items` all carry. **B-1's fix alone would have shipped
+half a feature**: a targeted respondent could write a cell and still not read the axis rows, so the
+wizard renders an empty table with nothing to click. Caught only because §O3 asserts the **round
+trip** rather than the write — it went red (`have: NULL want: dr1->dc_ok`) with the write already
+green.
+
+> ⚠ **Two PRE-EXISTING gaps of the same family, reported NOT fixed** (neither is FF-2's table):
+> **(a) `form_item_options_select`** has no targeted arm, so a targeted respondent cannot read the
+> options of any `multiple_choice`/`dropdown`/`checkbox` question — **ETH·E2's targeted flow renders
+> every choice input empty today, independently of matrices.** **(b) `answer_selected_options`** has
+> no targeted arm on either its SELECT or its write policy, so that respondent cannot save or read
+> back a choice selection. Both are live-catalog-confirmed; lead's call.
+
+> 📌 **BINDING FF-5 OBLIGATION (carried forward as FF-1's P0-1 was to FF-2):**
+> `answer_references_select` is **missing both** the `can_read_correction_response` and the
+> `can_access_targeted_response` arms. It is write-inert (0 rows) so there is **no live impact and
+> it must not be fixed now** — but FF-5's writer landing is exactly when that stops being true, and
+> the table's SELECT policy must gain both arms in the same change.
+
+##### Mutation proofs — all five performed, red observed, restored
+
+| # | Revert | Observed |
+|---|---|---|
+| M1 | targeted arm out of `assert_matrix_answer_writable` | O2 + O3 red |
+| M2 | targeted arm out of `form_matrix_rows_select` | O3 red |
+| M2b | targeted arm out of `form_matrix_columns_select` | O3 red — **both halves proven load-bearing separately** |
+| M3 | `can_read_correction_response` out of both matrix SELECT policies | P2 `0/6`, P3 `0/1`, R6 collateral |
+| M4 | both per-instance arms → the pre-FF-2 inlined test | **Q3 + Q4 red** |
+| M5 | both matrix copy blocks out of `start_correction_draft` | R2–R5 red, all `have: NULL` |
+
+> 🔎 **Two things the mutation runs taught, recorded because they generalise:**
+> **(1) M2's first run stayed GREEN** — the mutation reverted `form_matrix_rows_select` while §O3
+> joined only `form_matrix_columns`. The keystone was proving the *assertion*, not the *fix*. §O3
+> now reads through **both** axis tables, and M2/M2b prove each half independently. *A mutation that
+> reverts only part of a fix is as vacuous as a keystone that cannot fail.*
+> **(2) M4 turns Q3/Q4 red, NOT Q1/Q2** — and that asymmetry is the finding. The reverted test
+> reports a matrix as unanswered *always*, so the "blocks when incomplete" direction still passes,
+> for the wrong reason. **Only the positive direction can see the defect** (`qa`'s "permanently
+> unsubmittable form"). A keystone written only in the blocking direction would have been vacuous —
+> which is exactly how M-1 survived.
+
 #### FF-2 follow-ups — ✅ BOTH CLOSED in Wave 3 (PO ruled them into gate scope)
 
 Kept for the audit trail; neither is outstanding.
