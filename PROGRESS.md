@@ -306,6 +306,43 @@ Lint 0/0, typecheck clean for `e2e/ff5-references.spec.ts`.
 **Reporting green to the lead. Full suite (`e2e:prod`) is the lead's to run** — not run here, per
 protocol; triage against the ~18–27 pre-existing flaky baseline, not against zero.
 
+**QA round 1 re-verification — 🟢 still GREEN (2026-07-28, HEAD `4959c7d`).** Four fixes landed
+under me (M-2 the typeahead's dead RPC-error path is now live; the picker a11y triad — `aria-selected`
+follows the ACTIVE option not the committed one, `aria-controls`/`aria-expanded` agree mid-fetch,
+modifier keys no longer open the list; the sign-off door's top-level "Outros" projection; the
+sign-off door's `observations_by_item` instance-scope filter). Re-ran the full
+`e2e/ff5-references.spec.ts` (2 consecutive runs, 10/10 both) plus the named neighbours:
+
+| Suite | Result |
+| --- | --- |
+| `ff5-references.spec.ts` (own) | ✅ 10/10 × 2 runs |
+| `ff1-repeating-groups.spec.ts` | ✅ 9/9 |
+| `ff2-matrix-views.spec.ts` | ✅ 5/5 (Recharts console width-warning noise only, no assertion failures) |
+| `phase6-signoffs.spec.ts` | ✅ 7/7 |
+
+**FF5-7 re-run attentively per the lead's flag** — strengthened, not just re-run, since the previous
+version didn't actually exercise the a11y fixes: added an `aria-selected` assertion (arrow to the
+uncommitted candidate while a DIFFERENT one is committed; the active row must read `true`, the
+committed-but-inactive row `false` — the exact inversion the bug was) and a modifier-key assertion
+(bare Shift/Control must not reopen a closed list). Both caught REAL bugs in my own test while I was
+writing them, not in the app: (1) I called `.focus()` on an already-focused input expecting it to
+reopen the closed list — a no-op, since a repeated `.focus()` doesn't refire `onFocus`; fixed by
+pressing `ArrowDown` instead, which is also the more correct keyboard action. (2) I assumed the input
+was closed right after `clear()`, but `clear()` moves focus TO the input as a genuine focus
+transition, which itself reopens it via `onFocus` — fixed by closing with Escape first. Both are
+exactly the kind of thing this spec exists to catch, just aimed at my own code instead of the app's.
+
+**FF5-10 extended for QA's m-4 ask** — added a top-level `short_text` item alongside a
+repeating-group child, gave each its own DIFFERENT observation, and asserted on the sign-off screen
+that the top-level block shows only its own text (not the instance's), the instance's own card shows
+only its own text (not the top-level's), and the top-level text appears EXACTLY once anywhere on the
+page — the direct regression guard for the `group_instance_id is null` filter QA added. Passed
+first try; the fixture-shape guesses (structural locators — `<dt>`'s parent for the top-level row,
+`<fieldset>` legended "N de M" for the instance) were verified against `instance-answers-readonly.tsx`
+and `review-and-sign.tsx`'s actual DOM output before writing the assertions, not guessed blind.
+
+Lint 0/0, typecheck clean, unchanged. **Still green — no new bugs found in this round.**
+
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
 
 ### 📋 Remaining pre-pilot work
@@ -528,6 +565,7 @@ outgrown one standalone server (see the two 🔴 PO findings above).
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **FF-5** — Entity Reference (ADR 0091 + Amendments 1–2) | ⛔ CHANGES REQUESTED | 2026-07-28 | [review](docs/reviews/phase-FF-5-review.md) |
 | **FF-3** — Validation Engine (ADR 0090 + Amendments 1–4) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/ff-3-review.md#ff-3--qa-review-r2) |
 | ~~**FF-3** — Validation Engine (ADR 0090 + Amendments 1–3)~~ | ⛔ CHANGES REQUESTED | 2026-07-28 | [review](docs/reviews/ff-3-review.md) |
 | **FF-2** — Matrix & Risk Matrix (ADR 0089) | ✅ APPROVED | 2026-07-27 | [r2](docs/reviews/ff-2-review-r2.md) |
