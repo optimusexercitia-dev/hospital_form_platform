@@ -50,7 +50,7 @@
 
 begin;
 
-select plan(59);
+select plan(73);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -82,6 +82,15 @@ select ok(app.feature_enabled('repeating_groups'),
   '0b. flag repeating_groups is ON — §H/§I/§J drive the per-instance arms');
 select ok(app.feature_enabled('case_corrections') or app.feature_enabled('response_correction'),
   '0c. a correction flag is ON — §J drives supersede_response');
+-- §F's case-bound clauses and §O's surrogate probe both go through the case
+-- module. `set_participant_patient` opens with `app.assert_case_patient_enabled()`,
+-- so with `case_patient` OFF every one of those keystones would raise instead of
+-- asserting — the pgtap-fixture-flag-gaps scar, where a missing flag turns
+-- coverage into a SKIP that still reads green.
+select ok(app.feature_enabled('case_patient'),
+  '0d. flag case_patient is ON — §O''s surrogate probe calls set_participant_patient');
+select ok(app.feature_enabled('case_participants'),
+  '0e. flag case_participants is ON — §F''s case-scoped clauses need the registry');
 
 -- ---------------------------------------------------------------------------
 -- FIXTURE (owner). One published form in commission X carrying:
@@ -515,9 +524,29 @@ select set_config('request.jwt.claims', null, true);
 -- §F · patient_candidates_case_scoped (ADR 0091 ruling 2). Patients are
 --      CASE-scoped; every other participant type is org-scoped.
 --
+--      ⚠ THIS SECTION WAS VACUOUS WHERE IT MATTERED (QA B-1), and the way it was
+--      vacuous is the one this phase keeps repeating. `case_participants`,
+--      `case_phases` and `case_phase_id` appeared ZERO times in this file: only
+--      the standalone-negative existed, and its CONTROL used a DEPARTMENT
+--      participant — which short-circuits on `p.participant_type <> 'patient'`
+--      BEFORE the case-scoping branch is ever evaluated. So the entire ruling-2
+--      mechanism could have been inert in the always-DENY direction and every
+--      assertion here stayed green. A negative plus a control that never reaches
+--      the code under test is not coverage; it is two tests of the short-circuit.
+--
+--      The ADR commits this keystone to THREE clauses. All three now exist,
+--      against real case-bound fixtures:
+--        F2  standalone response  -> zero patient candidates;
+--        F5  patient of ANOTHER case -> not a candidate from this case's response;
+--        F6  the SAME patient      -> IS a candidate from its own case's response.
+--      F6 is the clause that makes always-deny detectable, and it is the one the
+--      old section could not have had.
+--
 --      MUTATION: delete the `p.participant_type <> 'patient' or (...)` clause
---        from public.reference_candidates -> F2 red. And neutralize the
---        patient branch of app.guard_reference_coherent -> F3 red. Verified.
+--        from public.reference_candidates -> F2 and F5 red (the narrowing is
+--        gone). Replace that clause's `exists (...)` with `false` -> F6 red
+--        (always-deny). Neutralize the patient branch of
+--        app.guard_reference_coherent -> F3 red. All verified.
 -- ===========================================================================
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
   values ('ff500000-0000-0000-0000-0000000000a9'::uuid, (select org_b from k),
@@ -553,6 +582,110 @@ select throws_ok(
                        'ff500000-0000-0000-0000-0000000000a9'::text || '"}')::jsonb)$$,
   'HC0Q5', null,
   'F3. …and the TRIGGER refuses it too — the picker is not the security boundary');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- ---------------------------------------------------------------------------
+-- The CASE-BOUND half — the two clauses the ADR commits to and the file had
+-- none of. TWO cases, each with its own patient, so "case-scoped" is tested
+-- against a real neighbour rather than against emptiness.
+-- ---------------------------------------------------------------------------
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+values
+  ('ff5c0000-0000-0000-0000-000000000001', (select comm_x from k), 9401, 'Caso Alfa',
+   (select sa_x from k), true),
+  ('ff5c0000-0000-0000-0000-000000000002', (select comm_x from k), 9402, 'Caso Beta',
+   (select sa_x from k), true);
+
+insert into public.case_phases
+  (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
+values
+  ('ff5c0000-0000-0000-0000-000000000003', 'ff5c0000-0000-0000-0000-000000000001', 1,
+   'ff500000-0000-0000-0000-000000000001', 'ff500000-0000-0000-0000-000000000002',
+   'active', (select st_x from k), '{}');
+
+-- One patient per case. `a9` (created above) belongs to Caso ALFA; `aa` to Caso
+-- BETA — the neighbour F5 proves is invisible.
+insert into public.case_participant_roles
+  (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+values ('ff5c0000-0000-0000-0000-000000000004', (select org_b from k), 'affected_patient',
+        'Paciente afetado', array['patient'], true)
+on conflict (organization_id, key) where case_type_id is null do nothing;
+
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+  values ('ff500000-0000-0000-0000-0000000000aa'::uuid, (select org_b from k),
+          'patient', 'patient_phi', 'Paciente');
+insert into public.patient_participants (participant_id)
+  values ('ff500000-0000-0000-0000-0000000000aa'::uuid);
+
+insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject, added_by)
+values
+  ('ff5c0000-0000-0000-0000-000000000001', 'ff500000-0000-0000-0000-0000000000a9'::uuid,
+   (select id from public.case_participant_roles
+     where organization_id = (select org_b from k) and key = 'affected_patient'
+       and case_type_id is null),
+   true, (select sa_x from k)),
+  ('ff5c0000-0000-0000-0000-000000000002', 'ff500000-0000-0000-0000-0000000000aa'::uuid,
+   (select id from public.case_participant_roles
+     where organization_id = (select org_b from k) and key = 'affected_patient'
+       and case_type_id is null),
+   true, (select sa_x from k));
+
+-- The response under test is CASE-BOUND to Caso Alfa — `case_phase_id` is the
+-- link `reference_candidates` resolves the case through, and it appeared
+-- nowhere in this file before.
+insert into public.responses
+  (id, form_version_id, commission_id, created_by, status, case_phase_id)
+values ('ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000002',
+        (select comm_x from k), (select st_x from k), 'in_progress',
+        'ff5c0000-0000-0000-0000-000000000003');
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+
+-- F4 — the CONTROL that F1 could not be: it reaches the patient branch. F1 uses
+-- a DEPARTMENT, which short-circuits before the case-scoping test, so it could
+-- never have told us whether that branch runs at all.
+select cmp_ok(
+  (select count(*)::int from public.reference_candidates(
+     'ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000011', null)),
+  '>', 0,
+  'F4. CONTROL — the search returns candidates at all on a CASE-BOUND response');
+
+select is(
+  (select count(*)::int from public.reference_candidates(
+     'ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000011', null)
+   where target_id = 'ff500000-0000-0000-0000-0000000000aa'::uuid),
+  0,
+  'F5. a patient of ANOTHER case is NOT a candidate here (ruling 2, clause 2)');
+
+-- F6 IS THE CLAUSE THAT MAKES ALWAYS-DENY DETECTABLE. Without it, neutralising
+-- the case-scoping branch to `false` leaves every other assertion in §F green.
+select is(
+  (select count(*)::int from public.reference_candidates(
+     'ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000011', null)
+   where target_id = 'ff500000-0000-0000-0000-0000000000a9'::uuid),
+  1,
+  'F6. …and THIS case''s own patient IS a candidate (ruling 2, clause 3)');
+
+-- F7 — the writer agrees with the picker. A narrowing that the search applies
+-- and the trigger does not (or vice versa) is the ETH·E1 shape: two layers, one
+-- claim, asserted only on one side.
+select lives_ok(
+  $$select public.save_section_answers(
+      'ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000003',
+      p_references => ('{"ff500000-0000-0000-0000-000000000011":"' ||
+                       'ff500000-0000-0000-0000-0000000000a9'::text || '"}')::jsonb)$$,
+  'F7. …and the WRITER accepts this case''s own patient');
+
+select throws_ok(
+  $$select public.save_section_answers(
+      'ff500000-0000-0000-0000-0000000000b3', 'ff500000-0000-0000-0000-000000000003',
+      p_references => ('{"ff500000-0000-0000-0000-000000000011":"' ||
+                       'ff500000-0000-0000-0000-0000000000aa'::text || '"}')::jsonb)$$,
+  'HC0Q5', null,
+  'F8. …and REFUSES the other case''s patient (HC0Q5)');
 
 reset role;
 select set_config('request.jwt.claims', null, true);
@@ -1042,10 +1175,16 @@ insert into public.answers (response_id, item_id, question_key, value, observati
 insert into public.response_group_instances (id, response_id, group_item_id, position)
   values ('ff500000-0000-0000-0000-0000000000c5', 'ff500000-0000-0000-0000-0000000000c1',
           'ff500000-0000-0000-0000-000000000019', 0);
--- The instance observation N5 proves must NOT appear in the top-level map.
-insert into public.answers (response_id, item_id, question_key, value, observation, group_instance_id)
-  values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-00000000001a',
-          'so_rg', '"y"'::jsonb, 'Observação da instância', 'ff500000-0000-0000-0000-0000000000c5');
+-- The instance answer carries BOTH an observation and an other_text. The
+-- other_text is not decoration: without it, deleting the `group_instance_id is
+-- null` filter from the top-level `other_text_by_item` block left N1-N5 ALL
+-- GREEN, because no instance row had an `other_text` to fold. A scope filter is
+-- only pinned by a row that the filter must exclude.
+insert into public.answers
+  (response_id, item_id, question_key, value, observation, other_text, group_instance_id)
+values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-00000000001a',
+        'so_rg', '"y"'::jsonb, 'Observação da instância', 'Outro da instância',
+        'ff500000-0000-0000-0000-0000000000c5');
 
 -- Read as the staff_admin of this commission (gate 2 of the door).
 select test_helpers.claims_for((select sa_x from k), false);
@@ -1095,11 +1234,115 @@ select is(
 -- `group_instance_id` filter, so INSTANCE observations folded into the
 -- TOP-LEVEL map (ADR 0087 substrate correction 5, recurring in this door).
 -- MUTATION: drop `and a.group_instance_id is null` from that block -> N5 red.
+-- ⚠ IDENTITY, NOT CARDINALITY. Asserting "exactly 1 key" also passes for an
+-- INVERTED filter (`is not null`), which would return exactly one key — the
+-- WRONG one. Naming the key set is what distinguishes "the instance row is
+-- excluded" from "some single row survived".
 select is(
-  (select count(*)::int from jsonb_object_keys(
-     (select p -> 'observations_by_item' from sopayload))),
-  1,
-  'N5. the top-level observations map holds ONLY the top-level observation (no instance fold)');
+  (select array_agg(k order by k)
+   from jsonb_object_keys((select p -> 'observations_by_item' from sopayload)) k),
+  array['ff500000-0000-0000-0000-000000000018'],
+  'N5. the top-level observations map holds ONLY the top-level item (no instance fold)');
+
+-- N6 — the same pin for other_text, which had NO scope test at all. This is the
+-- assertion that reds if the `group_instance_id is null` filter is deleted from
+-- the block 20260902000900 added.
+select is(
+  (select array_agg(k order by k)
+   from jsonb_object_keys((select p -> 'other_text_by_item' from sopayload)) k),
+  array['ff500000-0000-0000-0000-000000000017'],
+  'N6. …and the top-level other_text map excludes the INSTANCE other_text (scope filter pinned)');
+
+-- ===========================================================================
+-- §O · THE SURROGATE PREMISE — the one ruling 1 rests on (QA B-2).
+--
+--   ADR 0091 ruling 1 is why this phase ships with NO PHI read door and NO Rule
+--   12 amendment. Its entire argument is that `participants.display_name` is a
+--   SURROGATE by construction: a patient's label carries no identity, so reading
+--   it reads no PHI. Nothing asserted that. An untested premise carrying a PHI
+--   claim is ADR 0079's standing-invariant argument verbatim — and the frontend
+--   cannot detect the failure at all, because from the render layer a real name
+--   and a surrogate are both just a string. The DB is the only place detection
+--   can live.
+--
+--   O1 IS THE BEHAVIOURAL FORM and is the one that matters. `set_participant_
+--   patient` DOES accept a `p_name` — the weaker claim "the door takes no name"
+--   is refutable with one \df and would discredit the premise it defends. The
+--   true claim is: a real name crosses that door, is routed to
+--   `patient_identifiers`, and the registry label stays the surrogate anyway.
+--   Asserting `is not` the passed name is what expresses the negative; asserting
+--   only `= 'Paciente'` would pass for a door that ignored its input entirely.
+--
+--   O3/O4 are the catalog arm: writes are DEFINER-only and `authenticated`
+--   cannot write the column at all, so no app path can set it.
+--
+--   MUTATION: change set_participant_patient's insert to write `p_name` into
+--     display_name -> O1 AND O2 red. Grant update on participants to
+--     authenticated -> O4 red. Verified.
+-- ===========================================================================
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+  values ('ff5c0000-0000-0000-0000-000000000005', (select comm_x from k), 9403, 'Caso Surrogate',
+          (select sa_x from k), true);
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+-- A DISTINCTIVE name: if it ever reaches the registry, the assertion below names
+-- the exact string that leaked rather than reporting a vague mismatch.
+select lives_ok(
+  $$select public.set_participant_patient(
+      'ff5c0000-0000-0000-0000-000000000005', null,
+      'Maria da Silva Sauro', 'MRN-778899', null, 71, 'female', null, 'UTI', 'Dr. Teste')$$,
+  'O0. CONTROL — the patient door accepts a real name and completes');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select is(
+  (select p.display_name
+   from public.participants p
+   join public.case_participants cp on cp.participant_id = p.id
+   where cp.case_id = 'ff5c0000-0000-0000-0000-000000000005'
+     and p.participant_type = 'patient'),
+  'Paciente',
+  'O1. the registry label is the SURROGATE, not the name that was passed (ruling 1)');
+
+select isnt(
+  (select p.display_name
+   from public.participants p
+   join public.case_participants cp on cp.participant_id = p.id
+   where cp.case_id = 'ff5c0000-0000-0000-0000-000000000005'
+     and p.participant_type = 'patient'),
+  'Maria da Silva Sauro',
+  'O2. …explicitly NOT the caller-supplied name — the negative, stated as one');
+
+-- …and the name really did land, so O1/O2 are not passing because the door
+-- silently discarded everything.
+select is(
+  (select pi.name from public.patient_identifiers pi
+   join public.case_participants cp on cp.participant_id = pi.participant_id
+   where cp.case_id = 'ff5c0000-0000-0000-0000-000000000005'),
+  'Maria da Silva Sauro',
+  'O3. …while the real name IS stored, in patient_identifiers behind its audited door');
+
+-- The catalog arm: no app path can write the column, so the surrogate cannot be
+-- overwritten from outside the two DEFINER doors.
+select is(
+  (select count(*)::int from information_schema.role_table_grants
+   where table_name = 'participants' and grantee = 'authenticated'
+     and privilege_type in ('INSERT', 'UPDATE', 'DELETE')),
+  0,
+  'O4. `authenticated` holds NO write grant on participants (writes are DEFINER-only)');
+
+select is(
+  (select count(*)::int from pg_proc p
+   join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname in ('app', 'public')
+     and (p.prosrc ~* 'insert\s+into\s+public\.participants'
+          or p.prosrc ~* 'update\s+public\.participants')
+     and not p.prosecdef),
+  0,
+  'O5. every writer of participants is SECURITY DEFINER (no invoker-rights path in)');
 
 select * from finish();
 rollback;
