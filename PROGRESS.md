@@ -53,7 +53,7 @@
 | referrals-v2 | **Referrals v2 [0037](docs/decisions/0037-inter-committee-case-referrals.md) | ✅ complete | ✅ | ✅ R1 E2E 40/40 + R2–R5 E2E 29/29 · pgTAP `150_referrals` 217/217 | ✅ APPROVED [R1](docs/reviews/rv2-r1-referrals-review.md) + [R2–R5 r2](docs/reviews/rv2-r2-r5-review.md) | ✅ 2026-07-19 | 2026-07-19 | R1 `33dbc09` · R2–R5 `223ed17` (ff→main `a61aae3`) |
 | interviews-v2 | **Interviews v2 [0070](docs/decisions/0070-interview-data-model-v2-sessions.md) | ✅ complete | ✅ | ✅ pgTAP `121` 60/60 (full 2287) + phase E2E 13/13 | ✅ APPROVED [review](docs/reviews/iv2-interviews-review.md) | ✅ 2026-07-14 | 2026-07-14 | `b015815`+`da7c219`+`77daa90` (`00a93dd`) |
 | pre-pilot-release | **Pre-Pilot Release Scope Expansion** [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) | ✅ complete | – | – | – | – | – | – |
-| ff-program | **Flexible-Forms Program (FF-1…FF-5)** — umbrella; [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) | ▶ **3 of 5 complete; FF-5 in gate** — FF-1 ✅ · FF-2 ✅ · **FF-3 ✅ 2026-07-28**. **FF-5 🏗️ build complete** (ADR [0091](docs/decisions/0091-ff5-entity-reference.md); migrations `20260902000000`–`…000600`; flag `entity_refs` flipped ON by `…000600`) — gate step 1 in progress, then tester → qa. Then FF-4. | ✅ FF-3 · ✅ FF-5 build (lint 0/0 · tsc · Vitest 834 · `next build`) | ✅ FF-3 — spec 25/25 · neighbours 62/62 · pgTAP 4167 · Vitest 814 · **✅ FF-5 gate step 2 GREEN** — spec 10/10 ×2 · pgTAP **4220/4220** fresh reset · full `e2e:prod` **863p + 63p re-run, 0 real failures** (the 53 raw reds were ONE dead server in batch 5 — all 106 errors `ERR_CONNECTION_REFUSED`, zero assertion failures; re-run of the identical 63 at `BATCH_SIZE=2` → 63/63) | ✅ FF-3 **APPROVED** r2 [review](docs/reviews/ff-3-review.md) · ⏳ FF-5 qa in progress | ✅ 2026-07-28 | 2026-07-28 | FF-3 `20260901000000`–`…000800` · FF-5 `f0cc3ac`…`7272258` (12 commits) |
+| ff-program | **Flexible-Forms Program (FF-1…FF-5)** — umbrella; [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) | ▶ **4 of 5 complete** — FF-1 ✅ · FF-2 ✅ · FF-3 ✅ · **FF-5 ✅ 2026-07-28** (ADR [0091](docs/decisions/0091-ff5-entity-reference.md) + Amendments 1–2; migrations `20260902000000`–`…000900`; flag `entity_refs` ON via `…000600`; **record → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md)**). ▶ **FF-4 is the last phase before the pilot deploy** (ADR 0086: all five gate it). | ✅ FF-5 (lint 0/0 · tsc · Vitest **851** · `next build`) | ✅ FF-5 — spec **10/10** ×2 · neighbours 21/21 · pgTAP **4240/4240** fresh reset · full `e2e:prod` 863p, **0 real failures** (the 53 raw reds were ONE dead server in batch 5 — all 106 errors `ERR_CONNECTION_REFUSED`, zero assertion failures; identical 63 re-ran 63/63) | ✅ FF-5 **APPROVED** r2 [review](docs/reviews/phase-FF-5-review.md) (r1 CHANGES REQUESTED — both blockers keystone-only, **no code defect, no security hole**) | ✅ **2026-07-28** | 2026-07-28 | FF-5 `f0cc3ac`…`598447e` (23 commits) |
 | **ETH·E1** | **Ethics Access Spine [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
 | **ETH·E2** | **Ethics disciplinary procedure** [0073](docs/decisions/0073-ethics-procedure-model.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
 | **ETH·E3a** | **Ethics terminology/UX surfacing** [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
@@ -709,6 +709,38 @@ outgrown one standalone server (see the two 🔴 PO findings above).
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### 🔴 FUP-FF5-1 — patient-lane sublabel is degenerate on the READ path (**PO DEFERRED 2026-07-28**)
+
+The picker shows `Paciente / Paciente afetado`; the **durable submitted record** and wizard resume
+show `Paciente / Paciente`. `buildReferenceAnswers`' input row carries no case data, so it resolves
+the participant **type** while `reference_candidates` and `app.references_by_item` resolve the case
+**role**. Every patient's `display_name` is the surrogate `'Paciente'` by construction, so **two
+patient references in one case are indistinguishable in the permanent record**.
+
+QA r1: **MAJOR, but ship** — every disambiguator that would work is PHI and would reverse ADR 0091
+ruling 1 (which is why Rule 12 stays at three modules). The only mitigation that does not undo the
+ruling is a **workflow rule**: require distinct `case_participant_roles` per patient per case.
+Code fix (giving `buildReferenceAnswers` case scope) is a three-level PostgREST embed with PGRST201
+exposure — both engineers independently judged it not gate-time work.
+
+⚠ **The PO deferred the decision, not the risk.** The patient lane is live behind `entity_refs` the
+moment FF-5 deploys, and ruling 2 makes that lane work **only** on case-bound forms — so this is
+100% of real patient-lane usage, unexercised rather than unlikely. **Resolve before the lane is
+offered to a real committee.**
+
+### ▶ FUP-FF5-2 — `r2-m-1`: §O pins the door's behaviour, not the closure of the writer set
+
+ADR 0091's substrate paragraph claims *"an exhaustive `pg_proc` sweep for writers of `participants`
+returns exactly two functions"*. §O proves the two known doors behave (the surrogate holds) and O5
+proves no writer is invoker-rights — but neither pins that the set is **closed**, so a third
+DEFINER writer taking a caller-supplied label satisfies every assertion. QA r2: MINOR, not blocking
+(the runtime property is held by the mutation-proven O4, and a new writer arrives with its own
+migration and ADR). **Close:** one assertion pinning the writer set by **count *and* name**,
+matching `(public\.)?participants\y`. Two specifics — O5's current regex is
+`insert\s+into\s+public\.participants`, which matches only `public.`-qualified writes (exactly why
+a rogue *unqualified* writer probe stayed green), and use `\y`, **not `\b`** (backspace in Postgres
+regex).
 
 ### ▶ FUP-E2E-1 — RE-BASELINE `e2e:prod` (cross-phase, PO-ruled 2026-07-27) — **blocks nothing**
 
