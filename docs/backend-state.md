@@ -309,7 +309,85 @@ of a fix proves nothing** - revert each arm separately.
   `app.assert_group_writable` also carried its own creator-only check (`HC0N2`), so widening the policies
   alone would have done nothing - it now takes the union. Keystone `273_eth_targeted_choice_lane.sql`.
 
-## FF-3 - Validation Engine (2026-07-28; ADR 0090 + Amendment 1; migrations `20260901000000`-`...000700`; flag `item_validations` seeded **OFF** - **gate-flip migration NOT WRITTEN YET**)
+## FF-5 - Entity Reference (2026-07-28; ADR 0091 + Amendments 1-2; migrations `20260902000000`-`...000900`; flag `entity_refs` **ON** via `...000600`)
+
+Activates F3's frozen one-lane `answer_references` (write-inert since 2026-07-12) into three lanes.
+**K9 preserved**: `authenticated` keeps **SELECT only** - no write policy, no write grant - so every
+write is a DEFINER RPC and a direct INSERT/UPDATE/DELETE fails 42501 (276 §A probes all three verbs;
+the denied party DELETING what it can read is its own exclusion shape).
+
+- **Schema** - `commission_id` + `profile_id` added, all three target FKs **`on delete restrict`** (what
+  makes ruling 4's live-join labelling safe: a dangling reference is impossible) * `answer_references_
+  kind_target_xor` replaces F3's ONE-SIDED participant CHECK, which permitted zero targets and two
+  targets * `unique (answer_id)` (one target per item in v1; multi-target is a constraint DROP - the
+  writer's REPLACE semantics, the completeness arm and the aggregation are all already cardinality-
+  agnostic) * `form_items_input_vs_display`'s `reference` arm **released** for `required`/`required_if`
+  (209 §B1c/B3c flipped from `throws_ok` to `lives_ok` - flipped, not deleted, so the release is on the
+  record).
+- **SELECT door parity** - three arms matching `answer_selected_options` arm-for-arm: base (creator /
+  commission-admin / submitted+staff_admin) + `can_read_correction_response` + `can_access_targeted_
+  response` (its own policy). F3 shipped the base arm ONLY - verbatim FF-2 QA r1 B-2.
+- **Doors** - `app.assert_reference_answer_writable` (DEFINER; arm ORDER is load-bearing - the targeted
+  arm is tested FIRST because a targeted respondent is not the creator, the inversion that was FF-2 r1
+  B-1) * **`app.guard_reference_coherent` (TRIGGER, not a door check)** - tenant containment on all three
+  lanes + the ruling-2 patient case-scoping, enforced on **EVERY path into the table**, so a hand-rolled
+  RPC call cannot bypass what the picker filters (Rule 1: the picker is a convenience, the trigger is the
+  boundary) * `app.save_reference_answers` (DEFINER; REPLACE per item, `null` clears).
+- **⚠ `public.reference_candidates` is INVOKER-RIGHTS BY DESIGN — do not "harden" it to DEFINER.**
+  ADR 0091 **ruling 3**. Running as the caller means `participants_select` /
+  `commissions_select_member_or_admin` / `profiles_select_self_or_admin` apply verbatim and it **cannot
+  widen them**; a DEFINER search would *replace* all three (ADR 0078 A28 / 0079) and re-derive three
+  perimeters by hand. The ruling-2 patient narrowing is an ADDITIONAL `exists`, never a substitute.
+  Pinned by pgTAP **`276 §G4`**, which asserts the search DOES reach `professional_profiles` through the
+  `responses_select` authorization path - so converting it to DEFINER reds a test instead of silently
+  changing the security property. (`…000800` revoked its PUBLIC EXECUTE; see below.)
+- **`app.ensure_answer_rows(response, item_ids, instance)`** - extracted from
+  `app.ensure_matrix_answer_rows`, which now delegates. Upserts the parent `answers` row at a scope.
+- **`app.copy_response_answers(src, dst)` - THE single correction-copy surface.** Instances -> answers ->
+  **all four** child shapes, with the old->new instance-resolving join written **ONCE**. It replaced
+  **six hand-written copies** (2 RPCs x 3 child tables); `supersede_response` and `start_correction_draft`
+  both delegate. **Any future answer shape adds ONE insert here and nowhere else - FF-4 will need this.**
+  Resolves through the preserved `(group_item_id, position)` identity because ADR 0087 Amdt 1.3 gives the
+  successor its OWN instance rows, making a direct `group_instance_id` comparison unsatisfiable by
+  construction and **silently** copy-nothing (FF-1 P0-1). QA r2 cleared the extraction: 8/14 columns
+  copied, the other six are defaults or BEFORE-INSERT-derived, and `form_items_no_nested_container` makes
+  `parent_instance_id` provably always NULL, so the map is bijective and fails **loud** (23505).
+- **Completeness** - `app.item_required_satisfied` + `app.instance_is_empty` gain `reference` arms.
+  Without the second, `submit_response` prunes an instance whose only content is a reference and the
+  `on delete cascade` takes the answer with it - **silent data loss at submit**, which FF-2 had already
+  flagged in-code by name.
+- **Reads** - `app.references_by_item(response, instance)` (scope-parameterised like
+  `matrix_cells_by_item`) * `dashboard_entity_references` (**DEFINER**, `is_staff_admin_of` OR
+  `is_admin`, on `app.submitted_form_responses`) - aggregates on the **target id, NEVER the label**
+  (ruling 4): labels are resolved by live join, so grouping by one forks every series on a rename.
+- **Rule 10** - `app.participant_type_label()` is the SQL authority for participant-type display text;
+  its TS mirror is `PARTICIPANT_TYPE_LABELS`. Both are pinned to the SAME seven literals (`276 §L` +
+  `participant-type-labels.test.ts`), so changing one alone REDS. Three sites emitted the raw English
+  identifier before this; the sign-off projection was one of them and no render-layer patch could reach it.
+- **`get_response_for_signoff`** - gains `references_by_item` at BOTH scopes, plus (`…000900`) the
+  **top-level `other_text_by_item`** it never had, and a fix to the top-level `observations_by_item`
+  block, which had **no `group_instance_id` filter** and folded INSTANCE observations into the top-level
+  map (ADR 0087 substrate correction 5 recurring inside this door).
+  **⚠ STANDING OBLIGATION: every new answer shape owes this projection AT BOTH SCOPES.** This surface has
+  now lost a shape four times - FF-1 `instances`, FF-2 the grids, FF-5 `references_by_item`,
+  `other_text_by_item` - each found AFTER shipping. A sign-off is an attestation; a field the screen never
+  showed is the sharp end. `276 §N` asserts the projection **KEY SET** at both scopes, not one key,
+  because a single-key test would have passed for all three earlier misses.
+- **`…000800`** - revoked PUBLIC EXECUTE from `reference_candidates` **and `save_section_answers`**. The
+  latter was a REGRESSION: `…000200` added an 11th parameter (DROP+CREATE) and faithfully restored the
+  grants read from `proacl` - but **`proacl` shows what is GRANTED, never what was REVOKED**, and CREATE
+  hands PUBLIC the default back. Caught by the standing `100_dashboard` anon-executable keystone.
+  **Restoring an ACL means restoring the revokes.**
+- **Keystones** - `276_ff5_references.sql` (73 assertions). Ruling 2's case-scoping is proven with real
+  case-bound fixtures in BOTH directions (another case's patient is invisible; **this** case's patient IS
+  a candidate) - the second is what makes an always-deny mechanism detectable, and its absence was QA r2
+  B-1. `§O` pins ruling 1's surrogate premise **behaviourally**: a real name crosses
+  `set_participant_patient` and `display_name` stays `'Paciente'`.
+- **PHI** - **no new PHI surface, no Rule 12 amendment, no audit door** (ruling 1). The participant lane
+  reads only `participants.display_name`, a surrogate by construction. See Amendment 1 for the one place
+  the original keystone wording was too absolute.
+
+## FF-3 - Validation Engine (2026-07-28; ADR 0090 + Amendment 1; migrations `20260901000000`-`...000800`; flag `item_validations` **ON** via `...000800`)
 
 **EIGHT migrations** (`...000000` schema * `...000100` door+writer+clone * `...000200` evaluator *
 `...000300` `required_if` in the dispatch * `...000400` the error surface + the `HC0P9` gate *
@@ -1158,7 +1236,8 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `notifications` | **ON** (S1·N, migration `…000720`; ADR 0076) | **21st flag.** Gates the notification engine — `app.assert_notifications_enabled()` on the write RPCs, and `app.enqueue_notification`/`app.resolve_notifications_for`/`compute_due_notifications` all no-op when OFF (so the 9 event-hook splices are inert + a scheduled scan is harmless). TS layer reads via `notificationsEnabled()` (delegates to `get_feature_flags()`). Inserted OFF in `20260720000700`; flipped ON by the gate-flip `…000720`; `seed.sql` forces ON for local/E2E. Flag-OFF preserves byte-for-byte pre-N behaviour (shell renders no bell). PHI-free by construction (Rule 12). |
 | `case_participants` | **ON** (E1, migration `…001040`; ADR 0064/0072) | **The m2 hard gate — released by E1.** Seeded OFF at F1; flipped ON only once respondent-exclusion RLS landed. Gates the ethics write spine via `app.assert_case_participants_enabled()`. **Local only** — never `db push`ed this phase; prod flips at the deliberate pilot reset. RLS is live regardless of the flag (the flag gates RPC reachability, never the boundary). |
 | `matrix_fields` | **ON** (FF-2, migration `…001200`; ADR 0089) | Gates `upsert_matrix_axes` + both matrix answer writers (`HC0P2`) and the builder's matrix types; TS reads via `matrixFieldsEnabled()`. Seeded **OFF** in `20260830000100`; flipped ON by the gate-flip `…001200`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - a stored grid renders either way, so the flag governs authoring + filling only. |
-| `item_validations` | **OFF in prod - SEED-ON only** (FF-3; ADR 0090) | **The gate-flip migration does NOT exist yet** - it lands in the FF-3 gate-close wave after QA approves, so this reads FALSE anywhere but local/E2E. Seeded OFF in `20260901000000`; `seed.sql` forces ON for local/E2E. Gates BOTH sides: `set_item_validations` raises `HC0Q0`, `get_response_validation_errors` returns the EMPTY SET, and the `required_if` layer + the `HC0P9` gate are skipped inside `submit_response`/`app.response_required_complete` (the flag is read ONCE per call and the `required_if` argument nulled at the call site, so the predicate stays IMMUTABLE). TS reads via `itemValidationsEnabled()`. **Fail-closed in a specific way**: with the flag OFF the writer raises `HC0Q0`, so a rules editor offered anyway is a dialog whose save can never succeed. ⚠ Without the flip, `db push` ships the phase DARK while local stays green - FF-2's review blocker. |
+| `entity_refs` | **ON** (FF-5, gate-flip `20260902000600`; ADR 0091) | Gates `app.save_reference_answers` and `public.reference_candidates` (both raise `HC0Q3`), the reference arms of both save paths, and the builder's `reference` type. Seeded **OFF** in `20260902000000`; flipped by `20260902000600_enable_entity_refs.sql`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - a stored reference still projects and aggregates, so the flag governs authoring + filling only (same posture as `matrix_fields`). |
+| `item_validations` | **ON** (FF-3, gate-flip `20260901000800`; ADR 0090) | ⚠ This row read "**the gate-flip migration does NOT exist yet**" until FF-5 - it does: `20260901000800_enable_item_validations.sql`, verified against the tree. Seeded OFF in `20260901000000`; flipped by `…000800`; `seed.sql` forces ON for local/E2E. Gates BOTH sides: `set_item_validations` raises `HC0Q0`, `get_response_validation_errors` returns the EMPTY SET, and the `required_if` layer + the `HC0P9` gate are skipped inside `submit_response`/`app.response_required_complete` (the flag is read ONCE per call and the `required_if` argument nulled at the call site, so the predicate stays IMMUTABLE). TS reads via `itemValidationsEnabled()`. **Fail-closed in a specific way**: with the flag OFF the writer raises `HC0Q0`, so a rules editor offered anyway is a dialog whose save can never succeed. ⚠ Without the flip, `db push` ships the phase DARK while local stays green - FF-2's review blocker. |
 | `case_types` | **ON** (E1, migration `…001040`; ADR 0064/0072) | The other half of the m2 gate. Gates the `create_case_from_template` type→case snapshot (`p_case_type_id` is ignored while OFF ⇒ `commission_default`/`non_phi_internal`). |
 
 ## RLS authorization surface (who can do what)
@@ -1316,7 +1395,10 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC0Q0` | `item_validations` flag OFF (FF-3) | "O recurso de validacoes nao esta disponivel." |
 | `HC0Q1` | item not found / **coverage** denial - this `item_type` (or parent) may not carry this `rule_type` / version incoherence (FF-3 ruling 2) | "A pergunta do tipo X nao aceita a validacao Y." Raised by BOTH `set_item_validations` and the `app.guard_item_validation_row` trigger, plus `app.guard_item_type_vs_validations` when an item_type change would orphan a rule. |
 | `HC0Q2` | invalid rule **config** - no bound, inverted range, uncompilable/over-long `regex`, blank `message` (FF-3) | "Verifique a validacao: informe os limites e uma mensagem para quem responde." The DB message NAMES the offending rule and is preferred. |
-| - | **`HC0O*` and `HC0Q3`+ are unallocated; `HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE). FF-3 reuses **`HC0P4`** for draft-only rather than minting a second code with the same meaning and copy. **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
+| `HC0Q3` | `entity_refs` flag OFF (FF-5) | "O recurso de referencias nao esta disponivel." Raised by BOTH `app.assert_reference_answer_writable` (save) and `public.reference_candidates` (search), and mapped on BOTH paths - the search path had NO mapping until QA r2 M-2, which turned every raise into an empty candidate list and made the picker explain a flag outage as "this form has no linked case". |
+| `HC0Q4` | item is not a `reference` item of this version (FF-5) | "Dados invalidos para este formulario." Raised by `app.save_reference_answers`, `app.guard_reference_coherent` and `reference_candidates`. |
+| `HC0Q5` | reference target not reachable from this response (FF-5, ADR 0091 rulings 2+8) - wrong organization on any lane, or a `patient` participant not linked to THIS response's case | Four distinct pt-BR sentences from `app.guard_reference_coherent`, so the **DB message is preferred** over a constant. ⚠ **SAVE PATH ONLY** - `reference_candidates` cannot raise it (the trigger fires on write), so an arm for it in the search would be dead code asserting a reachability that does not exist. |
+| - | **`HC0O*` and `HC0Q6`+ are unallocated; `HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE). ⚠ This row read "`HC0Q3`+ are unallocated" until FF-5 allocated Q3-Q5; **high-water is now `HC0Q5`**. FF-3 reuses **`HC0P4`** for draft-only rather than minting a second code with the same meaning and copy. **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
