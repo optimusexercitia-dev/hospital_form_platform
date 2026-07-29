@@ -305,3 +305,70 @@ see FUP-E2E-1.
 
 
 **Closed 2026-07-28.** It pinned decision #9 (a conditionally-visible question cannot be `obrigatória`) — behaviour FF-1 had already dropped at the DB level (`form_items_conditional_not_required`), leaving it UI-only for two phases. FF-3 removed the UI half and the lead ratified it as **Amendment 3**; `tester` updated AC-4 to the new contract in `b723ccc`, asserting the old note's **absence**.
+
+
+---
+
+## FF-5 (Entity Reference, ADR 0091) — closed bugs, rotated 2026-07-28
+
+Both were invisible to pgTAP 4240, Vitest 851, tsc, lint and `next build`; only E2E found them.
+Full phase context → [ff-5-entity-reference.md](ff-5-entity-reference.md).
+
+#### 🟢 BUG-FF5-001 — the builder cannot author a `reference` item: `addItem` rejects it with "Tipo de item inválido." · owner **backend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cc4194a`, re-verified 2026-07-28)
+
+**Re-verified**: `npx playwright test e2e/ff5-references.spec.ts --project=chromium --workers=1 -g "FF5-1"` after the fix — the test now proceeds all the way through builder authoring (3 lanes) → publish → wizard fill → advance → review → submit → the DB-truth assertion (exact `reference_kind`/target per lane), all passing. **It was actually THREE sites, not two** — `backend` found the third independently: `parseItemFields` had no `reference` arm at all and fell through to its OWN `itemTypeInvalid`, so a fix to only the two lists would have shown the identical error from a different line. All three (`ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`) are now fixed and single-sourced from `item-tree.ts`; `item-type-sets.test.ts` pins them against the live DB CHECK (mutation-proven: removing `reference` reds 4 of 5 assertions). `updateItem` was ALSO broken independently (same `parseItemFields` call, no `addItem` involved) — now covered by **FF5-8** (editing an existing reference item through the builder; round-trips, and the published version stays untouched). **FF5-9** additionally covers a reference authored as a repeating-group CHILD through the builder (the other half of this bug's blast radius FF5-1's flat form didn't reach).
+
+FF5-1 went red for a **completely different, unrelated reason** next — see **BUG-FF5-002** immediately below, now also fixed and verified.
+
+#### 🟢 BUG-FF5-002 — the submissions dashboard shows "Sem resposta" for every top-level reference answer, even though the DB and the exact same query both hold/return the correct data · owner **frontend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cf6a949`, re-verified 2026-07-28)
+
+**Root cause (frontend, confirmed by tester's re-run): `submissions/[responseId]/page.tsx` never
+passed `referencesByItemId` to `SubmissionDetailView`, and the prop was declared optional with a
+`= {}` default** — neither backend suspect (the query, the RLS policy) was the cause, which is
+exactly why reading them by inspection found nothing wrong: both were fine. Fix `cf6a949` passes the
+prop and makes it (and the four sibling payload props with the same latent exposure) required, so a
+future omission fails the build instead of rendering blank.
+
+**Re-verified**: `e2e/ff5-references.spec.ts` full file, 2 consecutive runs, 10/10 green — FF5-1
+(the original repro) now shows `UTI Adulto` / `Comissão de Controle de Infecção Hospitalar` / `Chefe
+CCIH` on the submissions view, and the new **FF5-10** (added as a regression guard on the sibling
+sign-off review screen, which was already wired correctly) confirms that call site too. One
+transient login-timeout flake hit an unrelated test on a full-suite run; an isolated re-run of that
+test passed cleanly — not attributable to this fix.
+
+**Not the same bug as BUG-FF5-001 and not caused by the builder.** Reproduced TWICE, independently:
+1. FF5-1's real, wizard-driven, `submit_response`-submitted response (3 reference lanes, authored through the builder) — DB truth (a raw SQL join across `answer_references`/`answers`/`form_items`) confirms all 3 rows are exactly correct, in order, immediately before the failing assertion.
+2. A throwaway raw-SQL probe response (bypassing the builder AND the wizard entirely) on the **SEEDED** Form D's own `referencia_setor` item (`d0000000-0000-0000-0000-00000000a301`, participant lane) — same symptom.
+
+Both land on `/o/{org}/c/{slug}/dashboard/submissions/{responseId}` showing the item's own label
+("Setor envolvido") and its "REFERÊNCIA" type tag correctly, but the answer itself renders
+**"Sem resposta"** — i.e. `SubmissionDetailView` → `AnswerSummary` → `ReferencePicker` (`readOnly`)
+received `reference: undefined` for that item.
+
+**Verified NOT a data or query problem** (ruling out the two most obvious explanations before filing):
+- `docker exec supabase_db… psql`: `answer_references` holds the correct row for both repros.
+- The exact embed string `getSubmissionDetail` uses (`src/lib/queries/submissions.ts` L567-577) —
+  copied verbatim, not paraphrased — returns the correct row via raw PostgREST, both under the
+  service-role key AND under `chefe.ccih`'s own session token (RLS applies and still returns it).
+- `docker logs supabase_kong_…`: the RUNNING NEXT.JS SERVER's own request for the probe response
+  (`user-agent: node`, not curl) is `GET …/answer_references?...&answers.response_id=eq.<id> → 200,
+  388 bytes` — the identical byte count as the correct manual response, confirming the correct
+  payload really did reach the server process, not just PostgREST.
+- Read `buildReferenceAnswers` (`src/lib/queries/responses.ts` L708-763) and the `referencesByItemId`
+  wiring (`submissions.ts` L692, L718; `submission-detail-view.tsx` L324; `answer-summary.tsx`
+  L143-156) end to end — the keying (`row.answers.item_id`), the `TOP_LEVEL_SCOPE` constant (single
+  source, imported not re-spelled), and the dispatch all read correctly by inspection.
+
+**So the break was somewhere between a confirmed-correct 388-byte HTTP response landing in the
+Next.js process and the value reaching the component** — I could not isolate it further without
+runtime instrumentation, which was out of my scope; handed off with the full trail above instead of
+guessing. **The decisive clue was in that trail**: the symptom was top-level-only (in-group
+references, via `instances`, always rendered fine — confirmed by FF5-9 passing throughout) — no
+embed or RLS fault produces that asymmetry, only a missing prop does. Worth remembering next time a
+render bug shows an odd asymmetry between two sibling paths off the same query: ask what they don't
+share, not just whether either one is individually correct.
+
+**Impact (resolved)**: every reference answer in the platform's durable, accreditation-facing
+record previously displayed as unanswered — the FF-5 acceptance criterion this bug blocked directly.
+The REVIEW screen (pre-submit, same-request, client-side state) was never affected.
+

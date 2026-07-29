@@ -162,3 +162,59 @@ verification, not inferred.
 > stale-spec-drift (2026-07-23b) rows rotated → [test-run-archive.md](docs/progress/test-run-archive.md) at
 > the 2026-07-27 cleanup. Full run history (Phases 0 → S4) lives there.
 
+
+
+---
+
+## FUP-FF1-2 — FF-1 QA non-blocking items (detail rotated out of PROGRESS.md 2026-07-28)
+
+Still OPEN; the live tracker keeps a one-line pointer. Canonical analysis remains
+[phase-FF-1-review.md](../reviews/phase-FF-1-review.md).
+
+### ▶ FUP-FF1-2 — FF-1 QA non-blocking items (review r2: 4 MINOR / 6 INFO)
+
+All ruled non-blocking by `qa`; [review](docs/reviews/phase-FF-1-review.md). INFO-1 and INFO-5 are
+already discharged and are listed only so the numbering reconciles against the report.
+
+- [ ] **MINOR-1 — `completeness_authorities_agree` is one-directional in pgTAP.** Neutralising *every*
+  blocking arm of `submit_response` (both `HC011` raises **and** the `HC0N5` minInstances raise) still
+  leaves the suite 52/52. H1c is a `lives_ok` (asserts submit *succeeds*), and `HC0N5`'s only occurrence
+  in `supabase/tests/` is inside H1c's **description string**, never a `throws_ok`. No live hole — E2E
+  FF1-4/FF1-5 carry the blocking direction — but **the fast gate cannot see a submit-side group
+  blocking regression.** Fix: one `throws_ok(… 'HC0N5')` at the H4a state.
+- [ ] **MINOR-2 — the suite header documents a keystone that does not exist.** *"MUTATION F5: drop the
+  re-pack UPDATE from `remove_group_instance` → F5 red"* — there is no F5, and `remove_group_instance`
+  is never called in `supabase/tests/`. E2E covers it (FF1-9 removes position 0 of 2, exercising the
+  re-pack). Fix: write F5, or delete the claim — a documented mutation for a non-existent keystone is
+  worse than no note.
+- [ ] **MINOR-3 — MUTATION F3 names the wrong mutation.** Removing `set constraints … deferred` leaves
+  the suite green; the real guard is BE-1's `DEFERRABLE` alter (proven both directions in r1:
+  non-deferrable ⇒ the naive swap raises `23505`). F3 *is* a keystone — for the alter, not the
+  in-function statement. Fix: correct the header.
+- [ ] **MINOR-4 — stale-comment asymmetry in `supersede_response`.** The *"…while repeating groups are
+  inert"* comment is gone from `start_correction_draft` but survives in `supersede_response`, so two
+  sibling functions now carry **contradictory premises about the same join**. Zero functional effect
+  (the corrected mechanism is spelled out directly below it). `qa`'s ruling: **do not mint a migration
+  whose entire content is a comment rewrite** — that adds another body-rewrite to the chain CLAUDE.md
+  §graphify already treats as a hazard. **Let it ride the next migration touching those bodies** — which
+  INFO-6 guarantees is coming.
+- [ ] **INFO-2 — no coherence guard on the direct-DML path.** Nothing ties
+  `response_group_instances.group_item_id` to a `repeating_group` of the response's own `form_version`
+  (the FK is only `→ form_items(id)`). The RPC path is fully gated (`assert_group_writable`, `HC0N4`);
+  ruling 5 deliberately leaves direct DML open, so the exposure is a user writing junk into **their own**
+  draft — no cross-tenant read, no PHI. Belongs with **FUP-FF1-1**.
+- [ ] **INFO-3 —** `src/lib/responses/actions.ts:384-390`: the `p_instance_answers` comment block is
+  duplicated verbatim.
+- [ ] **INFO-4 — the parity vectors have no drift detector.** Hand-mirrored SQL ↔ JSON, byte-equal today
+  (21/21), matching the pre-existing `condition-vectors.json` convention — so not an FF-1 regression. But
+  **Rule 3 calls evaluator drift phase-blocking and nothing detects it.** Worth a real detector before
+  FF-3, which adds a second evaluator pair.
+- [x] **INFO-1 — superseded by MINOR-4** (r2: the stale comment was removed from
+  `start_correction_draft`; only `supersede_response` retains it).
+- [x] **INFO-5 — DISCHARGED at the Record step 2026-07-27**: `20260828000900_enable_repeating_groups.sql`
+  written and applied (flag verified `enabled = true`, 198 files = 198 registered), and
+  `docs/backend-state.md`'s high-water corrected (**`HC0M9`**, not `HC098`; FF-1 allocated `HC0N0`–`HC0N5`).
+- [x] **INFO-6 — CARRIED FORWARD as a binding FF-2/FF-5 requirement**, not left as a note →
+  [flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2/FF-5, with named keystones
+  (`correction_copies_matrix_answers` / `correction_copies_reference_answers`).
+

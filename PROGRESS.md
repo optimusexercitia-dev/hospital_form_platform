@@ -69,288 +69,63 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-_No active build phase._ **FF-1 (Repeating Groups) ✅ COMPLETE 2026-07-27** — flag
-`repeating_groups` **ON**; record → [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md).
-**FF-2 (Matrix & Risk Matrix) ✅ COMPLETE 2026-07-27** — ADR
-[0089](docs/decisions/0089-ff2-matrix-risk-matrix.md), QA APPROVED r2, human-approved, flag
-`matrix_fields` **ON** (gate flip `20260830001200`); record →
-[ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md).
+_No active build phase._ The Flexible-Forms program is **4 of 5 complete**; **FF-4 (Power
+Authoring) is the last phase before the pilot deploy** (ADR 0086 — all five gate it).
 
-**FF-3 (Validation Engine) ✅ COMPLETE 2026-07-28** — ADR
-[0090](docs/decisions/0090-ff3-validation-engine.md) (+ Amendments 1–4), QA **APPROVED** r2,
-human-approved, flag `item_validations` **ON** (gate flip `20260901000800`); record →
-[ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md).
+| Phase | Flag | Record |
+| --- | --- | --- |
+| **FF-1** Repeating Groups ✅ 2026-07-27 | `repeating_groups` ON | [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md) |
+| **FF-2** Matrix & Risk Matrix ✅ 2026-07-27 | `matrix_fields` ON | [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md) |
+| **FF-3** Validation Engine ✅ 2026-07-28 | `item_validations` ON | [ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md) |
+| **FF-5** Entity Reference ✅ 2026-07-28 | `entity_refs` ON | [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md) |
 
-**FF-5 (Entity Reference, `entity_refs`) is the next build phase — NOT started.** Its ADR is
-**0091+**; scope, dependencies and gate keystones →
-[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-5.
+**Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record →
+[case-type-assignment.md](docs/progress/case-type-assignment.md).
 
-> 🔴 **FF-5 inherits four obligations. The first three are the standing ones; the fourth is new
-> and was found by writing FF-3's documentation, not its code.**
-> 1. **`answer_references` is missing the targeted and `can_read_correction_response` policy arms**
->    — deliberately unfixed while write-inert. **FF-5's writer landing is when that stops being true.**
-> 2. **Correction-copy with the instance remap** — `answer_references` hangs off `answer_id` and is
->    copied by **neither** correction RPC. Resolve old→new *through* the instance rows.
-> 3. **The door-parity rule** — every arm its sibling carries, proven as a **table** against
->    `pg_policies` **and the ACLs**, not asserted. Where siblings disagree, the **tighter** posture wins.
-> 4. **`reference` pins BOTH `required = false` AND `required_if IS NULL`** in
->    `form_items_input_vs_display`. **Relax one without the other and the deadlock reopens by the
->    other door.**
+### ▶ FF-4 (Power Authoring, `power_authoring`) — NOT started
+
+ADR **0092+** authored at phase start; scope, dependencies and gate keystones →
+[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-4. Reusable block/question
+library (jsonb snapshot of the item subtree) + dynamic defaults; **calculated fields stay
+post-pilot** (ADR 0086 ruling 6). It is last *structurally* — the library must snapshot every
+shipped item shape: options, matrix axes, validations, reference config.
+
+> 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
+> shipped once.**
 >
-> Also worth reading before FF-5 designs its picker: FF-3's `app.response_validation_errors` is an
-> **INVOKER wrapper whose hand-written probe is its only gate** — the shape the ADR-0079 standing
-> sweep is structurally blind to (**AUDIT-INVOKER-WRAPPER**, tracked below). FF-5's participant lane
-> is a PHI read surface, so it will want the same scrutiny and cannot rely on that sweep to supply it.
-
-**FF-5 · `frontend` build — ✅ COMPLETE 2026-07-28** (commit `4e584f3`, branch
-`ff/flexible-forms-program`). Builder: `reference` type behind `entity_refs`, lane picker +
-participant-type narrowing, case-scoped-patient authoring note; `reference` added to the dialog's
-`isQuestion` gate (that gate wraps the whole two-column body, so `required` / `required_if` /
-`visibleWhen` were otherwise unreachable for the type ADR 0086 ruling 4 had just released them for).
-Wizard: ARIA 1.2 combobox typeahead (debounced, single-select, clearable, full keyboard,
-`aria-required` = effective required-ness), two distinguished empty states, per-instance arm inside
-repeating groups. Sibling arms carried to every `isMatrixItem`/`isInputItem` dispatch site: collect,
-validation (flat + per-instance), instance emptiness (ruling 6), orphan detection, visibility, and
-the six read-only consumers. Green: lint 0/0 · typecheck · Vitest 817 · a real `next build` · the
-running app (builder + wizard + resume-by-label + per-instance picker, driven live).
-> ⚠ Two notes for the gate, both found by RUNNING it rather than by review:
-> 1. **`main` now 500s on the FF-5 seed form.** `read-only-tree.tsx` does an unguarded
->    `ITEM_TYPE_META[item.itemType]`, and the seed form D lives in the shared local DB. Resolves on
->    merge; until then the main checkout cannot render that form.
-> 2. ~~**`reference_candidates` returns the raw `participant_type` identifier as `sublabel`**~~
->    — **RESOLVED at source, backend `3c997eb`.** Live now: `Centro Cirúrgico :: Setor`. My
->    render-layer guard was **removed**, not kept: it covered the picker's tree only, so it could
->    never have caught the site that mattered, and on a future regression it would have made the
->    picker look correct while the sign-off view showed raw identifiers — masking a shared defect
->    asymmetrically. The sublabel is now rendered raw and the source is the single authority
->    (rationale recorded in `reference-vocabulary.ts`). Verified end-to-end with no client-side map.
->    **Worth carrying into the review:** it was **three** sites, not the one I reported — the
->    typeahead, `app.references_by_item` (the **sign-off projection**), and `buildReferenceAnswers`.
->    The sign-off one is the site that mattered and renders through a **different component tree**,
->    so my render-layer map never covered it. Found by sweeping `pg_proc` for `participant_type`,
->    not by reviewing the reported site. SQL↔TS label parity is now pinned both ways (pgTAP 276 §L +
->    `participant-type-labels.test.ts`), so changing one alone reds a suite.
-> 3. ✅ **BUG-FF5-002 — top-level references rendered "Sem resposta" on the submitted record. FIXED**
->    (caller + the declaration that allowed it). Root cause was **not** the query or the component:
->    `submissions/[responseId]/page.tsx` simply never passed `referencesByItemId`, and the prop was
->    declared `?:` **with a `= {}` default**, so the omission was legal and the default silently
->    substituted an empty map. Verified at runtime after the fix — the answered reference renders
->    `UTI Adulto / Setor` while genuinely-unanswered ones still read "Sem resposta" (before: all
->    three read "Sem resposta").
->    - **The transferable lesson: an optional prop with a default is a type-system OPT-OUT.** For
->      data a component cannot render correctly without, it must be REQUIRED, so forgetting it fails
->      the build instead of quietly blanking the screen. All six answer-payload props on
->      `SubmissionDetailView` are now required with no defaults — `matrixCellsByItemId`,
->      `riskMatrixByItemId`, `observationsByItemId` and `otherTextByItemId` carried the **identical**
->      latent exposure (FF-1/FF-2 vintage) and merely happened to be passed. Fixing only the
->      reference one would have left the next instance armed.
->    - **The sharper structural finding, and why the bug landed exactly here.** Sweeping the
->      answer-rendering components by what they consume, not by memory: `phase-answers-readonly`
->      (`response: ResponseForFill`), `instance-answers-readonly` (`instances: GroupInstance[]`) and
->      `review-and-sign` (`data: ClientResponseForSignoff`) all take a **whole typed object** — they
->      inherit a new payload field automatically and are safe by construction.
->      `SubmissionDetailView` was the only one taking a **destructured prop list**, which needs a new
->      prop per field and silently tolerates omission. **A prop-list boundary crossed by a page is
->      the exposed shape; a whole-object boundary is not.** Prefer whole-object props at page
->      boundaries, or accept that every new payload field is a manual wiring step at each one.
->    - Diagnostic worth reusing: the symptom was **top-level-only** — in-group references rendered
->      fine because they ride `instances`, which *was* passed. One query object, two paths, one
->      wired. No embed or RLS fault can produce that asymmetry; a missing prop produces exactly it.
->    - Second time this phase the wired seam failed under a fully green bar (BUG-FF5-001 was the
->      first), both invisible to tsc for the same reason: a permissive declaration makes omission
->      legal. Neither lint, typecheck, 834 unit tests nor `next build` can see it — only running it.
-> 4. ✅ **QA round-1 findings in frontend files — all FIXED** (m-1, m-2, m-3, m-4, i-1; i-2 judged
->    and left, with reasoning in-code).
->    - **m-2 was the one that mattered**, and it hit precisely the flow I could not verify myself:
->      `aria-selected` tracked the COMMITTED value while the visual highlight followed
->      `activeIndex`, so arrowing the list made a screen reader announce "not selected" on the very
->      row the user was on. APG defines selection as following focus in a single-select listbox;
->      `aria-selected` now tracks the active option, and the committed row keeps its signal via an
->      sr-only "(referência atual)" (the check icon is `aria-hidden`).
->    - **m-1** — the popup now renders whenever the field is OPEN, including mid-fetch, so
->      `aria-expanded`, `aria-controls` and what is on screen describe the same state at every
->      instant; `aria-controls` is omitted while closed rather than dangling. Side benefit: an
->      in-flight search now has a visible row, not just a spinner in the input.
->    - **m-3 — the fix I had stopped one level short of.** `AnswerSummary`'s answer-payload props are
->      now required-to-pass (`| undefined`, no `?`). This is the leaf that PRODUCES BUG-FF5-002, and
->      the guarantee had been a comment on the prop asking callers to pass it — the compiler's job
->      written as prose, which is the same thing I argued against when deleting the render-layer
->      sublabel guard. **Making it required immediately surfaced a REAL second gap** (below).
->    - 🟠 **NEW GAP, backend's file, not patched by me — the sign-off door does not project
->      top-level "Outros" free text.** `ResponseForSignoff` has no `otherTextByItemId`;
->      `queries/signoffs.ts` maps `other_text_by_item` for INSTANCES only. So a top-level "Outro"
->      answer reaches the signer as the bare chip with the typed text missing — the same
->      signing-blind-to-content shape as FF-1's instances and FF-2's grids, one field later.
->      `review-and-sign.tsx` now passes `otherText={undefined}` **explicitly**, so the absence is
->      recorded rather than silent. Fix is a door + query change in `src/lib/queries/signoffs.ts`.
->    - **m-4** the key handler no longer opens the list on Shift/Ctrl/Alt/CapsLock/F5 (only printable
->      keys and Backspace/Delete, chords excluded); **i-1** the dead `currentTarget.contains()` blur
->      guard is gone — an `<input>` is void and can never contain a node, so it was always false;
->      the comment now credits the popup's `onMouseDown` preventDefault, which is what actually
->      protects option clicks.
->    - **i-2 left deliberately** (`readOnly={onReferenceChange == null}`): same opt-out shape, but the
->      failure mode is loud — a visibly inert control that fails every fill spec — not silent-and-wrong
->      like missing data, and tightening it for `reference` alone would split the idiom inside one
->      dispatcher while both matrix types keep it. Reasoning recorded in `block-renderer.tsx`.
-> 5. 🟠 **KNOWN LIMITATION — the patient lane's sublabel degenerates on the READ path.** Surfaced by
->    `backend` re-sweeping the `sublabel` producers after (2) removed the client-side net; verified
->    independently here against the code and the live DB. **Not a regression and not blocking — but
->    it should be a PO/lead decision, not a code comment, and I do not think "cosmetic" is right.**
->    - The three producers all normalize, but they resolve the participant sublabel DIFFERENTLY:
->      `reference_candidates` (picker) and `app.references_by_item` (sign-off) emit the
->      **case-participant role**; `buildReferenceAnswers` emits the **type label only** — provably,
->      since `ScopedReferenceRow.participants` carries `{display_name, participant_type}` and no case
->      data at all, so it *cannot* resolve a role.
->    - `buildReferenceAnswers` feeds **`getResponseForFill`** (wizard resume + the review screen after
->      a reload) and **`getSubmissionDetail`** (the durable submitted record). The sign-off surface is
->      unaffected.
->    - A patient's `display_name` can only ever be one of **two constants** — established from the
->      live catalog, so it is structural rather than a property of today's rows: `authenticated`
->      holds **no INSERT/UPDATE/DELETE grant** on `participants` (only `postgres` / `service_role`),
->      and exactly two SECURITY DEFINER functions write the column, each writing a **literal**:
->      `set_participant_patient` inserts `'Paciente'`, and `dispose_case_phi` updates disposed
->      patients to `'[PHI removido]'`. There is no path by which a patient's `display_name` becomes a
->      distinguishing value.
->      **State it that way, not as "the door accepts no name" — that form is refutable at a glance
->      and would discredit the whole claim.** `set_participant_patient` DOES take a `p_name text`
->      (verified via `pg_get_function_identity_arguments`): a real patient name crosses that door and
->      is routed to `patient_identifiers`, while the `participants` INSERT writes the literal
->      `'Paciente'` and never `p_name`. The surrogate holds *despite* a name being supplied, which is
->      the strong version and the one ADR 0091 ruling 1 actually needs.
->      ⚠ Correction to a figure quoted mid-thread: "other writers of `display_name`: 0" is **wrong** —
->      `dispose_case_phi` assigns it (`prosrc` line ~48, comments stripped). It does not weaken the
->      finding, it widens it: the post-disposal label is *also* a shared constant, so the degeneracy
->      holds in both states. Recorded because the claim was nearly copied into this file unverified,
->      and a `prosrc` match for `display_name =` cannot by itself tell an assignment from a WHERE
->      comparison — it had to be read.
->    - So on those paths a patient reference renders **`Paciente / Paciente`** — zero information, in
->      the one field whose entire purpose is to disambiguate identical labels. Two patient references
->      in one form become indistinguishable at the confirm-before-submit moment and in the permanent
->      record.
->    - **Why "latent" understates it:** it needs a case-bound response carrying a patient reference,
->      which no fixture has — but that is precisely the patient lane's *primary intended use* (ADR 0091
->      ruling 2 exists to make patient references work on case-linked forms). The first real case-phase
->      form with one hits it. It is unexercised, not unlikely.
->    - Closing it means giving `buildReferenceAnswers` case scope — a new query and new risk. **I agree
->      with `backend` that that is not a gate-time change**; recording it so the call is made
->      deliberately rather than by default.
->    - Frontend deliberately does **nothing** here: suppressing the duplicate when `label === sublabel`
->      would make the degenerate case *look* intentional, which is the same asymmetric-masking mistake
->      that got the render-layer guard deleted in (2). The ugly duplicate is the honest signal.
->    - 🔴 **Gap identified, no keystone asserts it** (`backend` is proposing one to the lead; noted here
->      so it survives if that thread is missed). **ADR 0091 ruling 1 — "the participant lane reads no
->      PHI, so FF-5 adds no PHI read surface and Rule 12 stays at three modules" — rests ENTIRELY on
->      the surrogate invariant above, and nothing currently tests it.** A third writer, or a change
->      letting `set_participant_patient` pass `p_name` through to `display_name`, would silently turn
->      the picker and every reference label into a PHI surface with no suite going red — the frontend
->      cannot detect it, because from here a name and a surrogate are both just a string.
->      ⚠ **This bullet previously priced the fix at "~2 lines over `pg_proc` + `role_table_grants`,
->      cheap". That was wrong and is corrected here, because the cheap form does NOT close the gap
->      and shipping it as though it did is the precise failure this whole thread is about — an
->      untested assertion that looks like coverage.** There are two forms and they are not
->      substitutes:
->      - **Catalog form (cheap, weak).** Assert `authenticated` holds 0 write grants on
->        `participants`, that exactly 2 functions write it, and that 0 of those are non-DEFINER.
->        Read-only, no fixtures, no DB window. It catches **a third writer appearing** — the likeliest
->        regression — and *nothing else*. It cannot prove `p_name` never reaches `display_name`,
->        because its writer-detection predicate is itself a `prosrc` regex carrying exactly the
->        assignment-vs-WHERE ambiguity documented two bullets up. Real, but partial.
->      - **Behavioural form (the one ruling 1 actually needs).** Call `set_participant_patient` with a
->        distinctive `p_name`, then assert `participants.display_name` **is** `'Paciente'` and
->        **is not** that name. This expresses the NEGATIVE case, so it can fail for the reason it
->        claims to pass — which the catalog form cannot. Needs fixtures and a DB window; belongs in
->        `276` beside the other FF-5 keystones, not in a standalone catalog file.
->      Ship the catalog form alone if that is the call, but **do not record the gap as closed on it**.
-
-
-**FF-5 · `tester` — E2E test pass — 🟢 GREEN, 10/10 (2026-07-28).**
-Spec `e2e/ff5-references.spec.ts` (10 tests, `--workers=1`, stateful — reuses the seeded "FORM D" for
-all but FF5-1/FF5-8/FF5-9/FF5-10). Does **not** re-test the 53 pgTAP keystones already covering the
-DB layer; targets the wired seam only. Results:
-
-| Test | Result |
-| --- | --- |
-| FF5-1 happy path per lane, authored in the **builder**, publish, fill, submit, review + submissions-view by label | ✅ |
-| FF5-2 in-group composition: 2 instances, DIFFERENT targets, survives a real save+re-enter | ✅ |
-| FF5-3 resume: label renders after "Salvar e sair" + re-enter, never a raw uuid | ✅ |
-| FF5-4 required gating: blocks with the field's own pt-BR message, releases on answer | ✅ |
-| FF5-5 correction survival: top-level + in-group child, **by value, on the correct instance** (ruling 7 / FF-1's P0-1 trap) | ✅ |
-| FF5-6 cross-tenant negative (HC0Q5, clean pt-BR) + a positive control (not vacuous) + UI-level no-leakage on the candidate search | ✅ |
-| FF5-7 keyboard-only: focus/type/arrow/Enter/Escape/clear, ARIA combobox — the surface `frontend` flagged as interactively unproven | ✅ |
-| FF5-8 `updateItem` coverage: editing an EXISTING reference item (label) through the builder round-trips; the published v1 stays untouched | ✅ (added after `backend` flagged this path had zero coverage) |
-| FF5-9 a reference authored INSIDE a repeating group, through the builder (not the seeded fixture): fills, submits, DB-truth | ✅ (added to cover the other half of BUG-FF5-001's blast radius FF5-1's flat form didn't reach) |
-| FF5-10 the sign-off review screen (`/manage/assinaturas`) renders a top-level reference by label | ✅ (added as a regression guard on the sibling call site, per `backend`'s request) |
-
-**Both bugs found this pass are fixed and re-verified** — detail in the Bug Log (BUG-FF5-001,
-BUG-FF5-002). Sequence: FF5-1 red on BUG-FF5-001 (builder rejected `reference`) → `backend` fixed
-(3 sites, not the 1-2 first suspected) → re-verified fixed across builder-create/edit/in-group →
-FF5-1 red AGAIN on a *different, unrelated* defect (BUG-FF5-002, the submissions view) → root-caused
-by `backend`+`frontend` to one missing prop → fixed, re-verified. 2 consecutive full-file runs, 10/10
-both times bar one transient login-timeout flake (isolated re-run of that single test passed cleanly
-— an infra hiccup, not a regression, not attributed to either fix).
-
-**What I'd flag as worth double-checking, not a defect:** none of the 10 tests are vacuous by
-construction — FF5-6 carries an explicit positive control (own-org target succeeds) precisely so the
-negative can't pass by construction, and FF5-2/FF5-5/FF5-9's instance-position assertions read DB
-truth (`response_group_instances.position`), not just rendered text. FF5-7 required a rewrite
-mid-loop: my first cut assumed the highlighted-by-default candidate sits at index 0 for a
-single-match query, which is false once the candidate pool spans other specs' org-scoped fixtures —
-the fix walks `aria-activedescendant` to the wanted text rather than assuming position. FF5-10 was
-added as a guard on a call site I confirmed was ALREADY correctly wired (not a suspected break) —
-its value is catching a future regression, not proving today's code.
-
-The afterAll tripwire (the two seeded department participants + Form D's 5 items survive, no stray
-draft version left by FF5-8's clone-to-edit, deleted-by-exact-id cleanup only) held on every run.
-Lint 0/0, typecheck clean for `e2e/ff5-references.spec.ts`.
-
-**Reporting green to the lead. Full suite (`e2e:prod`) is the lead's to run** — not run here, per
-protocol; triage against the ~18–27 pre-existing flaky baseline, not against zero.
-
-**QA round 1 re-verification — 🟢 still GREEN (2026-07-28, HEAD `4959c7d`).** Four fixes landed
-under me (M-2 the typeahead's dead RPC-error path is now live; the picker a11y triad — `aria-selected`
-follows the ACTIVE option not the committed one, `aria-controls`/`aria-expanded` agree mid-fetch,
-modifier keys no longer open the list; the sign-off door's top-level "Outros" projection; the
-sign-off door's `observations_by_item` instance-scope filter). Re-ran the full
-`e2e/ff5-references.spec.ts` (2 consecutive runs, 10/10 both) plus the named neighbours:
-
-| Suite | Result |
-| --- | --- |
-| `ff5-references.spec.ts` (own) | ✅ 10/10 × 2 runs |
-| `ff1-repeating-groups.spec.ts` | ✅ 9/9 |
-| `ff2-matrix-views.spec.ts` | ✅ 5/5 (Recharts console width-warning noise only, no assertion failures) |
-| `phase6-signoffs.spec.ts` | ✅ 7/7 |
-
-**FF5-7 re-run attentively per the lead's flag** — strengthened, not just re-run, since the previous
-version didn't actually exercise the a11y fixes: added an `aria-selected` assertion (arrow to the
-uncommitted candidate while a DIFFERENT one is committed; the active row must read `true`, the
-committed-but-inactive row `false` — the exact inversion the bug was) and a modifier-key assertion
-(bare Shift/Control must not reopen a closed list). Both caught REAL bugs in my own test while I was
-writing them, not in the app: (1) I called `.focus()` on an already-focused input expecting it to
-reopen the closed list — a no-op, since a repeated `.focus()` doesn't refire `onFocus`; fixed by
-pressing `ArrowDown` instead, which is also the more correct keyboard action. (2) I assumed the input
-was closed right after `clear()`, but `clear()` moves focus TO the input as a genuine focus
-transition, which itself reopens it via `onFocus` — fixed by closing with Escape first. Both are
-exactly the kind of thing this spec exists to catch, just aimed at my own code instead of the app's.
-
-**FF5-10 extended for QA's m-4 ask** — added a top-level `short_text` item alongside a
-repeating-group child, gave each its own DIFFERENT observation, and asserted on the sign-off screen
-that the top-level block shows only its own text (not the instance's), the instance's own card shows
-only its own text (not the top-level's), and the top-level text appears EXACTLY once anywhere on the
-page — the direct regression guard for the `group_instance_id is null` filter QA added. Passed
-first try; the fixture-shape guesses (structural locators — `<dt>`'s parent for the top-level row,
-`<fieldset>` legended "N de M" for the instance) were verified against `instance-answers-readonly.tsx`
-and `review-and-sign.tsx`'s actual DOM output before writing the assertions, not guessed blind.
-
-Lint 0/0, typecheck clean, unchanged. **Still green — no new bugs found in this round.**
-
-**Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
+> 1. **`app.copy_response_answers` is THE single correction-copy surface** (FF-5 extracted it from
+>    six hand-written copies). A new answer shape adds **one insert there** and nowhere else. That
+>    join failing silently copies *nothing* — which is exactly how FF-1's P0-1 destroyed real data,
+>    proven live 2 selections → 0.
+> 2. **The sign-off projection is owed at BOTH scopes — four misses running.** instances (FF-1),
+>    grids (FF-2), references *and* top-level `other_text` (FF-5). pgTAP `276 §N` pins the
+>    projection's **key set**, not one key, precisely because a single-key test would have passed
+>    for all three earlier misses. A signer attesting to content the screen never showed them is
+>    the sharp end.
+> 3. **Type sets live once**, in `src/lib/forms/item-tree.ts`, pinned to the DB CHECK by
+>    `item-type-sets.test.ts` + pgTAP `276 §M`. BUG-FF5-001 was three hand-written copies drifting:
+>    the builder could not create a reference item **at all** while pgTAP, Vitest, tsc, lint and
+>    `next build` were green. ⚠ `ItemType` is still a **hand-written** union (`gen:types` renders a
+>    CHECK-constrained `text` column as `string`), so DB→TS remains a convention with a test under it.
+> 4. **An optional prop with a default is a type-system opt-out.** BUG-FF5-002 blanked every
+>    reference on the durable submitted record because tsc cannot object to an *omitted optional*
+>    prop. All six answer-payload props are now required; keep new ones required. Note the shape:
+>    components taking a whole typed object inherit new fields automatically, components taking a
+>    destructured prop list do not.
+> 5. **Check that your predicate could have failed for the reason you claim it passed.** FF-5
+>    produced **eight** checks that were vacuous by construction — review found none, mutation
+>    found all. The list is worth reading before writing keystones →
+>    [ff-5-entity-reference.md §4](docs/progress/ff-5-entity-reference.md).
+> 6. **`git commit -- <paths>`, not `git add <dir>`.** `commit` commits the whole index, so a
+>    concurrent teammate's staged files ride along however carefully your *add* was scoped. This
+>    mis-attributed a commit during FF-5.
 
 ### 📋 Remaining pre-pilot work
 
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); **re-expanded
 2026-07-27 — ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md)** (Flexible-Forms FF-1…FF-5 pulled
-pre-pilot). **FF-1 ✅ and FF-2 ✅ are COMPLETE (both 2026-07-27)**; this is the standing backlog —
-remaining pre-pilot = **FF-3 → FF-5 → FF-4** (three gated phases), the FUP-AI-1 workstream, then the
+pre-pilot). **FF-1 · FF-2 · FF-3 · FF-5 are all ✅ COMPLETE (2026-07-27/28)**; this is the standing
+backlog — remaining pre-pilot = **FF-4** (one gated phase), the FUP-AI-1 workstream, then the
 **pilot deploy**.
 
 · **S4 ✅ COMPLETE 2026-07-20** — ✅ **ETH·E2** (2026-07-18) + ✅ **Referrals v2 R2–R5** (2026-07-19) + ✅ **CH** Charters (Phase 21, 2026-07-20 — ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [detail](docs/progress/ch-charters-cadence.md)), all → `main`
@@ -360,7 +135,7 @@ remaining pre-pilot = **FF-3 → FF-5 → FF-4** (three gated phases), the FUP-A
 · 🔴 **AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep. Found in FF-3 (QA M-2), NOT an FF-3 defect, NOT a known leak; PO decision on scheduling.** The sweep floors `prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written RLS probe is the only gate in front of a DEFINER body** — a `prosecdef = f` function whose security rests entirely on an `if not exists (…)`. FF-3's `get_response_validation_errors` is one instance: deleting its existence probe reds **0 assertions across six files**, while a commission-Y staff then reads commission-X rule messages **and item labels** (proven live, `have: 3 want: 0`; keystone `§O` added, mutation-proven). **This is a pattern, not an accident** — it is the natural way to front an `app.` DEFINER helper, and **130 of 281 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`**, so the wrapper is the whole boundary each time. Proposed scope: enumerate `public` `prosecdef = f` functions calling an `app` `prosecdef = t` function, and require a keystone per wrapper that reds when its guard is removed. Not started. Relates to ARCHITECTURE.md Rule 1.
 · ✅ **BUG-PROD-ACTIONS — RESOLVED (environment drift, not a code defect).** `node_modules/next` had silently drifted to **16.2.9** (the pre-BUG-AIF-001 version) while `package.json`/lockfile pinned **16.3.0-preview.5**; `npm ci` → 16.3 + a `REBUILD=1` full run collapsed the 21–31s action-hang **and** the "~18–27 prod flaky baseline" to ~1. Confirmed in the Gate-2 version-drift audit (`2698696`); PO-approved at the Gate-2 close. Full investigation detail → [bug-log-archive.md](docs/progress/bug-log-archive.md).
 · ✅ **P0 · AUDIT-DOOR-BLINDNESS — RESOLVED 2026-07-18, human-approved.** The door-level re-audit (292 gate neutralizations across every `authenticated`-reachable DEFINER door) found no live leak — platform-wide test-coverage debt, not a Gate-1 breach. Closed with a standing invariant (ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)) + 50 mutation-proven keystones; qa APPROVED. Full detail → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md).
-· **Flexible-Forms Program — ✅ FF-1 (Repeating Groups) COMPLETE 2026-07-27** (ADR [0087](docs/decisions/0087-ff1-repeating-groups.md) + Amendment 1; QA APPROVED r2; flag `repeating_groups` **ON** via gate flip `20260828000900`; record → [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md)). **✅ FF-2 (Matrix & Risk Matrix) COMPLETE 2026-07-27** (ADR [0089](docs/decisions/0089-ff2-matrix-risk-matrix.md); QA APPROVED r2; flag `matrix_fields` **ON** via gate flip `20260830001200`; record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md)) — it discharged FF-1's P0-1 correction-copy obligation and pulled **both** its own follow-ups (dashboard aggregation + sign-off grid) into gate scope by PO ruling. **Remaining: FF-3 → FF-5 → FF-4** (ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md); all gate the pilot deploy; per-phase ADRs **0090+** at each phase start). ⚠ **FF-3 and FF-5 inherit two obligations from FF-2** — the missing targeted/correction policy arms on `form_item_validations` / `answer_references` (unfixed only because both are write-inert), and the **door-parity rule** (`272_ff2_door_parity.sql`) → [flexible-forms-program.md](docs/plans/flexible-forms-program.md)
+· **Flexible-Forms Program — ✅ FF-1 (Repeating Groups) COMPLETE 2026-07-27** (ADR [0087](docs/decisions/0087-ff1-repeating-groups.md) + Amendment 1; QA APPROVED r2; flag `repeating_groups` **ON** via gate flip `20260828000900`; record → [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md)). **✅ FF-2 (Matrix & Risk Matrix) COMPLETE 2026-07-27** (ADR [0089](docs/decisions/0089-ff2-matrix-risk-matrix.md); QA APPROVED r2; flag `matrix_fields` **ON** via gate flip `20260830001200`; record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md)) — it discharged FF-1's P0-1 correction-copy obligation and pulled **both** its own follow-ups (dashboard aggregation + sign-off grid) into gate scope by PO ruling. **✅ FF-3 (Validation Engine) COMPLETE 2026-07-28** (ADR [0090](docs/decisions/0090-ff3-validation-engine.md) + Amendments 1–4; flag `item_validations` **ON** via `20260901000800`) and **✅ FF-5 (Entity Reference) COMPLETE 2026-07-28** (ADR [0091](docs/decisions/0091-ff5-entity-reference.md) + Amendments 1–2; flag `entity_refs` **ON** via `20260902000600`; record → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md)) — between them they discharged **both** obligations FF-2 handed on: the missing targeted / `can_read_correction_response` policy arms, and the **door-parity rule** (`272_ff2_door_parity.sql`). **Remaining: FF-4 only** (ADR **0092+** at phase start; all five gate the pilot deploy) → [flexible-forms-program.md](docs/plans/flexible-forms-program.md)
 · the **Coolify app deploy** + the **remote `db push`** of the S1–S3 local-only migrations — deferred to the pilot by design (every S-phase builds local-first; **now follows the FF program's last gate**). **This is when the ETH·E1 m2 flag flip reaches production.**
 
 _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP (supersession engine, ADR 0060 Gap 38) — 2026-07-13 · **S2** IV2 · RV2·R1 · AI satellites+cross-link — 2026-07-14 · **S3** ETH·E1 access-spine — 2026-07-14. Detail in the phase table + `docs/progress/`.
@@ -410,63 +185,7 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **FF-3-era bugs — all closed and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): BUG-E2E-001 (the seed-eating cleanup behind the gate's b7 cascade), BUG-FF3-002 (unary operators offered but unsavable — `CONDITION_OPS` still the pre-F3 seven), BUG-FF3-001 (stale peer `aria-invalid` on the symmetric rule), and **BUG-FF1-008, closed by FF-3's Amendment 3**.
 
-#### 🟢 BUG-FF5-001 — the builder cannot author a `reference` item: `addItem` rejects it with "Tipo de item inválido." · owner **backend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cc4194a`, re-verified 2026-07-28)
-
-**Re-verified**: `npx playwright test e2e/ff5-references.spec.ts --project=chromium --workers=1 -g "FF5-1"` after the fix — the test now proceeds all the way through builder authoring (3 lanes) → publish → wizard fill → advance → review → submit → the DB-truth assertion (exact `reference_kind`/target per lane), all passing. **It was actually THREE sites, not two** — `backend` found the third independently: `parseItemFields` had no `reference` arm at all and fell through to its OWN `itemTypeInvalid`, so a fix to only the two lists would have shown the identical error from a different line. All three (`ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`) are now fixed and single-sourced from `item-tree.ts`; `item-type-sets.test.ts` pins them against the live DB CHECK (mutation-proven: removing `reference` reds 4 of 5 assertions). `updateItem` was ALSO broken independently (same `parseItemFields` call, no `addItem` involved) — now covered by **FF5-8** (editing an existing reference item through the builder; round-trips, and the published version stays untouched). **FF5-9** additionally covers a reference authored as a repeating-group CHILD through the builder (the other half of this bug's blast radius FF5-1's flat form didn't reach).
-
-FF5-1 went red for a **completely different, unrelated reason** next — see **BUG-FF5-002** immediately below, now also fixed and verified.
-
-#### 🟢 BUG-FF5-002 — the submissions dashboard shows "Sem resposta" for every top-level reference answer, even though the DB and the exact same query both hold/return the correct data · owner **frontend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cf6a949`, re-verified 2026-07-28)
-
-**Root cause (frontend, confirmed by tester's re-run): `submissions/[responseId]/page.tsx` never
-passed `referencesByItemId` to `SubmissionDetailView`, and the prop was declared optional with a
-`= {}` default** — neither backend suspect (the query, the RLS policy) was the cause, which is
-exactly why reading them by inspection found nothing wrong: both were fine. Fix `cf6a949` passes the
-prop and makes it (and the four sibling payload props with the same latent exposure) required, so a
-future omission fails the build instead of rendering blank.
-
-**Re-verified**: `e2e/ff5-references.spec.ts` full file, 2 consecutive runs, 10/10 green — FF5-1
-(the original repro) now shows `UTI Adulto` / `Comissão de Controle de Infecção Hospitalar` / `Chefe
-CCIH` on the submissions view, and the new **FF5-10** (added as a regression guard on the sibling
-sign-off review screen, which was already wired correctly) confirms that call site too. One
-transient login-timeout flake hit an unrelated test on a full-suite run; an isolated re-run of that
-test passed cleanly — not attributable to this fix.
-
-**Not the same bug as BUG-FF5-001 and not caused by the builder.** Reproduced TWICE, independently:
-1. FF5-1's real, wizard-driven, `submit_response`-submitted response (3 reference lanes, authored through the builder) — DB truth (a raw SQL join across `answer_references`/`answers`/`form_items`) confirms all 3 rows are exactly correct, in order, immediately before the failing assertion.
-2. A throwaway raw-SQL probe response (bypassing the builder AND the wizard entirely) on the **SEEDED** Form D's own `referencia_setor` item (`d0000000-0000-0000-0000-00000000a301`, participant lane) — same symptom.
-
-Both land on `/o/{org}/c/{slug}/dashboard/submissions/{responseId}` showing the item's own label
-("Setor envolvido") and its "REFERÊNCIA" type tag correctly, but the answer itself renders
-**"Sem resposta"** — i.e. `SubmissionDetailView` → `AnswerSummary` → `ReferencePicker` (`readOnly`)
-received `reference: undefined` for that item.
-
-**Verified NOT a data or query problem** (ruling out the two most obvious explanations before filing):
-- `docker exec supabase_db… psql`: `answer_references` holds the correct row for both repros.
-- The exact embed string `getSubmissionDetail` uses (`src/lib/queries/submissions.ts` L567-577) —
-  copied verbatim, not paraphrased — returns the correct row via raw PostgREST, both under the
-  service-role key AND under `chefe.ccih`'s own session token (RLS applies and still returns it).
-- `docker logs supabase_kong_…`: the RUNNING NEXT.JS SERVER's own request for the probe response
-  (`user-agent: node`, not curl) is `GET …/answer_references?...&answers.response_id=eq.<id> → 200,
-  388 bytes` — the identical byte count as the correct manual response, confirming the correct
-  payload really did reach the server process, not just PostgREST.
-- Read `buildReferenceAnswers` (`src/lib/queries/responses.ts` L708-763) and the `referencesByItemId`
-  wiring (`submissions.ts` L692, L718; `submission-detail-view.tsx` L324; `answer-summary.tsx`
-  L143-156) end to end — the keying (`row.answers.item_id`), the `TOP_LEVEL_SCOPE` constant (single
-  source, imported not re-spelled), and the dispatch all read correctly by inspection.
-
-**So the break was somewhere between a confirmed-correct 388-byte HTTP response landing in the
-Next.js process and the value reaching the component** — I could not isolate it further without
-runtime instrumentation, which was out of my scope; handed off with the full trail above instead of
-guessing. **The decisive clue was in that trail**: the symptom was top-level-only (in-group
-references, via `instances`, always rendered fine — confirmed by FF5-9 passing throughout) — no
-embed or RLS fault produces that asymmetry, only a missing prop does. Worth remembering next time a
-render bug shows an odd asymmetry between two sibling paths off the same query: ask what they don't
-share, not just whether either one is individually correct.
-
-**Impact (resolved)**: every reference answer in the platform's durable, accreditation-facing
-record previously displayed as unanswered — the FF-5 acceptance criterion this bug blocked directly.
-The REVIEW screen (pre-submit, same-request, client-side state) was never affected.
+**FF-5-era bugs — both closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF5-001** (the builder could not author a `reference` item at all — three sites: `ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`; `updateItem` was broken independently) and **BUG-FF5-002** (every top-level reference rendered "Sem resposta" on the durable submitted record — the page never passed `referencesByItemId` and the prop was optional-with-default, so tsc could not object). Both passed pgTAP 4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them.**
 
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
@@ -534,28 +253,33 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
 
-**FF-3 · final bar at `9557d1f` (2026-07-28)** — full detail, every triage and every mutation
-proof → [ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md); the FF-2 and FF-3
+**FF-5 · final bar at `598447e` (2026-07-28)** — full detail, every triage and every mutation
+proof → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md); the FF-2 and FF-3
 run-by-run rows → [test-run-archive.md](docs/progress/test-run-archive.md).
 
 | Surface | Result |
 | --- | --- |
-| pgTAP (fresh reset) | **141 files / 4167 / PASS** |
-| Vitest | **814 / 814** |
+| pgTAP (fresh reset) | **4240 / 4240 PASS** (suite `276` = 73 assertions) |
+| Vitest | **851 / 851** (51 files) |
 | lint · typecheck · `next build` | **0/0** · clean · **EXIT=0** |
-| migrations | **225 == 225** |
-| `tester` — FF-3 spec | **25 / 25** (two halves, separate servers, `expected == reported`) |
-| `tester` — neighbours | **62 / 62** (builder 8 · builder-enh 15 · ff1 9 · wizard 12 · others-ux 7 · matrix 11) |
-| full `e2e:prod` (`BATCH_SIZE=4`) | **794 passed · 16 of 19 batches clean · every batch `accounted N/N`** |
+| migrations | **235 == 235** (max `20260902000900`) |
+| `tester` — FF-5 spec | **10 / 10**, 2 consecutive runs |
+| `tester` — neighbours | **21 / 21** (ff1 9 · ff2-views 5 · phase6-signoffs 7) |
+| full `e2e:prod` (`RESET=1 REBUILD=1`) | **863 passed · 0 real failures** |
 
-**Gate triage (the standing method).** Failures track connection-error density, so count that
-first: the three failing batches were b7 = **90**, b14 = **84**, b2 = 4 conn errors, and b2's two
-failures were `ERR_CONNECTION_REFUSED` on `page.goto` — **zero real failures**. Two tells worth
-keeping: a **0 ms** duration is not an assertion failure (libuv crash), and one collapse run
-**failed test 1, recovered for 14, then died at 16** — so the first failure is *not* the collapse
-point. Known ceiling: the suite has outgrown one gate process, and `ff3-validations.spec.ts` has
-outgrown one standalone server (see the two 🔴 PO findings above).
+**Gate triage (the standing method, and it settled this in two steps).** All 53 raw reds were in
+**one batch**, and **every one of the 106 errors in it was `net::ERR_CONNECTION_REFUSED` — not one
+assertion failure**; `server.log` showed `The destination stream closed early` after test 8. Batch 5
+held the six heaviest FF specs in a single server lifetime. Re-running the identical 63 at
+`BATCH_SIZE=2` (fresh server per pair) → **63/63**. Same shape as FF-3's gate (140 raw, 2 real).
 
+> Count connection errors per batch **first**, then look for any non-connection error kind. Two
+> tells worth keeping: a **0 ms** duration is not an assertion failure (libuv crash), and a collapse
+> run can fail test 1, recover, then die later — so the first failure is *not* the collapse point.
+
+⚠ **pgTAP needs a FRESH `supabase db reset`.** A second suite run against the same DB gives
+**4200 + a hard abort in `161_recommend_result_source`** (that file mutates feature flags). That is
+contamination, not a defect — the lead tripped over it once and it reads exactly like a real red.
 ## QA Verdicts
 
 <!-- ONE LINE per phase/feature: verdict + date + link. The full analysis lives in
@@ -769,53 +493,22 @@ would have been the third out-of-phase fix of a wave already at its gate. **`tes
 confirmed the deferral is safe** — both canonical writers normalise with `nullif(btrim(...), '')`, so
 the whitespace case is reachable only for **legacy rows**, the same population BUG-FF1-007 defends.
 
-### ▶ FUP-FF1-2 — FF-1 QA non-blocking items (review r2: 4 MINOR / 6 INFO)
+### ▶ FUP-FF1-2 — FF-1 QA non-blocking items (review r2: 4 MINOR / 6 INFO) — **7 still open**
 
-All ruled non-blocking by `qa`; [review](docs/reviews/phase-FF-1-review.md). INFO-1 and INFO-5 are
-already discharged and are listed only so the numbering reconciles against the report.
+All ruled non-blocking by `qa`. Detail rotated 2026-07-28 →
+[ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md); canonical analysis →
+[phase-FF-1-review.md](docs/reviews/phase-FF-1-review.md) (the playbook's rule: never restate a
+review's rationale here).
 
-- [ ] **MINOR-1 — `completeness_authorities_agree` is one-directional in pgTAP.** Neutralising *every*
-  blocking arm of `submit_response` (both `HC011` raises **and** the `HC0N5` minInstances raise) still
-  leaves the suite 52/52. H1c is a `lives_ok` (asserts submit *succeeds*), and `HC0N5`'s only occurrence
-  in `supabase/tests/` is inside H1c's **description string**, never a `throws_ok`. No live hole — E2E
-  FF1-4/FF1-5 carry the blocking direction — but **the fast gate cannot see a submit-side group
-  blocking regression.** Fix: one `throws_ok(… 'HC0N5')` at the H4a state.
-- [ ] **MINOR-2 — the suite header documents a keystone that does not exist.** *"MUTATION F5: drop the
-  re-pack UPDATE from `remove_group_instance` → F5 red"* — there is no F5, and `remove_group_instance`
-  is never called in `supabase/tests/`. E2E covers it (FF1-9 removes position 0 of 2, exercising the
-  re-pack). Fix: write F5, or delete the claim — a documented mutation for a non-existent keystone is
-  worse than no note.
-- [ ] **MINOR-3 — MUTATION F3 names the wrong mutation.** Removing `set constraints … deferred` leaves
-  the suite green; the real guard is BE-1's `DEFERRABLE` alter (proven both directions in r1:
-  non-deferrable ⇒ the naive swap raises `23505`). F3 *is* a keystone — for the alter, not the
-  in-function statement. Fix: correct the header.
-- [ ] **MINOR-4 — stale-comment asymmetry in `supersede_response`.** The *"…while repeating groups are
-  inert"* comment is gone from `start_correction_draft` but survives in `supersede_response`, so two
-  sibling functions now carry **contradictory premises about the same join**. Zero functional effect
-  (the corrected mechanism is spelled out directly below it). `qa`'s ruling: **do not mint a migration
-  whose entire content is a comment rewrite** — that adds another body-rewrite to the chain CLAUDE.md
-  §graphify already treats as a hazard. **Let it ride the next migration touching those bodies** — which
-  INFO-6 guarantees is coming.
-- [ ] **INFO-2 — no coherence guard on the direct-DML path.** Nothing ties
-  `response_group_instances.group_item_id` to a `repeating_group` of the response's own `form_version`
-  (the FK is only `→ form_items(id)`). The RPC path is fully gated (`assert_group_writable`, `HC0N4`);
-  ruling 5 deliberately leaves direct DML open, so the exposure is a user writing junk into **their own**
-  draft — no cross-tenant read, no PHI. Belongs with **FUP-FF1-1**.
-- [ ] **INFO-3 —** `src/lib/responses/actions.ts:384-390`: the `p_instance_answers` comment block is
-  duplicated verbatim.
-- [ ] **INFO-4 — the parity vectors have no drift detector.** Hand-mirrored SQL ↔ JSON, byte-equal today
-  (21/21), matching the pre-existing `condition-vectors.json` convention — so not an FF-1 regression. But
-  **Rule 3 calls evaluator drift phase-blocking and nothing detects it.** Worth a real detector before
-  FF-3, which adds a second evaluator pair.
-- [x] **INFO-1 — superseded by MINOR-4** (r2: the stale comment was removed from
-  `start_correction_draft`; only `supersede_response` retains it).
-- [x] **INFO-5 — DISCHARGED at the Record step 2026-07-27**: `20260828000900_enable_repeating_groups.sql`
-  written and applied (flag verified `enabled = true`, 198 files = 198 registered), and
-  `docs/backend-state.md`'s high-water corrected (**`HC0M9`**, not `HC098`; FF-1 allocated `HC0N0`–`HC0N5`).
-- [x] **INFO-6 — CARRIED FORWARD as a binding FF-2/FF-5 requirement**, not left as a note →
-  [flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2/FF-5, with named keystones
-  (`correction_copies_matrix_answers` / `correction_copies_reference_answers`).
+Open: **MINOR-1** `completeness_authorities_agree` is one-directional in pgTAP · **MINOR-2** the
+suite header documents a keystone that does not exist · **MINOR-3** MUTATION F3 names the wrong
+mutation · **MINOR-4** stale-comment asymmetry in `supersede_response` · **INFO-2** no coherence
+guard on the direct-DML path · **INFO-3** · **INFO-4** the parity vectors have no drift detector.
+Closed: INFO-1 (superseded by MINOR-4) · INFO-5 (discharged at Record) · INFO-6 (carried forward as
+a binding FF-2/FF-5 requirement — **both phases have since discharged it**).
 
+> ⚠ MINOR-2 and MINOR-3 are the same family FF-5 hit eight more times: a comment or a test name
+> asserting something that is not true. Cheap to fix, invisible to every gate.
 ### ▶ FUP-FF1-1 — coherent fill-path hardening (post-pilot; ADR 0087 ruling 5)
 
 - [ ] Revisit **DEFINER + per-mutation audit for the whole fill path** — `answers`,

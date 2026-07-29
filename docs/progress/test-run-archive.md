@@ -309,3 +309,31 @@ prod-standalone rebuilt at that HEAD and served from the scratchpad copy. One se
 > + verify a **real token POST returns 200** (a `/health` 200 is insufficient). Pay-down =
 > per-test DB isolation → [s1-substrate.md](docs/progress/s1-substrate.md).
 
+
+
+---
+
+## FF-3 — final bar at `9557d1f` (2026-07-28), rotated 2026-07-28
+
+**FF-3 · final bar at `9557d1f` (2026-07-28)** — full detail, every triage and every mutation
+proof → [ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md); the FF-2 and FF-3
+run-by-run rows → [test-run-archive.md](docs/progress/test-run-archive.md).
+
+| Surface | Result |
+| --- | --- |
+| pgTAP (fresh reset) | **141 files / 4167 / PASS** |
+| Vitest | **814 / 814** |
+| lint · typecheck · `next build` | **0/0** · clean · **EXIT=0** |
+| migrations | **225 == 225** |
+| `tester` — FF-3 spec | **25 / 25** (two halves, separate servers, `expected == reported`) |
+| `tester` — neighbours | **62 / 62** (builder 8 · builder-enh 15 · ff1 9 · wizard 12 · others-ux 7 · matrix 11) |
+| full `e2e:prod` (`BATCH_SIZE=4`) | **794 passed · 16 of 19 batches clean · every batch `accounted N/N`** |
+
+**Gate triage (the standing method).** Failures track connection-error density, so count that
+first: the three failing batches were b7 = **90**, b14 = **84**, b2 = 4 conn errors, and b2's two
+failures were `ERR_CONNECTION_REFUSED` on `page.goto` — **zero real failures**. Two tells worth
+keeping: a **0 ms** duration is not an assertion failure (libuv crash), and one collapse run
+**failed test 1, recovered for 14, then died at 16** — so the first failure is *not* the collapse
+point. Known ceiling: the suite has outgrown one gate process, and `ff3-validations.spec.ts` has
+outgrown one standalone server (see the two 🔴 PO findings above).
+
