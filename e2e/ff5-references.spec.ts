@@ -875,9 +875,27 @@ test('FF5-7 keyboard-only: focus, type, arrow to a candidate, Enter to select, E
   await expect(input).toHaveValue('UTI Adulto')
   await expect(input).toHaveAttribute('aria-expanded', 'false')
 
-  // Reopen, type a DIFFERENT query, ESCAPE — closes WITHOUT committing (the
+  // Reopen with an EMPTY query (the baseline/unfiltered fetch — BOTH
+  // candidates are visible even though nothing has been typed) and arrow to
+  // the OTHER, uncommitted candidate. `aria-selected` must follow the ACTIVE
+  // row, not the committed one — QA's m-2 a11y fix. Before it, this was
+  // inverted: the committed-but-inactive row read "selected" to a screen
+  // reader and the row the user was actually arrowed onto did not.
+  //
+  // The field is ALREADY focused (Enter, above, does not blur it) — calling
+  // `.focus()` again would be a no-op and never reopen the closed list.
+  // ArrowDown is what a keyboard user actually presses here, and the
+  // component's own handler opens a closed list on it.
+  await page.keyboard.press('ArrowDown')
+  const utiOptionRow = page.getByRole('option', { name: /UTI Adulto/ })
+  const centroOptionRow = page.getByRole('option', { name: /Centro Cirúrgico/ })
+  await expect(centroOptionRow).toBeVisible({ timeout: 10_000 })
+  await arrowToOption(page, input, 'Centro Cirúrgico')
+  await expect(centroOptionRow).toHaveAttribute('aria-selected', 'true')
+  await expect(utiOptionRow).toHaveAttribute('aria-selected', 'false')
+
+  // Then type a DIFFERENT query, ESCAPE — closes WITHOUT committing (the
   // field keeps its previously committed value, not the in-progress draft text).
-  await input.focus()
   await page.keyboard.type('Centro Cirúrgico')
   await expect(page.getByRole('option', { name: /Centro Cirúrgico/ })).toBeVisible({
     timeout: 10_000,
@@ -903,6 +921,20 @@ test('FF5-7 keyboard-only: focus, type, arrow to a candidate, Enter to select, E
   await expect(clearBtn).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(input).toHaveValue('')
+
+  // Clearing returns focus to the input, which its own onFocus handler opens
+  // (the baseline fetch) — close it with Escape to get to the CLOSED
+  // baseline this check actually needs. A bare modifier key must NOT reopen
+  // it — QA's m-4 a11y fix. The previous catch-all fired on Shift/Ctrl/Alt/
+  // CapsLock/F5 and every other non-editing key, so merely holding Shift
+  // re-opened a closed list and fired an unwanted baseline search.
+  await expect(input).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
+  await page.keyboard.press('Shift')
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
+  await page.keyboard.press('Control')
+  await expect(input).toHaveAttribute('aria-expanded', 'false')
 
   // Leave it answered (required) so the response can be finished off cleanly.
   // Pressing Enter without arrowing would be racy here: the field just reopened
@@ -1064,7 +1096,7 @@ test('FF5-9 a reference authored inside a repeating group (through the builder) 
 // sign-off authoring UI (that is phase6-signoffs.spec.ts's job).
 // ===========================================================================
 
-test('FF5-10 the sign-off review screen renders a top-level reference answer by label, not "Sem resposta"', async ({
+test('FF5-10 the sign-off review screen renders a top-level reference answer by label, not "Sem resposta", and a top-level observation is never contaminated by an instance one', async ({
   page,
 }) => {
   test.setTimeout(60_000)
@@ -1072,6 +1104,14 @@ test('FF5-10 the sign-off review screen renders a top-level reference answer by 
   const versionId = randomUUID()
   const sectionId = randomUUID()
   const itemId = randomUUID()
+  // QA m-4: `observations_by_item` had no `group_instance_id is null` filter
+  // at the TOP level, so an instance's observation could win the
+  // `jsonb_object_agg` collapse and render attached to a top-level question.
+  // `noteItemId` (top-level) and `descItemId` (a repeating-group CHILD, so it
+  // gets its own per-instance observation) exercise exactly that boundary.
+  const noteItemId = randomUUID()
+  const groupItemId = randomUUID()
+  const descItemId = randomUUID()
   const title = `${SPEC_TAG} assinatura com referência`
 
   psql(
@@ -1085,6 +1125,13 @@ test('FF5-10 the sign-off review screen renders a top-level reference answer by 
       `insert into public.form_items (id, section_id, position, item_type, question_key, label, required, config)\n` +
       `values ('${itemId}','${sectionId}',0,'reference','setor_assinatura','Setor responsável',false,` +
       `jsonb_build_object('referenceKind','participant','participantTypes',jsonb_build_array('department')));\n` +
+      `insert into public.form_items (id, section_id, position, item_type, question_key, label, required)\n` +
+      `values ('${noteItemId}','${sectionId}',1,'short_text','nota_chefia','Nota da chefia',false);\n` +
+      `insert into public.form_items (id, section_id, position, item_type, label, required, config)\n` +
+      `values ('${groupItemId}','${sectionId}',2,'repeating_group','Ocorrências',false,` +
+      `jsonb_build_object('minInstances',0,'maxInstances',5));\n` +
+      `insert into public.form_items (id, section_id, position, item_type, question_key, label, required, parent_item_id)\n` +
+      `values ('${descItemId}','${sectionId}',3,'short_text','descricao_ocorrencia','Descrição',false,'${groupItemId}');\n` +
       `select public.publish_form_version('${versionId}');`,
   )
 
@@ -1095,6 +1142,22 @@ test('FF5-10 the sign-off review screen renders a top-level reference answer by 
   const responseId = responseIdFromUrl(page)
   createdResponseIds.push(responseId)
   await pickReference(page, 'Setor responsável', 'Centro', /Centro Cirúrgico/)
+
+  // The top-level observation.
+  await page.getByLabel('Nota da chefia', { exact: true }).fill('Nota geral')
+  await page
+    .getByRole('button', { name: /Adicionar observação — Nota da chefia/i })
+    .click()
+  await page.getByLabel(/^Observação/i).fill('Observação do nível superior')
+
+  // The INSTANCE observation, on a DIFFERENT item (a repeating-group child).
+  await page.getByRole('button', { name: 'Adicionar repetição' }).click()
+  const inst1 = instanceRegion(page, 'Ocorrências', '1 de 1')
+  await expect(inst1).toBeVisible({ timeout: 15_000 })
+  await inst1.getByLabel('Descrição', { exact: true }).fill('Ocorrência 1')
+  await inst1.getByRole('button', { name: /Adicionar observação — Descrição/i }).click()
+  await inst1.getByLabel(/^Observação/i).fill('Observação da ocorrência')
+
   await page.getByRole('button', { name: 'Salvar e sair' }).click()
   await page.waitForURL((url) => !url.pathname.includes('/responder/'), { timeout: 15_000 })
   expect(responseStatus(responseId)).toBe('in_progress')
@@ -1112,6 +1175,22 @@ test('FF5-10 the sign-off review screen renders a top-level reference answer by 
   // The reference renders BY LABEL — the exact regression BUG-FF5-002 was.
   await expect(page.getByText('Centro Cirúrgico').first()).toBeVisible()
   await expect(page.getByText('Sem resposta')).toHaveCount(0)
+
+  // QA m-4: the top-level observation shows ITS OWN text, never the
+  // instance's — and the instance's observation shows only under its OWN
+  // instance card, never floating at the top level. `SectionBody` renders
+  // each top-level item as a `<dt>`/`<dd>` pair sharing one parent `<div>`
+  // (answer-summary.tsx); `InstanceAnswersReadonly` renders each repetition
+  // as a `<fieldset>` legended "{label} N de M".
+  const noteBlock = page.locator('dt', { hasText: 'Nota da chefia' }).locator('xpath=..')
+  await expect(noteBlock.getByText('Observação do nível superior')).toBeVisible()
+  await expect(noteBlock.getByText('Observação da ocorrência')).toHaveCount(0)
+  const instBlock = page.locator('fieldset').filter({ hasText: 'Ocorrências 1 de' }).first()
+  await expect(instBlock.getByText('Observação da ocorrência')).toBeVisible()
+  await expect(instBlock.getByText('Observação do nível superior')).toHaveCount(0)
+  // And the top-level observation appears EXACTLY once anywhere on the page —
+  // no duplicate slipped in from the instance side of the old, unscoped map.
+  await expect(page.getByText('Observação do nível superior')).toHaveCount(1)
 
   // Complete the realistic flow too: signing succeeds with the reference present.
   await page.getByRole('button', { name: /Assinar seção/i }).click()
