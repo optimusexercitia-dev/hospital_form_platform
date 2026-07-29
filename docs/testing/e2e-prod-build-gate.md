@@ -208,6 +208,55 @@ both** (those 3 are pre-existing; see below).
 > does not match the failing configuration in *every* dimension — spec set, order, build
 > type, reset state — is not a baseline. Cost: one wrong root-cause theory, acted on.
 
+## Infra classification + test-count batching (added 2026-07-28, from the FF-5 gate)
+
+**The problem.** The FF-5 gate printed `GATE RED — 863 passed · 53 failed`. All 53 were in
+one batch, and **every one of the 106 errors in that batch was `net::ERR_CONNECTION_REFUSED`
+— not one was an assertion failure.** The server had died mid-batch (`server.log`:
+`The destination stream closed early`), so every test after it failed to connect. Re-running
+the identical 63 tests gave 63/63.
+
+That triage — *count connection errors per batch first, then look for any non-connection
+error kind* — was correct, documented, and executed **by hand every phase**. FF-3 had the
+same shape: 140 raw failures, 2 real. The runner knew about the failure mode and did not
+encode it.
+
+**What changed.**
+
+1. **`conn_errors()` + post-run liveness → INFRA classification.** After each batch the
+   runner checks whether the server process survived and how many failures carry a
+   connection signature. `failed > 0 AND (server_dead OR conn_errors >= failed)` ⇒ INFRA.
+   The `>=` is a floor, not a ratio: one dead server yields at least one connection error
+   per failed test; a genuine assertion failure yields none.
+2. **One automatic re-run** of an INFRA batch on a fresh server (`INFRA_RETRY=1`, default).
+   A real failure misclassified as infra simply reproduces and is then reported as a
+   failure — so the unsafe direction is self-correcting.
+3. **Separate counters.** `TOTAL_FAIL` now means *defects*; infra is reported beside it.
+   Conflating them is what made a dead server read as a 53-defect regression, and over time
+   trains readers to discount a number that should never be discounted.
+4. **New exit code 5 — RED (INFRA-only).** Zero assertion failures observed, but some tests
+   never got a working server. Not a regression; **also not green** — nothing was proven
+   for those tests. A batch that is still infra after its re-run is labelled
+   `infra-unproven(N)`.
+5. **`BATCH_TESTS` (default 70) packs batches by TEST count, not file count.** Measured on
+   the real suite, file-based batching produced batches of **13 … 63** tests — a 5× spread,
+   so some servers burned a full ~90 s `db reset` on 13 tests. At 70 the batch count holds
+   at 15 (vs 13) while the floor rises to 46. `BATCH_TESTS=0` restores the legacy
+   file-based path.
+
+> ⚠ **Be precise about what (5) fixes.** It is tempting to say even batches prevent the
+> collapse. They do not — that server died **8 tests into its own fresh lifetime**, not at
+> test 63, so a smaller cap would not have saved it. (5) buys efficiency and a bounded,
+> uniform blast radius, which is what makes the re-run in (2) cheap. **(1) and (2), not
+> (5), are what turn a dead server into a labelled, retried, non-regression result.**
+
+**Verification.** Classification was checked against the real FF-5 batch logs
+(batch 5 → INFRA at failed=53/conn=106; batches 1, 12, 13 → clean) plus synthetic negative
+controls (pure assertion failures → REAL; 2 assertions + 1 incidental connection error →
+REAL). Packing was checked against the live suite (924 tests, counts matching the observed
+per-spec runs). The restructured loop was exercised with stubs across four scenarios:
+clean · infra-then-clean-on-retry · infra-twice · real failures.
+
 ## Recommendations
 
 1. **✅ DONE (2026-07-12) — `npm run e2e:prod`** ([`scripts/e2e-prod-gate.sh`](../../scripts/e2e-prod-gate.sh))

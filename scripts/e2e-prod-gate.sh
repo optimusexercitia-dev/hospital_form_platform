@@ -16,7 +16,9 @@
 #
 # USAGE (from repo root; needs bash — Git Bash on Windows):
 #   bash scripts/e2e-prod-gate.sh                # or: npm run e2e:prod
-#   BATCH_SIZE=4 bash scripts/e2e-prod-gate.sh   # smaller batches (more restarts)
+#   BATCH_TESTS=30 bash scripts/e2e-prod-gate.sh # smaller batches by TEST count (more restarts)
+#   BATCH_TESTS=0 BATCH_SIZE=4 bash …            # legacy: batch by FILE count instead
+#   INFRA_RETRY=0 bash scripts/e2e-prod-gate.sh  # never auto-retry an infra batch (raw signal)
 #   RESET=0     bash scripts/e2e-prod-gate.sh    # server-restart ONLY, keep DB (faster; contamination may show)
 #   REBUILD=1   bash scripts/e2e-prod-gate.sh    # force a fresh `next build`
 #   RETRIES=0   bash scripts/e2e-prod-gate.sh    # no retries (stricter signal)
@@ -25,8 +27,10 @@
 #   PROBE_EMAIL=... PROBE_PASS=...               # seed persona used by the auth preflight
 #
 # EXIT CODES: 0 green · 1 red (real failures) · 2 build · 3 toolchain drift ·
-#             4 stack unrecoverable (preflight) · 99 cd failed.
-# Exit 4 is NOT a test result — nothing was proven; fix the stack and re-run.
+#             4 stack unrecoverable (preflight) · 5 red INFRA-only · 99 cd failed.
+# Exit 4 and exit 5 are NOT test results — nothing was proven; fix the stack and re-run.
+# Exit 5 specifically means "zero assertion failures were observed, but some tests never
+# got a working server" — do not read it as a regression, and do not read it as green.
 #
 # PREREQS: local Supabase up + seeded (`supabase status`); `.env.local` -> local
 # Supabase. Prod deploys on Linux/Docker where this collapse may not occur; this gate
@@ -39,7 +43,9 @@ ROOT="$(cd "$HERE/.." && pwd)"
 cd "$ROOT" || exit 99
 
 # --- config (env-overridable) ---
-BATCH_SIZE="${BATCH_SIZE:-6}"   # spec files per fresh server
+BATCH_TESTS="${BATCH_TESTS:-70}" # TESTS per fresh server (0 = fall back to BATCH_SIZE files)
+BATCH_SIZE="${BATCH_SIZE:-6}"   # spec FILES per fresh server (fallback when BATCH_TESTS=0)
+INFRA_RETRY="${INFRA_RETRY:-1}" # re-run a batch once when its failures are infra, not assertions
 RESET="${RESET:-1}"             # 1 = `supabase db reset --local` before each batch (fresh seed)
 REBUILD="${REBUILD:-auto}"      # auto | 1 | 0  (auto = build only if app source drifted)
 RETRIES="${RETRIES:-1}"         # playwright --retries per batch (absorbs known infra flakes)
@@ -202,7 +208,66 @@ cp -r public       .next/standalone/public
 if [ -n "${SPECS:-}" ]; then read -r -a ALL_SPECS <<< "$SPECS"; else ALL_SPECS=(e2e/*.spec.ts); fi
 N=${#ALL_SPECS[@]}
 [ "$N" -gt 0 ] || { echo "FATAL: no specs found"; exit 1; }
-echo "[$(LOG_TS)] $N spec files · batch size $BATCH_SIZE · reset=$RESET · retries=$RETRIES"
+
+# ---------------------------------------------------------------------------
+# Pack batches by TEST COUNT, not file count (FF-5 gate finding).
+#
+# WHY: `BATCH_SIZE` counts FILES, and spec files differ by an order of magnitude
+# (3 tests vs 40). Measured on the real suite at the default, file-based batching
+# gave batches of 13 … 63 tests — a 5x spread, so some servers burned a full
+# ~90s `db reset` to run 13 tests while others carried 63.
+#
+# ⚠ BE PRECISE ABOUT WHAT THIS FIXES. It is tempting to say this prevents the
+# FF-5 collapse; it does NOT, and the log says so. That server died 8 tests into
+# its own fresh lifetime, not at test 63 — so a smaller cap would not have saved
+# it. What this buys is (a) no wasted reset on a 13-test batch and (b) a bounded,
+# roughly uniform blast radius, which is what makes the infra RE-RUN below cheap.
+# The classifier, not this, is what turns a dead server from "53 failed" into a
+# labelled, retried, non-regression result.
+#
+# The default (70) is chosen from measurement, not taste: it holds the batch count
+# at 15 vs the previous 13 — two extra resets — while raising the floor from 13 to
+# 46. Lower it for a tighter blast radius at the cost of more resets.
+#
+# Counts come from ONE `--list` over the whole selection (collection only, no
+# browser), then a greedy first-fit pack. A single spec heavier than BATCH_TESTS
+# still gets its own batch rather than being split — Playwright's unit is a file.
+# ---------------------------------------------------------------------------
+declare -a BATCHES=()
+pack_batches() {
+  local counts="$GATE_LOGDIR/spec-counts.txt" spec base n cur=0 acc=""
+  # ⚠ `--list` prints the spec BASENAME ("foo.spec.ts:12:5"), NOT the "e2e/foo.spec.ts"
+  # form the list REPORTER uses during a run. A pattern anchored on the directory
+  # matches nothing here and silently yields zero counts — which packs every file into
+  # its own batch (verified: 74 batches of 1). The character class excludes both `/`
+  # and `\`, so this matches whether or not a future version adds the directory back.
+  npx playwright test "${ALL_SPECS[@]}" --project=chromium --list 2>/dev/null \
+    | grep -oE "[A-Za-z0-9._-]+\.spec\.ts:" \
+    | sed 's/:$//' | sort | uniq -c > "$counts" || true
+  for spec in "${ALL_SPECS[@]}"; do
+    base="${spec##*/}"
+    n=$(awk -v b="$base" '$2==b {print $1}' "$counts" 2>/dev/null | tail -1)
+    # Unknown count (collection failed, or a spec whose tests are all skipped at
+    # collection) must not silently pack as 0 — that rebuilds the fat batch.
+    [ -z "$n" ] && n=$BATCH_TESTS
+    if [ "$cur" -gt 0 ] && [ $(( cur + n )) -gt "$BATCH_TESTS" ]; then
+      BATCHES+=("$acc"); acc=""; cur=0
+    fi
+    acc="${acc:+$acc }$spec"; cur=$(( cur + n ))
+  done
+  [ -n "$acc" ] && BATCHES+=("$acc")
+}
+
+if [ "$BATCH_TESTS" -gt 0 ]; then
+  pack_batches
+  echo "[$(LOG_TS)] $N spec files → ${#BATCHES[@]} batches · ≤$BATCH_TESTS tests/server · reset=$RESET · retries=$RETRIES · infra_retry=$INFRA_RETRY"
+else
+  i=0
+  while [ "$i" -lt "$N" ]; do
+    BATCHES+=( "${ALL_SPECS[*]:$i:$BATCH_SIZE}" ); i=$(( i + BATCH_SIZE ))
+  done
+  echo "[$(LOG_TS)] $N spec files → ${#BATCHES[@]} batches · $BATCH_SIZE files/server (legacy) · reset=$RESET · retries=$RETRIES"
+fi
 
 
 start_server() {
@@ -233,44 +298,94 @@ expected_tests() {
 
 
 TOTAL_PASS=0 TOTAL_FAIL=0 TOTAL_FLAKY=0 BATCH_NO=0 RED_BATCHES=""
-TOTAL_DNR=0 TOTAL_EXPECTED=0
-i=0
-while [ "$i" -lt "$N" ]; do
-  BATCH=( "${ALL_SPECS[@]:$i:$BATCH_SIZE}" ); i=$(( i + BATCH_SIZE )); BATCH_NO=$(( BATCH_NO + 1 ))
-  echo "=================================================================="
-  echo "[$(LOG_TS)] BATCH $BATCH_NO (fresh server$( [ "$RESET" = 1 ] && echo ' + fresh DB' )): ${BATCH[*]##*/}"
-  echo "=================================================================="
-  if [ "$RESET" = "1" ]; then
-    supabase db reset --local >/dev/null 2>&1 || { echo "reset FAILED"; RED_BATCHES="$RED_BATCHES b$BATCH_NO(reset)"; continue; }
-  fi
-  # NEVER "WARN … proceeding" (the old behaviour): a degraded stack yields batches of
-  # net::ERR_CONNECTION_REFUSED that then need hand-triage against a folklore baseline
-  # — 8 of 12 batches in one ETH-E3a run. Abort loudly instead of emitting garbage.
-  preflight "batch $BATCH_NO" || { echo "GATE ABORTED — stack unrecoverable"; exit 4; }
-  if ! start_server; then
-    echo "[$(LOG_TS)] server FAILED to start"; tail -20 "$GATE_LOGDIR/server.log"
-    RED_BATCHES="$RED_BATCHES b$BATCH_NO(server)"; stop_server; continue
-  fi
-  sleep 4
-  BLOG="$GATE_LOGDIR/batch-$BATCH_NO.log"
-  exp=$(expected_tests "${BATCH[@]}"); exp=${exp:-0}
+TOTAL_DNR=0 TOTAL_EXPECTED=0 TOTAL_INFRA=0 INFRA_RERUNS=0
 
-  npx playwright test "${BATCH[@]}" --project=chromium --workers=1 --retries="$RETRIES" --reporter=list 2>&1 | tee "$BLOG" | tail -30
-  # PIPESTATUS[0], not $? — $? here is `tail`'s, which is ~always 0. Reading the pipe's
-  # tail meant Playwright's own verdict was discarded entirely and the gate trusted only
-  # its log-scraping; a crash before the summary printed then scraped as 0/0 = clean.
-  pw_rc=${PIPESTATUS[0]}
+# Count the signatures that mean "the server went away", not "an assertion failed".
+# A dead standalone server turns every REMAINING test in its batch into one of these,
+# which is exactly what made 53 phantom failures indistinguishable from 53 defects.
+conn_errors() {
+  grep -cE "ERR_CONNECTION_REFUSED|ERR_EMPTY_RESPONSE|ERR_CONNECTION_RESET|ECONNREFUSED" "$1" 2>/dev/null || true
+}
 
-  p=$(num "$BLOG" passed); f=$(num "$BLOG" failed); fl=$(num "$BLOG" flaky)
-  sk=$(num "$BLOG" skipped); dnr=$(num "$BLOG" "did not run"); intr=$(num "$BLOG" interrupted)
-  p=${p:-0}; f=${f:-0}; fl=${fl:-0}; sk=${sk:-0}; dnr=${dnr:-0}; intr=${intr:-0}
-  TOTAL_PASS=$(( TOTAL_PASS + p )); TOTAL_FAIL=$(( TOTAL_FAIL + f )); TOTAL_FLAKY=$(( TOTAL_FLAKY + fl ))
+for BATCH_SPECS in "${BATCHES[@]}"; do
+  read -r -a BATCH <<< "$BATCH_SPECS"
+  BATCH_NO=$(( BATCH_NO + 1 )); attempt=1
+  while : ; do
+    echo "=================================================================="
+    echo "[$(LOG_TS)] BATCH $BATCH_NO$( [ "$attempt" -gt 1 ] && echo ' · INFRA RE-RUN' ) (fresh server$( [ "$RESET" = 1 ] && echo ' + fresh DB' )): ${BATCH[*]##*/}"
+    echo "=================================================================="
+    if [ "$RESET" = "1" ]; then
+      supabase db reset --local >/dev/null 2>&1 || { echo "reset FAILED"; RED_BATCHES="$RED_BATCHES b$BATCH_NO(reset)"; continue 2; }
+    fi
+    # NEVER "WARN … proceeding" (the old behaviour): a degraded stack yields batches of
+    # net::ERR_CONNECTION_REFUSED that then need hand-triage against a folklore baseline
+    # — 8 of 12 batches in one ETH-E3a run. Abort loudly instead of emitting garbage.
+    preflight "batch $BATCH_NO" || { echo "GATE ABORTED — stack unrecoverable"; exit 4; }
+    if ! start_server; then
+      echo "[$(LOG_TS)] server FAILED to start"; tail -20 "$GATE_LOGDIR/server.log"
+      RED_BATCHES="$RED_BATCHES b$BATCH_NO(server)"; stop_server; continue 2
+    fi
+    sleep 4
+    BLOG="$GATE_LOGDIR/batch-$BATCH_NO.log"
+    [ "$attempt" -gt 1 ] && BLOG="$GATE_LOGDIR/batch-$BATCH_NO-rerun.log"
+    exp=$(expected_tests "${BATCH[@]}"); exp=${exp:-0}
+
+    npx playwright test "${BATCH[@]}" --project=chromium --workers=1 --retries="$RETRIES" --reporter=list 2>&1 | tee "$BLOG" | tail -30
+    # PIPESTATUS[0], not $? — $? here is `tail`'s, which is ~always 0. Reading the pipe's
+    # tail meant Playwright's own verdict was discarded entirely and the gate trusted only
+    # its log-scraping; a crash before the summary printed then scraped as 0/0 = clean.
+    pw_rc=${PIPESTATUS[0]}
+
+    p=$(num "$BLOG" passed); f=$(num "$BLOG" failed); fl=$(num "$BLOG" flaky)
+    sk=$(num "$BLOG" skipped); dnr=$(num "$BLOG" "did not run"); intr=$(num "$BLOG" interrupted)
+    p=${p:-0}; f=${f:-0}; fl=${fl:-0}; sk=${sk:-0}; dnr=${dnr:-0}; intr=${intr:-0}
+
+    # ---- INFRA classification (FF-5 gate finding) --------------------------------
+    # Liveness is checked AFTER the run, not before: `start_server` only proves the
+    # server was up at t=0, and the collapse happens mid-batch. Two independent tells,
+    # either sufficient:
+    #   * the server process is gone;
+    #   * the failures are dominated by connection errors.
+    # `conn >= f` is deliberately a floor, not a ratio: one dead server produces at
+    # least one connection error per failed test, and a genuine assertion failure
+    # produces none — so in practice the two populations do not overlap. Getting this
+    # wrong in the SAFE direction (calling a real failure infra) is guarded by the
+    # re-run: a real failure reproduces on the fresh server and is then reported as
+    # a failure.
+    srv_dead=0; kill -0 "$SERVER_PID" 2>/dev/null || srv_dead=1
+    conn=$(conn_errors "$BLOG"); conn=${conn:-0}
+    infra=0
+    if [ "$f" -gt 0 ] && { [ "$srv_dead" = "1" ] || [ "$conn" -ge "$f" ]; }; then infra=1; fi
+
+    if [ "$infra" = "1" ]; then
+      echo "[$(LOG_TS)] batch $BATCH_NO -> ${f} failures classified INFRA, not defects (server_dead=${srv_dead}, conn_errors=${conn})"
+      if [ "$INFRA_RETRY" = "1" ] && [ "$attempt" -lt 2 ]; then
+        INFRA_RERUNS=$(( INFRA_RERUNS + 1 ))
+        echo "[$(LOG_TS)] re-running batch $BATCH_NO on a fresh server (INFRA_RETRY=1)"
+        stop_server; sleep 2; attempt=2; continue
+      fi
+    fi
+    break
+  done
+
+  TOTAL_PASS=$(( TOTAL_PASS + p )); TOTAL_FLAKY=$(( TOTAL_FLAKY + fl ))
   TOTAL_DNR=$(( TOTAL_DNR + dnr + intr )); TOTAL_EXPECTED=$(( TOTAL_EXPECTED + exp ))
   accounted=$(( p + f + fl + sk + dnr + intr ))
 
+  # Real failures and infra failures are counted SEPARATELY so the headline number
+  # means "defects". Conflating them is what produced "GATE RED — 53 failed" for a
+  # phase with zero regressions, and trained readers to discount the number.
+  if [ "$infra" = "1" ]; then TOTAL_INFRA=$(( TOTAL_INFRA + f )); else TOTAL_FAIL=$(( TOTAL_FAIL + f )); fi
+
   # A batch is RED if ANY of these hold. Each is a way the old gate went falsely green:
   reasons=""
-  [ "$f"    != "0" ] && reasons="$reasons,failed"
+  if [ "$infra" = "1" ]; then
+    # Still RED after the re-run — but labelled, because nothing was PROVEN for these
+    # tests. "Not a regression" is not the same claim as "passed".
+    reasons="$reasons,infra-unproven($f)"
+  else
+    [ "$f"  != "0" ] && reasons="$reasons,failed"
+  fi
   [ "$pw_rc" != "0" ] && [ "$f" = "0" ] && reasons="$reasons,exit$pw_rc"   # crashed with no failure line
   [ "$(( p + f + fl + sk ))" = "0" ] && reasons="$reasons,no-summary"      # nothing parsed at all
   [ "$dnr"  != "0" ] && reasons="$reasons,did-not-run($dnr)"               # serial-mode masking
@@ -278,16 +393,28 @@ while [ "$i" -lt "$N" ]; do
   [ "$exp" != "0" ] && [ "$accounted" != "$exp" ] && reasons="$reasons,count($accounted/$exp)"
   [ -n "$reasons" ] && RED_BATCHES="$RED_BATCHES b$BATCH_NO(${reasons#,})"
 
-  echo "[$(LOG_TS)] batch $BATCH_NO -> ${p} passed, ${f} failed, ${fl} flaky, ${sk} skipped, ${dnr} did-not-run · accounted ${accounted}/${exp} · pw_exit ${pw_rc}  (log: $BLOG)"
+  echo "[$(LOG_TS)] batch $BATCH_NO -> ${p} passed, ${f} failed$( [ "$infra" = "1" ] && echo ' (INFRA)' ), ${fl} flaky, ${sk} skipped, ${dnr} did-not-run · accounted ${accounted}/${exp} · pw_exit ${pw_rc}  (log: $BLOG)"
   stop_server; sleep 1
 done
 
 echo "=================================================================="
-TOTAL_SEEN=$(( TOTAL_PASS + TOTAL_FAIL + TOTAL_FLAKY + TOTAL_DNR ))
-echo "[$(LOG_TS)] GATE SUMMARY: ${TOTAL_PASS} passed · ${TOTAL_FAIL} failed · ${TOTAL_FLAKY} flaky · ${TOTAL_DNR} did-not-run · ${BATCH_NO} batches"
+TOTAL_SEEN=$(( TOTAL_PASS + TOTAL_FAIL + TOTAL_INFRA + TOTAL_FLAKY + TOTAL_DNR ))
+echo "[$(LOG_TS)] GATE SUMMARY: ${TOTAL_PASS} passed · ${TOTAL_FAIL} failed · ${TOTAL_INFRA} infra · ${TOTAL_FLAKY} flaky · ${TOTAL_DNR} did-not-run · ${BATCH_NO} batches"
 echo "[$(LOG_TS)] COVERAGE: accounted for ${TOTAL_SEEN} of ${TOTAL_EXPECTED} collected tests"
+[ "$INFRA_RERUNS" -gt 0 ] && echo "[$(LOG_TS)] INFRA re-runs performed: ${INFRA_RERUNS}"
 [ -n "$RED_BATCHES" ] && echo "  batches with failures:$RED_BATCHES  (logs in $GATE_LOGDIR)"
 echo "=================================================================="
 if [ "$TOTAL_FAIL" = "0" ] && [ -z "$RED_BATCHES" ]; then echo "GATE GREEN"; exit 0; fi
-echo "GATE RED — triage the failing batch logs against the flaky baseline (memory e2e-prod-build-flaky-baseline) before calling regression."
+
+# Two distinct RED verdicts. Collapsing them is what made a dead server read as a
+# 53-defect regression, and (worse, over time) trains readers to shrug at real reds.
+if [ "$TOTAL_FAIL" = "0" ] && [ "$TOTAL_INFRA" -gt 0 ]; then
+  echo "GATE RED (INFRA) — ${TOTAL_INFRA} test(s) never got a working server, even after a re-run."
+  echo "  NOT a regression signal: zero assertion failures were observed. Nothing is proven for"
+  echo "  those tests either — re-run the named batch(es) before declaring the phase green."
+  exit 5
+fi
+echo "GATE RED — ${TOTAL_FAIL} real failure(s)$( [ "$TOTAL_INFRA" -gt 0 ] && echo " (plus ${TOTAL_INFRA} infra, already classified)" )."
+echo "  Infra noise is now classified automatically; anything counted above is an assertion"
+echo "  failure. Still worth checking the flaky baseline (memory e2e-prod-build-flaky-baseline)."
 exit 1
