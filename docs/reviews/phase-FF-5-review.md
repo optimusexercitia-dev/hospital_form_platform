@@ -2,11 +2,21 @@
 
 **Phase:** FF-5 (ADR [0091](../decisions/0091-ff5-entity-reference.md) + Amendments 1–2) ·
 **Flag:** `entity_refs` · **Date:** 2026-07-28 · **Reviewer:** `qa`
-**Range:** `f0cc3ac`…`4959c7d` (22 commits) · **Branch:** `ff/flexible-forms-program`
-**Round:** r2 (r1 was cut off mid-review by an API limit; its frontend findings were fixed and
-are not re-litigated here — see *Scope* below).
+**Range:** `f0cc3ac`…`7b578c7` · **Branch:** `ff/flexible-forms-program`
 
-## Verdict: ⛔ CHANGES REQUESTED
+## Verdict: ✅ APPROVED — round 2, 2026-07-28 ([jump to r2](#ff-5--qa-review-r2))
+
+> Round 1 was ⛔ CHANGES REQUESTED on two keystone gaps, B-1 and B-2. Both are fixed, and I
+> re-verified them by **executing the neutralisations myself** rather than accepting the relayed
+> table. The r1 section below is kept unedited as the record of the loop.
+
+---
+
+# FF-5 — QA review r1 (superseded by r2)
+
+**Verdict:** ⛔ CHANGES REQUESTED · **Range:** `f0cc3ac`…`4959c7d` (22 commits)
+**Round:** r2 of the review *process* (an earlier pass was cut off mid-review by an API limit; its
+frontend findings were fixed and are not re-litigated here — see *Scope* below).
 
 **No code defect and no security hole was found.** Every security property this phase claims, I
 verified against the live catalog, and all of them hold. The two blocking items are **keystone
@@ -267,3 +277,132 @@ B-1 and B-2 are **pgTAP-only**; m-1…m-3 are edits to `276` §N. No application
 no type regeneration. A re-gate should need `npm run test:db` on a fresh reset plus the standing
 `p0-authz-invariant.sh` sweep — **not** a full `e2e:prod` rerun, since no shipped surface changes.
 m-4/m-5 are doc edits and can land with the gate-close commit.
+
+---
+---
+
+# FF-5 — QA review r2
+
+**Date:** 2026-07-28 · **HEAD:** `7b578c7` · **Range reviewed:** `4959c7d`…`7b578c7`
+**Reported evidence:** pgTAP 4240/4240 fresh reset (276 now 73 assertions) · lint 0/0 · typecheck
+clean · Vitest 851/851.
+
+## Verdict: ✅ APPROVED
+
+Both blockers are properly fixed. I did not take the neutralisation table on trust — I **re-ran
+every one of them myself** and added three of my own that were not on the list. All five behaved
+exactly as claimed. One residual gap remains in §O; it is **MINOR and not gate-blocking**, and I
+say why below rather than manufacturing a round 3.
+
+### Scope note that carries the r1 findings forward
+
+The r2 diff touches **`PROGRESS.md`, `docs/reviews/`, `e2e/ff5-references.spec.ts`, and
+`supabase/tests/276_ff5_references.sql` only** — no `src/`, no migrations. Every code-level
+verification in r1 (ruling 1's substrate, the coherence trigger as a whole-path boundary, door
+parity, K9, ruling 5, `copy_response_answers`) therefore stands unchanged and was not re-derived.
+
+## Verification method
+
+The stack was free, so unlike r1 I could execute rather than reason. Baseline first: injected
+`create extension if not exists pgtap` after the suite's own `begin;` and piped
+`276_ff5_references.sql` to psql — **73 pass / 0 fail**. Each mutation was then injected into that
+same transaction, so every probe rolled back. Confirmed clean afterwards: 0 leftover probe
+functions, pgtap not installed, `participants` writer count back to 2.
+
+## Neutralisations I re-ran — all confirmed
+
+| # | Mutation | Claimed | **Observed** |
+|---|---|---|---|
+| 1 | `reference_candidates` patient arm forced to always-deny (`or (false and v_case_id is not null`) | F6 alone red | ✅ **72/1 — `not ok 37 — F6`. F2 and F5 stayed green.** |
+| 2 | `set_participant_patient` writes `p_name` into `display_name` | O1+O2 red, O3 green | ✅ **71/2 — `not ok 69 — O1`, `not ok 70 — O2`; O0/O3/O4/O5 green.** |
+| 3 | top-level `other_text_by_item` scope filter deleted | N6 red | ✅ **72/1 — `not ok 67 — N6`.** |
+
+**Mutation 1 is the important one.** It reproduces my r1 B-1 finding as a measurement rather than
+an argument: with the ruling-2 mechanism inert in the always-deny direction, the *old* §F — which
+was all negatives plus a department-participant control that short-circuits before the branch —
+would have been **fully green**. F6 is the assertion that makes that state observable, and it is
+the one the old section structurally could not have had. Clauses 2 and 3 of the ADR keystone now
+exist against a real neighbouring case, not against emptiness. **B-1 is closed.**
+
+**Mutation 2 confirms O3 discriminates**, which is the subtle part of §O. O1/O2 alone would pass
+for a door that silently discarded its input; O3 going green while O1/O2 red proves the name
+genuinely crossed the door and was routed to `patient_identifiers`. Choosing the behavioural form
+over the refutable "the door takes no name" is the right call — `set_participant_patient` does
+take `p_name`, and a keystone asserting otherwise would have discredited the premise it defends.
+**B-2's core is closed.**
+
+## Probes of my own — two closed a r1 finding, one found a residual
+
+4. **Inverted observations filter** (`is null` → `is not null`), testing my own r1 m-2: the
+   old count-based N5 asserted "exactly 1 key", which an inverted filter also satisfies — it
+   returns exactly one key, the *wrong* one. Result: **72/1 — `not ok 66 — N5`.** The
+   identity-based rewrite catches it. **m-1 and m-2 are both closed** (m-1 by mutation 3, which
+   could not have red before the fixture gained an instance `other_text`).
+5. **A rogue SECURITY INVOKER writer** of `participants`, written **unqualified**
+   (`update participants set display_name = …`). O5 claims "every writer of participants is
+   SECURITY DEFINER (no invoker-rights path in)". Result: **73/73 green — O5 did not catch it.**
+   O5's regex only matches `public.`-qualified writes.
+6. **A third SECURITY DEFINER writer** taking a caller-supplied label, granted to `authenticated`.
+   Result: **73/73 green.** This is the sharper form of 5 and is the finding below.
+
+I also checked O5's regex is not vacuous *today*: without the `prosecdef` filter it does match both
+real writers, so it discriminates on the current catalog — it is the future-facing claim that is
+weaker than its wording.
+
+## Findings
+
+### r2-m-1 (MINOR, not blocking) — §O pins the door that exists, not the closure of the writer set
+
+*Relates to:* ADR 0091 §Substrate — "An exhaustive `pg_proc` sweep for writers of `participants`
+returns **exactly two** functions."
+
+§O asserts that `set_participant_patient` behaves (O1–O3), that `authenticated` cannot write the
+column (O4), and that no *qualified* invoker-rights writer exists (O5). It does **not** assert the
+writer set is **closed**. Probe 6 demonstrates the consequence: a third DEFINER writer accepting a
+caller-supplied `display_name`, executable by `authenticated`, leaves the suite at **73/73** — it
+satisfies O5 (it *is* DEFINER), does not touch O4 (grants unchanged), and is never exercised by
+O1–O3, which only drive the one door. Probe 5 shows the narrower regex miss on the same assertion.
+
+**Why this is not blocking.** The r1 blocker was "the surrogate premise has *no* executable guard"
+— that is decisively fixed, and the behavioural core is the strongest part of the section. The
+residual requires a **new DEFINER writer**, which is a deliberate act arriving with a migration and
+an ADR, not something that drifts in. And the runtime property is held by O4, which is
+mutation-proven: an invoker-rights writer cannot write `participants` anyway, because the grant
+isn't there.
+
+**Suggested follow-up** (one assertion, subsumes both probes): pin the writer set by count *and*
+name — `select array_agg(proname order by proname)` over the sweep, expecting exactly
+`{dispose_case_phi, set_participant_patient}`, with the schema qualifier optional in the pattern
+(`(public\.)?participants\y` — note `\y`, not `\b`, which is backspace in Postgres regex). A
+count-and-name assertion fails closed in both directions, the §M shape.
+
+### Carried forward from r1, still open, still not blocking
+
+- **m-3** — §N2's enumeration boundary is still `like '%_by_item' or k = 'instances'`
+  (`276_ff5_references.sql:1207`); `instances` remains special-cased, which is the proof the
+  boundary is a naming convention.
+- **m-4** — `docs/plans/flexible-forms-program.md:13` and `:44` still assert the premise ruling 1
+  reversed ("Rule 12 — FF-5's participant lane touches it"; "discharges INFO-2 (PHI-read audit
+  door)"). Doc-only; add a superseded-by pointer.
+- **m-5** — the PROGRESS FF-5 row still predates the late migrations and counts. Gate step 5 is
+  where the lead refreshes it.
+- **m-6, i-1, i-2, i-3** — unchanged and unaffected.
+
+**Answering the r2 question directly: none of the r1 MINOR/INFO items has become gate-blocking.**
+No application code changed in r2, so the risk surface they describe is identical to the one I
+judged non-blocking in r1. Nothing in the new sections interacts with them.
+
+### On F4 and F7 — two nits, deliberately not raised as findings
+
+F4's comment says it "reaches the patient branch", but it counts *all* candidates, so departments
+alone satisfy `> 0`. The claim belongs to F6, which does the real work; F4 is still a valid
+"the search returns something at all" control. And F7 is a `lives_ok`, which proves absence of an
+exception, not presence of a row — but F8 proves the write path reaches the trigger on that same
+response, and §A/§H/§J red globally if the writer no-ops, so the pair is not vacuous. Both are
+wording, not coverage.
+
+## Gate
+
+FF-5 passes QA. Remaining work is one optional pgTAP assertion (r2-m-1) and three doc edits, none
+of which gates the pilot deploy. No re-run of `e2e:prod` is warranted — no shipped surface changed
+in r2.
