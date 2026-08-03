@@ -259,6 +259,60 @@ obligation on a new surface. Queued below rather than absorbed into the last gat
 The keystone `insert_collision_suffix_deterministic` is unaffected — the server behaviour it pins
 never depended on the edit affordance.
 
+## Amendment 2 — ruling 2's metadata mutability had no mechanism; the doors are built, not withdrawn (2026-08-03)
+
+Found independently by **both** `backend` and `frontend` at the end of their first task blocks.
+Ruling 2 states that "renaming, re-describing, and deleting an entry are allowed (metadata)".
+Nothing implemented it: `authenticated` holds zero DML on `form_block_library` and only the two
+create-time doors exist, so an entry was permanent and unrenameable from the moment it was saved.
+
+**Contrast with Amendment 1, and the reason the two resolve in opposite directions.** There, the
+withdrawn affordance had no *purpose* — within a version the auto-suffix is always correct, so
+"rename it back" is unsatisfiable by construction and read-only surfacing was already complete.
+Here there is no workaround at all: a typo'd or obsolete entry is permanent clutter in a browser
+whose whole value is being scannable, and a library that can only ever grow degrades on a schedule.
+So ruling 2 is **implemented, not amended** — `update_block_library_entry` and
+`delete_block_library_entry`, migration `20260903000500`+, same DEFINER posture and same commission
+perimeter as their two siblings, no new RLS policy and no new grant.
+
+**The keystone this earns is the point of doing it.** Until now ruling 2's snapshot immutability was
+a *convention* holding only because nothing could write at all. An update door makes it a real
+invariant needing a real proof: `library_metadata_door_cannot_touch_snapshot` — the door is
+structurally incapable of mutating `snapshot`, `commission_id`, or the provenance columns
+(mutation-proved by widening its UPDATE to include `snapshot` and confirming red). Paired with a
+delete-safety positive: **deleting an entry disturbs no form built from it**, which pins the
+no-live-link design of ruling 2 from the other end.
+
+### Method notes worth keeping
+
+- **`library_reader_non_writer`'s explanation was wrong while its result was right.** The file
+  reasoned that "Postgres reuses the SELECT policy's USING clause as UPDATE/DELETE's row filter".
+  It does not — with RLS enabled and no verb-specific policy, UPDATE/DELETE are **default-denied**
+  regardless of grant. The assertions went red on a widened grant because they assert over
+  `has_table_privilege` (grant-shaped), which is a *stronger* test than the one intended. Kept, with
+  the comment corrected: a wrong explanation in a test comment is the
+  assertion-that-goes-stale-silently class, and the next reader would have inherited it.
+- **`jsonb_build_object` encodes a SQL NULL as the jsonb value `null`, not an absent key.** A later
+  `->` extraction then reads it as "has a value", failing `IS NULL` CHECKs on snapshot round-trip.
+  Fixed with `jsonb_strip_nulls` at snapshot-build time.
+- **`form_items.position` is a per-SECTION sequence shared by top-level items *and* children**
+  (`unique(section_id, position)`, no `parent_item_id` scoping — mirroring `resolveInsertPosition`).
+  Computing the append slot with a `parent_item_id is null` filter collides with a prior insert's
+  own children on the second `insert_block_from_library` call.
+- **`library_insert_deep_copy`'s structural exclusion set needs `form_sections` alongside
+  `form_items`** — `copy_version_children` clones a whole version, sections included, which is
+  broader than ruling 8's "the unit is a subtree, never a section."
+
+### Pattern across all three amendments
+
+Three rulings lost to the code in one phase (validations-copy-ordering caught pre-build; ruling 4's
+inline edit; ruling 2's metadata doors). **Every one was invisible to lint, tsc, Vitest, `next build`
+and pgTAP alike** — they surface only as silently dropped rows, a field that discards on save, and an
+affordance that was never built. None would have been caught by review of the ADR against itself;
+all three were caught by someone holding the ADR against the actual catalog and the actual builder.
+That is the argument for contract-first with teammates who are expected to push back, and it is worth
+carrying into the next phase.
+
 ## Open questions (deferred, not blocking)
 
 - **A `question_key` rename door** (Amendment 1) — draft-only, per-version uniqueness re-validated,
