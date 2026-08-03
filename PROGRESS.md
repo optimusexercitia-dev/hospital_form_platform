@@ -179,6 +179,15 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🔴 **BUG-P16-001 — saving a standard assessment SILENTLY DESTROYS the existing `note_md`.** Filed 2026-08-03 (lead), Phase 16 Wave 2, **in scope, blocks the Phase Gate**. Traced end to end against the live catalog and the committed code, not inferred:
+1. `StandardDetailPage` passes `assessmentNoteMd={null}` — there is **no read path** returning `standard_assessments.note_md` for a single standard (`ReadinessRow` deliberately carries no note per D8, and `getReadinessEvidence` returns evidence links, not the assessment).
+2. So the textarea renders **empty** even when a note exists.
+3. `setStandardAssessment` reads `optionalString(formData,'noteMd')` → `null`, and passes `p_note_md: null` unconditionally.
+4. `public.set_standard_assessment` upserts `on conflict … do update set note_md = excluded.note_md` — **unconditional**.
+
+**Repro (ordinary flow, no edge case):** write a justification note on a standard → later reopen it to change the status `parcial` → `conforme` → submit. **The note is gone.** ⚠ Frontend flagged the gap honestly but graded it "Low-risk (the note is never lost — resubmitting just overwrites it)" — those are *the same thing*; overwriting IS losing it. The self-contradiction is the tell, and it is why the fix was scheduled as polish rather than as a defect.
+**Fix (both halves, or it isn't fixed):** backend adds a single-standard assessment read path (status + `note_md`, member-gated) — **not** a coalesce in the RPC, because clearing a note must stay possible; frontend prefills the form from it. **pgTAP must assert the round-trip: write a note, save a status-only change, assert the note SURVIVES** — the assertion that would have caught this. Relates to ADR 0093 D8.
+
 🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
 migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
