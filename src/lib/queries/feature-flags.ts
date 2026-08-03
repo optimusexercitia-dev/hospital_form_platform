@@ -99,6 +99,13 @@ export interface FeatureFlags {
   // `app.feature_flags.enabled`, never this comment (ADR 0078 — a comment is an
   // assertion that goes stale silently).
   entity_refs: boolean
+  // Phase 16 (ADR 0093) — Standards Crosswalk & Readiness/Gap Engine v2:
+  // commissions link the artifacts they already produce as evidence against
+  // ONA/JCI/custom framework standards, self-assess conformity, and get a
+  // readiness/gap report. Seeded OFF in
+  // `20260903000800_accreditation_schema`; flipped at the Phase 16 gate
+  // (Migration G); `seed.sql` does NOT yet force it ON (Wave 2 in progress).
+  accreditation: boolean
 }
 
 /** A flag key. */
@@ -290,4 +297,21 @@ export async function matrixFieldsEnabled(): Promise<boolean> {
  */
 export async function itemValidationsEnabled(): Promise<boolean> {
   return featureEnabled('item_validations')
+}
+
+/**
+ * Whether Phase 16 Standards Crosswalk & Readiness/Gap Engine v2 (ADR 0093)
+ * is ON. Thin per-flag wrapper over {@link featureEnabled} (consistent with
+ * the other per-flag `*Enabled()` readers), so callers avoid an `as
+ * FeatureFlagKey` cast. Request-memoized via {@link getFeatureFlags}.
+ *
+ * Seeded OFF in `20260903000800_accreditation_schema`; flips ON at the
+ * Phase 16 gate. Gates the framework/standard tree, the evidence picker, the
+ * standard panel, and the commission/hospital readiness dashboards. The
+ * server checks the SAME flag (`app.assert_accreditation_enabled()` →
+ * `HC0Q9` on every accreditation RPC), so the feature is dark on both sides
+ * of the boundary and hiding the UI is never the control (Rule 1).
+ */
+export async function accreditationEnabled(): Promise<boolean> {
+  return featureEnabled('accreditation')
 }
