@@ -1,0 +1,31 @@
+# Phase 16 (ADR 0093 D2/D3) — JCI chapter skeleton DRAFT for PO validation.
+# Non-leveled framework: every nivel is empty (D3 — level is NULL for
+# JCI-shaped frameworks; readiness_report falls back to the per-chapter %
+# rollup instead of the ONA per-level gap list). SKELETON ONLY: codigo,
+# titulo_curto, nivel, parent_codigo. NO description_md, no manual prose.
+#
+# CONFIDENCE NOTE: the CHAPTER ABBREVIATIONS + chapter titles below are the
+# publicly-documented top-level structure of the JCI Hospital Accreditation
+# Standards (the abbreviations — IPSG, ACC, PFR, etc. — are widely referenced
+# in accreditation literature and are not themselves the licensed content).
+# This is CHAPTER-LEVEL ONLY, matching the plan's own "JCI chapter skeleton"
+# scope — I did NOT invent sub-standard numbering (e.g. "ACC.1", "ACC.1.1")
+# since that finer breakdown is the licensed detail (via CBA/JCR) I have
+# LOWER confidence reproducing accurately and D2 forbids guessing at it. The
+# chapter LIST and ORDER (which edition's chapter set — standards editions
+# revise periodically) should be the PO's primary check here.
+codigo,titulo_curto,nivel,parent_codigo
+IPSG,Metas Internacionais de Segurança do Paciente,,
+ACC,Acesso e Continuidade do Cuidado,,
+PFR,Direitos do Paciente e da Família,,
+AOP,Avaliação de Pacientes,,
+COP,Cuidado de Pacientes,,
+ASC,Anestesia e Cuidados Cirúrgicos,,
+MMU,Gerenciamento e Uso de Medicamentos,,
+PFE,Educação de Pacientes e Familiares,,
+QPS,Melhoria da Qualidade e Segurança do Paciente,,
+PCI,Prevenção e Controle de Infecções,,
+GLD,"Governança, Liderança e Direção",,
+FMS,Gerenciamento e Segurança das Instalações,,
+SQE,Qualificação e Educação da Equipe,,
+MOI,Gerenciamento da Informação,,
