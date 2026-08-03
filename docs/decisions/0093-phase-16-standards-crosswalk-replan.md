@@ -142,6 +142,32 @@ of this ADR's assumptions were wrong. Recorded here so the build follows the cat
   The table is **`controlled_documents`**, not `documents`. `app.feature_flags.enabled`
   **defaults to `true`**, so the D-block's "seeded OFF" needs an explicit `enabled = false`.
 
+## Amendment 3 (2026-08-03, Wave 1 — the two freshness buckets D5 never assigned)
+
+D5 named the **lifecycle values** for `meeting` and `capa_plan` but never mapped them to
+`valida|atencao|vencida` — unlike `controlled_document` and `indicator`, which got explicit
+per-value assignments. Backend surfaced the gap rather than quietly picking; PO ruled both:
+
+- **A3·1 — `capa_plan`:** `completed` → **valida** · `in_execution` / `in_verification` →
+  **atencao** · **`open` → `atencao`** · `cancelled` → **vencida**. The build's first pass put
+  `open` and `cancelled` in the same bucket; the PO **split them**. An open CAPA is identified
+  and tracked — a live commitment, not an abandoned one — and collapsing the two hides a real
+  distinction and under-reports a functioning quality system. Note this changes only the
+  *severity signal*: neither `atencao` nor `vencida` counts as evidenced, so D5's
+  "stale evidence never silently counts" invariant is untouched either way.
+- **A3·2 — `meeting`:** `signed` / `distributed` → **valida** · `held` / `in_signature` →
+  **atencao** · `scheduled` / `cancelled` → **vencida**. A held-but-unsigned ata is *not* valid
+  proof: **signature is the evidentiary act**, since a surveyor asks for signed minutes. The
+  more lenient reading (`held` → valida, signature as administrative follow-up) was considered
+  and rejected.
+
+Also recorded from Wave 1, as a design fact rather than a ruling: the indicator arm's **"current
+frequency window"** is a genuinely new concept — `indicator_kpis` (Phase 15) takes the latest
+measurement regardless of age. It is implemented as `current_date − 1/2/3/6/12 months` per
+`mensal|bimestral|trimestral|semestral|anual`, filtering on
+`coalesce(period_start, entered_at::date) >= cutoff`. It mirrors no existing helper; D5's "a link
+is a claim, not proof" rationale is its only authority.
+
 ## Consequences
 
 - **The pilot is re-gated on Phase 16** — ADR 0086's "no longer gates the pilot" note is
