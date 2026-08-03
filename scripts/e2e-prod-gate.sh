@@ -27,10 +27,11 @@
 #   PROBE_EMAIL=... PROBE_PASS=...               # seed persona used by the auth preflight
 #
 # EXIT CODES: 0 green · 1 red (real failures) · 2 build · 3 toolchain drift ·
-#             4 stack unrecoverable (preflight) · 5 red INFRA-only · 99 cd failed.
+#             4 stack unrecoverable (preflight) · 5 red, NOTHING PROVEN · 99 cd failed.
 # Exit 4 and exit 5 are NOT test results — nothing was proven; fix the stack and re-run.
-# Exit 5 specifically means "zero assertion failures were observed, but some tests never
-# got a working server" — do not read it as a regression, and do not read it as green.
+# Exit 5 means "zero assertion failures were observed, but some tests never got to run"
+# — either INFRA (a dead server ate them) or UNRUN (their batch aborted before it
+# started; see abort_batch). Do not read it as a regression, and do not read it as green.
 #
 # PREREQS: local Supabase up + seeded (`supabase status`); `.env.local` -> local
 # Supabase. Prod deploys on Linux/Docker where this collapse may not occur; this gate
@@ -307,15 +308,42 @@ conn_errors() {
   grep -cE "ERR_CONNECTION_REFUSED|ERR_EMPTY_RESPONSE|ERR_CONNECTION_RESET|ECONNREFUSED" "$1" 2>/dev/null || true
 }
 
+# A batch that never ran must still be COUNTED — as unrun, on BOTH sides of the
+# coverage line (BUG-GATE-001). The reset/server failure paths below `continue 2`
+# straight past the tally block at the end of the loop, so `exp` was never added to
+# TOTAL_EXPECTED: the dead batch's tests vanished from the denominator instead of
+# being reported missing. Measured on the FF-4 gate — a 931-test suite whose batch 4
+# died on `reset FAILED` printed "accounted for 860 of 865", which READS LIKE 99%
+# COVERAGE while 66 tests had never executed. It also wrote no batch-N.log, so the
+# only trace was a gap in the batch numbering that nothing highlighted.
+#
+# ⚠ The run was still RED (both paths do append to RED_BATCHES, and the `-z` test at
+# the verdict blocks GATE GREEN) — the failure mode is a LYING SUMMARY, not a false
+# green. Fixing the denominator is what makes the lie visible.
+abort_batch() {  # $1 = short reason (reset|server); requires `exp` + `BATCH` set
+  local stub="$GATE_LOGDIR/batch-$BATCH_NO.log"
+  # Never clobber a real log: on an INFRA re-run attempt 1's log already exists.
+  [ -f "$stub" ] && stub="$GATE_LOGDIR/batch-$BATCH_NO-unrun.log"
+  TOTAL_EXPECTED=$(( TOTAL_EXPECTED + exp ))
+  TOTAL_DNR=$(( TOTAL_DNR + exp ))
+  RED_BATCHES="$RED_BATCHES b$BATCH_NO($1)"
+  printf 'BATCH %s DID NOT RUN — "%s" failed.\n%s collected test(s) never executed.\nSpecs:\n%s\n' \
+    "$BATCH_NO" "$1" "$exp" "$(printf '  %s\n' "${BATCH[@]}")" > "$stub"
+  echo "[$(LOG_TS)] batch $BATCH_NO -> DID NOT RUN ($1) · ${exp} test(s) counted as did-not-run  (log: $stub)"
+}
+
 for BATCH_SPECS in "${BATCHES[@]}"; do
   read -r -a BATCH <<< "$BATCH_SPECS"
   BATCH_NO=$(( BATCH_NO + 1 )); attempt=1
+  # Collected BEFORE the reset/server steps: `--list` needs neither a DB nor a server,
+  # and the failure paths above must be able to report how many tests they skipped.
+  exp=$(expected_tests "${BATCH[@]}"); exp=${exp:-0}
   while : ; do
     echo "=================================================================="
     echo "[$(LOG_TS)] BATCH $BATCH_NO$( [ "$attempt" -gt 1 ] && echo ' · INFRA RE-RUN' ) (fresh server$( [ "$RESET" = 1 ] && echo ' + fresh DB' )): ${BATCH[*]##*/}"
     echo "=================================================================="
     if [ "$RESET" = "1" ]; then
-      supabase db reset --local >/dev/null 2>&1 || { echo "reset FAILED"; RED_BATCHES="$RED_BATCHES b$BATCH_NO(reset)"; continue 2; }
+      supabase db reset --local >/dev/null 2>&1 || { echo "reset FAILED"; abort_batch reset; continue 2; }
     fi
     # NEVER "WARN … proceeding" (the old behaviour): a degraded stack yields batches of
     # net::ERR_CONNECTION_REFUSED that then need hand-triage against a folklore baseline
@@ -323,12 +351,11 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
     preflight "batch $BATCH_NO" || { echo "GATE ABORTED — stack unrecoverable"; exit 4; }
     if ! start_server; then
       echo "[$(LOG_TS)] server FAILED to start"; tail -20 "$GATE_LOGDIR/server.log"
-      RED_BATCHES="$RED_BATCHES b$BATCH_NO(server)"; stop_server; continue 2
+      abort_batch server; stop_server; continue 2
     fi
     sleep 4
     BLOG="$GATE_LOGDIR/batch-$BATCH_NO.log"
     [ "$attempt" -gt 1 ] && BLOG="$GATE_LOGDIR/batch-$BATCH_NO-rerun.log"
-    exp=$(expected_tests "${BATCH[@]}"); exp=${exp:-0}
 
     npx playwright test "${BATCH[@]}" --project=chromium --workers=1 --retries="$RETRIES" --reporter=list 2>&1 | tee "$BLOG" | tail -30
     # PIPESTATUS[0], not $? — $? here is `tail`'s, which is ~always 0. Reading the pipe's
@@ -402,12 +429,26 @@ TOTAL_SEEN=$(( TOTAL_PASS + TOTAL_FAIL + TOTAL_INFRA + TOTAL_FLAKY + TOTAL_DNR )
 echo "[$(LOG_TS)] GATE SUMMARY: ${TOTAL_PASS} passed · ${TOTAL_FAIL} failed · ${TOTAL_INFRA} infra · ${TOTAL_FLAKY} flaky · ${TOTAL_DNR} did-not-run · ${BATCH_NO} batches"
 echo "[$(LOG_TS)] COVERAGE: accounted for ${TOTAL_SEEN} of ${TOTAL_EXPECTED} collected tests"
 [ "$INFRA_RERUNS" -gt 0 ] && echo "[$(LOG_TS)] INFRA re-runs performed: ${INFRA_RERUNS}"
+# Say it in words. The coverage line above is now arithmetically honest, but "931 of
+# 931" with a did-not-run count buried mid-line is exactly the shape a tired reader
+# skims past — and unrun tests are the one failure mode that looks BETTER than normal.
+[ "$TOTAL_DNR" -gt 0 ] && echo "[$(LOG_TS)] !! ${TOTAL_DNR} test(s) NEVER RAN — nothing is proven for them. Re-run the batch(es) named below before declaring green."
 [ -n "$RED_BATCHES" ] && echo "  batches with failures:$RED_BATCHES  (logs in $GATE_LOGDIR)"
 echo "=================================================================="
 if [ "$TOTAL_FAIL" = "0" ] && [ -z "$RED_BATCHES" ]; then echo "GATE GREEN"; exit 0; fi
 
-# Two distinct RED verdicts. Collapsing them is what made a dead server read as a
+# Three distinct RED verdicts. Collapsing them is what made a dead server read as a
 # 53-defect regression, and (worse, over time) trains readers to shrug at real reds.
+#
+# UNRUN is checked FIRST and stated in its own words: with zero assertion failures the
+# old code fell through to "GATE RED — 0 real failure(s)", which reads as a formatting
+# glitch rather than "a whole batch never executed" (BUG-GATE-001).
+if [ "$TOTAL_FAIL" = "0" ] && [ "$TOTAL_DNR" -gt 0 ]; then
+  echo "GATE RED (UNRUN) — ${TOTAL_DNR} test(s) never executed; zero assertion failures were observed."
+  echo "  NOT a green run and NOT a regression signal: those tests were never given a chance"
+  echo "  to fail. Re-run the batch(es) listed above before declaring the phase green."
+  exit 5
+fi
 if [ "$TOTAL_FAIL" = "0" ] && [ "$TOTAL_INFRA" -gt 0 ]; then
   echo "GATE RED (INFRA) — ${TOTAL_INFRA} test(s) never got a working server, even after a re-run."
   echo "  NOT a regression signal: zero assertion failures were observed. Nothing is proven for"

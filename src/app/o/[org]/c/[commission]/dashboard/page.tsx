@@ -25,11 +25,22 @@ export const metadata: Metadata = {
  * date-range filter and CSV export.
  *
  * Access is gated HERE on the server in addition to RLS: only a `staff_admin` of
- * this commission OR a global admin may reach it — mirroring the cases board /
- * builder. Everyone else (staff of this commission, members of another
- * commission, unknown slug) gets `notFound()` (the friendly in-shell 404). The
- * backing dashboard reads are SECURITY DEFINER + `is_staff_admin_of`-gated, so
- * RLS remains the ultimate boundary.
+ * this commission may reach it — mirroring the cases board / builder. Everyone
+ * else (staff of this commission, members of another commission, unknown slug)
+ * gets `notFound()` (the friendly in-shell 404).
+ *
+ * ⚠ `access.role === "staff_admin"` is WIDER than it reads: `getCommissionAccessByOrg`
+ * maps an `org_admin` of the org (or a `hospital_admin` of the hospital) into the
+ * coordinator branch (ADR 0051 Decision 1), so those two reach this page as well.
+ * A bare `platform_admin` holding no role here resolves to `null` and is 404'd.
+ *
+ * The backing dashboard reads are SECURITY DEFINER, gated on
+ * `is_staff_admin_of(cid) OR is_commission_admin_of(cid)` — the SAME pair, so the
+ * route guard and the RPC gate admit the same people. They did not always: five of
+ * the nine `dashboard_*` functions used to gate on `is_staff_admin_of OR is_admin()`,
+ * which BOTH admitted a bare platform_admin over PostgREST AND returned empty sets
+ * to the org/hospital admins this page lets in (BUG-AUTHZ-001, migration
+ * 20260903000700 + pgTAP 270). RLS remains the ultimate boundary.
  *
  * The dashboard is per-form: a form picker (`?form=`) selects which form to
  * chart; the date range (`?from=&to=`) scopes `submitted_at`. Both are URL-driven

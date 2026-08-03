@@ -11,7 +11,10 @@ import { logAuditAccess } from '@/lib/audit/access'
  *
  *   GET /c/{slug}/dashboard/export?form={formId}
  *
- * Gating: staff_admin of the commission (or global admin). A plain staff /
+ * Gating: staff_admin of the commission — which the resolver widens to include an
+ * org_admin/hospital_admin, and which EXCLUDES a platform_admin (see the coarse-gate
+ * comment below; BUG-AUTHZ-001 aligned `dashboard_export_rows`' own DEFINER gate with
+ * this, so the RPC no longer admits a platform_admin the route already denies). A plain staff /
  * non-member / unknown slug gets 404 (no data leak). The form must belong to the
  * commission and have a published version; the row set comes from the
  * `dashboard_export_rows` definer RPC (also internally gated), so the count

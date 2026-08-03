@@ -35,17 +35,41 @@ import { formatDate, formatReferralCode } from "./format";
  * map and the status sort can never compare against `undefined`, even though the
  * hub no longer lists drafts.
  */
-const STATUS_LIFECYCLE_ORDER: ReferralStatus[] = [
+const STATUS_LIFECYCLE_ORDER = [
   "draft",
   "sent",
   "received",
   "accepted",
   "in_review",
   "awaiting_information",
+  // R3 resolution cycles. These two were MISSING while the JSDoc above asserted the
+  // list was total: `STATUS_RANK['answered']` was `undefined`, so sorting by Status
+  // computed `undefined - n` = NaN and handed Array.sort a comparator that violates
+  // its contract (implementation-defined ordering, no error). They were also absent
+  // from the filter dropdown, so neither state could be filtered for at all.
+  "answered",
+  "resolved",
   "completed",
   "rejected",
   "withdrawn",
-];
+] as const satisfies readonly ReferralStatus[];
+
+/**
+ * TOTALITY GUARD — the executable form of the JSDoc above.
+ *
+ * A prose comment saying "this must stay total" is what failed here: R3 added two
+ * statuses to `ReferralStatus` and nothing objected, because `ReferralStatus[]` only
+ * constrains the element TYPE, never the coverage. This alias resolves to `never` the
+ * moment a status exists that the list omits, and assigning `true` to `never` is a
+ * compile error naming the missing member — so the next status added to the union
+ * breaks the BUILD instead of silently producing NaN at runtime.
+ */
+type UnrankedStatus = Exclude<
+  ReferralStatus,
+  (typeof STATUS_LIFECYCLE_ORDER)[number]
+>;
+const _statusRankIsTotal: UnrankedStatus extends never ? true : never = true;
+void _statusRankIsTotal;
 
 /**
  * Status FILTER options, in lifecycle order; "all" is the default sentinel.

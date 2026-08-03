@@ -1182,12 +1182,27 @@ test('R5-6: keyboard-only — compose and submit an internal note via Tab/Enter 
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r5ReferralId}`)
 
-  const textarea = page.getByPlaceholder(/Escreva uma nota visível apenas à sua comissão/)
+  // BUG-P22-002: gate on the panel being rendered BEFORE focusing it. `.focus()` is
+  // not an auto-waiting action — it resolves the node and fires immediately, so racing
+  // it against RSC streaming silently no-ops and only the follow-up `toBeFocused()`
+  // reports (as "inactive", which reads like a focus-management defect rather than a
+  // timing one). The notes panel sits far down the detail page, after the related-cases
+  // panel, so it lands late in the streamed response.
+  //
+  // This mirrors R1-9 in the sibling R1 file — the SAME keyboard-only flow against the
+  // message composer — which has always passed precisely because it awaits
+  // `expect(composer).toBeVisible()` first. The two tests are now the same shape.
+  const notesForm = page.locator('form').filter({
+    has: page.getByPlaceholder(/Escreva uma nota visível apenas à sua comissão/),
+  })
+  await expect(notesForm).toBeVisible({ timeout: 10_000 })
+
+  const textarea = notesForm.locator('textarea')
   await textarea.focus()
   await expect(textarea).toBeFocused()
   await page.keyboard.type('Nota interna registrada só com teclado (R5-6).')
 
-  const submitBtn = page.getByRole('button', { name: /adicionar nota/i })
+  const submitBtn = notesForm.locator('button[type="submit"]')
   await page.keyboard.press('Tab')
   await expect(submitBtn).toBeFocused()
   await page.keyboard.press('Enter')

@@ -169,10 +169,47 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **BUG-E2EISO-002 — closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): the FF-spec `purge()` **FK-CASCADE orphan leak** (`session_replication_role = replica` disables Postgres’s own cascade triggers, not just the immutability guards). Fixed across **seven** files behind one shared helper, `e2e/helpers/purge-forms.ts` — the four FF specs + `helpers/ff2-matrix.ts`, **plus `answer-model-v2` and `form-model-normalization`, which the original report did not list** and which carried it at **three** sites each. ⚠ Three things to carry forward: **`app.copy_version_children` alone is NOT a sufficient enumeration** (it covers only the authoring half; the response subtree — the half that orphaned real submitted data — comes from `pg_constraint`); the **DV-6 fixed-id collision** on `form_versions_form_id_version_number_key` is fixed too, so those specs are idempotent across runs on one DB; and **production was never affected** — `session_replication_role` is a `superuser`-context GUC that `anon`/`authenticated`/`service_role` are all denied, and a sweep of the linked remote returned **0 orphans on all 15 edges**.
 
-#### 🔴 BUG-GATE-001 — `scripts/e2e-prod-gate.sh` drops a `reset FAILED` batch from its OWN coverage denominator, so it can print GATE GREEN over tests that never ran · owner **tester** (⚠ `scripts/` is outside tester's declared `e2e/` scope in CLAUDE.md §4 — lead to confirm ownership before assigning) · **OPEN** (filed 2026-08-03, found by the lead during the FF-4 gate)
+**Ad-hoc bug-fix batch, 2026-08-03 (lead, uncommitted on `main`).** Seven items triaged together, and
+the headline finding is about the BUG LOG rather than the code: **four of the seven were not the defect
+they were filed as.** Three do not reproduce at all (BUG-P22-001, BUG-E2EISO-003, BUG-E2EISO-001 —
+each re-run under its own documented recipe), and BUG-P22-002 was a spec-timing bug filed as a product
+defect. Of the three that were real, **two had materially wrong reports**: BUG-AUTHZ-001 named 4
+functions when the catalog holds 5, misnamed one relation, and described only half the defect;
+BUG-GATE-001's stated mechanism ("would have printed GATE GREEN") was false. Every correction came from
+re-running the repro or querying the live catalog — none from re-reading the report.
 
-**Severity rationale — this is the only bug here that can make the Phase Gate itself lie.** Every other
-open bug makes a test go red. This one makes tests *disappear*.
+Fixed: **BUG-GATE-001** (denominator + UNRUN verdict), **BUG-AUTHZ-001** (migration `…000700` +
+pgTAP `270`), **BUG-P22-002** (spec timing). Closed not-reproducible: **BUG-P22-001**,
+**BUG-E2EISO-003**, **BUG-E2EISO-001**. Already closed before the batch began: **BUG-E2EISO-002**.
+**Attempted and REVERTED: BUG-P15-001** — a seed-side month-clamp fixed AC-4 but regressed
+`phase8-dashboard` 8×; the seed cannot satisfy both near a month boundary (see its entry). Also fixed
+in passing: `referrals-list.tsx`'s `STATUS_LIFECYCLE_ORDER` was
+missing R3's `answered`/`resolved`, so `STATUS_RANK[status]` was `undefined` → **NaN sort comparator**
+and neither state was filterable — despite a JSDoc asserting the list "must stay TOTAL"; it now carries
+a compile-time totality guard instead of the comment.
+
+#### ✅ BUG-GATE-001 — `scripts/e2e-prod-gate.sh` drops a `reset FAILED` batch from its OWN coverage denominator · owner **lead** · **FIXED 2026-08-03** (filed 2026-08-03, found by the lead during the FF-4 gate)
+
+**Fix:** `abort_batch()` in `scripts/e2e-prod-gate.sh`. `exp` is now collected BEFORE the reset/server
+steps (`--list` needs neither a DB nor a server), and both abort paths add it to **`TOTAL_EXPECTED`
+and `TOTAL_DNR`** instead of `continue 2`-ing past the tally. A `batch-N.log` stub is written so the
+gap shows in `ls`, a per-batch `-> DID NOT RUN` line prints, the summary carries an explicit
+`!! N test(s) NEVER RAN` warning, and a new **`GATE RED (UNRUN)`** verdict (exit 5) replaces the
+misleading fall-through to `GATE RED — 0 real failure(s)`.
+
+**Verified by fault injection** (PATH-shadowed `supabase` failing every `db reset`, 48 collected
+tests): post-fix → `COVERAGE: accounted for 48 of 48` · `48 did-not-run` · stub logs · RED.
+**Over-grant twin on the pre-fix script, same injection** → `accounted for 0 of 0` · `0 did-not-run`:
+the 48 vanished from *both* sides. That twin is what proves the fix.
+
+**⚠ ONE CORRECTION TO THE ORIGINAL REPORT.** Its headline — "so it can print GATE GREEN over tests
+that never ran" — is **wrong**, and was wrong when filed. Both abort paths already appended to
+`RED_BATCHES`, and the verdict requires `[ -z "$RED_BATCHES" ]`, so a run with a dead batch could
+never print `GATE GREEN`; the pre-fix script prints `GATE RED` (confirmed by the twin above, on the
+byte-identical script the FF-4 gate ran — `9d7bc12`, unchanged through `87fbdde`). The real failure
+mode is a **lying summary**, not a false green: `860 of 865` reads as ~99% coverage while 66 tests
+never executed. Still the only bug here that makes tests *disappear* rather than go red — the
+severity call was right even though its stated mechanism was not.
 
 **Observed.** The FF-4 full-suite run printed:
 ```
@@ -207,7 +244,29 @@ batch that never ran must be reported as unrun (and force RED), not subtracted. 
 *(In the FF-4 gate the 66 were re-run standalone → **66/66 green**, so no FF-4 regression hid there. That
 had to be established, not assumed.)*
 
-#### 🟡 BUG-E2EISO-003 — `bulk-case-creation.spec.ts:344` (AC2) is not idempotent across runs on one DB · owner **tester** · **OPEN** (filed 2026-08-03, found by the lead triaging the FF-4 full-suite gate)
+#### ⚪ BUG-E2EISO-003 — `bulk-case-creation.spec.ts:344` (AC2) is not idempotent across runs on one DB · owner **tester** · **NOT REPRODUCIBLE 2026-08-03 — recommend CLOSE** (filed 2026-08-03)
+
+**Ran the record's own decisive repro, both ways, on `20260903000700`:**
+
+| Condition | Result |
+| --- | --- |
+| prod-standalone (`e2e-prod-gate.sh`), fresh `db reset` | **8/8 · GATE GREEN** |
+| prod-standalone, **same DB, second run** (`RESET=0`) | **8/8 · GATE GREEN** (27s — no 3× slowdown) |
+| `next dev`, fresh reset then immediate re-run | run 1 7/8, run 2 **8/8** |
+
+The AC2 timeout does not occur. Note the dev-server column is *inverted* from the report: the failure
+landed on **AC1a** in the cold run and vanished when warm — a first-test-after-cold-compile artifact
+(45.8s vs 26.9s), not a data-leftover one. The spec's own fixtures are `Date.now()`-tagged
+(`uniquePrefix`, `mrnTag`), so cross-run collisions are not structurally possible.
+
+**Why the original observation still probably happened:** the record says it fired when batch 1 *died
+mid-run* and was re-run "against the DB the dead attempt had already mutated". That is a **partially
+executed** run's state — not the same thing as a **completed** run's state, which is what "run the same
+file again" actually tests and what passes above. So the trigger is the dead-batch interaction, not
+per-run idempotency, and the repro written into the record does not exercise it.
+
+**Recommend closing as not-reproducible** rather than as fixed — nothing was changed in this spec. If it
+resurfaces, capture whether the preceding attempt *completed*, which is the variable that matters.
 
 **Symptom:** `TimeoutError: page.waitForURL: Timeout 30000ms exceeded` at line 427, waiting for
 `/\/manage\/cases\?criados=2\b/` after clicking commit.
@@ -224,7 +283,33 @@ same batch failed in the previous full run — batch-1 instability, not a specif
 **Not FF-4, not a product defect.** Pre-existing test-isolation weakness. Interacts with BUG-GATE-001:
 an unstable batch produces a rerun on dirty state, which surfaces this, which reads as a real failure.
 
-#### 🟡 BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic, NOT an FF-4 regression · owner **backend** (`supabase/seed.sql`) · **OPEN** (filed 2026-08-03, found triaging the FF-4 full-suite gate)
+#### 🟡 BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic · owner **backend**/**tester** · **STILL OPEN — a seed-side fix was attempted 2026-08-03 and REVERTED** (filed 2026-08-03)
+
+**⚠ The seed-side fix does not work. Do not re-attempt it without reading this.**
+
+Attempt: age both response loops by `least((i || ' days')::interval, v_month_span * i / 7.0)` where
+`v_month_span := now() - date_trunc('month', now())`, so the largest age is strictly less than the span
+and every response is provably inside the current month. It **did** fix AC-4, and it is byte-identical
+to the old values from the 8th onward.
+
+**It regressed `phase8-dashboard.spec.ts` — 8 failures**, caught by the scoped gate
+(`GATE RED — 8 real failure(s)`, batch 1). AC-1 read `Expected "6", Received "5"`; AC-1b, AC-1c, AC-2,
+AC-3, AC-5a, AC-5b and the Form-B headline all failed the same way. **A/B-confirmed:** revert
+`supabase/seed.sql` alone → fresh reset → AC-1 passes. The DB genuinely holds all 6 rows
+(verified in-catalog), so the count is lost in the dashboard read path, not in the seed.
+
+**The underlying conflict.** On the 3rd there are only ~2.5 days of month available, so clamping six
+fixtures into it collapses a 6-distinct-day spread into ~3 days. `phase8-dashboard` asserts EXACT
+counts against the seeded spread; `phase15` AC-4 needs the two `'nao'` responses inside one calendar
+month. **Near a month boundary those two requirements cannot both hold in the seed** — there aren't
+enough days. So this is not a matter of picking a better clamp expression.
+
+**Recommendation: take the OTHER option the original report offered** — have AC-4 derive its
+aggregation window from the actual seeded dates instead of assuming "the calendar month containing
+`new Date()`". That is an `e2e/**` change (tester-owned), leaves the seed untouched, and cannot
+perturb `phase8-dashboard`. The seed boundary (backend) should be considered closed to this fix.
+
+Everything below this line is the original diagnosis, which remains correct.
 
 **Repro:** `npx playwright test e2e/phase15-indicators.spec.ts -g "AC-4" --project=chromium --workers=1` on
 its own (no neighbours) → **fails identically**: expects derived numerator **2**, gets **1**
@@ -260,7 +345,30 @@ until the seed's date arithmetic is made month-safe (e.g. an offset that cannot 
 now())`, or the test deriving its window from the actual seeded dates instead of assuming "current
 month" — implementation choice is backend's/tester's call, not prescribed here).
 
-#### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
+#### ✅ BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **FIXED 2026-08-03** (filed 2026-07-27, PO's call)
+
+**Fix:** migration `20260903000700_authz_dashboard_gate_uniformity.sql` + pgTAP
+`270_authz_dashboard_gate_uniformity.sql` (8/8). PO-ruled 2026-08-03: **unify on the 4-fn shape**
+— `app.is_admin()` → `app.is_commission_admin_of(v_commission_id)`. All nine `dashboard_*`
+functions now carry one identical gate: `is_staff_admin_of(cid) OR is_commission_admin_of(cid)`.
+Verified live: pgTAP 4301/4301 + the 8 new keystones; **mutation-tested** (revert the gate → 6 of
+the 8 go red, the 2 non-vacuity tests correctly stay green).
+
+**Three corrections to this report, all found against the live catalog:**
+1. **It was FIVE functions, not four.** `dashboard_entity_references` (FF-5's reference surface,
+   added after the report) carried the same arm and was never listed.
+2. **`dashboard_matrix_risk_scores` does not exist** — the relation is `dashboard_risk_scores`.
+3. **The report named only half the defect.** The same five functions also **DENIED**
+   `is_commission_admin_of`, which the other four ADMIT. Since `getCommissionAccessByOrg` maps an
+   `org_admin`/`hospital_admin` into the `staff_admin` branch (ADR 0051 D1), those users *do* reach
+   `/dashboard` — and were served populated Totais/Texto-livre/Ao-longo-do-tempo beside **empty**
+   Distribuições/Exportar/Matriz/Risco/Referências. A live user-facing gap nobody filed.
+
+Because of (1) the fix enumerates from `pg_proc`, never a hand-written list. The ADR 0078 A35
+census is **not** invalidated for `responses` policies — those were correct; the leak was a
+`prosecdef` door the policy-shaped census is structurally blind to, which is ADR 0078's own
+documented blind spot. Reachable via PostgREST only: a bare `platform_admin` was already 404'd at
+the page (`getCommissionAccessByOrg` → `null`).
 
 **Not FF-2's defect** — FF-2 correctly inherited its sibling's arm (lead-ruled; deviating would have
 been the inconsistency). The pre-existing question is what got filed.
@@ -281,18 +389,57 @@ ADR 0078's own documented blind spot (*`prosecdef` belongs beside `pg_policies`*
 may have understated `platform_admin`'s reach across every dashboard function.** Spans far more than
 FF-2 and re-opens an ADR 0078 finding → PO decides, not a phase.
 
-#### 🟡 BUG-P22-001 — the referrals hub does not render a seeded `completed` referral · owner Phase 22 · **OPEN** (filed 2026-07-27)
+#### ✅ BUG-P22-001 — the referrals hub does not render a seeded `completed` referral · owner Phase 22 · **CLOSED — NOT REPRODUCIBLE 2026-08-03** (filed 2026-07-27)
 
-ENC-0001 **is** seeded (`status = completed`, subject matches the spec's locator exactly) and
-`referrals-list.tsx` gates both hub sections behind a **status filter**. **Possibly a live
-user-facing defect** — a committee would not see its own concluded encaminhamento. Needs triage:
-product bug vs stale spec. Deterministic (fails every run on a clean stack, 0 connection errors).
+**Flow 1a passes**, standalone (2.3s) and in full-file context — `e2e/phase22-referrals.spec.ts` is
+**40/40 on a clean `supabase db reset`**. The filed diagnosis is wrong on the mechanism too:
+`ReferralsList`'s status filter defaults to `"all"`, so a `completed` referral is never filtered out,
+and `listCommissionReferrals` excludes only `draft`. The report's "deterministic, fails every run on
+a clean stack" does not hold.
 
-#### 🟡 BUG-P22-002 — `phase22-referrals-governance.spec.ts:1187` R5-6 keyboard-only internal note fails · owner Phase 22 · **OPEN** (filed 2026-07-27)
+**What that triage round was almost certainly seeing:** run the same file twice on one DB and
+`R1-4c/R1-8` fails with `strict mode violation: resolved to 2 elements` — ENC-0033 **and** ENC-0035,
+both carrying the R1 fixture's subject, because the file's `beforeAll` mints a referral per run
+unconditionally. Serial mode then aborts, leaving **5 tests unrun**. Same defect class as
+BUG-E2EISO-003; tracked there, not here.
 
-Same module, same triage round; not characterized further. Deterministic.
+#### ✅ BUG-P22-002 — `phase22-referrals-governance.spec.ts:1187` R5-6 keyboard-only internal note fails · owner **tester** · **FIXED 2026-08-03** (filed 2026-07-27)
 
-#### 🟡 BUG-E2EISO-001 — `orgadmin.a` loses org-admin affordances when 4 specs share a prod batch · owner **tester** · **OPEN** (filed 2026-07-28)
+**Spec defect, not a product defect.** The test called `textarea.focus()` immediately after
+`page.goto()`. `.focus()` is **not** an auto-waiting action — it resolves the node and fires at once,
+so racing RSC streaming makes it silently no-op; only the follow-up `toBeFocused()` reports, as
+`Received: inactive`, which reads like a focus-management defect rather than a timing one. The notes
+panel renders late (after the related-cases panel).
+
+Proof it was never a product bug: **R1-9 in the sibling R1 file is the same keyboard-only flow
+against the message composer and has always passed** — because it awaits
+`expect(composer).toBeVisible()` first. R5-6 now uses that same shape (gate on the form, then scope
+the textarea/submit to it). Re-verified on a fresh reset: **1/1 pass in 4.5s** (was a 19.5s timeout).
+
+#### ⚪ BUG-E2EISO-001 — `orgadmin.a` loses org-admin affordances when 4 specs share a prod batch · owner **tester** · **NOT REPRODUCIBLE 2026-08-03 — recommend CLOSE** (filed 2026-07-28)
+
+**Ran the record's own repro verbatim** — the same four specs packed into ONE prod-standalone batch
+(`BATCH_TESTS=200`, one server, one DB, `RETRIES=0`), on `20260903000700`:
+
+```
+batch 1 -> 80 passed, 0 failed, 0 flaky, 0 skipped, 0 did-not-run · accounted 80/80 · pw_exit 0
+GATE GREEN
+```
+
+**80/80.** Same batch composition as the filed 77 + 3. All three named tests
+(`hospital-admin-tier` HA-2 ×2, `phase-multitenancy` MT-6) pass batched.
+
+**Most likely already fixed by BUG-E2EISO-002** (`074cc4d`, 2026-08-03 — the FK-CASCADE orphan leak in
+the shared `purge()` helper, where `session_replication_role = replica` disabled Postgres's own cascade
+triggers and teardown orphaned rows across 15 edges). This record's own hypothesis was "a
+membership/roster mutation by an earlier spec in the batch" — a teardown cascading further than intended
+is exactly that mechanism, and E2EISO-002's fix landed after this was filed. Stated as the likely cause,
+not proven: no one re-ran this repro between the two.
+
+**Recommend closing as not-reproducible.** If it returns, the variable to capture is which spec in the
+batch last purged, not which persona lost affordances.
+
+<details><summary>Original report (retained for the repro recipe)</summary>
 
 Three tests fail **only when batched**, each passing when its file runs alone:
 
@@ -320,11 +467,29 @@ a membership/roster mutation by an earlier spec in the batch (bucket C-4, shared
 same family as P13-004/005/006). Needs a probe-commission/probe-user fixture rather than mutating
 the seeded rede-a org. Not a product defect until that is ruled out.
 
+</details>
+
 
 ## Test Run Summary
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
+
+**Ad-hoc bug batch · scoped verification (lead, 2026-08-03, `RESET=1 RETRIES=0`)** — scoped rather than
+full-suite by design: only the specs covering the changed surfaces were run.
+
+| Run | Result |
+| --- | --- |
+| `phase8-dashboard` + `phase22-referrals` + `phase22-referrals-governance` | **93 passed · 0 failed · 93/93 · GATE GREEN** |
+| 4-spec isolation batch (`phase-multitenancy`/`hospital-admin-tier`/`administrativo`/`cases-board-access`), one batch | **80/80 · GATE GREEN** (BUG-E2EISO-001 does not reproduce) |
+| `bulk-case-creation`, fresh DB then **same DB again** | **8/8 · 8/8 · GATE GREEN** (BUG-E2EISO-003 does not reproduce) |
+| pgTAP `npm run test:db` | **4301/4301** (+ new `270_…` 8/8, mutation-falsifiable) |
+| Vitest · lint · tsc | **873/873** · 0 errors/0 warnings · exit 0 |
+
+⚠ An intermediate run of this same scoped gate was **`GATE RED — 8 real failure(s)`**, all in
+`phase8-dashboard`, caused by the BUG-P15-001 seed fix; that fix was A/B-confirmed as the cause and
+**reverted**. The green above is on the reverted tree. `phase15-indicators` is therefore still expected
+to fail AC-4 today (the 3rd) — see BUG-P15-001.
 
 **FF-4 · DECLARE-GREEN full `npm run e2e:prod` gate (lead, 2026-08-03, on `87fbdde`, `RESET=1 REBUILD=1`)**
 — **901 passed · 1 failed · 21 infra · 3 flaky · 0 did-not-run · 15 batches · COVERAGE 926 of 931.**
