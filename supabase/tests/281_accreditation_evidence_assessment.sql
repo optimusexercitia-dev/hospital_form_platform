@@ -39,7 +39,7 @@
 
 begin;
 
-select plan(32);
+select plan(34);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -254,7 +254,7 @@ select ok(
 
 create temp table assess1 on commit drop as
   select (public.set_standard_assessment(
-    (select comm_x from k), '28100000-0000-0000-0000-000000000001', 'parcial'
+    (select comm_x from k), '28100000-0000-0000-0000-000000000001', 'parcial', 'Justificativa inicial — 281'
   )).id as id;
 grant select on assess1 to authenticated;
 select is(
@@ -270,6 +270,15 @@ select is(
   (select (public.set_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001', 'conforme')).status),
   'conforme', 'C7. re-assessing UPDATES the status'
 );
+-- BUG-P16-001 round trip: a STATUS-ONLY re-assessment (p_note_md omitted,
+-- matching the current prefill-less frontend call site EXACTLY) must NOT
+-- destroy the note written in C5. This is the assertion the bug report
+-- asked for.
+select is(
+  (select note_md from public.standard_assessments where id = (select id from assess1)),
+  'Justificativa inicial — 281',
+  'C7b. BUG-P16-001: a status-only re-assessment (p_note_md NULL) does NOT erase the existing note (fixed 20260903001400)'
+);
 select is(
   (select count(*)::int from public.standard_assessments where commission_id = (select comm_x from k) and standard_id = '28100000-0000-0000-0000-000000000001'),
   1, 'C8. re-assessing is still ONE row (upsert, not a second row)'
@@ -277,6 +286,11 @@ select is(
 select ok(
   exists (select 1 from public.audit_log where action = 'standard_assessment.updated' and entity_id = (select id from assess1)),
   'C9. the re-assessment writes its OWN audit row (updated, not created again)'
+);
+select is(
+  (select (public.set_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001', 'conforme', 'Nova justificativa')).note_md),
+  'Nova justificativa',
+  'C10. an EXPLICIT non-null note_md still overwrites (positive control — coalesce only protects against NULL, not against a real edit)'
 );
 reset role;
 
