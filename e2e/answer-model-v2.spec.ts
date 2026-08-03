@@ -217,13 +217,22 @@ test('DV-1 (scalar defaults): builder sets short_text + number defaults; wizard 
   await signInAs(page, 'chefe.ccih@test.local')
   const formId = await createForm(page, title)
 
-  // short_text with default "Ala Norte"
+  // short_text with default "Ala Norte". FE-3 (ADR 0092 ruling 6) replaced the
+  // plain "Valor padrão" input with a segmented Nenhum/Valor fixo/Valor
+  // dinâmico control for every type that admits a dynamic token — short_text
+  // is one, so the literal input now exists only after picking "Valor fixo",
+  // and it renders with NO field label of its own (the wrapper already shows
+  // "Valor padrão" once) — hence the placeholder-scoped locator, not getByLabel.
   let d = await openAddBlock(page, page.locator('body'), /Resposta curta/)
   await d.getByLabel('Enunciado da pergunta').fill('Local da inspeção')
-  await d.getByLabel(/Valor padrão/i).fill('Ala Norte')
+  await d.getByRole('radio', { name: 'Valor fixo' }).click()
+  await d.getByPlaceholder('Texto pré-preenchido ao abrir o formulário.').fill('Ala Norte')
   await submitAddDialog(d)
 
-  // number with default 5
+  // number with default 5. `number` has ZERO eligible dynamic tokens (the
+  // vocabulary is today/now/current_user_name/current_user_email/
+  // commission_name — none apply to a number), so `DefaultValueEditor`
+  // degrades to the ORIGINAL plain-labelled input here, unchanged by FE-3.
   d = await openAddBlock(page, page.locator('body'), /Número/)
   await d.getByLabel('Enunciado da pergunta').fill('Quantidade de leitos')
   await d.getByLabel(/Valor padrão/i).fill('5')
@@ -432,7 +441,11 @@ test('DV-3 (hidden default never written): a defaulted item hidden by a conditio
   const detalhes = page.getByRole('region', { name: 'Detalhes' })
   d = await openAddBlock(page, detalhes, /Resposta curta/)
   await d.getByLabel('Enunciado da pergunta').fill('Descreva brevemente')
-  await d.getByLabel(/Valor padrão/i).fill('Sem detalhes adicionais')
+  // FE-3 (ADR 0092 ruling 6) — short_text is dynamic-token-eligible, so the
+  // literal input now lives behind "Valor fixo" in the segmented control; see
+  // the identical note on DV-1.
+  await d.getByRole('radio', { name: 'Valor fixo' }).click()
+  await d.getByPlaceholder('Texto pré-preenchido ao abrir o formulário.').fill('Sem detalhes adicionais')
   await submitAddDialog(d)
 
   await detalhes
@@ -621,8 +634,27 @@ test('DV-5 (keyboard-only): set a default via keyboard in the builder; fill and 
   const labelInput = d.getByLabel('Enunciado da pergunta')
   await labelInput.fill('Responsável pela vistoria')
 
-  const defaultInput = d.getByLabel(/Valor padrão/i)
-  await defaultInput.focus()
+  // FE-3 (ADR 0092 ruling 6) — the default-value entry point is now a
+  // segmented Nenhum/Valor fixo/Valor dinâmico control (short_text admits
+  // dynamic tokens). Focus its currently-active radio programmatically (the
+  // established "focus the entry point, then drive every step by a real key"
+  // convention — reaching it by Tab alone from the enunciado field would
+  // assert the whole dialog's field order, which is not this test's
+  // contract), then it's keys only from there: ArrowRight switches to "Valor
+  // fixo" (the control's own roving-tabindex handler moves DOM focus itself,
+  // per src/components/ui/segmented.tsx), Tab reaches the literal input that
+  // only exists once that mode is active.
+  const modeControl = d.getByRole('radiogroup', { name: 'Origem do valor padrão' })
+  const noneRadio = modeControl.getByRole('radio', { name: 'Nenhum' })
+  await noneRadio.focus()
+  await expect(noneRadio).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  const fixoRadio = modeControl.getByRole('radio', { name: 'Valor fixo' })
+  await expect(fixoRadio).toBeFocused()
+  await expect(fixoRadio).toHaveAttribute('aria-checked', 'true')
+
+  await page.keyboard.press('Tab')
+  const defaultInput = d.getByPlaceholder('Texto pré-preenchido ao abrir o formulário.')
   await expect(defaultInput).toBeFocused()
   await page.keyboard.type('Equipe CCIH')
   await expect(defaultInput).toHaveValue('Equipe CCIH')

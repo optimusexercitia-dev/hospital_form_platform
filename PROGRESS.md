@@ -124,7 +124,7 @@ allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`
 | FE-3 | ✅ `default-value-editor.tsx`: dynamic-source selector, type-gated to the 5 tokens — literal/dynamic/none modeled as one discriminated union (`DefaultConfig`), so ruling 6's exclusivity is a type invariant, not a convention | frontend | BE-1 |
 | FE-4 | ✅ Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` — `today`/`now` resolve from `responses.started_at` (added to `ResponseForFill` by backend on request), not a live clock, so a resumed draft never drifts | frontend | BE-1 |
 | FE-5 | ✅ Library entry rename/re-describe + delete (ruling 2) in `block-library-picker.tsx` + new `edit-library-entry-dialog.tsx`. Delete confirm names the safety property (materialized copies, not links); both keyboard-operable, announced via a picker-level `aria-live` region (a per-card region would unmount with a deleted card before being read). All 4 doors + the browse read exercised directly against the local RPC/REST endpoint (save → browse → insert-with-forced-collision → rename → delete → browse), since this environment's browser pane has no compositing surface for a spawned subagent (confirmed: `document.visibilityState` stuck `"hidden"`, `getBoundingClientRect` zero on interactive elements) — see the phase record for detail | frontend | BE-7 |
-| T-1 | ⚠ E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only — **6/7, BUG-FF4-001 filed** (dynamic-default clear-then-resume re-seeds; see Bug Log) | tester | FE-1…5 |
+| T-1 | ✅ E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only — **7/7** (BUG-FF4-001 filed, fixed `b5c505e`, re-verified). Full `e2e:prod` run by lead: 849p/3f/3flaky/15 batches, both non-flaky failures triaged by tester — see Bug Log (BUG-P15-001) and Test Run Summary | tester | FE-1…5 |
 | QA-1 | Phase review → `docs/reviews/phase-FF-4-review.md` | qa | T-1 green |
 
 > 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
@@ -225,7 +225,9 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **FF-5-era bugs — both closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF5-001** (the builder could not author a `reference` item at all — three sites: `ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`; `updateItem` was broken independently) and **BUG-FF5-002** (every top-level reference rendered "Sem resposta" on the durable submitted record — the page never passed `referencesByItemId` and the prop was optional-with-default, so tsc could not object). Both passed pgTAP 4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them.**
 
-#### 🔴 BUG-FF4-001 — clearing a dynamic-default answer and resuming the draft RE-SEEDS it, violating ADR 0092 ruling 5's idempotency contract · owner **backend** · **OPEN** (filed 2026-08-03)
+#### ✅ BUG-FF4-001 — clearing a dynamic-default answer and resuming the draft RE-SEEDS it, violating ADR 0092 ruling 5's idempotency contract · owner **backend** · **RESOLVED** (filed 2026-08-03, fixed `b5c505e`, re-verified by tester 2026-08-03)
+
+**Verified fixed:** `npx playwright test e2e/ff4-power-authoring.spec.ts -g "FF4-4" --project=chromium --workers=1` → **1/1 pass** against a fresh prod standalone build on `b5c505e` (re-staged/re-served, no rebuild needed — no `src/` file was newer than the existing `.next/BUILD_ID`). Full file independently re-confirmed **7/7** by both tester and lead.
 
 **Spec:** `e2e/ff4-power-authoring.spec.ts` FF4-4 (acceptance criterion 4's idempotency clause). **Repro**
 (deterministic — 3 consecutive runs, prod standalone, fresh state each time): author a `date` item with
@@ -272,6 +274,42 @@ check before calling the fix's scope closed.
 **Not filed as a fix suggestion** (tester scope): `buildAnswerMaps` needs to represent "answered, value is
 `null`" as distinct from "no row" rather than dropping the row — how to do that without disturbing the
 CHOICE-item exclusion sharing the same loop is backend's call.
+
+#### 🟡 BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic, NOT an FF-4 regression · owner **backend** (`supabase/seed.sql`) · **OPEN** (filed 2026-08-03, found triaging the FF-4 full-suite gate)
+
+**Repro:** `npx playwright test e2e/phase15-indicators.spec.ts -g "AC-4" --project=chromium --workers=1` on
+its own (no neighbours) → **fails identically**: expects derived numerator **2**, gets **1**
+(`"Taxa calculada Numerador derivado: 1 · Valor: 1 /1000 pac-dia"`). Ruled out both hypotheses the lead
+asked to check:
+- **Not FF-4/`seed_default_answers`** — that mechanism only writes answers on a DRAFT's CREATE branch;
+  `compute_derived_measurement` counts only `status='submitted'` responses via
+  `app.submitted_form_responses`, and both responses this test depends on are long-submitted, pre-existing
+  Phase-15-era seed fixtures FF-4 never touches.
+- **Not intra-file ordering / neighbour contamination** — reproduces byte-identical run completely alone.
+
+**Root cause, traced and confirmed against live data (today: 2026-08-03):** `supabase/seed.sql`'s Form-A
+response-seeding loop (`for i in 1..6`) sets `submitted_at = now() - (i || ' days')::interval`; the
+`'nao'`-answered responses (the ones IND-0003's derived numerator counts) land at `i=1` and `i=4`. AC-4
+computes its throwaway aggregation period as **the calendar month containing `new Date()` at test-run
+time** (by design — see the spec's own MINOR-1 comment). Confirmed live: the `i=1` response is
+`2026-08-02` (this month); the `i=4` response is `2026-07-30` (**last** month — `now() - 4 days` crossed
+the month boundary because today is only the 3rd). The just-written measurement row proves it exactly:
+`period_start=2026-08-01, period_end=2026-08-31, numerator=1` — `compute_derived_measurement`'s own
+`sr.submitted_at::date >= v_from` correctly excludes the `2026-07-30` row; the RPC is behaving exactly as
+designed. **The defect is that the seed's fixed day-offsets are not guaranteed to stay within the same
+calendar month as each other**, which is only ever false on/near a month boundary — i.e. this reproduces
+on the 1st–4th of **every** month (the exact window depends on which seeded index answers `'nao'` and its
+offset), not just today.
+
+**Verdict: product/seed-data bug, not a spec defect** — the test's assumption ("today's date-relative seed
+responses land in the same calendar month") is reasonable and was true when AC-4 was written; the RPC and
+the test's own logic are both correct. Left the spec **unmodified** — weakening or rerouting its window
+selection to dodge this would hide a real fixture fragility rather than fix it, and the fix boundary
+(`supabase/seed.sql`, owned by backend) is outside `e2e/**`. **Not an FF-4 regression** and not blocking
+this phase's own acceptance criteria; flagged because it will keep recurring near every month boundary
+until the seed's date arithmetic is made month-safe (e.g. an offset that cannot cross `date_trunc('month',
+now())`, or the test deriving its window from the actual seeded dates instead of assuming "current
+month" — implementation choice is backend's/tester's call, not prescribed here).
 
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
@@ -338,6 +376,26 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
+
+**FF-4 · full `npm run e2e:prod` gate (lead, 2026-08-03, on `b5c505e`)** — **849 passed · 3 failed · 3
+flaky · 15 batches.** Batch 4 hit `reset FAILED` (environmental — `supabase_edge_runtime` state; not a
+defect) and never ran 66 tests (`ethics-e2-procedure` · `ethics-e3a-surfacing` · `ff1-repeating-groups` ·
+`ff2-matrix-views` · `ff2-matrix`); lead re-ran all five standalone → **66/66**, no FF-4 regression.
+`phase14c-rca` R1+R2 flaky, consistent with the known baseline. Both non-flaky failures triaged by
+tester below.
+
+| Failure | Verdict | Disposition |
+| --- | --- | --- |
+| `answer-model-v2.spec.ts` DV-1 (and, once unmasked by fixing DV-1, DV-3 + DV-5 too — `test.describe.configure({mode:'serial'})` was hiding them) | **spec-defect — fixed by tester** | FE-3's segmented Nenhum/Valor fixo/Valor dinâmico control (ADR 0092 ruling 6) replaced the plain "Valor padrão" input for every dynamic-token-eligible type (short_text/free_text/date/time); the old `getByLabel(/Valor padrão/i)` locator now ambiguously matches the new radiogroup's OWN `aria-label="Origem do valor padrão"`. **Verified the literal-default path genuinely still works** before touching anything — full round trip (author via "Valor fixo" → publish → DB truth on `default_value` → wizard pre-fill → edit → submit → DB truth on the submitted value) passes end-to-end, including DV-5's keyboard-only path (ArrowRight to switch segmented modes, Tab to the revealed input — ArrowRight fires the control's own `onChange`+focus per `segmented.tsx`, no Enter/Space needed). `number`/`multiple_choice`/`checkbox`/`dropdown` defaults are UNCHANGED (zero eligible dynamic tokens → the original plain-labelled control renders directly) — confirmed via DV-1's number item and DV-2/DV-4 passing untouched. **6/6, 3 consecutive clean runs** (one interim 5/6 was a shared-DB orphan collision from repeated re-runs during triage — see BUG-P15-related orphan note below — not a real failure; cleaned up, reconfirmed clean). |
+| `phase15-indicators.spec.ts` AC-4 | **product/seed-data bug — filed (BUG-P15-001), NOT fixed, NOT FF-4** | Traced to exact root cause: `seed.sql`'s Form-A response loop dates two `'nao'` responses `now()-1d`/`now()-4d`; AC-4 assumes "current calendar month"; today (2026-08-03) is early enough in the month that the `-4d` offset crosses into July. Reproduces standalone (rules out neighbour/ordering contamination, as asked). Confirmed via the actual written row: `period_start=2026-08-01` correctly excludes the `2026-07-30` response per `compute_derived_measurement`'s own (correct) `sr.submitted_at::date >= v_from` filter. Will recur on the 1st-4th of every month until the seed's date arithmetic is fixed. Left the spec untouched — see the Bug Log entry for why rerouting the test would hide, not fix, the fragility. |
+
+**Side note on the shared-DB orphan pattern (see prior FF-4 block below for the original finding):** hit it
+again live, in a DIFFERENT file (`answer-model-v2.spec.ts` DV-6, hardcoded fixture id
+`99990000-…-0d0e01`) on a repeated re-run during this triage — `delete from forms … ` under
+`session_replication_role=replica` left an orphaned `form_versions` row, colliding with DV-6's own
+`insert` on its next run (`duplicate key … form_versions_form_id_version_number_key`). Cleaned the one
+row blocking re-verification; did not sweep the DB-wide 17 that existed at the time (out of scope for a
+triage pass) — reinforces that this is a real, cross-file pattern, not a one-off.
 
 **FF-4 · `tester` targeted spec, NOT the full gate (2026-08-03).** New file:
 `e2e/ff4-power-authoring.spec.ts` (7 tests, covers ADR 0092 rulings 1–9 + both amendments —
