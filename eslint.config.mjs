@@ -23,6 +23,13 @@ const eslintConfig = defineConfig([
     // (~99% of all reported problems). Skills/agents/settings are config, not
     // code. Exclude the whole directory.
     ".claude/**",
+    // Same reasoning for the CURRENT worktree location (`docs/worktrees.md` +
+    // the CLAUDE.md repo layout put them at `worktrees/`, not `.claude/`): each
+    // is an independent checkout of this repo on its own branch, linted by its
+    // own session against its own config. Linting them from the root reported
+    // ~46.8k problems — 100% of the total — making the 0-warning gate
+    // unreachable whenever a worktree existed.
+    "worktrees/**",
   ]),
   // Honor the `_`-prefix convention for intentionally-unused bindings (already
   // used in the codebase, e.g. `_args` mock signatures). Severity stays at
