@@ -218,7 +218,53 @@ otherwise absorb it. The name stays ADR-0060-reserved.
   it into another draft of the same commission → observe the rename list → publish → fill → submit,
   plus one keyboard-only pass over the library browser.
 
+## Amendment 1 — ruling 4's "inline edit" is withdrawn; the rename list is read-only (2026-08-03)
+
+Found by `frontend` on contact with the builder, not by reading the ADR. Ruling 4 says the builder
+shows the renames "with inline edit while the version is still a draft and keys are still free to
+change." **Keys are not free to change, and never have been.** Verified against the live catalog and
+the action layer, not inferred:
+
+- **No `pg_proc` body performs `UPDATE … SET question_key = …` on `form_items`.** The functions that
+  update `form_items` at all (`app.copy_version_children`, `delete_section_moving_items`,
+  `reorder_item`) leave the key alone; the four bodies matching `question_key =` are answer-path
+  reads keyed *by* question_key, not renames.
+- `updateItem`'s contract is explicit: *"The item's type and its question_key are NOT changed:
+  question_key is stable so dashboards aggregate across versions."*
+- `addItem` mints the key server-side and never accepts one from the author.
+
+So "inline edit" described a capability the platform does not have. `frontend` declined to render a
+field that looks editable and silently discards on save — correctly; that is the
+`guards-that-read-right-but-fail-open` class this codebase has been burned by.
+
+**The rename list ships read-only** (old→new per row, "N chaves renomeadas" summary, `[]` renders
+nothing), structured so a real rename action is an additive diff later.
+
+**A second finding narrows how much ruling 4 matters at all.** `addItem` mints
+`` `${slugifyLabel(label)}_${shortSuffix()}` `` — **every** key already carries a random suffix.
+Keys are therefore unique by construction against anything not derived from the same source, and the
+collision `insert_block_from_library` must handle is the *narrow* one: inserting the same library
+block into the same version twice, because only a snapshot carries a literal key forward. The
+cross-version aggregation-split worry that motivated ruling 4's "surfacing" requirement is
+correspondingly smaller than the ruling implies — surfacing is still right (it is strictly better
+than `addItem`'s shipped precedent, which auto-suffixes on collision and says nothing), but it is an
+informational affordance, not a remedy.
+
+That also means **within a version the suffix is always correct**: two distinct questions must have
+two distinct keys, so "rename it back" is unsatisfiable by construction. A rename door's only real
+use is aligning a key with a *historical* version's key so the two aggregate — a genuinely new
+platform capability, not an FF-4 gap, and one that would inherit ruling 3's condition-rewrite
+obligation on a new surface. Queued below rather than absorbed into the last gate before the pilot.
+
+The keystone `insert_collision_suffix_deterministic` is unaffected — the server behaviour it pins
+never depended on the edit affordance.
+
 ## Open questions (deferred, not blocking)
+
+- **A `question_key` rename door** (Amendment 1) — draft-only, per-version uniqueness re-validated,
+  and it must rewrite every `visible_when` / `required_if` referencing the old key, symmetric to
+  `insert_block_from_library`. Wanted only if the pilot shows authors needing to align a new
+  version's key with a historical one.
 
 - **Org-visible library entries** (ruling 1) — additive: one boolean, one `OR` arm on the read
   policy. Revisit once the pilot shows whether committees actually want each other's blocks.
