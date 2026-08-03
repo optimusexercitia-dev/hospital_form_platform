@@ -546,6 +546,67 @@ Flag-5 freeze, with a POSITIVE twin so the three negatives cannot pass vacuously
 +3** (a TARGETED respondent READS validation ROWS - `274` section C can only prove the policy EXISTS,
 which ETH-E1 established is a different claim).
 
+## FF-4 - Power Authoring (2026-08-03; ADR 0092 + Amendments 1-2; migrations `20260903000000`-`...000600`; flag `power_authoring` **ON** via `...000600`)
+
+The **last** of the five phases ADR 0086 ruling 2 put in front of the pilot deploy. A commission-scoped
+reusable **block library** (jsonb snapshot of one item subtree) + **dynamic defaults**. No
+`form_calculations` - it stays ADR-0060-reserved (ADR 0086 ruling 6).
+
+- **`form_block_library`** - `commission_id NOT NULL`, `name`, `description`, `snapshot jsonb`, and
+  provenance as **denormalized `saved_by_id` / `saved_by_name` / source form title + version number with
+  NO FK** (ruling 2, deliberate: an FK forces a CASCADE-vs-RESTRICT call on a table meant to outlive its
+  source, and *any FK present will eventually be joined*, which is how a "snapshot" quietly becomes a
+  live link). **K9 preserved**: RLS enabled, **ONE** permissive SELECT policy
+  (`is_staff_admin_of OR is_commission_admin_of`), `authenticated` holds **SELECT only** - no write
+  policy, no write grant - so the four DEFINER doors are the only writers. Commission-only by PO ruling;
+  an org-visible arm is additive (one boolean + one `OR`) and deliberately deferred.
+- **Four DEFINER doors**, all `revoke execute … from public, anon` **at creation** (ADR 0091 Amendment 2
+  applied at birth, not patched): `save_block_to_library` * `insert_block_from_library` *
+  `update_block_library_entry` * `delete_block_library_entry`. Each enforces the commission perimeter
+  **itself** - there is no RLS behind a DEFINER body.
+- **⚠ RULING 3 - A SNAPSHOT IS CLOSED UNDER ITS OWN CONDITIONS.** `visible_when`/`required_if` are written
+  over `question_key`s. `save_block_to_library` **refuses** (`HC0Q6`, naming the keys) a subtree whose
+  condition references a key OUTSIDE it; `insert_block_from_library` applies the collision rename map to
+  the **conditions as well as the keys** via `app.rewrite_condition_keys` (handles both the single-condition
+  and `{match, conditions[]}` shapes). Renaming keys without rewriting conditions passes every structural
+  test and surfaces only as a question that never appears.
+- **⚠ `app._insert_block_child_rows` inserts `form_item_validations` LAST**, after the `parent_item_id`
+  re-link - `app.guard_item_validation_row` resolves the new item's **parent type** for
+  `unique_within_group`, so a pre-re-link copy sees NULL and refuses the row. Inherited verbatim from
+  `app.copy_version_children`, whose insert list **is** the authoritative child enumeration
+  (`form_items` recursive * `form_item_options` * `form_matrix_rows`/`_columns` * `form_item_validations`).
+  FF-5 reference config rides in `form_items.config`; there is no sixth child table.
+- **`form_items.default_source`** (text, nullable) + two CHECKs: `form_items_default_source_xor`
+  (literal `default_value` XOR dynamic `default_source`) and `form_items_default_source_type_check`
+  (`today`→`date`, `now`→`time`, `current_user_name`/`current_user_email`/`commission_name`→
+  `short_text`/`free_text`). ⚠ This type CHECK is **TIGHTER than the shipped
+  `form_items_default_value_display_null`**, which still permits a `default_value` on a matrix that nothing
+  can apply. FF-4 did **not** inherit that looseness and did **not** retro-tighten it - narrowing a shipped
+  CHECK against existing rows is its own migration (ADR 0092 open question).
+- **`app.seed_default_answers` / `app.resolve_default_source`** - INVOKER, flag-gated, wired into
+  **`start_or_resume_response`'s CREATE branch only** (body re-declared from live `pg_get_functiondef`,
+  the FF-2 `publish_form_version` precedent). **Idempotent by contract**: seeds only an unanswered item,
+  never overwrites an edited or cleared answer. Only `submitted` responses reach `question_key`
+  aggregates, so draft seeding does not perturb dashboards/indicators.
+- **⚠ `buildAnswerMaps` (TS, `src/lib/queries/responses.ts`) now DELIBERATELY DIVERGES** and it is not a
+  bug to "fix": `answersByItemId` keeps null-valued (cleared) scalar rows, `answersByKey` excludes them.
+  `answersByKey` is the **Rule 3 parity mirror** of `app.answer_map_scoped`'s
+  `jsonb_object_agg … and a.value is not null`; `answersByItemId` is the wizard's per-item state, where
+  "cleared" and "never answered" are different states (`withDefaults`' `item.id in initialAnswers`
+  presence check). Collapsing them was **BUG-FF4-001** - a cleared default silently re-seeded on resume -
+  and it was a **pre-existing answer-model-v2 bug** (literal `defaultValue` shares the same gate), not an
+  FF-4 regression. A mutation-proven Vitest PARITY GUARD pins the exclusion.
+- **Amendment 1** - there is **no `question_key` rename door anywhere in the platform**, and never has
+  been (`updateItem` pins the key stable so dashboards aggregate across versions; `addItem` mints
+  `slug(label) + shortSuffix()`). The rename-review list is therefore **read-only**. Because every key
+  already carries a random suffix, the only collision `insert_block_from_library` can hit is inserting the
+  same block into one version **twice**.
+- **SQLSTATE**: allocates **`HC0Q6`** (ruling-3 closure refusal). High-water moves `HC0Q5` → `HC0Q6`.
+- **pgTAP** `277_ff4_power_authoring.sql` - 61 assertions, 12 keystones, each mutation-proven, incl.
+  `library_metadata_door_cannot_touch_snapshot` (which makes ruling 2's immutability a proven invariant
+  rather than a convention that held because nothing could write) and `library_rls_tenant_scoped` with its
+  over-grant twin.
+
 ## N — Notifications (S1·N, 2026-07-13; ADR 0076; migrations `20260720000700`–`…000730`; flag `notifications` ON)
 
 In-app notification centre for the pilot's ONE vertical — **CAPA action · section sign-off · meeting**,
@@ -1237,6 +1298,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `case_participants` | **ON** (E1, migration `…001040`; ADR 0064/0072) | **The m2 hard gate — released by E1.** Seeded OFF at F1; flipped ON only once respondent-exclusion RLS landed. Gates the ethics write spine via `app.assert_case_participants_enabled()`. **Local only** — never `db push`ed this phase; prod flips at the deliberate pilot reset. RLS is live regardless of the flag (the flag gates RPC reachability, never the boundary). |
 | `matrix_fields` | **ON** (FF-2, migration `…001200`; ADR 0089) | Gates `upsert_matrix_axes` + both matrix answer writers (`HC0P2`) and the builder's matrix types; TS reads via `matrixFieldsEnabled()`. Seeded **OFF** in `20260830000100`; flipped ON by the gate-flip `…001200`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - a stored grid renders either way, so the flag governs authoring + filling only. |
 | `entity_refs` | **ON** (FF-5, gate-flip `20260902000600`; ADR 0091) | Gates `app.save_reference_answers` and `public.reference_candidates` (both raise `HC0Q3`), the reference arms of both save paths, and the builder's `reference` type. Seeded **OFF** in `20260902000000`; flipped by `20260902000600_enable_entity_refs.sql`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - a stored reference still projects and aggregates, so the flag governs authoring + filling only (same posture as `matrix_fields`). |
+| `power_authoring` | **ON** (FF-4, gate-flip `20260903000600`; ADR 0092) | Gates all four block-library DEFINER doors, `app.seed_default_answers`, and the builder's library browser + dynamic-default selector. Seeded **OFF** in `20260903000000`; flipped by `20260903000600_enable_power_authoring.sql`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - an inserted block is ordinary form structure and a stored `default_value` still applies, so the flag governs authoring + draft-start seeding only (same posture as `matrix_fields`/`entity_refs`). ⚠ **This flip has no later phase behind it**: FF-4 is the last of the five phases gating the pilot (ADR 0086 ruling 2), so the next `db push` is the pilot's - an absent flip would have gone dark straight into the customer pilot. |
 | `item_validations` | **ON** (FF-3, gate-flip `20260901000800`; ADR 0090) | ⚠ This row read "**the gate-flip migration does NOT exist yet**" until FF-5 - it does: `20260901000800_enable_item_validations.sql`, verified against the tree. Seeded OFF in `20260901000000`; flipped by `…000800`; `seed.sql` forces ON for local/E2E. Gates BOTH sides: `set_item_validations` raises `HC0Q0`, `get_response_validation_errors` returns the EMPTY SET, and the `required_if` layer + the `HC0P9` gate are skipped inside `submit_response`/`app.response_required_complete` (the flag is read ONCE per call and the `required_if` argument nulled at the call site, so the predicate stays IMMUTABLE). TS reads via `itemValidationsEnabled()`. **Fail-closed in a specific way**: with the flag OFF the writer raises `HC0Q0`, so a rules editor offered anyway is a dialog whose save can never succeed. ⚠ Without the flip, `db push` ships the phase DARK while local stays green - FF-2's review blocker. |
 | `case_types` | **ON** (E1, migration `…001040`; ADR 0064/0072) | The other half of the m2 gate. Gates the `create_case_from_template` type→case snapshot (`p_case_type_id` is ignored while OFF ⇒ `commission_default`/`non_phi_internal`). |
 

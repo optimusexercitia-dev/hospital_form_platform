@@ -53,7 +53,7 @@
 | referrals-v2 | **Referrals v2 [0037](docs/decisions/0037-inter-committee-case-referrals.md) | ✅ complete | ✅ | ✅ R1 E2E 40/40 + R2–R5 E2E 29/29 · pgTAP `150_referrals` 217/217 | ✅ APPROVED [R1](docs/reviews/rv2-r1-referrals-review.md) + [R2–R5 r2](docs/reviews/rv2-r2-r5-review.md) | ✅ 2026-07-19 | 2026-07-19 | R1 `33dbc09` · R2–R5 `223ed17` (ff→main `a61aae3`) |
 | interviews-v2 | **Interviews v2 [0070](docs/decisions/0070-interview-data-model-v2-sessions.md) | ✅ complete | ✅ | ✅ pgTAP `121` 60/60 (full 2287) + phase E2E 13/13 | ✅ APPROVED [review](docs/reviews/iv2-interviews-review.md) | ✅ 2026-07-14 | 2026-07-14 | `b015815`+`da7c219`+`77daa90` (`00a93dd`) |
 | pre-pilot-release | **Pre-Pilot Release Scope Expansion** [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) | ✅ complete | – | – | – | – | – | – |
-| ff-program | **Flexible-Forms Program (FF-1…FF-5)** — umbrella; [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) | ▶ **4 of 5 complete** — FF-1 ✅ · FF-2 ✅ · FF-3 ✅ · **FF-5 ✅ 2026-07-28** (ADR [0091](docs/decisions/0091-ff5-entity-reference.md) + Amendments 1–2; migrations `20260902000000`–`…000900`; flag `entity_refs` ON via `…000600`; **record → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md)**). ▶ **FF-4 is the last phase before the pilot deploy** (ADR 0086: all five gate it). | ✅ FF-5 (lint 0/0 · tsc · Vitest **851** · `next build`) | ✅ FF-5 — spec **10/10** ×2 · neighbours 21/21 · pgTAP **4240/4240** fresh reset · full `e2e:prod` 863p, **0 real failures** (the 53 raw reds were ONE dead server in batch 5 — all 106 errors `ERR_CONNECTION_REFUSED`, zero assertion failures; identical 63 re-ran 63/63) | ✅ FF-5 **APPROVED** r2 [review](docs/reviews/phase-FF-5-review.md) (r1 CHANGES REQUESTED — both blockers keystone-only, **no code defect, no security hole**) | ✅ **2026-07-28** | 2026-07-28 | FF-5 `f0cc3ac`…`598447e` (23 commits) |
+| ff-program | **Flexible-Forms Program (FF-1…FF-5)** — umbrella; [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) | ✅ **5 of 5 COMPLETE** — FF-1 ✅ · FF-2 ✅ · FF-3 ✅ · FF-5 ✅ 2026-07-28 · **FF-4 ✅ 2026-08-03** (ADR [0092](docs/decisions/0092-ff4-power-authoring.md) + Amendments 1–2; migrations `20260903000000`–`…000600`; flag `power_authoring` ON via `…000600`; **record → [ff-4-power-authoring.md](docs/progress/ff-4-power-authoring.md)**). ▶ **The program is closed and the pilot deploy is unblocked** (ADR 0086: all five gated it). | ✅ FF-4 (lint 0/0 · tsc · Vitest **873** · `next build`) — lead re-ran, not accepted on report | ✅ FF-4 — spec **7/7** · pgTAP **4301/4301** fresh reset (61 assertions, 12 keystones mutation-proven) · full `e2e:prod` 901p, coverage 926/931, **0 FF-4 defects** (every non-pass dispositioned: 1 non-idempotent spec, 21 batch-11 infra re-run 60/61, BUG-P15-001, 3 flaky, 5 skips) | ✅ FF-4 **APPROVED** [review](docs/reviews/phase-FF-4-review.md) — 0 P0 / 0 MAJOR; QA re-ran pgTAP itself and devised its own over-grant mutation | ✅ **2026-08-03** | 2026-08-03 | FF-4 `4df14d7`…`aa77b0d` (13 commits) |
 | **ETH·E1** | **Ethics Access Spine [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
 | **ETH·E2** | **Ethics disciplinary procedure** [0073](docs/decisions/0073-ethics-procedure-model.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
 | **ETH·E3a** | **Ethics terminology/UX surfacing** [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
@@ -69,9 +69,8 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-▶ **ACTIVE: FF-4 (Power Authoring)** — started 2026-08-03, ADR
-[0092](docs/decisions/0092-ff4-power-authoring.md). The Flexible-Forms program is **4 of 5
-complete**; **FF-4 is the last phase before the pilot deploy** (ADR 0086 — all five gate it).
+_No active build phase._ **The Flexible-Forms program is 5 of 5 COMPLETE** (ADR 0086) — FF-4 closed
+2026-08-03. The pilot deploy is now unblocked: origin push + Coolify + remote `db push`.
 
 | Phase | Flag | Record |
 | --- | --- | --- |
@@ -79,91 +78,32 @@ complete**; **FF-4 is the last phase before the pilot deploy** (ADR 0086 — all
 | **FF-2** Matrix & Risk Matrix ✅ 2026-07-27 | `matrix_fields` ON | [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md) |
 | **FF-3** Validation Engine ✅ 2026-07-28 | `item_validations` ON | [ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md) |
 | **FF-5** Entity Reference ✅ 2026-07-28 | `entity_refs` ON | [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md) |
+| **FF-4** Power Authoring ✅ 2026-08-03 | `power_authoring` ON | [ff-4-power-authoring.md](docs/progress/ff-4-power-authoring.md) |
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record →
 [case-type-assignment.md](docs/progress/case-type-assignment.md).
 
-### ▶ FF-4 (Power Authoring, `power_authoring`) — ACTIVE, started 2026-08-03
+### ▶ FF-4 (Power Authoring) — ✅ COMPLETE 2026-08-03
 
-ADR **[0092](docs/decisions/0092-ff4-power-authoring.md)** authored at phase start (9 rulings);
-scope + gate keystones there. Reusable block/question library (jsonb snapshot of the item subtree)
-+ dynamic defaults; **calculated fields stay post-pilot** (ADR 0086 ruling 6). It is last
-*structurally* — the library must snapshot every shipped item shape: options, matrix axes,
-validations, reference config.
-
-**PO rulings 2026-08-03** — ① library is **commission-only** (one RLS arm; org-visible deferred as
-additive) · ② `question_key` collisions **auto-suffix + a visible rename list** in the draft
-builder, never silent · ③ dynamic-default vocabulary v1 = **five PHI-free tokens** (`today`, `now`,
-`current_user_name`, `current_user_email`, `commission_name`); **case context deferred**.
-
-**Substrate pinned at phase start (live catalog, 235/235 registered, max `20260902000900`):** the
-deep-copy authority is **`app.copy_version_children`** — its insert list (`form_items` recursive ·
-`form_item_options` · `form_matrix_rows`/`_columns` · `form_item_validations` **last**, after the
-`parent_item_id` re-link) is the complete child set a snapshot must carry; FF-5 reference config
-rides in `form_items.config`, so there is no sixth table. SQLSTATE high-water **HC0Q5** → FF-4
-allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`**.
-
-> 🔴 **ADR 0092 ruling 3 is the sharpest risk in this phase and the plan did not anticipate it.**
-> A snapshot must be **closed under its own conditions**: `visible_when`/`required_if` are written
-> over `question_key`s, so a block whose condition points *outside* the subtree either dangles or
-> silently binds to an unrelated question sharing that key. Save **refuses** (`HC0Q6`); insert
-> **rewrites conditions with the rename map**. Renaming keys without rewriting conditions passes
-> every structural test and surfaces only as a question that never appears.
-
-| # | Task | Owner | Depends on |
-| --- | --- | --- | --- |
-| BE-1 | Contract-first: post typed signatures for the library queries/actions before implementing | backend | — |
-| BE-2 | `…000000` `form_block_library` + RLS (ruling 1) + `power_authoring` seeded **OFF** + grants | backend | BE-1 |
-| BE-3 | `…000100` `form_items.default_source` + XOR CHECK + token↔type CHECK (ruling 6) | backend | — |
-| BE-4 | `…000200` `save_block_to_library` DEFINER door — subtree snapshot + ruling-3 closure (`HC0Q6`) + revokes | backend | BE-2 |
-| BE-5 | `…000300` `insert_block_from_library` DEFINER door — deep copy over the `copy_version_children` child set, key suffix + **condition rewrite**, returns rename map | backend | BE-2, BE-4 |
-| BE-6 | Draft-start default resolution (idempotent) · `gen:types` · pgTAP for all 9 keystones incl. over-grant twin | backend | BE-3, BE-5 |
-| BE-7 | ✅ `…000500` `update_block_library_entry` / `delete_block_library_entry` DEFINER doors (ruling 2 metadata edit + delete) | backend | BE-4 |
-| FE-1 | ✅ Builder: library browser + save-to-library (flag-gated) | frontend | BE-1 |
-| FE-2 | ✅ Insert flow + the **rename review list** (ruling 4) — shipped READ-ONLY (ADR 0092 Amendment 1: no rename door exists anywhere; `question_key` is immutable post-creation, confirmed independently by both frontend and backend) | frontend | BE-1 |
-| FE-3 | ✅ `default-value-editor.tsx`: dynamic-source selector, type-gated to the 5 tokens — literal/dynamic/none modeled as one discriminated union (`DefaultConfig`), so ruling 6's exclusivity is a type invariant, not a convention | frontend | BE-1 |
-| FE-4 | ✅ Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` — `today`/`now` resolve from `responses.started_at` (added to `ResponseForFill` by backend on request), not a live clock, so a resumed draft never drifts | frontend | BE-1 |
-| FE-5 | ✅ Library entry rename/re-describe + delete (ruling 2) in `block-library-picker.tsx` + new `edit-library-entry-dialog.tsx`. Delete confirm names the safety property (materialized copies, not links); both keyboard-operable, announced via a picker-level `aria-live` region (a per-card region would unmount with a deleted card before being read). All 4 doors + the browse read exercised directly against the local RPC/REST endpoint (save → browse → insert-with-forced-collision → rename → delete → browse), since this environment's browser pane has no compositing surface for a spawned subagent (confirmed: `document.visibilityState` stuck `"hidden"`, `getBoundingClientRect` zero on interactive elements) — see the phase record for detail | frontend | BE-7 |
-| T-1 | ✅ E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only — **7/7** (BUG-FF4-001 filed, fixed `b5c505e`, re-verified). Full `e2e:prod` run by lead: 849p/3f/3flaky/15 batches, both non-flaky failures triaged by tester — see Bug Log (BUG-P15-001) and Test Run Summary | tester | FE-1…5 |
-| QA-1 | ✅ Phase review → `docs/reviews/phase-FF-4-review.md` — **APPROVED**, 0 P0/0 MAJOR (independently verified live: catalog ACLs/RLS/CHECKs, pgTAP 61/61 re-run, one live RLS over-grant-twin mutation against real seed personas, BUG-FF4-001 fix read at the source) | qa | T-1 green |
-
-> 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
-> shipped once.**
->
-> 1. **`app.copy_response_answers` is THE single correction-copy surface** (FF-5 extracted it from
->    six hand-written copies). A new answer shape adds **one insert there** and nowhere else. That
->    join failing silently copies *nothing* — which is exactly how FF-1's P0-1 destroyed real data,
->    proven live 2 selections → 0.
-> 2. **The sign-off projection is owed at BOTH scopes — four misses running.** instances (FF-1),
->    grids (FF-2), references *and* top-level `other_text` (FF-5). pgTAP `276 §N` pins the
->    projection's **key set**, not one key, precisely because a single-key test would have passed
->    for all three earlier misses. A signer attesting to content the screen never showed them is
->    the sharp end.
-> 3. **Type sets live once**, in `src/lib/forms/item-tree.ts`, pinned to the DB CHECK by
->    `item-type-sets.test.ts` + pgTAP `276 §M`. BUG-FF5-001 was three hand-written copies drifting:
->    the builder could not create a reference item **at all** while pgTAP, Vitest, tsc, lint and
->    `next build` were green. ⚠ `ItemType` is still a **hand-written** union (`gen:types` renders a
->    CHECK-constrained `text` column as `string`), so DB→TS remains a convention with a test under it.
-> 4. **An optional prop with a default is a type-system opt-out.** BUG-FF5-002 blanked every
->    reference on the durable submitted record because tsc cannot object to an *omitted optional*
->    prop. All six answer-payload props are now required; keep new ones required. Note the shape:
->    components taking a whole typed object inherit new fields automatically, components taking a
->    destructured prop list do not.
-> 5. **Check that your predicate could have failed for the reason you claim it passed.** FF-5
->    produced **eight** checks that were vacuous by construction — review found none, mutation
->    found all. The list is worth reading before writing keystones →
->    [ff-5-entity-reference.md §4](docs/progress/ff-5-entity-reference.md).
-> 6. **`git commit -- <paths>`, not `git add <dir>`.** `commit` commits the whole index, so a
->    concurrent teammate's staged files ride along however carefully your *add* was scoped. This
->    mis-attributed a commit during FF-5.
+ADR [0092](docs/decisions/0092-ff4-power-authoring.md) + Amendments 1–2 · flag `power_authoring`
+**ON** via gate-flip `20260903000600` · QA ✅ APPROVED [review](docs/reviews/phase-FF-4-review.md) ·
+human-approved 2026-08-03. **Full detail, the five defects this phase surfaced, and the non-blocking
+items it carried out → [ff-4-power-authoring.md](docs/progress/ff-4-power-authoring.md).**
 
 ### 📋 Remaining pre-pilot work
 
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); **re-expanded
 2026-07-27 — ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md)** (Flexible-Forms FF-1…FF-5 pulled
-pre-pilot). **FF-1 · FF-2 · FF-3 · FF-5 are all ✅ COMPLETE (2026-07-27/28)**; this is the standing
-backlog — remaining pre-pilot = **FF-4** (one gated phase), the FUP-AI-1 workstream, then the
-**pilot deploy**.
+pre-pilot). **ALL FIVE FF phases are ✅ COMPLETE — the program closed 2026-08-03 with FF-4**; this is the
+standing backlog — remaining pre-pilot = the FUP-AI-1 workstream, then the **pilot deploy** (no gated
+phase remains in front of it).
+
+> ⚠ **BUG-P15-001 is a calendar constraint on the pilot deploy.** `seed.sql` dates its `'nao'` responses
+> `now()-1d`/`now()-4d` while `phase15-indicators` AC-4 counts within the **current calendar month**, so
+> the E2E suite **cannot go fully green on the 1st–4th of any month**. Pre-existing (FF-5's gate ran
+> Jul 28, when every offset sat inside July), not an FF-4 defect, and QA did not treat it as blocking —
+> but it will red the suite if the deploy lands early in a month. Fix is in `supabase/seed.sql`, whose
+> date distribution other specs depend on, so it needs its own verification pass rather than a drive-by.
 
 · **S4 ✅ COMPLETE 2026-07-20** — ✅ **ETH·E2** (2026-07-18) + ✅ **Referrals v2 R2–R5** (2026-07-19) + ✅ **CH** Charters (Phase 21, 2026-07-20 — ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [detail](docs/progress/ch-charters-cadence.md)), all → `main`
 · ✅ **S5 ETH·E3a COMPLETE 2026-07-27** — terminology/UX + auto-derived procedural timeline + ethics dashboard (E3b still needs Phase 16) → [eth-e3a-surfacing.md](docs/progress/eth-e3a-surfacing.md)
