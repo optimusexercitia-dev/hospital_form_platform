@@ -10467,6 +10467,27 @@ export type Database = {
         Args: { p_source_version_id: string }
         Returns: string
       }
+      clone_framework: {
+        Args: { p_commission: string; p_framework: string }
+        Returns: {
+          cloned_from_framework_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          name: string
+          owner_commission_id: string | null
+          status: string
+          updated_at: string
+          version: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "accreditation_frameworks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       close_capa_plan: {
         Args: { p_capa_id: string; p_lessons_learned_md?: string }
         Returns: {
@@ -11257,6 +11278,33 @@ export type Database = {
           version_id: string
         }[]
       }
+      create_framework: {
+        Args: {
+          p_description?: string
+          p_key: string
+          p_name: string
+          p_owner_commission?: string
+          p_version?: string
+        }
+        Returns: {
+          cloned_from_framework_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          name: string
+          owner_commission_id: string | null
+          status: string
+          updated_at: string
+          version: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "accreditation_frameworks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_indicator: {
         Args: {
           p_commission: string
@@ -11871,6 +11919,7 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      delete_standard: { Args: { p_standard: string }; Returns: undefined }
       discard_response: { Args: { p_response_id: string }; Returns: undefined }
       dispose_attachment_phi: {
         Args: { p_id: string; p_reason: string }
@@ -11945,6 +11994,14 @@ export type Database = {
           review_due_date: string
           source_kind: string
           title: string
+        }[]
+      }
+      evidence_candidates: {
+        Args: { p_commission: string; p_kind: string; p_query?: string }
+        Returns: {
+          id: string
+          label: string
+          sublabel: string
         }[]
       }
       file_correction_request: {
@@ -12192,6 +12249,31 @@ export type Database = {
       lift_recusal: {
         Args: { p_reason_md: string; p_recusal_id: string }
         Returns: undefined
+      }
+      link_evidence: {
+        Args: {
+          p_artifact: string
+          p_commission: string
+          p_kind: string
+          p_note?: string
+          p_standard: string
+        }
+        Returns: {
+          artifact_id: string
+          artifact_kind: string
+          commission_id: string
+          id: string
+          linked_at: string
+          linked_by: string | null
+          note: string | null
+          standard_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "evidence_links"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       link_meeting_case: {
         Args: {
@@ -14099,6 +14181,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_framework_status: {
+        Args: { p_framework: string; p_status: string }
+        Returns: undefined
+      }
       set_indicator_target: {
         Args: {
           p_id: string
@@ -14394,6 +14480,46 @@ export type Database = {
           p_unit?: string
         }
         Returns: undefined
+      }
+      set_standard_assessment: {
+        Args: {
+          p_commission: string
+          p_note_md?: string
+          p_standard: string
+          p_status: string
+        }
+        Returns: {
+          assessed_at: string
+          assessed_by: string | null
+          commission_id: string
+          id: string
+          note_md: string | null
+          standard_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "standard_assessments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_standard_ownership: {
+        Args: { p_commission?: string; p_hospital: string; p_standard: string }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          hospital_id: string
+          id: string
+          responsible_commission_id: string
+          standard_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "standard_ownerships"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_template_case_type: {
         Args: { p_case_type_id?: string; p_template_id: string }
@@ -14868,6 +14994,7 @@ export type Database = {
         Returns: undefined
       }
       unassign_narrative: { Args: { p_narrative: string }; Returns: undefined }
+      unlink_evidence: { Args: { p_link: string }; Returns: undefined }
       unlink_meeting_case: {
         Args: { p_case_link_id: string }
         Returns: undefined
@@ -15291,6 +15418,32 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "pqs_event_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_framework: {
+        Args: {
+          p_description?: string
+          p_framework: string
+          p_name?: string
+          p_version?: string
+        }
+        Returns: {
+          cloned_from_framework_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          name: string
+          owner_commission_id: string | null
+          status: string
+          updated_at: string
+          version: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "accreditation_frameworks"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -16040,6 +16193,36 @@ export type Database = {
       upsert_matrix_axes: {
         Args: { p_columns: Json; p_item_id: string; p_rows: Json }
         Returns: undefined
+      }
+      upsert_standard: {
+        Args: {
+          p_code: string
+          p_description_md?: string
+          p_framework: string
+          p_id?: string
+          p_level?: number
+          p_parent?: string
+          p_position?: number
+          p_title: string
+        }
+        Returns: {
+          code: string
+          created_at: string
+          description_md: string | null
+          framework_id: string
+          id: string
+          level: number | null
+          parent_id: string | null
+          position: number
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "accreditation_standards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       validate_visible_when: {
         Args: { p_form_version_id: string }
