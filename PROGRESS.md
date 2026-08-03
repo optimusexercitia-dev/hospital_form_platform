@@ -179,11 +179,10 @@ BUG-GATE-001's stated mechanism ("would have printed GATE GREEN") was false. Eve
 re-running the repro or querying the live catalog — none from re-reading the report.
 
 Fixed: **BUG-GATE-001** (denominator + UNRUN verdict), **BUG-AUTHZ-001** (migration `…000700` +
-pgTAP `270`), **BUG-P22-002** (spec timing). Closed not-reproducible: **BUG-P22-001**,
-**BUG-E2EISO-003**, **BUG-E2EISO-001**. Already closed before the batch began: **BUG-E2EISO-002**.
-**Attempted and REVERTED: BUG-P15-001** — a seed-side month-clamp fixed AC-4 but regressed
-`phase8-dashboard` 8×; the seed cannot satisfy both near a month boundary (see its entry). Also fixed
-in passing: `referrals-list.tsx`'s `STATUS_LIFECYCLE_ORDER` was
+pgTAP `270`), **BUG-P22-002** (spec timing), **BUG-P15-001** (spec-side derived window — a seed-side
+clamp was tried first and reverted for regressing `phase8-dashboard` 8×). Closed not-reproducible:
+**BUG-P22-001**, **BUG-E2EISO-003**, **BUG-E2EISO-001**. Already closed before the batch began:
+**BUG-E2EISO-002**. Also fixed in passing: `referrals-list.tsx`'s `STATUS_LIFECYCLE_ORDER` was
 missing R3's `answered`/`resolved`, so `STATUS_RANK[status]` was `undefined` → **NaN sort comparator**
 and neither state was filterable — despite a JSDoc asserting the list "must stay TOTAL"; it now carries
 a compile-time totality guard instead of the comment.
@@ -283,7 +282,34 @@ same batch failed in the previous full run — batch-1 instability, not a specif
 **Not FF-4, not a product defect.** Pre-existing test-isolation weakness. Interacts with BUG-GATE-001:
 an unstable batch produces a rerun on dirty state, which surfaces this, which reads as a real failure.
 
-#### 🟡 BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic · owner **backend**/**tester** · **STILL OPEN — a seed-side fix was attempted 2026-08-03 and REVERTED** (filed 2026-08-03)
+#### ✅ BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic · owner **tester** · **FIXED 2026-08-03** (filed 2026-08-03)
+
+**Fix (spec-side, `e2e/phase15-indicators.spec.ts`):** AC-4 now reads its aggregation window off the
+**actual seeded rows** instead of assuming they share the calendar month containing `new Date()`:
+
+```
+responses?status=eq.submitted&select=submitted_at,answers!inner(question_key)
+  &answers.question_key=eq.dispensador_disponivel&order=submitted_at.asc
+```
+
+…then overrides the dialog's label-derived month bounds with `[first, last]` via the
+`Início/Fim do período` inputs MINOR-1 added. Nothing constrains the window to the label's month —
+`compute_derived_measurement` uses `p_period_start`/`p_period_end` directly — so a span crossing a
+month boundary is legal, which is exactly what the 1st–4th needs. The month label stays the current
+month; it is only an identifier for the throwaway measurement.
+
+**Verified on 2026-08-03, inside the failing window.** Before: `Numerador derivado: 1 · Valor: 1`.
+After: AC-4 passes, full file **12/12**. **Mutation-falsifiable** — narrowing the window to a single
+day yields `Numerador derivado: 0` and reds, so the assertion is load-bearing and the window genuinely
+drives the result. Also carries a non-vacuity guard: zero source rows fails loudly rather than
+silently computing against an empty window.
+
+**Strictly more robust than the old behaviour, not merely boundary-patched.** On a normal day the
+derived window sits inside the month and yields the same 2. On the **1st**, where all six fixtures are
+in the *previous* month, the old current-month window would have found **0**; the derived one finds
+both. It is date-independent by construction.
+
+<details><summary>⚠ A seed-side fix was attempted first and REVERTED — read before re-attempting</summary>
 
 **⚠ The seed-side fix does not work. Do not re-attempt it without reading this.**
 
@@ -308,6 +334,8 @@ enough days. So this is not a matter of picking a better clamp expression.
 aggregation window from the actual seeded dates instead of assuming "the calendar month containing
 `new Date()`". That is an `e2e/**` change (tester-owned), leaves the seed untouched, and cannot
 perturb `phase8-dashboard`. The seed boundary (backend) should be considered closed to this fix.
+
+</details>
 
 Everything below this line is the original diagnosis, which remains correct.
 

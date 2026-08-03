@@ -264,15 +264,44 @@ test('AC-4: hybrid taxa computes one-step and preserves the denominator on recom
   await signInAs(page, 'chefe.ccih@test.local')
   const id = await indicatorIdByCode(page, 'IND-0003')
 
-  // Throwaway period = the CURRENT month. MINOR-1 makes the dialog auto-derive a
-  // real aggregation window ("Início/Fim do período") from this YYYY-MM label, and
-  // the derived compute honours that window. The seed submits the numerator's
-  // `dispensador_disponivel = 'nao'` responses on now()-relative dates (this month),
-  // so only a current-month window catches them → numerator 2. A far-future label
-  // (the pre-MINOR-1 constant) would now yield 0. There is no seeded current-month
-  // measurement for IND-0003 (seed has 2026-06 only), so this stays a clean throwaway.
+  // Throwaway period LABEL = the current month. It is only an identifier here: there
+  // is no seeded current-month measurement for IND-0003 (seed has 2026-06 only), so
+  // this stays a clean throwaway.
   const now = new Date()
   const throwawayPeriod = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+
+  // BUG-P15-001 — the aggregation WINDOW is derived from the seeded data, not from
+  // today's date.
+  //
+  // This test used to let the dialog auto-derive the window from the month label and
+  // rely on "the seed's now()-relative responses are all in the current month". That
+  // is false on the 1st-4th of EVERY month: the seed ages its Form-A responses by a
+  // fixed `i days` (i = 1..6) and the two `dispensador_disponivel = 'nao'` rows the
+  // derived numerator counts sit at i = 1 and i = 4. On the 3rd, i=4 is LAST month,
+  // so a current-month window caught one of two and the test read
+  // "Numerador derivado: 1" against an expected 2 — with the RPC, the seed and this
+  // test's own logic all behaving correctly.
+  //
+  // Fixing it in `supabase/seed.sql` was tried and REVERTED: clamping the six
+  // fixtures into the ~2.5 days of month available on the 3rd collapses the date
+  // spread that `phase8-dashboard.spec.ts` asserts exact counts against (8 failures).
+  // Near a month boundary the seed cannot satisfy both — there aren't enough days.
+  // So the window is read off the actual rows instead, which is date-independent by
+  // construction and touches no shared fixture.
+  const sourceRows = await serviceQuery<{ submitted_at: string }>(
+    page,
+    'responses?status=eq.submitted' +
+      '&select=submitted_at,answers!inner(question_key)' +
+      '&answers.question_key=eq.dispensador_disponivel' +
+      '&order=submitted_at.asc',
+  )
+  expect(
+    sourceRows.length,
+    'BUG-P15-001 guard: no submitted dispensador_disponivel responses found — the ' +
+      'window below would be empty and the numerator assertion would pass vacuously',
+  ).toBeGreaterThan(0)
+  const windowStart = sourceRows[0].submitted_at.slice(0, 10)
+  const windowEnd = sourceRows[sourceRows.length - 1].submitted_at.slice(0, 10)
 
   // Ensure a clean throwaway period (in case a prior partial run left it).
   await page.request.delete(
@@ -298,6 +327,15 @@ test('AC-4: hybrid taxa computes one-step and preserves the denominator on recom
   // / "Fim do período" date inputs that an unanchored /período/i would also match
   // (strict-mode violation). The date window auto-derives from this label.
   await dialog.getByLabel('Período', { exact: true }).fill(throwawayPeriod)
+  // Override the label-derived month bounds with the real seeded span (BUG-P15-001).
+  // `PeriodWindowFields` renders these as controlled inputs whose override sticks
+  // once edited, so this must come AFTER the label is typed — the un-edited fields
+  // track the label live, and filling them is exactly what makes them stop.
+  // Nothing constrains the window to the label's month: `compute_derived_measurement`
+  // uses `p_period_start`/`p_period_end` directly (`sr.submitted_at::date >= v_from`),
+  // so a span crossing a month boundary is legal, which is the whole point here.
+  await dialog.getByLabel('Início do período').fill(windowStart)
+  await dialog.getByLabel('Fim do período').fill(windowEnd)
   // Manual denominator 1000 → taxa = 2/1000*1000 = 2 (numerator derived = 'nao'×2).
   await dialog.getByLabel(/pacientes-dia|denominador/i).fill('1000')
   await dialog.getByRole('button', { name: /^calcular$/i }).click()
