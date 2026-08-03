@@ -372,3 +372,58 @@ share, not just whether either one is individually correct.
 record previously displayed as unanswered — the FF-5 acceptance criterion this bug blocked directly.
 The REVIEW screen (pre-submit, same-request, client-side state) was never affected.
 
+
+---
+
+## BUG-FF4-001 (rotated from PROGRESS.md at the FF-4 Record, 2026-08-03) — RESOLVED
+
+#### ✅ BUG-FF4-001 — clearing a dynamic-default answer and resuming the draft RE-SEEDS it, violating ADR 0092 ruling 5's idempotency contract · owner **backend** · **RESOLVED** (filed 2026-08-03, fixed `b5c505e`, re-verified by tester 2026-08-03)
+
+**Verified fixed:** `npx playwright test e2e/ff4-power-authoring.spec.ts -g "FF4-4" --project=chromium --workers=1` → **1/1 pass** against a fresh prod standalone build on `b5c505e` (re-staged/re-served, no rebuild needed — no `src/` file was newer than the existing `.next/BUILD_ID`). Full file independently re-confirmed **7/7** by both tester and lead.
+
+**Spec:** `e2e/ff4-power-authoring.spec.ts` FF4-4 (acceptance criterion 4's idempotency clause). **Repro**
+(deterministic — 3 consecutive runs, prod standalone, fresh state each time): author a `date` item with
+a `today` dynamic default, publish, fill as a respondent (the field correctly prefills). Click the
+field's own **"Limpar"** clear button (the real per-field affordance, not a raw `.fill('')`), confirm it
+reads empty, **"Salvar e sair"**, then **"Continuar preenchimento"** back into the same draft.
+
+**Expected** (ADR [0092](docs/decisions/0092-ff4-power-authoring.md) ruling 5 — *"a filler who clears a
+field does not have it refilled behind them"*; pgTAP keystone `default_prefill_idempotent` — *"re-entering
+the draft does not overwrite an edited or cleared answer"*): the field resumes **empty**.
+
+**Actual:** the field resumes prefilled with `today` again (`2026-08-03`), indistinguishable from a
+field that was never touched.
+
+**Not a save-path defect** — DB truth (asserted in the spec, immediately after "Salvar e sair") proves
+the clear DID persist: `select value from answers where response_id=… and item_id=…` returns exactly
+**one row**, `value = 'null'::jsonb` — an explicit "answered as empty" row, not a missing one. The defect
+is entirely on the READ/resume side.
+
+**Root cause, traced to one line:** `buildAnswerMaps` in `src/lib/queries/responses.ts:429`:
+```ts
+for (const a of scalarAnswers) {
+  if (a.value === null) continue   // ← drops the row instead of keeping "answered: null"
+  ...
+  answersByItemId[a.item_id] = a.value
+}
+```
+unconditionally skips any scalar answer row whose `value` is JSON `null`, so `answersByItemId` never gets
+a key for it. `toAnswerState` (`src/components/responses/wizard/prepare.ts:42-54`) then reads
+`response.answersByItemId[item.id]` as `undefined`, and — since `observation`/`otherText` are also
+`undefined` for this item — `continue`s past it, so it never lands in `initialAnswers`. `withDefaults`
+(`src/components/responses/wizard/use-wizard.ts:406`, `if (item.id in initialAnswers) continue`)
+therefore sees no saved answer at all and re-seeds the default. The line-429 filter predates FF-4 — its
+comment explains a different, still-valid concern (ignoring a stray non-null value on a CHOICE item,
+whose real answer lives in `answer_selected_options`) — but nobody revisited it for the new "explicit
+null = deliberately cleared" semantic FF-4's idempotency ruling depends on.
+
+**Broader blast radius, NOT directly exercised by this spec:** `withDefaults` seeds from a LITERAL
+`default_value` before falling to `defaultSource` (rulings 5/6 share the one function), so the same root
+cause very likely also re-seeds a plain, pre-FF-4 (answer-model-v2) literal default after it is cleared
+and the draft resumed — FF4-4 only exercises the two FF-4 dynamic tokens; worth the owning engineer's own
+check before calling the fix's scope closed.
+
+**Not filed as a fix suggestion** (tester scope): `buildAnswerMaps` needs to represent "answered, value is
+`null`" as distinct from "no row" rather than dropping the row — how to do that without disturbing the
+CHOICE-item exclusion sharing the same loop is backend's call.
+

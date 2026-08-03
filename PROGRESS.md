@@ -165,55 +165,84 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **FF-5-era bugs — both closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF5-001** (the builder could not author a `reference` item at all — three sites: `ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`; `updateItem` was broken independently) and **BUG-FF5-002** (every top-level reference rendered "Sem resposta" on the durable submitted record — the page never passed `referencesByItemId` and the prop was optional-with-default, so tsc could not object). Both passed pgTAP 4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them.**
 
-#### ✅ BUG-FF4-001 — clearing a dynamic-default answer and resuming the draft RE-SEEDS it, violating ADR 0092 ruling 5's idempotency contract · owner **backend** · **RESOLVED** (filed 2026-08-03, fixed `b5c505e`, re-verified by tester 2026-08-03)
+**FF-4-era bugs — BUG-FF4-001 closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF4-001** (clearing a dynamic *or* literal default and resuming RE-SEEDED it — `buildAnswerMaps` collapsed "answered as null" into "never answered"; fixed `b5c505e`, re-verified 7/7 by tester and lead). ⚠ It was a **pre-existing answer-model-v2 bug FF-4 surfaced**, not an FF-4 regression, and **the obvious one-line fix would have broken Rule 3 SQL↔TS evaluator parity** — see the archive entry before touching `buildAnswerMaps`.
 
-**Verified fixed:** `npx playwright test e2e/ff4-power-authoring.spec.ts -g "FF4-4" --project=chromium --workers=1` → **1/1 pass** against a fresh prod standalone build on `b5c505e` (re-staged/re-served, no rebuild needed — no `src/` file was newer than the existing `.next/BUILD_ID`). Full file independently re-confirmed **7/7** by both tester and lead.
+#### 🔴 BUG-GATE-001 — `scripts/e2e-prod-gate.sh` drops a `reset FAILED` batch from its OWN coverage denominator, so it can print GATE GREEN over tests that never ran · owner **tester** (⚠ `scripts/` is outside tester's declared `e2e/` scope in CLAUDE.md §4 — lead to confirm ownership before assigning) · **OPEN** (filed 2026-08-03, found by the lead during the FF-4 gate)
 
-**Spec:** `e2e/ff4-power-authoring.spec.ts` FF4-4 (acceptance criterion 4's idempotency clause). **Repro**
-(deterministic — 3 consecutive runs, prod standalone, fresh state each time): author a `date` item with
-a `today` dynamic default, publish, fill as a respondent (the field correctly prefills). Click the
-field's own **"Limpar"** clear button (the real per-field affordance, not a raw `.fill('')`), confirm it
-reads empty, **"Salvar e sair"**, then **"Continuar preenchimento"** back into the same draft.
+**Severity rationale — this is the only bug here that can make the Phase Gate itself lie.** Every other
+open bug makes a test go red. This one makes tests *disappear*.
 
-**Expected** (ADR [0092](docs/decisions/0092-ff4-power-authoring.md) ruling 5 — *"a filler who clears a
-field does not have it refilled behind them"*; pgTAP keystone `default_prefill_idempotent` — *"re-entering
-the draft does not overwrite an edited or cleared answer"*): the field resumes **empty**.
-
-**Actual:** the field resumes prefilled with `today` again (`2026-08-03`), indistinguishable from a
-field that was never touched.
-
-**Not a save-path defect** — DB truth (asserted in the spec, immediately after "Salvar e sair") proves
-the clear DID persist: `select value from answers where response_id=… and item_id=…` returns exactly
-**one row**, `value = 'null'::jsonb` — an explicit "answered as empty" row, not a missing one. The defect
-is entirely on the READ/resume side.
-
-**Root cause, traced to one line:** `buildAnswerMaps` in `src/lib/queries/responses.ts:429`:
-```ts
-for (const a of scalarAnswers) {
-  if (a.value === null) continue   // ← drops the row instead of keeping "answered: null"
-  ...
-  answersByItemId[a.item_id] = a.value
-}
+**Observed.** The FF-4 full-suite run printed:
 ```
-unconditionally skips any scalar answer row whose `value` is JSON `null`, so `answersByItemId` never gets
-a key for it. `toAnswerState` (`src/components/responses/wizard/prepare.ts:42-54`) then reads
-`response.answersByItemId[item.id]` as `undefined`, and — since `observation`/`otherText` are also
-`undefined` for this item — `continue`s past it, so it never lands in `initialAnswers`. `withDefaults`
-(`src/components/responses/wizard/use-wizard.ts:406`, `if (item.id in initialAnswers) continue`)
-therefore sees no saved answer at all and re-seeds the default. The line-429 filter predates FF-4 — its
-comment explains a different, still-valid concern (ignoring a stray non-null value on a CHOICE item,
-whose real answer lives in `answer_selected_options`) — but nobody revisited it for the new "explicit
-null = deliberately cleared" semantic FF-4's idempotency ruling depends on.
+COVERAGE: accounted for 860 of 865 collected tests     ← reads as ~99%
+```
+The true total across all specs is **931**. Batch 4 had died on `reset FAILED`, so its five spec files —
+`ethics-e2-procedure` · `ethics-e3a-surfacing` · `ff1-repeating-groups` · `ff2-matrix-views` ·
+`ff2-matrix` = **66 tests** — never executed. `931 − 66 = 865`: the script removed the dead batch from
+its own denominator rather than counting it as unrun. **Had those 66 contained the only failures, the
+script would have printed `GATE GREEN`.**
 
-**Broader blast radius, NOT directly exercised by this spec:** `withDefaults` seeds from a LITERAL
-`default_value` before falling to `defaultSource` (rulings 5/6 share the one function), so the same root
-cause very likely also re-seeds a plain, pre-FF-4 (answer-model-v2) literal default after it is cleared
-and the draft resumed — FF4-4 only exercises the two FF-4 dynamic tokens; worth the owning engineer's own
-check before calling the fix's scope closed.
+**Why it evades notice.** The summary looks *better* than a normal run, not worse. `reset FAILED` is a
+single unindexed line hundreds of lines up with no batch number on it, no `batch-4.log` is written, and
+the per-batch result lines simply have no row for the dead batch — you must spot a **gap in the batch
+numbering**, which nothing highlights. `did-not-run` stayed `0` throughout.
 
-**Not filed as a fix suggestion** (tester scope): `buildAnswerMaps` needs to represent "answered, value is
-`null`" as distinct from "no row" rather than dropping the row — how to do that without disturbing the
-CHOICE-item exclusion sharing the same loop is backend's call.
+**Repro.** Any run where a per-batch `supabase db reset` fails. It happened **twice in one session, on
+different batches**, while a manual `supabase db reset` succeeded immediately afterward — so the reset
+failure is transient contention (suspects: back-to-back per-batch resets, and `supabase_edge_runtime`
+sitting in `exited` state during "Restarting containers"), not a broken migration chain.
+
+**Fix shape (not prescribed — verify first):** the denominator must come from the collected total, and a
+batch that never ran must be reported as unrun (and force RED), not subtracted. Consider also emitting a
+`batch-N.log` stub on reset failure so the gap is visible in `ls`.
+
+**Interim workaround for whoever runs the next gate — do all three:**
+1. `grep -c "reset FAILED" <log>` **before** reading the summary.
+2. Check `m` in `COVERAGE: n of m` against `awk '{s+=$1} END {print s}' /tmp/e2e-prod-gate/spec-counts.txt`.
+3. Enumerate batches: `grep -oE "BATCH [0-9]+" <log> | sort -k2 -n -u` — a `BATCH N` header with no
+   matching `batch N -> …` result line is an unrun batch.
+
+*(In the FF-4 gate the 66 were re-run standalone → **66/66 green**, so no FF-4 regression hid there. That
+had to be established, not assumed.)*
+
+#### 🟡 BUG-E2EISO-002 — `session_replication_role = replica` in the FF-1/2/3/5 specs' `purge()` disables FK CASCADE and orphans form rows on every run · owner **tester** · **OPEN** (filed 2026-08-03; found by tester during the FF-4 test pass, hit again in a second file during triage)
+
+Promoted from a prose "side finding" in the Test Run Summary to a numbered bug so it survives a sweep.
+**Full technical detail is in the Test Run Summary below — not duplicated here.**
+
+**One line:** `session_replication_role = replica` is used to bypass `guard_submitted_response` before
+deleting a form, but it disables **all** non-origin triggers including Postgres's own FK-CASCADE, so
+`delete from forms …` leaves `form_versions`/`form_items`/`form_sections`/`answers` orphaned.
+
+**Scope:** **46 pre-existing orphaned draft versions + 2 orphaned PUBLISHED versions carrying real
+`responses`/`answers`** were found and cleaned. `e2e/ff4-power-authoring.spec.ts` was written immune
+(explicit child-first, table-by-table deletes — use it as the reference implementation). **The FF-1,
+FF-2, FF-3 and FF-5 specs still carry the leaky one-liner and keep leaking on every run.**
+
+**It is not inert.** During FF-4 triage it caused a *second*, unrelated failure: `answer-model-v2` DV-6
+collided with a leftover orphaned `form_versions` row via a hardcoded fixture id. So it manufactures
+phantom failures in other files later, which is the expensive part.
+
+**Fix note:** derive the child-table set from `app.copy_version_children` in the **live catalog**, not a
+hand-written list — that function's insert list is the authoritative enumeration of a version's children
+(see ADR 0092's substrate section). A background task was spawned for this on 2026-08-03.
+
+#### 🟡 BUG-E2EISO-003 — `bulk-case-creation.spec.ts:344` (AC2) is not idempotent across runs on one DB · owner **tester** · **OPEN** (filed 2026-08-03, found by the lead triaging the FF-4 full-suite gate)
+
+**Symptom:** `TimeoutError: page.waitForURL: Timeout 30000ms exceeded` at line 427, waiting for
+`/\/manage\/cases\?criados=2\b/` after clicking commit.
+
+**Repro (decisive, run by the lead):** on a **fresh** `supabase db reset` the file is **8/8 pass**
+(12.9s). Running the *same file again* against the now-mutated DB → **1 failed / 7 passed** (43.3s — note
+the 3× slowdown). So the spec does not tolerate its own prior run's leftovers.
+
+**Why it surfaced in the gate:** the script gives each batch a fresh DB, so this normally never fires.
+It fired because batch 1 **died mid-run** (`server_dead=1, conn_errors=24`) and the **rerun executed
+against the DB the dead attempt had already mutated**. That also explains why a *different* test in the
+same batch failed in the previous full run — batch-1 instability, not a specific defect.
+
+**Not FF-4, not a product defect.** Pre-existing test-isolation weakness. Interacts with BUG-GATE-001:
+an unstable batch produces a rerun on dirty state, which surfaces this, which reads as a real failure.
 
 #### 🟡 BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic, NOT an FF-4 regression · owner **backend** (`supabase/seed.sql`) · **OPEN** (filed 2026-08-03, found triaging the FF-4 full-suite gate)
 
@@ -317,7 +346,24 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
 
-**FF-4 · full `npm run e2e:prod` gate (lead, 2026-08-03, on `b5c505e`)** — **849 passed · 3 failed · 3
+**FF-4 · DECLARE-GREEN full `npm run e2e:prod` gate (lead, 2026-08-03, on `87fbdde`, `RESET=1 REBUILD=1`)**
+— **901 passed · 1 failed · 21 infra · 3 flaky · 0 did-not-run · 15 batches · COVERAGE 926 of 931.**
+**All 15 batches ran** (no `reset FAILED`, no gap in the batch numbering — checked by hand per
+BUG-GATE-001) and the denominator is the true 931; the 5-test gap reconciles exactly to 5 conditional
+self-skips. **Zero FF-4 defects.** Every non-pass dispositioned:
+
+| Non-pass | Disposition |
+| --- | --- |
+| `bulk-case-creation` AC2 — the 1 "real" failure | **BUG-E2EISO-003** — 8/8 on a fresh DB, fails only on a rerun against state its own dead first attempt mutated. Pre-existing, not FF-4 |
+| 21 infra (batch 11: `server_dead=1, conn_errors=42`) | Re-run standalone on a fresh DB → **60/61 pass**; the 1 is BUG-P15-001 |
+| 3 flaky | Passed on retry (`phase14c-rca` R1+R2 among them — matches the known baseline) |
+| 5 skipped | Conditional self-skips |
+
+⚠ **The suite is therefore NOT literally all-green: BUG-P15-001 fails every run until the 5th of the
+month.** Recorded as such deliberately rather than rounded up to "green". QA reviewed it and did not
+treat it as blocking; the phase was approved on that basis.
+
+**FF-4 · FIRST full `npm run e2e:prod` gate (lead, 2026-08-03, on `b5c505e`)** — **849 passed · 3 failed · 3
 flaky · 15 batches.** Batch 4 hit `reset FAILED` (environmental — `supabase_edge_runtime` state; not a
 defect) and never ran 66 tests (`ethics-e2-procedure` · `ethics-e3a-surfacing` · `ff1-repeating-groups` ·
 `ff2-matrix-views` · `ff2-matrix`); lead re-ran all five standalone → **66/66**, no FF-4 regression.
