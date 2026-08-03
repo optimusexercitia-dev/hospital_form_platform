@@ -2,23 +2,41 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { ListChecks } from "lucide-react";
 
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import { setProcessOutcomes } from "@/lib/cases/outcomes-actions";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { OutcomeDefDialog } from "@/components/cases/outcome-def-dialog";
-import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FormBanner } from "@/components/auth/form-banner";
+import { OutcomeMultiselect } from "@/components/cases/outcome-multiselect";
+import { OfferedOutcomeBadges } from "@/components/process-templates/offered-outcome-badges";
 
 /**
- * The process OUTCOMES multiselect (D15 — draft-only). Selects which of the
+ * The process OUTCOMES editor (D15 — draft-only). Selects which of the
  * commission's outcomes a process OFFERS; each case minted from the process is
- * later assigned one of them (or none, if the process offers none). Toggling a
- * row persists the FULL offered set via `setProcessOutcomes` (delete-then-insert
- * server-side). An inline "Criar novo desfecho" opens the outcome dialog so the
- * author can extend the vocabulary without leaving the builder.
+ * later assigned one of them (or none, if the process offers none).
+ *
+ * The CARD shows only what the process already offers (the same badges as its
+ * frozen twin {@link PublishedOutcomesCard}, via {@link OfferedOutcomeBadges}) —
+ * listing the commission's whole vocabulary with checkboxes inline read as if
+ * every outcome were already in play. Choosing happens in a dialog behind
+ * "Selecionar desfechos", which reuses the {@link OutcomeMultiselect} the
+ * process-less case editor uses (checkbox list + inline "Criar novo desfecho", so
+ * the author can extend the vocabulary without leaving the builder).
+ *
+ * Selection is a LOCAL draft while the dialog is open and persists once, on Save,
+ * via `setProcessOutcomes` (delete-then-insert server-side) — mirroring
+ * {@link import('@/components/cases/case-offered-outcomes-editor').CaseOfferedOutcomesEditor}.
+ * The card itself renders from the server-owned `offeredOutcomeIds`, so it follows
+ * the post-save `router.refresh()`.
  *
  * Read-only once the template is no longer a draft (a published process is frozen,
  * like its phases) — the shell only mounts this for drafts.
@@ -33,29 +51,42 @@ export function ProcessOutcomesPicker({
   templateId: string;
   /** The commission's non-archived outcome vocabulary. */
   outcomes: CaseOutcome[];
-  /** Ids currently offered by this template (pre-checked). */
+  /** Ids currently offered by this template (pre-checked when the dialog opens). */
   offeredOutcomeIds: string[];
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>(offeredOutcomeIds);
-  const [createOpen, setCreateOpen] = useState(false);
+
+  // Re-seed the draft selection from the persisted set each time the dialog opens,
+  // so a cancelled edit or a post-save refresh starts from the truth.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setSelected(offeredOutcomeIds);
+      setError(null);
+    }
+  }
 
   function toggle(id: string) {
-    const next = selected.includes(id)
-      ? selected.filter((o) => o !== id)
-      : [...selected, id];
-    const prev = selected;
-    setSelected(next);
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id],
+    );
+    setError(null);
+  }
+
+  function save() {
     setError(null);
     startTransition(async () => {
-      const res = await setProcessOutcomes(templateId, next);
+      const res = await setProcessOutcomes(templateId, selected);
       if (!res.ok) {
-        setSelected(prev);
         setError(res.error ?? "Não foi possível salvar os desfechos.");
         return;
       }
+      setOpen(false);
       router.refresh();
     });
   }
@@ -71,79 +102,66 @@ export function ProcessOutcomesPicker({
             Desfechos oferecidos
           </h2>
           <p className="max-w-prose text-sm text-muted-foreground text-pretty">
-            Escolha quais desfechos os casos deste processo poderão receber. Se
-            nenhum for selecionado, os casos serão concluídos sem desfecho.
+            Os desfechos que os casos deste processo poderão receber. Se nenhum
+            for selecionado, os casos serão concluídos sem desfecho.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => setOpen(true)}
         >
-          <Plus aria-hidden="true" />
-          Criar novo desfecho
+          <ListChecks aria-hidden="true" />
+          Selecionar desfechos
         </Button>
       </div>
 
-      {error && (
-        <p role="alert" className="text-sm font-medium text-destructive">
-          {error}
-        </p>
-      )}
-
-      {outcomes.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-          Esta comissão ainda não tem desfechos. Crie o primeiro desfecho para
-          oferecê-lo neste processo.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1.5">
-          {outcomes.map((o) => (
-            <li key={o.id}>
-              <label
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 text-sm transition-colors hover:bg-accent/40",
-                  isPending && "opacity-70",
-                )}
-              >
-                <Checkbox
-                  checked={selected.includes(o.id)}
-                  onCheckedChange={() => toggle(o.id)}
-                  disabled={isPending}
-                />
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    TOKEN_STYLES[o.colorToken] ?? TOKEN_STYLES.muted,
-                  )}
-                >
-                  {o.label}
-                </span>
-                <span className="flex flex-wrap items-center gap-2">
-                  {o.requiresActionPlan && (
-                    <span className="text-[0.68rem] font-medium text-warning">
-                      Plano de ação
-                    </span>
-                  )}
-                  {o.isAdverse && (
-                    <span className="text-[0.68rem] font-medium text-destructive">
-                      Adverso
-                    </span>
-                  )}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <OutcomeDefDialog
-        mode="create"
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        commissionId={commissionId}
+      <OfferedOutcomeBadges
+        outcomes={outcomes}
+        offeredOutcomeIds={offeredOutcomeIds}
+        emptyMessage="Nenhum desfecho selecionado. Os casos deste processo serão concluídos sem desfecho."
       />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90svh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Selecionar desfechos</DialogTitle>
+            <DialogDescription>
+              Escolha quais desfechos os casos deste processo poderão receber. Se
+              nenhum for selecionado, os casos serão concluídos sem desfecho.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4">
+            {error && <FormBanner tone="error">{error}</FormBanner>}
+
+            <OutcomeMultiselect
+              commissionId={commissionId}
+              outcomes={outcomes}
+              selected={selected}
+              onToggle={toggle}
+              disabled={isPending}
+              emptyMessage="Esta comissão ainda não tem desfechos. Crie o primeiro desfecho para oferecê-lo neste processo."
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => setOpen(false)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" size="lg" onClick={save} disabled={isPending}>
+              {isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

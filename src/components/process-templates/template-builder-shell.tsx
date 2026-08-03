@@ -1,6 +1,7 @@
 "use client";
 
 import { commissionHref } from "@/lib/routing";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
@@ -176,6 +177,12 @@ export function TemplateBuilderShell({
   const phases = attachTargets(template.phases, conditionTargetsByForm);
   const hasForms = forms.length > 0;
 
+  // The right-hand rail: the per-case DATA-COLLECTION config. Both cards are
+  // feature-gated, so when neither shows the workspace stays one column rather
+  // than reserving an empty 320px track.
+  const showCollectsPatient = isDraft && casePatientEnabled;
+  const hasRail = caseCustomFieldsEnabled || showCollectsPatient;
+
   // The merged sequence (phases + narratives) when the feature is on; phase-only
   // otherwise. `mergeTemplateLayout` of phases + [] is just the phases in order.
   const items = mergeTemplateLayout(
@@ -254,155 +261,177 @@ export function TemplateBuilderShell({
 
       {reorderError && <FormBanner tone="error">{reorderError}</FormBanner>}
 
-      {!hasItems ? (
-        <section
-          aria-label="Nenhuma fase"
-          className="animate-rise-in flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center"
-        >
-          <h2 className="text-lg font-semibold">Nenhuma fase ainda</h2>
-          <p className="max-w-sm text-sm text-muted-foreground text-pretty">
-            Adicione a primeira fase do processo escolhendo um formulário
-            publicado.
-          </p>
-          {isDraft && (
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => setAddPhaseOpen(true)}
-                disabled={!hasForms}
-              >
-                <Plus aria-hidden="true" />
-                Adicionar fase
-              </Button>
-              {narrativesEnabled && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setAddNarrativeOpen(true)}
-                >
-                  <FileText aria-hidden="true" />
-                  Adicionar narrativa
-                </Button>
+      {/* Two-column workspace, mirroring the case detail page: the process CONTENT
+          (its type, the phase/narrative sequence, the offered outcomes) on the left;
+          the per-case data-collection config in a narrow reference rail on the right.
+          The rail stacks under the main column below `lg`. */}
+      <div
+        className={cn(
+          "flex flex-col gap-6",
+          hasRail &&
+            "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8",
+        )}
+      >
+        <div className="flex flex-col gap-6">
+          {/* ADR 0064 D4 — the template DECLARES the case type its cases inherit (and
+              with it their default visibility/confidentiality). Not draft-gated: it only
+              affects cases created afterwards, and a live untyped process must stay
+              fixable. Leads the column: it frames every phase below it. */}
+          {caseTypesEnabled && (
+            <CaseTypePicker
+              templateId={template.id}
+              caseTypeId={template.caseTypeId}
+              caseTypes={caseTypes}
+            />
+          )}
+
+          {!hasItems ? (
+            <section
+              aria-label="Nenhuma fase"
+              className="animate-rise-in flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center"
+            >
+              <h2 className="text-lg font-semibold">Nenhuma fase ainda</h2>
+              <p className="max-w-sm text-sm text-muted-foreground text-pretty">
+                Adicione a primeira fase do processo escolhendo um formulário
+                publicado.
+              </p>
+              {isDraft && (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={() => setAddPhaseOpen(true)}
+                    disabled={!hasForms}
+                  >
+                    <Plus aria-hidden="true" />
+                    Adicionar fase
+                  </Button>
+                  {narrativesEnabled && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={() => setAddNarrativeOpen(true)}
+                    >
+                      <FileText aria-hidden="true" />
+                      Adicionar narrativa
+                    </Button>
+                  )}
+                </div>
+              )}
+            </section>
+          ) : (
+            <div ref={containerRef} className="flex flex-col gap-4">
+              {items.map((item, index) =>
+                item.kind === "phase" ? (
+                  <PhaseSlotCard
+                    key={`phase-${item.phase.id}`}
+                    phase={item.phase}
+                    phases={phases}
+                    forms={forms}
+                    conditionTargetsByForm={conditionTargetsByForm}
+                    phaseResults={phaseResults}
+                    phaseResultsEnabled={phaseResultsEnabled}
+                    isFirst={index === 0}
+                    isLast={index === items.length - 1}
+                    editable={isDraft}
+                    onBeforeReorder={captureBeforeReorder}
+                    // Merged-layout reorder (cross-table) only when narratives are on;
+                    // otherwise the card keeps its legacy per-table `moveTemplatePhase`.
+                    onMove={
+                      narrativesEnabled
+                        ? (direction) => moveItem(index, direction)
+                        : undefined
+                    }
+                    busy={narrativesEnabled ? reorderPending : undefined}
+                  />
+                ) : (
+                  <NarrativeSlotCard
+                    key={`narrative-${item.narrative.id}`}
+                    narrative={item.narrative}
+                    narrativeTypes={narrativeTypes}
+                    isFirst={index === 0}
+                    isLast={index === items.length - 1}
+                    editable={isDraft}
+                    isPending={reorderPending}
+                    onMove={(direction) => moveItem(index, direction)}
+                    onRemove={() => removeNarrative(item.narrative.id)}
+                  />
+                ),
+              )}
+              {isDraft && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setAddPhaseOpen(true)}
+                    disabled={!hasForms}
+                    className="w-fit"
+                  >
+                    <Plus aria-hidden="true" />
+                    Adicionar fase
+                  </Button>
+                  {narrativesEnabled && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      onClick={() => setAddNarrativeOpen(true)}
+                      className="w-fit"
+                    >
+                      <FileText aria-hidden="true" />
+                      Adicionar narrativa
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </section>
-      ) : (
-        <div ref={containerRef} className="flex flex-col gap-4">
-          {items.map((item, index) =>
-            item.kind === "phase" ? (
-              <PhaseSlotCard
-                key={`phase-${item.phase.id}`}
-                phase={item.phase}
-                phases={phases}
-                forms={forms}
-                conditionTargetsByForm={conditionTargetsByForm}
-                phaseResults={phaseResults}
-                phaseResultsEnabled={phaseResultsEnabled}
-                isFirst={index === 0}
-                isLast={index === items.length - 1}
-                editable={isDraft}
-                onBeforeReorder={captureBeforeReorder}
-                // Merged-layout reorder (cross-table) only when narratives are on;
-                // otherwise the card keeps its legacy per-table `moveTemplatePhase`.
-                onMove={
-                  narrativesEnabled
-                    ? (direction) => moveItem(index, direction)
-                    : undefined
-                }
-                busy={narrativesEnabled ? reorderPending : undefined}
-              />
-            ) : (
-              <NarrativeSlotCard
-                key={`narrative-${item.narrative.id}`}
-                narrative={item.narrative}
-                narrativeTypes={narrativeTypes}
-                isFirst={index === 0}
-                isLast={index === items.length - 1}
-                editable={isDraft}
-                isPending={reorderPending}
-                onMove={(direction) => moveItem(index, direction)}
-                onRemove={() => removeNarrative(item.narrative.id)}
-              />
-            ),
-          )}
+
           {isDraft && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={() => setAddPhaseOpen(true)}
-                disabled={!hasForms}
-                className="w-fit"
-              >
-                <Plus aria-hidden="true" />
-                Adicionar fase
-              </Button>
-              {narrativesEnabled && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setAddNarrativeOpen(true)}
-                  className="w-fit"
-                >
-                  <FileText aria-hidden="true" />
-                  Adicionar narrativa
-                </Button>
-              )}
-            </div>
+            <ProcessOutcomesPicker
+              commissionId={template.commissionId}
+              templateId={template.id}
+              outcomes={outcomes}
+              offeredOutcomeIds={template.offeredOutcomeIds}
+            />
+          )}
+
+          {/* Published/archived process: the offered outcomes are frozen — show them
+              read-only (the editable picker only mounts for drafts). */}
+          {!isDraft && (
+            <PublishedOutcomesCard
+              outcomes={outcomes}
+              offeredOutcomeIds={template.offeredOutcomeIds}
+            />
           )}
         </div>
-      )}
 
-      {isDraft && (
-        <ProcessOutcomesPicker
-          commissionId={template.commissionId}
-          templateId={template.id}
-          outcomes={outcomes}
-          offeredOutcomeIds={template.offeredOutcomeIds}
-        />
-      )}
+        {hasRail && (
+          <aside
+            aria-label="Dados coletados em cada caso"
+            className="flex flex-col gap-4"
+          >
+            {/* Custom fields (ADR 0083) — editable while draft, read-only once published
+                (mirrors the outcomes picker → published-card treatment). */}
+            {caseCustomFieldsEnabled && (
+              <CustomFieldsCard
+                templateId={template.id}
+                fields={template.customFields}
+                editable={isDraft}
+              />
+            )}
 
-      {/* Published/archived process: the offered outcomes are frozen — show them
-          read-only (the editable picker only mounts for drafts). */}
-      {!isDraft && (
-        <PublishedOutcomesCard
-          outcomes={outcomes}
-          offeredOutcomeIds={template.offeredOutcomeIds}
-        />
-      )}
-
-      {isDraft && casePatientEnabled && (
-        <CollectsPatientPicker
-          templateId={template.id}
-          collectsPatient={template.collectsPatient}
-        />
-      )}
-
-      {/* ADR 0064 D4 — the template DECLARES the case type its cases inherit (and with
-          it their default visibility/confidentiality). Not draft-gated: it only affects
-          cases created afterwards, and a live untyped process must stay fixable. */}
-      {caseTypesEnabled && (
-        <CaseTypePicker
-          templateId={template.id}
-          caseTypeId={template.caseTypeId}
-          caseTypes={caseTypes}
-        />
-      )}
-
-      {/* Custom fields (ADR 0083) — editable while draft, read-only once published
-          (mirrors the outcomes picker → published-card treatment). */}
-      {caseCustomFieldsEnabled && (
-        <CustomFieldsCard
-          templateId={template.id}
-          fields={template.customFields}
-          editable={isDraft}
-        />
-      )}
+            {showCollectsPatient && (
+              <CollectsPatientPicker
+                templateId={template.id}
+                collectsPatient={template.collectsPatient}
+              />
+            )}
+          </aside>
+        )}
+      </div>
 
       {isDraft && (
         <PhaseSlotDialog

@@ -31,10 +31,11 @@ function typeLabel(field: CustomFieldDef): string {
 }
 
 /**
- * The template builder's custom-fields section (ADR 0083), placed beside the
- * outcomes / collects-patient controls. Lists the template's `customFields` with
- * add / edit / delete / reorder while the template is a DRAFT (`editable`);
- * once published it renders read-only static rows — mirroring how
+ * The template builder's custom-fields section (ADR 0083), which heads the
+ * builder's narrow right-hand rail (above the collects-patient toggle) — so its
+ * rows wrap rather than assuming a full-width column. Lists the template's
+ * `customFields` with add / edit / delete / reorder while the template is a DRAFT
+ * (`editable`); once published it renders read-only static rows — mirroring how
  * {@link ProcessOutcomesPicker} yields to {@link PublishedOutcomesCard}.
  *
  * Every mutation persists via its own server action and the route refreshes from
@@ -124,7 +125,7 @@ export function CustomFieldsCard({
             <li
               key={field.id}
               data-flip-id={`custom-field-${field.id}`}
-              className="flex items-center gap-3 rounded-xl border border-border bg-background/40 p-3"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-background/40 p-3"
             >
               {editable && (
                 <div className="flex shrink-0 flex-col">

@@ -31,6 +31,7 @@ export function OutcomeMultiselect({
   selected,
   onToggle,
   disabled = false,
+  emptyMessage = "Esta comissão ainda não tem desfechos. Crie o primeiro desfecho para oferecê-lo neste caso.",
 }: {
   commissionId: string;
   /** The commission's non-archived outcome vocabulary. */
@@ -40,6 +41,11 @@ export function OutcomeMultiselect({
   /** Toggle a single id in the parent's selection. */
   onToggle: (id: string) => void;
   disabled?: boolean;
+  /**
+   * pt-BR copy for an empty vocabulary. Defaults to the case wording; the process
+   * builder overrides it so it does not say "neste caso" about a process.
+   */
+  emptyMessage?: string;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -61,8 +67,7 @@ export function OutcomeMultiselect({
 
       {outcomes.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground text-pretty">
-          Esta comissão ainda não tem desfechos. Crie o primeiro desfecho para
-          oferecê-lo neste caso.
+          {emptyMessage}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
