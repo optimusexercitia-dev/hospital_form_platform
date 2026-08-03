@@ -395,50 +395,146 @@ and the hardened CAPA write surface.)*
   SELECT-list; off-target detection across both `direction` values; KPI counts; the
   `source_indicator_id` / `capa_measure.indicator_id` FKs resolve.
 
-### Phase 16 — Standards Crosswalk & Readiness/Gap Engine (Mapa de Padrões & Prontidão)
-The **strategic differentiator**: make the platform *aware of accreditation standards* and
-let a commission **link the artifacts it already produces** — published forms, meetings,
-cases, indicators, CAPA plans, controlled documents — as **evidence** against a specific
-standard, then compute a **readiness / gap report** ("for standard X: evidence present /
-partial / missing"). This is what turns "we run committees" into "we are prepared for the
-survey" and directly serves *facilitating accreditation for hospitals that don't yet have it*.
-Frameworks are admin-curated reference packs (ONA + a JCI chapter skeleton seeded);
-hospitals may add custom frameworks. **No patient data.** Feature-flagged behind `accreditation`.
-*(Build order 15 → 17 → 16 — ADR 0057 — so indicators AND controlled documents exist when the
-evidence picker ships; no dead `artifact_kind`.)*
-- **Schema** (migrations `…123000–123001`): `public.accreditation_frameworks`
-  (`id`, `key` (`'ona'`/`'jci'`/custom), `name`, `version`, `description`, `owner_commission_id`
-  nullable (NULL = global/admin-curated), `status ∈ {ativo, arquivado}`);
-  `public.accreditation_standards` (`id`, `framework_id`, `parent_id` (self-ref hierarchy:
-  capítulo → padrão → elemento de mensuração), `code` (e.g. `QPS.1`), `title`, `description_md`,
-  `position`); `public.evidence_links` (`id`, `commission_id`, `standard_id`,
-  `artifact_kind ∈ {form, form_version, meeting, case, indicator, capa_plan, controlled_document,
-  action_item}`, `artifact_id`, `note`, `linked_by`/`linked_at`,
-  `unique(commission_id, standard_id, artifact_kind, artifact_id)`);
-  `public.standard_assessments` (`id`, `commission_id`, `standard_id`,
-  `status ∈ {conforme, parcial, nao_conforme, nao_aplicavel}`, `assessed_by`/`assessed_at`,
-  `note_md`, `unique(commission_id, standard_id)`). New SQLSTATEs from `HC056`.
-- **RPCs** (gate `accreditation`): framework + standard admin CRUD (`is_admin`-gated for global packs;
-  `is_staff_admin_of` for a commission's custom framework) + seed packs; `link_evidence` / `unlink_evidence`
-  + `set_standard_assessment` (staff_admin); `readiness_report(commission, framework)` **DEFINER**
-  (per-standard evidence count + assessment + chapter rollup + overall %); `hospital_readiness(framework)`
-  **DEFINER** (`is_admin`: cross-commission rollup = hospital readiness). An `app.artifact_belongs_to_commission`
-  guard rejects linking a foreign artifact.
-- **RLS**: `accreditation_frameworks` + `accreditation_standards` SELECT to any authenticated user
-  (reference data); `evidence_links` + `standard_assessments` member-READ / staff_admin-WRITE,
-  commission-scoped.
-- **UI**: `manage/accreditation/**` — pick a framework → standards **tree** with status chips
-  (conforme/parcial/não-conforme/N.A.) + evidence count; a per-standard panel to **assess** status and
-  **link evidence** via an artifact picker that searches the commission's forms/meetings/cases/indicators/
-  CAPA/documents; a **readiness dashboard** (rollup gauges per chapter + a **gap list** of standards with
-  no evidence or `nao_conforme`). `/admin/accreditation` — hospital-wide readiness across commissions.
-- **Acceptance**: E2E: a seeded framework (ONA + a JCI skeleton) renders as a tree; linking a published
-  form + a meeting + an indicator to a standard marks it evidenced and removes it from the gap list;
-  assessing a standard `nao_conforme` puts it in the gap list and the rollup % reflects it (assert the
-  computed value); the admin hospital-wide view aggregates two commissions' readiness correctly; an
-  attempt to link a **foreign-commission artifact** is rejected; `staff` cannot edit; evidence links are
-  audited (Phase 13); one keyboard-only pass. pgTAP: evidence-link uniqueness + foreign-artifact rejection;
-  RLS scoping; readiness + hospital rollup correctness.
+### Phase 16 — Standards Crosswalk & Readiness/Gap Engine v2 (Mapa de Padrões & Prontidão)
+
+> **This section was rewritten 2026-08-03 against ADR
+> [0093](../decisions/0093-phase-16-standards-crosswalk-replan.md) (D1–D10 + Amendments 1–2),
+> which supersedes the spec frozen here 2026-07-05.** The build authority is ADR 0093; the
+> wave-by-wave execution plan is
+> [docs/plans/phase-16-standards-crosswalk-program.md](../plans/phase-16-standards-crosswalk-program.md).
+> Driven by the external accreditation audit
+> ([phase-16-external-accreditation-audit.md](../reviews/phase-16-external-accreditation-audit.md),
+> MAJOR-1…6 / MINOR-1…3). **The pilot deploy is re-gated on this phase** (D1) — ADR 0086's
+> "no longer gates the pilot" note is superseded. **ETH·E3b folds into this phase** (D4),
+> closing the last open ADR 0071 item.
+
+The **strategic differentiator**: make the platform *aware of accreditation standards* and let a
+commission **link the artifacts it already produces** as **evidence** against a standard, then
+compute a **readiness / gap report**. This turns "we run committees" into "we are prepared for
+the survey". **No patient data** — Rule 12 N/A. Feature-flagged behind `accreditation` (seeded
+OFF; flipped by its **own enable migration** at the gate — no enable migration = phase dark
+after `db push`).
+
+**What changed from the 2026-07 spec** (read this before trusting any memory of the old text):
+
+- **Framework packs are skeleton-only** (D2 — licensing). Global packs seed **codes + short
+  titles + hierarchy + level only**, never `description_md` from the copyrighted manuals (ONA;
+  JCI via CBA/JCR). Global-pack rows are read-only reference data; a hospital wanting full text
+  **clones a global skeleton into an owned custom framework** (`clone_framework`, staff_admin)
+  and pastes descriptions there under its own manual license. No per-tenant overlay on shared
+  rows — a paste into a global pack would leak licensed text cross-tenant.
+- **ONA level dimension** (D3 — the old model could not answer the ONA question).
+  `accreditation_standards.level smallint NULL` (1 Segurança / 2 Gestão Integrada / 3 Excelência;
+  NULL for non-leveled frameworks). Leveled frameworks get **per-level rollups + a blocking-gap
+  list per level** ("o que bloqueia o Pleno?"); chapter/overall % is kept for non-leveled
+  (JCI-shaped) frameworks. Certification logic is **cumulative** — level N requires levels ≤ N clean.
+- **Evidence kinds: 10, not 8** (D4). The 2026-07 eight **plus `charter`** (Phase 21) **and
+  `ethics_procedure`** (closes ETH·E3b). Safety events / RCA **declined for now** (post-pilot,
+  demand-driven). Document linking re-bases on the ADR 0081 v2 model. The
+  `app.artifact_belongs_to_commission` guard gains **one arm per kind** — enumerate from the
+  authority (the CHECK), not from prose (the "every sibling arm" rule).
+- **Evidence freshness** (D5 — a link is a claim, not proof). Every link carries a computed
+  `evidence_status ∈ {valida, atencao, vencida}` derived from the artifact's own lifecycle, and
+  counts are **always split**. **Invariant: stale evidence never silently counts as evidenced.**
+- **AuthZ re-based on the noun rule** (D6 — ADR 0078 A35). `hospital_readiness` and the
+  hospital-wide UI are gated `is_hospital_admin_of` / org-admin (the `hospital_document_register`
+  pattern) and live on the **hospital-admin surface, not `/admin`**. platform_admin keeps
+  **global pack CRUD only** (the vocabulary/catalog arm — the one correct `is_admin()` use here).
+  pgTAP asserts platform_admin receives **zero rows** from every readiness door (the
+  BUG-AUTHZ-001 shape, tested by construction). *The old spec's "`hospital_readiness(framework)`
+  DEFINER (`is_admin`)" is exactly the defect that bug taught us to stop shipping.*
+- **Hospital consolidation: worst-wins + responsible commission** (D7). Conflicting
+  per-commission assessments resolve **worst-status-wins** (`nao_conforme > parcial > conforme`;
+  `nao_aplicavel` only if unanimous). New `standard_ownerships` (`hospital_id`, `standard_id`,
+  `responsible_commission_id`, unique per hospital+standard), written by `is_hospital_admin_of`:
+  when set, that commission's assessment **is** the institutional answer. A deliberate, narrow
+  exception to ADR 0057 §2 — the hospital tier writes an assignment pointer, never assessments
+  or evidence.
+- **Restricted-artifact masking + note hygiene** (D8). Evidence rendering re-checks the
+  artifact's own read predicate (`can_read_case` for cases/ethics procedures); a non-reader sees
+  **"evidência restrita"** — counted without payload. Hospital-tier and export surfaces carry
+  **counts only, never `note`**. `evidence_links.note` gets the standing PHI-discouragement copy.
+- **Edition re-mapping is designed, not built** (D9). Durable identity is
+  `(framework.key, standard.code)`; a future manual edition ships as a new framework version plus
+  a `remap_standard_links` pass. Pre-launch reset-OK makes building it now premature.
+
+**PO rulings (Amendment 1, 2026-08-03 — ratified, do not re-ask):** ① a `capa_plan` is linkable
+when `capa_plan.hospital_id` = the linking commission's hospital **and** the linker holds
+`can_read_capa` (source-derived commission match was rejected — event/RCA-sourced plans resolve
+to no commission and would be unlinkable by construction). ② **Framework RLS narrows D10's
+"SELECT to authenticated"**: global packs stay authenticated-readable, but **commission-owned
+frameworks and their standards are readable only by that commission's members** — forced by D2's
+own rationale, since a clone carries pasted licensed text. ③ "Acreditação" gets a **visible**
+org-manage sidebar entry under "Acompanhamento" (flag-gated), diverging from the deliberately
+nav-hidden hospital document register. ④ Backend **drafts** the ONA skeleton (seção/subseção
+codes + short titles + level 1/2/3) from the public manual structure; **the PO validates it
+before the seed migration is authored**.
+
+**Catalog corrections (Amendment 2, Wave 0 verification — the build follows these, not D5/D10):**
+SQLSTATEs allocate from **`HC0Q9`**, not `HC0Q7` (live high-water is `HC0Q8` — FF-4 took Q6–Q8
+while ADR 0092's prose claimed only Q6). `action_items` has **no status CHECK** — `status_id` is
+an FK into the tenant-extensible `action_item_statuses`, so the freshness arm joins its
+`category`, never a status string. `controlled_documents` (not `documents`) carries a fifth
+status **`changes_requested`** that D5's matrix never contemplated — **PO ruling pending**.
+`indicator_measurements.status` stores **English** (`on_target`/`off_target`/`no_data`); D5's
+pt-BR names are UI labels. `app.feature_flags.enabled` defaults to **`true`**, so "seeded OFF"
+needs an explicit `enabled = false`.
+
+- **Schema** (Migration A): `accreditation_frameworks` (`key`, `name`, `version`, `description`,
+  `owner_commission_id` NULL = global, `cloned_from_framework_id` (D9 provenance),
+  `status ∈ {ativo, arquivado}`; uniques `(key, version) where owner is null` and
+  `(owner_commission_id, key) where owner not null`); `accreditation_standards` (`framework_id`,
+  `parent_id` self-ref capítulo → padrão → elemento, `code`, `title`, `description_md`,
+  `position`, **`level smallint null check (1..3)`**; `unique(framework_id, code)`;
+  same-framework parent via composite FK); `evidence_links` (`commission_id`, `standard_id`,
+  `artifact_kind` CHECK over the **10 kinds**, `artifact_id`, `note`, `linked_by`/`linked_at`;
+  `unique(commission_id, standard_id, artifact_kind, artifact_id)` — deliberately permits the
+  same case uuid under both `case` and `ethics_procedure`, distinct evidentiary claims);
+  `standard_assessments` (`commission_id`, `standard_id`, `status` 4-value CHECK,
+  `assessed_by`/`assessed_at`, `note_md`; `unique(commission_id, standard_id)`);
+  `standard_ownerships` (D7). Audit triggers per table (Rule 11), with `note`/`note_md`/
+  `description_md` excluded from the allow-listed diff columns.
+- **RPCs** (all gate `accreditation` → HC0Q9): framework/standard CRUD — global packs
+  `app.is_admin()` **only**, custom `is_staff_admin_of(owner)`; `clone_framework` (D2);
+  `link_evidence` / `unlink_evidence` / `set_standard_assessment` (staff_admin);
+  `set_standard_ownership` (**`is_hospital_admin_of` only**); `evidence_candidates` (picker
+  search — **map the flag-off SQLSTATE on the search path too**, the FF-5 HC0Q3 lesson).
+  Three DEFINER read doors: `readiness_report(commission, framework)` (gate `is_member_of`),
+  `readiness_evidence(commission, standard)` (masking per D8),
+  `hospital_readiness(hospital, framework)` (gate `is_hospital_admin_of OR is_org_admin_of`,
+  consolidation per D7). **All four DEFINERs enter the ADR 0079 standing door audit with
+  mutation-proven reader-non-writer keystones.**
+- **RLS**: frameworks/standards SELECT = `owner IS NULL OR app.is_member_of(owner)` (PO ruling 2);
+  `evidence_links` / `standard_assessments` SELECT = `is_member_of(commission_id)`;
+  `standard_ownerships` SELECT = members of the hospital's commissions + hospital_admin.
+  **No write grants to `authenticated` anywhere** — all writes DEFINER.
+- **Rollup-math split**: DEFINER doors return **per-standard rows** (DB computes freshness,
+  masking, worst-wins, ownership override); per-level ONA rollups / per-chapter % / "o que
+  bloqueia o Nível N?" gap lists are a pure TS `computeReadinessRollups()` in
+  `src/lib/accreditation/rollups.ts` (Vitest-tested, shared by both surfaces).
+- **UI**: `o/[org]/c/[commission]/manage/acreditacao/**` — framework list + clone dialog;
+  standards **tree as a semantic nested-`<ul>` progressive-disclosure list** (native
+  `<button aria-expanded>` per branch — **not** a `role=tree` widget, no precedent in the
+  codebase) with status chips, evidence-count badges and Nível badges; per-standard panel
+  (assess + note_md with PHI-discouragement helper, evidence list with valida/atenção/vencida
+  chips and restricted masking); readiness dashboard (Recharts islands — leveled → per-level bars
+  + blocking-gap list; non-leveled → per-chapter % + overall %; freshness split **always**
+  visible, never a bare count). Hospital surface at `o/[org]/manage/acreditacao` (**not
+  `/admin`**) with the consolidated table, `resolution` indicator and ownership editor
+  (hospital_admin-enabled, org_admin read-only, server enforces regardless).
+- **Acceptance** (inherits the audit's conditions 1–8): ONA tree renders with level badges;
+  linking form + meeting + indicator marks a standard evidenced and leaves the gap list;
+  assessing `nao_conforme` enters the gap list with the **computed rollup value asserted**;
+  freshness — vigente doc = válida, backdated `review_due_date` = vencida **with a split count**,
+  unmeasured indicator = vencida, `off_target` = atenção, archived form version = vencida;
+  hospital rollup — `conforme` vs `nao_conforme` across two commissions → pior-caso, setting a
+  responsável flips resolution, clearing reverts, cross-org sees zero, **no note text in the
+  DOM**; restricted ethics case shows "Evidência restrita" to a non-ACL member and the same uuid
+  coexists as both `case` and `ethics_procedure`; **`platform@test.local` gets zero rows from all
+  three doors** (D6, proven at both pgTAP and E2E layers); clone → paste works, editing a global
+  pack fails, another org cannot see the clone; foreign-commission artifact rejected; `staff`
+  cannot edit and the server rejects it; evidence links audited; one keyboard-only pass per
+  surface. pgTAP **278–284**; `p0-authz-invariant.sh` green with the four new doors registered.
 
 ### Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)
 Policy/procedure documents (políticas, POPs, protocolos, regimentos, manuais) under a

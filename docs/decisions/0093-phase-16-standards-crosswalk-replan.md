@@ -78,8 +78,9 @@ evidence-presence counting a false-assurance risk.
    plus a `remap_standard_links` pass carrying links/assessments by code match. Pre-launch
    reset-OK makes building it now premature.
 10. **Mechanics.** Next-dated migrations (allocate above the live registered high-water —
-    shared-stack rule); SQLSTATEs from **`HC0Q7`** (verify against the catalog at build start,
-    not this text); RLS as spec'd 2026-07 otherwise (frameworks/standards SELECT to
+    shared-stack rule); SQLSTATEs from ~~`HC0Q7`~~ **`HC0Q9`** (this text was wrong — see
+    Amendment 2; the "verify against the catalog, not this text" instruction is what caught it);
+    RLS as spec'd 2026-07 otherwise (frameworks/standards SELECT to
     authenticated; `evidence_links` + `standard_assessments` member-READ /
     staff_admin-WRITE, commission-scoped); generated types + `docs/backend-state.md` updated
     at the Record step.
@@ -106,6 +107,35 @@ Ratified while authoring the implementation plan
   (seção/subseção codes + short titles + level 1/2/3) from the public ONA manual structure;
   the **PO validates/corrects the draft before the seed migration is authored**. Skeleton
   only — still no `description_md` manual text.
+
+## Amendment 2 (2026-08-03, Wave 0 catalog verification — corrections to D10 and D5)
+
+Backend verified the build-start facts against the live catalog before any feature code; three
+of this ADR's assumptions were wrong. Recorded here so the build follows the catalog, not D10:
+
+- **A2·1 — SQLSTATE base is `HC0Q9`, not `HC0Q7` (corrects D10).** The live high-water is
+  **`HC0Q8`**: FF-4 consumed Q6, Q7 *and* Q8 across `save_block_to_library`,
+  `update_block_library_entry`, `insert_block_from_library`, `delete_block_library_entry` —
+  while ADR [0092](0092-ff4-power-authoring.md) §"SQLSTATE high-water" says only "allocates from
+  `HC0Q6`", understating what it actually took, and `docs/backend-state.md` carried two stale
+  rows (`HC0Q5`, `HC0Q6`). Building on D10's letter would have collided with live raises.
+  Phase 16 allocates **HC0Q9 → HC0QE**. *This is the standing "text is not truth" rule landing on
+  an ADR's own prose: the fix is not to trust ADR 0093 either, but to re-verify at Wave 2 start.*
+- **A2·2 — `action_item` freshness must dispatch on a catalog join (corrects D5's shape).**
+  `action_items` has **no status CHECK**: `status_id` is an FK into the tenant-extensible
+  `action_item_statuses`, whose `key`/`label` are free tenant text; the only fixed vocabulary is
+  its `category` CHECK. `app.evidence_status_of`'s action_item arm joins
+  `action_item_statuses.category` — switching on a status string would be tenant-dependent and
+  would silently mis-bucket custom statuses.
+- **A2·3 — `controlled_documents.status` carries a fifth value D5 never contemplated:**
+  `changes_requested` (landed after this ADR's source spec, via ADR
+  [0081](0081-controlled-document-redesign.md)/[0082](0082-document-changes-requested-status.md)).
+  D5's matrix covers draft/in_approval/effective/obsolete only. **PO ruling required before
+  Migration B** — tracked in PROGRESS.md, not assumed here.
+- Also corrected for the D5 matrix: `indicator_measurements.status` stores **English**
+  (`on_target`/`off_target`/`no_data`); D5's `na_meta`/`fora_da_meta`/`sem_dados` are UI labels.
+  The table is **`controlled_documents`**, not `documents`. `app.feature_flags.enabled`
+  **defaults to `true`**, so the D-block's "seeded OFF" needs an explicit `enabled = false`.
 
 ## Consequences
 

@@ -107,7 +107,11 @@ phase remains in front of it).
 
 · **S4 ✅ COMPLETE 2026-07-20** — ✅ **ETH·E2** (2026-07-18) + ✅ **Referrals v2 R2–R5** (2026-07-19) + ✅ **CH** Charters (Phase 21, 2026-07-20 — ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [detail](docs/progress/ch-charters-cadence.md)), all → `main`
 · ✅ **S5 ETH·E3a COMPLETE 2026-07-27** — terminology/UX + auto-derived procedural timeline + ethics dashboard (E3b still needs Phase 16) → [eth-e3a-surfacing.md](docs/progress/eth-e3a-surfacing.md)
-· Phase 16 — Standards Crosswalk (🔜 **REPLANNED 2026-08-03, ADR [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) + Amendment 1 — pre-pilot again, re-gates the pilot deploy; folds ETH·E3b. Implementation plan READY: [phase-16-standards-crosswalk-program.md](docs/plans/phase-16-standards-crosswalk-program.md)** (waves, contract, migrations A–G, pgTAP 278–284, 5 E2E specs). Build NOT started — user-gated. Wave 0 remainders: accreditation-track §16 rewrite; file the residual-`is_admin()` bug on `hospital_document_register`/`hospital_indicator_rollup` (noun-rule violation outside the BUG-AUTHZ-001 sweep, plan §Wave 0))
+· 🔵 **Phase 16 — Standards Crosswalk & Readiness/Gap Engine v2 — IN PROGRESS** (branch `phase-16-standards-crosswalk`, started 2026-08-03). Authority: ADR [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) (D1–D10 + **Amendments 1–2**) · plan: [phase-16-standards-crosswalk-program.md](docs/plans/phase-16-standards-crosswalk-program.md) (migrations A–G, pgTAP 278–284, 5 E2E specs). Pre-pilot; **re-gates the pilot deploy**; folds ETH·E3b.
+  · ✅ **Wave 0 COMPLETE** — accreditation-track §16 rewritten against 0093; contract landed (`de2404c`, `src/lib/accreditation/types.ts` + `src/lib/queries/accreditation.ts`, typecheck+lint clean) so **frontend is unblocked**; BUG-AUTHZ-002 filed (below, out of scope); build-start facts verified against the live catalog.
+  · ⚠ **Wave 0 found three plan assumptions WRONG** (recorded as ADR 0093 Amendment 2): SQLSTATE base is **`HC0Q9`**, not HC0Q7 — live high-water is `HC0Q8` because FF-4 took Q6–Q8 while ADR 0092's prose claimed only Q6, and `docs/backend-state.md` was stale in **two** places (both now corrected); `action_items` has **no status CHECK** (tenant-extensible `action_item_statuses` — the freshness arm must join `category`); `controlled_documents` carries a fifth status **`changes_requested`** D5 never contemplated. Also: `indicator_measurements.status` stores **English**, and `app.feature_flags.enabled` defaults **true** (seeding OFF needs an explicit `false`).
+  · 🟡 **BLOCKED ON PO** — (1) which freshness bucket `changes_requested` falls into (blocks Migration B); (2) ONA skeleton CSV validation at Wave 1 end (blocks Migration F only).
+  · ▶ **Next: Wave 1** — Migration A (schema) + B (dispatch/freshness predicates), pgTAP 278–279.
 · **BUG-AIF-001 / FUP-AI-1** (PO-directed pre-pilot; own workstream, not yet started)
 · 🔴 **AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep. Found in FF-3 (QA M-2), NOT an FF-3 defect, NOT a known leak; PO decision on scheduling.** The sweep floors `prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written RLS probe is the only gate in front of a DEFINER body** — a `prosecdef = f` function whose security rests entirely on an `if not exists (…)`. FF-3's `get_response_validation_errors` is one instance: deleting its existence probe reds **0 assertions across six files**, while a commission-Y staff then reads commission-X rule messages **and item labels** (proven live, `have: 3 want: 0`; keystone `§O` added, mutation-proven). **This is a pattern, not an accident** — it is the natural way to front an `app.` DEFINER helper, and **130 of 281 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`**, so the wrapper is the whole boundary each time. Proposed scope: enumerate `public` `prosecdef = f` functions calling an `app` `prosecdef = t` function, and require a keystone per wrapper that reds when its guard is removed. Not started. Relates to ARCHITECTURE.md Rule 1.
 · ✅ **BUG-PROD-ACTIONS — RESOLVED (environment drift, not a code defect).** `node_modules/next` had silently drifted to **16.2.9** (the pre-BUG-AIF-001 version) while `package.json`/lockfile pinned **16.3.0-preview.5**; `npm ci` → 16.3 + a `REBUILD=1` full run collapsed the 21–31s action-hang **and** the "~18–27 prod flaky baseline" to ~1. Confirmed in the Gate-2 version-drift audit (`2698696`); PO-approved at the Gate-2 close. Full investigation detail → [bug-log-archive.md](docs/progress/bug-log-archive.md).
@@ -160,6 +164,28 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
+Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
+migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
+`app.is_admin()` OR-arm live in **`public.hospital_document_register`** and
+**`public.hospital_indicator_rollup`** — both `prosecdef = t`, both returning commission content
+(documents; indicator rollups) that ADR 0078 A35's noun rule forbids platform_admin from reading.
+**Verified against the live catalog, not the plan text** — the gate reads literally:
+```
+if not (app.is_admin()
+        or app.is_hospital_admin_of(p_hospital)
+        or app.is_org_admin_of(app.org_of_hospital(p_hospital))) then return;
+```
+So the `is_admin()` arm *is* the gate, not a comment. ⚠ Verified at the **catalog** layer
+(gate text + `prosecdef` + return shape); a live platform_admin row-count probe has **not** been
+run — do that first when fixing, so the fix has a red-before-green. Fix = own migration dropping
+the arm + a `270_authz_dashboard_gate_uniformity.sql`-style **parity** extension asserting
+platform_admin gets zero rows from *every* hospital-tier DEFINER, ideally before the pilot deploy.
+**The lesson is the sweep's boundary, not the two functions**: `20260903000700` enumerated by
+*name prefix* (`dashboard_*`) where the real property is "DEFINER door returning commission
+content" — the standing "if your enumeration's boundary is a filename, it's wrong" rule, one
+level up. Phase 16's own doors are specified to inherit the correct shape (ADR 0093 D6).
 
 **FF-3-era bugs — all closed and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): BUG-E2E-001 (the seed-eating cleanup behind the gate's b7 cascade), BUG-FF3-002 (unary operators offered but unsavable — `CONDITION_OPS` still the pre-F3 seven), BUG-FF3-001 (stale peer `aria-invalid` on the symmetric rule), and **BUG-FF1-008, closed by FF-3's Amendment 3**.
 

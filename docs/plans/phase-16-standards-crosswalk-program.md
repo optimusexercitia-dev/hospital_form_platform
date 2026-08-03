@@ -38,15 +38,38 @@ pt-BR user-facing text; frontend-design skill before new screens.
 
 - [ ] Lead rewrites `docs/phases/accreditation-track.md` §Phase 16 against ADR 0093 + the four
       PO rulings above (an ADR 0093 consequence, still pending).
-- [ ] Backend verifies build-start facts (they go stale): live registered migration high-water
-      (was `20260903000700`; allocate above it), pgTAP next free number (was **278**; note an
-      existing `270_` filename collision — do not reuse), SQLSTATE high-water (was **HC0Q6**;
-      allocate **HC0Q7+**; the `docs/backend-state.md` catalog row saying HC0Q5 is stale), and
-      the lifecycle enums for the freshness matrix's ⚠ rows (meeting, capa_plan, action_item)
-      against `docs/backend-state.md` / the live catalog.
-- [ ] Backend commits the **contract**: `src/lib/accreditation/types.ts` + query signatures in
-      `src/lib/queries/accreditation.ts` (typed stubs). Frontend starts screens only after this
-      lands. Key types: `ArtifactKind` (the 8 + `charter` + `ethics_procedure`),
+- [x] **Backend verified the build-start facts against the live catalog (2026-08-03).** Results —
+      three corrections, all confirmed by the lead against `pg_proc`:
+      - **Migration high-water `20260903000700`** — CONFIRMED; registered (243) == files (243), no
+        drift. Allocate strictly above it.
+      - **pgTAP next free = 278** — CONFIRMED. The duplicate `270_` filename does **not** break
+        `supabase test db` (it takes paths, not an index); it is a numbering-hygiene trap only —
+        never cite "pgTAP 270" unqualified, never reuse 270.
+      - **SQLSTATE high-water = `HC0Q8`, NOT `HC0Q6`** ⚠ **CORRECTED**. FF-4 consumed Q6/Q7/Q8
+        (`save_block_to_library`, `update_block_library_entry`, `insert_block_from_library`,
+        `delete_block_library_entry`) — ADR 0092's own text says "allocates from `HC0Q6`" and
+        understated its real consumption, and `docs/backend-state.md` carried TWO stale rows
+        (HC0Q5 at :1463, HC0Q6 at :604). **Phase 16 allocates from `HC0Q9`** (renumbered below).
+        Another instance of the standing rule: the catalog is truth, an ADR's prose is not.
+      - **`action_items` has no status CHECK** ⚠ **CORRECTED, structurally**. `status_id` is an FK
+        into the tenant-extensible catalog `action_item_statuses`; the only fixed vocabulary is its
+        `category` CHECK (`draft, open, in_progress, blocked, waiting_review, completed,
+        cancelled`) — `key`/`label` are free tenant text. Migration B's action_item arm **must
+        join `action_item_statuses.category`, never switch on a status string.**
+      - **`controlled_documents`** (not `documents`): `draft, in_approval, changes_requested,
+        effective, obsolete`. ⚠ D5's matrix never mentions **`changes_requested`** (landed later,
+        ADR 0081/0082) — see the PO ruling recorded in Wave 1.
+      - CONFIRMED: `meetings.status` = `scheduled, held, in_signature, signed, distributed,
+        cancelled` · `capa_plan.status` = `open, in_execution, in_verification, completed,
+        cancelled` · `form_versions.status` = `draft, published, archived` · `indicators.frequency`
+        = `mensal…anual` · `indicator_measurements.status` = `on_target, off_target, no_data`
+        (**English in storage**; the pt-BR `na_meta`/`fora_da_meta`/`sem_dados` of D5's prose are
+        UI labels only — the matrix must key off the English values).
+      - CONFIRMED: no `accreditation` row in `app.feature_flags(key, enabled, description)`;
+        `enabled` **defaults to `true`**, so seeding OFF requires an explicit `enabled = false`.
+- [x] **Backend committed the contract** (`de2404c`): `src/lib/accreditation/types.ts` +
+      `src/lib/queries/accreditation.ts` (typed stubs; typecheck + lint clean). Frontend is
+      unblocked. Key types: `ArtifactKind` (the 8 + `charter` + `ethics_procedure`),
       `AssessmentStatus` (`conforme|parcial|nao_conforme|nao_aplicavel`), `EvidenceStatus`
       (`valida|atencao|vencida`), `ReadinessRow` (per-standard: level, assessment, evidence
       counts split by status + `evidenceRestrita`; **never `note`**), `EvidenceItem` (masked →
@@ -127,7 +150,8 @@ skeleton → **PO validates** (build-blocking for Migration F only).
 ## Wave 2 — Backend RPCs/doors/seed ∥ Frontend scaffolding
 
 **Backend (Migrations C–F, pgTAP 280–284).** Every RPC opens with
-`app.assert_accreditation_enabled()` (→ HC0Q7).
+`app.assert_accreditation_enabled()` (→ HC0Q9 — renumbered from the plan's original HC0Q7 after
+Wave 0 found the true high-water is HC0Q8).
 
 - **C — framework CRUD:** `create/update_framework`, `set_framework_status`,
   `upsert/delete_standard` — global packs: `app.is_admin()` **only** (the one correct
@@ -158,13 +182,16 @@ skeleton → **PO validates** (build-blocking for Migration F only).
     with mutation-proven reader-non-writer keystones.
 - **F — seed packs** (after PO CSV validation): ONA (leveled) + JCI chapter skeleton
   (level NULL), **fixed UUIDs** in a constants block for deterministic tests; skeleton only.
-- **SQLSTATEs** (from HC0Q7, verify first): HC0Q7 flag off · HC0Q8 belongs/not-linkable ·
-  HC0Q9 duplicate link · HC0QA invalid target (parent/framework/hospital/level) · HC0QB global
-  pack read-only ("…clone o framework para editá-lo.") · HC0QC framework arquivado. pt-BR
-  messages in the migration + `src/lib/accreditation/messages.ts`.
+- **SQLSTATEs — allocated from `HC0Q9`** (Wave 0 verified the live high-water is `HC0Q8`; the
+  original plan's `HC0Q7` base would have COLLIDED with FF-4's live block-library raises):
+  **HC0Q9** flag off · **HC0QA** belongs/not-linkable · **HC0QB** duplicate link · **HC0QC**
+  invalid target (parent/framework/hospital/level) · **HC0QD** global pack read-only
+  ("…clone o framework para editá-lo.") · **HC0QE** framework arquivado. pt-BR messages in the
+  migration + `src/lib/accreditation/messages.ts`. Re-verify the high-water at Wave 2 start —
+  no other phase should be allocating, but the check is cheap and this lane has now gone stale twice.
 - **pgTAP 280** (CRUD doors: platform_admin global-only; staff_admin custom-only; clone
-  fidelity; HC0QB/HC0QC; flag-off HC0Q7 on every RPC) · **281** (evidence/assessment RLS +
-  write rejection for plain `staff`; HC0Q9; link-time `can_read_case`; audit rows) ·
+  fidelity; HC0QD/HC0QE; flag-off HC0Q9 on every RPC) · **281** (evidence/assessment RLS +
+  write rejection for plain `staff`; HC0QB; link-time `can_read_case`; audit rows) ·
   **282** (freshness matrix cell-by-cell incl. boundary `review_due_date = current_date`,
   frequency windows) · **283** (readiness doors: member rows / foreign zero /
   **platform_admin ZERO rows from all doors** (D6, the BUG-AUTHZ-001 assertion) / restricted →
@@ -218,7 +245,7 @@ REST with identity-based cleanup — never positional; personas per seed):**
 1. `phase16-accreditation-core.spec.ts` — ONA tree with level badges; link form+meeting+
    indicator → evidenced, leaves gap list; assess `nao_conforme` → enters gap list, **assert
    the computed rollup value**; `staff1.ccih` no edit + server rejection; `chefe.farm` foreign
-   artifact rejected (HC0Q8 message); audit rows asserted; keyboard-only pass (tree → assess →
+   artifact rejected (HC0QA message); audit rows asserted; keyboard-only pass (tree → assess →
    picker → link).
 2. `phase16-accreditation-freshness.spec.ts` — vigente doc = válida; backdated
    `review_due_date` = vencida with split count; indicator unmeasured-in-window = vencida,
