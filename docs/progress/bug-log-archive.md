@@ -427,3 +427,78 @@ check before calling the fix's scope closed.
 `null`" as distinct from "no row" rather than dropping the row — how to do that without disturbing the
 CHOICE-item exclusion sharing the same loop is backend's call.
 
+---
+
+## BUG-E2EISO-002 — rotated from PROGRESS.md 2026-08-03 (RESOLVED)
+
+#### ✅ BUG-E2EISO-002 — `session_replication_role = replica` in the FF-1/2/3/5 specs' `purge()` disables FK CASCADE and orphans form rows on every run · owner **tester** · **RESOLVED 2026-08-03** (filed 2026-08-03; found by tester during the FF-4 test pass, hit again in a second file during triage)
+
+**Fixed.** All teardown now goes through one shared helper, `e2e/helpers/purge-forms.ts`, which keeps the
+`replica` bypass (the immutability guards genuinely require it) and adds the explicit child-first deletes
+it can no longer get from FK CASCADE. Seven files: the four FF specs (`ff1-repeating-groups`,
+`ff2-matrix`, `ff3-validations`, `ff5-references`) plus `helpers/ff2-matrix.ts`'s shared `purgeByTag`,
+**and two more the original report did not list** — `answer-model-v2` and `form-model-normalization`,
+which carried the identical leak at **three** sites each.
+
+**⚠ Correction to the fix note below: `app.copy_version_children` alone is NOT sufficient.** It
+enumerates only the *authoring* subtree, because cloning a version does not clone its responses. The
+response subtree (`responses` → `answers` → `answer_selected_options`/`_matrix_cells`/`_risk_matrix`/
+`_references`, plus `response_group_instances`/`_section_signoffs`) had to come from the FK graph in
+`pg_constraint` rooted at `public.forms` — and that is precisely the half that orphaned the 2 published
+versions carrying real submitted data. The helper derives from **both**, both read from the live catalog.
+
+**The DV-6 collision is fixed, not just the leak.** The two by-id sites in those extra specs delete a
+form with a FIXED id and re-insert children with fixed ids; once a version is orphaned its `forms` row is
+gone, so nothing form-rooted can reach it and the re-insert collides on
+`form_versions_form_id_version_number_key`. Reproduced exactly, then fixed via `purgeVersionsByIds`,
+which deletes by version id directly. Those specs are now idempotent across runs on one DB.
+
+**Also added:** a runtime tripwire for the `NO ACTION` referrers (`case_phases`,
+`process_template_phases`, `case_interviews`) that `replica` would orphan just as silently — an
+assertion rather than a comment, because "no spec attaches a case to its own forms" is a claim about
+fixtures that would go stale unnoticed. Mutation-proven to fire (caught 7 rows). Purges are now atomic
+(`--single-transaction`) so a tripwire abort cannot leave a half-deleted fixture.
+
+**Verification:** 60 tests across the five FF specs, all green, **0 orphans across all 15 FK edges** after
+each. `answer-model-v2` + `form-model-normalization` run **twice on one DB with no reset** — green
+(one unrelated NORM-2 publish-timeout flake in pass 1; that test's code is untouched by this change and
+passes 3/3 in isolation at 7–8s vs the 44.3s timeout). Mutation-proved both directions: same fixture,
+old teardown → orphan; new helper → 0 rows left, 0 orphans. lint + typecheck clean; `src/` and
+`supabase/` untouched.
+
+**Production is NOT affected**, verified three ways: `session_replication_role` is a `superuser`-context
+GUC and `anon`/`authenticated`/`service_role` all get `permission denied` when they try to set it (tested
+empirically, not inferred); no app code sets it (the only non-test occurrences are one migration comment
+and the demo script); and an orphan sweep against the **linked remote project returned 0 on all 15
+edges**. The leak was also structurally confined to the local stack — every purge helper shells into the
+local Docker container by name.
+
+**Left open (adjacent, not this bug):** `supabase/demo/reset-revisao-prontuario.sql` deletes
+`forms`/`form_items` under `replica` while clearing only 2 of the 10 child tables. **Latent** — the demo
+seed creates zero rows in any of the 8 uncovered tables, so nothing orphans today; it would bite the
+first time the demo grows a matrix, reference, repeating-group, or validation item.
+
+<details><summary>Original report (2026-08-03)</summary>
+
+Promoted from a prose "side finding" in the Test Run Summary to a numbered bug so it survives a sweep.
+**Full technical detail is in the Test Run Summary below — not duplicated here.**
+
+**One line:** `session_replication_role = replica` is used to bypass `guard_submitted_response` before
+deleting a form, but it disables **all** non-origin triggers including Postgres's own FK-CASCADE, so
+`delete from forms …` leaves `form_versions`/`form_items`/`form_sections`/`answers` orphaned.
+
+**Scope:** **46 pre-existing orphaned draft versions + 2 orphaned PUBLISHED versions carrying real
+`responses`/`answers`** were found and cleaned. `e2e/ff4-power-authoring.spec.ts` was written immune
+(explicit child-first, table-by-table deletes — use it as the reference implementation). **The FF-1,
+FF-2, FF-3 and FF-5 specs still carry the leaky one-liner and keep leaking on every run.**
+
+**It is not inert.** During FF-4 triage it caused a *second*, unrelated failure: `answer-model-v2` DV-6
+collided with a leftover orphaned `form_versions` row via a hardcoded fixture id. So it manufactures
+phantom failures in other files later, which is the expensive part.
+
+**Fix note:** derive the child-table set from `app.copy_version_children` in the **live catalog**, not a
+hand-written list — that function's insert list is the authoritative enumeration of a version's children
+(see ADR 0092's substrate section). A background task was spawned for this on 2026-08-03.
+*(Superseded — see the correction above: that enumeration covers only the authoring half.)*
+
+</details>

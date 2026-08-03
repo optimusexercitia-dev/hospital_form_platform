@@ -167,6 +167,8 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **FF-4-era bugs — BUG-FF4-001 closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF4-001** (clearing a dynamic *or* literal default and resuming RE-SEEDED it — `buildAnswerMaps` collapsed "answered as null" into "never answered"; fixed `b5c505e`, re-verified 7/7 by tester and lead). ⚠ It was a **pre-existing answer-model-v2 bug FF-4 surfaced**, not an FF-4 regression, and **the obvious one-line fix would have broken Rule 3 SQL↔TS evaluator parity** — see the archive entry before touching `buildAnswerMaps`.
 
+**BUG-E2EISO-002 — closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): the FF-spec `purge()` **FK-CASCADE orphan leak** (`session_replication_role = replica` disables Postgres’s own cascade triggers, not just the immutability guards). Fixed across **seven** files behind one shared helper, `e2e/helpers/purge-forms.ts` — the four FF specs + `helpers/ff2-matrix.ts`, **plus `answer-model-v2` and `form-model-normalization`, which the original report did not list** and which carried it at **three** sites each. ⚠ Three things to carry forward: **`app.copy_version_children` alone is NOT a sufficient enumeration** (it covers only the authoring half; the response subtree — the half that orphaned real submitted data — comes from `pg_constraint`); the **DV-6 fixed-id collision** on `form_versions_form_id_version_number_key` is fixed too, so those specs are idempotent across runs on one DB; and **production was never affected** — `session_replication_role` is a `superuser`-context GUC that `anon`/`authenticated`/`service_role` are all denied, and a sweep of the linked remote returned **0 orphans on all 15 edges**.
+
 #### 🔴 BUG-GATE-001 — `scripts/e2e-prod-gate.sh` drops a `reset FAILED` batch from its OWN coverage denominator, so it can print GATE GREEN over tests that never ran · owner **tester** (⚠ `scripts/` is outside tester's declared `e2e/` scope in CLAUDE.md §4 — lead to confirm ownership before assigning) · **OPEN** (filed 2026-08-03, found by the lead during the FF-4 gate)
 
 **Severity rationale — this is the only bug here that can make the Phase Gate itself lie.** Every other
@@ -204,28 +206,6 @@ batch that never ran must be reported as unrun (and force RED), not subtracted. 
 
 *(In the FF-4 gate the 66 were re-run standalone → **66/66 green**, so no FF-4 regression hid there. That
 had to be established, not assumed.)*
-
-#### 🟡 BUG-E2EISO-002 — `session_replication_role = replica` in the FF-1/2/3/5 specs' `purge()` disables FK CASCADE and orphans form rows on every run · owner **tester** · **OPEN** (filed 2026-08-03; found by tester during the FF-4 test pass, hit again in a second file during triage)
-
-Promoted from a prose "side finding" in the Test Run Summary to a numbered bug so it survives a sweep.
-**Full technical detail is in the Test Run Summary below — not duplicated here.**
-
-**One line:** `session_replication_role = replica` is used to bypass `guard_submitted_response` before
-deleting a form, but it disables **all** non-origin triggers including Postgres's own FK-CASCADE, so
-`delete from forms …` leaves `form_versions`/`form_items`/`form_sections`/`answers` orphaned.
-
-**Scope:** **46 pre-existing orphaned draft versions + 2 orphaned PUBLISHED versions carrying real
-`responses`/`answers`** were found and cleaned. `e2e/ff4-power-authoring.spec.ts` was written immune
-(explicit child-first, table-by-table deletes — use it as the reference implementation). **The FF-1,
-FF-2, FF-3 and FF-5 specs still carry the leaky one-liner and keep leaking on every run.**
-
-**It is not inert.** During FF-4 triage it caused a *second*, unrelated failure: `answer-model-v2` DV-6
-collided with a leftover orphaned `form_versions` row via a hardcoded fixture id. So it manufactures
-phantom failures in other files later, which is the expensive part.
-
-**Fix note:** derive the child-table set from `app.copy_version_children` in the **live catalog**, not a
-hand-written list — that function's insert list is the authoritative enumeration of a version's children
-(see ADR 0092's substrate section). A background task was spawned for this on 2026-08-03.
 
 #### 🟡 BUG-E2EISO-003 — `bulk-case-creation.spec.ts:344` (AC2) is not idempotent across runs on one DB · owner **tester** · **OPEN** (filed 2026-08-03, found by the lead triaging the FF-4 full-suite gate)
 
