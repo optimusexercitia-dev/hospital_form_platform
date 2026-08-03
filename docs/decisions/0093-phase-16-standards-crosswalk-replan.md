@@ -130,8 +130,13 @@ of this ADR's assumptions were wrong. Recorded here so the build follows the cat
 - **A2·3 — `controlled_documents.status` carries a fifth value D5 never contemplated:**
   `changes_requested` (landed after this ADR's source spec, via ADR
   [0081](0081-controlled-document-redesign.md)/[0082](0082-document-changes-requested-status.md)).
-  D5's matrix covers draft/in_approval/effective/obsolete only. **PO ruling required before
-  Migration B** — tracked in PROGRESS.md, not assumed here.
+  D5's matrix covers draft/in_approval/effective/obsolete only. **PO ruling 2026-08-03:
+  `changes_requested` → `vencida`** (not `atencao`). Rationale: an approver *explicitly sent the
+  document back* — it failed review, so as evidence of conformity it is absent proof, not weak
+  proof. `atencao` stays reserved for `in_approval`, which has not been refused. The completed
+  document arm of the D5 matrix is therefore: `effective` + review current → **valida** ·
+  `in_approval` → **atencao** · `changes_requested` / `draft` / `obsolete` / review overdue →
+  **vencida**.
 - Also corrected for the D5 matrix: `indicator_measurements.status` stores **English**
   (`on_target`/`off_target`/`no_data`); D5's `na_meta`/`fora_da_meta`/`sem_dados` are UI labels.
   The table is **`controlled_documents`**, not `documents`. `app.feature_flags.enabled`

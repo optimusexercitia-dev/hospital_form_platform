@@ -127,16 +127,27 @@ migration `20260717000000`):
   `commission_charters` row exists); **ethics_procedure** = `ethics_case_details` row exists AND
   `commission_of_case = commission`; **capa_plan = PO ruling 1** (hospital match; the read check
   lives in `link_evidence`). `ELSE raise` — never silent false on an unknown kind.
-- `app.evidence_status_of(kind, artifact)` — `valida|atencao|vencida` per the D5 matrix:
-  controlled_document mirrors `documents_due_for_review`
-  (`20260713000200:44-81` — vigente + `review_due_date >= current_date` = valida; overdue/
-  obsoleto/rascunho = vencida; em_aprovacao = atencao); form/form_version use
+- `app.evidence_status_of(kind, artifact)` — `valida|atencao|vencida` per the D5 matrix.
+  **`controlled_documents`** (note: not `documents`) mirrors `documents_due_for_review`
+  (`20260713000200:44-81`) with the live 5-value status set — `effective` +
+  `review_due_date >= current_date` = **valida** · `in_approval` = **atencao** ·
+  **`changes_requested`** (PO ruling 2026-08-03, ADR 0093 A2·3 — a refused document is absent
+  proof, not weak proof) / `draft` / `obsolete` / review overdue = **vencida**; form/form_version use
   `form_versions.review_due_date` (archived or superseded-published = vencida); indicator:
   ativo + measurement in current `frequency` window + latest `na_meta` = valida;
-  `fora_da_meta`/`sem_dados` = atencao; no measurement in window or arquivado = vencida;
-  charter inherits its linked bylaws document's status; case/ethics_procedure always valida;
-  capa_plan/action_item/meeting per the Wave-0-verified lifecycle enums. **Invariant (D5):
-  stale evidence never silently counts — counts always split.**
+  `off_target`/`no_data` = atencao; no measurement in window or arquivado = vencida.
+  ⚠ **`indicator_measurements.status` stores ENGLISH** (`on_target`/`off_target`/`no_data`) —
+  D5's `na_meta`/`fora_da_meta`/`sem_dados` are UI labels only; keying the matrix off the pt-BR
+  names would match nothing and fail **open**.
+  Charter inherits its linked bylaws document's status; case/ethics_procedure always valida;
+  capa_plan (`open, in_execution, in_verification, completed, cancelled`) and meeting
+  (`scheduled, held, in_signature, signed, distributed, cancelled`) per their live CHECKs.
+  ⚠ **`action_item` has NO status CHECK** — join `action_item_statuses.category`
+  (`draft, open, in_progress, blocked, waiting_review, completed, cancelled`); `key`/`label` are
+  free tenant text, so switching on a status string would mis-bucket every custom status
+  silently. **Invariant (D5): stale evidence never silently counts — counts always split.**
+  Corollary for the builder: every arm fails **closed** on an unrecognized value (`ELSE raise`),
+  never defaults to `valida` — the standing "guards that read right but fail open" trap.
 
 **pgTAP 278** (schema census: tables/CHECKs/uniques/RLS/grants/triggers/flag row OFF) and
 **279** (**arm parity by construction**: iterate the CHECK's kind list, assert both dispatch
