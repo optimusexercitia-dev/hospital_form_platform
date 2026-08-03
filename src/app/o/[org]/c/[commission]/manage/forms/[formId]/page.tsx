@@ -17,8 +17,10 @@ import {
   matrixFieldsEnabled,
   itemValidationsEnabled,
 } from "@/lib/queries/feature-flags";
+import type { FeatureFlagKey } from "@/lib/queries/feature-flags";
 import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
 import { listApproverCandidates } from "@/lib/queries/documents";
+import { listBlockLibraryEntries } from "@/lib/queries/block-library";
 import { BuilderShell } from "@/components/forms/builder-shell";
 import { PublishedReadOnly } from "@/components/forms/published-read-only";
 
@@ -89,6 +91,23 @@ export default async function BuilderPage({
     // reference block still renders and still resolves its label — gating
     // authoring is not gating truth.
     const referencesEnabled = await featureEnabled("entity_refs");
+    // FF-4 (ADR 0092) — `power_authoring`. Same fail-closed reasoning as the
+    // flags above: while OFF, both `save_block_to_library` and
+    // `insert_block_from_library` refuse the write, so neither the
+    // save-to-library affordance nor the library picker is offered.
+    //
+    // ⚠ `power_authoring` is BE-2's flag key (`FeatureFlags`,
+    // `src/lib/queries/feature-flags.ts`, backend-owned) and is not yet a
+    // member of that hand-maintained interface as of this build — the cast is
+    // a forward-compatible stopgap; `featureEnabled` already defaults an
+    // absent key to `false`, so this fails closed either way and the cast
+    // becomes a no-op once BE-2 lands the key.
+    const powerAuthoringEnabled = await featureEnabled(
+      "power_authoring" as FeatureFlagKey,
+    );
+    const libraryEntries = powerAuthoringEnabled
+      ? await listBlockLibraryEntries(access.commission.id)
+      : [];
     const controlledDocsOn = await controlledDocsEnabled();
     const approverCandidates = controlledDocsOn
       ? await listApproverCandidates(access.commission.id)
@@ -110,6 +129,8 @@ export default async function BuilderPage({
         matrixEnabled={matrixEnabled}
         validationsEnabled={validationsEnabled}
         referencesEnabled={referencesEnabled}
+        powerAuthoringEnabled={powerAuthoringEnabled}
+        libraryEntries={libraryEntries}
       />
     );
   }

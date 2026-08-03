@@ -119,6 +119,31 @@ export interface WizardData {
   /** Where the user left off — the wizard opens on this section if resumable. */
   lastSectionId: string | null;
   /**
+   * FF-4 (ADR 0092 ruling 5) — the context a DYNAMIC default
+   * (`item.defaultSource`) resolves against. Everything here is already
+   * loaded by the route page for other purposes (the respondent's name for
+   * the sign-off badge, the commission for the header) — no new read path,
+   * no new join, no PHI (the ADR's own stated property).
+   *
+   * `startedAt` is the response's own `responses.started_at` — what "draft-
+   * start date/time" (the `today`/`now` tokens) resolves against, per the
+   * ADR's table. Reading it from the response rather than `Date.now()` at
+   * wizard mount is deliberate: a value frozen at `startedAt` can never
+   * drift if the same in_progress response is resumed days later, which a
+   * live clock read at every mount would.
+   *
+   * REQUIRED (not optional-with-a-default): an omitted field here is exactly
+   * the class of bug BUG-FF5-002 was (a type-system opt-out that blanked a
+   * durable value silently) — every `WizardData` constructor, including
+   * every test fixture, must state this context explicitly.
+   */
+  dynamicDefaultContext: {
+    startedAt: string;
+    userName: string;
+    userEmail: string;
+    commissionName: string;
+  };
+  /**
    * Existing sign-off rows for this response, keyed by `section_id` (F3). B2
    * extends `getResponseForFill` to surface these so the review screen can show
    * each visible sign-off section's status and gate submission. Empty for a

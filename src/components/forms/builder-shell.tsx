@@ -7,6 +7,7 @@ import { History, Plus, Settings2 } from "lucide-react";
 
 import type { VersionTree } from "@/lib/queries/forms";
 import type { ApproverCandidate } from "@/lib/queries/documents";
+import type { BlockLibraryEntry } from "@/lib/queries/block-library";
 import { addSection } from "@/lib/forms/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
@@ -19,6 +20,7 @@ import { DeleteDraftButton } from "@/components/forms/delete-draft-button";
 import { useBuilderAction } from "@/components/forms/use-builder-action";
 import { useFlipReorder } from "@/components/forms/use-flip-reorder";
 import { BuilderFlagsProvider } from "@/components/forms/builder-flags";
+import { BlockLibraryEntriesProvider } from "@/components/forms/block-library-context";
 
 /**
  * The interactive two-level builder over a form's editable draft. Orchestrates
@@ -48,6 +50,8 @@ export function BuilderShell({
   matrixEnabled = false,
   validationsEnabled = false,
   referencesEnabled = false,
+  powerAuthoringEnabled = false,
+  libraryEntries = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -71,6 +75,12 @@ export function BuilderShell({
   validationsEnabled?: boolean;
   /** FF-5 (ADR 0091) — the `entity_refs` flag: offer the `reference` type. */
   referencesEnabled?: boolean;
+  /** FF-4 (ADR 0092) — the `power_authoring` flag: the block library + the
+   *  dynamic-default token picker. */
+  powerAuthoringEnabled?: boolean;
+  /** FF-4 — the commission's saved library entries, resolved server-side by
+   *  the page (only while `powerAuthoringEnabled`; `[]` otherwise). */
+  libraryEntries?: BlockLibraryEntry[];
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -96,7 +106,9 @@ export function BuilderShell({
       matrix={matrixEnabled}
       validations={validationsEnabled}
       references={referencesEnabled}
+      powerAuthoring={powerAuthoringEnabled}
     >
+    <BlockLibraryEntriesProvider entries={libraryEntries}>
     <div className="flex flex-col gap-8">
       <BuilderHeader
         org={org}
@@ -144,6 +156,7 @@ export function BuilderShell({
         </div>
       )}
     </div>
+    </BlockLibraryEntriesProvider>
     </BuilderFlagsProvider>
   );
 }

@@ -48,6 +48,15 @@ export interface BuilderFlags {
    * `matrix` and `validations` above.
    */
   references: boolean;
+  /**
+   * FF-4 (ADR 0092) — offer the commission block library (save-to-library on
+   * an existing block; "Da biblioteca…" in the add-block picker) and the
+   * dynamic-default token picker. While OFF, `save_block_to_library` /
+   * `insert_block_from_library` both refuse the write, so neither affordance
+   * is offered rather than offered and guaranteed to fail — the same
+   * fail-closed reasoning as `matrix`/`validations`/`references` above.
+   */
+  powerAuthoring: boolean;
 }
 
 /** All flags OFF — the safe default for any tree rendered without a provider. */
@@ -56,6 +65,7 @@ const DEFAULT_FLAGS: BuilderFlags = {
   matrix: false,
   validations: false,
   references: false,
+  powerAuthoring: false,
 };
 
 const BuilderFlagsContext = createContext<BuilderFlags>(DEFAULT_FLAGS);
@@ -65,20 +75,22 @@ export function BuilderFlagsProvider({
   matrix = false,
   validations = false,
   references = false,
+  powerAuthoring = false,
   children,
 }: {
   containers?: boolean;
   matrix?: boolean;
   validations?: boolean;
   references?: boolean;
+  powerAuthoring?: boolean;
   children: React.ReactNode;
 }) {
   // Memoized so the context value is referentially stable across the builder's
   // frequent re-renders (every action refreshes the tree) and never invalidates
   // a consumer that did not change.
   const value = useMemo<BuilderFlags>(
-    () => ({ containers, matrix, validations, references }),
-    [containers, matrix, validations, references],
+    () => ({ containers, matrix, validations, references, powerAuthoring }),
+    [containers, matrix, validations, references, powerAuthoring],
   );
   return <BuilderFlagsContext value={value}>{children}</BuilderFlagsContext>;
 }

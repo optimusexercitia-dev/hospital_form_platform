@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Flag,
   Grid3x3,
+  Library,
   ShieldCheck,
   MoveRight,
   Pencil,
@@ -47,6 +48,7 @@ import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
 import { MatrixConfigDialog } from "@/components/forms/matrix-config-dialog";
 import { ValidationsDialog } from "@/components/forms/validations-dialog";
+import { SaveToLibraryDialog } from "@/components/forms/save-to-library-dialog";
 import {
   itemAcceptsValidations,
   parentItemTypeOf,
@@ -103,6 +105,10 @@ export function BlockCard({
   // REPLACE and wholesale). See `ValidationsDialog` for why it cannot ride the
   // item editor's submit.
   const [rulesOpen, setRulesOpen] = useState(false);
+  // FF-4 (ADR 0092 ruling 8) — save-to-library, a FOURTH separate write
+  // (`save_block_to_library`, a DEFINER snapshot). Top-level items only —
+  // see the `!isChild` gate below.
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const flags = useBuilderFlags();
   const meta = ITEM_TYPE_META[item.itemType];
@@ -114,6 +120,10 @@ export function BlockCard({
   const acceptsValidations =
     flags.validations && itemAcceptsValidations(item.itemType, parentItemType);
   const ruleCount = item.validations?.length ?? 0;
+  // FF-4 (ADR 0092 ruling 8) — "the unit is one item subtree… must not itself
+  // be the child of a container". A CHILD block's container is what "one item
+  // subtree" means for it, so the affordance sits only on the top-level card.
+  const canSaveToLibrary = flags.powerAuthoring && !isChild;
   const children = item.children;
   // "Mover para outra seção" is hidden for containers and for children: a
   // container's children live in the SAME section as their parent (they occupy
@@ -231,6 +241,18 @@ export function BlockCard({
                   {ruleCount}
                 </span>
               )}
+            </Button>
+          )}
+          {canSaveToLibrary && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setLibraryOpen(true)}
+              aria-label="Salvar na biblioteca"
+              title="Salvar na biblioteca"
+            >
+              <Library aria-hidden="true" />
             </Button>
           )}
           <Button
@@ -375,6 +397,15 @@ export function BlockCard({
           item={item}
           sections={sections}
           parentItemType={parentItemType}
+        />
+      )}
+
+      {canSaveToLibrary && libraryOpen && (
+        <SaveToLibraryDialog
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          itemId={item.id}
+          itemLabel={item.label}
         />
       )}
     </article>

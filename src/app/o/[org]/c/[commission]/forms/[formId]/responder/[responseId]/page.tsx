@@ -77,6 +77,8 @@ export default async function ResponderPage({
     org,
     slug,
     access.context.fullName ?? "Você",
+    access.context.email,
+    access.commission.name,
     signoffs,
   );
   const imageUrls = await resolveImageUrls(response);

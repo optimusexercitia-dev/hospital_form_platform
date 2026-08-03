@@ -67,9 +67,9 @@ import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import { FlaggedWhenEditor } from "@/components/forms/flagged-when-editor";
 import {
   DefaultValueEditor,
-  initialDefaultValue,
+  initialDefaultConfig,
   supportsDefaultValue,
-  type DefaultValue,
+  type DefaultConfig,
 } from "@/components/forms/default-value-editor";
 
 const CHOICE_TYPES: ItemType[] = ["multiple_choice", "dropdown", "checkbox"];
@@ -125,7 +125,7 @@ type Props = {
  * dialog with a sticky header (+ type-icon chip), a scrollable body, and a sticky
  * footer. Display types (`section_text`/`image`) stay single-column in a `max-w-xl`
  * dialog. The redesign is LAYOUT-ONLY: every hidden-field contract, the
- * useActionState wiring, `effectiveDefaultValue`, the success effect, submit-label
+ * useActionState wiring, `effectiveDefaultConfig`, the success effect, submit-label
  * states, and the a11y wiring are preserved exactly (design doc §0).
  */
 export function ItemEditorDialog(props: Props) {
@@ -245,9 +245,12 @@ export function ItemEditorDialog(props: Props) {
   const [requiredIf, setRequiredIf] = useState<RequiredIf | null>(
     existing?.requiredIf ?? null,
   );
-  // answer-model-v2 (FE-1): the per-input default value (null = none).
-  const [defaultValue, setDefaultValue] = useState<DefaultValue>(
-    initialDefaultValue(existing),
+  // answer-model-v2 (FE-1) + FF-4 (ADR 0092 rulings 5/6): the per-input
+  // default — literal, dynamic, or none. A discriminated union rather than a
+  // `DefaultValue` + `DefaultSource | null` pair so the two can never both be
+  // set in this component's own state (see `DefaultConfig`'s doc comment).
+  const [defaultConfig, setDefaultConfig] = useState<DefaultConfig>(
+    initialDefaultConfig(existing),
   );
   // FF-2 — `risk_matrix` score→band mapping (→ config.riskBands). Held as
   // drafts (string `minScore` buffers) and serialized sorted on submit.
@@ -293,21 +296,24 @@ export function ItemEditorDialog(props: Props) {
   // session (a code only changes identity by removal — renaming a label keeps the
   // code). Choice types only; scalar defaults are unaffected by option edits.
   // Computed during render so it's always in sync with the live `options` state,
-  // with no cascading setState-in-effect render.
-  const effectiveDefaultValue = useMemo<DefaultValue>(() => {
-    if (!isChoice || defaultValue === null) return defaultValue;
+  // with no cascading setState-in-effect render. A DYNAMIC config passes through
+  // untouched — a token is never an option code, so option edits never affect it.
+  const effectiveDefaultConfig = useMemo<DefaultConfig>(() => {
+    if (defaultConfig.kind !== "literal" || !isChoice) return defaultConfig;
+    const value = defaultConfig.value;
+    if (value === null) return defaultConfig;
     const codes = new Set(
       options.filter((o) => o.label.trim().length > 0).map((o) => o.code),
     );
-    if (Array.isArray(defaultValue)) {
-      const kept = defaultValue.filter((c) => codes.has(c));
-      return kept.length === 0 ? null : kept;
+    if (Array.isArray(value)) {
+      const kept = value.filter((c) => codes.has(c));
+      return { kind: "literal", value: kept.length === 0 ? null : kept };
     }
-    if (typeof defaultValue === "string") {
-      return codes.has(defaultValue) ? defaultValue : null;
+    if (typeof value === "string") {
+      return { kind: "literal", value: codes.has(value) ? value : null };
     }
-    return defaultValue;
-  }, [isChoice, options, defaultValue]);
+    return defaultConfig;
+  }, [isChoice, options, defaultConfig]);
 
   const meta = ITEM_TYPE_META[itemType];
 
@@ -815,25 +821,39 @@ export function ItemEditorDialog(props: Props) {
                 >
                   <GroupEyebrow label="Comportamento" />
 
-                  {/* answer-model-v2 (FE-1): the per-input default value, synced
-                      into the hidden `defaultValue` field the addItem/updateItem
-                      actions read (JSON: scalar, or option code / code[]). */}
+                  {/* answer-model-v2 (FE-1) + FF-4 (ADR 0092 rulings 5/6): the
+                      per-input default, synced into the hidden `defaultValue`
+                      (literal — JSON: scalar, or option code / code[]) and
+                      `defaultSource` (dynamic — the bare token string) fields
+                      the addItem/updateItem actions read. Exactly one of the
+                      two is ever non-blank — `effectiveDefaultConfig`'s union
+                      shape makes that true by construction, not by convention. */}
                   {supportsDefaultValue(itemType) ? (
                     <div className="flex flex-col gap-4">
                       <input
                         type="hidden"
                         name="defaultValue"
                         value={
-                          effectiveDefaultValue === null
-                            ? ""
-                            : JSON.stringify(effectiveDefaultValue)
+                          effectiveDefaultConfig.kind === "literal" &&
+                          effectiveDefaultConfig.value !== null
+                            ? JSON.stringify(effectiveDefaultConfig.value)
+                            : ""
+                        }
+                      />
+                      <input
+                        type="hidden"
+                        name="defaultSource"
+                        value={
+                          effectiveDefaultConfig.kind === "dynamic"
+                            ? effectiveDefaultConfig.source
+                            : ""
                         }
                       />
                       <DefaultValueEditor
                         itemType={itemType}
                         options={cleanOptions}
-                        value={effectiveDefaultValue}
-                        onChange={setDefaultValue}
+                        config={effectiveDefaultConfig}
+                        onChange={setDefaultConfig}
                       />
                       <div className="h-px bg-border" />
                     </div>

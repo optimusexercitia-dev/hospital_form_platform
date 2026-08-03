@@ -6,6 +6,10 @@ import type { Json } from "@/lib/types/database";
 import type { AnswerMap } from "@/lib/queries/conditions";
 import type { Item, Section } from "@/lib/queries/forms";
 import { OTHER_OPTION_CODE } from "@/lib/forms/option-constants";
+import {
+  isDefaultSourceEligible,
+  type DefaultSource,
+} from "@/lib/forms/item-tree";
 import type {
   MatrixCellsState,
   RiskMatrixState,
@@ -335,17 +339,62 @@ export function isEmptyValue(value: Json): boolean {
 }
 
 /**
- * answer-model-v2 (FE-2, ADR 0046 / P2.4): seed the initial answer state with
- * each VISIBLE, unanswered input item's `defaultValue`. Visibility is computed
- * from the SAVED answers only (mirrors `computeEffectiveVisibility`), so a
+ * FF-4 (ADR 0092 ruling 5) — resolve a dynamic-default TOKEN to the concrete
+ * value it seeds, against the response's own draft-start context.
+ * `today`/`now` read `ctx.startedAt` (`responses.started_at`) rather than a
+ * live clock, because the ADR's contract is "draft-start date/time", not
+ * "whatever date/time this mount happens to run at" — a value frozen at
+ * `startedAt` can never drift across a resume days later the way `new
+ * Date()` would (the exact idempotent/never-destructive contract
+ * `defaultValue` already has — ruling 5's closing line — `defaultSource`
+ * inherits it by resolving from a fact that is itself frozen per-response).
+ */
+function resolveDynamicDefault(
+  source: DefaultSource,
+  ctx: WizardData["dynamicDefaultContext"],
+): Json {
+  const startedAtIso = new Date(ctx.startedAt).toISOString();
+  switch (source) {
+    case "today":
+      return startedAtIso.slice(0, 10);
+    case "now":
+      return startedAtIso.slice(11, 16);
+    case "current_user_name":
+      return ctx.userName;
+    case "current_user_email":
+      return ctx.userEmail;
+    case "commission_name":
+      return ctx.commissionName;
+  }
+}
+
+/**
+ * answer-model-v2 (FE-2, ADR 0046 / P2.4) + FF-4 (ADR 0092 rulings 5/6): seed
+ * the initial answer state with each VISIBLE, unanswered input item's default
+ * — a literal `defaultValue` or a resolved `defaultSource` token, the two
+ * being XOR by construction (a DB CHECK; `item.defaultValue` is checked
+ * first purely as a branch order, never both). Visibility is computed from
+ * the SAVED answers only (mirrors `computeEffectiveVisibility`), so a
  * default is never applied to an item hidden by a condition — a hidden item's
  * question_key is dropped from the effective map before any later item is
  * evaluated, so this can never leak a default into a controlling answer either.
  * Runs once, at wizard mount (the initializer of the `answers` state): a kept
  * default then saves like any ordinary answer on the next section save; the
- * user is always free to change or clear it.
+ * user is always free to change or clear it — and once cleared or edited,
+ * `item.id in initialAnswers` is true on the next mount (the answer, even an
+ * empty one, is now saved), so this never refills behind them.
+ *
+ * `isDefaultSourceEligible` is a defensive re-check, not load-bearing: BE-3's
+ * write-time CHECK already pins each token to the type set that can honour
+ * it, so an ineligible pairing should never reach this read path. Kept
+ * anyway so a stale/legacy row can never seed a shape `answers.value` can't
+ * hold, rather than trusting the invariant silently.
  */
-function withDefaults(sections: Section[], initialAnswers: AnswerState): AnswerState {
+function withDefaults(
+  sections: Section[],
+  initialAnswers: AnswerState,
+  dynamicDefaultContext: WizardData["dynamicDefaultContext"],
+): AnswerState {
   const initialMap = toAnswerMap(initialAnswers);
   const { visibleItemIds } = computeEffectiveVisibility(sections, initialMap);
 
@@ -356,13 +405,23 @@ function withDefaults(sections: Section[], initialAnswers: AnswerState): AnswerS
       if (!visibleItemIds.has(item.id)) continue;
       if (item.id in initialAnswers) continue; // already has a saved answer
       if (item.questionKey == null) continue;
-      if (item.defaultValue === null || item.defaultValue === undefined) continue;
+
+      let seed: Json | undefined;
+      if (item.defaultValue !== null && item.defaultValue !== undefined) {
+        seed = item.defaultValue;
+      } else if (
+        item.defaultSource &&
+        isDefaultSourceEligible(item.defaultSource, item.itemType)
+      ) {
+        seed = resolveDynamicDefault(item.defaultSource, dynamicDefaultContext);
+      }
+      if (seed === undefined) continue;
 
       if (next === null) next = { ...initialAnswers };
       next[item.id] = {
         itemId: item.id,
         questionKey: item.questionKey,
-        value: item.defaultValue,
+        value: seed,
       };
     }
   }
@@ -412,7 +471,7 @@ export function useWizard(data: WizardData): WizardState {
   const isFlat = sections.length === 1 && sections[0].isDefault;
 
   const [answers, setAnswers] = useState<AnswerState>(() =>
-    withDefaults(sections, data.initialAnswers),
+    withDefaults(sections, data.initialAnswers, data.dynamicDefaultContext),
   );
 
   // FF-2 — the TOP-LEVEL matrix slices. Separate state, never merged into

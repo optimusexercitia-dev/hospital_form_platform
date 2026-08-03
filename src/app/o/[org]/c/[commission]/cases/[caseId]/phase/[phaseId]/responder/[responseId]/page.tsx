@@ -111,6 +111,8 @@ export default async function PhaseResponderPage({
     org,
     slug,
     access.context.fullName ?? "Você",
+    access.context.email,
+    access.commission.name,
     signoffs,
     correction ? null : { casePhaseId: fill.phase.id, result: fill.result },
     correction,

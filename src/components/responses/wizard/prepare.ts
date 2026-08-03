@@ -191,6 +191,17 @@ export function toWizardData(
   org: string,
   slug: string,
   respondentName: string,
+  /**
+   * FF-4 (ADR 0092 ruling 5) — the filling user's e-mail and the response's
+   * owning commission's name, for the `current_user_email`/`commission_name`
+   * dynamic-default tokens. Both REQUIRED (not optional): the route page
+   * already resolves them via `getCommissionAccessByOrg` for other purposes
+   * (`access.context.email`, `access.commission.name`), so there is nothing
+   * for a caller to omit accidentally — same "no silent gap" reasoning as
+   * every other required field on {@link WizardData}.
+   */
+  respondentEmail: string,
+  commissionName: string,
   signoffs: SignoffRecord[],
   /**
    * The case-phase RESULT context (phase-results feature), present ONLY on the
@@ -245,6 +256,12 @@ export function toWizardData(
     // reach the condition evaluator's answer map (ruling 5).
     initialReferences: toReferenceState(response.referencesByItemId),
     lastSectionId: response.lastSectionId,
+    dynamicDefaultContext: {
+      startedAt: response.startedAt,
+      userName: respondentName,
+      userEmail: respondentEmail,
+      commissionName,
+    },
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,
     correction: correction ?? undefined,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Library, Plus } from "lucide-react";
 
 import type { ItemType, Section } from "@/lib/queries/forms";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   REFERENCE_TYPES,
 } from "@/components/forms/item-type-meta";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
+import { BlockLibraryPicker } from "@/components/forms/block-library-picker";
 import { useBuilderFlags } from "@/components/forms/builder-flags";
 
 const INPUT_TYPES: ItemType[] = [
@@ -68,6 +69,7 @@ export function AddBlockMenu({
   parentItem?: { id: string; label: string | null };
 }) {
   const [pendingType, setPendingType] = useState<ItemType | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   // FF-2: the flags come from the builder root's provider rather than from a
   // boolean threaded through five components that have no opinion about them.
   const flags = useBuilderFlags();
@@ -75,6 +77,11 @@ export function AddBlockMenu({
   const isChildMode = parentItem != null;
   // Depth cap: a container may never be offered inside a container.
   const showContainers = flags.containers && !isChildMode;
+  // FF-4 (ADR 0092) — the library picker, SECTION mode only. The frozen
+  // `insertBlockFromLibrary` contract takes no `parentItemId`: an inserted
+  // block always lands top-level, so offering this from inside a container
+  // would open a picker whose only outcome is a door refusal.
+  const showLibrary = flags.powerAuthoring && !isChildMode;
   const triggerLabel = isChildMode ? "Adicionar pergunta ao grupo" : "Adicionar bloco";
 
   return (
@@ -164,8 +171,36 @@ export function AddBlockMenu({
               ))}
             </>
           ) : null}
+          {showLibrary ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setLibraryOpen(true)}
+                className="items-start gap-2.5"
+              >
+                <Library
+                  aria-hidden
+                  className="mt-0.5 size-4 text-muted-foreground"
+                />
+                <span className="flex flex-col">
+                  <span className="font-medium">Da biblioteca…</span>
+                  <span className="text-xs text-muted-foreground">
+                    Inserir um bloco já salvo desta comissão.
+                  </span>
+                </span>
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {showLibrary && libraryOpen && (
+        <BlockLibraryPicker
+          open={libraryOpen}
+          onOpenChange={setLibraryOpen}
+          sectionId={sectionId}
+        />
+      )}
 
       {pendingType && (
         <ItemEditorDialog

@@ -64,6 +64,14 @@ function wizardData(): WizardData {
     },
     initialAnswers: {},
     lastSectionId: null,
+    // FF-4: REQUIRED on WizardData (BUG-FF5-002 discipline) — a fixture with
+    // no dynamic-default item still declares the context.
+    dynamicDefaultContext: {
+      startedAt: "2026-01-01T12:00:00.000Z",
+      userName: "Responsável",
+      userEmail: "responsavel@test.local",
+      commissionName: "CCIH",
+    },
     signoffsBySectionId: {},
     // FF-1: repeating-group instances (none in these fixtures).
     initialInstances: [],

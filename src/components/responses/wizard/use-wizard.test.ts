@@ -77,6 +77,14 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
     tree: t,
     initialAnswers,
     lastSectionId: null,
+    // FF-4: REQUIRED on WizardData (BUG-FF5-002 discipline) — a fixture with
+    // no dynamic-default item still declares the context.
+    dynamicDefaultContext: {
+      startedAt: "2026-01-01T12:00:00.000Z",
+      userName: "Responsável",
+      userEmail: "responsavel@test.local",
+      commissionName: "CCIH",
+    },
     signoffsBySectionId: {},
     // FF-1: repeating-group instances (none in these fixtures).
     initialInstances: [],
@@ -654,6 +662,189 @@ describe("useWizard default-value prefill (answer-model-v2 FE-2)", () => {
     ]);
     const { result } = renderHook(() => useWizard(data(t)));
     expect(result.current.answers.mc).toBeUndefined();
+  });
+});
+
+describe("useWizard dynamic-default prefill (FF-4, ADR 0092 ruling 5)", () => {
+  // The fixture's `dynamicDefaultContext` (in `data()` above): startedAt
+  // 2026-01-01T12:00:00.000Z, userName "Responsável", userEmail
+  // "responsavel@test.local", commissionName "CCIH".
+
+  it("resolves `today` to the draft-start DATE, not the current clock", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "d",
+            sectionId: "s0",
+            itemType: "date",
+            questionKey: "d",
+            options: null,
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.d?.value).toBe("2026-01-01");
+  });
+
+  it("resolves `now` to the draft-start TIME", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "tm",
+            sectionId: "s0",
+            itemType: "time",
+            questionKey: "tm",
+            options: null,
+            defaultSource: "now",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.tm?.value).toBe("12:00");
+  });
+
+  it("resolves the three text tokens from the filling user's context", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "name",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "name",
+            options: null,
+            defaultSource: "current_user_name",
+          }),
+          inputItem({
+            id: "email",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "email",
+            options: null,
+            defaultSource: "current_user_email",
+          }),
+          inputItem({
+            id: "comm",
+            sectionId: "s0",
+            itemType: "free_text",
+            questionKey: "comm",
+            options: null,
+            defaultSource: "commission_name",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.name?.value).toBe("Responsável");
+    expect(result.current.answers.email?.value).toBe("responsavel@test.local");
+    expect(result.current.answers.comm?.value).toBe("CCIH");
+  });
+
+  it("never overwrites an existing saved answer with a dynamic default", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "d",
+            sectionId: "s0",
+            itemType: "date",
+            questionKey: "d",
+            options: null,
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const initialAnswers: AnswerState = {
+      d: { itemId: "d", questionKey: "d", value: "2020-05-05" },
+    };
+    const { result } = renderHook(() => useWizard(data(t, initialAnswers)));
+    expect(result.current.answers.d?.value).toBe("2020-05-05");
+  });
+
+  it("lets the user clear a prefilled dynamic default (never re-applies after edit)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "d",
+            sectionId: "s0",
+            itemType: "date",
+            questionKey: "d",
+            options: null,
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.d?.value).toBe("2026-01-01");
+
+    act(() => {
+      result.current.setAnswer({ id: "d", questionKey: "d" }, "");
+    });
+    expect(result.current.answers.d?.value).toBe("");
+  });
+
+  it("a literal defaultValue wins over defaultSource (XOR should make this unreachable in practice)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "d",
+            sectionId: "s0",
+            itemType: "date",
+            questionKey: "d",
+            options: null,
+            defaultValue: "2099-12-31",
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.d?.value).toBe("2099-12-31");
+  });
+
+  it("does not seed a token that cannot apply to the item's type (defensive type gate)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "num",
+            sectionId: "s0",
+            itemType: "number",
+            questionKey: "num",
+            options: null,
+            // `today` is only eligible for `date` — this pairing could never
+            // be authored through the builder/DB CHECK; the resolver must
+            // still refuse to seed a shape `answers.value` can't hold.
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.num).toBeUndefined();
   });
 });
 

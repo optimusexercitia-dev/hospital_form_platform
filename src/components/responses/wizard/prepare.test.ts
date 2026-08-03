@@ -65,6 +65,9 @@ function response(over: Partial<ResponseForFill>): ResponseForFill {
     formTitle: "Formulário",
     commissionId: "c1",
     status: "in_progress",
+    // FF-4 (ADR 0092 ruling 5): REQUIRED on ResponseForFill — what `today`/
+    // `now` resolve against (`prepare.ts`'s `dynamicDefaultContext`).
+    startedAt: "2026-01-01T12:00:00.000Z",
     lastSectionId: null,
     tree: tree([inputItem("q1")]),
     answersByItemId: {},
