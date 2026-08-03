@@ -219,8 +219,12 @@ Wave 0 found the true high-water is HC0Q8).
   rejected).
 
 **Frontend (parallel, against the contract; invoke `frontend-design` skill first):**
-- Flag wiring: add `accreditation` to `FeatureFlags` + `accreditationEnabled()` in
-  `src/lib/queries/feature-flags.ts`.
+- ⚠ **Ownership correction (lead, 2026-08-03):** this plan originally gave the flag wiring
+  (`accreditation` → `FeatureFlags` + `accreditationEnabled()` in
+  `src/lib/queries/feature-flags.ts`) to **frontend**. `src/lib/queries/` is **backend-owned**
+  under CLAUDE.md §4, and file ownership is binding — two teammates never edit one file in a
+  phase. **Reassigned to backend**, as its first Wave 2 item so it lands before frontend needs
+  the gate. Frontend imports the helper and sequences the routes last.
 - `src/lib/accreditation/{actions.ts,messages.ts,rollups.ts}` — `'use server'` ActionState +
   `mapError` on SQLSTATE + `revalidatePath` via `commissionHref`/`orgHref`
   (`src/lib/routing.ts`); conventions per `src/lib/indicators/actions.ts`.
