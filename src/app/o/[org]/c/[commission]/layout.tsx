@@ -23,6 +23,7 @@ import {
   qualityIndicatorsEnabled,
   controlledDocsEnabled,
   chartersEnabled,
+  accreditationEnabled,
 } from "@/lib/queries/feature-flags";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -101,6 +102,7 @@ export default async function CommissionLayout({
     qualityIndicatorsOn,
     controlledDocsOn,
     chartersOn,
+    accreditationOn,
     nspAccess,
   ] = await Promise.all([
     meetingsEnabled(),
@@ -113,6 +115,7 @@ export default async function CommissionLayout({
     qualityIndicatorsEnabled(),
     controlledDocsEnabled(),
     chartersEnabled(),
+    accreditationEnabled(),
     getNspAccessByOrg(org),
   ]);
 
@@ -206,6 +209,7 @@ export default async function CommissionLayout({
         qualityIndicatorsEnabled={qualityIndicatorsOn}
         controlledDocsEnabled={controlledDocsOn}
         chartersEnabled={chartersOn}
+        accreditationEnabled={accreditationOn}
         isNspCoordinator={nspAccess?.isCoordinator ?? false}
         isPqsMember={nspAccess?.isPqsMember ?? false}
         notificationBell={<NotificationBell />}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight,
+  Award,
   BarChart3,
   Briefcase,
   CalendarDays,
@@ -83,7 +84,8 @@ interface NavItem {
     | "case_referrals"
     | "quality_indicators"
     | "controlled_docs"
-    | "charters";
+    | "charters"
+    | "accreditation";
   /**
    * When true, the item renders only if `actionItemsEnabled` is on — the composite
    * flag `cases_extras OR meetings OR action_items` resolved by the layout (the
@@ -266,6 +268,13 @@ const NAV_GROUPS: NavGroup[] = [
         requiresFeature: "charters",
       },
       {
+        label: "Acreditação",
+        href: "manage/acreditacao",
+        icon: Award,
+        roles: ["staff_admin"],
+        requiresFeature: "accreditation",
+      },
+      {
         label: "Trilha de auditoria",
         href: "manage/audit",
         icon: ScrollText,
@@ -306,6 +315,7 @@ export function AppSidebar({
   qualityIndicatorsEnabled = false,
   controlledDocsEnabled = false,
   chartersEnabled = false,
+  accreditationEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
 }: {
@@ -374,6 +384,8 @@ export function AppSidebar({
   controlledDocsEnabled?: boolean;
   /** Whether the `charters` flag is on (gates the "Regimento & Cadência" item, Phase 21). */
   chartersEnabled?: boolean;
+  /** Whether the `accreditation` flag is on (gates the "Acreditação" item, Phase 16). */
+  accreditationEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
@@ -403,6 +415,8 @@ export function AppSidebar({
     if (item.requiresFeature === "controlled_docs" && !controlledDocsEnabled)
       return false;
     if (item.requiresFeature === "charters" && !chartersEnabled) return false;
+    if (item.requiresFeature === "accreditation" && !accreditationEnabled)
+      return false;
     if (item.requiresActionItems && !actionItemsEnabled) return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
     if (item.caseAccess === "on" && !caseAccessEnabled) return false;
