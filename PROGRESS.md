@@ -125,7 +125,7 @@ allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`
 | FE-4 | ✅ Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` — `today`/`now` resolve from `responses.started_at` (added to `ResponseForFill` by backend on request), not a live clock, so a resumed draft never drifts | frontend | BE-1 |
 | FE-5 | ✅ Library entry rename/re-describe + delete (ruling 2) in `block-library-picker.tsx` + new `edit-library-entry-dialog.tsx`. Delete confirm names the safety property (materialized copies, not links); both keyboard-operable, announced via a picker-level `aria-live` region (a per-card region would unmount with a deleted card before being read). All 4 doors + the browse read exercised directly against the local RPC/REST endpoint (save → browse → insert-with-forced-collision → rename → delete → browse), since this environment's browser pane has no compositing surface for a spawned subagent (confirmed: `document.visibilityState` stuck `"hidden"`, `getBoundingClientRect` zero on interactive elements) — see the phase record for detail | frontend | BE-7 |
 | T-1 | ✅ E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only — **7/7** (BUG-FF4-001 filed, fixed `b5c505e`, re-verified). Full `e2e:prod` run by lead: 849p/3f/3flaky/15 batches, both non-flaky failures triaged by tester — see Bug Log (BUG-P15-001) and Test Run Summary | tester | FE-1…5 |
-| QA-1 | Phase review → `docs/reviews/phase-FF-4-review.md` | qa | T-1 green |
+| QA-1 | ✅ Phase review → `docs/reviews/phase-FF-4-review.md` — **APPROVED**, 0 P0/0 MAJOR (independently verified live: catalog ACLs/RLS/CHECKs, pgTAP 61/61 re-run, one live RLS over-grant-twin mutation against real seed personas, BUG-FF4-001 fix read at the source) | qa | T-1 green |
 
 > 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
 > shipped once.**
@@ -469,6 +469,7 @@ contamination, not a defect — the lead tripped over it once and it reads exact
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **FF-4** — Power Authoring (ADR 0092 + Amendments 1–2) | ✅ APPROVED | 2026-08-03 | [review](docs/reviews/phase-FF-4-review.md) |
 | **FF-5** — Entity Reference (ADR 0091 + Amendments 1–2) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/phase-FF-5-review.md#ff-5--qa-review-r2) |
 | ~~**FF-5** — Entity Reference (ADR 0091 + Amendments 1–2)~~ | ⛔ CHANGES REQUESTED | 2026-07-28 | [review](docs/reviews/phase-FF-5-review.md) |
 | **FF-3** — Validation Engine (ADR 0090 + Amendments 1–4) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/ff-3-review.md#ff-3--qa-review-r2) |
