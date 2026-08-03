@@ -161,6 +161,18 @@ per-value assignments. Backend surfaced the gap rather than quietly picking; PO 
   more lenient reading (`held` → valida, signature as administrative follow-up) was considered
   and rejected.
 
+- **A3·3 — `action_item`, aligned to A3·1 (PO, same session).** `completed` → **valida** ·
+  `open` / `in_progress` / `waiting_review` / **`blocked`** → **atencao** · `draft` / `cancelled`
+  → **vencida**. The arm was written before A3·1 and put `open` **and** `blocked` in `vencida`,
+  so the same word meant "live commitment" for a `capa_plan` and "absent proof" for an
+  `action_item`. A3·1's rationale applies verbatim to an open action item, and `blocked` is
+  arguably the *most* attention-worthy state — live, and signalling an impediment. The
+  alternative (a CAPA is a formal raised commitment, an action item a lightweight typed task, so
+  the asymmetry is meaningful) was considered and rejected. ⚠ **Note for anyone adding a future
+  lifecycle arm: bucket it against A3·1/A3·3's rationale, not against the arm you copied from.**
+  This asymmetry was introduced *by a ruling*, not by carelessness, and was caught only by
+  reading every arm of the redefined body side by side.
+
 Also recorded from Wave 1, as a design fact rather than a ruling: the indicator arm's **"current
 frequency window"** is a genuinely new concept — `indicator_kpis` (Phase 15) takes the latest
 measurement regardless of age. It is implemented as `current_date − 1/2/3/6/12 months` per
