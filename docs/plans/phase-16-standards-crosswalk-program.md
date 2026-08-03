@@ -198,7 +198,13 @@ Wave 0 found the true high-water is HC0Q8).
   **HC0Q9** flag off · **HC0QA** belongs/not-linkable · **HC0QB** duplicate link · **HC0QC**
   invalid target (parent/framework/hospital/level) · **HC0QD** global pack read-only
   ("…clone o framework para editá-lo.") · **HC0QE** framework arquivado. pt-BR messages in the
-  migration + `src/lib/accreditation/messages.ts`. Re-verify the high-water at Wave 2 start —
+  migration + `src/lib/accreditation/messages.ts`. **Ledger note (Migration A, 2026-08-03):** the
+  `standard_ownerships` hospital-mismatch *guard trigger* deliberately raises plain
+  `check_violation` (23514), **not** a curated HC0Q code — matching the
+  `guard_membership_hospital_org` precedent that a schema-level defence-in-depth backstop uses the
+  generic code while the RPC pre-validates and raises the curated pt-BR message first. So
+  **`HC0QC` is still free** and is the code `set_standard_ownership` raises. Re-verify the
+  high-water at Wave 2 start —
   no other phase should be allocating, but the check is cheap and this lane has now gone stale twice.
 - **pgTAP 280** (CRUD doors: platform_admin global-only; staff_admin custom-only; clone
   fidelity; HC0QD/HC0QE; flag-off HC0Q9 on every RPC) · **281** (evidence/assessment RLS +
