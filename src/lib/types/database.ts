@@ -34,6 +34,114 @@ export type Database = {
   }
   public: {
     Tables: {
+      accreditation_frameworks: {
+        Row: {
+          cloned_from_framework_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          name: string
+          owner_commission_id: string | null
+          status: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          cloned_from_framework_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          name: string
+          owner_commission_id?: string | null
+          status?: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          cloned_from_framework_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          name?: string
+          owner_commission_id?: string | null
+          status?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accreditation_frameworks_cloned_from_framework_id_fkey"
+            columns: ["cloned_from_framework_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_frameworks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accreditation_frameworks_owner_commission_id_fkey"
+            columns: ["owner_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accreditation_standards: {
+        Row: {
+          code: string
+          created_at: string
+          description_md: string | null
+          framework_id: string
+          id: string
+          level: number | null
+          parent_id: string | null
+          position: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description_md?: string | null
+          framework_id: string
+          id?: string
+          level?: number | null
+          parent_id?: string | null
+          position?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description_md?: string | null
+          framework_id?: string
+          id?: string
+          level?: number | null
+          parent_id?: string | null
+          position?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accreditation_standards_framework_id_fkey"
+            columns: ["framework_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_frameworks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accreditation_standards_parent_fkey"
+            columns: ["parent_id", "framework_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_standards"
+            referencedColumns: ["id", "framework_id"]
+          },
+        ]
+      }
       action_item_assignments: {
         Row: {
           action_item_id: string
@@ -4900,6 +5008,61 @@ export type Database = {
           },
         ]
       }
+      evidence_links: {
+        Row: {
+          artifact_id: string
+          artifact_kind: string
+          commission_id: string
+          id: string
+          linked_at: string
+          linked_by: string | null
+          note: string | null
+          standard_id: string
+        }
+        Insert: {
+          artifact_id: string
+          artifact_kind: string
+          commission_id: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          note?: string | null
+          standard_id: string
+        }
+        Update: {
+          artifact_id?: string
+          artifact_kind?: string
+          commission_id?: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          note?: string | null
+          standard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_links_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_links_standard_id_fkey"
+            columns: ["standard_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_block_library: {
         Row: {
           commission_id: string
@@ -8863,6 +9026,114 @@ export type Database = {
             columns: ["target_case_participant_id"]
             isOneToOne: false
             referencedRelation: "case_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      standard_assessments: {
+        Row: {
+          assessed_at: string
+          assessed_by: string | null
+          commission_id: string
+          id: string
+          note_md: string | null
+          standard_id: string
+          status: string
+        }
+        Insert: {
+          assessed_at?: string
+          assessed_by?: string | null
+          commission_id: string
+          id?: string
+          note_md?: string | null
+          standard_id: string
+          status: string
+        }
+        Update: {
+          assessed_at?: string
+          assessed_by?: string | null
+          commission_id?: string
+          id?: string
+          note_md?: string | null
+          standard_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standard_assessments_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_assessments_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_assessments_standard_id_fkey"
+            columns: ["standard_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      standard_ownerships: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          hospital_id: string
+          id: string
+          responsible_commission_id: string
+          standard_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          hospital_id: string
+          id?: string
+          responsible_commission_id: string
+          standard_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          hospital_id?: string
+          id?: string
+          responsible_commission_id?: string
+          standard_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standard_ownerships_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_ownerships_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_ownerships_responsible_commission_id_fkey"
+            columns: ["responsible_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standard_ownerships_standard_id_fkey"
+            columns: ["standard_id"]
+            isOneToOne: false
+            referencedRelation: "accreditation_standards"
             referencedColumns: ["id"]
           },
         ]
