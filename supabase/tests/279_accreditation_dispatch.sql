@@ -1,7 +1,8 @@
 -- Phase 16 (Standards Crosswalk & Readiness/Gap Engine v2) — Migration B
 -- dispatch + freshness predicates. ADR 0093 D4/D5 + Amendment 2 + Amendment 3
--- (A3·1/A3·2). Migrations 20260903000900_accreditation_dispatch.sql and
--- 20260903001000_capa_plan_open_atencao.sql (the A3·1 fix).
+-- (A3·1/A3·2/A3·3). Migrations 20260903000900_accreditation_dispatch.sql,
+-- 20260903001000_capa_plan_open_atencao.sql (the A3·1 fix), and
+-- 20260903001100_action_item_open_blocked_atencao.sql (the A3·3 fix).
 --
 --   §A — ARM PARITY BY CONSTRUCTION. The kind list is read out of the LIVE
 --        evidence_links.artifact_kind CHECK at runtime (never hardcoded) and
@@ -19,8 +20,20 @@
 --        capa_plan open -> atencao DISTINCT from cancelled -> vencida (PO
 --        ruling, Amendment 3 A3·1 — the whole point is the split, so a
 --        dedicated assertion proves the two never share a bucket again),
+--        action_item open/blocked -> atencao (Amendment 3 A3·3, aligning
+--        action_item with capa_plan's A3·1 ruling — 'open' meant "live
+--        commitment" for one and "absent proof" for the other before this),
+--        PLUS a dedicated cross-kind assertion that action_item's and
+--        capa_plan's 'open' report the SAME bucket — the durable, permanent
+--        form of the A3·3 consistency ruling, not a one-time value check —
 --        and meeting held -> atencao / signed -> valida (Amendment 3 A3·2,
 --        confirmed no change — signature is the evidentiary act).
+--
+-- FORWARD-LOOKING NOTE (ADR 0093 A3·3, binding on future edits to this
+-- file): a new lifecycle cell added here must be bucketed against the
+-- A3·1/A3·3 rationale (live/tracked -> atencao vs abandoned/never-started ->
+-- vencida), not copied from whichever sibling cell looked similar — that is
+-- exactly how the action_item arm drifted from capa_plan in the first pass.
 --
 -- MUTATION DISCIPLINE (per the work instruction): every keystone below was
 -- broken by hand against the live local stack — a scratch `create or
@@ -34,11 +47,12 @@
 -- it), K2 the review_due_date boundary, K3 the arm-parity guard itself
 -- (§A1/§A2 catch a removed arm), K4 the cross-hospital CAPA rejection, K5
 -- the changes_requested -> vencida PO ruling, K6 the capa_plan
--- open/cancelled split (Amendment 3 A3·1).
+-- open/cancelled split (Amendment 3 A3·1), K7 the action_item
+-- open/blocked -> atencao alignment with capa_plan (Amendment 3 A3·3).
 
 begin;
 
-select plan(59);
+select plan(61);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -152,7 +166,13 @@ insert into public.commission_charters (commission_id, meeting_frequency, contro
   select comm_x, 'mensal', '27900000-0000-0000-0000-000000000f01', admin from k;
 
 -- action_items: reuse the GLOBAL seeded action_item_statuses (commission_id
--- IS NULL) — 'done' (category completed), 'in_progress', 'open'.
+-- IS NULL) — 'done' (category completed), 'in_progress', 'open'. 'blocked'
+-- has no global seeded status, so comm_x gets one custom row for it (the
+-- Amendment 3 A3·3 cell).
+insert into public.action_item_statuses (id, commission_id, key, label, category, sort_order) select
+  '27900000-0000-0000-0000-000000001104'::uuid, comm_x, '279-bloqueado', '279 Bloqueado', 'blocked', 90
+  from k;
+
 insert into public.action_items (id, commission_id, source_type, title, status_id) select
   '27900000-0000-0000-0000-000000001101'::uuid, comm_x, 'manual', '279 Item Concluído',
   (select ais.id from public.action_item_statuses ais where ais.key = 'done' and ais.commission_id is null)
@@ -162,6 +182,9 @@ insert into public.action_items (id, commission_id, source_type, title, status_i
   from k union all select
   '27900000-0000-0000-0000-000000001103'::uuid, comm_x, 'manual', '279 Item Aberto',
   (select ais.id from public.action_item_statuses ais where ais.key = 'open' and ais.commission_id is null)
+  from k union all select
+  '27900000-0000-0000-0000-000000001106'::uuid, comm_x, 'manual', '279 Item Bloqueado',
+  '27900000-0000-0000-0000-000000001104'::uuid
   from k;
 
 -- capa_plan: four under hosp_b (comm_x's hospital) — completed / in_execution
@@ -351,7 +374,9 @@ select is((select app.evidence_status_of('action_item', '27900000-0000-0000-0000
 select is((select app.evidence_status_of('action_item', '27900000-0000-0000-0000-000000001102') from k),
   'atencao', 'C19. action_item: category=in_progress = atencao');
 select is((select app.evidence_status_of('action_item', '27900000-0000-0000-0000-000000001103') from k),
-  'vencida', 'C20. action_item: category=open = vencida');
+  'atencao', 'C20. action_item: category=open = atencao (Amendment 3 A3·3 — CHANGED, was vencida)');
+select is((select app.evidence_status_of('action_item', '27900000-0000-0000-0000-000000001106') from k),
+  'atencao', 'C20a. action_item: category=blocked = atencao (A3·3 — the most attention-worthy of the set)');
 
 select is((select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001201') from k),
   'valida', 'C21. capa_plan: completed = valida');
@@ -365,6 +390,11 @@ select isnt(
   (select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001203') from k),
   (select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001205') from k),
   'C23b. open and cancelled do NOT share a bucket — the whole point of Amendment 3 A3·1''s split (K6)'
+);
+select is(
+  (select app.evidence_status_of('action_item', '27900000-0000-0000-0000-000000001103') from k),
+  (select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001203') from k),
+  'C23c. ''open'' reports the SAME bucket for action_item and capa_plan — the durable form of Amendment 3 A3·3''s consistency ruling (K7); a future divergence must red here, not pass quietly'
 );
 
 -- Amendment 3 A3·2 (confirmed, no change): signature is the evidentiary act
