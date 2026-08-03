@@ -124,7 +124,7 @@ allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`
 | FE-3 | ✅ `default-value-editor.tsx`: dynamic-source selector, type-gated to the 5 tokens — literal/dynamic/none modeled as one discriminated union (`DefaultConfig`), so ruling 6's exclusivity is a type invariant, not a convention | frontend | BE-1 |
 | FE-4 | ✅ Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` — `today`/`now` resolve from `responses.started_at` (added to `ResponseForFill` by backend on request), not a live clock, so a resumed draft never drifts | frontend | BE-1 |
 | FE-5 | ✅ Library entry rename/re-describe + delete (ruling 2) in `block-library-picker.tsx` + new `edit-library-entry-dialog.tsx`. Delete confirm names the safety property (materialized copies, not links); both keyboard-operable, announced via a picker-level `aria-live` region (a per-card region would unmount with a deleted card before being read). All 4 doors + the browse read exercised directly against the local RPC/REST endpoint (save → browse → insert-with-forced-collision → rename → delete → browse), since this environment's browser pane has no compositing surface for a spawned subagent (confirmed: `document.visibilityState` stuck `"hidden"`, `getBoundingClientRect` zero on interactive elements) — see the phase record for detail | frontend | BE-7 |
-| T-1 | E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only | tester | FE-1…5 |
+| T-1 | ⚠ E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only — **6/7, BUG-FF4-001 filed** (dynamic-default clear-then-resume re-seeds; see Bug Log) | tester | FE-1…5 |
 | QA-1 | Phase review → `docs/reviews/phase-FF-4-review.md` | qa | T-1 green |
 
 > 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
@@ -225,6 +225,54 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 **FF-5-era bugs — both closed, verified and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): **BUG-FF5-001** (the builder could not author a `reference` item at all — three sites: `ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`; `updateItem` was broken independently) and **BUG-FF5-002** (every top-level reference rendered "Sem resposta" on the durable submitted record — the page never passed `referencesByItemId` and the prop was optional-with-default, so tsc could not object). Both passed pgTAP 4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them.**
 
+#### 🔴 BUG-FF4-001 — clearing a dynamic-default answer and resuming the draft RE-SEEDS it, violating ADR 0092 ruling 5's idempotency contract · owner **backend** · **OPEN** (filed 2026-08-03)
+
+**Spec:** `e2e/ff4-power-authoring.spec.ts` FF4-4 (acceptance criterion 4's idempotency clause). **Repro**
+(deterministic — 3 consecutive runs, prod standalone, fresh state each time): author a `date` item with
+a `today` dynamic default, publish, fill as a respondent (the field correctly prefills). Click the
+field's own **"Limpar"** clear button (the real per-field affordance, not a raw `.fill('')`), confirm it
+reads empty, **"Salvar e sair"**, then **"Continuar preenchimento"** back into the same draft.
+
+**Expected** (ADR [0092](docs/decisions/0092-ff4-power-authoring.md) ruling 5 — *"a filler who clears a
+field does not have it refilled behind them"*; pgTAP keystone `default_prefill_idempotent` — *"re-entering
+the draft does not overwrite an edited or cleared answer"*): the field resumes **empty**.
+
+**Actual:** the field resumes prefilled with `today` again (`2026-08-03`), indistinguishable from a
+field that was never touched.
+
+**Not a save-path defect** — DB truth (asserted in the spec, immediately after "Salvar e sair") proves
+the clear DID persist: `select value from answers where response_id=… and item_id=…` returns exactly
+**one row**, `value = 'null'::jsonb` — an explicit "answered as empty" row, not a missing one. The defect
+is entirely on the READ/resume side.
+
+**Root cause, traced to one line:** `buildAnswerMaps` in `src/lib/queries/responses.ts:429`:
+```ts
+for (const a of scalarAnswers) {
+  if (a.value === null) continue   // ← drops the row instead of keeping "answered: null"
+  ...
+  answersByItemId[a.item_id] = a.value
+}
+```
+unconditionally skips any scalar answer row whose `value` is JSON `null`, so `answersByItemId` never gets
+a key for it. `toAnswerState` (`src/components/responses/wizard/prepare.ts:42-54`) then reads
+`response.answersByItemId[item.id]` as `undefined`, and — since `observation`/`otherText` are also
+`undefined` for this item — `continue`s past it, so it never lands in `initialAnswers`. `withDefaults`
+(`src/components/responses/wizard/use-wizard.ts:406`, `if (item.id in initialAnswers) continue`)
+therefore sees no saved answer at all and re-seeds the default. The line-429 filter predates FF-4 — its
+comment explains a different, still-valid concern (ignoring a stray non-null value on a CHOICE item,
+whose real answer lives in `answer_selected_options`) — but nobody revisited it for the new "explicit
+null = deliberately cleared" semantic FF-4's idempotency ruling depends on.
+
+**Broader blast radius, NOT directly exercised by this spec:** `withDefaults` seeds from a LITERAL
+`default_value` before falling to `defaultSource` (rulings 5/6 share the one function), so the same root
+cause very likely also re-seeds a plain, pre-FF-4 (answer-model-v2) literal default after it is cleared
+and the draft resumed — FF4-4 only exercises the two FF-4 dynamic tokens; worth the owning engineer's own
+check before calling the fix's scope closed.
+
+**Not filed as a fix suggestion** (tester scope): `buildAnswerMaps` needs to represent "answered, value is
+`null`" as distinct from "no row" rather than dropping the row — how to do that without disturbing the
+CHOICE-item exclusion sharing the same loop is backend's call.
+
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
 **Not FF-2's defect** — FF-2 correctly inherited its sibling's arm (lead-ruled; deviating would have
@@ -290,6 +338,42 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
+
+**FF-4 · `tester` targeted spec, NOT the full gate (2026-08-03).** New file:
+`e2e/ff4-power-authoring.spec.ts` (7 tests, covers ADR 0092 rulings 1–9 + both amendments —
+FF4-1 headline round trip, FF4-2 collision/rename-list, FF4-3 closure refusal, FF4-4 dynamic
+defaults, FF4-5 cross-commission security, FF4-6 rename/delete metadata, FF4-7 keyboard-only).
+Run against a prod standalone build (`npm run build` + `.next/standalone/server.js` on :3000,
+per `docs/testing/e2e-prod-build-gate.md`'s manual recipe), `--project=chromium --workers=1`.
+
+| Surface | Result |
+| --- | --- |
+| `tester` — FF-4 spec | **6 / 7**, deterministic across 3 consecutive runs (same 1 failure, same values, every time) |
+| lint (`e2e/ff4-power-authoring.spec.ts`) | 0 errors / 0 warnings |
+| typecheck | clean (`tsc --noEmit`, no errors in the new file) |
+
+**1 failure = 1 real bug, filed as BUG-FF4-001 above — not a flake, not a stale selector.** FF4-1,
+FF4-2, FF4-3, FF4-5, FF4-6, FF4-7 all pass, including the mandatory keyboard-only flow (FF4-7) and
+the security negative (FF4-5, UI + RPC + direct REST). **Full `e2e:prod` gate NOT run by tester**
+(a subagent's foreground cap does not cover the full suite, per role scope) — the lead runs that
+before declaring the phase green; this is the acceptance-criteria pass, not the regression gate.
+
+**Side finding while debugging cleanup (not a product defect, a TEST-INFRA one — flagged, not
+fixed here in other files' specs):** `session_replication_role = replica` — the exact idiom
+ff1/ff2/ff3/ff5's own `purge()` helpers use to bypass `guard_submitted_response` before deleting a
+form — **disables Postgres's FK-CASCADE triggers too**, not merely the app-level guard it targets.
+A bare `delete from forms … ` under `replica` mode deletes the `forms` row while leaving
+`form_versions`/`form_items`/… **orphaned** (no parent, unreachable by any app query, but still
+occupying rows). Proven live: a database-wide sweep during this session's debugging found **46
+pre-existing orphaned draft versions plus 2 orphaned PUBLISHED versions with real
+`responses`/`answers` under them**, all cleaned up as part of this run (verified: 0 orphans
+remain in `form_versions`/`form_items`/`form_sections`/`answers` after cleanup). Confirmed by a
+controlled test: deleting the identical row under a **normal** (non-`replica`) session cascades
+correctly. `e2e/ff4-power-authoring.spec.ts`'s own `purge()` works around it (explicit,
+table-by-table deletes, never relying on the FK-cascade trigger); the other FF specs' `purge()`
+functions still carry the original one-line pattern and will keep leaking orphans on every run
+until someone applies the same fix there. Not blocking FF-4 (this file's own state is hermetic),
+but worth a follow-up task against ff1/ff2/ff3/ff5's shared `purge()` idiom.
 
 **FF-5 · final bar at `598447e` (2026-07-28)** — full detail, every triage and every mutation
 proof → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md); the FF-2 and FF-3
