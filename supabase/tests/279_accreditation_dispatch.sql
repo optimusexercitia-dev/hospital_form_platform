@@ -1,6 +1,7 @@
 -- Phase 16 (Standards Crosswalk & Readiness/Gap Engine v2) — Migration B
--- dispatch + freshness predicates. ADR 0093 D4/D5 + Amendment 2. Migration
--- 20260903000900_accreditation_dispatch.sql.
+-- dispatch + freshness predicates. ADR 0093 D4/D5 + Amendment 2 + Amendment 3
+-- (A3·1/A3·2). Migrations 20260903000900_accreditation_dispatch.sql and
+-- 20260903001000_capa_plan_open_atencao.sql (the A3·1 fix).
 --
 --   §A — ARM PARITY BY CONSTRUCTION. The kind list is read out of the LIVE
 --        evidence_links.artifact_kind CHECK at runtime (never hardcoded) and
@@ -13,8 +14,13 @@
 --        structural negatives (charter with no row; ethics_procedure whose
 --        case has no ethics_case_details).
 --   §C — The freshness matrix, cell by cell, incl. the
---        review_due_date = current_date boundary (valida, not vencida) and
---        the changes_requested -> vencida cell (PO ruling, Amendment 2 A2·3).
+--        review_due_date = current_date boundary (valida, not vencida), the
+--        changes_requested -> vencida cell (PO ruling, Amendment 2 A2·3),
+--        capa_plan open -> atencao DISTINCT from cancelled -> vencida (PO
+--        ruling, Amendment 3 A3·1 — the whole point is the split, so a
+--        dedicated assertion proves the two never share a bucket again),
+--        and meeting held -> atencao / signed -> valida (Amendment 3 A3·2,
+--        confirmed no change — signature is the evidentiary act).
 --
 -- MUTATION DISCIPLINE (per the work instruction): every keystone below was
 -- broken by hand against the live local stack — a scratch `create or
@@ -27,11 +33,12 @@
 -- nonexistent-artifact belongs check would return NULL, not FALSE, without
 -- it), K2 the review_due_date boundary, K3 the arm-parity guard itself
 -- (§A1/§A2 catch a removed arm), K4 the cross-hospital CAPA rejection, K5
--- the changes_requested -> vencida PO ruling.
+-- the changes_requested -> vencida PO ruling, K6 the capa_plan
+-- open/cancelled split (Amendment 3 A3·1).
 
 begin;
 
-select plan(57);
+select plan(59);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -157,14 +164,16 @@ insert into public.action_items (id, commission_id, source_type, title, status_i
   (select ais.id from public.action_item_statuses ais where ais.key = 'open' and ais.commission_id is null)
   from k;
 
--- capa_plan: three under hosp_b (comm_x's hospital); one under the FOREIGN
--- hosp_c (the cross-hospital rejection target).
+-- capa_plan: four under hosp_b (comm_x's hospital) — completed / in_execution
+-- / open / cancelled, the last two proving the Amendment 3 A3·1 split; one
+-- under the FOREIGN hosp_c (the cross-hospital rejection target).
 insert into public.capa_plan (id, hospital_id, source, classification, status, opened_by) select
   '27900000-0000-0000-0000-000000001201'::uuid, hosp_b, 'manual', 'corretiva', 'completed', admin from k union all select
   '27900000-0000-0000-0000-000000001202'::uuid, hosp_b, 'manual', 'corretiva', 'in_execution', admin from k union all select
-  '27900000-0000-0000-0000-000000001203'::uuid, hosp_b, 'manual', 'corretiva', 'open', admin from k;
+  '27900000-0000-0000-0000-000000001203'::uuid, hosp_b, 'manual', 'corretiva', 'open', admin from k union all select
+  '27900000-0000-0000-0000-000000001205'::uuid, hosp_b, 'manual', 'corretiva', 'cancelled', admin from k;
 insert into public.capa_plan (id, hospital_id, source, classification, status, opened_by) select
-  '27900000-0000-0000-0000-000000001204', hosp_c, 'manual', 'corretiva', 'open', admin from k, h2;
+  '27900000-0000-0000-0000-000000001204'::uuid, hosp_c, 'manual', 'corretiva', 'open', admin from k, h2;
 
 -- ===========================================================================
 -- §A · Arm parity BY CONSTRUCTION — the kind list comes from the live CHECK,
@@ -349,12 +358,21 @@ select is((select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-0
 select is((select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001202') from k),
   'atencao', 'C22. capa_plan: in_execution = atencao');
 select is((select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001203') from k),
-  'vencida', 'C23. capa_plan: open = vencida');
+  'atencao', 'C23. capa_plan: open = atencao (Amendment 3 A3·1 — CHANGED, was vencida)');
+select is((select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001205') from k),
+  'vencida', 'C23a. capa_plan: cancelled = vencida');
+select isnt(
+  (select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001203') from k),
+  (select app.evidence_status_of('capa_plan', '27900000-0000-0000-0000-000000001205') from k),
+  'C23b. open and cancelled do NOT share a bucket — the whole point of Amendment 3 A3·1''s split (K6)'
+);
 
+-- Amendment 3 A3·2 (confirmed, no change): signature is the evidentiary act
+-- — a held-but-unsigned ata does NOT count as valida.
 select is((select app.evidence_status_of('meeting', '27900000-0000-0000-0000-000000000c01') from k),
   'valida', 'C24. meeting: signed = valida');
 select is((select app.evidence_status_of('meeting', '27900000-0000-0000-0000-000000000c02') from k),
-  'atencao', 'C25. meeting: held = atencao');
+  'atencao', 'C25. meeting: held = atencao (A3·2 — held-but-unsigned is NOT valida)');
 select is((select app.evidence_status_of('meeting', '27900000-0000-0000-0000-000000000c03') from k),
   'vencida', 'C26. meeting: scheduled = vencida');
 
