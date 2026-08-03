@@ -6,7 +6,9 @@ import {
   flattenItem,
   isRepeatingGroup,
   repeatingGroupOf,
+  toDefaultSource,
 } from '@/lib/forms/item-tree'
+import type { DefaultSource } from '@/lib/forms/item-tree'
 import { isConditionTargetInScope } from '@/lib/queries/conditions'
 import {
   toParticipantTypes,
@@ -212,6 +214,19 @@ export {
   ALL_ITEM_TYPES,
   ITEM_TYPE_AUTHORITY,
 } from '@/lib/forms/item-tree'
+
+// FF-4 (ADR 0092): the dynamic-default token vocabulary, defined in the same
+// PURE module and for the same BUG-FBE-005 reason as the item-type sets above
+// — the authoring picker (FE-3) is a Client Component. Re-exported here so
+// every server-side importer keeps the `@/lib/queries/forms` specifier.
+export {
+  DEFAULT_SOURCE_TOKENS,
+  DEFAULT_SOURCE_LABELS,
+  DEFAULT_SOURCE_ELIGIBLE_TYPES,
+  isDefaultSourceEligible,
+  toDefaultSource,
+} from '@/lib/forms/item-tree'
+export type { DefaultSource } from '@/lib/forms/item-tree'
 /** Choice inputs carry an `options` array (used by the condition editor). */
 export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -451,6 +466,26 @@ export interface Item {
    */
   defaultValue: Json | null
   /**
+   * FF-4 (BE contract, ADR 0092 ruling 5) — the dynamic-default TOKEN, or
+   * `null`/absent for a plain literal `defaultValue` (or no default at all).
+   * `defaultSource` and `defaultValue` are XOR (ruling 6, a DB CHECK): an item
+   * carries a literal default, a dynamic one, or neither, never both. Resolved
+   * server-side at DRAFT START into the same seeding slot `defaultValue`
+   * already fills — idempotent, never overwriting an answered or
+   * since-cleared item (BE-6).
+   *
+   * OPTIONAL in the type, ALWAYS populated by the query layer — read it as
+   * `item.defaultSource ?? null`, exactly like {@link Item.matrixRows}. `?`
+   * exists so the many hand-built `Item` fixtures across the component test
+   * suite need not enumerate a field irrelevant to them; this is NOT required
+   * like `defaultValue` above, because unlike a write payload (BUG-FF5-002),
+   * an absent `defaultSource` on a READ-side fixture cannot blank a durable
+   * record — it just reads as "no dynamic default," which is what most items
+   * genuinely have. `null` regardless until BE-3 lands the
+   * `form_items.default_source` column.
+   */
+  defaultSource?: DefaultSource | null
+  /**
    * The CONTAINER item that owns this item, or `null` for a top-level item
    * (answer-model-v2 / ADR 0046 scaffolding, ACTIVATED by FF-1). `clone_form_version`
    * already remaps it to the cloned container's new id. Depth is capped at 1
@@ -688,6 +723,10 @@ interface ItemRow {
   // BE-1 lands them. Optional here so the mapper is safe before the migration.
   default_value?: Json | null
   parent_item_id?: string | null
+  // FF-4 (ADR 0092, BE-3): selected by VERSION_TREE_SELECT once BE-3 lands the
+  // `form_items.default_source` column. Optional here for the same reason
+  // `default_value` is — the mapper stays safe before the migration.
+  default_source?: string | null
 }
 
 interface SectionRow {
@@ -902,6 +941,10 @@ function toItem(row: ItemRow): Item {
     // VERSION_TREE_SELECT in BE-5; until then `row.default_value`/`parent_item_id`
     // are undefined and these safely default to null (no behavior change).
     defaultValue: row.default_value ?? null,
+    // FF-4 (ADR 0092, BE-3): `row.default_source` is undefined until BE-3
+    // lands the column + adds it to VERSION_TREE_SELECT; toDefaultSource
+    // narrows `undefined` to `null` exactly like the TODO above.
+    defaultSource: toDefaultSource(row.default_source),
     parentItemId: row.parent_item_id ?? null,
     // FF-1: filled by `nestChildren`; a container's children are attached there.
     children: [],

@@ -19,6 +19,7 @@ import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
 import { isValidCondition } from '@/lib/forms/condition-shape'
 import type { ValidationRuleInput } from '@/lib/queries/validations'
+import type { BlockLibraryEntry } from '@/lib/queries/block-library'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -2220,4 +2221,133 @@ export async function setItemValidations(input: {
 
   revalidateBuilder()
   return { ok: true, error: MESSAGES.validationsSaved }
+}
+
+// ---------------------------------------------------------------------------
+// FF-4 (ADR 0092) — power authoring: the commission block library.
+//
+// CONTRACT-FIRST STUB (BE-1): the types below are the frozen contract FE-1
+// (library browser + save) and FE-2 (insert + rename review) build against.
+// Both doors throw until BE-4/BE-5 land the RPCs (BE-2 first creates
+// `form_block_library`; BE-3 lands `form_items.default_source`, unrelated to
+// these two doors but sharing the phase). See PROGRESS.md's FF-4 task table.
+// ---------------------------------------------------------------------------
+
+/**
+ * Input to `saveBlockToLibrary` (`save_block_to_library`, BE-4).
+ *
+ * `itemId` is the TOP-LEVEL item to snapshot — a single input item, or one
+ * container with its children (ADR 0092 ruling 8: any item type, including
+ * display items, is admitted; the copy path is already type-agnostic). It
+ * must not itself be the child of a container — a child is not "one item
+ * subtree" in ruling 8's sense, its container is.
+ */
+export interface SaveBlockToLibraryInput {
+  itemId: string
+  name: string
+  description?: string | null
+}
+
+/**
+ * Result of `saveBlockToLibrary`. Extends {@link ActionState} so
+ * `useBuilderAction`'s `run(thunk)` can drive it exactly like every other
+ * builder write in this file.
+ */
+export interface SaveBlockToLibraryState extends ActionState {
+  /** The newly created entry — present only when `ok`. */
+  entry?: BlockLibraryEntry
+  /**
+   * Present ONLY on the ruling-3 closure refusal (`HC0Q6`): the
+   * `question_key`s whose `visible_when` / `required_if` reference a key
+   * OUTSIDE the saved subtree. `error` already carries a generic pt-BR
+   * sentence for `useBuilderAction`'s fallback banner; render THIS list to
+   * name the specific keys — e.g. "As condições de peso_2 e altura_2 apontam
+   * para fora do bloco: idade." Absent on every other outcome, success
+   * included: do not infer this failure from `ok` alone, and do not read an
+   * empty array here as "no offenders" — on success the field is absent, not
+   * `[]` (contrast {@link InsertBlockFromLibraryState.renamedKeys}, whose `[]`
+   * IS a meaningful success value).
+   */
+  offendingKeys?: string[]
+}
+
+/**
+ * Snapshot one item subtree into the commission's block library
+ * (`save_block_to_library`, BE-4). DEFINER door (ruling 7): the RPC enforces
+ * the ruling-1 write perimeter and the ruling-3 closure check itself, so this
+ * wrapper's `authorizeCommission` call (used by every other writer in this
+ * file, e.g. {@link upsertMatrixAxes}) would only turn a server-side denial
+ * into readable pt-BR before the round trip — never the boundary itself.
+ */
+export async function saveBlockToLibrary(
+  input: SaveBlockToLibraryInput,
+): Promise<SaveBlockToLibraryState> {
+  return notImplementedFF4('saveBlockToLibrary', input)
+}
+
+/**
+ * Input to `insertBlockFromLibrary` (`insert_block_from_library`, BE-5).
+ * `sectionId` must belong to a `draft` version — the RPC enforces this the
+ * same way every other item-authoring door does. The new subtree is always
+ * APPENDED at the end of the section's top-level items, mirroring `addItem`'s
+ * position semantics (ADR 0092 introduces no mid-section insertion point).
+ */
+export interface InsertBlockFromLibraryInput {
+  libraryEntryId: string
+  sectionId: string
+}
+
+/** One `question_key` renamed because of a collision with a key already
+ *  present in the TARGET version (ADR 0092 ruling 4). */
+export interface QuestionKeyRename {
+  oldKey: string
+  newKey: string
+}
+
+/**
+ * Result of `insertBlockFromLibrary`. Extends {@link ActionState} for the
+ * same `useBuilderAction` reason as {@link SaveBlockToLibraryState}.
+ */
+export interface InsertBlockFromLibraryState extends ActionState {
+  /** The newly inserted root item's id — present only when `ok`, so the
+   *  caller can scroll to / highlight it. */
+  rootItemId?: string
+  /**
+   * The old→new `question_key` RENAME MAP (ADR 0092 ruling 4) — present and
+   * ALWAYS AN ARRAY whenever `ok`, even when nothing collided: `[]` is the
+   * clean "zero renames" case, never `undefined` on success (contrast
+   * {@link SaveBlockToLibraryState.offendingKeys}, which is genuinely absent
+   * on success). The builder derives "N chaves renomeadas" from
+   * `renamedKeys.length` and offers inline edit per entry while the version
+   * is still a draft. Ruling 3's condition-rewrite obligation is already
+   * discharged server-side by the time this returns: every INTERNAL
+   * `visible_when` / `required_if` in the inserted subtree already reads the
+   * NEW keys, not the old ones.
+   */
+  renamedKeys?: QuestionKeyRename[]
+}
+
+/**
+ * Deep-copy a saved block into a draft version's section
+ * (`insert_block_from_library`, BE-5) — over the SAME child-table set as
+ * `app.copy_version_children` (options, matrix axes, validations, inserted
+ * last after the `parent_item_id` re-link — substrate note in ADR 0092),
+ * with colliding `question_key`s auto-suffixed against the TARGET version and
+ * every internal condition rewritten to the new keys (rulings 3 + 4). DEFINER
+ * door, same posture as {@link saveBlockToLibrary}.
+ */
+export async function insertBlockFromLibrary(
+  input: InsertBlockFromLibraryInput,
+): Promise<InsertBlockFromLibraryState> {
+  return notImplementedFF4('insertBlockFromLibrary', input)
+}
+
+/** Mirrors `notImplementedE1` in `src/lib/interviews/actions.ts` /
+ *  `src/lib/participants/actions.ts` — the `_`-prefixed rest param satisfies
+ *  the `no-unused-vars` lint rule while every caller still reads as if it
+ *  passed real arguments. `never` is assignable to any declared return type,
+ *  so `return notImplementedFF4(...)` type-checks against every signature
+ *  above without an `as` cast. */
+function notImplementedFF4(fn: string, ..._args: unknown[]): never {
+  throw new Error(`${fn} not implemented (FF-4 — contract stub, ADR 0092)`)
 }

@@ -154,6 +154,96 @@ export const ITEM_TYPE_AUTHORITY = [
 type UncoveredItemType = Exclude<ItemType, (typeof ITEM_TYPE_AUTHORITY)[number]>
 const _everyItemTypeIsListed: UncoveredItemType extends never ? true : never = true
 
+// ---------------------------------------------------------------------------
+// FF-4 (ADR 0092) — the dynamic-default vocabulary
+// ---------------------------------------------------------------------------
+
+/**
+ * FF-4 (ADR 0092 ruling 5) — the five PHI-free dynamic-default tokens.
+ * `form_items.default_source` (BE-3) resolves ONE of these server-side at
+ * draft start, seeding an unanswered item's first-shown value — idempotent,
+ * never overwriting an already-answered or since-cleared item (same contract
+ * `default_value` already has). A CLOSED set with a CHECK, not an open string
+ * (ruling 6): a sixth token is one arm in both the DB CHECK and this tuple,
+ * never a bare string comparison. `today`/`now` resolve from wall-clock time;
+ * the other three from the filling user's session plus the version's owning
+ * commission — no PHI, no new read path (ruling 5).
+ */
+export const DEFAULT_SOURCE_TOKENS = [
+  'today',
+  'now',
+  'current_user_name',
+  'current_user_email',
+  'commission_name',
+] as const
+
+export type DefaultSource = (typeof DEFAULT_SOURCE_TOKENS)[number]
+
+/** pt-BR labels for the dynamic-default picker (Architecture Rule 10). */
+export const DEFAULT_SOURCE_LABELS: Readonly<Record<DefaultSource, string>> = {
+  today: 'Data de hoje',
+  now: 'Hora atual',
+  current_user_name: 'Nome de quem preenche',
+  current_user_email: 'E-mail de quem preenche',
+  commission_name: 'Nome da comissão',
+}
+
+/**
+ * Token → the `InputItemType`s it may seed (ADR 0092 rulings 5 + 6). One
+ * definition, both directions: {@link isDefaultSourceEligible} type-gates the
+ * builder's picker (FE-3) so it never OFFERS a pairing the database's
+ * companion CHECK (BE-3) would reject, and the same map drives the
+ * draft-start resolver (BE-6) that decides whether a saved `default_source`
+ * still applies to its item's current type.
+ *
+ * `today`/`now` are single-type — the one scalar shape each token can seed.
+ * The three text tokens share both free-text-shaped inputs: a `short_text`
+ * one-liner and a `free_text` block are equally valid destinations for a
+ * name, an e-mail, or a commission name.
+ *
+ * This is STRICTLY NARROWER than {@link INPUT_ITEM_TYPES} — the eligible set
+ * for any one token is never the full eight — so, unlike
+ * {@link ANSWERABLE_ITEM_TYPES}, it is not DERIVED from that set: it is its
+ * own hand-authored table, mirrored by the DB CHECK rather than by another TS
+ * set.
+ */
+export const DEFAULT_SOURCE_ELIGIBLE_TYPES: Readonly<
+  Record<DefaultSource, readonly InputItemType[]>
+> = {
+  today: ['date'],
+  now: ['time'],
+  current_user_name: ['short_text', 'free_text'],
+  current_user_email: ['short_text', 'free_text'],
+  commission_name: ['short_text', 'free_text'],
+}
+
+/**
+ * True when `source` may be assigned to an item of `itemType` (ADR 0092
+ * rulings 5/6) — the predicate `save_block_to_library` / the item editor's
+ * picker both gate on. Takes `string` (not {@link ItemType}) so a raw DB or
+ * payload value narrows here directly, without needing its own cast first.
+ */
+export function isDefaultSourceEligible(
+  source: DefaultSource,
+  itemType: string,
+): boolean {
+  return (DEFAULT_SOURCE_ELIGIBLE_TYPES[source] as readonly string[]).includes(
+    itemType,
+  )
+}
+
+/**
+ * Narrow an unknown `form_items.default_source` value to a
+ * {@link DefaultSource}, else `null` — the same fallback shape as
+ * `toReferenceKind` in `reference-constants.ts`.
+ */
+export function toDefaultSource(value: unknown): DefaultSource | null {
+  return typeof value === 'string' &&
+    (DEFAULT_SOURCE_TOKENS as readonly string[]).includes(value)
+    ? (value as DefaultSource)
+    : null
+}
+
 /** True for `matrix` / `risk_matrix`. */
 export function isMatrixItem(itemType: string): boolean {
   return itemType === 'matrix' || itemType === 'risk_matrix'
