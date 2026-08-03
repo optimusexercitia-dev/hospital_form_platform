@@ -4900,6 +4900,53 @@ export type Database = {
           },
         ]
       }
+      form_block_library: {
+        Row: {
+          commission_id: string
+          description: string | null
+          id: string
+          name: string
+          saved_at: string
+          saved_by_id: string
+          saved_by_name: string
+          snapshot: Json
+          source_form_title: string
+          source_version_number: number
+        }
+        Insert: {
+          commission_id: string
+          description?: string | null
+          id?: string
+          name: string
+          saved_at?: string
+          saved_by_id: string
+          saved_by_name: string
+          snapshot: Json
+          source_form_title: string
+          source_version_number: number
+        }
+        Update: {
+          commission_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          saved_at?: string
+          saved_by_id?: string
+          saved_by_name?: string
+          snapshot?: Json
+          source_form_title?: string
+          source_version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_block_library_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_item_options: {
         Row: {
           analytics_code: string | null
@@ -5022,6 +5069,7 @@ export type Database = {
           config: Json | null
           content: Json | null
           created_at: string
+          default_source: string | null
           default_value: Json | null
           form_version_id: string
           id: string
@@ -5042,6 +5090,7 @@ export type Database = {
           config?: Json | null
           content?: Json | null
           created_at?: string
+          default_source?: string | null
           default_value?: Json | null
           form_version_id: string
           id?: string
@@ -5062,6 +5111,7 @@ export type Database = {
           config?: Json | null
           content?: Json | null
           created_at?: string
+          default_source?: string | null
           default_value?: Json | null
           form_version_id?: string
           id?: string
@@ -11831,6 +11881,10 @@ export type Database = {
           value: number
         }[]
       }
+      insert_block_from_library: {
+        Args: { p_library_entry_id: string; p_section_id: string }
+        Returns: Json
+      }
       interview_viewer_can_write: {
         Args: { p_interview_id: string }
         Returns: boolean
@@ -13395,6 +13449,27 @@ export type Database = {
           p_user: string
         }
         Returns: undefined
+      }
+      save_block_to_library: {
+        Args: { p_description?: string; p_item_id: string; p_name: string }
+        Returns: {
+          commission_id: string
+          description: string | null
+          id: string
+          name: string
+          saved_at: string
+          saved_by_id: string
+          saved_by_name: string
+          snapshot: Json
+          source_form_title: string
+          source_version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "form_block_library"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       save_correction_draft_body: {
         Args: { p_body_md: string; p_request_id: string }

@@ -481,8 +481,7 @@ export interface Item {
    * like `defaultValue` above, because unlike a write payload (BUG-FF5-002),
    * an absent `defaultSource` on a READ-side fixture cannot blank a durable
    * record — it just reads as "no dynamic default," which is what most items
-   * genuinely have. `null` regardless until BE-3 lands the
-   * `form_items.default_source` column.
+   * genuinely have.
    */
   defaultSource?: DefaultSource | null
   /**
@@ -723,9 +722,9 @@ interface ItemRow {
   // BE-1 lands them. Optional here so the mapper is safe before the migration.
   default_value?: Json | null
   parent_item_id?: string | null
-  // FF-4 (ADR 0092, BE-3): selected by VERSION_TREE_SELECT once BE-3 lands the
-  // `form_items.default_source` column. Optional here for the same reason
-  // `default_value` is — the mapper stays safe before the migration.
+  // FF-4 (ADR 0092, BE-3): selected by VERSION_TREE_SELECT. Optional here for
+  // the same defensive reason `default_value` is — a nonexistent select alias
+  // or a stale embed would read as `undefined` rather than crash the mapper.
   default_source?: string | null
 }
 
@@ -941,9 +940,9 @@ function toItem(row: ItemRow): Item {
     // VERSION_TREE_SELECT in BE-5; until then `row.default_value`/`parent_item_id`
     // are undefined and these safely default to null (no behavior change).
     defaultValue: row.default_value ?? null,
-    // FF-4 (ADR 0092, BE-3): `row.default_source` is undefined until BE-3
-    // lands the column + adds it to VERSION_TREE_SELECT; toDefaultSource
-    // narrows `undefined` to `null` exactly like the TODO above.
+    // FF-4 (ADR 0092, BE-3): toDefaultSource narrows both `undefined` (a
+    // defensive fallback, see ItemRow.default_source) and an unrecognized
+    // string to `null`.
     defaultSource: toDefaultSource(row.default_source),
     parentItemId: row.parent_item_id ?? null,
     // FF-1: filled by `nestChildren`; a container's children are attached there.
@@ -1059,7 +1058,7 @@ const VERSION_TREE_SELECT =
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
-  'default_value, parent_item_id, required_if, ' +
+  'default_value, parent_item_id, required_if, default_source, ' +
   'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, flagged, is_other, position), ' +
   // FF-2: the matrix axes. Both embeds are FK-HINTED for the same reason the
   // options embed is — `answer_matrix_cells` adds a second inferred path between

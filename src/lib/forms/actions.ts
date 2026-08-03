@@ -10,10 +10,13 @@ import {
   ALL_ITEM_TYPES,
   ANSWERABLE_ITEM_TYPES,
   CONTAINER_ITEM_TYPES,
+  DEFAULT_SOURCE_TOKENS,
   INPUT_ITEM_TYPES,
   MATRIX_ITEM_TYPES,
   REFERENCE_ITEM_TYPES,
+  isDefaultSourceEligible,
 } from '@/lib/forms/item-tree'
+import type { DefaultSource } from '@/lib/forms/item-tree'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
@@ -76,6 +79,12 @@ const MESSAGES = {
   // ./parse-config now (parseItemConfig returns the string; parseConfig re-wraps).
   conditionShapeInvalid: 'Condição de aparência inválida.',
   defaultValueInvalid: 'Valor padrão inválido para este tipo de pergunta.',
+  // FF-4 (ADR 0092 ruling 5/6).
+  defaultSourceInvalid: 'Origem de valor padrão inválida.',
+  defaultSourceTypeMismatch:
+    'Esta origem de valor padrão não está disponível para este tipo de pergunta.',
+  defaultBothSet:
+    'Escolha um valor padrão fixo OU uma origem dinâmica, não os dois.',
   markdownRequired: 'Informe o texto a ser exibido.',
   altRequired: 'Informe um texto alternativo para a imagem.',
   imagePathRequired: 'Envie uma imagem antes de salvar.',
@@ -665,6 +674,17 @@ type ItemColumns = {
    * BE-5 regenerates the typed Insert/Update. Parsing now is inert + forward-safe.
    */
   default_value: Json
+  /**
+   * FF-4 (BE contract, ADR 0092 ruling 5): the dynamic-default TOKEN, or `null`.
+   * XORs with `default_value` (ruling 6, `form_items_default_source_xor`) and
+   * is pinned to the input types `DEFAULT_SOURCE_ELIGIBLE_TYPES` admits for
+   * that token (`form_items_default_source_type_check`). Parsed +
+   * shape-validated here from the `defaultSource` FormData field (a bare
+   * token string, or '' for none — frontend's `DefaultConfig` union already
+   * makes literal/dynamic/none mutually exclusive on submit, but this is
+   * re-checked here rather than trusted, per Rule 1: never rely on the UI).
+   */
+  default_source: string | null
 }
 
 /** The result of parsing an item's fields: the form_items columns + (for choice
@@ -913,6 +933,31 @@ function parseDefaultValue(
   return { error: { ok: false, error: MESSAGES.defaultValueInvalid } }
 }
 
+/**
+ * FF-4 (ADR 0092 ruling 5/6): parse the optional `defaultSource` FormData
+ * field — a bare token string (one of {@link DEFAULT_SOURCE_TOKENS}), or ''
+ * for none. Validates the token is a KNOWN one and that it is eligible for
+ * `itemType` (mirrors `form_items_default_source_type_check`, so a caller
+ * gets readable pt-BR instead of a raw 23514). Only called for INPUT types —
+ * every other branch of {@link parseItemFields} forces `default_source: null`
+ * directly, same as `default_value`.
+ */
+function parseDefaultSource(
+  itemType: string,
+  formData: FormData,
+): { error: ActionState } | { defaultSource: string | null } {
+  const raw = String(formData.get('defaultSource') ?? '').trim()
+  if (!raw) return { defaultSource: null }
+
+  if (!(DEFAULT_SOURCE_TOKENS as readonly string[]).includes(raw)) {
+    return { error: { ok: false, error: MESSAGES.defaultSourceInvalid } }
+  }
+  if (!isDefaultSourceEligible(raw as DefaultSource, itemType)) {
+    return { error: { ok: false, error: MESSAGES.defaultSourceTypeMismatch } }
+  }
+  return { defaultSource: raw }
+}
+
 function parseItemFields(
   itemType: string,
   formData: FormData,
@@ -948,6 +993,14 @@ function parseItemFields(
     const parsedDefault = parseDefaultValue(itemType, formData)
     if ('error' in parsedDefault) return { error: parsedDefault.error }
 
+    // FF-4 (ADR 0092 ruling 5/6): the dynamic-default token, XOR with the
+    // literal default just parsed above.
+    const parsedSource = parseDefaultSource(itemType, formData)
+    if ('error' in parsedSource) return { error: parsedSource.error }
+    if (parsedDefault.defaultValue !== null && parsedSource.defaultSource !== null) {
+      return { error: { ok: false, error: MESSAGES.defaultBothSet } }
+    }
+
     // FF-1 (ADR 0087 ruling 4) — `required` is persisted AS SUBMITTED, including
     // alongside a visibility condition.
     //
@@ -973,6 +1026,7 @@ function parseItemFields(
         required_if: parsedRequiredIf.requiredIf,
         content: null,
         default_value: parsedDefault.defaultValue,
+        default_source: parsedSource.defaultSource,
       },
       options,
     }
@@ -1015,6 +1069,7 @@ function parseItemFields(
         required_if: null,
         content: null,
         default_value: null,
+        default_source: null,
       },
       options: null,
     }
@@ -1072,6 +1127,9 @@ function parseItemFields(
         required_if: parsedRequiredIf.requiredIf,
         content: null,
         default_value: null,
+        // A matrix has no scalar to pre-fill and default_source is pinned to
+        // date/time/short_text/free_text (ruling 6) — never a matrix type.
+        default_source: null,
       },
       options: null,
     }
@@ -1132,6 +1190,7 @@ function parseItemFields(
         // No scalar to pre-fill: a reference answer is a row in
         // `answer_references`, never a value in `answers.value`.
         default_value: null,
+        default_source: null,
       },
       options: null,
     }
@@ -1153,6 +1212,7 @@ function parseItemFields(
         required_if: null,
         content: { markdown },
         default_value: null,
+        default_source: null,
       },
       options: null,
     }
@@ -1178,6 +1238,7 @@ function parseItemFields(
         required_if: null,
         content: { storage_path: storagePath, alt, caption: caption || null },
         default_value: null,
+        default_source: null,
       },
       options: null,
     }
@@ -1413,6 +1474,9 @@ export async function addItem(
         // answer-model-v2: the per-input default value (scalar or option code/
         // code[]); null for display items. Validated at publish time (HC080).
         default_value: columns.default_value,
+        // FF-4 (ADR 0092 ruling 5/6): XORs with default_value above (the DB
+        // CHECK is the backstop; parseItemFields already refused both set).
+        default_source: columns.default_source,
       })
       .select('id')
       .maybeSingle<{ id: string }>()
@@ -1491,6 +1555,8 @@ export async function updateItem(
       // answer-model-v2: the per-input default value (scalar or option code/
       // code[]); null for display items. Validated at publish time (HC080).
       default_value: columns.default_value,
+      // FF-4 (ADR 0092 ruling 5/6): XORs with default_value above.
+      default_source: columns.default_source,
     })
     .eq('id', itemId)
 
