@@ -297,7 +297,16 @@ different-values construction — mutation-proven the same way.
 
 ## 4. MINOR
 
-### 🟡 m-1 — `dashboard_matrix_cells` / `dashboard_risk_scores` let a **platform_admin** read commission response content.
+### 🟡 m-1 — `dashboard_matrix_cells` / `dashboard_risk_scores` let a **platform_admin** read commission response content. · **RESOLVED 2026-08-03** (`20260903000700`)
+
+> **This finding was correct and was under-rated at 🟡.** Filed as BUG-AUTHZ-001, PO-ruled 2026-08-03,
+> fixed by replacing `app.is_admin()` with `app.is_commission_admin_of(v_commission_id)` on all five
+> functions that carried it; pgTAP `270_authz_dashboard_gate_uniformity.sql` (8/8) now holds the
+> invariant against `pg_proc`. FF-2's own call — inherit the sibling's arm rather than deviate — was
+> the right one; the sibling was the stale half of an incomplete conversion (see `phase-8-review.md`).
+> What neither this review nor the filing caught: those same functions **denied**
+> `is_commission_admin_of`, so `org_admin`/`hospital_admin` — who reach `/dashboard` via the ADR 0051
+> D1 mirror — were served empty Matriz/Risco panels. The gate was wrong in *both* directions.
 
 Both new DEFINER doors gate on `app.is_staff_admin_of(v_commission_id) **or app.is_admin()**`, and
 `app.is_admin()` resolves to `profiles.is_admin` — i.e. `platform_admin`. CLAUDE.md's noun rule

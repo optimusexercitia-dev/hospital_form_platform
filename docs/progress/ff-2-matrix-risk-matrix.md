@@ -751,7 +751,25 @@ round-trip shaped (save → **read back**), plus three negatives bounding the wi
 > assertion rather than the fix — and the standing repo lesson "a FOR ALL policy IS a read policy"
 > is exactly what it was.*
 
-#### 🐞 BUG-AUTHZ-001 — `platform_admin` reaches response-derived content through DEFINER dashboard functions (owner: **AUTHZ**; NOT fixed here)
+#### ✅ BUG-AUTHZ-001 — `platform_admin` reaches response-derived content through DEFINER dashboard functions (owner: **AUTHZ**; NOT fixed here — **FIXED 2026-08-03**, `20260903000700`)
+
+> **Resolution (2026-08-03).** PO-ruled: unify on the shape the *other four* dashboard functions
+> already used — `app.is_admin()` → `app.is_commission_admin_of(v_commission_id)`. All nine
+> `dashboard_*` functions now carry one identical gate. pgTAP
+> `270_authz_dashboard_gate_uniformity.sql` (8/8) holds it, enumerating from `pg_proc`.
+>
+> **This filing's table below is accurate, and its call was right** — FF-2 inheriting the sibling arm
+> genuinely was the consistent choice. Two things it could not have known:
+> * **A fifth function joined later** — `dashboard_entity_references` (FF-5, `20260902000500`) copied
+>   the same arm, exactly as FF-2 had. The pattern repeated one more time before it was caught.
+> * **The arm was only half the defect.** Those same five *denied* `app.is_commission_admin_of`, which
+>   the other four admit — and `getCommissionAccessByOrg` maps `org_admin`/`hospital_admin` into the
+>   `staff_admin` branch (ADR 0051 D1), so those users reached `/dashboard` and were served populated
+>   Totais/Texto-livre beside **empty** Distribuições/Exportar/Matriz/Risco. A live user-facing gap.
+>
+> ⚠ When this bug was copied into PROGRESS.md it acquired an error this document does **not** have:
+> it listed `dashboard_matrix_risk_scores`, which is not a relation. The correct name is
+> `dashboard_risk_scores`, as the table below has it.
 
 Filed per the lead's ruling on QA r2 m-1. **FF-2 itself is correct and nothing was changed:**
 `dashboard_matrix_cells` / `dashboard_risk_scores` carry an `is_admin()` arm *because their sibling

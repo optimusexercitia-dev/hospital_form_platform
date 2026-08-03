@@ -1958,6 +1958,36 @@ directions.
 
 ### A35 — A30 ruled (PO, 2026-07-15): the **noun rule**, and CLAUDE.md §1 was the thing that was wrong
 
+> **⚠ AMENDMENT 2026-08-03 (BUG-AUTHZ-001) — the ruling stands; the census it rests on went stale.**
+> A30 enumerated the **two** `dashboard_*` DEFINER doors that existed on 2026-07-15 and correctly
+> flagged `dashboard_export_rows` as the widest bucket-B read. **Three more were added afterwards**,
+> each copying the wrong sibling's arm: `dashboard_matrix_cells` + `dashboard_risk_scores` (FF-2,
+> `20260830000900`) and `dashboard_entity_references` (FF-5, `20260902000500`) — so by 2026-08-03 the
+> `app.is_admin()` arm sat on **five** functions.
+>
+> **Root cause, and it predates A30.** `docs/reviews/phase-8-review.md` records all **six** original
+> dashboard functions sharing ONE gate, `is_staff_admin_of(cid) OR app.is_admin()`. A later change put
+> the commission-admin mirror on four of them and **missed `dashboard_distributions` and
+> `dashboard_export_rows`**. That partial conversion is the whole defect: it produced a second gate
+> shape, broke no test, and every subsequent door copied a sibling in good faith. **A rewrite applied
+> to *part* of a function family is invisible to every check the platform runs** — which is why the fix
+> is an invariant over `pg_proc`, not a corrected enumeration. Migration `20260903000700` replaces it with
+> `app.is_commission_admin_of(v_commission_id)` on all five; pgTAP
+> `270_authz_dashboard_gate_uniformity.sql` (8/8, mutation-falsifiable) now holds the invariant, and
+> enumerates from `pg_proc` rather than a name list so the next door cannot repeat it.
+>
+> **Two lessons this section should carry, both already stated elsewhere in this ADR and both re-earned:**
+> 1. **`prosecdef` belongs beside `pg_policies`.** A30's behavioural headline ("reads 0 of 13
+>    `responses`") was a TABLE-level measurement through RLS and was correct as such — but
+>    `dashboard_export_rows` returned per-response answers plus the member's name through a DEFINER
+>    gate RLS never evaluates. *"Reads 0 rows of T"* ≠ *"cannot reach T's content."*
+> 2. **A census is a snapshot, not an invariant.** This one was accurate on the day and wrong six weeks
+>    later, because nothing executable held the property. That is why the fix ships with a pgTAP
+>    keystone rather than a corrected list.
+>
+> The noun rule itself needed no revision — as of `20260903000700` the database enforces it on this
+> surface instead of only describing it.
+
 A **40-site catalog census** (`docs/progress/authz-a30-platform-admin-inventory.md`) — **not 42**: the
 count was inflated by **three comment-only matches**, and those comments **document the arm's removal**
 (`-- ⟵ INFO-1: the is_admin() bypass is GONE`). *A `prosrc` text match counts `--` comments.* **The

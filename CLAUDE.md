@@ -64,6 +64,11 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
     "walled off from all tenant data", which was stated too absolutely: platform_admin genuinely reads
     0 cases / 0 responses / 0 narratives / 0 meetings, but tenant **onboarding** requires the tenancy
     arm, so the absolute form was false 12× and trained readers to ignore it.)*
+    ⚠ **Those "0 of N" figures are TABLE-level reads through RLS.** They do not mean "cannot reach the
+    content": until 2026-08-03 five `dashboard_*` **DEFINER** functions returned response content —
+    `dashboard_export_rows` one row per response with `answers` + `member_name` — through a gate RLS
+    never evaluates (BUG-AUTHZ-001; fixed by `20260903000700`, held by pgTAP `270`). When you cite the
+    census, cite it as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
   - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
     commissions, users, members.
   - `staff_admin` (per commission) — builds/edits forms, manages that commission's

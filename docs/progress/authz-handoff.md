@@ -639,6 +639,38 @@ wearing a green check. Filed as its own pre-pilot P0 (**AUDIT-DOOR-BLINDNESS**):
 every amendment, because a method that verifies one layer and infers the other keeps shipping green suites over
 live leaks.
 
+> **Instance #6 — 2026-08-03, BUG-AUTHZ-001. The same shape, in the A30 census itself.**
+> A30 measured `platform_admin` behaviourally: *"reads 0 of 7 `cases`, 0 of 13 `responses`, 0 of 6
+> `case_narratives`, 0 of 1 `meetings`."* Every number correct — and all four measured at the TABLE
+> level, through RLS. `public.dashboard_export_rows` (`prosecdef=t`) returned
+> `TABLE(response_id, member_name, submitted_at, version_number, answers jsonb, signoffs jsonb)` — one
+> row per response, with the answers and the member's name — through a gate RLS never evaluates. **"Reads
+> 0 rows of `responses`" is not "cannot reach response content,"** and that sentence went on to anchor
+> ADR 0078 A35 and CLAUDE.md §1 for six weeks. Fixed by `20260903000700`; held by pgTAP `270`.
+>
+> **Two things this instance adds to the five above.**
+>
+> 1. **The blindness can be in the CENSUS, not just the test.** #1–#5 are keystones that checked the
+>    wrong layer. This one is an *inventory* that checked the wrong layer and then became the quoted
+>    authority — a much longer half-life, because nothing re-runs a census. A30 actually **listed** both
+>    dashboard doors it could see and flagged `dashboard_export_rows` as *"widest bucket-B read"*; the
+>    row was right there. What failed was the summary line written above it, which is what everyone
+>    quoted. **A census's headline is a claim like any other — and it outlives the table it summarizes.**
+>
+> 2. **A snapshot decays; only an executable invariant holds.** A30 was *complete on 2026-07-15*. Then
+>    FF-2 added `dashboard_matrix_cells` + `dashboard_risk_scores` (`20260830000900`) and FF-5 added
+>    `dashboard_entity_references` (`20260902000500`), each correctly copying its sibling's arm — so a
+>    2-door finding became a 5-door one with **every individual step defensible**. This is exactly the
+>    §7.14 fix already prescribed ("structural, not vigilance") applied to inventories: pgTAP `270`
+>    enumerates from `pg_proc` and reds on any new `dashboard_*` that deviates, so the property is held
+>    by the suite instead of by a list someone must remember to re-derive.
+>
+> ⚠ **And the bug report itself inherited the census's shape** — it named four functions (the catalog
+> held five), misnamed one relation that does not exist (`dashboard_matrix_risk_scores`; it is
+> `dashboard_risk_scores`), and described only the platform_admin half while those same five *also*
+> denied `is_commission_admin_of`. Every correction came from querying `pg_proc`, none from re-reading
+> the report. **Re-derive from the catalog before acting on any authz finding, including a filed one.**
+
 ### 7.15 ⛔ "Green" has a THIRD failure mode — the assertion that NEVER RAN (2026-07-17)
 
 §7.1 is *a test that CANNOT fail*; §7.10/§7.12 is *a true return over an EMPTY population*. This is the third:

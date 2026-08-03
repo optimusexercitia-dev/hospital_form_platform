@@ -26,6 +26,15 @@
 -- PO-ruled 2026-08-03: unify on shape B. One change closes the overreach and the gap,
 -- and leaves all nine functions structurally identical.
 --
+-- ROOT CAUSE (docs/reviews/phase-8-review.md): at Phase 8 all six original dashboard
+-- functions shared ONE gate — shape A. A later change put the commission-admin mirror
+-- on four of them and MISSED `dashboard_distributions` + `dashboard_export_rows`. That
+-- partial conversion created shape B, broke no test, and every door added since copied
+-- a sibling in good faith (FF-2 two, FF-5 one), carrying the stale shape from 2 doors
+-- to 5. A rewrite applied to PART of a function family is invisible to every check this
+-- platform runs — which is why the guard at the bottom of this file is an invariant over
+-- `pg_proc` rather than a corrected list of names.
+--
 -- ⚠ The filed report named FOUR functions and misnamed one (`dashboard_matrix_risk_scores`;
 -- the relation is `dashboard_risk_scores`). `dashboard_entity_references` — FF-5's
 -- reference surface, added after the report — carries the same arm and was never listed.

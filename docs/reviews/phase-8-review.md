@@ -53,6 +53,20 @@ The two tester-surfaced items are adjudicated below. Both resolve to MINOR, not 
 
 ### 2a. Definer RPC gating
 
+> **⚠ SUPERSEDED 2026-08-03 (BUG-AUTHZ-001) — and this passage is where the defect started.**
+> The uniformity recorded here was real: at Phase 8 **all six** functions shared
+> `is_staff_admin_of(cid) OR app.is_admin()`. A later change converted the commission-admin mirror onto
+> **four** of them (`dashboard_form_totals`, `dashboard_free_text`, `dashboard_submissions_over_time`,
+> `dashboard_completion_by_member` → `is_commission_admin_of`) and **missed `dashboard_distributions`
+> and `dashboard_export_rows`** — leaving two gate shapes where this review had found one. FF-2 then
+> added `dashboard_matrix_cells`/`dashboard_risk_scores` and FF-5 added `dashboard_entity_references`,
+> each correctly copying a *sibling* — which by then was the stale shape, so the miss propagated from
+> 2 doors to 5 with every individual step defensible.
+> Migration `20260903000700` restores single-shape uniformity on
+> `is_staff_admin_of(cid) OR is_commission_admin_of(cid)`; pgTAP `270` holds it against `pg_proc`.
+> **The lesson is about the conversion, not this review:** a partial rewrite across a function family
+> leaves no failing test — it leaves a second shape that later work faithfully copies.
+
 All five aggregation RPCs (`dashboard_form_totals`, `dashboard_distributions`, `dashboard_free_text`, `dashboard_submissions_over_time`, `dashboard_completion_by_member`) and `dashboard_export_rows` each begin with:
 
 ```sql

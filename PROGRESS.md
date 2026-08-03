@@ -364,6 +364,13 @@ the 8 go red, the 2 non-vacuity tests correctly stay green).
    `/dashboard` — and were served populated Totais/Texto-livre/Ao-longo-do-tempo beside **empty**
    Distribuições/Exportar/Matriz/Risco/Referências. A live user-facing gap nobody filed.
 
+**Root cause (found in `docs/reviews/phase-8-review.md`):** at Phase 8 all six original dashboard
+functions shared ONE gate — shape A. A later change put the commission-admin mirror on four and
+**missed `dashboard_distributions` + `dashboard_export_rows`**. That partial conversion created the
+second shape, broke no test, and every door added since copied a sibling in good faith (FF-2 two,
+FF-5 one), carrying the stale shape from 2 doors to 5. **A rewrite applied to PART of a function
+family is invisible to every check this platform runs.**
+
 Because of (1) the fix enumerates from `pg_proc`, never a hand-written list. The ADR 0078 A35
 census is **not** invalidated for `responses` policies — those were correct; the leak was a
 `prosecdef` door the policy-shaped census is structurally blind to, which is ADR 0078's own
@@ -375,7 +382,7 @@ been the inconsistency). The pre-existing question is what got filed.
 
 | Surface | `prosecdef` | `is_admin()` arm |
 |---|---|---|
-| `dashboard_distributions` · `dashboard_export_rows` · `dashboard_matrix_cells` · `dashboard_matrix_risk_scores` | ✅ | ✅ |
+| `dashboard_distributions` · `dashboard_export_rows` · `dashboard_matrix_cells` · ~~`dashboard_matrix_risk_scores`~~ **`dashboard_risk_scores`** · **+ `dashboard_entity_references` (omitted)** | ✅ | ✅ |
 | **`responses` — every policy** | — | ❌ **none** |
 
 **`dashboard_export_rows` is the sharp one: it returns `TABLE(response_id, member_name, submitted_at,

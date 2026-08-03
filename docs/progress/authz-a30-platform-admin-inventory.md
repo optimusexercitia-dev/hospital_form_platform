@@ -6,6 +6,36 @@
 
 ---
 
+> ## ⚠ CORRECTION 2026-08-03 — the dashboard rows are FIXED, and this census went STALE (BUG-AUTHZ-001)
+>
+> **Not an error in this document.** Both dashboard doors that existed on 2026-07-15 are listed below
+> (§2, `dashboard_distributions` + `dashboard_export_rows`, the latter correctly flagged *"widest
+> bucket-B read"*). The census was complete for its date. It then **went stale**: three more
+> `dashboard_*` functions were added afterwards, each copying the wrong sibling's arm —
+> `dashboard_matrix_cells` and `dashboard_risk_scores` (FF-2, `20260830000900`) and
+> `dashboard_entity_references` (FF-5, `20260902000500`). By 2026-08-03 the arm was on **five**
+> functions, not two. See memory `new-door-must-inherit-every-sibling-arm`.
+>
+> **All five are fixed** — migration `20260903000700` replaces `app.is_admin()` with
+> `app.is_commission_admin_of(v_commission_id)`, so all nine `dashboard_*` functions now carry one
+> identical gate. Guarded by pgTAP `270_authz_dashboard_gate_uniformity.sql` (8/8,
+> mutation-falsifiable), whose invariant is written against `pg_proc` rather than a list of names, so
+> the next dashboard function cannot repeat this.
+>
+> **⚠ Read headline finding #2 below with care — it is true and it is easy to over-read.**
+> "a `platform_admin` reads **0 of 13 `responses`**" was measured at the TABLE level, through RLS, and
+> that measurement was correct. It does **not** mean platform_admin could not read response content:
+> `dashboard_export_rows` returned `TABLE(response_id, member_name, submitted_at, version_number,
+> answers jsonb, signoffs jsonb)` — one row per response, with answers and the member's name — through
+> a `SECURITY DEFINER` gate that RLS never sees. **"Reads 0 rows of table T" and "cannot reach T's
+> content" are different claims**, and §2's own bucket-B row is where the difference lived. When
+> quoting this census, quote the row-level measurement as row-level.
+>
+> ADR 0078 A35's ruling is unaffected: the noun rule was the right rule, and as of `20260903000700`
+> the database enforces it on this surface rather than merely describing it.
+
+---
+
 ## 0. Headline (read this first)
 
 Three findings change the shape of the question the PO was asked to rule on.
@@ -123,8 +153,8 @@ Cross-tenant infrastructure the product genuinely needs. **Removing these breaks
 | --- | --- | --- | --- | --- |
 | `public.set_case_offered_outcomes` | RPC | `t` | **case content (write)** | nothing user-facing. **`qa`'s A0 finding — PROVEN: writes a case it reads 0 rows of.** |
 | `public.create_case` | RPC | `t` | creates a case in **any** commission | nothing user-facing |
-| `public.dashboard_distributions` | RPC | `t` | tenant response aggregates | nothing user-facing |
-| `public.dashboard_export_rows` | RPC | `t` | **tenant response rows (export)** | nothing user-facing. Widest bucket-B *read*. |
+| `public.dashboard_distributions` | RPC | `t` | tenant response aggregates | ~~nothing user-facing~~ · **ARM REMOVED 2026-08-03, `20260903000700`** (BUG-AUTHZ-001) |
+| `public.dashboard_export_rows` | RPC | `t` | **tenant response rows (export)** | ~~nothing user-facing~~ · Widest bucket-B *read*, and the correct call — it returns per-response `answers` + `member_name`, not an aggregate. **ARM REMOVED 2026-08-03, `20260903000700`** (BUG-AUTHZ-001) |
 | `public.hospital_document_register` | RPC | `t` | `controlled_documents` across a hospital | nothing user-facing |
 | `public.hospital_indicator_rollup` | RPC | `t` | `indicators` + `indicator_measurements` | nothing user-facing |
 | `public.list_approver_candidates` | RPC | `t` | user lists | nothing user-facing |
