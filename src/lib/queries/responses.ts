@@ -147,6 +147,17 @@ export interface ResponseForFill {
   commissionId: string
   status: ResponseStatus
   lastSectionId: string | null
+  /**
+   * FF-4 (ADR 0092 ruling 5) — when this draft was FIRST created
+   * (`responses.started_at`). The anchor for the `today`/`now` dynamic-default
+   * tokens: they resolve to the draft-start date/time, not "whenever the
+   * wizard happens to mount" — a resumed in_progress response must show the
+   * SAME "today" days later, or the seeded default silently drifts out from
+   * under an idempotence guarantee `app.seed_default_answers` already provides
+   * server-side. Mirrors {@link MyResponse.startedAt} (same column, same
+   * shape).
+   */
+  startedAt: string
   /** The full published-version tree (sections + items in order). */
   tree: VersionTree
   /** Saved answers keyed by item_id (drives form-control rehydration). */
@@ -336,6 +347,7 @@ interface ResponseRow {
   commission_id: string
   status: string
   last_section_id: string | null
+  started_at: string
   form_versions: {
     form_id: string
     forms: { title: string }
@@ -779,7 +791,7 @@ export async function getResponseForFill(
   const { data: response } = await supabase
     .from('responses')
     .select(
-      'id, form_version_id, commission_id, status, last_section_id, ' +
+      'id, form_version_id, commission_id, status, last_section_id, started_at, ' +
         // `!inner`: an orphaned response (form deleted) resolves to no row → null
         // → friendly 404, never a null-embed crash.
         'form_versions!inner(form_id, forms!inner(title))',
@@ -933,6 +945,7 @@ export async function getResponseForFill(
     commissionId: response.commission_id,
     status: response.status as ResponseStatus,
     lastSectionId: response.last_section_id,
+    startedAt: response.started_at,
     tree,
     answersByItemId,
     answersByKey,
