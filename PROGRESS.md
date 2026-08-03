@@ -69,8 +69,9 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-_No active build phase._ The Flexible-Forms program is **4 of 5 complete**; **FF-4 (Power
-Authoring) is the last phase before the pilot deploy** (ADR 0086 — all five gate it).
+▶ **ACTIVE: FF-4 (Power Authoring)** — started 2026-08-03, ADR
+[0092](docs/decisions/0092-ff4-power-authoring.md). The Flexible-Forms program is **4 of 5
+complete**; **FF-4 is the last phase before the pilot deploy** (ADR 0086 — all five gate it).
 
 | Phase | Flag | Record |
 | --- | --- | --- |
@@ -82,13 +83,47 @@ Authoring) is the last phase before the pilot deploy** (ADR 0086 — all five ga
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record →
 [case-type-assignment.md](docs/progress/case-type-assignment.md).
 
-### ▶ FF-4 (Power Authoring, `power_authoring`) — NOT started
+### ▶ FF-4 (Power Authoring, `power_authoring`) — ACTIVE, started 2026-08-03
 
-ADR **0092+** authored at phase start; scope, dependencies and gate keystones →
-[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-4. Reusable block/question
-library (jsonb snapshot of the item subtree) + dynamic defaults; **calculated fields stay
-post-pilot** (ADR 0086 ruling 6). It is last *structurally* — the library must snapshot every
-shipped item shape: options, matrix axes, validations, reference config.
+ADR **[0092](docs/decisions/0092-ff4-power-authoring.md)** authored at phase start (9 rulings);
+scope + gate keystones there. Reusable block/question library (jsonb snapshot of the item subtree)
++ dynamic defaults; **calculated fields stay post-pilot** (ADR 0086 ruling 6). It is last
+*structurally* — the library must snapshot every shipped item shape: options, matrix axes,
+validations, reference config.
+
+**PO rulings 2026-08-03** — ① library is **commission-only** (one RLS arm; org-visible deferred as
+additive) · ② `question_key` collisions **auto-suffix + a visible rename list** in the draft
+builder, never silent · ③ dynamic-default vocabulary v1 = **five PHI-free tokens** (`today`, `now`,
+`current_user_name`, `current_user_email`, `commission_name`); **case context deferred**.
+
+**Substrate pinned at phase start (live catalog, 235/235 registered, max `20260902000900`):** the
+deep-copy authority is **`app.copy_version_children`** — its insert list (`form_items` recursive ·
+`form_item_options` · `form_matrix_rows`/`_columns` · `form_item_validations` **last**, after the
+`parent_item_id` re-link) is the complete child set a snapshot must carry; FF-5 reference config
+rides in `form_items.config`, so there is no sixth table. SQLSTATE high-water **HC0Q5** → FF-4
+allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`**.
+
+> 🔴 **ADR 0092 ruling 3 is the sharpest risk in this phase and the plan did not anticipate it.**
+> A snapshot must be **closed under its own conditions**: `visible_when`/`required_if` are written
+> over `question_key`s, so a block whose condition points *outside* the subtree either dangles or
+> silently binds to an unrelated question sharing that key. Save **refuses** (`HC0Q6`); insert
+> **rewrites conditions with the rename map**. Renaming keys without rewriting conditions passes
+> every structural test and surfaces only as a question that never appears.
+
+| # | Task | Owner | Depends on |
+| --- | --- | --- | --- |
+| BE-1 | Contract-first: post typed signatures for the library queries/actions before implementing | backend | — |
+| BE-2 | `…000000` `form_block_library` + RLS (ruling 1) + `power_authoring` seeded **OFF** + grants | backend | BE-1 |
+| BE-3 | `…000100` `form_items.default_source` + XOR CHECK + token↔type CHECK (ruling 6) | backend | — |
+| BE-4 | `…000200` `save_block_to_library` DEFINER door — subtree snapshot + ruling-3 closure (`HC0Q6`) + revokes | backend | BE-2 |
+| BE-5 | `…000300` `insert_block_from_library` DEFINER door — deep copy over the `copy_version_children` child set, key suffix + **condition rewrite**, returns rename map | backend | BE-2, BE-4 |
+| BE-6 | Draft-start default resolution (idempotent) · `gen:types` · pgTAP for all 9 keystones incl. over-grant twin | backend | BE-3, BE-5 |
+| FE-1 | Builder: library browser + save-to-library (flag-gated) | frontend | BE-1 |
+| FE-2 | Insert flow + the **rename review list** (ruling 4) | frontend | BE-1 |
+| FE-3 | `default-value-editor.tsx`: dynamic-source selector, type-gated to the 5 tokens | frontend | BE-1 |
+| FE-4 | Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` | frontend | BE-1 |
+| T-1 | E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only | tester | FE-1…4 |
+| QA-1 | Phase review → `docs/reviews/phase-FF-4-review.md` | qa | T-1 green |
 
 > 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
 > shipped once.**
