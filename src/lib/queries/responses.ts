@@ -392,10 +392,27 @@ interface SelectionEmbedRow {
  * semantics). `tree` supplies each item's type + option `id → {code, position}`,
  * so no extra round-trip is needed to resolve codes.
  *
- * Both maps are keyed identically per item: `answersByItemId[item.id]` and
- * `answersByKey[item.questionKey]` hold the same value, so `prepare.ts` and the
- * read-only views (which read by item_id) and the TS evaluator (which reads by
- * question_key) both see the canonical shape.
+ * The two maps are keyed identically EXCEPT for one deliberate asymmetry
+ * (BUG-FF4-001): a scalar item explicitly cleared to `null` gets an entry in
+ * `answersByItemId` (value `null`) but NONE in `answersByKey`.
+ *   - `answersByKey` is the CONDITION-EVALUATION mirror of SQL
+ *     `app.answer_map_scoped`, whose `jsonb_object_agg` carries `and a.value
+ *     is not null` — this side MUST keep excluding nulls, or the TS/SQL
+ *     evaluator pair drifts (Rule 3, phase-blocking parity, program plan §6).
+ *   - `answersByItemId` is the WIZARD's per-item state (via `toAnswerState`
+ *     in `prepare.ts`), where "answered with null" (cleared) and "never
+ *     answered" (untouched) are DIFFERENT states that `withDefaults`'s
+ *     `item.id in initialAnswers` presence check must be able to tell apart
+ *     — collapsing them into one "absent" shape is exactly how a cleared
+ *     dynamic OR literal default got silently refilled on resume (ADR 0092
+ *     ruling 5; the literal-`defaultValue` case predates FF-4 and shares the
+ *     same gate in `withDefaults`).
+ * Nothing downstream of `answersByKey` needs the null row: `evalCondition`
+ * already treats a null-VALUED key exactly like an absent one in every
+ * operator branch, so the parity mirror loses nothing by excluding it.
+ *
+ * `prepare.ts` and the read-only views (which read by item_id) and the TS
+ * evaluator (which reads by question_key) all see the shape each needs.
  */
 export function buildAnswerMaps(
   tree: VersionTree,
@@ -424,16 +441,23 @@ export function buildAnswerMaps(
   // (a) Scalar answers — non-choice input items only (choice items leave
   // answers.value null in the normalized model; ignore any stray non-null value
   // on a choice item, mirroring the SQL answer_map which sources choice answers
-  // solely from selections).
+  // solely from selections). The item-type gate runs regardless of null: a
+  // choice item's stray value belongs in NEITHER map either way.
   for (const a of scalarAnswers) {
-    if (a.value === null) continue
     const item = itemsById.get(a.item_id)
     if (!item) continue
     if (CHOICE_ITEM_TYPES.includes(item.itemType as (typeof CHOICE_ITEM_TYPES)[number])) {
       continue
     }
+    // BUG-FF4-001: `answersByItemId` records the row EVEN when `a.value` is
+    // null — that presence is what tells `withDefaults` (via `toAnswerState`)
+    // "already answered, cleared" apart from "never answered". `answersByKey`
+    // keeps the null exclusion: it is the parity mirror of
+    // `app.answer_map_scoped`'s `and a.value is not null` and must not drift.
     answersByItemId[a.item_id] = a.value
-    answersByKey[a.question_key] = a.value
+    if (a.value !== null) {
+      answersByKey[a.question_key] = a.value
+    }
   }
 
   // (b/c) Choice selections — group the selected option ids per item, resolve to

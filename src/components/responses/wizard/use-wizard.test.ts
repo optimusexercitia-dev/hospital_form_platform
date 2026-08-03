@@ -646,6 +646,34 @@ describe("useWizard default-value prefill (answer-model-v2 FE-2)", () => {
     expect(result.current.answers.txt?.value).toBe("");
   });
 
+  it("BUG-FF4-001 (pre-existing, predates FF-4): does not re-seed a literal defaultValue on a FRESH mount whose initialAnswers already shows the item explicitly cleared (value: null) -- the resume-after-clear case, not the live-session clear `setAnswer` already covers above", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "txt",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "txt",
+            options: null,
+            defaultValue: "valor padrão",
+          }),
+        ],
+      }),
+    ]);
+    // What `toAnswerState` now produces (BUG-FF4-001 fix) from a resumed
+    // response whose answersByItemId retains a null-valued row for a cleared
+    // item: the KEY is present, the value is null. `withDefaults` must read
+    // `item.id in initialAnswers` as true and skip re-seeding.
+    const initialAnswers: AnswerState = {
+      txt: { itemId: "txt", questionKey: "txt", value: null },
+    };
+    const { result } = renderHook(() => useWizard(data(t, initialAnswers)));
+    expect(result.current.answers.txt?.value).toBeNull();
+  });
+
   it("does not seed a display item or an item with no defaultValue", () => {
     const t = tree([
       section({
@@ -799,6 +827,30 @@ describe("useWizard dynamic-default prefill (FF-4, ADR 0092 ruling 5)", () => {
       result.current.setAnswer({ id: "d", questionKey: "d" }, "");
     });
     expect(result.current.answers.d?.value).toBe("");
+  });
+
+  it("BUG-FF4-001: does not re-seed a dynamic default on a FRESH mount whose initialAnswers already shows the item explicitly cleared (value: null) -- the resume-after-clear case (tester's E2E FF4-4), reproduced here as a fast unit-level pin", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "d",
+            sectionId: "s0",
+            itemType: "date",
+            questionKey: "d",
+            options: null,
+            defaultSource: "today",
+          }),
+        ],
+      }),
+    ]);
+    const initialAnswers: AnswerState = {
+      d: { itemId: "d", questionKey: "d", value: null },
+    };
+    const { result } = renderHook(() => useWizard(data(t, initialAnswers)));
+    expect(result.current.answers.d?.value).toBeNull();
   });
 
   it("a literal defaultValue wins over defaultSource (XOR should make this unreachable in practice)", () => {

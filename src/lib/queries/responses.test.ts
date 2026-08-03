@@ -9,12 +9,19 @@
  * payload that round-trips as an unknown code (HC0P7) — and would do it only
  * after a version clone, which is exactly the kind of defect that survives a
  * green bar.
+ *
+ * BUG-FF4-001: also covers `buildAnswerMaps`' deliberate null-handling
+ * asymmetry between `answersByItemId` (wizard state — a cleared scalar answer
+ * must stay PRESENT, keyed to `null`) and `answersByKey` (the evaluator
+ * mirror of SQL `app.answer_map_scoped`, which must keep EXCLUDING nulls —
+ * Rule 3 parity).
  */
 
 import { describe, expect, it } from 'vitest'
 
 import {
   TOP_LEVEL_SCOPE,
+  buildAnswerMaps,
   buildMatrixAnswers,
   type ScopedMatrixCellRow,
   type ScopedRiskMatrixRow,
@@ -156,5 +163,115 @@ describe('buildMatrixAnswers', () => {
 
   it('returns an empty map when the response has no matrix answers at all', () => {
     expect(buildMatrixAnswers(tree(), [], []).size).toBe(0)
+  })
+})
+
+describe('buildAnswerMaps (BUG-FF4-001)', () => {
+  const SCALAR_ITEM = 'item-scalar'
+  const CHOICE_ITEM = 'item-choice'
+
+  function scalarTree(): VersionTree {
+    const section: Section = {
+      id: 'sec-1',
+      position: 0,
+      title: null,
+      description: null,
+      isDefault: true,
+      visibleWhen: null,
+      requiresSignoff: false,
+      signoffRole: null,
+      items: [
+        item({ id: SCALAR_ITEM, itemType: 'short_text', questionKey: 'campo' }),
+      ],
+    }
+    return {
+      id: 'ver-scalar',
+      formId: 'form-scalar',
+      versionNumber: 1,
+      status: 'published',
+      publishedAt: null,
+      sections: [section],
+    }
+  }
+
+  it('a cleared scalar answer (explicit null) is PRESENT in answersByItemId (value null)', () => {
+    const { answersByItemId } = buildAnswerMaps(
+      scalarTree(),
+      [{ item_id: SCALAR_ITEM, question_key: 'campo', value: null }],
+      [],
+    )
+    // PRESENCE is what tells `withDefaults` (via `toAnswerState` in
+    // prepare.ts) "already answered, cleared" apart from "never answered" —
+    // collapsing the two was the whole bug.
+    expect(SCALAR_ITEM in answersByItemId).toBe(true)
+    expect(answersByItemId[SCALAR_ITEM]).toBeNull()
+  })
+
+  it('an untouched item (no answer row at all) is absent from answersByItemId — distinguishable from cleared', () => {
+    const { answersByItemId } = buildAnswerMaps(scalarTree(), [], [])
+    expect(SCALAR_ITEM in answersByItemId).toBe(false)
+  })
+
+  it('a genuinely answered scalar item is present in BOTH maps with the same value', () => {
+    const { answersByItemId, answersByKey } = buildAnswerMaps(
+      scalarTree(),
+      [{ item_id: SCALAR_ITEM, question_key: 'campo', value: 'valor' }],
+      [],
+    )
+    expect(answersByItemId[SCALAR_ITEM]).toBe('valor')
+    expect(answersByKey.campo).toBe('valor')
+  })
+
+  /**
+   * PARITY GUARD (Rule 3). `answersByKey` is the TS mirror of SQL
+   * `app.answer_map_scoped`'s `jsonb_object_agg(...) ... and a.value is not
+   * null`. This test's only job is to fail if that exclusion is ever
+   * dropped from `answersByItemId`'s sibling map.
+   *
+   * MUTATION-PROVEN: temporarily changing `buildAnswerMaps` to also write
+   * `answersByKey[a.question_key] = a.value` unconditionally (letting the
+   * cleared row's `null` into the evaluator-facing map) turns this red —
+   * verified by hand while fixing BUG-FF4-001, then reverted before commit.
+   */
+  it('PARITY GUARD: answersByKey never carries a null-valued entry for a cleared scalar answer', () => {
+    const { answersByKey } = buildAnswerMaps(
+      scalarTree(),
+      [{ item_id: SCALAR_ITEM, question_key: 'campo', value: null }],
+      [],
+    )
+    expect(Object.prototype.hasOwnProperty.call(answersByKey, 'campo')).toBe(false)
+    expect(answersByKey.campo).toBeUndefined()
+  })
+
+  it('a stray non-null value on a CHOICE item lands in NEITHER map (choice answers come solely from selections, mirroring the SQL answer_map)', () => {
+    const choiceTree: VersionTree = {
+      id: 'ver-choice',
+      formId: 'form-choice',
+      versionNumber: 1,
+      status: 'published',
+      publishedAt: null,
+      sections: [
+        {
+          id: 'sec-1',
+          position: 0,
+          title: null,
+          description: null,
+          isDefault: true,
+          visibleWhen: null,
+          requiresSignoff: false,
+          signoffRole: null,
+          items: [
+            item({ id: CHOICE_ITEM, itemType: 'multiple_choice', questionKey: 'escolha' }),
+          ],
+        },
+      ],
+    }
+    const { answersByItemId, answersByKey } = buildAnswerMaps(
+      choiceTree,
+      [{ item_id: CHOICE_ITEM, question_key: 'escolha', value: 'stray' }],
+      [],
+    )
+    expect(CHOICE_ITEM in answersByItemId).toBe(false)
+    expect('escolha' in answersByKey).toBe(false)
   })
 })
