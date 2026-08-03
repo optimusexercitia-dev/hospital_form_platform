@@ -32,10 +32,20 @@
 --   §I — default_source_type_check_negative: every ineligible token x type
 --        pairing rejected, and default_source + default_value together
 --        rejected — plus the positive control (every eligible pairing works).
+--   §J — library_metadata_door_cannot_touch_snapshot (BE-7): the rename door's
+--        UPDATE...SET clause never references snapshot/commission_id/
+--        provenance, structurally (regex over its own live body) AND
+--        behaviorally (rename changes name/description, leaves the rest
+--        byte-identical).
+--   §K — a tenant-scope negative for the two BE-7 metadata doors: a sibling
+--        commission's admin can neither rename nor delete another's entry.
+--   §L — delete_safety_no_form_impact (BE-7): deleting an entry does not
+--        remove or alter any item in a form previously built from it — the
+--        whole point of ruling 2's no-live-link design.
 
 begin;
 
-select plan(49);
+select plan(61);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -296,17 +306,32 @@ select set_config('request.jwt.claims', null, true);
 --      of K9 — the table was write-inert before FF-4 shipped its own writer;
 --      what matters is that `authenticated` STILL cannot write it directly).
 --
---      MUTATION (verified, two steps): `grant insert, update, delete on
---        public.form_block_library to authenticated` alone reds B2/B3/B4
---        (the grant checks) and B6/B7 (UPDATE/DELETE — Postgres reuses the
---        SELECT policy's USING clause as their row filter when no verb-
---        specific policy exists, so sa_x's own commission passes it once the
---        grant is there). B5 (INSERT) does NOT flip on the grant alone —
---        INSERT has no row to reuse a USING clause against, so RLS
---        independently blocks it via the missing WITH CHECK. Adding `create
---        policy … for all … using (true) with check (true)` on top flips B5
---        too. Both extra grants/policy dropped afterward; B1 (the SELECT
---        grant) unaffected throughout.
+--      MUTATION (verified, two steps — CORRECTED after a wrong first
+--      explanation; the coordinator caught the wrongness, not the redness).
+--
+--      `grant insert, update, delete on public.form_block_library to
+--      authenticated` alone reds B2/B3/B4 (pure `has_table_privilege` checks)
+--      AND B6/B7 (real UPDATE/DELETE statements) — but B6/B7 do NOT go red
+--      because the row becomes reachable. Postgres does NOT reuse a SELECT
+--      policy's USING clause for UPDATE/DELETE when no verb-specific policy
+--      exists (verified directly: `set local role authenticated; update …`
+--      returns `UPDATE 0` — no exception, ZERO rows touched, silently). RLS
+--      still excludes every row; `throws_ok` reds B6/B7 because it expected
+--      an EXCEPTION and got a silent no-op instead, not because the update
+--      "succeeded".
+--
+--      B5 (INSERT) does NOT flip on the grant alone, but not because RLS
+--      "independently blocks" it in the way B6/B7 are blocked either: INSERT
+--      has no existing row for a USING filter to exclude, so with no
+--      applicable WITH CHECK policy Postgres REJECTS the new row outright —
+--      `ERROR: new row violates row-level security policy for table
+--      "form_block_library"` (still 42501, so `throws_ok(…, '42501', …)`
+--      keeps passing — a real exception, from RLS itself rather than the
+--      missing grant, coincidentally satisfying the same assertion). Adding
+--      `create policy … for all … using (true) with check (true)` on top
+--      supplies the missing USING/WITH CHECK and flips B5 too. Both extra
+--      grants/policy dropped afterward; B1 (the SELECT grant) unaffected
+--      throughout.
 -- ===========================================================================
 select ok(has_table_privilege('authenticated', 'public.form_block_library', 'SELECT'),
   'B1. authenticated keeps its SELECT grant');
@@ -693,6 +718,132 @@ select is(
    where section_id = 'ff400000-0000-0000-0000-000000000052' and question_key like 'i_ok%'),
   4,
   'I5. CONTROL — every eligible token x type pairing is accepted');
+
+-- ===========================================================================
+-- §J · library_metadata_door_cannot_touch_snapshot (BE-7, ADR 0092 ruling 2).
+--      Ruling 2's snapshot/provenance immutability was a CONVENTION while
+--      nothing could write at all; the moment update_block_library_entry
+--      exists it becomes a real invariant needing a real proof.
+--
+--      MUTATION (verified): widen the door's UPDATE to also
+--      `set snapshot = '[]'::jsonb` -> J1 (structural) reds immediately, on
+--      the door's own live body, with no call needed. Restored from a
+--      pg_get_functiondef capture taken before mutating.
+-- ===========================================================================
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff400000-0000-0000-0000-000000000060', (select comm_x from k), 'FF4 meta', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff400000-0000-0000-0000-000000000061', 'ff400000-0000-0000-0000-000000000060', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff400000-0000-0000-0000-000000000062', 'ff400000-0000-0000-0000-000000000061', 0, true);
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff400000-0000-0000-0000-000000000063', 'ff400000-0000-0000-0000-000000000062', 0,
+          'short_text', 'meta_src', 'Fonte Meta');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select id as meta_entry_id from public.save_block_to_library(
+  'ff400000-0000-0000-0000-000000000063', 'Bloco Metadata', 'descrição original'
+) \gset
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select snapshot as meta_snapshot_before, commission_id as meta_commission_before,
+       saved_by_id as meta_saved_by_before, source_form_title as meta_title_before
+  from public.form_block_library where id = :'meta_entry_id' \gset
+
+-- J1: structural — the LIVE body of update_block_library_entry, parsed via
+-- pg_get_functiondef, never mentions any of the columns a metadata rename
+-- must not touch inside its own UPDATE...SET clause.
+select ok(
+  not (
+    pg_get_functiondef('public.update_block_library_entry(uuid,text,text)'::regprocedure)
+    ~ '(?i)update\s+public\.form_block_library\s+set[^;]*\y(snapshot|commission_id|saved_by_id|saved_by_name|source_form_title|source_version_number)\y'
+  ),
+  'J1. update_block_library_entry''s SET clause never references snapshot/'
+  'commission_id/provenance columns (structural, on its own live body)');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.update_block_library_entry(:'meta_entry_id', 'Bloco Metadata Renomeado', 'nova descrição');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select is(
+  (select name from public.form_block_library where id = :'meta_entry_id'),
+  'Bloco Metadata Renomeado',
+  'J2. …behaviorally: the rename DOES change name');
+select is(
+  (select description from public.form_block_library where id = :'meta_entry_id'),
+  'nova descrição',
+  'J3. …and description');
+select is(
+  (select snapshot from public.form_block_library where id = :'meta_entry_id')::text,
+  :'meta_snapshot_before',
+  'J4. …while snapshot stays BYTE-IDENTICAL to before the rename');
+select is(
+  (select commission_id::text from public.form_block_library where id = :'meta_entry_id'),
+  :'meta_commission_before',
+  'J5. …and commission_id / saved_by_id / source_form_title (provenance) are untouched');
+select is(
+  (select saved_by_id::text from public.form_block_library where id = :'meta_entry_id'),
+  :'meta_saved_by_before',
+  'J6. …saved_by_id specifically, unchanged');
+
+-- ===========================================================================
+-- §K · tenant-scope negative for the BE-7 doors — a sibling commission's
+--      admin (sa_y, commission Y, same org) can neither rename nor delete X's
+--      entry. Hardcoded id, resolved through the DEFINER door (which reads
+--      without RLS), never through an RLS-scoped query as sa_y — the FF-5
+--      trap §A already avoided once in this file.
+-- ===========================================================================
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($q$select public.update_block_library_entry(%L, 'sequestrado', null)$q$, :'meta_entry_id'),
+  '42501', null,
+  'K1. sa_y (sibling commission, same org) cannot rename X''s entry');
+select throws_ok(
+  format($q$select public.delete_block_library_entry(%L)$q$, :'meta_entry_id'),
+  '42501', null,
+  'K2. …nor delete it');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select is(
+  (select name from public.form_block_library where id = :'meta_entry_id'),
+  'Bloco Metadata Renomeado',
+  'K3. the entry still reads exactly as J2 left it — both denied attempts touched nothing');
+
+-- ===========================================================================
+-- §L · delete_safety_no_form_impact (ruling 2's no-live-link design, pinned
+--      behaviorally). Deletes the RICH entry §D/§E saved and §E/§F/§G already
+--      inserted twice (targets 022 and 032) — the whole point of "insert
+--      materializes a copy" is that this delete cannot touch either.
+-- ===========================================================================
+select count(*)::int as items_022_before from public.form_items
+  where section_id = 'ff400000-0000-0000-0000-000000000022' \gset
+select count(*)::int as items_032_before from public.form_items
+  where section_id = 'ff400000-0000-0000-0000-000000000032' \gset
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.delete_block_library_entry(:'entry_id');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select is(
+  (select count(*)::int from public.form_items where section_id = 'ff400000-0000-0000-0000-000000000022'),
+  :items_022_before,
+  'L1. deleting the source entry removes NO item from a form previously built from it (target 1)');
+select is(
+  (select count(*)::int from public.form_items where section_id = 'ff400000-0000-0000-0000-000000000032'),
+  :items_032_before,
+  'L2. …nor from target 2, which received it twice');
+select is(
+  (select count(*)::int from public.form_block_library where id = :'entry_id'),
+  0,
+  'L3. …and the library entry itself is genuinely gone');
 
 select * from finish();
 rollback;

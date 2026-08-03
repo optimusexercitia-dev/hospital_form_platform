@@ -22,7 +22,8 @@ import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
 import { isValidCondition } from '@/lib/forms/condition-shape'
 import type { ValidationRuleInput } from '@/lib/queries/validations'
-import type { BlockLibraryEntry } from '@/lib/queries/block-library'
+import { toBlockLibraryEntry } from '@/lib/queries/block-library'
+import type { BlockLibraryEntry, BlockLibraryRow } from '@/lib/queries/block-library'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -85,6 +86,15 @@ const MESSAGES = {
     'Esta origem de valor padrão não está disponível para este tipo de pergunta.',
   defaultBothSet:
     'Escolha um valor padrão fixo OU uma origem dinâmica, não os dois.',
+  // FF-4 (ADR 0092) — the block library.
+  powerAuthoringUnavailable: 'A biblioteca de blocos não está disponível.',
+  libraryEntryNameRequired: 'Informe um nome para o bloco.',
+  libraryClosureViolation:
+    'Este bloco tem condições que dependem de perguntas fora dele.',
+  libraryEntrySaved: 'Bloco salvo na biblioteca.',
+  blockInserted: 'Bloco inserido.',
+  libraryEntryRenamed: 'Bloco renomeado.',
+  libraryEntryDeleted: 'Bloco excluído da biblioteca.',
   markdownRequired: 'Informe o texto a ser exibido.',
   altRequired: 'Informe um texto alternativo para a imagem.',
   imagePathRequired: 'Envie uma imagem antes de salvar.',
@@ -175,6 +185,14 @@ const MATRIX_WEIGHT_REQUIRED = 'HC0P6'
 const VALIDATIONS_FLAG_OFF = 'HC0Q0'
 const VALIDATION_NOT_ALLOWED = 'HC0Q1'
 const VALIDATION_INVALID = 'HC0Q2'
+
+// FF-4 (ADR 0092) — the block library block. High-water at authoring time was
+// HC0Q5; ruling 3 pins HC0Q6 specifically to the closure violation. Draft-state
+// denial on insert_block_from_library REUSES MATRIX_NOT_DRAFT (HC0P4), same
+// convention as FF-3 above.
+const LIBRARY_CLOSURE_VIOLATION = 'HC0Q6'
+const LIBRARY_FLAG_OFF = 'HC0Q7'
+const LIBRARY_ENTRY_INVALID = 'HC0Q8'
 
 // ⚠ THE SETS ARE IMPORTED, NEVER RE-SPELLED (BUG-FF5-001). This file used to
 // carry its own hand-written `INPUT_TYPES` / `ALL_ITEM_TYPES` /
@@ -2348,7 +2366,53 @@ export interface SaveBlockToLibraryState extends ActionState {
 export async function saveBlockToLibrary(
   input: SaveBlockToLibraryInput,
 ): Promise<SaveBlockToLibraryState> {
-  return notImplementedFF4('saveBlockToLibrary', input)
+  const { itemId, name, description } = input
+  if (!itemId) return { ok: false, error: MESSAGES.missingItem }
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    return { ok: false, fieldErrors: { name: MESSAGES.libraryEntryNameRequired } }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .rpc('save_block_to_library', {
+      p_item_id: itemId,
+      p_name: trimmedName,
+      // The generated RPC param type is OPTIONAL (`p_description?: string`),
+      // not nullable — the SQL side's `default null` already means "no
+      // description", so an absent (undefined) arg reaches it exactly the
+      // same as an explicit SQL null would.
+      p_description: description ?? undefined,
+    })
+    .returns<BlockLibraryRow>()
+
+  if (error) {
+    switch (error.code) {
+      case LIBRARY_CLOSURE_VIOLATION: {
+        // The offending (out-of-subtree) question_keys ride the exception
+        // DETAIL as a comma-joined list (the migration's own convention —
+        // question_keys never contain commas), not the message: the caller
+        // needs to NAME them in pt-BR, not just re-display one sentence.
+        const offendingKeys = (error.details ?? '')
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean)
+        return { ok: false, error: MESSAGES.libraryClosureViolation, offendingKeys }
+      }
+      case LIBRARY_FLAG_OFF:
+        return { ok: false, error: MESSAGES.powerAuthoringUnavailable }
+      case LIBRARY_ENTRY_INVALID:
+        return { ok: false, fieldErrors: { name: MESSAGES.libraryEntryNameRequired } }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+  if (!data) return { ok: false, error: MESSAGES.generic }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.libraryEntrySaved, entry: toBlockLibraryEntry(data) }
 }
 
 /**
@@ -2405,15 +2469,138 @@ export interface InsertBlockFromLibraryState extends ActionState {
 export async function insertBlockFromLibrary(
   input: InsertBlockFromLibraryInput,
 ): Promise<InsertBlockFromLibraryState> {
-  return notImplementedFF4('insertBlockFromLibrary', input)
+  const { libraryEntryId, sectionId } = input
+  if (!libraryEntryId || !sectionId) {
+    return { ok: false, error: MESSAGES.missingSection }
+  }
+
+  const supabase = await createClient()
+  // The RPC returns a scalar `jsonb` object (never a set), so `.returns<T>()`
+  // — which supabase-js resolves against the array-vs-single shape of the
+  // underlying query builder — misreads it as an array result and refuses to
+  // compile. Read `data` as the generated `Json` type and narrow by hand.
+  const { data, error } = await supabase.rpc('insert_block_from_library', {
+    p_library_entry_id: libraryEntryId,
+    p_section_id: sectionId,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case LIBRARY_FLAG_OFF:
+        return { ok: false, error: MESSAGES.powerAuthoringUnavailable }
+      case MATRIX_NOT_DRAFT:
+        return { ok: false, error: MESSAGES.notDraft }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+  const result = data as { rootItemId?: unknown; renamedKeys?: unknown }
+  if (
+    typeof result.rootItemId !== 'string' ||
+    !Array.isArray(result.renamedKeys)
+  ) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  revalidateBuilder()
+  return {
+    ok: true,
+    error: MESSAGES.blockInserted,
+    rootItemId: result.rootItemId,
+    // The RPC's own shape ({oldKey, newKey} per entry) is trusted verbatim —
+    // it is the DB's own jsonb_build_object output, not user input.
+    renamedKeys: result.renamedKeys as QuestionKeyRename[],
+  }
 }
 
-/** Mirrors `notImplementedE1` in `src/lib/interviews/actions.ts` /
- *  `src/lib/participants/actions.ts` — the `_`-prefixed rest param satisfies
- *  the `no-unused-vars` lint rule while every caller still reads as if it
- *  passed real arguments. `never` is assignable to any declared return type,
- *  so `return notImplementedFF4(...)` type-checks against every signature
- *  above without an `as` cast. */
-function notImplementedFF4(fn: string, ..._args: unknown[]): never {
-  throw new Error(`${fn} not implemented (FF-4 — contract stub, ADR 0092)`)
+/**
+ * BE-7 (ADR 0092 ruling 2) — the metadata doors ruling 2 promised
+ * ("renaming, re-describing, and deleting an entry are allowed") and BE-2..6
+ * shipped no mechanism for. Same posture as {@link saveBlockToLibrary}: a
+ * DEFINER door, the same commission perimeter, no new RLS policy and no new
+ * grant on `form_block_library` — these two join the original pair as the
+ * only writers, now covering UPDATE/DELETE.
+ */
+export interface UpdateBlockLibraryEntryInput {
+  libraryEntryId: string
+  name: string
+  description?: string | null
+}
+
+/**
+ * Rename / re-describe a saved entry (`update_block_library_entry`, BE-7).
+ * Touches ONLY `name`/`description` — never `snapshot` or the provenance
+ * columns (`library_metadata_door_cannot_touch_snapshot` pins this
+ * structurally, on the door's own live SQL body).
+ */
+export async function updateBlockLibraryEntry(
+  input: UpdateBlockLibraryEntryInput,
+): Promise<ActionState> {
+  const { libraryEntryId, name, description } = input
+  if (!libraryEntryId) return { ok: false, error: MESSAGES.missingItem }
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    return { ok: false, fieldErrors: { name: MESSAGES.libraryEntryNameRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_block_library_entry', {
+    p_library_entry_id: libraryEntryId,
+    p_name: trimmedName,
+    // Optional generated param type, not nullable — see saveBlockToLibrary.
+    p_description: description ?? undefined,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case LIBRARY_FLAG_OFF:
+        return { ok: false, error: MESSAGES.powerAuthoringUnavailable }
+      case LIBRARY_ENTRY_INVALID:
+        return { ok: false, fieldErrors: { name: MESSAGES.libraryEntryNameRequired } }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.libraryEntryRenamed }
+}
+
+/**
+ * Delete a saved entry (`delete_block_library_entry`, BE-7). Never disturbs a
+ * form built from it: `insert_block_from_library` materializes an
+ * independent copy with no live link back to this row (ruling 2) —
+ * `delete_safety_no_form_impact` pins that behaviorally.
+ */
+export async function deleteBlockLibraryEntry(
+  input: { libraryEntryId: string },
+): Promise<ActionState> {
+  const { libraryEntryId } = input
+  if (!libraryEntryId) return { ok: false, error: MESSAGES.missingItem }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('delete_block_library_entry', {
+    p_library_entry_id: libraryEntryId,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case LIBRARY_FLAG_OFF:
+        return { ok: false, error: MESSAGES.powerAuthoringUnavailable }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.libraryEntryDeleted }
 }

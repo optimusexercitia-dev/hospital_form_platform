@@ -11567,6 +11567,10 @@ export type Database = {
         Args: { p_phase_id: string }
         Returns: undefined
       }
+      delete_block_library_entry: {
+        Args: { p_library_entry_id: string }
+        Returns: undefined
+      }
       delete_capa_action_evidence: {
         Args: { p_evidence_id: string }
         Returns: undefined
@@ -14598,6 +14602,31 @@ export type Database = {
         Returns: undefined
       }
       unlink_referral_case: { Args: { p_link_id: string }; Returns: undefined }
+      update_block_library_entry: {
+        Args: {
+          p_description?: string
+          p_library_entry_id: string
+          p_name: string
+        }
+        Returns: {
+          commission_id: string
+          description: string | null
+          id: string
+          name: string
+          saved_at: string
+          saved_by_id: string
+          saved_by_name: string
+          snapshot: Json
+          source_form_title: string
+          source_version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "form_block_library"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_capa_action: {
         Args: {
           p_action_id: string
