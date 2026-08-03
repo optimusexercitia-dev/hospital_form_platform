@@ -2134,6 +2134,21 @@ update app.feature_flags set enabled = true where key = 'item_validations';
 -- keystone SKIP while reporting green (the pgtap-fixture-flag-gaps scar). The
 -- FF-5 suite must assert the flag is ON before it asserts anything else.
 update app.feature_flags set enabled = true where key = 'entity_refs';
+-- ---------------------------------------------------------------------------
+-- FF-4 power authoring (ADR 0092). Created OFF in
+-- 20260903000000_ff4_block_library_schema; forced ON here for local/E2E so
+-- save_block_to_library, insert_block_from_library, and the draft-start
+-- default-source seeding (app.seed_default_answers, wired into
+-- start_or_resume_response) are all reachable under test. Production flip
+-- lands as its own enable migration at the FF-4 gate (lead, at Record) — NOT
+-- authored here, per the two-migration convention every prior FF phase used
+-- (`db push` carries migrations, not seed.sql; a flag ON only in the seed is
+-- DARK in production — FF-2 r1 B-3, then FF-3 r1 B-1, twice already).
+-- NOTE for pgTAP authors: both doors raise HC0Q7 when this flag is OFF, so a
+-- fixture that forgets it makes every flag-guarded keystone SKIP while
+-- reporting green (the pgtap-fixture-flag-gaps scar). 277_ff4_power_authoring.sql
+-- asserts the flag is ON before it asserts anything else.
+update app.feature_flags set enabled = true where key = 'power_authoring';
 
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
