@@ -436,8 +436,9 @@ test('AC-1: void a completed phase — Anulada pill, result cleared, downstream 
 
   await expect(phase1Article.getByText(/Em correção/i)).toBeVisible({ timeout: 10_000 })
 
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Fase 1/i }).first()
+  // Scoped to the phase card — the request list is rendered inside its target.
+  const correctionsPanel = phase1Article.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard).toBeVisible({ timeout: 10_000 })
   await expect(requestCard.getByText(/^Anulação$/i)).toBeVisible()
 

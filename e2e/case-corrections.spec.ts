@@ -419,9 +419,11 @@ test('AC-1: full correction loop — file, continue as plain-staff corrector, ed
   await expect(fileDialog).not.toBeVisible({ timeout: 10_000 })
 
   // "Em correção" + "Solicitada" chips appear; the "Corrigir…" menu is gone
-  // (one open request per target).
+  // (one open request per target). The status chip must be matched EXACTLY: the
+  // request list now renders inside this card, and its "Solicitada por:" metadata
+  // label would otherwise make a substring match ambiguous (strict-mode violation).
   await expect(phaseArticle.getByText(/Em correção/i)).toBeVisible({ timeout: 10_000 })
-  await expect(phaseArticle.getByText(/Solicitada/i)).toBeVisible()
+  await expect(phaseArticle.getByText('Solicitada', { exact: true })).toBeVisible()
   await expect(phaseArticle.getByRole('button', { name: /^Corrigir/i })).not.toBeVisible()
 
   // DB truth: corrector defaulted to the phase's assignee (staff1).
@@ -489,9 +491,14 @@ test('AC-1: full correction loop — file, continue as plain-staff corrector, ed
   await page.goto(`${MANAGE_BASE}/${caseHappyId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseHappyId}`), { timeout: 15_000 })
 
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
+  // The request list lives INSIDE its target's own card, so scope to the phase
+  // article first — the card is what identifies the target now that a row no longer
+  // repeats its own label. `.first()` takes the newest request (the list is
+  // newest-first); an impact-snapshot <li> is nested inside a row, so it always
+  // follows its parent in document order and can never win.
+  const correctionsPanel = phaseArticle.getByRole('region', { name: /Solicitações de correção/i })
   await expect(correctionsPanel).toBeVisible({ timeout: 10_000 })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Fase 1/i }).first()
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard).toBeVisible()
   await expect(requestCard.getByText(/Reenviada/i)).toBeVisible()
 
@@ -508,7 +515,10 @@ test('AC-1: full correction loop — file, continue as plain-staff corrector, ed
   await expect(requestCard.getByText(/Aprovada pelo próprio corretor/i)).toBeVisible()
 
   // The phase stays "Concluída" — never reopens — and "Em correção" is gone.
-  await expect(phaseArticle.getByText(/Concluída/i)).toBeVisible()
+  // Anchored: an APPROVED request's impact-snapshot block ("Fases posteriores já
+  // ativas/concluídas na aprovação") now renders inside this card, so an unanchored
+  // /Concluída/i would match the status pill AND that sentence.
+  await expect(phaseArticle.getByText(/^Concluída$/i)).toBeVisible()
   await expect(phaseArticle.getByText(/Em correção/i)).not.toBeVisible()
 
   // DB truth: the pointer moved to the successor.
@@ -575,8 +585,9 @@ test('AC-2: reject sends the corrector back to editing; re-edit + resubmit + app
   await page.goto(`${MANAGE_BASE}/${caseRejectId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseRejectId}`), { timeout: 15_000 })
 
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Fase 1/i }).first()
+  // Scoped to the phase card — the request list is rendered inside its target.
+  const correctionsPanel = phaseArticle.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
 
   await requestCard.getByRole('button', { name: /Reprovar/i }).click()
@@ -609,10 +620,9 @@ test('AC-2: reject sends the corrector back to editing; re-edit + resubmit + app
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${MANAGE_BASE}/${caseRejectId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseRejectId}`), { timeout: 15_000 })
-  const requestCard2 = page
+  const requestCard2 = phaseArticle
     .getByRole('region', { name: /Solicitações de correção/i })
     .locator('li')
-    .filter({ hasText: /Fase 1/i })
     .first()
   await expect(requestCard2.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
   await requestCard2.getByRole('button', { name: /^Aprovar$/ }).click()
@@ -709,8 +719,9 @@ test('AC-3: keyboard-only file, one-open-slot blocks a second request (server + 
   expect([400, 409]).toContain(secondFileResp.status())
 
   // ── Withdraw the open request ──
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Fase 1/i }).first()
+  // Scoped to the phase card — the request list is rendered inside its target.
+  const correctionsPanel = phaseArticle.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard.getByText(/^Solicitada$/i)).toBeVisible({ timeout: 10_000 })
   await requestCard.getByRole('button', { name: /Retirar/i }).click()
   const withdrawDialog = page.getByRole('alertdialog').filter({ hasText: /Retirar a solicitação/i })
@@ -782,8 +793,9 @@ test('AC-4: narrative correction — concluded narrative stays Concluída, revis
   await expect(narrativeCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 15_000 })
 
   // Approve.
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Resumo Clínico/i }).first()
+  // Scoped to the narrative card — the request list is rendered inside its target.
+  const correctionsPanel = narrativeCard.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
   await requestCard.getByRole('button', { name: /^Aprovar$/ }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: /Aprovar correção/i }).click()

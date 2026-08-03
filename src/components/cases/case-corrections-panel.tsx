@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardList, FileText, Layers } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 
 import type { CorrectionRequest } from "@/lib/queries/corrections";
 import {
@@ -50,57 +50,69 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { formatDate } from "@/components/cases/format";
 
 /**
- * "Solicitações de correção" — the per-case Correction Lifecycle cockpit (ADR 0085).
- * Lists every correction request (newest-first, RLS-scoped to case readers) with its
- * kind/classification/status, requester + corrector, reason, any rejection note, the
- * `self_approved` badge, and — once approved — the `impact_snapshot` of downstream
- * phases that were already active/completed at approval.
+ * "Solicitações de correção" — the Correction Lifecycle request list for ONE target
+ * (ADR 0085), rendered at the BOTTOM of that target's own card (the phase article or
+ * the narrative card) rather than in a case-wide cockpit card of its own, which
+ * cluttered the case-detail page. Lists every request against this target
+ * (newest-first, RLS-scoped to case readers) with its kind/classification/status,
+ * requester + corrector, reason, any rejection note, the `self_approved` badge, and —
+ * once approved — the `impact_snapshot` of downstream phases that were already
+ * active/completed at approval.
  *
- * Decisions (approve / reject / withdraw / move-to-review) live HERE, in one
- * authoritative place; the contextual "Corrigir…" and "Continuar correção"
- * affordances live on the phase/narrative rows. Approve + reject are staff_admin-only
+ * Decisions (approve / reject / withdraw / move-to-review) live HERE, beside the
+ * content they touch; the "Corrigir…" and "Continuar correção" affordances sit in the
+ * card's top-right header cluster. Approve + reject are staff_admin-only
  * (`caps.canApprove`); withdraw is the requester/corrector/approver. Self-approval is
  * permitted but the confirm warns and the result is badged.
  */
-export function CaseCorrectionsPanel({
+export function CaseCorrectionsList({
   requests,
   caps,
-  phaseLabels,
-  narrativeLabels,
+  targetLabel,
   memberNames,
 }: {
+  /** This target's requests, newest-first. Empty → renders nothing. */
   requests: CorrectionRequest[];
   caps: CorrectionCaps;
-  /** phaseId → display label (e.g. "Fase 2 — Revisão"). */
-  phaseLabels: Record<string, string>;
-  /** narrativeId → display label. */
-  narrativeLabels: Record<string, string>;
+  /**
+   * The host card's heading (e.g. "Fase 2 — Revisão"). The list sits INSIDE that
+   * card, so items never repeat it; it names the region and fills the confirm-dialog
+   * copy ("… substituirá o conteúdo registrado de X").
+   */
+  targetLabel: string;
   /** userId → display name (requester / corrector). */
   memberNames: Record<string, string>;
 }) {
+  const headingId = useId();
+
   if (requests.length === 0) return null;
 
   return (
     <section
-      aria-labelledby="case-corrections-heading"
-      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      aria-labelledby={headingId}
+      className="flex flex-col gap-2.5 border-t border-border pt-3"
     >
       <div className="flex items-center gap-2">
-        <ClipboardList aria-hidden="true" className="size-4 text-muted-foreground" />
-        <h2 id="case-corrections-heading" className="text-base font-semibold">
+        <ClipboardList
+          aria-hidden="true"
+          className="size-3.5 text-muted-foreground"
+        />
+        <h3
+          id={headingId}
+          className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+        >
           Solicitações de correção
-        </h2>
+        </h3>
         <span className="text-xs text-muted-foreground">({requests.length})</span>
       </div>
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-2">
         {requests.map((request) => (
           <li key={request.id}>
             <CorrectionRequestItem
               request={request}
               caps={caps}
-              phaseLabels={phaseLabels}
-              narrativeLabels={narrativeLabels}
+              targetLabel={targetLabel}
               memberNames={memberNames}
             />
           </li>
@@ -113,26 +125,18 @@ export function CaseCorrectionsPanel({
 function CorrectionRequestItem({
   request,
   caps,
-  phaseLabels,
-  narrativeLabels,
+  targetLabel,
   memberNames,
 }: {
   request: CorrectionRequest;
   caps: CorrectionCaps;
-  phaseLabels: Record<string, string>;
-  narrativeLabels: Record<string, string>;
+  targetLabel: string;
   memberNames: Record<string, string>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const targetLabel = request.casePhaseId
-    ? phaseLabels[request.casePhaseId] ?? "Fase"
-    : request.caseNarrativeId
-      ? narrativeLabels[request.caseNarrativeId] ?? "Narrativa"
-      : "Alvo";
-  const TargetIcon = request.casePhaseId ? Layers : FileText;
   const requesterName = memberNames[request.requestedBy] ?? "Membro";
   const correctorName = request.permittedCorrector
     ? memberNames[request.permittedCorrector] ?? "Membro"
@@ -165,17 +169,13 @@ function CorrectionRequestItem({
   }
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-background/40 p-4">
+    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-background/40 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <CorrectionKindChip kind={request.kind} />
         <CorrectionStatusChip status={request.status} />
         {request.status === "approved" && request.selfApproved && (
           <SelfApprovedBadge />
         )}
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <TargetIcon aria-hidden="true" className="size-3.5" />
-          {targetLabel}
-        </span>
       </div>
 
       <p className="text-sm text-foreground text-pretty">{request.reason}</p>

@@ -11,6 +11,8 @@ import { canEditNarrative } from "@/components/cases/narrative-access";
 import {
   findOpenRequestForNarrative,
   findOpenRequestForPhase,
+  requestsForNarrative,
+  requestsForPhase,
   type CorrectionCaps,
 } from "@/components/cases/correction-labels";
 
@@ -50,6 +52,7 @@ export function CasePhaseList({
   resultOptions = [],
   correctionCaps = null,
   corrections = [],
+  memberNames = {},
   narrativeRevisions = {},
 }: {
   /** Org slug for hrefs. */
@@ -86,8 +89,14 @@ export function CasePhaseList({
    * so the contextual "Corrigir…" / "Continuar correção" affordances can render.
    */
   correctionCaps?: CorrectionCaps | null;
-  /** Every correction request for the case — the per-row open request is derived here. */
+  /**
+   * Every correction request for the case. Both the per-row OPEN request and each
+   * row's full request list (rendered at the bottom of its own card, replacing the
+   * case-wide cockpit) are derived here.
+   */
   corrections?: CorrectionRequest[];
+  /** userId → display name, for the per-card request lists' requester / corrector lines. */
+  memberNames?: Record<string, string>;
   /** narrativeId → its revision history (newest-first). A lookup miss means `[]`. */
   narrativeRevisions?: Record<string, NarrativeRevision[]>;
 }) {
@@ -119,6 +128,10 @@ export function CasePhaseList({
                   ? findOpenRequestForPhase(corrections, item.phase.id)
                   : null
               }
+              corrections={
+                correctionCaps ? requestsForPhase(corrections, item.phase.id) : []
+              }
+              memberNames={memberNames}
             />
           ) : (
             (() => {
@@ -128,6 +141,9 @@ export function CasePhaseList({
               const narrativeOpenCorrection = correctionCaps
                 ? findOpenRequestForNarrative(corrections, narrative.id)
                 : null;
+              const narrativeCorrections = correctionCaps
+                ? requestsForNarrative(corrections, narrative.id)
+                : [];
               const revisions = narrativeRevisions[narrative.id] ?? [];
               if (!caseAccessEnabled) {
                 // Legacy: today's rule — a coordinator edits while the case is open;
@@ -144,6 +160,8 @@ export function CasePhaseList({
                     showLifecycle={false}
                     correctionCaps={correctionCaps}
                     openCorrection={narrativeOpenCorrection}
+                    corrections={narrativeCorrections}
+                    memberNames={memberNames}
                     narrativeRevisions={revisions}
                   />
                 );
@@ -176,6 +194,8 @@ export function CasePhaseList({
                   showLifecycle
                   correctionCaps={correctionCaps}
                   openCorrection={narrativeOpenCorrection}
+                  corrections={narrativeCorrections}
+                  memberNames={memberNames}
                   narrativeRevisions={revisions}
                 />
               );

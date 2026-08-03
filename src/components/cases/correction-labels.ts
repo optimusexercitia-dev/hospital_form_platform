@@ -227,6 +227,27 @@ export function findOpenRequestForNarrative(
 }
 
 /**
+ * EVERY request targeting a phase — open and terminal alike, preserving the caller's
+ * order (newest-first from the query). Feeds the per-card
+ * {@link import('./case-corrections-panel').CaseCorrectionsList} at the bottom of the
+ * phase article, which replaced the case-wide cockpit card.
+ */
+export function requestsForPhase(
+  requests: CorrectionRequest[],
+  phaseId: string,
+): CorrectionRequest[] {
+  return requests.filter((r) => r.casePhaseId === phaseId);
+}
+
+/** EVERY request targeting a narrative (see {@link requestsForPhase}). */
+export function requestsForNarrative(
+  requests: CorrectionRequest[],
+  narrativeId: string,
+): CorrectionRequest[] {
+  return requests.filter((r) => r.caseNarrativeId === narrativeId);
+}
+
+/**
  * Whether the viewer may CONTINUE editing a draft-bearing (correction/addendum)
  * request now: they hold the corrector slot and the request is in a resting/editing
  * state (`requested` → create the draft; `in_progress`/`rejected` → resume). A

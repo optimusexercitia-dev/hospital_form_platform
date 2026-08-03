@@ -18,82 +18,51 @@ import {
   type CorrectionCaps,
 } from "@/components/cases/correction-labels";
 import { CorrectionStatusChip } from "@/components/cases/correction-chips";
-import { FileCorrectionControl } from "@/components/cases/file-correction-control";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
-import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { formatDate } from "@/components/cases/format";
 
 /**
- * The Case Correction Lifecycle surface for ONE narrative (ADR 0085), rendered by
- * {@link CaseNarrativeCard} beneath the body when the `case_corrections` flag is on.
- * Three parts, any of which may be absent:
- *  - **File** — a "Corrigir…" menu on a CONCLUDED narrative with no open request
- *    (correction / adendo / anulação), when the viewer may file (flag + case open).
+ * The Case Correction Lifecycle WORK surface for ONE narrative (ADR 0085), rendered
+ * by {@link CaseNarrativeCard} beneath the body when the `case_corrections` flag is
+ * on. Two parts, either of which may be absent:
  *  - **Correct** — the designated corrector's draft editor (a sanitized-Markdown
  *    body via {@link SectionTextEditor}) bound to `save_correction_draft_body`, plus
  *    "Enviar para revisão" (`resubmit_correction`). Shown while the request is in a
  *    resting/editing state and the kind carries a draft (not `void`).
  *  - **History** — the append-only revision snapshots (superseded bodies), collapsed.
  *
- * A `void` request shows only its status chip here (it is decided in the panel).
+ * Filing ("Corrigir…") moved to the card's top-right header cluster, and a request's
+ * STATUS + decisions to the {@link import('./case-corrections-panel').CaseCorrectionsList}
+ * at the bottom of the card — so this panel no longer carries either.
  */
 export function NarrativeCorrectionPanel({
   narrative,
-  heading,
   caps,
   openCorrection,
   revisions,
-  assignees,
 }: {
   narrative: CaseNarrative;
-  /** The narrative's display heading (dialog target label). */
-  heading: string;
   caps: CorrectionCaps;
   openCorrection: CorrectionRequest | null;
   revisions: NarrativeRevision[];
-  assignees: AssigneeOption[];
 }) {
-  const isConcluded = narrative.status === "completed";
-  const showFile =
-    caps.enabled && caps.canFile && isConcluded && openCorrection == null;
   const showCorrectorEditor =
     openCorrection != null &&
     canContinueCorrection(openCorrection, caps.viewerId);
 
   // Nothing to render → the card omits this section entirely.
-  if (!showFile && openCorrection == null && revisions.length === 0) return null;
+  if (!showCorrectorEditor && revisions.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-3">
-      {openCorrection && !showCorrectorEditor && (
-        <div className="flex flex-wrap items-center gap-2">
-          <CorrectionStatusChip status={openCorrection.status} />
-          <span className="text-xs text-muted-foreground">
-            Correção da narrativa em andamento.
-          </span>
-        </div>
-      )}
-
       {showCorrectorEditor && openCorrection && (
         <NarrativeDraftEditor
           request={openCorrection}
           fallbackBody={narrative.bodyMd ?? ""}
         />
-      )}
-
-      {showFile && (
-        <div className="flex justify-end">
-          <FileCorrectionControl
-            target={{ kind: "narrative", caseNarrativeId: narrative.id }}
-            targetLabel={heading}
-            assignees={assignees}
-            caps={caps}
-            defaultCorrectorId={narrative.assignedTo}
-          />
-        </div>
       )}
 
       {revisions.length > 0 && (

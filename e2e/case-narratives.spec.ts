@@ -944,8 +944,9 @@ test('AC-10: correcting an individually-concluded narrative preserves its conclu
   await resumoCard.getByRole('button', { name: /Enviar para revisão/i }).click()
   await expect(resumoCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 15_000 })
 
-  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
-  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Resumo Clínico/i }).first()
+  // Scoped to the narrative card — the request list is rendered inside its target.
+  const correctionsPanel = resumoCard.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').first()
   await expect(requestCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
   await requestCard.getByRole('button', { name: /^Aprovar$/ }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: /Aprovar correção/i }).click()

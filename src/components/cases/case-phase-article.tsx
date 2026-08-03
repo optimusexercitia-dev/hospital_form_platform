@@ -14,11 +14,11 @@ import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correc
 import { CasePhaseDelete } from "@/components/cases/case-phase-delete";
 import { FileCorrectionControl } from "@/components/cases/file-correction-control";
 import { ContinueCorrectionButton } from "@/components/cases/continue-correction-button";
+import { CaseCorrectionsList } from "@/components/cases/case-corrections-panel";
 import {
   canContinueCorrection,
   type CorrectionCaps,
 } from "@/components/cases/correction-labels";
-import { CorrectionStatusChip } from "@/components/cases/correction-chips";
 import { resolvePhaseCorrectionOptions } from "@/components/cases/phase-result-options";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
@@ -49,6 +49,8 @@ export function CasePhaseArticle({
   resultOptions = [],
   correctionCaps = null,
   openCorrection = null,
+  corrections = [],
+  memberNames = {},
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -91,6 +93,14 @@ export function CasePhaseArticle({
    * open request per target).
    */
   openCorrection?: CorrectionRequest | null;
+  /**
+   * EVERY correction request targeting THIS phase (newest-first), pre-filtered by the
+   * list. Rendered as the {@link CaseCorrectionsList} at the BOTTOM of this card —
+   * the replacement for the case-wide "Solicitações de correção" cockpit card.
+   */
+  corrections?: CorrectionRequest[];
+  /** userId → display name, for the request list's requester / corrector lines. */
+  memberNames?: Record<string, string>;
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
 
@@ -105,9 +115,10 @@ export function CasePhaseArticle({
     correction.mode !== "none";
 
   // Case Correction Lifecycle (ADR 0085): the request affordances on a COMPLETED
-  // phase. Filing is offered when the flag is on, the case is open, and there is no
-  // open request yet; the corrector's "Continuar correção" shows while a
-  // draft-bearing request is in a resting/editing state.
+  // phase, now in the header's top-right action cluster. Filing is offered when the
+  // flag is on, the case is open, and there is no open request yet; the corrector's
+  // "Continuar correção" shows while a draft-bearing request is in a resting/editing
+  // state. The requests themselves list at the BOTTOM of this card.
   const correctionsOn = correctionCaps?.enabled ?? false;
   const showCorrectionRow = correctionsOn && phase.status === "completed";
   const showFileCorrection =
@@ -116,6 +127,7 @@ export function CasePhaseArticle({
     showCorrectionRow &&
     openCorrection != null &&
     canContinueCorrection(openCorrection, correctionCaps?.viewerId ?? null);
+  const showDelete = phase.isAdHoc && canManageLifecycle;
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
@@ -170,12 +182,35 @@ export function CasePhaseArticle({
           </div>
         </div>
 
-        {/* Ad-hoc phases are the only removable ones — a template-derived phase
-            belongs to the case type, so it gets NO delete affordance at all
-            (the backend refuses it too). Gated on the same lifecycle authority
-            that adds them. */}
-        {phase.isAdHoc && canManageLifecycle && (
-          <CasePhaseDelete phaseId={phase.id} phaseLabel={heading} />
+        {/* Top-right action cluster. The correction affordances lead (the primary
+            act on a completed phase), then the delete. Ad-hoc phases are the only
+            removable ones — a template-derived phase belongs to the case type, so it
+            gets NO delete affordance at all (the backend refuses it too). Gated on
+            the same lifecycle authority that adds them. */}
+        {(showContinueCorrection || showFileCorrection || showDelete) && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            {showContinueCorrection && openCorrection && (
+              <ContinueCorrectionButton
+                org={org}
+                slug={slug}
+                caseId={phase.caseId}
+                phaseId={phase.id}
+                requestId={openCorrection.id}
+              />
+            )}
+            {showFileCorrection && correctionCaps && (
+              <FileCorrectionControl
+                target={{ kind: "phase", casePhaseId: phase.id }}
+                targetLabel={heading}
+                assignees={assignees}
+                caps={correctionCaps}
+                defaultCorrectorId={phase.assignedTo}
+              />
+            )}
+            {showDelete && (
+              <CasePhaseDelete phaseId={phase.id} phaseLabel={heading} />
+            )}
+          </div>
         )}
       </div>
 
@@ -201,30 +236,16 @@ export function CasePhaseArticle({
         </div>
       )}
 
-      {showCorrectionRow && (openCorrection || showFileCorrection) && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {openCorrection && (
-            <CorrectionStatusChip status={openCorrection.status} />
-          )}
-          {showContinueCorrection && openCorrection && (
-            <ContinueCorrectionButton
-              org={org}
-              slug={slug}
-              caseId={phase.caseId}
-              phaseId={phase.id}
-              requestId={openCorrection.id}
-            />
-          )}
-          {showFileCorrection && correctionCaps && (
-            <FileCorrectionControl
-              target={{ kind: "phase", casePhaseId: phase.id }}
-              targetLabel={heading}
-              assignees={assignees}
-              caps={correctionCaps}
-              defaultCorrectorId={phase.assignedTo}
-            />
-          )}
-        </div>
+      {/* The phase's correction requests, at the bottom of its own card (each item
+          carries its own status chip + the approve/reject/withdraw decisions). This
+          replaced the case-wide "Solicitações de correção" cockpit card. */}
+      {correctionsOn && correctionCaps && (
+        <CaseCorrectionsList
+          requests={corrections}
+          caps={correctionCaps}
+          targetLabel={heading}
+          memberNames={memberNames}
+        />
       )}
     </article>
   );

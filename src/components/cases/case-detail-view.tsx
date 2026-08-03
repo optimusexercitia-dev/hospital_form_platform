@@ -20,7 +20,6 @@ import type {
   NarrativeRevision,
 } from "@/lib/queries/corrections";
 import type { CorrectionCaps } from "@/components/cases/correction-labels";
-import { CaseCorrectionsPanel } from "@/components/cases/case-corrections-panel";
 import { ReopenCaseButton } from "@/components/cases/reopen-case-button";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
 import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
@@ -222,9 +221,9 @@ export function CaseDetailView({
   customFields?: CaseCustomFieldValue[];
   /**
    * Whether the `case_corrections` flag is on (Case Correction Lifecycle, ADR 0085).
-   * Gates the whole correction surface: the contextual "Corrigir…" affordances on
-   * phase/narrative rows, the "Solicitações de correção" cockpit, and the "Reabrir
-   * caso" control on a concluded case. Default `false` (no correction chrome).
+   * Gates the whole correction surface: the "Corrigir…" affordance in each
+   * phase/narrative card's header, that card's "Solicitações de correção" list, and
+   * the "Reabrir caso" control on a concluded case. Default `false` (no chrome).
    */
   correctionsEnabled?: boolean;
   /** Every correction request for this case, newest-first (RLS-scoped). Default `[]`. */
@@ -269,16 +268,10 @@ export function CaseDetailView({
         viewerId,
       }
     : null;
-  // The cockpit ("Solicitações de correção") resolves ids → human labels. Built from
-  // data the host already loaded; the panel returns null when there are no requests.
-  const phaseLabels: Record<string, string> = {};
-  for (const p of detail.phases) {
-    phaseLabels[p.id] = p.title || `Fase ${p.position}`;
-  }
-  const narrativeLabels: Record<string, string> = {};
-  for (const n of detail.narratives) {
-    narrativeLabels[n.id] = n.title || n.typeLabel;
-  }
+  // The per-card request lists resolve requester/corrector ids → human names. Built
+  // from data the host already loaded; each list renders nothing when its target has
+  // no requests. (The phase/narrative LABELS the old cockpit needed are gone — a list
+  // now sits inside its target's card and takes that card's heading.)
   const memberNames: Record<string, string> = {};
   for (const m of members) {
     memberNames[m.userId] = m.fullName ?? m.email ?? "Membro";
@@ -502,20 +495,14 @@ export function CaseDetailView({
                 resultOptions={phaseResultOptions}
                 correctionCaps={correctionCaps}
                 corrections={corrections}
+                memberNames={memberNames}
                 narrativeRevisions={narrativeRevisions}
               />
             </div>
-            {correctionCaps && (
-              <div data-rise className="order-2 lg:order-none">
-                <CaseCorrectionsPanel
-                  requests={corrections}
-                  caps={correctionCaps}
-                  phaseLabels={phaseLabels}
-                  narrativeLabels={narrativeLabels}
-                  memberNames={memberNames}
-                />
-              </div>
-            )}
+            {/* The "Solicitações de correção" cockpit CARD is gone (ADR 0085's
+                original layout): a case-wide card of requests cluttered the page and
+                sat far from the content it described. Each request now lists at the
+                bottom of its own target's card, inside `CasePhaseList`. */}
             <div data-rise className="order-2 lg:order-none">
               <CaseActionItemsPanel
                 caseId={c.id}

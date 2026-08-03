@@ -26,6 +26,8 @@ import { NarrativeStatusPill } from "@/components/cases/narrative-status-pill";
 import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
 import { CaseNarrativeDelete } from "@/components/cases/case-narrative-delete";
 import { NarrativeCorrectionPanel } from "@/components/cases/narrative-correction-panel";
+import { FileCorrectionControl } from "@/components/cases/file-correction-control";
+import { CaseCorrectionsList } from "@/components/cases/case-corrections-panel";
 import type { CorrectionCaps } from "@/components/cases/correction-labels";
 import type {
   CorrectionRequest,
@@ -64,6 +66,8 @@ export function CaseNarrativeCard({
   showLifecycle = true,
   correctionCaps = null,
   openCorrection = null,
+  corrections = [],
+  memberNames = {},
   narrativeRevisions = [],
 }: {
   narrative: CaseNarrative;
@@ -107,6 +111,14 @@ export function CaseNarrativeCard({
    */
   openCorrection?: CorrectionRequest | null;
   /**
+   * EVERY correction request targeting THIS narrative (newest-first), pre-filtered by
+   * the list. Rendered as the {@link CaseCorrectionsList} at the BOTTOM of this card —
+   * the replacement for the case-wide "Solicitações de correção" cockpit card.
+   */
+  corrections?: CorrectionRequest[];
+  /** userId → display name, for the request list's requester / corrector lines. */
+  memberNames?: Record<string, string>;
+  /**
    * This narrative's append-only revision history (superseded bodies, newest-first)
    * from `case_narrative_revisions`. `[]` = none. Rendered collapsed by the panel.
    */
@@ -141,6 +153,15 @@ export function CaseNarrativeCard({
   const hasBody = effectiveBody.trim().length > 0;
   const headingId = `narrative-${narrative.id}-heading`;
   const isConcluded = narrative.status === "completed";
+  // Case Correction Lifecycle (ADR 0085): "Corrigir…" sits in the header's top-right
+  // cluster (it used to live under the body, inside NarrativeCorrectionPanel). Filing
+  // needs the flag, an open case, a CONCLUDED narrative and no open request yet —
+  // one open request per target.
+  const showFileCorrection =
+    (correctionCaps?.enabled ?? false) &&
+    (correctionCaps?.canFile ?? false) &&
+    isConcluded &&
+    openCorrection == null;
 
   function handleEdit() {
     setError(null);
@@ -254,23 +275,41 @@ export function CaseNarrativeCard({
           )}
         </div>
 
-        {canEdit && !editing && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleEdit}
-            className="shrink-0"
-          >
-            <Pencil aria-hidden="true" />
-            Editar
-          </Button>
-        )}
-        {canDelete && !editing && (
-          <CaseNarrativeDelete
-            narrativeId={narrative.id}
-            narrativeLabel={heading}
-          />
+        {/* Top-right action cluster — ONE flex child, so "Editar" stays pinned to the
+            right edge beside the delete. (As three siblings of a `justify-between`
+            row, "Editar" was pushed to the card's top CENTRE whenever an ad-hoc
+            narrative also rendered the delete button.) "Corrigir…" and "Editar" are
+            mutually exclusive in practice — filing needs a CONCLUDED narrative, which
+            is no longer editable. */}
+        {!editing && (canEdit || showFileCorrection || canDelete) && (
+          <div className="flex shrink-0 items-center gap-1.5">
+            {canEdit && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleEdit}
+              >
+                <Pencil aria-hidden="true" />
+                Editar
+              </Button>
+            )}
+            {showFileCorrection && correctionCaps && (
+              <FileCorrectionControl
+                target={{ kind: "narrative", caseNarrativeId: narrative.id }}
+                targetLabel={heading}
+                assignees={assignees}
+                caps={correctionCaps}
+                defaultCorrectorId={narrative.assignedTo}
+              />
+            )}
+            {canDelete && (
+              <CaseNarrativeDelete
+                narrativeId={narrative.id}
+                narrativeLabel={heading}
+              />
+            )}
+          </div>
         )}
       </div>
 
@@ -343,20 +382,30 @@ export function CaseNarrativeCard({
         </div>
       )}
 
-      {/* Case Correction Lifecycle (ADR 0085): the file / draft-editor / history
-          surface for this narrative, when the flag is on. The panel self-gates each
-          part (concluded + no open request → "Corrigir…"; corrector + open draft →
-          editor; any revisions → collapsed history) and renders nothing when there
-          is nothing to show, so mounting it unconditionally is safe. Hidden while the
-          body is being edited in place, to avoid two editors at once. */}
+      {/* Case Correction Lifecycle (ADR 0085): the draft-editor / history surface for
+          this narrative, when the flag is on. The panel self-gates each part
+          (corrector + open draft → editor; any revisions → collapsed history) and
+          renders nothing when there is nothing to show, so mounting it unconditionally
+          is safe. Filing moved to the header cluster above. Hidden while the body is
+          being edited in place, to avoid two editors at once. */}
       {correctionCaps && !editing && (
         <NarrativeCorrectionPanel
           narrative={narrative}
-          heading={heading}
           caps={correctionCaps}
           openCorrection={openCorrection}
           revisions={narrativeRevisions}
-          assignees={assignees}
+        />
+      )}
+
+      {/* This narrative's correction requests, at the bottom of its own card (each
+          item carries its own status chip + the approve/reject/withdraw decisions).
+          This replaced the case-wide "Solicitações de correção" cockpit card. */}
+      {correctionCaps && !editing && (
+        <CaseCorrectionsList
+          requests={corrections}
+          caps={correctionCaps}
+          targetLabel={heading}
+          memberNames={memberNames}
         />
       )}
     </section>
