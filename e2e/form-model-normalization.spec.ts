@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { purgeFormsByIds, purgeFormsByTag, purgeVersionsByIds } from './helpers/purge-forms'
 
 /**
  * Form data-model normalization (T-1) — the acceptance criteria the pre-existing
@@ -37,8 +38,10 @@ import { cachedSignIn } from "./helpers/auth"
  * Hermetic: every form here is spec-owned (title carries a unique tag), built via
  * the service role and driven with real RPCs; the seeded Form A/B are never
  * touched, so phase8's count assertions stay valid. Cleanup deletes by title
- * pattern via docker exec (session_replication_role=replica bypasses the
- * immutability guards). Run with --workers=1.
+ * pattern via docker exec, child-first through `./helpers/purge-forms`
+ * (session_replication_role=replica bypasses the immutability guards — and the
+ * FK CASCADE triggers too, which is why the delete is explicit rather than a
+ * one-liner). Run with --workers=1.
  *
  * Personas (password Test1234!):
  *   chefe.ccih@test.local   staff_admin, CCIH  (…002)  — builder + dashboard
@@ -146,12 +149,15 @@ function sql(query: string): string {
     .trim()
 }
 
-/** Delete every spec-owned form (by title tag) bypassing immutability guards. */
+/**
+ * Delete every spec-owned form (by title tag), child-first.
+ *
+ * `session_replication_role = replica` bypasses the immutability guards — and,
+ * less obviously, the FK CASCADE triggers too — so the delete has to enumerate
+ * the children itself. See `./helpers/purge-forms` (BUG-E2EISO-002).
+ */
 function purge() {
-  sql(
-    `set session_replication_role = replica; ` +
-      `delete from forms where title like '%${SPEC_TAG}%';`,
-  )
+  purgeFormsByTag(SPEC_TAG)
 }
 
 // ---------------------------------------------------------------------------
@@ -518,9 +524,15 @@ test('NORM-3 (dashboard): distribution counts by stable code and shows the CURRE
   const versionId = '11110000-0000-0000-0000-0000000d0a01'
   const sectionId = '11110000-0000-0000-0000-0000000d0b01'
   const itemId = '11110000-0000-0000-0000-0000000d0c01'
+  // Reset any leftover fixture carrying these FIXED ids. BOTH calls matter: if
+  // an older run orphaned the version, its `forms` row is already gone, so
+  // nothing form-rooted can reach it — and the `form_versions` insert below
+  // would then collide on the primary key.
+  purgeFormsByIds([formId])
+  purgeVersionsByIds([versionId])
+
   sql(
     `set session_replication_role = replica;` +
-      `delete from forms where id = '${formId}';` +
       `insert into forms (id, commission_id, title, created_by) ` +
       `values ('${formId}', '${COMM_A}', '${title}', '${UID_CHEFE_A}');` +
       `insert into form_versions (id, form_id, version_number, status, created_by) ` +
@@ -673,9 +685,7 @@ test('NORM-3 (dashboard): distribution counts by stable code and shows the CURRE
 
   // Cleanup this NORM-3 fixture explicitly (its title carries the tag, so the
   // afterAll purge also catches it, but delete now to keep the DB tidy).
-  sql(
-    `set session_replication_role = replica; delete from forms where id = '${formId}';`,
-  )
+  purgeFormsByIds([formId])
 })
 
 // ===========================================================================

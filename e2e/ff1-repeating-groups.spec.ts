@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { purgeFormsByTag } from './helpers/purge-forms'
 
 /**
  * FF-1 — Repeating Groups (ADR 0087, six PO rulings). Acceptance criteria
@@ -31,9 +32,11 @@ import { cachedSignIn } from "./helpers/auth"
  *
  * Hermetic: every form here is spec-owned (title carries SPEC_TAG), built via
  * the service role / real UI, and driven under real personas' JWTs for RPC
- * calls. Cleanup deletes by title pattern via docker exec
- * (session_replication_role=replica bypasses immutability guards). Run with
- * --workers=1 (mirrors form-model-normalization.spec.ts convention).
+ * calls. Cleanup deletes by title pattern via docker exec, child-first through
+ * `./helpers/purge-forms` (session_replication_role=replica bypasses the
+ * immutability guards — and, less obviously, the FK CASCADE triggers too, which
+ * is why the delete is explicit rather than a one-liner). Run with --workers=1
+ * (mirrors form-model-normalization.spec.ts convention).
  *
  * Personas (password Test1234!):
  *   chefe.ccih@test.local   staff_admin, CCIH (…002) — builder, signer, dashboard
@@ -141,12 +144,15 @@ function sql(query: string): string {
     .trim()
 }
 
-/** Delete every spec-owned form (by title tag) bypassing immutability guards. */
+/**
+ * Delete every spec-owned form (by title tag), child-first.
+ *
+ * The delete still runs under `session_replication_role = replica` to get past
+ * the immutability guards — but it no longer relies on FK CASCADE, which that
+ * same switch silently disables. See `./helpers/purge-forms` (BUG-E2EISO-002).
+ */
 function purge() {
-  sql(
-    `set session_replication_role = replica; ` +
-      `delete from forms where title like '%${SPEC_TAG}%';`,
-  )
+  purgeFormsByTag(SPEC_TAG)
 }
 
 test.beforeAll(() => {

@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { expect, type Page, type Locator } from '@playwright/test'
+import { purgeFormsByTag } from './purge-forms'
 
 /**
  * Shared primitives for the FF-2 matrix specs (ADR 0089).
@@ -106,11 +107,15 @@ export function sqlOne(query: string): string {
   return rows[0][0]
 }
 
+/**
+ * Delete every form tagged `tag`, child-first.
+ *
+ * The delete still runs under `session_replication_role = replica` to get past
+ * the immutability guards — but it no longer relies on FK CASCADE, which that
+ * same switch silently disables. See `./purge-forms` (BUG-E2EISO-002).
+ */
 export function purgeByTag(tag: string) {
-  psql(
-    `set session_replication_role = replica;\n` +
-      `delete from public.forms where title like '%${tag}%';`,
-  )
+  purgeFormsByTag(tag)
 }
 
 // ---------------------------------------------------------------------------

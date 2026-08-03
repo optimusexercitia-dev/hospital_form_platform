@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { purgeFormsByTag } from './helpers/purge-forms'
 
 /**
  * FF-2 — Matrix & Risk Matrix (ADR 0089, four PO rulings). Acceptance criteria
@@ -159,12 +160,15 @@ function sqlOne(query: string): string {
   return rows[0][0]
 }
 
-/** Delete every spec-owned form, bypassing the immutability guards. */
+/**
+ * Delete every spec-owned form, child-first.
+ *
+ * The delete still runs under `session_replication_role = replica` to get past
+ * the immutability guards — but it no longer relies on FK CASCADE, which that
+ * same switch silently disables. See `./helpers/purge-forms` (BUG-E2EISO-002).
+ */
 function purge() {
-  psql(
-    `set session_replication_role = replica;\n` +
-      `delete from public.forms where title like '%${SPEC_TAG}%';`,
-  )
+  purgeFormsByTag(SPEC_TAG)
 }
 
 test.beforeAll(() => {

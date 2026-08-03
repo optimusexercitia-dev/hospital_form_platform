@@ -2,6 +2,11 @@ import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
+import {
+  purgeDraftVersionsByIds,
+  purgeFormsByTag,
+  purgeResponsesByIds,
+} from './helpers/purge-forms'
 
 /**
  * FF-5 — Entity Reference (ADR 0091). Acceptance criteria translated from the
@@ -205,20 +210,15 @@ const createdDraftVersionIds: string[] = []
 
 test.afterAll(() => {
   // `guard_submitted_response` blocks a DELETE on any submitted response, so the
-  // bypass (mirroring `purge()`'s own technique) is required here too — most of
-  // this file's responses ARE submitted by the time cleanup runs.
-  let cleanup = `set session_replication_role = replica;\n`
-  if (createdResponseIds.length > 0) {
-    const list = createdResponseIds.map((id) => `'${id}'`).join(',')
-    cleanup += `delete from public.responses where id in (${list});\n`
-  }
-  if (createdDraftVersionIds.length > 0) {
-    const list = createdDraftVersionIds.map((id) => `'${id}'`).join(',')
-    cleanup += `delete from public.form_versions where id in (${list}) and status = 'draft';\n`
-  }
+  // `session_replication_role = replica` bypass is required here too — most of
+  // this file's responses ARE submitted by the time cleanup runs. Each helper
+  // keeps that bypass and adds the explicit child-first deletes it can no longer
+  // get from FK CASCADE, which `replica` disables right alongside the guards
+  // (BUG-E2EISO-002 — see ./helpers/purge-forms).
+  purgeResponsesByIds(createdResponseIds)
+  purgeDraftVersionsByIds(createdDraftVersionIds)
   // The ONE spec-owned form (FF5-1's builder-authored 3-lane form).
-  cleanup += `delete from public.forms where title like '%${SPEC_TAG}%';\n`
-  psql(cleanup)
+  purgeFormsByTag(SPEC_TAG)
 
   // Tripwire: the seed's own FF-5 fixture must survive this file untouched.
   expect(

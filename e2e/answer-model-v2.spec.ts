@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { purgeFormsByIds, purgeFormsByTag, purgeVersionsByIds } from './helpers/purge-forms'
 
 /**
  * Answer-Model v2 (mini-phase) — the default-values E2E acceptance criteria
@@ -122,8 +123,15 @@ function sql(query: string): string {
     .trim()
 }
 
+/**
+ * Delete every spec-owned form (by title tag), child-first.
+ *
+ * `session_replication_role = replica` bypasses the immutability guards — and,
+ * less obviously, the FK CASCADE triggers too — so the delete has to enumerate
+ * the children itself. See `./helpers/purge-forms` (BUG-E2EISO-002).
+ */
 function purge() {
-  sql(`set session_replication_role = replica; delete from forms where title like '%${SPEC_TAG}%';`)
+  purgeFormsByTag(SPEC_TAG)
 }
 
 // ---------------------------------------------------------------------------
@@ -756,9 +764,16 @@ test('DV-6 (HC080 RPC-level): publish rejects an invalid default_value with a de
   const CHEFE_UID = '00000000-0000-0000-0000-000000000002'
   const CCIH = 'a0000000-0000-0000-0000-0000000000a1'
 
+  // Reset any leftover fixture carrying these FIXED ids. BOTH calls matter: if
+  // an older run orphaned the version, its `forms` row is already gone, so
+  // nothing form-rooted can reach it — and the `form_versions` insert below
+  // would then collide on the primary key, failing this test for a reason that
+  // has nothing to do with HC080.
+  purgeFormsByIds([formId])
+  purgeVersionsByIds([versionId])
+
   sql(
     `set session_replication_role = replica;` +
-      `delete from forms where id = '${formId}';` +
       `insert into forms (id, commission_id, title, created_by) values ('${formId}','${CCIH}','${title}','${CHEFE_UID}');` +
       `insert into form_versions (id, form_id, version_number, status, created_by) values ('${versionId}','${formId}',1,'draft','${CHEFE_UID}');` +
       `insert into form_sections (id, form_version_id, position, is_default, title) values ('${sectionId}','${versionId}',0,true,null);` +
@@ -775,5 +790,5 @@ test('DV-6 (HC080 RPC-level): publish rejects an invalid default_value with a de
   // The pt-BR message names the offending question.
   expect(body.message).toMatch(/valor padrão.*Contagem.*inválido/i)
 
-  sql(`set session_replication_role = replica; delete from forms where id = '${formId}';`)
+  purgeFormsByIds([formId])
 })
