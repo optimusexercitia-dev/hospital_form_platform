@@ -118,11 +118,13 @@ allocates from **HC0Q6**. Migration window **`20260903000000`–`20260903000900`
 | BE-4 | `…000200` `save_block_to_library` DEFINER door — subtree snapshot + ruling-3 closure (`HC0Q6`) + revokes | backend | BE-2 |
 | BE-5 | `…000300` `insert_block_from_library` DEFINER door — deep copy over the `copy_version_children` child set, key suffix + **condition rewrite**, returns rename map | backend | BE-2, BE-4 |
 | BE-6 | Draft-start default resolution (idempotent) · `gen:types` · pgTAP for all 9 keystones incl. over-grant twin | backend | BE-3, BE-5 |
+| BE-7 | ✅ `…000500` `update_block_library_entry` / `delete_block_library_entry` DEFINER doors (ruling 2 metadata edit + delete) | backend | BE-4 |
 | FE-1 | ✅ Builder: library browser + save-to-library (flag-gated) | frontend | BE-1 |
 | FE-2 | ✅ Insert flow + the **rename review list** (ruling 4) — shipped READ-ONLY (ADR 0092 Amendment 1: no rename door exists anywhere; `question_key` is immutable post-creation, confirmed independently by both frontend and backend) | frontend | BE-1 |
 | FE-3 | ✅ `default-value-editor.tsx`: dynamic-source selector, type-gated to the 5 tokens — literal/dynamic/none modeled as one discriminated union (`DefaultConfig`), so ruling 6's exclusivity is a type invariant, not a convention | frontend | BE-1 |
 | FE-4 | ✅ Wizard prefill wiring in `prepare.ts` / `use-wizard.ts` — `today`/`now` resolve from `responses.started_at` (added to `ResponseForFill` by backend on request), not a live clock, so a resumed draft never drifts | frontend | BE-1 |
-| T-1 | E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only | tester | FE-1…4 |
+| FE-5 | ✅ Library entry rename/re-describe + delete (ruling 2) in `block-library-picker.tsx` + new `edit-library-entry-dialog.tsx`. Delete confirm names the safety property (materialized copies, not links); both keyboard-operable, announced via a picker-level `aria-live` region (a per-card region would unmount with a deleted card before being read). All 4 doors + the browse read exercised directly against the local RPC/REST endpoint (save → browse → insert-with-forced-collision → rename → delete → browse), since this environment's browser pane has no compositing surface for a spawned subagent (confirmed: `document.visibilityState` stuck `"hidden"`, `getBoundingClientRect` zero on interactive elements) — see the phase record for detail | frontend | BE-7 |
+| T-1 | E2E: save rich block → insert → rename list → publish → fill → submit + keyboard-only | tester | FE-1…5 |
 | QA-1 | Phase review → `docs/reviews/phase-FF-4-review.md` | qa | T-1 green |
 
 > 🔴 **What FF-4 inherits. Read before designing the library — each line is a defect that already
