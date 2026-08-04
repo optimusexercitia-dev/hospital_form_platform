@@ -1,7 +1,10 @@
 -- Phase 16 (Standards Crosswalk & Readiness/Gap Engine v2) — Migration D
 -- (evidence links, assessments, hospital ownership, candidate search)
 -- keystones. ADR 0093 D4/D5/D7/D8 + Amendment 1 A1·1.
--- Migration 20260903001300_accreditation_evidence_assessment.sql.
+-- Migrations 20260903001300_accreditation_evidence_assessment.sql,
+-- 20260903001400_fix_assessment_note_overwrite.sql (BUG-P16-001 symptom
+-- fix) and 20260903001500_assessment_read_path.sql (BUG-P16-001 root-cause
+-- fix — the missing get_standard_assessment read door; C11-C13 below).
 --
 -- The `accreditation` flag ships OFF (not forced by seed.sql) — §0 runs the
 -- flag-off census against the natural default, THEN this file flips it ON
@@ -39,7 +42,7 @@
 
 begin;
 
-select plan(34);
+select plan(37);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -291,6 +294,28 @@ select is(
   (select (public.set_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001', 'conforme', 'Nova justificativa')).note_md),
   'Nova justificativa',
   'C10. an EXPLICIT non-null note_md still overwrites (positive control — coalesce only protects against NULL, not against a real edit)'
+);
+-- Round trip (b), the one the coalesce could hide: an EXPLICIT '' clears the
+-- note (this is what a real "clear the field" UI must send — NEVER a bare
+-- undefined/null, which this migration now reads as "leave untouched").
+select is(
+  (select (public.set_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001', 'conforme', '')).note_md),
+  '', 'C11. an EXPLICIT empty-string note_md CLEARS the note (round trip b — the coalesce protects against NULL only, not against '''')'
+);
+
+-- get_standard_assessment (BUG-P16-001 root-cause fix): is_member_of gated,
+-- exposes note_md — the door that did not exist before this turn.
+select is(
+  (select note_md from public.get_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001')),
+  '', 'C12. get_standard_assessment reads back the current note (empty, per C11)'
+);
+reset role;
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.get_standard_assessment((select comm_x from k), '28100000-0000-0000-0000-000000000001')),
+  0, 'C13. a FOREIGN commission''s member (sa_y ∈ comm_y) gets ZERO rows from get_standard_assessment — commission-scoped, never a hospital/export route'
 );
 reset role;
 

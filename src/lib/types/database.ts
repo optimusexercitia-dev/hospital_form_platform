@@ -12132,6 +12132,15 @@ export type Database = {
           severity: string
         }[]
       }
+      get_standard_assessment: {
+        Args: { p_commission: string; p_standard: string }
+        Returns: {
+          assessed_at: string
+          assessed_by_name: string
+          note_md: string
+          status: string
+        }[]
+      }
       grant_case_access: {
         Args: {
           p_case: string
