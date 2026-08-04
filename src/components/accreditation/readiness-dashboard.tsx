@@ -139,8 +139,8 @@ function LevelCard({ level }: { level: LevelRollup }) {
 
       <p className="text-xs text-muted-foreground">
         {level.cleanStandards} de {level.totalStandards}{" "}
-        {level.totalStandards === 1 ? "padrão" : "padrões"} conforme
-        {level.cleanStandards === 1 ? "" : "s"} (não cumulativo)
+        {level.totalStandards === 1 ? "padrão" : "padrões"}{" "}
+        {level.cleanStandards === 1 ? "está conforme" : "estão conformes"} (não cumulativo)
       </p>
 
       <EvidenceCountBadge
