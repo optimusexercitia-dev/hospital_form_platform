@@ -909,6 +909,122 @@ no pt-BR `HC000` map in `mapCharterError` (flag-off not user-reachable) · read-
 `charters` enablement + origin push + deploy. Note: controlled-doc `code` is **per-commission** (Farmácia's regimento
 is legitimately `DOC-0001`, same as CCIH's — cross-commission rollups must not assume code uniqueness).
 
+## P16 — Standards Crosswalk & Readiness/Gap Engine v2 (2026-08-04; ADR 0093 + Amendments 1-3; migrations `20260903000800`-`...001600` + gate-flip `20260904000100`; flag `accreditation` **ON** via `...000100`)
+
+Accreditation-framework vocabulary (ONA/JCI/custom) + per-standard evidence linking + assessment +
+commission-level readiness/gap report + hospital-level worst-status consolidation (D7). PHI-free by
+construction (Rule 12 N/A) - evidence LINKS reference an existing artifact by kind+id; they never copy
+artifact content, so a `case`/`ethics_procedure` link inherits ITS OWN confidentiality via the D8 mask,
+never a duplicate of it. Full record -> `docs/decisions/0093-*.md` +
+`docs/plans/phase-16-standards-crosswalk-program.md`.
+
+**Tables (RLS-on, SELECT-only for `authenticated`; every write is a DEFINER RPC - no table has an
+INSERT/UPDATE/DELETE policy or grant):**
+- `accreditation_frameworks` - `key`, `name`, `version`, `description`, `owner_commission_id` (nullable ->
+  **NULL = global pack**, FK `commissions` CASCADE), `cloned_from_framework_id` (self-FK, SET NULL -
+  provenance only, D2), `status` CHECK in {`ativo`,`arquivado`}. SELECT policy:
+  `owner_commission_id IS NULL OR app.is_member_of(owner_commission_id)` - **global packs are readable by
+  every authenticated user** (deliberate: the vocabulary must be visible for a commission to clone it); a
+  commission-owned custom framework is member-gated like any tenant content. **No `is_admin()` in this
+  policy** - platform_admin sees global packs same as anyone, and nothing more.
+- `accreditation_standards` - `framework_id` (FK CASCADE), `parent_id` (**composite self-FK**
+  `(parent_id, framework_id) -> (id, framework_id)` CASCADE - the `(id, framework_id)` UNIQUE exists solely
+  to host this, keeping a standard's parent inside its OWN framework by construction, not by trigger),
+  `code`/`title`/`description_md`, `position`, `level` (nullable smallint, CHECK 1-3, D3's 3-level ONA
+  model - NULL for a non-leveled framework like JCI). SELECT policy mirrors the parent framework's.
+- `evidence_links` - `commission_id` (FK CASCADE - the LINKING commission, not necessarily the artifact's
+  owner for `case`/`ethics_procedure` per D8), `standard_id` (FK CASCADE), `artifact_kind` (10-way CHECK,
+  the D4 `ArtifactKind` enumeration), `artifact_id`, `note`, `linked_by`. UNIQUE
+  `(commission_id, standard_id, artifact_kind, artifact_id)` - `link_evidence` pre-checks this and raises
+  `HC0QB` rather than surfacing the raw `23505`. SELECT policy `app.is_member_of(commission_id)`.
+- `standard_assessments` - `commission_id`/`standard_id` (FK CASCADE), `status` CHECK in
+  {`conforme`,`parcial`,`nao_conforme`,`nao_aplicavel`}, `note_md`, `assessed_by`. UNIQUE
+  `(commission_id, standard_id)` - one assessment per commission per standard, upserted by
+  `set_standard_assessment`. SELECT policy `app.is_member_of(commission_id)`.
+- `standard_ownerships` - `hospital_id` (FK CASCADE), `standard_id` (FK CASCADE),
+  `responsible_commission_id` (FK CASCADE), `assigned_by`. UNIQUE `(hospital_id, standard_id)` - the D7
+  override table (a row = "this commission, not worst-status-wins, answers for this standard at hospital
+  tier"; clearing the override is a DELETE). Trigger `guard_standard_ownership_hospital` is the schema
+  backstop (`23514`) proving `responsible_commission_id` belongs to `hospital_id` via
+  `app.hospital_of_commission` - `set_standard_ownership` pre-checks the SAME property and raises `HC0QC`
+  first (belt-and-suspenders, the same pattern as every other guarded-DEFINER write in this codebase).
+  SELECT policy `app.is_hospital_member_of(hospital_id) OR app.is_hospital_admin_of(hospital_id)`.
+- All 5 tables carry a Rule-11 audit AFTER-trigger (`trg_audit_*`); `accreditation_frameworks` and
+  `accreditation_standards` additionally carry `app.touch_updated_at`.
+
+**Dispatch predicates (`app` schema, `STABLE SECURITY DEFINER`, one arm per `ArtifactKind` - 10-way, D4) -
+the freshness matrix itself is NOT restated here, ADR 0093 Amendments 2-3 are the authority:**
+- `app.artifact_belongs_to_commission(p_kind, p_artifact, p_commission)` - is this artifact reachable FROM
+  this commission (the D4 "every sibling arm" enumeration). Fail-**closed**: every arm resolves through
+  `coalesce(..., false)`; an unrecognized `p_kind` raises rather than falling through.
+- `app.evidence_status_of(p_kind, p_artifact)` - the per-kind freshness verdict (`valida`/`vencida`/
+  `atencao`/...). Redefined twice post-birth by targeted migrations, NOT edited in place: `...001000`
+  (`capa_plan` `open`->`atencao`, ADR 0093 A3.1) and `...001100` (`action_item` `open`/`blocked`->`atencao`,
+  A3.3) - read the LIVE `pg_proc` body; the two migrations only carry the diffs.
+- `app.evidence_label_of(p_kind, p_artifact)` - the third dispatch helper (Migration E), the D8 masking
+  point: returns the real label for an unrestricted artifact, `null` (masked by the caller to "Evidencia
+  restrita") for a `case`/`ethics_procedure` the reader's ACL doesn't cover.
+
+**RPCs (all DEFINER, `revoke execute ... from public` + `grant ... to authenticated` at creation; ALL 15
+call `app.assert_accreditation_enabled()` FIRST -> `HC0Q9` - unlike `matrix_fields`/`entity_refs`/
+`power_authoring`, this module has no pre-existing ungated read path to preserve, so READS are gated too,
+not just writes):**
+- *Migration C - framework CRUD, global-pack vs. custom-framework split (D6):* `create_framework` /
+  `update_framework` / `set_framework_status` / `upsert_standard` / `delete_standard` - the **global-pack
+  arm uses `app.is_admin()`** (the ONE sanctioned D6 exception: platform_admin curates the shared
+  vocabulary) when `owner_commission_id IS NULL`; the **custom-framework arm uses
+  `app.is_staff_admin_of(owner_commission_id)`**, never `is_admin()`. Editing a global pack outside the
+  `is_admin()` arm raises `HC0QD`; editing an `arquivado` framework raises `HC0QE`. `clone_framework` is
+  the odd one out in this group - it does **NOT** use `is_admin()` at all (only
+  `is_staff_admin_of(p_commission)`, the DESTINATION commission), because cloning always creates a new
+  commission-owned draft and never touches the source. Two-pass parent remap (insert all standards, then
+  remap `parent_id` through an old->new id map keyed on `code`), precedent = `app.copy_version_children`.
+- *Migration D - evidence + assessment:* `link_evidence` (guard order: flag -> standard reachable ->
+  `artifact_belongs_to_commission` `HC0QA` -> per-kind readability [`can_read_case`/`can_read_capa`/...] ->
+  duplicate `HC0QB` -> insert) / `unlink_evidence` / `set_standard_assessment` (upsert,
+  `note_md = coalesce(excluded.note_md, standard_assessments.note_md)` - a later assessment call with
+  `p_note_md` unset does NOT blank a prior note, BUG-P16-001 symptom fix) / `set_standard_ownership`
+  (`is_hospital_admin_of` ONLY, `HC0QC` pre-check) / `evidence_candidates` (search, the SAME per-kind
+  readability filter as `link_evidence` so the picker never OFFERS what the linker would reject) /
+  `get_standard_assessment` (BUG-P16-001 root-cause fix - the read-path companion to
+  `set_standard_assessment`, `is_member_of`-gated).
+- *Migration E - the three READ doors, the highest-risk item in the phase; structurally mirror
+  `hospital_document_register` MINUS its BUG-AUTHZ-002 defect:* `readiness_report(p_commission,
+  p_framework)` and `readiness_evidence(p_commission, p_standard)` - gated **`is_member_of` ONLY**;
+  `hospital_readiness(p_hospital, p_framework)` - gated **`is_hospital_admin_of(p_hospital) OR
+  is_org_admin_of(org_of_hospital)` ONLY** (D7 worst-status-wins consolidation, `nao_aplicavel` treated as
+  abstention not a vote, `standard_ownerships` override short-circuits the vote entirely). **This is the
+  correct model per the D6 noun rule; `hospital_document_register` and `hospital_indicator_rollup` are the
+  KNOWN-BAD precedent (BUG-AUTHZ-002) an `is_admin()` arm here would repeat. None of these three, nor
+  `evidence_candidates`/`get_standard_assessment` above, carries an `is_admin()` arm anywhere in their body
+  - confirmed against live `prosrc`, not asserted from memory.** All three doors + the two Migration-D read
+  functions above now sit inside the **ADR 0079 standing door audit**
+  (`supabase/tests/mutation/p0-authz-invariant.sh`) alongside every other DEFINER door in the platform -
+  the audit is unconditional on age, no separate opt-in needed. The platform_admin-zero-rows assertion
+  against all three (pgTAP 283/284 SECTION A) is, in this phase's own test-file comment, **the single most
+  important assertion in Phase 16**.
+
+**SQLSTATEs:** `HC0Q9` flag-off * `HC0QA` artifact not reachable/linkable * `HC0QB` duplicate link *
+`HC0QC` invalid target (framework/standard/hospital/level) * `HC0QD` global-pack read-only outside the
+`is_admin()` arm * `HC0QE` framework `arquivado`. Full per-code detail lives in the SQLSTATE table below -
+this is the summary line, not a second source of truth for it.
+
+**pgTAP** (274 assertions total): `278` schema - 84 * `279` dispatch predicates - 69 (incl. QA-MINOR's
+boundary coverage for all 5 indicator frequencies, not just `mensal`) * `280` framework CRUD - 40 * `281`
+evidence/assessment - 37 * `283` `readiness_report`/`readiness_evidence` - 20 * `284` `hospital_readiness`
+- 24. Every keystone mutation-proven; the read-door reintroduction-of-`is_admin()` mutation and the
+ARM=floor door-audit run are the two most load-bearing proofs in the set.
+
+**Migration G (`20260904000100_enable_accreditation.sql`)** is the gate-flip - Phase 16 shipped OFF
+through every Wave 1/2 migration and turns ON only here, PO-approved, mirroring
+`enable_power_authoring`'s shape. `seed.sql` forces it ON for local/E2E, belt-and-suspenders with every
+other already-flipped flag. Flipping it broke four PRE-EXISTING pgTAP assertions that had assumed "seeded
+OFF" as an ambient default (278/280/281/284's section-0 setup) - 278's was a TRANSIENT fact about
+Migration A's own insert (now correctly asserts the shipped `enabled=true` - see the SQLSTATE
+high-water-row note below); 280/281/284's were a REAL ongoing "doors must still deny while OFF" invariant,
+fixed by having each section explicitly FORCE the flag OFF in-transaction rather than assert a now-false
+ambient claim. `283` carries no such section - a pre-existing gap, not introduced by the flip, left as-is.
+
 ## Migrations (forward-only, additive)
 
 > **This table is a HISTORICAL index and stops at E1 (`20260720001070`).** From DOC-REDESIGN /
@@ -1305,6 +1421,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `power_authoring` | **ON** (FF-4, gate-flip `20260903000600`; ADR 0092) | Gates all four block-library DEFINER doors, `app.seed_default_answers`, and the builder's library browser + dynamic-default selector. Seeded **OFF** in `20260903000000`; flipped by `20260903000600_enable_power_authoring.sql`; `seed.sql` forces ON for local/E2E. **READ paths are ungated** - an inserted block is ordinary form structure and a stored `default_value` still applies, so the flag governs authoring + draft-start seeding only (same posture as `matrix_fields`/`entity_refs`). ⚠ **This flip has no later phase behind it**: FF-4 is the last of the five phases gating the pilot (ADR 0086 ruling 2), so the next `db push` is the pilot's - an absent flip would have gone dark straight into the customer pilot. |
 | `item_validations` | **ON** (FF-3, gate-flip `20260901000800`; ADR 0090) | ⚠ This row read "**the gate-flip migration does NOT exist yet**" until FF-5 - it does: `20260901000800_enable_item_validations.sql`, verified against the tree. Seeded OFF in `20260901000000`; flipped by `…000800`; `seed.sql` forces ON for local/E2E. Gates BOTH sides: `set_item_validations` raises `HC0Q0`, `get_response_validation_errors` returns the EMPTY SET, and the `required_if` layer + the `HC0P9` gate are skipped inside `submit_response`/`app.response_required_complete` (the flag is read ONCE per call and the `required_if` argument nulled at the call site, so the predicate stays IMMUTABLE). TS reads via `itemValidationsEnabled()`. **Fail-closed in a specific way**: with the flag OFF the writer raises `HC0Q0`, so a rules editor offered anyway is a dialog whose save can never succeed. ⚠ Without the flip, `db push` ships the phase DARK while local stays green - FF-2's review blocker. |
 | `case_types` | **ON** (E1, migration `…001040`; ADR 0064/0072) | The other half of the m2 gate. Gates the `create_case_from_template` type→case snapshot (`p_case_type_id` is ignored while OFF ⇒ `commission_default`/`non_phi_internal`). |
+| `accreditation` | **ON** (Phase 16, gate-flip `20260904000100`; ADR 0093) | Gates ALL 15 `public.*` accreditation RPCs (framework CRUD, evidence/assessment, the 3 readiness read doors) via `app.assert_accreditation_enabled()` → `HC0Q9`, called FIRST in every one. Seeded **OFF** in `20260903000800_accreditation_schema.sql`; flipped by `20260904000100_enable_accreditation.sql`; `seed.sql` forces ON for local/E2E. **Unlike `matrix_fields`/`entity_refs`/`power_authoring`, READ paths are gated too** — this is a brand-new module with no pre-existing ungated behavior to preserve, so there is no "reads still work while OFF" carve-out. Full surface → the P16 section above. |
 
 ## RLS authorization surface (who can do what)
 
@@ -1464,7 +1581,13 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC0Q3` | `entity_refs` flag OFF (FF-5) | "O recurso de referencias nao esta disponivel." Raised by BOTH `app.assert_reference_answer_writable` (save) and `public.reference_candidates` (search), and mapped on BOTH paths - the search path had NO mapping until QA r2 M-2, which turned every raise into an empty candidate list and made the picker explain a flag outage as "this form has no linked case". |
 | `HC0Q4` | item is not a `reference` item of this version (FF-5) | "Dados invalidos para este formulario." Raised by `app.save_reference_answers`, `app.guard_reference_coherent` and `reference_candidates`. |
 | `HC0Q5` | reference target not reachable from this response (FF-5, ADR 0091 rulings 2+8) - wrong organization on any lane, or a `patient` participant not linked to THIS response's case | Four distinct pt-BR sentences from `app.guard_reference_coherent`, so the **DB message is preferred** over a constant. ⚠ **SAVE PATH ONLY** - `reference_candidates` cannot raise it (the trigger fires on write), so an arm for it in the search would be dead code asserting a reachability that does not exist. |
-| - | **`HC0O*` and `HC0Q9`+ are unallocated; `HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE). ⚠ This row has now gone stale TWICE — it read "`HC0Q3`+ are unallocated" until FF-5 took Q3–Q5, then "`HC0Q6`+ / high-water `HC0Q5`" until Phase 16's Wave 0 catalog check (2026-08-03) found FF-4 had taken **Q6, Q7 AND Q8**. **Live high-water is `HC0Q8`; Phase 16 allocates HC0Q9→HC0QE.** Do not trust this row — `select prosrc from pg_proc` is the only truth, and both ADR 0092 and this table were wrong about the same lane. FF-3 reuses **`HC0P4`** for draft-only rather than minting a second code with the same meaning and copy. **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
+| `HC0Q9` | `accreditation` flag OFF (Phase 16, ADR 0093) | "O recurso de padrões de acreditação não está disponível." Raised by `app.assert_accreditation_enabled`, called FIRST by all 15 `public.*` accreditation RPCs — both the CRUD/evidence/assessment writers AND the 3 readiness read doors (unlike `matrix_fields`/`entity_refs`/`power_authoring`, this module gates reads too — there is no pre-existing ungated behavior to preserve). |
+| `HC0QA` | evidence artifact not reachable from / not linkable by the linking commission (Phase 16, ADR 0093 D4) | Raised by `link_evidence` via `app.artifact_belongs_to_commission` — one arm per `ArtifactKind` (10-way), fail-closed `coalesce(..., false)` for an unreachable artifact, `raise` for an unrecognized kind. |
+| `HC0QB` | duplicate evidence link (Phase 16) | `evidence_links_unique (commission_id, standard_id, artifact_kind, artifact_id)` — `link_evidence` pre-checks and raises this SQLSTATE rather than surfacing the raw `23505`. |
+| `HC0QC` | invalid target - framework/standard/hospital/level (Phase 16) | One SQLSTATE shared across 8 call sites (`update_framework`, `set_framework_status`, `clone_framework`, `upsert_standard`, `delete_standard`, `link_evidence`, `set_standard_ownership`, `set_standard_assessment`) for a family of "the referenced row does not exist / does not belong here" checks — framework or standard not found, `standard_ownerships`' hospital-ownership pre-check (belt-and-suspenders ahead of the `guard_standard_ownership_hospital` trigger's `23514`), invalid `level` for the D3 3-level model. Several distinct pt-BR messages by call site; the DB message is preferred, same convention as `HC0Q5`. |
+| `HC0QD` | global-pack read-only via the commission-scoped RPC (Phase 16, ADR 0093 D6) | Raised by `update_framework` / `set_framework_status` / `upsert_standard` / `delete_standard` when the target framework's `owner_commission_id IS NULL` (a global pack) and the caller is not `is_admin()` — the mirror image of the sanctioned exception: `is_admin()` may edit the vocabulary, nobody else may edit it in place (clone it into a commission-owned draft instead, via `clone_framework`). |
+| `HC0QE` | framework is `arquivado` (Phase 16) | Raised by `update_framework` / `upsert_standard` / `delete_standard` (3 call sites) — an archived framework's standards are frozen; only a NEW clone (`clone_framework`) may be edited. |
+| - | **`HC0O*` remains deliberately SKIPPED** (`O` vs `0` in a SQLSTATE); **`HC0QF`+ are unallocated.** ⚠ This row has now gone stale THREE TIMES — it read "`HC0Q3`+ unallocated" until FF-5 took Q3–Q5, then "`HC0Q6`+ / high-water `HC0Q5`" until FF-4 took Q6–Q8, then "`HC0Q9`+ unallocated / high-water `HC0Q8`" until Phase 16's own Wave 0 catalog check (2026-08-03) pre-committed to the allocation confirmed here post-ship (2026-08-04): **Phase 16 took Q9, QA, QB, QC, QD AND QE** — `app.assert_accreditation_enabled` plus the rows immediately above. **Live high-water is `HC0QE`.** Do not trust this row — `select prosrc from pg_proc` is the only truth. FF-3 reuses **`HC0P4`** for draft-only rather than minting a second code with the same meaning and copy. **`HC0P0` and `HC0P4`-via-clone are deliberately UNMAPPED in the app layer**: the only axis UPDATE any app path issues is inside `upsert_matrix_axes`, which matches on `code` and never writes it (direct DML is denied by K9), and `clone_form_version` always creates a fresh draft. A `case` for an unreachable code reads as reachable and invites a test that cannot fail. | - |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
