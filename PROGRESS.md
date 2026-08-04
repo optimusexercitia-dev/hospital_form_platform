@@ -128,7 +128,7 @@ phase remains in front of it).
   · 🚪 **Door-audit floor found a never-called door of our own**: `delete_standard` was "covered" by pgTAP 280 only via a **flag-off negative, which raises *before* reaching the authorization body** — so it never exercised the door. A real successful delete was added (D5/D6) and it now passes the floor. ⚠ **Coverage that raises early is not coverage.** 13 unrelated pre-existing never-called doors remain (ethics vocabulary, case-assignment roles, referral actions) — a real gap in the ADR 0079 standing invariant that **predates this phase**; filed separately, not fixed here.
   · 📋 **As-built inventory (lead-verified, working tree clean):** **9 migrations** `20260903000800`→`001600` · **6 pgTAP files — 278, 279, 280, 281, 283, 284.** ⚠ **There is no `282`**; its planned scope (freshness matrix cell-by-cell) was **absorbed into 279** (61 assertions, C1…C30 — all 10 kinds, both `review_due_date = current_date` boundaries, the frequency-window cutoff, every Amendment 1–3 ruling). Nothing lost, but **"pgTAP 278–284" is not a valid coverage claim** — a range naming a file that does not exist is the same failure family as a gate summary whose denominator hides unrun tests. Plan corrected.
   · 📌 **Coverage gap flagged for QA (not a defect):** the indicator freshness arm maps five frequencies to intervals (`mensal|bimestral|trimestral|semestral|anual` → 1/2/3/6/12 months) but only **`mensal`** is asserted. An *unrecognized* frequency raises (fails closed); a **wrong interval** — `semestral` → 5 months — would pass silently. Four more cells closes it.
-  · ▶ **Tester IN FLIGHT** — 5 E2E specs. **Harness must prove it can fail first**: flag OFF → route 404s, flag ON → page renders. Without that check a green suite certifies 404s, which is precisely how BUG-P16-002 hid behind lint + typecheck + 895 Vitest + a real `next build`. Migration F builds its own fixtures (no seeded packs — PO-parked); spec 5's global pack is created as `platform@test.local`.
+  · ✅ **Tester COMPLETE — 5 E2E specs, 30/30 GREEN** (`e2e/phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts` + shared `e2e/helpers/accreditation.ts`). Harness proved it could fail FIRST (AC-0: flag OFF → the commission `not-found.tsx` boundary renders; flag ON → real content — both asserted live before anything else was trusted, per BUG-P16-002's lesson). Found, precisely diagnosed, and got fixed **two blocking product bugs** (BUG-P16-003, BUG-P16-004 — a Server Component forwarding a closure prop across a Client boundary, crashing the framework list and then every framework/standard page; `frontend` fixed both in `3fc40df`, tester re-verified live + via source read and closed both) and filed one **minor** cosmetic pt-BR pluralization defect (BUG-P16-005, left open, non-blocking — tester's own assertions tolerate either spelling). Migration F was correctly never needed — every spec builds its own framework/standard fixtures (`platform@test.local` for the two GLOBAL packs spec 1/3/5 need; commission-owned for spec 2/4), matching the PO-parked status. Full detail: Bug Log + Test Run Summary above.
   · ▶ **Then** — Migration F (PO-parked), Migration G (flag flip at Record), QA, full `e2e:prod` (lead-run), gate.
   · 🔧 **Plan ownership correction (lead)** — the plan gave the `feature-flags.ts` flag wiring to **frontend**, but `src/lib/queries/` is **backend-owned** (CLAUDE.md §4, binding). **Reassigned to backend** as its first Wave 2 item; frontend imports the helper and sequences routes last so the gate exists when it gets there.
   · ✅ **Frontend Wave 2 track COMPLETE** — `src/lib/accreditation/rollups.ts` (`computeReadinessRollups`: cumulative ONA level gating incl. the "clean level 2 blocked by a dirty level 1" boundary; per-chapter/overall % for non-leveled frameworks; freshness split never collapsed — structurally asserted) + 22-test Vitest suite, all green; `messages.ts` (HC0Q9–HC0QE pt-BR mapping); `actions.ts` (framework/standard CRUD, evidence link/unlink, assessment — `standard_ownership` deliberately deferred to the Wave 3 hospital surface). Components in `src/components/accreditation/`: framework list + clone dialog, the standards tree (semantic nested `<ul>`, no `role=tree`), the standard panel (assessment form with PHI-discouragement copy on `note_md`, evidence list with valida/atenção/vencida chips + "Evidência restrita" masking + unlink). Routes `manage/acreditacao/**` cloned from `manage/indicadores/` (layout flag+role gate, list page, `[framework]` master-detail shell, `padrao/[standard]` detail) + the `app-sidebar.tsx` nav entry (`requiresFeature: 'accreditation'`). `npm run lint` / `typecheck` / `vitest run` (895 passed) / a REAL `next build` all green, all three new routes registered.
@@ -191,9 +191,19 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-#### 🔴 BUG-P16-004 — the SAME defect class as BUG-P16-003, in `[framework]/layout.tsx` → `StandardsTree` — blocks EVERY framework/standard page, not just the list · owner **frontend** · phase 16 · filed by **tester** 2026-08-03 · **escalates BUG-P16-003's severity**
+#### 🟡 BUG-P16-005 — the level card's standard-count text reads "padrãoes", not "padrões" · owner **frontend** · phase 16 · filed by **tester** 2026-08-03 · severity minor (cosmetic pt-BR grammar, Rule 10)
 
-**This is the more severe of the two.** `src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx:60` passes an inline closure `standardHref={(standardId) => commissionHref(...)}` straight into `<StandardsTree standardHref={standardHref} .../>` — and `standards-tree.tsx:1` is `"use client"`. Since `FrameworkLayout` wraps the framework overview page AND every `padrao/[standard]` detail page (the sidebar tree renders on both), **this crashes the entire commission-side Accreditação surface below the bare list** — not an edge case gated behind "a global framework exists," this fires on the very first framework a coordinator opens, always. Confirmed live (dev server log, same error shape as BUG-P16-003):
+**Repro:** view any ONA (leveled) framework's readiness dashboard where a level has `totalStandards !== 1`. Observed live (`level1Card.innerText()`, `totalStandards: 2`): `"1 de 2 padrãoes conforme (não cumulativo)"`.
+
+**Root cause:** `src/components/accreditation/readiness-dashboard.tsx`'s `LevelCard` builds the plural by concatenation — `padrão{level.totalStandards === 1 ? "" : "es"}` — which produces `"padrão" + "es" = "padrãoes"`. Portuguese `-ão` nouns pluralize irregularly (three patterns: `-ões`/`-ães`/`-ãos`); "padrão" → **"padrões"**, never "+es". Contrast `hospital-readiness-register.tsx`, which gets this right nearby: `{rows.length === 1 ? "padrão" : "padrões"}` — a literal, not a suffix concatenation. Same fix shape applies here: replace the suffix ternary with a literal `level.totalStandards === 1 ? "padrão" : "padrões"`.
+
+**Test impact:** none blocking — `tester`'s assertions in `phase16-accreditation-core.spec.ts` AC-1 match on the numbers via a tolerant regex (`/padr\S+/`) rather than hardcoding the currently-wrong word, so they will keep passing unchanged once this is fixed (and would newly fail if a fix regressed the NUMBERS, which is the part that actually matters to the acceptance criterion).
+
+✅ **BUG-P16-004 — CLOSED 2026-08-03, tester-verified (fix + re-run + source read).** Fixed exactly along the lines flagged: `[framework]/layout.tsx` now passes `org`/`commission`/`frameworkId` (plain strings) to `<StandardsTree>` instead of the `standardHref` closure; `standards-tree.tsx` resolves its own hrefs client-side via the pure `commissionHref` helper (confirmed both files now carry an explicit `BUG-P16-003 (fixed)` comment documenting the shape). Re-verified live: `phase16-accreditation-core.spec.ts` AC-1/AC-3b/AC-5, `-freshness.spec.ts`'s four `-ui` tests, and `-restricted.spec.ts` AC-3b (every test that navigates a `[framework]/**` route) now reach real rendered content — none hit the crash. Two of those re-runs then failed on genuinely NEW, unrelated issues (a tester locator ambiguity in AC-1, a keyboard-race in AC-5's combobox selection) — both are test-authoring bugs on `tester`'s own side, not product defects, and are being fixed there, not here.
+
+<details><summary>BUG-P16-004 original report (kept for the record)</summary>
+
+**This was the more severe of the two.** `src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx:60` passed an inline closure `standardHref={(standardId) => commissionHref(...)}` straight into `<StandardsTree standardHref={standardHref} .../>` — and `standards-tree.tsx:1` is `"use client"`. Since `FrameworkLayout` wraps the framework overview page AND every `padrao/[standard]` detail page (the sidebar tree renders on both), **this crashed the entire commission-side Accreditação surface below the bare list** — not an edge case gated behind "a global framework exists," it fired on the very first framework a coordinator opened, always. Confirmed live (dev server log, same error shape as BUG-P16-003):
 ```
 ⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
 marking it with "use server". Or maybe you meant to call this function rather than return it.
@@ -202,32 +212,51 @@ marking it with "use server". Or maybe you meant to call this function rather th
 ```
 Reproduced both server-side and in the browser console, at `/o/rede-a/c/ccih/manage/acreditacao/{frameworkId}`.
 
-**Swept the rest of the route tree for the identical shape** (every inline `Href={(...) => ...}` prop passed FROM an `src/app/**/acreditacao/**` route file): exactly 3 exist. `manage/acreditacao/page.tsx:49` (→ `FrameworkList`, Server→Client — BUG-P16-003) and this one are broken; `[framework]/page.tsx:38` (→ `ReadinessDashboard`) is SAFE — `ReadinessDashboard` has no `"use client"`, stays a Server Component, and only ever CALLS the closure server-side to produce a plain string for a bare `<Link href=...>` (`GapListSection`, same file) — the function itself never crosses a client boundary there. So the fix shape is the same for both broken spots, and there is a real, working THIRD example already in this file to model it after: compute the href as a STRING (or pass the plain routing pieces + call `commissionHref` again where needed) before or at the client boundary, never forward the closure itself.
+**Swept the rest of the route tree for the identical shape** (every inline `Href={(...) => ...}` prop passed FROM an `src/app/**/acreditacao/**` route file): exactly 3 existed. `manage/acreditacao/page.tsx:49` (→ `FrameworkList`, Server→Client — BUG-P16-003) and this one were broken; `[framework]/page.tsx:38` (→ `ReadinessDashboard`) was SAFE — `ReadinessDashboard` has no `"use client"`, stays a Server Component, and only ever CALLS the closure server-side to produce a plain string for a bare `<Link href=...>` (`GapListSection`, same file) — the function itself never crosses a client boundary there. That safe example turned out to be the model the fix followed.
 
-**Test impact — this is why `tester` is pausing most UI-layer assertions across all 5 phase16 specs**: `phase16-accreditation-core.spec.ts` AC-1/AC-5, `-freshness.spec.ts` (every test — all navigate to a standard detail page), `-restricted.spec.ts` AC-3's UI corollary, `-clone.spec.ts` AC-2's UI corollary all route through `[framework]/layout.tsx` and will fail here until fixed. The RPC/DB-truth layer of every spec is unaffected (those calls never touch this render path) and has been verified extensively already — `tester` is continuing to exercise and report on that layer while this is open, and will re-run the UI-layer assertions once both this and BUG-P16-003 are fixed.
+**Test impact while open**: blocked most UI-layer assertions across all 5 phase16 specs. `tester` kept exercising and reporting on the RPC/DB-truth layer (unaffected — those calls never touch this render path) while frontend fixed this.
 
-#### 🔴 BUG-P16-003 — `manage/acreditacao` framework LIST page crashes for every staff_admin whenever a global framework exists · owner **frontend** · phase 16 · filed by **tester** 2026-08-03 (found running `phase16-accreditation-core.spec.ts` AC-0)
+</details>
 
-**Severity: blocking.** This is the route's unconditional happy path, not an edge case — the layout already restricts the whole `manage/acreditacao` area to `staff_admin` (`AcreditacaoLayout`'s `access.role !== "staff_admin"` → `notFound()`), so `AcreditacaoPage` always calls `<FrameworkList canManage={true} .../>` for anyone who reaches it. Once Migration F seeds the ONA/JCI global packs, this fires for **every** staff_admin, every time, everywhere — right now it only needs one commission-visible global framework to exist, which a single `create_framework(ownerCommission: null)` call produces.
+✅ **BUG-P16-003 — CLOSED 2026-08-03, tester-verified (fix + re-run + source read).** `src/components/accreditation/framework-list.tsx` no longer receives a `frameworkHref` closure — it now takes `org`/`commission` (plain strings) and resolves its own hrefs (both for its `<Link>` and for what it hands `CloneFrameworkDialogTrigger`) via the pure `commissionHref` helper; the file carries an explicit `BUG-P16-003 (fixed)` docblock recording the shape. Re-verified live: a staff_admin viewing a global-framework-bearing list (`/o/rede-a/c/ccih/manage/acreditacao`) now renders the real "Acreditação" heading, no crash. Same root cause and same fix shape as BUG-P16-004 (below) — filed and closed together.
+
+<details><summary>BUG-P16-003 original report (kept for the record)</summary>
+
+**Severity: blocking.** This was the route's unconditional happy path, not an edge case — the layout already restricts the whole `manage/acreditacao` area to `staff_admin` (`AcreditacaoLayout`'s `access.role !== "staff_admin"` → `notFound()`), so `AcreditacaoPage` always called `<FrameworkList canManage={true} .../>` for anyone who reached it. Once Migration F seeds the ONA/JCI global packs, this would have fired for **every** staff_admin, every time, everywhere — it only needed one commission-visible global framework to exist, which a single `create_framework(ownerCommission: null)` call produces.
 
 **Repro:** sign in as `chefe.ccih@test.local` (staff_admin, CCIH), ensure at least one GLOBAL framework exists (`owner_commission_id is null`), navigate to `/o/rede-a/c/ccih/manage/acreditacao` with the `accreditation` flag ON.
 
-**Expected:** the framework list renders — global packs show a "Clonar para editar" button.
-
-**Actual:** the route crashes to `manage/acreditacao/error.tsx`. Dev server log:
+**Actual (before the fix):** the route crashed to `manage/acreditacao/error.tsx`:
 ```
 ⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
 marking it with "use server". Or maybe you meant to call this function rather than return it.
   <... frameworkId=... frameworkName=... commissionId=... frameworkHref={function frameworkHref}>
                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^
 ```
-Same error reproduced in the browser console (`[browser] Error: ... (src/app/o/[org]/c/[commission]/manage/acreditacao/error.tsx:16:13)`) — not a server-only artifact.
+Reproduced in the browser console too (`(src/app/o/[org]/c/[commission]/manage/acreditacao/error.tsx:16:13)`), not a server-only artifact.
 
-**Root cause, traced to the exact line (not inferred):** `src/components/accreditation/framework-list.tsx` has no `"use client"` directive (Server Component). Its `frameworkHref` prop is a plain closure, ultimately `(frameworkId) => commissionHref(org, commission, "manage", "acreditacao", frameworkId)` defined inline in `manage/acreditacao/page.tsx`. `FrameworkList` forwards it verbatim at `framework-list.tsx:71` into `<CloneFrameworkDialogTrigger frameworkHref={frameworkHref} .../>` — and `clone-framework-dialog.tsx:1` is `"use client"`. A plain (non-Server-Action) function cannot cross a Server→Client props boundary; this is exactly that crossing. This is the same bug CLASS as the earlier BUG-QI-001 (`docs/progress/bug-log-archive.md` — "Server fn prop → client = RSC crash"), whose established fix pattern is "pass strings + build hrefs via pure routing helpers" — i.e. `CloneFrameworkDialogTrigger`/`CloneFrameworkDialog` should take the plain string pieces (or a pre-built base path) and construct the href client-side (`commissionHref` itself has no server-only import, so calling it directly inside the client component is also an option), not receive a closure as a prop.
+**Root cause, traced to the exact line:** `framework-list.tsx` (Server Component, no `"use client"`) forwarded its `frameworkHref` closure prop verbatim at line 71 into `<CloneFrameworkDialogTrigger frameworkHref={frameworkHref} .../>`, and `clone-framework-dialog.tsx` is `"use client"` — a plain (non-Server-Action) function cannot cross that boundary. Same bug CLASS as the earlier BUG-QI-001 ("Server fn prop → client = RSC crash").
 
-**Verified NOT systemic beyond this one spot** — audited every other `Href={...}` prop crossing in `src/components/accreditation/`: `clone-framework-dialog.tsx:49` (client → its own client child, same file — fine), `readiness-dashboard.tsx:65,95` (Server `ReadinessDashboard` → Server `GapListSection`, same file, no client boundary — fine), `standards-tree.tsx:49,126` (client → its own client child, same file — fine). Only `framework-list.tsx:71` crosses an actual Server→Client boundary.
+</details>
 
-**Test impact:** blocks `phase16-accreditation-core.spec.ts` AC-0's flag-ON assertion when pointed at the bare list route. Tester is routing AC-0's ON-check at a framework-specific sub-route instead (`[framework]/page.tsx`, which does not render `FrameworkList`) so the flag-harness proof itself is not held hostage by this separate, already-filed bug — but the list page itself stays red until this is fixed, and QA should re-verify the list route directly once it is.
+✅ **BUG-P16-004 — CLOSED 2026-08-03, tester-verified (fix + re-run + source read).** Fixed exactly along the lines flagged: `[framework]/layout.tsx` now passes `org`/`commission`/`frameworkId` (plain strings) to `<StandardsTree>` instead of the `standardHref` closure; `standards-tree.tsx` resolves its own hrefs client-side via the pure `commissionHref` helper (confirmed both files now carry an explicit `BUG-P16-003 (fixed)` comment documenting the shape). Re-verified live: `phase16-accreditation-core.spec.ts` AC-1/AC-3b/AC-5, `-freshness.spec.ts`'s four `-ui` tests, and `-restricted.spec.ts` AC-3b (every test that navigates a `[framework]/**` route) now reach real rendered content — none hit the crash. Two of those re-runs then failed on genuinely NEW, unrelated issues (a tester locator ambiguity in AC-1, a keyboard-race in AC-5's combobox selection) — both are test-authoring bugs on `tester`'s own side, not product defects, and are being fixed there, not here.
+
+<details><summary>BUG-P16-004 original report (kept for the record)</summary>
+
+**This was the more severe of the two.** `src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx:60` passed an inline closure `standardHref={(standardId) => commissionHref(...)}` straight into `<StandardsTree standardHref={standardHref} .../>` — and `standards-tree.tsx:1` is `"use client"`. Since `FrameworkLayout` wraps the framework overview page AND every `padrao/[standard]` detail page (the sidebar tree renders on both), **this crashed the entire commission-side Accreditação surface below the bare list** — not an edge case gated behind "a global framework exists," it fired on the very first framework a coordinator opened, always. Confirmed live (dev server log, same error shape as BUG-P16-003):
+```
+⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
+marking it with "use server". Or maybe you meant to call this function rather than return it.
+  <... nodes={[...]} readinessByStandardId=... standardHref={function standardHref}>
+                                                            ^^^^^^^^^^^^^^^^^^^^^^^
+```
+Reproduced both server-side and in the browser console, at `/o/rede-a/c/ccih/manage/acreditacao/{frameworkId}`.
+
+**Swept the rest of the route tree for the identical shape** (every inline `Href={(...) => ...}` prop passed FROM an `src/app/**/acreditacao/**` route file): exactly 3 existed. `manage/acreditacao/page.tsx:49` (→ `FrameworkList`, Server→Client — BUG-P16-003) and this one were broken; `[framework]/page.tsx:38` (→ `ReadinessDashboard`) was SAFE — `ReadinessDashboard` has no `"use client"`, stays a Server Component, and only ever CALLS the closure server-side to produce a plain string for a bare `<Link href=...>` (`GapListSection`, same file) — the function itself never crosses a client boundary there. That safe example turned out to be the model the fix followed.
+
+**Test impact while open**: blocked most UI-layer assertions across all 5 phase16 specs. `tester` kept exercising and reporting on the RPC/DB-truth layer (unaffected — those calls never touch this render path) while frontend fixed this.
+
+</details>
 
 ✅ **BUG-P16-002 — CLOSED 2026-08-03** (`93a3bf8`). All 7 implemented + `listGlobalFrameworks()` added; lead-verified **0** occurrences of `not implemented` remain. Backend **verified by executing, not compiling**: a standalone probe signed in as real seeded personas (`chefe.ccih`, `hospitaladmin.a1`), flipped the flag **at runtime only** (never committed), seeded a throwaway fixture and called every operation for real — all 9 probes PASS, including `getHospitalReadiness(foreign) → [] not throw`. ⚠ **The probe immediately earned its keep**: `gen:types` had not been re-run after Migration E, so the three new doors weren't in the RPC union and `tsc` failed outright — *another* green-bar-over-dead-code instance, caught only because someone executed the code. **This is the lesson to keep: for a flag-gated phase, "it compiles" and "it works" are unrelated claims.**
 
@@ -639,6 +668,34 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
+
+**Phase 16 · tester · 5 new specs, combined run (tester, 2026-08-03, dev server, `--project=chromium --workers=1`)**
+— all 5 phase16 specs together, per each file's own header instruction (avoids the shared
+`app.feature_flags` row racing across files under `fullyParallel: true`).
+
+| Run | Result |
+| --- | --- |
+| `phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts`, combined | **30 passed · 0 failed · 30/30 · GREEN** |
+| Same 5 files, run individually (fix-loop / isolation checks) | core 7/7 · freshness 8/8 · hospital 6/6 · restricted 5/5 · clone 4/4 |
+| lint (5 specs + `helpers/accreditation.ts`) · tsc | 0 errors/0 warnings · exit 0 |
+
+**Flag-harness self-test (the mandatory pre-check, ADR 0093 / BUG-P16-002's lesson)**: `core.spec.ts`
+AC-0 sets `accreditation` OFF and asserts the commission-level `not-found.tsx` boundary
+("Não encontramos esta página.") renders — proving the suite CAN fail — then flips it ON and asserts
+real content (the hospital surface's "Acreditação" H1; routed there specifically, not the
+commission list/framework routes, to keep the proof independent of BUG-P16-003/004 while they were
+still open). Both directions verified live before any other assertion was trusted.
+
+**Two blocking product bugs found, fixed, and tester-verified closed in this run** (full detail +
+root cause in the Bug Log): **BUG-P16-003** (`framework-list.tsx` forwarding a closure prop across a
+Server→Client boundary — crashed the commission framework list for every staff_admin once a global
+framework existed) and **BUG-P16-004** (`[framework]/layout.tsx` → `StandardsTree`, the same defect,
+crashing every framework/standard-detail page — the larger blast radius of the two). Both fixed by
+`frontend` (`3fc40df`) exactly along the reported fix shape (resolve hrefs to strings before the
+client boundary); re-verified live via Playwright AND a source read before closing. One additional
+**minor, non-blocking** defect filed and left open: **BUG-P16-005** (a Portuguese pluralization bug,
+"padrãoes" instead of "padrões", in the readiness dashboard's level card) — tester's own assertions
+were written to tolerate either spelling so they do not need a second pass once it is fixed.
 
 **Ad-hoc bug batch · scoped verification (lead, 2026-08-03, `RESET=1 RETRIES=0`)** — scoped rather than
 full-suite by design: only the specs covering the changed surfaces were run.
