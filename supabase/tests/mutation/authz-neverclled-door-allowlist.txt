@@ -11,6 +11,19 @@
 # pgTAP keystone that drives the door; only allowlist a door that genuinely has no
 # pgTAP surface, with a one-line justification.
 #
+# ⚠ A DENY-ONLY KEYSTONE DOES NOT CLEAR THE FLOOR. `pg_stat_user_functions` does not
+# count a call that raises (verified: a probe fn returning 1 records calls=1; one that
+# raises records calls=0). So a `throws_ok` keystone drives the door but leaves it at
+# 0 calls, and a door whose AUTHORIZED path is broken can never clear the floor no
+# matter how much coverage you add. That is a feature, not a quirk: ARM 2 is
+# implicitly also a "this door can complete successfully at least once" check.
+# Corollary — if a door stays on the offender list after you keystone it, suspect the
+# door, not the test. Three were found broken exactly this way on 2026-08-04
+# (assign_ethics_remediation, open_ethics_external_referral,
+# set_case_phase_assignment_role — fixed by 20260904000000; keystones in
+# supabase/tests/290_authz_never_called_door_floor.sql), each with a WORKING deny arm
+# and a 100%-failing authorized arm. Never allowlist a door to silence this.
+#
 # (Seeded 2026-07-18 — populate from the first ARM=floor run offender list, keeping
 #  only doors with a documented door-only/E2E-only rationale.)
 

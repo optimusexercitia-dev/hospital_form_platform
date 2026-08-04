@@ -125,7 +125,7 @@ phase remains in front of it).
   · ✅ **Waves 2 + 3 COMPLETE** (build side). Backend: flag helper · C (framework CRUD/clone) · D (evidence/assessment/candidates) · **E (the three read doors)** · the BUG-P16-001 and BUG-P16-002 fixes. Frontend: rollups (+22 Vitest) · messages · actions · 9 components · 5 routes · evidence picker · Recharts readiness dashboard · hospital surface · nav. Suite **4575/4575** on a fresh reset, 252==252, lint/typecheck/`next build` green.
   · 🏆 **The phase's headline result — the BUG-AUTHZ-001 lesson actually landed.** All four new DEFINERs (`readiness_report`, `readiness_evidence`, `hospital_readiness`, `evidence_candidates`) contain **`is_admin` nowhere in their source at all** — not in a gate, not in a comment (lead-verified via `pg_proc`), and carry no `PUBLIC` in their ACLs. `hospital_readiness` is gated `is_hospital_admin_of OR is_org_admin_of(org_of_hospital)` exactly per D6. **They were cloned from `hospital_document_register`, which still carries the defective `is_admin()` arm as BUG-AUTHZ-002 — the clone deliberately does not.** Copying a precedent's shape without copying its defect is the whole point of D6.
   · 🔬 **platform_admin zero-rows, mutation-proven per door, caught TWICE each.** For each of the three doors, backend reintroduced `or app.is_admin()` — the literal BUG-AUTHZ-001 defect, not an unrelated break — and confirmed **both** a behavioural assertion (calling the door as platform_admin) **and** a structural `pg_proc` census went red simultaneously: `readiness_report` → A1+E1 · `readiness_evidence` → A2+E2 · `hospital_readiness` → A1+G1. The structural regex was **cross-validated against the known BUG-AUTHZ-002 shape in `hospital_document_register` to prove it is not vacuous** — a census that matches nothing passes everywhere.
-  · 🚪 **Door-audit floor found a never-called door of our own**: `delete_standard` was "covered" by pgTAP 280 only via a **flag-off negative, which raises *before* reaching the authorization body** — so it never exercised the door. A real successful delete was added (D5/D6) and it now passes the floor. ⚠ **Coverage that raises early is not coverage.** 13 unrelated pre-existing never-called doors remain (ethics vocabulary, case-assignment roles, referral actions) — a real gap in the ADR 0079 standing invariant that **predates this phase**; filed separately, not fixed here.
+  · 🚪 **Door-audit floor found a never-called door of our own**: `delete_standard` was "covered" by pgTAP 280 only via a **flag-off negative, which raises *before* reaching the authorization body** — so it never exercised the door. A real successful delete was added (D5/D6) and it now passes the floor. ⚠ **Coverage that raises early is not coverage.** 13 unrelated pre-existing never-called doors remain (ethics vocabulary, case-assignment roles, referral actions) — a real gap in the ADR 0079 standing invariant that **predates this phase**; filed separately, not fixed here. → **RESOLVED 2026-08-04 outside this phase** (14, not 13): keystoned + 3 broken doors fixed, floor now `INVARIANT HOLDS`. See FUP-P16-1.
   · 📋 **As-built inventory (lead-verified, working tree clean):** **9 migrations** `20260903000800`→`001600` · **6 pgTAP files — 278, 279, 280, 281, 283, 284.** ⚠ **There is no `282`**; its planned scope (freshness matrix cell-by-cell) was **absorbed into 279** (61 assertions, C1…C30 — all 10 kinds, both `review_due_date = current_date` boundaries, the frequency-window cutoff, every Amendment 1–3 ruling). Nothing lost, but **"pgTAP 278–284" is not a valid coverage claim** — a range naming a file that does not exist is the same failure family as a gate summary whose denominator hides unrun tests. Plan corrected.
   · 📌 **Coverage gap flagged for QA (not a defect):** the indicator freshness arm maps five frequencies to intervals (`mensal|bimestral|trimestral|semestral|anual` → 1/2/3/6/12 months) but only **`mensal`** is asserted. An *unrecognized* frequency raises (fails closed); a **wrong interval** — `semestral` → 5 months — would pass silently. Four more cells closes it.
   · ✅ **Tester COMPLETE — 5 E2E specs, 31/31 GREEN** (`e2e/phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts` + shared `e2e/helpers/accreditation.ts`). Harness proved it could fail FIRST (AC-0: flag OFF → the commission `not-found.tsx` boundary renders; flag ON → real content — both asserted live before anything else was trusted, per BUG-P16-002's lesson). Found, precisely diagnosed, and got fixed **two blocking product bugs** (BUG-P16-003, BUG-P16-004 — a Server Component forwarding a closure prop across a Client boundary, crashing the framework list and then every framework/standard page; `frontend` fixed both in `3fc40df`, tester re-verified live + via source read and closed both) and filed one **minor** cosmetic pt-BR pluralization defect (BUG-P16-005 — since PO-ruled + fixed by frontend across `c1f098b`/`aad4877` and re-verified/closed by tester with exact-literal assertions; see below). Migration F was correctly never needed — every spec builds its own framework/standard fixtures (`platform@test.local` for the two GLOBAL packs spec 1/3/5 need; commission-owned for spec 2/4), matching the PO-parked status. Full detail: Bug Log + Test Run Summary above.
@@ -140,7 +140,7 @@ phase remains in front of it).
     ⚠ **It took three runs, and the first two were not noise.** Run 1: auth returned **502 while every container reported `healthy`** — the documented crash-loop mode — producing `reset FAILED`, `server_dead`, 35 conn errors, 32 infra and **100 unrun**. Recovery was verified by a **real token POST returning 200**, not by the health endpoint, which was the thing lying. Run 2, on a verified-healthy stack, **was still red on the same two tests** → that was **BUG-P16-006**, a genuine defect, *not* the 502. Run 3: 0 failures, one unrelated batch-2 reset flake, re-run clean 67/67.
     📌 **Lesson worth keeping: a plausible infra explanation for a real failure is the most expensive kind of wrong.** The 502 was real *and* caused the mass unrun, which made "it's all infra" the easy and wrong read — it would have shipped a suite that was never reproducible on a fresh database. Only re-running on a *proven*-healthy stack separated cause from coincidence.
   · ✅ **GATE STEP 3 GREEN** — QA **APPROVED** (0 BLOCKER / 0 MAJOR / 2 MINOR / 1 INFO) → `docs/reviews/phase-16-review.md`. QA re-derived the load-bearing claims itself and ran **3 independent live mutation tests** (capture `pg_get_functiondef` → mutate → rerun pgTAP → confirm the predicted red → restore → diff byte-identical).
-  · ⬜ **GATE STEP 4 — awaiting human approval.** Three PO decisions outstanding: (1) **ONA structure** → unblocks Migration F; (2) **ship over the pre-existing red door floor?** (14 never-called doors, all from `20260817*`/`20260829*`, none Phase 16 — Rule 1 calls it must-pass and the pilot rides on this phase); (3) QA's INFO — a **shared pt-BR pluralization helper**, since `-ão→-ões` bit twice in one phase.
+  · ⬜ **GATE STEP 4 — awaiting human approval.** ~~Three~~ **Two** PO decisions outstanding: (1) **ONA structure** → unblocks Migration F; ~~(2) **ship over the pre-existing red door floor?**~~ → **MOOT 2026-08-04: the floor is GREEN** (`INVARIANT HOLDS`); the 14 pre-existing doors were keystoned and 3 broken ones fixed outside this phase — see FUP-P16-1. Rule 1 is satisfied, so this no longer gates Phase 16 or the pilot; (3) QA's INFO — a **shared pt-BR pluralization helper**, since `-ão→-ões` bit twice in one phase.
   · ⬜ **GATE STEP 5 — Record** (on approval): Migration G (`enable_accreditation`, the `20260903000600` shape) + `seed.sql` force-ON · regenerate types · update `docs/backend-state.md` (new tables/doors/SQLSTATEs + the HC0Q high-water row) · move the **`loading.tsx` 404-signal finding into `docs/testing/`** · verify accreditation-track §16 matches as-built · rotate phase detail · commit `phase(16): complete — …`. **Then** the user-gated pilot deploy (origin push + Coolify + remote `db push`).
   · 🔧 **Plan ownership correction (lead)** — the plan gave the `feature-flags.ts` flag wiring to **frontend**, but `src/lib/queries/` is **backend-owned** (CLAUDE.md §4, binding). **Reassigned to backend** as its first Wave 2 item; frontend imports the helper and sequences routes last so the gate exists when it gets there.
   · ✅ **Frontend Wave 2 track COMPLETE** — `src/lib/accreditation/rollups.ts` (`computeReadinessRollups`: cumulative ONA level gating incl. the "clean level 2 blocked by a dirty level 1" boundary; per-chapter/overall % for non-leveled frameworks; freshness split never collapsed — structurally asserted) + 22-test Vitest suite, all green; `messages.ts` (HC0Q9–HC0QE pt-BR mapping); `actions.ts` (framework/standard CRUD, evidence link/unlink, assessment — `standard_ownership` deliberately deferred to the Wave 3 hospital surface). Components in `src/components/accreditation/`: framework list + clone dialog, the standards tree (semantic nested `<ul>`, no `role=tree`), the standard panel (assessment form with PHI-discouragement copy on `note_md`, evidence list with valida/atenção/vencida chips + "Evidência restrita" masking + unlink). Routes `manage/acreditacao/**` cloned from `manage/indicadores/` (layout flag+role gate, list page, `[framework]` master-detail shell, `padrao/[standard]` detail) + the `app-sidebar.tsx` nav entry (`requiresFeature: 'accreditation'`). `npm run lint` / `typecheck` / `vitest run` (895 passed) / a REAL `next build` all green, all three new routes registered.
@@ -1062,7 +1062,42 @@ contamination, not a defect — the lead tripped over it once and it reads exact
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
-### 🔴 FUP-P16-1 — **14** never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
+### ✅ FUP-P16-1 — 14 never-called doors fail the ADR 0079 floor — **RESOLVED 2026-08-04**
+
+> **RESOLVED.** `ARM=floor` now reports `=== INVARIANT HOLDS ===` (exit 0): doors with 0 calls
+> **103 → 89**, all 89 on the allowlist. Full pgTAP green on a **fresh reset** — `Files=151,
+> Tests=4615, Result: PASS`. **Nothing was added to the allowlist**: all 14 were verdict (b), a
+> real coverage gap. Keystones: `supabase/tests/290_authz_never_called_door_floor.sql` (40
+> assertions). Fixes: `supabase/migrations/20260904000000_fix_never_called_ethics_doors.sql`.
+> No Phase 16 file touched.
+>
+> **Writing the ADR-0079 positive twins found 3 doors whose AUTHORIZED path could never succeed** —
+> each had a *working* deny arm, so any deny-only test passes while the door is 100% broken for the
+> principal it serves. All three were latent (no component wires them yet):
+> - `assign_ethics_remediation` — `22P02`: `create_committee_action_item` returns the `action_items`
+>   ROW, assigned into a `uuid`. · `open_ethics_external_referral` — `22P02`: same shape, with
+>   `create_referral_draft` returning `case_referral`. · `set_case_phase_assignment_role` — `23514`:
+>   wrote `case_phases` without setting `app.in_case_rpc`, so `app.guard_case_phase_status` rejected
+>   it; its siblings (`activate_phase`, `reassign_phase`, `add_ad_hoc_phase`, …) all set the flag —
+>   this door never inherited that arm.
+>
+> ⚠ **The reusable mechanic — a deny-only keystone CANNOT clear the floor.**
+> `pg_stat_user_functions` does not count a call that raises (verified with a probe pair: returning
+> fn `calls=1`, raising fn `calls=0`). So ARM 2 is implicitly also a *"this door can complete
+> successfully at least once"* check, and a permanently-throwing door reads as **never called**
+> rather than **failing** — which is exactly why these 3 hid for months. **If a door stays on the
+> offender list after you keystone it, suspect the door, not the test.** Recorded in the allowlist
+> header so the next reader hits it there. Never allowlist a door to silence this.
+>
+> Every deny keystone is **mutation-proven**: neutralizing `can_manage_professional`,
+> `assert_ethics_coordinator`, `can_manage_referral_source`/`_target`, `is_staff_admin_of` and
+> `is_admin` in turn reddens exactly the expected assertions (both `unlink_referral_case` branches
+> redden independently). Mutations ran inside the rolled-back test transaction; catalog verified
+> restored after.
+
+<details><summary>Original filing (2026-08-03/04) — kept for provenance</summary>
+
+#### 🔴 FUP-P16-1 — **14** never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
 
 > **Lead re-ran it at the gate (2026-08-04, fresh reset): `ARM=floor` reports `=== INVARIANT VIOLATED ===`, 103 authenticated-reachable DEFINER doors with 0 calls, 14 of them off the allowlist.** (Backend's earlier count of 13 was one short.) **Provenance verified, not assumed** — every offender traces to a migration that predates this branch:
 > `archive_case_assignment_role`, `create_ethics_allegation_category`, `void_decision` → `20260817000500_ethics_e2_rpcs.sql` · `open_ethics_external_referral` → `20260817000600` · `unlink_referral_case` → `20260817001600` · `set_template_case_type` → `20260829000100`. All ≪ Phase 16's `20260903000800`. `git log main..HEAD -- supabase/tests/mutation/` is **empty** — Phase 16 never touched the audit or its allowlist, and it *removed* an offender (`delete_standard`) rather than adding one.
@@ -1085,6 +1120,8 @@ copied here, precisely so it cannot go stale — the standing "encode load-beari
 executably" rule), then add a genuine successful call per door. Relates to ARCHITECTURE.md Rule 1,
 ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md), and the open
 **AUDIT-INVOKER-WRAPPER** item, which is the *other* structural blind spot in the same sweep.
+
+</details>
 
 ### 🟡 FUP-P16-2 — two accreditation reads live in `actions.ts`, not `queries/` (Rule 9)
 
