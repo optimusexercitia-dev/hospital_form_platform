@@ -138,8 +138,8 @@ function LevelCard({ level }: { level: LevelRollup }) {
       </p>
 
       <p className="text-xs text-muted-foreground">
-        {level.cleanStandards} de {level.totalStandards} padrão
-        {level.totalStandards === 1 ? "" : "es"} conforme
+        {level.cleanStandards} de {level.totalStandards}{" "}
+        {level.totalStandards === 1 ? "padrão" : "padrões"} conforme
         {level.cleanStandards === 1 ? "" : "s"} (não cumulativo)
       </p>
 

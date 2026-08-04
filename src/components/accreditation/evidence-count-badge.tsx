@@ -37,16 +37,20 @@ export function EvidenceCountBadge({
     );
   }
 
+  // Literal singular/plural forms, never derived by string concatenation —
+  // "em atenção" pluralizes irregularly ("em atenções", the same -ão -> -ões
+  // pattern as "padrão" -> "padrões"), so a generic `${word}s` suffix silently
+  // produces "em atençãos" whenever atencao > 1 (BUG-P16-005's sibling, found
+  // by sweeping this file for the same string-concatenation pattern).
   const segments = [
-    { key: "valida", count: valida, dot: "bg-success", word: "válida" },
-    { key: "atencao", count: atencao, dot: "bg-warning", word: "em atenção" },
-    { key: "vencida", count: vencida, dot: "bg-destructive", word: "vencida" },
-    { key: "restrita", count: restrita, dot: "bg-muted-foreground", word: "restrita" },
+    { key: "valida", count: valida, dot: "bg-success", singular: "válida", plural: "válidas" },
+    { key: "atencao", count: atencao, dot: "bg-warning", singular: "em atenção", plural: "em atenções" },
+    { key: "vencida", count: vencida, dot: "bg-destructive", singular: "vencida", plural: "vencidas" },
+    { key: "restrita", count: restrita, dot: "bg-muted-foreground", singular: "restrita", plural: "restritas" },
   ].filter((segment) => segment.count > 0);
 
-  const plural = (word: string, count: number) => (count === 1 ? word : `${word}s`);
   const summary = segments
-    .map((s) => `${s.count} ${plural(s.word, s.count)}`)
+    .map((s) => `${s.count} ${s.count === 1 ? s.singular : s.plural}`)
     .join(", ");
 
   return (
