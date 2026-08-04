@@ -191,6 +191,44 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+#### 🔴 BUG-P16-004 — the SAME defect class as BUG-P16-003, in `[framework]/layout.tsx` → `StandardsTree` — blocks EVERY framework/standard page, not just the list · owner **frontend** · phase 16 · filed by **tester** 2026-08-03 · **escalates BUG-P16-003's severity**
+
+**This is the more severe of the two.** `src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx:60` passes an inline closure `standardHref={(standardId) => commissionHref(...)}` straight into `<StandardsTree standardHref={standardHref} .../>` — and `standards-tree.tsx:1` is `"use client"`. Since `FrameworkLayout` wraps the framework overview page AND every `padrao/[standard]` detail page (the sidebar tree renders on both), **this crashes the entire commission-side Accreditação surface below the bare list** — not an edge case gated behind "a global framework exists," this fires on the very first framework a coordinator opens, always. Confirmed live (dev server log, same error shape as BUG-P16-003):
+```
+⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
+marking it with "use server". Or maybe you meant to call this function rather than return it.
+  <... nodes={[...]} readinessByStandardId=... standardHref={function standardHref}>
+                                                            ^^^^^^^^^^^^^^^^^^^^^^^
+```
+Reproduced both server-side and in the browser console, at `/o/rede-a/c/ccih/manage/acreditacao/{frameworkId}`.
+
+**Swept the rest of the route tree for the identical shape** (every inline `Href={(...) => ...}` prop passed FROM an `src/app/**/acreditacao/**` route file): exactly 3 exist. `manage/acreditacao/page.tsx:49` (→ `FrameworkList`, Server→Client — BUG-P16-003) and this one are broken; `[framework]/page.tsx:38` (→ `ReadinessDashboard`) is SAFE — `ReadinessDashboard` has no `"use client"`, stays a Server Component, and only ever CALLS the closure server-side to produce a plain string for a bare `<Link href=...>` (`GapListSection`, same file) — the function itself never crosses a client boundary there. So the fix shape is the same for both broken spots, and there is a real, working THIRD example already in this file to model it after: compute the href as a STRING (or pass the plain routing pieces + call `commissionHref` again where needed) before or at the client boundary, never forward the closure itself.
+
+**Test impact — this is why `tester` is pausing most UI-layer assertions across all 5 phase16 specs**: `phase16-accreditation-core.spec.ts` AC-1/AC-5, `-freshness.spec.ts` (every test — all navigate to a standard detail page), `-restricted.spec.ts` AC-3's UI corollary, `-clone.spec.ts` AC-2's UI corollary all route through `[framework]/layout.tsx` and will fail here until fixed. The RPC/DB-truth layer of every spec is unaffected (those calls never touch this render path) and has been verified extensively already — `tester` is continuing to exercise and report on that layer while this is open, and will re-run the UI-layer assertions once both this and BUG-P16-003 are fixed.
+
+#### 🔴 BUG-P16-003 — `manage/acreditacao` framework LIST page crashes for every staff_admin whenever a global framework exists · owner **frontend** · phase 16 · filed by **tester** 2026-08-03 (found running `phase16-accreditation-core.spec.ts` AC-0)
+
+**Severity: blocking.** This is the route's unconditional happy path, not an edge case — the layout already restricts the whole `manage/acreditacao` area to `staff_admin` (`AcreditacaoLayout`'s `access.role !== "staff_admin"` → `notFound()`), so `AcreditacaoPage` always calls `<FrameworkList canManage={true} .../>` for anyone who reaches it. Once Migration F seeds the ONA/JCI global packs, this fires for **every** staff_admin, every time, everywhere — right now it only needs one commission-visible global framework to exist, which a single `create_framework(ownerCommission: null)` call produces.
+
+**Repro:** sign in as `chefe.ccih@test.local` (staff_admin, CCIH), ensure at least one GLOBAL framework exists (`owner_commission_id is null`), navigate to `/o/rede-a/c/ccih/manage/acreditacao` with the `accreditation` flag ON.
+
+**Expected:** the framework list renders — global packs show a "Clonar para editar" button.
+
+**Actual:** the route crashes to `manage/acreditacao/error.tsx`. Dev server log:
+```
+⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
+marking it with "use server". Or maybe you meant to call this function rather than return it.
+  <... frameworkId=... frameworkName=... commissionId=... frameworkHref={function frameworkHref}>
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+```
+Same error reproduced in the browser console (`[browser] Error: ... (src/app/o/[org]/c/[commission]/manage/acreditacao/error.tsx:16:13)`) — not a server-only artifact.
+
+**Root cause, traced to the exact line (not inferred):** `src/components/accreditation/framework-list.tsx` has no `"use client"` directive (Server Component). Its `frameworkHref` prop is a plain closure, ultimately `(frameworkId) => commissionHref(org, commission, "manage", "acreditacao", frameworkId)` defined inline in `manage/acreditacao/page.tsx`. `FrameworkList` forwards it verbatim at `framework-list.tsx:71` into `<CloneFrameworkDialogTrigger frameworkHref={frameworkHref} .../>` — and `clone-framework-dialog.tsx:1` is `"use client"`. A plain (non-Server-Action) function cannot cross a Server→Client props boundary; this is exactly that crossing. This is the same bug CLASS as the earlier BUG-QI-001 (`docs/progress/bug-log-archive.md` — "Server fn prop → client = RSC crash"), whose established fix pattern is "pass strings + build hrefs via pure routing helpers" — i.e. `CloneFrameworkDialogTrigger`/`CloneFrameworkDialog` should take the plain string pieces (or a pre-built base path) and construct the href client-side (`commissionHref` itself has no server-only import, so calling it directly inside the client component is also an option), not receive a closure as a prop.
+
+**Verified NOT systemic beyond this one spot** — audited every other `Href={...}` prop crossing in `src/components/accreditation/`: `clone-framework-dialog.tsx:49` (client → its own client child, same file — fine), `readiness-dashboard.tsx:65,95` (Server `ReadinessDashboard` → Server `GapListSection`, same file, no client boundary — fine), `standards-tree.tsx:49,126` (client → its own client child, same file — fine). Only `framework-list.tsx:71` crosses an actual Server→Client boundary.
+
+**Test impact:** blocks `phase16-accreditation-core.spec.ts` AC-0's flag-ON assertion when pointed at the bare list route. Tester is routing AC-0's ON-check at a framework-specific sub-route instead (`[framework]/page.tsx`, which does not render `FrameworkList`) so the flag-harness proof itself is not held hostage by this separate, already-filed bug — but the list page itself stays red until this is fixed, and QA should re-verify the list route directly once it is.
+
 ✅ **BUG-P16-002 — CLOSED 2026-08-03** (`93a3bf8`). All 7 implemented + `listGlobalFrameworks()` added; lead-verified **0** occurrences of `not implemented` remain. Backend **verified by executing, not compiling**: a standalone probe signed in as real seeded personas (`chefe.ccih`, `hospitaladmin.a1`), flipped the flag **at runtime only** (never committed), seeded a throwaway fixture and called every operation for real — all 9 probes PASS, including `getHospitalReadiness(foreign) → [] not throw`. ⚠ **The probe immediately earned its keep**: `gen:types` had not been re-run after Migration E, so the three new doors weren't in the RPC union and `tsc` failed outright — *another* green-bar-over-dead-code instance, caught only because someone executed the code. **This is the lesson to keep: for a flag-gated phase, "it compiles" and "it works" are unrelated claims.**
 
 <details><summary>BUG-P16-002 original report (kept for the lesson)</summary>
@@ -222,6 +260,14 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 ⚠ **The standing lesson: a fix that removes a symptom can hide the defect it was masking.** With the coalesce in, the missing read path no longer destroyed data — so the pressure to build it dropped to zero, and the new "cannot clear" bug was invisible to everything except a test that explicitly clears. **Hence both round-trips are asserted, not one:** C7b (status-only save → note SURVIVES) and C11 (explicit `''` → note is GONE). **Either one alone passes in a broken world.** Relates to ADR 0093 D8.
 
 </details>
+
+🧭 **BUG-P16-003/004 — the AUTHORITATIVE sweep (lead, 2026-08-03). Exactly 2 defects; no third exists.** The tester's sweep was keyed on the `Href={(…) => …}` **shape in route files**; the real property is **"any function-valued prop crossing a server→client boundary"** (an `onSelect`/`formatter`/`render` prop crashes identically and matches no `Href` grep). Re-derived **from the boundary**: classified every component in `src/components/accreditation/` by `"use client"`, then inspected every server→client prop block.
+**Client components (8):** `assessment-form` · `clone-framework-dialog` · `evidence-picker` · `ownership-editor` · `readiness-chart-loader` · `readiness-chart` · `standards-tree` · `unlink-evidence-button`.
+**Function-valued props reaching one — exactly 2:** `framework-list.tsx:71` → `CloneFrameworkDialogTrigger` (**003**) · `[framework]/layout.tsx:58` → `StandardsTree` (**004**).
+**Verified safe** (plain data only): `OwnershipEditor`, `AssessmentForm`, `LinkEvidenceDialogTrigger`, `UnlinkEvidenceButton`, `ReadinessChartLoader`.
+✅ **Two independent methods agree** — the tester's shape-keyed sweep and this boundary-derived one both return the same 2. That agreement is the evidence, not either sweep alone.
+⚠ **Why `readiness-dashboard.tsx` is the safe model, stated precisely:** not because it "calls the closure first", but because **it is a Server Component** — the closure `[framework]/page.tsx` hands it never crosses a boundary; it resolves hrefs to strings *before* rendering the client `ReadinessChartLoader`. **Resolve to strings on the server side of the boundary.**
+⚠ **Third green-bar-over-unreached-code instance this phase.** `tsc` + `lint` + a real `next build` are all green with both crashes live: 003 renders only when a **global** framework exists (none locally; Migration F makes it unconditional) and 004 only below the flag gate. **Red-before-green is mandatory on both** — a fix nobody saw fail is unvouched.
 
 🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
