@@ -864,6 +864,51 @@ contamination, not a defect — the lead tripped over it once and it reads exact
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
+### 🔴 FUP-P16-1 — 13 never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
+
+Surfaced 2026-08-03 while running `ARM=floor bash supabase/tests/mutation/p0-authz-invariant.sh`
+during Phase 16. Thirteen `prosecdef` doors — in **ethics vocabulary, case-assignment roles and
+referral actions** — are never exercised by any pgTAP suite, so the standing door audit cannot see
+whether their authorization bodies work at all. **Predates Phase 16 and is unrelated to it**; all
+Phase 16 doors now pass the floor.
+
+⚠ **The mechanism is the reusable part.** Phase 16 had a door of its own in this state —
+`delete_standard`, "covered" by pgTAP 280 via a **flag-off negative test that raises *before*
+reaching the authorization body**. It looked covered and was not. **Coverage that raises early is
+not coverage**, and a `grep` for the function name in the test suite would have said "covered" for
+every one of these 13.
+
+**To act on it:** re-run the floor sweep to regenerate the current list (it is derived, not
+copied here, precisely so it cannot go stale — the standing "encode load-bearing claims
+executably" rule), then add a genuine successful call per door. Relates to ARCHITECTURE.md Rule 1,
+ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md), and the open
+**AUDIT-INVOKER-WRAPPER** item, which is the *other* structural blind spot in the same sweep.
+
+### 🟡 FUP-P16-2 — two accreditation reads live in `actions.ts`, not `queries/` (Rule 9)
+
+`getStandardAssessmentDetail` and `searchEvidenceCandidates` are **reads** in
+`src/lib/accreditation/actions.ts`. This is debt from **BUG-P16-002**, not a design choice:
+`src/lib/queries/accreditation.ts` was still throwing `not implemented` when frontend needed them,
+and frontend correctly refused to edit a backend-owned file. Now that the query layer is real,
+route both through `src/lib/queries/` per **Architecture Rule 9**. Backend owns the move; frontend
+must not do it unilaterally.
+
+### ✅ FUP-P16-3 — `app.copy_version_children` temp-table concern: **INVESTIGATED, NOT A BUG**
+
+Recorded so it is not re-raised. During Phase 16, `clone_framework` genuinely needed a
+`drop table if exists` guard (its temp map failed on a second call in one transaction), and the
+finding was reported as "the same pattern exists in the precedent I copied it from,
+`app.copy_version_children` — confirmed live". **Lead re-checked the live body: it is not the same
+pattern.** `copy_version_children` drops **both** temp tables **unconditionally at the end of its
+body** (`drop table _clone_section_map; drop table _clone_item_map;`) and has **no exception
+block** — so sequential calls in one transaction are fine, and a call that raises aborts the
+transaction, leaving no second call to collide with.
+
+⚠ **The lesson, which is why this entry exists at all:** confirming that a *pattern* is present is
+not confirming that the *defect* is present. The `on commit drop` line was really there; the
+conclusion drawn from it was still wrong. Same family as the standing false-P0 rule — read the
+whole body, not the line that matches.
+
 ### 🔴 FUP-FF5-1 — patient-lane sublabel is degenerate on the READ path (**PO DEFERRED 2026-07-28**)
 
 The picker shows `Paciente / Paciente afetado`; the **durable submitted record** and wizard resume
