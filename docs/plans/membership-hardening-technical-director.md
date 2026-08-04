@@ -1,6 +1,8 @@
 # Plan — Membership hardening + Diretor Técnico backend (ADR 0094)
 
-**Status:** Proposed — no work authorized until human approval + phase placement.
+**Status:** APPROVED and IN BUILD (PO 2026-08-04) — branch
+`feat/membership-hardening-technical-director`. **W1 ✅ · W2 ✅ · W3 ✅ · W4 partial**
+(T4.1–T4.3 built, flag DARK). See the W4 section for what remains.
 **Authority notes:** this plan is NOT authoritative on the substrate — re-verify every
 schema/RLS/RPC claim against the **live catalog** at build time (ADR 0078 A28). Before
 any workstream starts, the assigned teammates read
@@ -163,90 +165,136 @@ the live actor in PostgreSQL.
 **Goal:** the DT roles exist with their legal invariants; a committee can submit a case
 for the DT's analysis over the referral plane, PHI included and audited; no frontend.
 
-### Tasks (backend)
+> **Status 2026-08-04: T4.1–T4.3 are BUILT** (migration `20260905000400`, pgTAP `294`
+> 29/29, mutation audit 8/8 RED-PROVEN, commit `803e837`). The `technical_director`
+> flag is **DARK** — its enable migration (T4.9) is the last step and is unbuilt, so the
+> grant arms refuse and nothing is half-live. Everything under *Referral extension* is
+> the remaining work.
 
-**Roles + appointment**
+### Decisions locked by interview (PO, 2026-08-04) — do not re-litigate
 
-- **T4.1 — Migration:** admit `technical_director` + `technical_director_deputy` to
-  `memberships_role_check`; two hospital-tier arms in the scope-shape CASE
-  (org + hospital set, commission NULL); partial unique index
-  `(hospital_id) WHERE role = 'technical_director'` (one titular per hospital).
-- **T4.2 — Kernel arms** (in the W3 kernel): grant/revoke for both roles; authority =
-  `app.is_org_admin_of(org_of_hospital(h))` OR `app.is_hospital_admin_of(h)`;
-  **physician check** — target's `profiles.professional_category_id` resolves to
-  `professional_categories.key = 'physician'` and `is_active`, else a dedicated error
-  code (pt-BR message at the action layer); titular grant refused when one exists
-  (dedicated code); self-grant denial inherited.
-- **T4.3 — `appoint_technical_director(p_hospital, p_user)`** wrapper RPC: atomic
-  audited replacement (revoke incumbent titular + grant appointee, one transaction,
-  two audit events); same authority as T4.2. Deputy management uses the plain door.
-- **T4.4 — Server actions** (`src/lib/org/actions.ts` pattern): appoint/revoke
-  titular + deputy over the cookie client → RPCs. No UI wiring.
+| # | Decision | Consequence / rationale |
+| - | -------- | ----------------------- |
+| **D1** | **Titular ≡ deputy.** Flat authority — both hold the full target side: receive, manage, converse, reply, resolve, read PHI. | ONE DT arm in `app.can_manage_referral_target`, not two tiers. A *substituto* who cannot decide is decorative, and the referral would stall whenever the titular is away. `received_by`/`decided_by` keep accountability per-person. |
+| **D2** | **Full lifecycle, inherited.** receive → accept → start_review → conclude, plus decline, dialogue, attachments. | No forked status machine. `decline` is KEPT: `wrong_committee`/`outside_jurisdiction` are meaningless same-hospital, but **conflict_of_interest and insufficient_information are exactly why a DT must be able to refuse.** |
+| **D3** | **`referral_messages.sender_commission_id` becomes NULLABLE; NULL means "the DT of the referral's target hospital".** | No `sender_hospital_id`, no `sender_side` — the individual is already in `sender_user_id`, the side is derivable, the hospital is on the referral. Coherence enforced in the EXISTING `app.guard_referral_message` trigger (a CHECK cannot: it must read `case_referral`). |
+| **D4** | **Role-based, live audience.** The referral targets the OFFICE. Replace the DT and the new holder immediately gains the referral and its PHI; the outgoing one immediately loses both. | No person-snapshot, no grace window. Matches the legal position (technical responsibility transfers with the office) and avoids a standing PHI grant to someone no longer responsible. |
+| **D5** | **New `target_hospital_name` snapshot column**, rendered `Direção Técnica — <hospital>`. | NOT reusing `target_commission_name` (a column holding a hospital name is a name that lies), and NOT snapshotting the DT's person name (that copies Class-2 professional identity outside `professional_profiles` and goes stale the moment the office changes — contra D4). Rule 9 confines the coalesce to `src/lib/queries/referrals.ts`. |
+| **D6** | **No DT disposal arm.** `can_dispose_referral_phi` unchanged. | It already resolves for DT rows: `is_commission_admin_of(source)` + the source-hospital PQS operator, which under the same-hospital rule IS the DT's hospital. ADR 0078/M2 removed the platform_admin bypass for exactly this shape — a party that governs neither the record nor its retention must not destroy it. ⚠ Its third arm (`is_pqs_operator_of(hospital_of_commission(target_commission_id))`) is DEAD for DT rows; **left as-is by decision**, harmless because the source arm covers the same hospital. |
+| **D7** | **Keep `target_type`** exactly as ADR 0094 decision 9 specifies (no deviation, no amendment). | Three columns; a CHECK must pin `target_type` in agreement with which id is non-null, or it becomes a third thing that can disagree with the other two. |
+| **D8** | **No DT internal notes.** Both note predicates get an explicit *"commission-target-only, DT n/a"* disposition; `referral_internal_notes` untouched. | Internal notes exist so a multi-member committee can deliberate privately before answering; the DT audience is one office that answers directly. Purely additive later if a need appears. |
+| **D9** | **Add `waiting_on_hospital_id`.** | `provide_referral_information` writes `waiting_on_committee_id = target_commission_id`, which is NULL for a DT row — and the existing CHECK PERMITS NULL, so "the DT is holding this" silently reads as "nobody is waiting". One nullable column + one GRANT + one CHECK arm buys a state that cannot fail open. |
 
-**Referral extension (the submission channel)**
+### Findings that reshape the remaining work (catalog-verified 2026-08-04)
 
-- **T4.5 — Migration:** `case_referral.target_type` (`'commission'` default |
-  `'technical_director'`) + `target_hospital_id uuid REFERENCES hospitals(id)`;
-  `target_commission_id` → nullable; CHECK: exactly one of
-  (commission target ↔ `target_commission_id`) / (DT target ↔ `target_hospital_id`)
-  per `target_type`. Column-level grants for the new columns (case_referral is under
-  **column-level SELECT grants** — every new column needs its own GRANT or reads
-  `42501`; verified standing lesson).
-- **T4.6 — Target-audience arms.** Enumeration derived from the catalog at build time:
-  every function whose `prosrc` references `target_commission_id` (21 at analysis
-  time: `can_read_referral`, `can_read_referral_metadata`, `can_read_referral_phi`,
-  `can_manage_referral_target`, `can_write_referral_response`,
-  `referral_target_analyst`, `assert_referral_target_acts`, `hospital_of_referral`,
-  the guards, the lifecycle RPCs, `snap_referral_commission_names`, …) plus a
-  `pg_policies` sweep (0 direct references at analysis time — re-verify, D11 lesson).
-  Each gets an explicit DT arm or an explicit "commission-target-only, DT n/a"
-  disposition — **no function may be left implicit**. DT audience = effective
-  `technical_director` / `technical_director_deputy` membership of
-  `target_hospital_id` (via the W2 effective-grant predicates).
-- **T4.7 — Submission door:** `create_referral_draft` / send path accepts the DT
-  target; validates `target_hospital_id = (select hospital_id from commissions where
-  id = source_commission_id)` (same-hospital rule; `commissions.hospital_id` is
-  NOT NULL); snapshot/reply/dialogue machinery reused as-is; `received_by`/`decided_by`
-  record the acting individual (titular or deputy).
-- **T4.8 — PHI arm:** `app.can_read_referral_phi` (+ target-side disposal predicates
-  `can_dispose_referral_phi`) admit the DT audience for DT-targeted referrals; every
-  read remains audited by the existing referral-PHI audit path; `dispose_referral_phi`
-  flow unchanged. **No change to `patient_identifiers` / `can_read_case_patient`.**
-- **T4.9 — Feature flag** `technical_director`: role grant doors, referral DT target,
-  and audience arms all flag-gated (dark flag confers nothing — mirror the
-  administrativo kill-switch pattern). Ship WITH an explicit enable-or-not migration
-  decision (the no-enable-migration = dark-after-push lesson).
-- **T4.10 — Seed:** add a physician persona (`dt.a@test.local`, titular of a Rede A
-  hospital) + a deputy; header roster updated. Respect the seed-as-contract lesson —
-  additive only, no changes to existing personas' grants.
+1. **The target-side lifecycle funnels through ONE predicate.** `receive_referral`,
+   `accept_referral`, `decline_referral`, `start_referral_review`, `conclude_referral`,
+   `link_referral_case` and `add_referral_reply_attachment` all call
+   `app.assert_referral_target_acts`, which gates on `app.can_manage_referral_target`
+   alone. **T4.6 is therefore NOT 21 body edits** — one arm there carries the whole
+   lifecycle, and the 21 collapse to a handful of real edits plus explicit dispositions.
+2. ⚠ **THREE RPCs carry a RAW inline target check and will NOT inherit it:**
+   `get_referral_detail`, `post_referral_message`, `request_referral_information` each
+   test `app.is_staff_admin_of(<ref>.target_commission_id)` directly. This is the
+   one-of-N-sites miss this program keeps paying for — sweep by `prosrc`, never by
+   reading the lifecycle.
+3. **A DT referral can never have a target case.** `cases.commission_id` is `NOT NULL`
+   and a DT has no commission, so `target_case_id` is commission-target-only — and
+   `app.referral_target_analyst`, which *requires* `target_case_id`, can never fire for
+   a DT row. **The DT read path must be a NEW arm, not the analyst arm.**
+4. **Referrals have NO notification fan-out** (`send_referral` enqueues nothing). There
+   is no DT notification decision; discovery is the inbox, i.e.
+   `can_read_referral_metadata`.
+5. `case_referral_distinct_commissions` (`source <> target`) is satisfied when
+   `target_commission_id` is NULL — no change needed.
 
-**Tests**
+### Tasks — roles + appointment (BUILT)
 
-- **T4.11 — pgTAP:** role-shape + cardinality (second titular red); physician
-  enforcement (nurse persona red, with the *value* — the category row — not the label,
-  resolved in the fixture); appointment authority grid (org_admin ✓, hospital_admin ✓,
-  sibling-hospital admin ✗, staff_admin ✗, platform_admin per the noun rule — decide
-  and test explicitly); replacement atomicity + audit pair; DT referral audience
-  (titular ✓, deputy ✓, other hospital's DT ✗, source committee unchanged, unrelated
-  staff ✗); PHI read allowed + audited for DT, denied cross-hospital; disposal;
-  flag-off ⇒ all of the above dark; the W2 completeness grid extended with both roles
-  (it reds by construction until this lands — that is the checklist working).
-- **T4.12 — Mutation tests:** neutralize each new arm (physician check, titular
-  uniqueness, same-hospital rule, DT PHI arm) → the suite must go red.
-- **T4.13 — E2E:** no new specs (no frontend); the existing referral + members suites
+- ✅ **T4.1** roles admitted; hospital-tier arms in `memberships_scope_shape` (its
+  `else false` terminator kept); `memberships_one_technical_director_uq`.
+- ✅ **T4.2** kernel arms with the physician check
+  (`professional_categories.key = 'physician'` **and `is_active`** — the VALUE, never
+  the label) and `HC0G4` for a second titular. ⛔ **No `is_admin_for` branch** — the only
+  grant arm in the kernel without one; asserted so a "consistency" edit cannot restore it.
+- ✅ **T4.3** `public.appoint_technical_director` — atomic audited replacement.
+- ⚠ **The arm's guards MASK each other** (flag → hospital → authority → physician →
+  titular → self-grant). Any new deny-code assertion must name the guard it means.
+
+### Tasks — referral extension (REMAINING)
+
+- **T4.5 — Migration (schema).**
+  - `case_referral`: `target_type text not null default 'commission'`
+    (CHECK in `('commission','technical_director')`); `target_hospital_id uuid
+    references hospitals(id)`; `target_commission_id` → **nullable**;
+    `target_hospital_name text` (D5); `waiting_on_hospital_id uuid references
+    hospitals(id)` (D9).
+  - CHECKs: exactly-one target, **pinned in agreement with `target_type`** (D7); and
+    `waiting_on_hospital_id` admitted only for DT rows, extending
+    `case_referral_waiting_on_check`.
+  - `referral_messages.sender_commission_id` → **nullable** (D3).
+  - ⚠ **COLUMN-LEVEL GRANTS.** `case_referral` is under column-level SELECT grants
+    (`authenticated` holds 35 of 40 columns today). **Every new column needs its own
+    GRANT or reads `42501`** — a verified standing lesson, and it fails at RUNTIME, not
+    at migration time.
+- **T4.6 — Target-audience arms.** Enumeration derived at build time from the catalog
+  (comment-stripped `prosrc` referencing `target_commission_id` — **21 functions, 0
+  policies**, re-verified 2026-08-04), **plus** the raw-inline-check sweep from finding
+  2, **plus** a `pg_policies` re-sweep (D11 lesson). Each function gets an explicit DT
+  arm or an explicit *"commission-target-only, DT n/a"* disposition — **none may be left
+  implicit.** DT audience = effective `technical_director` / `technical_director_deputy`
+  membership of `target_hospital_id`, resolved live (D4) via the W2 expiry-filtered
+  predicates. Known dispositions:
+  - **ARM:** `can_manage_referral_target` (carries the whole lifecycle) ·
+    `can_read_referral_metadata` (inbox) · `can_read_referral_phi` (T4.8) ·
+    `guard_referral_message` (D3 coherence) · `snap_referral_commission_names` (D5) ·
+    `get_referral_detail`, `post_referral_message`, `request_referral_information`
+    (finding 2) · `provide_referral_information` (D9) · `create_referral_draft` (T4.7).
+  - **n/a:** both internal-note predicates (D8) · `link_referral_case`,
+    `link_referral_related_case`, `assign_referral_reviewer` (finding 3 — nothing to
+    link or assign) · `can_dispose_referral_phi` (D6, no arm).
+- **T4.7 — Submission door.** `create_referral_draft` / send path accepts the DT target
+  and enforces the **same-hospital rule**: `target_hospital_id = (select hospital_id
+  from commissions where id = source_commission_id)`; `commissions.hospital_id` is
+  NOT NULL so it always resolves. Snapshot/reply/dialogue machinery reused as-is.
+- **T4.8 — PHI arm.** DT audience admitted to `app.can_read_referral_phi` for
+  DT-targeted referrals; every read stays on the existing audited path. **No change to
+  `patient_identifiers` / `can_read_case_patient`.** No disposal arm (D6).
+- **T4.4 — Server actions** (`src/lib/org/actions.ts` pattern): appoint/revoke titular +
+  deputy over the cookie client → the RPCs. No UI wiring.
+- **T4.9 — Enable migration.** The flag ships **ON** (PO). This is the LAST step.
+- **T4.10 — Seed.** A physician DT persona (`dt.a@test.local`, titular of a Rede A
+  hospital) + a deputy; header roster updated. **Additive only** — `seed.sql` is a
+  contract with ~900 tests.
+
+### Tests
+
+- **T4.11 — pgTAP.** DT referral audience (titular ✓, deputy ✓ — D1; other hospital's DT
+  ✗; source committee unchanged; unrelated staff ✗); **the full inherited lifecycle
+  driven end-to-end by a DEPUTY** (proves D1 is real, not merely an arm); PHI read
+  allowed **and audited**, denied cross-hospital; **the office handover** — replace the
+  titular mid-referral and assert the incoming holder gains and the outgoing loses, both
+  content and PHI (D4); `waiting_on_hospital_id` written by
+  `provide_referral_information`, with the DT-holding state distinguishable from "nobody
+  waiting" (D9); internal notes invisible to the DT (D8); disposal refused to the DT and
+  still permitted to the source commission-admin (D6); flag-off ⇒ all of it dark.
+- **T4.12 — Mutation tests.** Neutralize each new arm → red: the DT audience arm, the
+  same-hospital rule, the DT PHI arm, `guard_referral_message`'s coherence check, and
+  the `target_type`/exactly-one CHECK. **Include a column-GRANT case** (drop the GRANT
+  on a new column → the read must fail), because that defect surfaces only at runtime.
+- **T4.13 — E2E.** No new specs (no frontend). The existing referral + members suites
   must stay green through `e2e:prod` — the regression proof that the target-type
-  extension didn't disturb the commission path.
+  extension did not disturb the commission path.
 
 ### Acceptance / gate
 
-- A hospital_admin can appoint exactly one physician titular + N deputies; replacement
-  is atomic and audited; a non-physician is refused at the door.
-- A committee coordinator can submit a case-referral to their hospital's DT; the DT
-  (titular or deputy) can read the snapshot (incl. patient, audited), converse, and
-  reply; nobody else gains anything; flag off ⇒ feature invisible.
+- A hospital_admin or org_admin appoints exactly one physician titular + N deputies;
+  replacement is atomic and audited; a non-physician is refused; **a platform_admin is
+  refused**. *(Met by T4.1–T4.3.)*
+- A committee coordinator submits a case-referral to their own hospital's DT; **either
+  the titular or a deputy** can read the snapshot (incl. patient, audited), converse and
+  reply; nobody else gains anything; replacing the DT transfers access with the office;
+  flag off ⇒ feature invisible.
 - Standard phase gate: fresh-reset pgTAP, unit, `e2e:prod`, QA review, human approval.
-
----
 
 ## Cross-cutting
 
@@ -267,10 +315,29 @@ those files in the same phase.
 workstream closes with a `phase(N): complete` commit and a `docs/backend-state.md`
 update (memberships §, referrals §, new roles §).
 
-**Open items for the human (blocking approval):**
-1. Program placement vs Phase 16 / pilot (recommendation: W1 pre-pilot, W2–W4 after).
-2. T1.0 replacement semantic sign-off (recommended: atomic replace, `role_changed`
-   audit semantics).
-3. Whether `platform_admin` may appoint a DT (the noun rule makes this a tenancy-arm
-   judgment call — recommendation: **no**, appointment is a tenant governance act).
-4. The `technical_director` flag's enable timing.
+**Open items for the human — ALL CLOSED (PO, 2026-08-04):**
+1. ~~Program placement vs Phase 16 / pilot~~ → **W1 → W4 straight through**, one branch.
+2. ~~T1.0 replacement semantic~~ → **atomic replace**. ⚠ Implemented as an in-place
+   UPDATE, not the delete+insert this plan's parenthetical suggested: only the UPDATE arm
+   of `trg_audit_memberships` emits `role_changed`, so delete+insert would have defeated
+   the goal the plan stated. ADR 0094 Amendment 2.
+3. ~~Whether `platform_admin` may appoint a DT~~ → **NO.** Tenant governance act; the DT
+   arm is the only grant arm in the kernel with no `is_admin_for` branch, and that is
+   asserted and mutation-proven.
+4. ~~The `technical_director` flag's enable timing~~ → **ships ON**, via the T4.9 enable
+   migration, which is the LAST step of W4. Until then the flag is DARK and the grant
+   arms refuse.
+
+**Nine further decisions (D1–D9) were taken by interview on 2026-08-04 and are recorded
+in the W4 section.** They are settled — do not re-litigate them at build time; verify
+their *substrate* claims against the live catalog instead, which is what this plan's
+authority note has always meant.
+
+**Still owed on the branch, independent of W4:**
+- The **full `e2e:prod` suite** has not been run (only two targeted runs: 160/0 and
+  171/0). Declare-green is owed before merge.
+- **`p0-authz-invariant.sh` ARM 1** (the ~90-min policy sweep) has not been run on this
+  branch. ⚠ If you interrupt it, restore `docs/reviews/authz-door-audit-findings.md` —
+  a killed run truncates it. ARM 2 has an open question filed as **FUP-MEM-1**.
+- **`assignOrgAdmin`** was migrated to `grant_role_for` with no E2E spec covering it
+  (**FUP-MEM-2**).

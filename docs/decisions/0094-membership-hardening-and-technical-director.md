@@ -205,3 +205,62 @@ review):
    category: the join fails on the missing row and raises `HC0G3` regardless, so the
    keystone passed while asserting nothing. Give the fixture a real physician category
    first, then retire it.
+
+## Amendment 4 — the DT referral plane, settled by interview (PO, 2026-08-04)
+
+Decisions 9–10 named the referral plane as the submission channel but left its shape
+open. Nine questions were put to the PO; the answers below are binding. Full rationale
+and the task breakdown are in the plan's W4 section.
+
+- **D1 — Titular ≡ deputy.** Flat authority over the whole target side. One DT arm in
+  `app.can_manage_referral_target`, not two tiers. A *substituto* that cannot decide is
+  decorative, and a referral would stall whenever the titular is away; `received_by` /
+  `decided_by` keep accountability per-person.
+- **D2 — The DT inherits the FULL target lifecycle**, decline included.
+  `conflict_of_interest` and `insufficient_information` are precisely why a DT must be
+  able to refuse, even though the jurisdiction-flavoured reasons are meaningless
+  same-hospital.
+- **D3 — `referral_messages.sender_commission_id` becomes nullable; NULL means "the DT
+  of the referral's target hospital".** No `sender_hospital_id`, no `sender_side` —
+  both would store derivable data twice. Coherence is enforced in the existing
+  `app.guard_referral_message` trigger, because a CHECK cannot read `case_referral`.
+- **D4 — The audience is the OFFICE, resolved live.** Replacing a DT immediately
+  transfers the referral and its PHI to the incoming holder and removes both from the
+  outgoing one. No person-snapshot (it would leave a standing PHI grant with someone no
+  longer responsible) and no grace window (it would re-introduce the expiry semantics
+  W2 deliberately defused).
+- **D5 — Snapshot `target_hospital_name`**, rendered `Direção Técnica — <hospital>`.
+  Not `target_commission_name` (the column name would lie) and not the DT's personal
+  name (that copies Class-2 professional identity outside `professional_profiles` and
+  contradicts D4).
+- **D6 — No DT disposal arm.** `can_dispose_referral_phi` already resolves for DT rows
+  through the source commission-admin and the source-hospital PQS operator — which the
+  same-hospital rule makes the DT's own hospital. Granting the recipient the power to
+  destroy the requester's record is the shape ADR 0078/M2 removed.
+- **D7 — `target_type` is KEPT** exactly as decision 9 specifies. A CHECK must pin it in
+  agreement with which target id is non-null.
+- **D8 — No DT internal notes.** Both note predicates take an explicit
+  *commission-target-only, DT n/a* disposition. Internal notes exist for multi-member
+  committee deliberation; the DT audience is one office that answers directly.
+- **D9 — Add `waiting_on_hospital_id`.** Without it, `provide_referral_information`
+  writes NULL for a DT row and the existing CHECK permits it, so "the technical director
+  is holding this" silently reads as "nobody is waiting" — a fail-open state on a
+  clinical referral.
+
+**Three catalog findings that change the shape of the remaining work** (they belong here
+because they invalidate a Consequence recorded above):
+
+1. The Consequence *"extending the referral target type touches every target-side
+   authority function"* is **true but misleading about cost**. The whole target-side
+   lifecycle funnels through `app.assert_referral_target_acts` →
+   `app.can_manage_referral_target`, so ONE arm carries receive/accept/decline/review/
+   conclude. The 21 functions collapse to a handful of edits plus explicit dispositions.
+2. ⚠ **Three RPCs bypass that predicate with a raw inline
+   `is_staff_admin_of(<ref>.target_commission_id)`** — `get_referral_detail`,
+   `post_referral_message`, `request_referral_information`. They inherit nothing and must
+   be found by a `prosrc` sweep, not by reading the lifecycle.
+3. **A DT referral can never have a target case** (`cases.commission_id` is NOT NULL and
+   a DT has no commission), so `app.referral_target_analyst` — which requires
+   `target_case_id` — can never fire for a DT row. The DT read path is a NEW arm, and
+   `link_referral_case` / `link_referral_related_case` / `assign_referral_reviewer` are
+   structurally n/a.
