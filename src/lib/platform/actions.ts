@@ -187,24 +187,33 @@ export async function assignOrgAdmin(
       organizationId,
     )
 
-    // Hard-coded role: 'org_admin'. MEM (ADR 0075): the first-org_admin provisioning
-    // door stays a DIRECT service-role insert into `memberships` (RLS/grant-exempt) —
-    // the grant_role door would fail here since the admin client has no auth.uid().
-    // hospital_id is NULL for the org-level org_admin row; the grant-unique key is
-    // NULLS NOT DISTINCT (PG17), so a repeat provision still conflicts. The blanket
-    // trg_audit_memberships trigger audits the write regardless of path.
+    // Hard-coded role: 'org_admin'. ADR 0094 W3/T3.3 — through the DOOR, service
+    // path (`grant_role_for`). ADR 0075 kept this a direct insert because "the
+    // grant_role door would fail here since the admin client has no auth.uid()";
+    // W3 untied the door's authority from the session, so that reason is gone and
+    // this provisioning path is now governed by the same kernel as every other grant.
     //
-    // ADR 0094 W1/T1.3 disposition: REVIEWED, UNCHANGED — and the reason is a
-    // property of the row, not a judgement call. This writer is ORG-TIER
-    // (`commission_id` is NULL), and `memberships_one_commission_role_uq` is a
-    // PARTIAL index `WHERE commission_id IS NOT NULL`, so this row is outside the
-    // index entirely and can never violate it. The org tier is deliberately
-    // unconstrained: a principal may legitimately hold org_admin AND nsp_org_admin of
-    // the same organization.
-    const { error } = await admin.from('memberships').upsert(
-      { organization_id: organizationId, principal_id: userId, role: 'org_admin' },
-      { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
-    )
+    // The actor is the platform_admin `requireAdmin()` already authorized above.
+    // `grant_role_impl`'s org_admin arm admits `app.is_admin_for(p_actor)`, which is
+    // the tenancy arm of the noun rule (CLAUDE.md §1) — bootstrapping an
+    // organization's FIRST administrator is exactly the case where no tenant admin
+    // can exist yet, so platform_admin is the only possible actor.
+    //
+    // ORG-TIER row (`commission_id` NULL), so `memberships_one_commission_role_uq`
+    // (partial, `WHERE commission_id IS NOT NULL`) does not apply: a principal may
+    // legitimately hold org_admin AND nsp_org_admin of the same organization. The
+    // kernel's `on conflict do nothing` keeps a repeat provision idempotent.
+    const actorId = (await getSessionContext())?.userId
+    if (!actorId) {
+      return { ok: false, error: MESSAGES.forbidden }
+    }
+    const { error } = await admin.rpc('grant_role_for', {
+      p_actor: actorId,
+      p_scope_type: 'organization',
+      p_scope_id: organizationId,
+      p_role: 'org_admin',
+      p_user: userId,
+    })
     if (error) {
       return { ok: false, error: MESSAGES.generic }
     }

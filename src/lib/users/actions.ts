@@ -511,54 +511,33 @@ export async function registerUser(
     // (RLS-exempt, TS-authorized above; the door needs an auth.uid() this admin
     // client lacks). Audited by trg_audit_memberships.
     //
-    // ADR 0094 W1/T1.3 — `registerUser` resolves EXISTING users too
-    // (`resolveOrInviteUser`), so the target may already hold a role in one of the
-    // selected commissions. The grant-unique key includes `role`, so re-registering
-    // them into the other role used to insert a second row; that now violates
-    // `memberships_one_commission_role_uq` and would fail the whole registration with
-    // a generic error. Apply the T1.0 replacement semantic: clear only the rows whose
-    // role actually differs, then upsert as before.
+    // ADR 0094 W3/T3.3 — committee grants go through the DOOR. This is a
+    // service-role path (the admin client provisions the account and holds no
+    // auth.uid()), so it uses `grant_role_for`, naming the actor explicitly. The
+    // actor's authority is then re-derived from the live database inside the kernel:
+    // the TypeScript checks above are no longer the only thing standing between a
+    // caller and a membership row.
     //
-    // Only DIFFERING roles are deleted, so the common path (a brand-new user, or a
-    // re-registration that changes nothing) issues no delete and emits no spurious
-    // revoke/grant audit pair.
-    const requestedRoleByCommission = new Map(
-      committees.map((c) => [c.commissionId, c.role]),
-    )
-    const { data: priorRows, error: priorError } = await admin
-      .from('memberships')
-      .select('id, commission_id, role')
-      .eq('principal_id', userId)
-      .in('commission_id', [...requestedRoleByCommission.keys()])
-      .returns<{ id: string; commission_id: string; role: string }[]>()
-    if (priorError) {
-      return { ok: false, error: MESSAGES.generic }
+    // The kernel also subsumes what W1 had to do by hand here. `registerUser`
+    // resolves EXISTING users (`resolveOrInviteUser`), so the target may already hold
+    // the OTHER role in a selected commission; the T1.0 replacement semantic handles
+    // that in SQL, so the explicit "clear superseded rows" pass this action carried is
+    // gone. One call per committee, because authority is per-commission.
+    const actorId = (await getSessionContext())?.userId
+    if (!actorId) {
+      return { ok: false, error: MESSAGES.forbidden }
     }
-    const supersededIds = (priorRows ?? [])
-      .filter((r) => requestedRoleByCommission.get(r.commission_id) !== r.role)
-      .map((r) => r.id)
-    if (supersededIds.length > 0) {
-      const { error: clearError } = await admin
-        .from('memberships')
-        .delete()
-        .in('id', supersededIds)
-      if (clearError) {
+    for (const c of committees) {
+      const { error: memberError } = await admin.rpc('grant_role_for', {
+        p_actor: actorId,
+        p_scope_type: 'commission',
+        p_scope_id: c.commissionId,
+        p_role: c.role,
+        p_user: userId,
+      })
+      if (memberError) {
         return { ok: false, error: MESSAGES.generic }
       }
-    }
-
-    const { error: memberError } = await admin
-      .from('memberships')
-      .upsert(
-        committees.map((c) => ({
-          commission_id: c.commissionId,
-          principal_id: userId,
-          role: c.role,
-        })),
-        { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
-      )
-    if (memberError) {
-      return { ok: false, error: MESSAGES.generic }
     }
   }
 
@@ -720,41 +699,28 @@ export async function assignCommitteeRole(
   // could not CHANGE a user's role in a commission (a different role = a different
   // row) and would leave a stale row.
   //
-  // ADR 0094 W1/T1.3 — this writer ALREADY enforced one-role-per-commission, by
-  // delete-then-insert, so `memberships_one_commission_role_uq` cannot fire here and
-  // no conflict arm is needed. It is rewritten anyway, to the same in-place UPDATE
-  // that public.grant_role and assignStaffAdmin now use, because delete+insert had
-  // two costs the invariant makes avoidable:
-  //   * it DESTROYED the member's per-commission title (ADR 0051) — `title_id` lives
-  //     on the membership row, so re-inserting dropped it silently on every role
-  //     change made from the user directory;
+  // ADR 0094 W3/T3.3 — through the DOOR, service path (`grant_role_for`), actor
+  // named explicitly and re-validated in PostgreSQL.
+  //
+  // This writer previously did delete-then-insert to express "one role per user per
+  // commission, role-updating". The kernel now owns that semantic (T1.0), and owning
+  // it in one place fixed two things this hand-rolled version got wrong:
+  //   * delete+insert DESTROYED the member's per-commission title (ADR 0051) —
+  //     `title_id` lives on the membership row, so it was silently dropped on every
+  //     role change made from the user directory;
   //   * it emitted `membership.revoked` + `membership.granted` for what is one act,
-  //     where trg_audit_memberships' UPDATE arm emits a single
-  //     `membership.role_changed` naming both the old and the new role.
-  const { data: existing, error: lookupError } = await admin
-    .from('memberships')
-    .select('id, role')
-    .eq('commission_id', input.commissionId)
-    .eq('principal_id', userId)
-    .maybeSingle()
-  if (lookupError) return { ok: false, error: MESSAGES.generic }
-
-  if (existing) {
-    if (existing.role !== input.role) {
-      const { error } = await admin
-        .from('memberships')
-        .update({ role: input.role })
-        .eq('id', existing.id)
-      if (error) return { ok: false, error: MESSAGES.generic }
-    }
-  } else {
-    const { error } = await admin.from('memberships').insert({
-      commission_id: input.commissionId,
-      principal_id: userId,
-      role: input.role,
-    })
-    if (error) return { ok: false, error: MESSAGES.generic }
-  }
+  //     where the trigger's UPDATE arm emits a single `membership.role_changed`
+  //     naming both the old and the new role.
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+  const { error } = await admin.rpc('grant_role_for', {
+    p_actor: actorId,
+    p_scope_type: 'commission',
+    p_scope_id: input.commissionId,
+    p_role: input.role,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()
   return { ok: true, error: MESSAGES.committeeAssigned }
@@ -778,20 +744,33 @@ export async function removeCommittee(
   }
 
   const admin = createAdminClient()
-  // MEM (ADR 0075): service-role writer; direct `memberships` delete of the commission
-  // membership (either role). Audited by trg_audit_memberships.
+  // ADR 0094 W3/T3.3 — through the DOOR, service path (`revoke_role_for`).
   //
-  // ADR 0094 W1/T1.3 disposition: REVIEWED, UNCHANGED. A delete cannot violate a
-  // unique index, and deleting by (commission, principal) without naming a role is
-  // exactly right under the new invariant — there is at most one such row, so this
-  // removes precisely it. The audit semantic is already correct: one
-  // `membership.revoked` naming the role that was actually held.
-  const { error } = await admin
+  // `revoke_role` takes the role explicitly (it revokes an exact grant, never
+  // "whatever they hold"), while this action is "remove them from the committee".
+  // Under the W1 invariant those coincide: there is AT MOST ONE commission row per
+  // principal, so reading it and revoking exactly that role removes precisely the
+  // membership this action means. The read is not DML, so the raw-DML repo gate is
+  // satisfied. A missing row is success — the user is not on the committee, which is
+  // the requested end state.
+  const actorId = (await getSessionContext())?.userId
+  if (!actorId) return { ok: false, error: MESSAGES.forbidden }
+  const { data: held } = await admin
     .from('memberships')
-    .delete()
+    .select('role')
     .eq('commission_id', commissionId)
     .eq('principal_id', userId)
-  if (error) return { ok: false, error: MESSAGES.generic }
+    .maybeSingle()
+  if (held) {
+    const { error } = await admin.rpc('revoke_role_for', {
+      p_actor: actorId,
+      p_scope_type: 'commission',
+      p_scope_id: commissionId,
+      p_role: held.role,
+      p_user: userId,
+    })
+    if (error) return { ok: false, error: MESSAGES.generic }
+  }
 
   revalidateDirectory()
   return { ok: true, error: MESSAGES.committeeRemoved }

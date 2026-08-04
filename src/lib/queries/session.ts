@@ -145,136 +145,114 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   // (treated as non-admin) if the access-token hook is ever absent.
   const isAdmin = claims.is_admin === true
 
-  // full_name + memberships in two RLS-scoped DB reads (PostgREST verifies the
-  // JWT locally — no GoTrue call). `profiles` is readable for self;
-  // `commission_members` is joined to `commissions` and filtered to the caller.
-  const [
-    profileResult,
-    membershipResult,
-    orgAdminResult,
-    hospitalAdminResult,
-    nspOrgAdminResult,
-  ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select(
-        'full_name, is_active, suspended_until, email_confirmed_at, must_change_password',
-      )
-      .eq('id', userId)
-      .maybeSingle(),
-    // The nested `organization:organizations(...)` select resolves the parent org
-    // via commissions.organization_id (denormalized, multi-tenancy Phase A).
-    // S1·MEM: memberships mixes commission/org/hospital-tier rows; the
-    // `.not('commission_id', 'is', null)` filter scopes to commission-tier rows.
-    supabase
-      .from('memberships')
-      .select(
-        'role, commission:commissions(id, name, slug, organization:organizations(id, slug, name))',
-      )
-      .eq('principal_id', userId)
-      .not('commission_id', 'is', null),
-    // Orgs the caller is org_admin of (parallel read; RLS-scoped to own orgs).
-    supabase
-      .from('memberships')
-      .select('organization:organizations(id, slug, name)')
-      .eq('principal_id', userId)
-      .eq('role', 'org_admin'),
-    // Hospitals the caller is hospital_admin of (ADR 0051). The self-read RLS arm
-    // (20260709000500) lets the caller read its OWN grant rows; each carries the
-    // org + hospital so `adminedHospitals`/`isHospitalAdmin` resolve without a
-    // second hop. hospital_admin rows always have hospital_id set (the iff-CHECK).
-    supabase
-      .from('memberships')
-      .select(
-        'organization:organizations(id, slug, name), hospital:hospitals(id, slug, name, organization_id)',
-      )
-      .eq('principal_id', userId)
-      .eq('role', 'hospital_admin'),
-    // Orgs the caller is nsp_org_admin of (ADR 0051; inert until Phase B, shape now).
-    supabase
-      .from('memberships')
-      .select('organization:organizations(id, slug, name)')
-      .eq('principal_id', userId)
-      .eq('role', 'nsp_org_admin'),
-  ])
+  // ADR 0094 W2/T2.2 — ONE RLS-scoped round trip (PostgREST verifies the JWT
+  // locally; no GoTrue call). `public.session_context()` replaces the former five
+  // reads (one `profiles` + four separately-filtered `memberships` reads).
+  //
+  // This is an internal re-plumb: the exported `SessionContext` shape is unchanged,
+  // and so is the derivation below. What moved into SQL is the definition of an
+  // EFFECTIVE grant — specifically the expiry filter
+  // (`expires_at is null or expires_at > now()`), which `app.has_role_any` has always
+  // applied and this TypeScript never did. Before W2 an expired membership rendered
+  // a commission in the shell that every DB predicate then denied.
+  //
+  // The RPC is GENERIC OVER ROLES — it returns every grant with its scope references
+  // and lets the caller partition. Adding a role no longer means adding a query here;
+  // it means adding a filter below (or not, if the shell does not surface it).
+  const { data: ctxData } = await supabase.rpc('session_context')
 
-  const memberships: Membership[] = (membershipResult.data ?? [])
+  // The RPC's return type is `Json`; this is its documented shape (see the migration
+  // 20260905000200 header). Narrowed once, here, rather than at each use.
+  interface SessionGrant {
+    role: string
+    organization: OrganizationRef | null
+    hospital: (Omit<HospitalRef, 'organizationId'> & {
+      organization_id: string
+    }) | null
+    commission: {
+      id: string
+      name: string
+      slug: string
+      organization: OrganizationRef
+    } | null
+  }
+  const ctx = ctxData as {
+    profile: {
+      full_name: string | null
+      is_active: boolean
+      suspended_until: string | null
+      email_confirmed_at: string | null
+      must_change_password: boolean
+    } | null
+    grants: SessionGrant[]
+  } | null
+
+  const grants: SessionGrant[] = ctx?.grants ?? []
+
+  const memberships: Membership[] = grants
     .filter(
       (
-        row,
-      ): row is {
+        g,
+      ): g is SessionGrant & {
         role: CommissionRole
-        commission: {
-          id: string
-          name: string
-          slug: string
-          organization: OrganizationRef
-        }
+        commission: NonNullable<SessionGrant['commission']>
       } =>
-        row.commission !== null &&
-        (row.commission as { organization: OrganizationRef | null })
-          .organization !== null &&
-        (row.role === 'staff' || row.role === 'staff_admin'),
+        g.commission !== null &&
+        g.commission.organization !== null &&
+        (g.role === 'staff' || g.role === 'staff_admin'),
     )
-    .map((row) => ({ commission: row.commission, role: row.role }))
+    .map((g) => ({ commission: g.commission, role: g.role }))
     .sort((a, b) =>
       a.commission.name.localeCompare(b.commission.name, 'pt-BR'),
     )
 
-  const orgAdminOf: OrgAdminMembership[] = (orgAdminResult.data ?? [])
-    .filter(
-      (row): row is { organization: OrganizationRef } =>
-        row.organization !== null,
-    )
-    .map((row) => ({ organization: row.organization }))
-    .sort((a, b) =>
-      a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
-    )
+  const orgsForRole = (role: string): OrgAdminMembership[] =>
+    grants
+      .filter(
+        (g): g is SessionGrant & { organization: OrganizationRef } =>
+          g.role === role && g.organization !== null,
+      )
+      .map((g) => ({ organization: g.organization }))
+      .sort((a, b) =>
+        a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
+      )
 
-  // The embedded `hospital` comes back snake_cased (organization_id); map it to
-  // the camelCase HospitalRef the SessionContext exposes.
-  const hospitalAdminOf: HospitalAdminMembership[] = (
-    hospitalAdminResult.data ?? []
-  )
+  const orgAdminOf: OrgAdminMembership[] = orgsForRole('org_admin')
+  // ADR 0051; inert until Phase B, shape now.
+  const nspOrgAdminOf: OrgAdminMembership[] = orgsForRole('nsp_org_admin')
+
+  // Hospitals the caller is hospital_admin of (ADR 0051). Each grant carries the org
+  // + hospital so `adminedHospitals`/`isHospitalAdmin` resolve without a second hop.
+  // The embedded hospital is snake_cased (organization_id); map it to the camelCase
+  // HospitalRef the SessionContext exposes.
+  const hospitalAdminOf: HospitalAdminMembership[] = grants
     .filter(
       (
-        row,
-      ): row is {
+        g,
+      ): g is SessionGrant & {
         organization: OrganizationRef
-        hospital: {
-          id: string
-          slug: string
-          name: string
-          organization_id: string
-        }
-      } => row.organization !== null && row.hospital !== null,
+        hospital: NonNullable<SessionGrant['hospital']>
+      } =>
+        g.role === 'hospital_admin' &&
+        g.organization !== null &&
+        g.hospital !== null,
     )
-    .map((row) => ({
-      organization: row.organization,
+    .map((g) => ({
+      organization: g.organization,
       hospital: {
-        id: row.hospital.id,
-        slug: row.hospital.slug,
-        name: row.hospital.name,
-        organizationId: row.hospital.organization_id,
+        id: g.hospital.id,
+        slug: g.hospital.slug,
+        name: g.hospital.name,
+        organizationId: g.hospital.organization_id,
       },
     }))
     .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
-
-  const nspOrgAdminOf: OrgAdminMembership[] = (nspOrgAdminResult.data ?? [])
-    .filter(
-      (row): row is { organization: OrganizationRef } =>
-        row.organization !== null,
-    )
-    .map((row) => ({ organization: row.organization }))
-    .sort((a, b) =>
-      a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
-    )
 
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
   // the JWT already authenticated the user), default to `active`: RLS is the real
   // data backstop, and we must not hard-lock a valid session on a read miss.
   // platform_admin is never gated here (their profile is is_active=true anyway).
-  const profile = profileResult.data
+  const profile = ctx?.profile ?? null
   const status: UserStatus = profile
     ? deriveUserStatus(
         profile.is_active,

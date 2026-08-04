@@ -156,32 +156,41 @@ export async function addStaff(
     return { ok: false, fieldErrors: { user: MESSAGES.userNotAddable } }
   }
 
-  // Hard-coded role: 'staff'. A tampered form cannot escalate here. MEM (ADR 0075):
-  // this service-role writer keeps a DIRECT insert into `memberships` (RLS-exempt,
-  // TS-authorized above) — the door RPC would fail here since the admin client has
-  // no auth.uid(). The blanket trg_audit_memberships trigger still audits it. Upsert
-  // is idempotent on the grant-unique key; DO NOTHING so adding an existing member
-  // never silently re-grants.
+  // ADR 0094 W3/T3.3 — the membership write goes through the DOOR. This action is
+  // cookie-authenticated, so the plain `grant_role` applies: it resolves the actor
+  // from auth.uid() and re-derives authority in PostgreSQL, independently of the
+  // TypeScript check above. ADR 0075's "service-role writers keep direct DML because
+  // the door needs an auth.uid()" no longer applies — W3 untied the door's authority
+  // from the session.
   //
-  // ADR 0094 W1/T1.3 — the two conflict shapes are now DIFFERENT constraints:
-  //   * already 'staff' here      -> conflicts on the grant-unique key above -> DO NOTHING.
-  //   * already 'staff_admin' here-> does NOT conflict on that key (it includes `role`),
-  //     but now violates `memberships_one_commission_role_uq` (principal_id,
-  //     commission_id) -> 23505.
-  // Before W1 that second case silently created the dual-role row this action's own
-  // comment promised to avoid. Treating the 23505 as success is what "never silently
-  // demotes them" always meant: the coordinator keeps their role and adding them as
-  // staff is a no-op. Handled at the DB rather than with a pre-read so there is no
-  // check-then-act race.
-  const { error } = await admin.from('memberships').upsert(
-    { commission_id: commissionId, principal_id: userId, role: 'staff' },
-    {
-      onConflict: 'principal_id,role,organization_id,hospital_id,commission_id',
-      ignoreDuplicates: true,
-    },
-  )
-  if (error && !isOneCommissionRoleViolation(error)) {
-    return { ok: false, error: MESSAGES.generic }
+  // ⚠ THE PRE-CHECK IS LOAD-BEARING, and it is a PRODUCT rule, not an authorization
+  // one. `grant_role` implements the T1.0 replacement semantic: granting 'staff' to
+  // someone who holds 'staff_admin' REPLACES the role. That is right for
+  // `assignCommitteeRole` (whose purpose is the role change) and wrong here — this
+  // action is "add this person to the commission", and a coordinator must not be
+  // silently demoted by it. So: already a member in ANY role => nothing to do.
+  // Reads, not DML, so the raw-DML repo gate is satisfied.
+  const { data: existing } = await admin
+    .from('memberships')
+    .select('id')
+    .eq('commission_id', commissionId)
+    .eq('principal_id', userId)
+    .maybeSingle()
+
+  if (!existing) {
+    const supabase = await createClient()
+    const { error } = await supabase.rpc('grant_role', {
+      p_scope_type: 'commission',
+      p_scope_id: commissionId,
+      p_role: 'staff',
+      p_user: userId,
+    })
+    // A concurrent add loses the race on memberships_one_commission_role_uq; that is
+    // the same "already a member" outcome, so report success rather than a scary
+    // generic error.
+    if (error && !isOneCommissionRoleViolation(error)) {
+      return { ok: false, error: MESSAGES.generic }
+    }
   }
 
   revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')

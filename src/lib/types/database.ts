@@ -12171,6 +12171,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      grant_role_for: {
+        Args: {
+          p_actor: string
+          p_role: string
+          p_scope_id: string
+          p_scope_type: string
+          p_title_id?: string
+          p_user: string
+        }
+        Returns: undefined
+      }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -13861,6 +13872,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      revoke_role_for: {
+        Args: {
+          p_actor: string
+          p_role: string
+          p_scope_id: string
+          p_scope_type: string
+          p_user: string
+        }
+        Returns: undefined
+      }
       save_block_to_library: {
         Args: { p_description?: string; p_item_id: string; p_name: string }
         Returns: {
@@ -14080,6 +14101,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      session_context: { Args: never; Returns: Json }
       set_capa_action_task_done: {
         Args: { p_is_done: boolean; p_task_id: string }
         Returns: {

@@ -70,7 +70,29 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-_No active build phase._ Both programs that gated the pilot are closed:
+**▶ ACTIVE: Membership hardening + Diretor Técnico** (ADR
+[0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–2; plan
+[membership-hardening-technical-director.md](docs/plans/membership-hardening-technical-director.md)) —
+branch `feat/membership-hardening-technical-director`. PO closed all four open items 2026-08-04:
+atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight through · DT flag ships **ON**.
+
+| WS | Scope | State |
+| -- | ----- | ----- |
+| **W1** | Package A — one commission role per principal; composite FKs replace the two trigger guards; `granted_by` index; full writer sweep | ✅ **complete** — `9f3388a`; pgTAP `291` 35/35; mutation **9/9 RED-PROVEN**; E2E green |
+| **W2** | `public.session_context()` (one round trip, generic over roles) + expiry defusal + role-completeness grid | ✅ **complete** — pgTAP `292` 25/25; mutation **9/9**; E2E green (session bootstrap re-plumbed) |
+| **W3** | Package B — actor kernel + service door; **no raw `memberships` DML** (repo gate) | ✅ **complete** — pgTAP `293` 24/24 (two-entry equivalence grid); mutation **8/8** |
+| **W4** | Diretor Técnico backend (2 hospital-tier roles, appointment, referral-plane submission, PHI arm) | 🔜 **not started** |
+
+Gate so far: pgTAP **154 files / 4707** on a fresh reset · lint 0/0 (+ the new
+`lint:memberships-door`) · typecheck · Vitest **901/901** · targeted `e2e:prod` **160 passed / 0 failed**.
+
+> ⚠ **The plan was wrong about the substrate four times, and every correction came from the live
+> catalog or a probe, never from review** (ADR 0094 Amendment 2): `session_context` in `app` would be
+> unreachable by PostgREST; T1.0 as delete+insert defeats its own stated audit goal; a second FK to
+> `hospitals` is PGRST201; a bare composite `SET NULL` makes commission titles undeletable. The plan's
+> own header says it is not authoritative on the substrate — it meant it.
+
+Both programs that gated the pilot are closed:
 
 - **Flexible-Forms, 5 of 5** (ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md)) — FF-1/FF-2
   2026-07-27, FF-3/FF-5 2026-07-28, **FF-4 2026-08-03**. Per-phase flags, gate-flip migrations, ADRs
