@@ -8,7 +8,7 @@ policy check set to `true`), run the FULL pgTAP suite, read `Result:`.
 writer). **BLIND** = suite stayed `PASS` (no keystone exercises it — a work-list item).
 **ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result).
 
-Baseline: Files=115, Tests=3288, Result: PASS.
+Baseline: Files=156, Tests=4796, Result: PASS.
 Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
 `assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
 
@@ -54,8 +54,8 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 | meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
 | profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3280) |
-| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3280) |
+| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
+| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
 | rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |

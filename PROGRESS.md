@@ -514,67 +514,65 @@ only E2E caught them.
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
 
-### 🔴 FUP-ETH-1 — both `answer_selected_options_*_targeted` policies are BLIND (ARM-1 violation; ETH out-of-phase hotfix, not MEM)
+### 🔴 FUP-AUTHZ-2 — 15 BLIND authz gates: a census of every RLS added since the invariant last ran
 
-Found 2026-08-04 by the same ARM-1 sweep as FUP-P16-5. Two more BLINDs not in
-`authz-blind-allowlist.txt`, both on `public.answer_selected_options`:
+`p0-authz-invariant.sh ARM=policy` (full sweep, 2026-08-04, ~5 h, run on the MEM branch). **302 door
+cases + the write-path sweep. BLIND set 83; 15 are NOT in `authz-blind-allowlist.txt` ⇒ INVARIANT
+VIOLATED** (exit 1). ⚠ **None is MEM/W4** — W4's migration contains zero `create/alter/drop policy`
+statements; it rewrote predicates, not policies.
 
-| policy | cmd | sole gate |
-| ------ | --- | --------- |
-| `answer_selected_options_select_targeted` | SELECT | `app.can_access_targeted_response` |
-| `answer_selected_options_write_targeted`  | **ALL** | `app.can_write_targeted_response` |
+| violation | landed | source |
+| --------- | ------ | ------ |
+| `case_assignment_roles_select` · `ethics_sanction_types_select` | 2026-07-18 | ETH·E2 BE-3/BE-6 |
+| `referral_{assignments,case_links,internal_notes,read_receipts,resolutions}_select*` · `referral_requested_actions_write_admin` | 2026-07-19 | Referrals-v2 R3/R4/R5 |
+| `case_correction_requests_select` · `case_narrative_revisions_select` · `case_reopenings_select` | 2026-07-24 | Case Corrections |
+| `answer_selected_options_{select,write}_targeted` · `form_item_options_select_targeted` | 2026-07-27 | ETH hotfix `4ee24c8` (**out-of-phase**) |
+| `accreditation_standards_select` | 2026-08-03 | Phase 16 |
 
-Neutralizing either to `using(true)` leaves the whole suite green — and this is despite
-`273_eth_targeted_choice_lane.sql` referencing `answer_selected_options` **ten times**. The suite
-exercises the lane; it never asserts a DENIAL for which one of these policies is the sole gate. Both
-are additive PERMISSIVE policies, so widening them can only be caught by a negative assertion.
+**The cause is one process gap, not 15 oversights.** The allowlist was last written 2026-07-18
+(`14cd626`). Dating every BLIND policy by its creating migration: **20 allowlisted, all ≤ 07-17; 15
+violations, all ≥ 07-18. Zero overlap.** The violations are simply *every RLS policy added since the
+invariant last ran*. CLAUDE.md §5 calls this gate **standing**, but §6's numbered Phase Gate is
+build → test → QA → approval → record — ARM 1 appears in **none** of them, so it runs only when
+someone remembers. Five phases shipped RLS in that window; all five passed pgTAP, E2E, QA and human
+approval.
 
-**Attribution: `4ee24c8` (2026-07-27), "fix(eth): the targeted respondent can actually fill the form —
-out-of-phase".** An out-of-phase hotfix — which is exactly how a policy lands without a keystone, and
-it postdates the 2026-07-18 allowlist. Not MEM.
+⚠ **And it is worse than "nobody ran it" — Phase 16 DID run it, and recorded a pass.** Its gate row
+reads "`p0-authz-invariant.sh` INVARIANT HOLDS", but the only recorded execution is `ARM=floor`
+(**ARM 2 only, ~1 min**). ARM 2 asks "is every door CALLED at least once"; ARM 1 asks "does anything
+NOTICE if the gate is opened". Phase 16's own `accreditation_standards_select` passes the first and
+fails the second. A gate row naming the *script* rather than the *arm* reads as full coverage while
+delivering the cheap half — the "text is not truth" failure applied to a gate record. **Record the
+ARM, never just the script name.**
 
-⚠ **The ALL policy is the one that matters, and ADR 0079 decision 2 predicts precisely why it is
-blind.** A write-policy keystone needs a **reader-non-writer** principal: an `UPDATE`/`DELETE` must
-locate the row, which applies the SELECT policy too, so a fully-foreign principal is stopped by SELECT
-and the keystone passes even with the write policy wide open. Any naive attempt here would have been
-testing `answer_selected_options_select*`, not `_write_targeted`. Note the migration's own comment
-warns that this lane does DELETE-then-INSERT and that an INSERT-only widening "would have turned a
-fail-closed defect into a data-corrupting one" — the failure mode is answer corruption (two selections
-on a single-select item), not just over-read.
+⚠ **BLIND means un-keystoned, not broken.** Each policy looks correct; nothing would notice if it
+stopped being. Worst-case exposure if one regresses: licensed standard text across commissions
+(P16 — commission-owned framework clones, **not PHI**); answer corruption on the ETH targeted lane
+(its migration warns the lane is DELETE-then-INSERT, so an INSERT-only widening is data-corrupting,
+not merely over-read).
 
-**Fix:** keystone both in `273`, with a reader-non-writer principal for the ALL policy (someone who
-passes `can_access_targeted_response` but fails `can_write_targeted_response`), each with a POSITIVE
-twin, then mutation-prove via `p0b-isolation-mutation-audit.sh`. Do not allowlist.
+**Two shapes worth carrying forward.** (1) *Sibling covered, derived blind*:
+`accreditation_frameworks_select` is COVERED by `278` while `accreditation_standards_select` — which
+delegates to it — is BLIND. (2) *ADR 0079 decision 2 predicts `answer_selected_options_write_targeted`
+exactly*: a write-policy keystone needs a **reader-non-writer** principal, because row location
+applies the SELECT policy, so a fully-foreign principal silently tests the SELECT gate instead. The
+allowlist already carries several `*_write` policies for this reason — the shape is known and unfixed.
 
-### 🔴 FUP-P16-5 — `accreditation_standards_select` is BLIND (ARM-1 invariant violation; Phase 16, not MEM)
+**Fix:** keystone all 15 (never allowlist — these are ordinary tenant-isolation policies), each with a
+POSITIVE twin, mutation-proven via `p0b-isolation-mutation-audit.sh`; the ALL policies need the
+reader-non-writer principal. **AND wire the gate into §6** — ARM 2 is ~1 min and belongs in gate step
+1; ARM 1 at phase close. Without that, this report regenerates itself with a different 15.
 
-Found 2026-08-04 by the MEM branch's `p0-authz-invariant.sh ARM=policy` full sweep. **The first genuine
-invariant violation since the AUDIT-DOOR-BLINDNESS P0 closed** — a BLIND gate that is NOT in
-`authz-blind-allowlist.txt`.
+**Recorded ceiling — 30 cases ARM 1 CANNOT audit** (28 door + 2 write-path): neutralizing them aborts
+files mid-transaction, so the harness scores `ERROR`, never BLIND/COVERED (a run that didn't happen is
+not evidence). ⚠ **The gap correlates with centrality** — `has_role` (259 tests never ran),
+`can_manage_referral_{source,target}` (101/61), `is_active`, `is_member_of_for`, `is_staff_admin_of*`,
+`is_admin`. For the membership primitives, ARM 1 can never be the evidence; the per-workstream
+mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 · `295` 13/13).
 
-Neutralizing `accreditation_standards.accreditation_standards_select (SELECT)` to `using(true)` leaves
-the **entire** pgTAP suite green: no keystone asserts through it. Its sibling
-`accreditation_frameworks_select` IS covered (`278_accreditation_schema.sql`) — the classic one-of-N
-shape, where the sibling arm is keystoned and the derived one is not.
-
-**Attribution: Phase 16, not MEM.** The allowlist was last updated 2026-07-18 (`14cd626`, the AUTHZ P0
-close) and holds **zero** accreditation entries; `accreditation_standards` landed with the Phase 16
-migrations (`8700e66`…), merged at `484a254`. Phase 16 added tables + RLS without keystoning this
-policy and without re-running ARM 1 — exactly the regression the standing invariant exists to catch.
-
-**Exposure if the policy ever regresses:** a platform framework (`owner_commission_id is null`) is
-readable by every authenticated user BY DESIGN; a **commission-owned clone holds pasted licensed
-standard text** and must be readable only by that commission's members (the migration says so at
-`20260903000800_accreditation_schema.sql:400`). So the risk is licensed-content leakage across
-commissions — **not PHI**, no Rule 12 involvement. ⚠ BLIND means **un-keystoned, not broken**: the
-policy as written looks correct; nothing would notice if it stopped being.
-
-**Fix (the invariant's own contract, preferred branch):** add a keystone to
-`278_accreditation_schema.sql` — a member of commission X cannot SELECT the standards of a
-**commission-owned** framework cloned by commission Y, with a POSITIVE twin (a member of Y can) and a
-platform-framework twin (everyone can) — then mutation-prove it by reverting the policy to
-`using(true)` and requiring red. Do NOT simply allowlist it; an allowlist entry is for a genuine
-backstop, and this is an ordinary tenant-isolation policy.
+**Done in the same run:** pruned 4 allowlist entries the sweep reports as now-COVERED (72 → 68) —
+`answer_references_select` (an FF-5 obligation, now closed), `app.is_admin_for`,
+`app.is_hospital_admin_of_for` (both covered by MEM W1/W3), `form_item_validations_select`.
 
 ### 🔴 FUP-BULK-1 — the bulk wizard deals cases to SUSPENDED members (~22% random E2E red, pre-existing)
 
