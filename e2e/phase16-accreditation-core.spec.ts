@@ -435,20 +435,26 @@ test('AC-1 the tree shows Nível badges; evidencing+assessing conforme clears th
   const level2Card = page.locator('div').filter({ hasText: 'Nível 2' }).filter({ hasText: 'próprio nível' }).last()
   const level3Card = page.locator('div').filter({ hasText: 'Nível 3' }).filter({ hasText: 'próprio nível' }).last()
 
-  // The clean/total count text: matched by NUMBERS via a tolerant regex on
-  // the "padr…" word, not the literal word — BUG-P16-005 (filed): the
-  // component currently renders "padrãoes" (a naive "padrão"+"es"
-  // concatenation), not the correct irregular Portuguese plural "padrões".
-  // The numbers are what this acceptance criterion actually asserts; this
-  // regex keeps passing unchanged once the grammar bug is fixed, and would
-  // catch a regression in the NUMBERS either way.
+  // The clean/total count text: exact literal, PO-ruled (BUG-P16-005,
+  // closed) — "{clean} de {total} {padrão|padrões} {está conforme|estão
+  // conformes} (não cumulativo)": the noun agrees with `total`, the
+  // verb+adjective agrees with `clean` (a verb makes explicit that the
+  // COUNT conforms, removing a "3 de 5 padrões conformes" reading that
+  // could imply all five conform). A tolerant pattern was deliberate while
+  // the wording was still open — asserting the exact string now is what
+  // actually guards it: this phase shipped TWO separate irregular -ão ->
+  // -ões pluralization bugs invisible to lint/typecheck/vitest ("padrãoes",
+  // and evidence-count-badge.tsx's "em atençãos"), so a loose matcher would
+  // let either regress silently.
   await expect(level1Card.getByText('50%')).toBeVisible({ timeout: 15_000 })
-  await expect(level1Card.getByText(/^1 de 2 padr\S+ conforme \(não cumulativo\)$/)).toBeVisible()
+  await expect(level1Card.getByText('1 de 2 padrões está conforme (não cumulativo)', { exact: true })).toBeVisible()
   await expect(level1Card.getByText('Bloqueado')).toBeVisible()
   await expect(level1Card.getByText('Pronto')).toHaveCount(0)
 
   await expect(level2Card.getByText('100%')).toBeVisible()
-  await expect(level2Card.getByText(/^0 de 0 padr\S+ conformes \(não cumulativo\)$/)).toBeVisible()
+  await expect(
+    level2Card.getByText('0 de 0 padrões estão conformes (não cumulativo)', { exact: true }),
+  ).toBeVisible()
   await expect(level2Card.getByText('Bloqueado')).toBeVisible()
 
   await expect(level3Card.getByText('100%')).toBeVisible()
