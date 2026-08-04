@@ -4,6 +4,17 @@
 -- 20260903001000_capa_plan_open_atencao.sql (the A3·1 fix), and
 -- 20260903001100_action_item_open_blocked_atencao.sql (the A3·3 fix).
 --
+-- QA MINOR (post-approval closure, no code change — see C17a-C17h): the
+-- indicator arm maps five frequencies to month-intervals
+-- (mensal/bimestral/trimestral/semestral/anual -> 1/2/3/6/12), but only
+-- `mensal` had a fixture. An UNRECOGNIZED frequency fails closed (raises) —
+-- safe — but a WRONG interval (semestral mapped to 5 months instead of 6)
+-- would have passed every other assertion, silently marking stale evidence
+-- valida. C17a-C17h probe BOTH sides of the cutoff for the four previously-
+-- untested frequencies; dates are always `current_date - interval '<n>
+-- months'` (± 1 day), never a literal calendar date (the BUG-P15-001
+-- landmine).
+--
 --   §A — ARM PARITY BY CONSTRUCTION. The kind list is read out of the LIVE
 --        evidence_links.artifact_kind CHECK at runtime (never hardcoded) and
 --        iterated — a future kind added to the CHECK without a matching arm
@@ -52,7 +63,7 @@
 
 begin;
 
-select plan(61);
+select plan(69);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -123,6 +134,38 @@ insert into public.indicator_measurements (indicator_id, period_label, period_st
   ('27900000-0000-0000-0000-000000000e01', 'Este mês', current_date - 5, 10, 'on_target', 'manual'),
   ('27900000-0000-0000-0000-000000000e02', 'Este mês', current_date - 5, 3, 'off_target', 'manual'),
   ('27900000-0000-0000-0000-000000000e03', 'Há 6 meses', current_date - interval '6 months', 3, 'on_target', 'manual');
+
+-- QA MINOR: only `mensal` had a fixture — an unrecognized frequency fails
+-- closed (raises), but a WRONG interval (e.g. semestral mapped to 5 months
+-- instead of 6) would pass every other test we had, silently marking stale
+-- evidence valida — exactly the false assurance D5 exists to prevent. One
+-- indicator PER SIDE of the cutoff, per frequency (not one indicator with
+-- two measurements — evidence_status_of picks the LATEST measurement, so a
+-- newer in-window row would always shadow an older out-of-window one on the
+-- same indicator; the boundary requires each side to be the ONLY
+-- measurement its indicator has). Dates are ALWAYS `current_date -
+-- interval '<n> months'` (+/- one day) — never a literal calendar date,
+-- the BUG-P15-001 landmine this suite already carries a comment about
+-- elsewhere (see the phase15-indicators AC-4 history in PROGRESS.md).
+insert into public.indicators (id, commission_id, code, name, kind, frequency, status, created_by) select
+  '27900000-0000-0000-0000-000000000e05'::uuid, comm_x, '279-IND-BI-IN',  '279 Bimestral dentro',  'contagem', 'bimestral',  'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e06'::uuid, comm_x, '279-IND-BI-OUT', '279 Bimestral fora',    'contagem', 'bimestral',  'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e07'::uuid, comm_x, '279-IND-TRI-IN', '279 Trimestral dentro', 'contagem', 'trimestral', 'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e08'::uuid, comm_x, '279-IND-TRI-OUT','279 Trimestral fora',   'contagem', 'trimestral', 'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e09'::uuid, comm_x, '279-IND-SEM-IN', '279 Semestral dentro',  'contagem', 'semestral',  'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e0a'::uuid, comm_x, '279-IND-SEM-OUT','279 Semestral fora',    'contagem', 'semestral',  'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e0b'::uuid, comm_x, '279-IND-ANO-IN', '279 Anual dentro',      'contagem', 'anual',      'active', admin from k union all select
+  '27900000-0000-0000-0000-000000000e0c'::uuid, comm_x, '279-IND-ANO-OUT','279 Anual fora',        'contagem', 'anual',      'active', admin from k;
+
+insert into public.indicator_measurements (indicator_id, period_label, period_start, value, status, source) values
+  ('27900000-0000-0000-0000-000000000e05', 'Limite bimestral',  current_date - interval '2 months',                    10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e06', 'Fora bimestral',    current_date - interval '2 months' - interval '1 day', 10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e07', 'Limite trimestral', current_date - interval '3 months',                    10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e08', 'Fora trimestral',   current_date - interval '3 months' - interval '1 day', 10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e09', 'Limite semestral',  current_date - interval '6 months',                    10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e0a', 'Fora semestral',    current_date - interval '6 months' - interval '1 day', 10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e0b', 'Limite anual',      current_date - interval '12 months',                    10, 'on_target', 'manual'),
+  ('27900000-0000-0000-0000-000000000e0c', 'Fora anual',        current_date - interval '12 months' - interval '1 day', 10, 'on_target', 'manual');
 
 -- controlled_documents: one document per freshness cell, current_version_id
 -- pointed at the version under test. doc_no_version has current_version_id
@@ -368,6 +411,27 @@ select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-0
   'vencida', 'C16. indicator: only a 6-month-old measurement — outside the mensal window = vencida (no silent stale valida)');
 select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e04') from k),
   'vencida', 'C17. indicator: archived = vencida regardless of any measurement');
+
+-- QA MINOR — the four remaining frequencies, BOTH sides of the window
+-- boundary. A wrong interval (e.g. semestral mis-mapped to 5 months) would
+-- pass every assertion above; only a boundary probe catches it (verified
+-- by mutation below).
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e05') from k),
+  'valida', 'C17a. bimestral: a measurement EXACTLY at the 2-month cutoff is INSIDE the window = valida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e06') from k),
+  'vencida', 'C17b. bimestral: one day OLDER than the 2-month cutoff is OUTSIDE the window = vencida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e07') from k),
+  'valida', 'C17c. trimestral: EXACTLY at the 3-month cutoff = valida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e08') from k),
+  'vencida', 'C17d. trimestral: one day older than the 3-month cutoff = vencida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e09') from k),
+  'valida', 'C17e. semestral: EXACTLY at the 6-month cutoff = valida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e0a') from k),
+  'vencida', 'C17f. semestral: one day older than the 6-month cutoff = vencida (K8 — mutation-proved: this is the cell QA flagged)');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e0b') from k),
+  'valida', 'C17g. anual: EXACTLY at the 12-month cutoff = valida');
+select is((select app.evidence_status_of('indicator', '27900000-0000-0000-0000-000000000e0c') from k),
+  'vencida', 'C17h. anual: one day older than the 12-month cutoff = vencida');
 
 select is((select app.evidence_status_of('action_item', '27900000-0000-0000-0000-000000001101') from k),
   'valida', 'C18. action_item: category=completed (key ''done'') = valida');
