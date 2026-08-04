@@ -145,7 +145,10 @@ phase remains in front of it).
     **(2) The pre-existing red door floor is SOLVED** — lead re-verified `ARM=floor` → **`INVARIANT HOLDS`**, 89 never-called doors, **all allowlisted**; the 14 offenders are gone (`f440853` keystones + `22d1e7d`). Rule 1 satisfied; no longer gates Phase 16 or the pilot. **FUP-P16-1 RESOLVED.**
       🏆 **The audit paid for itself: `22d1e7d` repaired THREE DEFINER doors whose *authorized* path failed 100% of the time.** `assign_ethics_remediation` and `open_ethics_external_referral` assigned a returned **composite row** into a `uuid` variable → `22P02` on every authorized call; `set_case_phase_assignment_role` wrote `public.case_phases` **without opening `app.in_case_rpc`**, so `app.guard_case_phase_status` rejected it with `23514` — while all three sibling phase RPCs open that window. Latent only because none is UI-wired yet.
       ⚠ **Reusable lesson — a deny-only test passes in a world where the door is entirely broken.** All three had a **working deny arm and a 100%-failing authorized arm**, so every "does it refuse the wrong caller?" assertion was green while the door did not function at all. **The positive twin is what found them.** Generalizes the standing "a no-regression claim needs an over-grant twin" rule, and is the same shape as Phase 16's own `delete_standard`, whose only coverage was a flag-off negative that raised *before* reaching the authorization body.
-    **(3) Close what QA flagged** — both dispatched: backend covers the **four untested indicator frequencies** (MINOR — a wrong interval currently passes silently and would mark stale evidence `valida`); frontend builds the **shared pt-BR plural-pairs helper** (INFO), deliberately scoped to *literal pairs at the call site*, **not** a rule-based engine — guessed plurals would be plausibly wrong, which is harder to catch than obviously wrong.
+    **(3) ✅ QA's findings CLOSED — both MINOR and the INFO.**
+      · **MINOR / indicator frequencies** (`de3059c`): pgTAP 279 **61 → 69** assertions (`C17a`–`C17h`), suite **151 files / 4623 tests**. **The code was already correct for all five intervals** — every new probe passed first run; backend re-pulled the body from `pg_proc` before writing a fixture. Each frequency now asserts **both sides** of its cutoff. Mutation-proven: `semestral → 5 months` reds **exactly `C17e`**. ⚠ **And the sibling `C17f` correctly staying green is not entanglement** — a *shrinking* window can only exclude rows, so a fixture already outside it cannot distinguish 5 months from 6. **The pair is complementary by design: the at-cutoff probe catches a shrinking window, the past-cutoff probe catches a widening one.** Either alone is half-blind.
+      · **INFO / pt-BR plurals** (`fcbd891`): `plural(count, one, many)` in `src/components/accreditation/format.ts` — placed per the codebase's existing **per-domain `format.ts`** convention (verified no shared top-level i18n location exists, so inventing one was avoided). A **literal-pair lookup, deliberately not an algorithm**: pt-BR `-ão` splits three ways (`mão→mãos`, `pão→pães`, `padrão→padrões`), and a guessing helper yields *plausibly* wrong words — harder to catch in review than the obviously-wrong `padrãoes` we actually shipped. 4 sites migrated; **zero suffix concatenation remains in the domain** (lead-verified by grep). 6 Vitest cases, two of which **encode the shipped bugs directly** (`!== "padrãoes"`, `!== "em atençãos"`), so a regression to concatenation fails them. Vitest **901**. Tester's `AC-3-plural` pins "2 em atenções" exactly → 16/16.
+      · Report-only spillover registered as **FUP-P16-4** (10 files, same pattern, all-regular words, no live defect).
   · ⬜ **GATE STEP 4 — awaiting human approval** (the only remaining gate item).
   · ⬜ **GATE STEP 5 — Record** (on approval): Migration G (`enable_accreditation`, the `20260903000600` shape) + `seed.sql` force-ON · regenerate types · update `docs/backend-state.md` (new tables/doors/SQLSTATEs + the HC0Q high-water row) · move the **`loading.tsx` 404-signal finding into `docs/testing/`** · verify accreditation-track §16 matches as-built · rotate phase detail · commit `phase(16): complete — …`. **Then** the user-gated pilot deploy (origin push + Coolify + remote `db push`).
   · 🔧 **Plan ownership correction (lead)** — the plan gave the `feature-flags.ts` flag wiring to **frontend**, but `src/lib/queries/` is **backend-owned** (CLAUDE.md §4, binding). **Reassigned to backend** as its first Wave 2 item; frontend imports the helper and sequences routes last so the gate exists when it gets there.
@@ -1128,6 +1131,27 @@ ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md), and 
 **AUDIT-INVOKER-WRAPPER** item, which is the *other* structural blind spot in the same sweep.
 
 </details>
+
+### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
+
+Found 2026-08-04 while closing QA's INFO. Outside `src/components/accreditation/**`, ten files still
+build plurals by suffix concatenation (`? "" : "s"`): `manage/cases/page.tsx`, `bulk-step-deal.tsx`,
+`bulk-step-members.tsx`, `case-bulk-grid.tsx`, `create-wizard.tsx`, `checklist-section.tsx`,
+`notification-bell-client.tsx`, `cases-kpi-strip.tsx`, `triage-queue.tsx`,
+`orphan-warning-dialog.tsx`.
+
+**Every word each one pluralizes was checked individually and all are regular pt-BR** (concluído,
+linha, coluna, selecionado, caso, lida, atrasado, novo) — a bare `s` is correct for all of them, so
+**there is no live defect**. Left untouched deliberately: Phase 16 was at its gate, and the risk is
+structural, not present.
+
+⚠ **The risk is the shape, not today's words.** This is exactly how `padrãoes` and `em atençãos`
+shipped — the pattern was correct until someone added a word ending in `-ão`. Migrating these to
+`plural(count, one, many)` (`src/components/accreditation/format.ts`) removes the trap rather than
+relying on every future author noticing it. An ESLint rule banning `+ "s"` was **considered and
+rejected** for now: it false-positives heavily against ordinary string concatenation and would need
+real tuning — shipping it half-tuned for an INFO-level item would be worse than the JSDoc steering
+the helper already carries.
 
 ### 🟡 FUP-P16-2 — two accreditation reads live in `actions.ts`, not `queries/` (Rule 9)
 
