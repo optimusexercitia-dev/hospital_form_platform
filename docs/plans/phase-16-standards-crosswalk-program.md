@@ -316,7 +316,21 @@ REST with identity-based cleanup — never positional; personas per seed):**
 
 ## Verification summary
 
-pgTAP 278–284 green on fresh reset · `p0-authz-invariant.sh` green with 4 new doors ·
+⚠ **As-built correction (lead, 2026-08-03): there is no pgTAP `282`.** The suite is **278, 279,
+280, 281, 283, 284 — six files, not seven.** 282's planned scope (the freshness matrix
+cell-by-cell) was **absorbed into 279**, which covers all 10 artifact kinds, both `review_due_date
+= current_date` boundaries (C2, C9), the frequency-window cutoff (C14/C16) and every Amendment
+1–3 ruling — 61 assertions, C1…C30. Nothing was lost, but **do not cite "278–284" as a coverage
+claim**; a range that names a file which does not exist is the same failure as a gate summary
+whose denominator hides unrun tests.
+
+📌 **Known coverage gap for QA (not a defect):** `evidence_status_of`'s indicator arm maps five
+frequencies to intervals (`mensal|bimestral|trimestral|semestral|anual` → 1/2/3/6/12 months), but
+only **`mensal`** is asserted (C14/C16). An unrecognized frequency raises (fails closed), but a
+**wrong interval** — say `semestral` mapped to 5 months — would pass silently. Cheap to close with
+four more cells.
+
+pgTAP 278–281 + 283–284 green on fresh reset · `p0-authz-invariant.sh` green with 4 new doors ·
 platform_admin zero-rows proven at both pgTAP and E2E layers · Vitest rollups suite ·
 5 E2E specs incl. keyboard-only passes · full `e2e:prod` green · QA APPROVED review doc ·
 flag flip only via Migration G at Record.
