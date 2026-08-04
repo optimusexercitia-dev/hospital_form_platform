@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: The binding design system for the Hospital Commission Forms Platform — "calm clinical precision". Invoke BEFORE building or restyling any screen, page, route group, or component. Covers the color tokens, typography (Fraunces/Spline Sans), spacing/radius, the shared motion system (GSAP + CSS, reduced-motion-safe), accessibility requirements, and the component conventions every UI must follow so screens stay cohesive.
+description: The binding design system for the Hospital Commission Forms Platform — "calm clinical precision". Invoke BEFORE building or restyling any screen, page, route group, or component. Covers the color tokens, typography (IBM Plex Serif/Sans/Mono), spacing/radius, the shared motion system (GSAP + CSS, reduced-motion-safe), accessibility requirements, and the component conventions every UI must follow so screens stay cohesive.
 ---
 
 # Frontend Design — "Clinical Calm"
@@ -192,7 +192,7 @@ Rules:
 ## 8. Do / Don't
 
 **Do:** reuse shadcn primitives and existing patterns · style via semantic
-tokens · headings as real `h1/h2/h3` (Fraunces) · stagger entrances with
+tokens · headings as real `h1/h2/h3` (IBM Plex Serif) · stagger entrances with
 `--rise-delay` · guard every motion with reduced-motion · design the keyboard
 path and focus rings first · keep the petrol accent scarce and intentional.
 
