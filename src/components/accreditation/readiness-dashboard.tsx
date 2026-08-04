@@ -4,6 +4,7 @@ import { CheckCircle2, CircleAlert } from "lucide-react";
 import type { ChapterRollup, GapItem, LevelRollup, ReadinessRollups } from "@/lib/accreditation/rollups";
 import { STANDARD_LEVEL_LABELS } from "@/lib/accreditation/types";
 import { cn } from "@/lib/utils";
+import { plural } from "@/components/accreditation/format";
 import { ReadinessChartLoader } from "@/components/accreditation/readiness-chart-loader";
 import { EvidenceCountBadge } from "@/components/accreditation/evidence-count-badge";
 import { AssessmentStatusChip } from "@/components/accreditation/status-chips";
@@ -138,9 +139,12 @@ function LevelCard({ level }: { level: LevelRollup }) {
       </p>
 
       <p className="text-xs text-muted-foreground">
+        {/* Two DIFFERENT counts in one sentence — the noun agrees with
+            totalStandards, the verb+adjective with cleanStandards (PO
+            ruling). Each gets its own plural() call; never share one. */}
         {level.cleanStandards} de {level.totalStandards}{" "}
-        {level.totalStandards === 1 ? "padrão" : "padrões"}{" "}
-        {level.cleanStandards === 1 ? "está conforme" : "estão conformes"} (não cumulativo)
+        {plural(level.totalStandards, "padrão", "padrões")}{" "}
+        {plural(level.cleanStandards, "está conforme", "estão conformes")} (não cumulativo)
       </p>
 
       <EvidenceCountBadge

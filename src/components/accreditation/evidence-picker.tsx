@@ -10,6 +10,7 @@ import {
 } from "@/lib/accreditation/actions";
 import { ARTIFACT_KIND_LABELS, type ArtifactKind, type EvidenceCandidate } from "@/lib/accreditation/types";
 import { cn } from "@/lib/utils";
+import { plural } from "@/components/accreditation/format";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -506,7 +507,7 @@ function EvidenceCombobox({
               ? searchError
               : candidates.length === 0
                 ? "Nenhum resultado."
-                : `${candidates.length} ${candidates.length === 1 ? "opção disponível" : "opções disponíveis"}. Use as setas para navegar e Enter para escolher.`}
+                : `${candidates.length} ${plural(candidates.length, "opção disponível", "opções disponíveis")}. Use as setas para navegar e Enter para escolher.`}
       </p>
     </div>
   );

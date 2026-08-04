@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { plural } from "@/components/accreditation/format";
 
 /**
  * Compact per-standard evidence indicator for the standards tree row. ADR
@@ -37,11 +38,12 @@ export function EvidenceCountBadge({
     );
   }
 
-  // Literal singular/plural forms, never derived by string concatenation —
-  // "em atenção" pluralizes irregularly ("em atenções", the same -ão -> -ões
-  // pattern as "padrão" -> "padrões"), so a generic `${word}s` suffix silently
-  // produces "em atençãos" whenever atencao > 1 (BUG-P16-005's sibling, found
-  // by sweeping this file for the same string-concatenation pattern).
+  // Literal singular/plural forms, resolved via the shared plural() helper
+  // (never derived by string concatenation) — "em atenção" pluralizes
+  // irregularly ("em atenções", the same -ão -> -ões pattern as "padrão" ->
+  // "padrões"), so a generic `${word}s` suffix silently produced "em
+  // atençãos" whenever atencao > 1 (BUG-P16-005's sibling, found by
+  // sweeping this file for the same string-concatenation pattern).
   const segments = [
     { key: "valida", count: valida, dot: "bg-success", singular: "válida", plural: "válidas" },
     { key: "atencao", count: atencao, dot: "bg-warning", singular: "em atenção", plural: "em atenções" },
@@ -50,7 +52,7 @@ export function EvidenceCountBadge({
   ].filter((segment) => segment.count > 0);
 
   const summary = segments
-    .map((s) => `${s.count} ${s.count === 1 ? s.singular : s.plural}`)
+    .map((s) => `${s.count} ${plural(s.count, s.singular, s.plural)}`)
     .join(", ");
 
   return (
@@ -59,10 +61,10 @@ export function EvidenceCountBadge({
         "inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-2 py-0.5 text-[0.7rem] text-muted-foreground",
         className,
       )}
-      title={`${total} evidência${total === 1 ? "" : "s"} — ${summary}`}
+      title={`${total} ${plural(total, "evidência", "evidências")} — ${summary}`}
     >
       <span className="sr-only">
-        {total} evidência{total === 1 ? "" : "s"} — {summary}
+        {total} {plural(total, "evidência", "evidências")} — {summary}
       </span>
       <span aria-hidden="true" className="flex items-center gap-2">
         {segments.map((segment) => (

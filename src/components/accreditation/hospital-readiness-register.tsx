@@ -1,6 +1,7 @@
 import { Award } from "lucide-react";
 
 import type { HospitalReadinessRow } from "@/lib/accreditation/types";
+import { plural } from "@/components/accreditation/format";
 import {
   AssessmentStatusChip,
   HospitalReadinessResolutionChip,
@@ -46,7 +47,7 @@ export function HospitalReadinessRegister({
           {hospitalName}
         </h2>
         <span className="text-sm text-muted-foreground">
-          {rows.length} {rows.length === 1 ? "padrão" : "padrões"}
+          {rows.length} {plural(rows.length, "padrão", "padrões")}
         </span>
       </div>
 
