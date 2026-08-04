@@ -87,7 +87,13 @@ through · DT flag ships **ON at T4.9** — and it now **is ON** (`2026090500060
 Gate so far: pgTAP **156 files / 4796** on a fresh reset · lint 0/0 (+ `lint:memberships-door`) ·
 typecheck · Vitest **901/901** · W4 mutation audits **8/8 + 13/13 RED-PROVEN**, both controls green.
 Earlier targeted `e2e:prod` runs: **171 passed / 0 failed** (W3 caller migration) and **160/0** (W1+W2
-session re-plumb). ⚠ **The full `e2e:prod` suite is RUNNING** — declare-green is not yet recorded.
+session re-plumb). **Full `e2e:prod` 2026-08-04: 954 passed · 1 failed · 2 flaky · 5 deliberate skips ·
+16 batches · 962/962 accounted** (denominator reconciled against `spec-counts.txt`; batches 1–16 with
+no gaps, no `-unrun` stub, no `reset FAILED`; one infra re-run — batch 7's standalone server died
+mid-batch, producing 47 `ERR_CONNECTION_REFUSED` in *setup* that the rerun cleared 61/61).
+The single failure is **FUP-BULK-1**, a pre-existing ~22% random defect in `bulk-case-creation.spec.ts`
+with no MEM involvement: 6 branch runs → 4 green, and the CCIH roster + every `is_member_of_for`
+verdict are byte-identical on `main`.
 
 > ⚠ **W4's referral plane found FIVE fail-open sites that the plan's task list did not name**, and
 > none of them could have been caught by a passing test — all five fail OPEN. Making
@@ -507,6 +513,31 @@ only E2E caught them.
 
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
+
+### 🔴 FUP-BULK-1 — the bulk wizard deals cases to SUSPENDED members (~22% random E2E red, pre-existing)
+
+Found 2026-08-04 during the MEM full-gate triage. **Not a MEM regression** — the mechanism is
+probabilistic and identical on `main`.
+
+`listMembers()` (`src/lib/queries/members.ts`) filters the commission roster **by role only**, so it
+returns all 9 CCIH staff/staff_admin — including `suspenso.temp@test.local`, whose profile carries a
+future `suspended_until`. The bulk wizard defaults every listed member to selected, and
+`balancedDeal()` (`src/lib/cases/distribute.ts`) **shuffles with `Math.random`** and hands the 2 cases
+to the first 2 of the shuffled list. `bulk_create_cases` then calls `app.is_member_of_for`, which
+requires `app.is_active` (checks `is_active` **and** `suspended_until`) and raises **HC021 — "o
+responsável deve ser membro da comissão"**.
+
+**The list and the door disagree about what "member" means.** P(the suspended member lands in the
+first 2 of 9) = **2/9 ≈ 22%**, which matches the observed rate: 6 branch runs → 4 green, 1 HC021
+(AC2), 1 unrelated focus flake (AC8); `main` → 2 runs, both green. A 2-run green on `main` is ~61%
+likely by chance, so it is **not** evidence of branch attribution — I initially read it that way and
+was wrong.
+
+**Fix:** make the list agree with the door — filter `listMembers` (or at least the bulk wizard's
+member source) on the same activity predicate the RPC enforces, so a suspended member is never
+offered as a deal target. Until then this reds `bulk-case-creation.spec.ts` roughly one run in five,
+on any branch. Related: the door/list-disagreement family in
+`docs/progress/authz-handoff.md §7`.
 
 ### 🟡 FUP-MEM-3 — the DT referral plane is live with NO product caller
 
