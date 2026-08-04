@@ -117,8 +117,13 @@ reset role;
 -- same-commission integrity: assigning a Farmácia title to a CCIH member fails.
 -- MEM collapse: memberships has NO direct UPDATE grant to authenticated (WS-1/MEM
 -- lockdown — writes flow only through the door / a DEFINER RPC), so the integrity
--- guard is now reached via assign_member_title (SECURITY DEFINER; its internal
--- UPDATE still trips guard_membership_title_commission_trg) rather than a raw UPDATE.
+-- guard is now reached via assign_member_title (SECURITY DEFINER) rather than a raw
+-- UPDATE.
+-- ADR 0094 W1/T1.4: the enforcing mechanism changed from
+-- guard_membership_title_commission_trg (a BEFORE-row trigger raising 23514) to the
+-- composite FK memberships_title_id_fkey (title_id, commission_id), which raises
+-- 23503. The INVARIANT is identical — only the SQLSTATE moved, because the constraint
+-- is now stated relationally instead of procedurally.
 do $$
 declare v_farm_title uuid;
 begin
@@ -131,8 +136,8 @@ set local role authenticated;
 select throws_ok(
   format($$select public.assign_member_title(%L, %L)$$,
     current_setting('test186.member'), current_setting('test186.farm_title')),
-  '23514', null,
-  'INTEGRITY: assigning a title from ANOTHER commission is rejected (check_violation)');
+  '23503', null,
+  'INTEGRITY: assigning a title from ANOTHER commission is rejected (composite FK, 23503)');
 reset role;
 
 -- ON DELETE SET NULL: deleting the assigned title clears the member's title_id.

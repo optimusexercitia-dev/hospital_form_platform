@@ -149,17 +149,20 @@ reset role;
 -- ============================================================================
 -- §6: the second hospital_admin INSERT would have failed under the OLD unique —
 --     prove the new composite key accepts a distinct-hospital duplicate and the
---     same-org integrity trigger rejects a foreign-org hospital.
+--     same-org integrity constraint rejects a foreign-org hospital.
 -- ============================================================================
--- A cross-org hospital_admin row (org-a user, org-b hospital) is rejected by the
--- guard_org_member_hospital_org trigger (check_violation).
+-- A cross-org hospital_admin row (org-a user, org-b hospital) is rejected.
+-- ADR 0094 W1/T1.4: the enforcing mechanism moved from the
+-- app.guard_membership_hospital_org BEFORE-row trigger (23514) to the composite FK
+-- memberships_hospital_id_fkey (hospital_id, organization_id) -> hospitals
+-- (id, organization_id), which raises 23503. Same invariant, stated relationally.
 select throws_ok(
   $$insert into public.memberships (organization_id, principal_id, role, hospital_id)
     values ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1',
             'hospital_admin', '05000000-0000-0000-0000-00000000000b')$$,
-  '23514',
+  '23503',
   null,
-  'INTEGRITY: a hospital_admin row whose hospital belongs to another org is rejected (check_violation)');
+  'INTEGRITY: a hospital_admin row whose hospital belongs to another org is rejected (composite FK, 23503)');
 
 select * from finish();
 rollback;

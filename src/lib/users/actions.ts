@@ -510,6 +510,43 @@ export async function registerUser(
     // MEM (ADR 0075): service-role writer keeps a DIRECT insert into `memberships`
     // (RLS-exempt, TS-authorized above; the door needs an auth.uid() this admin
     // client lacks). Audited by trg_audit_memberships.
+    //
+    // ADR 0094 W1/T1.3 — `registerUser` resolves EXISTING users too
+    // (`resolveOrInviteUser`), so the target may already hold a role in one of the
+    // selected commissions. The grant-unique key includes `role`, so re-registering
+    // them into the other role used to insert a second row; that now violates
+    // `memberships_one_commission_role_uq` and would fail the whole registration with
+    // a generic error. Apply the T1.0 replacement semantic: clear only the rows whose
+    // role actually differs, then upsert as before.
+    //
+    // Only DIFFERING roles are deleted, so the common path (a brand-new user, or a
+    // re-registration that changes nothing) issues no delete and emits no spurious
+    // revoke/grant audit pair.
+    const requestedRoleByCommission = new Map(
+      committees.map((c) => [c.commissionId, c.role]),
+    )
+    const { data: priorRows, error: priorError } = await admin
+      .from('memberships')
+      .select('id, commission_id, role')
+      .eq('principal_id', userId)
+      .in('commission_id', [...requestedRoleByCommission.keys()])
+      .returns<{ id: string; commission_id: string; role: string }[]>()
+    if (priorError) {
+      return { ok: false, error: MESSAGES.generic }
+    }
+    const supersededIds = (priorRows ?? [])
+      .filter((r) => requestedRoleByCommission.get(r.commission_id) !== r.role)
+      .map((r) => r.id)
+    if (supersededIds.length > 0) {
+      const { error: clearError } = await admin
+        .from('memberships')
+        .delete()
+        .in('id', supersededIds)
+      if (clearError) {
+        return { ok: false, error: MESSAGES.generic }
+      }
+    }
+
     const { error: memberError } = await admin
       .from('memberships')
       .upsert(
@@ -681,21 +718,43 @@ export async function assignCommitteeRole(
   // MEM (ADR 0075): service-role writer; direct `memberships` write (RLS-exempt,
   // TS-authorized). The memberships grant-unique key INCLUDES role, so a plain upsert
   // could not CHANGE a user's role in a commission (a different role = a different
-  // row) and would leave a stale row. Preserve the incumbent "one role per user per
-  // commission, role-updating" semantics with delete-then-insert. Both writes fire
-  // trg_audit_memberships (revoked + granted), which is correct.
-  const { error: delError } = await admin
+  // row) and would leave a stale row.
+  //
+  // ADR 0094 W1/T1.3 — this writer ALREADY enforced one-role-per-commission, by
+  // delete-then-insert, so `memberships_one_commission_role_uq` cannot fire here and
+  // no conflict arm is needed. It is rewritten anyway, to the same in-place UPDATE
+  // that public.grant_role and assignStaffAdmin now use, because delete+insert had
+  // two costs the invariant makes avoidable:
+  //   * it DESTROYED the member's per-commission title (ADR 0051) — `title_id` lives
+  //     on the membership row, so re-inserting dropped it silently on every role
+  //     change made from the user directory;
+  //   * it emitted `membership.revoked` + `membership.granted` for what is one act,
+  //     where trg_audit_memberships' UPDATE arm emits a single
+  //     `membership.role_changed` naming both the old and the new role.
+  const { data: existing, error: lookupError } = await admin
     .from('memberships')
-    .delete()
+    .select('id, role')
     .eq('commission_id', input.commissionId)
     .eq('principal_id', userId)
-  if (delError) return { ok: false, error: MESSAGES.generic }
-  const { error } = await admin.from('memberships').insert({
-    commission_id: input.commissionId,
-    principal_id: userId,
-    role: input.role,
-  })
-  if (error) return { ok: false, error: MESSAGES.generic }
+    .maybeSingle()
+  if (lookupError) return { ok: false, error: MESSAGES.generic }
+
+  if (existing) {
+    if (existing.role !== input.role) {
+      const { error } = await admin
+        .from('memberships')
+        .update({ role: input.role })
+        .eq('id', existing.id)
+      if (error) return { ok: false, error: MESSAGES.generic }
+    }
+  } else {
+    const { error } = await admin.from('memberships').insert({
+      commission_id: input.commissionId,
+      principal_id: userId,
+      role: input.role,
+    })
+    if (error) return { ok: false, error: MESSAGES.generic }
+  }
 
   revalidateDirectory()
   return { ok: true, error: MESSAGES.committeeAssigned }
@@ -721,6 +780,12 @@ export async function removeCommittee(
   const admin = createAdminClient()
   // MEM (ADR 0075): service-role writer; direct `memberships` delete of the commission
   // membership (either role). Audited by trg_audit_memberships.
+  //
+  // ADR 0094 W1/T1.3 disposition: REVIEWED, UNCHANGED. A delete cannot violate a
+  // unique index, and deleting by (commission, principal) without naming a role is
+  // exactly right under the new invariant — there is at most one such row, so this
+  // removes precisely it. The audit semantic is already correct: one
+  // `membership.revoked` naming the role that was actually held.
   const { error } = await admin
     .from('memberships')
     .delete()

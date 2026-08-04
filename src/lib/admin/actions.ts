@@ -271,14 +271,50 @@ export async function assignStaffAdmin(
 
     // Hard-coded role: 'staff_admin'. MEM (ADR 0075): service-role writer keeps a
     // DIRECT insert into `memberships` (RLS-exempt, TS-authorized); the door RPC
-    // would fail with no auth.uid(). Audited by trg_audit_memberships. Idempotent on
-    // the grant-unique key.
-    const { error } = await admin.from('memberships').upsert(
-      { commission_id: commissionId, principal_id: userId, role: 'staff_admin' },
-      { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
-    )
-    if (error) {
+    // would fail with no auth.uid(). Audited by trg_audit_memberships.
+    //
+    // ADR 0094 W1/T1.3 — implements the T1.0 replacement semantic for this writer.
+    // `memberships_one_commission_role_uq` forbids a principal holding two roles in
+    // one commission, so promoting an existing 'staff' member can no longer be an
+    // INSERT (it would raise a raw 23505 the UI has no arm for). Unlike `addStaff`,
+    // which must never demote, this action's whole purpose IS the role change, so the
+    // conflict resolves by REPLACING — as an in-place UPDATE, mirroring
+    // public.grant_role exactly:
+    //   * it reaches trg_audit_memberships' UPDATE arm, emitting one
+    //     `membership.role_changed` event rather than a revoked/granted pair;
+    //   * it preserves the row id and the member's per-commission title (ADR 0051),
+    //     which a delete+insert would destroy.
+    const { data: existing, error: lookupError } = await admin
+      .from('memberships')
+      .select('id, role')
+      .eq('commission_id', commissionId)
+      .eq('principal_id', userId)
+      .maybeSingle()
+    if (lookupError) {
       return { ok: false, error: MESSAGES.generic }
+    }
+
+    if (existing) {
+      // Already staff_admin -> nothing to do (idempotent, and an UPDATE would be a
+      // no-op the audit trigger correctly ignores anyway).
+      if (existing.role !== 'staff_admin') {
+        const { error } = await admin
+          .from('memberships')
+          .update({ role: 'staff_admin' })
+          .eq('id', existing.id)
+        if (error) {
+          return { ok: false, error: MESSAGES.generic }
+        }
+      }
+    } else {
+      const { error } = await admin.from('memberships').insert({
+        commission_id: commissionId,
+        principal_id: userId,
+        role: 'staff_admin',
+      })
+      if (error) {
+        return { ok: false, error: MESSAGES.generic }
+      }
     }
   } catch {
     return { ok: false, error: MESSAGES.generic }

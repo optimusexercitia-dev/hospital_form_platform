@@ -193,6 +193,14 @@ export async function assignOrgAdmin(
     // hospital_id is NULL for the org-level org_admin row; the grant-unique key is
     // NULLS NOT DISTINCT (PG17), so a repeat provision still conflicts. The blanket
     // trg_audit_memberships trigger audits the write regardless of path.
+    //
+    // ADR 0094 W1/T1.3 disposition: REVIEWED, UNCHANGED — and the reason is a
+    // property of the row, not a judgement call. This writer is ORG-TIER
+    // (`commission_id` is NULL), and `memberships_one_commission_role_uq` is a
+    // PARTIAL index `WHERE commission_id IS NOT NULL`, so this row is outside the
+    // index entirely and can never violate it. The org tier is deliberately
+    // unconstrained: a principal may legitimately hold org_admin AND nsp_org_admin of
+    // the same organization.
     const { error } = await admin.from('memberships').upsert(
       { organization_id: organizationId, principal_id: userId, role: 'org_admin' },
       { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },

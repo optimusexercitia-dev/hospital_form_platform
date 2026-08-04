@@ -91,9 +91,18 @@ values ('00000000-0000-0000-0000-0000000f0104', '00000000-0000-0000-0000-0000000
 -- becomes `staff_admin` of the case's commission — the PO's A2 scenario. Without
 -- this row every twin below denies for the WRONG REASON (HC0E4) and asserts
 -- nothing. This is C1a, proven twice, and it is why HC0F1 is a distinct code.
+-- ADR 0094 W1: st_x is ALREADY `staff` of comm_x (bootstrap), and
+-- memberships_one_commission_role_uq now forbids holding two roles in one
+-- commission. So the precondition is a PROMOTION, not a second row.
+-- ⚠ The previous `on conflict do nothing` (no conflict target) swallowed the new
+-- index's 23505 SILENTLY: st_x stayed plain `staff`, and every twin below denied
+-- with HC0E4 for want of authority — exactly the "asserts nothing" failure this
+-- block's own comment warns about. An untargeted DO NOTHING is a fixture-shaped
+-- landmine; the explicit conflict target below cannot no-op.
 insert into public.memberships (principal_id, commission_id, role)
 values ((select st_x from k), (select comm_x from k), 'staff_admin')
-on conflict do nothing;
+on conflict (principal_id, commission_id) where commission_id is not null
+do update set role = excluded.role;
 
 -- sa_y is a CLEAN org_admin of org_x: the M1·3 actor, and the over-reach control.
 insert into public.memberships (organization_id, principal_id, role)
@@ -171,9 +180,11 @@ select is(app.is_case_respondent('00000000-0000-0000-0000-0000000f0001', (select
 -- ⭐ B7's OWN trap: adding a user_id write path creates a SIXTH self-serving
 -- mutator unless the linkage freezes once load-bearing. st_x2 is now a
 -- respondent AND (below) a staff_admin ⇒ can_manage_professional admits him.
+-- ADR 0094 W1: promotion, not a second row (see the st_x block above).
 insert into public.memberships (principal_id, commission_id, role)
 values ((select st_x2 from k), (select comm_x from k), 'staff_admin')
-on conflict do nothing;
+on conflict (principal_id, commission_id) where commission_id is not null
+do update set role = excluded.role;
 
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;

@@ -250,8 +250,15 @@ select is((select value #>> '{}' from public.case_custom_field_values
 -- 25-29) EXCLUDED staff_admin — denied by BOTH the RPC and the raw-DML path.
 -- st_x2 is MADE a staff_admin of comm_x AND recused from the case.
 -- =========================================================================
+-- ADR 0094 W1: st_x2 is already `staff` of comm_x and
+-- memberships_one_commission_role_uq forbids a second role row — promote instead.
+-- (This site had NO `on conflict` clause, so it failed LOUDLY with 23505 and aborted
+-- the file — the safer of the two failure modes; the untargeted DO NOTHING variants
+-- elsewhere no-opped silently.)
 insert into public.memberships (principal_id, commission_id, role)
-values ((select st_x2 from k), (select comm_x from k), 'staff_admin');
+values ((select st_x2 from k), (select comm_x from k), 'staff_admin')
+on conflict (principal_id, commission_id) where commission_id is not null
+do update set role = excluded.role;
 insert into public.case_recusals (case_id, user_id, source)
 values ((select cid from cse_x), (select st_x2 from k), 'coordinator');
 

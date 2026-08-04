@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import type { MemberCapability } from '@/lib/queries/members'
+import { isOneCommissionRoleViolation } from '@/lib/members/membership-conflict'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -160,7 +161,18 @@ export async function addStaff(
   // TS-authorized above) — the door RPC would fail here since the admin client has
   // no auth.uid(). The blanket trg_audit_memberships trigger still audits it. Upsert
   // is idempotent on the grant-unique key; DO NOTHING so adding an existing member
-  // (incl. a staff_admin) never silently demotes them.
+  // never silently re-grants.
+  //
+  // ADR 0094 W1/T1.3 — the two conflict shapes are now DIFFERENT constraints:
+  //   * already 'staff' here      -> conflicts on the grant-unique key above -> DO NOTHING.
+  //   * already 'staff_admin' here-> does NOT conflict on that key (it includes `role`),
+  //     but now violates `memberships_one_commission_role_uq` (principal_id,
+  //     commission_id) -> 23505.
+  // Before W1 that second case silently created the dual-role row this action's own
+  // comment promised to avoid. Treating the 23505 as success is what "never silently
+  // demotes them" always meant: the coordinator keeps their role and adding them as
+  // staff is a no-op. Handled at the DB rather than with a pre-read so there is no
+  // check-then-act race.
   const { error } = await admin.from('memberships').upsert(
     { commission_id: commissionId, principal_id: userId, role: 'staff' },
     {
@@ -168,7 +180,7 @@ export async function addStaff(
       ignoreDuplicates: true,
     },
   )
-  if (error) {
+  if (error && !isOneCommissionRoleViolation(error)) {
     return { ok: false, error: MESSAGES.generic }
   }
 

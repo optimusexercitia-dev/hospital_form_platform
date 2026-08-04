@@ -74,9 +74,12 @@ values ('00000000-0000-0000-0000-0000000f7001', (select st_x2 from k), 'coordina
 -- ⭐⭐ THE PRECONDITION — both excluded principals ALSO hold staff_admin, so the doors
 -- reach the EXCLUSION gate (HC0F1) instead of dying on authority (42501).
 insert into public.memberships (principal_id, commission_id, role)
+-- ADR 0094 W1: both are already `staff` of comm_x and
+-- memberships_one_commission_role_uq forbids a second role row — promote instead.
 values ((select st_x from k),  (select comm_x from k), 'staff_admin'),
        ((select st_x2 from k), (select comm_x from k), 'staff_admin')
-on conflict do nothing;
+on conflict (principal_id, commission_id) where commission_id is not null
+do update set role = excluded.role;
 
 -- storage objects on comm_x's legacy paths (commission-anchored).
 --   obj1 (probe.pdf)  = UNSHARED — proves the member arm is gone.

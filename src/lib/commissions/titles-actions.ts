@@ -106,8 +106,12 @@ export async function deleteMemberTitle(
 
 /**
  * Assign `titleId` to `memberId` (or clear when `titleId` is `null`). One title
- * per member; the title must belong to the member's commission (DB-enforced by
- * the A1 same-commission integrity trigger).
+ * per member; the title must belong to the member's commission — DB-enforced by
+ * the composite FK `memberships_title_id_fkey (title_id, commission_id) ->
+ * commission_member_titles (id, commission_id)`, which replaced the
+ * `app.guard_membership_title_commission` trigger in ADR 0094 W1/T1.4. A
+ * cross-commission assignment therefore now raises 23503, not 23514; this action
+ * maps every error to the generic pt-BR message, so the change is not user-visible.
  */
 export async function assignMemberTitle(
   memberId: string,

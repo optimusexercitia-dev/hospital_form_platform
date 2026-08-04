@@ -97,8 +97,13 @@ values ('00000000-0000-0000-0000-0000000f6104', '00000000-0000-0000-0000-0000000
 -- ⭐⭐ THE PRECONDITION. Without this row, M6·4 denies on HC0F5 (authority) and proves
 -- NOTHING about the exclusion gate. No seeded persona has both legs — see the header.
 insert into public.memberships (principal_id, commission_id, role)
+-- ADR 0094 W1: st_x is already `staff` of comm_x, and
+-- memberships_one_commission_role_uq forbids a second role row — promote instead.
+-- An untargeted `on conflict do nothing` would swallow the 23505 and leave st_x
+-- unauthorized, denying the keystones below for the wrong reason.
 values ((select st_x from k), (select comm_x from k), 'staff_admin')
-on conflict do nothing;
+on conflict (principal_id, commission_id) where commission_id is not null
+do update set role = excluded.role;
 
 -- ===========================================================================
 -- PRE-FLIGHT — the fixture is load-bearing; assert it, never assume it.

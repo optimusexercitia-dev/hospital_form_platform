@@ -6531,10 +6531,10 @@ export type Database = {
           },
           {
             foreignKeyName: "memberships_hospital_id_fkey"
-            columns: ["hospital_id"]
+            columns: ["hospital_id", "organization_id"]
             isOneToOne: false
             referencedRelation: "hospitals"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "organization_id"]
           },
           {
             foreignKeyName: "memberships_organization_id_fkey"
@@ -6552,10 +6552,10 @@ export type Database = {
           },
           {
             foreignKeyName: "memberships_title_id_fkey"
-            columns: ["title_id"]
+            columns: ["title_id", "commission_id"]
             isOneToOne: false
             referencedRelation: "commission_member_titles"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "commission_id"]
           },
         ]
       }
