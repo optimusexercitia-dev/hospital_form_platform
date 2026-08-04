@@ -81,9 +81,9 @@ atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight th
 | **W1** | Package A — one commission role per principal; composite FKs replace the two trigger guards; `granted_by` index; full writer sweep | ✅ **complete** — `9f3388a`; pgTAP `291` 35/35; mutation **9/9 RED-PROVEN**; E2E green |
 | **W2** | `public.session_context()` (one round trip, generic over roles) + expiry defusal + role-completeness grid | ✅ **complete** — pgTAP `292` 25/25; mutation **9/9**; E2E green (session bootstrap re-plumbed) |
 | **W3** | Package B — actor kernel + service door; **no raw `memberships` DML** (repo gate) | ✅ **complete** — pgTAP `293` 24/24 (two-entry equivalence grid); mutation **8/8** |
-| **W4** | Diretor Técnico backend (2 hospital-tier roles, appointment, referral-plane submission, PHI arm) | 🔜 **not started** |
+| **W4** | Diretor Técnico backend | 🟡 **partial** — T4.1–T4.3 (roles · scope shape · titular index · kernel arms w/ physician check · `appoint_technical_director`) ✅ pgTAP `294` 29/29, mutation **8/8**. **Flag `technical_director` is DARK** (its enable migration is T4.9, unbuilt). NOT built: T4.4 actions · T4.5–T4.8 referral plane · T4.9 enable · T4.10 seed · T4.11–13 tests |
 
-Gate so far: pgTAP **154 files / 4707** on a fresh reset · lint 0/0 (+ the new
+Gate so far: pgTAP **155 files / 4736** on a fresh reset · lint 0/0 (+ the new
 `lint:memberships-door`) · typecheck · Vitest **901/901** · targeted `e2e:prod` **160 passed / 0 failed**.
 
 > ⚠ **The plan was wrong about the substrate four times, and every correction came from the live

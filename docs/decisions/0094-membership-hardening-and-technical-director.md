@@ -161,3 +161,47 @@ then denied with `HC0E4` (want of authority) instead of the exclusion code under
 passing while asserting nothing. All five now promote via an explicitly targeted
 upsert. The two sites with no `on conflict` clause failed loudly and were the safer
 shape.
+
+## Amendment 3 — W4 build state (2026-08-04)
+
+W4 is **partially built**. What landed (migration `20260905000400`, pgTAP `294`,
+`w4-technical-director-mutation-audit.sh` 8/8 RED-PROVEN):
+
+- **T4.1** both roles admitted to `memberships_role_check`, both given hospital-tier
+  arms in `memberships_scope_shape` (which keeps its `else false` terminator), and
+  `memberships_one_technical_director_uq` enforcing exactly one titular per hospital.
+- **T4.2** kernel arms in `app.grant_role_impl` / `app.revoke_role_impl`: authority =
+  org_admin of the hospital's org OR hospital_admin of that hospital — **and no
+  `is_admin_for` branch**, per decision 3 of Amendment 1. This makes the DT arm the
+  only grant arm in the kernel without one; the asymmetry is deliberate and pgTAP
+  asserts it so a future "consistency" edit cannot quietly restore it. Physician
+  requirement resolved on `professional_categories.key = 'physician'` **and
+  `is_active`**; titular-already-exists refused with `HC0G4`; self-grant inherited.
+- **T4.3** `public.appoint_technical_director(p_hospital, p_user)` — atomic audited
+  replacement. It re-checks nothing: authority, the flag and the physician rule are
+  the kernel's, and a second copy would be a second thing to keep in sync.
+- Revoke deliberately carries **no** flag check and **no** physician check: turning the
+  feature off, or correcting a professional category, must never strand an existing
+  appointment beyond the administrators who granted it.
+
+**The `technical_director` flag ships DARK in this migration** — the enable migration
+(T4.9, PO decision 4 of Amendment 1: ships enabled) is the LAST step of W4 and has NOT
+landed. Nothing is half-live: the grant arms refuse while the flag is off, so the roles
+cannot be handed out before the feature they exist for is complete.
+
+**Not built:** T4.4 (server actions), T4.5–T4.8 (the referral-plane submission channel:
+`case_referral.target_type` / `target_hospital_id`, the target-audience arms, the
+submission door, the PHI arm), T4.9 (the enable migration), T4.10 (seed personas),
+T4.11–T4.13 (their tests). The T4.6 enumeration was re-derived from the live catalog and
+**matches the analysis exactly — 21 functions referencing `target_commission_id`, 0
+policies** — so the next session starts from a verified set rather than a hand-list.
+
+**Two checks the build proved are load-bearing** (both caught by mutation, neither by
+review):
+1. The kernel's guards MASK each other in order — flag, then authority, then physician,
+   then titular-uniqueness, then self-grant. A deny-code assertion has to name the guard
+   it means, or it measures whichever fires first.
+2. The physician check's `is_active` clause was untestable against a principal with NO
+   category: the join fails on the missing row and raises `HC0G3` regardless, so the
+   keystone passed while asserting nothing. Give the fixture a real physician category
+   first, then retire it.

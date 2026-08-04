@@ -242,7 +242,15 @@ insert into role_scope (role, scope_type) values
   ('nsp_coordinator','hospital'),
   ('pqs_member',     'hospital'),
   ('staff_admin',    'commission'),
-  ('staff',          'commission');
+  ('staff',          'commission'),
+  -- ADR 0094 W4/T4.1. These two entries are the checklist working as designed:
+  -- adding the roles to memberships_role_check RED-ed 3.1 until they were declared
+  -- here AND given grant/revoke arms in the kernel (3.3/3.4). Note 3.3/3.4 pass while
+  -- the `technical_director` flag is still DARK — the arms refuse with
+  -- check_violation, not HC0G0, so "the arm exists" and "the feature is live" stay
+  -- distinguishable.
+  ('technical_director',        'hospital'),
+  ('technical_director_deputy', 'hospital');
 -- 3.3/3.4 read this table while `set local role authenticated` is in force.
 grant select on role_scope to authenticated;
 
