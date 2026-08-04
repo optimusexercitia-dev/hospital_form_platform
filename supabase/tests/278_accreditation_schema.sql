@@ -12,7 +12,20 @@
 -- foreign-hospital_admin / cross-org readiness-door proofs) are OUT of scope
 -- here by design — this file only proves the five tables the RPCs will sit on.
 --
---   §0 — flag `accreditation` exists, disabled, ASSERTED not forced.
+--   §0 — flag `accreditation` exists, ASSERTED not forced. Enabled — Phase
+--        16 is PO-APPROVED and 20260904000100_enable_accreditation is the
+--        gate-flip migration this whole test suite runs on top of (a fresh
+--        `db reset` applies EVERY migration, so pgTAP only ever observes
+--        FINAL state, never the transient "seeded OFF" moment Migration A
+--        alone produced). This assertion originally read the OPPOSITE
+--        value: Migration A's own insert deliberately used enabled=false
+--        (the column DEFAULTs true — Amendment 2 A2·3), and 278 asserted
+--        that discipline was followed AT THE TIME. That was a transient
+--        truth about one migration's authoring, not a standing safety
+--        property pgTAP can keep enforcing after the deliberate,
+--        two-migration gate-flip (the FF-program lesson this phase's own
+--        header comments cite) completed as designed — so this is the
+--        CORRECT new truth, not a test weakened until green.
 --   §A — the five tables exist.
 --   §B — CHECK constraints: declared (pg_constraint) AND behaviorally enforced
 --        (an invalid write is rejected) — frameworks.status,
@@ -83,12 +96,12 @@ insert into public.hospitals (id, organization_id, name, slug)
 -- ===========================================================================
 -- §0 · Flag — asserted, never forced.
 -- ===========================================================================
-select ok(not app.feature_enabled('accreditation'),
-  '0. flag accreditation is OFF (Amendment 2 A2·3 — enabled defaults TRUE, seeded false explicitly)');
+select ok(app.feature_enabled('accreditation'),
+  '0. flag accreditation is ON — Phase 16 is PO-APPROVED; 20260904000100_enable_accreditation is the gate-flip this suite runs on top of (see the header note: this replaces the pre-gate "seeded false" assertion, it does not weaken it)');
 select is(
   (select enabled from app.feature_flags where key = 'accreditation'),
-  false,
-  '0b. app.feature_flags row for accreditation has enabled = false'
+  true,
+  '0b. app.feature_flags row for accreditation has enabled = true'
 );
 
 -- ===========================================================================

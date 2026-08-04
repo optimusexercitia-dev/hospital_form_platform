@@ -56,10 +56,15 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- ===========================================================================
--- §0 · Flag OFF — HC0Q9 on every one of the six RPCs. Natural default state
--- (seed.sql does not force accreditation ON).
+-- §0 · Flag OFF — HC0Q9 on every one of the six RPCs. Phase 16 is
+-- PO-APPROVED and shipped ON by default (Migration G + seed.sql), so this
+-- section FORCES it off in-transaction first — it is testing the RPCs'
+-- OWN gate behavior under a hypothetical/counterfactual off state (still a
+-- real, ongoing invariant: if this ever gets rolled back, every RPC must
+-- still deny), not the ambient default anymore.
 -- ===========================================================================
-select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is OFF (natural default, not forced)');
+update app.feature_flags set enabled = false where key = 'accreditation';
+select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is forced OFF for this section');
 
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;

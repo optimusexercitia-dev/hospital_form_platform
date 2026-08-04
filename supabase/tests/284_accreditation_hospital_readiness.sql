@@ -67,9 +67,13 @@ grant select on k to authenticated;
 
 -- ===========================================================================
 -- §0 · Flag OFF (no role switch needed — the flag check fires before any
--- gate, regardless of caller identity).
+-- gate, regardless of caller identity). Phase 16 is PO-APPROVED and ships
+-- ON by default now (Migration G + seed.sql) — FORCE it off first to prove
+-- the door's own gate still denies correctly under a hypothetical/rolled-
+-- back off state, not a claim about the ambient default.
 -- ===========================================================================
-select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is OFF (natural default)');
+update app.feature_flags set enabled = false where key = 'accreditation';
+select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is forced OFF for this section');
 select throws_ok(
   format($$ select public.hospital_readiness(%L, %L) $$, gen_random_uuid(), gen_random_uuid()),
   'HC0Q9', null, '0a. hospital_readiness raises HC0Q9 while the flag is off'

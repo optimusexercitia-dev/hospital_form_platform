@@ -2150,6 +2150,14 @@ update app.feature_flags set enabled = true where key = 'entity_refs';
 -- asserts the flag is ON before it asserts anything else.
 update app.feature_flags set enabled = true where key = 'power_authoring';
 
+-- Phase 16 (Standards Crosswalk & Readiness/Gap Engine v2, ADR 0093) is
+-- PO-APPROVED and its own gate-flip migration
+-- (20260904000100_enable_accreditation) now carries this ON in every
+-- environment `db push` reaches, including production — this seed.sql line
+-- is belt-and-suspenders for local/E2E, matching every other already-
+-- flipped flag above (e.g. power_authoring keeps its own line too).
+update app.feature_flags set enabled = true where key = 'accreditation';
+
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
 -- row-complete rule is exercised by simply filling the form) and one

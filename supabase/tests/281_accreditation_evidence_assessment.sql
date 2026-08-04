@@ -6,10 +6,11 @@
 -- fix) and 20260903001500_assessment_read_path.sql (BUG-P16-001 root-cause
 -- fix — the missing get_standard_assessment read door; C11-C13 below).
 --
--- The `accreditation` flag ships OFF (not forced by seed.sql) — §0 runs the
--- flag-off census against the natural default, THEN this file flips it ON
--- in-transaction (reverted by the trailing rollback) — same discipline as
--- 280.
+-- Phase 16 is PO-APPROVED and the `accreditation` flag now ships ON by
+-- default (Migration G + seed.sql) — §0 FORCES it off in-transaction first
+-- to prove the RPCs' own gate still denies correctly, THEN flips it back on
+-- for the rest of this file (reverted by the trailing rollback either way)
+-- — same discipline as 280.
 --
 --   §0 — HC0Q9 flag-off on EVERY ONE of the five RPCs, INCLUDING
 --        evidence_candidates (the FF-5 HC0Q3 lesson: an unmapped raise on a
@@ -99,9 +100,13 @@ insert into public.memberships (principal_id, organization_id, role)
 
 -- ===========================================================================
 -- §0 · Flag OFF — HC0Q9 on every one of the five RPCs (evidence_candidates
--- included).
+-- included). Phase 16 is PO-APPROVED and shipped ON by default (Migration G
+-- + seed.sql), so this section FORCES it off in-transaction first — a real,
+-- ongoing invariant about the RPCs' OWN gate behavior (if ever rolled back,
+-- every RPC must still deny), not a claim about the ambient default anymore.
 -- ===========================================================================
-select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is OFF (natural default)');
+update app.feature_flags set enabled = false where key = 'accreditation';
+select ok(not app.feature_enabled('accreditation'), '0. flag accreditation is forced OFF for this section');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
