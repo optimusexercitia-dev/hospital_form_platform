@@ -96,6 +96,17 @@ export type ReferralDirection = 'incoming' | 'outgoing'
 export type ReferralPriority = 'routine' | 'high' | 'urgent' | 'critical'
 
 /**
+ * ADR 0094 W4/D7 — which arm of the referral's TARGET sum type a row is on. Mirrors
+ * `case_referral.target_type`, whose CHECK is the authority; the DB pins it in
+ * agreement with which target id is non-null, so this discriminator and
+ * `targetCommissionId` / `targetHospitalId` can never disagree.
+ *
+ * `technical_director` means the destination is a hospital's Diretor Técnico — the
+ * OFFICE, resolved live (D4), not a person captured at send time.
+ */
+export type ReferralTargetType = 'commission' | 'technical_director'
+
+/**
  * A PHI-FREE structured decline reason (RV2 R2), stored in
  * `case_referral.decline_reason_code` (DB CHECK-enforced). DISTINCT from the
  * PHI free-text {@link DeclineReferralInput.note} (`decline_note`, column-REVOKED)
@@ -422,8 +433,14 @@ export interface ReferralListItem {
   overdue: boolean
   sourceCommissionId: string
   sourceCommissionName: string | null
-  targetCommissionId: string
+  /** ADR 0094 W4 — `null` when {@link targetType} is `technical_director`. */
+  targetCommissionId: string | null
+  /** The destination's display name, already composed by the query layer (D5): a
+   * commission's name, or `Direção Técnica — <hospital>`. */
   targetCommissionName: string | null
+  targetType: ReferralTargetType
+  /** ADR 0094 W4 — set iff {@link targetType} is `technical_director`. */
+  targetHospitalId: string | null
   /** The source case's human number (for the read-back / linkage UI). */
   sourceCaseId: string
   sourceCaseNumber: number | null
@@ -481,8 +498,13 @@ export interface ReferralDetail {
   parentReferralId: string | null
   sourceCommissionId: string
   sourceCommissionName: string | null
-  targetCommissionId: string
+  /** ADR 0094 W4 — `null` when {@link targetType} is `technical_director`. */
+  targetCommissionId: string | null
+  /** The destination's display name, already composed by the query layer (D5). */
   targetCommissionName: string | null
+  targetType: ReferralTargetType
+  /** ADR 0094 W4 — set iff {@link targetType} is `technical_director`. */
+  targetHospitalId: string | null
   sourceCaseId: string
   sourceCaseNumber: number | null
   targetCaseId: string | null
@@ -493,6 +515,10 @@ export interface ReferralDetail {
   /** RV2 R1: the committee the referral is waiting on while `awaiting_information`
    * (= source or target); `null` otherwise. PHI-free metadata. */
   waitingOnCommitteeId: string | null
+  /** ADR 0094 W4/D9: the DT-side counterpart of {@link waitingOnCommitteeId}. Exactly
+   * one of the two is ever set — without this column "the technical direction is
+   * holding this" was written as a NULL committee and read as "nobody is waiting". */
+  waitingOnHospitalId: string | null
   /** RV2 R1: last thread activity (PHI-free); `null` if no message yet. */
   lastMessageAt: string | null
   /** RV2 R1: whether THIS viewer may compose as the SOURCE (= source coordinator).

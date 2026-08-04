@@ -3180,11 +3180,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -3222,11 +3226,15 @@ export type Database = {
           status?: string
           subject: string
           target_case_id?: string | null
-          target_commission_id: string
+          target_commission_id?: string | null
           target_commission_name?: string | null
+          target_hospital_id?: string | null
+          target_hospital_name?: string | null
+          target_type?: string
           type_label: string
           updated_at?: string
           waiting_on_committee_id?: string | null
+          waiting_on_hospital_id?: string | null
           withdrawn_at?: string | null
           withdrawn_by?: string | null
         }
@@ -3264,11 +3272,15 @@ export type Database = {
           status?: string
           subject?: string
           target_case_id?: string | null
-          target_commission_id?: string
+          target_commission_id?: string | null
           target_commission_name?: string | null
+          target_hospital_id?: string | null
+          target_hospital_name?: string | null
+          target_type?: string
           type_label?: string
           updated_at?: string
           waiting_on_committee_id?: string | null
+          waiting_on_hospital_id?: string | null
           withdrawn_at?: string | null
           withdrawn_by?: string | null
         }
@@ -3334,6 +3346,20 @@ export type Database = {
             columns: ["target_commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_target_hospital_id_fkey"
+            columns: ["target_hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_waiting_on_hospital_id_fkey"
+            columns: ["waiting_on_hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
         ]
@@ -8322,7 +8348,7 @@ export type Database = {
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
-          sender_commission_id: string
+          sender_commission_id: string | null
           sender_user_id: string | null
           sequence_number: number
           supersedes_message_id: string | null
@@ -8337,7 +8363,7 @@ export type Database = {
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id: string
-          sender_commission_id: string
+          sender_commission_id?: string | null
           sender_user_id?: string | null
           sequence_number: number
           supersedes_message_id?: string | null
@@ -8352,7 +8378,7 @@ export type Database = {
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id?: string
-          sender_commission_id?: string
+          sender_commission_id?: string | null
           sender_user_id?: string | null
           sequence_number?: number
           supersedes_message_id?: string | null
@@ -9179,11 +9205,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -9898,6 +9928,10 @@ export type Database = {
       }
       appoint_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      appoint_technical_director: {
+        Args: { p_hospital: string; p_user: string }
         Returns: undefined
       }
       approve_correction: {
@@ -10828,11 +10862,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -11564,6 +11602,7 @@ export type Database = {
           p_source_case_id: string
           p_subject: string
           p_target_commission_id: string
+          p_target_hospital_id?: string
         }
         Returns: {
           code: string
@@ -11599,11 +11638,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -11863,11 +11906,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -12357,11 +12404,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -12764,7 +12815,7 @@ export type Database = {
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
-          sender_commission_id: string
+          sender_commission_id: string | null
           sender_user_id: string | null
           sequence_number: number
           supersedes_message_id: string | null
@@ -12838,11 +12889,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -13046,11 +13101,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -13238,7 +13297,7 @@ export type Database = {
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
-          sender_commission_id: string
+          sender_commission_id: string | null
           sender_user_id: string | null
           sequence_number: number
           supersedes_message_id: string | null
@@ -13612,11 +13671,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -13747,11 +13810,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -13802,11 +13869,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -14086,11 +14157,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -14528,11 +14603,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -14799,11 +14878,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -16071,11 +16154,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -16359,11 +16446,15 @@ export type Database = {
           status: string
           subject: string
           target_case_id: string | null
-          target_commission_id: string
+          target_commission_id: string | null
           target_commission_name: string | null
+          target_hospital_id: string | null
+          target_hospital_name: string | null
+          target_type: string
           type_label: string
           updated_at: string
           waiting_on_committee_id: string | null
+          waiting_on_hospital_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }

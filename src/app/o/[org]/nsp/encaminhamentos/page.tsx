@@ -94,10 +94,14 @@ export default async function NspReferralsDashboardPage({
   // target commission belongs to the route's org (a multi-org PQS member would
   // otherwise see the union). The metrics headline is derived from this set.
   const orgCommissionIds = new Set(commissions.map((c) => c.id));
+  // ADR 0094 W4: a technical-direction referral has no target commission. Its source
+  // arm still scopes it correctly — the same-hospital rule puts source and target in
+  // one hospital, hence one org — so it belongs to this org iff its source does.
   const referrals = allReferrals.filter(
     (r) =>
       orgCommissionIds.has(r.sourceCommissionId) ||
-      orgCommissionIds.has(r.targetCommissionId),
+      (r.targetCommissionId !== null &&
+        orgCommissionIds.has(r.targetCommissionId)),
   );
   const metrics = deriveFlowMetrics(referrals);
 

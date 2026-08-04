@@ -70,6 +70,7 @@ import type {
   ReferralRequestedAction,
   ReferralResolution,
   ReferralStatus,
+  ReferralTargetType,
   ReferralType,
   ReplyOutcome,
   SharedItem,
@@ -80,6 +81,7 @@ import type {
 // `"use client"` components share one import surface (the safety-events pattern).
 export type {
   ReferralStatus,
+  ReferralTargetType,
   SharedItemKind,
   ReferralPatientSex,
   ReferralDirection,
@@ -139,6 +141,10 @@ const REFERRAL_LIST_SELECT =
   'source_commission_id, target_commission_id, source_case_id, target_case_id, ' +
   'has_patient, sent_at, last_message_at, created_at, referral_type_id, ' +
   'source_commission_name, target_commission_name, ' +
+  // ADR 0094 W4 — the target sum type. `authenticated` holds COLUMN-level SELECT on
+  // case_referral, so each of these needs its own GRANT server-side or the whole
+  // select reads 42501 at runtime (the migration grants them).
+  'target_type, target_hospital_id, target_hospital_name, ' +
   'source_case:source_case_id(case_number), ' +
   'target_case:target_case_id(case_number), ' +
   'referral_type:referral_type_id(color_token)'
@@ -154,7 +160,8 @@ interface ReferralListRow {
   requested_action_label: string | null
   response_due_at: string | null
   source_commission_id: string
-  target_commission_id: string
+  /** NULL on a `technical_director` row — the target is a hospital's office. */
+  target_commission_id: string | null
   source_case_id: string
   target_case_id: string | null
   has_patient: boolean
@@ -164,9 +171,36 @@ interface ReferralListRow {
   referral_type_id: string | null
   source_commission_name: string | null
   target_commission_name: string | null
+  target_type: ReferralTargetType
+  target_hospital_id: string | null
+  target_hospital_name: string | null
   source_case: { case_number: number } | null
   target_case: { case_number: number } | null
   referral_type: { color_token: string | null } | null
+}
+
+/**
+ * ADR 0094 W4/D5 — THE one place a referral's target renders as a name (Rule 9).
+ *
+ * A DT referral's destination is an OFFICE, so the DB snapshots the hospital's name
+ * (`target_hospital_name`) and nothing else: not the commission-name column, which
+ * would then be a column holding a hospital name, and not the director's own name,
+ * which is Class-2 professional identity and goes stale the instant the office changes
+ * (D4). Composing the pt-BR label is presentation, so it happens here rather than in
+ * SQL — and here ONLY, because every reader (case card, hub, QPS dashboard, flow
+ * charts) goes through this mapper. Without it the QPS dashboard renders "—" for the
+ * destination of every DT referral, which is precisely the trajectory D5 exists to
+ * keep visible.
+ */
+function referralTargetName(r: {
+  target_type: ReferralTargetType
+  target_commission_name: string | null
+  target_hospital_name: string | null
+}): string | null {
+  if (r.target_type !== 'technical_director') return r.target_commission_name
+  return r.target_hospital_name
+    ? `Direção Técnica — ${r.target_hospital_name}`
+    : 'Direção Técnica'
 }
 
 /** Map a list row → {@link ReferralListItem}, computing `direction` per the
@@ -198,7 +232,9 @@ function mapReferralListItem(
     sourceCommissionId: r.source_commission_id,
     sourceCommissionName: r.source_commission_name,
     targetCommissionId: r.target_commission_id,
-    targetCommissionName: r.target_commission_name,
+    targetCommissionName: referralTargetName(r),
+    targetType: r.target_type,
+    targetHospitalId: r.target_hospital_id,
     sourceCaseId: r.source_case_id,
     sourceCaseNumber: r.source_case?.case_number ?? null,
     targetCaseId: r.target_case_id,
@@ -392,8 +428,12 @@ interface ReferralDetailJson {
   parent_referral_id: string | null
   source_commission_id: string
   source_commission_name: string | null
-  target_commission_id: string
+  /** NULL on a `technical_director` row — the target is a hospital's office. */
+  target_commission_id: string | null
   target_commission_name: string | null
+  target_type: ReferralTargetType
+  target_hospital_id: string | null
+  target_hospital_name: string | null
   source_case_id: string
   source_case_number: number | null
   target_case_id: string | null
@@ -403,6 +443,8 @@ interface ReferralDetailJson {
   created_by_name: string | null
   decline_note: string | null
   waiting_on_committee_id: string | null
+  /** ADR 0094 W4/D9 — the DT-side counterpart; "the DT is holding this". */
+  waiting_on_hospital_id: string | null
   last_message_at: string | null
   can_compose_as_source: boolean
   can_compose_as_target: boolean
@@ -661,7 +703,9 @@ export async function getReferralDetail(
     sourceCommissionId: d.source_commission_id,
     sourceCommissionName: d.source_commission_name,
     targetCommissionId: d.target_commission_id,
-    targetCommissionName: d.target_commission_name,
+    targetCommissionName: referralTargetName(d),
+    targetType: d.target_type,
+    targetHospitalId: d.target_hospital_id,
     sourceCaseId: d.source_case_id,
     sourceCaseNumber: d.source_case_number,
     targetCaseId: d.target_case_id,
@@ -670,6 +714,7 @@ export async function getReferralDetail(
     createdById: d.created_by,
     createdByName: d.created_by_name,
     waitingOnCommitteeId: d.waiting_on_committee_id,
+    waitingOnHospitalId: d.waiting_on_hospital_id,
     lastMessageAt: d.last_message_at,
     canComposeAsSource: d.can_compose_as_source,
     canComposeAsTarget: d.can_compose_as_target,

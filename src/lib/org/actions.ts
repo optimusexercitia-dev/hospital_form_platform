@@ -459,3 +459,233 @@ export async function revokeNspCoordinator(
   if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
   return { ok: true, message: COORD_MESSAGES.revoked }
 }
+
+// ===========================================================================
+// ADR 0094 W4 / T4.4 — Diretor Técnico appointment (hospital tier).
+//
+// Every Brazilian hospital has a Diretor Técnico: an elected physician who is
+// technically responsible for all of the hospital's committees. These four actions
+// are the server-side surface for that office. W4 ships NO UI, so they are wired to
+// nothing yet — they exist so the appointment flow has a typed, RLS-respecting entry
+// point when the screen is built.
+//
+// The titular goes through `appoint_technical_director`, NOT `grant_role`: a hospital
+// holds exactly one, so granting where one exists is refused by the kernel (HC0G4),
+// and replacing a legally-designated officer is its own explicit, atomic act rather
+// than a side effect of a plain grant. Deputies are unbounded and use the ordinary
+// door.
+// ===========================================================================
+
+const TECHNICAL_DIRECTOR_MESSAGES = {
+  forbidden:
+    'Apenas o administrador da organização ou do hospital pode designar a direção técnica.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  self: 'Não é possível nomear a si mesmo.',
+  notPhysician: 'O diretor técnico deve ser um profissional médico.',
+  alreadyTitular:
+    'Este hospital já possui um diretor técnico titular. Use a substituição para trocá-lo.',
+  unavailable: 'A direção técnica não está disponível.',
+  titularAppointed: 'Direção técnica designada.',
+  titularRevoked: 'Designação de direção técnica removida.',
+  deputyAppointed: 'Substituto(a) da direção técnica designado(a).',
+  deputyRevoked: 'Designação de substituto(a) removida.',
+} as const
+
+/**
+ * SQLSTATE → pt-BR. The kernel's DT arm masks its guards in order (flag → hospital →
+ * authority → physician → titular → self-grant), so each code names exactly one of
+ * them; collapsing them all to the generic string would throw away the only actionable
+ * half of the message. `23514` is shared by the flag check and "hospital inexistente",
+ * and only the former is reachable from a real hospital picker, so it maps to the
+ * flag's meaning.
+ */
+const TECHNICAL_DIRECTOR_ERRORS: Readonly<Record<string, string>> = {
+  HC0G3: TECHNICAL_DIRECTOR_MESSAGES.notPhysician,
+  HC0G4: TECHNICAL_DIRECTOR_MESSAGES.alreadyTitular,
+  '42501': TECHNICAL_DIRECTOR_MESSAGES.forbidden,
+  '23514': TECHNICAL_DIRECTOR_MESSAGES.unavailable,
+}
+
+function technicalDirectorError(code: string | undefined): string {
+  if (!code) return TECHNICAL_DIRECTOR_MESSAGES.generic
+  return TECHNICAL_DIRECTOR_ERRORS[code] ?? TECHNICAL_DIRECTOR_MESSAGES.generic
+}
+
+/**
+ * Authorize a technical-direction write: `org_admin` of the hospital's organization
+ * OR `hospital_admin` of that hospital.
+ *
+ * ⛔ DELIBERATELY NO `context.isAdmin` ARM — unlike `authorizeOrgAdmin` above, which
+ * this otherwise resembles. The PO ruled that appointing a Diretor Técnico is a tenant
+ * governance act with legal weight rather than tenancy administration, so a
+ * platform_admin is refused; the kernel's DT arm is correspondingly the only grant arm
+ * with no `is_admin_for` branch, and `supabase/tests/294` §3.3 asserts that asymmetry.
+ * Copying the sibling helper here would reinstate the very arm that ruling removed and
+ * leave the database as the only thing still refusing.
+ */
+async function authorizeTechnicalDirection(
+  hospitalId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  return (
+    context.orgAdminOf.some((o) => o.organization.id === organizationId) ||
+    context.hospitalAdminOf.some((h) => h.hospital.id === hospitalId)
+  )
+}
+
+/**
+ * Resolve the hospital's org for authorization + revalidation. `hospitals_select`
+ * admits both authority arms (org_admin of the org, hospital_admin of the hospital),
+ * so a null here means the caller has no business with this hospital at all.
+ */
+async function hospitalOrgId(hospitalId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('hospitals')
+    .select('organization_id')
+    .eq('id', hospitalId)
+    .maybeSingle<{ organization_id: string }>()
+  return data?.organization_id ?? null
+}
+
+/**
+ * Appoint `userId` as `hospitalId`'s Diretor Técnico (titular). Backed by
+ * `appoint_technical_director`, which revokes the incumbent and grants the appointee
+ * in ONE transaction — a handover is never observable as a hospital with two technical
+ * directors, or with none.
+ */
+export async function appointTechnicalDirector(
+  hospitalId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  if (!hospitalId || !userId) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.generic }
+  }
+  const context = await getSessionContext()
+  if (!context) return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.forbidden }
+  if (context.userId === userId) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.self }
+  }
+
+  const organizationId = await hospitalOrgId(hospitalId)
+  if (
+    !organizationId ||
+    !(await authorizeTechnicalDirection(hospitalId, organizationId))
+  ) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('appoint_technical_director', {
+    p_hospital: hospitalId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: technicalDirectorError(error.code) }
+
+  await revalidateOrgManage(organizationId)
+  return { ok: true, message: TECHNICAL_DIRECTOR_MESSAGES.titularAppointed }
+}
+
+/**
+ * Appoint `userId` as a deputy (substituto). Deputies are UNBOUNDED and, by decision
+ * D1, hold the same authority as the titular — a substituto who cannot decide is
+ * decorative, and a referral would stall whenever the titular was away.
+ */
+export async function appointTechnicalDirectorDeputy(
+  hospitalId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  if (!hospitalId || !userId) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.generic }
+  }
+  const context = await getSessionContext()
+  if (!context) return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.forbidden }
+  if (context.userId === userId) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.self }
+  }
+
+  const organizationId = await hospitalOrgId(hospitalId)
+  if (
+    !organizationId ||
+    !(await authorizeTechnicalDirection(hospitalId, organizationId))
+  ) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('grant_role', {
+    p_scope_type: 'hospital',
+    p_scope_id: hospitalId,
+    p_role: 'technical_director_deputy',
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: technicalDirectorError(error.code) }
+
+  await revalidateOrgManage(organizationId)
+  return { ok: true, message: TECHNICAL_DIRECTOR_MESSAGES.deputyAppointed }
+}
+
+/**
+ * Shared revoke path for both technical-direction roles. The kernel's revoke arm
+ * carries NO physician check and NO flag check by design: both are preconditions for
+ * HOLDING the office, and re-checking them on the way out would make a director
+ * unremovable exactly when the reason to remove them is that a precondition stopped
+ * holding.
+ */
+async function revokeTechnicalDirectionRole(
+  hospitalId: string,
+  userId: string,
+  role: 'technical_director' | 'technical_director_deputy',
+  successMessage: string,
+): Promise<MutationActionState> {
+  if (!hospitalId || !userId) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.generic }
+  }
+  const organizationId = await hospitalOrgId(hospitalId)
+  if (
+    !organizationId ||
+    !(await authorizeTechnicalDirection(hospitalId, organizationId))
+  ) {
+    return { ok: false, error: TECHNICAL_DIRECTOR_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('revoke_role', {
+    p_scope_type: 'hospital',
+    p_scope_id: hospitalId,
+    p_role: role,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: technicalDirectorError(error.code) }
+
+  await revalidateOrgManage(organizationId)
+  return { ok: true, message: successMessage }
+}
+
+/** Remove `userId`'s titular designation on `hospitalId`. */
+export async function revokeTechnicalDirector(
+  hospitalId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  return revokeTechnicalDirectionRole(
+    hospitalId,
+    userId,
+    'technical_director',
+    TECHNICAL_DIRECTOR_MESSAGES.titularRevoked,
+  )
+}
+
+/** Remove `userId`'s deputy designation on `hospitalId`. */
+export async function revokeTechnicalDirectorDeputy(
+  hospitalId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  return revokeTechnicalDirectionRole(
+    hospitalId,
+    userId,
+    'technical_director_deputy',
+    TECHNICAL_DIRECTOR_MESSAGES.deputyRevoked,
+  )
+}

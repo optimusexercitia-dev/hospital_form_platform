@@ -22,6 +22,10 @@
 --                             enrolled → cannot read PHI until self-enrolled)
 --   pqs.a/.b@test.local       enrolled PQS reader of Rede A / Rede B (reads that
 --                             org's PHI only — the cross-org isolation keystone)
+--   dt.a@test.local           Diretor Técnico (titular) of Hospital Central A —
+--                             physician, hospital-tier, NO commission membership
+--   dt.dep.a@test.local       DT deputy of the same hospital. Equal authority to the
+--                             titular (ADR 0094 D1), which is what it is here to prove
 
 set search_path = public, extensions;
 
@@ -157,7 +161,22 @@ declare
     --     until Phase B).
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e1', 'email', 'hospitaladmin.a1@test.local',   'name', 'Admin Hospital A1',   'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e3', 'email', 'hospitaladmin.dual@test.local', 'name', 'Admin Hospital Dual', 'org', '0c000000-0000-0000-0000-00000000000a'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e2', 'email', 'nsporg.a@test.local',           'name', 'Admin NSP Rede A',    'org', '0c000000-0000-0000-0000-00000000000a')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e2', 'email', 'nsporg.a@test.local',           'name', 'Admin NSP Rede A',    'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- Diretor Técnico tier (ADR 0094 W4). Both are PHYSICIANS (the category is
+    -- assigned below) because the appointment door refuses anyone else — a DT
+    -- persona without one would be unappointable through the product path, so the
+    -- fixture would only ever exercise raw DML.
+    --   dt.a       = titular of central-a. Exactly one per hospital, enforced by
+    --                memberships_one_technical_director_uq.
+    --   dt.dep.a   = deputy of central-a. Deputies are unbounded and hold the SAME
+    --                authority as the titular (D1), which is what makes them worth
+    --                seeding separately: a deputy is the discriminating persona for
+    --                every "titular ≡ deputy" assertion.
+    -- Neither holds ANY commission membership, deliberately: the DT reaches a
+    -- referral through the hospital-tier arm alone, and a committee grant would make
+    -- every audience test pass through the wrong arm.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f1', 'email', 'dt.a@test.local',               'name', 'Diretor Técnico A',   'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f2', 'email', 'dt.dep.a@test.local',           'name', 'Substituto DT A',     'org', '0c000000-0000-0000-0000-00000000000a')
   );
   u jsonb;
 begin
@@ -259,6 +278,13 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin'),
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin');
 
+-- Diretor Técnico rows (ADR 0094 W4) — hospital tier, same shape as hospital_admin.
+-- Inserted directly rather than through appoint_technical_director because the seed
+-- runs with no session: the door resolves its actor from auth.uid().
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f1', 'technical_director'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f2', 'technical_director_deputy');
+
 -- Q2 hospital-scoped directory: anchor the hospital_admin's home hospital to
 -- central-a. The dual + nsporg personas stay hospital-less at home.
 update public.profiles set home_hospital_id = '05000000-0000-0000-0000-00000000000a'
@@ -328,7 +354,11 @@ insert into public.memberships (commission_id, principal_id, role) values
 -- ---------------------------------------------------------------------------
 -- Assign a professional category to a few personas (physician/nurse/pharmacist).
 update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000001' -- physician
-  where id = '00000000-0000-0000-0000-0000000000d2';
+  where id in ('00000000-0000-0000-0000-0000000000d2',
+               -- ADR 0094 W4: the technical direction MUST be a physician (the door
+               -- resolves the category's `key`, never its pt-BR label).
+               '00000000-0000-0000-0000-0000000000f1',
+               '00000000-0000-0000-0000-0000000000f2');
 update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000002' -- nurse
   where id in ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000d3');
 update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000003' -- pharmacist

@@ -73,21 +73,42 @@
 **▶ ACTIVE: Membership hardening + Diretor Técnico** (ADR
 [0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–3; plan
 [membership-hardening-technical-director.md](docs/plans/membership-hardening-technical-director.md)) —
-branch `feat/membership-hardening-technical-director`, **local, 4 commits, NOT pushed**. PO closed all
+branch `feat/membership-hardening-technical-director`, **local, NOT pushed**. PO closed all
 four open items 2026-08-04: atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight
-through · DT flag ships **ON at T4.9** (⚠ still **DARK** — that enable migration is unbuilt).
+through · DT flag ships **ON at T4.9** — and it now **is ON** (`20260905000600`, the last step of W4).
 
 | WS | Scope | State |
 | -- | ----- | ----- |
 | **W1** | Package A — one commission role per principal; composite FKs replace the two trigger guards; `granted_by` index; full writer sweep | ✅ **complete** — `9f3388a`; pgTAP `291` 35/35; mutation **9/9 RED-PROVEN**; E2E green |
 | **W2** | `public.session_context()` (one round trip, generic over roles) + expiry defusal + role-completeness grid | ✅ **complete** — `36a69d5`; pgTAP `292` 25/25; mutation **9/9**; E2E green (session bootstrap re-plumbed) |
 | **W3** | Package B — actor kernel + service door; **no raw `memberships` DML** (repo gate) | ✅ **complete** — `36a69d5`; pgTAP `293` 24/24 (two-entry equivalence grid); mutation **8/8**; E2E green — ⚠ **5 of the 6 migrated callers**; `assignOrgAdmin` (platform first-org_admin provisioning) has NO E2E spec, so its migration to `grant_role_for` is pgTAP-proven only → FUP-MEM-2 |
-| **W4** | Diretor Técnico backend | 🟡 **partial** — `803e837`; T4.1–T4.3 (roles · scope shape · titular index · kernel arms w/ physician check · `appoint_technical_director`) ✅ pgTAP `294` 29/29, mutation **8/8**. **Flag `technical_director` is DARK** (its enable migration is T4.9, unbuilt). NOT built: T4.4 actions · T4.5–T4.8 referral plane · T4.9 enable · T4.10 seed · T4.11–13 tests |
+| **W4** | Diretor Técnico backend — the two roles + the referral plane | ✅ **complete** — T4.1–T4.3 `803e837` (pgTAP `294` 29/29, mutation 8/8); T4.4–T4.13 (`20260905000500` referral target sum type + `20260905000600` enable): pgTAP `295` **60/60**, mutation **13/13 RED-PROVEN**. Flag `technical_director` **ON**. Seed: `dt.a@` / `dt.dep.a@`. **No frontend** by plan — `p_target_hospital_id` on `create_referral_draft` has no product caller yet (FUP-MEM-3) |
 
-Gate so far: pgTAP **155 files / 4736** on a fresh reset · lint 0/0 (+ the new
-`lint:memberships-door`) · typecheck · Vitest **901/901** · targeted `e2e:prod` **171 passed / 0 failed**
-(a first 7-spec run of **160/0** validated W1+W2's session re-plumb; the 8-spec re-run validated W3's
-caller migration). ⚠ **The full `e2e:prod` suite has NOT been run** — declare-green is still owed.
+Gate so far: pgTAP **156 files / 4796** on a fresh reset · lint 0/0 (+ `lint:memberships-door`) ·
+typecheck · Vitest **901/901** · W4 mutation audits **8/8 + 13/13 RED-PROVEN**, both controls green.
+Earlier targeted `e2e:prod` runs: **171 passed / 0 failed** (W3 caller migration) and **160/0** (W1+W2
+session re-plumb). ⚠ **The full `e2e:prod` suite is RUNNING** — declare-green is not yet recorded.
+
+> ⚠ **W4's referral plane found FIVE fail-open sites that the plan's task list did not name**, and
+> none of them could have been caught by a passing test — all five fail OPEN. Making
+> `target_commission_id` nullable silently changed every expression that compared to it: in SQL a NULL
+> comparison inside `if`/`check` is *no opinion*, which reads as PASS. `case_referral_waiting_on_check`
+> would have admitted an arbitrary committee as the waiting party; `guard_referral_message`'s
+> `sender not in (v_src, v_tgt)` would have admitted a NULL sender on **every** referral, not just a DT
+> one; `link_referral_case` would have attached **any case in the database** as a DT referral's target
+> case; `link_referral_related_case` would have raised a raw 23502 out of a check the caller passed.
+> The **fifth** was found by the new CHECK itself: "exactly one waiting party" turns every writer of
+> `waiting_on_committee_id` into a writer of BOTH columns, so `conclude_referral` and `resolve_referral`
+> — which need no DT *audience* arm and therefore appear in no DT-shaped enumeration — were refused the
+> first time a DT referral reached them. Four found by asking "what does this evaluate to when the
+> operand is NULL"; one found by making the invariant a constraint instead of a convention.
+>
+> ⚠ **The plan's T4.6 enumeration was also short in the other direction.** Its "21 functions referencing
+> `target_commission_id`" is a `prosrc` sweep, and seven more functions inherit the target arm through
+> `app.can_manage_referral_target` **without naming the column** (`can_write_referral_response`,
+> `cancel_referral_assignment`, `redact_referral_message`, `redact_referral_note`,
+> `set_referral_deadline`, `unlink_referral_case`, `update_referral_assignment`). Sweep by the
+> **predicate's callers**, not only by the column's name.
 
 > ⚠ **The plan was wrong about the substrate FIVE times, and every correction came from the live
 > catalog or a probe, never from review.** `app.session_context()` would be unreachable by PostgREST
@@ -486,6 +507,26 @@ only E2E caught them.
 
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
+
+### 🟡 FUP-MEM-3 — the DT referral plane is live with NO product caller
+
+W4 ships no frontend by plan, so `create_referral_draft`'s new `p_target_hospital_id` parameter has no
+caller anywhere in `src/`: nothing in the product can create a `target_type = 'technical_director'`
+referral. The flag is ON, so the *audience* half is fully live — a DT would see such a referral if one
+existed — but none can exist.
+
+This is the **declared-param-with-no-caller** blind spot in its exact known shape: the branch behind it
+passes tsc, lint, unit, pgTAP **and** E2E, because no product code path reaches it. `295` drives the
+RPC directly (§2.1–2.7 including the same-hospital refusal), so the DOOR is proven; the **wiring** is
+not, and cannot be until the UI exists.
+
+Also un-wired by the same decision: the four `src/lib/org/actions.ts` appointment actions
+(`appointTechnicalDirector`, `appointTechnicalDirectorDeputy`, and their revokes) are exported and
+typed but called from no component.
+
+**Fix:** carry both into the DT UI phase — a send-wizard target picker (committee | direção técnica) and
+a hospital-manage appointment panel — and add the E2E specs there. Until then, treat "DT referrals work"
+as proven at the RPC surface only.
 
 ### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
 

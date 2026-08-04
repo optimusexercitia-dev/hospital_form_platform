@@ -95,7 +95,12 @@ select ok(
 -- =============================================================================
 -- §2 — THE DARK FLAG CONFERS NOTHING
 -- =============================================================================
--- The flag is OFF at this point (its enable migration is the last step of W4).
+-- Forced OFF here rather than inherited from the migration order. It WAS inherited
+-- while W4 was mid-build; T4.9 (20260905000600) then turned the flag on and these two
+-- assertions went red — not because the guarantee broke, but because the fixture was
+-- reading a global whose value is now decided elsewhere. A hermetic suite states its
+-- own preconditions (the 150_referrals convention).
+update app.feature_flags set enabled = false where key = 'technical_director';
 
 select throws_ok(
   format($$select app.grant_role_impl(%L, 'hospital', %L, 'technical_director', %L)$$,

@@ -1,8 +1,9 @@
 # Plan — Membership hardening + Diretor Técnico backend (ADR 0094)
 
-**Status:** APPROVED and IN BUILD (PO 2026-08-04) — branch
-`feat/membership-hardening-technical-director`. **W1 ✅ · W2 ✅ · W3 ✅ · W4 partial**
-(T4.1–T4.3 built, flag DARK). See the W4 section for what remains.
+**Status:** BUILT (PO-approved 2026-08-04) — branch
+`feat/membership-hardening-technical-director`. **W1 ✅ · W2 ✅ · W3 ✅ · W4 ✅**
+(T4.1–T4.13; flag `technical_director` **ON** via `20260905000600`). Remaining before
+merge: the full `e2e:prod` declare-green, `p0-authz-invariant.sh` ARM 1, and FUP-MEM-1/2/3.
 **Authority notes:** this plan is NOT authoritative on the substrate — re-verify every
 schema/RLS/RPC claim against the **live catalog** at build time (ADR 0078 A28). Before
 any workstream starts, the assigned teammates read
@@ -165,11 +166,18 @@ the live actor in PostgreSQL.
 **Goal:** the DT roles exist with their legal invariants; a committee can submit a case
 for the DT's analysis over the referral plane, PHI included and audited; no frontend.
 
-> **Status 2026-08-04: T4.1–T4.3 are BUILT** (migration `20260905000400`, pgTAP `294`
-> 29/29, mutation audit 8/8 RED-PROVEN, commit `803e837`). The `technical_director`
-> flag is **DARK** — its enable migration (T4.9) is the last step and is unbuilt, so the
-> grant arms refuse and nothing is half-live. Everything under *Referral extension* is
-> the remaining work.
+> **Status 2026-08-04: W4 is COMPLETE.** T4.1–T4.3 in `20260905000400` (pgTAP `294`
+> 29/29, mutation 8/8, commit `803e837`); T4.4–T4.13 in `20260905000500` +
+> `20260905000600` (pgTAP `295` 60/60, mutation **13/13** RED-PROVEN with a 60-green
+> control). The flag is **ON**.
+>
+> ⚠ **The task list below was short in both directions, and ADR 0094 Amendment 5 records
+> why.** Five fail-open sites are missing from it — four created by making
+> `target_commission_id` nullable (a NULL comparison inside `if`/`check` is PASS, not
+> false), one found by the new "exactly one waiting party" CHECK. And T4.6's
+> "21 functions" is a column-name sweep: **seven more functions inherit the target arm
+> without naming the column**. Read Amendment 5 before treating any enumeration here as
+> the enumeration.
 
 ### Decisions locked by interview (PO, 2026-08-04) — do not re-litigate
 

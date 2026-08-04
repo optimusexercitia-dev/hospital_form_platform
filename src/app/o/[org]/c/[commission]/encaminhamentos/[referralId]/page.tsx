@@ -153,7 +153,10 @@ export default async function ReferralDetailPage({
     canManageTarget && detail.status === "in_review"
       ? listReplyOutcomes()
       : Promise.resolve([]),
-    canManageTarget && inReview
+    // ADR 0094 W4: `targetCommissionId` is null on a technical-direction referral, and
+    // `canManageTarget` is already false there (it compares the null against this
+    // route's commission id) — the explicit guard is what lets the compiler see it.
+    canManageTarget && inReview && detail.targetCommissionId
       ? listCasesBoard(detail.targetCommissionId)
       : Promise.resolve({ rows: [], nextCursor: null }),
   ]);

@@ -264,3 +264,73 @@ because they invalidate a Consequence recorded above):
    `target_case_id` — can never fire for a DT row. The DT read path is a NEW arm, and
    `link_referral_case` / `link_referral_related_case` / `assign_referral_reviewer` are
    structurally n/a.
+
+## Amendment 5 — what building the referral plane actually found (2026-08-04)
+
+W4 is complete: migrations `20260905000500` (the plane) and `20260905000600` (the flag,
+ON). pgTAP `295` 60/60, mutation audit 13/13 RED-PROVEN with a 60-green control, full
+suite 156 files / 4796 on a fresh reset. Amendment 4's nine decisions all held —
+**every correction below is to the plan's task list, not to a decision.**
+
+### The sum type's real cost is NULL, not arms
+
+Amendment 4 finding 1 was right that one predicate carries the lifecycle. It was
+measuring the wrong thing. The expensive part of making `target_commission_id` nullable
+was not writing arms — it was that **every existing expression comparing to that column
+silently acquired a NULL operand**, and in SQL a NULL result inside `if` or `check` is
+not `false`, it is *no opinion*, which reads as PASS. Four sites, each one operand from
+correct, each failing OPEN, none reachable by any existing test:
+
+1. `case_referral_waiting_on_check` — `waiting_on in (source, target)` returns NULL for
+   any third committee once `target` is NULL, so the CHECK passed. It would have admitted
+   an arbitrary committee as the waiting party on every DT referral.
+2. `app.guard_referral_message` — `sender not in (v_src, v_tgt)` is NULL for a NULL
+   sender, the `if` was not taken, the trigger returned NEW. Decision D3 needs NULL
+   admissible on DT rows **only**; this would have admitted it on every referral.
+3. `public.link_referral_case` — `v_case_commission <> target_commission_id` is NULL on a
+   DT row, so the ownership check never fired and **any case in the database** could have
+   been attached as `target_case_id`.
+4. `public.link_referral_related_case` — resolves the acting side's commission into a NOT
+   NULL column, so a DT would have received a raw 23502 out of an authority check it had
+   just passed.
+
+Amendment 4 dispositioned (3) and (4) as "n/a — nothing to link". That was correct about
+the *domain* and wrong about the *code*: "n/a" only holds if the code refuses, and both
+of these admitted the DT through `can_manage_referral_target` — the predicate this very
+workstream widened — and then misbehaved. **A disposition is a claim about behaviour and
+has to be enforced and asserted, not merely recorded.**
+
+### A fifth site, found by the constraint rather than by reading
+
+The new "exactly one waiting party" arm turns **every writer of `waiting_on_committee_id`
+into a writer of both columns**: a function that sets its own and leaves the other alone
+now produces a row with two waiting parties. `conclude_referral` and `resolve_referral`
+need no DT audience arm, so they appear in no DT-shaped enumeration — and
+`conclude_referral` was refused outright the first time a DT referral reached it. This is
+the argument for making the invariant a CHECK: it failed loud at build time instead of
+letting a stale "the DT is holding this" sit on a closed referral.
+
+`reopen_referral` is a sixth: Amendment 4's D9 named only `provide_referral_information`,
+but the catalog has two functions handing the ball back to the target.
+
+### The enumeration boundary was wrong in both directions
+
+Amendment 4 recorded "21 functions whose `prosrc` references `target_commission_id`,
+0 policies". Verified, and still true — but **seven more functions inherit the target arm
+without ever naming the column**: `app.can_write_referral_response`,
+`cancel_referral_assignment`, `redact_referral_message`, `redact_referral_note`,
+`set_referral_deadline`, `unlink_referral_case`, `update_referral_assignment`. A
+column-name sweep cannot see them. Sweep by the **predicate's callers** — the authority
+that defines the property — and treat a column-name sweep as one input to that, not as
+the enumeration itself.
+
+The good news from the same sweep: **all 14 referral policies delegate to the three
+predicates**, so widening the audience required editing no policy at all.
+
+### One design change worth recording
+
+The `technical_director` flag is **folded into `app.is_technical_director_of_for`**
+rather than checked at each of its six call sites. A flag repeated six times is a flag
+that will be forgotten once, and "flag off ⇒ the DT audience is empty" is then true only
+where someone remembered. Folded in, it is true by construction — including at call sites
+added after this ADR. The mutation audit's `ignore_flag` case proves it load-bearing.
