@@ -502,3 +502,503 @@ hand-written list — that function's insert list is the authoritative enumerati
 *(Superseded — see the correction above: that enumeration covers only the authoring half.)*
 
 </details>
+
+## Phase 16 + ad-hoc-batch closed bugs (rotated from PROGRESS.md 2026-08-04)
+
+> Verbatim from PROGRESS.md's live Bug Log at the 2026-08-04 size rotation. PROGRESS.md keeps a
+> one-line summary row per bug; this is the durable detail. The only bug left live there is the
+> still-OPEN **BUG-AUTHZ-002**.
+
+### Phase 16 — BUG-P16-001 … 006, all closed
+
+> ⚠ **BUG-P16-006 appeared TWICE in the live log** — a full write-up at the top of the section and a
+> second, earlier-worded block further down. Both are preserved below in the order they appeared; the
+> first is the fuller one.
+
+✅ **BUG-P16-006 — CLOSED 2026-08-04, tester-verified (fix + two independent fresh-reset re-runs).**
+Root cause: `phase16-accreditation-core.spec.ts` and `phase16-accreditation-freshness.spec.ts` each
+hardcoded 2 indicator ids (`INDICATOR_AC1`/`INDICATOR_AC5`; `INDICATOR_ATENCAO`/`INDICATOR_VENCIDA`) as
+literal UUIDs captured live from a running DB. Unlike orgs/hospitals/commissions/personas/the demo
+form/the ethics case (all seeded with an explicit fixed `id` literal — individually confirmed by
+reading their actual `insert`/`v_* uuid :=` statements in `supabase/seed.sql`, not merely grepped),
+`seed.sql`'s CCIH indicator block (`insert into public.indicators (...) values (...) returning id into
+v_ind_*;`) has NO explicit `id` column, so `gen_random_uuid()` assigns a fresh id on every
+`supabase db reset` — the captured literals were only ever valid against the exact DB session they were
+read from, and went stale on the very next reset, which is exactly what `npm run e2e:prod`'s `RESET=1`
+does every run. The prior 31/31 report was green against the SAME session the ids had been captured
+from; nothing in that workflow was positioned to observe the instability.
+
+**Fix:** added `lookupIndicatorId(commissionId, name)` to `e2e/helpers/accreditation.ts` — a thin
+wrapper on the existing `sqlOne`, which already fails loudly (quoting the query) on 0 or >1 rows, so a
+lookup miss surfaces as a clear fixture error, never a downstream FK violation on whatever insert
+consumes the id next. Both spec files now declare the 4 constants as module-level `let`s and resolve
+them by NATURAL KEY (`commission_id` + exact seeded `name`) inside `beforeAll`, before first use —
+never a hardcoded literal.
+
+**Full sweep, every hardcoded UUID in scope (18 distinct literals across the 5 specs + the helper):**
+the 4 indicator ids were the ONLY unstable ones. The other 14 — `ORG_A_ID`, `ORG_B_ID`,
+`HOSPITAL_CENTRAL_A`, `HOSPITAL_SECUNDARIO_A2`, `COMMISSION_CCIH`, `COMMISSION_FARMACIA`,
+`COMMISSION_ETICA`, `COMMISSION_QUALIDADE_B`, `ETHICS_CASE_ID`, `UID_PLATFORM`, `UID_CHEFE_CCIH`,
+`UID_CHEFE_FARM`, `UID_HOSPITALADMIN_A1`, `CCIH_FORM_HIGIENE.id` — were each individually confirmed
+safe by reading their actual seed.sql insert/assignment statement (not a grep occurrence count alone),
+all `insert into ... (id, ...) values ('<literal>', ...)` or `v_* uuid := '<literal>';` later consumed
+as an explicit id. Also swept the wider `e2e/` suite for the same defect shape (report-only, out of
+scope to fix): every other seed.sql table seeded via an auto-generated id (`rca_root_causes`; two
+`controlled_documents`/`controlled_document_versions` pairs, `DOC-0001`/`DOC-0002`) is ALREADY resolved
+by other specs via a live natural-key lookup — `docIdByCode()` in `e2e/helpers/documents.ts`, and a
+direct `rca_id`-keyed query in `phase14d-capa.spec.ts` — so no other spec hardcodes an unstable
+captured id; Phase 16's 4 indicators were the only instance of this defect, not a systemic pattern.
+
+**Verification (two independent fresh resets, per the coordinator's bar — "a pass on the current DB
+proves nothing"):** `supabase db reset --local` → all 5 specs **31/31 GREEN**; reset a second time
+(confirmed live: all 4 indicator ids resolved to entirely new values, matching neither the removed
+literals nor each other across the two resets) → all 5 specs **31/31 GREEN** again.
+
+Committed `test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
+
+<details><summary>BUG-P16-006 original report (kept for the record)</summary>
+
+**Repro:** run the full `npm run e2e:prod` gate (resets the DB before running).
+`phase16-accreditation-core.spec.ts:124`'s `INDICATOR_AC1 = '6f4e4aa5-df6f-455a-a550-038453a45394'` — a
+UUID captured live from the DB as it stood during the tester's authoring session — does not exist in a
+freshly-reset DB. Reproducible across two independent runs, including one against a verified-healthy
+stack, confirming a real fixture defect, not environment flakiness.
+
+</details>
+
+✅ **BUG-P16-005 — CLOSED 2026-08-04, tester-verified (fix + exact-string re-run + source read).** Landed in two commits: `c1f098b` fixed the noun (`padrão`/`padrões`, literal ternary) and swept for the same string-concatenation pattern, catching a real sibling in `evidence-count-badge.tsx` (`"em atenção"` → `"em atençãos"` whenever an `atencao`-status count exceeded 1 — same irregular `-ão`→`-ões` class, also fixed to literal singular/plural pairs). The PO then ruled on a judgment call `c1f098b` had explicitly left open (verb-vs-noun agreement): `aad4877` keys the noun on `totalStandards` and the verb+adjective on `cleanStandards` — `"{clean} de {total} {padrão|padrões} {está conforme|estão conformes} (não cumulativo)"`.
+
+`tester`'s own `/padr\S+/`-tolerant regexes (deliberate while the wording was open, so the spec would not encode the wrong spelling) were **replaced with exact-literal assertions** citing the PO ruling — `phase16-accreditation-core.spec.ts` AC-1, both the `1 de 2` and `0 de 0` cases — since a tolerant matcher can't red a regression once the correct wording is settled. Swept all 5 specs for any OTHER assertion loosened around this bug or its `evidence-count-badge.tsx` sibling: none found (no spec fixture ever produced an `atencao` count > 1 on the aggregate badge, so no assertion was ever positioned to observe that half of the bug either). Re-verified: `core.spec.ts` + `freshness.spec.ts` 15/15, all 5 specs combined 30/30, `--project=chromium --workers=1`.
+
+⚠ **That last gap was closed as its own follow-up, not left as a permanent caveat** — "fixed but unguarded" for a bug class that shipped twice in one phase is the same shape as the bug itself. `phase16-accreditation-freshness.spec.ts` gained a dedicated `AC-3-plural` test (`8bdefe0`): a new standard with TWO `atencao`-status evidence links (INDICATOR_ATENCAO's existing measurement relinked to a second standard + a new `held` meeting) drives the aggregate badge's `atencao` bucket to 2, and the test asserts the exact literal `"2 evidências — 2 em atenções"` (read from the live `evidence-count-badge.tsx` source, not retyped from memory) **and** that the old buggy spelling (`"atençãos"`) is explicitly absent — so it would genuinely have failed pre-fix, not passed vacuously. Re-verified: `freshness.spec.ts` 9/9, all 5 specs combined **31/31**.
+
+<details><summary>BUG-P16-005 original report (kept for the record)</summary>
+
+**Repro:** view any ONA (leveled) framework's readiness dashboard where a level has `totalStandards !== 1`. Observed live (`level1Card.innerText()`, `totalStandards: 2`): `"1 de 2 padrãoes conforme (não cumulativo)"`.
+
+**Root cause:** `src/components/accreditation/readiness-dashboard.tsx`'s `LevelCard` built the plural by concatenation — `padrão{level.totalStandards === 1 ? "" : "es"}` — which produced `"padrão" + "es" = "padrãoes"`. Portuguese `-ão` nouns pluralize irregularly (three patterns: `-ões`/`-ães`/`-ãos`); "padrão" → **"padrões"**, never "+es". Contrast `hospital-readiness-register.tsx`, which got this right nearby: `{rows.length === 1 ? "padrão" : "padrões"}` — a literal, not a suffix concatenation.
+
+</details>
+
+✅ **BUG-P16-004 — CLOSED 2026-08-03, tester-verified (fix + re-run + source read).** Fixed exactly along the lines flagged: `[framework]/layout.tsx` now passes `org`/`commission`/`frameworkId` (plain strings) to `<StandardsTree>` instead of the `standardHref` closure; `standards-tree.tsx` resolves its own hrefs client-side via the pure `commissionHref` helper (confirmed both files now carry an explicit `BUG-P16-003 (fixed)` comment documenting the shape). Re-verified live: `phase16-accreditation-core.spec.ts` AC-1/AC-3b/AC-5, `-freshness.spec.ts`'s four `-ui` tests, and `-restricted.spec.ts` AC-3b (every test that navigates a `[framework]/**` route) now reach real rendered content — none hit the crash. Two of those re-runs then failed on genuinely NEW, unrelated issues (a tester locator ambiguity in AC-1, a keyboard-race in AC-5's combobox selection) — both are test-authoring bugs on `tester`'s own side, not product defects, and are being fixed there, not here.
+
+<details><summary>BUG-P16-004 original report (kept for the record)</summary>
+
+**This was the more severe of the two.** `src/app/o/[org]/c/[commission]/manage/acreditacao/[framework]/layout.tsx:60` passed an inline closure `standardHref={(standardId) => commissionHref(...)}` straight into `<StandardsTree standardHref={standardHref} .../>` — and `standards-tree.tsx:1` is `"use client"`. Since `FrameworkLayout` wraps the framework overview page AND every `padrao/[standard]` detail page (the sidebar tree renders on both), **this crashed the entire commission-side Accreditação surface below the bare list** — not an edge case gated behind "a global framework exists," it fired on the very first framework a coordinator opened, always. Confirmed live (dev server log, same error shape as BUG-P16-003):
+```
+⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
+marking it with "use server". Or maybe you meant to call this function rather than return it.
+  <... nodes={[...]} readinessByStandardId=... standardHref={function standardHref}>
+                                                            ^^^^^^^^^^^^^^^^^^^^^^^
+```
+Reproduced both server-side and in the browser console, at `/o/rede-a/c/ccih/manage/acreditacao/{frameworkId}`.
+
+**Swept the rest of the route tree for the identical shape** (every inline `Href={(...) => ...}` prop passed FROM an `src/app/**/acreditacao/**` route file): exactly 3 existed. `manage/acreditacao/page.tsx:49` (→ `FrameworkList`, Server→Client — BUG-P16-003) and this one were broken; `[framework]/page.tsx:38` (→ `ReadinessDashboard`) was SAFE — `ReadinessDashboard` has no `"use client"`, stays a Server Component, and only ever CALLS the closure server-side to produce a plain string for a bare `<Link href=...>` (`GapListSection`, same file) — the function itself never crosses a client boundary there. That safe example turned out to be the model the fix followed.
+
+**Test impact while open**: blocked most UI-layer assertions across all 5 phase16 specs. `tester` kept exercising and reporting on the RPC/DB-truth layer (unaffected — those calls never touch this render path) while frontend fixed this.
+
+</details>
+
+✅ **BUG-P16-003 — CLOSED 2026-08-03, tester-verified (fix + re-run + source read).** `src/components/accreditation/framework-list.tsx` no longer receives a `frameworkHref` closure — it now takes `org`/`commission` (plain strings) and resolves its own hrefs (both for its `<Link>` and for what it hands `CloneFrameworkDialogTrigger`) via the pure `commissionHref` helper; the file carries an explicit `BUG-P16-003 (fixed)` docblock recording the shape. Re-verified live: a staff_admin viewing a global-framework-bearing list (`/o/rede-a/c/ccih/manage/acreditacao`) now renders the real "Acreditação" heading, no crash. Same root cause and same fix shape as BUG-P16-004 (below) — filed and closed together.
+
+<details><summary>BUG-P16-003 original report (kept for the record)</summary>
+
+**Severity: blocking.** This was the route's unconditional happy path, not an edge case — the layout already restricts the whole `manage/acreditacao` area to `staff_admin` (`AcreditacaoLayout`'s `access.role !== "staff_admin"` → `notFound()`), so `AcreditacaoPage` always called `<FrameworkList canManage={true} .../>` for anyone who reached it. Once Migration F seeds the ONA/JCI global packs, this would have fired for **every** staff_admin, every time, everywhere — it only needed one commission-visible global framework to exist, which a single `create_framework(ownerCommission: null)` call produces.
+
+**Repro:** sign in as `chefe.ccih@test.local` (staff_admin, CCIH), ensure at least one GLOBAL framework exists (`owner_commission_id is null`), navigate to `/o/rede-a/c/ccih/manage/acreditacao` with the `accreditation` flag ON.
+
+**Actual (before the fix):** the route crashed to `manage/acreditacao/error.tsx`:
+```
+⨯ Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by
+marking it with "use server". Or maybe you meant to call this function rather than return it.
+  <... frameworkId=... frameworkName=... commissionId=... frameworkHref={function frameworkHref}>
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+```
+Reproduced in the browser console too (`(src/app/o/[org]/c/[commission]/manage/acreditacao/error.tsx:16:13)`), not a server-only artifact.
+
+**Root cause, traced to the exact line:** `framework-list.tsx` (Server Component, no `"use client"`) forwarded its `frameworkHref` closure prop verbatim at line 71 into `<CloneFrameworkDialogTrigger frameworkHref={frameworkHref} .../>`, and `clone-framework-dialog.tsx` is `"use client"` — a plain (non-Server-Action) function cannot cross that boundary. Same bug CLASS as the earlier BUG-QI-001 ("Server fn prop → client = RSC crash").
+
+</details>
+
+✅ **BUG-P16-002 — CLOSED 2026-08-03** (`93a3bf8`). All 7 implemented + `listGlobalFrameworks()` added; lead-verified **0** occurrences of `not implemented` remain. Backend **verified by executing, not compiling**: a standalone probe signed in as real seeded personas (`chefe.ccih`, `hospitaladmin.a1`), flipped the flag **at runtime only** (never committed), seeded a throwaway fixture and called every operation for real — all 9 probes PASS, including `getHospitalReadiness(foreign) → [] not throw`. ⚠ **The probe immediately earned its keep**: `gen:types` had not been re-run after Migration E, so the three new doors weren't in the RPC union and `tsc` failed outright — *another* green-bar-over-dead-code instance, caught only because someone executed the code. **This is the lesson to keep: for a flag-gated phase, "it compiles" and "it works" are unrelated claims.**
+
+<details><summary>BUG-P16-002 original report (kept for the lesson)</summary>
+
+🔴 **Every Phase 16 screen dead on arrival: all 7 query-layer functions `throw new Error('not implemented')`.** Filed 2026-08-03 (lead), **P0.** `src/lib/queries/accreditation.ts` was committed in Wave 0 as the *contract* (`de2404c`) with throwing bodies, and **its implementation was never scheduled** — Wave 2's backend brief covered migrations and RPCs only. Meanwhile all five routes wired themselves to it:
+`manage/acreditacao/page.tsx` → `listFrameworks` · `[framework]/layout.tsx` → `getStandardTree` + `listFrameworks` + `getReadinessReport` · `[framework]/page.tsx` → `getStandardTree` + `getReadinessReport` · `[framework]/padrao/[standard]/page.tsx` → `getReadinessEvidence` + `getReadinessReport` + `listStandards` · `o/[org]/manage/acreditacao/page.tsx` → `listFrameworks` + `getHospitalReadiness`. **Every one throws.**
+**This is not a frontend defect** — `src/lib/queries/` is backend-owned (CLAUDE.md §4) and frontend correctly refused to touch it, routing `searchEvidenceCandidates` around it instead and saying so. **It is a lead coordination gap**: "commit the contract" was scheduled, "implement the contract" never was.
+⚠ **It survived the entire green bar** — lint (0 warnings + css-vars), typecheck, 895 Vitest, and a real `next build`, all green — because the routes gate on `accreditation` which is seeded **OFF**, so they `notFound()` before ever reaching a query. **The bug is invisible until Migration G flips the flag at the Record step, at which point every screen 500s.** This is the standing [green-bar-misses-the-wired-seam](docs/progress/bug-log-archive.md) pattern exactly — FF-1 shipped three live bugs past lint+tsc+build+457 unit+3919 pgTAP, one of them *actions still throwing `not implemented`*, and only E2E caught it. **Corollary: a flag-gated phase cannot be declared green by a build. The tester must run with the flag ON.**
+**Fix:** backend implements all 7 against the now-live RPCs, typed off `src/lib/accreditation/types.ts`. Then frontend's prefill (BUG-P16-001) can land.
+
+</details>
+
+✅ **BUG-P16-001 — CLOSED 2026-08-03, lead-verified on all three ends.** Door `public.get_standard_assessment(p_commission, p_standard)` is `prosecdef=t`, gated `app.is_member_of` with empty-deny, **no `is_admin()` arm**, no `PUBLIC` in its ACL. `optionalClearableText` returns `''` for present-but-empty and `undefined` only for absent, so an intentional clear now reaches the RPC. `StandardDetailPage` passes `assessmentDetail?.noteMd`, not `null`. **Both round-trips asserted in pgTAP 281** — **C7b** (status-only re-save preserves the note), **C11** (explicit `''` clears it), plus **C10** (explicit non-null overwrites) as a positive control. ⚠ Either assertion alone passes in a broken world; **the pair is what pins it** — that is the durable lesson from this bug's two-stage failure.
+📌 **Follow-up (not a defect — Rule 9 hygiene):** `getStandardAssessmentDetail` and `searchEvidenceCandidates` are **reads living in `src/lib/accreditation/actions.ts`**, because `queries/accreditation.ts` was still throwing when frontend needed them (BUG-P16-002). Once backend's query layer is real, route both through `src/lib/queries/` per Architecture Rule 9. Frontend must not move them unilaterally — `queries/` is backend-owned.
+
+<details><summary>BUG-P16-001 — original report, kept for the lesson</summary>
+
+🔴 **Saving a standard assessment SILENTLY DESTROYED the existing `note_md`.** Filed 2026-08-03 (lead), Phase 16 Wave 2. Traced end to end against the live catalog and the committed code, not inferred:
+1. `StandardDetailPage` passes `assessmentNoteMd={null}` — there is **no read path** returning `standard_assessments.note_md` for a single standard (`ReadinessRow` deliberately carries no note per D8, and `getReadinessEvidence` returns evidence links, not the assessment).
+2. So the textarea renders **empty** even when a note exists.
+3. `setStandardAssessment` reads `optionalString(formData,'noteMd')` → `null`, and passes `p_note_md: null` unconditionally.
+4. `public.set_standard_assessment` upserts `on conflict … do update set note_md = excluded.note_md` — **unconditional**.
+
+**Repro (ordinary flow, no edge case):** write a justification note on a standard → later reopen it to change the status `parcial` → `conforme` → submit. **The note is gone.** ⚠ Frontend flagged the gap honestly but graded it "Low-risk (the note is never lost — resubmitting just overwrites it)" — those are *the same thing*; overwriting IS losing it. The self-contradiction is the tell, and it is why the fix was scheduled as polish rather than as a defect.
+**Fix — all three halves, in the order they were found:**
+- ✅ **RPC half** (`20260903001400`, `ee2e52b`): `note_md = coalesce(excluded.note_md, standard_assessments.note_md)` — NULL leaves the note untouched, a real value (**including `''`**) overwrites. pgTAP C7b, mutation-proven (K9). Backend did this **against the lead's explicit "no coalesce" instruction and was right to** — it was a defect in code it shipped that same turn, and clearing survives at the SQL layer via `''`. A teammate overriding a wrong instruction, and saying so, is the behaviour to keep.
+- ✅ **Action half** (`83e3155`): the partial fix had opened a **silent no-op** — `optionalString` (`actions.ts:107`) is `return value || undefined`, so an emptied textarea yielded `undefined`, never `''`, and the coalesce then silently restored the old note. Fixed with `optionalClearableText`, scoped to `setStandardAssessment`'s `noteMd` alone after checking every other `optionalString` call site (`version`, `description`, `descriptionMd`, `parentId`, `note` — none needed the distinction).
+- ✅ **Read path** (`3ece65f` + `83e3155`): `public.get_standard_assessment` → `getStandardAssessmentDetail` → `StandardDetailPage`. The textarea prefills; the read-only view stops claiming "Nenhuma observação registrada" when a note exists.
+⚠ **The standing lesson: a fix that removes a symptom can hide the defect it was masking.** With the coalesce in, the missing read path no longer destroyed data — so the pressure to build it dropped to zero, and the new "cannot clear" bug was invisible to everything except a test that explicitly clears. **Hence both round-trips are asserted, not one:** C7b (status-only save → note SURVIVES) and C11 (explicit `''` → note is GONE). **Either one alone passes in a broken world.** Relates to ADR 0093 D8.
+
+</details>
+
+✅ **BUG-P16-006 — CLOSED 2026-08-04, tester-verified.** Filed 2026-08-04 (lead), **gate-blocking**. `phase16-accreditation-core.spec.ts:124` hardcoded `INDICATOR_AC1 = '6f4e4aa5-df6f-455a-a550-038453a45394'`, commented "Adesão à higienização das mãos". **That UUID did not exist and never did** — `grep 6f4e4aa5 supabase/seed.sql` returned **0**; the live row of that name was `4f1e8313-9cb2-4f88-91a1-18241ab491c1` at filing time (and a THIRD, different value again after the verification reset below — confirming the id is not just wrong once but unstable on every reset). Cause: `seed.sql:1896` inserts indicators **with no explicit id** (`returning id into v_ind_manual`), so **every `supabase db reset` mints new ids**. A live id was captured mid-session and hardcoded as though it were a seed constant.
+Surfaced as `indicator_measurements_indicator_id_fkey` violated at `helpers/accreditation.ts:121`, killing core AC-0 and freshness AC-1.
+⚠ **The tester's original 31/31 was green against the DB state that already contained the captured id.** Nothing in the authoring workflow was positioned to catch this — **only the gate's `RESET=1` was.** Reproduced across **two independent gate runs**, the second on a stack verified healthy by a real token POST, so it was not infra.
+⚠ **Lead self-correction (kept for the record):** the first gate run's two failures were reported here as "almost certainly infra casualties" of the auth 502. **That was wrong.** The 502 was real and did cause the 100 unrun + 32 infra results, but *these two* were this defect throughout. The re-run is what separated them — **a plausible infra explanation for a real failure is the most expensive kind of wrong**, because it retires the symptom without touching the cause.
+**Fix, applied exactly as prescribed:** seeded rows now resolve by a **stable natural key** at fixture time (via a new `lookupIndicatorId(commissionId, name)`, which fails loudly — quoting the query — if the lookup returns no row), never by a captured id. Full 18-UUID hardcoded-literal classification (4 unstable, 14 individually confirmed stable) for all 5 specs + the helper, the fix itself, and both required consecutive fresh-reset verification runs (31/31 → reset → 31/31) are written up in full at the **top of this Bug Log** (above BUG-P16-005) and in the Test Run Summary. Committed `test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
+
+🧭 **BUG-P16-003/004 — the AUTHORITATIVE sweep (lead, 2026-08-03). Exactly 2 defects; no third exists.** The tester's sweep was keyed on the `Href={(…) => …}` **shape in route files**; the real property is **"any function-valued prop crossing a server→client boundary"** (an `onSelect`/`formatter`/`render` prop crashes identically and matches no `Href` grep). Re-derived **from the boundary**: classified every component in `src/components/accreditation/` by `"use client"`, then inspected every server→client prop block.
+**Client components (8):** `assessment-form` · `clone-framework-dialog` · `evidence-picker` · `ownership-editor` · `readiness-chart-loader` · `readiness-chart` · `standards-tree` · `unlink-evidence-button`.
+**Function-valued props reaching one — exactly 2:** `framework-list.tsx:71` → `CloneFrameworkDialogTrigger` (**003**) · `[framework]/layout.tsx:58` → `StandardsTree` (**004**).
+**Verified safe** (plain data only): `OwnershipEditor`, `AssessmentForm`, `LinkEvidenceDialogTrigger`, `UnlinkEvidenceButton`, `ReadinessChartLoader`.
+✅ **Two independent methods agree** — the tester's shape-keyed sweep and this boundary-derived one both return the same 2. That agreement is the evidence, not either sweep alone.
+⚠ **Why `readiness-dashboard.tsx` is the safe model, stated precisely:** not because it "calls the closure first", but because **it is a Server Component** — the closure `[framework]/page.tsx` hands it never crosses a boundary; it resolves hrefs to strings *before* rendering the client `ReadinessChartLoader`. **Resolve to strings on the server side of the boundary.**
+⚠ **Third green-bar-over-unreached-code instance this phase.** `tsc` + `lint` + a real `next build` are all green with both crashes live: 003 renders only when a **global** framework exists (none locally; Migration F makes it unconditional) and 004 only below the flag gate. **Red-before-green is mandatory on both** — a fix nobody saw fail is unvouched.
+
+### Ad-hoc bug-fix batch (2026-08-03) and the seven bugs it triaged
+
+**Ad-hoc bug-fix batch, 2026-08-03 (lead, uncommitted on `main`).** Seven items triaged together, and
+the headline finding is about the BUG LOG rather than the code: **four of the seven were not the defect
+they were filed as.** Three do not reproduce at all (BUG-P22-001, BUG-E2EISO-003, BUG-E2EISO-001 —
+each re-run under its own documented recipe), and BUG-P22-002 was a spec-timing bug filed as a product
+defect. Of the three that were real, **two had materially wrong reports**: BUG-AUTHZ-001 named 4
+functions when the catalog holds 5, misnamed one relation, and described only half the defect;
+BUG-GATE-001's stated mechanism ("would have printed GATE GREEN") was false. Every correction came from
+re-running the repro or querying the live catalog — none from re-reading the report.
+
+Fixed: **BUG-GATE-001** (denominator + UNRUN verdict), **BUG-AUTHZ-001** (migration `…000700` +
+pgTAP `270`), **BUG-P22-002** (spec timing), **BUG-P15-001** (spec-side derived window — a seed-side
+clamp was tried first and reverted for regressing `phase8-dashboard` 8×). Closed not-reproducible:
+**BUG-P22-001**, **BUG-E2EISO-003**, **BUG-E2EISO-001**. Already closed before the batch began:
+**BUG-E2EISO-002**. Also fixed in passing: `referrals-list.tsx`'s `STATUS_LIFECYCLE_ORDER` was
+missing R3's `answered`/`resolved`, so `STATUS_RANK[status]` was `undefined` → **NaN sort comparator**
+and neither state was filterable — despite a JSDoc asserting the list "must stay TOTAL"; it now carries
+a compile-time totality guard instead of the comment.
+
+#### ✅ BUG-GATE-001 — `scripts/e2e-prod-gate.sh` drops a `reset FAILED` batch from its OWN coverage denominator · owner **lead** · **FIXED 2026-08-03** (filed 2026-08-03, found by the lead during the FF-4 gate)
+
+**Fix:** `abort_batch()` in `scripts/e2e-prod-gate.sh`. `exp` is now collected BEFORE the reset/server
+steps (`--list` needs neither a DB nor a server), and both abort paths add it to **`TOTAL_EXPECTED`
+and `TOTAL_DNR`** instead of `continue 2`-ing past the tally. A `batch-N.log` stub is written so the
+gap shows in `ls`, a per-batch `-> DID NOT RUN` line prints, the summary carries an explicit
+`!! N test(s) NEVER RAN` warning, and a new **`GATE RED (UNRUN)`** verdict (exit 5) replaces the
+misleading fall-through to `GATE RED — 0 real failure(s)`.
+
+**Verified by fault injection** (PATH-shadowed `supabase` failing every `db reset`, 48 collected
+tests): post-fix → `COVERAGE: accounted for 48 of 48` · `48 did-not-run` · stub logs · RED.
+**Over-grant twin on the pre-fix script, same injection** → `accounted for 0 of 0` · `0 did-not-run`:
+the 48 vanished from *both* sides. That twin is what proves the fix.
+
+**⚠ ONE CORRECTION TO THE ORIGINAL REPORT.** Its headline — "so it can print GATE GREEN over tests
+that never ran" — is **wrong**, and was wrong when filed. Both abort paths already appended to
+`RED_BATCHES`, and the verdict requires `[ -z "$RED_BATCHES" ]`, so a run with a dead batch could
+never print `GATE GREEN`; the pre-fix script prints `GATE RED` (confirmed by the twin above, on the
+byte-identical script the FF-4 gate ran — `9d7bc12`, unchanged through `87fbdde`). The real failure
+mode is a **lying summary**, not a false green: `860 of 865` reads as ~99% coverage while 66 tests
+never executed. Still the only bug here that makes tests *disappear* rather than go red — the
+severity call was right even though its stated mechanism was not.
+
+**Observed.** The FF-4 full-suite run printed:
+```
+COVERAGE: accounted for 860 of 865 collected tests     ← reads as ~99%
+```
+The true total across all specs is **931**. Batch 4 had died on `reset FAILED`, so its five spec files —
+`ethics-e2-procedure` · `ethics-e3a-surfacing` · `ff1-repeating-groups` · `ff2-matrix-views` ·
+`ff2-matrix` = **66 tests** — never executed. `931 − 66 = 865`: the script removed the dead batch from
+its own denominator rather than counting it as unrun. **Had those 66 contained the only failures, the
+script would have printed `GATE GREEN`.**
+
+**Why it evades notice.** The summary looks *better* than a normal run, not worse. `reset FAILED` is a
+single unindexed line hundreds of lines up with no batch number on it, no `batch-4.log` is written, and
+the per-batch result lines simply have no row for the dead batch — you must spot a **gap in the batch
+numbering**, which nothing highlights. `did-not-run` stayed `0` throughout.
+
+**Repro.** Any run where a per-batch `supabase db reset` fails. It happened **twice in one session, on
+different batches**, while a manual `supabase db reset` succeeded immediately afterward — so the reset
+failure is transient contention (suspects: back-to-back per-batch resets, and `supabase_edge_runtime`
+sitting in `exited` state during "Restarting containers"), not a broken migration chain.
+
+**Fix shape (not prescribed — verify first):** the denominator must come from the collected total, and a
+batch that never ran must be reported as unrun (and force RED), not subtracted. Consider also emitting a
+`batch-N.log` stub on reset failure so the gap is visible in `ls`.
+
+**Interim workaround for whoever runs the next gate — do all three:**
+1. `grep -c "reset FAILED" <log>` **before** reading the summary.
+2. Check `m` in `COVERAGE: n of m` against `awk '{s+=$1} END {print s}' /tmp/e2e-prod-gate/spec-counts.txt`.
+3. Enumerate batches: `grep -oE "BATCH [0-9]+" <log> | sort -k2 -n -u` — a `BATCH N` header with no
+   matching `batch N -> …` result line is an unrun batch.
+
+*(In the FF-4 gate the 66 were re-run standalone → **66/66 green**, so no FF-4 regression hid there. That
+had to be established, not assumed.)*
+
+#### ⚪ BUG-E2EISO-003 — `bulk-case-creation.spec.ts:344` (AC2) is not idempotent across runs on one DB · owner **tester** · **NOT REPRODUCIBLE 2026-08-03 — recommend CLOSE** (filed 2026-08-03)
+
+**Ran the record's own decisive repro, both ways, on `20260903000700`:**
+
+| Condition | Result |
+| --- | --- |
+| prod-standalone (`e2e-prod-gate.sh`), fresh `db reset` | **8/8 · GATE GREEN** |
+| prod-standalone, **same DB, second run** (`RESET=0`) | **8/8 · GATE GREEN** (27s — no 3× slowdown) |
+| `next dev`, fresh reset then immediate re-run | run 1 7/8, run 2 **8/8** |
+
+The AC2 timeout does not occur. Note the dev-server column is *inverted* from the report: the failure
+landed on **AC1a** in the cold run and vanished when warm — a first-test-after-cold-compile artifact
+(45.8s vs 26.9s), not a data-leftover one. The spec's own fixtures are `Date.now()`-tagged
+(`uniquePrefix`, `mrnTag`), so cross-run collisions are not structurally possible.
+
+**Why the original observation still probably happened:** the record says it fired when batch 1 *died
+mid-run* and was re-run "against the DB the dead attempt had already mutated". That is a **partially
+executed** run's state — not the same thing as a **completed** run's state, which is what "run the same
+file again" actually tests and what passes above. So the trigger is the dead-batch interaction, not
+per-run idempotency, and the repro written into the record does not exercise it.
+
+**Recommend closing as not-reproducible** rather than as fixed — nothing was changed in this spec. If it
+resurfaces, capture whether the preceding attempt *completed*, which is the variable that matters.
+
+**Symptom:** `TimeoutError: page.waitForURL: Timeout 30000ms exceeded` at line 427, waiting for
+`/\/manage\/cases\?criados=2\b/` after clicking commit.
+
+**Repro (decisive, run by the lead):** on a **fresh** `supabase db reset` the file is **8/8 pass**
+(12.9s). Running the *same file again* against the now-mutated DB → **1 failed / 7 passed** (43.3s — note
+the 3× slowdown). So the spec does not tolerate its own prior run's leftovers.
+
+**Why it surfaced in the gate:** the script gives each batch a fresh DB, so this normally never fires.
+It fired because batch 1 **died mid-run** (`server_dead=1, conn_errors=24`) and the **rerun executed
+against the DB the dead attempt had already mutated**. That also explains why a *different* test in the
+same batch failed in the previous full run — batch-1 instability, not a specific defect.
+
+**Not FF-4, not a product defect.** Pre-existing test-isolation weakness. Interacts with BUG-GATE-001:
+an unstable batch produces a rerun on dirty state, which surfaces this, which reads as a real failure.
+
+#### ✅ BUG-P15-001 — `phase15-indicators.spec.ts` AC-4 fails on the 1st-4th of any calendar month — seed-data date arithmetic · owner **tester** · **FIXED 2026-08-03** (filed 2026-08-03)
+
+**Fix (spec-side, `e2e/phase15-indicators.spec.ts`):** AC-4 now reads its aggregation window off the
+**actual seeded rows** instead of assuming they share the calendar month containing `new Date()`:
+
+```
+responses?status=eq.submitted&select=submitted_at,answers!inner(question_key)
+  &answers.question_key=eq.dispensador_disponivel&order=submitted_at.asc
+```
+
+…then overrides the dialog's label-derived month bounds with `[first, last]` via the
+`Início/Fim do período` inputs MINOR-1 added. Nothing constrains the window to the label's month —
+`compute_derived_measurement` uses `p_period_start`/`p_period_end` directly — so a span crossing a
+month boundary is legal, which is exactly what the 1st–4th needs. The month label stays the current
+month; it is only an identifier for the throwaway measurement.
+
+**Verified on 2026-08-03, inside the failing window.** Before: `Numerador derivado: 1 · Valor: 1`.
+After: AC-4 passes, full file **12/12**. **Mutation-falsifiable** — narrowing the window to a single
+day yields `Numerador derivado: 0` and reds, so the assertion is load-bearing and the window genuinely
+drives the result. Also carries a non-vacuity guard: zero source rows fails loudly rather than
+silently computing against an empty window.
+
+**Strictly more robust than the old behaviour, not merely boundary-patched.** On a normal day the
+derived window sits inside the month and yields the same 2. On the **1st**, where all six fixtures are
+in the *previous* month, the old current-month window would have found **0**; the derived one finds
+both. It is date-independent by construction.
+
+<details><summary>⚠ A seed-side fix was attempted first and REVERTED — read before re-attempting</summary>
+
+**⚠ The seed-side fix does not work. Do not re-attempt it without reading this.**
+
+Attempt: age both response loops by `least((i || ' days')::interval, v_month_span * i / 7.0)` where
+`v_month_span := now() - date_trunc('month', now())`, so the largest age is strictly less than the span
+and every response is provably inside the current month. It **did** fix AC-4, and it is byte-identical
+to the old values from the 8th onward.
+
+**It regressed `phase8-dashboard.spec.ts` — 8 failures**, caught by the scoped gate
+(`GATE RED — 8 real failure(s)`, batch 1). AC-1 read `Expected "6", Received "5"`; AC-1b, AC-1c, AC-2,
+AC-3, AC-5a, AC-5b and the Form-B headline all failed the same way. **A/B-confirmed:** revert
+`supabase/seed.sql` alone → fresh reset → AC-1 passes. The DB genuinely holds all 6 rows
+(verified in-catalog), so the count is lost in the dashboard read path, not in the seed.
+
+**The underlying conflict.** On the 3rd there are only ~2.5 days of month available, so clamping six
+fixtures into it collapses a 6-distinct-day spread into ~3 days. `phase8-dashboard` asserts EXACT
+counts against the seeded spread; `phase15` AC-4 needs the two `'nao'` responses inside one calendar
+month. **Near a month boundary those two requirements cannot both hold in the seed** — there aren't
+enough days. So this is not a matter of picking a better clamp expression.
+
+**Recommendation: take the OTHER option the original report offered** — have AC-4 derive its
+aggregation window from the actual seeded dates instead of assuming "the calendar month containing
+`new Date()`". That is an `e2e/**` change (tester-owned), leaves the seed untouched, and cannot
+perturb `phase8-dashboard`. The seed boundary (backend) should be considered closed to this fix.
+
+</details>
+
+Everything below this line is the original diagnosis, which remains correct.
+
+**Repro:** `npx playwright test e2e/phase15-indicators.spec.ts -g "AC-4" --project=chromium --workers=1` on
+its own (no neighbours) → **fails identically**: expects derived numerator **2**, gets **1**
+(`"Taxa calculada Numerador derivado: 1 · Valor: 1 /1000 pac-dia"`). Ruled out both hypotheses the lead
+asked to check:
+- **Not FF-4/`seed_default_answers`** — that mechanism only writes answers on a DRAFT's CREATE branch;
+  `compute_derived_measurement` counts only `status='submitted'` responses via
+  `app.submitted_form_responses`, and both responses this test depends on are long-submitted, pre-existing
+  Phase-15-era seed fixtures FF-4 never touches.
+- **Not intra-file ordering / neighbour contamination** — reproduces byte-identical run completely alone.
+
+**Root cause, traced and confirmed against live data (today: 2026-08-03):** `supabase/seed.sql`'s Form-A
+response-seeding loop (`for i in 1..6`) sets `submitted_at = now() - (i || ' days')::interval`; the
+`'nao'`-answered responses (the ones IND-0003's derived numerator counts) land at `i=1` and `i=4`. AC-4
+computes its throwaway aggregation period as **the calendar month containing `new Date()` at test-run
+time** (by design — see the spec's own MINOR-1 comment). Confirmed live: the `i=1` response is
+`2026-08-02` (this month); the `i=4` response is `2026-07-30` (**last** month — `now() - 4 days` crossed
+the month boundary because today is only the 3rd). The just-written measurement row proves it exactly:
+`period_start=2026-08-01, period_end=2026-08-31, numerator=1` — `compute_derived_measurement`'s own
+`sr.submitted_at::date >= v_from` correctly excludes the `2026-07-30` row; the RPC is behaving exactly as
+designed. **The defect is that the seed's fixed day-offsets are not guaranteed to stay within the same
+calendar month as each other**, which is only ever false on/near a month boundary — i.e. this reproduces
+on the 1st–4th of **every** month (the exact window depends on which seeded index answers `'nao'` and its
+offset), not just today.
+
+**Verdict: product/seed-data bug, not a spec defect** — the test's assumption ("today's date-relative seed
+responses land in the same calendar month") is reasonable and was true when AC-4 was written; the RPC and
+the test's own logic are both correct. Left the spec **unmodified** — weakening or rerouting its window
+selection to dodge this would hide a real fixture fragility rather than fix it, and the fix boundary
+(`supabase/seed.sql`, owned by backend) is outside `e2e/**`. **Not an FF-4 regression** and not blocking
+this phase's own acceptance criteria; flagged because it will keep recurring near every month boundary
+until the seed's date arithmetic is made month-safe (e.g. an offset that cannot cross `date_trunc('month',
+now())`, or the test deriving its window from the actual seeded dates instead of assuming "current
+month" — implementation choice is backend's/tester's call, not prescribed here).
+
+#### ✅ BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **FIXED 2026-08-03** (filed 2026-07-27, PO's call)
+
+**Fix:** migration `20260903000700_authz_dashboard_gate_uniformity.sql` + pgTAP
+`270_authz_dashboard_gate_uniformity.sql` (8/8). PO-ruled 2026-08-03: **unify on the 4-fn shape**
+— `app.is_admin()` → `app.is_commission_admin_of(v_commission_id)`. All nine `dashboard_*`
+functions now carry one identical gate: `is_staff_admin_of(cid) OR is_commission_admin_of(cid)`.
+Verified live: pgTAP 4301/4301 + the 8 new keystones; **mutation-tested** (revert the gate → 6 of
+the 8 go red, the 2 non-vacuity tests correctly stay green).
+
+**Three corrections to this report, all found against the live catalog:**
+1. **It was FIVE functions, not four.** `dashboard_entity_references` (FF-5's reference surface,
+   added after the report) carried the same arm and was never listed.
+2. **`dashboard_matrix_risk_scores` does not exist** — the relation is `dashboard_risk_scores`.
+3. **The report named only half the defect.** The same five functions also **DENIED**
+   `is_commission_admin_of`, which the other four ADMIT. Since `getCommissionAccessByOrg` maps an
+   `org_admin`/`hospital_admin` into the `staff_admin` branch (ADR 0051 D1), those users *do* reach
+   `/dashboard` — and were served populated Totais/Texto-livre/Ao-longo-do-tempo beside **empty**
+   Distribuições/Exportar/Matriz/Risco/Referências. A live user-facing gap nobody filed.
+
+**Root cause (found in `docs/reviews/phase-8-review.md`):** at Phase 8 all six original dashboard
+functions shared ONE gate — shape A. A later change put the commission-admin mirror on four and
+**missed `dashboard_distributions` + `dashboard_export_rows`**. That partial conversion created the
+second shape, broke no test, and every door added since copied a sibling in good faith (FF-2 two,
+FF-5 one), carrying the stale shape from 2 doors to 5. **A rewrite applied to PART of a function
+family is invisible to every check this platform runs.**
+
+Because of (1) the fix enumerates from `pg_proc`, never a hand-written list. The ADR 0078 A35
+census is **not** invalidated for `responses` policies — those were correct; the leak was a
+`prosecdef` door the policy-shaped census is structurally blind to, which is ADR 0078's own
+documented blind spot. Reachable via PostgREST only: a bare `platform_admin` was already 404'd at
+the page (`getCommissionAccessByOrg` → `null`).
+
+**Not FF-2's defect** — FF-2 correctly inherited its sibling's arm (lead-ruled; deviating would have
+been the inconsistency). The pre-existing question is what got filed.
+
+| Surface | `prosecdef` | `is_admin()` arm |
+|---|---|---|
+| `dashboard_distributions` · `dashboard_export_rows` · `dashboard_matrix_cells` · ~~`dashboard_matrix_risk_scores`~~ **`dashboard_risk_scores`** · **+ `dashboard_entity_references` (omitted)** | ✅ | ✅ |
+| **`responses` — every policy** | — | ❌ **none** |
+
+**`dashboard_export_rows` is the sharp one: it returns `TABLE(response_id, member_name, submitted_at,
+version_number, answers jsonb, signoffs jsonb)` — one row per response with its answers and the
+member's name, not an aggregate.** Verified live.
+
+CLAUDE.md's noun rule says `platform_admin` may **not** touch commission content, and ADR 0078 A35
+rests on a census finding it reads *0 cases / 0 responses / 0 narratives / 0 meetings*. That census
+is consistent with the `responses` policies **and structurally blind to the four DEFINER rows** —
+ADR 0078's own documented blind spot (*`prosecdef` belongs beside `pg_policies`*). **So the census
+may have understated `platform_admin`'s reach across every dashboard function.** Spans far more than
+FF-2 and re-opens an ADR 0078 finding → PO decides, not a phase.
+
+#### ✅ BUG-P22-001 — the referrals hub does not render a seeded `completed` referral · owner Phase 22 · **CLOSED — NOT REPRODUCIBLE 2026-08-03** (filed 2026-07-27)
+
+**Flow 1a passes**, standalone (2.3s) and in full-file context — `e2e/phase22-referrals.spec.ts` is
+**40/40 on a clean `supabase db reset`**. The filed diagnosis is wrong on the mechanism too:
+`ReferralsList`'s status filter defaults to `"all"`, so a `completed` referral is never filtered out,
+and `listCommissionReferrals` excludes only `draft`. The report's "deterministic, fails every run on
+a clean stack" does not hold.
+
+**What that triage round was almost certainly seeing:** run the same file twice on one DB and
+`R1-4c/R1-8` fails with `strict mode violation: resolved to 2 elements` — ENC-0033 **and** ENC-0035,
+both carrying the R1 fixture's subject, because the file's `beforeAll` mints a referral per run
+unconditionally. Serial mode then aborts, leaving **5 tests unrun**. Same defect class as
+BUG-E2EISO-003; tracked there, not here.
+
+#### ✅ BUG-P22-002 — `phase22-referrals-governance.spec.ts:1187` R5-6 keyboard-only internal note fails · owner **tester** · **FIXED 2026-08-03** (filed 2026-07-27)
+
+**Spec defect, not a product defect.** The test called `textarea.focus()` immediately after
+`page.goto()`. `.focus()` is **not** an auto-waiting action — it resolves the node and fires at once,
+so racing RSC streaming makes it silently no-op; only the follow-up `toBeFocused()` reports, as
+`Received: inactive`, which reads like a focus-management defect rather than a timing one. The notes
+panel renders late (after the related-cases panel).
+
+Proof it was never a product bug: **R1-9 in the sibling R1 file is the same keyboard-only flow
+against the message composer and has always passed** — because it awaits
+`expect(composer).toBeVisible()` first. R5-6 now uses that same shape (gate on the form, then scope
+the textarea/submit to it). Re-verified on a fresh reset: **1/1 pass in 4.5s** (was a 19.5s timeout).
+
+#### ⚪ BUG-E2EISO-001 — `orgadmin.a` loses org-admin affordances when 4 specs share a prod batch · owner **tester** · **NOT REPRODUCIBLE 2026-08-03 — recommend CLOSE** (filed 2026-07-28)
+
+**Ran the record's own repro verbatim** — the same four specs packed into ONE prod-standalone batch
+(`BATCH_TESTS=200`, one server, one DB, `RETRIES=0`), on `20260903000700`:
+
+```
+batch 1 -> 80 passed, 0 failed, 0 flaky, 0 skipped, 0 did-not-run · accounted 80/80 · pw_exit 0
+GATE GREEN
+```
+
+**80/80.** Same batch composition as the filed 77 + 3. All three named tests
+(`hospital-admin-tier` HA-2 ×2, `phase-multitenancy` MT-6) pass batched.
+
+**Most likely already fixed by BUG-E2EISO-002** (`074cc4d`, 2026-08-03 — the FK-CASCADE orphan leak in
+the shared `purge()` helper, where `session_replication_role = replica` disabled Postgres's own cascade
+triggers and teardown orphaned rows across 15 edges). This record's own hypothesis was "a
+membership/roster mutation by an earlier spec in the batch" — a teardown cascading further than intended
+is exactly that mechanism, and E2EISO-002's fix landed after this was filed. Stated as the likely cause,
+not proven: no one re-ran this repro between the two.
+
+**Recommend closing as not-reproducible.** If it returns, the variable to capture is which spec in the
+batch last purged, not which persona lost affordances.
+
+<details><summary>Original report (retained for the repro recipe)</summary>
+
+Three tests fail **only when batched**, each passing when its file runs alone:
+
+| Test | Symptom |
+|---|---|
+| `hospital-admin-tier.spec.ts:243` HA-2 appoint/revoke | `getByRole('button', {name:'Nomear administrador(a)'})` never appears (30s timeout) |
+| `hospital-admin-tier.spec.ts:291` HA-2 no self-delegation | same button, same timeout |
+| `phase-multitenancy.spec.ts:205` MT-6 hospital selector | `toBeVisible()` fails on the populated selector |
+
+**Repro** (deterministic — 3 consecutive runs, fresh `db reset` each):
+```
+SPECS="e2e/phase-multitenancy.spec.ts e2e/hospital-admin-tier.spec.ts \
+       e2e/administrativo.spec.ts e2e/cases-board-access.spec.ts" \
+  RESET=0 REBUILD=0 RETRIES=0 bash scripts/e2e-prod-gate.sh     # 77 passed / 3 failed
+```
+`hospital-admin-tier` alone → **38/38**. `phase-multitenancy` + `hospital-admin-tier` on a dev
+server → **68/68**.
+
+**Pre-existing, NOT caused by the auth-cache change** — proven by an A/B on unmodified code
+through the identical batch: **77 passed / 3 failed, byte-identical outcome** (only the GoTrue
+login count differs, 91 → 32). Do not attribute this to `e2e/helpers/auth.ts`.
+
+All three involve `orgadmin.a@test.local` losing org-level UI affordances, so the likely cause is
+a membership/roster mutation by an earlier spec in the batch (bucket C-4, shared-seed isolation —
+same family as P13-004/005/006). Needs a probe-commission/probe-user fixture rather than mutating
+the seeded rede-a org. Not a product defect until that is ruled out.
+
+</details>

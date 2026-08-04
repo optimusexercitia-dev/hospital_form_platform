@@ -337,3 +337,188 @@ keeping: a **0 ms** duration is not an assertion failure (libuv crash), and one 
 point. Known ceiling: the suite has outgrown one gate process, and `ff3-validations.spec.ts` has
 outgrown one standalone server (see the two 🔴 PO findings above).
 
+
+## Phase 16 · FF-4 · ad-hoc-batch gate rows (rotated from PROGRESS.md 2026-08-04)
+
+> Verbatim from PROGRESS.md's live Test Run Summary at the 2026-08-04 size rotation. PROGRESS.md
+> keeps one row per run; the narrative, triage and dispositions are here.
+
+**Phase 16 · tester · BUG-P16-006 fix, two independent fresh-reset runs (tester, 2026-08-04,
+`--project=chromium --workers=1`)** — the coordinator's explicit reproducibility bar: a single post-fix
+pass proves nothing if it rides leftover state from a prior run, so the suite ran twice, each against
+its OWN `supabase db reset --local`.
+
+| Run | Result |
+| --- | --- |
+| Fresh reset #1 → `phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts`, combined | **31 passed · 0 failed · 31/31 · GREEN** |
+| Fresh reset #2 (indicator ids confirmed live to differ from both reset #1 and the removed literals) → same 5 files, combined | **31 passed · 0 failed · 31/31 · GREEN** |
+| lint (`helpers/accreditation.ts` + 2 changed specs) · tsc | 0 errors/0 warnings · exit 0 |
+
+Full root-cause + fix + the complete 18-UUID classification are in the Bug Log (BUG-P16-006). Committed
+`test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
+
+**Phase 16 · tester · 5 new specs, combined run (tester, 2026-08-03, dev server, `--project=chromium --workers=1`)**
+— all 5 phase16 specs together, per each file's own header instruction (avoids the shared
+`app.feature_flags` row racing across files under `fullyParallel: true`).
+
+| Run | Result |
+| --- | --- |
+| `phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts`, combined | **31 passed · 0 failed · 31/31 · GREEN** |
+| Same 5 files, run individually (fix-loop / isolation checks) | core 7/7 · freshness 9/9 · hospital 6/6 · restricted 5/5 · clone 4/4 |
+| lint (5 specs + `helpers/accreditation.ts`) · tsc | 0 errors/0 warnings · exit 0 |
+
+**Flag-harness self-test (the mandatory pre-check, ADR 0093 / BUG-P16-002's lesson)**: `core.spec.ts`
+AC-0 sets `accreditation` OFF and asserts the commission-level `not-found.tsx` boundary
+("Não encontramos esta página.") renders — proving the suite CAN fail — then flips it ON and asserts
+real content (the hospital surface's "Acreditação" H1; routed there specifically, not the
+commission list/framework routes, to keep the proof independent of BUG-P16-003/004 while they were
+still open). Both directions verified live before any other assertion was trusted.
+
+**Two blocking product bugs found, fixed, and tester-verified closed in this run** (full detail +
+root cause in the Bug Log): **BUG-P16-003** (`framework-list.tsx` forwarding a closure prop across a
+Server→Client boundary — crashed the commission framework list for every staff_admin once a global
+framework existed) and **BUG-P16-004** (`[framework]/layout.tsx` → `StandardsTree`, the same defect,
+crashing every framework/standard-detail page — the larger blast radius of the two). Both fixed by
+`frontend` (`3fc40df`) exactly along the reported fix shape (resolve hrefs to strings before the
+client boundary); re-verified live via Playwright AND a source read before closing.
+
+**A third, minor bug (BUG-P16-005) also closed this pass.** Filed as "padrãoes" instead of "padrões"
+in the readiness dashboard's level card; tester's assertions were deliberately written to TOLERATE
+either spelling while the fix was pending, so they would not encode the wrong word. Frontend's sweep
+(`c1f098b`) caught a real sibling (`evidence-count-badge.tsx`'s "em atenção" → "em atençãos") and
+surfaced a genuine judgment call (noun-vs-verb agreement), which the PO then ruled on
+(`aad4877`: noun keyed on `totalStandards`, verb+adjective keyed on `cleanStandards`). With the
+wording now final, **tolerance is the wrong call** — it can't red a regression — so tester replaced
+both regexes with the exact literal string and swept all 5 specs for any other assertion loosened
+around either bug (none found — no fixture anywhere ever drove the aggregate evidence badge's
+`atencao` count past 1, so nothing was positioned to observe that half of the bug either). Re-verified
+`core.spec.ts` + `freshness.spec.ts` 15/15, then all 5 combined 30/30, `--project=chromium --workers=1`.
+Committed `test(e2e): pin the PO-ruled readiness wording (BUG-P16-005)`.
+
+**That coverage hole was then closed as its own follow-up (`8bdefe0`)**, on the lead's read of tester's
+own report: "fixed but unguarded" is the weakest state a fix can be in for a bug class that has now
+shipped twice in one phase, invisible to lint/typecheck/vitest both times. `freshness.spec.ts` gained
+`AC-3-plural` — a dedicated standard with TWO `atencao`-status evidence links (an existing indicator
+measurement relinked to a second standard + a new `held` meeting, A3·2) driving the aggregate badge's
+bucket to 2 — asserting the exact literal `"2 evidências — 2 em atenções"` (sourced live from
+`evidence-count-badge.tsx`, not retyped from memory) **and** that the old buggy spelling ("atençãos")
+is absent, so it would genuinely have failed pre-fix. Re-verified `freshness.spec.ts` 9/9, all 5 specs
+combined **31/31**, `--project=chromium --workers=1`. Committed
+`test(e2e): assert the irregular plural on the evidence badge (BUG-P16-005)`.
+
+**Ad-hoc bug batch · scoped verification (lead, 2026-08-03, `RESET=1 RETRIES=0`)** — scoped rather than
+full-suite by design: only the specs covering the changed surfaces were run.
+
+| Run | Result |
+| --- | --- |
+| `phase8-dashboard` + `phase22-referrals` + `phase22-referrals-governance` | **93 passed · 0 failed · 93/93 · GATE GREEN** |
+| 4-spec isolation batch (`phase-multitenancy`/`hospital-admin-tier`/`administrativo`/`cases-board-access`), one batch | **80/80 · GATE GREEN** (BUG-E2EISO-001 does not reproduce) |
+| `bulk-case-creation`, fresh DB then **same DB again** | **8/8 · 8/8 · GATE GREEN** (BUG-E2EISO-003 does not reproduce) |
+| pgTAP `npm run test:db` | **4301/4301** (+ new `270_…` 8/8, mutation-falsifiable) |
+| Vitest · lint · tsc | **873/873** · 0 errors/0 warnings · exit 0 |
+
+⚠ An intermediate run of this same scoped gate was **`GATE RED — 8 real failure(s)`**, all in
+`phase8-dashboard`, caused by the BUG-P15-001 seed fix; that fix was A/B-confirmed as the cause and
+**reverted**. The green above is on the reverted tree. `phase15-indicators` is therefore still expected
+to fail AC-4 today (the 3rd) — see BUG-P15-001.
+
+**FF-4 · DECLARE-GREEN full `npm run e2e:prod` gate (lead, 2026-08-03, on `87fbdde`, `RESET=1 REBUILD=1`)**
+— **901 passed · 1 failed · 21 infra · 3 flaky · 0 did-not-run · 15 batches · COVERAGE 926 of 931.**
+**All 15 batches ran** (no `reset FAILED`, no gap in the batch numbering — checked by hand per
+BUG-GATE-001) and the denominator is the true 931; the 5-test gap reconciles exactly to 5 conditional
+self-skips. **Zero FF-4 defects.** Every non-pass dispositioned:
+
+| Non-pass | Disposition |
+| --- | --- |
+| `bulk-case-creation` AC2 — the 1 "real" failure | **BUG-E2EISO-003** — 8/8 on a fresh DB, fails only on a rerun against state its own dead first attempt mutated. Pre-existing, not FF-4 |
+| 21 infra (batch 11: `server_dead=1, conn_errors=42`) | Re-run standalone on a fresh DB → **60/61 pass**; the 1 is BUG-P15-001 |
+| 3 flaky | Passed on retry (`phase14c-rca` R1+R2 among them — matches the known baseline) |
+| 5 skipped | Conditional self-skips |
+
+⚠ **The suite is therefore NOT literally all-green: BUG-P15-001 fails every run until the 5th of the
+month.** Recorded as such deliberately rather than rounded up to "green". QA reviewed it and did not
+treat it as blocking; the phase was approved on that basis.
+
+**FF-4 · FIRST full `npm run e2e:prod` gate (lead, 2026-08-03, on `b5c505e`)** — **849 passed · 3 failed · 3
+flaky · 15 batches.** Batch 4 hit `reset FAILED` (environmental — `supabase_edge_runtime` state; not a
+defect) and never ran 66 tests (`ethics-e2-procedure` · `ethics-e3a-surfacing` · `ff1-repeating-groups` ·
+`ff2-matrix-views` · `ff2-matrix`); lead re-ran all five standalone → **66/66**, no FF-4 regression.
+`phase14c-rca` R1+R2 flaky, consistent with the known baseline. Both non-flaky failures triaged by
+tester below.
+
+| Failure | Verdict | Disposition |
+| --- | --- | --- |
+| `answer-model-v2.spec.ts` DV-1 (and, once unmasked by fixing DV-1, DV-3 + DV-5 too — `test.describe.configure({mode:'serial'})` was hiding them) | **spec-defect — fixed by tester** | FE-3's segmented Nenhum/Valor fixo/Valor dinâmico control (ADR 0092 ruling 6) replaced the plain "Valor padrão" input for every dynamic-token-eligible type (short_text/free_text/date/time); the old `getByLabel(/Valor padrão/i)` locator now ambiguously matches the new radiogroup's OWN `aria-label="Origem do valor padrão"`. **Verified the literal-default path genuinely still works** before touching anything — full round trip (author via "Valor fixo" → publish → DB truth on `default_value` → wizard pre-fill → edit → submit → DB truth on the submitted value) passes end-to-end, including DV-5's keyboard-only path (ArrowRight to switch segmented modes, Tab to the revealed input — ArrowRight fires the control's own `onChange`+focus per `segmented.tsx`, no Enter/Space needed). `number`/`multiple_choice`/`checkbox`/`dropdown` defaults are UNCHANGED (zero eligible dynamic tokens → the original plain-labelled control renders directly) — confirmed via DV-1's number item and DV-2/DV-4 passing untouched. **6/6, 3 consecutive clean runs** (one interim 5/6 was a shared-DB orphan collision from repeated re-runs during triage — see BUG-P15-related orphan note below — not a real failure; cleaned up, reconfirmed clean). |
+| `phase15-indicators.spec.ts` AC-4 | **product/seed-data bug — filed (BUG-P15-001), NOT fixed, NOT FF-4** | Traced to exact root cause: `seed.sql`'s Form-A response loop dates two `'nao'` responses `now()-1d`/`now()-4d`; AC-4 assumes "current calendar month"; today (2026-08-03) is early enough in the month that the `-4d` offset crosses into July. Reproduces standalone (rules out neighbour/ordering contamination, as asked). Confirmed via the actual written row: `period_start=2026-08-01` correctly excludes the `2026-07-30` response per `compute_derived_measurement`'s own (correct) `sr.submitted_at::date >= v_from` filter. Will recur on the 1st-4th of every month until the seed's date arithmetic is fixed. Left the spec untouched — see the Bug Log entry for why rerouting the test would hide, not fix, the fragility. |
+
+**Side note on the shared-DB orphan pattern (see prior FF-4 block below for the original finding):** hit it
+again live, in a DIFFERENT file (`answer-model-v2.spec.ts` DV-6, hardcoded fixture id
+`99990000-…-0d0e01`) on a repeated re-run during this triage — `delete from forms … ` under
+`session_replication_role=replica` left an orphaned `form_versions` row, colliding with DV-6's own
+`insert` on its next run (`duplicate key … form_versions_form_id_version_number_key`). Cleaned the one
+row blocking re-verification; did not sweep the DB-wide 17 that existed at the time (out of scope for a
+triage pass) — reinforces that this is a real, cross-file pattern, not a one-off.
+
+**FF-4 · `tester` targeted spec, NOT the full gate (2026-08-03).** New file:
+`e2e/ff4-power-authoring.spec.ts` (7 tests, covers ADR 0092 rulings 1–9 + both amendments —
+FF4-1 headline round trip, FF4-2 collision/rename-list, FF4-3 closure refusal, FF4-4 dynamic
+defaults, FF4-5 cross-commission security, FF4-6 rename/delete metadata, FF4-7 keyboard-only).
+Run against a prod standalone build (`npm run build` + `.next/standalone/server.js` on :3000,
+per `docs/testing/e2e-prod-build-gate.md`'s manual recipe), `--project=chromium --workers=1`.
+
+| Surface | Result |
+| --- | --- |
+| `tester` — FF-4 spec | **6 / 7**, deterministic across 3 consecutive runs (same 1 failure, same values, every time) |
+| lint (`e2e/ff4-power-authoring.spec.ts`) | 0 errors / 0 warnings |
+| typecheck | clean (`tsc --noEmit`, no errors in the new file) |
+
+**1 failure = 1 real bug, filed as BUG-FF4-001 above — not a flake, not a stale selector.** FF4-1,
+FF4-2, FF4-3, FF4-5, FF4-6, FF4-7 all pass, including the mandatory keyboard-only flow (FF4-7) and
+the security negative (FF4-5, UI + RPC + direct REST). **Full `e2e:prod` gate NOT run by tester**
+(a subagent's foreground cap does not cover the full suite, per role scope) — the lead runs that
+before declaring the phase green; this is the acceptance-criteria pass, not the regression gate.
+
+**Side finding while debugging cleanup (not a product defect, a TEST-INFRA one — flagged, not
+fixed here in other files' specs):** `session_replication_role = replica` — the exact idiom
+ff1/ff2/ff3/ff5's own `purge()` helpers use to bypass `guard_submitted_response` before deleting a
+form — **disables Postgres's FK-CASCADE triggers too**, not merely the app-level guard it targets.
+A bare `delete from forms … ` under `replica` mode deletes the `forms` row while leaving
+`form_versions`/`form_items`/… **orphaned** (no parent, unreachable by any app query, but still
+occupying rows). Proven live: a database-wide sweep during this session's debugging found **46
+pre-existing orphaned draft versions plus 2 orphaned PUBLISHED versions with real
+`responses`/`answers` under them**, all cleaned up as part of this run (verified: 0 orphans
+remain in `form_versions`/`form_items`/`form_sections`/`answers` after cleanup). Confirmed by a
+controlled test: deleting the identical row under a **normal** (non-`replica`) session cascades
+correctly. `e2e/ff4-power-authoring.spec.ts`'s own `purge()` works around it (explicit,
+table-by-table deletes, never relying on the FK-cascade trigger); the other FF specs' `purge()`
+functions still carry the original one-line pattern and will keep leaking orphans on every run
+until someone applies the same fix there. Not blocking FF-4 (this file's own state is hermetic),
+but worth a follow-up task against ff1/ff2/ff3/ff5's shared `purge()` idiom.
+
+**FF-5 · final bar at `598447e` (2026-07-28)** — full detail, every triage and every mutation
+proof → [ff-5-entity-reference.md](docs/progress/ff-5-entity-reference.md); the FF-2 and FF-3
+run-by-run rows → [test-run-archive.md](docs/progress/test-run-archive.md).
+
+| Surface | Result |
+| --- | --- |
+| pgTAP (fresh reset) | **4240 / 4240 PASS** (suite `276` = 73 assertions) |
+| Vitest | **851 / 851** (51 files) |
+| lint · typecheck · `next build` | **0/0** · clean · **EXIT=0** |
+| migrations | **235 == 235** (max `20260902000900`) |
+| `tester` — FF-5 spec | **10 / 10**, 2 consecutive runs |
+| `tester` — neighbours | **21 / 21** (ff1 9 · ff2-views 5 · phase6-signoffs 7) |
+| full `e2e:prod` (`RESET=1 REBUILD=1`) | **863 passed · 0 real failures** |
+
+**Gate triage (the standing method, and it settled this in two steps).** All 53 raw reds were in
+**one batch**, and **every one of the 106 errors in it was `net::ERR_CONNECTION_REFUSED` — not one
+assertion failure**; `server.log` showed `The destination stream closed early` after test 8. Batch 5
+held the six heaviest FF specs in a single server lifetime. Re-running the identical 63 at
+`BATCH_SIZE=2` (fresh server per pair) → **63/63**. Same shape as FF-3's gate (140 raw, 2 real).
+
+> Count connection errors per batch **first**, then look for any non-connection error kind. Two
+> tells worth keeping: a **0 ms** duration is not an assertion failure (libuv crash), and a collapse
+> run can fail test 1, recover, then die later — so the first failure is *not* the collapse point.
+
+⚠ **pgTAP needs a FRESH `supabase db reset`.** A second suite run against the same DB gives
+**4200 + a hard abort in `161_recommend_result_source`** (that file mutates feature flags). That is
+contamination, not a defect — the lead tripped over it once and it reads exactly like a real red.

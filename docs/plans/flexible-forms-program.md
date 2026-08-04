@@ -334,3 +334,31 @@ flag — dark until the gate, per the m2-gate precedent.
 types before validators (FF-2 → FF-3), the PHI-touching selector next (FF-5), authoring reuse
 last (FF-4) — every writer a DEFINER door, every evaluator change parity-locked, everything dark
 behind its flag until its gate, and one pilot deploy after the last gate.
+
+---
+
+## Program outcome — ✅ CLOSED 5 of 5, 2026-08-03
+
+Rotated here from PROGRESS.md's "Current Phase Tasks" on 2026-08-04 (the program is complete; PROGRESS.md
+keeps a one-line pointer). Every flag shipped **ON** via its own gate-flip migration.
+
+| Phase | Completed | Flag | ADR | Record |
+| --- | --- | --- | --- | --- |
+| **FF-1** Repeating Groups | 2026-07-27 | `repeating_groups` ON (`20260828000900`) | [0087](../decisions/0087-ff1-repeating-groups.md) + Amendment 1 | [ff-1-repeating-groups.md](../progress/ff-1-repeating-groups.md) |
+| **FF-2** Matrix & Risk Matrix | 2026-07-27 | `matrix_fields` ON (`20260830001200`) | [0089](../decisions/0089-ff2-matrix-risk-matrix.md) | [ff-2-matrix-risk-matrix.md](../progress/ff-2-matrix-risk-matrix.md) |
+| **FF-3** Validation Engine | 2026-07-28 | `item_validations` ON (`20260901000800`) | [0090](../decisions/0090-ff3-validation-engine.md) + Amendments 1–4 | [ff-3-validation-engine.md](../progress/ff-3-validation-engine.md) |
+| **FF-5** Entity Reference | 2026-07-28 | `entity_refs` ON (`20260902000600`) | [0091](../decisions/0091-ff5-entity-reference.md) + Amendments 1–2 | [ff-5-entity-reference.md](../progress/ff-5-entity-reference.md) |
+| **FF-4** Power Authoring | 2026-08-03 | `power_authoring` ON (`20260903000600`) | [0092](../decisions/0092-ff4-power-authoring.md) + Amendments 1–2 | [ff-4-power-authoring.md](../progress/ff-4-power-authoring.md) |
+
+**Cross-phase obligations, all discharged in-program:** FF-2 discharged FF-1's P0-1 correction-copy
+obligation and pulled both its own follow-ups (dashboard aggregation + sign-off grid) into gate scope by
+PO ruling; FF-3 and FF-5 between them discharged the two FF-2 handed on (the missing targeted /
+`can_read_correction_response` policy arms, and the door-parity rule `272_ff2_door_parity.sql`).
+
+**FF-4 gate (the program's last):** spec 7/7 · pgTAP **4301/4301** on a fresh reset (61 assertions, 12
+keystones mutation-proven) · full `e2e:prod` 901p, coverage 926/931, **0 FF-4 defects** · QA APPROVED
+(0 P0 / 0 MAJOR), [review](../reviews/phase-FF-4-review.md).
+
+**Ruling 2 (ADR 0086) is therefore satisfied: the pilot deploy is unblocked by this program.** Phase 16
+was separately re-gated in front of it by ADR [0093](../decisions/0093-phase-16-standards-crosswalk-replan.md)
+and completed 2026-08-04.

@@ -129,3 +129,82 @@
 ## Closed 2026-07-18 (rotated out of PROGRESS live Follow-ups — AUDIT-DOOR-BLINDNESS now COMPLETE)
 
 - [x] **AUDIT-DOOR-BLINDNESS (pre-pilot P0) — program-wide `prosecdef` door audit. ✅ COMPLETE 2026-07-18, human-approved.** The whole-platform sweep (292 gate neutralizations across every `authenticated`-reachable DEFINER door) found **no live leak** — door-blindness was platform-wide test-coverage debt, not a Gate-1 breach. Closed with a standing invariant (ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md), INVARIANT HOLDS) + 50 mutation-proven isolation keystones; qa APPROVED (0 P0/0 MAJOR/2 MINOR). Full record → [authz-p0-door-blindness.md](authz-p0-door-blindness.md).
+
+## Closed 2026-08-04 (rotated out of PROGRESS live Follow-ups — Phase 16 items)
+
+### ✅ FUP-P16-1 — 14 never-called doors fail the ADR 0079 floor — **RESOLVED 2026-08-04**
+
+> **RESOLVED.** `ARM=floor` now reports `=== INVARIANT HOLDS ===` (exit 0): doors with 0 calls
+> **103 → 89**, all 89 on the allowlist. Full pgTAP green on a **fresh reset** — `Files=151,
+> Tests=4615, Result: PASS`. **Nothing was added to the allowlist**: all 14 were verdict (b), a
+> real coverage gap. Keystones: `supabase/tests/290_authz_never_called_door_floor.sql` (40
+> assertions). Fixes: `supabase/migrations/20260904000000_fix_never_called_ethics_doors.sql`.
+> No Phase 16 file touched.
+>
+> **Writing the ADR-0079 positive twins found 3 doors whose AUTHORIZED path could never succeed** —
+> each had a *working* deny arm, so any deny-only test passes while the door is 100% broken for the
+> principal it serves. All three were latent (no component wires them yet):
+> - `assign_ethics_remediation` — `22P02`: `create_committee_action_item` returns the `action_items`
+>   ROW, assigned into a `uuid`. · `open_ethics_external_referral` — `22P02`: same shape, with
+>   `create_referral_draft` returning `case_referral`. · `set_case_phase_assignment_role` — `23514`:
+>   wrote `case_phases` without setting `app.in_case_rpc`, so `app.guard_case_phase_status` rejected
+>   it; its siblings (`activate_phase`, `reassign_phase`, `add_ad_hoc_phase`, …) all set the flag —
+>   this door never inherited that arm.
+>
+> ⚠ **The reusable mechanic — a deny-only keystone CANNOT clear the floor.**
+> `pg_stat_user_functions` does not count a call that raises (verified with a probe pair: returning
+> fn `calls=1`, raising fn `calls=0`). So ARM 2 is implicitly also a *"this door can complete
+> successfully at least once"* check, and a permanently-throwing door reads as **never called**
+> rather than **failing** — which is exactly why these 3 hid for months. **If a door stays on the
+> offender list after you keystone it, suspect the door, not the test.** Recorded in the allowlist
+> header so the next reader hits it there. Never allowlist a door to silence this.
+>
+> Every deny keystone is **mutation-proven**: neutralizing `can_manage_professional`,
+> `assert_ethics_coordinator`, `can_manage_referral_source`/`_target`, `is_staff_admin_of` and
+> `is_admin` in turn reddens exactly the expected assertions (both `unlink_referral_case` branches
+> redden independently). Mutations ran inside the rolled-back test transaction; catalog verified
+> restored after.
+
+<details><summary>Original filing (2026-08-03/04) — kept for provenance</summary>
+
+#### 🔴 FUP-P16-1 — **14** never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
+
+> **Lead re-ran it at the gate (2026-08-04, fresh reset): `ARM=floor` reports `=== INVARIANT VIOLATED ===`, 103 authenticated-reachable DEFINER doors with 0 calls, 14 of them off the allowlist.** (Backend's earlier count of 13 was one short.) **Provenance verified, not assumed** — every offender traces to a migration that predates this branch:
+> `archive_case_assignment_role`, `create_ethics_allegation_category`, `void_decision` → `20260817000500_ethics_e2_rpcs.sql` · `open_ethics_external_referral` → `20260817000600` · `unlink_referral_case` → `20260817001600` · `set_template_case_type` → `20260829000100`. All ≪ Phase 16's `20260903000800`. `git log main..HEAD -- supabase/tests/mutation/` is **empty** — Phase 16 never touched the audit or its allowlist, and it *removed* an offender (`delete_standard`) rather than adding one.
+> ⚠ **So the standing invariant is RED at the Phase 16 gate, and Phase 16 did not make it red.** ARCHITECTURE.md Rule 1 calls this a gate that must keep passing, so **whether to ship Phase 16 (and therefore the pilot, which it gates) over a pre-existing red is a PO decision, not a lead one.** What the red actually means: those 14 doors have **no pgTAP exercising their authorization body** — a *coverage* gap, not a proven vulnerability. It is the same shape as Phase 16's own `delete_standard`, which *looked* covered because its only test was a flag-off negative that raised before reaching the gate.
+
+Surfaced 2026-08-03 while running `ARM=floor bash supabase/tests/mutation/p0-authz-invariant.sh`
+during Phase 16. Thirteen `prosecdef` doors — in **ethics vocabulary, case-assignment roles and
+referral actions** — are never exercised by any pgTAP suite, so the standing door audit cannot see
+whether their authorization bodies work at all. **Predates Phase 16 and is unrelated to it**; all
+Phase 16 doors now pass the floor.
+
+⚠ **The mechanism is the reusable part.** Phase 16 had a door of its own in this state —
+`delete_standard`, "covered" by pgTAP 280 via a **flag-off negative test that raises *before*
+reaching the authorization body**. It looked covered and was not. **Coverage that raises early is
+not coverage**, and a `grep` for the function name in the test suite would have said "covered" for
+every one of these 13.
+
+**To act on it:** re-run the floor sweep to regenerate the current list (it is derived, not
+copied here, precisely so it cannot go stale — the standing "encode load-bearing claims
+executably" rule), then add a genuine successful call per door. Relates to ARCHITECTURE.md Rule 1,
+ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md), and the open
+**AUDIT-INVOKER-WRAPPER** item, which is the *other* structural blind spot in the same sweep.
+
+</details>
+
+### ✅ FUP-P16-3 — `app.copy_version_children` temp-table concern: **INVESTIGATED, NOT A BUG**
+
+Recorded so it is not re-raised. During Phase 16, `clone_framework` genuinely needed a
+`drop table if exists` guard (its temp map failed on a second call in one transaction), and the
+finding was reported as "the same pattern exists in the precedent I copied it from,
+`app.copy_version_children` — confirmed live". **Lead re-checked the live body: it is not the same
+pattern.** `copy_version_children` drops **both** temp tables **unconditionally at the end of its
+body** (`drop table _clone_section_map; drop table _clone_item_map;`) and has **no exception
+block** — so sequential calls in one transaction are fine, and a call that raises aborts the
+transaction, leaving no second call to collide with.
+
+⚠ **The lesson, which is why this entry exists at all:** confirming that a *pattern* is present is
+not confirming that the *defect* is present. The `on commit drop` line was really there; the
+conclusion drawn from it was still wrong. Same family as the standing false-P0 rule — read the
+whole body, not the line that matches.
