@@ -71,26 +71,37 @@
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
 **▶ ACTIVE: Membership hardening + Diretor Técnico** (ADR
-[0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–2; plan
+[0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–3; plan
 [membership-hardening-technical-director.md](docs/plans/membership-hardening-technical-director.md)) —
-branch `feat/membership-hardening-technical-director`. PO closed all four open items 2026-08-04:
-atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight through · DT flag ships **ON**.
+branch `feat/membership-hardening-technical-director`, **local, 4 commits, NOT pushed**. PO closed all
+four open items 2026-08-04: atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight
+through · DT flag ships **ON at T4.9** (⚠ still **DARK** — that enable migration is unbuilt).
 
 | WS | Scope | State |
 | -- | ----- | ----- |
 | **W1** | Package A — one commission role per principal; composite FKs replace the two trigger guards; `granted_by` index; full writer sweep | ✅ **complete** — `9f3388a`; pgTAP `291` 35/35; mutation **9/9 RED-PROVEN**; E2E green |
-| **W2** | `public.session_context()` (one round trip, generic over roles) + expiry defusal + role-completeness grid | ✅ **complete** — pgTAP `292` 25/25; mutation **9/9**; E2E green (session bootstrap re-plumbed) |
-| **W3** | Package B — actor kernel + service door; **no raw `memberships` DML** (repo gate) | ✅ **complete** — pgTAP `293` 24/24 (two-entry equivalence grid); mutation **8/8** |
-| **W4** | Diretor Técnico backend | 🟡 **partial** — T4.1–T4.3 (roles · scope shape · titular index · kernel arms w/ physician check · `appoint_technical_director`) ✅ pgTAP `294` 29/29, mutation **8/8**. **Flag `technical_director` is DARK** (its enable migration is T4.9, unbuilt). NOT built: T4.4 actions · T4.5–T4.8 referral plane · T4.9 enable · T4.10 seed · T4.11–13 tests |
+| **W2** | `public.session_context()` (one round trip, generic over roles) + expiry defusal + role-completeness grid | ✅ **complete** — `36a69d5`; pgTAP `292` 25/25; mutation **9/9**; E2E green (session bootstrap re-plumbed) |
+| **W3** | Package B — actor kernel + service door; **no raw `memberships` DML** (repo gate) | ✅ **complete** — `36a69d5`; pgTAP `293` 24/24 (two-entry equivalence grid); mutation **8/8**; E2E green — ⚠ **5 of the 6 migrated callers**; `assignOrgAdmin` (platform first-org_admin provisioning) has NO E2E spec, so its migration to `grant_role_for` is pgTAP-proven only → FUP-MEM-2 |
+| **W4** | Diretor Técnico backend | 🟡 **partial** — `803e837`; T4.1–T4.3 (roles · scope shape · titular index · kernel arms w/ physician check · `appoint_technical_director`) ✅ pgTAP `294` 29/29, mutation **8/8**. **Flag `technical_director` is DARK** (its enable migration is T4.9, unbuilt). NOT built: T4.4 actions · T4.5–T4.8 referral plane · T4.9 enable · T4.10 seed · T4.11–13 tests |
 
 Gate so far: pgTAP **155 files / 4736** on a fresh reset · lint 0/0 (+ the new
-`lint:memberships-door`) · typecheck · Vitest **901/901** · targeted `e2e:prod` **160 passed / 0 failed**.
+`lint:memberships-door`) · typecheck · Vitest **901/901** · targeted `e2e:prod` **171 passed / 0 failed**
+(a first 7-spec run of **160/0** validated W1+W2's session re-plumb; the 8-spec re-run validated W3's
+caller migration). ⚠ **The full `e2e:prod` suite has NOT been run** — declare-green is still owed.
 
-> ⚠ **The plan was wrong about the substrate four times, and every correction came from the live
-> catalog or a probe, never from review** (ADR 0094 Amendment 2): `session_context` in `app` would be
-> unreachable by PostgREST; T1.0 as delete+insert defeats its own stated audit goal; a second FK to
-> `hospitals` is PGRST201; a bare composite `SET NULL` makes commission titles undeletable. The plan's
-> own header says it is not authoritative on the substrate — it meant it.
+> ⚠ **The plan was wrong about the substrate FIVE times, and every correction came from the live
+> catalog or a probe, never from review.** `app.session_context()` would be unreachable by PostgREST
+> (only `public`/`graphql_public` are exposed) — W2. And four in W1 (ADR 0094 Amendment 2): T1.0 as
+> delete+insert defeats its own stated audit goal (the trigger emits `role_changed` only on UPDATE); a
+> second FK to `hospitals` is PGRST201 against three live un-hinted embeds; a bare composite `SET NULL`
+> nulls `commission_id` too and makes commission titles undeletable; and the replacement semantic opens
+> a peer-demotion hole unless authority over the OUTGOING role is required. The plan's own header says
+> it is not authoritative on the substrate — it meant it.
+>
+> ⚠ **The invariant made five pgTAP fixtures illegal, and three failed SILENTLY** — an untargeted
+> `on conflict do nothing` absorbs any *future* unique index, so the promotion no-opped and ~23
+> keystones in `229`/`233`/`236` denied with `HC0E4` (want of authority) instead of the exclusion code
+> under test. The two sites with no `on conflict` clause failed loudly and were the safer shape.
 
 Both programs that gated the pilot are closed:
 
@@ -258,6 +269,12 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-04 | **MEM W1–W4 · pgTAP on a fresh reset** (+`291` 35, `292` 25, `293` 24, `294` 29) | **155 files / 4736 · PASS** |
+| 2026-08-04 | **MEM · mutation audits** — `w1` · `w2` · `w3` · `w4` | **9/9 · 9/9 · 8/8 · 8/8 RED-PROVEN**, every control all-green |
+| 2026-08-04 | **MEM W1–W3 · targeted `e2e:prod`** (8 specs, `RESET=1`) — W3 caller migration | **171 passed · 0 failed · 0 flaky · GATE GREEN** |
+| 2026-08-04 | **MEM W1+W2 · targeted `e2e:prod`** (7 specs, `RESET=1`) — session bootstrap re-plumb | **160 passed · 0 failed · 1 deliberate skip · GATE GREEN** |
+| 2026-08-04 | **MEM · lint · typecheck · Vitest** (lint now chains `lint:memberships-door`) | 0/0 · clean · **901/901** |
+| 2026-08-04 | ⚠ **MEM · `p0-authz-invariant.sh` `ARM=floor`** | **`INVARIANT VIOLATED`** — 3 *indicator* doors never-called. NOT attributable to MEM (they read 0 calls with their own suite run ALONE and passing); all 5 MEM doors ARE exercised. Needs a `main` baseline → FUP-MEM-1 |
 | 2026-08-04 | **Phase 16 · GATE (declare-green)** — pgTAP on a fresh reset | **151 files / 4623 · PASS** |
 | 2026-08-04 | **Phase 16 · GATE** — full `e2e:prod` | **962 of 962 accounted · 0 assertion failures** (2 flaky passed on retry, 12 deliberate skips) |
 | 2026-08-04 | **Phase 16 · GATE** — `p0-authz-invariant.sh` `ARM=floor` | **`INVARIANT HOLDS`** — 89 never-called doors, all allowlisted |
@@ -385,6 +402,7 @@ not a defect — it reads exactly like a real red.
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
+| 2026-08-04 | **Membership-hardening + Diretor Técnico: the four open items closed** (PO) — T1.0 = **atomic replace**; **platform_admin may NOT appoint a DT** (tenant governance, not tenancy administration — the only kernel grant arm with no `is_admin_for` branch); build **W1→W4 straight through** on one branch; `technical_director` flag **ships ON** at T4.9 | [0094 Amendment 1](docs/decisions/0094-membership-hardening-and-technical-director.md) · [plan](docs/plans/membership-hardening-technical-director.md) |
 | 2026-08-03 | **Phase 16 build plan authored + 4 planning rulings** (PO, interview) — CAPA evidence arm = hospital-match + `can_read_capa`; commission-owned frameworks commission-scoped SELECT (narrows D10 — licensed-text leak); visible hospital nav entry; ONA skeleton drafted by backend, PO-validated. Build not started | [0093 Amendment 1](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) · [plan](docs/plans/phase-16-standards-crosswalk-program.md) |
 | 2026-08-03 | **Phase 16 replanned + re-gates the pilot** (PO, interview) — pre-pilot again (supersedes 0086's deferral note); skeleton-only framework packs (licensing); ONA `level` dimension + per-level readiness; evidence enum +`charter`+`ethics_procedure` (folds ETH·E3b); worst-wins rollup + `standard_ownerships`; `hospital_readiness` re-gated off `is_admin` (noun rule) | [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) · [audit](docs/reviews/phase-16-external-accreditation-audit.md) |
 | 2026-07-27 | **Flexible-Forms FF-1…FF-5 pulled pre-pilot** (PO) — all five feature phases build before the pilot and gate the pilot deploy; order … | [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) · [program](docs/plans/flexible-forms-program.md) |
@@ -420,6 +438,54 @@ call that raises, so **a deny-only keystone cannot clear the floor** and a perma
 reads as *never called* rather than *failing*) · **FUP-P16-3** (`copy_version_children` temp-table
 concern — INVESTIGATED, **not a bug**; ⚠ confirming a *pattern* is present is not confirming the
 *defect* is present).
+
+### 🔴 FUP-MEM-1 — `p0-authz-invariant.sh` `ARM=floor` reports 3 never-called INDICATOR doors (needs a `main` baseline)
+
+**Open, and it contradicts FUP-P16-1's close two commits earlier**, which is the only reason it is
+filed red rather than shrugged off. On the MEM branch, `ARM=floor` on a fresh reset reports
+`INVARIANT VIOLATED` for exactly three Phase-15 doors — `hospital_indicator_rollup` ·
+`indicator_kpis` · `record_indicator_measurement`.
+
+**Not attributable to MEM, on evidence rather than plausibility:**
+- MEM touches `memberships`, `session_context` and the grant/revoke doors; indicators are untouched.
+- `110_indicators.sql` **passes in full** and demonstrably calls all three (e.g. its
+  `indicator_kpis total = 6` assertion cannot pass without executing the function).
+- Running `00_setup` + `110_indicators` **ALONE** still reports `calls = 0` for the three, while 773
+  other functions register calls in the same run. A MEM migration cannot change whether 110's own
+  calls are counted — so the METRIC is unreliable here, not the doors.
+- All five MEM doors ARE exercised: `session_context` 18 · `grant_role` 43 · `grant_role_for` 14 ·
+  `revoke_role` 8 · `revoke_role_for` 2. Nothing MEM added is door-blind.
+
+**Leading hypothesis to test first:** `pg_stat_user_functions` appears not to retain function stats
+from the ROLLED-BACK pgTAP transaction for these three, while `00_setup` (which commits) does. A
+date-sensitivity angle is also live — the indicator suite is known date-fragile on the 1st–4th
+(BUG-P15-001) and this ran on the 4th.
+
+**Next step (cheap, decisive):** run `ARM=floor` on `main` at a comparable date. If it violates there
+too, this is a harness/stats artifact and the allowlist or the harness needs the fix — not MEM. ⚠ Do
+NOT "fix" it by allowlisting the three until that baseline exists; that would hide a real regression
+if one is there.
+
+⛔ **ARM 1 (the ~90-min policy sweep) was NOT run on this branch.** It is still owed before merge.
+⚠ A killed ARM-1 run overwrites `docs/reviews/authz-door-audit-findings.md` with a TRUNCATED result
+(it rewrote 246 BLIND rows down to 11 here, and was reverted). If you interrupt that sweep, restore
+that file before committing.
+
+### 🟡 FUP-MEM-2 — `assignOrgAdmin` migrated to the door with no E2E coverage
+
+W3/T3.3 moved `assignOrgAdmin` (`src/lib/platform/actions.ts` — the first-org_admin provisioning
+path) off raw `memberships` DML and onto `public.grant_role_for`. **No E2E spec exercises it**: a
+sweep of `e2e/` finds nothing driving the platform organisation/org-admin provisioning UI, so the
+targeted 8-spec run that validated the other five callers could not have covered this one.
+
+It is not unverified — `293`'s equivalence grid drives the `organization` × `org_admin` cells through
+both entry points, and §3.3–3.6 pin the anti-lockout on the service path. But the **wiring** (does the
+action pass the right actor and scope from a real request?) is exactly the seam a green DB bar cannot
+see — the FF-1 lesson, where three live bugs survived lint + tsc + build + 457 unit + 3919 pgTAP and
+only E2E caught them.
+
+**Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
+before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
 
 ### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
 
