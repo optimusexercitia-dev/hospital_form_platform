@@ -984,7 +984,11 @@ contamination, not a defect — the lead tripped over it once and it reads exact
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
-### 🔴 FUP-P16-1 — 13 never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
+### 🔴 FUP-P16-1 — **14** never-called doors fail the ADR 0079 floor (pre-existing, NOT Phase 16)
+
+> **Lead re-ran it at the gate (2026-08-04, fresh reset): `ARM=floor` reports `=== INVARIANT VIOLATED ===`, 103 authenticated-reachable DEFINER doors with 0 calls, 14 of them off the allowlist.** (Backend's earlier count of 13 was one short.) **Provenance verified, not assumed** — every offender traces to a migration that predates this branch:
+> `archive_case_assignment_role`, `create_ethics_allegation_category`, `void_decision` → `20260817000500_ethics_e2_rpcs.sql` · `open_ethics_external_referral` → `20260817000600` · `unlink_referral_case` → `20260817001600` · `set_template_case_type` → `20260829000100`. All ≪ Phase 16's `20260903000800`. `git log main..HEAD -- supabase/tests/mutation/` is **empty** — Phase 16 never touched the audit or its allowlist, and it *removed* an offender (`delete_standard`) rather than adding one.
+> ⚠ **So the standing invariant is RED at the Phase 16 gate, and Phase 16 did not make it red.** ARCHITECTURE.md Rule 1 calls this a gate that must keep passing, so **whether to ship Phase 16 (and therefore the pilot, which it gates) over a pre-existing red is a PO decision, not a lead one.** What the red actually means: those 14 doors have **no pgTAP exercising their authorization body** — a *coverage* gap, not a proven vulnerability. It is the same shape as Phase 16's own `delete_standard`, which *looked* covered because its only test was a flag-off negative that raised before reaching the gate.
 
 Surfaced 2026-08-03 while running `ARM=floor bash supabase/tests/mutation/p0-authz-invariant.sh`
 during Phase 16. Thirteen `prosecdef` doors — in **ethics vocabulary, case-assignment roles and
