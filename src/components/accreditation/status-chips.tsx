@@ -3,10 +3,12 @@ import {
   ASSESSMENT_STATUS_LABELS,
   EVIDENCE_STATUS_LABELS,
   FRAMEWORK_STATUS_LABELS,
+  HOSPITAL_READINESS_RESOLUTION_LABELS,
   STANDARD_LEVEL_LABELS,
   type AssessmentStatus,
   type EvidenceStatus,
   type FrameworkStatus,
+  type HospitalReadinessResolution,
   type StandardLevel,
 } from "@/lib/accreditation/types";
 
@@ -91,6 +93,27 @@ export function FrameworkStatusChip({
   return (
     <span className={cn(CHIP_BASE, FRAMEWORK_STYLES[status], className)}>
       {FRAMEWORK_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+const RESOLUTION_STYLES: Record<HospitalReadinessResolution, string> = {
+  unanime: "bg-success/12 text-success",
+  pior_caso: "bg-warning/15 text-warning",
+  responsavel: "bg-accent text-accent-foreground",
+};
+
+/** How a {@link import('@/lib/accreditation/types').HospitalReadinessRow} arrived at its `consolidatedStatus` (D7). */
+export function HospitalReadinessResolutionChip({
+  resolution,
+  className,
+}: {
+  resolution: HospitalReadinessResolution;
+  className?: string;
+}) {
+  return (
+    <span className={cn(CHIP_BASE, RESOLUTION_STYLES[resolution], className)}>
+      {HOSPITAL_READINESS_RESOLUTION_LABELS[resolution]}
     </span>
   );
 }

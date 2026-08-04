@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Award,
   BarChart3,
   Building2,
   FolderKanban,
@@ -29,7 +30,7 @@ interface OrgNavItem {
    * (ADR 0051 Decision 1: org-level-only surfaces). */
   orgAdminOnly?: boolean;
   /** When set, render only if this feature flag is on. */
-  requiresFeature?: "audit" | "qualityIndicators";
+  requiresFeature?: "audit" | "qualityIndicators" | "accreditation";
 }
 
 interface OrgNavGroup {
@@ -75,6 +76,14 @@ const NAV_GROUPS: OrgNavGroup[] = [
         icon: Gauge,
         requiresFeature: "qualityIndicators",
       },
+      {
+        // VISIBLE by design (ADR 0093 Amendment 1 A1·3, PO ruling 3) — diverges
+        // deliberately from "Documentos"'s nav-hidden-only precedent above.
+        label: "Acreditação",
+        segments: ["acreditacao"],
+        icon: Award,
+        requiresFeature: "accreditation",
+      },
     ],
   },
   {
@@ -111,6 +120,7 @@ export function OrgManageSidebar({
   isOrgAdmin,
   auditEnabled = false,
   qualityIndicatorsEnabled = false,
+  accreditationEnabled = false,
   notificationBell,
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
@@ -126,6 +136,8 @@ export function OrgManageSidebar({
   auditEnabled?: boolean;
   /** Whether the `quality_indicators` flag is on (gates the "Indicadores" item). */
   qualityIndicatorsEnabled?: boolean;
+  /** Whether the `accreditation` flag is on (gates the "Acreditação" item, Phase 16). */
+  accreditationEnabled?: boolean;
   /**
    * The S1·N (Phase 20) notification bell, pre-rendered by the Server
    * Component parent (`OrgManageLayout`) — a Client Component like this one
@@ -148,6 +160,7 @@ export function OrgManageSidebar({
     if (item.requiresFeature === "audit" && !auditEnabled) return false;
     if (item.requiresFeature === "qualityIndicators" && !qualityIndicatorsEnabled)
       return false;
+    if (item.requiresFeature === "accreditation" && !accreditationEnabled) return false;
     return true;
   };
 

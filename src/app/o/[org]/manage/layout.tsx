@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
 import { auditTrailEnabled } from "@/lib/queries/audit";
-import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
+import { accreditationEnabled, qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgManageSidebar } from "@/components/shell/org-manage-sidebar";
 
@@ -53,14 +53,17 @@ export default async function OrgManageLayout({
   const organization = orgAdmin?.organization ?? hospitalAdminHere[0]!.organization;
 
   // The audit_trail flag gates the "Trilha de auditoria" nav entry; the
-  // quality_indicators flag gates "Indicadores". `controlledDocsEnabled()` and
-  // `patientSafetyEnabled()` are deliberately NOT read here — both were fetched
-  // solely to feed the now-deleted `OrgManageNav` (Documentos is nav-hidden only,
-  // the route self-gates on `controlledDocsEnabled()`; "Coordenação do NSP" is
-  // retired from the nav, ADR 0052, and patientSafety isn't a sidebar item).
-  const [auditOn, qualityIndicatorsOn] = await Promise.all([
+  // quality_indicators flag gates "Indicadores"; accreditation gates
+  // "Acreditação" — VISIBLE by design (ADR 0093 Amendment 1 A1·3), unlike
+  // Documentos below. `controlledDocsEnabled()` and `patientSafetyEnabled()`
+  // are deliberately NOT read here — both were fetched solely to feed the
+  // now-deleted `OrgManageNav` (Documentos is nav-hidden only, the route
+  // self-gates on `controlledDocsEnabled()`; "Coordenação do NSP" is retired
+  // from the nav, ADR 0052, and patientSafety isn't a sidebar item).
+  const [auditOn, qualityIndicatorsOn, accreditationOn] = await Promise.all([
     auditTrailEnabled(),
     qualityIndicatorsEnabled(),
+    accreditationEnabled(),
   ]);
 
   return (
@@ -73,6 +76,7 @@ export default async function OrgManageLayout({
         isOrgAdmin={Boolean(orgAdmin)}
         auditEnabled={auditOn}
         qualityIndicatorsEnabled={qualityIndicatorsOn}
+        accreditationEnabled={accreditationOn}
         notificationBell={<NotificationBell />}
       />
       <main className="min-w-0 flex-1">
