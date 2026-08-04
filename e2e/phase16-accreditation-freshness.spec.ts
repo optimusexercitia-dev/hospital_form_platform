@@ -11,11 +11,13 @@ import {
   insertArchivedFormVersion,
   insertEffectiveDocument,
   insertIndicatorMeasurement,
+  insertSignedMeeting,
   linkEvidenceRpc,
   purgeControlledDocuments,
   purgeForms,
   purgeFrameworks,
   purgeIndicatorMeasurements,
+  purgeMeetings,
   readinessReportRpc,
   setFeatureFlag,
   sqlRows,
@@ -86,6 +88,8 @@ const STD_IND_VENCIDA_CODE = 'P16-2-IND-V'
 const STD_IND_VENCIDA_TITLE = 'Indicador sem medicao padrao P16'
 const STD_FORM_CODE = 'P16-2-FORM'
 const STD_FORM_TITLE = 'Formulario arquivado padrao P16'
+const STD_ATENCAO_PLURAL_CODE = 'P16-2-IND-A2'
+const STD_ATENCAO_PLURAL_TITLE = 'Duas evidencias em atencao padrao P16'
 
 /** An existing CCIH indicator (mensal, active), otherwise untouched by the
  *  other 4 phase16 specs — spec 1 uses two different ones (see its header). */
@@ -97,11 +101,13 @@ let stdDocId: string
 let stdIndAtencaoId: string
 let stdIndVencidaId: string
 let stdFormId: string
+let stdAtencaoPluralId: string
 
 const documentIds: string[] = []
 const measurementIds: string[] = []
 let archivedFormId: string
 let archivedVersionId: string
+let heldMeetingId: string
 
 async function signInAs(page: Page, email: string) {
   await cachedSignIn(page, email, 'Test1234!')
@@ -130,6 +136,7 @@ test.beforeAll(async ({ browser }) => {
   stdIndAtencaoId = await std(STD_IND_ATENCAO_CODE, STD_IND_ATENCAO_TITLE, 1)
   stdIndVencidaId = await std(STD_IND_VENCIDA_CODE, STD_IND_VENCIDA_TITLE, 2)
   stdFormId = await std(STD_FORM_CODE, STD_FORM_TITLE, 3)
+  stdAtencaoPluralId = await std(STD_ATENCAO_PLURAL_CODE, STD_ATENCAO_PLURAL_TITLE, 4)
 
   // --- AC-1 fixtures: one vigente (valida) doc + one backdated (vencida) doc
   const fresh = insertEffectiveDocument({
@@ -176,6 +183,36 @@ test.beforeAll(async ({ browser }) => {
   })
   expect(r.ok, `link_evidence atencao indicator: ${r.text}`).toBeTruthy()
 
+  // --- BUG-P16-005 sibling fixture: TWO atencao-status links on ONE standard,
+  // so the aggregate EvidenceCountBadge's count for that bucket is 2, not 1 —
+  // the exact shape needed to observe "em atenção" -> "em atenções"
+  // (evidence-count-badge.tsx), which no other fixture in this suite reaches
+  // (confirmed by sweep: nothing else ever pushes one bucket's count past 1).
+  // Link 1 reuses INDICATOR_ATENCAO's EXISTING off_target measurement (just
+  // inserted above) as evidence for a SECOND, different standard — safe: the
+  // artifact is the same row, but `evidence_links` keys on
+  // (commission, standard, kind, artifact), so a second link is a distinct
+  // row, not a duplicate (HC0QB), and no new measurement is inserted (no
+  // "latest in window" contention with AC-3's own fixture).
+  r = await linkEvidenceRpc(page, token, {
+    commission: COMMISSION_CCIH,
+    standard: stdAtencaoPluralId,
+    kind: 'indicator',
+    artifact: INDICATOR_ATENCAO,
+  })
+  expect(r.ok, `link_evidence (plural fixture, indicator): ${r.text}`).toBeTruthy()
+
+  // Link 2: a `held` meeting — A3·2 (ADR 0093 Amendment 3): held/in_signature
+  // -> atencao (signature is the evidentiary act).
+  heldMeetingId = insertSignedMeeting(COMMISSION_CCIH, `${SPEC_TAG} reuniao held atencao`, UID_CHEFE_CCIH, 'held')
+  r = await linkEvidenceRpc(page, token, {
+    commission: COMMISSION_CCIH,
+    standard: stdAtencaoPluralId,
+    kind: 'meeting',
+    artifact: heldMeetingId,
+  })
+  expect(r.ok, `link_evidence (plural fixture, meeting): ${r.text}`).toBeTruthy()
+
   // --- AC-3 fixture: the only measurement is OUTSIDE the mensal (1-month) window
   measurementIds.push(
     insertIndicatorMeasurement({
@@ -214,10 +251,20 @@ test.afterAll(() => {
   purgeControlledDocuments(documentIds)
   purgeIndicatorMeasurements(measurementIds)
   purgeForms([archivedFormId], [archivedVersionId])
+  purgeMeetings([heldMeetingId])
+
+  // Tripwire: the seeded indicator this file links (never mutates) survives.
+  expect(
+    sqlRows(`select name, status from public.indicators where id = '${INDICATOR_ATENCAO}';`),
+  ).toEqual([['Densidade de IRAS (por 1000 pacientes-dia)', 'active']])
 })
 
 function standardUrl(standardId: string) {
   return `/o/${ORG_A}/c/${CCIH_SLUG}/manage/acreditacao/${frameworkId}/padrao/${standardId}`
+}
+
+function frameworkUrl() {
+  return `/o/${ORG_A}/c/${CCIH_SLUG}/manage/acreditacao/${frameworkId}`
 }
 
 // Every "-ui" test below navigates to a `padrao/[standard]` detail page,
@@ -316,6 +363,40 @@ test('AC-3-ui the standard panel shows Atenção', async ({ page }) => {
   await expect(evidenceSection.getByText('Atenção')).toBeVisible()
   await expect(evidenceSection.getByText('Válida')).toHaveCount(0)
   await expect(evidenceSection.getByText('Vencida')).toHaveCount(0)
+})
+
+// ===========================================================================
+// AC-3-plural — BUG-P16-005's sibling: the aggregate evidence badge must
+// pluralize "em atenção" correctly at count 2 ("em atenções", not the
+// suffix-concatenated "em atençãos" the bug shipped as). The exact string
+// below is read directly from the CURRENT `evidence-count-badge.tsx` source
+// (`singular: "em atenção"`, `plural: "em atenções"`, joined into
+// `${total} evidência${total === 1 ? "" : "s"} — ${summary}`), the same
+// derive-don't-guess discipline used for the level card's PO-ruled wording —
+// not re-typed from memory of the old, buggy string.
+// ===========================================================================
+
+test('AC-3-plural the aggregate badge renders "2 em atenções", the irregular plural, not "atençãos"', async ({
+  page,
+}) => {
+  await signInAs(page, CHEFE_CCIH)
+  await page.goto(frameworkUrl())
+  const row = page.getByRole('navigation', { name: /^Padrões de/ }).getByRole('link', {
+    name: new RegExp(STD_ATENCAO_PLURAL_TITLE),
+  })
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await expect(row.getByText('2 evidências — 2 em atenções', { exact: true })).toBeVisible()
+  // Never the suffix-concatenation bug's output, and never the singular form.
+  await expect(row.getByText('atençãos')).toHaveCount(0)
+  await expect(row.getByText('1 em atenção', { exact: true })).toHaveCount(0)
+
+  // DB truth: the door computing this badge's inputs agrees the bucket is 2.
+  const report = await readinessReportRpc(page, await getToken(page, CHEFE_CCIH), COMMISSION_CCIH, frameworkId)
+  const pluralRow = report.json.find((r) => r.standard_code === STD_ATENCAO_PLURAL_CODE)
+  expect(pluralRow).toBeTruthy()
+  expect(pluralRow!.evidence_atencao).toBe(2)
+  expect(pluralRow!.evidence_valida).toBe(0)
+  expect(pluralRow!.evidence_vencida).toBe(0)
 })
 
 // ===========================================================================

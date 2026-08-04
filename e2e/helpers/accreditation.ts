@@ -482,7 +482,9 @@ export function hospitalReadinessRpc(page: Page, token: string, hospital: string
 // ---------------------------------------------------------------------------
 
 /**
- * A fresh `signed` CCIH-commission meeting (evidence_status_of → valida).
+ * A fresh CCIH-commission meeting, `signed` by default (evidence_status_of →
+ * valida) — pass `status` for another point on the freshness matrix, e.g.
+ * `'held'`/`'in_signature'` → atencao (A3·2).
  *
  * ⚠ Never `RETURNING … ` through {@link sqlOne} for a mutating statement —
  * `psql -tA` suppresses a SELECT's header/footer but NOT an INSERT/UPDATE/
@@ -493,11 +495,16 @@ export function hospitalReadinessRpc(page: Page, token: string, hospital: string
  * using RETURNING at all — generating the id client-side and inserting it
  * explicitly instead. Every fixture builder below follows that same shape.
  */
-export function insertSignedMeeting(commissionId: string, title: string, createdBy: string): string {
+export function insertSignedMeeting(
+  commissionId: string,
+  title: string,
+  createdBy: string,
+  status: string = 'signed',
+): string {
   const id = randomUUID()
   psql(`
     insert into public.meetings (id, commission_id, title, status, scheduled_start, modality, created_by)
-    values ('${id}', '${commissionId}', '${title}', 'signed', now() - interval '7 days', 'presencial', '${createdBy}');
+    values ('${id}', '${commissionId}', '${title}', '${status}', now() - interval '7 days', 'presencial', '${createdBy}');
   `)
   return id
 }
