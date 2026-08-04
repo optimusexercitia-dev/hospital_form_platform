@@ -514,6 +514,36 @@ only E2E caught them.
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
 
+### 🔴 FUP-P16-5 — `accreditation_standards_select` is BLIND (ARM-1 invariant violation; Phase 16, not MEM)
+
+Found 2026-08-04 by the MEM branch's `p0-authz-invariant.sh ARM=policy` full sweep. **The first genuine
+invariant violation since the AUDIT-DOOR-BLINDNESS P0 closed** — a BLIND gate that is NOT in
+`authz-blind-allowlist.txt`.
+
+Neutralizing `accreditation_standards.accreditation_standards_select (SELECT)` to `using(true)` leaves
+the **entire** pgTAP suite green: no keystone asserts through it. Its sibling
+`accreditation_frameworks_select` IS covered (`278_accreditation_schema.sql`) — the classic one-of-N
+shape, where the sibling arm is keystoned and the derived one is not.
+
+**Attribution: Phase 16, not MEM.** The allowlist was last updated 2026-07-18 (`14cd626`, the AUTHZ P0
+close) and holds **zero** accreditation entries; `accreditation_standards` landed with the Phase 16
+migrations (`8700e66`…), merged at `484a254`. Phase 16 added tables + RLS without keystoning this
+policy and without re-running ARM 1 — exactly the regression the standing invariant exists to catch.
+
+**Exposure if the policy ever regresses:** a platform framework (`owner_commission_id is null`) is
+readable by every authenticated user BY DESIGN; a **commission-owned clone holds pasted licensed
+standard text** and must be readable only by that commission's members (the migration says so at
+`20260903000800_accreditation_schema.sql:400`). So the risk is licensed-content leakage across
+commissions — **not PHI**, no Rule 12 involvement. ⚠ BLIND means **un-keystoned, not broken**: the
+policy as written looks correct; nothing would notice if it stopped being.
+
+**Fix (the invariant's own contract, preferred branch):** add a keystone to
+`278_accreditation_schema.sql` — a member of commission X cannot SELECT the standards of a
+**commission-owned** framework cloned by commission Y, with a POSITIVE twin (a member of Y can) and a
+platform-framework twin (everyone can) — then mutation-prove it by reverting the policy to
+`using(true)` and requiring red. Do NOT simply allowlist it; an allowlist entry is for a genuine
+backstop, and this is an ordinary tenant-isolation policy.
+
 ### 🔴 FUP-BULK-1 — the bulk wizard deals cases to SUSPENDED members (~22% random E2E red, pre-existing)
 
 Found 2026-08-04 during the MEM full-gate triage. **Not a MEM regression** — the mechanism is
