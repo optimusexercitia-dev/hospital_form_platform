@@ -12203,6 +12203,22 @@ export type Database = {
           total: number
         }[]
       }
+      hospital_readiness: {
+        Args: { p_framework: string; p_hospital: string }
+        Returns: {
+          consolidated_status: string
+          evidence_atencao: number
+          evidence_restrita: number
+          evidence_valida: number
+          evidence_vencida: number
+          level: number
+          resolution: string
+          responsible_commission_id: string
+          standard_code: string
+          standard_id: string
+          standard_title: string
+        }[]
+      }
       indicator_kpis: {
         Args: { p_commission: string }
         Returns: {
@@ -12908,6 +12924,35 @@ export type Database = {
         }
       }
       rca_writer_can_write: { Args: { p_rca_id: string }; Returns: boolean }
+      readiness_evidence: {
+        Args: { p_commission: string; p_standard: string }
+        Returns: {
+          artifact_id: string
+          artifact_kind: string
+          id: string
+          label: string
+          linked_at: string
+          linked_by_name: string
+          note: string
+          restricted: boolean
+          standard_id: string
+          status: string
+        }[]
+      }
+      readiness_report: {
+        Args: { p_commission: string; p_framework: string }
+        Returns: {
+          assessment_status: string
+          evidence_atencao: number
+          evidence_restrita: number
+          evidence_valida: number
+          evidence_vencida: number
+          level: number
+          standard_code: string
+          standard_id: string
+          standard_title: string
+        }[]
+      }
       reassign_phase: {
         Args: {
           p_case_phase_id: string
