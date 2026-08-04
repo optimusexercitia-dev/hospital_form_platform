@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { AccreditationFramework } from "@/lib/accreditation/types";
+import { commissionHref } from "@/lib/routing";
 import { FrameworkStatusChip } from "@/components/accreditation/status-chips";
 import { CloneFrameworkDialogTrigger } from "@/components/accreditation/clone-framework-dialog";
 
@@ -11,19 +12,38 @@ import { CloneFrameworkDialogTrigger } from "@/components/accreditation/clone-fr
  * commission's members). A global pack offers "Clonar para editar"
  * (staff_admin only); a clone is already fully editable elsewhere (standard
  * CRUD is out of this turn's wired UI, ADR 0093 Wave 2 plan) so it just says so.
+ *
+ * BUG-P16-003 (fixed): this is a Server Component. It used to accept a
+ * `frameworkHref` CLOSURE and forward it into `CloneFrameworkDialogTrigger`
+ * ("use client") — a function cannot cross that boundary; React/Next throws
+ * "Functions cannot be passed directly to Client Components" the moment a
+ * global framework renders. Fixed by passing `org`/`commission` (plain
+ * strings) instead and letting the client component resolve its own href via
+ * the pure `commissionHref` helper (`src/lib/routing.ts` — no `"use server"`,
+ * safe to import from either side of the boundary). This component still
+ * computes `frameworkHref` locally for its OWN `<Link>` below — that never
+ * crosses a boundary, since the computed STRING (not the closure) is what
+ * `<Link href>` receives.
  */
 export function FrameworkList({
   frameworks,
+  org,
+  commission,
   commissionId,
   canManage,
-  frameworkHref,
 }: {
   frameworks: AccreditationFramework[];
+  /** The org slug — threaded through so `CloneFrameworkDialogTrigger` can resolve its own hrefs client-side. */
+  org: string;
+  /** The commission slug — same reason. */
+  commission: string;
   commissionId: string;
   /** Whether the viewer may clone a global pack (staff_admin of this commission). */
   canManage: boolean;
-  frameworkHref: (frameworkId: string) => string;
 }) {
+  const frameworkHref = (frameworkId: string) =>
+    commissionHref(org, commission, "manage", "acreditacao", frameworkId);
+
   if (frameworks.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center text-sm text-muted-foreground">
@@ -68,7 +88,8 @@ export function FrameworkList({
                     frameworkId={framework.id}
                     frameworkName={framework.name}
                     commissionId={commissionId}
-                    frameworkHref={frameworkHref}
+                    org={org}
+                    commission={commission}
                   />
                 )
               ) : (

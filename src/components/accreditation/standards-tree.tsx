@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { ReadinessRow, StandardTreeNode } from "@/lib/accreditation/types";
+import { commissionHref } from "@/lib/routing";
 import { AssessmentStatusChip, LevelBadge } from "@/components/accreditation/status-chips";
 import { EvidenceCountBadge } from "@/components/accreditation/evidence-count-badge";
 
@@ -19,16 +20,30 @@ import { EvidenceCountBadge } from "@/components/accreditation/evidence-count-ba
  * roving-tabindex manager. Hierarchy cues (indentation, a hairline connector)
  * follow `src/components/forms/read-only-tree.tsx`; the status/evidence chips
  * follow `src/components/cases/case-phase-list.tsx`'s stagger + chip pattern.
+ *
+ * BUG-P16-004 (fixed): this is a Client Component rendered from
+ * `[framework]/layout.tsx`, a SERVER Component. It used to accept a
+ * `standardHref` CLOSURE — a function cannot cross that boundary; React/Next
+ * throws "Functions cannot be passed directly to Client Components" the
+ * instant this tree renders (unconditionally, on every framework). Fixed by
+ * accepting `org`/`commission`/`frameworkId` (plain strings) instead and
+ * resolving each standard's href locally via the pure `commissionHref`
+ * helper (`src/lib/routing.ts` — no `"use server"`, safe on either side of
+ * the boundary).
  */
 export function StandardsTree({
   nodes,
   readinessByStandardId,
-  standardHref,
+  org,
+  commission,
+  frameworkId,
 }: {
   nodes: StandardTreeNode[];
   /** Assessment + evidence-count context, keyed by standard id. Omit for a bare (no-commission) framework browse. */
   readinessByStandardId?: Record<string, ReadinessRow>;
-  standardHref: (standardId: string) => string;
+  org: string;
+  commission: string;
+  frameworkId: string;
 }) {
   if (nodes.length === 0) {
     return (
@@ -46,7 +61,9 @@ export function StandardsTree({
             node={node}
             depth={0}
             readinessByStandardId={readinessByStandardId}
-            standardHref={standardHref}
+            org={org}
+            commission={commission}
+            frameworkId={frameworkId}
           />
         </li>
       ))}
@@ -58,12 +75,16 @@ function StandardTreeBranch({
   node,
   depth,
   readinessByStandardId,
-  standardHref,
+  org,
+  commission,
+  frameworkId,
 }: {
   node: StandardTreeNode;
   depth: number;
   readinessByStandardId?: Record<string, ReadinessRow>;
-  standardHref: (standardId: string) => string;
+  org: string;
+  commission: string;
+  frameworkId: string;
 }) {
   const hasChildren = node.children.length > 0;
   // Progressive disclosure: top-level branches start open, deeper ones start
@@ -97,7 +118,7 @@ function StandardTreeBranch({
         )}
 
         <Link
-          href={standardHref(node.id)}
+          href={commissionHref(org, commission, "manage", "acreditacao", frameworkId, "padrao", node.id)}
           className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-1 py-0.5 text-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <span className="shrink-0 font-mono text-xs text-muted-foreground">{node.code}</span>
@@ -123,7 +144,9 @@ function StandardTreeBranch({
                 node={child}
                 depth={depth + 1}
                 readinessByStandardId={readinessByStandardId}
-                standardHref={standardHref}
+                org={org}
+                commission={commission}
+                frameworkId={frameworkId}
               />
             </li>
           ))}

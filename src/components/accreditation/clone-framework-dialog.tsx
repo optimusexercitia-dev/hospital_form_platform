@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cloneFramework, type CloneFrameworkState } from "@/lib/accreditation/actions";
+import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,17 +21,24 @@ import { FormBanner } from "@/components/auth/form-banner";
  * copy (`clone_framework`; ADR 0093 D2/D9). staff_admin-only — the trigger is
  * shown to the caller only when `canManage` (checked by the parent list). On
  * success, routes straight to the new (clone) framework's standards tree.
+ *
+ * BUG-P16-003 (fixed): takes `org`/`commission` (plain strings, safe to cross
+ * the server→client boundary) instead of a `frameworkHref` closure, and
+ * resolves the post-clone redirect itself via `commissionHref` — a pure
+ * helper (`src/lib/routing.ts`, no `"use server"`) safe to import here.
  */
 export function CloneFrameworkDialogTrigger({
   frameworkId,
   frameworkName,
   commissionId,
-  frameworkHref,
+  org,
+  commission,
 }: {
   frameworkId: string;
   frameworkName: string;
   commissionId: string;
-  frameworkHref: (frameworkId: string) => string;
+  org: string;
+  commission: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -46,7 +54,8 @@ export function CloneFrameworkDialogTrigger({
           frameworkId={frameworkId}
           frameworkName={frameworkName}
           commissionId={commissionId}
-          frameworkHref={frameworkHref}
+          org={org}
+          commission={commission}
         />
       )}
     </>
@@ -59,14 +68,16 @@ function CloneFrameworkDialog({
   frameworkId,
   frameworkName,
   commissionId,
-  frameworkHref,
+  org,
+  commission,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   frameworkId: string;
   frameworkName: string;
   commissionId: string;
-  frameworkHref: (frameworkId: string) => string;
+  org: string;
+  commission: string;
 }) {
   const [state, formAction, isPending] = useActionState<CloneFrameworkState | undefined, FormData>(
     cloneFramework,
@@ -77,10 +88,10 @@ function CloneFrameworkDialog({
   useEffect(() => {
     if (state?.ok && state.frameworkId) {
       onOpenChange(false);
-      router.push(frameworkHref(state.frameworkId));
+      router.push(commissionHref(org, commission, "manage", "acreditacao", state.frameworkId));
       router.refresh();
     }
-  }, [state, onOpenChange, router, frameworkHref]);
+  }, [state, onOpenChange, router, org, commission]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getReadinessReport, getStandardTree, listFrameworks } from "@/lib/queries/accreditation";
 import type { ReadinessRow } from "@/lib/accreditation/types";
-import { commissionHref } from "@/lib/routing";
 import { StandardsTree } from "@/components/accreditation/standards-tree";
 
 /**
@@ -57,9 +56,9 @@ export default async function FrameworkLayout({
           <StandardsTree
             nodes={tree}
             readinessByStandardId={readinessByStandardId}
-            standardHref={(standardId) =>
-              commissionHref(org, commission, "manage", "acreditacao", frameworkId, "padrao", standardId)
-            }
+            org={org}
+            commission={commission}
+            frameworkId={frameworkId}
           />
         </nav>
 

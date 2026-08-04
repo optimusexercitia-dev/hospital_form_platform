@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listFrameworks } from "@/lib/queries/accreditation";
-import { commissionHref } from "@/lib/routing";
 import { FrameworkList } from "@/components/accreditation/framework-list";
 
 export const metadata: Metadata = {
@@ -44,11 +43,10 @@ export default async function AcreditacaoPage({
 
       <FrameworkList
         frameworks={frameworks}
+        org={org}
+        commission={commission}
         commissionId={access.commission.id}
         canManage={access.role === "staff_admin"}
-        frameworkHref={(frameworkId) =>
-          commissionHref(org, commission, "manage", "acreditacao", frameworkId)
-        }
       />
     </div>
   );
