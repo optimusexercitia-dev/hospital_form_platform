@@ -514,6 +514,38 @@ only E2E caught them.
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
 
+### 🔴 FUP-ETH-1 — both `answer_selected_options_*_targeted` policies are BLIND (ARM-1 violation; ETH out-of-phase hotfix, not MEM)
+
+Found 2026-08-04 by the same ARM-1 sweep as FUP-P16-5. Two more BLINDs not in
+`authz-blind-allowlist.txt`, both on `public.answer_selected_options`:
+
+| policy | cmd | sole gate |
+| ------ | --- | --------- |
+| `answer_selected_options_select_targeted` | SELECT | `app.can_access_targeted_response` |
+| `answer_selected_options_write_targeted`  | **ALL** | `app.can_write_targeted_response` |
+
+Neutralizing either to `using(true)` leaves the whole suite green — and this is despite
+`273_eth_targeted_choice_lane.sql` referencing `answer_selected_options` **ten times**. The suite
+exercises the lane; it never asserts a DENIAL for which one of these policies is the sole gate. Both
+are additive PERMISSIVE policies, so widening them can only be caught by a negative assertion.
+
+**Attribution: `4ee24c8` (2026-07-27), "fix(eth): the targeted respondent can actually fill the form —
+out-of-phase".** An out-of-phase hotfix — which is exactly how a policy lands without a keystone, and
+it postdates the 2026-07-18 allowlist. Not MEM.
+
+⚠ **The ALL policy is the one that matters, and ADR 0079 decision 2 predicts precisely why it is
+blind.** A write-policy keystone needs a **reader-non-writer** principal: an `UPDATE`/`DELETE` must
+locate the row, which applies the SELECT policy too, so a fully-foreign principal is stopped by SELECT
+and the keystone passes even with the write policy wide open. Any naive attempt here would have been
+testing `answer_selected_options_select*`, not `_write_targeted`. Note the migration's own comment
+warns that this lane does DELETE-then-INSERT and that an INSERT-only widening "would have turned a
+fail-closed defect into a data-corrupting one" — the failure mode is answer corruption (two selections
+on a single-select item), not just over-read.
+
+**Fix:** keystone both in `273`, with a reader-non-writer principal for the ALL policy (someone who
+passes `can_access_targeted_response` but fails `can_write_targeted_response`), each with a POSITIVE
+twin, then mutation-prove via `p0b-isolation-mutation-audit.sh`. Do not allowlist.
+
 ### 🔴 FUP-P16-5 — `accreditation_standards_select` is BLIND (ARM-1 invariant violation; Phase 16, not MEM)
 
 Found 2026-08-04 by the MEM branch's `p0-authz-invariant.sh ARM=policy` full sweep. **The first genuine
