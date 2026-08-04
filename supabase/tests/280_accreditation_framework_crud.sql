@@ -38,7 +38,7 @@
 
 begin;
 
-select plan(38);
+select plan(40);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -249,6 +249,20 @@ select lives_ok(
   format($$ select public.upsert_standard(%L, 'X6', 'Pai correto', p_parent => %L) $$,
     (select id from fw_x), (select id from std_x)),
   'D4. a parent in the SAME framework is accepted (positive control)'
+);
+
+-- D5 — a REAL, successful delete_standard call (not just the §0 flag-off
+-- negative, which raises before reaching the RPC's actual body — the ADR
+-- 0079 never-called-door floor treats an early-raising call as not
+-- exercising the door; found via the floor sweep, not assumed). std_x2 is
+-- not referenced again after this point in the file.
+select lives_ok(
+  format($$ select public.delete_standard(%L) $$, (select id from std_x2)),
+  'D5. sa_x deletes a standard from comm_x''s own framework (the door''s real body, not just the flag-off short-circuit)'
+);
+select ok(
+  not exists (select 1 from public.accreditation_standards where id = (select id from std_x2)),
+  'D6. the deleted standard is actually gone'
 );
 reset role;
 
