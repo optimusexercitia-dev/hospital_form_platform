@@ -3,6 +3,7 @@ import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer"
 import { LevelBadge } from "@/components/accreditation/status-chips";
 import { AssessmentForm } from "@/components/accreditation/assessment-form";
 import { EvidenceList } from "@/components/accreditation/evidence-list";
+import { LinkEvidenceDialogTrigger } from "@/components/accreditation/evidence-picker";
 
 /**
  * One standard's detail: description (sanitized Markdown, `description_md` —
@@ -59,9 +60,14 @@ export function StandardPanel({
       </section>
 
       <section aria-labelledby="evidence-heading" className="flex flex-col gap-3">
-        <h2 id="evidence-heading" className="text-lg font-semibold">
-          Evidências
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="evidence-heading" className="text-lg font-semibold">
+            Evidências
+          </h2>
+          {canEdit && (
+            <LinkEvidenceDialogTrigger commissionId={commissionId} standardId={standard.id} />
+          )}
+        </div>
         <EvidenceList items={evidence} canEdit={canEdit} />
       </section>
     </div>

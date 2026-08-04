@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { ACCREDITATION_MESSAGES as MESSAGES, mapAccreditationError } from '@/lib/accreditation/messages'
-import type { ArtifactKind, AssessmentStatus, FrameworkStatus, StandardLevel } from '@/lib/accreditation/types'
+import type {
+  ArtifactKind,
+  AssessmentStatus,
+  EvidenceCandidate,
+  FrameworkStatus,
+  StandardLevel,
+} from '@/lib/accreditation/types'
 
 /**
  * Standards Crosswalk & Readiness/Gap Engine v2 (Phase 16) server actions
@@ -54,6 +60,13 @@ export interface LinkEvidenceState extends ActionState {
   evidenceLinkId?: string
 }
 
+/** {@link searchEvidenceCandidates}'s result — the `onSearch` shape the picker component expects. */
+export interface EvidenceCandidateSearchResult {
+  ok: boolean
+  error?: string
+  candidates?: EvidenceCandidate[]
+}
+
 // ---------------------------------------------------------------------------
 // Path revalidation
 // ---------------------------------------------------------------------------
@@ -62,11 +75,16 @@ const ACCREDITATION_PATH = '/o/[org]/c/[commission]/manage/acreditacao'
 const FRAMEWORK_PATH = '/o/[org]/c/[commission]/manage/acreditacao/[framework]'
 const STANDARD_PATH =
   '/o/[org]/c/[commission]/manage/acreditacao/[framework]/padrao/[standard]'
+const HOSPITAL_ACCREDITATION_PATH = '/o/[org]/manage/acreditacao'
 
 function revalidateAccreditation(): void {
   revalidatePath(ACCREDITATION_PATH, 'page')
   revalidatePath(FRAMEWORK_PATH, 'page')
   revalidatePath(STANDARD_PATH, 'page')
+}
+
+function revalidateHospitalAccreditation(): void {
+  revalidatePath(HOSPITAL_ACCREDITATION_PATH, 'page')
 }
 
 // --- form-field parsing helpers -------------------------------------------
@@ -391,12 +409,88 @@ export async function setStandardAssessment(
   return { ok: true, error: MESSAGES.assessmentSaved }
 }
 
+// ---------------------------------------------------------------------------
+// Evidence candidate search (staff_admin DEFINER search feeding the picker)
+// ---------------------------------------------------------------------------
+
+/**
+ * Candidate artifacts of one kind matching `query`, for the evidence picker's
+ * debounced search (injected `onSearch`, mirroring
+ * `src/components/responses/wizard/reference-picker.tsx`'s pattern). Routes
+ * directly to the `evidence_candidates` RPC (Migration D, already landed)
+ * rather than through `getReadinessReport`'s sibling `getEvidenceCandidates`
+ * stub in `src/lib/queries/accreditation.ts` — that module is backend-owned
+ * and still `throw new Error('not implemented')`; calling the RPC here keeps
+ * the picker unblocked without touching a file I don't own. Per-kind SELECTs
+ * inside the RPC already apply the reader's own visibility (`can_read_case` /
+ * `can_read_capa`), so a candidate never appears if the caller could not read
+ * it.
+ */
+export async function searchEvidenceCandidates(
+  commissionId: string,
+  kind: ArtifactKind,
+  query: string,
+): Promise<EvidenceCandidateSearchResult> {
+  if (!commissionId) return { ok: false, error: MESSAGES.commissionNotFound }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('evidence_candidates', {
+    p_commission: commissionId,
+    p_kind: kind,
+    p_query: query.trim() || undefined,
+  })
+
+  if (error) return { ok: false, error: mapAccreditationError(error) }
+
+  return {
+    ok: true,
+    candidates: (data ?? []).map((row) => ({
+      id: row.id,
+      kind,
+      label: row.label,
+      subtitle: row.sublabel,
+    })),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hospital ownership override (D7 — is_hospital_admin_of ONLY; org_admin may
+// READ the hospital surface, Migration E, but is REJECTED here by the RPC
+// itself, not by this action — the server enforces this regardless of what
+// the UI shows)
+// ---------------------------------------------------------------------------
+
+/**
+ * Set (or, with `commissionId: null`, clear) which commission's assessment is
+ * the institutional answer for one standard at one hospital. Routes to
+ * `set_standard_ownership`. Revalidates ONLY the hospital surface — the
+ * ownership editor lives there exclusively.
+ */
+export async function setStandardOwnership(
+  hospitalId: string,
+  standardId: string,
+  commissionId: string | null,
+): Promise<ActionState> {
+  if (!hospitalId) return { ok: false, error: MESSAGES.hospitalNotFound }
+  if (!standardId) return { ok: false, error: MESSAGES.standardNotFound }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_standard_ownership', {
+    p_hospital: hospitalId,
+    p_standard: standardId,
+    p_commission: commissionId ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapAccreditationError(error) }
+
+  revalidateHospitalAccreditation()
+  return {
+    ok: true,
+    error: commissionId ? MESSAGES.ownershipSet : MESSAGES.ownershipCleared,
+  }
+}
+
 // NOTE: no type re-exports here — a `'use server'` module may export ONLY
 // async server functions (the RSC action compiler rejects `export type {…}`).
 // Consumers import the field-value unions (ArtifactKind / AssessmentStatus /
 // …) directly from the pure `@/lib/accreditation/types`.
-//
-// `standard_ownerships` (D7 — `set_standard_ownership`) is DELIBERATELY not
-// wired here: it is hospital-tier, `is_hospital_admin_of`-only, and part of
-// the hospital surface this turn explicitly defers to Wave 3
-// (`docs/plans/phase-16-standards-crosswalk-program.md` Wave 3).
