@@ -415,6 +415,23 @@ the survey". **No patient data** — Rule 12 N/A. Feature-flagged behind `accred
 OFF; flipped by its **own enable migration** at the gate — no enable migration = phase dark
 after `db push`).
 
+> **AS BUILT — completed 2026-08-04, PO-approved.** Two deltas from the spec below, both deliberate:
+> - **Framework packs are NOT seeded.** Migration F shipped **JCI-only**, authored in a parallel
+>   session (PO ruling 2026-08-04). The **ONA skeleton remains parked**: asked directly whether real
+>   ONA assigns distinct codes to per-level criteria, and whether every subsection carries all three
+>   levels, backend answered **"I don't know" to both** rather than inventing a citation scheme. The
+>   drafted CSV (`docs/plans/phase-16-ona-skeleton-draft.csv`) is **filler for the PO to overwrite
+>   wholesale, not a base to edit** — its 72 "leaf standards" are 24 subsection titles with a
+>   mechanical `— Nível 1/2/3` suffix. Nothing else in the phase depends on it; every E2E spec builds
+>   its own framework fixtures, and `clone_framework` + custom frameworks work without any global pack.
+> - **The `level` column and per-level readiness shipped as specified** (D3) and are exercised by
+>   E2E against self-built leveled fixtures — so the model is proven even though no ONA pack exists
+>   to populate it.
+>
+> Everything else below is as-built. Freshness-matrix bucket assignments are authoritative in **ADR
+> 0093 Amendments 2–3**, not in this prose. E2E gate-assertion technique for this phase's routes:
+> [docs/testing/route-gate-assertions.md](../testing/route-gate-assertions.md).
+
 **What changed from the 2026-07 spec** (read this before trusting any memory of the old text):
 
 - **Framework packs are skeleton-only** (D2 — licensing). Global packs seed **codes + short
@@ -534,7 +551,12 @@ needs an explicit `enabled = false`.
   three doors** (D6, proven at both pgTAP and E2E layers); clone → paste works, editing a global
   pack fails, another org cannot see the clone; foreign-commission artifact rejected; `staff`
   cannot edit and the server rejects it; evidence links audited; one keyboard-only pass per
-  surface. pgTAP **278–284**; `p0-authz-invariant.sh` green with the four new doors registered.
+  surface. pgTAP **278, 279, 280, 281, 283, 284 — six files** (⚠ **there is no `282`**; its planned
+  freshness-matrix scope was absorbed into **279**, which covers all 10 artifact kinds, both
+  `review_due_date = current_date` boundaries, **both sides of every one of the five frequency
+  windows**, and every Amendment 1–3 ruling across 69 assertions. Do not cite "278–284" — a range
+  naming a file that does not exist is the same failure as a gate summary hiding unrun tests);
+  `p0-authz-invariant.sh` **`INVARIANT HOLDS`** with the four new doors registered.
 
 ### Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)
 Policy/procedure documents (políticas, POPs, protocolos, regimentos, manuais) under a
