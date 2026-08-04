@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getReadinessEvidence, getReadinessReport, listStandards } from "@/lib/queries/accreditation";
+import { getStandardAssessmentDetail } from "@/lib/accreditation/actions";
 import { StandardPanel } from "@/components/accreditation/standard-panel";
 
 export const metadata: Metadata = {
@@ -10,19 +11,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * One standard's detail: description, self-assessment form, evidence list.
- *
- * ⚠ KNOWN CONTRACT GAP (flagged to backend/lead, not silently worked around):
- * {@link ReadinessRow} deliberately carries no `note` field (ADR 0093 D8's own
- * docstring: "assessment notes ... never ride the readiness rollup"), but
- * there is also no OTHER posted query that returns `standard_assessments
- * .note_md` for a single standard — `getReadinessEvidence` returns evidence
- * links, not the assessment note. Until that read path exists, this page
- * passes `assessmentNoteMd={null}`: the edit form renders correctly (an
- * empty textarea) but does NOT prefill an existing note for editing, and the
- * read-only view under-reports "Nenhuma observação registrada" even when one
- * exists. Low-risk (the note is never lost — resubmitting just overwrites it
- * with whatever the form currently holds) but worth fixing before Phase Gate.
+ * One standard's detail: description, self-assessment form (prefilled with
+ * the existing note via `getStandardAssessmentDetail` — BUG-P16-001's
+ * root-cause half, closed by backend's `get_standard_assessment` door), and
+ * evidence list. `ReadinessRow` (from `getReadinessReport`) deliberately
+ * carries no `note` field (D8) — the note comes from this separate,
+ * commission-scoped-only read instead.
  */
 export default async function StandardDetailPage({
   params,
@@ -35,10 +29,11 @@ export default async function StandardDetailPage({
     notFound();
   }
 
-  const [standards, readiness, evidence] = await Promise.all([
+  const [standards, readiness, evidence, assessmentDetail] = await Promise.all([
     listStandards(frameworkId),
     getReadinessReport(access.commission.id, frameworkId),
     getReadinessEvidence(access.commission.id, standardId),
+    getStandardAssessmentDetail(access.commission.id, standardId),
   ]);
 
   const standard = standards.find((s) => s.id === standardId);
@@ -52,8 +47,7 @@ export default async function StandardDetailPage({
     <StandardPanel
       standard={standard}
       assessmentStatus={row?.assessmentStatus ?? null}
-      // See the file-level "KNOWN CONTRACT GAP" note above.
-      assessmentNoteMd={null}
+      assessmentNoteMd={assessmentDetail?.noteMd ?? null}
       evidence={evidence}
       commissionId={access.commission.id}
       canEdit={access.role === "staff_admin"}

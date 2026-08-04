@@ -409,6 +409,53 @@ export async function setStandardAssessment(
   return { ok: true, error: MESSAGES.assessmentSaved }
 }
 
+/** A single standard's assessment detail, for the edit form's prefill. */
+export interface StandardAssessmentDetail {
+  status: AssessmentStatus
+  noteMd: string | null
+  assessedAt: string
+  assessedByName: string | null
+}
+
+/**
+ * Read one commission's current assessment for one standard — the prefill
+ * BUG-P16-001's root-cause half needed. Routes to `get_standard_assessment`
+ * (backend's `3ece65f`, landed mid-Wave-3), a member-scoped read
+ * DELIBERATELY separate from `getReadinessReport`/`getReadinessEvidence`
+ * (D8 — those carry no `note` field by design; this door does, and is
+ * commission-scoped only, never reachable from the hospital tier). Returns
+ * `null` when there is no assessment yet (never assessed) OR the caller is
+ * out of scope — the door returns zero rows either way, and the two are
+ * handled identically here (an empty textarea), matching
+ * `ReadinessRow.assessmentStatus: null`'s existing "never assessed" meaning.
+ */
+export async function getStandardAssessmentDetail(
+  commissionId: string,
+  standardId: string,
+): Promise<StandardAssessmentDetail | null> {
+  if (!commissionId || !standardId) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_standard_assessment', {
+    p_commission: commissionId,
+    p_standard: standardId,
+  })
+
+  if (error || !data || data.length === 0) return null
+
+  const row = data[0]
+  return {
+    status: row.status as AssessmentStatus,
+    // The generated Args/Returns type marks these non-null, but the RPC's
+    // own SQL is a nullable column (`note_md`) and a LEFT JOIN
+    // (`assessed_by_name`) — defend against both actually being null at
+    // runtime regardless of what the generator asserts.
+    noteMd: row.note_md ?? null,
+    assessedAt: row.assessed_at,
+    assessedByName: row.assessed_by_name ?? null,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Evidence candidate search (staff_admin DEFINER search feeding the picker)
 // ---------------------------------------------------------------------------
