@@ -18,6 +18,7 @@ import {
   insertIndicatorMeasurement,
   insertSignedMeeting,
   linkEvidenceRpc,
+  lookupIndicatorId,
   purgeFrameworks,
   purgeIndicatorMeasurements,
   purgeMeetings,
@@ -120,9 +121,13 @@ const STD_C1_TITLE = 'Subpadrao delta teclado P16'
  *  links indicator evidence, so no two tests fight over which measurement is
  *  "latest" on one indicator (evidence_status_of takes the single latest row
  *  inside the window). Verified live: both otherwise carry only a stale
- *  (2026-06, outside-window) seeded measurement. */
-const INDICATOR_AC1 = '6f4e4aa5-df6f-455a-a550-038453a45394' // "Adesão à higienização das mãos"
-const INDICATOR_AC5 = '41ee578c-7632-45ee-b253-958081425628' // "Tempo médio de resposta a alertas de higienização"
+ *  (2026-06, outside-window) seeded measurement.
+ *
+ *  Resolved by NATURAL KEY in `beforeAll`, never hardcoded — seed.sql's CCIH
+ *  indicator block has no explicit `id` column, so `gen_random_uuid()`
+ *  assigns a fresh id on every `supabase db reset` (BUG-P16-006). */
+let INDICATOR_AC1: string // "Adesão à higienização das mãos"
+let INDICATOR_AC5: string // "Tempo médio de resposta a alertas de higienização"
 
 let frameworkId: string
 let stdAId: string
@@ -136,6 +141,9 @@ async function signInAs(page: Page, email: string) {
 
 test.beforeAll(async ({ browser }) => {
   setFeatureFlag('accreditation', true)
+
+  INDICATOR_AC1 = lookupIndicatorId(COMMISSION_CCIH, 'Adesão à higienização das mãos')
+  INDICATOR_AC5 = lookupIndicatorId(COMMISSION_CCIH, 'Tempo médio de resposta a alertas de higienização')
 
   const page = await browser.newPage()
   const platformToken = await getToken(page, PLATFORM)

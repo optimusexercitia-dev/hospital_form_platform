@@ -13,6 +13,7 @@ import {
   insertIndicatorMeasurement,
   insertSignedMeeting,
   linkEvidenceRpc,
+  lookupIndicatorId,
   purgeControlledDocuments,
   purgeForms,
   purgeFrameworks,
@@ -92,9 +93,13 @@ const STD_ATENCAO_PLURAL_CODE = 'P16-2-IND-A2'
 const STD_ATENCAO_PLURAL_TITLE = 'Duas evidencias em atencao padrao P16'
 
 /** An existing CCIH indicator (mensal, active), otherwise untouched by the
- *  other 4 phase16 specs — spec 1 uses two different ones (see its header). */
-const INDICATOR_ATENCAO = 'c349baed-1ed4-45c1-a66e-5d2194049705' // "Densidade de IRAS"
-const INDICATOR_VENCIDA = '1a06ffec-055f-4748-9db7-af2262146366' // "Dispensadores de álcool disponíveis"
+ *  other 4 phase16 specs — spec 1 uses two different ones (see its header).
+ *
+ *  Resolved by NATURAL KEY in `beforeAll`, never hardcoded — seed.sql's CCIH
+ *  indicator block has no explicit `id` column, so `gen_random_uuid()`
+ *  assigns a fresh id on every `supabase db reset` (BUG-P16-006). */
+let INDICATOR_ATENCAO: string // "Densidade de IRAS (por 1000 pacientes-dia)"
+let INDICATOR_VENCIDA: string // "Dispensadores de álcool disponíveis (%)"
 
 let frameworkId: string
 let stdDocId: string
@@ -115,6 +120,9 @@ async function signInAs(page: Page, email: string) {
 
 test.beforeAll(async ({ browser }) => {
   setFeatureFlag('accreditation', true)
+
+  INDICATOR_ATENCAO = lookupIndicatorId(COMMISSION_CCIH, 'Densidade de IRAS (por 1000 pacientes-dia)')
+  INDICATOR_VENCIDA = lookupIndicatorId(COMMISSION_CCIH, 'Dispensadores de álcool disponíveis (%)')
 
   const page = await browser.newPage()
   const token = await getToken(page, CHEFE_CCIH)

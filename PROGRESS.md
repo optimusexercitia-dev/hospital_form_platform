@@ -129,6 +129,7 @@ phase remains in front of it).
   · 📋 **As-built inventory (lead-verified, working tree clean):** **9 migrations** `20260903000800`→`001600` · **6 pgTAP files — 278, 279, 280, 281, 283, 284.** ⚠ **There is no `282`**; its planned scope (freshness matrix cell-by-cell) was **absorbed into 279** (61 assertions, C1…C30 — all 10 kinds, both `review_due_date = current_date` boundaries, the frequency-window cutoff, every Amendment 1–3 ruling). Nothing lost, but **"pgTAP 278–284" is not a valid coverage claim** — a range naming a file that does not exist is the same failure family as a gate summary whose denominator hides unrun tests. Plan corrected.
   · 📌 **Coverage gap flagged for QA (not a defect):** the indicator freshness arm maps five frequencies to intervals (`mensal|bimestral|trimestral|semestral|anual` → 1/2/3/6/12 months) but only **`mensal`** is asserted. An *unrecognized* frequency raises (fails closed); a **wrong interval** — `semestral` → 5 months — would pass silently. Four more cells closes it.
   · ✅ **Tester COMPLETE — 5 E2E specs, 31/31 GREEN** (`e2e/phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts` + shared `e2e/helpers/accreditation.ts`). Harness proved it could fail FIRST (AC-0: flag OFF → the commission `not-found.tsx` boundary renders; flag ON → real content — both asserted live before anything else was trusted, per BUG-P16-002's lesson). Found, precisely diagnosed, and got fixed **two blocking product bugs** (BUG-P16-003, BUG-P16-004 — a Server Component forwarding a closure prop across a Client boundary, crashing the framework list and then every framework/standard page; `frontend` fixed both in `3fc40df`, tester re-verified live + via source read and closed both) and filed one **minor** cosmetic pt-BR pluralization defect (BUG-P16-005 — since PO-ruled + fixed by frontend across `c1f098b`/`aad4877` and re-verified/closed by tester with exact-literal assertions; see below). Migration F was correctly never needed — every spec builds its own framework/standard fixtures (`platform@test.local` for the two GLOBAL packs spec 1/3/5 need; commission-owned for spec 2/4), matching the PO-parked status. Full detail: Bug Log + Test Run Summary above.
+  · ✅ **BUG-P16-006 CLOSED (tester, 2026-08-04)** — the full `e2e:prod` gate reds the 31/31 above: 4 indicator ids in `core.spec.ts`/`freshness.spec.ts` were hardcoded UUIDs captured live from a non-reset DB session; `seed.sql`'s CCIH indicator inserts have no explicit `id` column, so `gen_random_uuid()` reassigns them on every `supabase db reset`, exactly what the gate's `RESET=1` does. Fixed via a new `lookupIndicatorId(commissionId, name)` natural-key helper, resolved in each file's `beforeAll`. Full 18-UUID hardcoded-literal classification for all 5 specs + the helper, plus a report-only sweep confirming no other spec in `e2e/` has the same defect shape (the codebase already solves it correctly elsewhere via `docIdByCode()`/direct queries), are in the Bug Log. Verified on **two independent `supabase db reset --local` runs, both 31/31 GREEN** — the reproducibility bar the coordinator set, since a single post-fix pass could still ride leftover state. Committed `test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
   · ✅ **Tester COMPLETE** (`8991ec6`) — 5 specs + `e2e/helpers/accreditation.ts`, **30/30 green** (`--project=chromium --workers=1`). Flag harness self-tested **in both directions first**: OFF → the commission `not-found.tsx` boundary renders; ON → real content — so no assertion was trusted before the harness was shown able to fail (BUG-P16-002's lesson applied).
   · 🧪 **Non-obvious E2E finding worth carrying beyond this phase — `resp.status()` is NOT a valid 404 signal on any route with a sibling `loading.tsx`.** Next.js commits the HTTP response (**200**) as soon as the loading boundary streams, *before* the async `notFound()` resolves. **Only the resolved DOM proves the gate.** Every `manage/acreditacao/**` route has a `loading.tsx`, and so do many others in this codebase — a flag-gate or access-gate assertion written against the status code will pass against a route that is actually rendering fine. **Move to `docs/testing/` at the Record step** so it outlives this phase's rotation.
   · 📌 **Two ADR/plan claims proved untestable through the UI as written** (both handled, neither blocking, both flagged for QA): (1) spec 4's "non-ACL member sees *Evidência restrita*" — **no seeded persona is simultaneously staff_admin-of-CCIH (needed to reach the route) and off the seeded ethics case's ACL**, so it is proven by direct RPC (`readiness_evidence` gates on `is_member_of`, not `is_staff_admin_of`) with the ACL member's UI view as the positive control; (2) spec 5's "editing a global pack fails HC0QD" — framework/standard **CRUD has no wired UI this phase**, so it is RPC-only by necessity, not by shortcut. *A seed roster that cannot express a required negative is a real gap — worth a persona in a future seed revision.*
@@ -195,6 +196,57 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+✅ **BUG-P16-006 — CLOSED 2026-08-04, tester-verified (fix + two independent fresh-reset re-runs).**
+Root cause: `phase16-accreditation-core.spec.ts` and `phase16-accreditation-freshness.spec.ts` each
+hardcoded 2 indicator ids (`INDICATOR_AC1`/`INDICATOR_AC5`; `INDICATOR_ATENCAO`/`INDICATOR_VENCIDA`) as
+literal UUIDs captured live from a running DB. Unlike orgs/hospitals/commissions/personas/the demo
+form/the ethics case (all seeded with an explicit fixed `id` literal — individually confirmed by
+reading their actual `insert`/`v_* uuid :=` statements in `supabase/seed.sql`, not merely grepped),
+`seed.sql`'s CCIH indicator block (`insert into public.indicators (...) values (...) returning id into
+v_ind_*;`) has NO explicit `id` column, so `gen_random_uuid()` assigns a fresh id on every
+`supabase db reset` — the captured literals were only ever valid against the exact DB session they were
+read from, and went stale on the very next reset, which is exactly what `npm run e2e:prod`'s `RESET=1`
+does every run. The prior 31/31 report was green against the SAME session the ids had been captured
+from; nothing in that workflow was positioned to observe the instability.
+
+**Fix:** added `lookupIndicatorId(commissionId, name)` to `e2e/helpers/accreditation.ts` — a thin
+wrapper on the existing `sqlOne`, which already fails loudly (quoting the query) on 0 or >1 rows, so a
+lookup miss surfaces as a clear fixture error, never a downstream FK violation on whatever insert
+consumes the id next. Both spec files now declare the 4 constants as module-level `let`s and resolve
+them by NATURAL KEY (`commission_id` + exact seeded `name`) inside `beforeAll`, before first use —
+never a hardcoded literal.
+
+**Full sweep, every hardcoded UUID in scope (18 distinct literals across the 5 specs + the helper):**
+the 4 indicator ids were the ONLY unstable ones. The other 14 — `ORG_A_ID`, `ORG_B_ID`,
+`HOSPITAL_CENTRAL_A`, `HOSPITAL_SECUNDARIO_A2`, `COMMISSION_CCIH`, `COMMISSION_FARMACIA`,
+`COMMISSION_ETICA`, `COMMISSION_QUALIDADE_B`, `ETHICS_CASE_ID`, `UID_PLATFORM`, `UID_CHEFE_CCIH`,
+`UID_CHEFE_FARM`, `UID_HOSPITALADMIN_A1`, `CCIH_FORM_HIGIENE.id` — were each individually confirmed
+safe by reading their actual seed.sql insert/assignment statement (not a grep occurrence count alone),
+all `insert into ... (id, ...) values ('<literal>', ...)` or `v_* uuid := '<literal>';` later consumed
+as an explicit id. Also swept the wider `e2e/` suite for the same defect shape (report-only, out of
+scope to fix): every other seed.sql table seeded via an auto-generated id (`rca_root_causes`; two
+`controlled_documents`/`controlled_document_versions` pairs, `DOC-0001`/`DOC-0002`) is ALREADY resolved
+by other specs via a live natural-key lookup — `docIdByCode()` in `e2e/helpers/documents.ts`, and a
+direct `rca_id`-keyed query in `phase14d-capa.spec.ts` — so no other spec hardcodes an unstable
+captured id; Phase 16's 4 indicators were the only instance of this defect, not a systemic pattern.
+
+**Verification (two independent fresh resets, per the coordinator's bar — "a pass on the current DB
+proves nothing"):** `supabase db reset --local` → all 5 specs **31/31 GREEN**; reset a second time
+(confirmed live: all 4 indicator ids resolved to entirely new values, matching neither the removed
+literals nor each other across the two resets) → all 5 specs **31/31 GREEN** again.
+
+Committed `test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
+
+<details><summary>BUG-P16-006 original report (kept for the record)</summary>
+
+**Repro:** run the full `npm run e2e:prod` gate (resets the DB before running).
+`phase16-accreditation-core.spec.ts:124`'s `INDICATOR_AC1 = '6f4e4aa5-df6f-455a-a550-038453a45394'` — a
+UUID captured live from the DB as it stood during the tester's authoring session — does not exist in a
+freshly-reset DB. Reproducible across two independent runs, including one against a verified-healthy
+stack, confirming a real fixture defect, not environment flakiness.
+
+</details>
 
 ✅ **BUG-P16-005 — CLOSED 2026-08-04, tester-verified (fix + exact-string re-run + source read).** Landed in two commits: `c1f098b` fixed the noun (`padrão`/`padrões`, literal ternary) and swept for the same string-concatenation pattern, catching a real sibling in `evidence-count-badge.tsx` (`"em atenção"` → `"em atençãos"` whenever an `atencao`-status count exceeded 1 — same irregular `-ão`→`-ões` class, also fixed to literal singular/plural pairs). The PO then ruled on a judgment call `c1f098b` had explicitly left open (verb-vs-noun agreement): `aad4877` keys the noun on `totalStandards` and the verb+adjective on `cleanStandards` — `"{clean} de {total} {padrão|padrões} {está conforme|estão conformes} (não cumulativo)"`.
 
@@ -666,6 +718,20 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
      §6 Record (full historical log, Phases 0 → FF-3, already there). -->
+
+**Phase 16 · tester · BUG-P16-006 fix, two independent fresh-reset runs (tester, 2026-08-04,
+`--project=chromium --workers=1`)** — the coordinator's explicit reproducibility bar: a single post-fix
+pass proves nothing if it rides leftover state from a prior run, so the suite ran twice, each against
+its OWN `supabase db reset --local`.
+
+| Run | Result |
+| --- | --- |
+| Fresh reset #1 → `phase16-accreditation-{core,freshness,hospital,restricted,clone}.spec.ts`, combined | **31 passed · 0 failed · 31/31 · GREEN** |
+| Fresh reset #2 (indicator ids confirmed live to differ from both reset #1 and the removed literals) → same 5 files, combined | **31 passed · 0 failed · 31/31 · GREEN** |
+| lint (`helpers/accreditation.ts` + 2 changed specs) · tsc | 0 errors/0 warnings · exit 0 |
+
+Full root-cause + fix + the complete 18-UUID classification are in the Bug Log (BUG-P16-006). Committed
+`test(e2e): resolve seeded rows by natural key, not captured ids (BUG-P16-006)`.
 
 **Phase 16 · tester · 5 new specs, combined run (tester, 2026-08-03, dev server, `--project=chromium --workers=1`)**
 — all 5 phase16 specs together, per each file's own header instruction (avoids the shared

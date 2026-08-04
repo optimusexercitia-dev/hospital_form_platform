@@ -139,6 +139,33 @@ export function sqlOne(query: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Natural-key lookups — for seeded rows whose id is NOT a stable literal.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a seeded indicator's id by its NATURAL KEY (commission + exact
+ * name), never a hardcoded/captured literal.
+ *
+ * BUG-P16-006: unlike orgs/hospitals/commissions/personas/the demo form
+ * (each seeded with an explicit fixed `id` literal — confirmed by direct
+ * read of their `insert`/`v_* uuid :=` statements, not merely grepped),
+ * `supabase/seed.sql`'s CCIH indicator block (`insert into public.indicators
+ * (...) values (...) returning id into v_ind_*;`) has NO explicit `id`
+ * column — `gen_random_uuid()` assigns a FRESH id on every
+ * `supabase db reset`. A literal indicator id captured from one live
+ * session is a latent, gate-blocking defect: green against the DB it was
+ * captured from, red on the very next fresh reset (i.e. every `e2e:prod`
+ * run), and nothing in a same-DB workflow is positioned to catch it.
+ *
+ * `sqlOne` already fails loudly — quoting the query — on 0 or >1 rows, so a
+ * lookup miss surfaces here as a clear fixture error, never as a downstream
+ * FK violation on whatever insert consumes the id next.
+ */
+export function lookupIndicatorId(commissionId: string, name: string): string {
+  return sqlOne(`select id from public.indicators where commission_id = '${commissionId}' and name = '${name}';`)
+}
+
+// ---------------------------------------------------------------------------
 // Feature flag — runtime-only toggle. NEVER touches seed.sql or a migration.
 // ---------------------------------------------------------------------------
 
