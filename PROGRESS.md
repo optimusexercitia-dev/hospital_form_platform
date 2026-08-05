@@ -344,6 +344,26 @@ N sessions, so "the interview's date" must be defined (earliest session's `sched
 the interview's `created_at`?) — needs an owner ruling before the embed is written.
 **Owner:** unassigned — needs lead triage. **Status:** OPEN, reported not fixed.
 
+⬛ **BUG-A11Y-001 — duplicate DOM ids on `/admin` broke label→control association. ✅ FIXED 2026-08-05.**
+Found by FUP-MEM-2's spec on its **first ever execution** (written 08-04, never run until the full gate).
+`useFieldIds(name)` used `name` as BOTH the form key and the DOM id, so two forms on one page sharing a
+field name emitted duplicate ids. `/admin` renders three forms and had **three** collisions: `name` and
+`slug` (organization vs hospital create) and `organizationId` (hospital create vs org-admin assign).
+`htmlFor` resolves to the FIRST match in document order, so each LATER form's labels pointed at the
+EARLIER form's controls — clicking "Organização" in the org-admin section moved focus into the hospital
+form, and a screen reader announced the wrong field. **Impact is accessibility + focus, not authorization.**
+**Fix:** `useFieldIds` gains an optional `id`; `name` still drives `formData.get(name)`, so no action
+contract changed. Applied to the two later forms. The systemic fix (id from `useId()`) was deliberately
+NOT taken — that primitive backs **38 components** and rewriting it with no cheap re-verification is how a
+regression ships → FUP-A11Y-1.
+⚠ **The first fix was INERT.** `controlId` was threaded into `descriptionId`/`errorId` while `controlProps`
+still returned `id: name`, so nothing reached the DOM and the re-run failed identically. Caught by dumping
+the LIVE DOM — re-reading the diff would only have confirmed my intent, never the behaviour.
+⚠ **A green suite is not a working teardown.** This spec's purge fought two invariants
+(`guard_profile_no_delete` raises unconditionally; `profiles.id` FKs `auth.users.id` with no cascade) and
+had never executed, because MEM2-1 failed BEFORE creating the invitee so the purge always matched zero
+rows. A teardown is first exercised when the test it cleans up after starts passing.
+
 ⬛ **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation). ✅ FIXED 2026-08-05.**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
 migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
@@ -433,6 +453,7 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · FULL `e2e:prod`** (RESET+REBUILD, 84 specs / 16 batches) | **970 passed · 1 failed · 0 flaky · 2 did-not-run** — denominator reconciled, no batch gaps, no `reset FAILED`. **2 infra re-runs** (batch 8 `server_dead=1 conn_errors=64`; batch 15 `server_dead=1 conn_errors=22`), both cleared — twin server deaths matching the known `supabase_vector` auth-gateway crash-loop, and both dead batches are login-heavy. **The 1 real failure was MEM2-1, and it was a PRODUCT DEFECT rather than a test bug** → BUG-A11Y-001 in the Bug Log. FUP-BULK-1's `bulk-case-creation.spec.ts` GREEN; the new `technical-direction-referrals.spec.ts` GREEN against the prod build. ⚠ The 2 did-not-run are MEM2-2/2-3, skipped by serial mode after MEM2-1 failed — accounted, not lost |
 | 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · pgTAP full suite** on a fresh `db reset` of the MERGED tree (285 migrations) | **PASS — Files=160 / Tests=4903.** Includes `298_authz_p0_isolation.sql` **32/32 on its first-ever execution** — and against `main`'s rewritten `seed.sql`, which the fixtures are pinned to by id, so that was luck rather than design — plus `299_hospital_content_door_noun_rule.sql` **11/11**. ⚠ An earlier run on the **non-reset** DB showed 4 failures (`100_dashboard` #19 "1079 anon-executable", `252` Bad-plan abort, + the 2 real ones): the first two were pgtap-in-catalog / leftover-state artifacts and vanished on the reset. CLAUDE.md's "fresh reset" instruction is load-bearing, not hygiene |
 | 2026-08-05 | **FUP-AUTHZ-2 · `p0b-isolation-mutation-audit.sh` Batch 4** — the 15 keystones | **15/15 RED-PROVEN**; controls green in all four files (250 14 ok · 251 40 · 252 48 · 298 32, 0 not-ok). Each keystone reddens when ITS policy opens, so none is vacuous |
 | 2026-08-05 | **BUG-AUTHZ-002 · live row-count probe, red→green** (the evidence the bug asked for and nobody had) | **RED:** platform@ read **3** documents / **2** rollups from Hospital Central A. **GREEN after `20260908000100`: 0 / 0.** **Twins:** hospital_admin.a1 and orgadmin.a still read 3 / 2 (not fixed-by-breaking). **Mutation-proven per arm** (ADR 0079 A2 FORK): restoring the disjunct on one door reds only that door's assertion |
@@ -678,7 +699,7 @@ date-fragile suite makes that claim date-dependent. Record the DATE beside any f
 
 _Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
-### 🟡 FUP-MEM-2 — `assignOrgAdmin` door migration — **spec WRITTEN 2026-08-05, never run**
+### ⬛ FUP-MEM-2 — `assignOrgAdmin` door migration — **RESOLVED 2026-08-05, spec RUN and green (3/3)**
 
 `e2e/platform-org-admin-provisioning.spec.ts` (3 tests) exists. The claim it pins is specific, not
 "it works": the action must pass the **platform admin's own uid** as `p_actor`, and `grant_role_impl`
@@ -741,7 +762,7 @@ ARM 3 holding is not mistaken for evidence about that class.
 
 _Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
-### 🟡 FUP-BULK-1 — bulk wizard deals to SUSPENDED members — **FIXED 2026-08-05, E2E confirmation owed**
+### ⬛ FUP-BULK-1 — bulk wizard deals to SUSPENDED members — **RESOLVED 2026-08-05**
 
 `listMembers` now carries `isActive`, a TS mirror of `app.is_active`; `activeMembers()` narrows the
 bulk wizard's source to members `bulk_create_cases` will accept. **Carried, never pre-filtered** — the
@@ -819,6 +840,20 @@ foreign-org isolation. Manually walked once too, DB-confirmed.
 
 ⚠ **Still owed:** a DT who is ALSO a commission member lands on their commission and has no nav link
 to the inbox. Reachable by URL; a nav entry for the dual-hat case is open.
+
+### 🟡 FUP-A11Y-1 — `useFieldIds` should derive the DOM id from `useId()`
+
+BUG-A11Y-001 was fixed by breaking three ties by hand. The CLASS remains: `name` still doubles as the DOM
+id, so the next two forms sharing a field name on one page reproduce it silently — nothing in typecheck,
+lint, build or E2E sees a duplicate id.
+
+**Fix:** derive the control id from React's `useId()` and keep `name` as the form key. Evidence it is
+safe: every one of the **38** call sites is a top-level `const` (so a hook is legal there), and nothing
+reads the literal ids — the only hardcoded `-description`/`-error` strings, in `charter-form.tsx`, are
+self-consistent pairs that do not come from the hook.
+
+**Not done in-session by choice:** a shared primitive behind 38 components, changed with no cheap
+re-verification, is how a regression ships. It wants its own change with a full E2E run behind it.
 
 ### 🟡 FUP-AUTHZ-3 — 45 row-returning DEFINER doors have never been swept
 
