@@ -139,6 +139,18 @@ confident, wrong story.
 opposite direction first**. Report vacuity only when the assertion survives probes that move the
 property both ways. A single surviving probe is evidence of nothing.
 
+**The second shape, which is the commoner one — a FORK, where either probe certifies half the
+behaviour and reports green.** Same phase, `BeginTemplateEditButton`: it confirms before forking a
+published version but navigates straight through when a draft already exists. Mutating it to
+*always* confirm reds only the resume arm; mutating it to *never* confirm reds only the fork arm.
+Either probe alone leaves half the branch unexercised while the suite reports green — and, worse, a
+green result under one probe reads as "this behaviour is covered".
+
+The panel case above is "two assertions, opposite directions of **one property**". This is "one
+**branch**, two collapses". They generalise differently, and this one is what you meet more often:
+**any conditional needs a probe per arm.** Neutralizing the condition in a single direction proves
+only that the arm you happened to break was reachable.
+
 **The corollary is the dangerous part.** A test that *looks* like a near-duplicate is simultaneously
 (a) the most likely to be deleted in a tidy-up, and (b) the most likely to be the one guarding the
 non-obvious direction. So the vacuity verdict must be **recorded next to the assertions**, naming
