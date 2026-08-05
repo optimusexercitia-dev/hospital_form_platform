@@ -180,7 +180,7 @@ Unblocks on backend's **M5 + `gen:types`**:
 5. Delete `template-status-badge.tsx` + drop the last `ProcessTemplateStatus` / `'active'` readers.
 
 Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
-`lint:memberships-door`) · `typecheck` clean · Vitest **924/924** (was 901; +23 new component tests)
+`lint:memberships-door`) · `typecheck` clean · Vitest **945/945** (was 901; +44 new component tests)
 · real `next build` ✅ (run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's
 in-flight E2E gate).
 
@@ -190,16 +190,19 @@ in-flight E2E gate).
 > bugs survived lint + tsc + build + 457 unit + 3919 pgTAP; only E2E caught them). The first real
 > execution of this code is the flip pass, and that is where defects should be expected to appear.
 
-**Component tests added (frontend-owned, co-located, DB-free)** — `case-template-provenance.test.tsx`
-(9) + `version-workflow-banner.test.tsx` (14). They encode the two claims that otherwise lived only
-in doc comments: **`null` provenance renders "Sem processo", never an error/empty** (the ADR 0096 D3
-trap), and the archived state's pt-BR **number agreement at 0 / 1 / many** (the helper exists because
-the inline-ternary version was unreviewable). Both were **mutation-proven, not just green**: forcing
-the `null` branch to `return null` and swapping the singular sentence for the plural each reddened
-exactly the intended test, then were reverted (`grep MUTATION PROBE` → clean).
-⚠ Precision on that: of the three processless tests, only the `textContent` one catches the
-`return null` mutation — the two `queryByRole` assertions pass vacuously under it and guard a
-*different* regression (turning the branch into an alert/status banner). Complementary, not redundant.
+**Component tests added (frontend-owned, co-located, DB-free)** — 4 files, **44 tests**, all
+**mutation-proven** rather than merely green. Each pins a claim that otherwise lived only in a doc
+comment, where this repo has repeatedly watched them go stale in silence.
+
+| File | Tests | The claim it pins | Load-bearing assertion (verified by mutation) |
+| ---- | ----- | ----------------- | --------------------------------------------- |
+| `case-template-provenance.test.tsx` | 9 | `null` provenance = "Sem processo", never an error/empty (the ADR 0096 D3 trap) | the `textContent` one. ⚠ The two `queryByRole` assertions pass **vacuously** under a `return null` mutation — they guard a *different* regression (branch turned into an alert banner) |
+| `version-workflow-banner.test.tsx` | 14 | the DRAFT state names the version still in force; pt-BR agreement at 0/1/many | the draft "versão N em vigor" assertion; the singular-agreement one |
+| `begin-template-edit-button.test.tsx` | 9 | confirm-before-fork vs straight-through-on-resume | **the negative** — "clicking the trigger did NOT call the action". Proven against BOTH collapses: always-confirm reds the resume arm (4 tests), never-confirm reds the fork arm (3) |
+| `version-history-panel.test.tsx` | 12 | order is preserved verbatim (never re-sorted); the per-version title shows only on a rename | the two ordering tests are **complementary, not redundant** — verified: an *ascending* sort reds only #1, a *descending* sort reds only #2. Deleting either opens a real hole |
+
+Probes reverted after every round; `grep MUTATION PROBE` clean and `git diff src/components/` empty
+(components byte-identical to HEAD).
 
 > ⚠ **Two transitional sites in `template-builder-shell.tsx`, and they are OPPOSITE.** Both create-mode
 > dialogs take the version-grain prop name while still being passed `template.id`, but for different
