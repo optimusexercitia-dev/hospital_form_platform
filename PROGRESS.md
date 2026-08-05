@@ -73,7 +73,7 @@
 **▶ ACTIVE: Membership hardening + Diretor Técnico** (ADR
 [0094](docs/decisions/0094-membership-hardening-and-technical-director.md) + Amendments 1–3; plan
 [membership-hardening-technical-director.md](docs/plans/membership-hardening-technical-director.md)) —
-branch `feat/membership-hardening-technical-director`, **local, NOT pushed**. PO closed all
+merged to **`main`** (fast-forward) 2026-08-04, **not pushed to origin**. PO closed all
 four open items 2026-08-04: atomic replace · platform_admin may **not** appoint a DT · W1→W4 straight
 through · DT flag ships **ON at T4.9** — and it now **is ON** (`20260905000600`, the last step of W4).
 
@@ -86,14 +86,13 @@ through · DT flag ships **ON at T4.9** — and it now **is ON** (`2026090500060
 
 Gate so far: pgTAP **156 files / 4796** on a fresh reset · lint 0/0 (+ `lint:memberships-door`) ·
 typecheck · Vitest **901/901** · W4 mutation audits **8/8 + 13/13 RED-PROVEN**, both controls green.
-Earlier targeted `e2e:prod` runs: **171 passed / 0 failed** (W3 caller migration) and **160/0** (W1+W2
-session re-plumb). **Full `e2e:prod` 2026-08-04: 954 passed · 1 failed · 2 flaky · 5 deliberate skips ·
-16 batches · 962/962 accounted** (denominator reconciled against `spec-counts.txt`; batches 1–16 with
-no gaps, no `-unrun` stub, no `reset FAILED`; one infra re-run — batch 7's standalone server died
-mid-batch, producing 47 `ERR_CONNECTION_REFUSED` in *setup* that the rerun cleared 61/61).
-The single failure is **FUP-BULK-1**, a pre-existing ~22% random defect in `bulk-case-creation.spec.ts`
-with no MEM involvement: 6 branch runs → 4 green, and the CCIH roster + every `is_member_of_for`
-verdict are byte-identical on `main`.
+Earlier targeted `e2e:prod` runs: **171 passed / 0 failed** (W3) and **160/0** (W1+W2).
+**FULL `e2e:prod` 2026-08-04: 954 passed · 1 failed · 2 flaky · 5 deliberate skips · 962/962
+accounted** — the one failure is FUP-BULK-1, pre-existing and reproducible on `main`.
+**Authz:** diff-scoped ARM 1 over W4's own four gates = **3 COVERED · 1 ERROR · 0 BLIND**; the full
+302-case sweep found 15 BLIND gates, **none of them W4's** (FUP-AUTHZ-2).
+**W1→W4 is COMPLETE and merged to `main`** (fast-forward, unpushed). Open, none blocking: the 15
+keystones (FUP-AUTHZ-2) · FUP-BULK-1 · FUP-MEM-1/2/3.
 
 > ⚠ **W4's referral plane found FIVE fail-open sites that the plan's task list did not name**, and
 > none of them could have been caught by a passing test — all five fail OPEN. Making
@@ -296,6 +295,9 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-04 | **MEM W4 · `p0-authz-invariant.sh` `ARM=policy` FULL sweep** (302 door cases + write-path, ~5 h) | **`INVARIANT VIOLATED`** — BLIND set 83, **15 not allowlisted**. ⚠ **none is MEM/W4** (its migration has 0 `create/alter/drop policy`); the 15 are a dated census of every RLS added since 2026-07-18 → FUP-AUTHZ-2. Pruned 4 now-COVERED entries (72→68) |
+| 2026-08-04 | **MEM W4 · diff-scoped ARM 1** (4 gates derived from the migration diff, 4m20s) | **3 COVERED · 1 ERROR · 0 BLIND** — `can_read_referral_metadata` / `can_read_referral_phi` / `is_technical_director_of_for` covered; `can_manage_referral_target` unauditable (aborts files) → covered by `295`'s 13/13 mutation audit instead |
+| 2026-08-04 | **MEM W1–W4 · FULL `e2e:prod`** (16 batches) | **954 passed · 1 failed · 2 flaky · 5 skips · 962/962 accounted** — denominator reconciled vs `spec-counts.txt`, no batch gaps, no `reset FAILED`; 1 infra re-run (batch 7 server death, 47 setup reds, cleared 61/61). The 1 failure = **FUP-BULK-1**, pre-existing and identical on `main` |
 | 2026-08-04 | **MEM W1–W4 · pgTAP on a fresh reset** (+`291` 35, `292` 25, `293` 24, `294` 29) | **155 files / 4736 · PASS** |
 | 2026-08-04 | **MEM · mutation audits** — `w1` · `w2` · `w3` · `w4` | **9/9 · 9/9 · 8/8 · 8/8 RED-PROVEN**, every control all-green |
 | 2026-08-04 | **MEM W1–W3 · targeted `e2e:prod`** (8 specs, `RESET=1`) — W3 caller migration | **171 passed · 0 failed · 0 flaky · GATE GREEN** |
@@ -429,6 +431,7 @@ not a defect — it reads exactly like a real red.
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
+| 2026-08-04 | **The authz door-blindness invariant becomes a PHASE STEP, diff-scoped** — §6 step 1 gains ARM 2 (~1 min) every phase + a **diff-scoped** ARM 1 whenever a phase touches an RLS policy or `prosecdef` gate (case list derived from the migration diff, never by hand); step 5 must **name the ARM, not the script**. The full ~5 h sweep stays a **periodic** audit — mandating it per phase would reproduce the failure it fixes, and a diff-scoped gate is adoptable today against the open 15-violation backlog | [0079 Amendment 1](docs/decisions/0079-authz-door-blindness-standing-invariant.md) · [CLAUDE.md §6](CLAUDE.md) |
 | 2026-08-04 | **Membership-hardening + Diretor Técnico: the four open items closed** (PO) — T1.0 = **atomic replace**; **platform_admin may NOT appoint a DT** (tenant governance, not tenancy administration — the only kernel grant arm with no `is_admin_for` branch); build **W1→W4 straight through** on one branch; `technical_director` flag **ships ON** at T4.9 | [0094 Amendment 1](docs/decisions/0094-membership-hardening-and-technical-director.md) · [plan](docs/plans/membership-hardening-technical-director.md) |
 | 2026-08-03 | **Phase 16 build plan authored + 4 planning rulings** (PO, interview) — CAPA evidence arm = hospital-match + `can_read_capa`; commission-owned frameworks commission-scoped SELECT (narrows D10 — licensed-text leak); visible hospital nav entry; ONA skeleton drafted by backend, PO-validated. Build not started | [0093 Amendment 1](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) · [plan](docs/plans/phase-16-standards-crosswalk-program.md) |
 | 2026-08-03 | **Phase 16 replanned + re-gates the pilot** (PO, interview) — pre-pilot again (supersedes 0086's deferral note); skeleton-only framework packs (licensing); ONA `level` dimension + per-level readiness; evidence enum +`charter`+`ethics_procedure` (folds ETH·E3b); worst-wins rollup + `standard_ownerships`; `hospital_readiness` re-gated off `is_admin` (noun rule) | [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) · [audit](docs/reviews/phase-16-external-accreditation-audit.md) |
