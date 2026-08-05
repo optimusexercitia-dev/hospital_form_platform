@@ -130,8 +130,8 @@ conflict, both sides kept). Of the five items this row used to list as open:
 **FUP-AUTHZ-2 ✅ RESOLVED** (298 32/32 · 15/15 RED-PROVEN) · **FUP-MEM-1 ✅ RESOLVED — not a defect**
 (its leading hypothesis disproven; see the entry) · **FUP-BULK-1 fixed, E2E confirmation owed**
 (probabilistic, so only a full `e2e:prod` can confirm) · **FUP-MEM-2 spec written, never run** ·
-**FUP-MEM-3 half-built** — appointment panel + send-wizard target picker land here, but the DT
-**inbox** does not exist, so the office can now be addressed and still cannot read (→ FUP-MEM-3b).
+**FUP-MEM-3 + 3b ✅ COMPLETE** — appointment panel, send-wizard target picker AND the DT inbox
+(`/o/[org]/direcao-tecnica`); E2E 5/5, including the deputy driving the lifecycle.
 **BUG-AUTHZ-002 ✅ FIXED** in the same session (it is the same defect class as FUP-AUTHZ-2 — enumerate
 by property, not by name — and it exposed a hole in ARM 3 itself).
 
@@ -761,7 +761,7 @@ gone. Not yet run.
 
 _Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
-### 🟡 FUP-MEM-3 — the DT referral plane's product callers — **HALF BUILT 2026-08-05**
+### ⬛ FUP-MEM-3 — the DT referral plane's product callers — **COMPLETE 2026-08-05**
 
 **Built:** the hospital-detail **appointment panel** (appoint / replace titular / deputies / revoke,
 flag-gated) and the send-wizard **target picker**. The titular affordance is *Substituir*, not *Adicionar*
@@ -775,8 +775,8 @@ commission set?", since the one-sided form admits the "both" case.
 Postgres refuses a default on a parameter followed by mandatory ones — so expressing the sum type in
 the signature needs a **parameter reorder**. Recorded at the call site, not smuggled in.
 
-⛔ **NOT built: the DT inbox** → FUP-MEM-3b. The office can now be *addressed* and still cannot *read*.
-Do not treat this row as closed on the strength of the two surfaces above.
+✅ **The inbox landed the same day** → FUP-MEM-3b below. The office can now be addressed, read AND
+acted on; `295` §4's RPC-surface claim is finally wired to a product path.
 
 
 W4 ships no frontend by plan, so `create_referral_draft`'s new `p_target_hospital_id` parameter has no
@@ -797,23 +797,28 @@ typed but called from no component.
 a hospital-manage appointment panel — and add the E2E specs there. Until then, treat "DT referrals work"
 as proven at the RPC surface only.
 
-### 🔴 FUP-MEM-3b — the DT referral INBOX does not exist (the office cannot read)
+### ⬛ FUP-MEM-3b — the DT referral inbox — **BUILT 2026-08-05**
 
-A Diretor Técnico holds only a hospital-tier membership, so every referral surface is closed to them:
-the commission hub needs `getCommissionAccessByOrg`, `/conta/encaminhamentos` lists only explicit
-assignments, `/o/[org]/nsp/encaminhamentos` is the PQS surface. RLS admits them
-(`can_read_referral_metadata` has the `is_technical_director_of_for` arm) — nothing routes them.
-**With FUP-MEM-3's picker shipped, a coordinator can now send a referral no one can open.**
+Two routes under `/o/[org]/direcao-tecnica` (list + detail) — ORG level, because the office has no
+commission and every commission-scoped gate refuses a DT by construction. Root landing gained a DT
+branch placed AFTER the commission branches, so it only changes the outcome for someone who would
+otherwise hit "sem acesso" — which is what a pure DT got.
 
-**Staged, and deliberately flagged as unfinished:** `SessionContext.technicalDirectionOf`,
-`getTechnicalDirectionAccessByOrg`, `listTechnicalDirectionReferrals` (commit `0f979f3`). ⚠ **All three
-have NO CALLER** — the same shape as the defect FUP-MEM-3 repairs. Committed only so the work survived
-the `main` merge; it is not a partial fix.
+**The detail page is not a fork of the 540-line commission page.** Four of its panels are unreachable
+for a DT BY GATE — internal notes (needs the note's own committee), assignments (commission-scoped),
+case links/forward (need a case board), draft affordances (a DT can never author a referral). The
+office's surface is genuinely smaller.
 
-**Owed:** the route + a shared referral-detail view extracted from the 540-line commission page (the
-`case-detail-view.tsx` capability-descriptor pattern). pgTAP `295` §4 proves the DT **and the deputy**
-drive the full target-side lifecycle (receive → accept → start_review → request_information) on the
-same status machine, so a read-only stub is not enough.
+⚠ **`next build` passed and the page still crashed on first load** — `hrefFor` was a FUNCTION prop
+into a `"use client"` component (BUG-QI-001's shape). Typecheck, lint and a real production build all
+reported green on code that could not render. Now a string (`hrefBase`), with the reason on the prop.
+
+E2E `e2e/technical-direction-referrals.spec.ts` **5/5**: wizard → sum type; DT lands on the inbox;
+titular drives `sent → received`; **deputy** drives `received → accepted` (D1 asserted, not assumed);
+foreign-org isolation. Manually walked once too, DB-confirmed.
+
+⚠ **Still owed:** a DT who is ALSO a commission member lands on their commission and has no nav link
+to the inbox. Reachable by URL; a nav entry for the dual-hat case is open.
 
 ### 🟡 FUP-AUTHZ-3 — 45 row-returning DEFINER doors have never been swept
 
