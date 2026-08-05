@@ -25,10 +25,10 @@ import { useFieldIds } from "@/components/ui/field";
  * is byte-identical to before this feature (the shell omits this section entirely).
  */
 export function CollectsPatientPicker({
-  templateId,
+  templateVersionId,
   collectsPatient,
 }: {
-  templateId: string;
+  templateVersionId: string;
   /** The template's current `collects_patient` config (drives the toggle). */
   collectsPatient: boolean;
 }) {
@@ -43,7 +43,7 @@ export function CollectsPatientPicker({
     setCollects(next);
     setError(null);
     startTransition(async () => {
-      const res = await setTemplateCollectsPatient(templateId, next);
+      const res = await setTemplateCollectsPatient(templateVersionId, next);
       if (!res.ok) {
         setCollects(prev);
         setError(

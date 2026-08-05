@@ -5,7 +5,7 @@ import { ArrowLeft, FolderOpen } from "lucide-react";
 import { commissionHref } from "@/lib/routing";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getFeatureFlags } from "@/lib/queries/feature-flags";
-import { listProcessTemplates } from "@/lib/queries/process-templates";
+import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { listMembers } from "@/lib/queries/members";
 import { bulkCreateCases } from "@/lib/cases/bulk-actions";
 import { BulkCreateWizard } from "@/components/cases/bulk-create-wizard";
@@ -57,20 +57,25 @@ export default async function BulkCreateCasesPage({
   }
 
   const [templates, members] = await Promise.all([
-    listProcessTemplates(access.commission.id),
+    listProcessTemplateVersions(access.commission.id),
     listMembers(access.commission.id),
   ]);
 
-  // Eligible = ACTIVE template with ≥1 phase (phase-less templates are rejected by
-  // the RPC — Design minor rule). Carry `collectsPatient` + `customFields` for the
-  // wizard's PHI columns + custom-field columns.
+  // Eligible = PUBLISHED template version with ≥1 phase (ADR 0096 renamed the old
+  // `active`; phase-less templates are rejected by the RPC — Design minor rule).
+  // `id` stays the TEMPLATE identity: `bulk_create_cases` follows
+  // `create_case_from_template` and resolves the published version itself. Carry
+  // `collectsPatient` + `customFields` for the wizard's PHI + custom-field columns.
   const eligibleTemplates: BulkTemplateOption[] = templates
-    .filter((t) => t.status === "active" && t.phases.length > 0)
-    .map((t) => ({
-      id: t.id,
-      title: t.title,
-      collectsPatient: t.collectsPatient,
-      customFields: t.customFields,
+    .filter(
+      (entry) =>
+        entry.version.status === "published" && entry.version.phases.length > 0,
+    )
+    .map((entry) => ({
+      id: entry.template.id,
+      title: entry.version.title,
+      collectsPatient: entry.version.collectsPatient,
+      customFields: entry.version.customFields,
     }));
 
   const bulkMembers: BulkMember[] = members.map((m) => ({

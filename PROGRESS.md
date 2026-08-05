@@ -167,28 +167,53 @@ implementations land, so the branch stays runnable and E2E-meaningful.
 | `PublishTemplateVersionButton` / `DiscardTemplateDraftButton` / `ArchiveTemplateVersionsButton` | ✅ complete — draft affordances; each dialog names what happens to the incumbent version |
 | `CaseTemplateProvenance` — which version a case ran under | ✅ complete — `null` (processless) is the FIRST rendered branch, as "Sem processo", never an error path |
 | Authoring seam re-keyed `templateId` → `templateVersionId` (lead ruling 2026-08-04) | ✅ complete — `PhaseSlotDialog` + `NarrativeSlotDialog` props **and** the `addTemplatePhase` FormData field; `phase-slot-card` / `narrative-slot-card` read the renamed type field |
-| Page re-pointing (4 pages + case-detail layout) → versioned queries | ⏸ **HELD by the lead** — these call queries that currently throw |
-| `TemplateBuilderShell` → `ProcessTemplateWithVersion` + version chrome | ⏸ **HELD** — belongs to the same flip pass (it forces the builder page's props) |
+| Page re-pointing (4 pages + case-detail layout) → versioned queries | ✅ **complete** (flip pass) |
+| `TemplateBuilderShell` → `ProcessTemplateWithVersion` + version chrome | ✅ **complete** (flip pass) |
 
-**Flip-pass checklist** (all in ONE commit, so nothing transitional survives — lead-directed 2026-08-04).
-Unblocks on backend's **M5 + `gen:types`**:
+**Flip pass — ✅ COMPLETE 2026-08-05, one commit.** All eight items landed; nothing transitional
+survives. Every `tsc` error the lead handed over as the map was worked, none cast past.
 
-1. Re-point the 4 pages + `(detail)/layout.tsx` to the versioned queries; `TemplateBuilderShell` → `ProcessTemplateWithVersion`, wiring `VersionHistoryPanel` + `VersionWorkflowBanner` + the draft affordances.
-2. Swap both create-mode dialog values from `template.id` to the draft `version.id`, and delete the two transitional comment blocks.
-3. Re-key `custom-field-slot-dialog.tsx`'s `formData.set("templateId", …)` → `templateVersionId` (silent otherwise — see the ⚠ below).
-4. **DELETE the `Sem processo` badge** from `(detail)/layout.tsx` (lead RULING 2026-08-04): `CaseTemplateProvenance` owns that fact. Keeping both is a Playwright **strict-mode** hazard — an unscoped `getByText('Sem processo')` would match twice and red a spec for a non-product reason. Lead briefs `tester` with the locator delta before this lands.
-5. Delete `template-status-badge.tsx` + drop the last `ProcessTemplateStatus` / `'active'` readers.
+1. ✅ 4 pages + `(detail)/layout.tsx` re-pointed; `TemplateBuilderShell` → `ProcessTemplateWithVersion`, wiring `VersionHistoryPanel` + `VersionWorkflowBanner` + the draft affordances.
+2. ✅ Both create-mode dialog values → `version.id`; both transitional comment blocks deleted.
+3. ✅ `custom-field-slot-dialog.tsx` → `formData.set("templateVersionId", …)`. **Verified the read side first** (`createCustomFieldDef` reads `templateVersionId`) rather than trusting the hand-off — this seam is silent on mismatch.
+4. ✅ `Sem processo` badge DELETED from `(detail)/layout.tsx`; `CaseTemplateProvenance` owns the fact.
+5. ✅ Deleted `template-status-badge.tsx` — **and two more the sweep found**: `publish-template-button.tsx` + `archive-template-button.tsx`, both orphaned by the version-grain replacements and neither on the checklist.
+6. ✅ Every child-authoring picker re-keyed to `version.id` (`CaseTypePicker`, `CollectsPatientPicker`, `ProcessOutcomesPicker`, `CustomFieldsCard`) — all four backing actions are version-grained now.
+7. ✅ The two create-case paths keep the **TEMPLATE identity** (`create_case_from_template` resolves the published version itself via `app.published_version_of_template`) — verified against the action body, since passing a version id here would have been a plausible and wrong "consistency" edit.
+8. ✅ Rail is now unconditional (version history is the point of the screen); `hasRail` removed.
+
+**Column-name sweep** (the lead's warning: `.select()` strings are not type-checked and
+`.maybeSingle<T>()` is an assertion, not a check): **N/A by construction in frontend scope** — Rule 9
+means `src/app` + `src/components` contain no `.select()` / `.from()` / supabase client at all.
+Swept and confirmed zero. The residual `status === "active"` hits in `src/app`/`src/components` are
+**case-phase** and **indicator** status, unrelated vocabularies.
+
+⚠ **E2E locator deltas for `tester`** (I did not touch `e2e/` — tester's scope):
+| Was | Now | Sites |
+| --- | --- | ----- |
+| publish trigger `^Publicar$` | **`Publicar versão {N}`** (confirm button *inside* the dialog is still `Publicar`) | `phase7-cases.spec.ts:451`, `cases-outcomes-blockers.spec.ts:526` |
+| post-publish banner `/ativo/i` | **`Versão {N} — em vigor`** | `phase7-cases.spec.ts:458,463,823` · `cases-outcomes-blockers.spec.ts:530` |
+| archive trigger `Arquivar` | **`Arquivar processo`** (confirm still `Arquivar`) | template builder |
+| card CTA `Continuar edição` | **`Continuar rascunho`** (`Ver processo` unchanged) | template list |
+| `Sem processo` **badge** in the case header | same text, now the provenance meta line — **exactly one occurrence**, so strict mode is satisfied | `(detail)/layout.tsx` |
+| — | **NEW** `Editar processo` button on a published version | template builder |
+
+⚠ The `Publicar` locators in `answer-model-v2` / `ff1` / `ff2` / `ff3` specs are the **FORM**
+builder's publish button, untouched. Only the two process-template sites above moved.
 
 Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
 `lint:memberships-door`) · `typecheck` clean · Vitest **945/945** (was 901; +44 new component tests)
 · real `next build` ✅ (run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's
 in-flight E2E gate).
 
-> ⚠ **Read that green bar narrowly.** Every component in this tranche is currently UNRENDERED —
-> no page mounts any of them until the flip pass. So lint/tsc/`next build` green says almost
-> nothing about whether they work; it says they compile. This is the FF-1 shape exactly (3 live
-> bugs survived lint + tsc + build + 457 unit + 3919 pgTAP; only E2E caught them). The first real
-> execution of this code is the flip pass, and that is where defects should be expected to appear.
+> ⚠ **Read that green bar narrowly — it is still not evidence the screens work.** The components are
+> now mounted (flip pass complete), but **none of the four gates executes a page**: `tsc` does not
+> render, `next build` only compiles + prerenders 18 static routes, and every screen here is dynamic
+> (`ƒ`), so no version picker, workflow banner, publish flow or provenance row has ever run against a
+> real row. The 44 component tests cover pure props, not the wiring. This is the FF-1 shape (3 live
+> bugs survived lint + tsc + build + 457 unit + 3919 pgTAP; only E2E caught them) and the Phase-16
+> shape (throwing stubs + two RSC boundary crashes cleared a full green bar).
+> **`tester` is the first execution of this phase.** Expect defects there, not here.
 
 **Component tests added (frontend-owned, co-located, DB-free)** — 4 files, **44 tests**, all
 **mutation-proven** rather than merely green. Each pins a claim that otherwise lived only in a doc

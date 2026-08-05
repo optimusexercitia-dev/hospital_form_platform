@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
 
 import type {
-  ProcessTemplate,
+  ProcessTemplateWithVersion,
   ProcessTemplateNarrative,
   PhaseConditionTarget,
 } from "@/lib/queries/process-templates";
@@ -20,7 +20,11 @@ import {
 } from "@/lib/case-narratives/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
-import { TemplateStatusBadge } from "@/components/process-templates/template-status-badge";
+import { TemplateVersionStatusBadge } from "@/components/process-templates/template-version-status-badge";
+import { VersionHistoryPanel } from "@/components/process-templates/version-history-panel";
+import { VersionWorkflowBanner } from "@/components/process-templates/version-workflow-banner";
+import { BeginTemplateEditButton } from "@/components/process-templates/begin-template-edit-button";
+import { DiscardTemplateDraftButton } from "@/components/process-templates/discard-template-draft-button";
 import { PhaseSlotCard } from "@/components/process-templates/phase-slot-card";
 import { PhaseSlotDialog } from "@/components/process-templates/phase-slot-dialog";
 import { NarrativeSlotCard } from "@/components/process-templates/narrative-slot-card";
@@ -31,8 +35,8 @@ import { CollectsPatientPicker } from "@/components/process-templates/collects-p
 import { CaseTypePicker } from "@/components/process-templates/case-type-picker";
 import type { CaseType } from "@/lib/cases/case-types";
 import { CustomFieldsCard } from "@/components/process-templates/custom-fields-card";
-import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
-import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
+import { PublishTemplateVersionButton } from "@/components/process-templates/publish-template-version-button";
+import { ArchiveTemplateVersionsButton } from "@/components/process-templates/archive-template-versions-button";
 import {
   attachTargets,
   type PhaseWithTargets,
@@ -116,13 +120,24 @@ function itemRef(item: LayoutItem): { kind: "phase" | "narrative"; id: string } 
  * legacy phase-only list: `PhaseSlotCard` reorders via the per-table
  * `moveTemplatePhase` and there is no "Adicionar narrativa" affordance.
  *
- * Editing is draft-only at the DB level: once the template is `active`, the slot
- * controls below are read-only (the RPCs reject non-draft edits).
+ * ## Versioning (ADR 0096)
+ *
+ * The shell renders ONE version of the template — the one the page resolved (from
+ * `?v=`, else draft → published → newest). Editing is draft-only, and that is a DB
+ * invariant, not a UI convention: every authoring RPC refuses a non-draft version.
+ * So `editable` is read from the version rather than recomputed here — a UI that
+ * disagreed with the substrate would produce a pt-BR error, never a silent write.
+ *
+ * Two grains coexist and must not be confused:
+ *  - **identity** (`data.template.id`) — "edit this process" and "archive this
+ *    process" act on the template across all its versions;
+ *  - **version** (`data.version.id`) — publish, discard, and EVERY child-authoring
+ *    action act on one version, and are refused unless it is the draft.
  */
 export function TemplateBuilderShell({
   org,
   slug,
-  template,
+  data,
   forms,
   conditionTargetsByForm,
   outcomes,
@@ -138,7 +153,8 @@ export function TemplateBuilderShell({
   /** Org slug for hrefs. */
   org: string;
   slug: string;
-  template: ProcessTemplate;
+  /** The template identity, the version in view, and the history for the picker. */
+  data: ProcessTemplateWithVersion;
   forms: SlotForm[];
   /**
    * `{ formId -> choice-question targets }` for every bound + publishable form
@@ -172,22 +188,40 @@ export function TemplateBuilderShell({
   const { run: runReorder, isPending: reorderPending, error: reorderError } =
     useNarrativeAction();
 
-  const isDraft = template.status === "draft";
+  const { template, version, versions, publishedVersionId, draftVersionId } = data;
+
+  // Mirrored from the DB (`status === 'draft'`), never recomputed — see the docs.
+  const isDraft = version.editable;
   // Augment phases with their bound-form choice targets for the recommend editor.
-  const phases = attachTargets(template.phases, conditionTargetsByForm);
+  const phases = attachTargets(version.phases, conditionTargetsByForm);
   const hasForms = forms.length > 0;
 
-  // The right-hand rail: the per-case DATA-COLLECTION config. Both cards are
-  // feature-gated, so when neither shows the workspace stays one column rather
-  // than reserving an empty 320px track.
+  const templatePath = commissionHref(
+    org,
+    slug,
+    "manage",
+    "process-templates",
+    template.id,
+  );
+  const listPath = commissionHref(org, slug, "manage", "process-templates");
+
+  // Version-picker cross-links. Each is `null` when it IS the version in view, so
+  // the banner never offers a link back to the page you are already on.
+  const published = versions.find((v) => v.id === publishedVersionId) ?? null;
+  const draft = versions.find((v) => v.id === draftVersionId) ?? null;
+  const otherPublished = published && published.id !== version.id ? published : null;
+  const otherDraft = draft && draft.id !== version.id ? draft : null;
+
+  // The right-hand rail: version history (always) + the per-case DATA-COLLECTION
+  // config (feature-gated). History makes the rail unconditional — versioning is
+  // the point of this screen, so the picker is never hidden.
   const showCollectsPatient = isDraft && casePatientEnabled;
-  const hasRail = caseCustomFieldsEnabled || showCollectsPatient;
 
   // The merged sequence (phases + narratives) when the feature is on; phase-only
   // otherwise. `mergeTemplateLayout` of phases + [] is just the phases in order.
   const items = mergeTemplateLayout(
     phases,
-    narrativesEnabled ? template.narratives : [],
+    narrativesEnabled ? version.narratives : [],
   );
   const hasItems = items.length > 0;
 
@@ -202,7 +236,7 @@ export function TemplateBuilderShell({
     const next = [...items];
     [next[index], next[target]] = [next[target], next[index]];
     captureBeforeReorder();
-    runReorder(() => reorderCaseLayout(template.id, next.map(itemRef)));
+    runReorder(() => reorderCaseLayout(version.id, next.map(itemRef)));
   }
 
   function removeNarrative(narrativeId: string) {
@@ -222,34 +256,65 @@ export function TemplateBuilderShell({
                 <ArrowLeft aria-hidden="true" className="size-4" />
                 Processos
               </Link>
-              <TemplateStatusBadge status={template.status} />
+              <span className="font-mono text-sm text-muted-foreground">
+                v{version.versionNumber}
+              </span>
+              <TemplateVersionStatusBadge status={version.status} />
             </div>
-            <h1 className="text-3xl text-balance">{template.title}</h1>
-            {template.description && (
+            <h1 className="text-3xl text-balance">{version.title}</h1>
+            {version.description && (
               <p className="max-w-prose text-muted-foreground text-pretty">
-                {template.description}
+                {version.description}
               </p>
             )}
           </div>
 
-          {isDraft && (
-            <div className="flex shrink-0 items-center gap-2">
-              <ArchiveTemplateButton templateId={template.id} />
-              <PublishTemplateButton
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {/* Draft: finish or abandon THIS version. Non-draft: the only way
+                forward is to fork, which is what BeginTemplateEditButton explains. */}
+            {isDraft ? (
+              <>
+                <DiscardTemplateDraftButton
+                  templateVersionId={version.id}
+                  versionNumber={version.versionNumber}
+                  templatePath={templatePath}
+                  publishedVersionId={publishedVersionId}
+                  publishedVersionNumber={published?.versionNumber ?? null}
+                />
+                <PublishTemplateVersionButton
+                  templateVersionId={version.id}
+                  versionNumber={version.versionNumber}
+                  supersededVersionNumber={otherPublished?.versionNumber ?? null}
+                  canPublish={phases.length > 0}
+                />
+              </>
+            ) : (
+              <BeginTemplateEditButton
                 templateId={template.id}
-                canPublish={phases.length > 0}
+                templatePath={templatePath}
+                existingDraftVersionNumber={draft?.versionNumber ?? null}
+                publishedVersionNumber={published?.versionNumber ?? null}
               />
-            </div>
-          )}
+            )}
+            <ArchiveTemplateVersionsButton
+              templateId={template.id}
+              listPath={listPath}
+            />
+          </div>
         </div>
 
-        {!isDraft && (
-          <FormBanner tone="info">
-            Este processo está {template.status === "active" ? "ativo" : "arquivado"} e
-            não pode mais ser editado. Os casos criados a partir dele preservam as
-            fases definidas no momento da criação.
-          </FormBanner>
-        )}
+        {/* The D2 workflow, explained in place — see VersionWorkflowBanner. */}
+        <VersionWorkflowBanner
+          status={version.status}
+          versionNumber={version.versionNumber}
+          caseCount={version.caseCount}
+          publishedVersionNumber={published?.versionNumber ?? null}
+          publishedVersionHref={
+            otherPublished ? `${templatePath}?v=${otherPublished.id}` : null
+          }
+          draftVersionNumber={otherDraft?.versionNumber ?? null}
+          draftVersionHref={otherDraft ? `${templatePath}?v=${otherDraft.id}` : null}
+        />
       </header>
 
       {isDraft && !hasForms && (
@@ -268,8 +333,7 @@ export function TemplateBuilderShell({
       <div
         className={cn(
           "flex flex-col gap-6",
-          hasRail &&
-            "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8",
+          "lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8",
         )}
       >
         <div className="flex flex-col gap-6">
@@ -279,8 +343,8 @@ export function TemplateBuilderShell({
               fixable. Leads the column: it frames every phase below it. */}
           {caseTypesEnabled && (
             <CaseTypePicker
-              templateId={template.id}
-              caseTypeId={template.caseTypeId}
+              templateVersionId={version.id}
+              caseTypeId={version.caseTypeId}
               caseTypes={caseTypes}
             />
           )}
@@ -391,10 +455,10 @@ export function TemplateBuilderShell({
 
           {isDraft && (
             <ProcessOutcomesPicker
-              commissionId={template.commissionId}
-              templateId={template.id}
+              commissionId={version.commissionId}
+              templateVersionId={version.id}
               outcomes={outcomes}
-              offeredOutcomeIds={template.offeredOutcomeIds}
+              offeredOutcomeIds={version.offeredOutcomeIds}
             />
           )}
 
@@ -403,58 +467,51 @@ export function TemplateBuilderShell({
           {!isDraft && (
             <PublishedOutcomesCard
               outcomes={outcomes}
-              offeredOutcomeIds={template.offeredOutcomeIds}
+              offeredOutcomeIds={version.offeredOutcomeIds}
             />
           )}
         </div>
 
-        {hasRail && (
-          <aside
-            aria-label="Dados coletados em cada caso"
-            className="flex flex-col gap-4"
-          >
-            {/* Custom fields (ADR 0083) — editable while draft, read-only once published
-                (mirrors the outcomes picker → published-card treatment). */}
-            {caseCustomFieldsEnabled && (
-              <CustomFieldsCard
-                templateId={template.id}
-                fields={template.customFields}
-                editable={isDraft}
-              />
-            )}
+        {/* The rail is now UNCONDITIONAL: version history is the point of this
+            screen, so the picker is never hidden behind a feature flag. The
+            data-collection cards below it stay feature-gated as before. */}
+        <aside aria-label="Versões e dados do processo" className="flex flex-col gap-4">
+          <VersionHistoryPanel
+            org={org}
+            slug={slug}
+            templateId={template.id}
+            versions={versions}
+            currentVersionId={version.id}
+          />
 
-            {showCollectsPatient && (
-              <CollectsPatientPicker
-                templateId={template.id}
-                collectsPatient={template.collectsPatient}
-              />
-            )}
-          </aside>
-        )}
+          {/* Custom fields (ADR 0083) — editable while draft, read-only once published
+              (mirrors the outcomes picker → published-card treatment). */}
+          {caseCustomFieldsEnabled && (
+            <CustomFieldsCard
+              templateVersionId={version.id}
+              fields={version.customFields}
+              editable={isDraft}
+            />
+          )}
+
+          {showCollectsPatient && (
+            <CollectsPatientPicker
+              templateVersionId={version.id}
+              collectsPatient={version.collectsPatient}
+            />
+          )}
+        </aside>
       </div>
 
-      {/* ADR 0096, TRANSITIONAL — `addTemplatePhase` is UNWIRED: its body is
-          `throw new Error(TV_NOT_IMPLEMENTED)` and its `_formData` parameter is
-          unused, so it never reads this value and never reaches an RPC. Adding a
-          phase does not work at all until backend's M5, and that is expected — it
-          is not a bug in this component.
-
-          The value below is therefore INERT. It is `template.id` only because the
-          shell still receives the pre-versioning `ProcessTemplate`, which has no
-          version id to offer. The flip pass — which re-points this shell to
-          `ProcessTemplateWithVersion` — MUST replace it with the draft `version.id`;
-          nothing will fail before then to remind you, because nothing runs.
-
-          ⚠ Do NOT read this as "the template id is what the RPC wants". It is not
-          what anything wants; it is a placeholder in dead code. (An earlier version
-          of this comment claimed the action still sent `p_template_id` — it never
-          did.) */}
+      {/* Both create-mode dialogs author CHILDREN of the version, so they take
+          `version.id` — and only ever mount while `isDraft`, because every
+          authoring RPC refuses a non-draft version anyway. */}
       {isDraft && (
         <PhaseSlotDialog
           mode="create"
           open={addPhaseOpen}
           onOpenChange={setAddPhaseOpen}
-          templateVersionId={template.id}
+          templateVersionId={version.id}
           forms={forms}
           phases={phases}
           conditionTargetsByForm={conditionTargetsByForm}
@@ -468,15 +525,7 @@ export function TemplateBuilderShell({
           mode="create"
           open={addNarrativeOpen}
           onOpenChange={setAddNarrativeOpen}
-          // ADR 0096, TRANSITIONAL — and the OPPOSITE of the PhaseSlotDialog case
-          // above, so do not read them as one rule. `addTemplateNarrative` lives in
-          // `case-narratives/actions.ts`, is fully WIRED, and passes its first
-          // argument straight through as `p_template_id`. This value is live and
-          // load-bearing, and `template.id` is what that RPC correctly wants today.
-          // The flip pass must swap it to the draft `version.id` AND backend must
-          // re-key that action — unlike the phase seam, this one breaks loudly if
-          // only one half moves.
-          templateVersionId={template.id}
+          templateVersionId={version.id}
           narrativeTypes={narrativeTypes}
         />
       )}

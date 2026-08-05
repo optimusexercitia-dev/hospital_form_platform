@@ -43,12 +43,12 @@ import { OfferedOutcomeBadges } from "@/components/process-templates/offered-out
  */
 export function ProcessOutcomesPicker({
   commissionId,
-  templateId,
+  templateVersionId,
   outcomes,
   offeredOutcomeIds,
 }: {
   commissionId: string;
-  templateId: string;
+  templateVersionId: string;
   /** The commission's non-archived outcome vocabulary. */
   outcomes: CaseOutcome[];
   /** Ids currently offered by this template (pre-checked when the dialog opens). */
@@ -81,7 +81,7 @@ export function ProcessOutcomesPicker({
   function save() {
     setError(null);
     startTransition(async () => {
-      const res = await setProcessOutcomes(templateId, selected);
+      const res = await setProcessOutcomes(templateVersionId, selected);
       if (!res.ok) {
         setError(res.error ?? "Não foi possível salvar os desfechos.");
         return;

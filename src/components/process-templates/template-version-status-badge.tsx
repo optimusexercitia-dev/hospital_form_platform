@@ -16,8 +16,8 @@ import type { TemplateVersionStatus } from "@/lib/queries/process-templates";
  * *versão*, not a *processo*: this badge only ever renders beside a version number.
  *
  * Pure presentational, Server-Component-safe; the union is imported from the query
- * layer so it can't drift. Supersedes {@link TemplateStatusBadge}, which still
- * serves the pre-versioning pages until they are re-pointed.
+ * layer so it can't drift. Replaced the identity-grain `TemplateStatusBadge`, which
+ * was deleted with the rest of the pre-versioning surface.
  */
 const STATUS_LABEL: Record<TemplateVersionStatus, string> = {
   draft: "Rascunho",

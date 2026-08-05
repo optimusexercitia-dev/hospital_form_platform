@@ -75,13 +75,13 @@ export function CustomFieldSlotDialog({
   mode,
   open,
   onOpenChange,
-  templateId,
+  templateVersionId,
   field,
 }: {
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  templateId: string;
+  templateVersionId: string;
   /** Required for `edit`; ignored for `create`. */
   field?: CustomFieldDef;
 }) {
@@ -133,7 +133,7 @@ export function CustomFieldSlotDialog({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData();
-    if (mode === "create") formData.set("templateId", templateId);
+    if (mode === "create") formData.set("templateVersionId", templateVersionId);
     else formData.set("fieldId", field?.id ?? "");
     formData.set("label", label.trim());
     formData.set("fieldType", fieldType);

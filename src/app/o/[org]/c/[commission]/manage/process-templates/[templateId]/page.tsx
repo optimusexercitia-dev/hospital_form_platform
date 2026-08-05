@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
-  getProcessTemplate,
+  getProcessTemplateWithVersion,
   phaseConditionTargets,
   type PhaseConditionTarget,
 } from "@/lib/queries/process-templates";
@@ -38,13 +38,25 @@ export const metadata: Metadata = {
  * The slot picker offers the commission's PUBLISHED forms only — a phase pins a
  * published version at case creation, so binding a never-published form would
  * fail at that point (P0017). We pass the publishable forms to the shell.
+ *
+ * ## Version selection (ADR 0096)
+ *
+ * `?v=<templateVersionId>` selects which version to display. Omitted, the query
+ * resolves **draft → published → newest**, so an author who left a draft open lands
+ * back in it. `getProcessTemplateWithVersion` also REJECTS a version id belonging to
+ * a different template, so a hand-edited `?v=` cannot render one template's version
+ * under another's identity — that guarantee is the substrate's, and is deliberately
+ * not re-checked here.
  */
 export default async function ProcessTemplateBuilderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string; templateId: string }>;
+  searchParams: Promise<{ v?: string }>;
 }) {
   const { org, commission, templateId } = await params;
+  const { v } = await searchParams;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
@@ -52,10 +64,11 @@ export default async function ProcessTemplateBuilderPage({
     notFound();
   }
 
-  const template = await getProcessTemplate(templateId);
-  if (!template || template.commissionId !== access.commission.id) {
+  const data = await getProcessTemplateWithVersion(templateId, v);
+  if (!data || data.version.commissionId !== access.commission.id) {
     notFound();
   }
+  const { version } = data;
 
   // The form picker offers forms that have a published version (a phase pins one
   // at case creation). A form with only a draft can't back a phase yet. The
@@ -101,7 +114,7 @@ export default async function ProcessTemplateBuilderPage({
   // formId; each distinct form is resolved once.
   const targetFormIds = [
     ...new Set([
-      ...template.phases.map((p) => p.formId),
+      ...version.phases.map((p) => p.formId),
       ...publishableForms.map((f) => f.id),
     ]),
   ];
@@ -123,7 +136,7 @@ export default async function ProcessTemplateBuilderPage({
   return (
     <TemplateBuilderShell
       org={org} slug={slug}
-      template={template}
+      data={data}
       forms={publishableForms}
       conditionTargetsByForm={conditionTargetsByForm}
       outcomes={outcomes}

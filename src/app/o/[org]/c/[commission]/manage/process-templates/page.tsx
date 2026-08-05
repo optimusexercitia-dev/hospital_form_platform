@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Workflow } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listProcessTemplates } from "@/lib/queries/process-templates";
+import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { ProcessTemplateCard } from "@/components/process-templates/process-template-card";
 import { CreateProcessTemplateDialog } from "@/components/process-templates/create-process-template-dialog";
 
@@ -33,7 +33,9 @@ export default async function ProcessTemplatesListPage({
     notFound();
   }
 
-  const templates = await listProcessTemplates(access.commission.id);
+  // ADR 0096: each template resolved to the version a LIST should show —
+  // published if any, else the newest.
+  const templates = await listProcessTemplateVersions(access.commission.id);
 
   return (
     <div className="flex flex-col gap-10">
@@ -73,10 +75,10 @@ export default async function ProcessTemplatesListPage({
           aria-label="Processos da comissão"
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {templates.map((template, index) => (
+          {templates.map((entry, index) => (
             <ProcessTemplateCard
-              key={template.id}
-              template={template}
+              key={entry.template.id}
+              data={entry}
               org={org} slug={slug}
               index={index}
             />

@@ -30,6 +30,8 @@ import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { loadCasePatientForNotify } from "@/lib/cases/actions";
 import { getEthicsCaseProcedure } from "@/lib/queries/ethics";
+import { getCaseTemplateProvenance } from "@/lib/queries/process-templates";
+import { CaseTemplateProvenance } from "@/components/cases/case-template-provenance";
 
 /**
  * Shared shell for a case's two tabs — **Detalhes** (default child) and **Linha
@@ -99,6 +101,11 @@ export default async function CaseDetailLayout({
     // React `cache()`-memoized, so the `etica` page's own read reuses this.
     getEthicsCaseProcedure(caseId),
   ]);
+
+  // ADR 0096 D3 — which template VERSION this case ran under. `null` for a
+  // processless case, which is a supported answer, not a load failure; the
+  // component renders it as "Sem processo".
+  const templateProvenance = await getCaseTemplateProvenance(caseId);
   const sortedMembers = sortMembers(members);
   const showEthics = ethicsProcedure !== null;
 
@@ -180,9 +187,11 @@ export default async function CaseDetailLayout({
                 )}
               </h1>
               <CaseStatusBadgeFixed status={c.status} />
-              {c.templateId === null && (
-                <CaseStatusBadge label="Sem processo" colorToken="muted" />
-              )}
+              {/* ADR 0096 D3 — the "Sem processo" badge that used to sit here is
+                  gone: CaseTemplateProvenance below now owns that fact, and states
+                  it alongside the version when there IS a process. Two renderings
+                  of one fact also made an unscoped `getByText('Sem processo')`
+                  match twice, which is a Playwright strict-mode failure. */}
               {detail.outcome && (
                 <CaseStatusBadge
                   label={detail.outcome.label}
@@ -201,6 +210,14 @@ export default async function CaseDetailLayout({
                 {c.departmentName}
               </p>
             )}
+            <CaseTemplateProvenance
+              provenance={templateProvenance}
+              templateVersionHref={
+                templateProvenance
+                  ? `${commissionHref(org, commission, "manage", "process-templates", templateProvenance.templateId)}?v=${templateProvenance.templateVersionId}`
+                  : null
+              }
+            />
             <p className="text-sm text-muted-foreground">
               Criado em {formatDate(c.createdAt)}
               {c.closedAt ? ` · Encerrado em ${formatDate(c.closedAt)}` : ""}
