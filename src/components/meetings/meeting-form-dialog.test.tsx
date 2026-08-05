@@ -65,6 +65,7 @@ const MEMBERS: MemberListItem[] = [
     joinedAt: "2026-01-01",
     titleId: null,
     titleName: "Presidente",
+    isActive: true,
   },
   {
     memberId: "cm2",
@@ -75,6 +76,7 @@ const MEMBERS: MemberListItem[] = [
     joinedAt: "2026-01-02",
     titleId: null,
     titleName: null,
+    isActive: true,
   },
 ];
 

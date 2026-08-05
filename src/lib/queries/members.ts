@@ -32,6 +32,19 @@ export interface MemberListItem {
    * the assignment control writes back. */
   titleId: string | null
   titleName: string | null
+  /**
+   * Whether this member currently satisfies `app.is_active` — the predicate every
+   * assignee-taking RPC enforces (via `app.is_member_of_for`). A roster row can be a
+   * perfectly good *membership* and still fail it, because activity lives on the
+   * PROFILE (deactivated account, or a suspension that has not lapsed).
+   *
+   * ⚠ Carried, never pre-filtered. The two consumer classes need opposite answers:
+   * member MANAGEMENT must list a suspended member (that page is where you lift the
+   * suspension), while any ASSIGNMENT surface must not offer them — see
+   * {@link activeMembers}. `listMembers` returning only the active ones would break
+   * the first; returning them unlabelled is what broke the second (FUP-BULK-1).
+   */
+  isActive: boolean
 }
 
 // Shape of a memberships row (commission-tier) joined to its profile + optional
@@ -43,8 +56,35 @@ interface MemberRow {
   role: string
   granted_at: string
   title_id: string | null
-  profiles: { full_name: string | null; email: string | null } | null
+  profiles: {
+    full_name: string | null
+    email: string | null
+    is_active: boolean | null
+    suspended_until: string | null
+  } | null
   commission_member_titles: { name: string } | null
+}
+
+/**
+ * The TS mirror of `app.is_active(uuid)`:
+ *
+ *   is_active and (suspended_until is null or now() >= suspended_until)
+ *   …coalesced to FALSE for an absent profile (fail closed).
+ *
+ * Mirrored rather than round-tripped because the roster read already has both
+ * columns (`authenticated` holds a column-level SELECT grant on each), so asking the
+ * DB again would cost a call per member to learn what the row already says. The
+ * evaluator-parity discipline of Architecture Rule 3 applies: if the SQL predicate
+ * changes, this changes with it — `members.test.ts` pins the three branches.
+ */
+export function profileIsActive(profile: MemberRow['profiles']): boolean {
+  if (!profile || profile.is_active !== true) return false
+  if (profile.suspended_until === null) return true
+  const until = Date.parse(profile.suspended_until)
+  // An unparseable timestamp is treated as still-suspended, matching the coalesce's
+  // fail-closed direction (never hand an assignment to someone we cannot vouch for).
+  if (Number.isNaN(until)) return false
+  return Date.now() >= until
 }
 
 /**
@@ -63,7 +103,7 @@ export async function listMembers(
     .select(
       // MEM added a SECOND memberships→profiles FK (granted_by), so the bare
       // `profiles(...)` embed is ambiguous (PGRST201). Pin the member-profile FK.
-      'id, principal_id, role, granted_at, title_id, profiles!memberships_principal_id_fkey(full_name, email), commission_member_titles(name)',
+      'id, principal_id, role, granted_at, title_id, profiles!memberships_principal_id_fkey(full_name, email, is_active, suspended_until), commission_member_titles(name)',
     )
     .eq('commission_id', commissionId)
     .returns<MemberRow[]>()
@@ -90,9 +130,34 @@ export async function listMembers(
       joinedAt: row.granted_at,
       titleId: row.title_id,
       titleName: row.commission_member_titles?.name ?? null,
+      isActive: profileIsActive(row.profiles),
     }))
 
   return sortMembers(members)
+}
+
+/**
+ * The roster narrowed to members an assignee-taking RPC will actually ACCEPT.
+ *
+ * FUP-BULK-1: the bulk wizard offered every member with a `staff`/`staff_admin` role
+ * and defaulted them all to selected, while `bulk_create_cases` gates each owner on
+ * `app.is_member_of_for` → `app.is_active` and raises HC021. With one suspended
+ * member in a roster of nine and a `Math.random` deal, ~2/9 of runs handed a case to
+ * someone the door refuses — a genuine user-facing failure that surfaced as a "flaky"
+ * E2E red on every branch.
+ *
+ * Use this at any surface that OFFERS a member as an assignment target. Do NOT use it
+ * for display or management rosters — an invisible suspended member cannot be
+ * un-suspended. The same disagreement exists at the other assignee-taking doors
+ * (`assign_narrative`, `reassign_phase`, `assign_referral_reviewer`,
+ * `add_interview_interviewer`, `grant_case_access`, `appoint_administrativo`, …);
+ * they fail loudly on a single explicit pick rather than randomly, and are tracked
+ * separately — pass their rosters through here as each is covered.
+ */
+export function activeMembers(
+  members: readonly MemberListItem[],
+): MemberListItem[] {
+  return members.filter((m) => m.isActive)
 }
 
 /** A registered platform user a coordinator may ADD to a commission. */

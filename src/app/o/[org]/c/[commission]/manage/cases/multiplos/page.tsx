@@ -6,7 +6,7 @@ import { commissionHref } from "@/lib/routing";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getFeatureFlags } from "@/lib/queries/feature-flags";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
-import { listMembers } from "@/lib/queries/members";
+import { activeMembers, listMembers } from "@/lib/queries/members";
 import { bulkCreateCases } from "@/lib/cases/bulk-actions";
 import { BulkCreateWizard } from "@/components/cases/bulk-create-wizard";
 import type {
@@ -73,7 +73,12 @@ export default async function BulkCreateCasesPage({
       customFields: t.customFields,
     }));
 
-  const bulkMembers: BulkMember[] = members.map((m) => ({
+  // FUP-BULK-1: offer only members `bulk_create_cases` will accept as an owner. The
+  // RPC gates every owner on `app.is_member_of_for` → `app.is_active` and raises
+  // HC021; the wizard defaults every listed member to SELECTED and deals with
+  // `Math.random`, so a suspended member in the roster failed the whole atomic
+  // creation at random rather than being quietly skipped.
+  const bulkMembers: BulkMember[] = activeMembers(members).map((m) => ({
     userId: m.userId,
     fullName: m.fullName,
     email: m.email,
