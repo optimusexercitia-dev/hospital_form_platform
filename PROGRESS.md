@@ -63,6 +63,15 @@
 | **case-custom-fields** | **Case Custom Fields** [0083](docs/decisions/0083-case-custom-fields.md) | ✅ complete | ✅ lint/tsc/vitest 369 | ✅ E2E 8/8 (3× clean) · pgTAP `188` 28/28 · full `e2e:prod` 735p (feat 8/8 on prod build) | ✅ APPROVED (0 P0 · 0 MAJOR · 1 MINOR cleared · 2 INFO) [review](docs/reviews/adr-0083-case-custom-fields-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | merge `c857193` · flag ON `fde76d3` |
 | **bulk-case-create** | **Bulk Case Creation ("Múltiplos casos")** [0084](docs/decisions/0084-bulk-case-creation.md) | ✅ complete | ✅ build/tsc/lint/vitest 390 | ✅ E2E 8/8 prod-standalone · pgTAP 29/29 | ✅ APPROVED (4 MINOR/OBSERVATION, none blocking; fixed `b948c9f`) [review](docs/reviews/bulk-case-creation-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | flag ON `255a8e9` |
 | **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 | ✅ complete | ✅ | ✅ 50 KS mut-proven · pgTAP 3288 · invariant HOLDS | ✅ APPROVED [review](docs/reviews/authz-door-audit-p0-review.md) | ✅ 2026-07-18 | 2026-07-18 | ff→main |
+| **PCI** | **Process/Case integrity audit remediation** [0095](docs/decisions/0095-process-case-integrity-audit-remediation.md) · [audit](docs/reviews/process-case-integrity-audit.md) | ✅ build complete — **E2E never validly run** (see note) | ✅ lint 0/0 · tsc · vitest 901 | ✅ pgTAP **157f/4819** fresh reset · 4 guards neutralization-proven · `ARM=floor` HOLDS · diff-scoped sweep **0 BLIND** · ⚠ `e2e:prod` **VOID** (655/962 unrun — see note) | ⏳ not started | ⏳ | — | `44cd9bb`, `e0fbfa2` (branch `db/process-case-integrity`, not merged) |
+| **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel | 🔨 **in progress** — substrate/doors/UI/specs done; pgTAP churn + rehearsal outstanding | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 283=283 | 🔨 `test:db` **RED (expected)** — 21 files mid-churn · E2E specs written, **never executed** | ⏳ not started | ⏳ | — | `86078f1` (WIP checkpoint) + `75fc767`, `daa37d1` |
+
+> ⚠ **PCI's E2E line is not a pass and must not be read as one.** The `e2e:prod` run exited **0** while
+> reporting `GATE RED (UNRUN)`: **655 of 962 tests never executed** because batches 6–16 hit
+> `reset FAILED`. Cause: TV migration files landed on disk mid-run, and the gate runs `db reset` per
+> batch — so authoring a migration during a gate is **not inert**. Zero assertion failures were
+> observed, so there is no regression *signal*, but there is also no *evidence*: PCI remains
+> E2E-unvalidated and inherits TV's run.
 
 ## Current Phase Tasks
 
