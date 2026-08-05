@@ -18,10 +18,29 @@
 #     Offenders that are legitimately door-only / E2E-only are allowlisted in
 #     authz-neverclled-door-allowlist.txt; anything else fails the gate.
 #
+#   ARM 3  CENSUS CLOSURE — the sixteenth-stopper (ADR 0079 Amendment 2)
+#     Every prosecdef boolean function in app/public and every RLS policy in the
+#     LIVE catalog must carry a VERDICT somewhere: a row in a committed findings
+#     md (BLIND | COVERED | ERROR | SKIPPED) or a line in authz-unswept-backlog.txt.
+#     A gate in NEITHER has never been swept, in any direction.
+#
+#     ⚠ This is the arm that catches a NEW gate, and neither of the others can.
+#     ARM 1 asserts BLIND ⊆ allowlist — but a never-swept gate is in NO BLIND set,
+#     so it passes ARM 1 vacuously (and passes it INSTANTLY in FROMFINDINGS mode,
+#     which reads a findings md the new policy is simply absent from). ARM 2 asks
+#     only whether DOORS are called and never looks at policies at all. That is how
+#     15 policies added between 2026-07-18 and 2026-08-03 crossed five phase gates:
+#     each one was invisible to every arm on the day it landed.
+#
+#     Cost: ~2 s (two catalog queries + a sort — no suite run, no mutation). Cheap
+#     enough to run EVERY phase, which is the whole point: an expensive gate gets
+#     satisfied nominally, and that is the failure this arm exists to prevent.
+#
 # ── Modes ──────────────────────────────────────────────────────────────────────
-#   bash p0-authz-invariant.sh                 # ARM 1 (full sweep, ~90 min) + ARM 2
+#   bash p0-authz-invariant.sh                 # ARM 1 (full sweep, ~90 min) + 2 + 3
 #   ARM=policy  bash p0-authz-invariant.sh     # ARM 1 only
 #   ARM=floor   bash p0-authz-invariant.sh     # ARM 2 only  (~1 min)
+#   ARM=census  bash p0-authz-invariant.sh     # ARM 3 only  (~2 s)
 #   FROMFINDINGS=1 ARM=policy bash ...          # ARM 1 fast: compare the COMMITTED
 #                                               # findings md to the allowlist, NO sweep
 #                                               # (a light CI check; the full sweep is
@@ -39,6 +58,7 @@ WORK="${WORK:-/c/Users/micha/AppData/Local/Temp/claude/C--Users-micha-Developmen
 HERE="$ROOT/supabase/tests/mutation"
 ALLOWLIST="$HERE/authz-blind-allowlist.txt"
 FLOOR_ALLOW="$HERE/authz-neverclled-door-allowlist.txt"
+UNSWEPT="$HERE/authz-unswept-backlog.txt"
 DOOR_FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
 WP_FINDINGS="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
 ARM="${ARM:-all}"
@@ -55,6 +75,22 @@ allow_body () { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -vE '^[[:space
 blind_from_findings () {
   awk '/^## BLIND/{f=1;next} /^## /{f=0} f && /^\| / && $0 !~ /gate . policy/ && $0 !~ /^\|---/ {print}' "$1" \
     | sed -E 's/^\| *//; s/ *\|.*$//' | grep -vE '^$'
+}
+
+# ARM 3 — col-1 labels from EVERY verdict table in a findings md (BLIND + COVERED +
+# ERROR + SKIPPED). A verdict in any direction proves the gate was swept.
+verdicts_from_findings () {
+  grep -E '^\| ' "$1" 2>/dev/null | grep -vE '^\|---|gate . policy' \
+    | sed -E 's/^\| *//; s/ *\|.*$//' | grep -vE '^$'
+}
+
+# ARM 3 — the "Skipped SELECT/ALL policies (qual = true)" bullet list, reshaped from
+# `- `tbl / polname / CMD`` into the sweep's canonical `tbl.polname (CMD)` label. These
+# were deliberately not neutralized (true -> true is a vacuous no-op), which is itself a
+# recorded verdict.
+skipped_from_findings () {
+  grep -E '^- `[A-Za-z0-9_]+ / [A-Za-z0-9_]+ / [A-Z]+`$' "$1" 2>/dev/null \
+    | sed -E 's/^- `//; s/`$//' | awk -F' / ' '{printf "%s.%s (%s)\n", $1, $2, $3}'
 }
 
 RC=0
@@ -152,11 +188,77 @@ run_arm_floor () {
   fi
 }
 
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 3 — CENSUS CLOSURE (the sixteenth-stopper)
+# ════════════════════════════════════════════════════════════════════════════════
+run_arm_census () {
+  echo "=== ARM 3: census closure — every live authz gate carries a verdict ==="
+  local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
+
+  # LIVE domain, from the catalog and nothing else (never migration text). Deliberately
+  # WIDER than either sweep's own worklist: ALL prosecdef boolean functions in app/public
+  # (no name-prefix filter — `capa_viewer_can_manage` and `member_can` are real gates the
+  # door audit's `^(is_|can_|has_)` regex has never had in scope) and ALL RLS policies
+  # (every polcmd — the door arm sees only SELECT/ALL, the write arm only its snapshot).
+  { psql_c -c "
+      select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      join pg_type      t on t.oid = p.prorettype
+      where n.nspname in ('app','public') and p.prosecdef and t.typname = 'bool';"
+    psql_c -c "
+      select c.relname||'.'||pol.polname||' ('||
+             (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'
+                              when 'w' then 'UPDATE' when 'd' then 'DELETE' end)||')'
+      from pg_policy pol
+      join pg_class c on c.oid = pol.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public';"
+  } | grep -vE '^[[:space:]]*$' | sort -u > "$live"
+
+  # ACCOUNTED = a verdict exists anywhere. The BLIND allowlist counts too: those gates
+  # were swept and found BLIND, which is a verdict.
+  { verdicts_from_findings "$DOOR_FINDINGS"; verdicts_from_findings "$WP_FINDINGS"
+    skipped_from_findings "$DOOR_FINDINGS"; skipped_from_findings "$WP_FINDINGS"
+    allow_body "$ALLOWLIST"; allow_body "$UNSWEPT"
+  } | sort -u > "$accounted"
+
+  echo "  live authz gates (catalog): $(wc -l < "$live" | tr -d '[:space:]')"
+  echo "  gates carrying a verdict:   $(wc -l < "$accounted" | tr -d '[:space:]')"
+
+  local newcomers
+  newcomers=$(comm -23 "$live" "$accounted")
+  if [ -n "$newcomers" ]; then
+    echo "  *** CENSUS VIOLATED — authz gates that NO sweep has ever seen:"
+    echo "$newcomers" | sed 's/^/      /'
+    echo "  These are not BLIND — they are UNKNOWN. Nothing has asked whether a keystone"
+    echo "  notices when they open. Fix: run the diff-scoped ARM 1 over exactly these"
+    echo "  (ADR 0079 Amendment 1 recipe), then keystone what comes back BLIND:"
+    echo "      WORK=<scratch> CASES=\"<polnames/pronames>\" bash $HERE/p0-authz-door-audit.sh"
+    echo "      git checkout -- $DOOR_FINDINGS   # a subset run OVERWRITES the report"
+    echo "  If a gate is genuinely not an authorization decision, classify it in"
+    echo "  $UNSWEPT under 'helper:' WITH the reason."
+    RC=1
+  else
+    echo "  OK: every live authz gate carries a verdict (no unswept newcomer)."
+  fi
+
+  # Hygiene (non-fatal): a backlog line with no live gate behind it — the gate was
+  # renamed or dropped, and the line is now a comforting no-op.
+  local ghosts
+  ghosts=$(comm -13 "$live" <(allow_body "$UNSWEPT" | sort -u))
+  if [ -n "$ghosts" ]; then
+    echo "  note: backlog entries with no matching live gate (renamed/dropped — prune):"
+    echo "$ghosts" | sed 's/^/      /'
+  fi
+}
+
 case "$ARM" in
   policy) run_arm_policy ;;
   floor)  run_arm_floor ;;
-  all)    run_arm_policy; echo; run_arm_floor ;;
-  *) echo "unknown ARM=$ARM (use policy|floor|all)"; exit 2 ;;
+  census) run_arm_census ;;
+  all)    run_arm_policy; echo; run_arm_floor; echo; run_arm_census ;;
+  *) echo "unknown ARM=$ARM (use policy|floor|census|all)"; exit 2 ;;
 esac
 
 echo

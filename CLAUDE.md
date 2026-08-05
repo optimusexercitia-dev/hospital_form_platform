@@ -248,15 +248,22 @@ Phases 18–19 stay post-pilot.
 > named `admin` with `is_admin = false`), and **`prosecdef` belongs beside `pg_policies`** — a DEFINER's
 > gate **replaces** RLS, so a policy-shaped audit is structurally blind to it.
 
+When a decision in this file is superseded by an ADR, amend this file too — a stale
+`CLAUDE.md` is worse than a missing one, because it is loaded into every session. However, always ask before making changes to `CLAUDE.md`.
+
 ## 6. Phase Gate (mandatory, in order)
 
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
    suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
    E2E-mutated DB yields spurious commission-count reds that are not defects.
-   **Authz gates** — `ARM=floor bash supabase/tests/mutation/p0-authz-invariant.sh` (~1 min) must
-   hold. **If the phase touched any RLS policy or `prosecdef` boolean gate**, also run the
-   **diff-scoped** door sweep over exactly those (~1 min/gate), deriving the list from the migration
-   diff, never by hand — recipe + rationale in **ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)
+   **Authz gates** — `ARM=census` (~2 s) **and** `ARM=floor` (~1 min) of
+   `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
+   catches a gate you just added** — it asserts every live RLS policy + `prosecdef` boolean
+   gate carries a verdict from *some* sweep; a brand-new gate is in no BLIND set, so it passes
+   `ARM=policy` **vacuously** (ADR 0079 Amendment 2). **If the phase touched any RLS policy or
+   `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
+   (~1 min/gate), deriving the list from the migration diff, never by hand — recipe + rationale
+   in **ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)
    Amendment 1**. **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop,
    never a tenant-isolation policy); **`ERROR` is not a pass** (unauditable → cover it in the phase's
    mutation audit); ⚠ afterwards `git checkout -- docs/reviews/authz-door-audit-findings.md` — a
@@ -277,8 +284,9 @@ Phases 18–19 stay post-pilot.
    (mechanics: lead-playbook), updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
    `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
-   *notices* when a gate is opened. Phase 16 logged "`p0-authz-invariant.sh` INVARIANT HOLDS" having
-   run only the former — and its own `accreditation_standards_select` passes it and fails the latter.
+   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*. Phase 16 logged
+   "`p0-authz-invariant.sh` INVARIANT HOLDS" having run only the first — and its own
+   `accreditation_standards_select` passes it and fails the other two.
 
 ## 7. Progress Tracking
 

@@ -106,6 +106,48 @@ Measured 2026-08-04 on MEM W4: **4 gates → 4m20s**, verdicts `3 COVERED / 1 ER
 3. **The baseline must be green** — run on a fresh `supabase db reset`. The sweep aborts on a dirty
    baseline (§7.3), which is correct but wastes the run.
 
+## Amendment 2 — ARM 3, the census that stops the sixteenth (2026-08-04)
+
+**Why.** Amendment 1 made the sweep a phase step, which fixes "nobody ran it". It does not
+fix the deeper hole: **ARM 1 cannot see a gate that was never swept.** ARM 1 asserts
+`BLIND ⊆ allowlist`. A policy added today is in no BLIND set, so it is in neither side of
+that comparison and passes — *instantly and silently* in `FROMFINDINGS` mode, which reads a
+committed findings md the new policy is simply absent from. ARM 2 never looks at policies at
+all. So on the day each of the 15 landed, **every arm of the invariant passed**.
+
+Measuring the census on 2026-08-04 found the hole is wider than the 15, and structural:
+**46 live authz gates carried no verdict from any sweep**, because the two sweeps enumerate
+different incomplete domains —
+
+- the door audit's policy arm filters `polcmd in ('r','*')`: **every INSERT/UPDATE/DELETE
+  policy is out of its domain by construction**;
+- the write-path audit covers those, but from a **33-row snapshot embedded 2026-07-18** plus
+  a 7-name hardcoded guard list. The snapshot never grew;
+- the door audit's predicate arm filters on a **name prefix** (`^(is_|can_|has_|…)`), so
+  `member_can` (the ADR 0061 capability resolver), `confidentiality_clearance_ok`,
+  `capa_viewer_can_manage`, `interview_viewer_can_write` and `rca_writer_can_write` have
+  never been in any worklist. *An enumeration whose boundary is a naming convention is the
+  same mistake as one whose boundary is a filename.*
+
+**Decision.** `ARM=census` (~2 s, no suite run, no mutation): every `prosecdef` boolean
+function in `app`/`public` and every RLS policy **of every `polcmd`** in the live catalog
+must carry a verdict — a row in a committed findings md (BLIND | COVERED | ERROR | SKIPPED)
+or a line in the new **`authz-unswept-backlog.txt`**. Anything in neither fails the gate.
+CLAUDE.md §6 step 1 runs it **every phase**; cost is the point, since Amendment 1's own
+argument is that an expensive gate gets satisfied nominally.
+
+**`authz-unswept-backlog.txt` is deliberately NOT the BLIND allowlist.** That file means
+*we swept it and no keystone noticed*; this one means *we have never swept it, so we do not
+know*. Merging them would let an unswept entry silence a genuine BLIND finding later. It is
+seeded with the 46, each classified `gate:` (18 — owes a sweep) or `helper:` (28 — the result
+does not depend on who is asking: flag readers, structural validators, state predicates).
+The helpers are **listed rather than regex-filtered** so the classification is a reviewable
+record instead of an exclusion nobody reads.
+
+**Proven, not asserted** (the keystone rule applied to the gate itself): deleting one line
+from the backlog makes ARM 3 print that gate and exit 1; restoring it returns `INVARIANT
+HOLDS`. A gate that has never been shown to fail is not a gate.
+
 ### `ERROR` is a recorded ceiling, not a pass
 
 30 of 302 cases (28 door + 2 write-path) score `ERROR (run-shape!=baseline)`: neutralizing them
