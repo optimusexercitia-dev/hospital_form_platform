@@ -116,3 +116,38 @@ is the inverse of where assurance is wanted: `app.has_role` alone leaves 259 tes
 `is_admin`. For the membership primitives ARM 1 can therefore **never** be the evidence; the
 per-workstream targeted mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 ·
 `295` 13/13). A phase whose new gate scores `ERROR` owes a targeted mutation case instead.
+
+## Amendment 2 — one mutation is not sufficient evidence of vacuity (2026-08-04)
+
+**Why this belongs in THIS ADR.** The neutralization oracle as this ADR states it — neutralize a
+gate, require the suite to go red — is satisfiable by a **single probe**. That is enough to prove an
+assertion *can* fail. It is **not** enough to prove that an assertion which stayed green under one
+probe is therefore redundant. Amendment 2 closes that gap; it is a correction to the discipline
+above, not a separate practice.
+
+**The evidence** (TV phase, `VersionHistoryPanel`, 2026-08-04). Two ordering assertions. Round 1
+mutated the component to sort **ascending**: test #1 reddened, test #2 stayed green. The available
+and tempting conclusion — the one a competent engineer writes up — is *"#2 is vacuous, it reads as a
+near-duplicate of #1, delete it."* Round 2 mutated to sort **descending** instead: **#2 reddened and
+#1 stayed green.**
+
+They are complementary, and each is irreplaceable: #1 pins *"do not sort ascending"*; #2 pins *"do
+not stop sorting at all, even in the direction that happens to look right"*. One probe told a clean,
+confident, wrong story.
+
+**Rule.** When a probe leaves an assertion green and you are about to call it vacuous, **probe the
+opposite direction first**. Report vacuity only when the assertion survives probes that move the
+property both ways. A single surviving probe is evidence of nothing.
+
+**The corollary is the dangerous part.** A test that *looks* like a near-duplicate is simultaneously
+(a) the most likely to be deleted in a tidy-up, and (b) the most likely to be the one guarding the
+non-obvious direction. So the vacuity verdict must be **recorded next to the assertions**, naming
+which is load-bearing under which mutation — otherwise the next cleanup re-derives the wrong answer
+from the same tempting surface. Compare the honest-limit disclosure in `296` §H1: knowing *which* of
+three assertions actually catches the mutation is what stops the wrong two surviving a cleanup.
+
+**Scope.** This is not authz-specific — it applies to every mutation-proven keystone in the repo,
+pgTAP and Vitest alike. It is filed here because it amends this ADR's oracle. ⚠ It was first written
+into PROGRESS.md's *Current Phase Tasks*, which §5 rotation archives at phase close — a cross-phase
+lesson in a per-phase container, which would have filed it away exactly when it became useful. That
+was a lead error; cross-phase records belong in `docs/decisions/` or `docs/testing/`.
