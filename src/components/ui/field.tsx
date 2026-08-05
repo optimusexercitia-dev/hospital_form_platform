@@ -77,11 +77,26 @@ function useFieldIds(
     hasError?: boolean;
     hasDescription?: boolean;
     required?: boolean;
+    /**
+     * DOM id for the control, when it must differ from `name`.
+     *
+     * ⚠ `name` doubles as the DOM id, so TWO forms on one page using the same field
+     * name silently produce DUPLICATE ids — and `htmlFor` then resolves to whichever
+     * element comes FIRST in document order, i.e. the other form's control. Found
+     * 2026-08-05 on `/admin`, where `HospitalCreateForm` and `OrgAdminAssignForm` both
+     * used `organizationId`: the org-admin section's label pointed at the hospital
+     * form's select, so clicking it moved focus into the wrong form and a screen
+     * reader announced the wrong field. Pass `id` on the LATER form to break the tie.
+     *
+     * The form key is unaffected — `name` still drives `formData.get(name)`.
+     */
+    id?: string;
   } = {},
 ) {
   const { hasError = false, hasDescription = false, required = false } = options;
-  const descriptionId = `${name}-description`;
-  const errorId = `${name}-error`;
+  const controlId = options.id ?? name;
+  const descriptionId = `${controlId}-description`;
+  const errorId = `${controlId}-error`;
   const describedBy =
     [hasDescription ? descriptionId : null, hasError ? errorId : null]
       .filter(Boolean)
@@ -91,7 +106,9 @@ function useFieldIds(
     descriptionId,
     errorId,
     controlProps: {
-      id: name,
+      // The DOM id, which is `name` unless the caller had to break a duplicate-id tie.
+      // `name` below is the FORM KEY and never changes with it.
+      id: controlId,
       name,
       "aria-describedby": describedBy,
       "aria-invalid": hasError || undefined,

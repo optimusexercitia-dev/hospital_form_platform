@@ -63,13 +63,34 @@ function sql(query: string): string {
  * teardown once deleted a seed row and killed later batches in other files during
  * *setup* — so this names exactly one address and touches nothing else.
  */
+/**
+ * Remove only what this file GRANTS — the org_admin membership — and deliberately leave
+ * the invited profile and auth user behind.
+ *
+ * ⚠ Two product invariants make the obvious teardown impossible, and both were learned
+ * the hard way here:
+ *   1. `guard_profile_no_delete` — *"profiles are never deleted; deactivate via
+ *      is_active"*. There is no GUC escape; the guard raises unconditionally. A teardown
+ *      that deletes a profile is not cleaning up, it is fighting a designed invariant.
+ *   2. `profiles.id` FKs `auth.users.id` with no cascade, so the auth user cannot go
+ *      either while its profile stands.
+ *
+ * ⚠ And this teardown ran green for a day without ever executing: MEM2-1 was failing
+ * BEFORE it created the invitee, so the purge always matched zero rows. A teardown is
+ * only exercised once the test it cleans up after starts passing — do not read "the
+ * suite is green" as "the teardown works".
+ *
+ * Leaving the profile is harmless and keeps the file idempotent. On a fresh DB (every
+ * gate batch resets) the invitee does not exist, so MEM2-1 exercises the INVITE path; on
+ * a repeat local run `resolveOrInviteUser` resolves the existing user instead. The
+ * assertions — `granted_by` and the org anchor — hold either way, because the membership
+ * is what this file creates and destroys.
+ */
 function purgeInvitee(): void {
   sql(
     `delete from public.memberships m using public.profiles p ` +
       `where m.principal_id = p.id and p.email = '${INVITEE}';`,
   )
-  sql(`delete from auth.users where email = '${INVITEE}';`)
-  sql(`delete from public.profiles where email = '${INVITEE}';`)
 }
 
 test.beforeAll(() => {

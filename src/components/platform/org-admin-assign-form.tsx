@@ -44,8 +44,16 @@ export function OrgAdminAssignForm({
     if (state?.ok) formRef.current?.reset();
   }, [state?.ok]);
 
+  // ⚠ Distinct DOM id, same form key. `HospitalCreateForm` renders ABOVE this one on
+  // /admin and also uses the field name `organizationId`; with `name` doubling as the
+  // id that put two `id="organizationId"` elements on one page, and `htmlFor` resolves
+  // to the FIRST in document order — so this section's "Organização" label pointed at
+  // the HOSPITAL form's select. Clicking it moved focus into the wrong form, and a
+  // screen reader announced the wrong field. `formData.get("organizationId")` in
+  // `assignOrgAdmin` is unaffected: only the id changes, not the submitted name.
   const orgField = useFieldIds("organizationId", {
     hasError: Boolean(state?.fieldErrors?.organizationId),
+    id: "orgAdminOrganizationId",
   });
   const emailField = useFieldIds("email", {
     hasError: Boolean(state?.fieldErrors?.email),
