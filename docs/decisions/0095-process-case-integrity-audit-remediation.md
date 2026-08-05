@@ -53,8 +53,25 @@ shipped a regression.
   unversioned; `cases.template_id` is `ON DELETE SET NULL`, so deleting a template erases the
   provenance of historical cases. For an accreditation product, "which process was in force
   when this case ran" is a survey question. The fix mirrors Rule 5 (publish freezes; edit
-  clones) across 5 child tables, ~12 RPCs, types and UI — phase-sized, and it collides with
-  the FF/Phase-16 sequencing. **Not started.**
+  clones) across 5 child tables, ~12 RPCs, types and UI. **Not started.**
+
+  ⚠ **Correction (same day).** An earlier draft of this ADR deferred it because it "collides
+  with the FF/Phase-16 sequencing". That is **false** and was taken from CLAUDE.md §5 — a line
+  that carries its own warning to verify against PROGRESS.md. Per PROGRESS.md the
+  Flexible-Forms program closed 5/5 on 2026-08-03 and Phase 16 completed 2026-08-04 (merged and
+  pushed); **no gated phase remains in front of the pilot deploy.** There is no sequencing
+  collision. The real reasons to defer, which are stronger:
+
+  1. **The pilot deploy is the next step and is user-gated**, and its remaining half is the
+     Coolify deploy plus a remote `db push` of every local-only migration. Template versioning
+     would add a phase-sized schema change to that queue.
+  2. **It re-points `cases.template_id`, which is populated on the remote.** That is a
+     data-dependent migration — the class that passes a local reset against 0 rows and fails
+     `db push` on a data-bearing remote.
+  3. **Three open pre-pilot items outrank it**, two of them security: BUG-AUTHZ-002 and
+     AUDIT-INVOKER-WRAPPER. Template versioning is a provenance/auditability improvement with
+     no known exploit.
+  4. It is phase-sized, so CLAUDE.md §6 requires human approval before it starts regardless.
 - **3b · `blocks integer[]` → a join table.** With M2 shipped, this is a modeling-purity
   change, not a correctness one. Deferred as churn that a pre-pilot branch should not absorb.
 - **3c · Rename `case_phase_offered_results` → `case_offered_results`.** Cosmetic but earned:
