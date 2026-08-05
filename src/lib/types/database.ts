@@ -3046,10 +3046,10 @@ export type Database = {
           },
           {
             foreignKeyName: "case_phases_form_version_id_fkey"
-            columns: ["form_version_id"]
+            columns: ["form_version_id", "form_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "form_id"]
           },
           {
             foreignKeyName: "case_phases_result_id_fkey"
