@@ -101,6 +101,20 @@ export default async function Home() {
     redirect("/c");
   }
 
+  // ADR 0094 W4 / FUP-MEM-3b — the Diretor Técnico. Placed AFTER the commission
+  // branches on purpose: the office is a hat worn ALONGSIDE a day job, so a DT who
+  // also belongs to a commission keeps landing where they always did. This branch only
+  // changes the outcome for someone who would otherwise hit "sem acesso" — which,
+  // until now, is exactly what a pure DT got. The office confers no membership, so
+  // every branch above steps over it and the account looked unprovisioned.
+  // ⚠ The consequence of that placement: a DT who IS a commission member has no link
+  // to their inbox yet (they land on the commission). Tracked with FUP-MEM-3b.
+  if (context.technicalDirectionOf.length > 0) {
+    redirect(
+      orgHref(context.technicalDirectionOf[0].organization.slug, "direcao-tecnica"),
+    );
+  }
+
   // No org-admin role and no commissions — nothing to route to. Show a calm,
   // actionable pt-BR message rather than a dead redirect loop.
   return <NoAccess email={context.email} />;

@@ -153,12 +153,28 @@ export function ReferralsList({
   slug,
   direction,
   referrals,
+  hrefBase,
 }: {
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   direction: ReferralDirection;
   referrals: ReferralListItem[];
+  /**
+   * Row-link base. When set, a row links to `${hrefBase}/${referral.id}`; otherwise
+   * the commission route, which is why `org`/`slug` stay required. The
+   * technical-direction inbox passes its own base: a Diretor Técnico holds no
+   * commission membership, so `commissionHref` would build a link into a route
+   * `getCommissionAccessByOrg` refuses (ADR 0094 W4 / FUP-MEM-3b).
+   *
+   * ⚠ A STRING, not a `(id) => string` builder. This is a `"use client"` component, and
+   * a function prop from a Server Component is an immediate RSC boundary crash
+   * ("Functions cannot be passed directly to Client Components") — which is what the
+   * builder version did on first run, after passing typecheck, lint AND a real
+   * `next build`. Same shape as BUG-QI-001: pass data across the boundary and build
+   * the href on this side.
+   */
+  hrefBase?: string;
 }) {
   const [statusFilter, setStatusFilter] = useState<ReferralStatus | "all">("all");
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
@@ -326,7 +342,11 @@ export function ReferralsList({
                         {formatReferralCode(r.code)}
                       </span>
                       <Link
-                        href={commissionHref(org, slug, "encaminhamentos", r.id)}
+                        href={
+                          hrefBase
+                            ? `${hrefBase}/${r.id}`
+                            : commissionHref(org, slug, "encaminhamentos", r.id)
+                        }
                         className="truncate rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                       >
                         {r.subject}
