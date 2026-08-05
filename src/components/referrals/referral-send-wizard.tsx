@@ -167,6 +167,7 @@ export function ReferralSendWizard({
   referralTypes,
   requestedActions,
   targetCommissions,
+  technicalDirectionHospitalId,
   narratives,
   documents,
   parentReferralId,
@@ -180,6 +181,20 @@ export function ReferralSendWizard({
   /** RV2 R2: the active requested-action vocabulary ("o que se pede"). */
   requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
+  /**
+   * ADR 0094 W4 / FUP-MEM-3 — the SOURCE commission's own hospital, enabling the
+   * "direção técnica" destination. `null`/absent hides that arm entirely (the
+   * `technical_director` flag is off, or the commission has no hospital).
+   *
+   * An id and no name, deliberately: `hospitals_select` does not admit a plain
+   * commission member, so the coordinator driving this wizard generally cannot read
+   * the hospital's NAME. It costs nothing here — a commission belongs to exactly one
+   * hospital, so "a direção técnica do hospital" is unambiguous from inside it, and
+   * naming it would mean adding a read path (and a new authz gate) for a label.
+   *
+   * The RPC refuses any OTHER hospital with HC071, so this is never a free choice.
+   */
+  technicalDirectionHospitalId?: string | null;
   narratives: PickableNarrative[];
   documents: PickableDocument[];
   /** RV2 R3: when set, this draft is a FORWARD ("Encaminhar adiante") — the new
@@ -207,7 +222,15 @@ export function ReferralSendWizard({
 
   // Step 1 fields.
   const [referralTypeId, setReferralTypeId] = useState("");
+  // ADR 0094 W4 — the destination is a SUM TYPE, so the UI models it as one: a kind
+  // plus the payload the kind needs, never two independent fields that could both be
+  // set. `technical_director` carries no payload beyond the source hospital, which is
+  // fixed, so there is nothing to pick once it is chosen.
+  const [targetKind, setTargetKind] = useState<"commission" | "technical_director">(
+    "commission",
+  );
   const [targetCommissionId, setTargetCommissionId] = useState("");
+  const technicalDirectionAvailable = Boolean(technicalDirectionHospitalId);
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [responseExpected, setResponseExpected] = useState(true);
@@ -239,8 +262,11 @@ export function ReferralSendWizard({
   );
   const targetName = useMemo(
     () =>
-      targetCommissions.find((c) => c.id === targetCommissionId)?.name ?? null,
-    [targetCommissions, targetCommissionId],
+      targetKind === "technical_director"
+        ? "Direção técnica do hospital"
+        : (targetCommissions.find((c) => c.id === targetCommissionId)?.name ??
+          null),
+    [targetCommissions, targetCommissionId, targetKind],
   );
   const requestedActionLabel = useMemo(
     () =>
@@ -304,8 +330,10 @@ export function ReferralSendWizard({
     e.preventDefault();
     setError(null);
     if (!referralTypeId) return setError(REFERRAL_MESSAGES.referralTypeRequired);
-    if (!targetCommissionId)
+    if (targetKind === "commission" && !targetCommissionId)
       return setError(REFERRAL_MESSAGES.targetCommissionRequired);
+    if (targetKind === "technical_director" && !technicalDirectionHospitalId)
+      return setError(REFERRAL_MESSAGES.referralTargetRequired);
     if (!subject.trim()) return setError(REFERRAL_MESSAGES.subjectRequired);
 
     startTransition(async () => {
@@ -318,7 +346,15 @@ export function ReferralSendWizard({
       }
       const result = await createReferralDraft({
         sourceCaseId,
-        targetCommissionId,
+        // Exactly one arm reaches the RPC — the other is explicitly null, never "" or
+        // undefined-by-omission, so the action's two-sided check reads the intent
+        // rather than the absence.
+        targetCommissionId:
+          targetKind === "commission" ? targetCommissionId : null,
+        targetHospitalId:
+          targetKind === "technical_director"
+            ? (technicalDirectionHospitalId ?? null)
+            : null,
         referralTypeId,
         subject: subject.trim(),
         descriptionMd: description.trim() || null,
@@ -527,29 +563,86 @@ export function ReferralSendWizard({
               )}
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Comissão de destino</span>
-              <NativeSelect
-                value={targetCommissionId}
-                onChange={(e) => setTargetCommissionId(e.target.value)}
-                required
-                className="py-2"
-              >
-                <option value="" disabled>
-                  Selecione a comissão…
-                </option>
-                {targetCommissions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+            {/* ADR 0094 W4 — destination kind. Rendered only when the technical
+                direction is actually reachable; with a single arm there is nothing to
+                choose, and a radio group of one is noise. */}
+            {technicalDirectionAvailable && (
+              <fieldset className="flex flex-col gap-2 text-sm">
+                <legend className="mb-1.5 font-medium">Destino</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(
+                    [
+                      { key: "commission", label: "Outra comissão" },
+                      {
+                        key: "technical_director",
+                        label: "Direção técnica do hospital",
+                      },
+                    ] as const
+                  ).map((option) => {
+                    const checked = targetKind === option.key;
+                    return (
+                      <label
+                        key={option.key}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 transition-colors",
+                          checked
+                            ? "border-primary/40 bg-accent/30"
+                            : "border-border bg-card hover:border-primary/30",
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="referral-target-kind"
+                          value={option.key}
+                          checked={checked}
+                          onChange={() => {
+                            setTargetKind(option.key);
+                            if (option.key === "technical_director") {
+                              setTargetCommissionId("");
+                            }
+                          }}
+                          className="size-4 accent-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                        />
+                        <span className="text-sm">{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {targetKind === "technical_director" && (
+                  <span className="text-xs text-pretty text-muted-foreground">
+                    O(a) diretor(a) técnico(a) responde tecnicamente por todas as
+                    comissões deste hospital. Substitutos(as) designados(as) têm a
+                    mesma autoridade.
+                  </span>
+                )}
+              </fieldset>
+            )}
+
+            {targetKind === "commission" && (
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Comissão de destino</span>
+                <NativeSelect
+                  value={targetCommissionId}
+                  onChange={(e) => setTargetCommissionId(e.target.value)}
+                  required
+                  className="py-2"
+                >
+                  <option value="" disabled>
+                    Selecione a comissão…
                   </option>
-                ))}
-              </NativeSelect>
-              {targetCommissions.length === 0 && (
-                <span className="text-xs text-muted-foreground">
-                  Nenhuma outra comissão disponível para encaminhamento.
-                </span>
-              )}
-            </label>
+                  {targetCommissions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+                {targetCommissions.length === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Nenhuma outra comissão disponível para encaminhamento.
+                  </span>
+                )}
+              </label>
+            )}
 
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Assunto</span>

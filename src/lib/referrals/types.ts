@@ -878,8 +878,24 @@ export interface CreateReferralState extends ReferralActionState {
 export interface CreateReferralInput {
   /** The source case A is referring (the actor must coordinate its commission). */
   sourceCaseId: string
-  /** The committee B the case is referred to. */
-  targetCommissionId: string
+  /**
+   * The committee B the case is referred to. `null` iff {@link targetHospitalId} is
+   * set — the destination is a SUM TYPE (ADR 0094 W4 D7), and the RPC states the rule
+   * two-sidedly so neither "both" nor "neither" can slip through.
+   */
+  targetCommissionId: string | null
+  /**
+   * ADR 0094 W4 — the hospital whose DIREÇÃO TÉCNICA is the destination. Set iff
+   * {@link targetCommissionId} is null; the RPC then stamps
+   * `target_type = 'technical_director'`.
+   *
+   * ⚠ Must be the SOURCE commission's own hospital (HC071 otherwise). A Diretor
+   * Técnico is technically responsible for ONE hospital's committees; admitting a
+   * committee of another hospital would hand that DT the PHI of a hospital they are
+   * not responsible for. So this is never a free choice in the UI — it is the source
+   * commission's hospital or nothing.
+   */
+  targetHospitalId?: string | null
   /** The chosen referral type (drives `type_label` snapshot + default reply). */
   referralTypeId: string
   /** PHI-free one-line subject. */

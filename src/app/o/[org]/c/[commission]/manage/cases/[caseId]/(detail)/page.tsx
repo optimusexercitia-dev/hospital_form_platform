@@ -136,7 +136,11 @@ export default async function CaseDetailPage({
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
-  const referralsModule = await buildCaseReferralsModule(detail, documents);
+  const referralsModule = await buildCaseReferralsModule(
+    detail,
+    documents,
+    access.commission.hospitalId,
+  );
 
   // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
   const correctionsData = await buildCaseCorrectionsData(detail);

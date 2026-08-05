@@ -7,6 +7,7 @@ import {
   listReferralTypes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
+import { getFeatureFlags } from "@/lib/queries/feature-flags";
 import type { CaseDetail } from "@/lib/queries/cases";
 import type { CaseDocumentWithUrl } from "@/lib/queries/case-documents";
 
@@ -44,17 +45,35 @@ import type { CaseReferralsModule } from "@/components/cases/case-detail-view";
 export async function buildCaseReferralsModule(
   detail: CaseDetail,
   documents: CaseDocumentWithUrl[],
+  /**
+   * ADR 0094 W4 / FUP-MEM-3 — the SOURCE commission's own hospital, taken from the
+   * host's already-resolved `CommissionAccess` (`access.commission.hospitalId`)
+   * rather than re-read here: a plain commission member cannot read `hospitals`, and
+   * the access resolver has the id in hand for free.
+   *
+   * The RPC refuses any other hospital (HC071 — a Diretor Técnico is technically
+   * responsible for ONE hospital's committees), so the destination is not a choice
+   * the coordinator makes; it is this hospital or nothing.
+   */
+  sourceHospitalId?: string | null,
 ): Promise<CaseReferralsModule | null> {
   if (!(await referralsEnabled())) return null;
 
   const caseId = detail.case.id;
-  const [referrals, referralTypes, requestedActions, targetCommissions] =
+  const [referrals, referralTypes, requestedActions, targetCommissions, flags] =
     await Promise.all([
       listCaseOutboundReferrals(caseId),
       listReferralTypes(),
       listReferralRequestedActions(),
       listReferralTargetCommissions(detail.case.commissionId),
+      getFeatureFlags(),
     ]);
+
+  // A dark flag confers nothing: the RPC's DT arm raises before it considers any
+  // authority, so offering the destination while the flag is off would be an
+  // affordance that can only fail.
+  const technicalDirectionHospitalId =
+    flags.technical_director === true ? (sourceHospitalId ?? null) : null;
 
   const narratives = detail.narratives
     .filter((n) => (n.bodyMd ?? "").trim().length > 0)
@@ -76,6 +95,7 @@ export async function buildCaseReferralsModule(
     referralTypes,
     requestedActions,
     targetCommissions,
+    technicalDirectionHospitalId,
     narratives,
     documents: pickableDocuments,
   };

@@ -54,6 +54,7 @@ export function CaseOutboundReferralsCard({
   referralTypes,
   requestedActions,
   targetCommissions,
+  technicalDirectionHospitalId,
   narratives,
   documents,
   forwardParentReferralId,
@@ -70,6 +71,10 @@ export function CaseOutboundReferralsCard({
   /** RV2 R2: the requested-action vocabulary for the wizard. */
   requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
+  /** ADR 0094 W4 — the source commission's own hospital, which enables the "direção
+   * técnica" destination in the send wizard. `null` when the `technical_director`
+   * flag is off or the commission has no hospital. */
+  technicalDirectionHospitalId?: string | null;
   narratives: PickableNarrative[];
   documents: PickableDocument[];
   /** RV2 R3: when this case-detail was reached via an "Encaminhar adiante"
@@ -171,6 +176,7 @@ export function CaseOutboundReferralsCard({
           referralTypes={referralTypes}
           requestedActions={requestedActions}
           targetCommissions={targetCommissions}
+          technicalDirectionHospitalId={technicalDirectionHospitalId}
           narratives={narratives}
           documents={documents}
           parentReferralId={forwardParentReferralId ?? null}

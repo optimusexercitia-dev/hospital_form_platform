@@ -381,6 +381,55 @@ export async function listNspOrgAdmins(orgId: string): Promise<RoleHolder[]> {
   return mapRoleHolders(data)
 }
 
+/** A hospital's technical direction (ADR 0094 W4): one titular, N deputies. */
+export interface TechnicalDirection {
+  /** The Diretor Técnico. `null` when the office is vacant. */
+  titular: RoleHolder | null
+  /** Substitutos — unbounded, and by decision D1 they hold the SAME authority. */
+  deputies: RoleHolder[]
+}
+
+/**
+ * The technical direction currently seated at `hospitalId` (ADR 0094 W4).
+ *
+ * One read for both roles, then split in TS — the office is displayed as a unit and a
+ * second round trip would only differ in a `.eq`. RLS-scoped by `memberships_select`'s
+ * hospital-tier arm (`is_org_admin_of(org_of_hospital(hospital_id))` OR
+ * `is_hospital_admin_of(hospital_id)`), which is exactly the pair
+ * `authorizeTechnicalDirection` admits for the WRITE side — so a caller who can see
+ * this panel can act on it, and everyone else gets `{ titular: null, deputies: [] }`.
+ *
+ * ⚠ At most one titular is a KERNEL invariant, not a UI one: `appoint_technical_director`
+ * revokes the incumbent and grants the appointee in one transaction, and a plain
+ * `grant_role` over a seated office is refused (HC0G4). This picks the first row rather
+ * than asserting, because a UI is the wrong place to discover a broken invariant — the
+ * pgTAP suite (`294`) is where that assertion belongs.
+ */
+export async function listTechnicalDirection(
+  hospitalId: string,
+): Promise<TechnicalDirection> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('memberships')
+    .select('principal_id, granted_at, role, profiles:principal_id(full_name, email)')
+    .eq('hospital_id', hospitalId)
+    .in('role', ['technical_director', 'technical_director_deputy'])
+    .returns<(RoleHolderRow & { role: string })[]>()
+
+  if (error || !data) return { titular: null, deputies: [] }
+
+  const titulars = mapRoleHolders(
+    data.filter((r) => r.role === 'technical_director'),
+  )
+  return {
+    titular: titulars[0] ?? null,
+    deputies: mapRoleHolders(
+      data.filter((r) => r.role === 'technical_director_deputy'),
+    ),
+  }
+}
+
 /**
  * Hospitals under `orgId` as {@link HospitalRef}, the source for the
  * `/o/[org]/manage` hospital switcher (ADR 0051 Decision 7). Sorted by name

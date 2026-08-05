@@ -103,6 +103,8 @@ export const REFERRAL_MESSAGES = {
   // Validation (client-side pre-checks before the RPC)
   subjectRequired: 'Informe um assunto para o encaminhamento.',
   targetCommissionRequired: 'Selecione a comissão de destino.',
+  /** ADR 0094 W4 — the destination is a sum type; exactly one arm must be chosen. */
+  referralTargetRequired: 'Selecione o destino do encaminhamento.',
   referralTypeRequired: 'Selecione o tipo de encaminhamento.',
   sourceCaseRequired: 'Selecione o caso a encaminhar.',
   sharedItemKindInvalid: 'Selecione uma narrativa ou um documento para anexar.',

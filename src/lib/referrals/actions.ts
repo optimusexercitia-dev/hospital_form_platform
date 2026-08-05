@@ -82,8 +82,15 @@ export async function createReferralDraft(
   if (!input.sourceCaseId) {
     return { ok: false, error: REFERRAL_MESSAGES.sourceCaseRequired }
   }
-  if (!input.targetCommissionId) {
-    return { ok: false, error: REFERRAL_MESSAGES.targetCommissionRequired }
+  // ADR 0094 W4 D7 — EXACTLY ONE destination. Mirrored from the RPC's own two-sided
+  // test rather than "is a commission set?", because the one-sided form admits the
+  // "both" case, and the RPC would then refuse with a raw check_violation that maps
+  // to a generic string. Stated the same way in both places so neither can drift into
+  // accepting what the other rejects.
+  const hasCommissionTarget = Boolean(input.targetCommissionId)
+  const hasHospitalTarget = Boolean(input.targetHospitalId)
+  if (hasCommissionTarget === hasHospitalTarget) {
+    return { ok: false, error: REFERRAL_MESSAGES.referralTargetRequired }
   }
   if (!input.referralTypeId) {
     return { ok: false, error: REFERRAL_MESSAGES.referralTypeRequired }
@@ -95,7 +102,20 @@ export async function createReferralDraft(
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('create_referral_draft', {
     p_source_case_id: input.sourceCaseId,
-    p_target_commission_id: input.targetCommissionId,
+    // ⚠ The GENERATED Args type says `string`, but NULL is the correct value on the
+    // technical-direction arm — the RPC's XOR requires exactly one destination, so
+    // this parameter must be null whenever `p_target_hospital_id` is set. The type is
+    // too narrow because the SQL parameter carries no DEFAULT, and it cannot be given
+    // one: it is argument 2, and Postgres refuses a default on a parameter followed by
+    // mandatory ones (`p_referral_type_id`, `p_subject`). Expressing the sum type in
+    // the signature would need a parameter REORDER — filed rather than smuggled in
+    // here. Sent as an explicit null and never omitted: PostgREST resolves the
+    // overload from the keys present, so omitting a defaultless argument is a PGRST202
+    // "function not found", not a NULL.
+    p_target_commission_id: input.targetCommissionId as unknown as string,
+    // ADR 0094 W4 — the technical-direction arm of the destination sum type. This one
+    // DOES carry `DEFAULT NULL`, so omitting it is a genuine "no hospital target".
+    p_target_hospital_id: input.targetHospitalId ?? undefined,
     p_referral_type_id: input.referralTypeId,
     p_subject: input.subject.trim(),
     p_response_expected: input.responseExpected,

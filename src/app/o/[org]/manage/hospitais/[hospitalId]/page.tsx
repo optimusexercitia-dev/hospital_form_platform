@@ -4,13 +4,16 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Hospital } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { listHospitalsForOrg } from "@/lib/queries/org";
+import { listHospitalsForOrg, listTechnicalDirection } from "@/lib/queries/org";
+import { listOrgEligibleUsers } from "@/lib/queries/pqs";
+import { getFeatureFlags } from "@/lib/queries/feature-flags";
 import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import { orgHref } from "@/lib/routing";
 import { DepartmentsManager } from "@/components/hospitals/departments-manager";
+import { TechnicalDirectionManager } from "@/components/org/technical-direction-manager";
 
 export const metadata: Metadata = {
-  title: "Setores do hospital",
+  title: "Hospital",
 };
 
 /**
@@ -43,14 +46,30 @@ export default async function HospitalDetailPage({
   // Must administer THIS hospital: org_admin of its org, or hospital_admin of it.
   if (!orgAdmin && !hospitalAdmin) notFound();
 
+  // The organisation this hospital hangs under — known from whichever authority
+  // admitted the caller above (an org_admin carries the org; a hospital_admin
+  // carries it on the hospital grant).
+  const organizationId =
+    orgAdmin?.organization.id ?? hospitalAdmin?.organization.id ?? null;
+
   // Resolve the hospital's display name (org_admin only — a hospital_admin
   // already carries it in context) alongside the departments read: neither
   // depends on the other's result, only on values already resolved above.
-  const [hospitals, departments] = await Promise.all([
-    orgAdmin ? listHospitalsForOrg(orgAdmin.organization.id) : Promise.resolve(null),
-    // Management view: include archived rows so they can be reactivated.
-    listDepartmentsForHospital(hospitalId, { includeArchived: true }),
-  ]);
+  // ADR 0094 W4 / FUP-MEM-3: the technical-direction panel's two reads join the
+  // same batch — both authorities admitted above may see and act on it.
+  const [hospitals, departments, flags, direction, eligibleUsers] =
+    await Promise.all([
+      orgAdmin
+        ? listHospitalsForOrg(orgAdmin.organization.id)
+        : Promise.resolve(null),
+      // Management view: include archived rows so they can be reactivated.
+      listDepartmentsForHospital(hospitalId, { includeArchived: true }),
+      getFeatureFlags(),
+      listTechnicalDirection(hospitalId),
+      organizationId
+        ? listOrgEligibleUsers(organizationId)
+        : Promise.resolve([]),
+    ]);
 
   let hospitalName: string | null = hospitalAdmin?.hospital.name ?? null;
   if (orgAdmin) {
@@ -82,9 +101,40 @@ export default async function HospitalDetailPage({
         </div>
       </header>
 
+      {/* ADR 0094 W4 — the Diretor Técnico office. Flag-gated: a dark flag confers
+          nothing, and the kernel refuses every DT grant while it is off, so showing
+          the panel would be an affordance that can only fail. */}
+      {flags.technical_director === true ? (
+        <section
+          aria-labelledby="technical-direction-heading"
+          className="animate-rise-in flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7"
+        >
+          <div className="flex flex-col gap-1">
+            <h2
+              id="technical-direction-heading"
+              className="text-lg font-semibold"
+            >
+              Direção técnica
+            </h2>
+            <p className="text-sm text-pretty text-muted-foreground">
+              O(a) diretor(a) técnico(a) responde tecnicamente por todas as
+              comissões deste hospital e recebe os encaminhamentos dirigidos à
+              direção técnica.
+            </p>
+          </div>
+          <TechnicalDirectionManager
+            hospitalId={hospitalId}
+            hospitalName={hospitalName ?? "este hospital"}
+            direction={direction}
+            eligibleUsers={eligibleUsers}
+          />
+        </section>
+      ) : null}
+
       <section
         aria-labelledby="departments-heading"
         className="animate-rise-in flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7"
+        style={{ ["--rise-delay" as string]: "60ms" }}
       >
         <div className="flex flex-col gap-1">
           <h2 id="departments-heading" className="text-lg font-semibold">

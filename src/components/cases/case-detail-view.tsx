@@ -73,6 +73,9 @@ export interface CaseReferralsModule {
   /** RV2 R2: the active requested-action vocabulary for the wizard's "o que se pede". */
   requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
+  /** ADR 0094 W4 — the source commission's hospital when the `technical_director`
+   * flag is on, which unlocks the wizard's "direção técnica" destination. */
+  technicalDirectionHospitalId: string | null;
   narratives: PickableNarrative[];
   documents: PickableDocument[];
 }
@@ -526,6 +529,9 @@ export function CaseDetailView({
                   referralTypes={referralsModule.referralTypes}
                   requestedActions={referralsModule.requestedActions}
                   targetCommissions={referralsModule.targetCommissions}
+                  technicalDirectionHospitalId={
+                    referralsModule.technicalDirectionHospitalId
+                  }
                   narratives={referralsModule.narratives}
                   documents={referralsModule.documents}
                   forwardParentReferralId={forwardParentReferralId}
