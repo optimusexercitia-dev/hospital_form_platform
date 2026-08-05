@@ -32,6 +32,7 @@ import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
 import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
+import { getCaseTemplateProvenance } from "@/lib/queries/process-templates";
 
 export const metadata: Metadata = {
   title: "Caso",
@@ -120,6 +121,7 @@ export default async function StaffCaseDetailPage({
     interviews,
     meetings,
     customFields,
+    templateProvenance,
   ] = await Promise.all([
     listMembers(access.commission.id),
     listCaseDocuments(caseId),
@@ -132,6 +134,11 @@ export default async function StaffCaseDetailPage({
     caseCustomFieldsOn
       ? listCaseCustomFieldValues(caseId)
       : Promise.resolve([]),
+    // ADR 0096 D3 — which template VERSION this case ran under. Staff are the
+    // people FILLING the phases, so they are the ones most exposed to "my case is
+    // running v2 while the process moved to v4". `null` = processless, a supported
+    // answer the component renders as "Sem processo".
+    getCaseTemplateProvenance(caseId),
   ]);
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
@@ -173,6 +180,7 @@ export default async function StaffCaseDetailPage({
       myRole={myRole}
       withHeader
       backHref={commissionHref(org, commission, "meus-casos")}
+      templateProvenance={templateProvenance}
       referralsModule={referralsModule}
       canManagePhaseResults={canManagePhaseResults}
       phaseResultOptions={phaseResultOptions}

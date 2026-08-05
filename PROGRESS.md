@@ -210,6 +210,34 @@ Swept and confirmed zero. The residual `status === "active"` hits in `src/app`/`
 ⚠ The `Publicar` locators in `answer-model-v2` / `ff1` / `ff2` / `ff3` specs are the **FORM**
 builder's publish button, untouched. Only the two process-template sites above moved.
 
+**Staff-route provenance — ✅ COMPLETE 2026-08-05** (lead RULING: D3 says "on the case", not "on the
+coordinator case screen"; the flip checklist scoped by FILE instead of by REQUIREMENT). Two files:
+`casos/[caseId]/page.tsx` (fetch added to the existing `Promise.all`) and `case-detail-view.tsx`
+(new optional **header-only** prop, mirroring the existing `myRole` convention, so the coordinator
+page needed no edit).
+
+The staff view is the one that most needed this: staff FILL the phases, so "my case is running v2
+while the process moved to v4" is their confusion to have. The coordinator can already open the
+builder.
+
+⚠ **It is a MOVE, not a copy.** The `Sem processo` badge left the header's badge row and the fact now
+lives in the provenance meta line, mirroring the coordinator's placement. Rendering it in both places
+is exactly what produced the strict-mode collision this phase already removed once.
+
+**Verified, not assumed** (I asserted "exactly one occurrence" once before without checking, and was
+right only by luck): the render sits at `case-detail-view.tsx:406`, inside the `{withHeader && …}`
+block spanning 363–462. Coordinator mounts `withHeader={false}` → its copy comes from the layout.
+**One occurrence per route, both routes.** The remaining `Sem processo` literal is
+`create-case-dialog.tsx:323`, a `<select>` option on the cases LIST page — a different route, no
+collision.
+
+⚠ **E2E locator delta — STAFF route (`/o/[org]/c/[commission]/casos/[caseId]`):**
+| Was | Now |
+| --- | --- |
+| `Sem processo` as a **badge** in the header badge row | same text, now the **provenance meta line** beside `Criado em` — still exactly one occurrence |
+| *(nothing)* on a case WITH a process | **NEW**: `{título} · versão {N}` |
+| — | ⚠ **No link on this route** — `templateVersionHref` is omitted because the builder is coordinator-gated, so it renders as plain text. A spec reaching for `getByRole('link')` here finds nothing **by design**, not by defect |
+
 Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
 `lint:memberships-door`) · `typecheck` clean · Vitest **945/945** (was 901; +44 new component tests)
 · real `next build` ✅ (run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's
