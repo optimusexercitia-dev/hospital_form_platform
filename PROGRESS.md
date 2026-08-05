@@ -180,8 +180,26 @@ Unblocks on backend's **M5 + `gen:types`**:
 5. Delete `template-status-badge.tsx` + drop the last `ProcessTemplateStatus` / `'active'` readers.
 
 Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
-`lint:memberships-door`) · `typecheck` clean · Vitest **901/901** · real `next build` ✅
-(run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's in-flight E2E gate).
+`lint:memberships-door`) · `typecheck` clean · Vitest **924/924** (was 901; +23 new component tests)
+· real `next build` ✅ (run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's
+in-flight E2E gate).
+
+> ⚠ **Read that green bar narrowly.** Every component in this tranche is currently UNRENDERED —
+> no page mounts any of them until the flip pass. So lint/tsc/`next build` green says almost
+> nothing about whether they work; it says they compile. This is the FF-1 shape exactly (3 live
+> bugs survived lint + tsc + build + 457 unit + 3919 pgTAP; only E2E caught them). The first real
+> execution of this code is the flip pass, and that is where defects should be expected to appear.
+
+**Component tests added (frontend-owned, co-located, DB-free)** — `case-template-provenance.test.tsx`
+(9) + `version-workflow-banner.test.tsx` (14). They encode the two claims that otherwise lived only
+in doc comments: **`null` provenance renders "Sem processo", never an error/empty** (the ADR 0096 D3
+trap), and the archived state's pt-BR **number agreement at 0 / 1 / many** (the helper exists because
+the inline-ternary version was unreviewable). Both were **mutation-proven, not just green**: forcing
+the `null` branch to `return null` and swapping the singular sentence for the plural each reddened
+exactly the intended test, then were reverted (`grep MUTATION PROBE` → clean).
+⚠ Precision on that: of the three processless tests, only the `textContent` one catches the
+`return null` mutation — the two `queryByRole` assertions pass vacuously under it and guard a
+*different* regression (turning the branch into an alert/status banner). Complementary, not redundant.
 
 > ⚠ **Two transitional sites in `template-builder-shell.tsx`, and they are OPPOSITE.** Both create-mode
 > dialogs take the version-grain prop name while still being passed `template.id`, but for different
