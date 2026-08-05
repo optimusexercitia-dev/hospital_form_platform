@@ -170,16 +170,40 @@ implementations land, so the branch stays runnable and E2E-meaningful.
 | Page re-pointing (4 pages + case-detail layout) → versioned queries | ⏸ **HELD by the lead** — these call queries that currently throw |
 | `TemplateBuilderShell` → `ProcessTemplateWithVersion` + version chrome | ⏸ **HELD** — belongs to the same flip pass (it forces the builder page's props) |
 
+**Flip-pass checklist** (all in ONE commit, so nothing transitional survives — lead-directed 2026-08-04).
+Unblocks on backend's **M5 + `gen:types`**:
+
+1. Re-point the 4 pages + `(detail)/layout.tsx` to the versioned queries; `TemplateBuilderShell` → `ProcessTemplateWithVersion`, wiring `VersionHistoryPanel` + `VersionWorkflowBanner` + the draft affordances.
+2. Swap both create-mode dialog values from `template.id` to the draft `version.id`, and delete the two transitional comment blocks.
+3. Re-key `custom-field-slot-dialog.tsx`'s `formData.set("templateId", …)` → `templateVersionId` (silent otherwise — see the ⚠ below).
+4. **DELETE the `Sem processo` badge** from `(detail)/layout.tsx` (lead RULING 2026-08-04): `CaseTemplateProvenance` owns that fact. Keeping both is a Playwright **strict-mode** hazard — an unscoped `getByText('Sem processo')` would match twice and red a spec for a non-product reason. Lead briefs `tester` with the locator delta before this lands.
+5. Delete `template-status-badge.tsx` + drop the last `ProcessTemplateStatus` / `'active'` readers.
+
 Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
 `lint:memberships-door`) · `typecheck` clean · Vitest **901/901** · real `next build` ✅
 (run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's in-flight E2E gate).
 
-> ⚠ **One transitional split is live in `template-builder-shell.tsx`** (both create-mode dialogs):
-> the prop/field name is at the VERSION grain, but the value passed is still `template.id`. That is
-> correct today and not a latent bug — the substrate migration has not landed, so `addTemplatePhase`
-> still sends `p_template_id` and the template id *is* what the RPC wants. Backend took the same
-> name-ahead-of-value split deliberately. The flip pass replaces the value with the draft `version.id`,
-> at which point name and value agree; it is commented at both sites.
+> ⚠ **Two transitional sites in `template-builder-shell.tsx`, and they are OPPOSITE.** Both create-mode
+> dialogs take the version-grain prop name while still being passed `template.id`, but for different
+> reasons, and a reader who assumes one rule will get the other wrong:
+>
+> - **`PhaseSlotDialog`** → `addTemplatePhase` is **unwired** (`throw new Error(TV_NOT_IMPLEMENTED)`,
+>   `_formData` unused). Adding a phase does not work at all until M5. The value is **inert**, and
+>   nothing will fail at flip time to remind anyone to swap it.
+> - **`NarrativeSlotDialog`** → `addTemplateNarrative` (in `case-narratives/actions.ts`) is **wired** and
+>   passes its first argument through as `p_template_id`. The value is **live**, and `template.id` is
+>   genuinely what that RPC wants today. Flip must move the value *and* backend must re-key the action.
+>
+> ⚠ **A third seam is not yet re-keyed and is silent:** `custom-field-slot-dialog.tsx` still submits
+> `formData.set("templateId", …)`, while `createCustomFieldDef` will read `templateVersionId` at M5.
+> It throws today so nothing breaks — but when M5 wires it, the field arrives as `undefined` unless the
+> dialog is renamed in the same pass. Added to the flip checklist.
+>
+> **Correction (2026-08-04, lead-caught):** the first version of this note, and the commit message of
+> `513f1d5`, both claimed `addTemplatePhase` "still sends `p_template_id`". It never did. That claim came
+> from a grep hit on a *comment inside the unwired body* explaining why it was left unwired — the repo's
+> own "text is not truth / resolve the VALUE, not the noun" lesson, reproduced exactly. Comments in the
+> three affected files now state the mechanism as verified from the function bodies.
 
 ### 📋 Remaining pre-pilot work
 

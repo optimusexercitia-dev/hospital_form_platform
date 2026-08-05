@@ -433,13 +433,22 @@ export function TemplateBuilderShell({
         )}
       </div>
 
-      {/* ADR 0096, TRANSITIONAL — the authoring seam is re-keyed to the version
-          grain (prop + FormData field), but the substrate migration has not landed,
-          so `addTemplatePhase` still sends `p_template_id` and the value it wants is
-          still the TEMPLATE id. Name is forward-looking, value is current-substrate:
-          the same split backend deliberately took on its side. The flip pass, which
-          re-points this shell to `ProcessTemplateWithVersion`, replaces the value
-          with the draft `version.id` — at which point name and value agree again. */}
+      {/* ADR 0096, TRANSITIONAL — `addTemplatePhase` is UNWIRED: its body is
+          `throw new Error(TV_NOT_IMPLEMENTED)` and its `_formData` parameter is
+          unused, so it never reads this value and never reaches an RPC. Adding a
+          phase does not work at all until backend's M5, and that is expected — it
+          is not a bug in this component.
+
+          The value below is therefore INERT. It is `template.id` only because the
+          shell still receives the pre-versioning `ProcessTemplate`, which has no
+          version id to offer. The flip pass — which re-points this shell to
+          `ProcessTemplateWithVersion` — MUST replace it with the draft `version.id`;
+          nothing will fail before then to remind you, because nothing runs.
+
+          ⚠ Do NOT read this as "the template id is what the RPC wants". It is not
+          what anything wants; it is a placeholder in dead code. (An earlier version
+          of this comment claimed the action still sent `p_template_id` — it never
+          did.) */}
       {isDraft && (
         <PhaseSlotDialog
           mode="create"
@@ -459,7 +468,14 @@ export function TemplateBuilderShell({
           mode="create"
           open={addNarrativeOpen}
           onOpenChange={setAddNarrativeOpen}
-          // TRANSITIONAL — see the PhaseSlotDialog note above.
+          // ADR 0096, TRANSITIONAL — and the OPPOSITE of the PhaseSlotDialog case
+          // above, so do not read them as one rule. `addTemplateNarrative` lives in
+          // `case-narratives/actions.ts`, is fully WIRED, and passes its first
+          // argument straight through as `p_template_id`. This value is live and
+          // load-bearing, and `template.id` is what that RPC correctly wants today.
+          // The flip pass must swap it to the draft `version.id` AND backend must
+          // re-key that action — unlike the phase seam, this one breaks loudly if
+          // only one half moves.
           templateVersionId={template.id}
           narrativeTypes={narrativeTypes}
         />

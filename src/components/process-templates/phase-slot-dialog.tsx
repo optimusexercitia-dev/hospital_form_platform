@@ -91,9 +91,15 @@ export function PhaseSlotDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * The DRAFT version the slot belongs to (ADR 0096). Re-keyed from `templateId`:
-   * the authoring RPCs now take `template_version_id` and refuse a non-draft, so a
-   * prop named `templateId` here would be a name that lies.
+   * The DRAFT version the slot belongs to (ADR 0096). Re-keyed from `templateId`
+   * per the lead ruling of 2026-08-04, so the name matches the grain the contract
+   * is moving to.
+   *
+   * ⚠ State of the world, not the target state: the underlying RPC is NOT re-keyed
+   * yet — that lands with backend's M5 — and `addTemplatePhase` is currently
+   * unwired (it throws and ignores its FormData). So in `create` mode this value is
+   * inert today. `edit` mode does not use it at all: `updateTemplatePhase` is wired
+   * and keys off `phaseId`.
    */
   templateVersionId: string;
   /** Required for `edit`; ignored for `create`. */
@@ -193,7 +199,10 @@ export function PhaseSlotDialog({
     if (resultIncomplete) return;
     const form = new FormData();
     if (mode === "create") {
-      // Field name is load-bearing: `addTemplatePhase` reads `templateVersionId`.
+      // The field name matches what `addTemplatePhase` will read at M5. It reads
+      // NOTHING today — the action throws and its `_formData` is unused — so this
+      // is a contract commitment, not a live wire. Named now so the two halves
+      // cannot drift while the action is dark.
       form.set("templateVersionId", templateVersionId);
     } else {
       form.set("phaseId", phase?.id ?? "");
