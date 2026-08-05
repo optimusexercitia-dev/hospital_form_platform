@@ -1568,7 +1568,9 @@ interface PhaseFillRow {
   cases: {
     id: string
     commission_id: string
-    template_id: string | null
+    // ADR 0096: cases point at a template VERSION; the identity is one hop on.
+    template_version_id: string | null
+    process_template_versions: { template_id: string } | null
     case_number: number
     label: string | null
     status: CaseStatus
@@ -1601,8 +1603,9 @@ export async function getCasePhaseForFill(
       case_phase_allowed_results ( result_id, position ),
       forms ( title ),
       cases (
-        id, commission_id, template_id, case_number, label, status, outcome_id,
-        created_at, closed_at, has_patient, patient_enabled
+        id, commission_id, template_version_id, case_number, label, status, outcome_id,
+        created_at, closed_at, has_patient, patient_enabled,
+        process_template_versions ( template_id )
       )
     `,
     )
@@ -1641,7 +1644,7 @@ export async function getCasePhaseForFill(
     case: {
       id: c.id,
       commissionId: c.commission_id,
-      templateId: c.template_id,
+      templateId: c.process_template_versions?.template_id ?? null,
       caseTypeId: null, // BE-5 projects `cases.case_type_id`; fill landing is terminology-agnostic
       caseNumber: c.case_number,
       label: c.label,

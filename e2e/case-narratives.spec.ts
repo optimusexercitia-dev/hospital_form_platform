@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * Case Narratives — E2E spec (ADR 0032, feature-flagged increment).
@@ -154,16 +155,19 @@ async function getCaseRow(
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null
 }
 
-/** Query: the M&M (active) template id for commission A. */
+/**
+ * The M&M (PUBLISHED) template identity id for commission A. ADR 0096:
+ * `process_templates.status` is dropped — resolve the PUBLISHED version among
+ * the commission's templates (never "the newest", which could be a draft
+ * created mid-suite by AC-2's `createDraftTemplate`).
+ */
 async function getMandMTemplateId(page: Page): Promise<string | null> {
-  // Filter for status=active so we don't accidentally pick a draft template
-  // created during AC-2 (createDraftTemplate adds a second template).
-  const resp = await supabaseGet(
-    page,
-    `process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-  )
-  const rows = await resp.json()
-  return Array.isArray(rows) && rows.length > 0 ? rows[0].id : null
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    COMM_CCIH_ID,
+  ).catch(() => null)
+  return tpl?.templateId ?? null
 }
 
 /** Get owner JWT for a persona. */

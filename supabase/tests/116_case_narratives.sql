@@ -122,10 +122,14 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Narrativas', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Narrativas', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'F1');
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'F2');
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'F1');
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'F2');
 reset role;
 
 -- =========================================================================
@@ -145,7 +149,7 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table ns on commit drop as
-  select (public.add_template_narrative((select tid from tpl), (select resumo_id from nt),
+  select (public.add_template_narrative((select vid from tpl), (select resumo_id from nt),
                                         null, null, true)).id as nsid;
 grant select on ns to authenticated;
 reset role;
@@ -163,7 +167,7 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.reorder_case_layout_template(
-  (select tid from tpl),
+  (select vid from tpl),
   jsonb_build_array(
     jsonb_build_object('kind','phase','id',
       (select id from public.process_template_phases where template_id=(select tid from tpl) and position=1)),

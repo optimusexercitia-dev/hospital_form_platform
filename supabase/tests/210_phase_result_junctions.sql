@@ -51,18 +51,22 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc D3', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc D3', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 1',
+  (select vid from tpl), (select form_u from k), 'Fase 1',
   null, null, '{}'::integer[],
   null,             -- no ruleset (MANUAL)
   true,             -- emits
   jsonb_build_array((select nao_id from vocab)::text, (select conforme_id from vocab)::text)
 );
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 2',
+  (select vid from tpl), (select form_u from k), 'Fase 2',
   null, null, '{}'::integer[],
   jsonb_build_object(
     'rules', jsonb_build_array(
@@ -205,12 +209,16 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl2 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc D3 draft', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc D3 draft', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl2 set vid = app.draft_version_of_template(tid);
 grant select on tpl2 to authenticated;
-select public.add_template_phase((select tid from tpl2), (select form_u from k), 'F1',
+select public.add_template_phase((select vid from tpl2), (select form_u from k), 'F1',
   null, null, '{}'::integer[], null, true,
   jsonb_build_array((select conforme_id from vocab)::text));
-select public.add_template_phase((select tid from tpl2), (select form_u from k), 'F2');
+select public.add_template_phase((select vid from tpl2), (select form_u from k), 'F2');
 reset role;
 
 create temp table q1 on commit drop as
@@ -276,7 +284,11 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl3 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC067', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC067', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl3 set vid = app.draft_version_of_template(tid);
 grant select on tpl3 to authenticated;
 
 -- 19) NEG add: non-emitting (emits=false) + non-empty allowed → HC067 (rejected)
@@ -312,7 +324,7 @@ select throws_ok(
   'update_template_phase: emitting→non-emitting while retaining allowed is REJECTED (HC067)');
 
 -- Add a valid non-emitting phase (no allowed) so T3 can publish + be cased.
-select public.add_template_phase((select tid from tpl3), (select form_u from k), 'NE-ok');
+select public.add_template_phase((select vid from tpl3), (select form_u from k), 'NE-ok');
 
 -- Publish T3 + create case C3 (snapshot). Phase1 emitting+allowed; phase2 non-emitting.
 select public.publish_process_template((select tid from tpl3));

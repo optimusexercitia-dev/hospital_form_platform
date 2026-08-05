@@ -134,13 +134,13 @@ export async function listCaseOutcomes(
  * (`case_offered_outcomes`), not this.
  */
 export async function listProcessOutcomes(
-  templateId: string,
+  templateVersionId: string,
 ): Promise<CaseOutcome[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('process_template_outcomes')
     .select(`case_outcomes ( ${OUTCOME_SELECT} )`)
-    .eq('template_id', templateId)
+    .eq('template_version_id', templateVersionId)
     .returns<{ case_outcomes: CaseOutcomeRow | null }[]>()
 
   if (error || !data) return []

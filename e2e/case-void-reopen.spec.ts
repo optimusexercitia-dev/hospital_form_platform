@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Case Correction Lifecycle — Void + Reopen (ADR 0085, plan
@@ -271,14 +272,19 @@ test.beforeAll(async ({ request }) => {
   const naoConformeId = ((await naoConformeResp.json()) as { id: string }).id
 
   // 3. Spec-owned 2-phase template: Phase 1 emits a result; Phase 2 blocks=[1].
-  const templateRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TEMPLATE_TITLE,
-    description: 'Template criado pela suite case-void-reopen.spec.ts.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  const templateId = templateRow.id
+  // ADR 0096: identity + v1 draft; phase authoring is version-grained.
+  const draftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TEMPLATE_TITLE,
+      description: 'Template criado pela suite case-void-reopen.spec.ts.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  const templateId = draftTpl.templateId
+  const templateVersionId = draftTpl.versionId
 
   const ruleset = {
     rules: [{ when: { question_key: 'inspecao_ok', op: 'equals', value: 'sim' }, result_id: conformeId }],
@@ -286,7 +292,7 @@ test.beforeAll(async ({ request }) => {
   }
 
   const phase1Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: formId,
     p_title: 'Fase 1 — Inspeção',
     p_recommend_when: null,
@@ -299,7 +305,7 @@ test.beforeAll(async ({ request }) => {
   expect(phase1Resp.ok(), `add_template_phase (phase 1) failed: ${await phase1Resp.text()}`).toBeTruthy()
 
   const phase2Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: formId,
     p_title: 'Fase 2 — Intervenção',
     p_recommend_when: null,

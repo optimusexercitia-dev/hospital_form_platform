@@ -213,16 +213,20 @@ async function commissionOfType(
   return data?.commission_id ?? null
 }
 
-async function commissionOfTemplate(
+/**
+ * ADR 0096: template children hang off a VERSION, so the commission is two hops
+ * away (version -> identity -> commission). Named for what it takes.
+ */
+async function commissionOfTemplateVersion(
   supabase: SupabaseClient<Database>,
-  templateId: string,
+  templateVersionId: string,
 ): Promise<string | null> {
   const { data } = await supabase
-    .from('process_templates')
-    .select('commission_id')
-    .eq('id', templateId)
-    .maybeSingle()
-  return data?.commission_id ?? null
+    .from('process_template_versions')
+    .select('process_templates(commission_id)')
+    .eq('id', templateVersionId)
+    .maybeSingle<{ process_templates: { commission_id: string } | null }>()
+  return data?.process_templates?.commission_id ?? null
 }
 
 async function commissionOfTemplateNarrative(
@@ -470,11 +474,11 @@ export async function archiveNarrativeType(
  * commission.
  */
 export async function addTemplateNarrative(
-  templateId: string,
+  templateVersionId: string,
   narrativeTypeId: string,
   input: TemplateNarrativeInput,
 ): Promise<AddTemplateNarrativeState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!narrativeTypeId) {
     return { ok: false, fieldErrors: { narrativeTypeId: MESSAGES.typeRequired } }
   }
@@ -483,14 +487,14 @@ export async function addTemplateNarrative(
   }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
+  const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { data, error } = await supabase.rpc('add_template_narrative', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_narrative_type_id: narrativeTypeId,
     p_title: input.title?.trim() || undefined,
     p_instructions: input.instructions?.trim() || undefined,
@@ -581,24 +585,24 @@ export async function removeTemplateNarrative(
  * is NEVER touched — only `display_position`. DRAFT-only; staff_admin-only.
  */
 export async function reorderCaseLayout(
-  templateId: string,
+  templateVersionId: string,
   ordered: CaseLayoutOrderItem[],
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (ordered.length === 0) return { ok: true }
   if (!(await narrativesEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
+  const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { error } = await supabase.rpc('reorder_case_layout_template', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     // The RPC expects a JSON array of {kind,id}; CaseLayoutOrderItem is structurally
     // valid JSON (flat string fields), but lacks the index signature `Json` wants,
     // so assert through `unknown`.

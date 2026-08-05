@@ -705,6 +705,8 @@ declare
   v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
   v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';
   v_tpl      uuid := gen_random_uuid();
+  -- ADR 0096: children and cases hang off a VERSION, not the identity.
+  v_tpl_v    uuid := gen_random_uuid();
   v_case     uuid := 'd0000000-0000-0000-0000-0000000000c1';   -- deterministic
   v_cp1      uuid := gen_random_uuid();
   v_cp2      uuid := gen_random_uuid();
@@ -715,16 +717,23 @@ begin
   select id into ia_disp  from public.form_items where form_version_id = v_ver_a and question_key = 'dispensador_disponivel';
   select id into ia_turno from public.form_items where form_version_id = v_ver_a and question_key = 'turno_auditoria';
 
-  -- Published template + two phase-slots.
-  insert into public.process_templates (id, commission_id, title, description, status, created_by, collects_patient)
-  values (v_tpl, v_comm_a, 'Investigação de Óbito (M&M)',
-          'Processo de avaliação multifásica de óbito.',
-          'active', v_chefe_a, true);
+  -- Published template: the IDENTITY plus its v1 PUBLISHED version (ADR 0096).
+  -- title/description/collects_patient live on the version now (D1), and the old
+  -- status 'active' is the version status 'published'.
+  insert into public.process_templates (id, commission_id, created_by)
+  values (v_tpl, v_comm_a, v_chefe_a);
+
+  insert into public.process_template_versions
+    (id, template_id, version_number, status, title, description, collects_patient,
+     created_by, published_at)
+  values (v_tpl_v, v_tpl, 1, 'published', 'Investigação de Óbito (M&M)',
+          'Processo de avaliação multifásica de óbito.', true,
+          v_chefe_a, now());
 
   insert into public.process_template_phases
-    (template_id, position, form_id, title, recommend_when, default_due_days) values
-    (v_tpl, 1, v_form_a, 'Fase 1 — Coleta inicial', null, 7),
-    (v_tpl, 2, v_form_a, 'Fase 2 — Revisão do comitê',
+    (template_version_id, position, form_id, title, recommend_when, default_due_days) values
+    (v_tpl_v, 1, v_form_a, 'Fase 1 — Coleta inicial', null, 7),
+    (v_tpl_v, 2, v_form_a, 'Fase 2 — Revisão do comitê',
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
                         'op', 'equals', 'value', 'sim'),
      14);
@@ -736,8 +745,8 @@ begin
   -- phases below are inserted: once Phase 1 lands 'completed' (and none 'active'),
   -- the case computes to 'pending' (>=1 concluida, none ativa) — matching the
   -- mid-flight fixture the dashboard/board E2E expects.
-  insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled)
-  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
+  insert into public.cases (id, commission_id, template_version_id, label, created_by, patient_enabled)
+  values (v_case, v_comm_a, v_tpl_v, 'Óbito UTI leito 7', v_chefe_a, true);
 
   -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
   -- Re-keyed to the participant layer (ADR 0064 E0 / F1): a patient participant +
@@ -832,15 +841,18 @@ declare
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
   v_case2    uuid := 'd0000000-0000-0000-0000-0000000000c2';  -- new concluded Caso 0002
   v_tpl      uuid;
+  v_tpl_v    uuid;
   v_oc_evit  uuid := 'e1000000-0000-0000-0000-0000000000d1';  -- Óbito evitável (adverse + plan)
   v_oc_nevit uuid := 'e1000000-0000-0000-0000-0000000000d2';  -- Óbito não evitável (adverse)
   v_oc_alta  uuid := 'e1000000-0000-0000-0000-0000000000d3';  -- Alta sem intercorrências (neither)
   v_cp1      uuid := gen_random_uuid();
 begin
-  -- Resolve the M&M template seeded in the Phase-7 block above (by title).
-  select id into v_tpl
-  from public.process_templates
-  where commission_id = v_comm_a and title = 'Investigação de Óbito (M&M)'
+  -- Resolve the M&M template seeded in the Phase-7 block above. ADR 0096: the
+  -- title lives on the VERSION now, so the lookup goes through it.
+  select v.id, v.template_id into v_tpl_v, v_tpl
+  from public.process_template_versions v
+  join public.process_templates t on t.id = v.template_id
+  where t.commission_id = v_comm_a and v.title = 'Investigação de Óbito (M&M)'
   limit 1;
 
   -- Outcome vocabulary (positions 1..3). At least one adverse + one action-plan.
@@ -852,8 +864,8 @@ begin
     (v_oc_alta,  v_comm_a, 'Alta sem intercorrências', 'green', false, false, 3);
 
   -- The process OFFERS all three (the builder selection).
-  insert into public.process_template_outcomes (template_id, outcome_id, position)
-  values (v_tpl, v_oc_evit, 1), (v_tpl, v_oc_nevit, 2), (v_tpl, v_oc_alta, 3);
+  insert into public.process_template_outcomes (template_version_id, outcome_id, position)
+  values (v_tpl_v, v_oc_evit, 1), (v_tpl_v, v_oc_nevit, 2), (v_tpl_v, v_oc_alta, 3);
 
   -- Caso 0001 (mid-flight, pendente) snapshots the offered set (no outcome chosen
   -- yet — it is still open; the selector offers these three).
@@ -866,9 +878,9 @@ begin
   -- single phase is concluida. outcome_id = the adverse "Óbito evitável".
   perform set_config('app.in_case_rpc', 'on', true);
   insert into public.cases
-    (id, commission_id, template_id, label, status, outcome_id, created_by, closed_at, closed_by)
+    (id, commission_id, template_version_id, label, status, outcome_id, created_by, closed_at, closed_by)
   values
-    (v_case2, v_comm_a, v_tpl, 'Óbito UTI leito 3', 'completed', v_oc_evit, v_chefe_a, now(), v_chefe_a);
+    (v_case2, v_comm_a, v_tpl_v, 'Óbito UTI leito 3', 'completed', v_oc_evit, v_chefe_a, now(), v_chefe_a);
 
   -- One concluida phase (pins Form A's published version). The recompute trigger
   -- fires on the insert but early-returns because the case is already terminal.
@@ -907,7 +919,8 @@ declare
   v_form_a    uuid := 'f0000000-0000-0000-0000-00000000a001';  -- forms.id (parent)
   v_ver_a     uuid := '50000000-0000-0000-0000-00000000a001';  -- published version
   v_chefe_a   uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin)
-  v_tpl_cf    uuid := 'd0cf0000-0000-0000-0000-0000000000f1';  -- the template
+  v_tpl_cf    uuid := 'd0cf0000-0000-0000-0000-0000000000f1';  -- the template identity
+  v_tpl_cf_v  uuid := 'd0cf0000-0000-0000-0000-0000000000f2';  -- its v1 published version
   v_def_num   uuid := 'd0cf0000-0000-0000-0000-0000000000f2';  -- def: short_text (required)
   v_def_turn  uuid := 'd0cf0000-0000-0000-0000-0000000000f3';  -- def: dropdown
   v_case_cf   uuid := 'd0cf0000-0000-0000-0000-0000000000c1';  -- the case
@@ -923,31 +936,36 @@ declare
 begin
   -- Published template + one phase bound to Form A's published version (so the
   -- "Novo caso" dialog + create_case_from_template flow work against it too).
-  insert into public.process_templates
-    (id, commission_id, title, description, status, created_by, collects_patient)
-  values (v_tpl_cf, v_comm_a, 'Descritores de Óbito (Campos Personalizados)',
+  insert into public.process_templates (id, commission_id, created_by)
+  values (v_tpl_cf, v_comm_a, v_chefe_a);
+
+  insert into public.process_template_versions
+    (id, template_id, version_number, status, title, description, collects_patient,
+     created_by, published_at)
+  values (v_tpl_cf_v, v_tpl_cf, 1, 'published',
+          'Descritores de Óbito (Campos Personalizados)',
           'Processo com campos personalizados para descritores administrativos do óbito.',
-          'active', v_chefe_a, false);
+          false, v_chefe_a, now());
 
   insert into public.process_template_phases
-    (template_id, position, form_id, title, default_due_days)
-  values (v_tpl_cf, 1, v_form_a, 'Fase 1 — Registro', 7);
+    (template_version_id, position, form_id, title, default_due_days)
+  values (v_tpl_cf_v, 1, v_form_a, 'Fase 1 — Registro', 7);
 
   -- Two custom-field defs: a REQUIRED + show_in_list short_text, and a
   -- show_in_list dropdown. Keys are deterministic slugs (no random suffix).
   insert into public.process_template_custom_fields
-    (id, template_id, key, label, field_type, options, required, show_in_list, position)
+    (id, template_version_id, key, label, field_type, options, required, show_in_list, position)
   values
-    (v_def_num, v_tpl_cf, 'numero_declaracao_obito', 'Número da Declaração de Óbito',
+    (v_def_num, v_tpl_cf_v, 'numero_declaracao_obito', 'Número da Declaração de Óbito',
      'short_text', '[]'::jsonb, true, true, 0),
-    (v_def_turn, v_tpl_cf, 'turno_obito', 'Turno do óbito', 'dropdown',
+    (v_def_turn, v_tpl_cf_v, 'turno_obito', 'Turno do óbito', 'dropdown',
      v_turno_options, false, true, 1);
 
   -- One case from that template (number minted by the trigger). Inserted directly
   -- (no JWT context in seed → no DEFINER RPC), like the other seed cases.
   insert into public.cases
-    (id, commission_id, template_id, label, created_by, patient_enabled)
-  values (v_case_cf, v_comm_a, v_tpl_cf, 'Óbito enfermaria leito 3', v_chefe_a, false);
+    (id, commission_id, template_version_id, label, created_by, patient_enabled)
+  values (v_case_cf, v_comm_a, v_tpl_cf_v, 'Óbito enfermaria leito 3', v_chefe_a, false);
 
   -- Materialize the phase (pending). in_case_rpc satisfies the case-status guard
   -- during the recompute the phase insert triggers, exactly like the M&M fixture.
@@ -987,6 +1005,7 @@ declare
   v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
   v_tpl      uuid;
+  v_tpl_v    uuid;
   v_nt_res   uuid := 'e2000000-0000-0000-0000-0000000000f1';  -- Resumo Clínico
   v_nt_ach   uuid := 'e2000000-0000-0000-0000-0000000000f2';  -- Achados e Discussão
   v_nt_conc  uuid := 'e2000000-0000-0000-0000-0000000000f3';  -- Conclusão do Comitê
@@ -994,9 +1013,10 @@ declare
   v_cp2      uuid;
 begin
   -- Resolve the M&M template + Caso 0001's two phases (by position).
-  select id into v_tpl
-  from public.process_templates
-  where commission_id = v_comm_a and title = 'Investigação de Óbito (M&M)'
+  select v.id, v.template_id into v_tpl_v, v_tpl
+  from public.process_template_versions v
+  join public.process_templates t on t.id = v.template_id
+  where t.commission_id = v_comm_a and v.title = 'Investigação de Óbito (M&M)'
   limit 1;
   select id into v_cp1 from public.case_phases where case_id = v_case1 and position = 1;
   select id into v_cp2 from public.case_phases where case_id = v_case1 and position = 2;
@@ -1015,17 +1035,17 @@ begin
   -- display_position 1 and 3 after the UPDATE below): Resumo=2, Achados=4,
   -- Conclusão=5. Conclusão is_expected (drives the soft close-warning).
   insert into public.process_template_narratives
-    (template_id, narrative_type_id, display_position, title, instructions, is_expected)
+    (template_version_id, narrative_type_id, display_position, title, instructions, is_expected)
   values
-    (v_tpl, v_nt_res,  2, null, null, false),
-    (v_tpl, v_nt_ach,  4, null, 'Descreva os achados e a discussão do comitê.', false),
-    (v_tpl, v_nt_conc, 5, null, null, true);
+    (v_tpl_v, v_nt_res,  2, null, null, false),
+    (v_tpl_v, v_nt_ach,  4, null, 'Descreva os achados e a discussão do comitê.', false),
+    (v_tpl_v, v_nt_conc, 5, null, null, true);
 
   -- The two existing template phases keep their order in the merged list
   -- (display_position := position). process_template_phases is UNGUARDED.
   update public.process_template_phases
   set display_position = position
-  where template_id = v_tpl;
+  where template_version_id = v_tpl_v;
 
   -- Caso 0001's phases: display_position := position. GUARDED → wrap in the flag.
   perform set_config('app.in_case_rpc', 'on', true);

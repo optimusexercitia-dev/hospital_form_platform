@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Form-builder-enhancements batch (ad-hoc 2026-07-06) — TASKS 3 + 4:
@@ -71,6 +72,7 @@ let criticoId: string
 let atencaoId: string
 let normalId: string
 let templateId: string
+let templateVersionId: string
 
 let caseCritico: string // Grave + temp 39 → flagged_count 2 → Crítico
 let caseNormal: string // Leve + temp 37 → nothing → Normal (default)
@@ -286,14 +288,19 @@ test.beforeAll(async ({ request }) => {
   //    Rule 1: __flagged_count__ > 0   → Crítico
   //    Rule 2: __total_score__  >= 3   → Atenção
   //    default                          → Normal
-  const template = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TEMPLATE_TITLE,
-    description: 'Spec-owned aggregate ruleset template.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  templateId = template.id
+  // ADR 0096: identity + v1 draft; phase authoring is version-grained.
+  const draftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TEMPLATE_TITLE,
+      description: 'Spec-owned aggregate ruleset template.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  templateId = draftTpl.templateId
+  templateVersionId = draftTpl.versionId
 
   const ruleset = {
     rules: [
@@ -303,7 +310,7 @@ test.beforeAll(async ({ request }) => {
     default_result_id: normalId,
   }
   const phaseResp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: form.id,
     p_title: 'Fase — Triagem agregada',
     p_recommend_when: null,

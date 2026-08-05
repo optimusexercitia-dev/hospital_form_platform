@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * `case_phase_results` — Per-phase categorical result for multi-phase cases
@@ -91,8 +92,10 @@ let specItemId: string         // the single required question item ID
 
 let conformeId: string         // phase_results row — LABEL_CONFORME
 let naoConformeId: string      // phase_results row — LABEL_NAO_CONFORME
-let templateId: string         // our 2-phase process_template
-let manualTemplateId: string   // 1-phase MANUAL-mode process_template
+let templateId: string         // our 2-phase process_template (identity)
+let templateVersionId: string  // its v1 draft version
+let manualTemplateId: string   // 1-phase MANUAL-mode process_template (identity)
+let manualTemplateVersionId: string // its v1 draft version
 
 let caseId1: string            // "Sim" → Conforme (computed)
 let caseId2: string            // "Não" → Não-conforme (default fallback)
@@ -377,14 +380,19 @@ test.beforeAll(async ({ request }) => {
   //    Phase 1 carries a result_ruleset:
   //      rule: cpr_check = 'Sim' → conformeId
   //      default: naoConformeId
-  const templateRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TEMPLATE_TITLE,
-    description: 'Template criado pela suite case-phase-result.spec.ts.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  templateId = templateRow.id
+  // ADR 0096: identity + v1 draft; phase authoring is version-grained.
+  const draftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TEMPLATE_TITLE,
+      description: 'Template criado pela suite case-phase-result.spec.ts.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  templateId = draftTpl.templateId
+  templateVersionId = draftTpl.versionId
 
   const ruleset = {
     rules: [
@@ -399,7 +407,7 @@ test.beforeAll(async ({ request }) => {
   }
 
   const phase1Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: specFormId,
     p_title: 'Fase 1 — Coleta',
     p_recommend_when: null,
@@ -420,7 +428,7 @@ test.beforeAll(async ({ request }) => {
 
   // Phase 2 (no ruleset — completes the 2-phase template)
   const phase2Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: specFormId,
     p_title: 'Fase 2 — Revisão',
     p_recommend_when: null,
@@ -550,17 +558,21 @@ test.beforeAll(async ({ request }) => {
   // A 1-phase MANUAL template: emits a result the filler MUST pick from an
   // author-selected subset (Conforme + Não-conforme); Pendente is EXCLUDED. No
   // ruleset (that would make it automatic).
-  const manualTemplateRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: MANUAL_TEMPLATE_TITLE,
-    description: 'Template MANUAL criado pela suite case-phase-result.spec.ts.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  manualTemplateId = manualTemplateRow.id
+  const manualDraftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: MANUAL_TEMPLATE_TITLE,
+      description: 'Template MANUAL criado pela suite case-phase-result.spec.ts.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  manualTemplateId = manualDraftTpl.templateId
+  manualTemplateVersionId = manualDraftTpl.versionId
 
   const manualPhaseResp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: manualTemplateId,
+    p_template_version_id: manualTemplateVersionId,
     p_form_id: specFormId,
     p_title: 'Fase Manual — Seleção',
     p_recommend_when: null,

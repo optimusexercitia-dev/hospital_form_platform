@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * "Administrativo" delegated-capability role — E2E spec (ADR 0061; handoff
@@ -140,15 +141,15 @@ async function rpcAs(
 
 /** Create a fresh CCIH case from the active M&M template under `token`'s authority. */
 async function createCaseAs(req: APIRequestContext, token: string, label: string): Promise<string> {
-  const tplRes = await req.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH}&status=eq.active&select=id&limit=1`,
-    { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${token}` } },
+  // ADR 0096: `process_templates.status` is dropped — resolve the published
+  // version. `create_case_from_template` still takes the TEMPLATE identity id.
+  const tpl = await getPublishedTemplateVersion(
+    req,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: token },
+    COMM_CCIH,
   )
-  expect(tplRes.ok()).toBeTruthy()
-  const tpls = (await tplRes.json()) as { id: string }[]
-  expect(tpls.length).toBeGreaterThan(0)
   const createRes = await rpcAs(req, token, 'create_case_from_template', {
-    p_template_id: tpls[0].id,
+    p_template_id: tpl.templateId,
     p_label: label,
   })
   expect(createRes.ok(), `create_case_from_template as staff2: ${await createRes.text()}`).toBeTruthy()

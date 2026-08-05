@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Case Correction Lifecycle — Phases + Narratives (ADR 0085, plan
@@ -82,6 +83,7 @@ let specVersionId: string
 let specSectionId: string
 let specItemId: string
 let templateId: string
+let templateVersionId: string
 
 let caseHappyId: string
 let caseRejectId: string
@@ -274,17 +276,23 @@ test.beforeAll(async ({ request }) => {
 
   // 2. Spec-owned template: 1 phase-slot (our form) + 1 narrative-slot (seeded
   //    "Resumo Clínico" type) — self-contained, never touches the M&M template.
-  const templateRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TEMPLATE_TITLE,
-    description: 'Template criado pela suite case-corrections.spec.ts.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  templateId = templateRow.id
+  // ADR 0096: a template is identity + versions; phase/narrative authoring is
+  // version-grained (`p_template_version_id`), while publish stays identity-grained.
+  const draftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TEMPLATE_TITLE,
+      description: 'Template criado pela suite case-corrections.spec.ts.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  templateId = draftTpl.templateId
+  templateVersionId = draftTpl.versionId
 
   const phaseResp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: formRow.id,
     p_title: 'Fase 1 — Inspeção',
     p_recommend_when: null,
@@ -295,7 +303,7 @@ test.beforeAll(async ({ request }) => {
   expect(phaseResp.ok(), `add_template_phase failed: ${await phaseResp.text()}`).toBeTruthy()
 
   const narrResp = await rpc(request, 'add_template_narrative', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_narrative_type_id: SEEDED_RESUMO_TYPE_ID,
     p_title: undefined,
     p_instructions: undefined,

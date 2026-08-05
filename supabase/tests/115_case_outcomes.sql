@@ -127,15 +127,19 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Desfechos', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Desfechos', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'F1');
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'F1');
 -- Offer both X outcomes.
-select public.set_process_outcomes((select tid from tpl),
+select public.set_process_outcomes((select vid from tpl),
   array[(select adverse_id from oc), (select plain_id from oc2)]);
 reset role;
 
@@ -298,13 +302,17 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl0 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Sem desfechos', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Sem desfechos', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl0 set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl0 to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl0), (select form_u from k), 'F1');
+select public.add_template_phase((select vid from tpl0), (select form_u from k), 'F1');
 select public.publish_process_template((select tid from tpl0));
 reset role;
 

@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Result-based phase recommendation (ADR 0043, TR1)
@@ -106,10 +107,14 @@ let conformeId: string
 let naoConformeId: string
 let inconclusivId: string
 
-// Template IDs
+// Template IDs (identity)
 let tmplSpecificId: string
 let tmplAdverseId: string
 let tmplMixedId: string
+// Their v1 draft VERSION ids (ADR 0096: phase authoring is version-grained)
+let tmplSpecificVersionId: string
+let tmplAdverseVersionId: string
+let tmplMixedVersionId: string
 
 // Case IDs
 let caseSpecificMatchId: string
@@ -416,18 +421,22 @@ test.beforeAll(async ({ request }) => {
   // ── 3. Template A — SpecificResult ───────────────────────────────────────
   // Phase 1: MANUAL result-emitting (allowed: Conforme, Não-conforme, Inconclusivo)
   // Phase 2: recommend when Phase 1 result = Conforme (specific, equals)
-  const tmplSpecificRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TMPL_SPECIFIC,
-    description: 'Spec template — specific result recommendation.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  tmplSpecificId = tmplSpecificRow.id
+  const tmplSpecificTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TMPL_SPECIFIC,
+      description: 'Spec template — specific result recommendation.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  tmplSpecificId = tmplSpecificTpl.templateId
+  tmplSpecificVersionId = tmplSpecificTpl.versionId
 
   // Phase 1: MANUAL emitting (no ruleset), allowed = all 3
   const sp1Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplSpecificId,
+    p_template_version_id: tmplSpecificVersionId,
     p_form_id: specFormId,
     p_title: 'Coleta — Fase 1',
     p_recommend_when: null,
@@ -454,7 +463,7 @@ test.beforeAll(async ({ request }) => {
     ],
   }
   const sp2Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplSpecificId,
+    p_template_version_id: tmplSpecificVersionId,
     p_form_id: specFormId,
     p_title: 'Revisão — Fase 2',
     p_recommend_when: sp2RecommendWhen,
@@ -472,17 +481,21 @@ test.beforeAll(async ({ request }) => {
   // ── 4. Template B — AdverseResult ────────────────────────────────────────
   // Phase 1: MANUAL result-emitting (Conforme = non-adverse; Não-conforme = adverse)
   // Phase 2: recommend when Phase 1 result IS adverse
-  const tmplAdverseRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TMPL_ADVERSE,
-    description: 'Spec template — adverse result recommendation.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  tmplAdverseId = tmplAdverseRow.id
+  const tmplAdverseTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TMPL_ADVERSE,
+      description: 'Spec template — adverse result recommendation.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  tmplAdverseId = tmplAdverseTpl.templateId
+  tmplAdverseVersionId = tmplAdverseTpl.versionId
 
   const ap1Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplAdverseId,
+    p_template_version_id: tmplAdverseVersionId,
     p_form_id: specFormId,
     p_title: 'Triagem — Fase 1',
     p_recommend_when: null,
@@ -506,7 +519,7 @@ test.beforeAll(async ({ request }) => {
     ],
   }
   const ap2Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplAdverseId,
+    p_template_version_id: tmplAdverseVersionId,
     p_form_id: specFormId,
     p_title: 'Remediação — Fase 2',
     p_recommend_when: ap2RecommendWhen,
@@ -524,17 +537,21 @@ test.beforeAll(async ({ request }) => {
   // ── 5. Template C — MixedGroup (QUALQUER: result=Conforme OR answer=Sim) ─
   // Phase 1: MANUAL result-emitting; has question 'rr_inspection' with options Sim/Não
   // Phase 2: recommend when QUALQUER [ result=Conforme, answer rr_check = Sim ]
-  const tmplMixedRow = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TMPL_MIXED,
-    description: 'Spec template — mixed group (any) recommendation.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  tmplMixedId = tmplMixedRow.id
+  const tmplMixedTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TMPL_MIXED,
+      description: 'Spec template — mixed group (any) recommendation.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  tmplMixedId = tmplMixedTpl.templateId
+  tmplMixedVersionId = tmplMixedTpl.versionId
 
   const mp1Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplMixedId,
+    p_template_version_id: tmplMixedVersionId,
     p_form_id: specFormId,
     p_title: 'Inspeção — Fase 1',
     p_recommend_when: null,
@@ -569,7 +586,7 @@ test.beforeAll(async ({ request }) => {
     ],
   }
   const mp2Resp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: tmplMixedId,
+    p_template_version_id: tmplMixedVersionId,
     p_form_id: specFormId,
     p_title: 'Seguimento — Fase 2',
     p_recommend_when: mp2RecommendWhen,

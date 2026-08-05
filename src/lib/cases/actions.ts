@@ -1012,20 +1012,21 @@ export async function disposeCasePhi(
 }
 
 /**
- * Toggle a template's `collects_patient` config (draft-only). The
- * `set_template_collects_patient` DEFINER gates staff_admin/admin + `status=draft`
- * (`42501` / `23514` otherwise). When on (and the `case_patient` flag is on), cases
- * created from this template offer the optional PHI block.
+ * Toggle a template VERSION's `collects_patient` config (ADR 0096 D1 moved this
+ * field onto the version). The `set_template_collects_patient` DEFINER gates
+ * staff_admin/admin + the VERSION being `draft` (`42501` / `23514` otherwise).
+ * When on (and the `case_patient` flag is on), cases created from the published
+ * version offer the optional PHI block.
  */
 export async function setTemplateCollectsPatient(
-  templateId: string,
+  templateVersionId: string,
   collects: boolean,
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('set_template_collects_patient', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_collects: collects,
   })
   if (error) return { ok: false, error: mapCasePatientError(error) }

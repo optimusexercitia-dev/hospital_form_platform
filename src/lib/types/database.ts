@@ -3650,7 +3650,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -3675,7 +3675,7 @@ export type Database = {
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
           status?: string
-          template_id?: string | null
+          template_version_id?: string | null
           updated_at?: string
           visibility_policy?: string
         }
@@ -3700,7 +3700,7 @@ export type Database = {
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
           status?: string
-          template_id?: string | null
+          template_version_id?: string | null
           updated_at?: string
           visibility_policy?: string
         }
@@ -3755,10 +3755,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "cases_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "cases_template_version_id_fkey"
+            columns: ["template_version_id"]
             isOneToOne: false
-            referencedRelation: "process_templates"
+            referencedRelation: "process_template_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -7190,7 +7190,7 @@ export type Database = {
           position: number
           required: boolean
           show_in_list: boolean
-          template_id: string
+          template_version_id: string
         }
         Insert: {
           created_at?: string
@@ -7202,7 +7202,7 @@ export type Database = {
           position?: number
           required?: boolean
           show_in_list?: boolean
-          template_id: string
+          template_version_id: string
         }
         Update: {
           created_at?: string
@@ -7214,14 +7214,14 @@ export type Database = {
           position?: number
           required?: boolean
           show_in_list?: boolean
-          template_id?: string
+          template_version_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "process_template_custom_fields_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "process_template_custom_fields_template_version_id_fkey"
+            columns: ["template_version_id"]
             isOneToOne: false
-            referencedRelation: "process_templates"
+            referencedRelation: "process_template_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -7234,7 +7234,7 @@ export type Database = {
           instructions: string | null
           is_expected: boolean
           narrative_type_id: string
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         Insert: {
@@ -7244,7 +7244,7 @@ export type Database = {
           instructions?: string | null
           is_expected?: boolean
           narrative_type_id: string
-          template_id: string
+          template_version_id: string
           title?: string | null
         }
         Update: {
@@ -7254,7 +7254,7 @@ export type Database = {
           instructions?: string | null
           is_expected?: boolean
           narrative_type_id?: string
-          template_id?: string
+          template_version_id?: string
           title?: string | null
         }
         Relationships: [
@@ -7266,10 +7266,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "process_template_narratives_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "process_template_narratives_template_version_id_fkey"
+            columns: ["template_version_id"]
             isOneToOne: false
-            referencedRelation: "process_templates"
+            referencedRelation: "process_template_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -7279,19 +7279,19 @@ export type Database = {
           created_at: string
           outcome_id: string
           position: number
-          template_id: string
+          template_version_id: string
         }
         Insert: {
           created_at?: string
           outcome_id: string
           position?: number
-          template_id: string
+          template_version_id: string
         }
         Update: {
           created_at?: string
           outcome_id?: string
           position?: number
-          template_id?: string
+          template_version_id?: string
         }
         Relationships: [
           {
@@ -7302,10 +7302,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "process_template_outcomes_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "process_template_outcomes_template_version_id_fkey"
+            columns: ["template_version_id"]
             isOneToOne: false
-            referencedRelation: "process_templates"
+            referencedRelation: "process_template_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -7385,7 +7385,7 @@ export type Database = {
           position: number
           recommend_when: Json | null
           result_ruleset: Json | null
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         Insert: {
@@ -7399,7 +7399,7 @@ export type Database = {
           position: number
           recommend_when?: Json | null
           result_ruleset?: Json | null
-          template_id: string
+          template_version_id: string
           title?: string | null
         }
         Update: {
@@ -7413,7 +7413,7 @@ export type Database = {
           position?: number
           recommend_when?: Json | null
           result_ruleset?: Json | null
-          template_id?: string
+          template_version_id?: string
           title?: string | null
         }
         Relationships: [
@@ -7425,7 +7425,71 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "process_template_phases_template_id_fkey"
+            foreignKeyName: "process_template_phases_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_template_versions: {
+        Row: {
+          case_type_id: string | null
+          collects_patient: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          published_at: string | null
+          status: string
+          template_id: string
+          title: string
+          version_number: number
+        }
+        Insert: {
+          case_type_id?: string | null
+          collects_patient?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string
+          template_id: string
+          title: string
+          version_number: number
+        }
+        Update: {
+          case_type_id?: string | null
+          collects_patient?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          published_at?: string | null
+          status?: string
+          template_id?: string
+          title?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_versions_case_type_id_fkey"
+            columns: ["case_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_versions_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
             referencedRelation: "process_templates"
@@ -7435,49 +7499,27 @@ export type Database = {
       }
       process_templates: {
         Row: {
-          case_type_id: string | null
-          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
-          description: string | null
           id: string
-          status: string
-          title: string
           updated_at: string
         }
         Insert: {
-          case_type_id?: string | null
-          collects_patient?: boolean
           commission_id: string
           created_at?: string
           created_by?: string | null
-          description?: string | null
           id?: string
-          status?: string
-          title: string
           updated_at?: string
         }
         Update: {
-          case_type_id?: string | null
-          collects_patient?: boolean
           commission_id?: string
           created_at?: string
           created_by?: string | null
-          description?: string | null
           id?: string
-          status?: string
-          title?: string
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "process_templates_case_type_id_fkey"
-            columns: ["case_type_id"]
-            isOneToOne: false
-            referencedRelation: "case_types"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "process_templates_commission_id_fkey"
             columns: ["commission_id"]
@@ -9816,7 +9858,7 @@ export type Database = {
           p_instructions?: string
           p_is_expected?: boolean
           p_narrative_type_id: string
-          p_template_id: string
+          p_template_version_id: string
           p_title?: string
         }
         Returns: {
@@ -9826,7 +9868,7 @@ export type Database = {
           instructions: string | null
           is_expected: boolean
           narrative_type_id: string
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         SetofOptions: {
@@ -9845,7 +9887,7 @@ export type Database = {
           p_form_id: string
           p_recommend_when?: Json
           p_result_ruleset?: Json
-          p_template_id: string
+          p_template_version_id: string
           p_title?: string
         }
         Returns: {
@@ -9859,7 +9901,7 @@ export type Database = {
           position: number
           recommend_when: Json | null
           result_ruleset: Json | null
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         SetofOptions: {
@@ -10121,15 +10163,10 @@ export type Database = {
       archive_process_template: {
         Args: { p_template_id: string }
         Returns: {
-          case_type_id: string | null
-          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
-          description: string | null
           id: string
-          status: string
-          title: string
           updated_at: string
         }
         SetofOptions: {
@@ -10290,7 +10327,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -10522,6 +10559,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      clone_template_version: {
+        Args: { p_source_version_id: string }
+        Returns: string
+      }
       close_capa_plan: {
         Args: { p_capa_id: string; p_lessons_learned_md?: string }
         Returns: {
@@ -10573,7 +10614,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -10990,7 +11031,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -11044,7 +11085,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -11559,15 +11600,10 @@ export type Database = {
           p_title: string
         }
         Returns: {
-          case_type_id: string | null
-          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
-          description: string | null
           id: string
-          status: string
-          title: string
           updated_at: string
         }
         SetofOptions: {
@@ -11968,6 +12004,10 @@ export type Database = {
       }
       delete_standard: { Args: { p_standard: string }; Returns: undefined }
       discard_response: { Args: { p_response_id: string }; Returns: undefined }
+      discard_template_draft: {
+        Args: { p_template_version_id: string }
+        Returns: undefined
+      }
       dispose_attachment_phi: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
@@ -12042,6 +12082,10 @@ export type Database = {
           source_kind: string
           title: string
         }[]
+      }
+      draft_version_of_template: {
+        Args: { p_template_id: string }
+        Returns: string
       }
       evidence_candidates: {
         Args: { p_commission: string; p_kind: string; p_query?: string }
@@ -12971,20 +13015,37 @@ export type Database = {
       publish_process_template: {
         Args: { p_template_id: string }
         Returns: {
-          case_type_id: string | null
-          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
-          description: string | null
           id: string
-          status: string
-          title: string
           updated_at: string
         }
         SetofOptions: {
           from: "*"
           to: "process_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      publish_template_version: {
+        Args: { p_template_version_id: string }
+        Returns: {
+          case_type_id: string | null
+          collects_patient: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          published_at: string | null
+          status: string
+          template_id: string
+          title: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_versions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13525,7 +13586,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -13715,7 +13776,7 @@ export type Database = {
         }
       }
       reorder_case_layout_template: {
-        Args: { p_ordered: Json; p_template_id: string }
+        Args: { p_ordered: Json; p_template_version_id: string }
         Returns: undefined
       }
       reorder_case_narrative_types: {
@@ -14226,7 +14287,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -14505,7 +14566,7 @@ export type Database = {
         Returns: undefined
       }
       set_process_outcomes: {
-        Args: { p_outcome_ids: string[]; p_template_id: string }
+        Args: { p_outcome_ids: string[]; p_template_version_id: string }
         Returns: undefined
       }
       set_professional_link_state: {
@@ -14677,11 +14738,11 @@ export type Database = {
         }
       }
       set_template_case_type: {
-        Args: { p_case_type_id?: string; p_template_id: string }
+        Args: { p_case_type_id?: string; p_template_version_id: string }
         Returns: undefined
       }
       set_template_collects_patient: {
-        Args: { p_collects: boolean; p_template_id: string }
+        Args: { p_collects: boolean; p_template_version_id: string }
         Returns: undefined
       }
       set_template_phase_blocks: {
@@ -14697,7 +14758,7 @@ export type Database = {
           position: number
           recommend_when: Json | null
           result_ruleset: Json | null
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         SetofOptions: {
@@ -15304,7 +15365,7 @@ export type Database = {
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
           status: string
-          template_id: string | null
+          template_version_id: string | null
           updated_at: string
           visibility_policy: string
         }
@@ -16271,7 +16332,7 @@ export type Database = {
           instructions: string | null
           is_expected: boolean
           narrative_type_id: string
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         SetofOptions: {
@@ -16309,7 +16370,7 @@ export type Database = {
           position: number
           recommend_when: Json | null
           result_ruleset: Json | null
-          template_id: string
+          template_version_id: string
           title: string | null
         }
         SetofOptions: {

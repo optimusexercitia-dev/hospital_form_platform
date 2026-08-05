@@ -234,7 +234,11 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Agregado', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Agregado', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 
 -- Phase referencing BOTH synthetic aggregate keys → must SAVE (no HC016).
