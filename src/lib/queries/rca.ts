@@ -421,6 +421,28 @@ export async function listAssignableUsers(): Promise<AssignableUser[]> {
 }
 
 /**
+ * "The interview's date" — the EARLIEST session's `scheduled_start` (PO ruling,
+ * 2026-08-05, resolving BUG-RCA-001). `null` when no session carries a date.
+ *
+ * Exported and pure so the ruling is pinned by a TEST rather than by a comment: an
+ * interview has many sessions, so "its date" is a derivation someone must choose, and
+ * the alternative (`created_at`) was a live option. `rca.test.ts` holds it.
+ *
+ * ISO-8601 timestamps sort correctly as strings, which is why `localeCompare` is safe
+ * here — the values come straight from Postgres `timestamptz` and share an offset.
+ */
+export function earliestSessionStart(
+  sessions: { scheduled_start: string | null }[] | null,
+): string | null {
+  return (
+    (sessions ?? [])
+      .map((s) => s.scheduled_start)
+      .filter((d): d is string => Boolean(d))
+      .sort((a, b) => a.localeCompare(b))[0] ?? null
+  )
+}
+
+/**
  * The in-scope citable artifacts for the evidence `citation` picker: the event's
  * CASE artifacts (interviews / meetings / case documents) when the event is
  * case-linked. Minimum-necessary + `can_read_event`-scoped (the underlying reads are
@@ -445,19 +467,42 @@ export async function listRcaCitationTargets(
 
   const targets: RcaCitationTarget[] = []
 
+  // BUG-RCA-001. This selected `case_interviews.scheduled_start`, a column that has
+  // never existed on that table — an interview has MANY `interview_sessions`, and the
+  // timestamp lives on each session. Postgres rejected the whole select with
+  // `42703 column case_interviews.scheduled_start does not exist`, so `data` came back
+  // null, `?? []` swallowed it, and EVERY interview vanished from the citation-target
+  // list. Silent: no error surfaced, no toast, just missing options.
+  //
+  // Invisible to every static gate for the standard reason — a `.select()` is an opaque
+  // string and `.returns<T>()` is a type ASSERTION, not a check, so it typechecked and
+  // linted while being wrong. Found mechanically by `scripts/probe-embeds.mjs` replaying
+  // every select against live PostgREST; that is the only thing that can see inside one.
+  //
+  // "The interview's date" is the EARLIEST session's `scheduled_start` (PO ruling
+  // 2026-08-05). Sessions with no date sort last and contribute nothing; an interview
+  // with no dated session yields `null`, which the callers already render as "—".
+  // ⚠ Deliberately NOT filtered to `status = 'scheduled'` like {@link toNextSession} in
+  // `interviews.ts` — that helper answers "what is next", this answers "when was it",
+  // and a concluded interview's sessions are exactly the ones that would be excluded.
   const { data: interviews } = await supabase
     .from('case_interviews')
-    .select('id, interview_number, title, scheduled_start')
+    .select('id, interview_number, title, interview_sessions ( scheduled_start )')
     .eq('case_id', caseId)
     .returns<
-      { id: string; interview_number: number; title: string | null; scheduled_start: string | null }[]
+      {
+        id: string
+        interview_number: number
+        title: string | null
+        interview_sessions: { scheduled_start: string | null }[] | null
+      }[]
     >()
   for (const i of interviews ?? []) {
     targets.push({
       kind: 'interview',
       id: i.id,
       label: i.title?.trim() || `Entrevista nº ${i.interview_number}`,
-      date: i.scheduled_start,
+      date: earliestSessionStart(i.interview_sessions),
     })
   }
 

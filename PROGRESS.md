@@ -327,8 +327,7 @@ log line — so the green is causally attributable to the fix, not to environmen
 `e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
 unmodified — final gate verification remains `tester`'s.
 
-🔴 **BUG-RCA-001 — RCA citation targets silently omit ALL interviews (dead column, not a
-re-key casualty).** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
+⬛ **BUG-RCA-001 — RCA citation targets silently omit ALL interviews. ✅ FIXED 2026-08-05.** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
 **nobody was looking for this one; it is unrelated to ADR 0096.** `listRcaCitationTargets`
 (`src/lib/queries/rca.ts:450`) issues
 `.from('case_interviews').select('id, interview_number, title, scheduled_start')`.
@@ -342,7 +341,22 @@ is a type *assertion*, so it typechecks, lints, and passes E2E (which has no cov
 picker). **Fix is a product decision, deliberately NOT taken unilaterally:** an interview has
 N sessions, so "the interview's date" must be defined (earliest session's `scheduled_start`?
 the interview's `created_at`?) — needs an owner ruling before the embed is written.
-**Owner:** unassigned — needs lead triage. **Status:** OPEN, reported not fixed.
+**PO RULING 2026-08-05: "the interview's date" is the EARLIEST session's `scheduled_start`.**
+**Fixed** in `listRcaCitationTargets` — the select now embeds `interview_sessions ( scheduled_start )`
+and derives via the new exported `earliestSessionStart()`. No migration; client layer only.
+**Verified against PostgREST, not `tsc`:** the old select returns `42703 column
+case_interviews.scheduled_start does not exist`; the new one returns HTTP 200 with real rows — and the
+seeded interview genuinely carries TWO sessions (08-03 and 08-08), so the derivation is exercised rather
+than trivially satisfied. A full `probe-embeds.mjs` re-run over 286 sites now shows **zero 42703**.
+**The ruling is pinned by a TEST, not a comment** (`rca.test.ts`, 5 cases). The helper is exported and
+pure precisely because "its date" is a CHOICE — `created_at` was the live alternative, and a comment
+would not have survived the next refactor.
+⚠ Deliberately NOT status-filtered like `toNextSession` — that helper answers "what is NEXT", this one
+answers "when WAS it", and a concluded interview's sessions are exactly the ones it excludes.
+⚠ **Mutation-proven per arm** (ADR 0079 A2): sorting descending reds the earliest-wins case; dropping the
+undated filter reds the null-handling case. **My first attempt at the second probe was INERT** — the
+replace matched nothing and stayed green, which is indistinguishable from a surviving probe and would
+have had me delete a good test as vacuous. Confirm a mutation APPLIED before trusting its verdict.
 
 ⬛ **BUG-A11Y-001 — duplicate DOM ids on `/admin` broke label→control association. ✅ FIXED 2026-08-05.**
 Found by FUP-MEM-2's spec on its **first ever execution** (written 08-04, never run until the full gate).
@@ -651,7 +665,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 | 1 | ⬛ | ~~**`ARM=census` never run**~~ **CLOSED 2026-08-05** — the arm landed with the membership-hardening merge and was run against the merged catalog. It found real debt, not nothing: `process_template_versions_{select,staff_admin_write}` carry **no verdict from any sweep**. TV swept and keystoned the six CHILD policies on `process_template_{phases,narratives,outcomes}` (`dcc5a4d`) and not its own PARENT table's two — *a new door must inherit every sibling arm*, one level up. Registered as `gate:` debt in `authz-unswept-backlog.txt`. The ghost-check also named all five `validate_template_*` signatures ADR 0096 re-keyed to `p_template_version_id`. |
 | 2 | ⬛ | ~~**TV backfill never exercised** — rehearsal + snapshot blocking before `db push`.~~ **CLOSED (PO, 2026-08-05): the remote is EMPTY**, so the backfill meets 0 rows there exactly as it does locally. Not blocking. See the Phase Status caveat for the mechanism (which recurs) and for the unverified-premise error that produced this row. |
 | 3 | 🟡 | **Revoke residue** — `authenticated` still holds `TRUNCATE` on **66 tables**; TRUNCATE bypasses RLS entirely. Unreachable via PostgREST *today*. ⚠ This phase set its own standard by **refusing the "unreachable" argument** in `20260906000600`, so it should be swept or accepted **in writing** — not left implicit. |
-| 4 | 🟡 | **BUG-RCA-001** (see Bug Log) — pre-existing since `c4e20b3` (2026-06-18), needs a product decision: is "the interview's date" the earliest session's `scheduled_start`, or the interview's `created_at`? The correct pattern already exists at `src/lib/queries/interviews.ts:474`/`:520`. |
+| 4 | ⬛ | ~~**BUG-RCA-001**~~ **CLOSED 2026-08-05** — PO ruled the interview's date is the **earliest session's `scheduled_start`**; fixed, PostgREST-verified, and the ruling pinned by `rca.test.ts` (5 cases, mutation-proven per arm). See the Bug Log. |
 | 5 | 🟢 | Audit mesh **2 of 7** trigger arms keystoned (`20260906000200`). |
 | 6 | 🟢 | The `is_commission_admin_of` disjunct in the 6 new tenant-isolation keystones is **unexercised** — no org-admin persona exists in the test bootstrap. Adding one lifts several suites at once. |
 | 7 | 🟢 | `compute_case_phase_result` / `sync_case_phase_on_submit` still force the `in_case_rpc` GUC off (fails **closed**). · Resolver error semantics: helpers now log, but still collapse "not found" and "query failed" into one return — the discriminated-union refactor was deliberately deferred as too risky post-green. |
