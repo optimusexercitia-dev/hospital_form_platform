@@ -259,7 +259,7 @@ select lives_ok(
       true,
       jsonb_build_array(%L::text, %L::text))
   $SAVE$,
-    (select tid from tpl), (select form_id from fx),
+    (select vid from tpl), (select form_id from fx),
     (select alto_id from vocab), (select alto_id from vocab),
     (select baixo_id from vocab),
     (select alto_id from vocab), (select baixo_id from vocab)),
@@ -280,7 +280,7 @@ select throws_ok(
       true,
       jsonb_build_array(%L::text, %L::text))
   $BAD$,
-    (select tid from tpl), (select form_id from fx),
+    (select vid from tpl), (select form_id from fx),
     (select alto_id from vocab), (select baixo_id from vocab),
     (select alto_id from vocab), (select baixo_id from vocab)),
   'HC016', null,

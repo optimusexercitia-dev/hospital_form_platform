@@ -83,8 +83,8 @@ create temp table tpl_req on commit drop as
 update tpl_req set vid = app.draft_version_of_template(tid);
 select public.add_template_phase((select vid from tpl_req), (select form_u from k), 'Fase 1');
 insert into public.process_template_custom_fields
-  (template_id, key, label, field_type, options, required, show_in_list, position)
-values ((select tid from tpl_req), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true, true, 0);
+  (template_version_id, key, label, field_type, options, required, show_in_list, position)
+values ((select vid from tpl_req), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true, true, 0);
 select public.publish_process_template((select tid from tpl_req));
 
 create temp table tpl_phi on commit drop as
@@ -101,8 +101,10 @@ grant select on tpl_phi to authenticated;
 
 -- collects_patient is set out-of-band (as the owner, RLS-bypassing) — mirrors 151's
 -- direct fixture writes; the create-dialog/builder path is not under test here.
-update public.process_templates set collects_patient = true
-  where id = (select tid from tpl_phi);
+-- ADR 0096: collects_patient moved to the VERSION. The version is still a draft
+-- here (it is published below), so the published-version guard does not fire.
+update public.process_template_versions set collects_patient = true
+  where id = (select vid from tpl_phi);
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

@@ -152,6 +152,7 @@ declare
   v_cb uuid := gen_random_uuid();
   v_nm uuid := gen_random_uuid();
   v_tmpl uuid := gen_random_uuid();
+  v_tver uuid := gen_random_uuid();
   v_tphase uuid := gen_random_uuid();
   v_case uuid := gen_random_uuid();
   v_cphase uuid := gen_random_uuid();
@@ -180,10 +181,13 @@ begin
   select id into o_cb_z from public.form_item_options where item_id=v_cb and code='cb_z';
   perform public.publish_form_version(v_ver);
 
-  insert into public.process_templates (id, commission_id, title, created_by) values (v_tmpl, v_comm, 'T', v_user);
-  insert into public.process_template_phases (id, template_id, position, title, form_id) values (v_tphase, v_tmpl, 0, 'P', v_form);
-  insert into public.cases (id, commission_id, template_id, case_number, label, created_by, status)
-    values (v_case, v_comm, v_tmpl, 1, 'Caso', v_user, 'in_review');
+  -- ADR 0096: the template is identity only; title/status live on the version.
+  insert into public.process_templates (id, commission_id, created_by) values (v_tmpl, v_comm, v_user);
+  insert into public.process_template_versions (id, template_id, version_number, status, title, created_by)
+    values (v_tver, v_tmpl, 1, 'draft', 'T', v_user);
+  insert into public.process_template_phases (id, template_version_id, position, title, form_id) values (v_tphase, v_tver, 0, 'P', v_form);
+  insert into public.cases (id, commission_id, template_version_id, case_number, label, created_by, status)
+    values (v_case, v_comm, v_tver, 1, 'Caso', v_user, 'in_review');
   insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
     values (v_cphase, v_case, 0, 'P', v_form, v_ver, 'active');
   insert into public.responses (id, form_version_id, commission_id, created_by, status, case_phase_id)

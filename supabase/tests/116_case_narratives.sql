@@ -138,8 +138,12 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
+-- ADR 0096: add_template_narrative takes a VERSION id. Passing the TEMPLATE id
+-- here degraded the deny arm to P0002 ("versão não encontrada") — still a
+-- failure, but it had stopped testing tenant isolation. The version is resolved
+-- as sa_x, who can see it, so the HC054 cross-commission arm is what fires.
   format($$ select public.add_template_narrative(%L, %L) $$,
-         (select tid from tpl), (select nid from nt_y)),
+         (select vid from tpl), (select nid from nt_y)),
   'HC054', null,
   'add_template_narrative rejects a type from a different commission (HC054)'
 );
@@ -170,10 +174,10 @@ select public.reorder_case_layout_template(
   (select vid from tpl),
   jsonb_build_array(
     jsonb_build_object('kind','phase','id',
-      (select id from public.process_template_phases where template_id=(select tid from tpl) and position=1)),
+      (select id from public.process_template_phases where template_version_id=(select vid from tpl) and position=1)),
     jsonb_build_object('kind','narrative','id', (select nsid from ns)),
     jsonb_build_object('kind','phase','id',
-      (select id from public.process_template_phases where template_id=(select tid from tpl) and position=2))
+      (select id from public.process_template_phases where template_version_id=(select vid from tpl) and position=2))
   )
 );
 reset role;
@@ -185,14 +189,14 @@ select is(
 );
 select is(
   (select array_agg(display_position order by position)
-   from public.process_template_phases where template_id = (select tid from tpl)),
+   from public.process_template_phases where template_version_id = (select vid from tpl)),
   array[1, 3],
   'reorder_case_layout_template renumbers BOTH phases (display_position 1 and 3) while position is unchanged'
 );
 -- position (the phase NUMBER) is untouched by the reorder.
 select is(
   (select array_agg(position order by position)
-   from public.process_template_phases where template_id = (select tid from tpl)),
+   from public.process_template_phases where template_version_id = (select vid from tpl)),
   array[1, 2],
   'reorder_case_layout_template never touches phase.position (still 1,2)'
 );
@@ -203,8 +207,11 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
+-- ADR 0096: reorder_case_layout_template takes a VERSION id. With the TEMPLATE
+-- id this raised P0002 ("versão não encontrada") and stopped testing the
+-- incomplete-set arm at all.
   format($$ select public.reorder_case_layout_template(%L, %L::jsonb) $$,
-         (select tid from tpl),
+         (select vid from tpl),
          jsonb_build_array(jsonb_build_object('kind','narrative','id',(select nsid from ns)))::text),
   'HC054', null,
   'reorder_case_layout_template rejects an incomplete order set (HC054)'

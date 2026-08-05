@@ -4,7 +4,7 @@
 -- bootstrap + ctx/k temp tables).
 --
 -- Proves the two new SECURITY DEFINER WRITE RPCs + the editable offered-set:
---   * create_case by a staff_admin → template_id NULL, minted case_number, status
+--   * create_case by a staff_admin → template_version_id NULL, minted case_number, status
 --     'not_started', ZERO case_phases.
 --   * an OPTIONAL offered-outcome set (two same-commission non-archived → two
 --     case_offered_outcomes rows); a cross-commission/archived outcome → HC030.
@@ -68,7 +68,7 @@ grant select on oc_y to authenticated;
 reset role;
 
 -- =========================================================================
--- 1) create_case by a staff_admin → template_id NULL, minted number,
+-- 1) create_case by a staff_admin → template_version_id NULL, minted number,
 --    status 'not_started', ZERO case_phases.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
@@ -78,10 +78,13 @@ create temp table cse on commit drop as
 grant select on cse to authenticated;
 reset role;
 
+-- ADR 0096: cases were re-keyed template_id -> template_version_id. The point of
+-- this assertion is unchanged — a process-less case is bound to NO process — so
+-- it moves to the new column rather than being dropped.
 select is(
-  (select template_id from public.cases where id = (select cid from cse)),
+  (select template_version_id from public.cases where id = (select cid from cse)),
   null::uuid,
-  'create_case mints a case with template_id NULL (process-less)');
+  'create_case mints a case with template_version_id NULL (process-less)');
 select ok(
   (select case_number from public.cases where id = (select cid from cse)) is not null,
   'create_case mints a case_number (the BEFORE-INSERT trigger fires for a null-template insert)');

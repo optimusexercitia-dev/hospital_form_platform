@@ -126,7 +126,7 @@ select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad HC063',
             jsonb_build_object('match','all','conditions', jsonb_build_array(
               jsonb_build_object('source','result','from_phase',2,'op','equals','value',%L)))) $$,
-          (select tid from tpl), (select form_u from k), (select conforme_id from vocab)::text),
+          (select vid from tpl), (select form_u from k), (select conforme_id from vocab)::text),
   'HC063', null,
   'add_template_phase rejects a result-condition whose source phase does not emit a result (HC063)');
 reset role;
@@ -138,7 +138,7 @@ select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad HC064',
             jsonb_build_object('match','all','conditions', jsonb_build_array(
               jsonb_build_object('source','result','from_phase',1,'op','equals','value',%L)))) $$,
-          (select tid from tpl), (select form_u from k), (select outro_id from vocab)::text),
+          (select vid from tpl), (select form_u from k), (select outro_id from vocab)::text),
   'HC064', null,
   'add_template_phase rejects a result-condition referencing an id outside the source allowed set (HC064)');
 reset role;
@@ -146,11 +146,15 @@ reset role;
 -- ---- 3) publish the 5-phase template ----
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish: a template with result + mixed recommend_when groups goes active');
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: result + mixed recommend_when groups still publish.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish: a template with result + mixed recommend_when groups goes published');
 
 -- ===========================================================================
 -- CASE A — u_q1 = 'Sim' → phase 1 → Conforme (non-adverse)

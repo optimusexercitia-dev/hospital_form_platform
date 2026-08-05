@@ -121,12 +121,16 @@ select public.add_template_phase(
   'Fase 2'
 );
 -- 3) publish succeeds
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish_process_template with result_ruleset on phase 1 → status = active'
-);
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: a result_ruleset on phase 1 does not block publishing.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish_process_template with result_ruleset on phase 1 → version status = published'
+);
 
 -- ===========================================================================
 -- SECTION 1: Computed path — u_q1 = 'Sim' → rule match → Conforme
@@ -686,7 +690,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc059a),
+    (select vid from tpl_hc059a),
     (select form_u from k),
     '{}',
     (select approved_y_id from vocab_y),
@@ -724,7 +728,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc059b),
+    (select vid from tpl_hc059b),
     (select form_u from k),
     '{}',
     (select aid from archived_result),
@@ -762,7 +766,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc016),
+    (select vid from tpl_hc016),
     (select form_u from k),
     '{}',
     (select conforme_id from vocab),
@@ -826,7 +830,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc017),
+    (select vid from tpl_hc017),
     (select fid from form_unpub),
     '{}',
     (select conforme_id from vocab),

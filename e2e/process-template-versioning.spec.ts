@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Process-Template Versioning — E2E spec (ADR 0096 + Amendment 1).
@@ -584,4 +585,91 @@ test('AC-Keyboard: edit v2 → draft v3 → publish v3, driven entirely by keybo
   expect(published.length).toBe(1)
   expect(published[0].id).toBe(v3Id)
   expect(versions.find((v) => v.id === v2Id)?.status).toBe('archived')
+})
+
+// ===========================================================================
+// AC-Authz-DiscardArchive — the feedback-integrity fix (daa37d1): an
+// unauthorised caller's discard/archive attempt must raise 42501, not report
+// success (or a silent no-op 204/200) against a row RLS hid from it. Both the
+// error CODE and that the row SURVIVES are asserted — a code-only check would
+// still pass a door that returns the right error while quietly mutating
+// anyway (the exact defect this fix closed).
+//
+// Uses its OWN standalone draft template (never touched by the other tests
+// in this file), so this authorization proof cannot be confused with, or
+// corrupted by, the shared lifecycle template's D2 state.
+// ===========================================================================
+
+test('AC-Authz-DiscardArchive: a foreign staff_admin cannot discard a draft or archive a template — 42501, row survives', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  const ownerToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+
+  const authzTpl = await createDraftTemplateDirect(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_CCIH_ID,
+      title: `TV Authz E2E ${Date.now()}`,
+      createdBy: '00000000-0000-0000-0000-000000000002', // chefe.ccih@test.local
+    },
+  )
+
+  // A genuinely-authenticated staff_admin — just of a DIFFERENT commission
+  // (Farmácia, same org). Not a bad token, not a plain-staff role gap: the
+  // exact "authorized somewhere, not here" shape the fix targets.
+  const foreignToken = await getOwnerToken(page, 'chefe.farm@test.local')
+
+  // ── Unauthorized DISCARD ──
+  const discardResp = await rpc(page.request, 'discard_template_draft', foreignToken, {
+    p_template_version_id: authzTpl.versionId,
+  })
+  expect(
+    discardResp.ok(),
+    'discard_template_draft by a foreign staff_admin must be refused',
+  ).toBe(false)
+  const discardBody = (await discardResp.json()) as { code?: string }
+  expect(
+    discardBody.code,
+    `expected 42501 (insufficient_privilege), got ${JSON.stringify(discardBody)}`,
+  ).toBe('42501')
+
+  // Row survives: the draft is UNCHANGED — same id, still `draft`.
+  let versionsAfterDiscardAttempt = await getVersions(page.request, authzTpl.templateId)
+  expect(versionsAfterDiscardAttempt.length).toBe(1)
+  expect(versionsAfterDiscardAttempt[0].id).toBe(authzTpl.versionId)
+  expect(versionsAfterDiscardAttempt[0].status).toBe('draft')
+
+  // ── Unauthorized ARCHIVE ──
+  const archiveResp = await rpc(page.request, 'archive_process_template', foreignToken, {
+    p_template_id: authzTpl.templateId,
+  })
+  expect(
+    archiveResp.ok(),
+    'archive_process_template by a foreign staff_admin must be refused',
+  ).toBe(false)
+  const archiveBody = (await archiveResp.json()) as { code?: string }
+  expect(
+    archiveBody.code,
+    `expected 42501 (insufficient_privilege), got ${JSON.stringify(archiveBody)}`,
+  ).toBe('42501')
+
+  // Row survives here too — still draft, not archived.
+  versionsAfterDiscardAttempt = await getVersions(page.request, authzTpl.templateId)
+  expect(versionsAfterDiscardAttempt[0].status).toBe('draft')
+
+  // ── Positive control: the RIGHTFUL owner CAN discard it. ──
+  // Proves the two refusals above are authorization-specific, not a broken or
+  // vacuous door (this repo's "no-regression claim needs an over-grant twin"
+  // lesson, applied to a deny-side assertion instead).
+  const legitDiscardResp = await rpc(page.request, 'discard_template_draft', ownerToken, {
+    p_template_version_id: authzTpl.versionId,
+  })
+  expect(
+    legitDiscardResp.ok(),
+    `legitimate discard by the owning staff_admin failed: ${await legitDiscardResp.text()}`,
+  ).toBeTruthy()
 })

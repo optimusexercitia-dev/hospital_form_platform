@@ -149,8 +149,12 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
+-- ADR 0096: set_process_outcomes takes a VERSION id. Passing the TEMPLATE id
+-- here degraded the deny arm to P0002 ("versão não encontrada") — still a
+-- failure, but it had stopped testing tenant isolation. The version is resolved
+-- as sa_x, who can see it, so the HC030 cross-commission arm is what fires.
   format($$ select public.set_process_outcomes(%L, array[%L]::uuid[]) $$,
-         (select tid from tpl), (select oid from oc_y)),
+         (select vid from tpl), (select oid from oc_y)),
   'HC030',
   null,
   'set_process_outcomes rejects an outcome that belongs to a different commission (HC030)'

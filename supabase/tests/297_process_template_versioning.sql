@@ -22,6 +22,19 @@
 --   m6  archive: update matches nothing for EVERYONE         -> FI2c-control, FI2d
 --   p1  RLS write policy widened to `is_member_of`           -> FI1a, FI1b, FI2a,
 --                                                               FI2b, FI2c-control
+--   m7  drop DEFERRABLE from the phases position unique      -> RB1, RB2, RB3
+--   m8  revert create_case's insert list to `template_id`    -> RB5, RB6
+--   m9  make `reorder_template_phase` a no-op                -> RB2
+--   m10 make ONLY the 'up' direction a no-op                 -> RB4
+--   m11 make set_template_collects_patient update nothing    -> FL2
+--
+-- ⚠ m9 AND m10 BOTH EXIST BECAUSE ONE OF THEM WAS NOT ENOUGH — this is ADR 0079 A2's
+-- fork rule in miniature. m7 (the swap raises) leaves RB4 green, because a reorder
+-- that always fails leaves the order untouched, and so does m9 (a reorder that never
+-- acts). Two opposite mutations, same green. Only m10 — down works, up silently does
+-- nothing — distinguishes "swapped twice" from "never swapped" at the round trip.
+-- A symmetric assertion is blind to symmetric failure; probe each DIRECTION, not just
+-- each function.
 --
 -- ⚠ A REJECTED PROBE, recorded because it nearly passed as a result. `p2` set the
 -- write policy to `using(false)` to prove FI2c-control. It reported "nothing red",
@@ -32,10 +45,10 @@
 -- harness itself. m6 replaces it with a probe narrow enough to leave the fixture
 -- intact. When a probe reports green, check the DENOMINATOR before believing it.
 --
--- Assertion count: 8
+-- Assertion count: 16
 
 begin;
-select plan(8);
+select plan(16);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'cases_extras', 'audit_trail');
@@ -170,6 +183,144 @@ select throws_ok(
   'HC023',
   null,
   'FI2d: re-archiving an already-archived template is HC023, NOT 42501'
+);
+reset role;
+
+-- ===========================================================================
+-- RB — REBUILD PROPERTY LOSS (migration 20260907001200).
+--
+-- Three defects, one cause: a rebuild silently dropped a property the original
+-- carried. These keystones exist because that class is invisible to review — the
+-- new statement reads correct, and what is missing is not written anywhere.
+--
+-- ⚠ These use their OWN template, deliberately. `tpl` above is fully archived by
+-- FI2c, and a keystone that happened to depend on that ordering would be one
+-- section-reorder away from silently testing nothing.
+-- ===========================================================================
+
+update app.feature_flags set enabled = true where key = 'processless_cases';
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table rtpl on commit drop as
+  select (public.create_process_template((select comm_x from k), 'TV Reorder', null)).id as tid,
+         null::uuid as vid;
+update rtpl set vid = app.draft_version_of_template(tid);
+grant select on rtpl to authenticated;
+select public.add_template_phase((select vid from rtpl), (select form_u from k), 'R1');
+select public.add_template_phase((select vid from rtpl), (select form_u from k), 'R2');
+select public.add_template_phase((select vid from rtpl), (select form_u from k), 'R3');
+
+-- MUTATION: drop `deferrable initially immediate` from
+-- process_template_phases_position_key -> both reds with 23505.
+--
+-- `reorder_template_phase` swaps two rows' positions in ONE update. A
+-- non-deferrable unique is checked per ROW, so the first row collides with the
+-- neighbour that has not moved yet. This is the assertion that would have caught
+-- 20260907000400 dropping the keyword, and the reason it is here at all.
+select lives_ok(
+  format($$ select public.reorder_template_phase(
+    (select id from public.process_template_phases
+     where template_version_id = %L and position = 1), 'down') $$,
+    (select vid from rtpl)),
+  'RB1: a positional SWAP down succeeds (the unique is DEFERRABLE)'
+);
+-- ⚠ THE INTERMEDIATE STATE IS ASSERTED, and that is the whole point of RB2.
+-- The first draft of this section asserted only the ROUND TRIP — that after down
+-- then up the order is back to R1,R2,R3. Probe m9 (make `reorder_template_phase`
+-- a no-op) left that GREEN, because a door that does nothing also leaves the order
+-- unchanged. A round-trip assertion is symmetric and therefore blind to inaction;
+-- only the midpoint distinguishes "swapped twice" from "never swapped".
+select is(
+  (select string_agg(title, ',' order by position)
+   from public.process_template_phases where template_version_id = (select vid from rtpl)),
+  'R2,R1,R3',
+  'RB2: after the down swap the order actually MOVED (catches a no-op door)'
+);
+
+select lives_ok(
+  format($$ select public.reorder_template_phase(
+    (select id from public.process_template_phases
+     where template_version_id = %L and position = 2), 'up') $$,
+    (select vid from rtpl)),
+  'RB3: swapping back UP succeeds too — both directions, not just the happy one'
+);
+
+select is(
+  (select string_agg(title, ',' order by position)
+   from public.process_template_phases where template_version_id = (select vid from rtpl)),
+  'R1,R2,R3',
+  'RB4: the down+up round trip restored the original order'
+);
+
+-- MUTATION: revert create_case's insert column list to `template_id` -> reds 42703.
+--
+-- ⚠ THE CALL IS INSIDE `lives_ok` FOR A REASON, and it is not style. Calling
+-- create_case directly in the fixture was the first draft, and the mutation probe
+-- caught it: a 42703 there aborts the transaction, so RB4/RB5 did not go RED — they
+-- did not RUN AT ALL (11/13). An assertion that can only ever be green-or-absent is
+-- vacuous in the most deceptive way, because the suite summary still says "failed 0".
+-- `lives_ok` runs the statement in a subtransaction, so the door failing is reported
+-- as a FAILING TEST rather than as a missing one.
+create temp table pcase (cid uuid) on commit drop;
+grant select on pcase to authenticated;
+select lives_ok(
+  format($$ insert into pcase
+            select (public.create_case(%L, 'Caso sem processo')).id $$,
+         (select comm_x from k)),
+  'RB5: create_case SUCCEEDS — the processless door is not 42703'
+);
+
+-- ADR 0096 A1.1 item 4: a processless case legitimately carries no version. The
+-- point of this assertion predates the re-key and survives it — only the grain moved.
+--
+-- Asserted as a COUNT, not as `is(<scalar>, null)`. With an empty `pcase` the scalar
+-- form reads NULL and `is(null, null)` PASSES — the assertion would certify the
+-- absence of the row it is supposed to be inspecting.
+select is(
+  (select count(*)::int from public.cases c join pcase p on p.cid = c.id
+   where c.template_version_id is null),
+  1,
+  'RB6: a processless case has NULL template_version_id (no process, still pinned)'
+);
+
+-- ===========================================================================
+-- FL — ARM-2 FLOOR: `set_template_collects_patient` must COMPLETE somewhere.
+--
+-- `20260907000600` re-keyed this door's parameter from `p_template_id` to
+-- `p_template_version_id`. The ARM-2 floor allowlist keys entries by EXACT
+-- `proname(identity args)`, so its line 111 —
+--     set_template_collects_patient(p_template_id uuid, p_collects boolean)
+-- — stopped matching the door it names, and the door dropped off the floor with
+-- nothing raising. Fifth instance of this phase's governing failure: **anything
+-- keyed by a name you changed is a dependant, including things that live OUTSIDE
+-- the database.** The allowlist is a text file; no catalog sweep would ever reach it.
+--
+-- ⚠ THIS MUST DRIVE THE DOOR TO SUCCESS, AND A `throws_ok` WOULD NOT.
+-- ARM 2 counts CALLS via `pg_stat_user_functions`, and a call that raises records
+-- zero. So a deny-arm keystone drives the door and still leaves it on the offender
+-- list — which is deliberate: ARM 2 is implicitly also "this DEFINER can complete at
+-- least once", and a door whose authorized path is broken can never clear the floor
+-- no matter how much deny coverage it accumulates. Three doors were found broken
+-- exactly that way on 2026-08-04. Hence `lives_ok` on the AUTHORIZED path.
+--
+-- MUTATION: make the door's UPDATE match nothing (or re-gate it to reject drafts)
+-- -> FL2 reds. FL1 alone would not: a DEFINER that silently updates zero rows still
+-- "lives", which is the same feedback-integrity hole this suite's FI section pins on
+-- two sibling doors. FL1 clears the floor; FL2 is what makes FL1 mean something.
+-- ===========================================================================
+
+select lives_ok(
+  format($$ select public.set_template_collects_patient(%L, true) $$,
+         (select vid from rtpl)),
+  'FL1: set_template_collects_patient COMPLETES on a draft (clears the ARM-2 floor)'
+);
+
+select is(
+  (select collects_patient from public.process_template_versions
+   where id = (select vid from rtpl)),
+  true,
+  'FL2: …and it actually SET the flag — not a DEFINER that lives while doing nothing'
 );
 reset role;
 

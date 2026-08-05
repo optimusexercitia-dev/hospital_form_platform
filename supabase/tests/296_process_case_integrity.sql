@@ -11,10 +11,10 @@
 -- is missing it is because the assertion reads the catalog directly, which cannot be
 -- vacuous in that way.
 --
--- Assertion count: 23
+-- Assertion count: 27
 
 begin;
-select plan(23);
+select plan(27);
 
 update app.feature_flags set enabled = true
   where key in ('case_phase_results', 'cases_multi_phase', 'cases_extras',
@@ -214,9 +214,9 @@ select throws_ok(
 -- MUTATION: drop app.guard_template_phase_form_coherent → red.
 select throws_ok(
   format($q$insert into public.process_template_phases
-             (template_id, position, form_id)
+             (template_version_id, position, form_id)
            values (%L, 50, %L)$q$,
-         (select tid from tpl), (select form_y from k)),
+         (select vid from tpl), (select form_y from k)),
   'HC030',
   null,
   'H3: a FOREIGN commission form cannot back a process template phase');
@@ -283,7 +283,10 @@ select is(
   (select count(*)::int from information_schema.role_table_grants
    where table_schema = 'public' and grantee in ('authenticated', 'anon')
      and privilege_type in ('TRUNCATE', 'TRIGGER', 'REFERENCES')
-     and table_name in ('process_templates','process_template_phases','process_template_narratives',
+     -- ADR 0096 added process_template_versions to this cluster; the assertion
+     -- claims cluster-wide coverage, so the new table has to be in the list or
+     -- the claim quietly narrows.
+     and table_name in ('process_templates','process_template_versions','process_template_phases','process_template_narratives',
        'process_template_outcomes','process_template_custom_fields',
        'process_template_phase_allowed_results','process_template_phase_offered_results',
        'cases','case_phases','case_narratives','case_narrative_types','case_narrative_revisions',
@@ -311,6 +314,8 @@ select is(
      where c.contype = 'f'
        and c.conrelid::regclass::text in ('cases','case_phases','case_narratives',
          'case_narrative_revisions','case_custom_field_values','process_templates',
+         -- ADR 0096: process_template_versions joins the cluster this FK sweep covers.
+         'process_template_versions',
          'process_template_phases','case_outcomes','phase_results')
    )
    select count(*)::int from fk
@@ -439,6 +444,109 @@ end $$;
 select lives_ok(
   format($q$delete from public.cases where id = %L$q$, (select cid from c3)),
   'M2: deleting the OWNING CASE still cascades (the guard yields to the parent delete)');
+
+-- ===========================================================================
+-- §H2 · the audit mesh (20260906000200) — SECTION ADDED 2026-08-05.
+--
+-- ⚠ THIS SECTION WAS MISSING ENTIRELY. The header above claims migrations
+-- 20260906000100..001100, but 20260906000200 — the audit mesh, which added the
+-- `case.deleted` row — had NO keystone at all. That gap is precisely why the
+-- ADR-0096 re-key silently dropped the process binding out of the audit record
+-- and nothing went red.
+--
+-- ⚠ NO PROTECTION FROM THE SUFFICIENCY PROOF — READ BEFORE DELETING. Every other
+-- assertion in this file is backstopped by blocking a suite: break it and
+-- something fails loudly. This one is not. It fails SILENTLY, because
+-- `app.audit_diff` filters on `ov is distinct from nv`, and an allow-list entry
+-- naming a column that does not exist yields SQL NULL on both sides and is
+-- dropped without erroring. It is the ONE assertion here whose ABSENCE would go
+-- unnoticed. Do NOT remove it in a tidy-up as "redundant with the audit-mesh
+-- tests" — there are no others; this is the audit-mesh test.
+--
+-- RED-TODAY PROOF (2026-08-05; re-runnable from this note alone). Create a case
+-- from a template, delete it, then read the row back:
+--     select metadata ? 'template_version_id', metadata ? 'template_id',
+--            (select string_agg(kk, ', ' order by kk)
+--               from jsonb_object_keys(metadata) kk)
+--     from public.audit_log
+--     where action = 'case.deleted' and entity_id = <case id>;
+--   → f | f | case_number, label, outcome_id, status
+-- NEITHER key present: the process binding is GONE from the record, not merely
+-- mislabelled.
+--
+-- MECHANISM: app.trg_audit_cases' DELETE arm passes the allow-list
+--   array['status', 'outcome_id', 'case_number', 'template_id', 'label']
+-- but ADR 0096 re-keyed `cases`, so to_jsonb(old) now carries
+-- `template_version_id` and no `template_id`. The stale entry matches no key and
+-- audit_diff drops it. (A NULL-valued column is still recorded — `to_jsonb` emits
+-- the key with a JSON null, which IS distinct from SQL NULL — so this failure
+-- mode is specifically a MISSING key, not an empty one.)
+--
+-- MUTATION: revert that allow-list entry to 'template_id' → the keystone reds.
+-- PROVEN RED 2026-08-05: that exact mutation failed t27 and ONLY t27 (1 of 27).
+--
+-- COVERAGE, and the DEBT that remains. The H2 mesh is SEVEN triggers, derived
+-- from the catalog (pg_trigger joined to the mesh functions), NOT from the
+-- migration filename:
+--   cases                      → app.trg_audit_cases          — COVERED (t27, DELETE arm)
+--   case_phases                → app.trg_audit_case_phases    — COVERED (t26, INSERT arm)
+--   case_narratives            → app.trg_audit_case_narratives      — NOT COVERED
+--   case_custom_field_values   → app.trg_audit_case_child           — NOT COVERED
+--   case_offered_outcomes      → app.trg_audit_case_child           — NOT COVERED
+--   case_phase_allowed_results → app.trg_audit_case_child           — NOT COVERED
+--   case_phase_offered_results → app.trg_audit_case_child           — NOT COVERED
+-- The five uncovered arms are RECORDED COVERAGE DEBT, deliberately left rather
+-- than filled with assertions whose red-first proof nobody ran — writing those
+-- is what created this hole in the first place. Do not read the two covered arms
+-- as the mesh being tested.
+--
+-- Placed LAST, beside the cascade arm, for the same reason it is: it deletes a
+-- case. It uses a DEDICATED case so it neither consumes nor depends on c1/c3.
+-- ===========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table c4 on commit drop as
+  select (public.create_case_from_template((select tid from tpl), 'Caso auditoria')).id as cid;
+grant select on c4 to authenticated;
+reset role;
+
+-- t24 · CONTROL. The case under test is genuinely process-bound, so the binding
+-- the keystone looks for is a real one and not a vacuously-recorded null.
+select ok(
+  (select template_version_id is not null from public.cases where id = (select cid from c4)),
+  'H2 control: the case under test IS bound to a process version');
+
+-- t25 · CONTROL. The case has at least one phase. Without this, t26 compares
+-- 0 against 0 and passes with the INSERT arm ripped out — the exact vacuity
+-- shape this section exists to close.
+select ok(
+  (select count(*) from public.case_phases where case_id = (select cid from c4)) >= 1,
+  'H2 control: the case under test HAS at least one phase (t26 cannot pass on 0 = 0)');
+
+-- t26 · KEYSTONE (case_phases INSERT arm). Every phase materialised with the
+-- case emits exactly ONE `case_phase.created` row — a DELTA (audit rows per
+-- phase), not existence. Scoped by entity_id to this case's phases, so the
+-- other cases this file creates cannot inflate it.
+-- MUTATION: make app.trg_audit_case_phases return early on INSERT → red.
+-- PROVEN RED 2026-08-05: that mutation failed t26 and ONLY t26 (1 of 27).
+select is(
+  (select count(*)::int from public.audit_log a
+    where a.action = 'case_phase.created'
+      and a.entity_id in (select id from public.case_phases
+                           where case_id = (select cid from c4))),
+  (select count(*)::int from public.case_phases where case_id = (select cid from c4)),
+  'H2: each phase created with the case emits exactly one case_phase.created row');
+
+delete from public.cases where id = (select cid from c4);
+
+-- t27 · KEYSTONE (cases DELETE arm). The case.deleted audit row RECORDS the
+-- process binding. Asserts the FIELD IS PRESENT — deliberately NOT that a row
+-- exists, which the broken behaviour already satisfies and which proves nothing.
+select ok(
+  (select metadata ? 'template_version_id'
+     from public.audit_log
+    where action = 'case.deleted' and entity_id = (select cid from c4)),
+  'H2: case.deleted records the process binding (template_version_id present)');
 
 select * from finish();
 rollback;

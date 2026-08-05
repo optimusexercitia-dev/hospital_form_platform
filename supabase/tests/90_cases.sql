@@ -90,7 +90,7 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad',
             jsonb_build_object('from_phase',5,'question_key','u_q1','op','equals','value','sim')) $$,
-          (select tid from tpl), (select form_u from k)),
+          (select vid from tpl), (select form_u from k)),
   'HC016',
   null,
   'add_template_phase rejects a recommend_when whose from_phase is not earlier (P0016)'
@@ -103,7 +103,7 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad2',
             jsonb_build_object('from_phase',1,'question_key','nope','op','equals','value','sim')) $$,
-          (select tid from tpl), (select form_u from k)),
+          (select vid from tpl), (select form_u from k)),
   'HC016',
   null,
   'add_template_phase rejects a recommend_when referencing an absent question_key (P0016)'
@@ -113,12 +113,16 @@ reset role;
 -- ---- 3) publish the template ----
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish_process_template flips draft -> active'
-);
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: publishing flips the draft out of 'draft'.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish_process_template flips the template draft version -> published'
+);
 
 -- =========================================================================
 -- create_case_from_template: snapshot + minting.

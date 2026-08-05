@@ -79,9 +79,9 @@ select public.add_template_phase(
 reset role;
 
 create temp table p1 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl) and position = 1;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl) and position =1;
 create temp table p2 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl) and position = 2;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl) and position =2;
 grant select on p1 to authenticated;
 grant select on p2 to authenticated;
 
@@ -222,9 +222,9 @@ select public.add_template_phase((select vid from tpl2), (select form_u from k),
 reset role;
 
 create temp table q1 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl2) and position = 1;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl2) and position =1;
 create temp table q2 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl2) and position = 2;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl2) and position =2;
 grant select on q1 to authenticated;
 grant select on q2 to authenticated;
 
@@ -295,7 +295,7 @@ grant select on tpl3 to authenticated;
 select throws_ok(
   format(
     $$ select public.add_template_phase(%L, %L, 'NE', null, null, '{}'::integer[], null, false, jsonb_build_array(%L::text)) $$,
-    (select tid from tpl3), (select form_u from k), (select conforme_id from vocab)),
+    (select vid from tpl3), (select form_u from k), (select conforme_id from vocab)),
   'HC067', null,
   'add_template_phase: non-emitting phase + non-empty allowed is REJECTED (HC067)');
 
@@ -303,14 +303,14 @@ select throws_ok(
 select lives_ok(
   format(
     $$ select public.add_template_phase(%L, %L, 'EM', null, null, '{}'::integer[], null, true, jsonb_build_array(%L::text)) $$,
-    (select tid from tpl3), (select form_u from k), (select conforme_id from vocab)),
+    (select vid from tpl3), (select form_u from k), (select conforme_id from vocab)),
   'add_template_phase: emitting phase + allowed still succeeds (POS)');
 
 -- 21) POS readback: the emitting phase's allowed junction = [conforme] (1 row)
 select is(
   (select count(*)::int from public.process_template_phase_allowed_results
    where template_phase_id = (select id from public.process_template_phases
-                              where template_id = (select tid from tpl3) and position = 1)),
+                              where template_version_id = (select vid from tpl3) and position =1)),
   1, 'emitting phase allowed subset reads back = 1 after the HC067 guard (POS)');
 
 -- 22) NEG update (transition): flip the emitting phase to non-emitting WITHOUT
@@ -319,7 +319,7 @@ select throws_ok(
   format(
     $$ select public.update_template_phase(%L, null, null, null, false, null, false, null, false, null, false, false, null, false) $$,
     (select id from public.process_template_phases
-     where template_id = (select tid from tpl3) and position = 1)),
+     where template_version_id = (select vid from tpl3) and position =1)),
   'HC067', null,
   'update_template_phase: emitting→non-emitting while retaining allowed is REJECTED (HC067)');
 
