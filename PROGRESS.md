@@ -594,13 +594,20 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 | 7 | 🟢 | `compute_case_phase_result` / `sync_case_phase_on_submit` still force the `in_case_rpc` GUC off (fails **closed**). · Resolver error semantics: helpers now log, but still collapse "not found" and "query failed" into one return — the discriminated-union refactor was deliberately deferred as too risky post-green. |
 | 8 | 🟢 | **A FIFTH rebuild-property-loss, inside the migration written to close that class.** `20260907000700` recreated 10 policies on the 5 re-keyed relations **without the `TO authenticated` clause the originals carried** (`20260821000000` wrote `for select to authenticated`; the swap wrote bare `for select`). Platform split is **256 `{authenticated}` vs 11 `{public}` — and 10 of the 11 are these** (the 11th, `case_referral_delete_draft_source`, pre-dates the phase). `20260907001200` caught the ACL and `DEFERRABLE` losses and missed this one. **Verified INERT, twice:** `anon` holds **0 table grants on the 5** — and **0 anywhere in `public`** — so a bare policy still only ever evaluates for roles that either carry `BYPASSRLS` or cannot reach the table. Not a vulnerability; a latent widening if `anon` is ever granted anything. Normalize when one of these policies is next touched. ⚠ Same standard-consistency point as row 3: this phase refused the "unreachable" argument in `20260906000600`. |
 
-**Also recommended, not yet landed:** the PostgREST **embed sweep** built during this phase
-(`extract-embeds.mjs` + `probe-embeds.mjs`, currently in a scratchpad) should become an opt-in repo
-script. It found BUG-TV-001 *and* BUG-RCA-001 mechanically across 284+ call sites. It cannot join
-`npm run lint` — it needs a live local Supabase — so it wants its own entry point. The generalisation
-that justifies it: **ADR 0096 A1.5's grep sweep could not have caught BUG-TV-001, because that site
-names no dropped column — it names a relation that is no longer *reachable*. After a column drop,
-sweep the embeds the column ENABLED, not just the column.**
+| 9 | 🟡 | **`296` suite-number COLLISION between branches.** This branch shipped `supabase/tests/296_process_case_integrity.sql`; `feat/membership-hardening-technical-director` has an untracked `supabase/tests/296_authz_p0_isolation.sql`. Two different files, one number. That branch is currently **26 behind `main` and 0 ahead** (all its work is uncommitted), so it is cheapest to renumber **now**, before it commits — not to resolve as a merge conflict later. Owner: whoever picks that branch back up. |
+| 10 | 🟢 | **PROGRESS.md is 105 KB against the <60 KB target** (CLAUDE.md §7 — every spawn pays for it). This phase's rotation took it from 111.6 KB, so the trend is right but the gap is not closed. Next rotation should take the `📋 Remaining pre-pilot work` and closed-bug sections. |
+
+**Landed, no longer a recommendation:** the PostgREST **embed sweep** built during this phase now
+lives in the repo at **`scripts/extract-embeds.mjs`** + **`scripts/probe-embeds.mjs`** (moved out of
+a session scratchpad that was about to be deleted — the earlier revision of this line pointed at a
+path that would not have existed, which reads as "saved" when it is not). It found BUG-TV-001 *and*
+BUG-RCA-001 mechanically across 284+ call sites. **Still needs a `package.json` entry point** — it
+cannot join `npm run lint` because it requires a live local Supabase, and `probe-embeds.mjs` refuses
+any non-local URL by design.
+
+The generalisation that justifies keeping it: **ADR 0096 A1.5's grep sweep could not have caught
+BUG-TV-001, because that site names no dropped column — it names a relation that is no longer
+*reachable*. After a column drop, sweep the embeds the column ENABLED, not just the column.**
 
 ⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
 `case_phase_offered_results` rename.
