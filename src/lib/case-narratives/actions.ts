@@ -175,15 +175,23 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   )
 }
 
+// Every resolver below logs a QUERY error before returning null. A bare
+// `const { data } = ...` folds a broken select (dropped column, unresolvable
+// embed) into an indistinguishable "not found" — the disguise that let
+// BUG-TV-001 survive typecheck, lint, unit tests and a full E2E gate.
 async function commissionOfNarrative(
   supabase: SupabaseClient<Database>,
   narrativeId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_narratives')
     .select('cases(commission_id)')
     .eq('id', narrativeId)
     .maybeSingle<{ cases: { commission_id: string } | null }>()
+  if (error) {
+    console.error('[case-narratives] commissionOfNarrative failed', error)
+    return null
+  }
   return data?.cases?.commission_id ?? null
 }
 
@@ -193,11 +201,15 @@ async function commissionOfCase(
   supabase: SupabaseClient<Database>,
   caseId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('cases')
     .select('commission_id')
     .eq('id', caseId)
     .maybeSingle()
+  if (error) {
+    console.error('[case-narratives] commissionOfCase failed', error)
+    return null
+  }
   return data?.commission_id ?? null
 }
 
@@ -205,11 +217,15 @@ async function commissionOfType(
   supabase: SupabaseClient<Database>,
   narrativeTypeId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_narrative_types')
     .select('commission_id')
     .eq('id', narrativeTypeId)
     .maybeSingle()
+  if (error) {
+    console.error('[case-narratives] commissionOfType failed', error)
+    return null
+  }
   return data?.commission_id ?? null
 }
 
@@ -221,24 +237,51 @@ async function commissionOfTemplateVersion(
   supabase: SupabaseClient<Database>,
   templateVersionId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('process_template_versions')
     .select('process_templates(commission_id)')
     .eq('id', templateVersionId)
     .maybeSingle<{ process_templates: { commission_id: string } | null }>()
+  if (error) {
+    console.error('[case-narratives] commissionOfTemplateVersion failed', error)
+    return null
+  }
   return data?.process_templates?.commission_id ?? null
 }
 
+/**
+ * ADR 0096: a narrative SLOT hangs off a template VERSION, not off the template —
+ * the re-key dropped `process_template_narratives.template_id`, which was the FK
+ * that made a direct `process_templates(...)` embed resolvable. The commission is
+ * therefore THREE relations away (slot -> version -> template), matching
+ * {@link commissionOfTemplateVersion} and `contextOfPhase` in
+ * `@/lib/process-templates/actions`.
+ *
+ * A `.select()` is an opaque string and `.maybeSingle<T>()` asserts rather than
+ * validates, so the dead one-hop embed typechecked cleanly and failed only at
+ * runtime with PGRST200 (BUG-TV-001). Verify any change here against PostgREST,
+ * not against `tsc`.
+ */
 async function commissionOfTemplateNarrative(
   supabase: SupabaseClient<Database>,
   narrativeSlotId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('process_template_narratives')
-    .select('process_templates(commission_id)')
+    .select('process_template_versions(process_templates(commission_id))')
     .eq('id', narrativeSlotId)
-    .maybeSingle<{ process_templates: { commission_id: string } | null }>()
-  return data?.process_templates?.commission_id ?? null
+    .maybeSingle<{
+      process_template_versions: {
+        process_templates: { commission_id: string } | null
+      } | null
+    }>()
+  if (error) {
+    // Never silently fold a QUERY failure into "not found": that is exactly what
+    // disguised BUG-TV-001 as a friendly pt-BR "Narrativa não encontrada."
+    console.error('[case-narratives] commissionOfTemplateNarrative failed', error)
+    return null
+  }
+  return data?.process_template_versions?.process_templates?.commission_id ?? null
 }
 
 /** Map a narratives RPC error to friendly pt-BR (prefer the RPC's own message). */

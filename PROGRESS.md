@@ -368,6 +368,71 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
+(QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
+**Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
+template, add a narrative slot (works), then (a) open its edit dialog, change the title,
+submit, or (b) click its trash icon and confirm removal. **Expected:** (a) the dialog
+closes and the card shows the new title; (b) the card disappears and the DB row is gone.
+**Actual:** both fail with the friendly pt-BR toast "Narrativa não encontrada." — (a) the
+edit dialog stays open showing that banner, title unchanged; (b) the confirm dialog closes
+(Radix default) but the page-level banner shows the same message and the card/DB row
+survive untouched. **Root cause (F-1):** `commissionOfTemplateNarrative`
+(`src/lib/case-narratives/actions.ts:232`) selects the PostgREST embed
+`process_templates(commission_id)` from `.from('process_template_narratives')`. ADR-0096
+dropped `process_template_narratives.template_id` — the FK that embed relied on — so
+PostgREST rejects it with `PGRST200` at parse time. The helper discards `error` and
+returns `null` from `data?.process_templates?.commission_id ?? null`, so both
+`updateTemplateNarrative` and `removeTemplateNarrative` take the `!commissionId`
+early-return and answer with `MESSAGES.missingNarrative` ("Narrativa não encontrada.").
+Fails CLOSED, not an authz hole, but both actions are fully wired to the UI
+(`narrative-slot-dialog.tsx:129` / `template-builder-shell.tsx:243`), so this is a
+deterministic dead end for every staff_admin, on their own commission's own template.
+**Violates:** PHASES.md TV acceptance for narrative-slot authoring (edit/remove parity
+with create); ARCHITECTURE.md Rule 9 data-access-layer correctness (the query no longer
+matches the live FK graph). **Spec (RED-proven against current HEAD, before any fix):**
+`e2e/process-template-narrative-slot-crud.spec.ts` — two independent tests (own draft
+template + own narrative slot each, no shared/seeded fixture), asserting the CORRECT
+behavior (edit persists the new title; remove deletes the row), so both currently fail
+red for exactly the F-1 reason: `narrative-slot EDIT` fails at the "dialog closed"
+assertion (stays open, showing `status: Narrativa não encontrada.`); `narrative-slot
+REMOVE` fails at the "no not-found banner" assertion (banner present; DOM snapshot
+confirms the slot card `region "Slot Para Remover …"` survived). **Owner:** `backend`
+(fix `commissionOfTemplateNarrative` to resolve the commission without the dead FK
+embed — e.g. join through `process_template_versions.template_id` in two round trips, or
+add a substitute FK/view). **Status:** ✅ **FIXED by `backend` 2026-08-05** — no migration
+needed (client-layer only). `commissionOfTemplateNarrative` now selects the nested embed
+`process_template_versions(process_templates(commission_id))` — a single round trip along
+the live FK path `process_template_narratives.template_version_id →
+process_template_versions.template_id → process_templates`, derived from `pg_constraint`
+and mirroring `contextOfPhase` (`src/lib/process-templates/actions.ts:179`). **Verified
+against PostgREST, not `tsc`:** the old embed returns `PGRST200` ("Could not find a
+relationship…", hint: "Perhaps you meant 'process_template_versions'"); the new one
+returns the correct `commission_id` for a real slot under an authenticated session.
+Both actions' resolver helpers (all 5 in the file) now log the discarded `error` instead
+of folding a query failure into an indistinguishable "not found". **Mutation-checked:**
+reverting only the select string turns the spec red again (2 failed) and fires the new
+log line — so the green is causally attributable to the fix, not to environment.
+`e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
+unmodified — final gate verification remains `tester`'s.
+
+🔴 **BUG-RCA-001 — RCA citation targets silently omit ALL interviews (dead column, not a
+re-key casualty).** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
+**nobody was looking for this one; it is unrelated to ADR 0096.** `listRcaCitationTargets`
+(`src/lib/queries/rca.ts:450`) issues
+`.from('case_interviews').select('id, interview_number, title, scheduled_start')`.
+**`case_interviews` has no `scheduled_start` column** — per `information_schema`, it lives on
+`interview_sessions` (an interview has many sessions). PostgREST/Postgres reject the whole
+select with `42703 column case_interviews.scheduled_start does not exist`, so `data` is
+`null`, `interviews ?? []` yields `[]`, and **every interview is silently dropped from the RCA
+citation-target list** — no error, no toast, just missing options. **Invisible to every
+existing gate** for the standard reason: a `.select()` is an opaque string and `.returns<T>()`
+is a type *assertion*, so it typechecks, lints, and passes E2E (which has no coverage of this
+picker). **Fix is a product decision, deliberately NOT taken unilaterally:** an interview has
+N sessions, so "the interview's date" must be defined (earliest session's `scheduled_start`?
+the interview's `created_at`?) — needs an owner ruling before the embed is written.
+**Owner:** unassigned — needs lead triage. **Status:** OPEN, reported not fixed.
+
 🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
 migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
@@ -436,6 +501,7 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-05 | **TV · tester · new spec, RED-proven before any fix** — `e2e/process-template-narrative-slot-crud.spec.ts` (2 tests, chromium, dev server) — covers QA finding F-2 (zero prior coverage of narrative-slot edit/remove) | **0/2 — both RED for the intended reason (BUG-TV-001 / F-1: PGRST200 embed break in `commissionOfTemplateNarrative`).** EDIT fails at "edit dialog closed" (stays open showing `status: Narrativa não encontrada.`); REMOVE fails at "no not-found banner" (banner present, DOM snapshot shows the slot card survived). Each test builds its own fresh draft template — no shared/seeded fixture. Not rerun after a fix yet — backend has not been spawned |
 | 2026-08-05 | **TV · diff-scoped ARM `policy` re-sweep** over the six BLIND template-child policies (branch `db/process-case-integrity`) | **6 COVERED · 0 BLIND · 0 ERROR** — closes the `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}` finding. Baseline captured green at Files=158/Tests=4860. No allowlist entry added (a tenant-isolation policy may not be allowlisted) |
 | 2026-08-05 | **TV · pgTAP full suite** on a fresh `db reset` (adds `297`'s TI section) | **PASS — Files=158 / Tests=4860** (baseline 4839 + 21). All **21/21 new assertions mutation-proven RED** across 12 policy probes (p3–p14, open **and** close per policy); every probe ran the full denominator (21), catalog restore byte-verified on all six |
 | 2026-08-04 | **MEM W4 · `p0-authz-invariant.sh` `ARM=policy` FULL sweep** (302 door cases + write-path, ~5 h) | **`INVARIANT VIOLATED`** — BLIND set 83, **15 not allowlisted**. ⚠ **none is MEM/W4** (its migration has 0 `create/alter/drop policy`); the 15 are a dated census of every RLS added since 2026-07-18 → FUP-AUTHZ-2. Pruned 4 now-COVERED entries (72→68) |
@@ -486,6 +552,8 @@ not a defect — it reads exactly like a real red.
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **PCI** — Process/Case Integrity audit remediation (ADR 0095) | ⛔ CHANGES REQUESTED | 2026-08-05 | [review](docs/reviews/process-integrity-and-template-versioning-review.md) |
+| **TV** — Process-Template Versioning (ADR 0096 + Amendments 1.1–1.7) | ⛔ CHANGES REQUESTED | 2026-08-05 | [review](docs/reviews/process-integrity-and-template-versioning-review.md) |
 | **Phase 16** — Standards Crosswalk & Readiness/Gap Engine v2 (ADR 0093 D1–D10 + Amendments 1–3) | ✅ APPROVED | 2026-08-04 | [review](docs/reviews/phase-16-review.md) |
 | **FF-4** — Power Authoring (ADR 0092 + Amendments 1–2) | ✅ APPROVED | 2026-08-03 | [review](docs/reviews/phase-FF-4-review.md) |
 | **FF-5** — Entity Reference (ADR 0091 + Amendments 1–2) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/phase-FF-5-review.md#ff-5--qa-review-r2) |
