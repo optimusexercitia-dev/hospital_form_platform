@@ -208,3 +208,134 @@ transaction, leaving no second call to collide with.
 not confirming that the *defect* is present. The `on commit drop` line was really there; the
 conclusion drawn from it was still wrong. Same family as the standing false-P0 rule — read the
 whole body, not the line that matches.
+
+## Rotated 2026-08-05 — the pre-resolution text of FUP-AUTHZ-2, FUP-MEM-1 and FUP-BULK-1
+
+Kept verbatim because each names a hypothesis or a measurement that the resolution DISPROVED,
+and a resolution reads very differently once you can no longer see what it argued against.
+FUP-MEM-1 in particular proposed that `pg_stat_user_functions` drops stats from a rolled-back
+pgTAP transaction — plausible, tidy, and wrong.
+
+
+
+**Open, and it contradicts FUP-P16-1's close two commits earlier**, which is the only reason it is
+filed red rather than shrugged off. On the MEM branch, `ARM=floor` on a fresh reset reports
+`INVARIANT VIOLATED` for exactly three Phase-15 doors — `hospital_indicator_rollup` ·
+`indicator_kpis` · `record_indicator_measurement`.
+
+**Not attributable to MEM, on evidence rather than plausibility:**
+- MEM touches `memberships`, `session_context` and the grant/revoke doors; indicators are untouched.
+- `110_indicators.sql` **passes in full** and demonstrably calls all three (e.g. its
+  `indicator_kpis total = 6` assertion cannot pass without executing the function).
+- Running `00_setup` + `110_indicators` **ALONE** still reports `calls = 0` for the three, while 773
+  other functions register calls in the same run. A MEM migration cannot change whether 110's own
+  calls are counted — so the METRIC is unreliable here, not the doors.
+- All five MEM doors ARE exercised: `session_context` 18 · `grant_role` 43 · `grant_role_for` 14 ·
+  `revoke_role` 8 · `revoke_role_for` 2. Nothing MEM added is door-blind.
+
+**Leading hypothesis to test first:** `pg_stat_user_functions` appears not to retain function stats
+from the ROLLED-BACK pgTAP transaction for these three, while `00_setup` (which commits) does. A
+date-sensitivity angle is also live — the indicator suite is known date-fragile on the 1st–4th
+(BUG-P15-001) and this ran on the 4th.
+
+**Next step (cheap, decisive):** run `ARM=floor` on `main` at a comparable date. If it violates there
+too, this is a harness/stats artifact and the allowlist or the harness needs the fix — not MEM. ⚠ Do
+NOT "fix" it by allowlisting the three until that baseline exists; that would hide a real regression
+if one is there.
+
+⛔ **ARM 1 (the ~90-min policy sweep) was NOT run on this branch.** It is still owed before merge.
+⚠ A killed ARM-1 run overwrites `docs/reviews/authz-door-audit-findings.md` with a TRUNCATED result
+(it rewrote 246 BLIND rows down to 11 here, and was reverted). If you interrupt that sweep, restore
+that file before committing.
+
+
+---
+
+
+
+`p0-authz-invariant.sh ARM=policy` (full sweep, 2026-08-04, ~5 h, run on the MEM branch). **302 door
+cases + the write-path sweep. BLIND set 83; 15 are NOT in `authz-blind-allowlist.txt` ⇒ INVARIANT
+VIOLATED** (exit 1). ⚠ **None is MEM/W4** — W4's migration contains zero `create/alter/drop policy`
+statements; it rewrote predicates, not policies.
+
+| violation | landed | source |
+| --------- | ------ | ------ |
+| `case_assignment_roles_select` · `ethics_sanction_types_select` | 2026-07-18 | ETH·E2 BE-3/BE-6 |
+| `referral_{assignments,case_links,internal_notes,read_receipts,resolutions}_select*` · `referral_requested_actions_write_admin` | 2026-07-19 | Referrals-v2 R3/R4/R5 |
+| `case_correction_requests_select` · `case_narrative_revisions_select` · `case_reopenings_select` | 2026-07-24 | Case Corrections |
+| `answer_selected_options_{select,write}_targeted` · `form_item_options_select_targeted` | 2026-07-27 | ETH hotfix `4ee24c8` (**out-of-phase**) |
+| `accreditation_standards_select` | 2026-08-03 | Phase 16 |
+
+**The cause is one process gap, not 15 oversights.** The allowlist was last written 2026-07-18
+(`14cd626`). Dating every BLIND policy by its creating migration: **20 allowlisted, all ≤ 07-17; 15
+violations, all ≥ 07-18. Zero overlap.** The violations are simply *every RLS policy added since the
+invariant last ran*. CLAUDE.md §5 calls this gate **standing**, but §6's numbered Phase Gate is
+build → test → QA → approval → record — ARM 1 appears in **none** of them, so it runs only when
+someone remembers. Five phases shipped RLS in that window; all five passed pgTAP, E2E, QA and human
+approval.
+
+⚠ **And it is worse than "nobody ran it" — Phase 16 DID run it, and recorded a pass.** Its gate row
+reads "`p0-authz-invariant.sh` INVARIANT HOLDS", but the only recorded execution is `ARM=floor`
+(**ARM 2 only, ~1 min**). ARM 2 asks "is every door CALLED at least once"; ARM 1 asks "does anything
+NOTICE if the gate is opened". Phase 16's own `accreditation_standards_select` passes the first and
+fails the second. A gate row naming the *script* rather than the *arm* reads as full coverage while
+delivering the cheap half — the "text is not truth" failure applied to a gate record. **Record the
+ARM, never just the script name.**
+
+⚠ **BLIND means un-keystoned, not broken.** Each policy looks correct; nothing would notice if it
+stopped being. Worst-case exposure if one regresses: licensed standard text across commissions
+(P16 — commission-owned framework clones, **not PHI**); answer corruption on the ETH targeted lane
+(its migration warns the lane is DELETE-then-INSERT, so an INSERT-only widening is data-corrupting,
+not merely over-read).
+
+**Two shapes worth carrying forward.** (1) *Sibling covered, derived blind*:
+`accreditation_frameworks_select` is COVERED by `278` while `accreditation_standards_select` — which
+delegates to it — is BLIND. (2) *ADR 0079 decision 2 predicts `answer_selected_options_write_targeted`
+exactly*: a write-policy keystone needs a **reader-non-writer** principal, because row location
+applies the SELECT policy, so a fully-foreign principal silently tests the SELECT gate instead. The
+allowlist already carries several `*_write` policies for this reason — the shape is known and unfixed.
+
+**Fix:** keystone all 15 (never allowlist — these are ordinary tenant-isolation policies), each with a
+POSITIVE twin, mutation-proven via `p0b-isolation-mutation-audit.sh`; the ALL policies need the
+reader-non-writer principal. **AND wire the gate into §6** — ARM 2 is ~1 min and belongs in gate step
+1; ARM 1 at phase close. Without that, this report regenerates itself with a different 15.
+
+**Recorded ceiling — 30 cases ARM 1 CANNOT audit** (28 door + 2 write-path): neutralizing them aborts
+files mid-transaction, so the harness scores `ERROR`, never BLIND/COVERED (a run that didn't happen is
+not evidence). ⚠ **The gap correlates with centrality** — `has_role` (259 tests never ran),
+`can_manage_referral_{source,target}` (101/61), `is_active`, `is_member_of_for`, `is_staff_admin_of*`,
+`is_admin`. For the membership primitives, ARM 1 can never be the evidence; the per-workstream
+mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 · `295` 13/13).
+
+**Done in the same run:** pruned 4 allowlist entries the sweep reports as now-COVERED (72 → 68) —
+`answer_references_select` (an FF-5 obligation, now closed), `app.is_admin_for`,
+`app.is_hospital_admin_of_for` (both covered by MEM W1/W3), `form_item_validations_select`.
+
+
+---
+
+
+
+Found 2026-08-04 during the MEM full-gate triage. **Not a MEM regression** — the mechanism is
+probabilistic and identical on `main`.
+
+`listMembers()` (`src/lib/queries/members.ts`) filters the commission roster **by role only**, so it
+returns all 9 CCIH staff/staff_admin — including `suspenso.temp@test.local`, whose profile carries a
+future `suspended_until`. The bulk wizard defaults every listed member to selected, and
+`balancedDeal()` (`src/lib/cases/distribute.ts`) **shuffles with `Math.random`** and hands the 2 cases
+to the first 2 of the shuffled list. `bulk_create_cases` then calls `app.is_member_of_for`, which
+requires `app.is_active` (checks `is_active` **and** `suspended_until`) and raises **HC021 — "o
+responsável deve ser membro da comissão"**.
+
+**The list and the door disagree about what "member" means.** P(the suspended member lands in the
+first 2 of 9) = **2/9 ≈ 22%**, which matches the observed rate: 6 branch runs → 4 green, 1 HC021
+(AC2), 1 unrelated focus flake (AC8); `main` → 2 runs, both green. A 2-run green on `main` is ~61%
+likely by chance, so it is **not** evidence of branch attribution — I initially read it that way and
+was wrong.
+
+**Fix:** make the list agree with the door — filter `listMembers` (or at least the bulk wizard's
+member source) on the same activity predicate the RPC enforces, so a suspended member is never
+offered as a deal target. Until then this reds `bulk-case-creation.spec.ts` roughly one run in five,
+on any branch. Related: the door/list-disagreement family in
+`docs/progress/authz-handoff.md §7`.
+

@@ -123,8 +123,20 @@ Earlier targeted `e2e:prod` runs: **171 passed / 0 failed** (W3) and **160/0** (
 accounted** — the one failure is FUP-BULK-1, pre-existing and reproducible on `main`.
 **Authz:** diff-scoped ARM 1 over W4's own four gates = **3 COVERED · 1 ERROR · 0 BLIND**; the full
 302-case sweep found 15 BLIND gates, **none of them W4's** (FUP-AUTHZ-2).
-**W1→W4 is COMPLETE and merged to `main`** (fast-forward, unpushed). Open, none blocking: the 15
-keystones (FUP-AUTHZ-2) · FUP-BULK-1 · FUP-MEM-1/2/3.
+**W1→W4 is COMPLETE and merged to `main`** (fast-forward, unpushed).
+
+**Follow-up session 2026-08-05** (branch re-based on `main` after PCI+TV — merge `fbcd800`, one
+conflict, both sides kept). Of the five items this row used to list as open:
+**FUP-AUTHZ-2 ✅ RESOLVED** (298 32/32 · 15/15 RED-PROVEN) · **FUP-MEM-1 ✅ RESOLVED — not a defect**
+(its leading hypothesis disproven; see the entry) · **FUP-BULK-1 fixed, E2E confirmation owed**
+(probabilistic, so only a full `e2e:prod` can confirm) · **FUP-MEM-2 spec written, never run** ·
+**FUP-MEM-3 half-built** — appointment panel + send-wizard target picker land here, but the DT
+**inbox** does not exist, so the office can now be addressed and still cannot read (→ FUP-MEM-3b).
+**BUG-AUTHZ-002 ✅ FIXED** in the same session (it is the same defect class as FUP-AUTHZ-2 — enumerate
+by property, not by name — and it exposed a hole in ARM 3 itself).
+
+Gate on the merged tree, fresh reset: pgTAP **160 files / 4903 · PASS** · lint 0/0 · typecheck ·
+Vitest **954/954** · real `next build` · `ARM=census` and `ARM=floor` both **INVARIANT HOLDS**.
 
 > ⚠ **W4's referral plane found FIVE fail-open sites that the plan's task list did not name**, and
 > none of them could have been caught by a passing test — all five fail OPEN. Making
@@ -204,9 +216,12 @@ local-only migration (the S1–S3 batch onward — every S-phase built local-fir
 when the ETH·E1 m2 flag flip reaches production.** ⚠ The remote `db push` needs the **user's own auth** —
 background agents are auto-denied.
 
-**2. 🔴 BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.**
-Open; full entry in the Bug Log below. Wants its own migration + a parity pgTAP asserting platform_admin
-gets zero rows from *every* hospital-tier DEFINER, ideally before the pilot deploy.
+**2. ⬛ ~~BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.~~**
+**FIXED 2026-08-05** (`20260908000100`, held by `299_hospital_content_door_noun_rule.sql` 11/11) — no
+longer gates the pilot deploy. Full entry in the Bug Log below, including why the parity test this row
+prescribed had to be written differently: enumerated live, the property returns **four** doors, and
+`verify_audit_chain` must NOT return zero rows (its `is_admin()` is the platform tier, and audit is
+platform_admin's own noun).
 
 **3. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
@@ -329,7 +344,7 @@ N sessions, so "the interview's date" must be defined (earliest session's `sched
 the interview's `created_at`?) — needs an owner ruling before the embed is written.
 **Owner:** unassigned — needs lead triage. **Status:** OPEN, reported not fixed.
 
-🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
+⬛ **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation). ✅ FIXED 2026-08-05.**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
 migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
 `app.is_admin()` OR-arm live in **`public.hospital_document_register`** and
@@ -418,6 +433,12 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · pgTAP full suite** on a fresh `db reset` of the MERGED tree (285 migrations) | **PASS — Files=160 / Tests=4903.** Includes `298_authz_p0_isolation.sql` **32/32 on its first-ever execution** — and against `main`'s rewritten `seed.sql`, which the fixtures are pinned to by id, so that was luck rather than design — plus `299_hospital_content_door_noun_rule.sql` **11/11**. ⚠ An earlier run on the **non-reset** DB showed 4 failures (`100_dashboard` #19 "1079 anon-executable", `252` Bad-plan abort, + the 2 real ones): the first two were pgtap-in-catalog / leftover-state artifacts and vanished on the reset. CLAUDE.md's "fresh reset" instruction is load-bearing, not hygiene |
+| 2026-08-05 | **FUP-AUTHZ-2 · `p0b-isolation-mutation-audit.sh` Batch 4** — the 15 keystones | **15/15 RED-PROVEN**; controls green in all four files (250 14 ok · 251 40 · 252 48 · 298 32, 0 not-ok). Each keystone reddens when ITS policy opens, so none is vacuous |
+| 2026-08-05 | **BUG-AUTHZ-002 · live row-count probe, red→green** (the evidence the bug asked for and nobody had) | **RED:** platform@ read **3** documents / **2** rollups from Hospital Central A. **GREEN after `20260908000100`: 0 / 0.** **Twins:** hospital_admin.a1 and orgadmin.a still read 3 / 2 (not fixed-by-breaking). **Mutation-proven per arm** (ADR 0079 A2 FORK): restoring the disjunct on one door reds only that door's assertion |
+| 2026-08-05 | **`ARM=census` (ARM 3)** — first runs, against the merged catalog | **HOLDS at 436 live gates.** Earned it twice before holding: found `process_template_versions_{select,staff_admin_write}` unswept (TV keystoned the six CHILD policies, not its own PARENT table's two), and the ghost check named 5 `validate_template_*` signatures ADR 0096 re-keyed — plus 3 policy names I had entered from a commit message instead of the catalog. Domain extended mid-session to row-returning DEFINERs (+45) after BUG-AUTHZ-002 proved the boolean-only domain could not see it |
+| 2026-08-05 | **`ARM=floor`** on a fresh reset of the merged tree → **FUP-MEM-1's missing baseline** | **INVARIANT HOLDS.** The three indicator doors now register calls: `hospital_indicator_rollup` 5 · `indicator_kpis` 1 · `record_indicator_measurement` 1. The first is over-determined (`299` calls it); the evidence is the other two, untouched by this session, going 0→1. **Disproves** the 08-04 hypothesis that `pg_stat_user_functions` drops rolled-back pgTAP stats |
+| 2026-08-05 | **PostgREST embed probe** (`scripts/{extract,probe}-embeds.mjs`) over 286 select sites, after the FUP-BULK-1 embed change | **1 real defect: BUG-RCA-001** (`case_interviews.scheduled_start`, already logged); my new `memberships→profiles` embed resolves 200/OK under a service-role replay. ⚠ **228 of 286 sites returned `42501`** — the probe runs as `anon`, so PostgREST stopped at permissions and never resolved those embeds. They are **unvalidated, not validated**; read the tool's output accordingly |
 | 2026-08-05 | **PCI + TV · FINAL `e2e:prod` gate** (lead) — post-fix, on `f6c847d` | **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches.** ⚠ Read in this order, because the summary alone is not evidence: `reset FAILED` **0** · batches **1–16 contiguous, no gaps** · **no `*-unrun.log` stubs** · `accounted 965 of 970` collected. The 5-test gap is deliberate `test.skip` with documented reasons. Cross-check: collected 968→970 and passed 963→965 is exactly tester's **+2**, so the delta is fully attributed. 18 stale batch logs from the 10:46–11:32 run were cleared first — an aborted gate leaves the *previous* run's logs in place and they read as current |
 | 2026-08-05 | **TV · tester · new spec, RED-proven before any fix** — `e2e/process-template-narrative-slot-crud.spec.ts` (2 tests, chromium, dev server) — covers QA finding F-2 (zero prior coverage of narrative-slot edit/remove) | **0/2 — both RED for the intended reason (BUG-TV-001 / F-1: PGRST200 embed break in `commissionOfTemplateNarrative`).** EDIT fails at "edit dialog closed" (stays open showing `status: Narrativa não encontrada.`); REMOVE fails at "no not-found banner" (banner present, DOM snapshot shows the slot card survived). Each test builds its own fresh draft template — no shared/seeded fixture. ~~Not rerun after a fix yet — backend has not been spawned~~ → **lead 2026-08-05: superseded. `c557a32` landed the fix; spec re-run 2/2 GREEN, unmodified, and mutation-checked (reverting only the select string reds it again)** |
 | 2026-08-05 | **TV · diff-scoped ARM `policy` re-sweep** over the six BLIND template-child policies (branch `db/process-case-integrity`) | **6 COVERED · 0 BLIND · 0 ERROR** — closes the `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}` finding. Baseline captured green at Files=158/Tests=4860. No allowlist entry added (a tenant-isolation policy may not be allowlisted) |
@@ -655,42 +676,20 @@ date fragility, not the floor.
 ⛔ **The wider lesson:** an `ARM=floor` violation is a claim about the SUITE's coverage, and a
 date-fragile suite makes that claim date-dependent. Record the DATE beside any floor result.
 
-<details><summary>Original 2026-08-04 entry (kept: it names the disproven hypothesis)</summary>
+_Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
+### 🟡 FUP-MEM-2 — `assignOrgAdmin` door migration — **spec WRITTEN 2026-08-05, never run**
 
-**Open, and it contradicts FUP-P16-1's close two commits earlier**, which is the only reason it is
-filed red rather than shrugged off. On the MEM branch, `ARM=floor` on a fresh reset reports
-`INVARIANT VIOLATED` for exactly three Phase-15 doors — `hospital_indicator_rollup` ·
-`indicator_kpis` · `record_indicator_measurement`.
+`e2e/platform-org-admin-provisioning.spec.ts` (3 tests) exists. The claim it pins is specific, not
+"it works": the action must pass the **platform admin's own uid** as `p_actor`, and `grant_role_impl`
+stamps `granted_by = p_actor` — so `granted_by` is the observable separating "the right actor reached
+the door" from "something did". Asserting the membership row merely EXISTS would pass in both broken
+worlds. Uses a dedicated invitee (never a seed persona — `seed.sql` is a contract ~900 tests read
+from), purged by e-mail identity before AND after.
 
-**Not attributable to MEM, on evidence rather than plausibility:**
-- MEM touches `memberships`, `session_context` and the grant/revoke doors; indicators are untouched.
-- `110_indicators.sql` **passes in full** and demonstrably calls all three (e.g. its
-  `indicator_kpis total = 6` assertion cannot pass without executing the function).
-- Running `00_setup` + `110_indicators` **ALONE** still reports `calls = 0` for the three, while 773
-  other functions register calls in the same run. A MEM migration cannot change whether 110's own
-  calls are counted — so the METRIC is unreliable here, not the doors.
-- All five MEM doors ARE exercised: `session_context` 18 · `grant_role` 43 · `grant_role_for` 14 ·
-  `revoke_role` 8 · `revoke_role_for` 2. Nothing MEM added is door-blind.
+⚠ **Still owed: an actual run.** Writing a spec is not coverage. Folds into the same `e2e:prod` run
+FUP-BULK-1 needs.
 
-**Leading hypothesis to test first:** `pg_stat_user_functions` appears not to retain function stats
-from the ROLLED-BACK pgTAP transaction for these three, while `00_setup` (which commits) does. A
-date-sensitivity angle is also live — the indicator suite is known date-fragile on the 1st–4th
-(BUG-P15-001) and this ran on the 4th.
-
-**Next step (cheap, decisive):** run `ARM=floor` on `main` at a comparable date. If it violates there
-too, this is a harness/stats artifact and the allowlist or the harness needs the fix — not MEM. ⚠ Do
-NOT "fix" it by allowlisting the three until that baseline exists; that would hide a real regression
-if one is there.
-
-⛔ **ARM 1 (the ~90-min policy sweep) was NOT run on this branch.** It is still owed before merge.
-⚠ A killed ARM-1 run overwrites `docs/reviews/authz-door-audit-findings.md` with a TRUNCATED result
-(it rewrote 246 BLIND rows down to 11 here, and was reverted). If you interrupt that sweep, restore
-that file before committing.
-
-</details>
-
-### 🟡 FUP-MEM-2 — `assignOrgAdmin` migrated to the door with no E2E coverage
 
 W3/T3.3 moved `assignOrgAdmin` (`src/lib/platform/actions.ts` — the first-org_admin provisioning
 path) off raw `memberships` DML and onto `public.grant_role_for`. **No E2E spec exercises it**: a
@@ -740,68 +739,7 @@ census that looks complete is worse than one that admits its edge:
 is the only gate; 130 of 281 `app` DEFINERs are PUBLIC-executable). Named in the backlog header so
 ARM 3 holding is not mistaken for evidence about that class.
 
-<details><summary>Original 2026-08-04 entry</summary>
-
-
-`p0-authz-invariant.sh ARM=policy` (full sweep, 2026-08-04, ~5 h, run on the MEM branch). **302 door
-cases + the write-path sweep. BLIND set 83; 15 are NOT in `authz-blind-allowlist.txt` ⇒ INVARIANT
-VIOLATED** (exit 1). ⚠ **None is MEM/W4** — W4's migration contains zero `create/alter/drop policy`
-statements; it rewrote predicates, not policies.
-
-| violation | landed | source |
-| --------- | ------ | ------ |
-| `case_assignment_roles_select` · `ethics_sanction_types_select` | 2026-07-18 | ETH·E2 BE-3/BE-6 |
-| `referral_{assignments,case_links,internal_notes,read_receipts,resolutions}_select*` · `referral_requested_actions_write_admin` | 2026-07-19 | Referrals-v2 R3/R4/R5 |
-| `case_correction_requests_select` · `case_narrative_revisions_select` · `case_reopenings_select` | 2026-07-24 | Case Corrections |
-| `answer_selected_options_{select,write}_targeted` · `form_item_options_select_targeted` | 2026-07-27 | ETH hotfix `4ee24c8` (**out-of-phase**) |
-| `accreditation_standards_select` | 2026-08-03 | Phase 16 |
-
-**The cause is one process gap, not 15 oversights.** The allowlist was last written 2026-07-18
-(`14cd626`). Dating every BLIND policy by its creating migration: **20 allowlisted, all ≤ 07-17; 15
-violations, all ≥ 07-18. Zero overlap.** The violations are simply *every RLS policy added since the
-invariant last ran*. CLAUDE.md §5 calls this gate **standing**, but §6's numbered Phase Gate is
-build → test → QA → approval → record — ARM 1 appears in **none** of them, so it runs only when
-someone remembers. Five phases shipped RLS in that window; all five passed pgTAP, E2E, QA and human
-approval.
-
-⚠ **And it is worse than "nobody ran it" — Phase 16 DID run it, and recorded a pass.** Its gate row
-reads "`p0-authz-invariant.sh` INVARIANT HOLDS", but the only recorded execution is `ARM=floor`
-(**ARM 2 only, ~1 min**). ARM 2 asks "is every door CALLED at least once"; ARM 1 asks "does anything
-NOTICE if the gate is opened". Phase 16's own `accreditation_standards_select` passes the first and
-fails the second. A gate row naming the *script* rather than the *arm* reads as full coverage while
-delivering the cheap half — the "text is not truth" failure applied to a gate record. **Record the
-ARM, never just the script name.**
-
-⚠ **BLIND means un-keystoned, not broken.** Each policy looks correct; nothing would notice if it
-stopped being. Worst-case exposure if one regresses: licensed standard text across commissions
-(P16 — commission-owned framework clones, **not PHI**); answer corruption on the ETH targeted lane
-(its migration warns the lane is DELETE-then-INSERT, so an INSERT-only widening is data-corrupting,
-not merely over-read).
-
-**Two shapes worth carrying forward.** (1) *Sibling covered, derived blind*:
-`accreditation_frameworks_select` is COVERED by `278` while `accreditation_standards_select` — which
-delegates to it — is BLIND. (2) *ADR 0079 decision 2 predicts `answer_selected_options_write_targeted`
-exactly*: a write-policy keystone needs a **reader-non-writer** principal, because row location
-applies the SELECT policy, so a fully-foreign principal silently tests the SELECT gate instead. The
-allowlist already carries several `*_write` policies for this reason — the shape is known and unfixed.
-
-**Fix:** keystone all 15 (never allowlist — these are ordinary tenant-isolation policies), each with a
-POSITIVE twin, mutation-proven via `p0b-isolation-mutation-audit.sh`; the ALL policies need the
-reader-non-writer principal. **AND wire the gate into §6** — ARM 2 is ~1 min and belongs in gate step
-1; ARM 1 at phase close. Without that, this report regenerates itself with a different 15.
-
-**Recorded ceiling — 30 cases ARM 1 CANNOT audit** (28 door + 2 write-path): neutralizing them aborts
-files mid-transaction, so the harness scores `ERROR`, never BLIND/COVERED (a run that didn't happen is
-not evidence). ⚠ **The gap correlates with centrality** — `has_role` (259 tests never ran),
-`can_manage_referral_{source,target}` (101/61), `is_active`, `is_member_of_for`, `is_staff_admin_of*`,
-`is_admin`. For the membership primitives, ARM 1 can never be the evidence; the per-workstream
-mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 · `295` 13/13).
-
-**Done in the same run:** pruned 4 allowlist entries the sweep reports as now-COVERED (72 → 68) —
-`answer_references_select` (an FF-5 obligation, now closed), `app.is_admin_for`,
-`app.is_hospital_admin_of_for` (both covered by MEM W1/W3), `form_item_validations_select`.
-
-</details>
+_Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
 ### 🟡 FUP-BULK-1 — bulk wizard deals to SUSPENDED members — **FIXED 2026-08-05, E2E confirmation owed**
 
@@ -821,35 +759,25 @@ validated**. Read its output accordingly; the service-role replay is what actual
 **Owed:** the ~22% red is a probabilistic E2E failure, so only a full `e2e:prod` run can confirm it is
 gone. Not yet run.
 
-<details><summary>Original entry</summary>
+_Original entry rotated → [follow-ups-archive.md](docs/progress/follow-ups-archive.md) (2026-08-05)._
 
+### 🟡 FUP-MEM-3 — the DT referral plane's product callers — **HALF BUILT 2026-08-05**
 
-Found 2026-08-04 during the MEM full-gate triage. **Not a MEM regression** — the mechanism is
-probabilistic and identical on `main`.
+**Built:** the hospital-detail **appointment panel** (appoint / replace titular / deputies / revoke,
+flag-gated) and the send-wizard **target picker**. The titular affordance is *Substituir*, not *Adicionar*
+— `appoint_technical_director` revokes and grants in one transaction, and a plain grant over a seated
+office is refused (HC0G4), so an "add" button would be an affordance that cannot work. Destination is
+modelled as the sum type it is; the action mirrors the RPC's two-sided XOR rather than asking "is a
+commission set?", since the one-sided form admits the "both" case.
 
-`listMembers()` (`src/lib/queries/members.ts`) filters the commission roster **by role only**, so it
-returns all 9 CCIH staff/staff_admin — including `suspenso.temp@test.local`, whose profile carries a
-future `suspended_until`. The bulk wizard defaults every listed member to selected, and
-`balancedDeal()` (`src/lib/cases/distribute.ts`) **shuffles with `Math.random`** and hands the 2 cases
-to the first 2 of the shuffled list. `bulk_create_cases` then calls `app.is_member_of_for`, which
-requires `app.is_active` (checks `is_active` **and** `suspended_until`) and raises **HC021 — "o
-responsável deve ser membro da comissão"**.
+⚠ `p_target_commission_id` is sent as an **explicit null** on the DT arm. The generated Args type says
+`string`; the RPC requires NULL there. The parameter cannot be given a DEFAULT — it is argument 2, and
+Postgres refuses a default on a parameter followed by mandatory ones — so expressing the sum type in
+the signature needs a **parameter reorder**. Recorded at the call site, not smuggled in.
 
-**The list and the door disagree about what "member" means.** P(the suspended member lands in the
-first 2 of 9) = **2/9 ≈ 22%**, which matches the observed rate: 6 branch runs → 4 green, 1 HC021
-(AC2), 1 unrelated focus flake (AC8); `main` → 2 runs, both green. A 2-run green on `main` is ~61%
-likely by chance, so it is **not** evidence of branch attribution — I initially read it that way and
-was wrong.
+⛔ **NOT built: the DT inbox** → FUP-MEM-3b. The office can now be *addressed* and still cannot *read*.
+Do not treat this row as closed on the strength of the two surfaces above.
 
-**Fix:** make the list agree with the door — filter `listMembers` (or at least the bulk wizard's
-member source) on the same activity predicate the RPC enforces, so a suspended member is never
-offered as a deal target. Until then this reds `bulk-case-creation.spec.ts` roughly one run in five,
-on any branch. Related: the door/list-disagreement family in
-`docs/progress/authz-handoff.md §7`.
-
-</details>
-
-### 🟡 FUP-MEM-3 — the DT referral plane is live with NO product caller
 
 W4 ships no frontend by plan, so `create_referral_draft`'s new `p_target_hospital_id` parameter has no
 caller anywhere in `src/`: nothing in the product can create a `target_type = 'technical_director'`
@@ -868,6 +796,42 @@ typed but called from no component.
 **Fix:** carry both into the DT UI phase — a send-wizard target picker (committee | direção técnica) and
 a hospital-manage appointment panel — and add the E2E specs there. Until then, treat "DT referrals work"
 as proven at the RPC surface only.
+
+### 🔴 FUP-MEM-3b — the DT referral INBOX does not exist (the office cannot read)
+
+A Diretor Técnico holds only a hospital-tier membership, so every referral surface is closed to them:
+the commission hub needs `getCommissionAccessByOrg`, `/conta/encaminhamentos` lists only explicit
+assignments, `/o/[org]/nsp/encaminhamentos` is the PQS surface. RLS admits them
+(`can_read_referral_metadata` has the `is_technical_director_of_for` arm) — nothing routes them.
+**With FUP-MEM-3's picker shipped, a coordinator can now send a referral no one can open.**
+
+**Staged, and deliberately flagged as unfinished:** `SessionContext.technicalDirectionOf`,
+`getTechnicalDirectionAccessByOrg`, `listTechnicalDirectionReferrals` (commit `0f979f3`). ⚠ **All three
+have NO CALLER** — the same shape as the defect FUP-MEM-3 repairs. Committed only so the work survived
+the `main` merge; it is not a partial fix.
+
+**Owed:** the route + a shared referral-detail view extracted from the 540-line commission page (the
+`case-detail-view.tsx` capability-descriptor pattern). pgTAP `295` §4 proves the DT **and the deputy**
+drive the full target-side lifecycle (receive → accept → start_review → request_information) on the
+same status machine, so a read-only stub is not enough.
+
+### 🟡 FUP-AUTHZ-3 — 45 row-returning DEFINER doors have never been swept
+
+Registered as `gate:` debt in `authz-unswept-backlog.txt` when ARM 3's domain was extended
+(2026-08-05). Every one is authenticated-reachable, `prosecdef`, and returns ROWS — so by the standing
+rule (*a DEFINER's gate REPLACES RLS*) the gate inside each IS the whole boundary. **Not hypothetical:
+BUG-AUTHZ-002 lived in this class**, leaking commission content to platform_admin.
+
+**Blocked on harness work, not triage:** the door audit neutralizes a predicate to `true`, which is
+meaningless for a function returning a table. Sweeping these needs a neutralization that opens the
+INTERNAL gate. `299_hospital_content_door_noun_rule.sql` §4 is the model for what each then owes — a
+computed enumeration plus a row-count assertion per principal, never a predicate call.
+
+### 🟢 FUP-AUTHZ-4 — prune 6 now-COVERED entries from the BLIND allowlist
+
+The PCI+TV phase keystoned the six `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}`
+policies but left their allowlist lines in place, so ARM 1 reports them as "no longer BLIND — prune".
+Recorded in the backlog's `swept:` section meanwhile. Housekeeping; blocks nothing.
 
 ### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
 

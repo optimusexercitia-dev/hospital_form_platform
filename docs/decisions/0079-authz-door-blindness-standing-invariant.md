@@ -164,7 +164,7 @@ into PROGRESS.md's *Current Phase Tasks*, which §5 rotation archives at phase c
 lesson in a per-phase container, which would have filed it away exactly when it became useful. That
 was a lead error; cross-phase records belong in `docs/decisions/` or `docs/testing/`.
 
-## Amendment 3 — ARM 3, the census that stops the sixteenth (2026-08-04)
+## Amendment 3 — ARM 3, the census that stops the sixteenth (2026-08-04, extended 2026-08-05)
 
 **Why.** Amendment 1 made the sweep a phase step, which fixes "nobody ran it". It does not
 fix the deeper hole: **ARM 1 cannot see a gate that was never swept.** ARM 1 asserts
@@ -187,12 +187,44 @@ different incomplete domains —
   never been in any worklist. *An enumeration whose boundary is a naming convention is the
   same mistake as one whose boundary is a filename.*
 
-**Decision.** `ARM=census` (~2 s, no suite run, no mutation): every `prosecdef` boolean
-function in `app`/`public` and every RLS policy **of every `polcmd`** in the live catalog
+**Decision.** `ARM=census` (~2 s, no suite run, no mutation): every gate in the live catalog
 must carry a verdict — a row in a committed findings md (BLIND | COVERED | ERROR | SKIPPED)
 or a line in the new **`authz-unswept-backlog.txt`**. Anything in neither fails the gate.
 CLAUDE.md §6 step 1 runs it **every phase**; cost is the point, since Amendment 1's own
 argument is that an expensive gate gets satisfied nominally.
+
+The census domain is, as of 2026-08-05:
+
+1. every `prosecdef` **boolean** function in `app`/`public` (no name filter);
+2. every RLS policy **of every `polcmd`**;
+3. every **authenticated-reachable `prosecdef` function that RETURNS ROWS**.
+
+**(3) was added a day after (1)–(2) shipped, and the reason is the point of this whole
+amendment.** BUG-AUTHZ-002 — two `prosecdef` doors, `hospital_document_register` and
+`hospital_indicator_rollup`, returning commission content to `platform_admin` against ADR
+0078 A35's noun rule — was open in the bug log the whole time, and **the census as first
+written could not have caught it**: both return `TABLE(...)`, and the domain was booleans and
+policies. The arm written to close an enumeration hole had one of its own, of exactly the
+kind it indicts. The justification for (3) is this repo's own standing rule — *a DEFINER's
+gate REPLACES RLS* — so for a row-returning door the gate inside it is the entire boundary.
+A boolean predicate is a gate you can neutralize; a row-returning door is a gate you can walk
+through. The extension added **45** doors, all registered as `gate:` debt.
+
+⛔ **What the census still cannot see, stated so that "INVARIANT HOLDS" is not read as more
+than it is: AUDIT-INVOKER-WRAPPER.** A `prosecdef = f` INVOKER wrapper whose hand-written
+`if not exists (…)` probe is the only gate in front of an `app.` DEFINER body carries no
+`prosecdef` flag and no policy, so no part of the domain above reaches it — and **130 of 281
+`app` DEFINERs are PUBLIC-executable**, which makes the wrapper the whole boundary each time.
+Proven live in FF-3. Scheduling is a PO decision; the obligation here is that ARM 3 holding is
+**not evidence** about that class, and the backlog header says so.
+
+**A verdict needs somewhere to land (added 2026-08-05).** ARM 3 reads verdicts out of the
+committed findings md — but Amendment 1's diff-scoped recipe *ends by discarding that file*,
+because a subset run overwrites it. So the sweep the phase gate actually mandates had no way
+to record a verdict, and a correctly-swept, correctly-keystoned gate would have read as
+UNSWEPT forever. The backlog gains a **`swept:`** section as that destination: the gate, its
+verdict, and the keystone holding it. Found when the PCI+TV merge landed six keystoned
+policies whose verdicts existed only in a report the recipe had thrown away.
 
 **`authz-unswept-backlog.txt` is deliberately NOT the BLIND allowlist.** That file means
 *we swept it and no keystone noticed*; this one means *we have never swept it, so we do not
@@ -205,4 +237,11 @@ record instead of an exclusion nobody reads.
 **Proven, not asserted** (the keystone rule applied to the gate itself): deleting one line
 from the backlog makes ARM 3 print that gate and exit 1; restoring it returns `INVARIANT
 HOLDS`. A gate that has never been shown to fail is not a gate.
+
+⚠ Under **Amendment 2** that single probe is not sufficient on its own — it exercises only the
+"live gate missing from the backlog" direction. The opposite direction is the **ghost check**
+(a backlog line with no live gate behind it), and both have since fired in anger: the ghost
+check named the five `validate_template_*` signatures ADR 0096 re-keyed to
+`p_template_version_id`, and it caught three policy names that had been entered from a commit
+message instead of the catalog. Two directions, two real catches.
 

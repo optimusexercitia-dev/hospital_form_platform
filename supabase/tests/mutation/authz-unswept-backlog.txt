@@ -31,6 +31,15 @@
 # messages and item labels. Scheduling is a PO decision; the point of this note is that
 # ARM 3 holding is not evidence about that class.
 #
+# ── HOW THIS FILE GREW (99 entries, and every jump has a cause worth reading) ──
+#   46  2026-08-04 · the first census, over booleans + policies (root cause below)
+#   +2  2026-08-05 · process_template_versions_{select,staff_admin_write} — the PCI+TV
+#                    merge; the phase keystoned its six CHILD policies and not its own
+#                    PARENT table's two
+#  +45  2026-08-05 · row-returning DEFINER doors, after BUG-AUTHZ-002 proved the
+#                    boolean-only domain could not see a live leak (see that block)
+#   +6  2026-08-05 · the `swept:` section (verdicts with nowhere else to live)
+#
 # ── Why 46 gates were unswept on 2026-08-04 (the root cause, not 46 oversights) ──
 # The two sweeps enumerate DIFFERENT, and both INCOMPLETE, domains:
 #   * p0-authz-door-audit.sh policy arm queries the live catalog but filters
