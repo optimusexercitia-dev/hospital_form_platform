@@ -433,12 +433,19 @@ export function TemplateBuilderShell({
         )}
       </div>
 
+      {/* ADR 0096, TRANSITIONAL — the authoring seam is re-keyed to the version
+          grain (prop + FormData field), but the substrate migration has not landed,
+          so `addTemplatePhase` still sends `p_template_id` and the value it wants is
+          still the TEMPLATE id. Name is forward-looking, value is current-substrate:
+          the same split backend deliberately took on its side. The flip pass, which
+          re-points this shell to `ProcessTemplateWithVersion`, replaces the value
+          with the draft `version.id` — at which point name and value agree again. */}
       {isDraft && (
         <PhaseSlotDialog
           mode="create"
           open={addPhaseOpen}
           onOpenChange={setAddPhaseOpen}
-          templateId={template.id}
+          templateVersionId={template.id}
           forms={forms}
           phases={phases}
           conditionTargetsByForm={conditionTargetsByForm}
@@ -452,7 +459,8 @@ export function TemplateBuilderShell({
           mode="create"
           open={addNarrativeOpen}
           onOpenChange={setAddNarrativeOpen}
-          templateId={template.id}
+          // TRANSITIONAL — see the PhaseSlotDialog note above.
+          templateVersionId={template.id}
           narrativeTypes={narrativeTypes}
         />
       )}

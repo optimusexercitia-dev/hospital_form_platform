@@ -79,7 +79,7 @@ export function PhaseSlotDialog({
   mode,
   open,
   onOpenChange,
-  templateId,
+  templateVersionId,
   phase,
   forms,
   phases,
@@ -90,7 +90,12 @@ export function PhaseSlotDialog({
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  templateId: string;
+  /**
+   * The DRAFT version the slot belongs to (ADR 0096). Re-keyed from `templateId`:
+   * the authoring RPCs now take `template_version_id` and refuse a non-draft, so a
+   * prop named `templateId` here would be a name that lies.
+   */
+  templateVersionId: string;
   /** Required for `edit`; ignored for `create`. */
   phase?: ProcessTemplatePhase;
   forms: SlotForm[];
@@ -188,7 +193,8 @@ export function PhaseSlotDialog({
     if (resultIncomplete) return;
     const form = new FormData();
     if (mode === "create") {
-      form.set("templateId", templateId);
+      // Field name is load-bearing: `addTemplatePhase` reads `templateVersionId`.
+      form.set("templateVersionId", templateVersionId);
     } else {
       form.set("phaseId", phase?.id ?? "");
     }

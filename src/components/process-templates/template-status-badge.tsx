@@ -9,6 +9,11 @@ import type { ProcessTemplateStatus } from "@/lib/queries/process-templates";
  * the petrol accent fill; `draft` reads as a warm in-progress amber; `archived`
  * is muted/neutral. Pure presentational, Server-Component-safe; the type is
  * imported from the query layer so the union can't drift.
+ *
+ * ⚠ SUPERSEDED by {@link TemplateVersionStatusBadge} (ADR 0096), which renders the
+ * VERSION lifecycle (`draft → published → archived`). This one survives only while
+ * the pre-versioning pages still read {@link ProcessTemplateStatus}; it is deleted
+ * in the same pass that re-points them.
  */
 const STATUS_LABEL: Record<ProcessTemplateStatus, string> = {
   draft: "Rascunho",

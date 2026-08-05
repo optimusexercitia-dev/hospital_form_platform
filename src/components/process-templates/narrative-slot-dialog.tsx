@@ -48,14 +48,18 @@ export function NarrativeSlotDialog({
   mode,
   open,
   onOpenChange,
-  templateId,
+  templateVersionId,
   narrative,
   narrativeTypes,
 }: {
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  templateId: string;
+  /**
+   * The DRAFT version the narrative-slot belongs to (ADR 0096). Re-keyed from
+   * `templateId` for the same reason as {@link PhaseSlotDialog}'s.
+   */
+  templateVersionId: string;
   /** Required for `edit`; ignored for `create`. */
   narrative?: ProcessTemplateNarrative;
   /** The commission's NON-archived narrative vocabulary (the type picker). */
@@ -115,7 +119,7 @@ export function NarrativeSlotDialog({
     startTransition(async () => {
       const result =
         mode === "create"
-          ? await addTemplateNarrative(templateId, narrativeTypeId, input)
+          ? await addTemplateNarrative(templateVersionId, narrativeTypeId, input)
           : await updateTemplateNarrative(narrative?.id ?? "", input);
       setState(result);
     });

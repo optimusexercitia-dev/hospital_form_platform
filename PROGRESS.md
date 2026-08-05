@@ -151,6 +151,36 @@ Both programs that gated the pilot are closed:
 > claims** — every one was caught by *executing* (a probe, a real E2E run, a fresh reset), none by
 > review or build. → [route-gate-assertions.md](docs/testing/route-gate-assertions.md).
 
+### ▶ TV — Process-Template Versioning (ADR [0096](docs/decisions/0096-process-template-versioning.md)) · `frontend` rows
+
+Branch `db/process-case-integrity`. Contract-first: built against `backend`'s committed
+signatures in `src/lib/queries/process-templates.ts` + `src/lib/process-templates/actions.ts`.
+Lead split the work 2026-08-04 — **components now, page re-pointing HELD** until backend's
+implementations land, so the branch stays runnable and E2E-meaningful.
+
+| Task | State |
+| ---- | ----- |
+| `TemplateVersionStatusBadge` — version lifecycle badge (Rascunho/Publicada/Arquivada) | ✅ complete — new file; the old `TemplateStatusBadge` is left intact for the not-yet-re-pointed pages and is deleted in the flip pass |
+| `VersionHistoryPanel` — version picker/history (number · status · date · `caseCount`) | ✅ complete — Server Component, `?v=` links only, staggered via the shared `RiseInGroup` |
+| `VersionWorkflowBanner` — the D2 workflow made visible (draft / published / archived) | ✅ complete — three mutually-exclusive states; the draft state names the version still in force |
+| `BeginTemplateEditButton` — clone-or-resume entry point | ✅ complete — confirm dialog when it FORKS; straight-through when a draft already exists (the action is idempotent) |
+| `PublishTemplateVersionButton` / `DiscardTemplateDraftButton` / `ArchiveTemplateVersionsButton` | ✅ complete — draft affordances; each dialog names what happens to the incumbent version |
+| `CaseTemplateProvenance` — which version a case ran under | ✅ complete — `null` (processless) is the FIRST rendered branch, as "Sem processo", never an error path |
+| Authoring seam re-keyed `templateId` → `templateVersionId` (lead ruling 2026-08-04) | ✅ complete — `PhaseSlotDialog` + `NarrativeSlotDialog` props **and** the `addTemplatePhase` FormData field; `phase-slot-card` / `narrative-slot-card` read the renamed type field |
+| Page re-pointing (4 pages + case-detail layout) → versioned queries | ⏸ **HELD by the lead** — these call queries that currently throw |
+| `TemplateBuilderShell` → `ProcessTemplateWithVersion` + version chrome | ⏸ **HELD** — belongs to the same flip pass (it forces the builder page's props) |
+
+Green bar (frontend, 2026-08-04): lint **0 errors / 0 warnings** (incl. `lint:css-vars` +
+`lint:memberships-door`) · `typecheck` clean · Vitest **901/901** · real `next build` ✅
+(run with `NEXT_SCRATCH_DIST_DIR` so it could not disturb the lead's in-flight E2E gate).
+
+> ⚠ **One transitional split is live in `template-builder-shell.tsx`** (both create-mode dialogs):
+> the prop/field name is at the VERSION grain, but the value passed is still `template.id`. That is
+> correct today and not a latent bug — the substrate migration has not landed, so `addTemplatePhase`
+> still sends `p_template_id` and the template id *is* what the RPC wants. Backend took the same
+> name-ahead-of-value split deliberately. The flip pass replaces the value with the draft `version.id`,
+> at which point name and value agree; it is commented at both sites.
+
 ### 📋 Remaining pre-pilot work
 
 Scope was set by ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) (12 initiatives)

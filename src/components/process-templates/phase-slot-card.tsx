@@ -241,7 +241,7 @@ export function PhaseSlotCard({
           mode="edit"
           open={editOpen}
           onOpenChange={setEditOpen}
-          templateId={phase.templateId}
+          templateVersionId={phase.templateVersionId}
           phase={phase}
           forms={forms}
           phases={phases}
