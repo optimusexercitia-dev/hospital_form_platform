@@ -75,11 +75,21 @@
 >    it. QA covered the substance by hand (all 6 new policies carry ALLOW **and** DENY arms; the
 >    apparent 7th gap traces to suite `188`). **Re-run `ARM=census` over these two workstreams once
 >    that branch lands** — this is the one gate arm this phase's record cannot claim.
-> 2. **The TV backfill has never been exercised and structurally cannot be, locally.** `db reset`
->    applies migrations *then* `seed.sql`, so the backfill runs against **zero rows on every local
->    reset, forever** — a green reset is not weak evidence, it is *no* evidence (ADR 0096 A1.3).
->    `scripts/verify-tv-backfill.sh` **plus a remote snapshot are blocking before `db push`.** This is
->    the largest residual risk on the branch.
+> 2. ~~**The TV backfill has never been exercised and structurally cannot be, locally** — rehearsal
+>    + remote snapshot blocking before `db push`.~~ **VOID (PO, 2026-08-05): the remote database is
+>    EMPTY.** The backfill therefore runs against zero rows there too — the same path `db reset` has
+>    exercised green on every local run — so `scripts/verify-tv-backfill.sh` and the snapshot are
+>    **no longer blocking**. ⚠ Keep the *mechanism* though, because it recurs: `db reset` applies
+>    migrations **then** `seed.sql`, so a backfill is invisible to local testing **forever** (ADR
+>    0096 A1.3) — a green reset is not weak evidence of a backfill, it is *no* evidence. The
+>    rehearsal script stays in the repo for the first `db push` that ever meets populated data.
+>
+>    ⚠ **The error to learn from is mine, not the code's.** ADR 0096 justified the whole
+>    backfill-not-reset strategy with one clause — *"the remote carries demo/pilot-prep data"* — and
+>    it was **never verified**. It then propagated into the ADR, the migration design, this table,
+>    and a lead risk assessment that called it "the largest residual risk on this branch". One
+>    unchecked premise, restated four times, reads as four confirmations. **Ask what is actually in
+>    an environment before designing around it** — the check took one question.
 >
 > *Historical:* PCI's first `e2e:prod` exited **0** while reporting `GATE RED (UNRUN)` — 655 of 962
 > tests never ran, because TV migration files landed on disk mid-gate and the gate resets per batch.
@@ -576,7 +586,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 | # | Sev | Item |
 | - | --- | ---- |
 | 1 | 🔴 | **`ARM=census` never run** — impossible on this branch (script supports `policy\|floor\|all` only; the census arm is uncommitted in the `feat/membership-hardening-technical-director` session). It is precisely the arm that catches a *newly added* gate, and this phase added six. QA covered the substance by hand. **Re-run once that branch lands.** |
-| 2 | 🔴 | **TV backfill never exercised, and structurally cannot be locally** (ADR 0096 A1.3 — `db reset` seeds *after* migrating, so it runs against 0 rows forever). `scripts/verify-tv-backfill.sh` + a remote snapshot are **blocking before `db push`**. |
+| 2 | ⬛ | ~~**TV backfill never exercised** — rehearsal + snapshot blocking before `db push`.~~ **CLOSED (PO, 2026-08-05): the remote is EMPTY**, so the backfill meets 0 rows there exactly as it does locally. Not blocking. See the Phase Status caveat for the mechanism (which recurs) and for the unverified-premise error that produced this row. |
 | 3 | 🟡 | **Revoke residue** — `authenticated` still holds `TRUNCATE` on **66 tables**; TRUNCATE bypasses RLS entirely. Unreachable via PostgREST *today*. ⚠ This phase set its own standard by **refusing the "unreachable" argument** in `20260906000600`, so it should be swept or accepted **in writing** — not left implicit. |
 | 4 | 🟡 | **BUG-RCA-001** (see Bug Log) — pre-existing since `c4e20b3` (2026-06-18), needs a product decision: is "the interview's date" the earliest session's `scheduled_start`, or the interview's `created_at`? The correct pattern already exists at `src/lib/queries/interviews.ts:474`/`:520`. |
 | 5 | 🟢 | Audit mesh **2 of 7** trigger arms keystoned (`20260906000200`). |
