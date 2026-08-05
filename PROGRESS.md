@@ -689,6 +689,68 @@ BUG-TV-001, because that site names no dropped column — it names a relation th
 ⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
 `case_phase_offered_results` rename.
 
+### 🔴 FUP-ETH-1 — NOTHING can seat a professional: "Médico denunciado" is an unfillable panel (2026-08-05)
+
+ETH·E3a shipped the primary-subject rail card ([`case-primary-subject-panel.tsx`](src/components/cases/case-primary-subject-panel.tsx),
+rendered by [`case-detail-view.tsx:352`](src/components/cases/case-detail-view.tsx:352) when
+`case_types.primary_subject_kind ∈ {professional, entity}`). With `ethics` + `case_participants` +
+`case_types` all flag-ON, **an Ethics case in production will show that panel in its empty state
+forever** — no product path fills it. Found by the PO asking how a professional gets included; the
+answer is that they cannot. Verified against the **live catalog** (`pg_proc` / `pg_policies` / grants /
+`pg_trigger`), not migration text.
+
+Seating a respondent needs four rows. **Two have doors; two have none:**
+
+| Row | Door | |
+| --- | ---- | - |
+| `professional_profiles` | `create_professional_profile` (DEFINER) | ✅ |
+| `participants` (`participant_type='professional'`) | — | ❌ **no writer exists** |
+| `professional_participants` (the link) | — | ❌ **no writer exists** |
+| `case_participants` | `add_case_participant` (DEFINER) | ✅ |
+
+**This is a hole in the substrate, not just missing UI.** A `pg_proc` sweep for `insert into
+participants` returns **exactly one** function — `set_participant_patient`, the patient lane;
+`create_professional_profile` writes `professional_profiles` **only** (no `participants` row, no
+trigger creating one — `professional_profiles` carries one trigger, `guard_professional_linkage`,
+unrelated); nothing anywhere INSERTs `professional_participants` outside [`seed.sql:2592`](supabase/seed.sql:2592).
+All four tables are **SELECT-only** for `authenticated` (no INSERT grant, no INSERT policy), so there
+is no direct-DML fallback. `add_case_participant` therefore demands a `participants.id` that no door
+can mint for a professional.
+
+⚠ **The TS layer is still the BE-1 contract stub, and its docblock says otherwise.**
+[`src/lib/participants/actions.ts`](src/lib/participants/actions.ts) — all 7 actions
+(`addCaseParticipant`, `removeCaseParticipant`, `setPrimarySubject`, `setCaseParticipantRole`,
+`createProfessionalProfile`, `updateProfessionalProfile`, `setProfessionalLinkState`) call
+`notImplemented()`. The file says *"Bodies land in BE-5"*; **BE-5 (`9180a27`) shipped the SQL RPCs +
+regenerated `database.ts` and never touched it** — the file has two commits ever, both stub-authoring.
+The E1 review's ✅ on D6 is about the RPCs, and is correct at that scope. **Zero callers** of any of
+the 7 exist in `src/` or `e2e/`; there is no `src/components/participants/`. The panel's own docblock
+is honest (*"the full participants roster … not built here"*), as is [`queries/cases.ts:450`](src/lib/queries/cases.ts:450)
+(`[]` until BE-7). Sequencing debt, not a regression — but **`grep` for the RPC name says "built" and
+the product says "unreachable"**, which is the §7 "text is not truth" shape.
+
+**Corroboration that no path exists:** [`ethics-e3a-surfacing.spec.ts`](e2e/ethics-e3a-surfacing.spec.ts:298)
+seats every respondent with raw `dbInsert('case_participants', …)` — three sites. A spec that must
+bypass the product to reach a shipped panel is the tell.
+
+**To close (backend-owned; contract-first):** ① a DEFINER door minting `participants` +
+`professional_participants` for a professional, mirroring `set_participant_patient` (⚠ it must preserve
+the surrogate-label property ADR 0091 §O pins) · ② fill the 7 action bodies, reads via `src/lib/queries/`
+(Rule 9) · ③ a roster surface on the case detail page (add / remove / set-role / set-primary) · ④ **the
+link-state flow, or ③ dead-ends**: `app.assert_respondent_linkage_resolved` rejects an `unknown`-linkage
+profile from `respondent_doctor` with `HC0F0`, and `setProfessionalLinkState` — the only remedy — is
+one of the stubs.
+
+**Two adjacent seed-only gaps, same shape** (both plausibly in scope): `case_participant_roles` has an
+admin-write RLS policy but **no RPC and no UI** — the 7 roles, incl. `respondent_doctor` → "Médico
+denunciado", exist only because `seed.sql` wrote them; `case_type_terminology` has **no writer at all**,
+so the 5 label slots cannot be edited in-app on any tenant.
+
+▶ **Feeds FUP-FF5-2.** That row asks for an assertion pinning the `participants` writer set by count
+*and* name. Today's catalog answers **one** (`set_participant_patient`) against ADR 0091's prose claim of
+*"exactly two functions"* — so the assertion should be written from the catalog, and the discrepancy
+resolved as part of writing it, **not** from the ADR's number.
+
 ### ⬛ FUP-MEM-1 — `ARM=floor`'s 3 never-called INDICATOR doors — **RESOLVED 2026-08-05, not a defect**
 
 The baseline this asked for now exists. On the **merged** tree (branch + `main`, 285 migrations) on a
