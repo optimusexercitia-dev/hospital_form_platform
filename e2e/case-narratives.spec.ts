@@ -166,6 +166,7 @@ async function getMandMTemplateId(page: Page): Promise<string | null> {
     page.request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
     COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   ).catch(() => null)
   return tpl?.templateId ?? null
 }

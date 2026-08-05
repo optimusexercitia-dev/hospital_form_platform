@@ -1,6 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
-import { getPublishedTemplateVersion } from './helpers/process-templates'
+import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * `case_patient` — THIRD PHI module (ADR 0038)
@@ -541,8 +541,10 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
 
   // Now select a non-collecting template — query DB for one. ADR 0096:
   // `collects_patient`/`status` live on `process_template_versions`, not
-  // `process_templates`.
-  const nonCollecting = await getPublishedTemplateVersion(
+  // `process_templates`. We genuinely don't care WHICH non-collecting template
+  // this resolves to (only that one exists) — the explicit "any" resolver
+  // names that intent, rather than an omitted title implying it silently.
+  const nonCollecting = await getAnyPublishedTemplateVersion(
     request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
     COMM_A,

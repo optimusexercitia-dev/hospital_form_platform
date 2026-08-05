@@ -172,10 +172,14 @@ async function createFreshCase(page: Page, ownerToken: string, label: string): P
   // ADR 0096: `process_templates.status` is dropped — the published version lives
   // on `process_template_versions`. `create_case_from_template` still takes the
   // TEMPLATE identity id (it resolves the published version internally).
+  // `title` is required: CCIH now carries several published templates (this
+  // file's OWN other tests publish fresh ones into it), so an untitled lookup
+  // is an ARBITRARY pick.
   const tpl = await getPublishedTemplateVersion(
     page.request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
     COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
 
   const createResp = await page.request.post(
@@ -263,10 +267,12 @@ async function getCasePhasesWithDueDates(
  */
 async function createFreshCaseRemote(page: Page, label: string): Promise<string> {
   const ownerToken = await getOwnerTokenRemote(page, 'chefe.ccih@test.local')
+  // `title` is required: CCIH now carries several published templates.
   const tpl = await getPublishedTemplateVersion(
     page.request,
     { baseUrl: API_BASE, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
     COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
 
   const createResp = await page.request.post(
@@ -828,7 +834,7 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
     page.request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
     COMM_CCIH_ID,
-    { title: templateTitle },
+    templateTitle,
   )
   const tplId = tpl.templateId
 

@@ -116,16 +116,13 @@ async function candidateTemplateIds(
   return rows.map((r) => r.id)
 }
 
-/**
- * Resolve ONE PUBLISHED template version for a commission — optionally narrowed by
- * exact version `title` and/or `collectsPatient`. Throws (via `expect`) when no
- * PUBLISHED version matches, so a caller never silently proceeds with `undefined`.
- */
-export async function getPublishedTemplateVersion(
+/** Shared published-version lookup body — `titleFilter` is `null` for "any". */
+async function publishedVersionLookup(
   request: APIRequestContext,
   auth: RestAuth,
   commissionId: string,
-  opts: { title?: string; collectsPatient?: boolean } = {},
+  titleFilter: string | null,
+  opts: { collectsPatient?: boolean },
 ): Promise<ResolvedTemplateVersion> {
   const headers = { apikey: auth.apikey, Authorization: `Bearer ${auth.bearerToken}` }
   const ids = await candidateTemplateIds(request, auth, commissionId)
@@ -144,14 +141,61 @@ export async function getPublishedTemplateVersion(
     version_number: number
     title: string
   }>
-  const match = opts.title ? versions.find((v) => v.title === opts.title) : versions[0]
+  const match = titleFilter != null ? versions.find((v) => v.title === titleFilter) : versions[0]
   expect(
     match,
-    `no PUBLISHED template version found (commission=${commissionId}, title=${opts.title ?? '<any>'}, collectsPatient=${opts.collectsPatient ?? '<any>'})`,
+    `no PUBLISHED template version found (commission=${commissionId}, title=${titleFilter ?? '<any>'}, collectsPatient=${opts.collectsPatient ?? '<any>'}, candidates=${versions.length})`,
   ).toBeTruthy()
 
   const m = match as NonNullable<typeof match>
   return { templateId: m.template_id, versionId: m.id, versionNumber: m.version_number, title: m.title }
+}
+
+/**
+ * Resolve ONE PUBLISHED template version for a commission, by its EXACT `title`.
+ *
+ * `title` is REQUIRED. `process_template_versions` carries no ordering guarantee,
+ * and once a commission has MORE THAN ONE published template — routine once the
+ * TV spec runs, since it publishes several fresh templates into the shared CCIH
+ * commission over its lifetime — an untitled "pick the first row" is an ARBITRARY
+ * pick, not a deterministic one. That used to be this function's own signature
+ * (title optional, `versions[0]` on omission): it silently bound nine unrelated
+ * specs to "whichever template happens to sort first", which stayed invisible
+ * for as long as CCIH had only one published template to find. Once this spec
+ * started publishing more, some of those nine started resolving to a DIFFERENT
+ * template than the one they meant.
+ *
+ * If a caller genuinely does not care WHICH published template it gets — only
+ * that one exists matching some other predicate — use
+ * {@link getAnyPublishedTemplateVersion} instead. That function makes the same
+ * arbitrary pick, but its NAME says so, rather than leaving it implicit in an
+ * omitted argument.
+ */
+export async function getPublishedTemplateVersion(
+  request: APIRequestContext,
+  auth: RestAuth,
+  commissionId: string,
+  title: string,
+  opts: { collectsPatient?: boolean } = {},
+): Promise<ResolvedTemplateVersion> {
+  return publishedVersionLookup(request, auth, commissionId, title, opts)
+}
+
+/**
+ * Resolve ANY ONE published template version matching `opts` — for callers that
+ * deliberately do not care WHICH template, only that a match exists (e.g. "a
+ * template that does NOT collect patient data", to prove a UI affordance
+ * disappears for it). The pick among multiple matches is ARBITRARY (no `order`
+ * clause) — see {@link getPublishedTemplateVersion}'s docs for why that used to
+ * be a silent trap and is now this function's explicit, load-bearing name.
+ */
+export async function getAnyPublishedTemplateVersion(
+  request: APIRequestContext,
+  auth: RestAuth,
+  commissionId: string,
+  opts: { collectsPatient?: boolean } = {},
+): Promise<ResolvedTemplateVersion> {
+  return publishedVersionLookup(request, auth, commissionId, null, opts)
 }
 
 /**

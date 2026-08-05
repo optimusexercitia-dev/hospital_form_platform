@@ -338,7 +338,12 @@ test('AC-D2-Lifecycle: publish v1 (1 published, refused-while-published) → edi
   const resumeBtn = page.getByRole('button', { name: /^Continuar rascunho \(v2\)$/i })
   await expect(resumeBtn).toBeVisible({ timeout: 10_000 })
   await resumeBtn.click()
-  await page.waitForURL(/\?v=[0-9a-f-]{36}/, { timeout: 15_000 })
+  // The pre-click URL already carries `?v=<v1Id>`, which matches a bare
+  // `/\?v=[0-9a-f-]{36}/` shape — that pattern is satisfied BEFORE the click,
+  // so waitForURL would resolve instantly without ever observing the
+  // navigation. Wait for the specific VALUE to change to v2 instead of a
+  // shape the current URL already has.
+  await page.waitForURL((url) => url.searchParams.get('v') === v2Id, { timeout: 15_000 })
   const secondEditVersionId = versionIdFromUrl(page)
   expect(secondEditVersionId, 'a second "edit" must return the SAME draft, not fork a new one').toBe(v2Id)
 

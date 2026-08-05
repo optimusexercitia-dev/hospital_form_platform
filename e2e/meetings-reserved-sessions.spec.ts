@@ -184,10 +184,12 @@ async function createFreshCase(
 ): Promise<string> {
   // ADR 0096: `process_templates.status` is dropped — resolve the published
   // version. `create_case_from_template` still takes the TEMPLATE identity id.
+  // `title` is required: CCIH now carries several published templates.
   const tpl = await getPublishedTemplateVersion(
     page.request,
     { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
     COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
 
   const resp = await page.request.post(
