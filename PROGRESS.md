@@ -832,11 +832,22 @@ meaningless for a function returning a table. Sweeping these needs a neutralizat
 INTERNAL gate. `299_hospital_content_door_noun_rule.sql` §4 is the model for what each then owes — a
 computed enumeration plus a row-count assertion per principal, never a predicate call.
 
-### 🟢 FUP-AUTHZ-4 — prune 6 now-COVERED entries from the BLIND allowlist
+### 🟡 FUP-AUTHZ-4 — prune 6 now-COVERED entries from the BLIND allowlist — **ORDERING TRAP**
 
 The PCI+TV phase keystoned the six `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}`
 policies but left their allowlist lines in place, so ARM 1 reports them as "no longer BLIND — prune".
-Recorded in the backlog's `swept:` section meanwhile. Housekeeping; blocks nothing.
+Recorded in the backlog's `swept:` section meanwhile.
+
+⚠ **Filed as 🟢 housekeeping on 2026-08-05 and corrected the same day — pruning them NOW would break
+ARM 1.** The prune is only safe AFTER the committed findings md is regenerated. ARM 1 compares the
+findings' BLIND table against the allowlist, and that table still lists these six as BLIND (the
+diff-scoped sweep that cleared them discards its report by design — Amendment 1 hazard 1). Prune
+first and ARM 1 sees six BLINDs with no allowlist line and fails, for a condition that was fixed a day
+earlier.
+
+**Correct order:** full ARM 1 sweep (or a diff-scoped run whose verdicts are hand-merged into the
+findings) → *then* delete the six allowlist lines and their `swept:` entries in the same commit. Until
+then the stale-entry note ARM 1 prints is the correct state, not a defect.
 
 ### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
 
