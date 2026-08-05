@@ -28,6 +28,48 @@
 --   m10 make ONLY the 'up' direction a no-op                 -> RB4
 --   m11 make set_template_collects_patient update nothing    -> FL2
 --
+-- TENANT-ISOLATION probes (section TI). Each of the six policies the ADR-0079 diff
+-- sweep reported BLIND is opened AND closed — one direction certifies the deny arm,
+-- the other the allow arm, and neither certifies both (ADR 0079 Amendment 2). The
+-- "open" direction is byte-for-byte what `p0-authz-door-audit.sh` does, so a green
+-- sweep and a red keystone here are the same event seen from two sides:
+--
+--   p3  phases_select      using(true)                    -> TIP3
+--   p4  phases_select      using(false)                   -> TIP2
+--   p5  phases_write       using(true)  with check(true)  -> TIP3,TIP4,TIP5,TIP6,TIP7
+--   p6  phases_write       using(false) with check(false) -> TIP1,TIP2,TIP6,TIP7
+--   p7  narratives_select  using(true)                    -> TIN3
+--   p8  narratives_select  using(false)                   -> TIN2
+--   p9  narratives_write   using(true)  with check(true)  -> TIN3,TIN4,TIN5,TIN6,TIN7
+--   p10 narratives_write   using(false) with check(false) -> TIN1,TIN2,TIN6,TIN7
+--   p11 outcomes_select    using(true)                    -> TIO3
+--   p12 outcomes_select    using(false)                   -> TIO2
+--   p13 outcomes_write     using(true)  with check(true)  -> TIO3,TIO4,TIO5,TIO6,TIO7
+--   p14 outcomes_write     using(false) with check(false) -> TIO1,TIO2,TIO6,TIO7
+--
+-- ⚠ HOW p6 WAS RUN, and why it is recorded differently from its eleven siblings.
+-- Against the WHOLE file, p6 does not fail — it ABORTS. Closing the phases write
+-- policy makes the FI section's `add_template_phase` fixture (line ~106, which
+-- predates this section) raise 42501, so pg_prove reports "Bad plan: you planned
+-- 37 tests but ran 0" and every TI assertion is unrun, not red. That is the p2
+-- trap above recurring verbatim, one section later, and it is why the "reds" of a
+-- probe must always be read next to its DENOMINATOR. So the twelve probes were
+-- re-run against a TI-only extract of this section (the block below plus the
+-- ctx/k fixture, plan(21)); every probe there reports ran=21, and the eleven that
+-- also run cleanly against the whole file produce byte-identical red sets in both
+-- harnesses — which is what makes the extract's p6 result usable rather than a
+-- convenient one-off. A close-direction probe cannot be run whole-file here at
+-- all: the fixture that would have to survive it is the very thing it disables.
+--
+-- ⚠ WHY BOTH DIRECTIONS, CONCRETELY. Opening the write policy CANNOT red TIP1
+-- (an owner who could already insert still can), and closing it CANNOT red TIP4
+-- (a foreigner refused by a wider policy is still refused by a narrower one).
+-- Neither probe alone distinguishes "the policy names the right commission" from
+-- "the policy denies everyone" — which is precisely the D11 failure this repo
+-- shipped. Note also that closing `_select` leaves TIP6 GREEN: the FOR ALL write
+-- policy is a second read path for the owner, so a `_select` regression is
+-- observable ONLY through a non-admin member. That is what TI*2 exists for.
+--
 -- ⚠ m9 AND m10 BOTH EXIST BECAUSE ONE OF THEM WAS NOT ENOUGH — this is ADR 0079 A2's
 -- fork rule in miniature. m7 (the swap raises) leaves RB4 green, because a reorder
 -- that always fails leaves the order untouched, and so does m9 (a reorder that never
@@ -45,10 +87,10 @@
 -- harness itself. m6 replaces it with a probe narrow enough to leave the fixture
 -- intact. When a probe reports green, check the DENOMINATOR before believing it.
 --
--- Assertion count: 16
+-- Assertion count: 37
 
 begin;
-select plan(16);
+select plan(37);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'cases_extras', 'audit_trail');
@@ -321,6 +363,260 @@ select is(
    where id = (select vid from rtpl)),
   true,
   'FL2: …and it actually SET the flag — not a DEFINER that lives while doing nothing'
+);
+reset role;
+
+-- ===========================================================================
+-- TI — TENANT ISOLATION on the three per-version child tables (ADR 0079).
+--
+-- WHY THIS SECTION EXISTS. The diff-scoped ADR-0079 door sweep over this phase's
+-- new policies returned SIX BLIND: opening any of
+--   process_template_{phases,narratives,outcomes}_{select,staff_admin_write}
+-- to `true` left the ENTIRE suite green. Nothing asserted through them, so a real
+-- cross-tenant leak on these tables would have been invisible. A tenant-isolation
+-- policy may never be allowlisted — allowlisting one is indistinguishable from
+-- having no boundary at all — so each of the six gets a keystone here.
+--
+-- ⚠ THE ALLOW ARM IS THE POINT, not a courtesy. A deny-only keystone passes
+-- against a policy that denies EVERYONE, which is exactly the D11 fail-closed
+-- shape this repo shipped: an enum re-key stranded a predicate on the wrong
+-- column, every deny test stayed green, and legitimate users saw nothing. So
+-- every table asserts ROWS on both sides — a member READS a nonzero count, and
+-- the owner's write LANDS.
+--
+-- ⚠ A `FOR ALL` POLICY IS ALSO A READ POLICY, AND ITS DENY IS SILENT. RLS raises
+-- 42501 only on INSERT (the WITH CHECK arm); for UPDATE and DELETE the USING
+-- clause merely FILTERS, so a denied DELETE reports success having removed
+-- nothing. A `throws_ok`-only keystone is therefore structurally blind to the
+-- USING arm. TI*5 asserts the foreign DELETE's RETURNING set is EMPTY, and TI*6
+-- pairs it with the row's SURVIVAL — because "removed nothing" and "there was
+-- nothing to remove" are the same observation without that control.
+--
+-- ⚠ THE DENY IS ASSERTED BY SQLSTATE, NOT BY "something raised". All three tables
+-- carry an INSERT coherence guard (HC054 / HC030) that rejects a narrative type,
+-- outcome or form belonging to another commission. A deny fixture built from
+-- FOREIGN vocabulary would satisfy `throws_ok` on the GUARD and prove nothing
+-- about RLS, so the foreign-writer probes below deliberately use comm_x's OWN
+-- vocabulary: the guards pass, and 42501 can only have come from the policy.
+--
+-- ⚠ SCOPE, stated rather than left implicit. Each predicate is a disjunction —
+-- `is_member_of` / `is_staff_admin_of` OR `is_commission_admin_of`. These
+-- keystones drive the FIRST disjunct in both directions. The
+-- `is_commission_admin_of` disjunct needs an org_admin persona that
+-- `test_helpers.bootstrap()` does not build (it homes BOTH commissions under one
+-- org and mints only commission-scoped memberships), so it is not exercised here.
+-- That does not leave the sweep finding open — the sweep opens the WHOLE policy,
+-- not one disjunct — but the org-admin reach arm is a real, separate gap and is
+-- named rather than silently omitted.
+-- ===========================================================================
+
+-- --- Block A: the OWNING staff_admin writes (the WITH CHECK allow arm). -----
+-- Each insert is inside `lives_ok` on purpose (the RB5 lesson): a closed write
+-- policy would abort the fixture and the section would report 0 tests RUN rather
+-- than tests FAILED, and a harness counting `not ok` lines cannot tell those apart.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+create temp table xtpl on commit drop as
+  select (public.create_process_template((select comm_x from k), 'TV Isolamento', null)).id as tid,
+         null::uuid as vid;
+update xtpl set vid = app.draft_version_of_template(tid);
+grant select on xtpl to authenticated;
+
+create temp table xv (ntype uuid, out_own uuid, out_foreign uuid) on commit drop;
+grant select on xv to authenticated;
+with n as (
+  insert into public.case_narrative_types (commission_id, label, position)
+  values ((select comm_x from k), 'TV Tipo', 1) returning id
+), o1 as (
+  insert into public.case_outcomes (commission_id, label, position)
+  values ((select comm_x from k), 'TV Desfecho A', 1) returning id
+), o2 as (
+  insert into public.case_outcomes (commission_id, label, position)
+  values ((select comm_x from k), 'TV Desfecho B', 2) returning id
+)
+insert into xv select (select id from n), (select id from o1), (select id from o2);
+
+select lives_ok(
+  format($$ insert into public.process_template_phases
+              (template_version_id, position, form_id, title)
+            values (%L, 1, %L, 'TV Iso Fase') $$,
+         (select vid from xtpl), (select form_u from k)),
+  'TIP1: the OWNING staff_admin CAN insert a phase (write WITH CHECK admits)'
+);
+select lives_ok(
+  format($$ insert into public.process_template_narratives
+              (template_version_id, narrative_type_id, display_position, title)
+            values (%L, %L, 1, 'TV Iso Narrativa') $$,
+         (select vid from xtpl), (select ntype from xv)),
+  'TIN1: the OWNING staff_admin CAN insert a narrative slot (write WITH CHECK admits)'
+);
+select lives_ok(
+  format($$ insert into public.process_template_outcomes
+              (template_version_id, outcome_id, position)
+            values (%L, %L, 1) $$,
+         (select vid from xtpl), (select out_own from xv)),
+  'TIO1: the OWNING staff_admin CAN insert an outcome link (write WITH CHECK admits)'
+);
+reset role;
+
+-- --- Block B: a PLAIN MEMBER of the owning commission reads (the _select allow
+-- arm, and the only assertions that drive `is_member_of` rather than
+-- `is_staff_admin_of` — st_x is not a staff_admin, so the FOR ALL write policy
+-- cannot be what lets it see these rows). ------------------------------------
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.process_template_phases
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIP2: a plain MEMBER of the owning commission READS the phase (non-vacuity)'
+);
+select is(
+  (select count(*)::int from public.process_template_narratives
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIN2: a plain MEMBER of the owning commission READS the narrative slot'
+);
+select is(
+  (select count(*)::int from public.process_template_outcomes
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIO2: a plain MEMBER of the owning commission READS the outcome link'
+);
+reset role;
+
+-- --- Block C: a staff_admin of ANOTHER commission — the deny arms. ----------
+-- sa_y is a staff_admin of comm_y and holds no org/hospital membership, so all
+-- three predicates resolve false for comm_x. Verified against the live stack, not
+-- inferred from the persona's name.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.process_template_phases
+   where template_version_id = (select vid from xtpl)),
+  0,
+  'TIP3: a FOREIGN commission staff_admin reads ZERO phases (tenant isolation)'
+);
+select is(
+  (select count(*)::int from public.process_template_narratives
+   where template_version_id = (select vid from xtpl)),
+  0,
+  'TIN3: a FOREIGN commission staff_admin reads ZERO narrative slots'
+);
+select is(
+  (select count(*)::int from public.process_template_outcomes
+   where template_version_id = (select vid from xtpl)),
+  0,
+  'TIO3: a FOREIGN commission staff_admin reads ZERO outcome links'
+);
+
+-- The write deny, INSERT half. A DISTINCT position / outcome is used so a unique
+-- violation can never be what satisfies these, and comm_x's own vocabulary so the
+-- coherence guard can never be what satisfies them either: 42501 or nothing.
+select throws_ok(
+  format($$ insert into public.process_template_phases
+              (template_version_id, position, form_id, title)
+            values (%L, 2, %L, 'TV Iso Invasora') $$,
+         (select vid from xtpl), (select form_u from k)),
+  '42501',
+  null,
+  'TIP4: a FOREIGN staff_admin INSERT is refused by RLS with 42501 (not by a guard)'
+);
+select throws_ok(
+  format($$ insert into public.process_template_narratives
+              (template_version_id, narrative_type_id, display_position, title)
+            values (%L, %L, 2, 'TV Iso Invasora') $$,
+         (select vid from xtpl), (select ntype from xv)),
+  '42501',
+  null,
+  'TIN4: a FOREIGN staff_admin INSERT is refused by RLS with 42501, not HC054'
+);
+select throws_ok(
+  format($$ insert into public.process_template_outcomes
+              (template_version_id, outcome_id, position)
+            values (%L, %L, 2) $$,
+         (select vid from xtpl), (select out_foreign from xv)),
+  '42501',
+  null,
+  'TIO4: a FOREIGN staff_admin INSERT is refused by RLS with 42501, not HC030'
+);
+
+-- The write deny, USING half — the one that raises NOTHING. The data-modifying
+-- CTE is at the top level of the executed statement (the only place Postgres
+-- allows it), so `is_empty` measures rows ACTUALLY removed, not an error class.
+select is_empty(
+  format($$ with d as (delete from public.process_template_phases
+                       where template_version_id = %L returning id)
+            select id from d $$, (select vid from xtpl)),
+  'TIP5: a FOREIGN staff_admin DELETE removes ZERO phase rows — filtered, not raised'
+);
+select is_empty(
+  format($$ with d as (delete from public.process_template_narratives
+                       where template_version_id = %L returning id)
+            select id from d $$, (select vid from xtpl)),
+  'TIN5: a FOREIGN staff_admin DELETE removes ZERO narrative rows'
+);
+select is_empty(
+  format($$ with d as (delete from public.process_template_outcomes
+                       where template_version_id = %L returning outcome_id)
+            select outcome_id from d $$, (select vid from xtpl)),
+  'TIO5: a FOREIGN staff_admin DELETE removes ZERO outcome rows'
+);
+reset role;
+
+-- --- Block D: back as the owner — the control pair for block C's deletes, then
+-- the write USING allow arm. ------------------------------------------------
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.process_template_phases
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIP6: the phase SURVIVED the foreign delete (the control TIP5 needs to mean anything)'
+);
+select is(
+  (select count(*)::int from public.process_template_narratives
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIN6: the narrative slot SURVIVED the foreign delete'
+);
+select is(
+  (select count(*)::int from public.process_template_outcomes
+   where template_version_id = (select vid from xtpl)),
+  1,
+  'TIO6: the outcome link SURVIVED the foreign delete'
+);
+
+-- The owner's UPDATE must actually REACH the row. Asserted on the resulting
+-- VALUE, and each target value differs from the fixture's, so an update that
+-- matched zero rows (the D11 fail-closed shape) reads the old value and reds.
+update public.process_template_phases set title = 'TV Iso Alterada'
+  where template_version_id = (select vid from xtpl);
+update public.process_template_narratives set title = 'TV Iso Alterada'
+  where template_version_id = (select vid from xtpl);
+update public.process_template_outcomes set position = 7
+  where template_version_id = (select vid from xtpl);
+
+select is(
+  (select title from public.process_template_phases
+   where template_version_id = (select vid from xtpl)),
+  'TV Iso Alterada',
+  'TIP7: the OWNING staff_admin UPDATE reached the phase row (write USING admits)'
+);
+select is(
+  (select title from public.process_template_narratives
+   where template_version_id = (select vid from xtpl)),
+  'TV Iso Alterada',
+  'TIN7: the OWNING staff_admin UPDATE reached the narrative row'
+);
+select is(
+  (select position from public.process_template_outcomes
+   where template_version_id = (select vid from xtpl)),
+  7,
+  'TIO7: the OWNING staff_admin UPDATE reached the outcome row'
 );
 reset role;
 
