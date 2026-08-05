@@ -601,19 +601,35 @@ test('AC-Keyboard: edit v2 → draft v3 → publish v3, driven entirely by keybo
 })
 
 // ===========================================================================
-// AC-Authz-DiscardArchive — the feedback-integrity fix (daa37d1): an
-// unauthorised caller's discard/archive attempt must raise 42501, not report
-// success (or a silent no-op 204/200) against a row RLS hid from it. Both the
-// error CODE and that the row SURVIVES are asserted — a code-only check would
-// still pass a door that returns the right error while quietly mutating
-// anyway (the exact defect this fix closed).
+// AC-Authz-DiscardArchive — the feedback-integrity fix (daa37d1), covering
+// BOTH arms of the deny side, because they are genuinely different properties
+// and a single arm cannot distinguish "denied", "invisible" and "permitted":
+//
+//   - FOREIGN TENANT (cannot even SELECT the row) → P0002 (no_data_found), by
+//     DESIGN. `discard_template_draft`'s own comment states it: returning
+//     42501 here would tell a caller from another commission "this row exists,
+//     you just can't touch it" — a cross-tenant EXISTENCE ORACLE. Avoiding
+//     that oracle is why this door does not front itself with a DEFINER
+//     helper that could disambiguate "not found" from "found, refused".
+//   - SAME COMMISSION, wrong role (CAN SELECT; the mutation's own row filter
+//     yields zero) → 42501 (insufficient_privilege). THIS is where the
+//     feedback-integrity fix applies: the door must not report success (or a
+//     silent no-op 204/200) against a row it in fact left untouched.
+//
+// Both arms assert the CODE and that the row SURVIVES — a code-only check
+// would still pass a door that returns the right error while quietly
+// mutating anyway (the exact defect the fix closed). Closes with a positive
+// control (the rightful owner succeeds), so all three arms together prove
+// "denied", "invisible" and "permitted" are three different outcomes, not one
+// door that merely refuses everyone (this repo's "no-regression claim needs
+// an over-grant twin" lesson, applied to a deny-side assertion instead).
 //
 // Uses its OWN standalone draft template (never touched by the other tests
 // in this file), so this authorization proof cannot be confused with, or
 // corrupted by, the shared lifecycle template's D2 state.
 // ===========================================================================
 
-test('AC-Authz-DiscardArchive: a foreign staff_admin cannot discard a draft or archive a template — 42501, row survives', async ({
+test('AC-Authz-DiscardArchive: foreign tenant gets P0002 (invisible, no existence oracle); same-commission wrong role gets 42501 (denied); owner succeeds', async ({
   page,
 }) => {
   test.setTimeout(60_000)
@@ -631,53 +647,81 @@ test('AC-Authz-DiscardArchive: a foreign staff_admin cannot discard a draft or a
     },
   )
 
-  // A genuinely-authenticated staff_admin — just of a DIFFERENT commission
-  // (Farmácia, same org). Not a bad token, not a plain-staff role gap: the
-  // exact "authorized somewhere, not here" shape the fix targets.
+  // ═══ ARM 1 — FOREIGN TENANT: a genuinely-authenticated staff_admin, just of
+  // a DIFFERENT commission (Farmácia, same org). Cannot SELECT the row at
+  // all, so the door must answer "not found", never "found, refused". ═══
   const foreignToken = await getOwnerToken(page, 'chefe.farm@test.local')
 
-  // ── Unauthorized DISCARD ──
-  const discardResp = await rpc(page.request, 'discard_template_draft', foreignToken, {
+  const foreignDiscardResp = await rpc(page.request, 'discard_template_draft', foreignToken, {
     p_template_version_id: authzTpl.versionId,
   })
   expect(
-    discardResp.ok(),
-    'discard_template_draft by a foreign staff_admin must be refused',
+    foreignDiscardResp.ok(),
+    'discard_template_draft by a foreign-tenant staff_admin must be refused',
   ).toBe(false)
-  const discardBody = (await discardResp.json()) as { code?: string }
+  const foreignDiscardBody = (await foreignDiscardResp.json()) as { code?: string }
   expect(
-    discardBody.code,
-    `expected 42501 (insufficient_privilege), got ${JSON.stringify(discardBody)}`,
-  ).toBe('42501')
+    foreignDiscardBody.code,
+    `foreign tenant must get P0002 (no_data_found) — NOT 42501, which would confirm ` +
+      `the row exists in a commission it cannot see. Got ${JSON.stringify(foreignDiscardBody)}`,
+  ).toBe('P0002')
 
-  // Row survives: the draft is UNCHANGED — same id, still `draft`.
-  let versionsAfterDiscardAttempt = await getVersions(page.request, authzTpl.templateId)
-  expect(versionsAfterDiscardAttempt.length).toBe(1)
-  expect(versionsAfterDiscardAttempt[0].id).toBe(authzTpl.versionId)
-  expect(versionsAfterDiscardAttempt[0].status).toBe('draft')
-
-  // ── Unauthorized ARCHIVE ──
-  const archiveResp = await rpc(page.request, 'archive_process_template', foreignToken, {
+  const foreignArchiveResp = await rpc(page.request, 'archive_process_template', foreignToken, {
     p_template_id: authzTpl.templateId,
   })
   expect(
-    archiveResp.ok(),
-    'archive_process_template by a foreign staff_admin must be refused',
+    foreignArchiveResp.ok(),
+    'archive_process_template by a foreign-tenant staff_admin must be refused',
   ).toBe(false)
-  const archiveBody = (await archiveResp.json()) as { code?: string }
+  const foreignArchiveBody = (await foreignArchiveResp.json()) as { code?: string }
   expect(
-    archiveBody.code,
-    `expected 42501 (insufficient_privilege), got ${JSON.stringify(archiveBody)}`,
+    foreignArchiveBody.code,
+    `foreign tenant must get P0002, not 42501. Got ${JSON.stringify(foreignArchiveBody)}`,
+  ).toBe('P0002')
+
+  // Row survives — still draft, untouched by either foreign-tenant attempt.
+  let versions = await getVersions(page.request, authzTpl.templateId)
+  expect(versions.length).toBe(1)
+  expect(versions[0].id).toBe(authzTpl.versionId)
+  expect(versions[0].status).toBe('draft')
+
+  // ═══ ARM 2 — SAME COMMISSION, wrong role: a plain staff of CCIH (can SELECT
+  // the row via ordinary membership RLS; the mutation's role check is what
+  // refuses it). This is the arm the feedback-integrity fix actually targets. ═══
+  const sameCommissionToken = await getOwnerToken(page, 'staff1.ccih@test.local')
+
+  const staffDiscardResp = await rpc(page.request, 'discard_template_draft', sameCommissionToken, {
+    p_template_version_id: authzTpl.versionId,
+  })
+  expect(
+    staffDiscardResp.ok(),
+    'discard_template_draft by a same-commission plain staff must be refused',
+  ).toBe(false)
+  const staffDiscardBody = (await staffDiscardResp.json()) as { code?: string }
+  expect(
+    staffDiscardBody.code,
+    `same-commission non-staff_admin must get 42501 (insufficient_privilege) — the ` +
+      `caller CAN see this row, it is the mutation that is denied. Got ${JSON.stringify(staffDiscardBody)}`,
   ).toBe('42501')
 
-  // Row survives here too — still draft, not archived.
-  versionsAfterDiscardAttempt = await getVersions(page.request, authzTpl.templateId)
-  expect(versionsAfterDiscardAttempt[0].status).toBe('draft')
+  const staffArchiveResp = await rpc(page.request, 'archive_process_template', sameCommissionToken, {
+    p_template_id: authzTpl.templateId,
+  })
+  expect(
+    staffArchiveResp.ok(),
+    'archive_process_template by a same-commission plain staff must be refused',
+  ).toBe(false)
+  const staffArchiveBody = (await staffArchiveResp.json()) as { code?: string }
+  expect(
+    staffArchiveBody.code,
+    `same-commission non-staff_admin must get 42501. Got ${JSON.stringify(staffArchiveBody)}`,
+  ).toBe('42501')
 
-  // ── Positive control: the RIGHTFUL owner CAN discard it. ──
-  // Proves the two refusals above are authorization-specific, not a broken or
-  // vacuous door (this repo's "no-regression claim needs an over-grant twin"
-  // lesson, applied to a deny-side assertion instead).
+  // Row survives here too — still draft, untouched by either attempt.
+  versions = await getVersions(page.request, authzTpl.templateId)
+  expect(versions[0].status).toBe('draft')
+
+  // ═══ Positive control: the RIGHTFUL owner CAN discard it. ═══
   const legitDiscardResp = await rpc(page.request, 'discard_template_draft', ownerToken, {
     p_template_version_id: authzTpl.versionId,
   })
