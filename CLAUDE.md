@@ -239,8 +239,9 @@ Phases 18–19 stay post-pilot.
 > ⭐ **Before any authorization / RLS / security-test work, read
 > [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078 lessons
 > (and ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md), whose
-> door-audit sweep `supabase/tests/mutation/p0-authz-invariant.sh` is a **standing** gate that
-> must keep passing — see ARCHITECTURE.md Rule 1).
+> door-audit sweep `supabase/tests/mutation/p0-authz-invariant.sh` is a **standing** gate —
+> operationalized in **§6 step 1**, because "standing" in prose alone meant it ran once in three
+> weeks and the next run found 15 BLIND gates; see ARCHITECTURE.md Rule 1).
 > They are **not** AUTHZ-specific and they cost six review rounds: **7 keystones that could not fail**
 > (review found none; *reverting the fix* found all), **6 ways "text is not truth"** beyond stale files
 > (a flag's `description` vs its `enabled` column; a `prosrc` regex matching **comments**; a persona
@@ -252,6 +253,14 @@ Phases 18–19 stay post-pilot.
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
    suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
    E2E-mutated DB yields spurious commission-count reds that are not defects.
+   **Authz gates** — `ARM=floor bash supabase/tests/mutation/p0-authz-invariant.sh` (~1 min) must
+   hold. **If the phase touched any RLS policy or `prosecdef` boolean gate**, also run the
+   **diff-scoped** door sweep over exactly those (~1 min/gate), deriving the list from the migration
+   diff, never by hand — recipe + rationale in **ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)
+   Amendment 1**. **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop,
+   never a tenant-isolation policy); **`ERROR` is not a pass** (unauditable → cover it in the phase's
+   mutation audit); ⚠ afterwards `git checkout -- docs/reviews/authz-door-audit-findings.md` — a
+   subset run overwrites it. The **full** ~5 h sweep is a periodic audit, **not** a phase step.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
    and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
    current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
@@ -266,7 +275,10 @@ Phases 18–19 stay post-pilot.
    risks) and **waits** for explicit approval.
 5. **Record** — lead updates PROGRESS.md, **rotates** the completed phase's detail out
    (mechanics: lead-playbook), updates `docs/backend-state.md` if the backend surface
-   changed, and commits `phase(N): complete — <summary>`.
+   changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
+   `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
+   *notices* when a gate is opened. Phase 16 logged "`p0-authz-invariant.sh` INVARIANT HOLDS" having
+   run only the former — and its own `accreditation_standards_select` passes it and fails the latter.
 
 ## 7. Progress Tracking
 
