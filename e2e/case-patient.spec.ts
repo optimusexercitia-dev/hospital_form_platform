@@ -159,6 +159,17 @@ async function patientParticipantIdForCase(
   return rows[0]?.participant_id ?? null
 }
 
+/** Resolve a published form's id by title (for `add_template_phase`'s `p_form_id`). */
+async function getFormIdByTitle(req: APIRequestContext, title: string): Promise<string> {
+  const rows = await restGet<{ id: string }>(
+    req,
+    `forms?commission_id=eq.${COMM_A}&title=eq.${encodeURIComponent(title)}&select=id&limit=1`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(rows.length, `form "${title}" not found in CCIH`).toBeGreaterThan(0)
+  return rows[0].id
+}
+
 /** Call a public RPC under a persona JWT. Returns the raw Response. */
 async function rpc(
   req: APIRequestContext,
@@ -479,6 +490,17 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
     p_collects: true,
   })
   expect(setResp.ok(), `set_template_collects_patient failed: ${await setResp.text()}`).toBeTruthy()
+
+  // Publish needs ≥1 phase (HC016 — not new, it's in the original baseline; the
+  // pre-TV version of this spec skipped it entirely by flipping `status` with a
+  // raw PATCH instead of going through the publish door). Add one before publishing.
+  const formId = await getFormIdByTitle(request, 'Checklist de Higienização das Mãos')
+  const addPhaseResp = await rpc(request, 'add_template_phase', chefeAToken, {
+    p_template_version_id: draftVersionId,
+    p_form_id: formId,
+    p_title: 'Fase única',
+  })
+  expect(addPhaseResp.ok(), `add_template_phase failed: ${await addPhaseResp.text()}`).toBeTruthy()
 
   // Publish v1 so the template appears as an option in "Novo caso" (only PUBLISHED
   // versions are offered — src/app/…/cases/page.tsx filters `status === "published"`).

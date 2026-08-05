@@ -137,7 +137,10 @@ async function freshOpenCaseId(page: Page): Promise<string> {
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
       },
-      data: { template_id: templateId, label: 'Caso de teste AC-P12' },
+      // create_case_from_template's parameters are `p_template_id`/`p_label` (every
+      // other call site in this repo uses the `p_` prefix); the bare `template_id`/
+      // `label` keys here never matched the function signature.
+      data: { p_template_id: templateId, p_label: 'Caso de teste AC-P12' },
     },
   )
   if (!caseResp.ok()) return CASE1_ID

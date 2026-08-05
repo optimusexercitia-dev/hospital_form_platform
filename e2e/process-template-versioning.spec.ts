@@ -154,10 +154,14 @@ async function getVersions(request: APIRequestContext, tplId: string): Promise<V
 async function getCaseRow(
   request: APIRequestContext,
   caseId: string,
-): Promise<{ template_version_id: string | null; template_id: string | null } | null> {
-  const rows = await dbGet<{ template_version_id: string | null; template_id: string | null }>(
+): Promise<{ template_version_id: string | null } | null> {
+  // ADR 0096: `cases.template_id` was DROPPED and re-pointed to
+  // `cases.template_version_id` — the only column that survives on this
+  // table. `process_template_versions.template_id` is a DIFFERENT relation
+  // and is not touched by this drop (see e2e/helpers/process-templates.ts).
+  const rows = await dbGet<{ template_version_id: string | null }>(
     request,
-    `cases?id=eq.${caseId}&select=template_version_id,template_id`,
+    `cases?id=eq.${caseId}&select=template_version_id`,
   )
   return rows[0] ?? null
 }
@@ -290,7 +294,9 @@ test('AC-D2-Lifecycle: publish v1 (1 published, refused-while-published) → edi
   // ── Edit v1 → clones to a draft v2. v1 itself must be UNTOUCHED. ──
   await page.reload()
   await page.getByRole('button', { name: /^Editar processo$/i }).click()
-  const editConfirm = page.getByRole('dialog').filter({ hasText: /Editar este processo\?/i })
+  // `BeginTemplateEditButton` uses Radix `AlertDialog`, which renders
+  // `role="alertdialog"`, not `role="dialog"`.
+  const editConfirm = page.getByRole('alertdialog').filter({ hasText: /Editar este processo\?/i })
   await expect(editConfirm).toBeVisible({ timeout: 10_000 })
   await editConfirm.getByRole('button', { name: /Criar rascunho/i }).click()
   await page.waitForURL(/\?v=[0-9a-f-]{36}/, { timeout: 20_000 })
@@ -526,7 +532,9 @@ test('AC-Keyboard: edit v2 → draft v3 → publish v3, driven entirely by keybo
   await expect(editBtn).toBeFocused()
   await page.keyboard.press('Enter')
 
-  const editConfirm = page.getByRole('dialog').filter({ hasText: /Editar este processo\?/i })
+  // `BeginTemplateEditButton` uses Radix `AlertDialog`, which renders
+  // `role="alertdialog"`, not `role="dialog"`.
+  const editConfirm = page.getByRole('alertdialog').filter({ hasText: /Editar este processo\?/i })
   await expect(editConfirm).toBeVisible({ timeout: 10_000 })
 
   // Tab to the "Criar rascunho" confirm button and activate with Enter.
