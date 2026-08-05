@@ -74,6 +74,22 @@ export interface HospitalAdminMembership {
   hospital: HospitalRef
 }
 
+/**
+ * A hospital whose TECHNICAL DIRECTION the caller holds (ADR 0094 W4) — either as
+ * the titular Diretor Técnico or as a substituto.
+ *
+ * ⚠ `role` is carried for display only. By decision D1 a deputy holds the SAME
+ * authority as the titular (a substituto who cannot decide is decorative, and a
+ * referral would stall whenever the titular was away), so NOTHING may be gated on
+ * this field — every DB predicate admits both. It exists so a screen can say which
+ * hat the reader is wearing, not to withhold anything from a deputy.
+ */
+export interface TechnicalDirectionMembership {
+  organization: OrganizationRef
+  hospital: HospitalRef
+  role: 'technical_director' | 'technical_director_deputy'
+}
+
 export interface SessionContext {
   userId: string
   email: string
@@ -110,6 +126,13 @@ export interface SessionContext {
    * wiring lands in A4/A5; A0 defaults it to `[]`.
    */
   hospitalAdminOf: HospitalAdminMembership[]
+  /**
+   * Hospitals whose technical direction the caller holds (ADR 0094 W4) — titular OR
+   * deputy, undifferentiated in authority (D1). Empty for everyone else. This is the
+   * ONLY standing a Diretor Técnico has: the office confers no commission membership,
+   * so without this the shell has no way to route them anywhere.
+   */
+  technicalDirectionOf: TechnicalDirectionMembership[]
   /**
    * Organizations the caller is an `nsp_org_admin` of (ADR 0051; the role row is
    * admitted to the CHECK in Phase A but its BEHAVIOR ships in Phase B — this is
@@ -248,6 +271,36 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     }))
     .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
 
+  // ADR 0094 W4 — technical direction. Exactly the "adding a role means adding a
+  // FILTER here, not a query" seam the W2 re-plumb above describes: `session_context`
+  // is generic over roles and already returned these grants; nothing consumed them.
+  // Both roles land in ONE list because D1 makes them one authority.
+  const technicalDirectionOf: TechnicalDirectionMembership[] = grants
+    .filter(
+      (
+        g,
+      ): g is SessionGrant & {
+        role: 'technical_director' | 'technical_director_deputy'
+        organization: OrganizationRef
+        hospital: NonNullable<SessionGrant['hospital']>
+      } =>
+        (g.role === 'technical_director' ||
+          g.role === 'technical_director_deputy') &&
+        g.organization !== null &&
+        g.hospital !== null,
+    )
+    .map((g) => ({
+      organization: g.organization,
+      hospital: {
+        id: g.hospital.id,
+        slug: g.hospital.slug,
+        name: g.hospital.name,
+        organizationId: g.hospital.organization_id,
+      },
+      role: g.role,
+    }))
+    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
+
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
   // the JWT already authenticated the user), default to `active`: RLS is the real
   // data backstop, and we must not hard-lock a valid session on a read miss.
@@ -276,6 +329,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     memberships,
     orgAdminOf,
     hospitalAdminOf,
+    technicalDirectionOf,
     nspOrgAdminOf,
   }
 })
@@ -460,6 +514,48 @@ export function canInCommission(
 ): boolean {
   return access.role === 'staff_admin' || access.capabilities.includes(capability)
 }
+
+/**
+ * The technical-direction access resolver (ADR 0094 W4 / FUP-MEM-3b) — the seam
+ * behind `/o/[org]/direcao-tecnica/**`, mirroring {@link getCommissionAccessByOrg}.
+ *
+ * Returns `null` (caller renders `notFound()`, leaking nothing) when the caller holds
+ * no technical direction in this org. `hospitals` is every hospital of THIS org whose
+ * direction they hold — titular or deputy, undifferentiated (D1).
+ *
+ * ⚠ NO DATABASE READ, deliberately — and this is the point of the resolver rather
+ * than an oversight. Every sibling resolver re-reads `organizations` by slug, which
+ * works for them because `organizations_select` admits their standing. A Diretor
+ * Técnico's ONLY standing is a hospital-tier membership, so making the org row the
+ * gate would make console entry depend on whether that policy happens to carry an arm
+ * for the office — a coupling that would fail silently and look like a missing route.
+ * `session_context` is SECURITY DEFINER and already returned the org ref alongside
+ * each grant, so the authoritative answer is in hand: match the slug against it.
+ *
+ * This decides CONSOLE ENTRY only. Every referral the console shows is RLS-scoped at
+ * the data door (`case_referral`'s SELECT policy admits the direction of
+ * `target_hospital_id`), so a tampered slug or hospital id yields an empty list rather
+ * than someone else's referrals.
+ */
+export const getTechnicalDirectionAccessByOrg = cache(
+  async (
+    orgSlug: string,
+  ): Promise<{
+    context: SessionContext
+    organization: OrganizationRef
+    hospitals: TechnicalDirectionMembership[]
+  } | null> => {
+    const context = await getSessionContext()
+    if (!context) return null
+
+    const held = context.technicalDirectionOf.filter(
+      (t) => t.organization.slug === orgSlug,
+    )
+    if (held.length === 0) return null
+
+    return { context, organization: held[0].organization, hospitals: held }
+  },
+)
 
 /**
  * The NSP-console access resolver (NSP-per-hospital, ADR 0052) — the seam behind

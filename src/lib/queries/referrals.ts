@@ -351,6 +351,79 @@ export async function listCommissionReferrals(
 }
 
 /**
+ * The technical-direction inbox for ONE hospital (ADR 0094 W4 / FUP-MEM-3b) —
+ * every non-draft referral addressed to that hospital's Diretor Técnico,
+ * newest-first. PHI-free (the same governance-metadata projection as the commission
+ * hub).
+ *
+ * Always `incoming`: the office is a destination only. It cannot appear as a source,
+ * because `create_referral_draft` gates the send on coordinating the SOURCE
+ * COMMISSION — an office with no commission can never author one. So the direction is
+ * set here rather than derived, and {@link mapReferralListItem}'s viewer argument is
+ * `null` because its commission comparison has nothing to compare against.
+ *
+ * RLS is the authority: `case_referral`'s SELECT policy admits the technical direction
+ * of `target_hospital_id` (titular AND deputy — D1) once the referral is past `draft`.
+ * The `target_type` / `target_hospital_id` filters below are the PRODUCT scope, not
+ * the security boundary — a DT of another hospital gets `[]` from RLS regardless.
+ */
+export async function listTechnicalDirectionReferrals(
+  hospitalId: string,
+  page?: PageParams,
+): Promise<Page<ReferralListItem>> {
+  const supabase = await createClient()
+
+  const limit = page?.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = decodeCursor<ReferralCursor>(page?.cursor, REFERRAL_CURSOR_SCHEMA)
+
+  let query = supabase
+    .from('case_referral')
+    .select(REFERRAL_LIST_SELECT)
+    .neq('status', 'draft')
+    .eq('target_type', 'technical_director')
+    .eq('target_hospital_id', hospitalId)
+
+  if (cursor) {
+    query = query.or(
+      `created_at.lt.${cursor.c},` +
+        `and(created_at.eq.${cursor.c},id.lt.${cursor.id})`,
+    )
+  }
+
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
+    .returns<ReferralListRow[]>()
+
+  if (error) {
+    console.error('[listTechnicalDirectionReferrals] query failed', {
+      hospitalId,
+      code: error.code,
+      message: error.message,
+    })
+    return { rows: [], nextCursor: null }
+  }
+
+  const fetched = data ?? []
+  const hasMore = fetched.length > limit
+  const pageRows = hasMore ? fetched.slice(0, limit) : fetched
+
+  const rows = pageRows.map((r) => ({
+    ...mapReferralListItem(r, null),
+    direction: 'incoming' as const,
+  }))
+
+  const last = pageRows[pageRows.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({ c: last.created_at, id: last.id } satisfies ReferralCursor)
+      : null
+
+  return { rows, nextCursor }
+}
+
+/**
  * The outbound referrals OF one source case (the case-detail card), newest-first.
  * Always `direction: 'outgoing'`. RLS-scoped; PHI-free.
  */
