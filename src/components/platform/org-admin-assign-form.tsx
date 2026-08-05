@@ -19,10 +19,15 @@ import type { OrgOption } from "./hospital-create-form";
 
 /**
  * Seats an org_admin on an organization BY EMAIL (platform_admin / vendor). The
- * action resolves an existing user or invites a new one, then upserts the
- * `organization_members` row with `role = 'org_admin'`. Mirrors the
- * staff-admin assign-by-email pattern. The email input clears after a successful
- * assignment so the form is ready for the next one.
+ * action resolves an existing user or invites a new one, then grants the role through
+ * the `public.grant_role_for` service door (ADR 0094 W3/T3.3 — no raw `memberships`
+ * DML anywhere in `src/`). Mirrors the staff-admin assign-by-email pattern. The email
+ * input clears after a successful assignment so the form is ready for the next one.
+ *
+ * ⚠ This comment said "upserts the `organization_members` row" until 2026-08-04. That
+ * table has never existed under that name (it is `memberships`), and the direct write
+ * it described had already been replaced by the door — a stale assertion nothing
+ * type-checks. E2E: `e2e/platform-org-admin-provisioning.spec.ts`.
  */
 export function OrgAdminAssignForm({
   organizations,
