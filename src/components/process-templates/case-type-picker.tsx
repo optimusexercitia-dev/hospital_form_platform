@@ -29,11 +29,11 @@ import { useFieldIds } from "@/components/ui/field";
  * Persists immediately; optimistic with revert on failure.
  */
 export function CaseTypePicker({
-  templateId,
+  templateVersionId,
   caseTypeId,
   caseTypes,
 }: {
-  templateId: string;
+  templateVersionId: string;
   /** The template's currently declared type, or `null` when untyped. */
   caseTypeId: string | null;
   /** The organization's ACTIVE case types (empty → the card explains and disables). */
@@ -52,7 +52,7 @@ export function CaseTypePicker({
     setSelected(next);
     setError(null);
     startTransition(async () => {
-      const res = await setTemplateCaseType(templateId, next || null);
+      const res = await setTemplateCaseType(templateVersionId, next || null);
       if (!res.ok) {
         setSelected(prev);
         setError(res.error ?? "Não foi possível salvar o tipo de caso.");

@@ -54,11 +54,17 @@ begin
   delete from public.indicator_measurements where indicator_id in (select id from public.indicators where commission_id = v_comm);
   delete from public.indicators where commission_id = v_comm;
 
-  -- Process template + form definitions
-  delete from public.process_template_narratives    where template_id in (select id from public.process_templates where commission_id = v_comm);
-  delete from public.process_template_custom_fields  where template_id in (select id from public.process_templates where commission_id = v_comm);
-  delete from public.process_template_outcomes       where template_id in (select id from public.process_templates where commission_id = v_comm);
-  delete from public.process_template_phases         where template_id in (select id from public.process_templates where commission_id = v_comm);
+  -- Process template + form definitions. ADR 0096: the four child tables hang off
+  -- a VERSION, so they resolve through process_template_versions rather than
+  -- straight to the identity row. The versions themselves are deleted before the
+  -- identity, whose FK to them is ON DELETE CASCADE but whose versions are held by
+  -- cases.template_version_id ON DELETE RESTRICT — the cases above are already gone
+  -- by this point, which is what makes the version delete legal.
+  delete from public.process_template_narratives    where template_version_id in (select v.id from public.process_template_versions v join public.process_templates t on t.id = v.template_id where t.commission_id = v_comm);
+  delete from public.process_template_custom_fields  where template_version_id in (select v.id from public.process_template_versions v join public.process_templates t on t.id = v.template_id where t.commission_id = v_comm);
+  delete from public.process_template_outcomes       where template_version_id in (select v.id from public.process_template_versions v join public.process_templates t on t.id = v.template_id where t.commission_id = v_comm);
+  delete from public.process_template_phases         where template_version_id in (select v.id from public.process_template_versions v join public.process_templates t on t.id = v.template_id where t.commission_id = v_comm);
+  delete from public.process_template_versions where template_id in (select id from public.process_templates where commission_id = v_comm);
   delete from public.process_templates where commission_id = v_comm;
   delete from public.case_outcomes        where commission_id = v_comm;
   delete from public.case_narrative_types where commission_id = v_comm;

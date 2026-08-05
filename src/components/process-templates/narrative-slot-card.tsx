@@ -161,7 +161,7 @@ export function NarrativeSlotCard({
           mode="edit"
           open={editOpen}
           onOpenChange={setEditOpen}
-          templateId={narrative.templateId}
+          templateVersionId={narrative.templateVersionId}
           narrative={narrative}
           narrativeTypes={narrativeTypes}
         />

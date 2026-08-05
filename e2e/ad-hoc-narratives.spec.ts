@@ -126,8 +126,8 @@ async function getCasePhases(
   return restGet(req, `case_phases?case_id=eq.${caseId}&select=id,position,display_position`)
 }
 
-/** Create a fresh PROCESS-LESS case (template_id NULL, zero phases, empty vocab path)
- *  as the coordinator via the `create_case` RPC. Returns the new case id. */
+/** Create a fresh PROCESS-LESS case (template_version_id NULL, zero phases, empty
+ *  vocab path) as the coordinator via the `create_case` RPC. Returns the new case id. */
 async function createProcesslessCase(page: Page, token: string, label: string): Promise<string> {
   const resp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/create_case`, {
     headers: serviceHeaders({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * Case-detail "Reuniões" rail card (`CaseMeetingsPanel`,
@@ -104,18 +105,16 @@ async function createFreshCase(
   ownerToken: string,
   label: string,
 ): Promise<string> {
-  const tplResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // ADR 0096: `process_templates.status` is dropped — resolve the published
+  // version. `create_case_from_template` still takes the TEMPLATE identity id.
+  // `title` is required: CCIH now carries several published templates (other
+  // TV specs publish into it too), so an untitled lookup is an ARBITRARY pick.
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
-  expect(tplResp.ok()).toBeTruthy()
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
 
   const createResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
@@ -125,7 +124,7 @@ async function createFreshCase(
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: label },
+      data: { p_template_id: tpl.templateId, p_label: label },
     },
   )
   expect(createResp.ok()).toBeTruthy()

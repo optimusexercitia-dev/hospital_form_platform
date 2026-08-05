@@ -38,18 +38,22 @@ grant select on k to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Blockers', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Blockers', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table ph on commit drop as
-  select (public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 1')).id as p1;
+  select (public.add_template_phase((select vid from tpl), (select form_u from k), 'Fase 1')).id as p1;
 grant select on ph to authenticated;
 -- Add phases 2 and 3 with their blockers set at creation (p_blocks param).
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 2', null, null, array[1]);
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 3', null, null, array[2]);
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'Fase 2', null, null, array[1]);
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'Fase 3', null, null, array[2]);
 reset role;
 
 -- =========================================================================
@@ -57,13 +61,13 @@ reset role;
 -- =========================================================================
 select is(
   (select blocks from public.process_template_phases
-   where template_id = (select tid from tpl) and position = 2),
+   where template_version_id = (select vid from tpl) and position = 2),
   array[1],
   'add_template_phase stores blocks for phase 2 = {1}'
 );
 select is(
   (select blocks from public.process_template_phases
-   where template_id = (select tid from tpl) and position = 3),
+   where template_version_id = (select vid from tpl) and position = 3),
   array[2],
   'add_template_phase stores blocks for phase 3 = {2}'
 );
@@ -77,8 +81,8 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.set_template_phase_blocks(
               (select id from public.process_template_phases
-               where template_id = %L and position = 2), array[3]) $$,
-          (select tid from tpl)),
+               where template_version_id = %L and position = 2), array[3]) $$,
+          (select vid from tpl)),
   'HC016',
   null,
   'set_template_phase_blocks rejects a FORWARD reference (block a later phase) — HC016'
@@ -91,8 +95,8 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.set_template_phase_blocks(
               (select id from public.process_template_phases
-               where template_id = %L and position = 2), array[2]) $$,
-          (select tid from tpl)),
+               where template_version_id = %L and position = 2), array[2]) $$,
+          (select vid from tpl)),
   'HC016',
   null,
   'set_template_phase_blocks rejects a SELF reference — HC016'
@@ -105,8 +109,8 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.set_template_phase_blocks(
               (select id from public.process_template_phases
-               where template_id = %L and position = 3), array[9]) $$,
-          (select tid from tpl)),
+               where template_version_id = %L and position = 3), array[9]) $$,
+          (select vid from tpl)),
   'HC016',
   null,
   'set_template_phase_blocks rejects a reference to a NON-EXISTENT position — HC016'
@@ -246,24 +250,28 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table rtpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Reorder blocks', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Reorder blocks', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update rtpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on rtpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table rp1 on commit drop as
-  select (public.add_template_phase((select tid from rtpl), (select form_u from k), 'R1')).id as pid;
+  select (public.add_template_phase((select vid from rtpl), (select form_u from k), 'R1')).id as pid;
 grant select on rp1 to authenticated;
-select public.add_template_phase((select tid from rtpl), (select form_u from k), 'R2');
-select public.add_template_phase((select tid from rtpl), (select form_u from k), 'R3', null, null, array[1]);
+select public.add_template_phase((select vid from rtpl), (select form_u from k), 'R2');
+select public.add_template_phase((select vid from rtpl), (select form_u from k), 'R3', null, null, array[1]);
 -- Move phase 1 down (swap 1<->2).
 select public.reorder_template_phase((select pid from rp1), 'down');
 reset role;
 
 select is(
   (select blocks from public.process_template_phases
-   where template_id = (select tid from rtpl) and position = 3),
+   where template_version_id = (select vid from rtpl) and position = 3),
   array[2],
   'reorder remaps blocks across the value-swap: phase 3 blocker {1} -> {2}'
 );
@@ -280,18 +288,22 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table xtpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Remove blocks', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Remove blocks', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update xtpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on xtpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from xtpl), (select form_u from k), 'X1');
+select public.add_template_phase((select vid from xtpl), (select form_u from k), 'X1');
 create temp table xp2 on commit drop as
-  select (public.add_template_phase((select tid from xtpl), (select form_u from k), 'X2')).id as pid;
+  select (public.add_template_phase((select vid from xtpl), (select form_u from k), 'X2')).id as pid;
 grant select on xp2 to authenticated;
-select public.add_template_phase((select tid from xtpl), (select form_u from k), 'X3', null, null, array[1]);
-select public.add_template_phase((select tid from xtpl), (select form_u from k), 'X4', null, null, array[3]);
+select public.add_template_phase((select vid from xtpl), (select form_u from k), 'X3', null, null, array[1]);
+select public.add_template_phase((select vid from xtpl), (select form_u from k), 'X4', null, null, array[3]);
 -- Remove phase 2 (position 2).
 select public.remove_template_phase((select pid from xp2));
 reset role;
@@ -299,14 +311,14 @@ reset role;
 -- new position 3 (was phase 4, blocks {3}) -> remapped to {2}.
 select is(
   (select blocks from public.process_template_phases
-   where template_id = (select tid from xtpl) and position = 3),
+   where template_version_id = (select vid from xtpl) and position = 3),
   array[2],
   'remove shifts the tail: phase formerly-{3} blocker is remapped to {2}'
 );
 -- new position 2 (was phase 3, blocks {1}) -> unchanged {1}.
 select is(
   (select blocks from public.process_template_phases
-   where template_id = (select tid from xtpl) and position = 2),
+   where template_version_id = (select vid from xtpl) and position = 2),
   array[1],
   'remove leaves a below-the-removed-position blocker unchanged ({1})'
 );
@@ -322,8 +334,8 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.remove_template_phase(
               (select id from public.process_template_phases
-               where template_id = %L and position = 1)) $$,
-          (select tid from xtpl)),
+               where template_version_id = %L and position = 1)) $$,
+          (select vid from xtpl)),
   'HC016',
   null,
   'remove_template_phase rejects removing a position still referenced by a blocks array (HC016)'

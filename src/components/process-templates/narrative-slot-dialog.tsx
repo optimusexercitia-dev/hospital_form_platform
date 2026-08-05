@@ -48,14 +48,24 @@ export function NarrativeSlotDialog({
   mode,
   open,
   onOpenChange,
-  templateId,
+  templateVersionId,
   narrative,
   narrativeTypes,
 }: {
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  templateId: string;
+  /**
+   * The DRAFT version the narrative-slot belongs to (ADR 0096). Re-keyed from
+   * `templateId` per the lead ruling of 2026-08-04.
+   *
+   * ⚠ Unlike {@link PhaseSlotDialog}'s same-named prop, this one is LIVE:
+   * `addTemplateNarrative` is wired and passes it straight through as
+   * `p_template_id`, so in `create` mode it must currently be a TEMPLATE id. It
+   * becomes a version id only when backend re-keys that action (M5) and the
+   * builder shell is re-pointed — the two must move together.
+   */
+  templateVersionId: string;
   /** Required for `edit`; ignored for `create`. */
   narrative?: ProcessTemplateNarrative;
   /** The commission's NON-archived narrative vocabulary (the type picker). */
@@ -115,7 +125,7 @@ export function NarrativeSlotDialog({
     startTransition(async () => {
       const result =
         mode === "create"
-          ? await addTemplateNarrative(templateId, narrativeTypeId, input)
+          ? await addTemplateNarrative(templateVersionId, narrativeTypeId, input)
           : await updateTemplateNarrative(narrative?.id ?? "", input);
       setState(result);
     });

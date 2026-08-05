@@ -66,21 +66,33 @@ grant select on cnt to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_multi on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Lote Multi', null)).id as tid;
-select public.add_template_phase((select tid from tpl_multi), (select form_u from k), 'Fase 1');
-select public.add_template_phase((select tid from tpl_multi), (select form_u from k), 'Fase 2');
+  select (public.create_process_template((select comm_x from k), 'Lote Multi', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_multi set vid = app.draft_version_of_template(tid);
+select public.add_template_phase((select vid from tpl_multi), (select form_u from k), 'Fase 1');
+select public.add_template_phase((select vid from tpl_multi), (select form_u from k), 'Fase 2');
 select public.publish_process_template((select tid from tpl_multi));
 
 create temp table tpl_req on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Lote Req', null)).id as tid;
-select public.add_template_phase((select tid from tpl_req), (select form_u from k), 'Fase 1');
+  select (public.create_process_template((select comm_x from k), 'Lote Req', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_req set vid = app.draft_version_of_template(tid);
+select public.add_template_phase((select vid from tpl_req), (select form_u from k), 'Fase 1');
 insert into public.process_template_custom_fields
-  (template_id, key, label, field_type, options, required, show_in_list, position)
-values ((select tid from tpl_req), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true, true, 0);
+  (template_version_id, key, label, field_type, options, required, show_in_list, position)
+values ((select vid from tpl_req), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true, true, 0);
 select public.publish_process_template((select tid from tpl_req));
 
 create temp table tpl_phi on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Lote PHI', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Lote PHI', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_phi set vid = app.draft_version_of_template(tid);
 reset role;
 
 grant select on tpl_multi to authenticated;
@@ -89,12 +101,14 @@ grant select on tpl_phi to authenticated;
 
 -- collects_patient is set out-of-band (as the owner, RLS-bypassing) — mirrors 151's
 -- direct fixture writes; the create-dialog/builder path is not under test here.
-update public.process_templates set collects_patient = true
-  where id = (select tid from tpl_phi);
+-- ADR 0096: collects_patient moved to the VERSION. The version is still a draft
+-- here (it is published below), so the published-version guard does not fire.
+update public.process_template_versions set collects_patient = true
+  where id = (select vid from tpl_phi);
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_phi), (select form_u from k), 'Fase 1');
+select public.add_template_phase((select vid from tpl_phi), (select form_u from k), 'Fase 1');
 select public.publish_process_template((select tid from tpl_phi));
 reset role;
 

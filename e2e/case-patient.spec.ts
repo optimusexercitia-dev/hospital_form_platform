@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getAnyPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * `case_patient` — THIRD PHI module (ADR 0038)
@@ -35,7 +36,8 @@ import { cachedSignIn } from "./helpers/auth"
  *                           ADR 0078 Stage B: no read_standard_phi/read_restricted_phi set,
  *                           so this grant does NOT confer PHI reach)
  *              read-grant:  multi@test.local (same: content only, no PHI)
- *   Template  "Investigação de Óbito (M&M)" — status=active, collects_patient=true (CCIH)
+ *   Template  "Investigação de Óbito (M&M)" — PUBLISHED version, collects_patient=true
+ *             (CCIH). ADR 0096: status/collects_patient live on the VERSION now.
  *
  * **Personas (password Test1234!):**
  *   admin@test.local            global admin, PQS member          (00…001)
@@ -88,8 +90,13 @@ const CASE_A_ID = 'd0000000-0000-0000-0000-0000000000c1' // Caso 0001, PHI-enabl
 const PHI_NAME = 'Paciente Teste Silva'
 const PHI_MRN  = 'PRT-CP-SPEC-0001'   // written by this spec's beforeAll
 
-// Disposable IDs created in beforeAll for builder-toggle test
-let draftTemplateId: string   // a new DRAFT template created by the spec
+// Disposable IDs created in beforeAll for builder-toggle test.
+// ADR 0096: a template is IDENTITY + versions — `draftTemplateId` is the identity,
+// `draftVersionId` its v1. AC-1b publishes v1 (a version-lifecycle RPC, not a raw
+// status PATCH, since published versions are immutable); once published there is
+// no "revert to draft" — subsequent tests (AC-8b, afterAll) treat it as published.
+let draftTemplateId: string
+let draftVersionId: string
 
 // Flag state as it existed BEFORE this spec ran, captured in beforeAll and put back
 // verbatim in afterAll. Never hardcode the restore value — see captureFeatureFlags().
@@ -150,6 +157,17 @@ async function patientParticipantIdForCase(
     SUPABASE_SERVICE_KEY,
   )
   return rows[0]?.participant_id ?? null
+}
+
+/** Resolve a published form's id by title (for `add_template_phase`'s `p_form_id`). */
+async function getFormIdByTitle(req: APIRequestContext, title: string): Promise<string> {
+  const rows = await restGet<{ id: string }>(
+    req,
+    `forms?commission_id=eq.${COMM_A}&title=eq.${encodeURIComponent(title)}&select=id&limit=1`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(rows.length, `form "${title}" not found in CCIH`).toBeGreaterThan(0)
+  return rows[0].id
 }
 
 /** Call a public RPC under a persona JWT. Returns the raw Response. */
@@ -309,10 +327,12 @@ test.beforeAll(async ({ request }) => {
     `beforeAll: set_case_patient on CASE_A_ID failed: ${await setPhiResp.text()}`,
   ).toBeTruthy()
 
-  // Create a fresh DRAFT template in CCIH — we need a draft (not active) so that
-  // `set_template_collects_patient` is allowed. We do this via service-role direct
-  // INSERT (the seeded active template cannot be edited back to draft).
-  const resp = await request.post(`${SUPABASE_URL}/rest/v1/process_templates`, {
+  // Create a fresh DRAFT template in CCIH — we need a draft (not published) so
+  // that `set_template_collects_patient` is allowed. ADR 0096: a template is
+  // IDENTITY + versions, and `title`/`description`/`collects_patient` all live
+  // on the VERSION (D1) — `process_templates` itself carries only
+  // commission_id/created_by. Two service-role inserts, identity then v1.
+  const identityResp = await request.post(`${SUPABASE_URL}/rest/v1/process_templates`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
       Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
@@ -321,19 +341,39 @@ test.beforeAll(async ({ request }) => {
     },
     data: {
       commission_id: COMM_A,
-      title: 'Caso com Paciente — spec CP (draft)',
-      description: 'Template draft para testar collects_patient (case_patient spec).',
-      status: 'draft',
       created_by: UID_CHEFE_A,
-      // collects_patient defaults to false — we will toggle it on via the UI
     },
   })
   expect(
-    resp.ok(),
-    `beforeAll: could not create draft template: ${await resp.text()}`,
+    identityResp.ok(),
+    `beforeAll: could not create template identity: ${await identityResp.text()}`,
   ).toBeTruthy()
-  const rows = await resp.json() as Array<{ id: string }>
-  draftTemplateId = rows[0].id
+  const identityRows = (await identityResp.json()) as Array<{ id: string }>
+  draftTemplateId = identityRows[0].id
+
+  const versionResp = await request.post(`${SUPABASE_URL}/rest/v1/process_template_versions`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      template_id: draftTemplateId,
+      version_number: 1,
+      status: 'draft',
+      title: 'Caso com Paciente — spec CP (draft)',
+      description: 'Template draft para testar collects_patient (case_patient spec).',
+      created_by: UID_CHEFE_A,
+      // collects_patient defaults to false — we will toggle it on via the UI/RPC
+    },
+  })
+  expect(
+    versionResp.ok(),
+    `beforeAll: could not create v1 draft version: ${await versionResp.text()}`,
+  ).toBeTruthy()
+  const versionRows = (await versionResp.json()) as Array<{ id: string }>
+  draftVersionId = versionRows[0].id
 })
 
 test.afterAll(async ({ request }) => {
@@ -389,10 +429,11 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
       // acceptable — toggle rendered as text-adjacent control
       return
     }
-    // Verify via DB that we can call the RPC (unit test of the setter)
+    // Verify via DB that we can call the RPC (unit test of the setter). ADR
+    // 0096: `set_template_collects_patient` is now version-grained.
     const chefeAToken = await getToken(page.request, 'chefe.ccih@test.local')
     const resp = await rpc(page.request, 'set_template_collects_patient', chefeAToken, {
-      p_template_id: draftTemplateId,
+      p_template_version_id: draftVersionId,
       p_collects: true,
     })
     expect(
@@ -402,7 +443,7 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
     // Verify the DB state
     const rows = await restGet<{ collects_patient: boolean }>(
       page.request,
-      `process_templates?id=eq.${draftTemplateId}&select=collects_patient`,
+      `process_template_versions?id=eq.${draftVersionId}&select=collects_patient`,
       SUPABASE_SERVICE_KEY,
     )
     expect(rows[0]?.collects_patient).toBe(true)
@@ -425,10 +466,10 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
   if (await toggleAfter.isVisible({ timeout: 6_000 }).catch(() => false)) {
     await expect(toggleAfter).toBeChecked({ timeout: 5_000 })
   } else {
-    // Verify via DB
+    // Verify via DB (ADR 0096: collects_patient lives on the version)
     const rows = await restGet<{ collects_patient: boolean }>(
       page.request,
-      `process_templates?id=eq.${draftTemplateId}&select=collects_patient`,
+      `process_template_versions?id=eq.${draftVersionId}&select=collects_patient`,
       SUPABASE_SERVICE_KEY,
     )
     // Either the toggle clicked it on (verified by reload above) or the RPC path did
@@ -441,26 +482,37 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   page,
   request,
 }) => {
-  // Ensure our draft template has collects_patient=true via RPC (idempotent)
+  // Ensure our draft template has collects_patient=true via RPC (idempotent).
+  // ADR 0096: version-grained.
   const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
   const setResp = await rpc(request, 'set_template_collects_patient', chefeAToken, {
-    p_template_id: draftTemplateId,
+    p_template_version_id: draftVersionId,
     p_collects: true,
   })
   expect(setResp.ok(), `set_template_collects_patient failed: ${await setResp.text()}`).toBeTruthy()
 
-  // Promote draft to active so it appears as a template option in "Novo caso"
-  await request.patch(
-    `${SUPABASE_URL}/rest/v1/process_templates?id=eq.${draftTemplateId}`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: { status: 'active' },
-    },
-  )
+  // Publish needs ≥1 phase (HC016 — not new, it's in the original baseline; the
+  // pre-TV version of this spec skipped it entirely by flipping `status` with a
+  // raw PATCH instead of going through the publish door). Add one before publishing.
+  const formId = await getFormIdByTitle(request, 'Checklist de Higienização das Mãos')
+  const addPhaseResp = await rpc(request, 'add_template_phase', chefeAToken, {
+    p_template_version_id: draftVersionId,
+    p_form_id: formId,
+    p_title: 'Fase única',
+  })
+  expect(addPhaseResp.ok(), `add_template_phase failed: ${await addPhaseResp.text()}`).toBeTruthy()
+
+  // Publish v1 so the template appears as an option in "Novo caso" (only PUBLISHED
+  // versions are offered — src/app/…/cases/page.tsx filters `status === "published"`).
+  // ADR 0096 D2: published versions are IMMUTABLE, so — UNLIKE the pre-TV world —
+  // this is a ONE-WAY door: v1 can never be flipped back to draft afterwards.
+  // `publish_process_template` survives as a thin template-grain wrapper over
+  // `publish_template_version` (ADR 0096 Amendment 1 A1.1.1) — it resolves the
+  // template's own open draft, so it still takes the TEMPLATE identity id.
+  const publishResp = await rpc(request, 'publish_process_template', chefeAToken, {
+    p_template_id: draftTemplateId,
+  })
+  expect(publishResp.ok(), `publish_process_template failed: ${await publishResp.text()}`).toBeTruthy()
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases')
@@ -487,16 +539,19 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   const phiBlock = dialog.locator('[id^="create-case-patient"]').first()
   await expect(phiBlock).toBeVisible({ timeout: 8_000 })
 
-  // Now select a non-collecting template — query DB for one.
-  // We'll query the DB for a template with collects_patient=false
-  const nonCollectingRows = await restGet<{ id: string; title: string }>(
+  // Now select a non-collecting template — query DB for one. ADR 0096:
+  // `collects_patient`/`status` live on `process_template_versions`, not
+  // `process_templates`. We genuinely don't care WHICH non-collecting template
+  // this resolves to (only that one exists) — the explicit "any" resolver
+  // names that intent, rather than an omitted title implying it silently.
+  const nonCollecting = await getAnyPublishedTemplateVersion(
     request,
-    'process_templates?collects_patient=eq.false&status=eq.active&commission_id=eq.' + COMM_A + '&select=id,title&limit=1',
-    SUPABASE_SERVICE_KEY,
-  )
-  if (nonCollectingRows.length > 0) {
-    const nonCollId = nonCollectingRows[0].id
-    await templateSelect.selectOption({ value: nonCollId })
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    COMM_A,
+    { collectsPatient: false },
+  ).catch(() => null)
+  if (nonCollecting) {
+    await templateSelect.selectOption({ value: nonCollecting.templateId })
     // PHI block must be gone
     await expect(
       dialog.locator('[id^="create-case-patient"]').first()
@@ -507,18 +562,9 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   // Close dialog
   await page.keyboard.press('Escape')
 
-  // Restore to active for cleanup
-  await request.patch(
-    `${SUPABASE_URL}/rest/v1/process_templates?id=eq.${draftTemplateId}`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      data: { status: 'draft' }, // back to draft for AC-1a idempotency
-    },
-  )
+  // No "restore to draft" step: ADR 0096 published versions are IMMUTABLE, so v1
+  // stays published for the rest of the suite (AC-8b relies on this — it no
+  // longer needs to re-promote it).
 })
 
 // ---------------------------------------------------------------------------
@@ -1258,24 +1304,14 @@ test('AC-8a: case_patient flag OFF — detail panel absent from case detail', as
 
 test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for collecting template', async ({
   page,
-  request,
 }) => {
   await setFeatureFlag('case_patient', false)
   await new Promise((r) => setTimeout(r, 600))
 
   try {
-    // Promote draft template to active for this test
-    await request.patch(
-      `${SUPABASE_URL}/rest/v1/process_templates?id=eq.${draftTemplateId}`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        data: { status: 'active' },
-      },
-    )
+    // No promotion needed here: AC-1b already PUBLISHED v1 (ADR 0096 — published
+    // versions are immutable, so it has stayed published ever since; serial mode
+    // guarantees AC-1b ran first).
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/cases')
@@ -1304,19 +1340,9 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
       await page.keyboard.press('Escape')
     }
   } finally {
-    // Restore flag and template state
+    // Restore the flag. No template-state restore: v1 is published and — under
+    // ADR 0096 — stays that way (published versions are immutable).
     await setFeatureFlag('case_patient', true)
-    await request.patch(
-      `${SUPABASE_URL}/rest/v1/process_templates?id=eq.${draftTemplateId}`,
-      {
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        data: { status: 'draft' },
-      },
-    )
     await new Promise((r) => setTimeout(r, 600))
   }
 })
@@ -1353,17 +1379,32 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
 
   // Resolve the seeded active, collecting CCIH template ("Investigação de Óbito
   // (M&M)" — collects_patient=true). Query by config (not title) so it stays robust.
-  const collectingRows = await restGet<{ id: string; title: string }>(
+  //
+  // ADR 0096: `collects_patient`/`status` moved onto `process_template_versions`.
+  // By the time AC-9 runs (after AC-1b/AC-8b), the "spec CP" draft template's v1
+  // is ALSO published+collecting (AC-1b published it) — so this can no longer
+  // assume a single match and must keep the "prefer the seeded M&M title" logic
+  // that predates ADR 0096, now resolved at the version grain (two-step: identity
+  // ids for the commission, then the matching published versions among them).
+  const identityResp = await restGet<{ id: string }>(
     request,
-    `process_templates?collects_patient=eq.true&status=eq.active&commission_id=eq.${COMM_A}&select=id,title`,
+    `process_templates?commission_id=eq.${COMM_A}&select=id`,
     SUPABASE_SERVICE_KEY,
   )
-  const template =
+  const identityIds = identityResp.map((t) => t.id)
+  expect(identityIds.length, 'no process_templates rows for CCIH').toBeGreaterThan(0)
+  const collectingRows = await restGet<{ template_id: string; title: string }>(
+    request,
+    `process_template_versions?status=eq.published&collects_patient=eq.true&template_id=in.(${identityIds.join(',')})&select=template_id,title`,
+    SUPABASE_SERVICE_KEY,
+  )
+  const versionMatch =
     collectingRows.find((t) => /óbito|m&m/i.test(t.title)) ?? collectingRows[0]
   expect(
-    template,
-    'no active collecting template seeded in CCIH — cannot drive the dialog flow',
+    versionMatch,
+    'no published collecting template seeded in CCIH — cannot drive the dialog flow',
   ).toBeTruthy()
+  const template = { id: versionMatch.template_id }
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases')

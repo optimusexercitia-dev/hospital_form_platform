@@ -1,6 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { setDateTimeField, fillTimeField, pickDate, fieldContainer } from './helpers/date-pickers'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Form-builder-enhancements batch (ad-hoc 2026-07-06) — TASKS 8 + 9 + 10:
@@ -56,6 +57,7 @@ const R_EMITE_1 = `Resultado 1 ${TAG}`
 const R_EMITE_2 = `Resultado 2 ${TAG}`
 
 let templateId: string
+let templateVersionId: string
 let caseWithNarrative: string
 
 // ---------------------------------------------------------------------------
@@ -94,24 +96,6 @@ async function rpc(
     },
     data: body,
   })
-}
-
-async function svcInsert<T>(
-  req: APIRequestContext,
-  table: string,
-  data: Record<string, unknown>,
-): Promise<T> {
-  const resp = await req.post(`${SUPABASE_URL}/rest/v1/${table}`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    data,
-  })
-  expect(resp.ok(), `svcInsert(${table}) failed ${resp.status()}: ${await resp.text()}`).toBeTruthy()
-  return ((await resp.json()) as T[])[0]
 }
 
 /** Read a commission's board openNarrativeCount sum (as staff_admin via RPC). */
@@ -183,25 +167,30 @@ test.beforeAll(async ({ request }) => {
   const res2 = await createResult(R_EMITE_2, 'amber')
 
   // A draft template offering the two outcomes, with one EMITTING phase.
-  const template = await svcInsert<{ id: string }>(request, 'process_templates', {
-    commission_id: COMM_A,
-    title: TEMPLATE_TITLE,
-    description: 'Spec-owned views/labels template.',
-    status: 'draft',
-    created_by: UID_CHEFE_A,
-  })
-  templateId = template.id
+  // ADR 0096: identity + v1 draft; outcome/phase authoring is version-grained.
+  const draftTpl = await createDraftTemplateDirect(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    {
+      commissionId: COMM_A,
+      title: TEMPLATE_TITLE,
+      description: 'Spec-owned views/labels template.',
+      createdBy: UID_CHEFE_A,
+    },
+  )
+  templateId = draftTpl.templateId
+  templateVersionId = draftTpl.versionId
 
   // Offer the outcomes on the template (via the outcomes RPC).
   const setOutcomes = await rpc(request, 'set_process_outcomes', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_outcome_ids: [outAId, outBId],
   })
   expect(setOutcomes.ok(), `set_process_outcomes failed: ${await setOutcomes.text()}`).toBeTruthy()
 
   // A phase that EMITS a result (manual mode: emits_result + allowed subset, no ruleset).
   const phaseResp = await rpc(request, 'add_template_phase', chefeToken, {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: SEED_FORM_ID,
     p_title: 'Fase — Emite resultado',
     p_recommend_when: null,

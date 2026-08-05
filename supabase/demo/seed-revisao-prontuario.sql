@@ -486,6 +486,7 @@ declare
   v_r1    uuid := 'd5000000-0000-0000-0000-00000000f001';  -- forms.id (Fase 1)
   v_r2    uuid := 'd5000000-0000-0000-0000-00000000f002';  -- forms.id (Fase 2)
   v_tpl   uuid := 'd5000000-0000-0000-0000-0000000000a1';
+  v_tpl_v uuid := 'd5000000-0000-0000-0000-0000000000a2';   -- v1 published version (ADR 0096)
   v_setor_options jsonb := jsonb_build_array(
     jsonb_build_object('code','clinica_medica','label','Clínica Médica'),
     jsonb_build_object('code','clinica_cirurgica','label','Clínica Cirúrgica'),
@@ -496,36 +497,44 @@ declare
     jsonb_build_object('code','ortopedia','label','Ortopedia'),
     jsonb_build_object('code','cardiologia','label','Cardiologia'));
 begin
-  insert into public.process_templates (id, commission_id, title, description, status, created_by, collects_patient)
-  values (v_tpl, v_comm, 'Revisão de Prontuário',
-          'Fluxo padrão de revisão de prontuários: checklist documental seguido de parecer do comitê.',
-          'active', v_chefe, false);
+  -- Published template: the IDENTITY plus its v1 PUBLISHED version (ADR 0096).
+  -- title/description/collects_patient live on the version now (D1), and the old
+  -- template status 'active' is the version status 'published'.
+  insert into public.process_templates (id, commission_id, created_by)
+  values (v_tpl, v_comm, v_chefe);
 
-  insert into public.process_template_phases (template_id, position, form_id, title, recommend_when, default_due_days) values
-    (v_tpl, 1, v_r1, 'Checklist Revisão de Prontuário', null, 7),
-    (v_tpl, 2, v_r2, 'Parecer do Comitê',
+  insert into public.process_template_versions
+    (id, template_id, version_number, status, title, description, collects_patient,
+     created_by, published_at)
+  values (v_tpl_v, v_tpl, 1, 'published', 'Revisão de Prontuário',
+          'Fluxo padrão de revisão de prontuários: checklist documental seguido de parecer do comitê.',
+          false, v_chefe, now());
+
+  insert into public.process_template_phases (template_version_id, position, form_id, title, recommend_when, default_due_days) values
+    (v_tpl_v, 1, v_r1, 'Checklist Revisão de Prontuário', null, 7),
+    (v_tpl_v, 2, v_r2, 'Parecer do Comitê',
      jsonb_build_object('from_phase', 1, 'question_key', 'nao_conformidade_identificada', 'op', 'equals', 'value', 'sim'),
      14);
-  update public.process_template_phases set display_position = position where template_id = v_tpl;
+  update public.process_template_phases set display_position = position where template_version_id = v_tpl_v;
 
   -- Outcome vocabulary (drives the conformity dashboard). One adverse + action plan.
   insert into public.case_outcomes (id, commission_id, label, color_token, requires_action_plan, is_adverse, position) values
     ('d5000000-0000-0000-0000-0000000000b1', v_comm, 'Conforme',                'green', false, false, 1),
     ('d5000000-0000-0000-0000-0000000000b2', v_comm, 'Conforme com ressalvas',  'amber', false, false, 2),
     ('d5000000-0000-0000-0000-0000000000b3', v_comm, 'Não conforme',            'red',   true,  true,  3);
-  insert into public.process_template_outcomes (template_id, outcome_id, position) values
-    (v_tpl, 'd5000000-0000-0000-0000-0000000000b1', 1),
-    (v_tpl, 'd5000000-0000-0000-0000-0000000000b2', 2),
-    (v_tpl, 'd5000000-0000-0000-0000-0000000000b3', 3);
+  insert into public.process_template_outcomes (template_version_id, outcome_id, position) values
+    (v_tpl_v, 'd5000000-0000-0000-0000-0000000000b1', 1),
+    (v_tpl_v, 'd5000000-0000-0000-0000-0000000000b2', 2),
+    (v_tpl_v, 'd5000000-0000-0000-0000-0000000000b3', 3);
 
   -- Custom fields — administrative descriptors surfaced as list columns.
   insert into public.process_template_custom_fields
-    (id, template_id, key, label, field_type, options, required, show_in_list, position) values
-    ('d5000000-0000-0000-0000-00000000cf01', v_tpl, 'numero_prontuario', 'Número do prontuário',
+    (id, template_version_id, key, label, field_type, options, required, show_in_list, position) values
+    ('d5000000-0000-0000-0000-00000000cf01', v_tpl_v, 'numero_prontuario', 'Número do prontuário',
      'short_text', '[]'::jsonb, true,  true, 0),
-    ('d5000000-0000-0000-0000-00000000cf02', v_tpl, 'setor', 'Setor',
+    ('d5000000-0000-0000-0000-00000000cf02', v_tpl_v, 'setor', 'Setor',
      'dropdown', v_setor_options, false, true, 1),
-    ('d5000000-0000-0000-0000-00000000cf03', v_tpl, 'data_alta', 'Data da alta',
+    ('d5000000-0000-0000-0000-00000000cf03', v_tpl_v, 'data_alta', 'Data da alta',
      'date', '[]'::jsonb, false, false, 2);
 
   -- Narrative slots (free-form committee prose interleaved after the two phases).
@@ -535,9 +544,9 @@ begin
     ('d5000000-0000-0000-0000-0000000000d2', v_comm, 'Parecer do Comitê',
      'Conclusão descritiva do comitê.', 2);
   insert into public.process_template_narratives
-    (template_id, narrative_type_id, display_position, title, instructions, is_expected) values
-    (v_tpl, 'd5000000-0000-0000-0000-0000000000d1', 3, null, null, false),
-    (v_tpl, 'd5000000-0000-0000-0000-0000000000d2', 4, null, 'Registre a conclusão do comitê sobre o caso.', true);
+    (template_version_id, narrative_type_id, display_position, title, instructions, is_expected) values
+    (v_tpl_v, 'd5000000-0000-0000-0000-0000000000d1', 3, null, null, false),
+    (v_tpl_v, 'd5000000-0000-0000-0000-0000000000d2', 4, null, 'Registre a conclusão do comitê sobre o caso.', true);
 end;
 $tpl$;
 
@@ -551,6 +560,7 @@ do $cases$
 declare
   v_comm  uuid := 'd5000000-0000-0000-0000-000000000003';
   v_tpl   uuid := 'd5000000-0000-0000-0000-0000000000a1';
+  v_tpl_v uuid := 'd5000000-0000-0000-0000-0000000000a2';   -- v1 published version (ADR 0096)
   v_r1f   uuid := 'd5000000-0000-0000-0000-00000000f001';   -- Fase 1 form
   v_r1v   uuid := 'd5000000-0000-0000-0000-00000000f011';   -- Fase 1 published version
   v_r2f   uuid := 'd5000000-0000-0000-0000-00000000f002';   -- Fase 2 form
@@ -633,8 +643,8 @@ begin
     v_p2_completed := case when v_macro = 'completed' then v_created + interval '9 days' else null end;
 
     -- Case (non-terminal at first; closed below for completed/cancelled so narratives insert freely).
-    insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled, created_at)
-    values (v_case, v_comm, v_tpl, v_prt || ' — ' || v_setor_label, v_chefe, false, v_created);
+    insert into public.cases (id, commission_id, template_version_id, label, created_by, patient_enabled, created_at)
+    values (v_case, v_comm, v_tpl_v, v_prt || ' — ' || v_setor_label, v_chefe, false, v_created);
 
     -- Custom field values (frozen snapshot from the template defs).
     insert into public.case_custom_field_values (case_id, template_field_id, key, label, field_type, options, value, position)
@@ -645,7 +655,7 @@ begin
         when 'data_alta'         then case when v_macro = 'completed' then to_jsonb(to_char(v_closed, 'YYYY-MM-DD')) else null end
       end, d.position
     from public.process_template_custom_fields d
-    where d.template_id = v_tpl;
+    where d.template_version_id = v_tpl_v;
 
     -- Offered outcomes snapshot.
     insert into public.case_offered_outcomes (case_id, outcome_id)

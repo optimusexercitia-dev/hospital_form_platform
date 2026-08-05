@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion, getDraftTemplateVersion } from './helpers/process-templates'
 
 /**
  * Case Narratives — E2E spec (ADR 0032, feature-flagged increment).
@@ -154,16 +155,20 @@ async function getCaseRow(
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null
 }
 
-/** Query: the M&M (active) template id for commission A. */
+/**
+ * The M&M (PUBLISHED) template identity id for commission A. ADR 0096:
+ * `process_templates.status` is dropped — resolve the PUBLISHED version among
+ * the commission's templates (never "the newest", which could be a draft
+ * created mid-suite by AC-2's `createDraftTemplate`).
+ */
 async function getMandMTemplateId(page: Page): Promise<string | null> {
-  // Filter for status=active so we don't accidentally pick a draft template
-  // created during AC-2 (createDraftTemplate adds a second template).
-  const resp = await supabaseGet(
-    page,
-    `process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-  )
-  const rows = await resp.json()
-  return Array.isArray(rows) && rows.length > 0 ? rows[0].id : null
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+    COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
+  ).catch(() => null)
+  return tpl?.templateId ?? null
 }
 
 /** Get owner JWT for a persona. */
@@ -384,7 +389,8 @@ test('AC-2: builder — add narrative slot with is_expected to a DRAFT template;
 
   // Create a fresh DRAFT template so edit controls are visible (active templates
   // show narrative cards read-only; only draft templates show the reorder arrows).
-  const draftTemplateId = await createDraftTemplate(page, token, `Processo Narrativas ${Date.now()}`)
+  const draftTemplateTitle = `Processo Narrativas ${Date.now()}`
+  const draftTemplateId = await createDraftTemplate(page, token, draftTemplateTitle)
   expect(draftTemplateId).toBeTruthy()
 
   await page.goto(`${BASE}/manage/process-templates/${draftTemplateId}`)
@@ -441,10 +447,20 @@ test('AC-2: builder — add narrative slot with is_expected to a DRAFT template;
   const arrowCount = (await upArrow.count()) + (await downArrow.count())
   expect(arrowCount).toBeGreaterThan(0)
 
-  // DB truth: the narrative slot was persisted.
+  // DB truth: the narrative slot was persisted. ADR 0096: `process_template_narratives`
+  // was re-pointed from `template_id` to `template_version_id` — `draftTemplateId` is
+  // the template IDENTITY (`create_process_template` returns the identity id), so the
+  // draft VERSION id must be resolved separately.
+  const draftVersion = await getDraftTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: token },
+    COMM_CCIH_ID,
+    { title: draftTemplateTitle },
+  )
+  expect(draftVersion.templateId).toBe(draftTemplateId)
   const resp = await supabaseGet(
     page,
-    `process_template_narratives?template_id=eq.${draftTemplateId}&select=id,is_expected&limit=1`,
+    `process_template_narratives?template_version_id=eq.${draftVersion.versionId}&select=id,is_expected&limit=1`,
   )
   const slots = await resp.json()
   expect(Array.isArray(slots) && slots.length > 0).toBe(true)

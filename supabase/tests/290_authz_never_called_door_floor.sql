@@ -296,7 +296,11 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Processo', 'Descrição')).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Processo', 'Descrição')).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl to authenticated;
 
@@ -304,27 +308,38 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_template_case_type(%L, %L) $$,
-    (select tid from tpl), '00000000-0000-0000-0000-00000000f020'),
+    (select vid from tpl), '00000000-0000-0000-0000-00000000f020'),
   '42501', null, 'set_template_case_type: a non-staff_admin member is refused 42501');
 reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_template_case_type(%L, %L) $$,
-    (select tid from tpl), '00000000-0000-0000-0000-00000000f021'),
+    (select vid from tpl), '00000000-0000-0000-0000-00000000f021'),
   'HC0F7', null,
   'set_template_case_type: a case type from ANOTHER org is rejected HC0F7 (tenancy)');
 select lives_ok(
   format($$ select public.set_template_case_type(%L, %L) $$,
-    (select tid from tpl), '00000000-0000-0000-0000-00000000f020'),
+    (select vid from tpl), '00000000-0000-0000-0000-00000000f020'),
   'set_template_case_type: the staff_admin sets an own-org case type (positive twin)');
 reset role;
-update public.process_templates set status = 'archived' where id = (select tid from tpl);
+-- ADR 0096: `status` no longer lives on process_templates — a template counts as
+-- archived iff ALL its versions are archived. Archive through the real door so the
+-- version-level guard and the publish-RPC GUC are exercised as in production.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
+select public.archive_process_template((select tid from tpl));
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+-- ⚠ DELIBERATE BEHAVIOUR CHANGE — do NOT "fix" this back to `status <> 'archived'`.
+-- set_template_case_type's gate is now DRAFT-ONLY, not merely not-archived. The old
+-- gate let an edit through on a PUBLISHED version, which is a silent immutability
+-- hole; draft-only closes it. The archived version below is still refused, and the
+-- SQLSTATE is unchanged (23514 / check_violation) — only the gate widened.
 select throws_ok(
-  format($$ select public.set_template_case_type(%L, null) $$, (select tid from tpl)),
-  '23514', null, 'set_template_case_type: an archived template cannot be edited');
+  format($$ select public.set_template_case_type(%L, null) $$, (select vid from tpl)),
+  '23514', null, 'set_template_case_type: a non-draft (archived) version cannot be edited');
 reset role;
 
 -- =============================================================================

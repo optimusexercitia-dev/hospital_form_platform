@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDraftTemplateDirect } from './helpers/process-templates'
 
 /**
  * Case Custom Fields — template-defined, NON-PHI administrative descriptor
@@ -404,30 +405,26 @@ test('AC-7: process-less cases show NO custom-field block (D9)', async ({ page }
 // ===========================================================================
 
 test.describe('AC-8 (best effort) — draft-only authoring in the template builder', () => {
+  // ADR 0096: a template is IDENTITY + versions. `draftTemplateId` is the
+  // identity (used for the page URL — page resolution is draft-first, so no
+  // `?v=` is needed); `draftVersionId` is its v1 draft (what
+  // `process_template_custom_fields.template_version_id` actually points at).
   let draftTemplateId: string
+  let draftVersionId: string
 
   test.beforeAll(async ({ request }) => {
-    const resp = await request.post(`${SUPABASE_URL}/rest/v1/process_templates`, {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      data: {
-        commission_id: COMM_A,
+    const draftTpl = await createDraftTemplateDirect(
+      request,
+      { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: SUPABASE_SERVICE_KEY },
+      {
+        commissionId: COMM_A,
         title: `Campos Personalizados Draft E2E ${Date.now()}`,
         description: 'Template draft para testar autoria de campos personalizados (AC-8).',
-        status: 'draft',
-        created_by: UID_CHEFE_A,
+        createdBy: UID_CHEFE_A,
       },
-    })
-    expect(
-      resp.ok(),
-      `beforeAll: could not create draft template: ${await resp.text()}`,
-    ).toBeTruthy()
-    const rows = (await resp.json()) as Array<{ id: string }>
-    draftTemplateId = rows[0].id
+    )
+    draftTemplateId = draftTpl.templateId
+    draftVersionId = draftTpl.versionId
   })
 
   test.afterAll(async ({ request }) => {
@@ -435,7 +432,7 @@ test.describe('AC-8 (best effort) — draft-only authoring in the template build
     // Best-effort cleanup — never mask a real test failure.
     await request
       .delete(
-        `${SUPABASE_URL}/rest/v1/process_template_custom_fields?template_id=eq.${draftTemplateId}`,
+        `${SUPABASE_URL}/rest/v1/process_template_custom_fields?template_version_id=eq.${draftVersionId}`,
         { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
       )
       .catch(() => {})
@@ -480,10 +477,10 @@ test.describe('AC-8 (best effort) — draft-only authoring in the template build
     await expect(section.getByText(fieldLabel)).toBeVisible({ timeout: 10_000 })
     await expect(section.getByText('Resposta curta')).toBeVisible({ timeout: 5_000 })
 
-    // DB truth.
+    // DB truth. ADR 0096: custom-field defs are keyed on `template_version_id`.
     const rows = await restGet<{ label: string; field_type: string }>(
       request,
-      `process_template_custom_fields?template_id=eq.${draftTemplateId}&select=label,field_type`,
+      `process_template_custom_fields?template_version_id=eq.${draftVersionId}&select=label,field_type`,
     )
     expect(rows).toHaveLength(1)
     expect(rows[0].label).toBe(fieldLabel)

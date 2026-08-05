@@ -106,7 +106,65 @@ Measured 2026-08-04 on MEM W4: **4 gates → 4m20s**, verdicts `3 COVERED / 1 ER
 3. **The baseline must be green** — run on a fresh `supabase db reset`. The sweep aborts on a dirty
    baseline (§7.3), which is correct but wastes the run.
 
-## Amendment 2 — ARM 3, the census that stops the sixteenth (2026-08-04)
+### `ERROR` is a recorded ceiling, not a pass
+
+30 of 302 cases (28 door + 2 write-path) score `ERROR (run-shape!=baseline)`: neutralizing them
+aborts files mid-transaction, so assertions never run and the harness refuses to score them either
+way — a run that did not happen is not evidence. **The gap correlates with gate centrality**, which
+is the inverse of where assurance is wanted: `app.has_role` alone leaves 259 tests unexecuted, then
+`can_manage_referral_{source,target}` (101/61), `is_active`, `is_member_of_for`, `is_staff_admin_of*`,
+`is_admin`. For the membership primitives ARM 1 can therefore **never** be the evidence; the
+per-workstream targeted mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 ·
+`295` 13/13). A phase whose new gate scores `ERROR` owes a targeted mutation case instead.
+
+## Amendment 2 — one mutation is not sufficient evidence of vacuity (2026-08-04)
+
+**Why this belongs in THIS ADR.** The neutralization oracle as this ADR states it — neutralize a
+gate, require the suite to go red — is satisfiable by a **single probe**. That is enough to prove an
+assertion *can* fail. It is **not** enough to prove that an assertion which stayed green under one
+probe is therefore redundant. Amendment 2 closes that gap; it is a correction to the discipline
+above, not a separate practice.
+
+**The evidence** (TV phase, `VersionHistoryPanel`, 2026-08-04). Two ordering assertions. Round 1
+mutated the component to sort **ascending**: test #1 reddened, test #2 stayed green. The available
+and tempting conclusion — the one a competent engineer writes up — is *"#2 is vacuous, it reads as a
+near-duplicate of #1, delete it."* Round 2 mutated to sort **descending** instead: **#2 reddened and
+#1 stayed green.**
+
+They are complementary, and each is irreplaceable: #1 pins *"do not sort ascending"*; #2 pins *"do
+not stop sorting at all, even in the direction that happens to look right"*. One probe told a clean,
+confident, wrong story.
+
+**Rule.** When a probe leaves an assertion green and you are about to call it vacuous, **probe the
+opposite direction first**. Report vacuity only when the assertion survives probes that move the
+property both ways. A single surviving probe is evidence of nothing.
+
+**The second shape, which is the commoner one — a FORK, where either probe certifies half the
+behaviour and reports green.** Same phase, `BeginTemplateEditButton`: it confirms before forking a
+published version but navigates straight through when a draft already exists. Mutating it to
+*always* confirm reds only the resume arm; mutating it to *never* confirm reds only the fork arm.
+Either probe alone leaves half the branch unexercised while the suite reports green — and, worse, a
+green result under one probe reads as "this behaviour is covered".
+
+The panel case above is "two assertions, opposite directions of **one property**". This is "one
+**branch**, two collapses". They generalise differently, and this one is what you meet more often:
+**any conditional needs a probe per arm.** Neutralizing the condition in a single direction proves
+only that the arm you happened to break was reachable.
+
+**The corollary is the dangerous part.** A test that *looks* like a near-duplicate is simultaneously
+(a) the most likely to be deleted in a tidy-up, and (b) the most likely to be the one guarding the
+non-obvious direction. So the vacuity verdict must be **recorded next to the assertions**, naming
+which is load-bearing under which mutation — otherwise the next cleanup re-derives the wrong answer
+from the same tempting surface. Compare the honest-limit disclosure in `296` §H1: knowing *which* of
+three assertions actually catches the mutation is what stops the wrong two surviving a cleanup.
+
+**Scope.** This is not authz-specific — it applies to every mutation-proven keystone in the repo,
+pgTAP and Vitest alike. It is filed here because it amends this ADR's oracle. ⚠ It was first written
+into PROGRESS.md's *Current Phase Tasks*, which §5 rotation archives at phase close — a cross-phase
+lesson in a per-phase container, which would have filed it away exactly when it became useful. That
+was a lead error; cross-phase records belong in `docs/decisions/` or `docs/testing/`.
+
+## Amendment 3 — ARM 3, the census that stops the sixteenth (2026-08-04)
 
 **Why.** Amendment 1 made the sweep a phase step, which fixes "nobody ran it". It does not
 fix the deeper hole: **ARM 1 cannot see a gate that was never swept.** ARM 1 asserts
@@ -148,13 +206,3 @@ record instead of an exclusion nobody reads.
 from the backlog makes ARM 3 print that gate and exit 1; restoring it returns `INVARIANT
 HOLDS`. A gate that has never been shown to fail is not a gate.
 
-### `ERROR` is a recorded ceiling, not a pass
-
-30 of 302 cases (28 door + 2 write-path) score `ERROR (run-shape!=baseline)`: neutralizing them
-aborts files mid-transaction, so assertions never run and the harness refuses to score them either
-way — a run that did not happen is not evidence. **The gap correlates with gate centrality**, which
-is the inverse of where assurance is wanted: `app.has_role` alone leaves 259 tests unexecuted, then
-`can_manage_referral_{source,target}` (101/61), `is_active`, `is_member_of_for`, `is_staff_admin_of*`,
-`is_admin`. For the membership primitives ARM 1 can therefore **never** be the evidence; the
-per-workstream targeted mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 ·
-`295` 13/13). A phase whose new gate scores `ERROR` owes a targeted mutation case instead.

@@ -72,12 +72,16 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Recomendação Resultado', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Recomendação Resultado', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 
 -- Phase 1: emitting (ruleset), allowed = [Conforme, Não-conforme].
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 1',
+  (select vid from tpl), (select form_u from k), 'Fase 1',
   null, null, '{}'::integer[],
   jsonb_build_object(
     'rules', jsonb_build_array(
@@ -90,26 +94,26 @@ select public.add_template_phase(
 
 -- Phase 2: recommend when phase-1 RESULT equals Conforme.
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 2',
+  (select vid from tpl), (select form_u from k), 'Fase 2',
   jsonb_build_object('match','all','conditions', jsonb_build_array(
     jsonb_build_object('source','result','from_phase',1,'op','equals','value',(select conforme_id from vocab)::text))));
 
 -- Phase 3: recommend when phase-1 RESULT is adverse.
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 3',
+  (select vid from tpl), (select form_u from k), 'Fase 3',
   jsonb_build_object('match','all','conditions', jsonb_build_array(
     jsonb_build_object('source','result','from_phase',1,'adverse',true))));
 
 -- Phase 4: recommend when (phase-1 RESULT = Não-conforme) OR (phase-1 answer u_q1 = Sim).
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 4',
+  (select vid from tpl), (select form_u from k), 'Fase 4',
   jsonb_build_object('match','any','conditions', jsonb_build_array(
     jsonb_build_object('source','result','from_phase',1,'op','equals','value',(select nao_conforme_id from vocab)::text),
     jsonb_build_object('source','answer','from_phase',1,'question_key','u_q1','op','equals','value','sim'))));
 
 -- Phase 5: recommend when phase-1 RESULT not_equals Conforme (the no-result footgun).
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 5',
+  (select vid from tpl), (select form_u from k), 'Fase 5',
   jsonb_build_object('match','all','conditions', jsonb_build_array(
     jsonb_build_object('source','result','from_phase',1,'op','not_equals','value',(select conforme_id from vocab)::text))));
 reset role;
@@ -122,7 +126,7 @@ select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad HC063',
             jsonb_build_object('match','all','conditions', jsonb_build_array(
               jsonb_build_object('source','result','from_phase',2,'op','equals','value',%L)))) $$,
-          (select tid from tpl), (select form_u from k), (select conforme_id from vocab)::text),
+          (select vid from tpl), (select form_u from k), (select conforme_id from vocab)::text),
   'HC063', null,
   'add_template_phase rejects a result-condition whose source phase does not emit a result (HC063)');
 reset role;
@@ -134,7 +138,7 @@ select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad HC064',
             jsonb_build_object('match','all','conditions', jsonb_build_array(
               jsonb_build_object('source','result','from_phase',1,'op','equals','value',%L)))) $$,
-          (select tid from tpl), (select form_u from k), (select outro_id from vocab)::text),
+          (select vid from tpl), (select form_u from k), (select outro_id from vocab)::text),
   'HC064', null,
   'add_template_phase rejects a result-condition referencing an id outside the source allowed set (HC064)');
 reset role;
@@ -142,11 +146,15 @@ reset role;
 -- ---- 3) publish the 5-phase template ----
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish: a template with result + mixed recommend_when groups goes active');
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: result + mixed recommend_when groups still publish.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish: a template with result + mixed recommend_when groups goes published');
 
 -- ===========================================================================
 -- CASE A — u_q1 = 'Sim' → phase 1 → Conforme (non-adverse)

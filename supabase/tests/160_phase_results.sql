@@ -77,7 +77,11 @@ select ok(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Resultado', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Resultado', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 reset role;
 
@@ -89,7 +93,7 @@ set local role authenticated;
 -- ruleset can produce ([Conforme, Não-conforme]). The
 -- process_template_phases_result_emits CHECK is the backstop.
 select public.add_template_phase(
-  (select tid from tpl),
+  (select vid from tpl),
   (select form_u from k),
   'Fase 1',
   null,             -- p_recommend_when
@@ -112,17 +116,21 @@ select public.add_template_phase(
 );
 -- Phase 2: no ruleset (so we can test null-ruleset path later with its own template)
 select public.add_template_phase(
-  (select tid from tpl),
+  (select vid from tpl),
   (select form_u from k),
   'Fase 2'
 );
 -- 3) publish succeeds
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish_process_template with result_ruleset on phase 1 → status = active'
-);
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: a result_ruleset on phase 1 does not block publishing.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish_process_template with result_ruleset on phase 1 → version status = published'
+);
 
 -- ===========================================================================
 -- SECTION 1: Computed path — u_q1 = 'Sim' → rule match → Conforme
@@ -228,9 +236,13 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_noruleset on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Sem Ruleset', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Sem Ruleset', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_noruleset set vid = app.draft_version_of_template(tid);
 grant select on tpl_noruleset to authenticated;
-select public.add_template_phase((select tid from tpl_noruleset), (select form_u from k), 'Fase 1');
+select public.add_template_phase((select vid from tpl_noruleset), (select form_u from k), 'Fase 1');
 select public.publish_process_template((select tid from tpl_noruleset));
 create temp table cse3 on commit drop as
   select (public.create_case_from_template((select tid from tpl_noruleset), 'Caso Sem Ruleset')).id as cid;
@@ -653,7 +665,11 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_hc059a on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC059a', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC059a', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_hc059a set vid = app.draft_version_of_template(tid);
 grant select on tpl_hc059a to authenticated;
 
 -- 31) HC059: rule result_id belongs to wrong commission. Runs on a VALID emitting
@@ -674,7 +690,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc059a),
+    (select vid from tpl_hc059a),
     (select form_u from k),
     '{}',
     (select approved_y_id from vocab_y),
@@ -694,7 +710,11 @@ grant select on archived_result to authenticated;
 select public.archive_phase_result((select aid from archived_result));
 
 create temp table tpl_hc059b on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC059b', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC059b', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_hc059b set vid = app.draft_version_of_template(tid);
 grant select on tpl_hc059b to authenticated;
 
 -- 32) HC059: default_result_id is archived. Emitting phase + a valid (non-archived,
@@ -708,7 +728,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc059b),
+    (select vid from tpl_hc059b),
     (select form_u from k),
     '{}',
     (select aid from archived_result),
@@ -723,7 +743,11 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_hc016 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC016', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC016', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_hc016 set vid = app.draft_version_of_template(tid);
 grant select on tpl_hc016 to authenticated;
 
 -- 33) HC016: rule question_key does not exist in the published form. Emitting
@@ -742,7 +766,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc016),
+    (select vid from tpl_hc016),
     (select form_u from k),
     '{}',
     (select conforme_id from vocab),
@@ -787,7 +811,11 @@ $$;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_hc017 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC017', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC017', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_hc017 set vid = app.draft_version_of_template(tid);
 grant select on tpl_hc017 to authenticated;
 
 -- 34) HC017: result_ruleset when the phase's form has no published version.
@@ -802,7 +830,7 @@ select throws_ok(
     ),
     true, jsonb_build_array(%L::text)
   ) $$,
-    (select tid from tpl_hc017),
+    (select vid from tpl_hc017),
     (select fid from form_unpub),
     '{}',
     (select conforme_id from vocab),

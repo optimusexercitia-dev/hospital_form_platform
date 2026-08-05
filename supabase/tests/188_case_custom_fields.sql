@@ -57,25 +57,29 @@ select is((select relrowsecurity from pg_class where relname = 'case_custom_fiel
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_x on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Campos X', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Campos X', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_x set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl_x to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_x), (select form_u from k), 'F1');
+select public.add_template_phase((select vid from tpl_x), (select form_u from k), 'F1');
 insert into public.process_template_custom_fields
-  (template_id, key, label, field_type, options, required, show_in_list, position)
+  (template_version_id, key, label, field_type, options, required, show_in_list, position)
 values
-  ((select tid from tpl_x), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true,  true, 0),
-  ((select tid from tpl_x), 'idade',     'Idade', 'number',     '[]'::jsonb, false, false, 1);
+  ((select vid from tpl_x), 'do_number', 'Nº DO', 'short_text', '[]'::jsonb, true,  true, 0),
+  ((select vid from tpl_x), 'idade',     'Idade', 'number',     '[]'::jsonb, false, false, 1);
 reset role;
 
 -- 3) staff_admin write LANDED (2 defs).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.process_template_custom_fields
-           where template_id = (select tid from tpl_x)),
+           where template_version_id = (select vid from tpl_x)),
   2, 'staff_admin can write defs (2 landed)');
 reset role;
 
@@ -83,9 +87,12 @@ reset role;
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select throws_ok(
+-- ADR 0096: custom fields re-keyed to the VERSION. The deny still lands on
+-- 42501 (not P0002): commission_of_template_version is SECURITY DEFINER, so the
+-- WITH CHECK resolves comm_x for sa_y and refuses on privilege, as before.
   format($$ insert into public.process_template_custom_fields
-              (template_id, key, label, field_type)
-            values (%L, 'evil', 'Evil', 'short_text') $$, (select tid from tpl_x)),
+              (template_version_id, key, label, field_type)
+            values (%L, 'evil', 'Evil', 'short_text') $$, (select vid from tpl_x)),
   '42501', null,
   'cross-commission staff_admin cannot INSERT a def (RLS)');
 reset role;
@@ -94,7 +101,7 @@ reset role;
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.process_template_custom_fields
-           where template_id = (select tid from tpl_x)),
+           where template_version_id = (select vid from tpl_x)),
   0, 'cross-commission member cannot read defs');
 reset role;
 
@@ -102,7 +109,7 @@ reset role;
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select ok((select count(*)::int from public.process_template_custom_fields
-           where template_id = (select tid from tpl_x)) >= 1,
+           where template_version_id = (select vid from tpl_x)) >= 1,
   'member of the commission can read defs');
 reset role;
 

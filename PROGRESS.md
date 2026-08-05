@@ -63,6 +63,38 @@
 | **case-custom-fields** | **Case Custom Fields** [0083](docs/decisions/0083-case-custom-fields.md) | ✅ complete | ✅ lint/tsc/vitest 369 | ✅ E2E 8/8 (3× clean) · pgTAP `188` 28/28 · full `e2e:prod` 735p (feat 8/8 on prod build) | ✅ APPROVED (0 P0 · 0 MAJOR · 1 MINOR cleared · 2 INFO) [review](docs/reviews/adr-0083-case-custom-fields-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | merge `c857193` · flag ON `fde76d3` |
 | **bulk-case-create** | **Bulk Case Creation ("Múltiplos casos")** [0084](docs/decisions/0084-bulk-case-creation.md) | ✅ complete | ✅ build/tsc/lint/vitest 390 | ✅ E2E 8/8 prod-standalone · pgTAP 29/29 | ✅ APPROVED (4 MINOR/OBSERVATION, none blocking; fixed `b948c9f`) [review](docs/reviews/bulk-case-creation-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | flag ON `255a8e9` |
 | **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 | ✅ complete | ✅ | ✅ 50 KS mut-proven · pgTAP 3288 · invariant HOLDS | ✅ APPROVED [review](docs/reviews/authz-door-audit-p0-review.md) | ✅ 2026-07-18 | 2026-07-18 | ff→main |
+| **PCI** | **Process/Case integrity audit remediation** [0095](docs/decisions/0095-process-case-integrity-audit-remediation.md) · [audit](docs/reviews/process-case-integrity-audit.md) · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 | ✅ pgTAP **158f/4860** fresh reset · 4 guards neutralization-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **0 BLIND** · `e2e:prod` **GATE GREEN 965p** (shared with TV) | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) (r1 CHANGES REQUESTED → BUG-TV-001 fixed) | ✅ 2026-08-05 | 2026-08-05 | `44cd9bb`…`f6c847d` → ff `main` |
+| **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
+
+> ⚠ **Two PCI/TV caveats survive the ✅ above — read them before treating this as deployable.**
+>
+> 1. **`ARM=census` was never run, and could not be.** The script on this branch supports only
+>    `policy|floor|all`; the census arm — the one that catches a *newly added* gate, which passes
+>    `ARM=policy` vacuously by being in no BLIND set — exists solely as uncommitted work in the
+>    `feat/membership-hardening-technical-director` session, as does the CLAUDE.md §6 text requiring
+>    it. QA covered the substance by hand (all 6 new policies carry ALLOW **and** DENY arms; the
+>    apparent 7th gap traces to suite `188`). **Re-run `ARM=census` over these two workstreams once
+>    that branch lands** — this is the one gate arm this phase's record cannot claim.
+> 2. ~~**The TV backfill has never been exercised and structurally cannot be, locally** — rehearsal
+>    + remote snapshot blocking before `db push`.~~ **VOID (PO, 2026-08-05): the remote database is
+>    EMPTY.** The backfill therefore runs against zero rows there too — the same path `db reset` has
+>    exercised green on every local run — so `scripts/verify-tv-backfill.sh` and the snapshot are
+>    **no longer blocking**. ⚠ Keep the *mechanism* though, because it recurs: `db reset` applies
+>    migrations **then** `seed.sql`, so a backfill is invisible to local testing **forever** (ADR
+>    0096 A1.3) — a green reset is not weak evidence of a backfill, it is *no* evidence. The
+>    rehearsal script stays in the repo for the first `db push` that ever meets populated data.
+>
+>    ⚠ **The error to learn from is mine, not the code's.** ADR 0096 justified the whole
+>    backfill-not-reset strategy with one clause — *"the remote carries demo/pilot-prep data"* — and
+>    it was **never verified**. It then propagated into the ADR, the migration design, this table,
+>    and a lead risk assessment that called it "the largest residual risk on this branch". One
+>    unchecked premise, restated four times, reads as four confirmations. **Ask what is actually in
+>    an environment before designing around it** — the check took one question.
+>
+> *Historical:* PCI's first `e2e:prod` exited **0** while reporting `GATE RED (UNRUN)` — 655 of 962
+> tests never ran, because TV migration files landed on disk mid-gate and the gate resets per batch.
+> Superseded by the 965/965 run above. The lesson lives in `docs/testing/e2e-prod-build-gate.md`:
+> **authoring a migration during a gate is not inert, and the exit code is not the signal.**
 
 ## Current Phase Tasks
 
@@ -151,6 +183,11 @@ Both programs that gated the pilot are closed:
 > claims** — every one was caught by *executing* (a probe, a real E2E run, a fresh reset), none by
 > review or build. → [route-gate-assertions.md](docs/testing/route-gate-assertions.md).
 
+### ▶ PCI + TV — Process/Case Integrity & Template Versioning · **COMPLETE 2026-08-05**
+
+Detail rotated to [process-case-integrity-and-template-versioning.md](docs/progress/process-case-integrity-and-template-versioning.md).
+Status + gate record: Phase Status table above (and its two standing caveats). QA r2 APPROVED.
+
 ### 📋 Remaining pre-pilot work
 
 Scope was set by ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) (12 initiatives)
@@ -227,6 +264,71 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
+(QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
+**Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
+template, add a narrative slot (works), then (a) open its edit dialog, change the title,
+submit, or (b) click its trash icon and confirm removal. **Expected:** (a) the dialog
+closes and the card shows the new title; (b) the card disappears and the DB row is gone.
+**Actual:** both fail with the friendly pt-BR toast "Narrativa não encontrada." — (a) the
+edit dialog stays open showing that banner, title unchanged; (b) the confirm dialog closes
+(Radix default) but the page-level banner shows the same message and the card/DB row
+survive untouched. **Root cause (F-1):** `commissionOfTemplateNarrative`
+(`src/lib/case-narratives/actions.ts:232`) selects the PostgREST embed
+`process_templates(commission_id)` from `.from('process_template_narratives')`. ADR-0096
+dropped `process_template_narratives.template_id` — the FK that embed relied on — so
+PostgREST rejects it with `PGRST200` at parse time. The helper discards `error` and
+returns `null` from `data?.process_templates?.commission_id ?? null`, so both
+`updateTemplateNarrative` and `removeTemplateNarrative` take the `!commissionId`
+early-return and answer with `MESSAGES.missingNarrative` ("Narrativa não encontrada.").
+Fails CLOSED, not an authz hole, but both actions are fully wired to the UI
+(`narrative-slot-dialog.tsx:129` / `template-builder-shell.tsx:243`), so this is a
+deterministic dead end for every staff_admin, on their own commission's own template.
+**Violates:** PHASES.md TV acceptance for narrative-slot authoring (edit/remove parity
+with create); ARCHITECTURE.md Rule 9 data-access-layer correctness (the query no longer
+matches the live FK graph). **Spec (RED-proven against current HEAD, before any fix):**
+`e2e/process-template-narrative-slot-crud.spec.ts` — two independent tests (own draft
+template + own narrative slot each, no shared/seeded fixture), asserting the CORRECT
+behavior (edit persists the new title; remove deletes the row), so both currently fail
+red for exactly the F-1 reason: `narrative-slot EDIT` fails at the "dialog closed"
+assertion (stays open, showing `status: Narrativa não encontrada.`); `narrative-slot
+REMOVE` fails at the "no not-found banner" assertion (banner present; DOM snapshot
+confirms the slot card `region "Slot Para Remover …"` survived). **Owner:** `backend`
+(fix `commissionOfTemplateNarrative` to resolve the commission without the dead FK
+embed — e.g. join through `process_template_versions.template_id` in two round trips, or
+add a substitute FK/view). **Status:** ✅ **FIXED by `backend` 2026-08-05** — no migration
+needed (client-layer only). `commissionOfTemplateNarrative` now selects the nested embed
+`process_template_versions(process_templates(commission_id))` — a single round trip along
+the live FK path `process_template_narratives.template_version_id →
+process_template_versions.template_id → process_templates`, derived from `pg_constraint`
+and mirroring `contextOfPhase` (`src/lib/process-templates/actions.ts:179`). **Verified
+against PostgREST, not `tsc`:** the old embed returns `PGRST200` ("Could not find a
+relationship…", hint: "Perhaps you meant 'process_template_versions'"); the new one
+returns the correct `commission_id` for a real slot under an authenticated session.
+Both actions' resolver helpers (all 5 in the file) now log the discarded `error` instead
+of folding a query failure into an indistinguishable "not found". **Mutation-checked:**
+reverting only the select string turns the spec red again (2 failed) and fires the new
+log line — so the green is causally attributable to the fix, not to environment.
+`e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
+unmodified — final gate verification remains `tester`'s.
+
+🔴 **BUG-RCA-001 — RCA citation targets silently omit ALL interviews (dead column, not a
+re-key casualty).** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
+**nobody was looking for this one; it is unrelated to ADR 0096.** `listRcaCitationTargets`
+(`src/lib/queries/rca.ts:450`) issues
+`.from('case_interviews').select('id, interview_number, title, scheduled_start')`.
+**`case_interviews` has no `scheduled_start` column** — per `information_schema`, it lives on
+`interview_sessions` (an interview has many sessions). PostgREST/Postgres reject the whole
+select with `42703 column case_interviews.scheduled_start does not exist`, so `data` is
+`null`, `interviews ?? []` yields `[]`, and **every interview is silently dropped from the RCA
+citation-target list** — no error, no toast, just missing options. **Invisible to every
+existing gate** for the standard reason: a `.select()` is an opaque string and `.returns<T>()`
+is a type *assertion*, so it typechecks, lints, and passes E2E (which has no coverage of this
+picker). **Fix is a product decision, deliberately NOT taken unilaterally:** an interview has
+N sessions, so "the interview's date" must be defined (earliest session's `scheduled_start`?
+the interview's `created_at`?) — needs an owner ruling before the embed is written.
+**Owner:** unassigned — needs lead triage. **Status:** OPEN, reported not fixed.
+
 🔴 **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation).**
 Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
 migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
@@ -295,6 +397,10 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-05 | **PCI + TV · FINAL `e2e:prod` gate** (lead) — post-fix, on `f6c847d` | **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches.** ⚠ Read in this order, because the summary alone is not evidence: `reset FAILED` **0** · batches **1–16 contiguous, no gaps** · **no `*-unrun.log` stubs** · `accounted 965 of 970` collected. The 5-test gap is deliberate `test.skip` with documented reasons. Cross-check: collected 968→970 and passed 963→965 is exactly tester's **+2**, so the delta is fully attributed. 18 stale batch logs from the 10:46–11:32 run were cleared first — an aborted gate leaves the *previous* run's logs in place and they read as current |
+| 2026-08-05 | **TV · tester · new spec, RED-proven before any fix** — `e2e/process-template-narrative-slot-crud.spec.ts` (2 tests, chromium, dev server) — covers QA finding F-2 (zero prior coverage of narrative-slot edit/remove) | **0/2 — both RED for the intended reason (BUG-TV-001 / F-1: PGRST200 embed break in `commissionOfTemplateNarrative`).** EDIT fails at "edit dialog closed" (stays open showing `status: Narrativa não encontrada.`); REMOVE fails at "no not-found banner" (banner present, DOM snapshot shows the slot card survived). Each test builds its own fresh draft template — no shared/seeded fixture. ~~Not rerun after a fix yet — backend has not been spawned~~ → **lead 2026-08-05: superseded. `c557a32` landed the fix; spec re-run 2/2 GREEN, unmodified, and mutation-checked (reverting only the select string reds it again)** |
+| 2026-08-05 | **TV · diff-scoped ARM `policy` re-sweep** over the six BLIND template-child policies (branch `db/process-case-integrity`) | **6 COVERED · 0 BLIND · 0 ERROR** — closes the `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}` finding. Baseline captured green at Files=158/Tests=4860. No allowlist entry added (a tenant-isolation policy may not be allowlisted) |
+| 2026-08-05 | **TV · pgTAP full suite** on a fresh `db reset` (adds `297`'s TI section) | **PASS — Files=158 / Tests=4860** (baseline 4839 + 21). All **21/21 new assertions mutation-proven RED** across 12 policy probes (p3–p14, open **and** close per policy); every probe ran the full denominator (21), catalog restore byte-verified on all six |
 | 2026-08-04 | **MEM W4 · `p0-authz-invariant.sh` `ARM=policy` FULL sweep** (302 door cases + write-path, ~5 h) | **`INVARIANT VIOLATED`** — BLIND set 83, **15 not allowlisted**. ⚠ **none is MEM/W4** (its migration has 0 `create/alter/drop policy`); the 15 are a dated census of every RLS added since 2026-07-18 → FUP-AUTHZ-2. Pruned 4 now-COVERED entries (72→68) |
 | 2026-08-04 | **MEM W4 · diff-scoped ARM 1** (4 gates derived from the migration diff, 4m20s) | **3 COVERED · 1 ERROR · 0 BLIND** — `can_read_referral_metadata` / `can_read_referral_phi` / `is_technical_director_of_for` covered; `can_manage_referral_target` unauditable (aborts files) → covered by `295`'s 13/13 mutation audit instead |
 | 2026-08-04 | **MEM W1–W4 · FULL `e2e:prod`** (16 batches) | **954 passed · 1 failed · 2 flaky · 5 skips · 962/962 accounted** — denominator reconciled vs `spec-counts.txt`, no batch gaps, no `reset FAILED`; 1 infra re-run (batch 7 server death, 47 setup reds, cleared 61/61). The 1 failure = **FUP-BULK-1**, pre-existing and identical on `main` |
@@ -343,6 +449,9 @@ not a defect — it reads exactly like a real red.
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **PCI** — Process/Case Integrity audit remediation (ADR 0095) | ✅ APPROVED (r2) | 2026-08-05 | [r2](docs/reviews/process-integrity-and-template-versioning-review.md#round-2--re-review-head-f6c847d) |
+| **TV** — Process-Template Versioning (ADR 0096 + Amendments 1.1–1.7) | ✅ APPROVED (r2) | 2026-08-05 | [r2](docs/reviews/process-integrity-and-template-versioning-review.md#round-2--re-review-head-f6c847d) |
+| ~~**PCI + TV** — round 1 (BUG-TV-001: dead narrative-slot edit/remove)~~ | ⛔ CHANGES REQUESTED | 2026-08-05 | [review](docs/reviews/process-integrity-and-template-versioning-review.md) |
 | **Phase 16** — Standards Crosswalk & Readiness/Gap Engine v2 (ADR 0093 D1–D10 + Amendments 1–3) | ✅ APPROVED | 2026-08-04 | [review](docs/reviews/phase-16-review.md) |
 | **FF-4** — Power Authoring (ADR 0092 + Amendments 1–2) | ✅ APPROVED | 2026-08-03 | [review](docs/reviews/phase-FF-4-review.md) |
 | **FF-5** — Entity Reference (ADR 0091 + Amendments 1–2) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/phase-FF-5-review.md#ff-5--qa-review-r2) |
@@ -468,6 +577,40 @@ call that raises, so **a deny-only keystone cannot clear the floor** and a perma
 reads as *never called* rather than *failing*) · **FUP-P16-3** (`copy_version_children` temp-table
 concern — INVESTIGATED, **not a bug**; ⚠ confirming a *pattern* is present is not confirming the
 *defect* is present).
+
+### 🔴 FUP-PCITV-1 — PCI + TV: what QA APPROVED **over**, ranked (2026-08-05)
+
+QA r2 approved with 7 items open. None blocks the merge; **two block a clean deploy story** and are
+called out in the Phase Status caveats above. Owner: unassigned unless noted.
+
+| # | Sev | Item |
+| - | --- | ---- |
+| 1 | 🔴 | **`ARM=census` never run** — impossible on this branch (script supports `policy\|floor\|all` only; the census arm is uncommitted in the `feat/membership-hardening-technical-director` session). It is precisely the arm that catches a *newly added* gate, and this phase added six. QA covered the substance by hand. **Re-run once that branch lands.** |
+| 2 | ⬛ | ~~**TV backfill never exercised** — rehearsal + snapshot blocking before `db push`.~~ **CLOSED (PO, 2026-08-05): the remote is EMPTY**, so the backfill meets 0 rows there exactly as it does locally. Not blocking. See the Phase Status caveat for the mechanism (which recurs) and for the unverified-premise error that produced this row. |
+| 3 | 🟡 | **Revoke residue** — `authenticated` still holds `TRUNCATE` on **66 tables**; TRUNCATE bypasses RLS entirely. Unreachable via PostgREST *today*. ⚠ This phase set its own standard by **refusing the "unreachable" argument** in `20260906000600`, so it should be swept or accepted **in writing** — not left implicit. |
+| 4 | 🟡 | **BUG-RCA-001** (see Bug Log) — pre-existing since `c4e20b3` (2026-06-18), needs a product decision: is "the interview's date" the earliest session's `scheduled_start`, or the interview's `created_at`? The correct pattern already exists at `src/lib/queries/interviews.ts:474`/`:520`. |
+| 5 | 🟢 | Audit mesh **2 of 7** trigger arms keystoned (`20260906000200`). |
+| 6 | 🟢 | The `is_commission_admin_of` disjunct in the 6 new tenant-isolation keystones is **unexercised** — no org-admin persona exists in the test bootstrap. Adding one lifts several suites at once. |
+| 7 | 🟢 | `compute_case_phase_result` / `sync_case_phase_on_submit` still force the `in_case_rpc` GUC off (fails **closed**). · Resolver error semantics: helpers now log, but still collapse "not found" and "query failed" into one return — the discriminated-union refactor was deliberately deferred as too risky post-green. |
+| 8 | 🟢 | **A FIFTH rebuild-property-loss, inside the migration written to close that class.** `20260907000700` recreated 10 policies on the 5 re-keyed relations **without the `TO authenticated` clause the originals carried** (`20260821000000` wrote `for select to authenticated`; the swap wrote bare `for select`). Platform split is **256 `{authenticated}` vs 11 `{public}` — and 10 of the 11 are these** (the 11th, `case_referral_delete_draft_source`, pre-dates the phase). `20260907001200` caught the ACL and `DEFERRABLE` losses and missed this one. **Verified INERT, twice:** `anon` holds **0 table grants on the 5** — and **0 anywhere in `public`** — so a bare policy still only ever evaluates for roles that either carry `BYPASSRLS` or cannot reach the table. Not a vulnerability; a latent widening if `anon` is ever granted anything. Normalize when one of these policies is next touched. ⚠ Same standard-consistency point as row 3: this phase refused the "unreachable" argument in `20260906000600`. |
+
+| 9 | 🟡 | **`296` suite-number COLLISION between branches.** This branch shipped `supabase/tests/296_process_case_integrity.sql`; `feat/membership-hardening-technical-director` has an untracked `supabase/tests/296_authz_p0_isolation.sql`. Two different files, one number. That branch is currently **26 behind `main` and 0 ahead** (all its work is uncommitted), so it is cheapest to renumber **now**, before it commits — not to resolve as a merge conflict later. Owner: whoever picks that branch back up. |
+| 10 | 🟢 | **PROGRESS.md is 105 KB against the <60 KB target** (CLAUDE.md §7 — every spawn pays for it). This phase's rotation took it from 111.6 KB, so the trend is right but the gap is not closed. Next rotation should take the `📋 Remaining pre-pilot work` and closed-bug sections. |
+
+**Landed, no longer a recommendation:** the PostgREST **embed sweep** built during this phase now
+lives in the repo at **`scripts/extract-embeds.mjs`** + **`scripts/probe-embeds.mjs`** (moved out of
+a session scratchpad that was about to be deleted — the earlier revision of this line pointed at a
+path that would not have existed, which reads as "saved" when it is not). It found BUG-TV-001 *and*
+BUG-RCA-001 mechanically across 284+ call sites. **Still needs a `package.json` entry point** — it
+cannot join `npm run lint` because it requires a live local Supabase, and `probe-embeds.mjs` refuses
+any non-local URL by design.
+
+The generalisation that justifies keeping it: **ADR 0096 A1.5's grep sweep could not have caught
+BUG-TV-001, because that site names no dropped column — it names a relation that is no longer
+*reachable*. After a column drop, sweep the embeds the column ENABLED, not just the column.**
+
+⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
+`case_phase_offered_results` rename.
 
 ### 🔴 FUP-MEM-1 — `p0-authz-invariant.sh` `ARM=floor` reports 3 never-called INDICATOR doors (needs a `main` baseline)
 

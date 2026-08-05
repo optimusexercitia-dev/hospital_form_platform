@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { pickDate, readHiddenDateValue } from './helpers/date-pickers'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * Phase 7 — Multi-Phase Cases
@@ -168,18 +169,18 @@ async function getOwnerToken(page: Page, email: string, password = 'Test1234!'):
  * Returns the new case id.
  */
 async function createFreshCase(page: Page, ownerToken: string, label: string): Promise<string> {
-  const tplResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // ADR 0096: `process_templates.status` is dropped — the published version lives
+  // on `process_template_versions`. `create_case_from_template` still takes the
+  // TEMPLATE identity id (it resolves the published version internally).
+  // `title` is required: CCIH now carries several published templates (this
+  // file's OWN other tests publish fresh ones into it), so an untitled lookup
+  // is an ARBITRARY pick.
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
-  expect(tplResp.ok()).toBeTruthy()
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
 
   const createResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
@@ -189,7 +190,7 @@ async function createFreshCase(page: Page, ownerToken: string, label: string): P
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: label },
+      data: { p_template_id: tpl.templateId, p_label: label },
     },
   )
   expect(createResp.ok()).toBeTruthy()
@@ -266,18 +267,13 @@ async function getCasePhasesWithDueDates(
  */
 async function createFreshCaseRemote(page: Page, label: string): Promise<string> {
   const ownerToken = await getOwnerTokenRemote(page, 'chefe.ccih@test.local')
-  const tplResp = await page.request.get(
-    `${API_BASE}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // `title` is required: CCIH now carries several published templates.
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: API_BASE, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
-  expect(tplResp.ok()).toBeTruthy()
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
 
   const createResp = await page.request.post(
     `${API_BASE}/rest/v1/rpc/create_case_from_template`,
@@ -287,7 +283,7 @@ async function createFreshCaseRemote(page: Page, label: string): Promise<string>
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: label },
+      data: { p_template_id: tpl.templateId, p_label: label },
     },
   )
   expect(createResp.ok()).toBeTruthy()
@@ -448,21 +444,26 @@ test('AC-Builder: coordinator creates a 3-phase template with recommend_when →
   await expect(page.getByText(/Fase 3 — Encerramento/i)).toBeVisible()
 
   // ── Publish the template ──
-  // The PublishTemplateButton renders as "Publicar" (not "Publicar processo").
-  await page.getByRole('button', { name: /^Publicar$/i }).click()
+  // ADR 0096 D2: `PublishTemplateVersionButton` renders "Publicar versão {N}" (this
+  // is the template's first version, so N=1); the CONFIRM button inside the
+  // alertdialog is still bare "Publicar".
+  await page.getByRole('button', { name: /^Publicar versão 1$/i }).click()
   const confirmDialog = page.getByRole('alertdialog')
   await expect(confirmDialog).toBeVisible({ timeout: 10_000 })
   await confirmDialog.getByRole('button', { name: /^Publicar$/i }).click()
 
-  // After publish, the banner says "ativo" and the add-fase button is gone.
-  await expect(page.getByText(/ativo/i).first()).toBeVisible({ timeout: 15_000 })
+  // After publish, the VersionWorkflowBanner reads "Versão 1 — em vigor" and the
+  // add-fase button is gone (only a draft version is editable).
+  await expect(page.getByText(/Versão 1 — em vigor/i).first()).toBeVisible({ timeout: 15_000 })
   await expect(
     page.getByRole('button', { name: /Adicionar fase/i }),
   ).toHaveCount(0)
 
-  // The template appears in the list with "ativo" status.
+  // The template appears in the list with the "Publicada" status badge.
   await page.goto('/o/rede-a/c/ccih/manage/process-templates')
   await expect(page.getByText(templateTitle)).toBeVisible({ timeout: 10_000 })
+  const listCard = page.locator('a').filter({ hasText: templateTitle })
+  await expect(listCard.getByText(/^Publicada$/i)).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -816,28 +817,26 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
   await expect(slotDialog2).toHaveCount(0, { timeout: 15_000 })
 
   // ── Publish the template ──
-  await page.getByRole('button', { name: /^Publicar$/i }).click()
+  // ADR 0096 D2: trigger reads "Publicar versão 1" (first version); the confirm
+  // button inside the alertdialog is still bare "Publicar".
+  await page.getByRole('button', { name: /^Publicar versão 1$/i }).click()
   const confirmPub = page.getByRole('alertdialog')
   await expect(confirmPub).toBeVisible({ timeout: 10_000 })
   await confirmPub.getByRole('button', { name: /^Publicar$/i }).click()
-  await expect(page.getByText(/ativo/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Versão 1 — em vigor/i).first()).toBeVisible({ timeout: 15_000 })
 
   // ── Create a case from the new template ──
   const ownerToken = await getOwnerToken(page, 'chefe.ccih@test.local')
 
-  // Resolve the just-published template id.
-  const tplResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&title=eq.${encodeURIComponent(templateTitle)}&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // Resolve the just-published template id. `status`/`title` moved off
+  // `process_templates` onto `process_template_versions` (ADR 0096 D1).
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    templateTitle,
   )
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
-  const tplId = tpls[0].id
+  const tplId = tpl.templateId
 
   const createCaseResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,

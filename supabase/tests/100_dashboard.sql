@@ -395,8 +395,12 @@ select ok(
 update app.feature_flags set enabled = true where key = 'cases_multi_phase';
 create temp table tpl on commit drop as select gen_random_uuid() as tid;
 grant select on tpl to authenticated;
-insert into public.process_templates (id, commission_id, title, status, created_by)
-select tpl.tid, k.comm_x, 'Archived tpl', 'archived', k.sa_x from tpl, k;
+-- ADR 0096: "already archived" is now a property of the VERSIONS — a template is
+-- archived iff it has no non-archived version. Identity row + one archived version.
+insert into public.process_templates (id, commission_id, created_by)
+select tpl.tid, k.comm_x, k.sa_x from tpl, k;
+insert into public.process_template_versions (template_id, version_number, status, title, created_by)
+select tpl.tid, 1, 'archived', 'Archived tpl', k.sa_x from tpl, k;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(

@@ -175,15 +175,23 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   )
 }
 
+// Every resolver below logs a QUERY error before returning null. A bare
+// `const { data } = ...` folds a broken select (dropped column, unresolvable
+// embed) into an indistinguishable "not found" — the disguise that let
+// BUG-TV-001 survive typecheck, lint, unit tests and a full E2E gate.
 async function commissionOfNarrative(
   supabase: SupabaseClient<Database>,
   narrativeId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_narratives')
     .select('cases(commission_id)')
     .eq('id', narrativeId)
     .maybeSingle<{ cases: { commission_id: string } | null }>()
+  if (error) {
+    console.error('[case-narratives] commissionOfNarrative failed', error)
+    return null
+  }
   return data?.cases?.commission_id ?? null
 }
 
@@ -193,11 +201,15 @@ async function commissionOfCase(
   supabase: SupabaseClient<Database>,
   caseId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('cases')
     .select('commission_id')
     .eq('id', caseId)
     .maybeSingle()
+  if (error) {
+    console.error('[case-narratives] commissionOfCase failed', error)
+    return null
+  }
   return data?.commission_id ?? null
 }
 
@@ -205,36 +217,71 @@ async function commissionOfType(
   supabase: SupabaseClient<Database>,
   narrativeTypeId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_narrative_types')
     .select('commission_id')
     .eq('id', narrativeTypeId)
     .maybeSingle()
+  if (error) {
+    console.error('[case-narratives] commissionOfType failed', error)
+    return null
+  }
   return data?.commission_id ?? null
 }
 
-async function commissionOfTemplate(
+/**
+ * ADR 0096: template children hang off a VERSION, so the commission is two hops
+ * away (version -> identity -> commission). Named for what it takes.
+ */
+async function commissionOfTemplateVersion(
   supabase: SupabaseClient<Database>,
-  templateId: string,
+  templateVersionId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from('process_templates')
-    .select('commission_id')
-    .eq('id', templateId)
-    .maybeSingle()
-  return data?.commission_id ?? null
+  const { data, error } = await supabase
+    .from('process_template_versions')
+    .select('process_templates(commission_id)')
+    .eq('id', templateVersionId)
+    .maybeSingle<{ process_templates: { commission_id: string } | null }>()
+  if (error) {
+    console.error('[case-narratives] commissionOfTemplateVersion failed', error)
+    return null
+  }
+  return data?.process_templates?.commission_id ?? null
 }
 
+/**
+ * ADR 0096: a narrative SLOT hangs off a template VERSION, not off the template —
+ * the re-key dropped `process_template_narratives.template_id`, which was the FK
+ * that made a direct `process_templates(...)` embed resolvable. The commission is
+ * therefore THREE relations away (slot -> version -> template), matching
+ * {@link commissionOfTemplateVersion} and `contextOfPhase` in
+ * `@/lib/process-templates/actions`.
+ *
+ * A `.select()` is an opaque string and `.maybeSingle<T>()` asserts rather than
+ * validates, so the dead one-hop embed typechecked cleanly and failed only at
+ * runtime with PGRST200 (BUG-TV-001). Verify any change here against PostgREST,
+ * not against `tsc`.
+ */
 async function commissionOfTemplateNarrative(
   supabase: SupabaseClient<Database>,
   narrativeSlotId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('process_template_narratives')
-    .select('process_templates(commission_id)')
+    .select('process_template_versions(process_templates(commission_id))')
     .eq('id', narrativeSlotId)
-    .maybeSingle<{ process_templates: { commission_id: string } | null }>()
-  return data?.process_templates?.commission_id ?? null
+    .maybeSingle<{
+      process_template_versions: {
+        process_templates: { commission_id: string } | null
+      } | null
+    }>()
+  if (error) {
+    // Never silently fold a QUERY failure into "not found": that is exactly what
+    // disguised BUG-TV-001 as a friendly pt-BR "Narrativa não encontrada."
+    console.error('[case-narratives] commissionOfTemplateNarrative failed', error)
+    return null
+  }
+  return data?.process_template_versions?.process_templates?.commission_id ?? null
 }
 
 /** Map a narratives RPC error to friendly pt-BR (prefer the RPC's own message). */
@@ -470,11 +517,11 @@ export async function archiveNarrativeType(
  * commission.
  */
 export async function addTemplateNarrative(
-  templateId: string,
+  templateVersionId: string,
   narrativeTypeId: string,
   input: TemplateNarrativeInput,
 ): Promise<AddTemplateNarrativeState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!narrativeTypeId) {
     return { ok: false, fieldErrors: { narrativeTypeId: MESSAGES.typeRequired } }
   }
@@ -483,14 +530,14 @@ export async function addTemplateNarrative(
   }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
+  const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { data, error } = await supabase.rpc('add_template_narrative', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_narrative_type_id: narrativeTypeId,
     p_title: input.title?.trim() || undefined,
     p_instructions: input.instructions?.trim() || undefined,
@@ -581,24 +628,24 @@ export async function removeTemplateNarrative(
  * is NEVER touched — only `display_position`. DRAFT-only; staff_admin-only.
  */
 export async function reorderCaseLayout(
-  templateId: string,
+  templateVersionId: string,
   ordered: CaseLayoutOrderItem[],
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (ordered.length === 0) return { ok: true }
   if (!(await narrativesEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
+  const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { error } = await supabase.rpc('reorder_case_layout_template', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     // The RPC expects a JSON array of {kind,id}; CaseLayoutOrderItem is structurally
     // valid JSON (flat string fields), but lacks the index signature `Json` wants,
     // so assert through `unknown`.

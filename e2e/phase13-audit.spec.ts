@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getDraftTemplateVersion } from './helpers/process-templates'
 
 /**
  * Phase 13 — Audit Trail (Trilha de Auditoria)
@@ -560,8 +561,16 @@ test('AC-1e: change a case status → exactly one case.status_changed row (actor
   const templateId = Array.isArray(tplBody) ? tplBody[0].id : tplBody.id
   expect(templateId).toBeTruthy()
 
+  // ADR 0096: `create_process_template` creates the identity + a v1 draft; phase
+  // authoring is version-grained, so resolve v1's id before adding the phase.
+  const draftVersion = await getDraftTemplateVersion(
+    request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: adminToken },
+    probeCommId,
+  )
+
   await rpc(request, 'add_template_phase', adminToken, {
-    p_template_id: templateId,
+    p_template_version_id: draftVersion.versionId,
     p_form_id: formId,
     p_title: 'Fase única',
   }).then((r) => expect(r.ok()).toBeTruthy())

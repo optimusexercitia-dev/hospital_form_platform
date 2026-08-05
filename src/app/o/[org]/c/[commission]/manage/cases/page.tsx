@@ -18,7 +18,7 @@ import {
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { listCaseTypes } from "@/lib/queries/case-types";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
-import { listProcessTemplates } from "@/lib/queries/process-templates";
+import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import { Button } from "@/components/ui/button";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
@@ -114,7 +114,7 @@ export default async function CasesBoardPage({
     caseTypesOn,
   ] = await Promise.all([
     listCasesBoard(access.commission.id),
-    listProcessTemplates(access.commission.id),
+    listProcessTemplateVersions(access.commission.id),
     getCaseActionItemKpis(access.commission.id),
     casePatientEnabled(),
     processlessCasesEnabled(),
@@ -138,16 +138,20 @@ export default async function CasesBoardPage({
     ? await listCaseTypes(access.organization.id)
     : [];
 
-  // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
-  // the create dialog can offer the optional patient block (ADR 0038).
+  // A case can only be minted from a PUBLISHED template version (ADR 0096 renamed
+  // the old `active`). The id stays the TEMPLATE identity: `create_case_from_template`
+  // resolves the published version itself via `app.published_version_of_template`, so
+  // passing a version id here would be wrong even though the config below is
+  // version-scoped. Carry `collectsPatient` so the create dialog can offer the
+  // optional patient block (ADR 0038).
   const activeTemplates = templates
-    .filter((t) => t.status === "active")
-    .map((t) => ({
-      id: t.id,
-      title: t.title,
-      collectsPatient: t.collectsPatient,
+    .filter((entry) => entry.version.status === "published")
+    .map((entry) => ({
+      id: entry.template.id,
+      title: entry.version.title,
+      collectsPatient: entry.version.collectsPatient,
       // Custom-field defs (ADR 0083) — drive the dialog's reveal + required-gating.
-      customFields: t.customFields,
+      customFields: entry.version.customFields,
     }));
 
   const kpis = computeCaseKpis(rows);
@@ -163,7 +167,7 @@ export default async function CasesBoardPage({
   // phase-less template is rejected by the RPC, so it would offer nothing).
   const isStaffAdmin = access.role === "staff_admin" || access.context.isAdmin;
   const eligibleBulkCount = templates.filter(
-    (t) => t.status === "active" && t.phases.length > 0,
+    (entry) => entry.version.status === "published" && entry.version.phases.length > 0,
   ).length;
   const showBulk =
     canCreateCases &&

@@ -29,7 +29,7 @@ const ALL_PHI = new Set<string>(PATIENT_COLUMNS.map((c) => c.key));
 function textField(key: string, required = false): CustomFieldDef {
   return {
     id: `id-${key}`,
-    templateId: "tpl",
+    templateVersionId: "tpl",
     key,
     label: key.toUpperCase(),
     fieldType: "short_text",
@@ -43,7 +43,7 @@ function textField(key: string, required = false): CustomFieldDef {
 function choiceField(key: string): CustomFieldDef {
   return {
     id: `id-${key}`,
-    templateId: "tpl",
+    templateVersionId: "tpl",
     key,
     label: key.toUpperCase(),
     fieldType: "dropdown",

@@ -234,7 +234,11 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc Agregado', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc Agregado', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 
 -- Phase referencing BOTH synthetic aggregate keys → must SAVE (no HC016).
@@ -255,7 +259,7 @@ select lives_ok(
       true,
       jsonb_build_array(%L::text, %L::text))
   $SAVE$,
-    (select tid from tpl), (select form_id from fx),
+    (select vid from tpl), (select form_id from fx),
     (select alto_id from vocab), (select alto_id from vocab),
     (select baixo_id from vocab),
     (select alto_id from vocab), (select baixo_id from vocab)),
@@ -276,7 +280,7 @@ select throws_ok(
       true,
       jsonb_build_array(%L::text, %L::text))
   $BAD$,
-    (select tid from tpl), (select form_id from fx),
+    (select vid from tpl), (select form_id from fx),
     (select alto_id from vocab), (select baixo_id from vocab),
     (select alto_id from vocab), (select baixo_id from vocab)),
   'HC016', null,

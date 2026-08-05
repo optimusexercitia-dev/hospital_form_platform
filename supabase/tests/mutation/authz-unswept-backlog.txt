@@ -1,5 +1,5 @@
 # authz-unswept-backlog.txt — the CENSUS backlog for ARM 3 of the AUDIT-DOOR-BLINDNESS
-# invariant (ADR 0079 Amendment 2). One live authz gate per line, keyed EXACTLY as the
+# invariant (ADR 0079 Amendment 3). One live authz gate per line, keyed EXACTLY as the
 # neutralization sweeps emit it:
 #   * predicate/guard : app.<fn>(<identity args>)   e.g. app.member_can(p_commission_id uuid, p_capability text)
 #   * RLS policy      : <table>.<polname> (<CMD>)   e.g. case_events.case_events_writer_insert (INSERT)
@@ -38,7 +38,17 @@
 # policies showed up as BLIND, its write policies did not show up at all.
 #
 # BURN-DOWN: sweep an entry (diff-scoped ARM 1 recipe, ADR 0079 Amendment 1), then
-# DELETE its line here in the same commit — its verdict now lives in the findings md.
+# either DELETE its line here (if the FULL sweep has since re-emitted the findings md
+# with its verdict) or MOVE it to the `swept:` section below.
+#
+# ⚠ WHY `swept:` HAS TO EXIST — the two halves of CLAUDE.md §6 step 1 otherwise
+# contradict each other. ARM 3 reads verdicts out of the committed findings md; the
+# diff-scoped ARM 1 recipe ends with `git checkout -- docs/reviews/authz-door-audit-findings.md`,
+# because a subset run OVERWRITES that file with only its own cases. So a diff-scoped
+# sweep — the one the phase gate actually mandates — has nowhere to leave its verdict,
+# and a correctly-swept, correctly-keystoned gate would read as UNSWEPT forever. The
+# `swept:` section is that missing destination. Discovered when the PCI+TV merge landed
+# six keystoned policies whose verdicts existed only in a discarded report.
 
 # ════════════════════════════════════════════════════════════════════════════════
 # gate: a real authorization decision. Owes a neutralization sweep → then a keystone
@@ -46,7 +56,7 @@
 # ════════════════════════════════════════════════════════════════════════════════
 
 # -- ETH targeted lane, 2026-07-27 hotfix 4ee24c8 (out-of-phase). Same family as the
-#    FUP-AUTHZ-2 fifteen; 296_authz_p0_isolation.sql keystones the SELECT/ALL half.
+#    FUP-AUTHZ-2 fifteen; 298_authz_p0_isolation.sql keystones the SELECT/ALL half.
 answers.answers_insert_targeted (INSERT)
 answers.answers_update_targeted (UPDATE)
 responses.responses_update_targeted (UPDATE)
@@ -74,6 +84,14 @@ public.rca_writer_can_write(p_rca_id uuid)
 #    INSIDE policies as the isolation half, so opening one widens a tenant boundary.
 app.artifact_belongs_to_commission(p_kind text, p_artifact uuid, p_commission uuid)
 app.department_belongs_to_commission(p_department_id uuid, p_commission_id uuid)
+
+# -- Template versioning (ADR 0096), added 2026-08-05 by the PCI+TV merge and found by
+#    ARM 3's first run against the merged catalog. The phase swept and keystoned the six
+#    CHILD policies on process_template_{phases,narratives,outcomes} (commit dcc5a4d) but
+#    not its own PARENT table's two — the "a new door must inherit EVERY sibling arm"
+#    shape, one level up. Genuine audit debt, not bookkeeping.
+process_template_versions.process_template_versions_select (SELECT)
+process_template_versions.process_template_versions_staff_admin_write (ALL)
 
 # ════════════════════════════════════════════════════════════════════════════════
 # helper: NOT an authorization decision — the result does not depend on WHO is asking.
@@ -104,11 +122,11 @@ app.instance_is_empty(p_response_id uuid, p_instance_id uuid)
 app.item_required_satisfied(p_response_id uuid, p_item_id uuid, p_item_type text, p_instance_id uuid)
 app.response_required_complete(p_response_id uuid)
 app.validate_group_layout(p_form_version_id uuid)
-app.validate_template_allowed_results(p_template_id uuid, p_position integer, p_allowed_result_ids jsonb)
-app.validate_template_phase_blocks(p_template_id uuid, p_position integer, p_blocks integer[])
-app.validate_template_phase_result(p_template_id uuid, p_position integer)
-app.validate_template_recommend_when(p_template_id uuid, p_position integer, p_recommend_when jsonb)
-app.validate_template_result_ruleset(p_template_id uuid, p_position integer, p_result_ruleset jsonb)
+app.validate_template_allowed_results(p_template_version_id uuid, p_position integer, p_allowed_result_ids jsonb)
+app.validate_template_phase_blocks(p_template_version_id uuid, p_position integer, p_blocks integer[])
+app.validate_template_phase_result(p_template_version_id uuid, p_position integer)
+app.validate_template_recommend_when(p_template_version_id uuid, p_position integer, p_recommend_when jsonb)
+app.validate_template_result_ruleset(p_template_version_id uuid, p_position integer, p_result_ruleset jsonb)
 app.version_has_input_key(p_version_id uuid, p_question_key text)
 app.version_has_option_code(p_version_id uuid, p_question_key text, p_code text)
 public.validate_visible_when(p_form_version_id uuid)
@@ -117,3 +135,21 @@ public.validate_visible_when(p_form_version_id uuid)
 app.event_capa_fully_settled(p_event_id uuid)
 app.enqueue_notification(p_user_id uuid, p_commission_id uuid, p_kind text, p_milestone text, p_is_reminder boolean, p_entity_type text, p_entity_id uuid, p_title text, p_body text, p_dedup_key text)
 public.remind_document_approver(p_version_id uuid, p_approver_id uuid)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# swept: a diff-scoped ARM 1 returned a verdict, but the findings md could not keep
+#        it (a subset run overwrites the report, so the recipe restores it). Recorded
+#        here WITH the verdict and the keystone that holds it. Delete a line once the
+#        next FULL sweep re-emits the findings md carrying its verdict.
+# ════════════════════════════════════════════════════════════════════════════════
+
+# -- PCI+TV phase, 2026-08-05 (commit dcc5a4d): swept BLIND, now keystoned by
+#    supabase/tests/297_process_template_versioning.sql. These six were ALSO on
+#    authz-blind-allowlist.txt from an earlier sweep, so ARM 1 will report them as
+#    "no longer BLIND — prune"; that pruning is the follow-up, not a defect.
+process_template_narratives.process_template_narratives_select (SELECT)
+process_template_narratives.process_template_narratives_staff_admin_write (ALL)
+process_template_outcomes.process_template_outcomes_select (SELECT)
+process_template_outcomes.process_template_outcomes_staff_admin_write (ALL)
+process_template_phases.process_template_phases_select (SELECT)
+process_template_phases.process_template_phases_staff_admin_write (ALL)

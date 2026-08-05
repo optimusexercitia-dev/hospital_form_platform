@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { getPublishedTemplateVersion } from './helpers/process-templates'
 
 /**
  * Case data-model adjustments — Outcomes + Phase Blocking (D1–D4, D8–D15).
@@ -115,17 +116,15 @@ async function getCasePhases(
 }
 
 async function createFreshCase(page: Page, ownerToken: string, label: string): Promise<string> {
-  const tplResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // ADR 0096: `process_templates.status` is dropped — resolve the published
+  // version. `create_case_from_template` still takes the TEMPLATE identity id.
+  // `title` is required: CCIH now carries several published templates.
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    'Investigação de Óbito (M&M)',
   )
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
 
   const createResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
@@ -135,7 +134,7 @@ async function createFreshCase(page: Page, ownerToken: string, label: string): P
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: label },
+      data: { p_template_id: tpl.templateId, p_label: label },
     },
   )
   expect(createResp.ok()).toBeTruthy()
@@ -522,27 +521,24 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
   await expect(slotDialog).toHaveCount(0, { timeout: 15_000 })
 
   // Do NOT set any offered outcomes (D15: optional) — the process picker is ignored.
-  // Publish.
-  await page.getByRole('button', { name: /^Publicar$/i }).click()
+  // Publish. ADR 0096 D2: trigger reads "Publicar versão 1"; the alertdialog's
+  // confirm button is still bare "Publicar".
+  await page.getByRole('button', { name: /^Publicar versão 1$/i }).click()
   const confirmPub = page.getByRole('alertdialog')
   await expect(confirmPub).toBeVisible({ timeout: 10_000 })
   await confirmPub.getByRole('button', { name: /^Publicar$/i }).click()
-  await expect(page.getByText(/ativo/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Versão 1 — em vigor/i).first()).toBeVisible({ timeout: 15_000 })
 
   const ownerToken = await getOwnerToken(page, 'chefe.ccih@test.local')
 
-  // Resolve the template id.
-  const tplResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&title=eq.${encodeURIComponent(tplTitle)}&select=id&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${ownerToken}`,
-      },
-    },
+  // Resolve the template id. `status`/`title` moved off `process_templates` onto
+  // `process_template_versions` (ADR 0096 D1).
+  const tpl = await getPublishedTemplateVersion(
+    page.request,
+    { baseUrl: SUPABASE_URL, apikey: SUPABASE_SERVICE_KEY, bearerToken: ownerToken },
+    COMM_CCIH_ID,
+    tplTitle,
   )
-  const tpls = (await tplResp.json()) as Array<{ id: string }>
-  expect(tpls.length).toBeGreaterThan(0)
 
   const createCaseResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
@@ -552,7 +548,7 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: `Sem Desfecho Case ${suffix}` },
+      data: { p_template_id: tpl.templateId, p_label: `Sem Desfecho Case ${suffix}` },
     },
   )
   expect(createCaseResp.ok()).toBeTruthy()
@@ -602,7 +598,7 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
         Authorization: `Bearer ${ownerToken}`,
         'Content-Type': 'application/json',
       },
-      data: { p_template_id: tpls[0].id, p_label: `Sem Desfecho UI ${suffix}` },
+      data: { p_template_id: tpl.templateId, p_label: `Sem Desfecho UI ${suffix}` },
     },
   )
   expect(createCase2Resp.ok()).toBeTruthy()

@@ -43,11 +43,11 @@ function typeLabel(field: CustomFieldDef): string {
  * Reorder animates via the shared GSAP Flip hook (reduced-motion-safe).
  */
 export function CustomFieldsCard({
-  templateId,
+  templateVersionId,
   fields,
   editable,
 }: {
-  templateId: string;
+  templateVersionId: string;
   fields: CustomFieldDef[];
   /** Draft → the full editing affordances; otherwise read-only static rows. */
   editable: boolean;
@@ -65,7 +65,7 @@ export function CustomFieldsCard({
     captureBeforeReorder();
     run(() =>
       reorderCustomFieldDefs(
-        templateId,
+        templateVersionId,
         next.map((f) => f.id),
       ),
     );
@@ -173,7 +173,7 @@ export function CustomFieldsCard({
 
               {editable && (
                 <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                  <EditFieldButton templateId={templateId} field={field} />
+                  <EditFieldButton templateVersionId={templateVersionId} field={field} />
                   <DeleteFieldButton field={field} />
                 </div>
               )}
@@ -187,7 +187,7 @@ export function CustomFieldsCard({
           mode="create"
           open={addOpen}
           onOpenChange={setAddOpen}
-          templateId={templateId}
+          templateVersionId={templateVersionId}
         />
       )}
     </section>
@@ -195,10 +195,10 @@ export function CustomFieldsCard({
 }
 
 function EditFieldButton({
-  templateId,
+  templateVersionId,
   field,
 }: {
-  templateId: string;
+  templateVersionId: string;
   field: CustomFieldDef;
 }) {
   const [open, setOpen] = useState(false);
@@ -217,7 +217,7 @@ function EditFieldButton({
         mode="edit"
         open={open}
         onOpenChange={setOpen}
-        templateId={templateId}
+        templateVersionId={templateVersionId}
         field={field}
       />
     </>

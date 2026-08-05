@@ -68,15 +68,19 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Óbito M&M', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Óbito M&M', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 1');
+select public.add_template_phase((select vid from tpl), (select form_u from k), 'Fase 1');
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 2',
+  (select vid from tpl), (select form_u from k), 'Fase 2',
   jsonb_build_object('from_phase',1,'question_key','u_q1','op','equals','value','sim'));
 reset role;
 
@@ -86,7 +90,7 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad',
             jsonb_build_object('from_phase',5,'question_key','u_q1','op','equals','value','sim')) $$,
-          (select tid from tpl), (select form_u from k)),
+          (select vid from tpl), (select form_u from k)),
   'HC016',
   null,
   'add_template_phase rejects a recommend_when whose from_phase is not earlier (P0016)'
@@ -99,7 +103,7 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad2',
             jsonb_build_object('from_phase',1,'question_key','nope','op','equals','value','sim')) $$,
-          (select tid from tpl), (select form_u from k)),
+          (select vid from tpl), (select form_u from k)),
   'HC016',
   null,
   'add_template_phase rejects a recommend_when referencing an absent question_key (P0016)'
@@ -109,12 +113,16 @@ reset role;
 -- ---- 3) publish the template ----
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select is(
-  (public.publish_process_template((select tid from tpl))).status,
-  'active',
-  'publish_process_template flips draft -> active'
-);
+select public.publish_process_template((select tid from tpl));
 reset role;
+-- ADR 0096: `status` moved off process_templates onto process_template_versions,
+-- and the terminal value is 'published' (it was 'active' on the template row).
+-- The point is unchanged: publishing flips the draft out of 'draft'.
+select is(
+  (select v.status from public.process_template_versions v where v.id = (select vid from tpl)),
+  'published',
+  'publish_process_template flips the template draft version -> published'
+);
 
 -- =========================================================================
 -- create_case_from_template: snapshot + minting.
@@ -165,12 +173,16 @@ reset role;
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 create temp table tpl_y on commit drop as
-  select (public.create_process_template((select comm_y from k), 'Y proc', null)).id as tid;
+  select (public.create_process_template((select comm_y from k), 'Y proc', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_y set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl_y to authenticated;
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_y), (select form_y from k), 'Y F1');
+select public.add_template_phase((select vid from tpl_y), (select form_y from k), 'Y F1');
 select public.publish_process_template((select tid from tpl_y));
 select is(
   (public.create_case_from_template((select tid from tpl_y), 'Y caso')).case_number,
@@ -195,16 +207,20 @@ grant select on cp to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table btpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Blockers 90', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Blockers 90', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update btpl set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on btpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from btpl), (select form_u from k), 'B1');
+select public.add_template_phase((select vid from btpl), (select form_u from k), 'B1');
 -- B2 blocks [1]; B3 blocks [2].
-select public.add_template_phase((select tid from btpl), (select form_u from k), 'B2', null, null, array[1]);
-select public.add_template_phase((select tid from btpl), (select form_u from k), 'B3', null, null, array[2]);
+select public.add_template_phase((select vid from btpl), (select form_u from k), 'B2', null, null, array[1]);
+select public.add_template_phase((select vid from btpl), (select form_u from k), 'B3', null, null, array[2]);
 select public.publish_process_template((select tid from btpl));
 reset role;
 
@@ -463,14 +479,18 @@ create temp table goc on commit drop as
   select (public.create_case_outcome((select comm_x from k), 'Desfecho gate', 'green', false, false)).id as oid;
 grant select on goc to authenticated;
 create temp table gtpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc gate', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc gate', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update gtpl set vid = app.draft_version_of_template(tid);
 grant select on gtpl to authenticated;
 reset role;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from gtpl), (select form_u from k), 'GF1');
-select public.set_process_outcomes((select tid from gtpl), array[(select oid from goc)]);
+select public.add_template_phase((select vid from gtpl), (select form_u from k), 'GF1');
+select public.set_process_outcomes((select vid from gtpl), array[(select oid from goc)]);
 select public.publish_process_template((select tid from gtpl));
 reset role;
 
@@ -592,13 +612,17 @@ grant select on draftform to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_np on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Sem publicação', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Sem publicação', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_np set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl_np to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_np), (select fid from draftform), 'F1');
+select public.add_template_phase((select vid from tpl_np), (select fid from draftform), 'F1');
 select public.publish_process_template((select tid from tpl_np));
 reset role;
 

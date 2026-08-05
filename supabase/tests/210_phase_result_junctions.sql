@@ -51,18 +51,22 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc D3', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc D3', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl set vid = app.draft_version_of_template(tid);
 grant select on tpl to authenticated;
 
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 1',
+  (select vid from tpl), (select form_u from k), 'Fase 1',
   null, null, '{}'::integer[],
   null,             -- no ruleset (MANUAL)
   true,             -- emits
   jsonb_build_array((select nao_id from vocab)::text, (select conforme_id from vocab)::text)
 );
 select public.add_template_phase(
-  (select tid from tpl), (select form_u from k), 'Fase 2',
+  (select vid from tpl), (select form_u from k), 'Fase 2',
   null, null, '{}'::integer[],
   jsonb_build_object(
     'rules', jsonb_build_array(
@@ -75,9 +79,9 @@ select public.add_template_phase(
 reset role;
 
 create temp table p1 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl) and position = 1;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl) and position =1;
 create temp table p2 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl) and position = 2;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl) and position =2;
 grant select on p1 to authenticated;
 grant select on p2 to authenticated;
 
@@ -205,18 +209,22 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl2 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc D3 draft', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc D3 draft', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl2 set vid = app.draft_version_of_template(tid);
 grant select on tpl2 to authenticated;
-select public.add_template_phase((select tid from tpl2), (select form_u from k), 'F1',
+select public.add_template_phase((select vid from tpl2), (select form_u from k), 'F1',
   null, null, '{}'::integer[], null, true,
   jsonb_build_array((select conforme_id from vocab)::text));
-select public.add_template_phase((select tid from tpl2), (select form_u from k), 'F2');
+select public.add_template_phase((select vid from tpl2), (select form_u from k), 'F2');
 reset role;
 
 create temp table q1 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl2) and position = 1;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl2) and position =1;
 create temp table q2 on commit drop as
-  select id from public.process_template_phases where template_id = (select tid from tpl2) and position = 2;
+  select id from public.process_template_phases where template_version_id = (select vid from tpl2) and position =2;
 grant select on q1 to authenticated;
 grant select on q2 to authenticated;
 
@@ -276,14 +284,18 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl3 on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Proc HC067', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Proc HC067', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl3 set vid = app.draft_version_of_template(tid);
 grant select on tpl3 to authenticated;
 
 -- 19) NEG add: non-emitting (emits=false) + non-empty allowed → HC067 (rejected)
 select throws_ok(
   format(
     $$ select public.add_template_phase(%L, %L, 'NE', null, null, '{}'::integer[], null, false, jsonb_build_array(%L::text)) $$,
-    (select tid from tpl3), (select form_u from k), (select conforme_id from vocab)),
+    (select vid from tpl3), (select form_u from k), (select conforme_id from vocab)),
   'HC067', null,
   'add_template_phase: non-emitting phase + non-empty allowed is REJECTED (HC067)');
 
@@ -291,14 +303,14 @@ select throws_ok(
 select lives_ok(
   format(
     $$ select public.add_template_phase(%L, %L, 'EM', null, null, '{}'::integer[], null, true, jsonb_build_array(%L::text)) $$,
-    (select tid from tpl3), (select form_u from k), (select conforme_id from vocab)),
+    (select vid from tpl3), (select form_u from k), (select conforme_id from vocab)),
   'add_template_phase: emitting phase + allowed still succeeds (POS)');
 
 -- 21) POS readback: the emitting phase's allowed junction = [conforme] (1 row)
 select is(
   (select count(*)::int from public.process_template_phase_allowed_results
    where template_phase_id = (select id from public.process_template_phases
-                              where template_id = (select tid from tpl3) and position = 1)),
+                              where template_version_id = (select vid from tpl3) and position =1)),
   1, 'emitting phase allowed subset reads back = 1 after the HC067 guard (POS)');
 
 -- 22) NEG update (transition): flip the emitting phase to non-emitting WITHOUT
@@ -307,12 +319,12 @@ select throws_ok(
   format(
     $$ select public.update_template_phase(%L, null, null, null, false, null, false, null, false, null, false, false, null, false) $$,
     (select id from public.process_template_phases
-     where template_id = (select tid from tpl3) and position = 1)),
+     where template_version_id = (select vid from tpl3) and position =1)),
   'HC067', null,
   'update_template_phase: emitting→non-emitting while retaining allowed is REJECTED (HC067)');
 
 -- Add a valid non-emitting phase (no allowed) so T3 can publish + be cased.
-select public.add_template_phase((select tid from tpl3), (select form_u from k), 'NE-ok');
+select public.add_template_phase((select vid from tpl3), (select form_u from k), 'NE-ok');
 
 -- Publish T3 + create case C3 (snapshot). Phase1 emitting+allowed; phase2 non-emitting.
 select public.publish_process_template((select tid from tpl3));

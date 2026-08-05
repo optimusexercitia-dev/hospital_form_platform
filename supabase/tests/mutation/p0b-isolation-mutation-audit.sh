@@ -179,31 +179,31 @@ run252 "document_approvals_select"      "alter policy document_approvals_select 
 # INSERT, which has no SELECT dependency — ADR 0079 D2.
 # =============================================================================
 echo
-echo "--- BATCH 4 (296) — FUP-AUTHZ-2 ---"
-B4=supabase/tests/296_authz_p0_isolation.sql
-run296 () { SRC="$B4" run_case "$@"; }
+echo "--- BATCH 4 (298) — FUP-AUTHZ-2 ---"
+B4=supabase/tests/298_authz_p0_isolation.sql
+run298 () { SRC="$B4" run_case "$@"; }
 
 # referral metadata family (Referrals-v2 R3/R4/R5)
-run296 "referral_assignments_select"   "alter policy referral_assignments_select_metadata on public.referral_assignments using(true);"     "referral_assignments_select_metadata DENY"
-run296 "referral_case_links_select"    "alter policy referral_case_links_select_metadata on public.referral_case_links using(true);"       "referral_case_links_select_metadata DENY"
-run296 "referral_internal_notes_select" "alter policy referral_internal_notes_select on public.referral_internal_notes using(true);"       "referral_internal_notes_select DENY"
-run296 "referral_read_receipts_select" "alter policy referral_read_receipts_select_metadata on public.referral_read_receipts using(true);" "referral_read_receipts_select_metadata DENY"
-run296 "referral_resolutions_select"   "alter policy referral_resolutions_select_metadata on public.referral_resolutions using(true);"     "referral_resolutions_select_metadata DENY"
+run298 "referral_assignments_select"   "alter policy referral_assignments_select_metadata on public.referral_assignments using(true);"     "referral_assignments_select_metadata DENY"
+run298 "referral_case_links_select"    "alter policy referral_case_links_select_metadata on public.referral_case_links using(true);"       "referral_case_links_select_metadata DENY"
+run298 "referral_internal_notes_select" "alter policy referral_internal_notes_select on public.referral_internal_notes using(true);"       "referral_internal_notes_select DENY"
+run298 "referral_read_receipts_select" "alter policy referral_read_receipts_select_metadata on public.referral_read_receipts using(true);" "referral_read_receipts_select_metadata DENY"
+run298 "referral_resolutions_select"   "alter policy referral_resolutions_select_metadata on public.referral_resolutions using(true);"     "referral_resolutions_select_metadata DENY"
 # platform vocabulary write (FOR ALL, app.is_admin())
-run296 "referral_requested_actions_write" "alter policy referral_requested_actions_write_admin on public.referral_requested_actions using(true) with check(true);" "referral_requested_actions_write_admin DENY"
+run298 "referral_requested_actions_write" "alter policy referral_requested_actions_write_admin on public.referral_requested_actions using(true) with check(true);" "referral_requested_actions_write_admin DENY"
 # org-scoped vocabulary (ETH E2 BE-3/BE-6)
-run296 "case_assignment_roles_select"  "alter policy case_assignment_roles_select on public.case_assignment_roles using(true);"            "case_assignment_roles_select DENY"
-run296 "ethics_sanction_types_select"  "alter policy ethics_sanction_types_select on public.ethics_sanction_types using(true);"            "ethics_sanction_types_select DENY"
+run298 "case_assignment_roles_select"  "alter policy case_assignment_roles_select on public.case_assignment_roles using(true);"            "case_assignment_roles_select DENY"
+run298 "ethics_sanction_types_select"  "alter policy ethics_sanction_types_select on public.ethics_sanction_types using(true);"            "ethics_sanction_types_select DENY"
 # case-scoped correction family (Case Corrections)
-run296 "case_correction_requests_select" "alter policy case_correction_requests_select on public.case_correction_requests using(true);"    "case_correction_requests_select DENY"
-run296 "case_narrative_revisions_select" "alter policy case_narrative_revisions_select on public.case_narrative_revisions using(true);"    "case_narrative_revisions_select DENY"
-run296 "case_reopenings_select"        "alter policy case_reopenings_select on public.case_reopenings using(true);"                        "case_reopenings_select DENY"
+run298 "case_correction_requests_select" "alter policy case_correction_requests_select on public.case_correction_requests using(true);"    "case_correction_requests_select DENY"
+run298 "case_narrative_revisions_select" "alter policy case_narrative_revisions_select on public.case_narrative_revisions using(true);"    "case_narrative_revisions_select DENY"
+run298 "case_reopenings_select"        "alter policy case_reopenings_select on public.case_reopenings using(true);"                        "case_reopenings_select DENY"
 # accreditation (Phase 16)
-run296 "accreditation_standards_select" "alter policy accreditation_standards_select on public.accreditation_standards using(true);"       "accreditation_standards_select DENY"
+run298 "accreditation_standards_select" "alter policy accreditation_standards_select on public.accreditation_standards using(true);"       "accreditation_standards_select DENY"
 # targeted (ethics) lane — the out-of-phase hotfix
-run296 "form_item_options_select_targeted" "alter policy form_item_options_select_targeted on public.form_item_options using(true);"       "form_item_options_select_targeted DENY"
-run296 "answer_selected_options_select_targeted" "alter policy answer_selected_options_select_targeted on public.answer_selected_options using(true);" "answer_selected_options_select_targeted DENY"
-run296 "answer_selected_options_write_targeted"  "alter policy answer_selected_options_write_targeted on public.answer_selected_options using(true) with check(true);" "answer_selected_options_write_targeted DENY"
+run298 "form_item_options_select_targeted" "alter policy form_item_options_select_targeted on public.form_item_options using(true);"       "form_item_options_select_targeted DENY"
+run298 "answer_selected_options_select_targeted" "alter policy answer_selected_options_select_targeted on public.answer_selected_options using(true);" "answer_selected_options_select_targeted DENY"
+run298 "answer_selected_options_write_targeted"  "alter policy answer_selected_options_write_targeted on public.answer_selected_options using(true) with check(true);" "answer_selected_options_write_targeted DENY"
 
 echo
 echo "=== CONTROL — no mutation: every keystone GREEN in ALL files (harness is not a red-generator) ==="

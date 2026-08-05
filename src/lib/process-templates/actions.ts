@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
-import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
+import {
+  resolveOptionCodes,
+  slugifyLabel,
+  shortSuffix,
+} from '@/lib/forms/option-code'
 import type { CustomFieldType } from '@/lib/queries/process-templates'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
@@ -95,6 +99,13 @@ const MESSAGES = {
   caseTypeSaved: 'Tipo de caso do processo atualizado.',
   caseTypeCleared: 'Tipo de caso do processo removido.',
   caseTypeWrongOrg: 'Este tipo de caso não pertence à organização desta comissão.',
+  // Version lifecycle (ADR 0096 D2).
+  missingVersion: 'Versão do processo não encontrada.',
+  versionNotDraft: 'Apenas versões em rascunho podem ser alteradas.',
+  noVersionToEdit: 'Este processo não tem uma versão que possa ser editada.',
+  draftReady: 'Rascunho aberto para edição.',
+  versionPublished: 'Versão publicada com sucesso.',
+  draftDiscarded: 'Rascunho descartado.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -106,6 +117,14 @@ const PG_INSUFFICIENT_PRIVILEGE = '42501'
 const HC_INVALID_RECOMMEND = 'HC016'
 const HC_NO_PUBLISHED_VERSION = 'HC017'
 const HC_NOT_ARCHIVABLE = 'HC023'
+/**
+ * `no_data_found`. The version-lifecycle RPCs raise it for an unresolvable
+ * version id — which, because every one of them is RLS-gated, is ALSO what a
+ * caller who may not see the version gets. Both map to the same pt-BR string on
+ * purpose: distinguishing "does not exist" from "not yours" would leak the
+ * existence of another commission's template.
+ */
+const PG_NO_DATA_FOUND = 'P0002'
 /** Result ruleset references an invalid/archived result option (phase-results). */
 const HC_INVALID_RESULT_OPTION = 'HC059'
 /** Declared case type belongs to a different organization (ADR 0064 D4). */
@@ -142,22 +161,33 @@ async function commissionOfTemplate(
   return data?.commission_id ?? null
 }
 
-/** Resolve a phase's {commissionId, templateId} via the RLS-scoped client. */
+/**
+ * Resolve a phase's {commissionId, templateVersionId} via the RLS-scoped client.
+ *
+ * ADR 0096: a phase hangs off a VERSION, so the commission is two hops away. The
+ * previous body selected `template_id` and embedded `process_templates` directly
+ * — both removed by the re-key. It did NOT fail typecheck, because
+ * `.maybeSingle<T>()` asserts a shape rather than validating the select string
+ * against the generated types; it would have failed at runtime only.
+ */
 async function contextOfPhase(
   supabase: SupabaseClient<Database>,
   phaseId: string,
-): Promise<{ commissionId: string; templateId: string } | null> {
+): Promise<{ commissionId: string; templateVersionId: string } | null> {
   const { data } = await supabase
     .from('process_template_phases')
-    .select('template_id, process_templates(commission_id)')
+    .select('template_version_id, process_template_versions(process_templates(commission_id))')
     .eq('id', phaseId)
     .maybeSingle<{
-      template_id: string
-      process_templates: { commission_id: string } | null
+      template_version_id: string
+      process_template_versions: {
+        process_templates: { commission_id: string } | null
+      } | null
     }>()
-  const commissionId = data?.process_templates?.commission_id
+  const commissionId =
+    data?.process_template_versions?.process_templates?.commission_id
   if (!commissionId || !data) return null
-  return { commissionId, templateId: data.template_id }
+  return { commissionId, templateVersionId: data.template_version_id }
 }
 
 /** Map an RPC error to friendly pt-BR (prefer the RPC's own pt-BR message). */
@@ -170,6 +200,33 @@ function mapRpcError(error: { code?: string; message?: string } | null): string 
   if (error.code === HC_CASE_TYPE_WRONG_ORG) return error.message || MESSAGES.caseTypeWrongOrg
   if (error.code === PG_CHECK_VIOLATION) return error.message || MESSAGES.generic
   return MESSAGES.generic
+}
+
+/**
+ * Map a VERSION-lifecycle RPC error to friendly pt-BR.
+ *
+ * Separate from {@link mapRpcError} for one reason: `P0002` means different
+ * things at the two grains. `archive_process_template` raises it for a missing
+ * TEMPLATE; `clone_/publish_/discard_template_version` raise it for a missing
+ * VERSION. One shared mapper would have to pick a noun and be wrong half the
+ * time.
+ *
+ * `23514` is deliberately overloaded in the DB — `app.assert_cases_enabled()`
+ * and the draft-only guards both raise `check_violation` — so the RPC's own
+ * pt-BR message is preferred when PostgREST forwards it, and only the generic
+ * draft-only fallback is used when it does not. The fallback is never a raw
+ * Postgres string (Rule 10 / CLAUDE.md §8).
+ */
+function mapVersionError(
+  error: { code?: string; message?: string } | null,
+): string {
+  if (!error) return MESSAGES.generic
+  if (error.code === PG_NO_DATA_FOUND) return MESSAGES.missingVersion
+  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return MESSAGES.forbidden
+  if (error.code === PG_CHECK_VIOLATION) {
+    return error.message || MESSAGES.versionNotDraft
+  }
+  return mapRpcError(error)
 }
 
 /**
@@ -188,21 +245,24 @@ function mapRpcError(error: { code?: string; message?: string } | null): string 
  * same-org type); the trigger re-checks org consistency on any write path.
  */
 export async function setTemplateCaseType(
-  templateId: string,
+  templateVersionId: string,
   caseTypeId: string | null,
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('set_template_case_type', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_case_type_id: caseTypeId ?? undefined,
   })
 
   if (error) return { ok: false, error: mapRpcError(error) }
 
   revalidateTemplates()
-  return { ok: true, error: caseTypeId ? MESSAGES.caseTypeSaved : MESSAGES.caseTypeCleared }
+  return {
+    ok: true,
+    error: caseTypeId ? MESSAGES.caseTypeSaved : MESSAGES.caseTypeCleared,
+  }
 }
 
 /**
@@ -300,7 +360,13 @@ export async function createProcessTemplate(
   return { ok: true, error: MESSAGES.templateCreated, templateId: data.id }
 }
 
-/** Archive a template (`draft`/`active` → `archived`). Live cases unaffected. */
+/**
+ * Archive a template: every non-archived VERSION flips to `archived` (ADR 0096
+ * A1.1 item 3 — a template is archived iff all its versions are; the
+ * template-level `status` column it used to flip no longer exists). Live cases
+ * are unaffected. Exposed to UI under the version-grain name
+ * {@link archiveTemplateVersions}.
+ */
 export async function archiveProcessTemplate(
   templateId: string,
 ): Promise<ActionState> {
@@ -324,9 +390,14 @@ export async function archiveProcessTemplate(
 }
 
 /**
- * Publish a draft template (`draft → active`): requires ≥1 phase and validates
- * every `recommend_when` (`from_phase < position`; the referenced question_key
- * exists in the source form's published version). Maps P0016/P0017 → pt-BR.
+ * Publish a template's open draft VERSION (`draft → published`): requires ≥1
+ * phase and validates every `recommend_when` (`from_phase < position`; the
+ * referenced question_key exists in the source form's published version). Maps
+ * HC016/HC017 → pt-BR.
+ *
+ * A thin identity-grain wrapper (ADR 0096 A1.1 item 1): the RPC resolves the
+ * template's draft and delegates to `publish_template_version`. UI publishes
+ * through {@link publishTemplateVersion}, which names the version explicitly.
  */
 export async function publishProcessTemplate(
   templateId: string,
@@ -359,7 +430,8 @@ export async function addTemplatePhase(
   _prev: AddPhaseState | undefined,
   formData: FormData,
 ): Promise<AddPhaseState> {
-  const templateId = String(formData.get('templateId') ?? '')
+  // Reads `templateVersionId` from the FormData (was `templateId`).
+  const templateVersionId = String(formData.get('templateVersionId') ?? '')
   const formId = String(formData.get('formId') ?? '')
   const title = String(formData.get('title') ?? '').trim()
   const recommendWhen = parseRecommendWhen(
@@ -374,32 +446,44 @@ export async function addTemplatePhase(
   )
   const defaultDays = parseDefaultDays(String(formData.get('defaultDays') ?? ''))
 
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!formId) {
     return { ok: false, fieldErrors: { formId: MESSAGES.formRequired } }
   }
   if (recommendWhen === null) {
-    return { ok: false, fieldErrors: { recommendWhen: MESSAGES.recommendInvalid } }
+    return {
+      ok: false,
+      fieldErrors: { recommendWhen: MESSAGES.recommendInvalid },
+    }
   }
   if (resultRuleset === null) {
-    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid } }
+    return {
+      ok: false,
+      fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid },
+    }
   }
   if (allowedResultIds === null) {
-    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.allowedResultsInvalid } }
+    return {
+      ok: false,
+      fieldErrors: { resultRuleset: MESSAGES.allowedResultsInvalid },
+    }
   }
   if (defaultDays === null) {
-    return { ok: false, fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid } }
+    return {
+      ok: false,
+      fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid },
+    }
   }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
-  if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
-  if (!(await authorizeCommission(commissionId))) {
+  const ctx = await versionContext(supabase, templateVersionId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!(await authorizeCommission(ctx.commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { data, error } = await supabase.rpc('add_template_phase', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_form_id: formId,
     p_title: title || undefined,
     p_recommend_when: recommendWhen,
@@ -412,7 +496,7 @@ export async function addTemplatePhase(
   if (error || !data) return { ok: false, error: mapRpcError(error) }
 
   revalidateTemplates()
-  return { ok: true, error: MESSAGES.phaseAdded, phaseId: data.id }
+  return { ok: true, phaseId: (data as { id: string }).id }
 }
 
 /**
@@ -688,37 +772,64 @@ function mapCustomFieldError(
   return MESSAGES.generic
 }
 
-/** Resolve a template's {commissionId, status} via the RLS-scoped client. */
-async function templateContext(
+/**
+ * Resolve a template VERSION's {commissionId, status} via the RLS-scoped client.
+ * Replaces the identity-grain `templateContext`, which read
+ * `process_templates.status` — a column ADR 0096 dropped when status moved onto
+ * the version.
+ */
+async function versionContext(
   supabase: SupabaseClient<Database>,
-  templateId: string,
+  templateVersionId: string,
 ): Promise<{ commissionId: string; status: string } | null> {
   const { data } = await supabase
-    .from('process_templates')
-    .select('commission_id, status')
-    .eq('id', templateId)
-    .maybeSingle<{ commission_id: string; status: string }>()
-  if (!data) return null
-  return { commissionId: data.commission_id, status: data.status }
+    .from('process_template_versions')
+    .select('status, process_templates(commission_id)')
+    .eq('id', templateVersionId)
+    .maybeSingle<{
+      status: string
+      process_templates: { commission_id: string } | null
+    }>()
+  const commissionId = data?.process_templates?.commission_id
+  if (!data || !commissionId) return null
+  return { commissionId, status: data.status }
 }
 
-/** Resolve a def's {commissionId, templateId, status} via the RLS-scoped client. */
+/**
+ * Resolve a def's {commissionId, templateVersionId, status} via the RLS-scoped
+ * client. Same latent break as `contextOfPhase`: the previous body read
+ * `template_id` and `process_templates.status`, both removed by ADR 0096.
+ */
 async function customFieldContext(
   supabase: SupabaseClient<Database>,
   fieldId: string,
-): Promise<{ commissionId: string; templateId: string; status: string } | null> {
+): Promise<{
+  commissionId: string
+  templateVersionId: string
+  status: string
+} | null> {
   const { data } = await supabase
     .from('process_template_custom_fields')
-    .select('template_id, process_templates(commission_id, status)')
+    .select(
+      'template_version_id, process_template_versions(status, process_templates(commission_id))',
+    )
     .eq('id', fieldId)
     .maybeSingle<{
-      template_id: string
-      process_templates: { commission_id: string; status: string } | null
+      template_version_id: string
+      process_template_versions: {
+        status: string
+        process_templates: { commission_id: string } | null
+      } | null
     }>()
-  const commissionId = data?.process_templates?.commission_id
-  const status = data?.process_templates?.status
+  const commissionId =
+    data?.process_template_versions?.process_templates?.commission_id
+  const status = data?.process_template_versions?.status
   if (!data || !commissionId || !status) return null
-  return { commissionId, templateId: data.template_id, status }
+  return {
+    commissionId,
+    templateVersionId: data.template_version_id,
+    status,
+  }
 }
 
 /**
@@ -771,21 +882,22 @@ export async function createCustomFieldDef(
   _prev: CustomFieldDefState | undefined,
   formData: FormData,
 ): Promise<CustomFieldDefState> {
-  const templateId = String(formData.get('templateId') ?? '')
+  // Reads `templateVersionId` from the FormData (was `templateId`).
+  const templateVersionId = String(formData.get('templateVersionId') ?? '')
   const label = String(formData.get('label') ?? '').trim()
   const fieldTypeRaw = String(formData.get('fieldType') ?? '').trim()
   const required = boolFromForm(formData.get('required'))
   const showInList = boolFromForm(formData.get('showInList'))
   const optionsRaw = String(formData.get('options') ?? '')
 
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
 
   const validated = validateCustomFieldInput(label, fieldTypeRaw, optionsRaw)
   if ('error' in validated) return validated.error
   const { fieldType, options } = validated
 
   const supabase = await createClient()
-  const ctx = await templateContext(supabase, templateId)
+  const ctx = await versionContext(supabase, templateVersionId)
   if (!ctx) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(ctx.commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
@@ -796,20 +908,20 @@ export async function createCustomFieldDef(
   const { data: maxRow } = await supabase
     .from('process_template_custom_fields')
     .select('position')
-    .eq('template_id', templateId)
+    .eq('template_version_id', templateVersionId)
     .order('position', { ascending: false })
     .limit(1)
     .maybeSingle<{ position: number }>()
   const nextPosition = (maxRow?.position ?? -1) + 1
 
-  // Retry on the (template_id, key) unique collision (like addItem's question_key).
+  // Retry on the (template_version_id, key) unique collision.
   let lastError: { code?: string; message?: string } | null = null
   for (let attempt = 0; attempt < 3; attempt++) {
     const key = `${slugifyLabel(label)}_${shortSuffix()}`
     const { data, error } = await supabase
       .from('process_template_custom_fields')
       .insert({
-        template_id: templateId,
+        template_version_id: templateVersionId,
         key,
         label,
         field_type: fieldType,
@@ -913,14 +1025,14 @@ export async function deleteCustomFieldDef(fieldId: string): Promise<ActionState
  * template. Draft-only. Mirrors {@link reorderCaseOutcomes}'s shape.
  */
 export async function reorderCustomFieldDefs(
-  templateId: string,
+  templateVersionId: string,
   orderedIds: string[],
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (orderedIds.length === 0) return { ok: true }
 
   const supabase = await createClient()
-  const ctx = await templateContext(supabase, templateId)
+  const ctx = await versionContext(supabase, templateVersionId)
   if (!ctx) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(ctx.commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
@@ -932,10 +1044,207 @@ export async function reorderCustomFieldDefs(
       .from('process_template_custom_fields')
       .update({ position: i })
       .eq('id', orderedIds[i])
-      .eq('template_id', templateId)
+      .eq('template_version_id', templateVersionId)
     if (error) return { ok: false, error: mapCustomFieldError(error) }
   }
 
   revalidateTemplates()
   return { ok: true, error: MESSAGES.customFieldReordered }
+}
+
+
+// ---------------------------------------------------------------------------
+// ADR 0096 — Process-template VERSIONING
+//
+// WIRED, 2026-08-05. These landed as contract-first stubs so `frontend` could
+// build against the signatures; they threw `not implemented` for one pass while
+// the substrate migrations landed. The whole UI set — publish / edit / discard /
+// archive — called them, so D2's workflow was inert while lint, `tsc`, `next
+// build` and 945 unit tests were all green. A stub is invisible to every static
+// gate in this repo; the only thing that catches it is exercising the seam.
+//
+// Every one is RLS-authorized in the DB — the `authorizeCommission` re-check
+// these perform, like the actions above, is a pt-BR ERROR-MESSAGE affordance,
+// never the security boundary (Architecture Rule 1).
+// ---------------------------------------------------------------------------
+
+
+/** `clone_template_version` / `beginTemplateEdit` return the draft to navigate to. */
+export interface TemplateVersionState extends ActionState {
+  templateVersionId?: string
+}
+
+/**
+ * Clone a template version into a NEW DRAFT (ADR 0096 D2; mirrors
+ * `clone_form_version` exactly, including its idempotency contract).
+ *
+ * IDEMPOTENT: when the template already has an open draft this returns THAT
+ * draft's id and clones nothing, so a double-submit or a retried action cannot
+ * produce two drafts. That is the same guarantee the DB enforces independently —
+ * at most one draft per template — so the UI never has to serialize the call.
+ *
+ * Copies the version's authored fields (title, description, collectsPatient,
+ * caseTypeId) and ALL children: phases (with blocks, recommendWhen, resultRuleset,
+ * emitsResult and the allowed-results junction), narrative slots, offered outcomes
+ * and custom-field definitions.
+ */
+export async function cloneTemplateVersion(
+  templateVersionId: string,
+): Promise<TemplateVersionState> {
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingVersion }
+
+  const supabase = await createClient()
+  const ctx = await versionContext(supabase, templateVersionId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingVersion }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { data, error } = await supabase.rpc('clone_template_version', {
+    p_source_version_id: templateVersionId,
+  })
+
+  if (error || !data) return { ok: false, error: mapVersionError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.draftReady, templateVersionId: data }
+}
+
+/**
+ * The BUILDER's "Editar" entry point: resolve the template's open draft, cloning
+ * its published version when there is none, and return the draft to navigate to.
+ *
+ * Prefer this over {@link cloneTemplateVersion} in UI: it takes a template id
+ * (what a screen has) rather than a version id, and it is the action that makes
+ * D2's workflow cost visible — after editing, the author MUST re-publish for the
+ * change to reach new cases. Cases already running are unaffected either way.
+ */
+export async function beginTemplateEdit(
+  templateId: string,
+): Promise<TemplateVersionState> {
+  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfTemplate(supabase, templateId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // Resolve the version to hand to the clone door: the open draft if there is
+  // one, else the published version. Both rows come back in ONE RLS-scoped read
+  // (`status in (draft, published)` can return at most two rows — the two
+  // partial unique indexes on `process_template_versions` guarantee it).
+  const { data: versions, error: readError } = await supabase
+    .from('process_template_versions')
+    .select('id, status')
+    .eq('template_id', templateId)
+    .in('status', ['draft', 'published'])
+
+  if (readError) return { ok: false, error: MESSAGES.generic }
+
+  const source =
+    versions?.find((v) => v.status === 'draft') ??
+    versions?.find((v) => v.status === 'published')
+  if (!source) return { ok: false, error: MESSAGES.noVersionToEdit }
+
+  // IDEMPOTENCY IS THE RPC'S, NOT OURS. We hand it the draft when one exists
+  // rather than short-circuiting, so the single authority on "does this fork?"
+  // stays in the DB: `clone_template_version` looks up the template's open
+  // draft and returns it unchanged when the source IS that draft. Routing the
+  // resume path around the RPC would also skip `app.assert_cases_enabled()` and
+  // the RLS check, and would put a second, drifting copy of the at-most-one-
+  // draft rule in TypeScript.
+  const { data, error } = await supabase.rpc('clone_template_version', {
+    p_source_version_id: source.id,
+  })
+
+  if (error || !data) return { ok: false, error: mapVersionError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.draftReady, templateVersionId: data }
+}
+
+/**
+ * Publish a DRAFT version (ADR 0096 D2; mirrors `publish_form_version`).
+ *
+ * Refuses a non-draft. Runs the publish-time validations the template lifecycle
+ * already had — at least one phase, every `recommendWhen` resolvable against an
+ * EARLIER phase whose form has a published version, and every emitting phase's
+ * allowed-result subset present and referencing live, non-archived results — then
+ * ARCHIVES the incumbent published version and publishes this one ATOMICALLY, so
+ * a template is never momentarily unpublished and `create_case_from_template`
+ * never observes zero or two published versions.
+ */
+export async function publishTemplateVersion(
+  templateVersionId: string,
+): Promise<ActionState> {
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingVersion }
+
+  const supabase = await createClient()
+  const ctx = await versionContext(supabase, templateVersionId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingVersion }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // No draft-only pre-check here: `publish_template_version` re-reads the status
+  // `for update` and refuses a non-draft. A TypeScript pre-check would be a
+  // second copy of that rule that cannot see the lock, and would go stale.
+  const { error } = await supabase.rpc('publish_template_version', {
+    p_template_version_id: templateVersionId,
+  })
+
+  if (error) return { ok: false, error: mapVersionError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.versionPublished }
+}
+
+/**
+ * Discard an open DRAFT version, deleting it and its children.
+ *
+ * Only ever legal for a `draft`: published and archived versions are immutable and
+ * undeletable, the latter additionally protected by `cases.template_version_id`
+ * `ON DELETE RESTRICT` — a version a case ran under cannot be erased, which is
+ * precisely the `ON DELETE SET NULL` provenance gap this ADR closes. Never
+ * unpublishes anything: discarding a draft leaves the published version in force.
+ */
+export async function discardTemplateDraft(
+  templateVersionId: string,
+): Promise<ActionState> {
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingVersion }
+
+  const supabase = await createClient()
+  const ctx = await versionContext(supabase, templateVersionId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingVersion }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('discard_template_draft', {
+    p_template_version_id: templateVersionId,
+  })
+
+  if (error) return { ok: false, error: mapVersionError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.draftDiscarded }
+}
+
+/**
+ * Archive the whole template: archives every non-archived version, so the
+ * template stops offering case creation. Distinct from
+ * {@link discardTemplateDraft}, which touches only the open draft.
+ *
+ * This is the VERSION-grain name for what {@link archiveProcessTemplate} does —
+ * `archive_process_template` became a multi-version operation under ADR 0096
+ * A1.1 item 3 (a template is archived iff ALL its versions are). It delegates
+ * rather than repeating the call so the two names cannot drift apart; the
+ * identity-grain name is kept because the RPC still takes a template id.
+ */
+export async function archiveTemplateVersions(
+  templateId: string,
+): Promise<ActionState> {
+  return archiveProcessTemplate(templateId)
 }

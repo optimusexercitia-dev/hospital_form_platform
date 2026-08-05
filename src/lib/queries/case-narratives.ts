@@ -60,7 +60,8 @@ export interface CaseNarrativeType {
  */
 export interface ProcessTemplateNarrative {
   id: string
-  templateId: string
+  /** ADR 0096: narrative slots are children of a VERSION, not the identity. */
+  templateVersionId: string
   narrativeTypeId: string
   /** The LIVE label of the bound type (joined for the builder); `null` if unresolved. */
   typeLabel: string | null

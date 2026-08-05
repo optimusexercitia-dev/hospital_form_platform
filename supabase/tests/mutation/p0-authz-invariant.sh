@@ -18,7 +18,7 @@
 #     Offenders that are legitimately door-only / E2E-only are allowlisted in
 #     authz-neverclled-door-allowlist.txt; anything else fails the gate.
 #
-#   ARM 3  CENSUS CLOSURE — the sixteenth-stopper (ADR 0079 Amendment 2)
+#   ARM 3  CENSUS CLOSURE — the sixteenth-stopper (ADR 0079 Amendment 3)
 #     Every prosecdef boolean function in app/public and every RLS policy in the
 #     LIVE catalog must carry a VERDICT somewhere: a row in a committed findings
 #     md (BLIND | COVERED | ERROR | SKIPPED) or a line in authz-unswept-backlog.txt.

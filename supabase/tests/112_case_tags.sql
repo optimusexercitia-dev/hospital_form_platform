@@ -27,13 +27,17 @@ grant select on k to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table tpl_x on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Tags X', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Tags X', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_x set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl_x to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_x), (select form_u from k), 'F1');
+select public.add_template_phase((select vid from tpl_x), (select form_u from k), 'F1');
 select public.publish_process_template((select tid from tpl_x));
 reset role;
 
@@ -48,13 +52,17 @@ grant select on cse_x to authenticated;
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 create temp table tpl_y on commit drop as
-  select (public.create_process_template((select comm_y from k), 'Tags Y', null)).id as tid;
+  select (public.create_process_template((select comm_y from k), 'Tags Y', null)).id as tid, null::uuid as vid;
+-- ADR 0096: resolve the v1 draft in a SEPARATE statement. The helper is
+-- STABLE, so inside the CREATE ... AS above it would see the pre-statement
+-- snapshot and return NULL.
+update tpl_y set vid = app.draft_version_of_template(tid);
 reset role;
 grant select on tpl_y to authenticated;
 
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-select public.add_template_phase((select tid from tpl_y), (select form_y from k), 'F1');
+select public.add_template_phase((select vid from tpl_y), (select form_y from k), 'F1');
 select public.publish_process_template((select tid from tpl_y));
 reset role;
 

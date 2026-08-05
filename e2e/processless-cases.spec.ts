@@ -155,12 +155,16 @@ test('S1: Sem processo label-only → creates a template-less case with the "Sem
   // The muted "Sem processo" badge is shown in the header.
   await expect(page.getByText('Sem processo').first()).toBeVisible({ timeout: 10_000 })
 
-  // DB truth: template_id NULL, status nao_iniciado, zero phases.
-  const caseRows = await restGet<{ template_id: string | null; status: string }>(
+  // DB truth: template_version_id NULL, status nao_iniciado, zero phases.
+  // ADR 0096: `cases.template_id` was re-pointed to `cases.template_version_id`
+  // (nullable — a processless case legitimately has no version, Amendment 1
+  // item 4). Renamed both the select and the destructured field together —
+  // a rename of only one leaves the other reading `undefined`, not `null`.
+  const caseRows = await restGet<{ template_version_id: string | null; status: string }>(
     request,
-    `cases?id=eq.${caseId}&select=template_id,status`,
+    `cases?id=eq.${caseId}&select=template_version_id,status`,
   )
-  expect(caseRows[0]?.template_id).toBeNull()
+  expect(caseRows[0]?.template_version_id).toBeNull()
   expect(caseRows[0]?.status).toBe('not_started')
 
   const phaseRows = await restGet<{ id: string }>(

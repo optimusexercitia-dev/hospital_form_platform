@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Archive } from "lucide-react";
 
-import { archiveProcessTemplate } from "@/lib/process-templates/actions";
+import { archiveTemplateVersions } from "@/lib/process-templates/actions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -19,12 +19,29 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 
 /**
- * Archive a process template (`draft`/`active` → `archived`). Confirms, then
- * calls {@link archiveProcessTemplate}. Live cases are unaffected (they snapshot
- * their phases). On success we navigate back to the template list, since an
- * archived template is no longer editable here.
+ * Archive the WHOLE process template (ADR 0096): every non-archived version is
+ * archived, so the template stops offering case creation entirely.
+ *
+ * This is the scope that distinguishes it from {@link DiscardTemplateDraftButton},
+ * and the distinction is worth stating plainly in the dialog — the two buttons sit
+ * near each other and both sound like "stop working on this". Discarding touches
+ * only the open draft and leaves the process live; archiving retires the process.
+ *
+ * Live cases are unaffected either way: they snapshot their phases at creation, and
+ * `cases.template_version_id` is `ON DELETE RESTRICT`, so the version they ran under
+ * survives archival and keeps answering "which version was this case opened with".
+ *
+ * On success we return to the template list, since an archived template is no
+ * longer editable here.
  */
-export function ArchiveTemplateButton({ templateId }: { templateId: string }) {
+export function ArchiveTemplateVersionsButton({
+  templateId,
+  listPath,
+}: {
+  templateId: string;
+  /** Absolute path of the template LIST (built with `commissionHref`). */
+  listPath: string;
+}) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -33,13 +50,13 @@ export function ArchiveTemplateButton({ templateId }: { templateId: string }) {
   function handleConfirm() {
     setError(null);
     startTransition(async () => {
-      const result = await archiveProcessTemplate(templateId);
+      const result = await archiveTemplateVersions(templateId);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível arquivar o processo.");
         return;
       }
       setOpen(false);
-      router.push("../process-templates");
+      router.push(listPath);
       router.refresh();
     });
   }
@@ -55,16 +72,17 @@ export function ArchiveTemplateButton({ templateId }: { templateId: string }) {
       <AlertDialogTrigger asChild>
         <Button type="button" variant="outline" size="lg">
           <Archive aria-hidden="true" />
-          Arquivar
+          Arquivar processo
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Arquivar este processo?</AlertDialogTitle>
           <AlertDialogDescription>
-            Um processo arquivado não pode ser usado para criar novos casos nem ser
-            editado. Os casos já criados a partir dele continuam funcionando
-            normalmente.
+            Todas as versões deste processo são arquivadas, incluindo a que está em
+            vigor, e não será mais possível abrir casos com ele. Os casos já
+            criados continuam funcionando normalmente e mantêm o registro da versão
+            sob a qual foram abertos.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

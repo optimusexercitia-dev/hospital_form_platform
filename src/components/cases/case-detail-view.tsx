@@ -2,6 +2,9 @@ import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import type { CaseTemplateProvenance as TemplateProvenance } from "@/lib/queries/process-templates";
+import { CaseTemplateProvenance } from "@/components/cases/case-template-provenance";
+
 import type { CaseDetail } from "@/lib/queries/cases";
 import type { CaseActionItem } from "@/lib/queries/case-action-items";
 import type { CaseDocumentWithUrl, CaseEvent } from "@/lib/queries/case-documents";
@@ -122,6 +125,7 @@ export function CaseDetailView({
   myRole,
   withHeader,
   backHref,
+  templateProvenance = null,
   referralsModule,
   forwardParentReferralId = null,
   canManagePhaseResults = false,
@@ -178,6 +182,17 @@ export function CaseDetailView({
   withHeader: boolean;
   /** Back-link target for the self-contained header. */
   backHref: string;
+  /**
+   * Which template VERSION this case ran under (ADR 0096 D3) — shown in the
+   * self-contained header only, like {@link myRole}. The coordinator route renders
+   * its own copy in the `(detail)` layout and passes nothing here.
+   *
+   * `null` is the PROCESSLESS answer, not a missing value: it renders as
+   * "Sem processo", which is why this REPLACED the badge that used to sit in the
+   * header's badge row rather than joining it. Two renderings of one fact is how the
+   * coordinator route ended up with a Playwright strict-mode collision.
+   */
+  templateProvenance?: TemplateProvenance | null;
   /**
    * Whether the viewer may CORRECT a concluded phase's result post-conclusion
    * (phase-results feature; task #10): resolved at the host page as
@@ -369,9 +384,12 @@ export function CaseDetailView({
                   )}
                 </h1>
                 <CaseStatusBadgeFixed status={c.status} />
-                {isProcessless && (
-                  <CaseStatusBadge label="Sem processo" colorToken="muted" />
-                )}
+                {/* ADR 0096 D3 — the "Sem processo" badge that sat here MOVED to the
+                    provenance line below, mirroring the coordinator route. It is a
+                    move, not a copy: rendering the fact in both places is what put
+                    two `Sem processo` nodes on one page and broke Playwright's
+                    strict mode. The line says more than the badge could — it names
+                    the VERSION when there is a process. */}
                 {detail.outcome && (
                   <CaseStatusBadge
                     label={detail.outcome.label}
@@ -385,6 +403,10 @@ export function CaseDetailView({
                   {c.label}
                 </p>
               )}
+              {/* No `templateVersionHref`: staff cannot open the template builder
+                  (that route is coordinator-gated), so this renders as plain text
+                  rather than a dead link. */}
+              <CaseTemplateProvenance provenance={templateProvenance} />
               <p className="text-sm text-muted-foreground">
                 Criado em {formatDate(c.createdAt)}
                 {c.closedAt ? ` · Encerrado em ${formatDate(c.closedAt)}` : ""}

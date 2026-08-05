@@ -125,16 +125,20 @@ async function commissionOfOutcome(
   return data?.commission_id ?? null
 }
 
-async function commissionOfTemplate(
+/**
+ * ADR 0096: the offered-outcome junction hangs off a template VERSION, so the
+ * commission is two hops away (version -> identity -> commission).
+ */
+async function commissionOfTemplateVersion(
   supabase: SupabaseClient<Database>,
-  templateId: string,
+  templateVersionId: string,
 ): Promise<string | null> {
   const { data } = await supabase
-    .from('process_templates')
-    .select('commission_id')
-    .eq('id', templateId)
-    .maybeSingle()
-  return data?.commission_id ?? null
+    .from('process_template_versions')
+    .select('process_templates(commission_id)')
+    .eq('id', templateVersionId)
+    .maybeSingle<{ process_templates: { commission_id: string } | null }>()
+  return data?.process_templates?.commission_id ?? null
 }
 
 /** Map an outcome RPC error to friendly pt-BR (prefer the RPC's own message). */
@@ -335,20 +339,20 @@ export async function archiveCaseOutcome(
  * Pass `[]` to offer none (D15 — outcomes optional per process). staff_admin-only.
  */
 export async function setProcessOutcomes(
-  templateId: string,
+  templateVersionId: string,
   outcomeIds: string[],
 ): Promise<ActionState> {
-  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!templateVersionId) return { ok: false, error: MESSAGES.missingTemplate }
 
   const supabase = await createClient()
-  const commissionId = await commissionOfTemplate(supabase, templateId)
+  const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
   const { error } = await supabase.rpc('set_process_outcomes', {
-    p_template_id: templateId,
+    p_template_version_id: templateVersionId,
     p_outcome_ids: outcomeIds,
   })
 

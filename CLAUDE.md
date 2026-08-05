@@ -260,7 +260,7 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
    catches a gate you just added** — it asserts every live RLS policy + `prosecdef` boolean
    gate carries a verdict from *some* sweep; a brand-new gate is in no BLIND set, so it passes
-   `ARM=policy` **vacuously** (ADR 0079 Amendment 2). **If the phase touched any RLS policy or
+   `ARM=policy` **vacuously** (ADR 0079 Amendment 3). **If the phase touched any RLS policy or
    `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
    (~1 min/gate), deriving the list from the migration diff, never by hand — recipe + rationale
    in **ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)
@@ -367,7 +367,16 @@ This project has a knowledge graph at `graphify-out/`.
   `graphify explain "<concept>"` for focused concepts — these return a scoped subgraph,
   usually much smaller than GRAPH_REPORT.md or raw grep.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
-- After modifying code, run `graphify update .` (AST-only, no API cost).
+- **Refresh the graph ONCE PER PHASE, at merge — not after each change.** `graphify update .`
+  is AST-only (no API cost) but rebuilds the **whole** graph: a one-function fix produced a
+  **12,729-line** diff in `graphify-out/`. On a side branch, and with parallel sessions the norm
+  here (`docs/worktrees.md`), that is a near-certain conflict in a generated file nobody can
+  meaningfully review or resolve. **Teammates: do not run it at all** — if you already did, revert
+  `graphify-out/` and say so. The **lead** runs it once after the phase merges to `main`, in its own
+  `chore(graphify):` commit, so the regeneration never rides along with reviewable code.
+  ⚠ Between the last refresh and that merge the graph is **stale by design** — it is an orientation
+  aid, never an authority. When it disagrees with the code, the code wins (and for SQL, see the
+  binding exception below: the catalog wins over both).
 - ⛔ **Exception, binding: graphify does NOT index SQL — and migration file text is STALE by design**
   (some migrations rewrite function bodies at runtime via `pg_get_functiondef()` + `replace()` +
   `execute`). For **any** schema / RLS / RPC / authorization question the **live catalog is the sole
