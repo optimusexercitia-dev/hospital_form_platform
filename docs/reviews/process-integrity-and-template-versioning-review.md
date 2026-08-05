@@ -5,7 +5,13 @@
 - **Scope:** ADR [0095](../decisions/0095-process-case-integrity-audit-remediation.md) (migrations `20260906000100`–`001100`, keystones `296`) and ADR [0096](../decisions/0096-process-template-versioning.md) + Amendments 1.1–1.7 (migrations `20260907000100`–`001200`, keystones `297`, E2E `process-template-versioning.spec.ts`)
 - **Method:** live-catalog probes (`pg_proc` incl. `prosecdef`, `pg_policies`, `pg_constraint`, `pg_indexes`, `pg_trigger`, ACLs), direct PostgREST probes against the running local stack, and targeted greps of the client layer. Migration file text was **not** treated as truth. No `supabase db reset` was performed — the shared local stack was left untouched, and every query ran against a stack reporting `healthy`.
 
-## Verdict
+> **FINAL VERDICT: ✅ APPROVED** (Round 2, 2026-08-05, HEAD `f6c847d`) — see [Round 2](#round-2--re-review-head-f6c847d) at the end of this document for what was verified and what remains open. Round 1 below is kept intact as the record.
+
+---
+
+# Round 1 — initial review (HEAD `80ec496`)
+
+## Verdict (Round 1)
 
 **CHANGES REQUESTED**
 
@@ -244,4 +250,137 @@ Recommended, not blocking: F-3 as a FUP with an owner and an explicit reachabili
 
 ---
 
-**Verdict: CHANGES REQUESTED**
+**Round 1 verdict: CHANGES REQUESTED** — superseded by Round 2 below.
+
+---
+
+# Round 2 — re-review (HEAD `f6c847d`)
+
+- **Date:** 2026-08-05 · **Branch:** `db/process-case-integrity` (verified) · **HEAD:** `f6c847d`, working tree clean
+- **Reviewing:** `c557a32` (backend's F-1 fix) and `f6c847d` (tester's red-first spec + the Round 1 report)
+- **Method:** as Round 1 — live catalog and live PostgREST, not the fix report and not the lead's summary. Where a claim was made *about* the verification method, I tested the method itself.
+
+## R2-1 · The F-1 fix — verified independently, three ways
+
+`src/lib/case-narratives/actions.ts:270` now selects `process_template_versions(process_templates(commission_id))`.
+
+1. **Catalog** — the FK chain exists: `process_template_narratives.template_version_id → process_template_versions.template_id → process_templates`. The two-hop is the only path, and it is real.
+2. **PostgREST, end-to-end as a real `staff_admin`** (`chefe.ccih@test.local`) against a live seed row — and checked against **ground truth**, not merely for absence of error:
+
+   | Probe | Result |
+   |---|---|
+   | New embed (the fix) | `{"process_template_versions":{"process_templates":{"commission_id":"a0000000-…-0000000000a1"}}}` |
+   | Catalog ground truth (3-table SQL join for that slot) | `a0000000-…-0000000000a1` — **exact match** |
+   | Old embed (the defect) | still `PGRST200` |
+
+   So the fix resolves the **correct** commission, not just *a* value — which matters, because the whole function is an authorization input feeding `authorizeCommission`.
+3. **Shape** — the returned JSON nests exactly as the TS destructuring path `data?.process_template_versions?.process_templates?.commission_id` expects.
+
+**Verified fixed.** The sibling at `:236` and the module now agree.
+
+## R2-2 · Backend's two judgement calls — both correct
+
+**Call 1 — fixing all five resolvers, not only the broken one: correct, and it is the more valuable half of the commit.** All five (`commissionOfNarrative` `:191`, `commissionOfCase` `:209`, `commissionOfType` `:225`, `commissionOfTemplateVersion` `:245`, `commissionOfTemplateNarrative` `:278`) now surface `error` instead of discarding it. The swallowed `error` was not incidental to F-1 — it *was* the concealment mechanism: it turned a hard query failure into a friendly pt-BR "not found", which is why the defect survived lint, typecheck, 945 unit tests and a 963/963 gate. Fixing only the one that broke would have left four loaded guns. This is the repo's "a new door must inherit EVERY sibling arm" lesson applied *before* being bitten, which is the first time on this branch it ran in that direction.
+
+**Call 2 — declining the discriminated-union refactor: correct for this phase, and it should be a FUP.** The residue is that a genuine query failure still shows the user "não encontrada" rather than a distinct error. My reasoning for agreeing:
+
+- The change would touch five helpers plus every caller's error handling plus user-facing pt-BR strings, *after* the gate was green. That invalidates the E2E evidence for a UX refinement.
+- `console.error` closes the half that actually failed here — **detection**. The defect's cost was that nothing anywhere recorded that a query had failed; now the server log does.
+- The user-visible half has no correctness impact: for both "not found" and "query failed" the user's next action is identical, and the operation is correctly refused either way.
+
+So the risk-weighted call is right. It should be recorded as a follow-up, not dropped.
+
+## R2-3 · The sweep's control argument — I tested it, and it holds
+
+This was the load-bearing claim: that a `42501` verdict is a genuine pass rather than a permission error masking an unresolvable `PGRST200`/`42703`. If false, 227 verdicts were worthless. Five probes as `anon` (which holds no table grants):
+
+| # | Probe | Result | Meaning |
+|---|---|---|---|
+| C1 | bogus column, unreadable table | **`42703`** | name resolution precedes the ACL check |
+| C2 | bogus embed | **`PGRST200`** | caught by PostgREST before the DB at all |
+| C3 | valid column, unreadable table | `42501` | the baseline |
+| C4 | C1 repeated on a different table | **`42703`** | not a per-table quirk |
+| C5 | **bogus column *inside a nested embed*** | **`42703`** (`process_templates_1.bogus_col`) | resolution reaches **into** the embed tree |
+
+**C5 is the one that matters** and it is the probe I would have flagged as missing had it not been run. C1–C4 only establish that the *root* relation resolved; the entire sweep is about **nested** embeds, so without C5 a `42501` could still have masked a bad column one level down. It does not. The control argument is sound and the 42501 verdicts are meaningful.
+
+## R2-4 · The sweep's conclusion — independently reproduced, not audited by description
+
+Rather than check backend's numbers, I rebuilt the sweep from scratch with a different boundary and replayed it.
+
+- **Enumeration:** 294 `.from().select()` sites across `src/`, **294 statically resolved, 0 unresolved**. My resolver deliberately handles the hard case the lead flagged — *composed* constants (`INDICATOR_LIST_SELECT = INDICATOR_SELECT + ', …'`), which a naive literal-only boundary silently drops. `VERSION_FULL_SELECT` resolved.
+- **Replay:** 224 distinct queries against live PostgREST as a real `staff_admin`.
+- **Result: exactly ONE genuine unresolvable select — `src/lib/queries/rca.ts:449`.** The same one backend found.
+
+My raw output flagged 27, and the triage is worth recording because 26 were **my** artifacts, not defects:
+
+| Class | Count | Why not a defect |
+|---|---|---|
+| `PGRST100` "unexpected end of input" | 23 | my regex truncated a multi-line select mid-string; the *harness* sent an invalid query |
+| Mis-associated `.from()` → `.select()` | 3 | `forms/actions.ts:362` and `users/actions.ts:457` are `.update()`/`.insert()` chains with **no select**; `case-documents.ts:220` is `supabase.storage.from('attachments')` — a **storage bucket**, not a table |
+| **Genuine** | **1** | `rca.ts:449` — BUG-RCA-001 |
+
+The 4 dynamic (`${}`) selects my static pass could not replay were resolved by hand and replayed individually — **all four resolve**, including `case-outcomes.ts:141`, which is inside the TV blast radius.
+
+**Conclusion: zero unresolvable selects anywhere in the PCI/TV blast radius.** My site count (294) differs from backend's (284) purely by counting methodology — I count `.from()` sites, they counted select sites, and neither number is the claim. The *conclusion* is identical and was reached independently.
+
+I did not attempt to reconcile "286 grep lines = 284 sites + 2 comments" line-for-line; reproducing the conclusion by a different route is stronger evidence than agreeing with the arithmetic of one route, and it is what I did.
+
+## R2-5 · BUG-RCA-001 — confirmed; **does not block this phase**
+
+**Diagnosis confirmed, and it is exactly as described.**
+
+- `case_interviews` has **19 columns and none is `scheduled_start`**; the column lives on `interview_sessions` (and `meetings`).
+- The exact select from `rca.ts:450` returns **`42703`** as a real authenticated user. Control: the same select minus `scheduled_start` returns a row, so nothing else in it is wrong.
+- `.returns<…>()` is an assertion, so it typechecks; `const { data: interviews }` discards `error`; `interviews ?? []` yields `[]`.
+- **Wired:** `listRcaCitationTargets` → `src/app/o/[org]/nsp/rca/[rcaId]/page.tsx:86`, feeding the RCA evidence citation picker. Effect: **every interview is silently missing from the picker**; meetings and case documents still populate, so the feature looks functional and is quietly incomplete.
+
+**Severity: MEDIUM.** Silent, user-visible loss of options in a live NSP/RCA feature, with no error and no failing test — a Rule 11-adjacent evidence gap in a module that exists to document root-cause analysis. Not a security issue; no incorrect data is written.
+
+**Not phase-blocking, and I agree with the lead — on evidence, not deference:**
+
+- `git log main..HEAD -- src/lib/queries/rca.ts` → **0 commits**. No migration on this branch touches `case_interviews` or `interview_sessions`.
+- `git log -S "scheduled_start"` dates it to **`c4e20b3`, 2026-06-18, "phase(14): complete"** — roughly seven weeks old and shipped through a different phase gate.
+- The fix requires a **product decision**: `interview_sessions` is one-to-many, and my probe of the FK path returns **an array of sessions** with different `scheduled_start` values. "The interview's date" is therefore ambiguous — first session, earliest, latest, or the concluded one. Backend was right not to guess.
+
+Blocking PCI/TV on it would couple an unrelated seven-week-old defect to this gate and force a product decision under gate pressure. **File it as a FUP with the product question stated explicitly** — and note the fix pattern already exists in this codebase: `interviews.ts:474` and `:520` both correctly select `interview_sessions ( … scheduled_start )`.
+
+## R2-6 · Round 1 items re-checked
+
+| Item | State at `f6c847d` |
+|---|---|
+| **F-1** blocker | ✅ **closed** — R2-1 |
+| **F-2** coverage | ✅ **closed** — `e2e/process-template-narrative-slot-crud.spec.ts` (254 lines, 2 tests). Quality is good: it asserts the **DB row** via `dbGet` (title after edit; row absent after remove), not only the UI, so a fail-closed regression cannot fake a pass; it asserts the absence of the "not found" toast; and it builds its own fixtures. Red-first before the fix and green after, unmodified, per tester |
+| **F-7** spec changed after the green run | ✅ **closed** — the full suite was re-run at this HEAD, so the current spec forms are covered. The arithmetic is internally consistent: 970 collected − 5 deliberate skips = 965 accounted = 965 passed; +2 collected and +2 passed is exactly the new spec's two tests |
+| **F-3** revoke residue · **F-4** audit mesh · **F-5** org-admin disjunct · **F-6** GUC clobber | unchanged — the fix touched one TypeScript file and no substrate. Re-confirmed in the catalog that nothing regressed: **0** anon-executable of 477 public functions, **8/8** child policies still version-grain, both partial unique indexes present, 284 migrations registered |
+| Gates | `npm run typecheck` **exit 0**; `npm run lint` **exit 0** (eslint 0/0 + css-vars + memberships-door) — re-run by me at this HEAD |
+
+---
+
+## Verdict: **APPROVED**
+
+The blocker is genuinely fixed, verified against ground truth rather than against absence-of-error, and the coverage hole that hid it is closed by a spec that asserts database state. The sweep that backs the "no other instance" claim rests on a control argument I tested directly and found sound, and I reproduced its conclusion independently by a different boundary.
+
+### What remains open — for the PO summary, stated plainly
+
+**This is not a clean bill. Nothing below blocks the phase; all of it is real.**
+
+*Newly found during this phase, unrelated to it:*
+1. **BUG-RCA-001** (MEDIUM) — RCA evidence citation picker silently lists **no interviews**. Pre-existing since 2026-06-18 (phase 14). Fix needs a product decision on which session date represents an interview.
+
+*Pre-existing debt this phase did not create and did not close:*
+2. **Revoke residue** (MEDIUM) — `authenticated` still holds `TRUNCATE` on 66 tables, `TRIGGER`/`REFERENCES` on 67; the phase's sweep covered 18. `TRUNCATE` **bypasses RLS entirely**. No known reachable path (PostgREST does not expose it), but this phase set its own standard by refusing the "unreachable" argument in `20260906000600` — so this should be swept or explicitly accepted in writing, not left implicit.
+3. **Audit mesh** (LOW) — 2 of 7 trigger arms keystoned; the other 5 are self-documented debt at `296:488-497`.
+4. **Org-admin reach arm** (LOW) — the `is_commission_admin_of` disjunct in all six tenant-isolation policies is unexercised; `test_helpers.bootstrap()` mints no org-admin persona.
+5. **`in_case_rpc` clobber** (LOW) — `app.compute_case_phase_result` and `public.sync_case_phase_on_submit` hard-code the GUC off instead of restoring it. Fails **closed**.
+
+*New follow-up from this round:*
+6. **Resolver error semantics** (LOW) — the five resolvers now log, but still collapse "query failed" into the user-facing "not found". The discriminated-union refactor was correctly deferred; it should be tracked.
+
+*Deferred by decision, not oversight:*
+7. ADR 0095 §3b (`blocks[]` → join table) and §3c (`case_phase_offered_results` rename) — modeling purity, correctly kept off a pre-pilot branch.
+
+### Two things to settle before deploy, outside this review's scope
+
+- **The TV backfill has never been exercised and cannot be locally** — by ADR 0096 A1.3's own structural argument, `db reset` runs it against zero rows every time, forever. **`scripts/verify-tv-backfill.sh` plus a remote snapshot are mandatory and blocking before `db push`.** This is the single largest residual risk on this branch and it is a deploy-time risk, not a code-review one.
+- **`ARM=census` does not appear in the recorded evidence** for either workstream — only `ARM=floor` and the diff-scoped `ARM=policy`. Per CLAUDE.md §6 step 1, census is the arm that catches a **brand-new** gate, which passes `ARM=policy` vacuously by being in no BLIND set. This phase added new gates. I raised this in Round 1 and it is still unanswered; it should be confirmed run (or run) before the PO sign-off, since it is cheap (~2 s).
