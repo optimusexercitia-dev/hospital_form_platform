@@ -204,6 +204,39 @@ comment, where this repo has repeatedly watched them go stale in silence.
 Probes reverted after every round; `grep MUTATION PROBE` clean and `git diff src/components/` empty
 (components byte-identical to HEAD).
 
+> ⭐ **Cross-phase lesson — ONE MUTATION IS NOT SUFFICIENT EVIDENCE OF VACUITY.**
+>
+> ⚠ *This block is phase-independent, but it currently sits inside **Current Phase Tasks**, which is
+> exactly what §7 rotation archives at phase close — so as written it will be filed AWAY with the
+> phase, not outlive it. It needs a durable home the lead owns; the natural neighbour is
+> `docs/testing/` (beside `route-gate-assertions.md`), or ADR 0079, which already carries the
+> neutralization-oracle discipline this extends. Flagging rather than creating one unilaterally.*
+>
+> The neutralization oracle — mutate the code, require red — is necessary but not self-checking. A
+> **single** probe can produce a clean, confident, and **wrong** story about which assertion is
+> load-bearing, because one probe samples one direction of the mutation space and a test that pins
+> the *other* direction is silently satisfied by it.
+>
+> It fired twice here, and in both cases the single-probe conclusion was available, tempting, and
+> false:
+>
+> - **`VersionHistoryPanel` ordering.** An *ascending*-sort probe reds only test #1. Conclusion on
+>   offer: "#2 is vacuous — it reads as a near-duplicate, delete it." A second probe in the
+>   **opposite** direction (*descending* sort) reds only **#2**. They are complementary: #1 pins
+>   "don't sort ascending", #2 pins "don't sort at all, **even in the direction that happens to look
+>   right**". The near-duplicate-looking test was the one guarding the plausible bug.
+> - **`BeginTemplateEditButton` fork.** `if (false)` (always-confirm) reds only the resume arm;
+>   `if (true)` (never-confirm) reds only the fork arm. Either probe **alone** certifies half the
+>   behaviour and leaves the other half unprotected while reporting green.
+>
+> **Rule:** when a probe suggests an assertion is vacuous, probe the **opposite direction** before
+> deleting it. Vacuity is a claim about the whole mutation space; one sample is not that space.
+>
+> **Corollary, and the expensive one:** a test that looks like a near-duplicate of its neighbour is
+> simultaneously *the most likely to be deleted in a cleanup* and *the most likely to be the one
+> guarding the non-obvious direction*. Record the asymmetry beside the tests, or the next tidy-up
+> removes it and every gate stays green.
+
 > ⚠ **Two transitional sites in `template-builder-shell.tsx`, and they are OPPOSITE.** Both create-mode
 > dialogs take the version-grain prop name while still being passed `template.id`, but for different
 > reasons, and a reader who assumes one rule will get the other wrong:
