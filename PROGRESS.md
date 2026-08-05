@@ -350,6 +350,27 @@ platform_admin gets zero rows from *every* hospital-tier DEFINER, ideally before
 *name prefix* (`dashboard_*`) where the real property is "DEFINER door returning commission
 content" — the standing "if your enumeration's boundary is a filename, it's wrong" rule, one
 level up. Phase 16's own doors are specified to inherit the correct shape (ADR 0093 D6).
+**Status:** ✅ **FIXED 2026-08-05** by `20260908000100`, held by
+`299_hospital_content_door_noun_rule.sql` (11/11).
+**RED BEFORE GREEN, as this entry asked:** the live probe it was missing was run first —
+platform@ read **3 documents / 2 rollups** from Hospital Central A; after the migration, **0 / 0**.
+Twins: hospital_admin.a1 and orgadmin.a still read 3 / 2, so the fix did not fail closed.
+**Mutation-proven per arm** (ADR 0079 A2's FORK rule): restoring the disjunct on
+`hospital_document_register` reds §2.1 only, on `hospital_indicator_rollup` reds §2.2 only —
+neither assertion is redundant, and one probe would have made the other look vacuous.
+⚠ **This entry's prescribed test was wrong as written.** "Zero rows from *every* hospital-tier
+DEFINER" fails on `verify_audit_chain`: enumerating the property live returns **four** doors, and
+that one's `app.is_admin()` is its **platform-tier** branch (all args null) — audit is
+platform_admin's own noun, so the arm is correct and permanent. Its hospital branch already
+excluded platform_admin. Probed both ways (42501 at hospital tier, `ok = t` at platform tier). The
+property is commission **content**, not hospital **tier**; `299` §4 derives the door set from
+`pg_proc` at run time and reds on any unrecognised member.
+⚠ **Two existing tests encoded the OLD behaviour and had to be inverted** — the fix is not
+complete without them: `200_controlled_documents.sql` #30 *required* `>= 2` rows for platform_admin
+(a test pinning the leak), and `283_accreditation_readiness_report.sql` E3 used this very bug as its
+**non-vacuity control**, so fixing the bug removed the control and left E1/E2 unfalsifiable. E3 is
+re-anchored on `verify_audit_chain`. **A control anchored on a defect evaporates when the defect is
+fixed — anchor it on something correct BY DESIGN.**
 
 ### Closed — rotated 2026-08-04 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
@@ -585,7 +606,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 
 | # | Sev | Item |
 | - | --- | ---- |
-| 1 | 🔴 | **`ARM=census` never run** — impossible on this branch (script supports `policy\|floor\|all` only; the census arm is uncommitted in the `feat/membership-hardening-technical-director` session). It is precisely the arm that catches a *newly added* gate, and this phase added six. QA covered the substance by hand. **Re-run once that branch lands.** |
+| 1 | ⬛ | ~~**`ARM=census` never run**~~ **CLOSED 2026-08-05** — the arm landed with the membership-hardening merge and was run against the merged catalog. It found real debt, not nothing: `process_template_versions_{select,staff_admin_write}` carry **no verdict from any sweep**. TV swept and keystoned the six CHILD policies on `process_template_{phases,narratives,outcomes}` (`dcc5a4d`) and not its own PARENT table's two — *a new door must inherit every sibling arm*, one level up. Registered as `gate:` debt in `authz-unswept-backlog.txt`. The ghost-check also named all five `validate_template_*` signatures ADR 0096 re-keyed to `p_template_version_id`. |
 | 2 | ⬛ | ~~**TV backfill never exercised** — rehearsal + snapshot blocking before `db push`.~~ **CLOSED (PO, 2026-08-05): the remote is EMPTY**, so the backfill meets 0 rows there exactly as it does locally. Not blocking. See the Phase Status caveat for the mechanism (which recurs) and for the unverified-premise error that produced this row. |
 | 3 | 🟡 | **Revoke residue** — `authenticated` still holds `TRUNCATE` on **66 tables**; TRUNCATE bypasses RLS entirely. Unreachable via PostgREST *today*. ⚠ This phase set its own standard by **refusing the "unreachable" argument** in `20260906000600`, so it should be swept or accepted **in writing** — not left implicit. |
 | 4 | 🟡 | **BUG-RCA-001** (see Bug Log) — pre-existing since `c4e20b3` (2026-06-18), needs a product decision: is "the interview's date" the earliest session's `scheduled_start`, or the interview's `created_at`? The correct pattern already exists at `src/lib/queries/interviews.ts:474`/`:520`. |
@@ -594,7 +615,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 | 7 | 🟢 | `compute_case_phase_result` / `sync_case_phase_on_submit` still force the `in_case_rpc` GUC off (fails **closed**). · Resolver error semantics: helpers now log, but still collapse "not found" and "query failed" into one return — the discriminated-union refactor was deliberately deferred as too risky post-green. |
 | 8 | 🟢 | **A FIFTH rebuild-property-loss, inside the migration written to close that class.** `20260907000700` recreated 10 policies on the 5 re-keyed relations **without the `TO authenticated` clause the originals carried** (`20260821000000` wrote `for select to authenticated`; the swap wrote bare `for select`). Platform split is **256 `{authenticated}` vs 11 `{public}` — and 10 of the 11 are these** (the 11th, `case_referral_delete_draft_source`, pre-dates the phase). `20260907001200` caught the ACL and `DEFERRABLE` losses and missed this one. **Verified INERT, twice:** `anon` holds **0 table grants on the 5** — and **0 anywhere in `public`** — so a bare policy still only ever evaluates for roles that either carry `BYPASSRLS` or cannot reach the table. Not a vulnerability; a latent widening if `anon` is ever granted anything. Normalize when one of these policies is next touched. ⚠ Same standard-consistency point as row 3: this phase refused the "unreachable" argument in `20260906000600`. |
 
-| 9 | 🟡 | **`296` suite-number COLLISION between branches.** This branch shipped `supabase/tests/296_process_case_integrity.sql`; `feat/membership-hardening-technical-director` has an untracked `supabase/tests/296_authz_p0_isolation.sql`. Two different files, one number. That branch is currently **26 behind `main` and 0 ahead** (all its work is uncommitted), so it is cheapest to renumber **now**, before it commits — not to resolve as a merge conflict later. Owner: whoever picks that branch back up. |
+| 9 | ⬛ | ~~**`296` suite-number COLLISION between branches.**~~ **CLOSED 2026-08-05** — resolved during the merge, not before it: the branch had committed by then, so it came through as a two-file collision on one number. Renumbered to `supabase/tests/298_authz_p0_isolation.sql`, with the Batch-4 runner in `p0b-isolation-mutation-audit.sh` following it. (A third collision was then created and caught in the same session — `299_hospital_content_door_noun_rule.sql` was first written as `284_`, which `284_accreditation_hospital_readiness.sql` already held. Check the directory before picking a number.) |
 | 10 | 🟢 | **PROGRESS.md is 105 KB against the <60 KB target** (CLAUDE.md §7 — every spawn pays for it). This phase's rotation took it from 111.6 KB, so the trend is right but the gap is not closed. Next rotation should take the `📋 Remaining pre-pilot work` and closed-bug sections. |
 
 **Landed, no longer a recommendation:** the PostgREST **embed sweep** built during this phase now
@@ -612,7 +633,30 @@ BUG-TV-001, because that site names no dropped column — it names a relation th
 ⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
 `case_phase_offered_results` rename.
 
-### 🔴 FUP-MEM-1 — `p0-authz-invariant.sh` `ARM=floor` reports 3 never-called INDICATOR doors (needs a `main` baseline)
+### ⬛ FUP-MEM-1 — `ARM=floor`'s 3 never-called INDICATOR doors — **RESOLVED 2026-08-05, not a defect**
+
+The baseline this asked for now exists. On the **merged** tree (branch + `main`, 285 migrations) on a
+**fresh `supabase db reset`**, `ARM=floor` reports **INVARIANT HOLDS**, and the three doors register
+calls: `hospital_indicator_rollup` **5** · `indicator_kpis` **1** · `record_indicator_measurement` **1**.
+
+**The leading hypothesis is DISPROVEN.** This entry proposed that `pg_stat_user_functions` does not
+retain stats from the ROLLED-BACK pgTAP transaction for these three. It demonstrably does — the same
+rolled-back suite now produces the counts above. ⚠ Note `hospital_indicator_rollup`'s 5 is
+**over-determined** (the new `299` suite calls it), so it proves nothing on its own; the evidence is
+`indicator_kpis` and `record_indicator_measurement`, which **nothing in this session touches** and
+which went 0 → 1.
+
+**The surviving explanation is the date.** The violating run was 2026-08-04 — inside BUG-P15-001's
+known date-fragile window for the indicator suite (the 1st–4th of any month), which this entry itself
+flagged as a live angle. Today is the 5th. ⚠ Not proven, and cheap to settle: re-run `ARM=floor` on a
+1st–4th. Until then, **do not allowlist the three** — the correct fix, if it recurs, is BUG-P15-001's
+date fragility, not the floor.
+
+⛔ **The wider lesson:** an `ARM=floor` violation is a claim about the SUITE's coverage, and a
+date-fragile suite makes that claim date-dependent. Record the DATE beside any floor result.
+
+<details><summary>Original 2026-08-04 entry (kept: it names the disproven hypothesis)</summary>
+
 
 **Open, and it contradicts FUP-P16-1's close two commits earlier**, which is the only reason it is
 filed red rather than shrugged off. On the MEM branch, `ARM=floor` on a fresh reset reports
@@ -644,6 +688,8 @@ if one is there.
 (it rewrote 246 BLIND rows down to 11 here, and was reverted). If you interrupt that sweep, restore
 that file before committing.
 
+</details>
+
 ### 🟡 FUP-MEM-2 — `assignOrgAdmin` migrated to the door with no E2E coverage
 
 W3/T3.3 moved `assignOrgAdmin` (`src/lib/platform/actions.ts` — the first-org_admin provisioning
@@ -660,7 +706,42 @@ only E2E caught them.
 **Fix:** either add a spec covering platform org-admin provisioning, or drive the path once manually
 before merge and record it. Cheap either way; do it before the full `e2e:prod` declare-green.
 
-### 🔴 FUP-AUTHZ-2 — 15 BLIND authz gates: a census of every RLS added since the invariant last ran
+### ⬛ FUP-AUTHZ-2 — 15 BLIND authz gates — **RESOLVED 2026-08-05**
+
+All 15 keystoned in `supabase/tests/298_authz_p0_isolation.sql` (**32/32**, DENY + POSITIVE twin
+each), **15/15 RED-PROVEN** by `p0b-isolation-mutation-audit.sh` Batch 4, all four controls green.
+Verified on a **fresh reset of the merged tree**: full pgTAP **160 files / 4903 / PASS**. Nothing was
+allowlisted — these are ordinary tenant-isolation policies. ⚠ The fixtures are pinned to seed ids and
+`main` rewrote `seed.sql` by 58 lines between authoring and running; they survived, but that was luck
+rather than design.
+
+**The gate that stops the sixteenth is `ARM=census` (ARM 3, ADR 0079 Amendment 3).** ARM 1 asserts
+BLIND ⊆ allowlist, and a never-swept gate is in NEITHER set, so it passes vacuously — instantly in
+`FROMFINDINGS` mode. That is how 15 policies crossed five phase gates. ARM 3 asserts every live gate
+carries a verdict *somewhere*; ~2 s, wired into CLAUDE.md §6 step 1, and proven by deleting a backlog
+line (exit 1) and restoring it (holds).
+
+**It has already earned it, twice.** Against the merged catalog it found
+`process_template_versions_{select,staff_admin_write}` unswept (FUP-PCITV-1 row 1), and its
+ghost-check named five `validate_template_*` signatures ADR 0096 had re-keyed. It also caught **my
+own** error: three policy names entered from a commit message instead of the catalog.
+
+⚠ **Two design holes were found in ARM 3 itself and fixed in the same session** — recorded because a
+census that looks complete is worse than one that admits its edge:
+1. **The verdict had nowhere to land.** ARM 3 reads the committed findings md; the diff-scoped ARM 1
+   recipe *ends by discarding that file*. The sweep §6 mandates could not record a verdict, so a
+   correctly-swept gate would read UNSWEPT forever. Added a `swept:` section.
+2. **Boolean-only domain.** BUG-AUTHZ-002's two doors are `prosecdef` DEFINERs returning `TABLE(...)`,
+   so ARM 3 as first written **could not have caught them** — the same enumeration hole it exists to
+   close. Domain extended to authenticated-reachable row-returning DEFINERs (**+45**, all registered
+   as `gate:` debt); justification is the standing rule that a DEFINER's gate REPLACES RLS.
+
+⛔ **Still outside ARM 3: AUDIT-INVOKER-WRAPPER** (`prosecdef = f` wrappers whose hand-written probe
+is the only gate; 130 of 281 `app` DEFINERs are PUBLIC-executable). Named in the backlog header so
+ARM 3 holding is not mistaken for evidence about that class.
+
+<details><summary>Original 2026-08-04 entry</summary>
+
 
 `p0-authz-invariant.sh ARM=policy` (full sweep, 2026-08-04, ~5 h, run on the MEM branch). **302 door
 cases + the write-path sweep. BLIND set 83; 15 are NOT in `authz-blind-allowlist.txt` ⇒ INVARIANT
@@ -720,7 +801,28 @@ mutation audits are (`291` 9/9 · `292` 9/9 · `293` 8/8 · `294` 8/8 · `295` 1
 `answer_references_select` (an FF-5 obligation, now closed), `app.is_admin_for`,
 `app.is_hospital_admin_of_for` (both covered by MEM W1/W3), `form_item_validations_select`.
 
-### 🔴 FUP-BULK-1 — the bulk wizard deals cases to SUSPENDED members (~22% random E2E red, pre-existing)
+</details>
+
+### 🟡 FUP-BULK-1 — bulk wizard deals to SUSPENDED members — **FIXED 2026-08-05, E2E confirmation owed**
+
+`listMembers` now carries `isActive`, a TS mirror of `app.is_active`; `activeMembers()` narrows the
+bulk wizard's source to members `bulk_create_cases` will accept. **Carried, never pre-filtered** — the
+two consumers need opposite answers, since member management is where a suspension gets lifted.
+Mutation-proven: removing the suspension term reds 2 of 9 new unit tests. No migration — both columns
+already carry a column-level SELECT grant, **re-verified after `main`'s 23 migrations** (the TV phase
+did revoke work, so the grant was not assumed).
+
+⚠ **The new embed was probed against PostgREST, not `tsc`** — the change adds two columns to a select
+string, which is exactly the shape of BUG-TV-001 and BUG-RCA-001. `scripts/probe-embeds.mjs` resolves
+it 200/OK. ⚠ **That tool reports `42501` for 228 of 286 sites** (it runs as `anon`), and a 42501 means
+PostgREST stopped at permissions and never resolved the embed — those sites are **unvalidated, not
+validated**. Read its output accordingly; the service-role replay is what actually proves a site.
+
+**Owed:** the ~22% red is a probabilistic E2E failure, so only a full `e2e:prod` run can confirm it is
+gone. Not yet run.
+
+<details><summary>Original entry</summary>
+
 
 Found 2026-08-04 during the MEM full-gate triage. **Not a MEM regression** — the mechanism is
 probabilistic and identical on `main`.
@@ -744,6 +846,8 @@ member source) on the same activity predicate the RPC enforces, so a suspended m
 offered as a deal target. Until then this reds `bulk-case-creation.spec.ts` roughly one run in five,
 on any branch. Related: the door/list-disagreement family in
 `docs/progress/authz-handoff.md §7`.
+
+</details>
 
 ### 🟡 FUP-MEM-3 — the DT referral plane is live with NO product caller
 

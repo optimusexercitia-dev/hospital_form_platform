@@ -18,6 +18,19 @@
 # ⚠ UNSWEPT is NOT a synonym for BLIND. Several entries below are probably COVERED
 # already; nobody has asked.
 #
+# ⛔ WHAT ARM 3 STILL CANNOT SEE — stated here because a census that looks complete is
+# more dangerous than one that admits its edge. The domain is: `prosecdef` booleans,
+# `prosecdef` row-returning doors, and RLS policies. It does NOT cover
+# **AUDIT-INVOKER-WRAPPER** (PROGRESS.md, Remaining pre-pilot work #3): a `prosecdef = f`
+# INVOKER function whose own hand-written `if not exists (…)` probe is the only gate in
+# front of an `app.` DEFINER body. Those carry no `prosecdef` flag and no policy, so
+# nothing in this file's domain reaches them — and **130 of 281 `app` DEFINER functions
+# carry EXECUTE to PUBLIC**, which makes the wrapper the whole boundary each time.
+# Proven live in FF-3: deleting `get_response_validation_errors`'s existence probe reds
+# ZERO assertions across six files while a commission-Y staff reads commission-X rule
+# messages and item labels. Scheduling is a PO decision; the point of this note is that
+# ARM 3 holding is not evidence about that class.
+#
 # ── Why 46 gates were unswept on 2026-08-04 (the root cause, not 46 oversights) ──
 # The two sweeps enumerate DIFFERENT, and both INCOMPLETE, domains:
 #   * p0-authz-door-audit.sh policy arm queries the live catalog but filters
@@ -92,6 +105,70 @@ app.department_belongs_to_commission(p_department_id uuid, p_commission_id uuid)
 #    shape, one level up. Genuine audit debt, not bookkeeping.
 process_template_versions.process_template_versions_select (SELECT)
 process_template_versions.process_template_versions_staff_admin_write (ALL)
+
+# -- ROW-RETURNING DEFINER DOORS (45), added to the census 2026-08-05 after BUG-AUTHZ-002.
+#    Every one is authenticated-reachable, `prosecdef`, and returns ROWS — so by the
+#    standing rule (a DEFINER's gate REPLACES RLS) the gate inside each IS the whole
+#    boundary. None has ever been through a neutralization sweep, because both sweeps
+#    enumerate booleans and policies: the door audit neutralizes a predicate to `true`,
+#    which is meaningless for a function that returns a table.
+#
+#    ⚠ This class is NOT hypothetical debt. BUG-AUTHZ-002 lived here: two of these doors
+#    returned commission content to platform_admin against ADR 0078 A35's noun rule, and
+#    a boolean-only census could not see them. Fixed by `20260908000100`, held by
+#    `299_hospital_content_door_noun_rule.sql` — whose §4 is the model for what each of
+#    these eventually owes: a COMPUTED enumeration plus a row-count assertion per
+#    principal, never a predicate call.
+#
+#    Sweeping them needs a neutralization the door audit does not have yet (open the
+#    INTERNAL gate; setting the return type to `true` is meaningless here). That harness
+#    work is the blocker, not triage.
+
+app.case_phase_option_aggregates(p_case_phase_id uuid)
+app.eligible_voters(p_case_id uuid)
+app.response_validation_errors(p_response_id uuid)
+app.signoff_target(p_response_id uuid, p_section_id uuid)
+app.submitted_form_responses(p_form_id uuid)
+public.capa_kpis()
+public.case_action_items_kpis(p_commission_id uuid)
+public.case_tag_report(p_commission_id uuid, p_from date, p_to date)
+public.commission_overview()
+public.dashboard_completion_by_member(p_form_id uuid, p_from date, p_to date)
+public.dashboard_distributions(p_form_id uuid, p_from date, p_to date)
+public.dashboard_entity_references(p_form_id uuid, p_from date, p_to date)
+public.dashboard_export_rows(p_form_id uuid, p_from date, p_to date)
+public.dashboard_form_totals(p_commission_id uuid, p_from date, p_to date)
+public.dashboard_free_text(p_form_id uuid, p_from date, p_to date, p_limit integer)
+public.dashboard_matrix_cells(p_form_id uuid, p_from date, p_to date)
+public.dashboard_risk_scores(p_form_id uuid, p_from date, p_to date)
+public.dashboard_submissions_over_time(p_form_id uuid, p_from date, p_to date)
+public.documents_due_for_review(p_commission uuid)
+public.evidence_candidates(p_commission uuid, p_kind text, p_query text)
+public.get_case_meeting_links(p_case_id uuid)
+public.get_meeting_agenda_items(p_meeting_id uuid)
+public.get_meeting_cases(p_meeting_id uuid)
+public.get_reserved_session_items(p_meeting_id uuid)
+public.get_standard_assessment(p_commission uuid, p_standard uuid)
+public.hospital_document_register(p_hospital uuid, p_doc_type text, p_status text, p_review_overdue_only boolean)
+public.hospital_indicator_rollup(p_hospital uuid)
+public.hospital_readiness(p_hospital uuid, p_framework uuid)
+public.indicator_kpis(p_commission uuid)
+public.indicator_series(p_indicator uuid, p_from text, p_to text)
+public.list_addable_commission_members(p_commission_id uuid, p_search text)
+public.list_approver_candidates(p_commission uuid)
+public.list_case_access(p_case uuid)
+public.list_cases_board(p_commission_id uuid, p_limit integer)
+public.list_commission_documents(p_commission uuid)
+public.list_my_assigned_capa_actions()
+public.list_referral_target_commissions(p_source_commission_id uuid)
+public.list_signoff_queue(p_commission_id uuid)
+public.my_pending_meeting_signatures()
+public.open_attachment(p_id uuid)
+public.pqs_inbox(p_status text, p_suspected_harm_level text, p_reporting_commission_id uuid, p_cursor_reported_at timestamp with time zone, p_cursor_id uuid, p_limit integer)
+public.readiness_evidence(p_commission uuid, p_standard uuid)
+public.readiness_report(p_commission uuid, p_framework uuid)
+public.triage_disposition(p_event_id uuid)
+public.verify_audit_chain(p_commission uuid, p_organization uuid, p_hospital uuid)
 
 # ════════════════════════════════════════════════════════════════════════════════
 # helper: NOT an authorization decision — the result does not depend on WHO is asking.

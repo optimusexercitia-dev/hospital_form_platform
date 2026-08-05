@@ -418,12 +418,19 @@ select is(
   0, 'a plain member cannot read the hospital register (rollup gated)');
 reset role;
 
--- 8b — the platform admin sees the hospital's documents (DOC A + DOC B).
+-- 8b — the platform admin reads NOTHING from the hospital register (BUG-AUTHZ-002,
+-- fixed by `20260908000100`). This assertion is INVERTED from what it pinned before:
+-- it used to require `>= 2`, i.e. it encoded the very leak the bug reports. Controlled
+-- documents are commission CONTENT, and ADR 0078 A35's noun rule puts content out of
+-- platform_admin's reach; the `app.is_admin()` disjunct that satisfied the old form was
+-- the leak, not the feature. Full treatment + the computed door census:
+-- `299_hospital_content_door_noun_rule.sql`.
 set local role authenticated;
 select test_helpers.claims_for((select admin from k), true);
-select ok(
-  (select count(*)::int from public.hospital_document_register((select hosp_id from k), null, null, false)) >= 2,
-  'the platform admin reads the hospital register across commissions');
+select is(
+  (select count(*)::int from public.hospital_document_register((select hosp_id from k), null, null, false)),
+  0,
+  'the platform admin reads NO documents from the hospital register (noun rule; was >= 2 while BUG-AUTHZ-002 was open)');
 reset role;
 
 -- 8c — the register projection is PHI-free: its OUT columns carry no markdown/path.

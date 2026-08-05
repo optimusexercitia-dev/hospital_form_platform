@@ -200,12 +200,23 @@ run_arm_census () {
   # (no name-prefix filter — `capa_viewer_can_manage` and `member_can` are real gates the
   # door audit's `^(is_|can_|has_)` regex has never had in scope) and ALL RLS policies
   # (every polcmd — the door arm sees only SELECT/ALL, the write arm only its snapshot).
+  #
+  # ⚠ AND every authenticated-reachable DEFINER that RETURNS ROWS. Added 2026-08-05 after
+  # BUG-AUTHZ-002: `hospital_document_register` and `hospital_indicator_rollup` are
+  # `prosecdef` doors returning TABLE(...), so a boolean-only census could not see them —
+  # and they were leaking commission content to platform_admin the whole time this arm
+  # claimed to close the enumeration hole. The justification is CLAUDE.md's own standing
+  # rule: a DEFINER's gate REPLACES RLS, so for these the internal gate IS the entire
+  # boundary. A boolean predicate is a gate you can neutralize; a row-returning door is a
+  # gate you can walk through.
   { psql_c -c "
       select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       join pg_type      t on t.oid = p.prorettype
-      where n.nspname in ('app','public') and p.prosecdef and t.typname = 'bool';"
+      where n.nspname in ('app','public') and p.prosecdef
+        and (t.typname = 'bool'
+             or (p.proretset and has_function_privilege('authenticated', p.oid, 'EXECUTE')));"
     psql_c -c "
       select c.relname||'.'||pol.polname||' ('||
              (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'

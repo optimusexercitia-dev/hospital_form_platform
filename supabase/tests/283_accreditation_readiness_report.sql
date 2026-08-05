@@ -247,10 +247,19 @@ select ok(
        from pg_proc where proname = 'readiness_evidence' and pronamespace = 'public'::regnamespace),
   'E2. readiness_evidence''s body carries NO is_admin() call (structural, comment-stripped)'
 );
+-- ⚠ E3 was anchored on `hospital_document_register`, i.e. on an OPEN BUG. That made the
+-- control evaporate the moment BUG-AUTHZ-002 was fixed (`20260908000100`): the regex
+-- stopped matching, E3 went red, and E1/E2 quietly became unfalsifiable by this file.
+-- A non-vacuity control must be anchored on something that stays true BY DESIGN, never
+-- on a defect someone is expected to remove. `verify_audit_chain` is that anchor: its
+-- `app.is_admin()` is the PLATFORM-tier branch (all args null), and the global audit
+-- chain is precisely the noun ADR 0078 A35 grants platform_admin — so it is correct, and
+-- correct permanently. `299_hospital_content_door_noun_rule.sql` §3.3/§3.4 pins that
+-- claim behaviourally, both directions.
 select ok(
   (select regexp_replace(prosrc, '--[^\n]*', '', 'g') ~ 'is_admin\s*\('
-     from pg_proc where proname = 'hospital_document_register' and pronamespace = 'public'::regnamespace),
-  'E3. cross-check: the SAME regex correctly finds is_admin() in hospital_document_register (the known BUG-AUTHZ-002 shape) — proving E1/E2 are not vacuous'
+     from pg_proc where proname = 'verify_audit_chain' and pronamespace = 'public'::regnamespace),
+  'E3. cross-check: the SAME regex finds is_admin() in verify_audit_chain (correct BY DESIGN — platform-tier audit) — proving E1/E2 are not vacuous'
 );
 
 select * from finish();
