@@ -282,48 +282,6 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-⬛ **BUG-AFF-1 — `addStaff`'s `authorizeStaffOps` has no `hospital_admin` arm; the
-commission's own "Adicionar membro" picker is fully offered to a hospital_admin and
-refused only at submit. ✅ FIXED 2026-08-06 (`8155be2`).** Filed 2026-08-06, AFF T3.6
-(`tester`). **NOT an AFF regression** — `src/lib/members/actions.ts` was last touched by
-`36a69d5` (`feat(mem-w2,w3)`, unrelated to AFF) and its `authorizeStaffOps` had only two
-arms (staff_admin of the commission, or org_admin of its org) since before this
-workstream. **Repro (originally RED-proven; now INVERTED, not deleted, in
-`e2e/aff-hospital-affiliation.spec.ts` AFF-1):** as `hospitaladmin.dual@test.local`
-(hospital_admin of both `central-a` and `secundario-a`, Rede A), reach
-`/o/rede-a/c/etica/manage/members` (renders fine — the page gate
-`getCommissionAccessByOrg` and the candidate list `list_addable_commission_members`
-both already admit hospital_admin via `is_commission_admin_of`'s hospital leg, ADR 0097
-finding 1), click "Adicionar membro", search and select a real, addable org person,
-click "Adicionar". **Was:** `[role="status"]` rendered "Você não tem permissão para
-esta ação." — the whole picker flow (search, select, enable the submit button) was
-offered and interactive, then refused only on the final call. **Violated:** CLAUDE.md
-Architecture Rule 1 in spirit (a fully-enabled control that always failed for this role)
-and the "a new door must inherit every sibling arm" lesson (memory:
-new-door-must-inherit-every-sibling-arm) — the OLDER door was the one missing the arm
-its newer sibling (`assignCommitteeRole`/`authorizeForCommission`,
-`authorizeHospitalOps(hospitalId)`) already had.
-**Status:** ✅ **FIXED 2026-08-06** by `8155be2` (`backend`) — `authorizeStaffOps` gains
-a third arm, `hospital_admin` of the commission's `hospital_id`, mirroring
-`is_commission_admin_of`'s hospital leg exactly (verified door-by-door against the live
-catalog: every door `authorizeStaffOps` fronts already resolved that predicate, so the
-TS pre-check was strictly STRICTER than its own doors — it failed CLOSED, which is why
-nothing caught it earlier; a refusal always looks like the system working). A second
-instance of the same drift (`isInactive` not checked) was found and fixed in the same
-commit. Backend unit keystone: `src/lib/members/staff-ops-mirror.test.ts`.
-⚠ **This was a MIRROR-DRIFT CORRECTION, not a capability widening** — every door behind
-`authorizeStaffOps` already admitted a hospital_admin of the commission's hospital, so
-the fix grants nothing the database did not already grant. A future reader must not read
-this row as "hospital_admin gained committee-member management" as a security change.
-**Re-verified 2026-08-06 (`tester`):** the repro is now the ALLOW arm —
-`hospitaladmin.dual` seats the person on Comissão de Ética AS THEMSELVES, asserted by a
-service-role `memberships` row read (not merely the toast), plus confirmation the
-person's OTHER hospital's affiliation is untouched. A DENY arm sits alongside it in the
-same file: `hospitaladmin.a1` (a sibling hospital's admin, central-a only) is still
-refused for that same commission, with the membership row count asserted unchanged by
-the attempt. Both green, twice-run. The `orgadmin.a` workaround from the original repro
-is gone — the intended actor (hospital_admin) now completes the scenario directly.
-
 🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
 (QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
 **Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
@@ -372,104 +330,14 @@ log line — so the green is causally attributable to the fix, not to environmen
 `e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
 unmodified — final gate verification remains `tester`'s.
 
-⬛ **BUG-RCA-001 — RCA citation targets silently omit ALL interviews. ✅ FIXED 2026-08-05.** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
-**nobody was looking for this one; it is unrelated to ADR 0096.** `listRcaCitationTargets`
-(`src/lib/queries/rca.ts:450`) issues
-`.from('case_interviews').select('id, interview_number, title, scheduled_start')`.
-**`case_interviews` has no `scheduled_start` column** — per `information_schema`, it lives on
-`interview_sessions` (an interview has many sessions). PostgREST/Postgres reject the whole
-select with `42703 column case_interviews.scheduled_start does not exist`, so `data` is
-`null`, `interviews ?? []` yields `[]`, and **every interview is silently dropped from the RCA
-citation-target list** — no error, no toast, just missing options. **Invisible to every
-existing gate** for the standard reason: a `.select()` is an opaque string and `.returns<T>()`
-is a type *assertion*, so it typechecks, lints, and passes E2E (which has no coverage of this
-picker). **Fix is a product decision, deliberately NOT taken unilaterally:** an interview has
-N sessions, so "the interview's date" must be defined (earliest session's `scheduled_start`?
-the interview's `created_at`?) — needs an owner ruling before the embed is written.
-**PO RULING 2026-08-05: "the interview's date" is the EARLIEST session's `scheduled_start`.**
-**Fixed** in `listRcaCitationTargets` — the select now embeds `interview_sessions ( scheduled_start )`
-and derives via the new exported `earliestSessionStart()`. No migration; client layer only.
-**Verified against PostgREST, not `tsc`:** the old select returns `42703 column
-case_interviews.scheduled_start does not exist`; the new one returns HTTP 200 with real rows — and the
-seeded interview genuinely carries TWO sessions (08-03 and 08-08), so the derivation is exercised rather
-than trivially satisfied. A full `probe-embeds.mjs` re-run over 286 sites now shows **zero 42703**.
-**The ruling is pinned by a TEST, not a comment** (`rca.test.ts`, 5 cases). The helper is exported and
-pure precisely because "its date" is a CHOICE — `created_at` was the live alternative, and a comment
-would not have survived the next refactor.
-⚠ Deliberately NOT status-filtered like `toNextSession` — that helper answers "what is NEXT", this one
-answers "when WAS it", and a concluded interview's sessions are exactly the ones it excludes.
-⚠ **Mutation-proven per arm** (ADR 0079 A2): sorting descending reds the earliest-wins case; dropping the
-undated filter reds the null-handling case. **My first attempt at the second probe was INERT** — the
-replace matched nothing and stayed green, which is indistinguishable from a surviving probe and would
-have had me delete a good test as vacuous. Confirm a mutation APPLIED before trusting its verdict.
-
-⬛ **BUG-A11Y-001 — duplicate DOM ids on `/admin` broke label→control association. ✅ FIXED 2026-08-05.**
-Found by FUP-MEM-2's spec on its **first ever execution** (written 08-04, never run until the full gate).
-`useFieldIds(name)` used `name` as BOTH the form key and the DOM id, so two forms on one page sharing a
-field name emitted duplicate ids. `/admin` renders three forms and had **three** collisions: `name` and
-`slug` (organization vs hospital create) and `organizationId` (hospital create vs org-admin assign).
-`htmlFor` resolves to the FIRST match in document order, so each LATER form's labels pointed at the
-EARLIER form's controls — clicking "Organização" in the org-admin section moved focus into the hospital
-form, and a screen reader announced the wrong field. **Impact is accessibility + focus, not authorization.**
-**Fix:** `useFieldIds` gains an optional `id`; `name` still drives `formData.get(name)`, so no action
-contract changed. Applied to the two later forms. The systemic fix (id from `useId()`) was deliberately
-NOT taken — that primitive backs **38 components** and rewriting it with no cheap re-verification is how a
-regression ships → FUP-A11Y-1.
-⚠ **The first fix was INERT.** `controlId` was threaded into `descriptionId`/`errorId` while `controlProps`
-still returned `id: name`, so nothing reached the DOM and the re-run failed identically. Caught by dumping
-the LIVE DOM — re-reading the diff would only have confirmed my intent, never the behaviour.
-⚠ **A green suite is not a working teardown.** This spec's purge fought two invariants
-(`guard_profile_no_delete` raises unconditionally; `profiles.id` FKs `auth.users.id` with no cascade) and
-had never executed, because MEM2-1 failed BEFORE creating the invitee so the purge always matched zero
-rows. A teardown is first exercised when the test it cleans up after starts passing.
-
-⬛ **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation). ✅ FIXED 2026-08-05.**
-Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
-migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
-`app.is_admin()` OR-arm live in **`public.hospital_document_register`** and
-**`public.hospital_indicator_rollup`** — both `prosecdef = t`, both returning commission content
-(documents; indicator rollups) that ADR 0078 A35's noun rule forbids platform_admin from reading.
-**Verified against the live catalog, not the plan text** — the gate reads literally:
-```
-if not (app.is_admin()
-        or app.is_hospital_admin_of(p_hospital)
-        or app.is_org_admin_of(app.org_of_hospital(p_hospital))) then return;
-```
-So the `is_admin()` arm *is* the gate, not a comment. ⚠ Verified at the **catalog** layer
-(gate text + `prosecdef` + return shape); a live platform_admin row-count probe has **not** been
-run — do that first when fixing, so the fix has a red-before-green. Fix = own migration dropping
-the arm + a `270_authz_dashboard_gate_uniformity.sql`-style **parity** extension asserting
-platform_admin gets zero rows from *every* hospital-tier DEFINER, ideally before the pilot deploy.
-**The lesson is the sweep's boundary, not the two functions**: `20260903000700` enumerated by
-*name prefix* (`dashboard_*`) where the real property is "DEFINER door returning commission
-content" — the standing "if your enumeration's boundary is a filename, it's wrong" rule, one
-level up. Phase 16's own doors are specified to inherit the correct shape (ADR 0093 D6).
-**Status:** ✅ **FIXED 2026-08-05** by `20260908000100`, held by
-`299_hospital_content_door_noun_rule.sql` (11/11).
-**RED BEFORE GREEN, as this entry asked:** the live probe it was missing was run first —
-platform@ read **3 documents / 2 rollups** from Hospital Central A; after the migration, **0 / 0**.
-Twins: hospital_admin.a1 and orgadmin.a still read 3 / 2, so the fix did not fail closed.
-**Mutation-proven per arm** (ADR 0079 A2's FORK rule): restoring the disjunct on
-`hospital_document_register` reds §2.1 only, on `hospital_indicator_rollup` reds §2.2 only —
-neither assertion is redundant, and one probe would have made the other look vacuous.
-⚠ **This entry's prescribed test was wrong as written.** "Zero rows from *every* hospital-tier
-DEFINER" fails on `verify_audit_chain`: enumerating the property live returns **four** doors, and
-that one's `app.is_admin()` is its **platform-tier** branch (all args null) — audit is
-platform_admin's own noun, so the arm is correct and permanent. Its hospital branch already
-excluded platform_admin. Probed both ways (42501 at hospital tier, `ok = t` at platform tier). The
-property is commission **content**, not hospital **tier**; `299` §4 derives the door set from
-`pg_proc` at run time and reds on any unrecognised member.
-⚠ **Two existing tests encoded the OLD behaviour and had to be inverted** — the fix is not
-complete without them: `200_controlled_documents.sql` #30 *required* `>= 2` rows for platform_admin
-(a test pinning the leak), and `283_accreditation_readiness_report.sql` E3 used this very bug as its
-**non-vacuity control**, so fixing the bug removed the control and left E1/E2 unfalsifiable. E3 is
-re-anchored on `verify_audit_chain`. **A control anchored on a defect evaporates when the defect is
-fixed — anchor it on something correct BY DESIGN.**
-
-### Closed — rotated 2026-08-04 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+### Closed — rotated 2026-08-04 · 2026-08-06 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 | Bug | Summary | Closed |
 | --- | --- | --- |
+| **BUG-AUTHZ-002** | The BUG-AUTHZ-001 sweep enumerated by **name prefix** (`dashboard_*`) where the property is "DEFINER door returning commission content" — it left the same `app.is_admin()` arm live in `hospital_document_register` + `hospital_indicator_rollup`. Fixed by `20260908000100`, held by pgTAP `299` (11/11); red-before-green proven (3 docs / 2 rollups → 0 / 0). ⚠ The entry's own prescribed test was wrong — `verify_audit_chain`'s `is_admin()` arm is its **platform-tier** branch and is correct BY DESIGN | 2026-08-05 |
+| **BUG-RCA-001** | `listRcaCitationTargets` selected `case_interviews.scheduled_start` — a column that lives on `interview_sessions`. `42703` → `data` null → **every interview silently dropped** from the RCA citation picker. PO ruled "the interview's date" = earliest session; pinned by `rca.test.ts` (5 cases), not a comment. Zero `42703` across 286 embed sites after the fix | 2026-08-05 |
+| **BUG-A11Y-001** | `useFieldIds(name)` used `name` as both form key and DOM id — three id collisions on `/admin` sent each later form's labels at the earlier form's controls. ⚠ The **first fix was INERT** (`controlProps` still returned `id: name`); caught only by dumping the live DOM. Systemic `useId()` fix deliberately deferred → FUP-A11Y-1 | 2026-08-05 |
+| **BUG-AFF-1** | `addStaff`'s `authorizeStaffOps` lacked a `hospital_admin` arm — the "Adicionar membro" picker was fully offered to a hospital_admin and refused only at submit. ⚠ A **mirror-drift correction, not a capability widening**: every door it fronts already admitted them, so it failed CLOSED and nothing caught it. Durable statement → `docs/backend-state.md` (`authorizeStaffOps`); AFF-1 E2E now carries an ALLOW **and** a DENY arm | 2026-08-06 |
 | **BUG-P16-001** | Saving a standard assessment **silently destroyed** the existing `note_md` — no read path, unconditional upsert. Fixed in three halves (RPC `coalesce` + `optionalClearableText` + a real read path). ⚠ **Both** round-trips are asserted (pgTAP 281 C7b *and* C11) because either alone passes in a broken world | 2026-08-03 |
 | **BUG-P16-002** | **P0** — all 7 `queries/accreditation.ts` functions still `throw new Error('not implemented')`; every Phase 16 screen dead on arrival. The contract was scheduled, the implementation never was. Survived the whole green bar because the routes sat behind a flag seeded OFF | 2026-08-03 |
 | **BUG-P16-003** | `framework-list.tsx` forwarded a `frameworkHref` **closure across a Server→Client boundary** — crashed the commission framework list for every staff_admin as soon as one global framework existed | 2026-08-03 |
@@ -514,8 +382,8 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 | --- | --- | --- |
 | 2026-08-06 | **AFF post-gate remediation · `tester`** — (1) hermetic fix for `phase16-accreditation-core.spec.ts` AC-4's cross-clock flake (`markerT0` now `sqlOne('select clock_timestamp()::text;')`, DB clock on both sides of the `occurred_at >=` comparison, not a host `new Date().toISOString()`); property-derived sweep of all of `e2e/` for the same shape (a JS-minted timestamp compared against a DB timestamp column in a filtering predicate) found **zero** additional instances — every other `audit_log`/timestamp read in the suite filters by identity (`action=eq….&entity_id=eq….`) or orders without a time-window predicate; the two near-misses inspected (`charters-cadence.spec.ts`'s `nowIso`, `phase14c-rca.spec.ts`'s `p_occurred_at`) are both WRITE-side values, not comparison markers. (2) Two new `e2e/aff-hospital-affiliation.spec.ts` AFF-6 tests for HC0R1 (D5's `endAffiliation` blockers list, previously reached by NO E2E) — commission-tier (`dr.john`, names `Membro — Comissão de Controle de Infecção Hospitalar`) and hospital-tier (`hospitaladmin.a1` — corrected fixture; the lead's first pointer, `dt.a`, was verified against the live catalog to have 0 active affiliations, so it cannot reach the refusal at all; `hospitaladmin.a1` is the one seed persona both affiliated to a hospital and holding a hospital-tier seat there — `hospital_admin`, no commission, at central-a — names `Administração do hospital — cargo do hospital`). Both assert via `getByRole('alert')` (not `getByText`), which is what pins `frontend`'s second fix (the confirm dialog now closes on refusal too, not only on success — previously the alert rendered `aria-hidden` behind a still-open Radix dialog). Both tests are READ-ONLY / self-reverting (the door refuses the end in both cases, so nothing in the seed changes and no cleanup is needed) | **AC-4 (isolated `phase16-accreditation-core.spec.ts`, `--workers=1`): 3 consecutive clean runs — 7/7, 7/7, then the AC-4 test alone 1/1.** Full load could not be reproduced locally (that is the lead's `e2e:prod` to re-run), but the fix removes the cross-clock comparison the diagnosis identified as the sole cause. `e2e/aff-hospital-affiliation.spec.ts`: **13/13, run twice.** Combined with `phase16-accreditation-core.spec.ts`: **20/20.** `phase3-admin-members.spec.ts` (untouched by this task) showed 2 DIFFERENT failing tests across 2 consecutive isolated runs — non-reproducible, consistent with concurrent `qa`/`frontend`/`backend` activity in the same tree/DB, not attributed to this task's changes. lint (`e2e/` scope, `--max-warnings=0`) and `tsc --noEmit` both clean. `git branch --show-current` verified `feat/hospital-affiliation-person-identity` before staging; `e2e/**` + `PROGRESS.md` only |
 | 2026-08-06 | **AFF T3.6 · `tester` · BUG-AFF-1 fix re-verification** — repro inverted (ALLOW: `hospitaladmin.dual` seats the person on Comissão de Ética AS THEMSELVES, seat confirmed by a service-role `memberships` row read, not the toast; DENY: a sibling hospital's admin still refused, row count asserted unchanged) against `8155be2`. `e2e/aff-hospital-affiliation.spec.ts` (now 11 tests) + the 3 sibling specs, `--project=chromium --workers=1`, dev server, live (non-reset) local DB | **New spec run independently TWICE, 11/11 both times.** Combined targeted set (4 files, 77 tests incl. 1 deliberate skip): **76 passed · 0 failed** on the final run. **2 more pre-existing directory-pagination fragilities found and fixed in `hospital-admin-tier.spec.ts`** during re-runs (accumulated E2E-registered users from repeated same-session runs pushed a fixed seeded name off an unfiltered page-1 default) — "sees ONLY central-a users" and "CANNOT deactivate" both rescoped to `?search=`, the same fix already applied to their sibling earlier; the negative-only assertions were untouched (immune by construction). `npm run lint` (scope `e2e/`) and `tsc --noEmit` both clean, 0 warnings — the `CENTRAL_A_ID` unused-var warning is gone, used in the ALLOW arm's cross-hospital-untouched check. `git branch --show-current` verified `feat/hospital-affiliation-person-identity` before staging; `e2e/**` + `PROGRESS.md` only |
-| 2026-08-06 | **AFF T3.6 · `tester` · targeted run** — new `e2e/aff-hospital-affiliation.spec.ts` (11 tests) + repaired `e2e/{user-registration,hospital-admin-tier,phase3-admin-members}.spec.ts` (locator/CPF-step fixes), `--project=chromium --workers=1`, dev server, on the live (non-reset) local DB | **76 passed · 0 failed · 1 deliberate skip (env-gated invite-mode) · 77 collected.** New spec run independently TWICE, 11/11 both times. `--workers=1` required — full parallelism (`fullyParallel`'s default worker count) reproducibly timed out every `page.goto('/login')` even though the server answered curl/direct-hit fine (concurrent-login contention under this sandboxed shell, not a product issue); serialized runs were reliable across ~6 repeats. **1 bug filed: BUG-AFF-1** (pre-existing `addStaff` authorization gap, not AFF-caused — full repro in the Bug Log). **1 pre-existing spec fragility fixed in passing** (`hospital-admin-tier.spec.ts` HA-6's "registers a new user" test asserted against a fixed, non-unique display name on an UNFILTERED directory page — luck-dependent once enough same-session registrations accumulated; now scoped to `?search=<unique email>` like its siblings). **1 test rewritten for a ratified ADR decision, not a regression**: HA-6's "can deactivate" assumed the pre-AFF (ADR 0051) contract; ADR 0097 D14 / ADR 0098 §W3.2 deliberately made account deactivation `org_admin`-only, so the test now asserts the controls are ABSENT for a hospital_admin (mirrors the "281 D1 inverted, not deleted" convention) |
-| 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · FULL `e2e:prod`** (RESET+REBUILD, 84 specs / 16 batches) | **970 passed · 1 failed · 0 flaky · 2 did-not-run** — denominator reconciled, no batch gaps, no `reset FAILED`. **2 infra re-runs** (batch 8 `server_dead=1 conn_errors=64`; batch 15 `server_dead=1 conn_errors=22`), both cleared — twin server deaths matching the known `supabase_vector` auth-gateway crash-loop, and both dead batches are login-heavy. **The 1 real failure was MEM2-1, and it was a PRODUCT DEFECT rather than a test bug** → BUG-A11Y-001 in the Bug Log. FUP-BULK-1's `bulk-case-creation.spec.ts` GREEN; the new `technical-direction-referrals.spec.ts` GREEN against the prod build. ⚠ The 2 did-not-run are MEM2-2/2-3, skipped by serial mode after MEM2-1 failed — accounted, not lost |
+| 2026-08-06 | **AFF T3.6 · `tester` · targeted run** — new `e2e/aff-hospital-affiliation.spec.ts` (11 tests) + repaired `e2e/{user-registration,hospital-admin-tier,phase3-admin-members}.spec.ts` (locator/CPF-step fixes), `--project=chromium --workers=1`, dev server, on the live (non-reset) local DB | **76 passed · 0 failed · 1 deliberate skip (env-gated invite-mode) · 77 collected.** New spec run independently TWICE, 11/11 both times. `--workers=1` required — full parallelism (`fullyParallel`'s default worker count) reproducibly timed out every `page.goto('/login')` even though the server answered curl/direct-hit fine (concurrent-login contention under this sandboxed shell, not a product issue); serialized runs were reliable across ~6 repeats. **1 bug filed: BUG-AFF-1** (pre-existing `addStaff` authorization gap, not AFF-caused — full repro in [bug-log-archive.md](docs/progress/bug-log-archive.md), rotated 2026-08-06). **1 pre-existing spec fragility fixed in passing** (`hospital-admin-tier.spec.ts` HA-6's "registers a new user" test asserted against a fixed, non-unique display name on an UNFILTERED directory page — luck-dependent once enough same-session registrations accumulated; now scoped to `?search=<unique email>` like its siblings). **1 test rewritten for a ratified ADR decision, not a regression**: HA-6's "can deactivate" assumed the pre-AFF (ADR 0051) contract; ADR 0097 D14 / ADR 0098 §W3.2 deliberately made account deactivation `org_admin`-only, so the test now asserts the controls are ABSENT for a hospital_admin (mirrors the "281 D1 inverted, not deleted" convention) |
+| 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · FULL `e2e:prod`** (RESET+REBUILD, 84 specs / 16 batches) | **970 passed · 1 failed · 0 flaky · 2 did-not-run** — denominator reconciled, no batch gaps, no `reset FAILED`. **2 infra re-runs** (batch 8 `server_dead=1 conn_errors=64`; batch 15 `server_dead=1 conn_errors=22`), both cleared — twin server deaths matching the known `supabase_vector` auth-gateway crash-loop, and both dead batches are login-heavy. **The 1 real failure was MEM2-1, and it was a PRODUCT DEFECT rather than a test bug** → BUG-A11Y-001, in [bug-log-archive.md](docs/progress/bug-log-archive.md) (rotated 2026-08-06). FUP-BULK-1's `bulk-case-creation.spec.ts` GREEN; the new `technical-direction-referrals.spec.ts` GREEN against the prod build. ⚠ The 2 did-not-run are MEM2-2/2-3, skipped by serial mode after MEM2-1 failed — accounted, not lost |
 | 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · pgTAP full suite** on a fresh `db reset` of the MERGED tree (285 migrations) | **PASS — Files=160 / Tests=4903.** Includes `298_authz_p0_isolation.sql` **32/32 on its first-ever execution** — and against `main`'s rewritten `seed.sql`, which the fixtures are pinned to by id, so that was luck rather than design — plus `299_hospital_content_door_noun_rule.sql` **11/11**. ⚠ An earlier run on the **non-reset** DB showed 4 failures (`100_dashboard` #19 "1079 anon-executable", `252` Bad-plan abort, + the 2 real ones): the first two were pgtap-in-catalog / leftover-state artifacts and vanished on the reset. CLAUDE.md's "fresh reset" instruction is load-bearing, not hygiene |
 | 2026-08-05 | **FUP-AUTHZ-2 · `p0b-isolation-mutation-audit.sh` Batch 4** — the 15 keystones | **15/15 RED-PROVEN**; controls green in all four files (250 14 ok · 251 40 · 252 48 · 298 32, 0 not-ok). Each keystone reddens when ITS policy opens, so none is vacuous |
 | 2026-08-05 | **BUG-AUTHZ-002 · live row-count probe, red→green** (the evidence the bug asked for and nobody had) | **RED:** platform@ read **3** documents / **2** rollups from Hospital Central A. **GREEN after `20260908000100`: 0 / 0.** **Twins:** hospital_admin.a1 and orgadmin.a still read 3 / 2 (not fixed-by-breaking). **Mutation-proven per arm** (ADR 0079 A2 FORK): restoring the disjunct on one door reds only that door's assertion |

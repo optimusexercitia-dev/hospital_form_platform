@@ -1002,3 +1002,152 @@ same family as P13-004/005/006). Needs a probe-commission/probe-user fixture rat
 the seeded rede-a org. Not a product defect until that is ruled out.
 
 </details>
+
+---
+
+## AFF-era closed bugs (rotated from PROGRESS.md 2026-08-06 at the AFF Record)
+
+⬛ **BUG-AFF-1 — `addStaff`'s `authorizeStaffOps` has no `hospital_admin` arm; the
+commission's own "Adicionar membro" picker is fully offered to a hospital_admin and
+refused only at submit. ✅ FIXED 2026-08-06 (`8155be2`).** Filed 2026-08-06, AFF T3.6
+(`tester`). **NOT an AFF regression** — `src/lib/members/actions.ts` was last touched by
+`36a69d5` (`feat(mem-w2,w3)`, unrelated to AFF) and its `authorizeStaffOps` had only two
+arms (staff_admin of the commission, or org_admin of its org) since before this
+workstream. **Repro (originally RED-proven; now INVERTED, not deleted, in
+`e2e/aff-hospital-affiliation.spec.ts` AFF-1):** as `hospitaladmin.dual@test.local`
+(hospital_admin of both `central-a` and `secundario-a`, Rede A), reach
+`/o/rede-a/c/etica/manage/members` (renders fine — the page gate
+`getCommissionAccessByOrg` and the candidate list `list_addable_commission_members`
+both already admit hospital_admin via `is_commission_admin_of`'s hospital leg, ADR 0097
+finding 1), click "Adicionar membro", search and select a real, addable org person,
+click "Adicionar". **Was:** `[role="status"]` rendered "Você não tem permissão para
+esta ação." — the whole picker flow (search, select, enable the submit button) was
+offered and interactive, then refused only on the final call. **Violated:** CLAUDE.md
+Architecture Rule 1 in spirit (a fully-enabled control that always failed for this role)
+and the "a new door must inherit every sibling arm" lesson (memory:
+new-door-must-inherit-every-sibling-arm) — the OLDER door was the one missing the arm
+its newer sibling (`assignCommitteeRole`/`authorizeForCommission`,
+`authorizeHospitalOps(hospitalId)`) already had.
+**Status:** ✅ **FIXED 2026-08-06** by `8155be2` (`backend`) — `authorizeStaffOps` gains
+a third arm, `hospital_admin` of the commission's `hospital_id`, mirroring
+`is_commission_admin_of`'s hospital leg exactly (verified door-by-door against the live
+catalog: every door `authorizeStaffOps` fronts already resolved that predicate, so the
+TS pre-check was strictly STRICTER than its own doors — it failed CLOSED, which is why
+nothing caught it earlier; a refusal always looks like the system working). A second
+instance of the same drift (`isInactive` not checked) was found and fixed in the same
+commit. Backend unit keystone: `src/lib/members/staff-ops-mirror.test.ts`.
+⚠ **This was a MIRROR-DRIFT CORRECTION, not a capability widening** — every door behind
+`authorizeStaffOps` already admitted a hospital_admin of the commission's hospital, so
+the fix grants nothing the database did not already grant. A future reader must not read
+this row as "hospital_admin gained committee-member management" as a security change.
+*(The durable statement of the same fact lives in `docs/backend-state.md` under
+`authorizeStaffOps` — that, not this archived row, is the surface map.)*
+**Re-verified 2026-08-06 (`tester`):** the repro is now the ALLOW arm —
+`hospitaladmin.dual` seats the person on Comissão de Ética AS THEMSELVES, asserted by a
+service-role `memberships` row read (not merely the toast), plus confirmation the
+person's OTHER hospital's affiliation is untouched. A DENY arm sits alongside it in the
+same file: `hospitaladmin.a1` (a sibling hospital's admin, central-a only) is still
+refused for that same commission, with the membership row count asserted unchanged by
+the attempt. Both green, twice-run. The `orgadmin.a` workaround from the original repro
+is gone — the intended actor (hospital_admin) now completes the scenario directly.
+
+---
+
+## TV-era closed bugs (rotated from PROGRESS.md 2026-08-06 — overdue from the TV Record)
+
+> All three closed 2026-08-05 but were left in the live Bug Log past their Record step.
+> Rotated in the same pass as BUG-AFF-1. `BUG-TV-001` stays in PROGRESS.md — still OPEN.
+
+⬛ **BUG-RCA-001 — RCA citation targets silently omit ALL interviews. ✅ FIXED 2026-08-05.** Filed 2026-08-05 by `backend`, found by the BUG-TV-001 sibling sweep —
+**nobody was looking for this one; it is unrelated to ADR 0096.** `listRcaCitationTargets`
+(`src/lib/queries/rca.ts:450`) issues
+`.from('case_interviews').select('id, interview_number, title, scheduled_start')`.
+**`case_interviews` has no `scheduled_start` column** — per `information_schema`, it lives on
+`interview_sessions` (an interview has many sessions). PostgREST/Postgres reject the whole
+select with `42703 column case_interviews.scheduled_start does not exist`, so `data` is
+`null`, `interviews ?? []` yields `[]`, and **every interview is silently dropped from the RCA
+citation-target list** — no error, no toast, just missing options. **Invisible to every
+existing gate** for the standard reason: a `.select()` is an opaque string and `.returns<T>()`
+is a type *assertion*, so it typechecks, lints, and passes E2E (which has no coverage of this
+picker). **Fix is a product decision, deliberately NOT taken unilaterally:** an interview has
+N sessions, so "the interview's date" must be defined (earliest session's `scheduled_start`?
+the interview's `created_at`?) — needs an owner ruling before the embed is written.
+**PO RULING 2026-08-05: "the interview's date" is the EARLIEST session's `scheduled_start`.**
+**Fixed** in `listRcaCitationTargets` — the select now embeds `interview_sessions ( scheduled_start )`
+and derives via the new exported `earliestSessionStart()`. No migration; client layer only.
+**Verified against PostgREST, not `tsc`:** the old select returns `42703 column
+case_interviews.scheduled_start does not exist`; the new one returns HTTP 200 with real rows — and the
+seeded interview genuinely carries TWO sessions (08-03 and 08-08), so the derivation is exercised rather
+than trivially satisfied. A full `probe-embeds.mjs` re-run over 286 sites now shows **zero 42703**.
+**The ruling is pinned by a TEST, not a comment** (`rca.test.ts`, 5 cases). The helper is exported and
+pure precisely because "its date" is a CHOICE — `created_at` was the live alternative, and a comment
+would not have survived the next refactor.
+⚠ Deliberately NOT status-filtered like `toNextSession` — that helper answers "what is NEXT", this one
+answers "when WAS it", and a concluded interview's sessions are exactly the ones it excludes.
+⚠ **Mutation-proven per arm** (ADR 0079 A2): sorting descending reds the earliest-wins case; dropping the
+undated filter reds the null-handling case. **My first attempt at the second probe was INERT** — the
+replace matched nothing and stayed green, which is indistinguishable from a surviving probe and would
+have had me delete a good test as vacuous. Confirm a mutation APPLIED before trusting its verdict.
+
+⬛ **BUG-A11Y-001 — duplicate DOM ids on `/admin` broke label→control association. ✅ FIXED 2026-08-05.**
+Found by FUP-MEM-2's spec on its **first ever execution** (written 08-04, never run until the full gate).
+`useFieldIds(name)` used `name` as BOTH the form key and the DOM id, so two forms on one page sharing a
+field name emitted duplicate ids. `/admin` renders three forms and had **three** collisions: `name` and
+`slug` (organization vs hospital create) and `organizationId` (hospital create vs org-admin assign).
+`htmlFor` resolves to the FIRST match in document order, so each LATER form's labels pointed at the
+EARLIER form's controls — clicking "Organização" in the org-admin section moved focus into the hospital
+form, and a screen reader announced the wrong field. **Impact is accessibility + focus, not authorization.**
+**Fix:** `useFieldIds` gains an optional `id`; `name` still drives `formData.get(name)`, so no action
+contract changed. Applied to the two later forms. The systemic fix (id from `useId()`) was deliberately
+NOT taken — that primitive backs **38 components** and rewriting it with no cheap re-verification is how a
+regression ships → FUP-A11Y-1.
+⚠ **The first fix was INERT.** `controlId` was threaded into `descriptionId`/`errorId` while `controlProps`
+still returned `id: name`, so nothing reached the DOM and the re-run failed identically. Caught by dumping
+the LIVE DOM — re-reading the diff would only have confirmed my intent, never the behaviour.
+⚠ **A green suite is not a working teardown.** This spec's purge fought two invariants
+(`guard_profile_no_delete` raises unconditionally; `profiles.id` FKs `auth.users.id` with no cascade) and
+had never executed, because MEM2-1 failed BEFORE creating the invitee so the purge always matched zero
+rows. A teardown is first exercised when the test it cleans up after starts passing.
+
+⬛ **BUG-AUTHZ-002 — the BUG-AUTHZ-001 sweep missed two hospital doors (noun-rule violation). ✅ FIXED 2026-08-05.**
+Filed 2026-08-03 during Phase 16 Wave 0; **NOT in Phase 16 scope** — must not ride a Phase 16
+migration. `20260903000700` fixed the five `dashboard_*` DEFINERs but left the identical
+`app.is_admin()` OR-arm live in **`public.hospital_document_register`** and
+**`public.hospital_indicator_rollup`** — both `prosecdef = t`, both returning commission content
+(documents; indicator rollups) that ADR 0078 A35's noun rule forbids platform_admin from reading.
+**Verified against the live catalog, not the plan text** — the gate reads literally:
+```
+if not (app.is_admin()
+        or app.is_hospital_admin_of(p_hospital)
+        or app.is_org_admin_of(app.org_of_hospital(p_hospital))) then return;
+```
+So the `is_admin()` arm *is* the gate, not a comment. ⚠ Verified at the **catalog** layer
+(gate text + `prosecdef` + return shape); a live platform_admin row-count probe has **not** been
+run — do that first when fixing, so the fix has a red-before-green. Fix = own migration dropping
+the arm + a `270_authz_dashboard_gate_uniformity.sql`-style **parity** extension asserting
+platform_admin gets zero rows from *every* hospital-tier DEFINER, ideally before the pilot deploy.
+**The lesson is the sweep's boundary, not the two functions**: `20260903000700` enumerated by
+*name prefix* (`dashboard_*`) where the real property is "DEFINER door returning commission
+content" — the standing "if your enumeration's boundary is a filename, it's wrong" rule, one
+level up. Phase 16's own doors are specified to inherit the correct shape (ADR 0093 D6).
+**Status:** ✅ **FIXED 2026-08-05** by `20260908000100`, held by
+`299_hospital_content_door_noun_rule.sql` (11/11).
+**RED BEFORE GREEN, as this entry asked:** the live probe it was missing was run first —
+platform@ read **3 documents / 2 rollups** from Hospital Central A; after the migration, **0 / 0**.
+Twins: hospital_admin.a1 and orgadmin.a still read 3 / 2, so the fix did not fail closed.
+**Mutation-proven per arm** (ADR 0079 A2's FORK rule): restoring the disjunct on
+`hospital_document_register` reds §2.1 only, on `hospital_indicator_rollup` reds §2.2 only —
+neither assertion is redundant, and one probe would have made the other look vacuous.
+⚠ **This entry's prescribed test was wrong as written.** "Zero rows from *every* hospital-tier
+DEFINER" fails on `verify_audit_chain`: enumerating the property live returns **four** doors, and
+that one's `app.is_admin()` is its **platform-tier** branch (all args null) — audit is
+platform_admin's own noun, so the arm is correct and permanent. Its hospital branch already
+excluded platform_admin. Probed both ways (42501 at hospital tier, `ok = t` at platform tier). The
+property is commission **content**, not hospital **tier**; `299` §4 derives the door set from
+`pg_proc` at run time and reds on any unrecognised member.
+⚠ **Two existing tests encoded the OLD behaviour and had to be inverted** — the fix is not
+complete without them: `200_controlled_documents.sql` #30 *required* `>= 2` rows for platform_admin
+(a test pinning the leak), and `283_accreditation_readiness_report.sql` E3 used this very bug as its
+**non-vacuity control**, so fixing the bug removed the control and left E1/E2 unfalsifiable. E3 is
+re-anchored on `verify_audit_chain`. **A control anchored on a defect evaporates when the defect is
+fixed — anchor it on something correct BY DESIGN.**
