@@ -49,7 +49,7 @@ export async function resolveOrInviteUser(
 ): Promise<ResolvedUser> {
   const { data: existing, error: lookupError } = await admin
     .from('profiles')
-    .select('id')
+    .select('id, home_organization_id')
     .eq('email', email)
     .maybeSingle()
 
@@ -57,6 +57,19 @@ export async function resolveOrInviteUser(
     throw lookupError
   }
   if (existing) {
+    // AFF W2 / ADR 0097 D13 — THE TENANT CHECK THIS BRANCH WAS MISSING. `profiles.email`
+    // is globally unique, so this lookup crosses tenants: without the check,
+    // `assignStaffAdmin` / `assignOrgAdmin` would bind a FOREIGN-ORG identity into the
+    // caller's organisation, and the membership door downstream authorises the ACTOR,
+    // not the subject — it never re-derives which tenant the subject belongs to.
+    // Verified live by the external audit; a real gap, not a theoretical one.
+    //
+    // The message deliberately says nothing about the holder or their tenant (it is the
+    // collision copy, verbatim in form), so this cannot be used as a cross-tenant
+    // existence oracle. The caller maps thrown errors to a generic pt-BR message.
+    if (existing.home_organization_id !== homeOrganizationId) {
+      throw new Error('resolveOrInviteUser: identity is anchored to another organization')
+    }
     return { userId: existing.id, invited: false }
   }
 

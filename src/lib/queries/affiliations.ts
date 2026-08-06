@@ -121,3 +121,82 @@ export async function listActivePrincipalIdsForHospital(
   if (error) throw error
   return Array.from(new Set((data ?? []).map((r) => r.principal_id)))
 }
+
+// ---------------------------------------------------------------------------
+// The org people directory (ADR 0097 D10/D11) — W3's identifier-first lookup.
+// ---------------------------------------------------------------------------
+
+/** One same-org affiliation as the directory returns it. Matrícula is NOT included. */
+export interface OrgPersonAffiliation {
+  hospitalId: string
+  hospitalName: string
+  startedOn: string
+}
+
+/**
+ * One person in the org directory. ⚠ `cpf` is deliberately ABSENT and must stay absent
+ * (D11): it is a search INPUT only and is never returned to the client.
+ */
+export interface OrgPerson {
+  userId: string
+  fullName: string | null
+  email: string | null
+  /** Resolved professional-category label (pt-BR), or null. */
+  professionalCategory: string | null
+  /**
+   * Deactivated people ARE returned, flagged. The identifier-first flow must be able to
+   * say "this person exists but their account is deactivated" rather than silently
+   * offering to affiliate them or, worse, to create a duplicate.
+   */
+  isActive: boolean
+  /** ACTIVE affiliations within the queried organisation only. */
+  affiliations: OrgPersonAffiliation[]
+}
+
+/**
+ * The org-scoped people directory (`list_org_people`, ADR 0097 D10/D11).
+ *
+ * ⚠ Runs on the COOKIE client, not the service client, and that is load-bearing: the
+ * door resolves the caller from `auth.uid()` both to gate itself and to name the actor
+ * on the CPF-lookup audit row. A service-client call would be ungated and unattributed.
+ *
+ * ⚠ An unauthorized caller gets an EMPTY list, never an error — the door matches
+ * `list_addable_commission_members` so a probe cannot distinguish "no results" from
+ * "not allowed". Callers must not translate empty into "you lack permission".
+ *
+ * `cpf` must be the full 11-digit storage form (use `normalizeCpf` first); it matches
+ * EXACTLY or not at all, and every CPF-parameterised call emits an audit row.
+ */
+export async function listOrgPeople(params: {
+  orgId: string
+  search?: string | null
+  cpf?: string | null
+}): Promise<OrgPerson[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_org_people', {
+    p_org_id: params.orgId,
+    p_search: params.search ?? undefined,
+    p_cpf: params.cpf ?? undefined,
+  })
+
+  if (error) throw error
+
+  return (data ?? []).map((row) => ({
+    userId: row.user_id,
+    fullName: row.full_name,
+    email: row.email,
+    professionalCategory: row.professional_category,
+    isActive: row.is_active,
+    affiliations: (
+      (row.affiliations ?? []) as {
+        hospital_id: string
+        hospital_name: string
+        started_on: string
+      }[]
+    ).map((a) => ({
+      hospitalId: a.hospital_id,
+      hospitalName: a.hospital_name,
+      startedOn: a.started_on,
+    })),
+  }))
+}

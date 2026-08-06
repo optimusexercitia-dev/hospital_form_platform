@@ -10036,6 +10036,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      affiliate_person: {
+        Args: {
+          p_employee_id?: string
+          p_hospital: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
+      affiliate_person_for: {
+        Args: {
+          p_actor: string
+          p_employee_id?: string
+          p_hospital: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
       appoint_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
@@ -12155,6 +12174,19 @@ export type Database = {
         Args: { p_template_id: string }
         Returns: string
       }
+      end_affiliation: {
+        Args: { p_ended_on?: string; p_hospital: string; p_user: string }
+        Returns: string
+      }
+      end_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_ended_on?: string
+          p_hospital: string
+          p_user: string
+        }
+        Returns: string
+      }
       evidence_candidates: {
         Args: { p_commission: string; p_kind: string; p_query?: string }
         Returns: {
@@ -12656,6 +12688,17 @@ export type Database = {
       list_my_nsp_hospitals: { Args: never; Returns: Json }
       list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
+      list_org_people: {
+        Args: { p_cpf?: string; p_org_id: string; p_search?: string }
+        Returns: {
+          affiliations: Json
+          email: string
+          full_name: string
+          is_active: boolean
+          professional_category: string
+          user_id: string
+        }[]
+      }
       list_pqs_members: { Args: { p_hospital_id: string }; Returns: Json }
       list_referral_internal_notes: {
         Args: { p_referral_id: string }

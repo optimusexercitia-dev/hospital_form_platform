@@ -233,50 +233,38 @@ async function callerHospitalAdminMayManageUser(
 
 /**
  * Ensure an ACTIVE `hospital_affiliations` row for `userId` at `hospitalId`, carrying
- * `employeeId` (ADR 0097 D1/D3). Idempotent: an existing active row has its matrícula
- * refreshed instead of being duplicated — the partial unique index
- * `hospital_affiliations_active_uq` would reject the duplicate anyway, and a 23505
- * surfacing as a generic pt-BR error would be a worse answer than the intended one.
+ * `employeeId` (ADR 0097 D1/D3).
  *
- * Runs on the SERVICE-ROLE client: `authenticated` holds no DML grant on the table
- * (writes belong to the W2 doors), and this path has already been TS-authorized by its
- * caller. Never ENDS anything — see {@link UpdateUserProfileInput.homeHospitalId}.
+ * ⚠ THROUGH THE DOOR, NOT RAW DML (ADR 0098 W2.1). This ran raw `.insert()` in W1, and
+ * that was the hole: `registerUser` runs on the SERVICE-ROLE client with no
+ * `auth.uid()`, so an `auth.uid()`-only door would have been bypassed on the path that
+ * creates MOST affiliations, and D13's tenant check would never have run there. The
+ * `_for` twin takes the actor explicitly and re-derives its authority in PostgreSQL —
+ * the same shape `grant_role_for` uses, and now enforced by the same repo gate
+ * (`npm run lint:memberships-door`).
  *
- * @returns true on success; false on a write error the caller must surface.
+ * Idempotent by (person, hospital) over the ACTIVE row; the kernel refreshes the
+ * matrícula rather than duplicating. Never ENDS anything — see
+ * {@link UpdateUserProfileInput.homeHospitalId}.
+ *
+ * `organizationId` is no longer passed: the kernel derives it from the hospital and
+ * hard-fails when the person is anchored elsewhere, which is stricter than any value
+ * this layer could supply.
+ *
+ * @returns true on success; false on an error the caller must surface.
  */
 async function ensureActiveAffiliation(params: {
   userId: string
-  organizationId: string
   hospitalId: string
   employeeId: string | null
-  actorId: string | null
+  actorId: string
 }): Promise<boolean> {
   const admin = createAdminClient()
-
-  const { data: existing, error: readError } = await admin
-    .from('hospital_affiliations')
-    .select('id, hospital_employee_id')
-    .eq('principal_id', params.userId)
-    .eq('hospital_id', params.hospitalId)
-    .is('ended_on', null)
-    .maybeSingle()
-  if (readError) return false
-
-  if (existing) {
-    if (existing.hospital_employee_id === params.employeeId) return true
-    const { error } = await admin
-      .from('hospital_affiliations')
-      .update({ hospital_employee_id: params.employeeId })
-      .eq('id', existing.id)
-    return !error
-  }
-
-  const { error } = await admin.from('hospital_affiliations').insert({
-    principal_id: params.userId,
-    organization_id: params.organizationId,
-    hospital_id: params.hospitalId,
-    hospital_employee_id: params.employeeId,
-    created_by: params.actorId,
+  const { error } = await admin.rpc('affiliate_person_for', {
+    p_actor: params.actorId,
+    p_user: params.userId,
+    p_hospital: params.hospitalId,
+    p_employee_id: params.employeeId ?? undefined,
   })
   return !error
 }
@@ -519,7 +507,6 @@ export async function registerUser(
   if (effectiveHomeHospitalId) {
     const affiliated = await ensureActiveAffiliation({
       userId,
-      organizationId: input.homeOrganizationId,
       hospitalId: effectiveHomeHospitalId,
       employeeId: input.hospitalEmployeeId?.trim() || null,
       actorId: context.userId,
@@ -678,11 +665,11 @@ export async function updateUserProfile(
   if (error) return { ok: false, error: MESSAGES.generic }
 
   // Employment, when one was named (ADR 0097 D1/D3). A null hospital does NOT end an
-  // affiliation — see UpdateUserProfileInput.homeHospitalId.
-  if (effectiveHomeHospitalId && auth.orgId) {
+  // affiliation — see UpdateUserProfileInput.homeHospitalId. The org is no longer
+  // passed: the door derives it from the hospital and hard-fails on a tenant mismatch.
+  if (effectiveHomeHospitalId) {
     const affiliated = await ensureActiveAffiliation({
       userId: input.userId,
-      organizationId: auth.orgId,
       hospitalId: effectiveHomeHospitalId,
       employeeId: input.hospitalEmployeeId?.trim() || null,
       actorId: context.userId,
