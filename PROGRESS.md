@@ -67,6 +67,7 @@
 | **AFF** | **Hospital affiliation, person identity & the org people directory** [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · [plan](docs/plans/hospital-affiliation-person-identity.md) · [audit](docs/reviews/aff-adr-0097-external-audit.md) — **gates the pilot deploy** (D19) | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1023** · `db reset` **298=298** | ✅ pgTAP **165f/5060** fresh reset · `ARM=census` + `ARM=floor` HOLD · `e2e:prod` **GATE GREEN — 985 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches (no gaps) · 0 `reset FAILED` · accounted 986/991** | ✅ **APPROVED** [review](docs/reviews/aff-review.md) — 0 blocker; 6 non-blocking follow-ups, **all 6 since remediated** (`202c3db` · `8dde312` · `8111fc9`) | ✅ **2026-08-06** | 2026-08-06 | branch `feat/hospital-affiliation-person-identity`; `main` fast-forwarded + pushed to `origin` at `cc66483` (pre-remediation) |
 | **MIN** | **Meeting audio → generated ata** [0099](docs/decisions/0099-meeting-audio-minutes.md) (+Amdt 1) · [record](docs/progress/min-audio-minutes.md) — flag `audio_minutes` **OFF** at ship | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1158** · `db reset` 301=301 | ✅ pgTAP **166f/5181** fresh reset · MIN spec 10/10 ×4 · `e2e:prod` ×2 **GREEN (triaged, 0 code failures)** · census+floor HOLD · diff-scoped policy 0 BLIND | ✅ **APPROVED (r2)** [review](docs/reviews/min-audio-minutes-review.md) — r1 BLOCKER (apply never reclaimed audio) fixed+proven; 3 MINOR open (R1–R3) | ✅ 2026-08-06 | 2026-08-06 | branch `feat/meeting-minutes` |
 | **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
+| **QO·A** | **Quality-office oversight — Phase A** (classification + `quality_reviewer` + UI) [0100](docs/decisions/0100-quality-office-oversight.md) · [plan](docs/plans/quality-office-oversight.md) — **pilot-blocking** | ▶ **in progress** (started 2026-08-06) | – | – | – | – | – | branch `feat/quality-office-oversight` (worktree) |
 
 > ⚠ **Two PCI/TV caveats survive the ✅ above — read them before treating this as deployable.**
 >
@@ -103,6 +104,36 @@
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### ▶ QO·A — Quality-office oversight, Phase A · **IN PROGRESS (started 2026-08-06)**
+
+ADR [0100](docs/decisions/0100-quality-office-oversight.md) (D1–D14 PO-ratified — **do not
+re-litigate**) · plan [quality-office-oversight.md](docs/plans/quality-office-oversight.md)
+(catalog-verified detail; **re-read every quoted body from `pg_get_functiondef` at authoring
+time**). Built in the **worktree** `worktrees/feat/quality-office-oversight` on branch
+`feat/quality-office-oversight`, based on `main` @ `13d8f5d`. **Migration window: allocate above
+`20260910000400`** (302 registered == 302 files at branch time). **pgTAP window: `306`+.**
+
+| # | Task | Owner | Status |
+| - | ---- | ----- | ------ |
+| A.0 | Catalog re-verification pass + migration plan (the plan's [V-CAT]/[INF] markers re-proven against the live catalog) | backend | ✅ 2026-08-06 — [buildnotes](docs/plans/quality-office-oversight-buildnotes.md): 34-row discrepancy table (2 plan claims **CHANGED**: dashboard deny = empty `return;` not 42501; pgTAP 270 does NOT go red under M5 — rewrite is a strengthening), HC0G0 fail-closed RED-proven by execution, M1–M7 versions `20260911000000`–`000600`, rebuild-loss strategy + 6 mutation cases + ~140-assertion testing note. **Awaiting lead plan approval before any migration** |
+| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ⏳ |
+| A.2 | M3 — `grant_role_impl`/`revoke_role_impl` quality arm + `p_expires_at` setter plumbing | backend | ⏳ |
+| A.3 | M4 — `_case_caps` S7 arm (+ the stale S3 comment) · M5 — six aggregate dashboard doors + pgTAP `270` two-class rewrite | backend | ⏳ |
+| A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ⏳ |
+| A.5 | Seed personas + oversight fixtures · pgTAP `306`–`310` · `q1-quality-mutation-audit.sh` (6 RED-proven) · diff-scoped door sweep | backend | ⏳ |
+| A.6 | `src/lib/queries/quality.ts` + `session.ts` `isQualityViewer` branch (contract-first: signatures posted before impl) | backend | ⏳ |
+| A.7 | `/o/[org]/qualidade` route group (layout/board/dashboards) — `frontend-design` skill first | frontend | ⏳ |
+| A.8 | Case-page viewer branch + write-affordance suppression · oversight toggle in `/o/[org]/manage/comissoes` · nav/`qualidadeHref` | frontend | ⏳ |
+| A.9 | E2E `e2e/quality-oversight.spec.ts` + keyboard-only flow | tester | ⏳ |
+| A.10 | Phase review | qa | ⏳ |
+
+**Lead notes.** Phases **B** (org_admin content wall) and **C** (lifecycle + break-glass) are
+**out of scope for this branch** — A is the pilot-blocking slice. Ownership: `backend` owns
+`supabase/**` + `src/lib/{queries,types,supabase}`; `frontend` owns `src/app/**` +
+`src/components/**`; they never edit the same file. The reviewer is a **flag** on
+`CommissionAccess` (`isQualityViewer`), **never** a member role — mapping it to `'staff_admin'`
+opens write gates (ADR 0100 D10).
 
 ### ⬛ MIN — Meeting audio → generated ata (`audio_minutes`) · **COMPLETE 2026-08-06**
 
