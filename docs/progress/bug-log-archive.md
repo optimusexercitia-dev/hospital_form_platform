@@ -1217,3 +1217,53 @@ seeing these 2 tests named in a log. That is the project’s own standard for �
 it” — but it is a reconciliation, not a sighting.
 ⚠ **The row sat 🔴 for a day after it was green.** Nothing re-reads a bug row once its Status line
 says FIXED; the marker is what gets scanned. When a fix lands, move the MARKER in the same edit.
+
+
+## Live-file closed table + method notes (rotated from PROGRESS.md 2026-08-06)
+
+> The one-line closed table PROGRESS.md kept after the 2026-08-04/06 rotations, plus the
+> 2026-08-03 batch’s two standing method notes and the "earlier eras" pointer paragraph,
+> moved verbatim. Every bug named here has its full entry earlier in this file.
+
+### Closed — rotated 2026-08-04 · 2026-08-06 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+
+| Bug | Summary | Closed |
+| --- | --- | --- |
+| **BUG-TV-001** | Process-template narrative-slot EDIT and REMOVE were dead end-to-end — ADR 0096 dropped the FK a one-hop PostgREST embed relied on, and the helper folded the resulting `PGRST200` into a friendly "Narrativa não encontrada." Fixed by `c557a32` (client layer, no migration) via the live 3-relation path; green on two full prod gates. ⚠ **A `.select()` is an opaque string and `.maybeSingle<T>()` asserts rather than validates** — the dead embed typechecked perfectly. Verify embed changes against PostgREST, never `tsc` | 2026-08-06 |
+| **BUG-AUTHZ-002** | The BUG-AUTHZ-001 sweep enumerated by **name prefix** (`dashboard_*`) where the property is "DEFINER door returning commission content" — it left the same `app.is_admin()` arm live in `hospital_document_register` + `hospital_indicator_rollup`. Fixed by `20260908000100`, held by pgTAP `299` (11/11); red-before-green proven (3 docs / 2 rollups → 0 / 0). ⚠ The entry's own prescribed test was wrong — `verify_audit_chain`'s `is_admin()` arm is its **platform-tier** branch and is correct BY DESIGN | 2026-08-05 |
+| **BUG-RCA-001** | `listRcaCitationTargets` selected `case_interviews.scheduled_start` — a column that lives on `interview_sessions`. `42703` → `data` null → **every interview silently dropped** from the RCA citation picker. PO ruled "the interview's date" = earliest session; pinned by `rca.test.ts` (5 cases), not a comment. Zero `42703` across 286 embed sites after the fix | 2026-08-05 |
+| **BUG-A11Y-001** | `useFieldIds(name)` used `name` as both form key and DOM id — three id collisions on `/admin` sent each later form's labels at the earlier form's controls. ⚠ The **first fix was INERT** (`controlProps` still returned `id: name`); caught only by dumping the live DOM. Systemic `useId()` fix deliberately deferred → FUP-A11Y-1 | 2026-08-05 |
+| **BUG-AFF-1** | `addStaff`'s `authorizeStaffOps` lacked a `hospital_admin` arm — the "Adicionar membro" picker was fully offered to a hospital_admin and refused only at submit. ⚠ A **mirror-drift correction, not a capability widening**: every door it fronts already admitted them, so it failed CLOSED and nothing caught it. Durable statement → `docs/backend-state.md` (`authorizeStaffOps`); AFF-1 E2E now carries an ALLOW **and** a DENY arm | 2026-08-06 |
+| **BUG-P16-001** | Saving a standard assessment **silently destroyed** the existing `note_md` — no read path, unconditional upsert. Fixed in three halves (RPC `coalesce` + `optionalClearableText` + a real read path). ⚠ **Both** round-trips are asserted (pgTAP 281 C7b *and* C11) because either alone passes in a broken world | 2026-08-03 |
+| **BUG-P16-002** | **P0** — all 7 `queries/accreditation.ts` functions still `throw new Error('not implemented')`; every Phase 16 screen dead on arrival. The contract was scheduled, the implementation never was. Survived the whole green bar because the routes sat behind a flag seeded OFF | 2026-08-03 |
+| **BUG-P16-003** | `framework-list.tsx` forwarded a `frameworkHref` **closure across a Server→Client boundary** — crashed the commission framework list for every staff_admin as soon as one global framework existed | 2026-08-03 |
+| **BUG-P16-004** | Same shape in `[framework]/layout.tsx` → `StandardsTree`; crashed every framework **and** standard-detail page — the larger blast radius of the two | 2026-08-03 |
+| **BUG-P16-005** | `"padrãoes"` — a plural built by suffix concatenation on an irregular `-ão` noun. The sweep found a live sibling (`"em atençãos"`); the PO ruled the final wording; tolerant regexes were then replaced with exact literals **plus** a dedicated plural guard test | 2026-08-04 |
+| **BUG-P16-006** | 4 indicator ids hardcoded as **captured** UUIDs; `seed.sql` mints fresh ones on every reset, so the gate's `RESET=1` broke them. Fixed by natural-key lookup; verified across two consecutive fresh resets (31/31 → reset → 31/31) | 2026-08-04 |
+| **BUG-GATE-001** | `scripts/e2e-prod-gate.sh` dropped a `reset FAILED` batch from its **own** coverage denominator — 66 unrun tests reported as "860 of 865". Fixed + fault-injection-verified, with an over-grant twin on the pre-fix script | 2026-08-03 |
+| **BUG-AUTHZ-001** | `platform_admin` read response-level content through **five** `dashboard_*` DEFINER doors, invisible to a policy audit of `responses`. Unified on the 4-fn gate shape (`…000700` + pgTAP `270`). ⚠ **The report was wrong 3×** — 5 functions not 4, one relation misnamed, and only half the defect described | 2026-08-03 |
+| **BUG-P15-001** | `phase15-indicators` AC-4 red on the 1st–4th of any month (seed day-offsets crossing the month boundary). Fixed **spec-side** (`93a0f9a`) by deriving the window from the seeded rows. ⚠ A seed-side clamp was tried FIRST and reverted — it regressed `phase8-dashboard` 8× | 2026-08-03 |
+| **BUG-P22-002** | R5-6 keyboard-only internal note — a **spec-timing** bug filed as a product defect; `.focus()` is not auto-waiting | 2026-08-03 |
+| ⚪ **BUG-P22-001** | **Not reproducible** — 40/40 on a clean reset; the filed mechanism was wrong too | 2026-08-03 |
+| ⚪ **BUG-E2EISO-001** | **Not reproducible** — 80/80 on the record's own batch repro; most likely already fixed by BUG-E2EISO-002 | 2026-08-03 |
+| ⚪ **BUG-E2EISO-003** | **Not reproducible** — 8/8 fresh and 8/8 again on the same DB; the real trigger is a *partially executed* prior run, which the filed repro never exercises | 2026-08-03 |
+
+⚠ **The 2026-08-03 ad-hoc batch's headline finding was about the bug log itself, not the code: four of
+seven items were not the defect they were filed as** — three do not reproduce at all, one was a spec
+bug. Of the three that were real, two had materially wrong reports. **Every correction came from
+re-running the repro or querying the live catalog; none from re-reading the report.**
+
+⚠ **BUG-P16-003/004 leave a reusable sweep rule.** The tester keyed its sweep on the `Href={(…) => …}`
+*shape in route files*; the real property is **any function-valued prop crossing a server→client
+boundary** (an `onSelect`/`formatter`/`render` prop crashes identically and matches no `Href` grep).
+Re-deriving **from the boundary** — classify components by `"use client"`, then inspect every
+server→client prop block — found the same 2, and *that agreement* is the evidence, not either sweep
+alone. **Resolve hrefs to strings on the server side of the boundary.**
+
+Earlier eras, all closed and rotated → [bug-log-archive.md](docs/progress/bug-log-archive.md):
+**FF-3** (BUG-E2E-001 · BUG-FF3-001/002 · BUG-FF1-008) · **FF-5** (BUG-FF5-001/002 — both passed pgTAP
+4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them**) · **FF-4** (BUG-FF4-001 — a
+pre-existing answer-model-v2 bug FF-4 surfaced; ⚠ the obvious one-line fix would break Rule 3 SQL↔TS
+evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2EISO-002** (the
+`session_replication_role = replica` FK-CASCADE orphan leak, fixed across seven files behind one shared
+`e2e/helpers/purge-forms.ts`; production was never affected — app roles are denied the GUC).
