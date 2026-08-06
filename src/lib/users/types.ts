@@ -114,27 +114,47 @@ export interface OrgUserListItem {
 }
 
 /**
- * Full per-user detail (`getOrgUser`) — profile + credentials + committee roster.
+ * One ACTIVE employment link (`hospital_affiliations`, ADR 0097 D1/D3).
  *
- * ⚠ AFF W1 (ADR 0097 D3): `homeHospitalId` / `homeHospitalName` / `hospitalEmployeeId`
- * are no longer `profiles` columns — they are DERIVED from the person's active
- * `hospital_affiliations`. The two id-shaped fields describe the PRIMARY (earliest
- * active) affiliation, because this surface still renders one hospital. That is a
- * transitional shape: W3/T3.3 replaces all three with an affiliation LIST, which is
- * the shape a professional working at two hospitals of one org actually needs. Do not
- * build new behaviour on the singular fields.
+ * Declared HERE, in the client-safe contract module, rather than in
+ * `@/lib/queries/affiliations` — that module is `server-only`, and a type declared
+ * there would have to be imported across the server boundary by any Client Component
+ * rendering a roster. The dependency runs the safe way: the server query module
+ * imports this, never the reverse.
+ */
+export interface UserAffiliation {
+  /** The affiliation row id — a stable React key, and what a future row-level edit targets. */
+  id: string
+  hospitalId: string
+  /** Resolved hospital name, or null when the hospital row is not visible to the caller. */
+  hospitalName: string | null
+  /** Matrícula for THIS employment — a property of the job, not of the person (D3). */
+  hospitalEmployeeId: string | null
+  startedOn: string
+}
+
+/**
+ * Full per-user detail (`getOrgUser`) — profile + affiliations + credentials +
+ * committee roster.
+ *
+ * ⚠ AFF W3/T3.2 (ADR 0097 D3, ADR 0098 §W3.1): the transitional singular fields
+ * `homeHospitalId` / `homeHospitalName` / `hospitalEmployeeId` are GONE. They were a
+ * W1 compatibility shim that let the frontend keep compiling across the column drop,
+ * and they lie about the domain the moment the feature works: a professional employed
+ * by two hospitals of one organisation has two matrículas and two start dates, and a
+ * "primary (earliest active)" field silently picks one. `affiliations` is the shape.
  */
 export interface OrgUserDetail {
   id: string
   fullName: string | null
   email: string | null
   homeOrganizationId: string
-  /** Primary (earliest active) affiliation's hospital; null when unaffiliated. */
-  homeHospitalId: string | null
-  /** All active affiliations' hospital names, joined by ', '. */
-  homeHospitalName: string | null
-  /** Matrícula of the PRIMARY affiliation — per employment, not per person (D3). */
-  hospitalEmployeeId: string | null
+  /**
+   * ACTIVE affiliations, earliest first. EMPTY is a legitimate, meaningful state — a
+   * registered person employed nowhere yet (the `novato.pendente` case D2 exists to
+   * keep visible); render it, do not treat it as missing data.
+   */
+  affiliations: UserAffiliation[]
   professionalCategoryId: string | null
   categoryLabel: string | null
   status: UserStatus

@@ -327,22 +327,24 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
     }))
     .sort((a, b) => a.commissionName.localeCompare(b.commissionName, 'pt-BR'))
 
-  // AFF W1: the three hospital fields are DERIVED from the person's active
-  // affiliations (ADR 0097 D3) instead of read off `profiles`. The detail surface
-  // still shows ONE hospital, so it shows the earliest-started active affiliation;
-  // W3/T3.3 replaces these three fields with the full affiliation list, which is the
-  // shape the multi-hospital professional actually needs.
+  // AFF W3/T3.2 — the detail surface carries the affiliation LIST (ADR 0097 D3). The
+  // W1 shim that flattened it to a "primary" hospital is gone: a professional employed
+  // by two hospitals of one org has two matrículas, and picking one silently is the
+  // bug this feature exists to fix. An EMPTY list is a legitimate state.
   const activeAffiliations = (await listActiveAffiliationsFor([userId])).get(userId) ?? []
-  const primaryAffiliation = activeAffiliations[0] ?? null
 
   return {
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
     homeOrganizationId: profile.home_organization_id ?? '',
-    homeHospitalId: primaryAffiliation?.hospitalId ?? null,
-    homeHospitalName: affiliationNames(activeAffiliations),
-    hospitalEmployeeId: primaryAffiliation?.hospitalEmployeeId ?? null,
+    affiliations: activeAffiliations.map((a) => ({
+      id: a.id,
+      hospitalId: a.hospitalId,
+      hospitalName: a.hospitalName,
+      hospitalEmployeeId: a.hospitalEmployeeId,
+      startedOn: a.startedOn,
+    })),
     professionalCategoryId: profile.professional_category_id,
     categoryLabel: profile.category?.label_pt ?? null,
     status: deriveUserStatus(

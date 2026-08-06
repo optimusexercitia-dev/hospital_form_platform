@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import type { UserAffiliation } from '@/lib/users/types'
 
 /**
  * Hospital affiliations — the typed read layer over `public.hospital_affiliations`
@@ -22,17 +23,13 @@ import { createClient } from '@/lib/supabase/server'
  * service-role action path in `src/lib/users/actions.ts`.
  */
 
-/** One employment row, with the hospital resolved. */
-export interface HospitalAffiliation {
-  id: string
+/**
+ * One employment row, with the hospital resolved — the server-side view of
+ * {@link UserAffiliation}, adding the scope ids the UI has no use for.
+ */
+export interface HospitalAffiliation extends UserAffiliation {
   principalId: string
   organizationId: string
-  hospitalId: string
-  /** Resolved hospital name, or null when the hospital row is not visible to the caller. */
-  hospitalName: string | null
-  /** Matrícula for THIS employment (ADR 0097 D3). */
-  hospitalEmployeeId: string | null
-  startedOn: string
   /** null = active. A soft end; affiliation rows are never deleted (D4). */
   endedOn: string | null
 }
