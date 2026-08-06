@@ -13,23 +13,28 @@ import {
 import { listProfessionalCategories } from "@/lib/queries/org-users";
 import { isEmailVerificationEnabled } from "@/lib/config/auth";
 import { orgHref } from "@/lib/routing";
-import { RegisterUserForm } from "@/components/users/register-user-form";
+import { RegisterPersonFlow } from "@/components/users/register-person-flow";
 
 export const metadata: Metadata = {
   title: "Registrar pessoa",
 };
 
 /**
- * Register-user page (FE-2). Access is enforced by the `/o/[org]/manage` layout
+ * Register-person page. Access is enforced by the `/o/[org]/manage` layout
  * (`is_org_admin_of(org)` OR hospital_admin-of-some-hospital-here).
  *
- * An `org_admin` gets a free home-hospital picker + the org's commissions. A
- * `hospital_admin` (ADR 0051 Decision 7 / Q2) registers people INTO its own
- * hospital: the home hospital is LOCKED to that hospital (a read-only display,
- * not a chooser — the backend hard-sets it server-side regardless) and the
- * commission assigner is scoped to that hospital. The hospital is resolved from
- * `?hospital=` (deep-linked from the directory), defaulting to the admin's first.
- * Professional categories are global vocabulary.
+ * ⚠ AFF W3/T3.1 (ADR 0097 D12): this stopped being a create-only surface. It keeps its
+ * label and its route, and resolves an identifier BEFORE it creates — one flow with
+ * four outcomes, because forcing the admin to know in advance which case they are in
+ * is the original defect. The interactive half lives in `RegisterPersonFlow`; this
+ * Server Component only resolves scope and loads the vocabulary it needs.
+ *
+ * An `org_admin` may employ someone at any hospital of the org. A `hospital_admin`
+ * (ADR 0051 Decision 7 / Q2) registers people INTO its own hospital: the hospital is
+ * LOCKED (a read-only display, not a chooser — the backend hard-sets it server-side
+ * regardless) and the commission assigner is scoped to that hospital. The hospital is
+ * resolved from `?hospital=` (deep-linked from the directory), defaulting to the
+ * admin's first. Professional categories are global vocabulary.
  */
 export default async function OrgRegisterUserPage({
   params,
@@ -66,13 +71,11 @@ export default async function OrgRegisterUserPage({
       adminHospitals[0] ??
       null);
 
-  // An org_admin gets the org-wide hospital picker + commissions; a
-  // hospital_admin gets its hospital's commissions only (the picker is locked).
+  // An org_admin gets the org-wide hospital list + commissions; a hospital_admin gets
+  // its hospital's commissions only (the hospital is locked).
   const [categories, hospitals, commissions] = await Promise.all([
     listProfessionalCategories(),
-    isOrgAdmin
-      ? listHospitalsForOrg(organization.id)
-      : Promise.resolve([]),
+    isOrgAdmin ? listHospitalsForOrg(organization.id) : Promise.resolve([]),
     isOrgAdmin
       ? listCommissionsForOrg(organization.id)
       : listManagedCommissions(organization.id, lockedHospitalRef?.id ?? null),
@@ -83,6 +86,18 @@ export default async function OrgRegisterUserPage({
   // the invite-email flow returns. Read here so the helper never leaks into the
   // client bundle.
   const emailVerificationEnabled = isEmailVerificationEnabled();
+
+  const lockedHospital = lockedHospitalRef
+    ? { id: lockedHospitalRef.id, name: lockedHospitalRef.name }
+    : undefined;
+
+  // Never offer a hospital the door will refuse: an org_admin may employ anywhere in
+  // the org, a hospital_admin only at the hospital they administer.
+  const affiliableHospitals = isOrgAdmin
+    ? hospitals.map((h) => ({ id: h.id, name: h.name }))
+    : lockedHospital
+      ? [lockedHospital]
+      : [];
 
   const backHref =
     !isOrgAdmin && lockedHospitalRef
@@ -106,26 +121,23 @@ export default async function OrgRegisterUserPage({
           <h1 className="text-3xl text-balance">Registrar pessoa</h1>
           <p className="max-w-prose text-muted-foreground text-pretty">
             {emailVerificationEnabled
-              ? "A pessoa recebe um convite por e-mail para verificar o endereço e definir uma senha. O status começa como pendente até a ativação."
-              : "Defina uma senha inicial para a pessoa. A conta é ativada imediatamente e o acesso deve ser repassado com segurança — a pessoa pode alterar a senha depois."}
+              ? "Comece pelo CPF. Se a pessoa ainda não tiver cadastro, ela recebe um convite por e-mail para verificar o endereço e definir uma senha."
+              : "Comece pelo CPF. Se a pessoa ainda não tiver cadastro, você define uma senha inicial e a conta é ativada imediatamente."}
           </p>
         </div>
       </header>
 
-      <div className="animate-rise-in max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7">
-        <RegisterUserForm
-          organizationId={organization.id}
-          categories={categories}
-          hospitals={hospitals}
-          commissions={commissions}
-          emailVerificationEnabled={emailVerificationEnabled}
-          lockedHospital={
-            lockedHospitalRef
-              ? { id: lockedHospitalRef.id, name: lockedHospitalRef.name }
-              : undefined
-          }
-        />
-      </div>
+      <RegisterPersonFlow
+        org={org}
+        organizationId={organization.id}
+        organizationName={organization.name}
+        isOrgAdmin={isOrgAdmin}
+        affiliableHospitals={affiliableHospitals}
+        lockedHospital={lockedHospital}
+        categories={categories}
+        commissions={commissions}
+        emailVerificationEnabled={emailVerificationEnabled}
+      />
     </div>
   );
 }

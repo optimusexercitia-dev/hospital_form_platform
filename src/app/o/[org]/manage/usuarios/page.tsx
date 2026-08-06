@@ -24,12 +24,17 @@ const PAGE_SIZE = 20;
  * (`is_org_admin_of(org)` OR hospital_admin-of-some-hospital-here).
  *
  * An `org_admin` sees the ORG-WIDE directory (`listOrgUsers`). A `hospital_admin`
- * sees only its HOSPITAL's users (`listHospitalUsers`, ADR 0051 Decision 7 / Q2 —
- * scoped to `home_hospital_id`, NO org-wide `profiles` read), with a hospital
- * switcher (`?hospital=`) when it administers more than one. Both reads are
- * RLS-scoped and searchable/paged; each row links to the per-user management
- * page (itself RLS-scoped). "Registrar pessoa" preserves the hospital scope so a
- * hospital_admin lands on the register form pre-locked to that hospital.
+ * sees only its HOSPITAL's roster (`listHospitalUsers`), with a hospital switcher
+ * (`?hospital=`) when it administers more than one. Both reads are RLS-scoped and
+ * searchable/paged; each row links to the per-user management page (itself
+ * RLS-scoped). "Registrar pessoa" preserves the hospital scope so a hospital_admin
+ * lands on the register flow pre-locked to that hospital.
+ *
+ * ⚠ AFF W3/T3.2 (ADR 0097 D2): the hospital roster is now
+ * "ACTIVE AFFILIATION to the hospital ∪ member of one of its commissions", replacing
+ * the dropped `profiles.home_hospital_id`. **A person affiliated with ZERO committees
+ * appears** — that is the whole point of the affiliation table, and the case a
+ * commission-derived roster silently drops.
  */
 export default async function OrgUsersPage({
   params,
@@ -112,7 +117,12 @@ export default async function OrgUsersPage({
 
       <UserDirectorySearch initialSearch={search} />
 
-      <UserDirectoryList org={org} users={rows} filtered={Boolean(search)} />
+      <UserDirectoryList
+        org={org}
+        users={rows}
+        filtered={Boolean(search)}
+        scope={isOrgAdmin ? "org" : "hospital"}
+      />
 
       <UserPagination total={total} page={pageNum} pageSize={PAGE_SIZE} />
     </div>

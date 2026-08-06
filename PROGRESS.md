@@ -202,6 +202,43 @@ findings reports were **merged**, not discarded.
 > are the kind of number baked into counting keystones. Budget for updating them — **do not clamp the
 > new fixtures to preserve old counts** (the shared-fixture pigeonhole lesson).
 
+**W3 UI result (`frontend`, 2026-08-06) — T3.1 / T3.2 / T3.3 UI halves BUILT and browser-verified.**
+Files: `src/app/o/[org]/manage/usuarios/{page,novo/page,[userId]/page}.tsx` · new
+`src/components/users/{register-person-flow,cpf-field,affiliations-panel}.tsx` · rewritten
+`register-user-form.tsx` / `user-profile-edit-form.tsx` · edited
+`user-directory-list.tsx` / `user-lifecycle-actions.tsx`.
+**T3.1** — `/usuarios/novo` is now a two-step flow inside the SAME route (a second route would
+reintroduce D12's actual defect: the admin having to know in advance which case they are in). CPF
+travels in a POST via `lookupOrgPeople`, **never a URL parameter** — a national ID must not land in
+history or an access log. All four D12 outcomes verified in a running app, plus a **fifth guard**:
+`is_active` gets its own outcome, so a deactivated account is never silently offered for affiliation
+(ADR 0098 W2.2 is why the flag is in the payload). Outcome D has no branch of its own **by design** —
+a CPF held outside the org is indistinguishable from "not found", and `registerUser`'s block refuses
+at submit, verbatim in form. **T3.2** — employment and committees render as separate chips; the
+zero-committee affiliated person (`novato.pendente`) shows "Hospital Central A · Sem comissão" in the
+hospital roster, legible rather than an empty cell. Empty lists say "none found", **never** "you lack
+permission" (`list_org_people` returns `[]` for an unauthorized caller by design). **T3.3** —
+person-level fields (nome, CPF, categoria, credenciais) are `org_admin`-only in the UI and the CPF
+field is **write-only** (D7 column-lock: no admin surface reads another person's CPF); employment
+(matrícula + início, via `update_affiliation`) belongs to the hospital's own admin; account
+deactivation is absent for a hospital admin with the reason stated. `endAffiliation` blockers render
+the actual seats ("Membro — Comissão de Controle de Infecção Hospitalar"), never "não foi possível".
+Every `can*` flag is **UX only** — the server refusals (`MESSAGES.orgAdminOnly`, the doors' SQLSTATEs)
+are the boundary (Rule 1). Gates on `frontend`-owned files: typecheck **0 errors** · lint **0/0**
+(incl. `lint:css-vars` + the door gate) · Vitest **1003/1003**. Verified by driving the flows in
+`next dev` (13 screenshots), incl. a **keyboard-only** pass: the CPF field is reachable by Tab and
+focus lands on the outcome heading after the lookup.
+
+> ⚠ **E2E LOCATOR IMPACT — `tester` must re-point these.** `/o/[org]/manage/usuarios/novo` no longer
+> renders the create form on load; it renders the CPF step, and the create form appears only after a
+> lookup returns nothing. Affected today: `e2e/user-registration.spec.ts` (6 navigations),
+> `e2e/hospital-admin-tier.spec.ts` HA-6 (2), `e2e/phase3-admin-members.spec.ts` (1). Also:
+> `getByLabel('Hospital de origem')` is **gone** — the hospital is now a read-only display for a
+> hospital_admin (label "Hospital") and the concept is "vínculo", not "origem"; the directory row's
+> "Sem hospital de origem" became the chip "Sem vínculo hospitalar"; and `getByLabel('CPF')` matches
+> **two** nodes (the field and the region "Comece pelo CPF") — use
+> `getByRole('textbox', { name: 'CPF' })`.
+
 ### ⬛ Membership hardening + Diretor Técnico (ADR 0094) — COMPLETE, rotated 2026-08-05
 
 Detail → [membership-hardening-technical-director.md](docs/progress/membership-hardening-technical-director.md).
