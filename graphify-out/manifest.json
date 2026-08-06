@@ -595,8 +595,8 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/meetings/[meetingId]/page.tsx": {
-    "mtime": 1784536084.243837,
-    "ast_hash": "fc207d63d5ddfce17fb2c1696304041d",
+    "mtime": 1786048529.207531,
+    "ast_hash": "caa5fb1197398d1b62d276661287887e",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/meetings/error.tsx": {
@@ -2040,8 +2040,8 @@
     "semantic_hash": ""
   },
   "src/components/meetings/meeting-form-dialog.tsx": {
-    "mtime": 1784012286.2220585,
-    "ast_hash": "07e38b9b9b2959725384994242439be6",
+    "mtime": 1786048529.2124958,
+    "ast_hash": "117bc185cc1af275ad28f89760805ddd",
     "semantic_hash": ""
   },
   "src/components/meetings/meeting-header.tsx": {
@@ -2065,8 +2065,8 @@
     "semantic_hash": ""
   },
   "src/components/meetings/meeting-minutes-editor.tsx": {
-    "mtime": 1781597922.0850813,
-    "ast_hash": "a775f2ab41e0a07b2f9a5e729abdd13e",
+    "mtime": 1786048529.2135222,
+    "ast_hash": "fe05ea1af03e1531bf1bce871b66ca70",
     "semantic_hash": ""
   },
   "src/components/meetings/meeting-settings-view.tsx": {
@@ -2085,8 +2085,8 @@
     "semantic_hash": ""
   },
   "src/components/meetings/meetings-list.tsx": {
-    "mtime": 1783889811.2418716,
-    "ast_hash": "f83b8799e36e6ef98ff36720828118a5",
+    "mtime": 1786048529.2135222,
+    "ast_hash": "3a9b71dba7fb8c08493b293dd8d19c2c",
     "semantic_hash": ""
   },
   "src/components/meetings/quorum-settings-form.tsx": {
@@ -3080,8 +3080,8 @@
     "semantic_hash": ""
   },
   "src/components/ui/date-picker.tsx": {
-    "mtime": 1782843545.8225288,
-    "ast_hash": "b5d4e6dd9a191e5cfb53b1443fbc67c6",
+    "mtime": 1786048529.225139,
+    "ast_hash": "1f23c7eabf2bc9118aa55c09158eb11e",
     "semantic_hash": ""
   },
   "src/components/ui/date-time-picker.tsx": {
@@ -3520,8 +3520,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/feature-flags.ts": {
-    "mtime": 1785835946.5419562,
-    "ast_hash": "2ec2b5f4af4348d4819336b4e77b6a45",
+    "mtime": 1786048529.2458897,
+    "ast_hash": "9028d5fb7a0cb4b6b8d9c6884d10271e",
     "semantic_hash": ""
   },
   "src/lib/queries/forms.ts": {
@@ -3545,8 +3545,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/meetings.ts": {
-    "mtime": 1784325106.2567084,
-    "ast_hash": "d866ca29695c09756cfd4abd892e5bd5",
+    "mtime": 1786048529.2458897,
+    "ast_hash": "4de12dcb43c2961740e2f1dbf341c8b2",
     "semantic_hash": ""
   },
   "src/lib/queries/members.ts": {
@@ -3740,8 +3740,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1786012268.103956,
-    "ast_hash": "273e126540094f10bc4443e4153b5a7d",
+    "mtime": 1786048529.2509432,
+    "ast_hash": "08700cbb8622a41747ed49dba7b07b94",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -3780,8 +3780,8 @@
     "semantic_hash": ""
   },
   "src/proxy.ts": {
-    "mtime": 1783671259.0802696,
-    "ast_hash": "1c17a528232b5fa30f58592375e0334f",
+    "mtime": 1786048529.2509432,
+    "ast_hash": "ffe74741cc9f7deac66601cf10d10965",
     "semantic_hash": ""
   },
   "supabase/migrations/20260620000000_baseline.sql": {
@@ -4065,8 +4065,8 @@
     "semantic_hash": ""
   },
   "supabase/seed.sql": {
-    "mtime": 1785990653.9016876,
-    "ast_hash": "9c7d6c7cf9de4eb218411c71e2683b91",
+    "mtime": 1786048529.2579744,
+    "ast_hash": "7e7a6e49f86ec6167ce8039507037b08",
     "semantic_hash": ""
   },
   "supabase/tests/00_setup.sql": {
@@ -4465,8 +4465,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1785981863.260788,
-    "ast_hash": "5d671437b5a957ec4c82184fdbb5d700",
+    "mtime": 1786015266.9778018,
+    "ast_hash": "27994b51ab5bef0f00cb67702aa411b1",
     "semantic_hash": ""
   },
   "PHASES.md": {
@@ -4475,8 +4475,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1786012268.089154,
-    "ast_hash": "c822a68f86ae1df2c1c0cfdc1fa86df5",
+    "mtime": 1786048529.1871808,
+    "ast_hash": "1e82fd85d4be9015af1b81721d383937",
     "semantic_hash": ""
   },
   "README.md": {
@@ -4485,8 +4485,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state.md": {
-    "mtime": 1786012268.0911522,
-    "ast_hash": "93b84758f4f10549cd641449af557ead",
+    "mtime": 1786048529.1917424,
+    "ast_hash": "8d9ef215f50f68c4bbfcf07fb847e294",
     "semantic_hash": ""
   },
   "docs/decisions/0001-scaffolding-and-toolchain.md": {
@@ -4915,8 +4915,8 @@
     "semantic_hash": ""
   },
   "docs/progress/bug-log-archive.md": {
-    "mtime": 1785849635.017934,
-    "ast_hash": "fe3faeea2802c245c5be9281736e5e9b",
+    "mtime": 1786017145.7518878,
+    "ast_hash": "efaebe43027f375cd9b75fce951b0b68",
     "semantic_hash": ""
   },
   "docs/progress/case-access.md": {
@@ -4945,8 +4945,8 @@
     "semantic_hash": ""
   },
   "docs/progress/follow-ups-archive.md": {
-    "mtime": 1785968649.3430717,
-    "ast_hash": "f14f1ecbfd1cb9acb006c4959029ca67",
+    "mtime": 1786017145.7528944,
+    "ast_hash": "4fa36f52474c55de530fd9c398dc4548",
     "semantic_hash": ""
   },
   "docs/progress/form-builder-enhancements.md": {
@@ -5115,8 +5115,8 @@
     "semantic_hash": ""
   },
   "docs/progress/qa-verdicts-archive.md": {
-    "mtime": 1783118443.3833508,
-    "ast_hash": "f1b30957949f67c66b3bc72856bf8302",
+    "mtime": 1786016728.7056441,
+    "ast_hash": "8823be04c9023c07a19f4bb8b9f10fa2",
     "semantic_hash": ""
   },
   "docs/progress/result-rec.md": {
@@ -5125,8 +5125,8 @@
     "semantic_hash": ""
   },
   "docs/progress/test-run-archive.md": {
-    "mtime": 1785849635.594554,
-    "ast_hash": "7888321b3e6e7ebca256dee4de67a196",
+    "mtime": 1786016728.704435,
+    "ast_hash": "8fcf4338e61ddfcaf28588c1df933baf",
     "semantic_hash": ""
   },
   "docs/progress/user-registration.md": {
@@ -5685,8 +5685,8 @@
     "semantic_hash": ""
   },
   ".claude/agents/backend-engineer.md": {
-    "mtime": 1785208279.0537605,
-    "ast_hash": "818109fbd3890787fc5b546e7c0f22bd",
+    "mtime": 1786015174.8197255,
+    "ast_hash": "320036ee952ac2e23ae94ba88d539dbf",
     "semantic_hash": ""
   },
   ".claude/agents/frontend-engineer.md": {
@@ -5695,8 +5695,8 @@
     "semantic_hash": ""
   },
   ".claude/agents/qa-reviewer.md": {
-    "mtime": 1784012286.054999,
-    "ast_hash": "2137507adac1e8439d4c99a8ae6ec615",
+    "mtime": 1786015185.5694554,
+    "ast_hash": "4ec4f5912784e70ff5b2fde8f365ad64",
     "semantic_hash": ""
   },
   ".claude/agents/qa-tester.md": {
@@ -5740,8 +5740,8 @@
     "semantic_hash": ""
   },
   "docs/lead-playbook.md": {
-    "mtime": 1783671259.0802696,
-    "ast_hash": "39e358b9e2775c5e51735d785ed9d87c",
+    "mtime": 1786016755.4326768,
+    "ast_hash": "cdc48d2dabb75af4a9755970193368ef",
     "semantic_hash": ""
   },
   "docs/progress/ui-batch-2026-07.md": {
@@ -7220,8 +7220,8 @@
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-findings.md": {
-    "mtime": 1785989158.26125,
-    "ast_hash": "501cbf92a05bb37332200dd6ebf3e9dd",
+    "mtime": 1786048529.1964765,
+    "ast_hash": "289f137d9f160bbed78ad92472fa8e5d",
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-p0-review.md": {
@@ -7650,7 +7650,7 @@
     "semantic_hash": ""
   },
   "dev.sh": {
-    "mtime": 1784665959.6818259,
+    "mtime": 1786048542.9057107,
     "ast_hash": "8bedbecc6da1cba38ac104d09bf42260",
     "semantic_hash": ""
   },
@@ -10420,8 +10420,8 @@
     "semantic_hash": ""
   },
   "docs/progress/hospital-affiliation-person-identity.md": {
-    "mtime": 1786012268.094803,
-    "ast_hash": "784f30b0b7905fb6cb4deef4e281edac",
+    "mtime": 1786013945.697236,
+    "ast_hash": "af1b04c47504f37a48259683486bbbb6",
     "semantic_hash": ""
   },
   "docs/progress/membership-hardening-technical-director.md": {
@@ -10437,6 +10437,286 @@
   "docs/reviews/aff-review.md": {
     "mtime": 1786012268.094803,
     "ast_hash": "cc99924f7fe98a073fe0da37f9c010da",
+    "semantic_hash": ""
+  },
+  "e2e/helpers/minutes.ts": {
+    "mtime": 1786048529.2019928,
+    "ast_hash": "a9768c83a44575d803f59f8765e23802",
+    "semantic_hash": ""
+  },
+  "e2e/meeting-audio-minutes.spec.ts": {
+    "mtime": 1786048529.2040224,
+    "ast_hash": "2bdf44719cf2b190a5f810fe12bbc583",
+    "semantic_hash": ""
+  },
+  "src/app/api/webhooks/audio-jobs/route.test.ts": {
+    "mtime": 1786048529.2040224,
+    "ast_hash": "cdf954cc868603a10354bd98cef901d6",
+    "semantic_hash": ""
+  },
+  "src/app/api/webhooks/audio-jobs/route.ts": {
+    "mtime": 1786048529.2040224,
+    "ast_hash": "c09f7db84b4b70b47f354a8fd1873216",
+    "semantic_hash": ""
+  },
+  "src/app/o/[org]/c/[commission]/meetings/[meetingId]/revisao-ata/error.tsx": {
+    "mtime": 1786048529.207531,
+    "ast_hash": "6a4528b44e03ba12e501bf1f0d41a607",
+    "semantic_hash": ""
+  },
+  "src/app/o/[org]/c/[commission]/meetings/[meetingId]/revisao-ata/loading.tsx": {
+    "mtime": 1786048529.2095387,
+    "ast_hash": "fa42eb4c95b5ecbbf4fe83f3b9f3c63e",
+    "semantic_hash": ""
+  },
+  "src/app/o/[org]/c/[commission]/meetings/[meetingId]/revisao-ata/page.tsx": {
+    "mtime": 1786048529.2100358,
+    "ast_hash": "1ee777bd1bc40d702f85c5fd96f8ba4b",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/minutes-applied-banner.tsx": {
+    "mtime": 1786048529.2135222,
+    "ast_hash": "f22093dc3354fc62fb5a1e264c9fa056",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/minutes-audio-slot.tsx": {
+    "mtime": 1786048529.2135222,
+    "ast_hash": "543c3af6ec6cbe25e1e00eb67b5790af",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/minutes-labels.ts": {
+    "mtime": 1786048529.2135222,
+    "ast_hash": "3c3c7afac2e642ad0238c6ada8edb092",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/minutes-list-badge.tsx": {
+    "mtime": 1786048529.2135222,
+    "ast_hash": "dc622c1e39c8bc73ff40be3bbbbd5f09",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/minutes-upload-dialog.tsx": {
+    "mtime": 1786048529.2189791,
+    "ast_hash": "da9889970d2b5731ca14c3e0bf38b4fb",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/actions-review.tsx": {
+    "mtime": 1786048529.2189791,
+    "ast_hash": "5e834799448236570dfe85fa62e99d4d",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/agenda-review-card.tsx": {
+    "mtime": 1786048529.2189791,
+    "ast_hash": "88a91a7309951e8a383fca2ce58b7907",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/ata-editor.tsx": {
+    "mtime": 1786048529.220902,
+    "ast_hash": "b0ad621b8326d00a8941c6763e531553",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/conclude-bar.tsx": {
+    "mtime": 1786048529.2215874,
+    "ast_hash": "3d2f6eda6e735c3a7c15a93bfc1ad7a9",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/next-meeting-card.tsx": {
+    "mtime": 1786048529.2215874,
+    "ast_hash": "3da821ac70e4f57895f8df752b16d768",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/review-shell.tsx": {
+    "mtime": 1786048529.2226126,
+    "ast_hash": "d90976ec636794a9bacbdb5ad4deec2a",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/speakers-panel.tsx": {
+    "mtime": 1786048529.2236168,
+    "ast_hash": "21171fdf476caf094caa8282a3cd9940",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/review/transcript-panel.tsx": {
+    "mtime": 1786048529.2241275,
+    "ast_hash": "a5b581f29713195dbe70e59f19a0db28",
+    "semantic_hash": ""
+  },
+  "src/components/meetings/use-minutes-action.ts": {
+    "mtime": 1786048529.2241275,
+    "ast_hash": "87c28a1c1af028a52097988ddd63c5f8",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/client.ts": {
+    "mtime": 1786048529.2261446,
+    "ast_hash": "701c2170d390d16c72757f1565c61fcc",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/hmac.test.ts": {
+    "mtime": 1786048529.2281983,
+    "ast_hash": "5787b131b9e60cf8a07cb0d7aa9c58c8",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/hmac.ts": {
+    "mtime": 1786048529.2292342,
+    "ast_hash": "f470470db33bebe96832c9b700acccda",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/metadata.test.ts": {
+    "mtime": 1786048529.2302425,
+    "ast_hash": "25eddeb08e1759d45c655d4fc26ea5d5",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/metadata.ts": {
+    "mtime": 1786048529.2302425,
+    "ast_hash": "16edc12d0952127755d39438dbfe9af7",
+    "semantic_hash": ""
+  },
+  "src/lib/audio-jobs/types.ts": {
+    "mtime": 1786048529.2312315,
+    "ast_hash": "84b7b334ad37d10a46f5a3b41c15cf5d",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/actions.ts": {
+    "mtime": 1786048529.2327368,
+    "ast_hash": "ff6aa903a61621e0eb03dc57edfe99d3",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/callback-url.ts": {
+    "mtime": 1786048529.2327368,
+    "ast_hash": "cf83eb7ec73bd0ffae992055aa27e3c6",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/constants.ts": {
+    "mtime": 1786048529.233744,
+    "ast_hash": "d34dc329d546ed64e980797d92acd96c",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/context.test.ts": {
+    "mtime": 1786048529.234775,
+    "ast_hash": "928d4e551f5133f955ef3f98434d46f2",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/context.ts": {
+    "mtime": 1786048529.2357755,
+    "ast_hash": "52a459020e244de6e057cb6f26ed18bd",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/draft-roundtrip.test.ts": {
+    "mtime": 1786048529.2357755,
+    "ast_hash": "2318b473ce963333daefbfabf74d679e",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/messages.ts": {
+    "mtime": 1786048529.236936,
+    "ast_hash": "4500211d1604f1f31c9a59e67d5ae04a",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/normalize.test.ts": {
+    "mtime": 1786048529.2379382,
+    "ast_hash": "4244495f014184ffcad4699a87b22fa0",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/normalize.ts": {
+    "mtime": 1786048529.2379382,
+    "ast_hash": "196b8a2e960f78ee5ab1a5ba79307fc5",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/queries.ts": {
+    "mtime": 1786048529.2391572,
+    "ast_hash": "12fa3cb5c550ef667af025ab06fb930e",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/reconcile.ts": {
+    "mtime": 1786048529.2401578,
+    "ast_hash": "729068f25db832e16fb4beca1361a22c",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/sanitize.test.ts": {
+    "mtime": 1786048529.2401578,
+    "ast_hash": "5b5348ce6bba6654722cd8f45021cd09",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/sanitize.ts": {
+    "mtime": 1786048529.2411566,
+    "ast_hash": "046feac9a3eb675a3e530a4984caafed",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/sweep.test.ts": {
+    "mtime": 1786048529.2411566,
+    "ast_hash": "b4a7fc387f403f54031f4567cfc413eb",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/sweep.ts": {
+    "mtime": 1786048529.242157,
+    "ast_hash": "d94aa31dc0845816cb35b161cd6bdb14",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/types.ts": {
+    "mtime": 1786048529.243157,
+    "ast_hash": "319917fac91b5b1c1d4085d61f34ca75",
+    "semantic_hash": ""
+  },
+  "src/lib/minutes-jobs/webhook.ts": {
+    "mtime": 1786048529.2443025,
+    "ast_hash": "b68268793c84b2d5717bcbe286b6db53",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260910000100_audio_minutes_schema.sql": {
+    "mtime": 1786048529.253963,
+    "ast_hash": "51f8179dea10f69e94ae5875daf979cd",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260910000200_audio_minutes_doors.sql": {
+    "mtime": 1786048529.253963,
+    "ast_hash": "ffcab009545064c128a2a76943133850",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260910000300_audio_minutes_notifications.sql": {
+    "mtime": 1786048529.253963,
+    "ast_hash": "81b8a803c8196c8a54ffc5fac7a312f7",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260910000400_audio_minutes_audio_reclaim.sql": {
+    "mtime": 1786048529.25597,
+    "ast_hash": "30846f1a4766a9b207b9175652370059",
+    "semantic_hash": ""
+  },
+  "supabase/tests/305_audio_minutes.sql": {
+    "mtime": 1786048529.2579744,
+    "ast_hash": "c73dd8167c23e316c90a8a9f5f94f039",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0099-meeting-audio-minutes.md": {
+    "mtime": 1786048529.1933985,
+    "ast_hash": "854196c66f157d582f88cc734f8073af",
+    "semantic_hash": ""
+  },
+  "docs/deployment/audio-minutes-runbook.md": {
+    "mtime": 1786048529.1944928,
+    "ast_hash": "e6c07f9ef472b8034c68db6edcda4cfc",
+    "semantic_hash": ""
+  },
+  "docs/design/audio-minutes-ui.md": {
+    "mtime": 1786048529.1964765,
+    "ast_hash": "dba34055a076d5511bfb9c675976adc9",
+    "semantic_hash": ""
+  },
+  "docs/plans/audio-minutes-b0-findings.md": {
+    "mtime": 1786048529.1964765,
+    "ast_hash": "6373b06662b29908528d7ea806a47624",
+    "semantic_hash": ""
+  },
+  "docs/plans/audio-minutes.md": {
+    "mtime": 1786048529.1964765,
+    "ast_hash": "4891f8b43edd478cffbba7e945f20aa2",
+    "semantic_hash": ""
+  },
+  "docs/progress/min-audio-minutes.md": {
+    "mtime": 1786048529.1964765,
+    "ast_hash": "2d104c19522a1d291c1743d2f797efb4",
+    "semantic_hash": ""
+  },
+  "docs/reviews/min-audio-minutes-review.md": {
+    "mtime": 1786048529.2019928,
+    "ast_hash": "2cf74de18c6e145e7c646c840adc96d4",
     "semantic_hash": ""
   }
 }
