@@ -272,6 +272,41 @@ are the boundary (Rule 1). Gates on `frontend`-owned files: typecheck **0 errors
 `next dev` (13 screenshots), incl. a **keyboard-only** pass: the CPF field is reachable by Tab and
 focus lands on the outcome heading after the lookup.
 
+**QA pass 1 — F1 fixed, plus a second defect the same sweep found (`frontend`, 2026-08-06).**
+**F1** (Rule 10): `affiliations-panel.tsx` rendered `" — no hospital"` — English inside the pt-BR
+`role="alert"` blockers list — on the **hospital-tier** arm, the one the audit's MEDIUM-3 added so a
+sitting technical director's seat cannot be orphaned. Now `" — cargo do hospital"`, which contrasts
+with the commission arm (that one names its committee) and tells the admin the seat is held at the
+hospital, outside any committee. **F2, found by sweeping the same branch and not reported by QA:** the
+end-affiliation confirm dialog closed **only on success**, so a refusal rendered *behind* the open
+modal — dimmed, and `aria-hidden` because Radix hides everything outside an open dialog, making the
+blockers list **inert to assistive tech**. The admin saw a dialog that appeared to do nothing. Both
+dialogs now close either way; `user-lifecycle-actions.tsx` carried the identical shape (pre-existing,
+same file family) and is fixed with it.
+**Why F1 survived every gate, recorded because the mechanism generalises:** no E2E reaches the
+blockers list at all, and every blockers case ever rendered by hand was a *commission* seat — so the
+hospital-tier arm was covered by a green bar and executed by nothing. `dr.john` (the obvious fixture)
+only produces the commission arm; the hospital-tier arm needs someone **affiliated to a hospital AND
+holding a hospital-tier seat there**, which in the seed is **`hospitaladmin.a1`** (`hospital_admin` of
+Central A, no commission) — derived from the catalog, not guessed.
+**Hardening:** `ROLE_LABELS` completeness is now executable (`affiliations-panel.test.ts`, 3 tests)
+against `memberships_role_check` as the named authority — all 9 roles covered, so the `?? role`
+fallback that would leak an English snake_case identifier is unreachable, and a 10th role reds the
+suite instead of shipping. Both assertions were **mutation-proven** (drop `technical_director`'s
+label → red; set a label equal to its key → red), then the pre-image restored.
+Gates: typecheck **0** · lint **0/0** · Vitest **1013/1013**. Three previously unreachable branches
+were rendered in a running app and read on screen: the hospital-tier blocker, the zero-affiliation
+empty state, and outcome B for a person with no affiliation.
+
+> ⚠ **STILL UNEXERCISED, named rather than assumed harmless** (all pt-BR, none reached by any test):
+> `AddAffiliationForm`'s success/error banner (exercising it mutates the shared seed mid-gate, so I
+> did not); the `!canManage` read-only affiliation row and its two matrícula sub-branches — likely
+> **unreachable by construction**, since `hospital_affiliations` SELECT is row-scoped on
+> `is_hospital_admin_of(hospital_id)`, so a hospital admin never receives a row for a hospital they do
+> not administer, and an org_admin manages all of them; `hospitalName ?? "Hospital não visível"`, same
+> reason; and `LOOKUP_MESSAGES.error`. If `backend` ever widens that policy, the read-only row becomes
+> live and wants a test.
+
 > ⚠ **E2E LOCATOR IMPACT — `tester` must re-point these.** `/o/[org]/manage/usuarios/novo` no longer
 > renders the create form on load; it renders the CPF step, and the create form appears only after a
 > lookup returns nothing. Affected today: `e2e/user-registration.spec.ts` (6 navigations),

@@ -63,10 +63,19 @@ import {
 /**
  * pt-BR labels for the seats `end_affiliation` reports as blockers (D5 — ending is
  * refused while the person holds active memberships of ANY tier under the hospital).
- * Unknown values fall through to the raw role rather than rendering blank: a blocker the
- * admin cannot name is worse than an untranslated one.
+ *
+ * ⚠ THE AUTHORITY FOR THIS SET IS `memberships_role_check`, not this file. The blocker
+ * `role` arrives from PostgreSQL as the raw enum text, so a role added to that CHECK
+ * without a label here leaks an English snake_case identifier into a pt-BR `role="alert"`
+ * — the exact shape of the defect QA caught on the hospital-tier arm. Verified complete
+ * against the live catalog (9 roles, 2026-08-06) and pinned executably by
+ * `affiliations-panel.test.ts`, because a comment asserting completeness goes stale in
+ * silence.
+ *
+ * The `?? role` fallback below is therefore unreachable today and is kept only as a
+ * fail-soft: a blocker the admin cannot name is worse than one that is untranslated.
  */
-const ROLE_LABELS: Record<string, string> = {
+export const ROLE_LABELS: Record<string, string> = {
   staff: "Membro",
   staff_admin: "Coordenação",
   hospital_admin: "Administração do hospital",
@@ -207,8 +216,15 @@ function AffiliationRow({
         userId,
         hospitalId: affiliation.hospitalId,
       });
+      // Close the confirm dialog EITHER WAY, and this is not cosmetic. The refusal —
+      // including the blockers list the admin must act on — renders in the PAGE, and
+      // Radix marks everything outside an open modal `aria-hidden`. Closing only on
+      // success left the explanation greyed out behind the overlay and INERT to
+      // assistive tech, so the admin saw a dialog that appeared to do nothing. The
+      // seats also cannot be removed from inside the dialog, so staying there is
+      // wrong even when the message is read.
+      setConfirmEnd(false);
       setState(result);
-      if (result.ok) setConfirmEnd(false);
     });
   }
 
@@ -261,7 +277,15 @@ function AffiliationRow({
                 {state.blockers.map((b, i) => (
                   <li key={`${b.role}-${b.commission ?? "hospital"}-${i}`}>
                     {roleLabel(b.role)}
-                    {b.commission ? ` — ${b.commission}` : " — no hospital"}
+                    {/* A commission seat names its committee, so the admin knows where
+                        to go to remove it. A HOSPITAL-TIER seat (technical_director,
+                        nsp_coordinator, hospital_admin…) has no committee to name — it
+                        is held at the hospital itself, and saying so is what tells the
+                        admin to look outside the committee pages. This is the arm the
+                        audit's MEDIUM-3 added and the one no test reaches. */}
+                    {b.commission
+                      ? ` — ${b.commission}`
+                      : " — cargo do hospital"}
                   </li>
                 ))}
               </ul>

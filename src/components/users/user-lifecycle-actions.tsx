@@ -69,11 +69,17 @@ export function UserLifecycleActions({
     setError(null);
     startTransition(async () => {
       const result = await action();
+      // Close the confirm dialog EITHER WAY. The error banner lives in the PAGE, and
+      // Radix marks everything outside an open modal `aria-hidden` — so closing only
+      // on success rendered a failure (e.g. the D14 `orgAdminOnly` refusal) dimmed
+      // behind the overlay and unreadable to assistive tech, which looks to the admin
+      // like a button that does nothing. Same defect class as the affiliation
+      // end-refusal; found by sweeping for branches no test reaches.
+      setOpenDialog(null);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível concluir a ação.");
         return;
       }
-      setOpenDialog(null);
       router.refresh();
     });
   }
