@@ -70,7 +70,14 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
     never evaluates (BUG-AUTHZ-001; fixed by `20260903000700`, held by pgTAP `270`). When you cite the
     census, cite it as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
   - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
-    commissions, users, members.
+    commissions, users, members. ⚠ **`hospital_admin` is NOT confined to its own hospital's
+    people** — the user directory is org-scoped *by decision* (ADR 0048 D1), and the DEFINER door
+    `list_addable_commission_members` (gated `is_commission_admin_of`, whose hospital leg admits
+    them) already returns the whole org's active roster — wider than the `profiles` policy allows.
+    Another `prosecdef`-beside-`pg_policies` case. Ratified and extended by ADR
+    [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) (AFF), which also makes
+    hospital **affiliation** a read-visibility input — reversing ADR 0048 D7's "hospital is never
+    gated on".
   - `staff_admin` (per commission) — builds/edits forms, manages that commission's
     staff, views its dashboard.
   - `staff` (per commission) — fills published forms.
@@ -164,7 +171,7 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 │       └── types/             # generated DB types + domain types
 ├── e2e/                       # Playwright specs (Tester)
 ├── worktrees/                 # parallel sessions — docs/worktrees.md
-└── docs/                      # decisions/ (ADRs 0001–0089) · backend-state.md (backend surface
+└── docs/                      # decisions/ (ADRs 0001–0097) · backend-state.md (backend surface
                                #   map) · lead-playbook.md · progress/ · reviews/ · phases/ ·
                                #   plans/ · design/ · testing/ · deployment/ · worktrees.md
 ```
@@ -228,12 +235,13 @@ schema, one rulebook.
 nothing merges ahead of its phase.
 
 **Current sequencing / pilot plan (verify against PROGRESS.md — this line goes stale fast).**
-ADR 0057's "build 15 → 17 → 16, pilot after Phase 16" is **superseded twice over**: by
-**ADR 0071** (2026-07-12 — twelve initiatives pulled pre-pilot; that block is complete,
-ending with ETH·E3a on 2026-07-27) and by **ADR 0086** (2026-07-27 — the five
-Flexible-Forms phases pulled pre-pilot, **all five gate the pilot deploy**). Live order:
-FF-1 ✅ → FF-2 ✅ → **FF-3 → FF-5 → FF-4** → pilot deploy (origin push + Coolify + remote
-`db push`). **Phase 16 is deferred and needs replanning — it no longer gates the pilot**;
+ADR 0057's "build 15 → 17 → 16, pilot after Phase 16" is long superseded — by **ADR 0071**
+(2026-07-12, twelve initiatives pulled pre-pilot), **ADR 0086** (2026-07-27, the five
+Flexible-Forms phases), and **ADR 0093** (2026-08-03, which re-gated Phase 16 back in front of
+the pilot). **All of that block is complete**, through PCI + TV on 2026-08-05. Live order:
+**AFF** (ADR [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) — hospital
+affiliation + CPF person identity + the org people directory; mostly schema, so it lands while
+`supabase db reset` is still free) → pilot deploy (origin push + Coolify + remote `db push`).
 Phases 18–19 stay post-pilot.
 
 > ⭐ **Before any authorization / RLS / security-test work, read
