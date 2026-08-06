@@ -106,6 +106,15 @@ export interface FeatureFlags {
   // `20260903000800_accreditation_schema`; flipped at the Phase 16 gate
   // (Migration G); `seed.sql` does NOT yet force it ON (Wave 2 in progress).
   accreditation: boolean
+  // MIN (ADR 0099): meeting audio → generated ata. Gates the Ata card's "Usar áudio"
+  // entry point, the review route, and every one of the eight RPCs
+  // (app.assert_audio_minutes_enabled() → HC0S0), so the feature is dark on both sides
+  // of the boundary and hiding the UI is never the control (Rule 1). Seeded OFF in
+  // `20260910000200_audio_minutes_doors`; `seed.sql` forces it ON for local/E2E. The
+  // production flip is per-tenant and deliberately NOT written yet — it waits on the
+  // minute_generator DPA gates and a prod smoke (D17). Resolve the VALUE in
+  // `app.feature_flags.enabled`, never this comment.
+  audio_minutes: boolean
 }
 
 /** A flag key. */
@@ -314,4 +323,23 @@ export async function itemValidationsEnabled(): Promise<boolean> {
  */
 export async function accreditationEnabled(): Promise<boolean> {
   return featureEnabled('accreditation')
+}
+
+/**
+ * Whether MIN — meeting audio → generated ata (ADR 0099) — is ON. Thin per-flag wrapper
+ * over {@link featureEnabled} (consistent with the other per-flag `*Enabled()` readers),
+ * so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}.
+ *
+ * Seeded OFF in `20260910000200_audio_minutes_doors`; `seed.sql` forces it ON for
+ * local/E2E. **The production flip is deliberately not written**: it is per-tenant and
+ * waits on the minute_generator DPA gates plus a production smoke (D17).
+ *
+ * Gates the Ata card's "Usar áudio" entry point and the `revisao-ata` review route. The
+ * server checks the SAME flag on every one of the eight RPCs
+ * (`app.assert_audio_minutes_enabled()` → `HC0S0`), so a screen offered while the flag is
+ * off would be a dialog whose every action can only fail.
+ */
+export async function audioMinutesEnabled(): Promise<boolean> {
+  return featureEnabled('audio_minutes')
 }

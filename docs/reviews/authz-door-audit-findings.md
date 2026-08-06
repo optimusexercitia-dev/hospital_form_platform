@@ -24,6 +24,17 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > sweep regenerates this file and re-derives them from scratch — if it files them under BLIND
 > again, the keystone regressed and their allowlist lines must come back with them.
 
+> ⚠ **HAND-MERGED, 2026-08-06 (MIN / ADR 0099).** The two new MIN gates —
+> `app.can_read_minutes_transcript` and the `meeting_minutes_jobs_select` policy — are the
+> first two rows of the COVERED table below, merged by hand from a **diff-scoped** sweep
+> (`CASES="can_read_minutes_transcript meeting_minutes_jobs_select"`, baseline
+> Files=166, Tests=5171, Result: PASS), both COVERED and both held by
+> `supabase/tests/305_audio_minutes.sql`. Same reason as the block above: a subset run
+> OVERWRITES this report with only its own cases, so the verdict has nowhere else to land,
+> and without the merge `ARM=census` keeps reporting them as UNKNOWN forever (ADR 0079
+> Amendment 1, hazard 1; Amendment 3 — a brand-new gate is in no BLIND set, so it clears
+> `ARM=policy` vacuously and only `ARM=census` catches it).
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
@@ -107,6 +118,8 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| app.can_read_minutes_transcript(p_job_id uuid, p_uid uuid) | predicate | positive | COVERED | 305_audio_minutes.sql |
+| meeting_minutes_jobs.meeting_minutes_jobs_select (SELECT) | policy | open->true | COVERED | 305_audio_minutes.sql |
 | app.assert_not_case_excluded(p_case_id uuid) | predicate | assert_noop | COVERED | 188_case_custom_fields.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,244_authz_c6_reserved_session_lifecycle.sql,264_correction_requests.sql,265_reopen_void_narrative.sql |
 | app.attachment_confidentiality_ok(p_owner_type text, p_owner_id uuid, p_label text, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql |
 | app.can_access_targeted_response(p_response_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,276_ff5_references.sql,31_discard_response.sql,40_rls.sql,61_answer_model_v2.sql,70_response_fill.sql |

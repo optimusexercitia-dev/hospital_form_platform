@@ -2280,6 +2280,15 @@ update app.feature_flags set enabled = true where key = 'power_authoring';
 -- flipped flag above (e.g. power_authoring keeps its own line too).
 update app.feature_flags set enabled = true where key = 'accreditation';
 
+-- MIN (audio → generated ata, ADR 0099). The flag row ships DISABLED from
+-- 20260910000200 and stays disabled in production until the minute_generator DPA gates
+-- close (D17); this line forces it ON for local/E2E only, matching every other
+-- pre-gate flag above. Without it the whole MIN E2E surface is unreachable and its
+-- specs would pass vacuously by finding no button at all.
+-- ⚠ CONSEQUENCE for T3 spec 5 ("flag OFF = feature invisible"): that spec must turn the
+-- flag off itself and restore it, because this seed hands it ON.
+update app.feature_flags set enabled = true where key = 'audio_minutes';
+
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
 -- row-complete rule is exercised by simply filling the form) and one

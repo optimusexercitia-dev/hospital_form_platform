@@ -6370,6 +6370,84 @@ export type Database = {
           },
         ]
       }
+      meeting_minutes_jobs: {
+        Row: {
+          applied_at: string | null
+          audio_deleted_at: string | null
+          audio_path: string | null
+          cancelled_at: string | null
+          created_at: string
+          draft: Json | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          meeting_id: string
+          purged_at: string | null
+          received_at: string | null
+          requested_by: string
+          result: Json | null
+          service_job_id: string | null
+          status: Database["public"]["Enums"]["audio_job_status"]
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          audio_deleted_at?: string | null
+          audio_path?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          draft?: Json | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          meeting_id: string
+          purged_at?: string | null
+          received_at?: string | null
+          requested_by: string
+          result?: Json | null
+          service_job_id?: string | null
+          status?: Database["public"]["Enums"]["audio_job_status"]
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          audio_deleted_at?: string | null
+          audio_path?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          draft?: Json | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          meeting_id?: string
+          purged_at?: string | null
+          received_at?: string | null
+          requested_by?: string
+          result?: Json | null
+          service_job_id?: string | null
+          status?: Database["public"]["Enums"]["audio_job_status"]
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_minutes_jobs_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_minutes_jobs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_signatures: {
         Row: {
           attendee_id: string
@@ -10055,6 +10133,7 @@ export type Database = {
         }
         Returns: string
       }
+      apply_minutes_review: { Args: { p_job_id: string }; Returns: Json }
       appoint_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
@@ -10536,6 +10615,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cancel_minutes_job: { Args: { p_job_id: string }; Returns: Json }
       cancel_referral_assignment: {
         Args: { p_assignment_id: string }
         Returns: {
@@ -10790,6 +10870,15 @@ export type Database = {
           p_summary_md: string
         }
         Returns: undefined
+      }
+      complete_minutes_job: {
+        Args: {
+          p_draft?: Json
+          p_job_id: string
+          p_result: Json
+          p_transcript: string
+        }
+        Returns: Json
       }
       complete_rca: {
         Args: { p_rca_id: string }
@@ -11655,6 +11744,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_minutes_job: {
+        Args: { p_filename: string; p_meeting_id: string }
+        Returns: Json
+      }
       create_phase_result: {
         Args: {
           p_color_token?: string
@@ -12194,6 +12287,14 @@ export type Database = {
           label: string
           sublabel: string
         }[]
+      }
+      fail_minutes_job: {
+        Args: {
+          p_error_code: string
+          p_error_message: string
+          p_job_id: string
+        }
+        Returns: Json
       }
       file_correction_request: {
         Args: {
@@ -13166,6 +13267,7 @@ export type Database = {
         }
       }
       rca_writer_can_write: { Args: { p_rca_id: string }; Returns: boolean }
+      read_minutes_transcript: { Args: { p_job_id: string }; Returns: string }
       readiness_evidence: {
         Args: { p_commission: string; p_standard: string }
         Returns: {
@@ -14154,6 +14256,10 @@ export type Database = {
         Args: { p_body_md: string; p_request_id: string }
         Returns: undefined
       }
+      save_minutes_draft: {
+        Args: { p_draft: Json; p_job_id: string }
+        Returns: string
+      }
       save_narrative_body: {
         Args: { p_body_md: string; p_narrative: string }
         Returns: undefined
@@ -15139,6 +15245,10 @@ export type Database = {
           p_submitted_by_participant_id?: string
         }
         Returns: string
+      }
+      submit_minutes_job: {
+        Args: { p_job_id: string; p_service_job_id: string }
+        Returns: Json
       }
       submit_rca_for_review: {
         Args: { p_rca_id: string }
@@ -16664,7 +16774,13 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      audio_job_status:
+        | "uploading"
+        | "processing"
+        | "done"
+        | "failed"
+        | "cancelled"
+        | "applied"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -16794,7 +16910,16 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      audio_job_status: [
+        "uploading",
+        "processing",
+        "done",
+        "failed",
+        "cancelled",
+        "applied",
+      ],
+    },
   },
 } as const
 

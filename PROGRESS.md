@@ -117,20 +117,33 @@ highest `20260909001300`.
 | Task | Owner | Status | Notes |
 | --- | --- | --- | --- |
 | B0 preflight (catalog: canEdit predicate, meetings SELECT policy, action_items door, `enqueue_notification` sig; FK posture; window) | lead | ✅ 2026-08-06 | Findings: [audio-minutes-b0-findings.md](docs/plans/audio-minutes-b0-findings.md) — **5 plan corrections**, 3 open questions O1–O3. **Plan edits (its §"Plan edits required") must land before B1.** |
-| B1 migration: bucket + enum + `meeting_minutes_jobs` | backend | — | 3 size ceilings; `transcript` column-grant exclusion; FK `on delete cascade` (B0 §6) |
-| B2 migration: RPCs/doors/audit/flag | backend | — | 6 user RPCs + 2 service-role webhook helpers; canEdit = `app.is_staff_admin_of` (B0 §1); dotted audit kinds (B0 §2); transcript door gates independently of `log_audit_access` (B0 §3) |
-| B3 gen:types | backend | — | pgTAP dropped |
+| B1 migration: bucket + enum + `meeting_minutes_jobs` | backend | ✅ 2026-08-06 | `20260910000100_audio_minutes_schema.sql`. Enum `audio_job_status`; table + touch trigger + partial-unique active index; ONE SELECT policy (`app.is_staff_admin_of(app.commission_of_meeting(...))`); bucket `meeting-audio` 500 MB / 15 audio MIMEs; `config.toml` `[storage]` 50MiB → 512MiB (stack stopped+started, applies to every worktree). **RLS enabled, NOT forced** (0/157 tables force it; the DEFINERs run as the owner) and the grant excludes **`result` as well as `transcript`** — both deviations reported |
+| B2 migration: RPCs/doors/audit/flag | backend | ✅ 2026-08-06 | `20260910000200_audio_minutes_doors.sql`. 6 user RPCs + 2 service-role webhook helpers + `app.can_read_minutes_transcript` + `app.assert_audio_minutes_enabled`; both audited-read registries carry the `minutes_transcript.read` arm; flag row ships **disabled** (`seed.sql` forces ON for local/E2E). Error block **HC0S0–HC0S6**. **All RPCs are `public.*`, not `app.*`** — `config.toml` exposes only `public`, so the planned `app.` names would have been unreachable through PostgREST; reported |
+| B3 gen:types | backend | ✅ 2026-08-06 | pgTAP dropped (verified `pg_extension` empty) before `npm run gen:types` |
 | B4 generic `src/lib/audio-jobs/` client | backend | — | kind-agnostic; HMAC verify |
 | B5 `src/lib/minutes-jobs/` module | backend | — | context composer D14: agenda titles only |
 | B6 webhook route `api/webhooks/audio-jobs` | backend | — | raw-body HMAC; idempotent 200s |
 | B7 notifications · B8 env/runbook | backend | — | |
 | F1 Ata card slot · F2 upload dialog | frontend | — | Design brief ✅ 2026-08-06: [audio-minutes-ui.md](docs/design/audio-minutes-ui.md) — component tree + §3 contract handed to backend for B5; implementation not started (blocked on B5 landing) |
 | F3 review page · F4 list badge · F5 nav | frontend | — | Design brief ✅ 2026-08-06 (same doc) — `MinutesDraft` shape (§3.2), state machine (§4), pt-BR copy (§5), a11y/motion plan (§6); 6 open questions in §7 need answers before F3 starts |
-| T1 pgTAP (with B2) · T2 unit · T3 E2E · T4 authz arms · T5 manual smoke | backend/owners/tester | — | fixtures from service W3 |
+| T1 pgTAP (with B2) | backend | ✅ 2026-08-06 | `supabase/tests/305_audio_minutes.sql`, **105 assertions**, green on a fresh reset (suite **166 files / 5171**, PASS). Fixture asserts all four flags it depends on. **10 keystones verified by neutralization** — each guard reverted, each run REQUIRED red; two test defects found that way and fixed (see below) |
+| T2 unit · T3 E2E · T5 manual smoke | owners/tester | — | fixtures from service W3 |
+| T4 authz arms | backend | ✅ 2026-08-06 (arms 1–3) | `ARM=census` **HOLDS** (440 gates / 448 verdicts) · `ARM=floor` **HOLDS** (84 never-called doors, all allowlisted) · **diff-scoped `ARM=policy`** over the two new gates → **0 BLIND, 0 ERROR, both COVERED** by `305_audio_minutes.sql`; verdicts hand-merged into `docs/reviews/authz-door-audit-findings.md` (a subset run overwrites it). Re-run after B4–B8 |
 
-Coordination: local `config.toml` storage cap 50 MiB must rise for 500 MB uploads — requires
-`supabase stop && supabase start` on the **shared** stack; this session's stack is single-owner
-today (lead-verified), bump lands with B1.
+Coordination: local `config.toml` storage cap 50 MiB → **512MiB, landed with B1** — the shared stack
+was stopped + started to pick it up. The file is committed, so **every worktree inherits it** and any
+other session must restart its own stack.
+
+**T1 neutralization audit — two test defects found by requiring red, both fixed:**
+- the apply call ran as a bare statement, so removing the O2 assignee downgrade **aborted the
+  transaction** and the run stopped at TAP line 63 of 105 — which a summary counting only `not ok`
+  reads as a pass. Now wrapped in `lives_ok`, and the harness checks the **denominator**.
+- the reader-non-writer keystone compared a **column list incl. `updated_at`**; inside one
+  transaction `now()` is the transaction timestamp, so a door doctored to write on every read passed
+  it. Now compares **`ctid`** — an UPDATE always rewrites the tuple.
+- (and the harness itself first reported all ten neutralizations green, because `psql` without
+  `-A -t` prints TAP inside an aligned table and `^not ok` never matched. A detector that finds
+  nothing must be proven able to find something.)
 
 **PO decisions 2026-08-06 (all three resolved, recorded in the findings doc):** O1 `administrativo`
 is **excluded** — audio mirrors the Ata editor's `app.is_staff_admin_of`. O2 the `action_items` flag
