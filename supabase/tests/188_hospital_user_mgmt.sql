@@ -64,16 +64,21 @@ select ok(
 select ok(
   not exists(select 1 from public.profiles where id = (select staff_b from p)),
   'PROFILES PROOF: a1 reads ZERO of an org-b user''s profile (cross-org denied)');
--- a1's directory read set (home_hospital match ∪ central-a commission members).
+-- a1's directory read set (ACTIVE AFFILIATION ∪ central-a commission members). AFF W1
+-- (ADR 0097 D1/D3): the first arm was `home_hospital_id = central-a` until that column
+-- was dropped by 20260909000300; it is an employment ROW now.
 select ok(
   (select count(*)::int from public.profiles
-   where home_hospital_id = (select hosp_central_a from p)
+   where id in (
+        select a.principal_id from public.hospital_affiliations a
+        where a.hospital_id = (select hosp_central_a from p) and a.ended_on is null
+      )
       or id in (
         select cm.principal_id from public.memberships cm
         join public.commissions c on c.id = cm.commission_id
         where c.hospital_id = (select hosp_central_a from p)
       )) >= 5,
-  'DIRECTORY: a1 reads its hospital''s users (home-anchored ∪ central-a commission members)');
+  'DIRECTORY: a1 reads its hospital''s users (actively affiliated ∪ central-a commission members)');
 reset role;
 
 -- ============================================================================
@@ -113,14 +118,20 @@ select test_helpers.claims_for((select ha1 from p), false);
 set local role authenticated;
 -- Attempt the write (RLS scopes it to zero rows — no error, just a no-op), then
 -- prove the column did NOT change: a hospital_admin has no profiles WRITE arm.
-update public.profiles set hospital_employee_id = 'X-HACK'
+--
+-- AFF W1: this probed `hospital_employee_id` until 20260909000300 dropped it. The
+-- replacement target is `full_name` DELIBERATELY — it is NOT in the identity set of
+-- `guard_profile_privileged_columns`, so if RLS ever admitted the row the UPDATE would
+-- SUCCEED and this assertion would go red. Probing a guarded column instead would let
+-- the trigger satisfy the test on RLS's behalf (the "pre-existing deny" vacuity shape).
+update public.profiles set full_name = 'X-HACK'
 where id = '00000000-0000-0000-0000-000000000002';
 reset role;
 -- Read back as an org_admin (who CAN read the row) and assert it was untouched.
 select test_helpers.claims_for((select orgadmin_a from p), false);
 set local role authenticated;
 select isnt(
-  (select hospital_employee_id from public.profiles where id = (select chefe_ccih from p)),
+  (select full_name from public.profiles where id = (select chefe_ccih from p)),
   'X-HACK',
   'WRITE GUARD: a hospital_admin''s direct RLS UPDATE of a user profile is a no-op (no WRITE arm; the service-role action is the only path)');
 reset role;

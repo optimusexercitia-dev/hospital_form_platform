@@ -2,6 +2,11 @@ import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
 import {
+  listActiveAffiliationsFor,
+  listActivePrincipalIdsForHospital,
+  type HospitalAffiliation,
+} from '@/lib/queries/affiliations'
+import {
   deriveUserStatus,
   type OrgUserDetail,
   type OrgUserListItem,
@@ -24,24 +29,49 @@ import {
  * the ordinary cookie-wired (RLS-scoped) client; a foreign caller gets empty.
  */
 
-/** The profile columns the directory + detail reads share. */
+/**
+ * The profile columns the directory + detail reads share.
+ *
+ * ⚠ AFF W1 (ADR 0097 D3): `home_hospital_id` / `hospital_employee_id` and the
+ * `hospital:hospitals!profiles_home_hospital_id_fkey(name)` embed are GONE — the
+ * columns and that FK were dropped by `20260909000300`. The hospital fact now comes
+ * from `hospital_affiliations` (see {@link listActiveAffiliationsFor}). A `.select()`
+ * string is a STRING: naming a dropped column typechecks perfectly and fails only at
+ * runtime, which is why this constant is the first thing the drop touched.
+ *
+ * ⚠ `cpf` is deliberately absent and must stay absent: `authenticated` holds
+ * COLUMN-LIST grants on `profiles` since `20260909000200` and `cpf` is not among them,
+ * so naming it here would 42501 the whole directory (ADR 0097 D7 / audit HIGH-1).
+ */
 const PROFILE_SELECT =
-  'id, full_name, email, home_organization_id, home_hospital_id, hospital_employee_id, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, hospital:hospitals!profiles_home_hospital_id_fkey(name), category:professional_categories(label_pt)'
+  'id, full_name, email, home_organization_id, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, category:professional_categories(label_pt)'
 
 interface ProfileRow {
   id: string
   full_name: string | null
   email: string | null
   home_organization_id: string | null
-  home_hospital_id: string | null
-  hospital_employee_id: string | null
   professional_category_id: string | null
   is_active: boolean
   suspended_until: string | null
   email_confirmed_at: string | null
   created_at: string
-  hospital: { name: string } | null
   category: { label_pt: string } | null
+}
+
+/**
+ * The list row's `homeHospitalName` is now "the hospitals this person actively works
+ * at", joined — a person may hold more than one affiliation in the same organization,
+ * which is the scenario ADR 0097 exists for. With a single affiliation it renders
+ * exactly as the old home-hospital name did. W3/T3.3 replaces this string with a
+ * structured affiliation list on the detail surfaces.
+ */
+function affiliationNames(affiliations: HospitalAffiliation[]): string | null {
+  const names = affiliations
+    .map((a) => a.hospitalName)
+    .filter((n): n is string => n !== null)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  return names.length > 0 ? names.join(', ') : null
 }
 
 /**
@@ -103,13 +133,15 @@ export async function listOrgUsers(
     }
   }
 
+  const affiliations = await listActiveAffiliationsFor(ids)
+
   const items: OrgUserListItem[] = rows.map((r) => ({
     id: r.id,
     fullName: r.full_name,
     email: r.email,
     categoryLabel: r.category?.label_pt ?? null,
     status: deriveUserStatus(r.is_active, r.suspended_until, r.email_confirmed_at),
-    homeHospitalName: r.hospital?.name ?? null,
+    homeHospitalName: affiliationNames(affiliations.get(r.id) ?? []),
     committeeCount: counts.get(r.id) ?? 0,
   }))
 
@@ -119,13 +151,19 @@ export async function listOrgUsers(
 /**
  * A page of ONE HOSPITAL's user directory, for a `hospital_admin` (ADR 0051
  * Decision 4 / Q2 — hospital-scoped directory, NO org-wide `profiles` read for a
- * hospital_admin). Scoped to users whose `home_hospital_id = hospitalId`, filtered
- * by `search` and windowed by `paging`. Same {@link OrgUserPage} shape as
- * {@link listOrgUsers}. RLS-scoped: empty for a caller who is not a
- * `hospital_admin` of `hospitalId` (nor org_admin of its org / platform_admin).
+ * hospital_admin). Same {@link OrgUserPage} shape as {@link listOrgUsers}. RLS-scoped:
+ * empty for a caller who is not a `hospital_admin` of `hospitalId` (nor org_admin of
+ * its org / platform_admin).
  *
- * A0 stub — the real read (mirroring `listOrgUsers` but keyed on
- * `home_hospital_id`) lands in A4/A5 once the hospital-admin RLS path exists.
+ * ⚠ AFF W1 (ADR 0097 D2/D3): the scope is now "ACTIVE AFFILIATION to the hospital ∪
+ * membership of one of its commissions", replacing `home_hospital_id`. A person
+ * affiliated with ZERO committees must appear — that is the entire point of the
+ * affiliation table, and it is the case a commission-derived roster silently drops.
+ *
+ * ⚠ W1 KNOWN GAP, closed by W2/T2.3: the affiliation half of this union is only as
+ * visible as `profiles` RLS allows, and the `profiles` affiliation leg is a W2
+ * deliverable. Until it lands, an affiliated-but-committee-less person is enumerated
+ * here and then filtered out by the row policy. pgTAP `301` §5 pins that state.
  */
 export async function listHospitalUsers(
   hospitalId: string,
@@ -134,12 +172,14 @@ export async function listHospitalUsers(
 ): Promise<OrgUserPage> {
   const supabase = await createClient()
 
-  // The hospital's user set = home-anchored to the hospital ∪ members of any
-  // commission under the hospital (Q2 scope). Resolve the commission-membership
-  // arm's user ids first (RLS-scoped: a hospital_admin reads its hospital's
-  // commissions + their members), then page `profiles` filtered to
-  // home_hospital_id = hospitalId OR id IN that set — all under the profiles RLS
-  // hospital_admin arm (migration 20260709000600), so a non-admin gets empty.
+  // The hospital's user set = ACTIVELY AFFILIATED to the hospital ∪ members of any
+  // commission under it. Both arms are resolved to id sets first (RLS-scoped: a
+  // hospital_admin reads its own hospital's affiliations, commissions and their
+  // members), then `profiles` is paged over the union.
+  //
+  // The union is an `.in()` over a resolved set rather than a raw `.or()` string: an
+  // `.or()` with interpolated values is the recorded PostgREST injection/parse hazard,
+  // and the id set is bounded by one hospital's roster.
   const { data: commRows } = await supabase
     .from('commissions')
     .select('id')
@@ -147,28 +187,29 @@ export async function listHospitalUsers(
     .returns<{ id: string }[]>()
   const commissionIds = (commRows ?? []).map((c) => c.id)
 
-  const memberUserIds = new Set<string>()
+  const scopedUserIds = new Set<string>(
+    await listActivePrincipalIdsForHospital(hospitalId),
+  )
   if (commissionIds.length > 0) {
     const { data: memberRows } = await supabase
       .from('memberships')
       .select('principal_id')
       .in('commission_id', commissionIds)
       .returns<{ principal_id: string }[]>()
-    for (const m of memberRows ?? []) memberUserIds.add(m.principal_id)
+    for (const m of memberRows ?? []) scopedUserIds.add(m.principal_id)
   }
 
   const from = paging.page * paging.pageSize
   const to = from + paging.pageSize - 1
 
-  // home_hospital match OR membership in the hospital's commissions. `.or` on the
-  // id-set is built only when the set is non-empty (an empty in.() is invalid).
-  let query = supabase.from('profiles').select(PROFILE_SELECT, { count: 'exact' })
-  if (memberUserIds.size > 0) {
-    const idList = Array.from(memberUserIds).join(',')
-    query = query.or(`home_hospital_id.eq.${hospitalId},id.in.(${idList})`)
-  } else {
-    query = query.eq('home_hospital_id', hospitalId)
-  }
+  // An empty `in.()` is invalid PostgREST — a hospital with no roster at all returns
+  // an empty page without a round trip.
+  if (scopedUserIds.size === 0) return { rows: [], total: 0 }
+
+  let query = supabase
+    .from('profiles')
+    .select(PROFILE_SELECT, { count: 'exact' })
+    .in('id', Array.from(scopedUserIds))
 
   const term = search.trim()
   if (term) {
@@ -200,13 +241,15 @@ export async function listHospitalUsers(
     }
   }
 
+  const affiliations = await listActiveAffiliationsFor(ids)
+
   const items: OrgUserListItem[] = rows.map((r) => ({
     id: r.id,
     fullName: r.full_name,
     email: r.email,
     categoryLabel: r.category?.label_pt ?? null,
     status: deriveUserStatus(r.is_active, r.suspended_until, r.email_confirmed_at),
-    homeHospitalName: r.hospital?.name ?? null,
+    homeHospitalName: affiliationNames(affiliations.get(r.id) ?? []),
     committeeCount: counts.get(r.id) ?? 0,
   }))
 
@@ -284,14 +327,22 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
     }))
     .sort((a, b) => a.commissionName.localeCompare(b.commissionName, 'pt-BR'))
 
+  // AFF W1: the three hospital fields are DERIVED from the person's active
+  // affiliations (ADR 0097 D3) instead of read off `profiles`. The detail surface
+  // still shows ONE hospital, so it shows the earliest-started active affiliation;
+  // W3/T3.3 replaces these three fields with the full affiliation list, which is the
+  // shape the multi-hospital professional actually needs.
+  const activeAffiliations = (await listActiveAffiliationsFor([userId])).get(userId) ?? []
+  const primaryAffiliation = activeAffiliations[0] ?? null
+
   return {
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
     homeOrganizationId: profile.home_organization_id ?? '',
-    homeHospitalId: profile.home_hospital_id,
-    homeHospitalName: profile.hospital?.name ?? null,
-    hospitalEmployeeId: profile.hospital_employee_id,
+    homeHospitalId: primaryAffiliation?.hospitalId ?? null,
+    homeHospitalName: affiliationNames(activeAffiliations),
+    hospitalEmployeeId: primaryAffiliation?.hospitalEmployeeId ?? null,
     professionalCategoryId: profile.professional_category_id,
     categoryLabel: profile.category?.label_pt ?? null,
     status: deriveUserStatus(

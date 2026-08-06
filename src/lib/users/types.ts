@@ -102,20 +102,38 @@ export interface OrgUserListItem {
   /** Resolved category label (pt-BR), or null when none set. */
   categoryLabel: string | null
   status: UserStatus
-  /** Descriptive home hospital name, or null. */
+  /**
+   * The hospital(s) this person ACTIVELY works at, joined by ', ' — derived from
+   * `hospital_affiliations` since AFF W1 (ADR 0097 D1/D3); it was a single
+   * `profiles.home_hospital_id` name before. Null when there is no visible active
+   * affiliation. One affiliation renders exactly as the old value did.
+   */
   homeHospitalName: string | null
   /** Number of committees the user belongs to (directory badge). */
   committeeCount: number
 }
 
-/** Full per-user detail (`getOrgUser`) — profile + credentials + committee roster. */
+/**
+ * Full per-user detail (`getOrgUser`) — profile + credentials + committee roster.
+ *
+ * ⚠ AFF W1 (ADR 0097 D3): `homeHospitalId` / `homeHospitalName` / `hospitalEmployeeId`
+ * are no longer `profiles` columns — they are DERIVED from the person's active
+ * `hospital_affiliations`. The two id-shaped fields describe the PRIMARY (earliest
+ * active) affiliation, because this surface still renders one hospital. That is a
+ * transitional shape: W3/T3.3 replaces all three with an affiliation LIST, which is
+ * the shape a professional working at two hospitals of one org actually needs. Do not
+ * build new behaviour on the singular fields.
+ */
 export interface OrgUserDetail {
   id: string
   fullName: string | null
   email: string | null
   homeOrganizationId: string
+  /** Primary (earliest active) affiliation's hospital; null when unaffiliated. */
   homeHospitalId: string | null
+  /** All active affiliations' hospital names, joined by ', '. */
   homeHospitalName: string | null
+  /** Matrícula of the PRIMARY affiliation — per employment, not per person (D3). */
   hospitalEmployeeId: string | null
   professionalCategoryId: string | null
   categoryLabel: string | null

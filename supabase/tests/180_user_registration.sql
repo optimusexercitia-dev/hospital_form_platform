@@ -45,8 +45,12 @@ grant select on ids to authenticated;
 -- Schema shape.
 -- ---------------------------------------------------------------------------
 select has_column('public', 'profiles', 'home_organization_id', 'profiles.home_organization_id exists');
-select has_column('public', 'profiles', 'home_hospital_id', 'profiles.home_hospital_id exists');
-select has_column('public', 'profiles', 'hospital_employee_id', 'profiles.hospital_employee_id exists');
+-- AFF W1 (ADR 0097 D3): both hospital columns were DROPPED by 20260909000300 —
+-- "works at this hospital" is a hospital_affiliations row, and matricula is a property
+-- of the employment, not of the person. Asserted as absences (same count) so a
+-- re-introduction reds here rather than quietly restoring the split identity.
+select hasnt_column('public', 'profiles', 'home_hospital_id', 'profiles.home_hospital_id is GONE (moved to hospital_affiliations)');
+select hasnt_column('public', 'profiles', 'hospital_employee_id', 'profiles.hospital_employee_id is GONE (matricula is per employment)');
 select has_column('public', 'profiles', 'professional_category_id', 'profiles.professional_category_id exists');
 select has_column('public', 'profiles', 'email_confirmed_at', 'profiles.email_confirmed_at exists');
 select has_column('public', 'profiles', 'suspended_until', 'profiles.suspended_until exists');

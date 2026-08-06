@@ -5597,6 +5597,81 @@ export type Database = {
           },
         ]
       }
+      hospital_affiliations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ended_by: string | null
+          ended_on: string | null
+          hospital_employee_id: string | null
+          hospital_id: string
+          id: string
+          organization_id: string
+          principal_id: string
+          started_on: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          hospital_employee_id?: string | null
+          hospital_id: string
+          id?: string
+          organization_id: string
+          principal_id: string
+          started_on?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ended_by?: string | null
+          ended_on?: string | null
+          hospital_employee_id?: string | null
+          hospital_id?: string
+          id?: string
+          organization_id?: string
+          principal_id?: string
+          started_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hospital_affiliations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_hospital_id_fkey"
+            columns: ["hospital_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hospital_affiliations_principal_id_fkey"
+            columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hospital_departments: {
         Row: {
           archived: boolean
@@ -7655,6 +7730,7 @@ export type Database = {
       professional_profiles: {
         Row: {
           affiliation_status: string | null
+          cpf: string | null
           created_at: string
           full_name: string
           id: string
@@ -7673,6 +7749,7 @@ export type Database = {
         }
         Insert: {
           affiliation_status?: string | null
+          cpf?: string | null
           created_at?: string
           full_name: string
           id?: string
@@ -7691,6 +7768,7 @@ export type Database = {
         }
         Update: {
           affiliation_status?: string | null
+          cpf?: string | null
           created_at?: string
           full_name?: string
           id?: string
@@ -7726,13 +7804,12 @@ export type Database = {
       }
       profiles: {
         Row: {
+          cpf: string | null
           created_at: string
           email: string | null
           email_confirmed_at: string | null
           full_name: string
-          home_hospital_id: string | null
           home_organization_id: string | null
-          hospital_employee_id: string | null
           id: string
           is_active: boolean
           is_admin: boolean
@@ -7741,13 +7818,12 @@ export type Database = {
           suspended_until: string | null
         }
         Insert: {
+          cpf?: string | null
           created_at?: string
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
-          home_hospital_id?: string | null
           home_organization_id?: string | null
-          hospital_employee_id?: string | null
           id: string
           is_active?: boolean
           is_admin?: boolean
@@ -7756,13 +7832,12 @@ export type Database = {
           suspended_until?: string | null
         }
         Update: {
+          cpf?: string | null
           created_at?: string
           email?: string | null
           email_confirmed_at?: string | null
           full_name?: string
-          home_hospital_id?: string | null
           home_organization_id?: string | null
-          hospital_employee_id?: string | null
           id?: string
           is_active?: boolean
           is_admin?: boolean
@@ -7771,13 +7846,6 @@ export type Database = {
           suspended_until?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "profiles_home_hospital_id_fkey"
-            columns: ["home_hospital_id"]
-            isOneToOne: false
-            referencedRelation: "hospitals"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "profiles_home_organization_id_fkey"
             columns: ["home_organization_id"]

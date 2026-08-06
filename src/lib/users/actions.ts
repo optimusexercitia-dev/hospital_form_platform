@@ -64,7 +64,14 @@ export interface RegisterUserInput {
   fullName: string
   email: string
   professionalCategoryId: string
+  /**
+   * The hospital to EMPLOY the person at. AFF W1 (ADR 0097 D1/D3): this no longer
+   * writes a `profiles` column — it creates a `hospital_affiliations` row. The field
+   * name is unchanged so the register form keeps compiling; W3/T3.1 renames it as
+   * part of the identifier-first flow.
+   */
   homeHospitalId?: string | null
+  /** Matrícula. Rides on the affiliation created above; ignored without a hospital. */
   hospitalEmployeeId?: string | null
   credentials?: CredentialInput[]
   committees?: CommitteeAssignmentInput[]
@@ -84,7 +91,15 @@ export interface UpdateUserProfileInput {
   userId: string
   fullName: string
   professionalCategoryId: string | null
+  /**
+   * AFF W1 (ADR 0097 D1/D3/D4): a non-null value ENSURES an active affiliation at that
+   * hospital (creating it, or refreshing its matrícula). A NULL value changes nothing —
+   * ENDING an affiliation is a governed act with its own refusals (D5: refused while
+   * the person holds active memberships of any tier under the hospital) and belongs to
+   * the W2 `end_affiliation` door, not to a profile edit that happens to omit a field.
+   */
   homeHospitalId?: string | null
+  /** Matrícula for the affiliation named above; ignored when it is null. */
   hospitalEmployeeId?: string | null
 }
 
@@ -173,11 +188,11 @@ async function authorizeHospitalOps(hospitalId: string): Promise<boolean> {
 
 /**
  * Whether the caller (as a `hospital_admin`) may manage `userId` — i.e. the user
- * belongs to a hospital the caller administers. "Belongs to a hospital" =
- * `home_hospital_id` matches, OR the user is a member of any commission under
- * that hospital (Decision 7 / Q2 scope: home hospital + commission membership).
- * All reads run on the service-role client (a foreign caller could not SELECT
- * these rows under RLS, so the DB is not the authority here — this TS scope IS).
+ * belongs to a hospital the caller administers. "Belongs to a hospital" = an ACTIVE
+ * `hospital_affiliations` row at that hospital, OR membership of any commission under
+ * it (Decision 7 / Q2 scope, restated on AFF W1's substrate: employment + commission
+ * membership). All reads run on the service-role client (a foreign caller could not
+ * SELECT these rows under RLS, so the DB is not the authority here — this TS scope IS).
  */
 async function callerHospitalAdminMayManageUser(
   userId: string,
@@ -191,13 +206,15 @@ async function callerHospitalAdminMayManageUser(
 
   const admin = createAdminClient()
 
-  // (a) home_hospital_id match.
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('home_hospital_id')
-    .eq('id', userId)
-    .maybeSingle()
-  if (profile?.home_hospital_id && adminedHospitalIds.has(profile.home_hospital_id)) {
+  // (a) an ACTIVE affiliation to an administered hospital (ADR 0097 D1/D3 — this arm
+  // read profiles.home_hospital_id until that column was dropped).
+  const { data: affiliations } = await admin
+    .from('hospital_affiliations')
+    .select('hospital_id')
+    .eq('principal_id', userId)
+    .is('ended_on', null)
+    .returns<{ hospital_id: string }[]>()
+  if ((affiliations ?? []).some((a) => adminedHospitalIds.has(a.hospital_id))) {
     return true
   }
 
@@ -212,6 +229,56 @@ async function callerHospitalAdminMayManageUser(
   return (memberships ?? []).some(
     (m) => m.commissions && adminedHospitalIds.has(m.commissions.hospital_id),
   )
+}
+
+/**
+ * Ensure an ACTIVE `hospital_affiliations` row for `userId` at `hospitalId`, carrying
+ * `employeeId` (ADR 0097 D1/D3). Idempotent: an existing active row has its matrícula
+ * refreshed instead of being duplicated — the partial unique index
+ * `hospital_affiliations_active_uq` would reject the duplicate anyway, and a 23505
+ * surfacing as a generic pt-BR error would be a worse answer than the intended one.
+ *
+ * Runs on the SERVICE-ROLE client: `authenticated` holds no DML grant on the table
+ * (writes belong to the W2 doors), and this path has already been TS-authorized by its
+ * caller. Never ENDS anything — see {@link UpdateUserProfileInput.homeHospitalId}.
+ *
+ * @returns true on success; false on a write error the caller must surface.
+ */
+async function ensureActiveAffiliation(params: {
+  userId: string
+  organizationId: string
+  hospitalId: string
+  employeeId: string | null
+  actorId: string | null
+}): Promise<boolean> {
+  const admin = createAdminClient()
+
+  const { data: existing, error: readError } = await admin
+    .from('hospital_affiliations')
+    .select('id, hospital_employee_id')
+    .eq('principal_id', params.userId)
+    .eq('hospital_id', params.hospitalId)
+    .is('ended_on', null)
+    .maybeSingle()
+  if (readError) return false
+
+  if (existing) {
+    if (existing.hospital_employee_id === params.employeeId) return true
+    const { error } = await admin
+      .from('hospital_affiliations')
+      .update({ hospital_employee_id: params.employeeId })
+      .eq('id', existing.id)
+    return !error
+  }
+
+  const { error } = await admin.from('hospital_affiliations').insert({
+    principal_id: params.userId,
+    organization_id: params.organizationId,
+    hospital_id: params.hospitalId,
+    hospital_employee_id: params.employeeId,
+    created_by: params.actorId,
+  })
+  return !error
 }
 
 /**
@@ -424,18 +491,13 @@ export async function registerUser(
     userId = created.user.id
   }
 
-  // Patch the profile fields the trigger did not set (category / hospital /
-  // matrícula). full_name + home_organization_id already landed via metadata.
+  // Patch the profile fields the trigger did not set (category). full_name +
+  // home_organization_id already landed via metadata.
   const { error: profileError } = await admin
     .from('profiles')
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
-      // effectiveHomeHospitalId: for a hospital_admin this is the SERVER-SET
-      // administered hospital (never the raw formData value); for an org_admin it
-      // is the client-supplied input (amendment 11).
-      home_hospital_id: effectiveHomeHospitalId,
-      hospital_employee_id: input.hospitalEmployeeId ?? null,
       // Flag-OFF path only: the admin set the initial password, so force the user
       // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
       // flag-ON invite path leaves it false (the user sets their own at /convite).
@@ -446,6 +508,27 @@ export async function registerUser(
     // Do NOT swallow: the invite happened, but the profile write failed. Surface
     // it so the operator retries (the pending profile exists and is anchored).
     return { ok: false, error: MESSAGES.generic }
+  }
+
+  // Employment (ADR 0097 D1/D3) — the row that used to be profiles.home_hospital_id +
+  // profiles.hospital_employee_id. effectiveHomeHospitalId: for a hospital_admin this
+  // is the SERVER-SET administered hospital (never the raw formData value); for an
+  // org_admin it is the client-supplied input (amendment 11). A registration with no
+  // hospital creates no employment row — the person exists, unaffiliated, which is a
+  // legitimate state (the `novato.pendente` case D2 exists to keep visible).
+  if (effectiveHomeHospitalId) {
+    const affiliated = await ensureActiveAffiliation({
+      userId,
+      organizationId: input.homeOrganizationId,
+      hospitalId: effectiveHomeHospitalId,
+      employeeId: input.hospitalEmployeeId?.trim() || null,
+      actorId: context.userId,
+    })
+    if (!affiliated) {
+      // Same reasoning as the profile write above: the account exists, so a silent
+      // failure would leave a person nobody's roster shows.
+      return { ok: false, error: MESSAGES.generic }
+    }
   }
 
   // Credentials (optional). A duplicate 4-tuple (23505) is reported, not hidden.
@@ -590,11 +673,22 @@ export async function updateUserProfile(
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
-      home_hospital_id: effectiveHomeHospitalId,
-      hospital_employee_id: input.hospitalEmployeeId ?? null,
     })
     .eq('id', input.userId)
   if (error) return { ok: false, error: MESSAGES.generic }
+
+  // Employment, when one was named (ADR 0097 D1/D3). A null hospital does NOT end an
+  // affiliation — see UpdateUserProfileInput.homeHospitalId.
+  if (effectiveHomeHospitalId && auth.orgId) {
+    const affiliated = await ensureActiveAffiliation({
+      userId: input.userId,
+      organizationId: auth.orgId,
+      hospitalId: effectiveHomeHospitalId,
+      employeeId: input.hospitalEmployeeId?.trim() || null,
+      actorId: context.userId,
+    })
+    if (!affiliated) return { ok: false, error: MESSAGES.generic }
+  }
 
   revalidateDirectory()
   return { ok: true, error: MESSAGES.profileUpdated }

@@ -150,7 +150,8 @@ declare
     -- Hospital-admin tier (ADR 0051) personas (org-a):
     --   hospitaladmin.a1 = hospital_admin of central-a ONLY — the cross-hospital
     --     ISOLATION subject (184): sees CCIH + Farmácia but ZERO of secundario-a's
-    --     Comissão de Ética and ZERO of org-b. home_hospital_id → central-a (Q2).
+    --     Comissão de Ética and ZERO of org-b. hospital_affiliations → central-a
+    --     (Q2; was home_hospital_id until AFF W1 / ADR 0097 D3).
     --   hospitaladmin.dual = hospital_admin of BOTH central-a and secundario-a —
     --     the Note-2 COEXISTENCE proof: two organization_members rows for one
     --     (org,user), which the OLD (org,user) unique rejected and the new
@@ -285,10 +286,17 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f1', 'technical_director'),
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f2', 'technical_director_deputy');
 
--- Q2 hospital-scoped directory: anchor the hospital_admin's home hospital to
--- central-a. The dual + nsporg personas stay hospital-less at home.
-update public.profiles set home_hospital_id = '05000000-0000-0000-0000-00000000000a'
-where id = '00000000-0000-0000-0000-0000000000e1';
+-- Q2 hospital-scoped directory: the hospital_admin's employment link to central-a.
+-- AFF W1 (ADR 0097 D1/D3): this used to be `profiles.home_hospital_id`, which was
+-- dropped by 20260909000300 — "works at this hospital" is a `hospital_affiliations`
+-- row now, and matrícula rides on the employment, not on the person. The dual +
+-- nsporg personas stay unaffiliated (they are the coexistence / NSP fixtures, not
+-- roster fixtures). Rede C + the Dr. John multi-hospital fixtures are AFF T3.5.
+insert into public.hospital_affiliations
+  (principal_id, organization_id, hospital_id, hospital_employee_id, started_on)
+values
+  ('00000000-0000-0000-0000-0000000000e1', '0c000000-0000-0000-0000-00000000000a',
+   '05000000-0000-0000-0000-00000000000a', 'MAT-A1', '2024-01-01');
 
 -- ---------------------------------------------------------------------------
 -- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);

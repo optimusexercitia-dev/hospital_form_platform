@@ -53,8 +53,10 @@ export interface HospitalSummary {
 export interface HospitalDetail extends HospitalSummary {
   /** The hospital's current `hospital_admin`s, sorted by name (pt-BR). */
   admins: { userId: string; fullName: string; email: string }[]
-  /** Count of profiles whose `home_hospital_id` = this hospital (not the wider
-   * "vínculo" set {@link listHospitalUsers} pages — home-anchored only). */
+  /** Count of people ACTIVELY AFFILIATED to this hospital (ADR 0097 D1/D3 — was a
+   * `profiles.home_hospital_id` count until AFF W1). Still narrower than the "vínculo"
+   * set {@link listHospitalUsers} pages, which also unions the hospital's commission
+   * members: this counts employment rows only. */
   userCount: number
 }
 
@@ -174,12 +176,17 @@ interface HospitalDetailRow {
 }
 
 /**
- * {@link listHospitalsForOrg}, enriched with the `hospital_admin` roster and a
- * home-anchored user count — one PostgREST round trip via a `commissions(count)`
- * embed, a filtered `memberships` embed (admins), and a `profiles(count)` embed
- * keyed on `home_hospital_id` (NOT the wider "vínculo" set
- * {@link listHospitalUsers} pages — this is a home-anchor count only). Backs the
+ * {@link listHospitalsForOrg}, enriched with the `hospital_admin` roster and an
+ * affiliation-derived user count — one PostgREST round trip via a `commissions(count)`
+ * embed, a filtered `memberships` embed (admins), and a `hospital_affiliations(count)`
+ * embed narrowed to ACTIVE rows (NOT the wider "vínculo" set
+ * {@link listHospitalUsers} pages — this is an employment count only). Backs the
  * redesigned Hospitais card (`/o/[org]/manage/hospitais`, org_admin-only).
+ *
+ * ⚠ AFF W1 (ADR 0097 D3): the count embed used to be
+ * `profiles!profiles_home_hospital_id_fkey(count)`. That FK went with the dropped
+ * column (`20260909000300`), and a PostgREST `.select()` is a STRING — it would have
+ * typechecked perfectly and failed only when this card was rendered.
  *
  * RLS-scoped: empty for a caller who is not org_admin of `orgId` (nor
  * platform_admin) — same authority as {@link listHospitalsForOrg}. Admin rows
@@ -196,10 +203,11 @@ export async function listHospitalsForOrgDetailed(
     .select(
       `id, name, slug, commissions!commissions_hospital_id_fkey(count),
        admins:memberships!memberships_hospital_id_fkey(principal_id, profiles:principal_id(full_name, email)),
-       users:profiles!profiles_home_hospital_id_fkey(count)`,
+       users:hospital_affiliations!hospital_affiliations_hospital_id_fkey(count)`,
     )
     .eq('organization_id', orgId)
     .eq('admins.role', 'hospital_admin')
+    .is('users.ended_on', null)
     .order('name', { ascending: true })
     .returns<HospitalDetailRow[]>()
 

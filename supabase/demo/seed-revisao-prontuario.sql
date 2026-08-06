@@ -211,9 +211,16 @@ begin
       jsonb_build_object('sub', u ->> 'id', 'email', u ->> 'email'),
       'email', now(), now(), now()
     );
-    update public.profiles set full_name = u ->> 'name',
-           home_hospital_id = 'd5000000-0000-0000-0000-000000000002'
+    update public.profiles set full_name = u ->> 'name'
     where id = (u ->> 'id')::uuid;
+    -- AFF W1 (ADR 0097 D1/D3): "works at this hospital" is a hospital_affiliations
+    -- row — `profiles.home_hospital_id` was dropped by 20260909000300. This file is
+    -- applied MANUALLY (`psql --single-transaction -f`), is excluded from
+    -- config.toml's `sql_paths`, and is therefore in NO gate: it breaks silently and
+    -- only in front of a customer. Owned by `backend` in AFF T1.3 by name (external
+    -- audit MEDIUM-2 — the union of scoped sweeps is not a sweep).
+    insert into public.hospital_affiliations (principal_id, organization_id, hospital_id)
+    values ((u ->> 'id')::uuid, v_org::uuid, 'd5000000-0000-0000-0000-000000000002');
   end loop;
 end;
 $users$;
