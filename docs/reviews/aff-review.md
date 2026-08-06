@@ -1,7 +1,8 @@
 # QA review — AFF (hospital affiliation, person identity & the org people directory)
 
 **Reviewer:** `qa` · **Date:** 2026-08-06 · **Branch:** `feat/hospital-affiliation-person-identity`
-(13 commits `d446153`…`cc66483`, diffed against `main`)
+**Round 1:** 13 commits `d446153`…`cc66483` vs `main` · **Round 2:** the remediation delta
+`86ce0d1`…`5b4b1df`
 **Contract:** ADR [0097](../decisions/0097-hospital-affiliation-person-identity.md) D1–D19 ·
 ADR [0098](../decisions/0098-aff-w1-substrate-shape-decisions.md) ·
 ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 5 ·
@@ -9,6 +10,21 @@ ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) Amendme
 [the external audit](./aff-adr-0097-external-audit.md) · PROGRESS.md → AFF block.
 
 ## Verdict
+
+# ✅ APPROVED (final, round 2 — `5b4b1df`)
+
+**Round 1 APPROVED `86ce0d1`** with F1–F7 open and the verdict explicitly scoped to that. All
+seven were then remediated in four commits, and **round 2 re-reviewed that delta** — including
+three regenerated `SECURITY DEFINER` kernels that went in after sign-off. **The delta
+introduced no defect.** Full analysis in §8; the round-1 body below is unchanged, and its
+findings are marked closed there.
+
+Round 2 raises **one new MINOR (N1)** and carries **one MINOR forward (N2)**. Neither blocks;
+both are one assertion each.
+
+---
+
+## Verdict (round 1, superseded — retained for the audit trail)
 
 # ✅ APPROVED — with six required follow-ups (F1–F4, F6, MINOR F5)
 
@@ -67,7 +83,12 @@ a finding is worth as much as the finding.
 
 ## 1. Findings — MEDIUM
 
-### F1 — Rule 10 violation, user-visible: an English string in the pt-BR blockers alert
+> ✅ **F1–F7 are ALL CLOSED as of round 2** (`86ce0d1`…`5b4b1df`) — see §8.6 for what closed
+> each and how I re-verified it. §§1–7 below are the round-1 text, left **exactly as written**
+> so the finding and its evidence stay legible next to the fix. Line numbers in §§1–7 refer to
+> the pre-fix tree.
+
+### F1 — Rule 10 violation, user-visible: an English string in the pt-BR blockers alert ✅ CLOSED
 
 `src/components/users/affiliations-panel.tsx:264`
 
@@ -450,3 +471,210 @@ string. None of them is a hole.
 
 *Written by `qa`. Read-only on application code, migrations, specs and queries; this file and
 one PROGRESS.md row are the only artifacts written.*
+
+---
+
+# 8. Round 2 — re-review of the remediation delta (`86ce0d1..5b4b1df`)
+
+**Date:** 2026-08-06 · **Scope:** the four substantive commits landed after round 1 —
+`202c3db` (F1 + an a11y defect found underneath it), `8dde312` (hermetic AC-4 + HC0R1
+coverage), `8111fc9` (F2–F7 + the stale-claim corrections), `69ac173` (ADR 0079 Amd 5a).
+Database quiet, catalog reads fully reliable and used throughout.
+
+**Final gate:** `e2e:prod` **GREEN** — 985 passed · 0 failed · 0 infra · **1 flaky** · 0
+did-not-run · 16 batches no gaps · 0 `reset FAILED` · 986/991 accounted. **AC-4 passed first
+attempt** after `8dde312` moved its marker off the host clock onto
+`sqlOne('select clock_timestamp()')` — which also retires my round-1 note that AFF may have
+*exposed* it: a cross-clock assertion made single-clock is a real fix, not a suppression.
+pgTAP 165f/5060 · Vitest 1023 · lint 0/0 · 298==298 · both authz arms HOLD.
+
+## 8.1 The three regenerated kernels — property-by-property, from the catalog
+
+This was the reason for the re-review, and it is the check that cannot be done by reading the
+new statement: **an omission has no line in the diff.** I had a genuine pre-`001200` baseline —
+my own round-1 PASS-2 catalog reading — so this is a true old-vs-new diff, not an inspection.
+
+| property | round-1 catalog (pre-`001200`) | round-2 catalog | |
+| --- | --- | --- | --- |
+| `prosecdef` (all 3 kernels) | `t` | `t` | ✅ |
+| ACL (all 3 kernels) | `postgres=X/postgres` | `postgres=X/postgres` | ✅ owner-only preserved — `p_actor` still unforgeable |
+| owner | `postgres` | `postgres` | ✅ |
+| `proconfig` | — | `search_path=app, public, pg_catalog` | ✅ identical to `app.grant_role_impl`, the declared precedent |
+| volatility | — | `v` | ✅ matches `grant_role_impl` |
+| return type | `uuid` | `uuid` | ✅ |
+| arity | 5 / 4 / 6 | 5 / 4 / 6 | ✅ |
+| param names + defaults | — | identical to every wrapper call site | ✅ |
+| **overload count** | 1 each | **1 each** | ✅ **decisive** |
+
+The eight `public` wrappers are **byte-identical** to my round-1 reading —
+`affiliate_person` / `end_affiliation` / `update_affiliation` / `list_org_people` at
+`postgres=X | service_role=X | authenticated=X`; the three `_for` twins at
+`postgres=X | service_role=X` with **no `authenticated`**. `has_function_privilege` for both
+`public` and `anon` is **false on all eight**.
+
+⭐ **The overload count is the assertion that earns this section.** `create or replace function`
+with any change to the argument *types* or arity does not replace — it creates a **second**
+function, and the wrappers may then resolve to the stale one. That failure is invisible in a
+diff, invisible to `tsc`, and green in any test that happens to hit the new overload. All 12
+affiliation- and probe-related functions return `overloads = 1`. **The regeneration is clean:
+no property the originals carried was dropped, and nothing was silently duplicated.**
+
+## 8.2 `public.log_cpf_probe_for` — the door is right; its keystone is missing (**N2, MINOR**)
+
+**The door itself is correct**, verified from the catalog: `prosecdef = t`, owner `postgres`,
+ACL `postgres=X | service_role=X` — **no `authenticated`, no PUBLIC, no `anon`**. The t19
+`REVOKE ALL FROM PUBLIC`-before-`GRANT` discipline held.
+
+**Its gate is neither weaker nor stronger than what it fronts**, and the right way to see that
+is that it fronts *nothing*: it grants no capability and mutates no domain row — it writes one
+audit row. Its only raise is `42501` on a null actor or org. The boundary is therefore the ACL
+(`service_role` only), not an in-body predicate, and that is the correct shape for this door.
+Its body also documents the `actor_id` NULL gap in place rather than leaving it to an auditor,
+and threads the actor through `metadata.actor_user_id` instead of pretending the column is
+populated. Good.
+
+**`304` §8 does NOT genuinely cover it — for the ACL, which is its only boundary.** §8 covers
+the *behaviour* well: §8.1 it emits, §8.2 tagged `source: registration` (told apart by a
+**present** value, not by an absence — the right choice), §8.3 no CPF digits, §8.4 the actor is
+named. But §8 calls the door with **no `set local role`**, i.e. as superuser, and the single
+`log_cpf_probe` reference in the entire pgTAP suite is that one `lives_ok`. Every sibling door
+got the ACL-split arm in `302` §1.1–1.5 (kernel unreachable / `_for` service-role-only / PUBLIC
+cannot execute). **This one did not inherit it** — the project's own "a new door must inherit
+EVERY sibling arm" lesson, applied to keystones rather than to the door. Since the ACL *is* this
+door's entire boundary, that is precisely the property most worth pinning: a later
+`grant execute … to authenticated`, or a parameter rename doing a privilege reset, would go
+unnoticed. **One assertion closes it.** Correct today — I verified it; unpinned for tomorrow.
+
+## 8.3 `HC0R5` — the right call, and the set is complete
+
+**Judged, not just checked.** `backend`'s argument holds and the catalog backs it:
+`check_violation` *is* `23514`, and `app.guard_affiliation_no_delete` **still raises it**. A
+`23514` arm in `toState` would therefore have collapsed "hospital inexistente", "you tried to
+delete an affiliation", and every table CHECK into one sentence — correct only by accident, and
+wrong the moment a second 23514 source appeared. A dedicated code is right.
+
+Live union across all three kernels, any spelling: **`{42501, HC0R0, HC0R1, HC0R2, HC0R3,
+HC0R4, HC0R5}`** — **no `check_violation` remains in any kernel**, and `toState` now carries all
+seven arms with seven distinct messages. `304` §6.1 pins exactly that string as an equality.
+
+**Is a reachable `23514` left rendering as `generic`? No.** All three table CHECKs are
+pre-empted before a door can trip them: `employee_id_not_blank` (the kernels normalize with
+`nullif(btrim(…),'')`), `ended_by_shape` (set together), and `period_ck` (`end_affiliation`
+pre-checks and raises `HC0R3`; `update_affiliation` only touches ACTIVE rows, where `ended_on`
+is NULL and the CHECK passes trivially). The one residual, `23505` from the partial unique on a
+concurrent race, falls to `generic` — **which is the correct message there**, since retrying
+genuinely does fix a race. Set complete.
+
+## 8.4 The widened detector — it does not over-shoot
+
+Verified, and I agree with all three of its design calls:
+
+- **Last-write-wins matches the chain.** `raisedCodes()` walks `DOOR_MIGRATIONS` in version
+  order and `resolved.set(name, block)` overwrites per qualified function name — which is what
+  Postgres does when it applies `create or replace` forward-only. Its own regression test
+  ("resolves SUPERSEDED definitions away") asserts `23514` is **absent**, so the false
+  positive `backend` reports hitting is now pinned as a test. Correct.
+- **Throwing on an unrecognised condition is the right trade,** not an over-shoot. The failure
+  message names the fix (`add it to CONDITION_TO_SQLSTATE`), so a legitimate future condition
+  hard-fails *loudly and actionably* rather than silently shrinking the domain a third time.
+  That asymmetry is the whole point of the file.
+- **Excluding triggers by RETURN TYPE, not by a name list,** is the same correction the domain
+  itself needed — and it is why `guard_affiliation_no_delete`'s live `check_violation` is
+  correctly out of scope rather than a false positive.
+
+The dry-run against a hand-classified sample with a known positive (`check_violation` → 23514,
+which the old regex could not match) satisfies *a detector that finds nothing must be proven
+able to find something* — properly this time, since the positive is the exact defect it missed.
+
+**Three narrow residuals, none worth acting on now, recorded so they are not rediscovered:**
+`functionBlocks` splits on `create or replace function`, so a door declared with a plain
+`create function` would drop out of the domain silently; `DOOR_MIGRATIONS` remains a filename
+list in manually-maintained version order; and — shared with the SQL half — **a named condition
+introduced at RUNTIME is invisible to both ends**, because the TS half reads files (where it
+would see the name) and `304` §6.1 reads the catalog with `[A-Z0-9]{5}` (where it would not).
+Narrow, but this is a project where bodies *are* rewritten at runtime.
+
+## 8.5 The a11y fix — nothing is lost (**verified, not assumed**)
+
+Closing the dialog on failure discards nothing the user needs:
+
+- The refusal renders **in the page**, not the dialog — `{error ? <FormBanner tone="error">…}`
+  at `user-lifecycle-actions.tsx:89`, outside every `Dialog`. That is exactly why the old
+  behaviour was inert: Radix marks everything outside an open modal `aria-hidden`, so the
+  message was rendered, dimmed, and unreadable to assistive tech.
+- **The suspend date survives.** `suspendUntil` (`:66`) is only ever written by the DatePicker's
+  `onChange` (`:235`); no close path resets it, and the `onOpenChange` handlers
+  (`:157/188/218/269`) touch only `openDialog`. Reopening the dialog restores the chosen date.
+- The refusal is **reachable by role**, not merely visible: the D14 `orgAdminOnly` path is what
+  a `hospital_admin` actually hits on deactivate/reactivate/suspend, which is the case that was
+  hidden.
+
+And `frontend` was right that the affiliation case is worse than a readability bug: the blocking
+seats cannot be removed from inside the dialog, so staying there was wrong even for a sighted
+user who could read the greyed-out text.
+
+## 8.6 F1–F7 — all closed. What I re-checked, and how
+
+Same discipline as round 1. **Every row below was re-checked at source or in the catalog; none
+was taken on report.**
+
+| | closed by | how I verified |
+| --- | --- | --- |
+| **F1** | `202c3db` | `affiliations-panel.tsx:280` now `" — cargo do hospital"`; **and the branch is reachable** — `e2e/…:687` asserts `'Administração do hospital — cargo do hospital'`, so the case that had no test now has one. Both halves, which is what I asked for |
+| **F2** | `8111fc9` | catalog: no kernel raises `check_violation`; live union = the 7 codes; `toState` has all 7 arms; detector widened and its own false-positive pinned as a test |
+| **F3** | `8111fc9` | `304` §7.1–7.5 — `.created` and `.ended` now pinned **by behaviour** (emit, read back), plus §7.3 (≥3 distinct arms in one run) and §7.5 (**the matrícula is not in the payload** — a Rule 11 assertion I had not asked for and which is correct) |
+| **F3b** | `8111fc9` | ADR 0097 D6/LOW-1 carries a correction blockquote with the mechanism, the live measurement (5/5 unattributed), the platform-wide scope, and the honest note that `created_by` is the attribution that survives |
+| **F4** | `8111fc9` | `log_cpf_probe_for` wired at `users/actions.ts:524-528` — and **placed before the `if (cpfHolder) return`**, so a MATCH is audited too. I checked the placement specifically: after the early return it would have audited only the misses, which is backwards |
+| **F5** | `8111fc9` | `members/actions.ts` — claim removed, named as fiction, `8155be2` named as the commit that propagated it, true reason stated |
+| **F6** | `8111fc9` | three new DENY arms (`removeCredential`, `reactivateUser`, `suspendUser`) **with org_admin ALLOW twins** at `:244-247` — the twins matter, since a narrowing that denies everyone passes its negative keystones by construction |
+| **F7** | `8111fc9` | `301` §0.10 — the set of `profiles` columns with no `authenticated` SELECT grant is exactly `{cpf}`, and it reds **both** ways (new column without a grant; `cpf` wrongly granted) |
+| F8–F10 | — | deliberately not addressed; they were and remain MINOR |
+
+## 8.7 N1 (**new, MINOR**) — the role-label test's authority is transcribed, so its own claim is false
+
+`src/components/users/affiliations-panel.test.ts` pins `ROLE_LABELS` against
+`ROLES_FROM_MEMBERSHIPS_ROLE_CHECK` — a hardcoded `as const` array **transcribed** from the
+catalog. Its header states:
+
+> *"If `backend` widens that CHECK, this test goes red and the new role gets a pt-BR label
+> before it can ever reach a user."*
+
+**That is not true.** Nothing in the file reads `memberships_role_check` at runtime — Vitest
+cannot reach the database. Widen the CHECK and touch nothing else and this test stays **green**,
+shipping an English snake_case identifier into the pt-BR `role="alert"` — the exact defect F1
+was. This is the enumeration-boundary lesson landing inside the fix written for it, for the
+**third** time in this workstream (F2 was the second). The test is otherwise well built: three
+assertions covering both drift directions plus an untranslated-identifier check, and it is
+correct and complete for the nine roles that exist today.
+
+**Partial tripwire, which is why this is MINOR and not MEDIUM:** `292` §3.1 *does* read
+`memberships_role_check` from the catalog and reds when a role is added (mutation-proven by
+`supabase/tests/mutation/w2-session-context-mutation-audit.sh`), so a new role reds *something*
+and forces the author into role wiring. But nothing points them at `ROLE_LABELS`.
+
+**Fix:** assert the role *count* in `memberships_role_check` from pgTAP against the Vitest
+list's length (currently 9), in a test whose failure message names `ROLE_LABELS` — or delete the
+sentence. Either closes it; leaving a false completeness claim in place is the thing this
+project keeps paying for.
+
+## 8.8 Round-2 follow-ups
+
+| # | Fix | Sev |
+| --- | --- | --- |
+| N1 | The role-label authority is transcribed, not read; correct the claim or add the pgTAP count assertion | MIN |
+| N2 | `log_cpf_probe_for` has no ACL/t19 keystone — add the `302` §1-shaped arm (the ACL is its only boundary) | MIN |
+| — | Carried from round 1, still open by choice: F8 (D7's unbuilt own-account CPF surface), F9 (PROGRESS phase-status row; Decision Log line 777 still records D10's rejected gate form), F10 (LIKE metacharacters) | MIN |
+
+## 8.9 Round-2 verdict
+
+**APPROVED.** Three `SECURITY DEFINER` kernels were regenerated after my sign-off and the
+catalog says every property survived — ACL, `prosecdef`, owner, `search_path`, volatility,
+return type, arity, parameter names and defaults — with no overload duplication and no drift in
+any of the eight wrapper ACLs. `HC0R5` is the right call rather than merely a landed one, and it
+leaves no reachable `23514` rendering as a retry instruction. The detector's widening is sound
+and does not over-shoot. The a11y fix discards nothing. F1–F7 are closed, each re-verified at
+source or in the catalog, and two of them (F1's E2E arm, F3's `.created`/`.ended`) are closed in
+the shape that would have caught the original defect rather than merely satisfying its letter.
+
+The two open MINORs are one assertion each and neither is a boundary. **Nothing here should hold
+the pilot's `db push`.**
