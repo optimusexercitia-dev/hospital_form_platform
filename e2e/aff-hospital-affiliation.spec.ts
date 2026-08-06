@@ -50,6 +50,7 @@ const CENTRAL_A_NAME = 'Hospital Central A'
 const SECUNDARIO_A_ID = '05000000-0000-0000-0000-0000000000a2'
 const SECUNDARIO_A_NAME = 'Hospital Secundário A'
 const ETICA_MEMBERS_URL = '/o/rede-a/c/etica/manage/members'
+const ETICA_COMMISSION_ID = 'e0000000-0000-0000-0000-0000000000e1'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -112,6 +113,39 @@ async function addMemberViaPicker(
 
   await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible({ timeout: 5_000 })
+}
+
+/**
+ * Service-role REST read — the strongest available "assert the value, not the toast"
+ * check: a raw row in `memberships`, bypassing RLS entirely. Used to confirm a seat
+ * really exists (ALLOW arm) and that a sibling-hospital admin's refusal left the row
+ * count exactly as it was (DENY arm) — a mirror bug in the OTHER direction (the fix
+ * over-widens instead of correcting) produces a silent extra row, and only counting
+ * rows tells that apart from "the button did nothing".
+ */
+async function countCommissionMembership(
+  apiRequest: import('@playwright/test').APIRequest,
+  commissionId: string,
+  principalId: string,
+): Promise<number> {
+  const ctx = await apiRequest.newContext()
+  try {
+    const res = await ctx.get(
+      `${SUPABASE_URL}/rest/v1/memberships` +
+        `?commission_id=eq.${commissionId}&principal_id=eq.${principalId}&select=id`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        },
+      },
+    )
+    expect(res.ok()).toBeTruthy()
+    const rows = (await res.json()) as unknown[]
+    return rows.length
+  } finally {
+    await ctx.dispose()
+  }
 }
 
 // Shared across the AFF-1 tests (serial mode) — the fresh person created in the first
@@ -214,20 +248,26 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     await expect(page.getByText(SECUNDARIO_A_NAME)).toBeVisible()
   })
 
-  // BUG-AFF-1 (filed in PROGRESS.md; NOT an AFF regression — see the bug row for the
-  // repro and the commit that shows this predates AFF entirely). `authorizeStaffOps`
-  // (src/lib/members/actions.ts, backing the commission's own "Adicionar membro"
-  // picker / `addStaff`) has only TWO arms — staff_admin of the commission, or
-  // org_admin of its org — never a hospital_admin arm. The PAGE gate
-  // (`getCommissionAccessByOrg`) and the CANDIDATE list (`list_addable_commission_members`,
-  // ADR 0097 finding 1) both already admit hospital_admin via `is_commission_admin_of`'s
-  // hospital leg, so a hospital_admin reaches the page, sees a populated picker, selects
-  // a candidate — and is refused only at the final submit, with a generic "Você não tem
-  // permissão para esta ação." This is asserted here as the CURRENT, documented behaviour
-  // (green today); it must be INVERTED, not deleted, the day `authorizeStaffOps` gains the
-  // missing arm (the "281 D1" convention already used elsewhere in this suite).
-  test('BUG-AFF-1: hospitaladmin.dual\'s attempt via the commission\'s OWN member picker is refused (pre-existing addStaff gap)', async ({
+  // BUG-AFF-1 — FIXED, `8155be2` (`authorizeStaffOps` now mirrors
+  // `is_commission_admin_of`'s hospital leg, same as its sibling `authorizeForCommission`).
+  // ⚠ The fix was a MIRROR-DRIFT CORRECTION, not a capability widening: every door
+  // `authorizeStaffOps` fronts (`grant_role`/`grant_role_impl`'s commission-tier arms,
+  // `appoint_administrativo`, `grant_member_capability`, …) already resolved
+  // `is_commission_admin_of[_for]`, which has always admitted a hospital_admin of the
+  // commission's hospital — the TS pre-check was simply STRICTER than every door behind
+  // it, and failed closed, which is why nothing caught it. `hospital_admin` gained
+  // NOTHING new here; the record row above must not be misread as a security change.
+  //
+  // The repro is now INVERTED (not deleted — the "281 D1" convention this suite already
+  // uses): hospitaladmin.dual completes the seat AS THEMSELVES, and this asserts the
+  // SEAT EXISTS — a real `memberships` row read via the service role, bypassing RLS —
+  // not merely that the error toast is gone. A mirror bug in the OTHER direction (the
+  // fix over-widens instead of correcting) produces a SILENT SUCCESS from an
+  // unauthorized caller; only a state assertion, not an absence-of-error assertion,
+  // tells the two apart.
+  test('hospitaladmin.dual seats the person on Comissão de Ética AS THEMSELVES — the seat exists afterward (BUG-AFF-1 fixed)', async ({
     page,
+    playwright,
   }) => {
     test.skip(!johnPathUserId, 'depends on the previous tests in this serial file')
 
@@ -235,44 +275,92 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
     await page.goto(ETICA_MEMBERS_URL)
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Membros')
 
-    await page.getByRole('button', { name: /adicionar membro/i }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible({ timeout: 10_000 })
-    await dialog.getByLabel('Buscar pessoa').fill(johnPathEmail)
-    const candidate = dialog
-      .getByRole('list', { name: 'Pessoas cadastradas disponíveis' })
-      .getByRole('button')
-      .filter({ hasText: johnPathEmail })
-    // The picker DOES offer the candidate — the read-side gate admits hospital_admin.
-    await expect(candidate).toBeVisible({ timeout: 10_000 })
-    await candidate.click()
-    await dialog.getByRole('button', { name: /^adicionar$/i }).click()
-
-    await expect(page.locator('[role="status"]')).toContainText(
-      /não tem permissão/i,
-      { timeout: 10_000 },
+    const before = await countCommissionMembership(
+      playwright.request,
+      ETICA_COMMISSION_ID,
+      johnPathUserId,
     )
-    await page.keyboard.press('Escape')
+    expect(before).toBe(0)
+
+    await addMemberViaPicker(page, johnPathEmail)
+
+    // UI state: the roster AND the person's own page both show the seat.
+    await expect(page.getByText(johnPathName).first()).toBeVisible({ timeout: 10_000 })
+    await page.goto(`/o/rede-a/manage/usuarios/${johnPathUserId}`)
+    await expect(page.getByText('Comissão de Ética')).toBeVisible({ timeout: 10_000 })
+
+    // DB state, RLS-bypassed: exactly one membership row, never zero (a no-op refusal
+    // dressed as success) and never more than one (a duplicate from a retried/racing
+    // write).
+    const after = await countCommissionMembership(
+      playwright.request,
+      ETICA_COMMISSION_ID,
+      johnPathUserId,
+    )
+    expect(after).toBe(1)
+
+    // The fix must not have touched anything on the OTHER hospital — the person's
+    // Central A affiliation (created in the first test of this file) is untouched.
+    const centralCtx = await playwright.request.newContext()
+    try {
+      const res = await centralCtx.get(
+        `${SUPABASE_URL}/rest/v1/hospital_affiliations` +
+          `?principal_id=eq.${johnPathUserId}&hospital_id=eq.${CENTRAL_A_ID}&ended_on=is.null&select=id`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+        },
+      )
+      expect(res.ok()).toBeTruthy()
+      expect(((await res.json()) as unknown[]).length).toBe(1)
+    } finally {
+      await centralCtx.dispose()
+    }
   })
 
-  test('hospitaladmin.dual\'s vincular stands; org_admin (a working authority for addStaff) completes the seat on the Secundário A committee', async ({
+  // DENY arm, same shape, same commission: a hospital admin of a SIBLING hospital in
+  // the same org (hospitaladmin.a1 administers central-a only; Comissão de Ética lives
+  // under secundario-a) must still be refused. `authorizeStaffOps`'s fixed hospital leg
+  // is `is_hospital_admin_of(commission's hospital)` — narrow to THAT hospital, not
+  // "any hospital in the org" — so a blanket widening of the arm would pass this ALLOW
+  // above but also wrongly pass this DENY (`backend`'s unit keystone proves the same
+  // shape at the TS-function level; this proves it survives through the real page/RLS
+  // stack a future refactor of the helper could otherwise silently bypass). Today this
+  // manifests as the page's own not-found boundary — `getCommissionAccessByOrg` gates on
+  // the identical hospital-scoped authority — so the picker is never reached at all;
+  // asserted here (not left to HA-1's general-purpose cross-hospital test alone) because
+  // it is the SAME commission and the SAME persona as the ALLOW arm above, so a
+  // regression in either direction shows up together.
+  test('hospitaladmin.a1 (sibling hospital — central-a only) is still refused for Comissão de Ética (secundario-a)', async ({
     page,
+    playwright,
   }) => {
     test.skip(!johnPathUserId, 'depends on the previous tests in this serial file')
 
-    // Routes around BUG-AFF-1 with a DIFFERENT, fully-authorized actor so the rest of
-    // the Dr. John scenario (search → vincular → seat on a committee) is still
-    // demonstrated end to end, rather than leaving T3.6's clause 1 unattempted.
-    await signInAs(page, 'orgadmin.a@test.local')
+    const before = await countCommissionMembership(
+      playwright.request,
+      ETICA_COMMISSION_ID,
+      johnPathUserId,
+    )
+
+    await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto(ETICA_MEMBERS_URL)
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Membros')
+    await expect(page.getByText(/Não encontramos esta página|Erro 404/i).first()).toBeVisible({
+      timeout: 10_000,
+    })
+    // No leakage: neither the picker nor any member/candidate name ever renders.
+    await expect(page.getByRole('button', { name: /adicionar membro/i })).toHaveCount(0)
+    await expect(page.getByText(johnPathName)).not.toBeVisible()
 
-    await addMemberViaPicker(page, johnPathEmail)
-    await expect(page.getByText(johnPathName).first()).toBeVisible({ timeout: 10_000 })
-
-    // Confirm from the person's own page too: value-based, not banner-based.
-    await page.goto(`/o/rede-a/manage/usuarios/${johnPathUserId}`)
-    await expect(page.getByText('Comissão de Ética')).toBeVisible({ timeout: 10_000 })
+    // State, not just the boundary screen: the row count is UNCHANGED by the attempt.
+    const after = await countCommissionMembership(
+      playwright.request,
+      ETICA_COMMISSION_ID,
+      johnPathUserId,
+    )
+    expect(after).toBe(before)
   })
 
   test('read-only cross-check: hospitaladmin.a1 (central-a) searching dr.john\'s real CPF resolves outcome C (already vinculado)', async ({

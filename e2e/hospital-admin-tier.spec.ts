@@ -658,13 +658,20 @@ test.describe('HA-5: Hospital-tier audit — hospital_admin reads its chain only
 test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle', () => {
   test('hospitaladmin.a1 sees ONLY central-a users in the directory', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
-    await page.goto('/o/rede-a/manage/usuarios')
+    // Scoped via `?search=` — an unfiltered page-1 guess is positional-luck-dependent
+    // once enough E2E-created users accumulate in the shared local DB across repeated
+    // runs (the same fragility fixed elsewhere in this file for AFF T3.6).
+    await page.goto('/o/rede-a/manage/usuarios?search=chefe.ccih')
     await expect(page.getByRole('heading', { name: 'Usuários' })).toBeVisible({
       timeout: 10_000,
     })
     // central-a users should be visible (e.g. the CCIH staff_admin).
     await expect(page.getByText(/Chefe CCIH/i).first()).toBeVisible({ timeout: 10_000 })
-    // org-b users must be absent.
+
+    // org-b users must be absent — searched EXPLICITLY by her own name (matches the
+    // "Qualidade" substring), the stronger form of the negative: not merely "not on
+    // whatever page happened to render", but "not returned even when named directly".
+    await page.goto('/o/rede-a/manage/usuarios?search=qualidade')
     await expect(page.getByText(/Analista Qualidade B/i)).not.toBeVisible()
   })
 
@@ -742,7 +749,11 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
   // (user-registration.spec.ts AC3, with orgadmin.a).
   test('hospitaladmin.a1 CANNOT deactivate a central-a user (D14 — account lifecycle is org_admin-only)', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
-    await page.goto('/o/rede-a/manage/usuarios')
+    // Scoped to the EXACT seeded user via `?search=` — an unfiltered page-1 guess is
+    // positional-luck-dependent once enough E2E-created users accumulate in the shared
+    // local DB across repeated runs (the same class of fragility fixed in the
+    // "registers a new user" test above; found again running this file for AFF T3.6).
+    await page.goto('/o/rede-a/manage/usuarios?search=staff2.ccih')
     await page.getByText(/Enfermeira CCIH Dois/i).first().click()
 
     await expect(page.getByRole('heading', { name: 'Situação da conta' })).toBeVisible({
