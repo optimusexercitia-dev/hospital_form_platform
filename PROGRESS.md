@@ -205,10 +205,33 @@ Status + gate record: Phase Status table above (and its two standing caveats). Q
 Scope was set by ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) (12 initiatives)
 and re-expanded by ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) (FF-1…FF-5); ADR
 [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) then re-gated Phase 16 in front of
-the pilot. **All of that is complete — no gated phase remains in front of the pilot deploy.** Completed
-items are not re-listed here; the Phase Status table above is the index. What is actually left:
+the pilot. **That block is complete — but ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md)
+(AFF) re-gated the pilot on 2026-08-05; see item 1.** Completed items are not re-listed here; the Phase
+Status table above is the index. What is actually left:
 
-**1. ▶ The pilot deploy itself — user-gated, NOT started.** ✅ The **git** half is already done: Phase 16
+**1. 🔵 AFF — Hospital affiliation, person identity & the org people directory. PROPOSED 2026-08-05,
+NOT started; awaiting human approval of the ADR.** ADR
+[0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · plan
+[hospital-affiliation-person-identity.md](docs/plans/hospital-affiliation-person-identity.md) (W1
+substrate → W2 doors/visibility → W3 product surfaces). **Gates the pilot deploy** — it is mostly
+schema (a new `hospital_affiliations` table, `profiles.cpf`, two dropped columns, a widened `profiles`
+policy, two new DEFINER doors), and every one of those is free while `supabase db reset` is free and
+materially more expensive the day after the remote `db push`. Origin: the PO scenario of a professional
+hired by a **second hospital of the same organization** — `registerUser` blocks on the email collision
+and there is no "this person already exists, vincular" path. **Five catalog-verified findings drive it**
+(evidence in the ADR's Context): (a) `list_addable_commission_members` **already** discloses the whole
+org roster to a hospital admin — the feature is half-shipped and undeclared; (b) `profiles.home_hospital_id`
+is populated on **1 of 30** profiles, so its RLS leg is inert; (c) `memberships` SELECT is **wider** than
+`profiles` SELECT — a hospital admin reads **6** membership rows whose principals they cannot name,
+including their own `technical_director`; (d) no row expresses "employed at this hospital", and
+`hospital_employee_id` (matrícula) is singular on `profiles` though it is per-employment; (e) ADR 0051 D1's
+**"org_admin dominates hospital_admin" is false** — `set_standard_ownership` and `standard_ownerships_select`
+admit `hospital_admin` with no `org_admin` arm (BUG-AUTHZ-001's shape), both fixed in W2 behind a new
+dominance grid. Also settles single-hospital tenants: **no model change** — one principal already holds
+`org_admin` + `hospital_admin` (probed live) — but **no product path can seat it** (the self-grant guard
+fires on the service path too), so W3 seats both at provisioning.
+
+**2. ▶ The pilot deploy itself — user-gated, NOT started.** ✅ The **git** half is already done: Phase 16
 is merged to `main` and `main` == `origin/main` at `484a254` (verified by a live `git fetch` 2026-08-04,
 not by reading this file — the row above claimed "not merged/pushed" for a day after it was both).
 **What remains is the deploy proper:** the **Coolify** app deploy + the remote **`db push`** of every
@@ -216,14 +239,14 @@ local-only migration (the S1–S3 batch onward — every S-phase built local-fir
 when the ETH·E1 m2 flag flip reaches production.** ⚠ The remote `db push` needs the **user's own auth** —
 background agents are auto-denied.
 
-**2. ⬛ ~~BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.~~**
+**3. ⬛ ~~BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.~~**
 **FIXED 2026-08-05** (`20260908000100`, held by `299_hospital_content_door_noun_rule.sql` 11/11) — no
 longer gates the pilot deploy. Full entry in the Bug Log below, including why the parity test this row
 prescribed had to be written differently: enumerated live, the property returns **four** doors, and
 `verify_audit_chain` must NOT return zero rows (its `is_admin()` is the platform tier, and audit is
 platform_admin's own noun).
 
-**3. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
+**4. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
 (QA M-2); **not an FF-3 defect and not a known leak** — PO decision on scheduling. The sweep floors
 `prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written
@@ -237,7 +260,7 @@ each time. Proposed scope: enumerate `public` `prosecdef = f` functions calling 
 function, and require a keystone per wrapper that reds when its guard is removed. Relates to
 ARCHITECTURE.md Rule 1.
 
-**4. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
+**5. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
 stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. ⚠ **Verify the premise
 before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug, fixed by the
 `next` 16.3.0-preview.5 bump already in `package.json`, so the remaining platform-wide instances
@@ -617,6 +640,7 @@ not a defect — it reads exactly like a real red.
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
+| 2026-08-05 | **AFF — hospital affiliation, CPF identity & the org people directory** (PO, grilling interview) — hospital affiliation becomes a **row** (`hospital_affiliations`, soft-ended, matrícula per employment) and is a **visibility input, never a capability input** (amends 0048 D7: hospital *is* now a read boundary); `profiles.home_hospital_id` + `hospital_employee_id` **dropped**; **`profiles.cpf`** platform-unique = the person key (nullable column, required at the action layer); the already-shipping org-wide roster disclosure **ratified** via `list_org_people` gated on `is_org_admin_of OR is_org_level_admin_within` (amends 0048 D1), CPF **exact-match input only, never in the payload**; one **identifier-first** registration flow (`registerUser` keeps its collision block as backstop — amends 0048 D9); `professional_profiles` gains `cpf` but linking is **deferred and only ever from inside a case** (a registration-side match would disclose ethics-case subjecthood); person-level fields **`org_admin`-only**, account deactivation unreachable by hospital admins; single-hospital tenants seat `org_admin` + `hospital_admin` at **provisioning** (no model change, no self-grant relaxation) behind a new **dominance grid** + 2 live gap fixes. **All pre-pilot** — the schema is free only while the reset is | [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · [plan](docs/plans/hospital-affiliation-person-identity.md) |
 | 2026-08-04 | **The authz door-blindness invariant becomes a PHASE STEP, diff-scoped** — §6 step 1 gains ARM 2 (~1 min) every phase + a **diff-scoped** ARM 1 whenever a phase touches an RLS policy or `prosecdef` gate (case list derived from the migration diff, never by hand); step 5 must **name the ARM, not the script**. The full ~5 h sweep stays a **periodic** audit — mandating it per phase would reproduce the failure it fixes, and a diff-scoped gate is adoptable today against the open 15-violation backlog | [0079 Amendment 1](docs/decisions/0079-authz-door-blindness-standing-invariant.md) · [CLAUDE.md §6](CLAUDE.md) |
 | 2026-08-04 | **Membership-hardening + Diretor Técnico: the four open items closed** (PO) — T1.0 = **atomic replace**; **platform_admin may NOT appoint a DT** (tenant governance, not tenancy administration — the only kernel grant arm with no `is_admin_for` branch); build **W1→W4 straight through** on one branch; `technical_director` flag **ships ON** at T4.9 | [0094 Amendment 1](docs/decisions/0094-membership-hardening-and-technical-director.md) · [plan](docs/plans/membership-hardening-technical-director.md) |
 | 2026-08-03 | **Phase 16 build plan authored + 4 planning rulings** (PO, interview) — CAPA evidence arm = hospital-match + `can_read_capa`; commission-owned frameworks commission-scoped SELECT (narrows D10 — licensed-text leak); visible hospital nav entry; ONA skeleton drafted by backend, PO-validated. Build not started | [0093 Amendment 1](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) · [plan](docs/plans/phase-16-standards-crosswalk-program.md) |
