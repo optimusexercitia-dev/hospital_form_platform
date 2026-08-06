@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { listOrgPeople, type OrgPerson } from '@/lib/queries/affiliations'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeCpf } from '@/lib/users/cpf'
 
 /**
  * Hospital-affiliation server actions (ADR 0097 D13, ADR 0098 W2.1) — the CONTRACT
@@ -38,11 +40,14 @@ const MESSAGES = {
   generic: 'Não foi possível concluir. Tente novamente.',
   foreignOrg: 'Esta pessoa não pertence a esta organização.',
   notFound: 'Vínculo ativo não encontrado.',
-  badDate: 'A data de encerramento é anterior ao início do vínculo.',
+  badDate: 'A data informada é incompatível com o período do vínculo.',
+  deactivated:
+    'Esta conta está desativada. Reative a conta antes de registrar um vínculo hospitalar.',
   stillSeated:
     'Não é possível encerrar o vínculo: a pessoa ainda ocupa funções ativas neste hospital.',
   affiliated: 'Vínculo hospitalar registrado.',
   ended: 'Vínculo hospitalar encerrado.',
+  updated: 'Vínculo hospitalar atualizado.',
 } as const
 
 /** `hospital_affiliations` feeds the roster and the user directory alike. */
@@ -90,7 +95,14 @@ function toState(error: PgErrorish): AffiliationActionState {
       return { ok: false, error: MESSAGES.notFound }
     case 'HC0R3':
       return { ok: false, error: MESSAGES.badDate }
+    case 'HC0R4':
+      return { ok: false, error: MESSAGES.deactivated }
     default:
+      // ⚠ `default` is why an unmapped code is INVISIBLE: the switch is total, so no
+      // compiler, linter or test can report one as unhandled — it just silently
+      // degrades into "try again", which is a retry instruction for conditions
+      // retrying cannot fix. `door-error-arms.test.ts` enumerates the SQLSTATEs the
+      // doors actually raise and fails when one has no arm here.
       return { ok: false, error: MESSAGES.generic }
   }
 }
@@ -122,6 +134,70 @@ export async function affiliatePerson(input: {
 
   revalidateAffiliationSurfaces()
   return { ok: true, error: MESSAGES.affiliated }
+}
+
+/**
+ * Edit an EXISTING active employment: matrícula and/or start date (ADR 0097 D14).
+ *
+ * ⚠ Deliberately NOT `affiliatePerson`. That door is the idempotent CREATE path and it
+ * IGNORES `startedOn` for a row that already exists — a control wired to it would
+ * silently no-op on every existing affiliation. This calls `update_affiliation`, which
+ * emits `affiliation.updated`; routing a date change through the create door would have
+ * mutated a row with no audit arm to record it (Rule 11).
+ *
+ * Omit a field to leave it alone. Clearing the matrícula is an EXPLICIT
+ * `clearEmployeeId`, because "null means leave it" and "null means clear it" cannot
+ * both be true of the same argument.
+ */
+export async function updateAffiliation(input: {
+  userId: string
+  hospitalId: string
+  employeeId?: string | null
+  startedOn?: string | null
+  clearEmployeeId?: boolean
+}): Promise<AffiliationActionState> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_affiliation', {
+    p_user: input.userId,
+    p_hospital: input.hospitalId,
+    p_employee_id: input.employeeId?.trim() || undefined,
+    p_started_on: input.startedOn ?? undefined,
+    p_clear_employee_id: input.clearEmployeeId ?? false,
+  })
+
+  if (error) return toState(error)
+
+  revalidateAffiliationSurfaces()
+  return { ok: true, error: MESSAGES.updated }
+}
+
+/**
+ * The identifier-first lookup (ADR 0097 D12), as a SERVER ACTION.
+ *
+ * ⚠ Why this exists beside the typed query it wraps: `@/lib/queries/affiliations` is
+ * `server-only`, so a Client Component cannot import it, and **a CPF must never travel
+ * as a URL parameter** — that is a hard privacy rule, so the register screen cannot
+ * reach the directory through a route either. A `'use server'` action is the only path
+ * that keeps the digits in a POST body.
+ *
+ * NO authorization is added here, deliberately: the DB door is the boundary, it is
+ * gated on `auth.uid()`, and an unauthorized caller already receives `[]`. A TS check
+ * layered on top would be a second, weaker copy of a rule that is already enforced
+ * where it counts.
+ *
+ * ⚠ An empty array means "no match OR not allowed" — the door cannot be probed to tell
+ * them apart, by design. Do not render it as a permission error.
+ */
+export async function lookupOrgPeople(input: {
+  orgId: string
+  cpf?: string | null
+  search?: string | null
+}): Promise<OrgPerson[]> {
+  // Normalized HERE so a formatted CPF from the form matches storage. The door is
+  // exact-match and full-length only: partial CPF matching is an enumeration oracle
+  // over national IDs (D11) and is refused server-side, not merely unused.
+  const cpf = input.cpf ? normalizeCpf(input.cpf) || null : null
+  return listOrgPeople({ orgId: input.orgId, search: input.search ?? null, cpf })
 }
 
 /**

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isEmailVerificationEnabled } from '@/lib/config/auth'
+import { isValidCpf, normalizeCpf } from '@/lib/users/cpf'
 
 /**
  * User Registration & Identity Management — server actions.
@@ -73,6 +74,23 @@ export interface RegisterUserInput {
   homeHospitalId?: string | null
   /** Matrícula. Rides on the affiliation created above; ignored without a hospital. */
   hospitalEmployeeId?: string | null
+  /**
+   * CPF, the person key (ADR 0097 D7). Digits or formatted — normalized here.
+   *
+   * ⚠ Accepted from ANY authorized registrar, including a hospital_admin, while
+   * EDITING it later is org_admin-only (D14). That is not an inconsistency: D14's
+   * stated rationale is that "two hospital admins editing them is a silent
+   * cross-hospital write", and at creation there is no other hospital's value to
+   * overwrite — the person does not exist yet. D12's identifier-first flow has the
+   * registrar type the CPF to search before it offers to create.
+   *
+   * REQUIRED (D7: "required at the action layer"). The nullable COLUMN remains the
+   * documented escape for a foreign professional without a schema change, but no
+   * product path may create a person without the key the whole feature is built on:
+   * an admin who registers someone with no CPF makes them unfindable by the next
+   * admin's lookup, and the feature is inert on exactly the population it exists for.
+   */
+  cpf: string
   credentials?: CredentialInput[]
   committees?: CommitteeAssignmentInput[]
   /**
@@ -101,6 +119,12 @@ export interface UpdateUserProfileInput {
   homeHospitalId?: string | null
   /** Matrícula for the affiliation named above; ignored when it is null. */
   hospitalEmployeeId?: string | null
+  /**
+   * CPF (ADR 0097 D7). ⚠ org_admin-ONLY to change (D14), enforced server-side.
+   * OMIT the key to leave it untouched; `null` clears it. A hospital_admin sending an
+   * unchanged value is fine — the gate fires on a real change, not on presence.
+   */
+  cpf?: string | null
 }
 
 /** Create-or-update a single credential. `id` present ⇒ update (which CLEARS `verified_at`). */
@@ -124,6 +148,15 @@ const MESSAGES = {
   passwordRequired: 'Informe a senha inicial.',
   passwordTooShort: 'A senha deve ter pelo menos 8 caracteres.',
   emailCollision: 'Este e-mail já está cadastrado na plataforma.',
+  // ADR 0097 D7/D8: the CPF collision copy reuses the email-collision FORM verbatim
+  // and names neither the holder nor their tenant — the identifier is globally unique,
+  // so a message that distinguished "exists elsewhere" would be a cross-tenant oracle.
+  cpfCollision: 'Este CPF já está cadastrado na plataforma.',
+  cpfInvalid: 'Informe um CPF válido.',
+  cpfRequired: 'Informe o CPF.',
+  // ADR 0097 D14 — person-level fields and the account lifecycle are org_admin-only.
+  orgAdminOnly:
+    'Apenas o administrador da organização pode alterar os dados pessoais e a situação da conta.',
   credentialCollision:
     'Este registro profissional já está cadastrado (órgão, UF e número).',
   missingUser: 'Usuário não encontrado.',
@@ -270,6 +303,38 @@ async function ensureActiveAffiliation(params: {
 }
 
 /**
+ * D14 AUTHORITY — person-level fields are `org_admin`-ONLY.
+ *
+ * ADR 0097 D14: name, CPF, professional category and credentials are facts about the
+ * PERSON, not about a hospital, so two hospital admins editing them is a silent
+ * cross-hospital write. Same for the account lifecycle: `app.is_active` is folded into
+ * every membership predicate, which makes deactivation a PLATFORM-WIDE kill switch —
+ * one hospital's offboarding must never end a professional's access at another.
+ *
+ * ⚠ THIS IS THE ONLY AUTHORITY ON THESE PATHS. They run on the service-role client,
+ * which has no RLS backstop, and the `profiles` column grants that lock `cpf` govern
+ * PostgREST only — the service client walks straight around them. Until this function
+ * existed, `authorizeForUser`'s hospital arm admitted a `hospital_admin` to every one
+ * of them, so D14 was asserted in an ADR and enforced nowhere.
+ *
+ * Deliberately NOT platform_admin either: `authorizeOrgOps` excludes it (ADR 0041 /
+ * the noun rule — commission content and person records are not platform_admin's).
+ */
+async function authorizeOrgAdminForUser(
+  userId: string,
+): Promise<{ ok: boolean; orgId?: string }> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('home_organization_id')
+    .eq('id', userId)
+    .maybeSingle()
+  const orgId = data?.home_organization_id ?? undefined
+  if (!orgId) return { ok: false }
+  return { ok: await authorizeOrgOps(orgId), orgId }
+}
+
+/**
  * Resolve the target user's home org, then authorize the caller — as an
  * `org_admin` of that org OR (ADR 0051) as a `hospital_admin` who may manage the
  * user (its home hospital / a commission of that hospital). Used by the per-user
@@ -404,6 +469,14 @@ export async function registerUser(
   else if (!EMAIL_PATTERN.test(email)) fieldErrors.email = MESSAGES.emailInvalid
   if (!input.professionalCategoryId)
     fieldErrors.professionalCategoryId = MESSAGES.categoryRequired
+  // CPF is validated by the SAME authority the database uses (Rule 3 mirrored pair),
+  // so a bad check digit becomes a pt-BR field error instead of a raw 23514.
+  // Kept as a plain `string` (never `string | null`) so the collision lookup and the
+  // profile write below need no non-null assertion: the fieldErrors early-return above
+  // is the only path past an empty value.
+  const cpf = normalizeCpf(input.cpf ?? '')
+  if (!cpf) fieldErrors.cpf = MESSAGES.cpfRequired
+  else if (!isValidCpf(cpf)) fieldErrors.cpf = MESSAGES.cpfInvalid
   // When email verification is OFF, the admin sets the initial password now.
   if (!emailVerification) {
     if (!input.password) fieldErrors.password = MESSAGES.passwordRequired
@@ -428,6 +501,28 @@ export async function registerUser(
   }
   if (existing) {
     return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
+  }
+
+  // CPF is the person key and is unique platform-wide (D7), so a collision must BLOCK
+  // exactly as the email one does. Front-loaded here so the common case never creates
+  // an auth user it then has to fail behind; the 23505 on the profile write below
+  // stays as the RACE backstop, not as the primary check.
+  //
+  // ⚠ The copy reuses the email-collision FORM verbatim and names neither the holder
+  // nor their tenant (D8). CPF is globally unique, so a message that distinguished
+  // "exists in another organisation" would turn this into a cross-tenant existence
+  // oracle over national IDs — the enumeration surface D7/LOW-3 already flags as the
+  // widest one this platform has.
+  const { data: cpfHolder, error: cpfLookupError } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('cpf', cpf)
+    .maybeSingle()
+  if (cpfLookupError) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+  if (cpfHolder) {
+    return { ok: false, fieldErrors: { cpf: MESSAGES.cpfCollision } }
   }
 
   // metadata seeds full_name + the org anchor (service-role-set-once;
@@ -486,6 +581,7 @@ export async function registerUser(
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
+      cpf,
       // Flag-OFF path only: the admin set the initial password, so force the user
       // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
       // flag-ON invite path leaves it false (the user sets their own at /convite).
@@ -495,7 +591,12 @@ export async function registerUser(
   if (profileError) {
     // Do NOT swallow: the invite happened, but the profile write failed. Surface
     // it so the operator retries (the pending profile exists and is anchored).
-    return { ok: false, error: MESSAGES.generic }
+    return {
+      ok: false,
+      ...(profileError.code === '23505'
+        ? { fieldErrors: { cpf: MESSAGES.cpfCollision } }
+        : { error: MESSAGES.generic }),
+    }
   }
 
   // Employment (ADR 0097 D1/D3) — the row that used to be profiles.home_hospital_id +
@@ -624,12 +725,41 @@ export async function registerUser(
 export async function updateUserProfile(
   input: UpdateUserProfileInput,
 ): Promise<ActionState> {
+  // Entry authority: a hospital_admin may still reach this action, because the
+  // AFFILIATION half of it is legitimately theirs (matrícula at their own hospital).
   const auth = await authorizeForUser(input.userId)
   if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
 
   const fullName = input.fullName.trim()
   if (!fullName) {
     return { ok: false, fieldErrors: { fullName: MESSAGES.nameRequired } }
+  }
+
+  const cpf = input.cpf === undefined ? undefined : normalizeCpf(input.cpf ?? '') || null
+  if (cpf && !isValidCpf(cpf)) {
+    return { ok: false, fieldErrors: { cpf: MESSAGES.cpfInvalid } }
+  }
+
+  // D14 — the person-level gate. Compared against the CURRENT row with `distinct
+  // from` semantics, not applied blanket: the edit form always POSTS name and
+  // category, so gating on their PRESENCE would deny a hospital admin editing only a
+  // matrícula. Only an actual CHANGE is a person-level write.
+  const adminClient = createAdminClient()
+  const { data: current } = await adminClient
+    .from('profiles')
+    .select('full_name, professional_category_id, cpf')
+    .eq('id', input.userId)
+    .maybeSingle()
+  if (!current) return { ok: false, error: MESSAGES.missingUser }
+
+  const personLevelChanged =
+    current.full_name !== fullName ||
+    current.professional_category_id !== input.professionalCategoryId ||
+    (cpf !== undefined && current.cpf !== cpf)
+
+  if (personLevelChanged) {
+    const personAuth = await authorizeOrgAdminForUser(input.userId)
+    if (!personAuth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
   }
 
   // Home-hospital validation (amendment 11, mirrors registerUser). For an
@@ -654,15 +784,23 @@ export async function updateUserProfile(
     }
   }
 
-  const admin = createAdminClient()
+  const admin = adminClient
   const { error } = await admin
     .from('profiles')
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
+      // `cpf` is written ONLY when the caller supplied the key at all, so an edit form
+      // that does not carry the field can never null it out.
+      ...(cpf === undefined ? {} : { cpf }),
     })
     .eq('id', input.userId)
-  if (error) return { ok: false, error: MESSAGES.generic }
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === '23505' ? MESSAGES.cpfCollision : MESSAGES.generic,
+    }
+  }
 
   // Employment, when one was named (ADR 0097 D1/D3). A null hospital does NOT end an
   // affiliation — see UpdateUserProfileInput.homeHospitalId. The org is no longer
@@ -685,8 +823,9 @@ export async function updateUserProfile(
 export async function upsertCredential(
   input: UpsertCredentialInput,
 ): Promise<ActionState> {
-  const auth = await authorizeForUser(input.userId)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  // D14: a professional council registration is a fact about the PERSON.
+  const auth = await authorizeOrgAdminForUser(input.userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const row = {
     user_id: input.userId,
@@ -748,8 +887,9 @@ export async function removeCredential(
     .maybeSingle()
   if (!cred) return { ok: false, error: MESSAGES.generic }
 
-  const auth = await authorizeForUser(cred.user_id)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  // D14: person-level.
+  const auth = await authorizeOrgAdminForUser(cred.user_id)
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const { error } = await admin
     .from('professional_credentials')
@@ -859,8 +999,12 @@ export async function removeCommittee(
 
 /** Deactivate a user (master switch off). Next-request logout via the gate. */
 export async function deactivateUser(userId: string): Promise<ActionState> {
-  const auth = await authorizeForUser(userId)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  // D14 — UNREACHABLE BY A HOSPITAL ADMIN. `app.is_active` is folded into every
+  // membership predicate, so this is a PLATFORM-WIDE kill switch: one hospital's
+  // offboarding would end the person's access at every other hospital and committee
+  // they hold. Offboarding from a hospital is `end_affiliation`, not this.
+  const auth = await authorizeOrgAdminForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()
   const { error } = await admin
@@ -875,8 +1019,9 @@ export async function deactivateUser(userId: string): Promise<ActionState> {
 
 /** Reactivate a deactivated user (is_active=true; also clears any residual suspension). */
 export async function reactivateUser(userId: string): Promise<ActionState> {
-  const auth = await authorizeForUser(userId)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  // D14 — the inverse of deactivateUser is equally platform-wide.
+  const auth = await authorizeOrgAdminForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()
   const { error } = await admin
@@ -898,8 +1043,9 @@ export async function suspendUser(
   userId: string,
   suspendedUntil: string | null,
 ): Promise<ActionState> {
-  const auth = await authorizeForUser(userId)
-  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+  // D14 — suspension routes through the same `app.is_active` kill switch.
+  const auth = await authorizeOrgAdminForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.orgAdminOnly }
 
   const admin = createAdminClient()
   const { error } = await admin

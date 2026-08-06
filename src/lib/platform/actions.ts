@@ -217,6 +217,47 @@ export async function assignOrgAdmin(
     if (error) {
       return { ok: false, error: MESSAGES.generic }
     }
+
+    // ── AFF W3 / T3.4 — SINGLE-HOSPITAL PROVISIONING (ADR 0097 D16/D17) ──────────
+    // A one-hospital tenant with one administrator is the common shape, and until
+    // now it was UNSEATABLE: `grant_role_impl` denies `p_user = p_actor` on every
+    // path including the service path, so the new org_admin could not grant
+    // themselves `hospital_admin`; and the branch required
+    // `is_org_admin_of_for(org, p_actor)` with no `is_admin_for` arm, so the
+    // provisioning platform admin was denied 42501 too. There was no working path
+    // at all (external audit BLOCKER-1). T2.5 (`20260909000900`) added the arm; this
+    // is the caller it was added for, and pgTAP `302` §6.1 is its keystone.
+    //
+    // ⚠ The actor is the PLATFORM ADMIN, never the new org_admin. That sidesteps the
+    // self-grant guard WITHOUT weakening it — the guard stays exactly as it is, and
+    // `302` §6.4 pins that it still fires.
+    //
+    // Exactly ONE hospital, or nothing: with two or more there is no unambiguous
+    // choice, and D16 keeps the explicit appointment step for multi-hospital orgs.
+    // A repeat provision is idempotent (the kernel's targeted `on conflict do
+    // nothing`), and `ADR 0097` finding 8 confirms one principal may legitimately
+    // hold `org_admin` + `hospital_admin` of the same org.
+    const { data: hospitals } = await admin
+      .from('hospitals')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .returns<{ id: string }[]>()
+
+    if ((hospitals ?? []).length === 1) {
+      const { error: hospitalError } = await admin.rpc('grant_role_for', {
+        p_actor: actorId,
+        p_scope_type: 'hospital',
+        p_scope_id: hospitals![0].id,
+        p_role: 'hospital_admin',
+        p_user: userId,
+      })
+      // Do NOT swallow: the org_admin grant landed, so a silent failure here leaves a
+      // tenant whose only administrator cannot manage its only hospital — the exact
+      // half-provisioned state this task exists to prevent.
+      if (hospitalError) {
+        return { ok: false, error: MESSAGES.generic }
+      }
+    }
   } catch {
     return { ok: false, error: MESSAGES.generic }
   }

@@ -15331,6 +15331,27 @@ export type Database = {
         Returns: undefined
       }
       unlink_referral_case: { Args: { p_link_id: string }; Returns: undefined }
+      update_affiliation: {
+        Args: {
+          p_clear_employee_id?: boolean
+          p_employee_id?: string
+          p_hospital: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
+      update_affiliation_for: {
+        Args: {
+          p_actor: string
+          p_clear_employee_id?: boolean
+          p_employee_id?: string
+          p_hospital: string
+          p_started_on?: string
+          p_user: string
+        }
+        Returns: string
+      }
       update_block_library_entry: {
         Args: {
           p_description?: string
