@@ -394,3 +394,32 @@ wrapper→kernel call edge), fold it into ARM 3's LIVE set, and give
 ⚠ **And dry-run the new detector against a hand-classified sample before believing its
 output** — Amendment 4's harness reported 0 guards in all 45 doors and was completely wrong,
 and "no write-path door needs a verdict" is exactly as coherent a false result.
+
+### Amendment 5a — the diff-derivation command must be case-INSENSITIVE (2026-08-06)
+
+Found in AFF remediation, by the `backend` teammate, in the tool it was using to check
+Amendment 5. Amendment 1 requires the diff-scoped case list be derived from the migration
+diff, never by hand. That derivation was run with a **case-sensitive** grep for
+`create or replace function` — but a migration that regenerates a body from
+`pg_get_functiondef` emits **uppercase** `CREATE OR REPLACE FUNCTION`, which is precisely
+what the standing "regenerate from live, never from migration text" rule *forces* such
+migrations to contain. The first derivation therefore listed **one** of four changed gates
+and silently dropped three kernels.
+
+**Decision.** The derivation is case-insensitive (`grep -i`, or equivalent). More generally:
+**a regenerated body does not look like hand-written SQL**, so any tooling that reads
+migration text to find changed objects must assume the catalog's own casing and quoting,
+not the house style.
+
+Recorded because of where it happened, not its size: the miss was the **same defect class as
+the finding being remediated** (an enumeration bounded by a syntax rather than a property),
+committed inside the check for it. The tooling that audits the invariant is itself subject to
+the invariant.
+
+⚠ **Related, same pass: a widened detector's first version produced a FALSE positive** by
+reading *all* door migrations as live and demanding an arm for a superseded raise. Migrations
+are forward-only, so superseded text must never be edited; a `prosrc`-derived detector must
+resolve **last-write-wins per function**, exactly as applying the chain does. *A detector that
+cries wolf gets ignored, which is the same failure as one that stays silent* — Amendment 4's
+"prove it can find something" therefore has a twin: **prove it does not find what is not
+there.**
