@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MINUTES_UI } from "../minutes-labels";
+import { formatAttachResolutionLabel, MINUTES_UI } from "../minutes-labels";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -73,12 +73,15 @@ export function AgendaReviewCard({
           )}
         </div>
 
+        {/* I6: a STABLE accessible name — Radix's `Checkbox` already exposes `aria-checked`
+            from `checked`, so the label never needs to rename itself on toggle (which
+            would otherwise announce as a totally different control each time). */}
         <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Checkbox
             checked={item.include}
             onCheckedChange={(c) => onChange({ ...item, include: c === true })}
           />
-          {item.include ? MINUTES_UI.agendaIncludeToggle : MINUTES_UI.agendaExcluded}
+          {MINUTES_UI.agendaIncludeToggle}
         </label>
       </div>
 
@@ -147,6 +150,7 @@ export function AgendaReviewCard({
               disabled={!item.include}
               onClick={() => onAttachResolution(r)}
               title={r.text}
+              aria-label={formatAttachResolutionLabel(r.text)}
             >
               {MINUTES_UI.looseResolutionAttach}
             </Button>

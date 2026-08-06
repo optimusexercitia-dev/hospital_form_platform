@@ -48,6 +48,7 @@ export interface DatePickerProps {
   className?: string;
   "aria-invalid"?: boolean | "true" | "false";
   "aria-describedby"?: string;
+  "aria-label"?: string;
 }
 
 /**
@@ -73,6 +74,7 @@ export function DatePicker({
   className,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
+  "aria-label": ariaLabel,
 }: DatePickerProps) {
   const isControlled = onChange !== undefined || value !== undefined;
 
@@ -143,6 +145,7 @@ export function DatePicker({
             id={id}
             disabled={disabled}
             data-invalid={isInvalid ? "true" : undefined}
+            aria-label={ariaLabel}
             aria-describedby={ariaDescribedBy}
             aria-haspopup="dialog"
             aria-expanded={open}

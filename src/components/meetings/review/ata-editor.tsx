@@ -53,15 +53,20 @@ export function AtaEditor({
             size="sm"
             className="mt-2 h-7 px-2"
             aria-expanded={showCurrent}
+            aria-controls="revisao-ata-current-minutes"
             onClick={() => setShowCurrent((s) => !s)}
           >
             {showCurrent ? MINUTES_UI.overwriteHideCurrent : MINUTES_UI.overwriteShowCurrent}
           </Button>
-          {showCurrent && (
-            <div className="mt-2 rounded-lg border border-border bg-card p-3">
-              <MarkdownRenderer content={currentMinutesMd ?? ""} />
-            </div>
-          )}
+          {/* I6: always rendered (never conditionally mounted) so `aria-controls` above
+              always resolves to a real element, whether expanded or not. */}
+          <div
+            id="revisao-ata-current-minutes"
+            hidden={!showCurrent}
+            className="mt-2 rounded-lg border border-border bg-card p-3"
+          >
+            <MarkdownRenderer content={currentMinutesMd ?? ""} />
+          </div>
         </div>
       )}
 

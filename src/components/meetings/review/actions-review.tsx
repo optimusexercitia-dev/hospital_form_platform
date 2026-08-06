@@ -54,12 +54,13 @@ export function ActionsReview({
           className={cn(FIELD_CLASS, "flex-1")}
           aria-label="Título do item de ação"
         />
+        {/* I6: a STABLE accessible name — see the identical note in agenda-review-card.tsx. */}
         <label className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Checkbox
             checked={item.include}
             onCheckedChange={(c) => onChange({ ...item, include: c === true })}
           />
-          {item.include ? MINUTES_UI.actionIncludeToggle : MINUTES_UI.actionExcluded}
+          {MINUTES_UI.actionIncludeToggle}
         </label>
       </div>
 
@@ -106,6 +107,7 @@ export function ActionsReview({
             value={item.due_date ?? ""}
             onChange={(v) => onChange({ ...item, due_date: v || null })}
             disabled={!item.include}
+            aria-label={`${MINUTES_UI.actionDueLabel} — ${item.title || "item de ação"}`}
           />
           {!item.due_date && item.deadline_text && (
             <span className="text-xs text-muted-foreground">

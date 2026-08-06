@@ -37,8 +37,8 @@ export const MINUTES_UI = {
   step1MultiPart:
     "Se a gravação está dividida em vários arquivos, junte-os em um único arquivo antes de continuar — o envio aceita apenas um arquivo por vez.",
   step1Continue: "Continuar",
-  step1Back: "Voltar",
   step2Title: "Envie o arquivo de áudio",
+  step2FileLabel: "Arquivo de áudio",
   step2Accept: "Formatos aceitos: M4A, AAC, MP3, WAV, OGG, Opus, WebM, FLAC — até 500 MB.",
   step2FileMissing: "Selecione um arquivo de áudio.",
   step2FileTooLarge: "O arquivo excede o limite de 500 MB.",
@@ -52,6 +52,8 @@ export const MINUTES_UI = {
   step2Cancel: "Cancelar",
   step2Preparing: "Preparando envio…",
   step2Finalizing: "Finalizando…",
+  /** N2: the `role="progressbar"` accessible name — the percentage itself lives outside `aria-live`. */
+  step2ProgressLabel: "Progresso do envio",
 
   // F3 — Review page
   reviewHeading: "Revisão da ata",
@@ -69,7 +71,6 @@ export const MINUTES_UI = {
   agendaExistingLabel: "Texto atual",
   agendaExtractedLabel: "Extraído do áudio",
   agendaIncludeToggle: "Incluir na ata",
-  agendaExcluded: "Excluído da revisão",
   agendaNewTitlePlaceholder: "Título do novo item de pauta",
   agendaNoItems: "Nenhum item de pauta foi extraído do áudio.",
   looseResolutionsHeading: "Decisões sem item de pauta associado",
@@ -77,7 +78,6 @@ export const MINUTES_UI = {
     "O áudio registrou estas decisões sem uma referência clara a um item de pauta. Anexe cada uma a um item, ou mantenha-a aqui — nenhuma decisão é descartada.",
   looseResolutionAttach: "Anexar a um item",
   looseResolutionAttachTo: "Anexar a…",
-  looseResolutionAttached: "Anexada",
   actionsHeading: "Itens de ação",
   actionsNoItems: "Nenhum item de ação foi extraído do áudio.",
   actionOwnerLabel: "Responsável",
@@ -88,7 +88,6 @@ export const MINUTES_UI = {
   actionAgendaLabel: "Item de pauta relacionado",
   actionAgendaNone: "Nenhum",
   actionIncludeToggle: "Incluir na aplicação",
-  actionExcluded: "Excluído da revisão",
   nextMeetingHeading: "Próxima reunião",
   nextMeetingSuggested: "Sugestão extraída do áudio",
   nextMeetingCta: "Agendar próxima reunião",
@@ -97,10 +96,10 @@ export const MINUTES_UI = {
   speakersNote:
     "As falas identificadas aqui são uma estimativa do áudio e não substituem a lista de presença. Elas não alteram os registros de participação da reunião.",
   speakersUnidentified: "Voz não identificada",
+  /** N5: shown instead of a raw attendee-ref UUID when the service's name lookup missed. */
+  speakersUnknownLabel: "Participante não identificado",
   speakersNone: "Nenhum falante foi identificado no áudio.",
   transcriptHeading: "Transcrição completa",
-  transcriptExpand: "Ver transcrição",
-  transcriptCollapse: "Ocultar transcrição",
   transcriptLoading: "Carregando transcrição…",
   transcriptEmpty: "Transcrição vazia.",
   concludeButton: "Concluir revisão",
@@ -110,16 +109,12 @@ export const MINUTES_UI = {
   concludeConfirmCancel: "Cancelar",
   concludeSuccessBanner: "Ata aplicada com sucesso.",
   dirtySaving: "Salvando…",
-  dirtyUnsaved: "Alterações não salvas",
   dirtySaved: "Salvo",
   dirtySaveFailed: "Não foi possível salvar as alterações automaticamente.",
 
   // F4 — Meetings list badge
   f4BadgeProcessing: "Processando",
   f4BadgeDone: "Ata gerada",
-
-  // F5
-  revisaoAtaBreadcrumb: "Revisão da ata",
 } as const;
 
 /** `há Xmin` / `há Xh` — F1's elapsed-time chip, from a job's `createdAt`. */
@@ -131,6 +126,27 @@ export function formatElapsed(fromIso: string, nowMs: number = Date.now()): stri
   if (minutes < 60) return `há ${minutes} min`;
   const hours = Math.round(minutes / 60);
   return `há ${hours} h`;
+}
+
+/**
+ * N3: a stable, per-resolution accessible name for the agenda card's "attach" buttons —
+ * every button shares the same visible label ("Anexar a um item"), so without this every
+ * screen-reader user hears the identical name N times. Truncated so a long dictated
+ * decision doesn't produce an unreadable name.
+ */
+export function formatAttachResolutionLabel(text: string): string {
+  const trimmed = text.trim();
+  const short = trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
+  return `Anexar: ${short}`;
+}
+
+/** A bare UUID (v1–v5 shape) — the machine identifier `normalize.ts` falls back to when a speaker name lookup misses (N5). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** N5: never render a raw attendee-ref UUID as a speaker's name. */
+export function displaySpeakerLabel(label: string): string {
+  const trimmed = label.trim();
+  return trimmed && !UUID_RE.test(trimmed) ? trimmed : MINUTES_UI.speakersUnknownLabel;
 }
 
 /** The confirm-dialog counts line for F3's conclude bar. */

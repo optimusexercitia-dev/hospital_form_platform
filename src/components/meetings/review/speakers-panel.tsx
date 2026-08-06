@@ -1,7 +1,7 @@
 import { Mic2, User } from "lucide-react";
 
 import type { MinutesDraftSpeaker } from "@/lib/minutes-jobs/types";
-import { MINUTES_UI } from "../minutes-labels";
+import { displaySpeakerLabel, MINUTES_UI } from "../minutes-labels";
 
 /**
  * F3 — the D12 speakers panel: read-only, display-only. It never writes attendance —
@@ -34,8 +34,13 @@ export function SpeakersPanel({ speakers }: { speakers: MinutesDraftSpeaker[] })
               className="flex items-center gap-2 text-sm"
             >
               <User aria-hidden="true" className="size-3.5 text-muted-foreground" />
+              {/* N5: `normalize.ts` falls back to the raw attendee-ref UUID when its name
+                  lookup misses — `displaySpeakerLabel` never lets that machine identifier
+                  reach the screen. */}
               <span className={s.attendee_ref ? "text-foreground" : "text-muted-foreground italic"}>
-                {s.attendee_ref ? s.label : (s.label || MINUTES_UI.speakersUnidentified)}
+                {s.attendee_ref
+                  ? displaySpeakerLabel(s.label)
+                  : s.label || MINUTES_UI.speakersUnidentified}
               </span>
             </li>
           ))}

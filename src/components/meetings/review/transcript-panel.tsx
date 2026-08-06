@@ -60,26 +60,32 @@ export function TranscriptPanel({ jobId }: { jobId: string }) {
         />
       </button>
 
-      {open && (
-        <div id="revisao-ata-transcript-body" role="region" aria-labelledby="revisao-ata-transcript-heading">
-          {loading && (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-              {MINUTES_UI.transcriptLoading}
-            </p>
-          )}
-          {error && (
-            <p role="alert" className="text-sm font-medium text-destructive">
-              {error}
-            </p>
-          )}
-          {!loading && !error && text !== null && (
-            <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3 text-sm whitespace-pre-wrap text-muted-foreground">
-              {text.trim().length > 0 ? text : MINUTES_UI.transcriptEmpty}
-            </div>
-          )}
-        </div>
-      )}
+      {/* I6: always rendered (never conditionally mounted) so the trigger's
+          `aria-controls="revisao-ata-transcript-body"` always resolves to a real
+          element, whether expanded or not. */}
+      <div
+        id="revisao-ata-transcript-body"
+        role="region"
+        aria-labelledby="revisao-ata-transcript-heading"
+        hidden={!open}
+      >
+        {loading && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            {MINUTES_UI.transcriptLoading}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
+        {!loading && !error && text !== null && (
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-muted/20 p-3 text-sm whitespace-pre-wrap text-muted-foreground">
+            {text.trim().length > 0 ? text : MINUTES_UI.transcriptEmpty}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

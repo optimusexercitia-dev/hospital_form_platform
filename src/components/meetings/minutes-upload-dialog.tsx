@@ -242,9 +242,12 @@ export function MinutesUploadDialog({
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Arquivo de áudio</span>
+              <label htmlFor="minutes-upload-file" className="font-medium">
+                {MINUTES_UI.step2FileLabel}
+              </label>
               <input
                 ref={fileInputRef}
+                id="minutes-upload-file"
                 type="file"
                 accept={AUDIO_ACCEPT_ATTRIBUTE}
                 disabled={busy}
@@ -274,8 +277,22 @@ export function MinutesUploadDialog({
             )}
 
             {(upload.phase === "preparing" || upload.phase === "uploading" || upload.phase === "finalizing") && (
-              <div role="status" aria-live="polite" className="flex flex-col gap-1.5">
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="flex flex-col gap-1.5">
+                {/* N2: the percentage ticks on every `onprogress` event (many times a second
+                    on a 500 MB upload) — it lives OUTSIDE any aria-live region, as a
+                    role="progressbar" a screen reader can query on demand rather than a
+                    continuous stream. Only the PHASE text below is in the live region, and
+                    that changes only a handful of times per upload. */}
+                <div
+                  role="progressbar"
+                  aria-label={MINUTES_UI.step2ProgressLabel}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={
+                    upload.phase === "uploading" ? upload.progress : upload.phase === "finalizing" ? 100 : 0
+                  }
+                  className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                >
                   <div
                     className="h-full rounded-full bg-primary transition-[width]"
                     style={{
@@ -283,9 +300,13 @@ export function MinutesUploadDialog({
                     }}
                   />
                 </div>
-                <span className="text-xs text-muted-foreground tabular-nums">
+                <span role="status" aria-live="polite" className="text-xs text-muted-foreground tabular-nums">
                   {upload.phase === "preparing" && MINUTES_UI.step2Preparing}
-                  {upload.phase === "uploading" && `${MINUTES_UI.step2Uploading} ${upload.progress}%`}
+                  {upload.phase === "uploading" && (
+                    <>
+                      {MINUTES_UI.step2Uploading} <span aria-hidden="true">{upload.progress}%</span>
+                    </>
+                  )}
                   {upload.phase === "finalizing" && MINUTES_UI.step2Finalizing}
                 </span>
               </div>
