@@ -1,238 +1,412 @@
 # Plan — Meeting audio → generated ata (`audio_minutes`)
 
-**ADR:** [0099](../decisions/0099-meeting-audio-minutes.md) (all D-numbers below
-refer to it). **Service repo:** `minute_generator` (sibling checkout; its ADRs
-0004/0005 are the contract changes). **Branch:** `feat/meeting-minutes` (worktree
-off `main`). **Flag:** `audio_minutes`, default OFF, enable-migration ships with the
-phase (a flag without its enable migration leaves the phase dark after `db push`).
+**ADR:** [0099](../decisions/0099-meeting-audio-minutes.md) (D1–D18 below refer to
+it). **Service repo:** `minute_generator` — its ADRs 0004/0005/0006 and its own
+implementation plan `docs/plans/platform-integration-v2.md` are the contract half;
+**that plan completes first** (contract-first, D17). **Branch:**
+`feat/meeting-minutes` (worktree off `main`; rebase after AFF merges, before the
+gate). **Flag:** `audio_minutes`, default OFF, enable-migration authored with the
+phase but the flag row ships disabled (a flag without its seed/enable path leaves
+the phase dark after `db push`).
 
-⚠ Plan-doc caveat (standing): this document is NOT authoritative on substrate. Every
-task that touches SQL verifies against the live catalog after a fresh
-`supabase db reset`, never against this text or migration files.
+⚠ Standing caveats that bind every task here:
+- This document is **not authoritative on substrate**. Any SQL fact below
+  (predicate names, policy shapes, column lists on existing tables) is verified
+  against the **live catalog after a fresh `supabase db reset`** at build time.
+- Two sessions may share the local stack — allocate migration versions above the
+  highest **registered** version at build time, not the highest file here.
+- Every DEFINER touched or created: re-apply grants in the same migration,
+  `current_setting('role')` not `current_user`, gate neither weaker nor stronger
+  than the RLS it displaces, `prosecdef` audited beside `pg_policies`.
+
+## Teammates & sequencing
+
+| Owner | Tasks |
+| --- | --- |
+| backend | B0–B8 (schema, RPCs, module, webhook, env) |
+| frontend | F1–F5 (Ata card states, upload dialog, review page, badge) — `frontend-design` skill first |
+| tester | T1–T3 (E2E specs, signed-callback fixtures, bug filing) |
+| qa | Final review vs this plan + ADR 0099 |
+
+```
+minute_generator W0–W3 (other repo, first)
+        │
+B0 → B1 → B2 → B3 ─→ B4 → B5 → B6 → B7 → B8
+              │        (F1, F2 may start against the B2 RPC contract)
+              └─────→ F1 → F2 → F3 → F4 → F5
+                                  │
+                     T1 (pgTAP, with B2) · T2 (unit, with B4–B6) · T3 (E2E, after F3)
+```
 
 ---
 
-## 0. Contract (build first, in minute_generator)
+## B0 — Preflight (backend)
 
-The platform consumes; the service publishes. Land these before platform work that
-depends on them, each with its ADR and tests:
+1. Rebase onto post-AFF `main`; fresh `supabase db reset`; confirm
+   registered == files.
+2. From the **catalog**: the exact predicate the Ata editor's write path uses
+   (`update_meeting_minutes`'s gate — the plan calls it "the canEdit predicate"
+   throughout; copy its real form), the meetings RLS SELECT policy shape, the
+   `action_items` insert door (RPC or direct-with-RLS?), and
+   `app.enqueue_notification`'s signature.
+3. Decide `meetings` FK behavior for job rows against the meetings module's
+   existing delete posture (cascade vs restrict — mirror whatever
+   `meeting_agenda_items` does).
+4. Record the reserved migration window in PROGRESS.md.
 
-**S0 — contract v2: job-type discrimination** (service ADR 0006, D18)
-- `JobRequest`: required `job_type` enum (only `meeting_minutes`) + discriminated
-  `context` union; `committee_name`/`meeting_date`/`attendees`/`agenda`/
-  `template_sections` move into `MeetingMinutesContext`. Unknown `job_type` → 422.
-- `CallbackPayload`: gains `job_type`; hardcoded `minutes` field becomes a
-  discriminated `result` union (`MeetingMinutesResult` = today's `Minutes` +
-  `transcript`).
-- Pipeline: per-type processor registry (`app/pipeline/processors/`) for
-  naming + summarization; ASR/diarization/merge stay shared and kind-blind;
-  `worker.py` dispatches, never branches.
-- `schema_version` → 2.0. Do this FIRST — S1 lands inside the v2 shape.
+## B1 — Migration 1: storage + table (backend)
 
-**S1 — `minutes_md` on `Minutes`** (service ADR 0004, D5)
-- `app/schemas.py`: `minutes_md: str | None = None` on `Minutes`.
-- `app/pipeline/summarize.py`: the summarization prompt additionally produces a
-  formal pt-BR ata narrative in Markdown (structure: abertura, per-topic sections
-  following the agenda, deliberações, encerramento). Attendee roster stays in the
-  user message, never in the JSON schema (existing caching rule).
-- `schema_version` stays 1.x (additive).
-
-**S2 — `POST /jobs/{id}/cancel`** (service ADR 0005, D9)
-- Queued → dequeue and delete job state; processing → best-effort RQ stop
-  (`send_stop_job_command`), then claim the callback latch (`queue.claim_callback`)
-  so no callback can ever fire for this job; workspace cleanup runs.
-- Unknown / already-terminal job → 2xx no-op (idempotent).
-- Auth: same bearer `API_KEY` as `POST /jobs`.
-- `GET /jobs/{id}` gains a `cancelled` coarse status.
-
-**S3 — smoke fixture** — a canned callback payload (valid `Minutes` incl.
-`minutes_md`) exported for the platform's E2E fixtures so the two repos share one
-specimen (D16).
-
-## 1. Platform schema (backend)
-
-Allocate migration versions ABOVE the highest registered version at implementation
-time (AFF is merging ahead of this branch; shared-stack rule).
-
-**T1.1 — bucket** `meeting-audio`: private; NO client-facing storage policies
-(reads/writes happen via server-minted signed URLs only); path
+**`meeting-audio` bucket.** Private. ⚠ Every existing bucket is 25 MiB with no
+audio MIME types (fact from the service repo's integration notes) — this bucket
+needs its own `file_size_limit` (500 MB, D3) and `allowed_mime_types`
+(`audio/mp4`, `audio/aac`, `audio/mpeg`, `audio/wav`, `audio/x-wav`,
+`audio/ogg`, `audio/webm` — verify the exact strings browsers emit for `.m4a`
+at build time). Check local `supabase/config.toml` global `file_size_limit`
+doesn't clamp below 500 MB, and note the Cloud project setting in the deploy
+runbook. **No storage RLS policies for `authenticated`** — all object access is
+server-side (signed upload URL minted by B5; signed download URL for the
+service; service-role delete). Path convention:
 `<meeting_id>/<job_id>/<sanitized_filename>`.
 
-**T1.2 — table `meeting_minutes_jobs`** (D4, D8):
-- `id uuid pk`, `meeting_id fk → meetings`, `requested_by fk → profiles`,
-  `status audio_job_status` — a **shared enum type** minted now (D18: future
-  interview-job tables reuse it; lifecycle column names below are the convention
-  those tables mirror), values
-  `('uploading','processing','done','failed','cancelled','applied')`
-  (`uploading` = signed-upload minted, not yet submitted; `processing` covers
-  submitted+queued — the service returns 202 immediately, coarse states suffice),
-  `audio_path text`, `audio_deleted_at timestamptz`, `service_job_id text`,
-  `error_code text`, `error_message text`, `result jsonb`, `draft jsonb`,
-  `transcript text`, `received_at`, `applied_at`, `cancelled_at`, `purged_at`,
-  timestamps.
-- Partial unique index: one row per meeting where
-  `status in ('uploading','processing','done')`.
-- RLS: SELECT only for the meeting's commission `canEdit` circle (mirror the Ata
-  editor's policy predicate — copy from the live catalog, not from a file); **no
-  content columns in the client SELECT grant for `transcript`** — transcript goes
-  through the audited door (T1.4). No client INSERT/UPDATE/DELETE — mutations via
-  RPCs + service-role webhook only. Column-level grants: remember every new column
-  needs its own GRANT or reads 42501.
+**Shared enum** (D18): `create type public.audio_job_status as enum
+('uploading','processing','done','failed','cancelled','applied')`. Minted as the
+cross-kind vocabulary; future interview-job tables reuse it.
 
-**T1.3 — RPCs** (each a new door → ADR 0079 gates apply):
-- `create_minutes_job(meeting_id, filename)` — guards flag + status `held` +
-  canEdit + no active job; inserts `uploading` row; returns job id (signed upload
-  URL minted app-side).
-- `submit_minutes_job(job_id)` — flips `uploading → processing` after the app has
-  POSTed to the service; records `service_job_id`.
-- `cancel_minutes_job(job_id)` — D9 platform half: immediate local cancel + audio
-  delete marker; app then best-effort calls the service cancel.
-- `save_minutes_draft(job_id, draft)` — guards status `done`; overwrites `draft`.
-- `apply_minutes_review(job_id)` — the transactional apply (D5–D7, D12):
-  re-guards meeting still `held` + canEdit + status `done`; reads `draft`;
-  updates/creates `meeting_agenda_items` (dangling refs → create), inserts
-  `action_items` hub rows, replaces `meetings.minutes_md` (sanitized), marks job
-  `applied`, purges `transcript`/`result`/`draft` (`purged_at`), emits audit rows
-  with counts. Integrity guards ordered so RLS denies first.
-- Failure-acknowledge purge path for `failed`/`cancelled` (can fold into a small
-  `purge_minutes_job` internal).
-- ⚠ Every DEFINER rebuild rule applies: ACLs re-granted in the same migration,
-  `current_setting('role')` not `current_user`, gates neither weaker nor stronger
-  than the RLS they displace.
+**Table `public.meeting_minutes_jobs`:**
 
-**T1.4 — audited transcript door** `read_minutes_transcript(job_id)` — DEFINER,
-canEdit-gated, logs a read-audit row (who/that, never content), returns the text
-(D8, D15). Follows the safety module's audited free-text read precedent.
+```
+id                uuid pk default gen_random_uuid()
+meeting_id        uuid not null references meetings(id)   -- delete behavior per B0.3
+requested_by      uuid not null references profiles(id)
+status            audio_job_status not null default 'uploading'
+audio_path        text                                    -- storage object path
+audio_deleted_at  timestamptz
+service_job_id    text                                    -- minute_generator job id
+error_code        text
+error_message     text                                    -- pt-BR-safe, user-visible
+result            jsonb                                   -- callback payload as received (immutable)
+draft             jsonb                                   -- review working copy
+transcript        text
+received_at       timestamptz
+applied_at        timestamptz
+cancelled_at      timestamptz
+purged_at         timestamptz
+created_at / updated_at timestamptz not null default now() (+ touch trigger per house pattern)
+```
 
-**T1.5 — audit events** (D15): `meeting_minutes_job_created / _submitted /
-_callback_received / _cancelled / _applied / _purged` via the standard audit emit
-pattern.
+- Partial unique index `meeting_minutes_jobs_active_uidx` on `(meeting_id)`
+  `where status in ('uploading','processing','done')` — D4/D13's one-active-job
+  rule, enforced by the DB not the UI.
+- Index on `(status, created_at)` for the reconciliation scan.
+- **RLS:** enable + force. One SELECT policy: requester's commission canEdit
+  predicate (B0.2's real form) over the job's meeting. **Column-level SELECT
+  grant excludes `transcript`** (grant the explicit column list; `transcript`
+  is reachable only through the B2 door — and remember: a column the grant list
+  omits reads 42501, which is the point). No INSERT/UPDATE/DELETE policies for
+  `authenticated` at all — mutations are RPC/service-role only.
+- Comments on table + sensitive columns (transcript: substance-tier, purged at
+  terminal states, read via audited door).
 
-**T1.6 — feature flag** `audio_minutes` + its enable migration (default OFF row;
-the enable migration is what flips it later — do not ship enabled).
+## B2 — Migration 2: RPCs, doors, audit, flag (backend)
 
-**T1.7 — types**: `npm run gen:types` (with pgtap dropped), types imported from
-`src/lib/types/` only.
+All RPCs `security definer`, `set search_path = ''`, explicit
+`grant execute to authenticated` (webhook helpers: `service_role`), revoke from
+`public`/`anon`. Guard order inside each: flag → existence → role gate → state
+gate → work (RLS-equivalent denial first, integrity second).
 
-## 2. Platform server layer (backend)
+- `app.create_minutes_job(p_meeting_id uuid, p_filename text) returns uuid` —
+  guards: flag `audio_minutes` ON; meeting exists + status `held` (D1); caller
+  passes the canEdit predicate; no active job (rely on the partial unique index
+  for the race — catch `unique_violation` into a pt-BR-coded error). Inserts
+  `uploading` row with `audio_path` composed server-side; audit
+  `meeting_minutes_job_created`.
+- `app.submit_minutes_job(p_job_id uuid, p_service_job_id text)` — guards:
+  canEdit; status `uploading`. Sets `processing` + `service_job_id`; audit
+  `meeting_minutes_job_submitted`.
+- `app.cancel_minutes_job(p_job_id uuid)` — guards: canEdit; status in
+  (`uploading`,`processing`,`done`) — cancelling an unreviewed `done` job is
+  legal (user gives up on review). Sets `cancelled` + `cancelled_at`, purges
+  `result`/`draft`/`transcript` (+`purged_at`); audit
+  `meeting_minutes_job_cancelled`. (Audio delete + service cancel are app-side,
+  B5 — storage and HTTP don't belong in SQL.)
+- `app.save_minutes_draft(p_job_id uuid, p_draft jsonb)` — guards: canEdit;
+  status `done`; `p_draft` size sanity cap (~2 MB) so a broken client can't
+  balloon the row. Overwrites `draft`.
+- `app.apply_minutes_review(p_job_id uuid) returns jsonb` (counts for the
+  banner + audit) — the D5–D7/D12 transaction:
+  1. Guards: flag; canEdit; job `done`; meeting still `held`.
+  2. From `draft` (never `result`): for each kept agenda entry — ref matches a
+     live `meeting_agenda_items` row of THIS meeting → update
+     `discussion_notes` / `resolution`; dangling or null ref → insert appended
+     at the end (position = max+1, respecting the deferrable-unique ordering).
+  3. Kept action items → `action_items` hub rows via the B0.2-verified door
+     (owner user_id when resolved, else unassigned; verbatim text folded into
+     description app-side before save, so SQL stays dumb).
+  4. `meetings.minutes_md := draft->>'minutes_md'` (already sanitized app-side,
+     B5 — the RPC additionally rejects raw `<` HTML as belt-and-braces per
+     Rule 7).
+  5. Job → `applied`, purge content columns, `applied_at`/`purged_at`; audit
+     `meeting_minutes_job_applied` with `{agenda_updated, agenda_created,
+     actions_created}` counts (counts, never content).
+- `app.read_minutes_transcript(p_job_id uuid) returns text` — the audited door
+  (D8/D15): canEdit + status `done`; emits the read-audit row (who/that; the
+  house audited-free-text-read pattern from the safety module, resolved from
+  catalog at build); returns `transcript`.
+- Webhook helpers (`service_role`-only execute): `app.complete_minutes_job(
+  p_job_id, p_result jsonb, p_transcript text)` — `processing → done`, stores
+  `result`, seeds `draft := result`-derived shape, `received_at`; and
+  `app.fail_minutes_job(p_job_id, p_error_code, p_error_message)` — both
+  idempotent no-ops on non-`processing` rows (D9/D10 latch) returning a
+  did-anything boolean so the route can log.
+- **Flag:** insert `audio_minutes` disabled into the flag store (house pattern
+  from the latest `enable_*` migration) + add the key to `FeatureFlags` in
+  [feature-flags.ts](../../src/lib/queries/feature-flags.ts).
+- **Audit event kinds** registered per the house enum/CHECK if one exists
+  (verify B0) — all six `meeting_minutes_job_*` kinds (D15).
 
-**T2.0 — generic service client `src/lib/audio-jobs/`** (D18): the kind-agnostic
-half every audio module wraps — service auth (bearer), payload envelope
-(`job_type`, `audio_url`, `callback_url`, `metadata {platform_job_id, job_type}`),
-HMAC verification helper for the webhook, submit/cancel/`GET /jobs/{id}`
-reconcile calls, and the callback-payload discriminated-union types. No meeting
-knowledge in this module.
+## B3 — Types (backend)
 
-**T2.1 — module `src/lib/minutes-jobs/`** (`actions.ts` + `queries.ts`, Rule 9;
-wraps T2.0 with everything meeting-shaped):
-- `startMinutesJob` — calls `create_minutes_job`, mints the signed-upload URL,
-  returns it to the client.
-- `submitMinutesJob` — after upload completes: mints a signed **download** URL
-  (TTL ≥ service max poll window), composes the D14 payload
-  (`committee_name`, `meeting_date = held_at ?? scheduled_start`,
-  `attendees [ref=id, name, role]` incl. guests, `agenda [ref=id, title]` only,
-  `metadata {platform_job_id}`), POSTs to `MINUTES_SERVICE_URL/jobs` with bearer
-  `MINUTES_SERVICE_API_KEY`, then `submit_minutes_job`. Service unreachable →
-  job → `failed` with a pt-BR readable error.
-- `cancelMinutesJob` — RPC first (immediate), then best-effort service cancel,
-  then audio delete.
-- `saveMinutesDraft`, `applyMinutesReview` — thin wrappers.
-- `reconcileMinutesJob` — D10 lazy repair: called from page loads when a job is
-  `processing` older than 3 h → `GET /jobs/{id}`; >24 h unheard → `failed` + audio
-  delete. Also the audio-TTL backstop.
+`npm run gen:types` with pgTAP dropped; commit `database.ts`. TS domain types for
+the callback payload come from B4, not from hand-rolled interfaces in components.
 
-**T2.2 — webhook `src/app/api/webhooks/audio-jobs/route.ts`** (D10, D18): ONE
-endpoint for every audio kind — raw-body HMAC verify (`sha256`,
-`"<timestamp>.<body>"`, constant-time compare), timestamp staleness window, then
-dispatch on `metadata.job_type` to the owning module's handler
-(`meeting_minutes` only today; unknown type → logged 200 no-op). The meeting
-handler: flag check, look up job by `metadata.platform_job_id`
-(service-role client), idempotent no-op for non-active jobs (also the D9 late-
-callback latch), on `done`: store `result` + `transcript`, seed `draft := result`,
-notify requester (T2.3), delete audio when `audio_release=true`. On `error`:
-`failed` + error fields + audio delete per D2. Always 2xx on verified duplicates;
-non-2xx only when a retry could succeed.
+## B4 — Generic audio-jobs client `src/lib/audio-jobs/` (backend, D18)
 
-**T2.3 — notification** (D11): in-app notification to `requested_by` on
-done/failed via the existing notifications module, deep-linking the review page.
+Kind-agnostic; **zero meeting knowledge**:
 
-**T2.4 — env**: `MINUTES_SERVICE_URL`, `MINUTES_SERVICE_API_KEY`,
-`MINUTES_CALLBACK_HMAC_SECRET` — server-only (never `NEXT_PUBLIC_`), plus the
-public base URL for composing `callback_url`. `.env.example` updated; deployment
-runbook gets the key-rotation note (ADR 0099 consequences).
+- `types.ts` — the v2 service contract mirrored in TS: `JobType`
+  (`'meeting_minutes'`), `AudioJobRequest<TContext>`, `CallbackPayload`
+  discriminated on `job_type` (`MeetingMinutesResult` = `minutes` incl.
+  `minutes_md` + `transcript`), `ErrorCode`. Source of truth is the service's
+  `app/schemas.py` — keep a comment pinning the `schema_version` (`2.0`) this
+  mirrors.
+- `client.ts` — `submitAudioJob({jobType, audioUrl, callbackUrl, context,
+  metadata})` → `POST {MINUTES_SERVICE_URL}/jobs` bearer
+  `MINUTES_SERVICE_API_KEY`; `cancelAudioJob(serviceJobId)` (2xx and 404 both
+  fine — D9); `getAudioJobStatus(serviceJobId)`. Timeouts + pt-BR error
+  mapping; never throws raw fetch errors upward.
+- `hmac.ts` — `verifyCallbackSignature(rawBody, signature, timestamp)`:
+  `sha256` HMAC over `"<timestamp>.<rawBody>"` with
+  `MINUTES_CALLBACK_HMAC_SECRET`, constant-time compare
+  (`crypto.timingSafeEqual`), staleness window ±5 min. Pure, unit-testable.
+- `metadata.ts` — build/parse `{platform_job_id, job_type}`.
 
-## 3. Frontend (frontend — `frontend-design` skill first)
+## B5 — Meeting module `src/lib/minutes-jobs/` (backend)
 
-**T3.1 — Ata card header states** (D11): `Usar áudio` button (flag + `held` +
-canEdit) → processing chip (elapsed time, cancel w/ confirm) → `Revisar ata
-gerada` highlighted button (status `done`). Failed → error state with retry.
-GSAP micro-transitions per the design system; all states keyboard-accessible.
+`actions.ts` (server actions; Rule 9 — all data access through queries/RPCs),
+`queries.ts`, `messages.ts` (pt-BR):
 
-**T3.2 — upload dialog** (D1, D3, D11, D13): step 1 shows current attendees +
-the attribution warning + link to attendees panel (zero attendees blocks); step 2
-file pick (accept list, 500 MB client-side check, pt-BR errors) → direct-to-bucket
-upload with progress (resumable) → auto-submit → close to chip state. Copy notes
-multi-part recordings must be joined first.
+- `startMinutesJob(meetingId, filename, contentType, size)` — validate
+  size/type app-side too; RPC `create_minutes_job`; mint signed upload URL
+  (`storage.createSignedUploadUrl`) for the job's path; return
+  `{jobId, path, token}`.
+- `submitMinutesJob(jobId)` — after the client reports upload complete:
+  compose `MeetingMinutesContext` (D14: commission display name;
+  `held_at ?? scheduled_start`; attendees `[ref=attendee.id, name (profile or
+  guest), role]`; agenda `[ref=item.id, title]` **titles only** — the composer
+  is written so descriptions are never even read); mint signed **download**
+  URL (TTL ≥ service `JOB_TIMEOUT_SECONDS` + queue headroom — 6 h);
+  `submitAudioJob(...)`; RPC `submit_minutes_job`. Service unreachable →
+  `fail` path + audio delete + pt-BR error.
+- `cancelMinutesJob(jobId)` — RPC first (immediate, D9), then best-effort
+  `cancelAudioJob`, then storage delete + mark `audio_deleted_at`.
+- `saveMinutesDraft(jobId, draft)` — sanitize `minutes_md` (house Rule 7
+  sanitizer) before the RPC.
+- `applyMinutesReview(jobId)` — RPC; revalidate meeting + review paths; return
+  counts for the banner.
+- `reconcileMinutesJob(jobId)` (called from page loads on stale jobs, D10):
+  `processing` > 3 h → `getAudioJobStatus`; service says done-but-we-missed-it →
+  leave to callback retry, log; says error/cancelled/unknown → `fail_minutes_job`
+  + audio delete; > 24 h regardless → fail + delete (also the audio TTL
+  backstop, D2).
+- `queries.ts` — `getActiveMinutesJob(meetingId)` (for the Ata card + list
+  badge), `getMinutesJobForReview(jobId)` (draft + meeting context joined),
+  `readMinutesTranscript(jobId)` (the audited door).
 
-**T3.3 — review page `meetings/[meetingId]/revisao-ata`** (D12): guarded server
-component + client sections: Ata markdown editor (existing-minutes overwrite
-warning when applicable), Pauta cards (matched: side-by-side existing text,
-include/exclude, editable; new: editable, removable), Ações (owner select from
-attendees w/ user_id, date picker, verbatim text shown), Próxima reunião
-(suggestion + post-apply prefilled create-meeting button), Falantes (read-only),
-Transcrição (collapsed; fetch via the audited door on expand). Draft autosave
-(debounced) with saved/dirty indicator. `Concluir revisão` → apply → redirect +
-success banner.
+## B6 — Webhook `src/app/api/webhooks/audio-jobs/route.ts` (backend, D10/D18)
 
-**T3.4 — meetings list badge** (D11) for a meeting with an active/reviewable job.
+`POST` only; raw body read **before** JSON parse (signature is over bytes);
+`verifyCallbackSignature` → 401 on failure; parse; dispatch on
+`metadata.job_type`: `meeting_minutes` → handler; unknown → log + 200 (a newer
+service must not retry-storm an older platform). Handler: flag check (flag OFF →
+200 + log — the service is not at fault); resolve `platform_job_id` → job row
+via service-role client; `status=done` → `complete_minutes_job` (draft seeded
+from result: minutes_md sanitized, agenda/action arrays normalized to the
+review shape) + notification (B7) + audio delete iff `audio_release`;
+`status=error` → `fail_minutes_job` + notification + audio delete (service sets
+`audio_release=true` on failures). Idempotency comes from the RPC no-op booleans
+→ 200 either way. Route exports `dynamic = 'force-dynamic'` and is excluded from
+any auth middleware matcher (verify `src/proxy.ts` / middleware config at build).
 
-## 4. Tests
+## B7 — Notification (backend, D11)
 
-**T4.1 — pgTAP** (backend): RLS shapes for `meeting_minutes_jobs` (positive +
-denied-role + cross-commission), one-active-job index, every RPC's guard matrix
-(flag off, wrong status, non-canEdit, cross-tenant), apply semantics (matched
-update / dangling ref → create / action-item insert / minutes replace / purge),
-transcript door logs its read. Keystone by neutralization (revert-the-fix red),
-not call-counting.
+On done/failed: `app.enqueue_notification` (signature per B0.2) to
+`requested_by` — pt-BR title/body, deep link to
+`…/meetings/[meetingId]/revisao-ata` (done) or the meeting page (failed).
 
-**T4.2 — unit** (backend/frontend): HMAC verifier (valid/invalid/stale/replay),
-payload composer (D14 minimization — asserts descriptions NEVER leave), merge
-mapper, upload validation.
+## B8 — Env & runbook (backend)
 
-**T4.3 — E2E** (tester, D16): specs drive upload → chip → signed fixture callback
-(shared specimen from S3) → notification → review page edits → apply → meeting
-page shows ata/agenda/actions; cancel path; re-run path; flag-off invisibility;
-one keyboard-only flow. No real service in the gate.
+`MINUTES_SERVICE_URL`, `MINUTES_SERVICE_API_KEY`,
+`MINUTES_CALLBACK_HMAC_SECRET` — server-only; callback URL composed from the
+existing public-base-URL var (verify name at build; do NOT mint a second one).
+`.env.example` + deployment runbook: new vars, bucket size/MIME config on Cloud,
+HMAC/API-key rotation procedure (rotate service-side first, platform tolerates
+both during the window — or accept the brief 401 gap; document the choice).
 
-**T4.4 — authz gates**: `ARM=census` + `ARM=floor` + diff-scoped door sweep over
-exactly the new doors (derived from the migration diff); then restore
-`docs/reviews/authz-door-audit-findings.md`.
+## F1 — Ata card states (frontend)
 
-**T4.5 — manual smoke** (documented, pre-pilot-enable): local docker compose of
-minute_generator against local platform, one real short audio through the full
-loop.
+[meeting-minutes-editor.tsx](../../src/components/meetings/meeting-minutes-editor.tsx)
+header gains a right-aligned slot (new client child, e.g.
+`minutes-audio-slot.tsx`): flag + `held` + canEdit + no job → `Usar áudio`
+button; job `uploading/processing` → chip "Processando áudio…" + elapsed +
+cancel (confirm dialog); `done` → highlighted `Revisar ata gerada` linking the
+review page; `failed` → error chip + pt-BR message + retry (relaunches F2).
+Poll cadence: light `router.refresh()` interval (~45 s) only while a job is
+active on the open page; the durable signal is the notification.
 
-## 5. Sequencing & gate
+## F2 — Upload dialog (frontend, D1/D3/D11/D13)
 
-1. S0–S3 in minute_generator (contract-first; its own suite green; S0 before S1).
-2. T1.* schema → T1.7 types → T2.* server → T3.* UI (T3.1/T3.2 can start against
-   the RPC contract once T1.3 lands).
-3. Standard Phase Gate: fresh-reset pgTAP, lint/typecheck/unit, authz arms (named
-   individually in the record), tester E2E green via `npm run e2e:prod`, QA review,
-   human approval. Phase ships with flag OFF (D17).
-4. Post-AFF-merge rebase before the gate run (this branch rides `main`).
+Two-step dialog: (1) attendee roster + warning ("a atribuição de falas usa esta
+lista"), link to attendees panel, zero attendees blocks, "join multi-part files
+first" note; (2) file input (accept list; client-side size/type check with pt-BR
+errors) → `startMinutesJob` → direct upload to signed URL with progress →
+`submitMinutesJob` → close into chip state. Abandoned mid-upload rows
+(`uploading`, stale) are cleaned by B5 reconciliation. Upload uses the
+supabase-js signed-URL upload (`uploadToSignedUrl`); verify at build whether the
+installed version supports resumable/TUS against signed URLs — if not, plain
+upload with progress events is acceptable for v1 (500 MB over hospital wifi is
+the risk; document retry-from-scratch behavior).
 
-## 6. Risks / open items
+## F3 — Review page (frontend, D12)
 
-- **Resumable uploads**: exact supabase-js resumable/TUS mechanics + the bucket
-  file-size limit knob (local `config.toml` and Cloud project setting must both
-  allow 500 MB) — verify at T1.1/T3.2 time, not assumed here.
-- **Webhook reachability**: full loop only works deployed (or full-local). The
-  smoke (T4.5) is the only pre-pilot proof of the real seam.
-- **Signed-URL TTL vs service queue depth**: download URL must outlive worst-case
-  queue wait; align TTL with the service's `JOB_TIMEOUT_SECONDS` budget.
-- **Draft concurrency**: single-editor assumption (canEdit circle is small);
-  last-write-wins on `draft` is accepted for v1.
-- **DPA gates** (service side) block real-audio enablement, not this build (D17).
-- **Meeting deleted mid-job**: FK cascade vs orphan cleanup — decide at T1.2
-  against the meetings module's existing delete posture (verify in catalog).
+`src/app/o/[org]/c/[commission]/meetings/[meetingId]/revisao-ata/page.tsx`
+(+`loading.tsx`/`error.tsx`; guards redirect to the meeting page). Components
+under `src/components/meetings/review/`:
+
+- `review-shell.tsx` — client orchestrator: draft state, debounced
+  `saveMinutesDraft` autosave (+saved/dirty indicator), section nav.
+- `ata-editor.tsx` — `minutes_md` markdown editor; overwrite warning banner
+  when the meeting's current `minutes_md` is non-empty (shows a collapsible
+  diff/side-by-side of the current text).
+- `agenda-review-card.tsx` — one per extracted item: matched → existing
+  discussion/resolution side-by-side with extracted, editable, include toggle;
+  new → editable + removable; attach-resolution select for index-less
+  resolutions.
+- `actions-review.tsx` — rows with owner select (attendees with `user_id`),
+  date picker, verbatim `owner_text`/`deadline_text` shown as hints, include
+  toggle.
+- `next-meeting-card.tsx` — suggestion display; post-apply the success state
+  offers "Agendar próxima reunião" opening the existing create-meeting dialog
+  prefilled (D7).
+- `speakers-panel.tsx` — attributions + unidentified voices, read-only, with
+  the explicit "não é lista de presença" note (D12).
+- `transcript-panel.tsx` — collapsed; first expand calls the audited door and
+  keeps the text client-side thereafter (one audit row per page visit, not per
+  toggle).
+- `conclude-bar.tsx` — sticky: `Concluir revisão` (confirm dialog restating
+  overwrite + counts) → `applyMinutesReview` → redirect + success banner.
+
+GSAP micro-animations per the design system; every control keyboard-reachable;
+labels + visible focus (house a11y bar).
+
+## F4 — Meetings list badge (frontend, D11)
+
+Small chip on rows whose meeting has an active/reviewable job (`processing` /
+`done`), fed by `getActiveMinutesJob` batched into the existing list query
+(avoid N+1 — one join/lateral in the list read, verify pattern in B0).
+
+## F5 — Middleware/nav polish (frontend)
+
+Review route in the commission-area nav guard matrix; `conta-inativa` and flag-
+off render nothing (no dead links); breadcrumb "Revisão da ata".
+
+## T1 — pgTAP (backend authors with B2; numbering = next free after rebase)
+
+- RLS: job row visible to commission staff_admin/administrativo; invisible to
+  same-org other-commission staff, cross-org, platform_admin (noun rule: this
+  is commission content), respondent-style personas as applicable; `transcript`
+  column read denied via direct select (42501 asserts the column-grant gap).
+- One-active-job: second `create_minutes_job` under an active row → the coded
+  error, under EVERY active status.
+- Guard matrix per RPC: flag off / wrong meeting status / non-canEdit / wrong
+  job status / cross-tenant id probing (existence oracle: same error shape for
+  "not found" and "not yours").
+- Apply semantics: matched update, dangling ref → create, ref-null create,
+  action insert incl. unassigned, minutes_md replace, purge (+`purged_at`),
+  audit rows with counts, second apply → no-op error.
+- Webhook helpers: idempotent no-op on non-processing rows; `service_role`-only
+  execute (authenticated call → denied).
+- Transcript door: read logs exactly one audit row; denied personas log none.
+- Keystones by neutralization (revert the guard → require red), incl. the
+  reader-non-writer rule for the door; fixture enables the flag explicitly
+  (pgtap-fixture-flag-gaps lesson).
+
+## T2 — Unit (owner beside the code)
+
+`hmac.test.ts` (valid/garbled/stale/future/replayed-timestamp, byte-exact body
+sensitivity), `metadata.test.ts`, context-composer test asserting agenda
+**descriptions are never read** (mock the query surface — the D14 keystone),
+draft-normalizer (callback → review shape; hostile markdown sanitized), webhook
+route handler with `Request` fixtures (401 paths, unknown job_type 200,
+idempotent re-delivery).
+
+## T3 — E2E (tester; fixtures from the service's W3, signed with the env secret)
+
+`e2e/meeting-audio-minutes.spec.ts` (+helpers in `e2e/helpers/minutes.ts`):
+
+1. Happy path: chefe.ccih marks meeting held → Usar áudio → warning step →
+   upload small fixture file → chip appears → test POSTs signed done-callback →
+   notification + Revisar ata gerada → edit ata text, strike one agenda item,
+   fix one action owner → Concluir → meeting page shows new minutes_md, agenda
+   updated+created rows, action items; job row terminal.
+2. Overwrite warning shown when minutes_md pre-existing.
+3. Cancel mid-processing → button returns; re-run allowed.
+4. Failure callback → error chip + retry.
+5. Flag OFF → no button, review route redirects, webhook 200-drops.
+6. Non-canEdit persona sees no button and gets redirected from review.
+7. Invalid-signature webhook → 401 and no state change (request-level, no UI).
+8. Keyboard-only: full review + conclude flow.
+9. Fresh-reset seed survival: specs create their own meeting; delete by
+   identity in teardown (positional-cleanup lesson).
+
+## T4 — Gate extras
+
+`ARM=census` + `ARM=floor`; diff-scoped `ARM=policy` sweep over exactly the B1/B2
+doors (list derived from the migration diff); then
+`git checkout -- docs/reviews/authz-door-audit-findings.md`. Record all three
+arms by name in PROGRESS.md.
+
+## T5 — Manual smoke (documented in `docs/testing/audio-minutes-smoke.md`)
+
+Local platform + local minute_generator via its docker compose (service `.env`
+pointing callback at `http://host.docker.internal:3000/api/webhooks/audio-jobs`);
+one real short pt-BR audio through upload → callback → review → apply. Required
+before pilot-tenant flag enablement, alongside the service's DPA gates (D17).
+
+## Acceptance criteria (phase gate)
+
+1. All D1–D18 behaviors demonstrable; T3 specs green in `npm run e2e:prod`.
+2. pgTAP green on fresh reset; all three authz arms named + green.
+3. `transcript` unreachable except via the audited door (pgTAP-proven).
+4. Purge proven: applied/cancelled jobs hold no result/draft/transcript and the
+   bucket object is gone (E2E asserts the storage delete).
+5. Flag OFF = feature invisible end-to-end.
+6. Lint (0 warnings) + `lint:css-vars` + typecheck + unit + `next build` green.
+
+## Risks / verify-at-build
+
+- **Signed-upload mechanics + 500 MB**: bucket-level limit vs global
+  `config.toml` limit vs Cloud setting; TUS availability against signed URLs.
+- **Callback reachability**: only the deployed pilot proves the real path (T5
+  local + one prod smoke).
+- **Download-URL TTL vs queue depth**: 6 h chosen against the service's job
+  budget; confirm against its deployed `JOB_TIMEOUT_SECONDS`.
+- **`action_items` insert path**: hub door shape assumed RPC-or-RLS; B0.2
+  resolves; if it's a guarded DEFINER, `apply_minutes_review` must call it, not
+  re-implement it (a new door must inherit every sibling arm).
+- **Draft concurrency**: last-write-wins accepted for v1 (small canEdit circle).
+- **Meeting deleted / status changed mid-job**: apply re-guards `held`; job rows
+  on deleted meetings follow B0.3's FK decision.
+- **Masked agenda titles (A7/O6)**: the context composer reads agenda titles as
+  the *uploader* sees them — a respondent-masked title never reaches the
+  composer because the uploader is canEdit staff, but assert in T2 that the
+  composer uses the server-side unmasked-for-staff query, not a client payload.
