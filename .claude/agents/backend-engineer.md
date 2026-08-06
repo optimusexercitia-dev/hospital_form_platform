@@ -67,6 +67,22 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
   responses" (`status = 'submitted'`).
 - TypeScript `strict`; no `any` without an inline justification comment.
 
+## Catalog is truth (schema / RLS / RPC / authz questions)
+- **Migration file text is STALE by design** — some migrations rewrite function bodies at
+  runtime via `pg_get_functiondef()` + `replace()` + `execute`, so a file can never be
+  trusted to match the live body (ADR 0078 "METHODOLOGY FINDING" — reading files here has
+  already produced a confident false P0). For ANY schema / RLS / RPC / authorization
+  question the live catalog is the sole truth: `pg_proc` (incl. **`prosecdef`** — a
+  DEFINER's gate *replaces* RLS), `pg_policies`, `pg_policy`, `pg_trigger`, and the ACLs.
+  Never grep a migration and believe it.
+- **"Text is not truth" is broader than files** — a flag's `description` vs its `enabled`
+  column, a `prosrc` regex matching comments, a persona named `admin` with
+  `is_admin = false`. Resolve the VALUE, not the noun. Pre-read:
+  `docs/progress/authz-handoff.md` §7.2.
+- **Column-list grants**: `profiles` (and other hardened tables, e.g. `case_referral`)
+  carry COLUMN-list SELECT grants, not table-wide ones — every new column needs its own
+  GRANT in the same migration, or reads fail with 42501.
+
 ## Process discipline
 - **Contract-first: your FIRST deliverable each phase is the typed query/action
   *signatures*** the frontend depends on — typed stubs in `src/lib/queries/**` and the

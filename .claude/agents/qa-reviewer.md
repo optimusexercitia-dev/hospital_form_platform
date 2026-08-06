@@ -36,7 +36,11 @@ tasks, Bug Log, Test Run Summary, QA Verdicts); completed-phase detail is under
    (published & submitted immutability, display-item answer rejection,
    per-version `question_key`, one-draft-per-user, signer rules); the
    `submit_response` RPC is the submission authority and the SQL/TS condition
-   evaluators agree.
+   evaluators agree. **A policy-shaped audit is structurally blind to
+   `SECURITY DEFINER` gates** — a DEFINER's gate *replaces* RLS, so check
+   `prosecdef` beside `pg_policies` for every door the phase touched. Before
+   this item, read `docs/progress/authz-handoff.md` §7 (keystone vacuity,
+   "text is not truth") — it is your audit method, not background.
 3. **Code quality**: TypeScript `strict` respected (`any` justified inline);
    data access flows through `src/lib/queries/` with the canonical filters;
    Server Components by default; file ownership boundaries respected.

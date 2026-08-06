@@ -43,12 +43,10 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
 (column-level encryption **declined**). ADRs 0030 / 0035 / 0037 / 0038. This
 **reverses** the platform's former "no patient data, ever" rule.
 
-> ⚠ **`case_patient` is a FEATURE-FLAG KEY, not a table** — this rule named it as one
-> until 2026-07-16 and it cost a teammate a probe mid-audit. The case module's PHI
-> lives in **`patient_identifiers`** (the payload — same columns as its two siblings:
-> `name`, `mrn`, `date_of_birth`, …) keyed to **`patient_participants`**. The predicate
-> `app.can_read_case_patient` and the flag both carry the `case_patient` name; **no
-> relation does.** Verify against the catalog, never against this sentence (ADR 0078 C2).
+> ⚠ **`case_patient` is a FEATURE-FLAG KEY, not a table** — the case module's PHI lives in
+> **`patient_identifiers`** keyed to **`patient_participants`**; the flag and the predicate
+> `app.can_read_case_patient` carry the name, **no relation does**. Verify against the
+> catalog, never this sentence — detail: ARCHITECTURE.md §2 (case module; ADRs 0038/0066).
 
 ### Core domain concepts
 
@@ -60,24 +58,18 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
   - `platform_admin` — global superuser. **May** administer **tenancy, identity, vocabulary and
     audit** (orgs, hospitals, memberships, professional identity, catalogs, `audit_log`). **May NOT**
     touch **commission content or PHI** — cases, responses, narratives, meetings, patient data.
-    *(The "noun rule" — PO-ruled 2026-07-15 from a 40-site catalog census; ADR 0078 A35. It replaces
-    "walled off from all tenant data", which was stated too absolutely: platform_admin genuinely reads
-    0 cases / 0 responses / 0 narratives / 0 meetings, but tenant **onboarding** requires the tenancy
-    arm, so the absolute form was false 12× and trained readers to ignore it.)*
-    ⚠ **Those "0 of N" figures are TABLE-level reads through RLS.** They do not mean "cannot reach the
-    content": until 2026-08-03 five `dashboard_*` **DEFINER** functions returned response content —
-    `dashboard_export_rows` one row per response with `answers` + `member_name` — through a gate RLS
-    never evaluates (BUG-AUTHZ-001; fixed by `20260903000700`, held by pgTAP `270`). When you cite the
-    census, cite it as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
+    *(The "noun rule" — ADR 0078 A35.)* ⚠ The census figures behind it are **TABLE-level reads
+    through RLS**, not proof the content is unreachable — a DEFINER function's gate bypasses RLS
+    entirely (BUG-AUTHZ-001; full record: `docs/progress/bug-log-archive.md` + the A35 amendment).
+    Cite the census as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
   - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
     commissions, users, members. ⚠ **`hospital_admin` is NOT confined to its own hospital's
     people** — the user directory is org-scoped *by decision* (ADR 0048 D1), and the DEFINER door
-    `list_addable_commission_members` (gated `is_commission_admin_of`, whose hospital leg admits
-    them) already returns the whole org's active roster — wider than the `profiles` policy allows.
-    Another `prosecdef`-beside-`pg_policies` case. Ratified and extended by ADR
-    [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) (AFF), which also makes
-    hospital **affiliation** a read-visibility input — reversing ADR 0048 D7's "hospital is never
-    gated on".
+    `list_addable_commission_members` returns the whole org's active roster, wider than the
+    `profiles` policy allows (ratified: ADR
+    [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) finding 1 + Consequences).
+    ADR 0097 (AFF) also makes hospital **affiliation** a read-visibility input — reversing ADR
+    0048 D7's "hospital is never gated on".
   - `staff_admin` (per commission) — builds/edits forms, manages that commission's
     staff, views its dashboard.
   - `staff` (per commission) — fills published forms.
@@ -146,10 +138,10 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 ├── scripts/                   # e2e-prod-gate.sh (the §6 gate) · check-tailwind-css-vars.mjs
 │                              #   (the lint:css-vars gate) · worktree-setup.sh
 ├── supabase/
-│   ├── migrations/            # SQL migrations (Backend) — 216 files; the live catalog, not
-│   │                          #   this text, is truth (see the graphify exception below)
-│   ├── tests/                 # pgTAP suites (Backend) — the numbered 00_…269_ files
-│   ├── seed.sql               # local dev seed (~31 personas, 2 orgs; roster in its header)
+│   ├── migrations/            # SQL migrations (Backend) — the live catalog, not this
+│   │                          #   text, is truth (see the graphify exception below)
+│   ├── tests/                 # pgTAP suites (Backend) — the numbered files
+│   ├── seed.sql               # local dev seed (2 orgs; persona roster in its header)
 │   ├── demo/ · snippets/ · templates/
 │   └── config.toml
 ├── src/
@@ -161,7 +153,7 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 │   │   └── o/[org]/…/c/[commission]/  # tenant → commission areas (manage/forms/dashboard, NSP)
 │   ├── components/            # (Frontend)
 │   ├── proxy.ts               # (Backend)
-│   └── lib/                   # ~37 domain modules (Backend) — one per feature area
+│   └── lib/                   # domain modules (Backend) — one per feature area
 │       │                      #   (cases, safety, referrals, ethics, documents, charters,
 │       │                      #   notifications, indicators, attachments, participants, …),
 │       │                      #   each typically actions.ts + queries; PLUS the three
@@ -171,7 +163,7 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 │       └── types/             # generated DB types + domain types
 ├── e2e/                       # Playwright specs (Tester)
 ├── worktrees/                 # parallel sessions — docs/worktrees.md
-└── docs/                      # decisions/ (ADRs 0001–0097) · backend-state.md (backend surface
+└── docs/                      # decisions/ (ADRs) · backend-state.md (backend surface
                                #   map) · lead-playbook.md · progress/ · reviews/ · phases/ ·
                                #   plans/ · design/ · testing/ · deployment/ · worktrees.md
 ```
@@ -183,7 +175,7 @@ storage work — it is authoritative.** "Architecture Rule N" refers to its numb
 rules:
 
 1. **RLS is the security boundary** — explicit policies on every table; service-role keys server-side only; never rely on UI hiding.
-2. **Canonical schema** — `profiles`, `commissions`, `memberships`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict. ⚠ **`memberships` is the single multi-scope table** (org + hospital + commission; keyed `principal_id`, **not** `user_id`) — **`commission_members` does not exist**, though this rule named it until 2026-07-17. Detail + the scope-exclusivity CHECK: ARCHITECTURE.md §2.
+2. **Canonical schema** — `profiles`, `commissions`, `memberships`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict. ⚠ **`memberships` is the single multi-scope table** (org + hospital + commission; keyed `principal_id`, **not** `user_id`) — **`commission_members` does not exist**; verify against the catalog, never this line. Detail + the scope-exclusivity CHECK: ARCHITECTURE.md §2.
 3. **Response lifecycle & resume** — `in_progress` → `submitted` via the `submit_response` RPC (the authority); one draft per user/version; condition evaluator mirrored SQL ↔ TS.
 4. **Sign-offs** — per (response, section); `signoff_role` gated by RLS; only while `in_progress`.
 5. **Published versions are IMMUTABLE** — editing clones to a new draft, preserving `question_key`s + conditions.
@@ -234,27 +226,17 @@ schema, one rulebook.
 **and** the human has approved. Backend may run one phase ahead on schema work, but
 nothing merges ahead of its phase.
 
-**Current sequencing / pilot plan (verify against PROGRESS.md — this line goes stale fast).**
-ADR 0057's "build 15 → 17 → 16, pilot after Phase 16" is long superseded — by **ADR 0071**
-(2026-07-12, twelve initiatives pulled pre-pilot), **ADR 0086** (2026-07-27, the five
-Flexible-Forms phases), and **ADR 0093** (2026-08-03, which re-gated Phase 16 back in front of
-the pilot). **All of that block is complete**, through PCI + TV on 2026-08-05. Live order:
-**AFF** (ADR [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) — hospital
-affiliation + CPF person identity + the org people directory; mostly schema, so it lands while
-`supabase db reset` is still free) → pilot deploy (origin push + Coolify + remote `db push`).
-Phases 18–19 stay post-pilot.
+**Live order and pilot status: PROGRESS.md § "Remaining pre-pilot work"** (the Phase Status
+table alone does not carry sequencing). Phases 18–19 stay post-pilot (ADR 0071).
 
 > ⭐ **Before any authorization / RLS / security-test work, read
-> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078 lessons
-> (and ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md), whose
-> door-audit sweep `supabase/tests/mutation/p0-authz-invariant.sh` is a **standing** gate —
-> operationalized in **§6 step 1**, because "standing" in prose alone meant it ran once in three
-> weeks and the next run found 15 BLIND gates; see ARCHITECTURE.md Rule 1).
-> They are **not** AUTHZ-specific and they cost six review rounds: **7 keystones that could not fail**
-> (review found none; *reverting the fix* found all), **6 ways "text is not truth"** beyond stale files
-> (a flag's `description` vs its `enabled` column; a `prosrc` regex matching **comments**; a persona
-> named `admin` with `is_admin = false`), and **`prosecdef` belongs beside `pg_policies`** — a DEFINER's
-> gate **replaces** RLS, so a policy-shaped audit is structurally blind to it.
+> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078
+> lessons: keystones that could not fail, the many ways "text is not truth", and
+> **`prosecdef` belongs beside `pg_policies`**. They are **not** authz-specific and they cost
+> six review rounds. ADR
+> [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s door-audit sweep
+> is a **standing** gate, operationalized in **§6 step 1** — "standing" in prose alone once
+> meant it ran once in three weeks, and the next run found 15 BLIND gates.
 
 When a decision in this file is superseded by an ADR, amend this file too — a stale
 `CLAUDE.md` is worse than a missing one, because it is loaded into every session. However, always ask before making changes to `CLAUDE.md`.
@@ -266,16 +248,15 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    E2E-mutated DB yields spurious commission-count reds that are not defects.
    **Authz gates** — `ARM=census` (~2 s) **and** `ARM=floor` (~1 min) of
    `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
-   catches a gate you just added** — it asserts every live RLS policy + `prosecdef` boolean
-   gate carries a verdict from *some* sweep; a brand-new gate is in no BLIND set, so it passes
+   catches a gate you just added** — a brand-new gate is in no BLIND set, so it passes
    `ARM=policy` **vacuously** (ADR 0079 Amendment 3). **If the phase touched any RLS policy or
    `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
-   (~1 min/gate), deriving the list from the migration diff, never by hand — recipe + rationale
-   in **ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)
-   Amendment 1**. **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop,
-   never a tenant-isolation policy); **`ERROR` is not a pass** (unauditable → cover it in the phase's
-   mutation audit); ⚠ afterwards `git checkout -- docs/reviews/authz-door-audit-findings.md` — a
-   subset run overwrites it. The **full** ~5 h sweep is a periodic audit, **not** a phase step.
+   (~1 min/gate), deriving the list from the migration diff, never by hand — recipe: **ADR
+   [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 1**.
+   **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop, never a
+   tenant-isolation policy); **`ERROR` is not a pass** (cover it in the phase's mutation
+   audit). Sweep-run mechanics incl. the findings-file restore: lead-playbook §4. The
+   **full** ~5 h sweep is a periodic audit, **not** a phase step.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
    and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
    current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
@@ -289,12 +270,12 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
 4. **Human approval** — lead presents a summary (built, test results, QA verdict, open
    risks) and **waits** for explicit approval.
 5. **Record** — lead updates PROGRESS.md, **rotates** the completed phase's detail out
-   (mechanics: lead-playbook), updates `docs/backend-state.md` if the backend surface
+   (mechanics: lead-playbook §§4–5), updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
    `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
-   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*. Phase 16 logged
-   "`p0-authz-invariant.sh` INVARIANT HOLDS" having run only the first — and its own
-   `accreditation_standards_select` passes it and fails the other two.
+   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked* — a gate record
+   naming the script reads as full coverage while delivering the cheap half (ADR 0079;
+   `docs/progress/follow-ups-archive.md`).
 
 ## 7. Progress Tracking
 
@@ -375,23 +356,21 @@ This project has a knowledge graph at `graphify-out/`.
   `graphify explain "<concept>"` for focused concepts — these return a scoped subgraph,
   usually much smaller than GRAPH_REPORT.md or raw grep.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
-- **Refresh the graph ONCE PER PHASE, at merge — not after each change.** `graphify update .`
-  is AST-only (no API cost) but rebuilds the **whole** graph: a one-function fix produced a
-  **12,729-line** diff in `graphify-out/`. On a side branch, and with parallel sessions the norm
-  here (`docs/worktrees.md`), that is a near-certain conflict in a generated file nobody can
-  meaningfully review or resolve. **Teammates: do not run it at all** — if you already did, revert
-  `graphify-out/` and say so. The **lead** runs it once after the phase merges to `main`, in its own
-  `chore(graphify):` commit, so the regeneration never rides along with reviewable code.
-  ⚠ Between the last refresh and that merge the graph is **stale by design** — it is an orientation
-  aid, never an authority. When it disagrees with the code, the code wins (and for SQL, see the
-  binding exception below: the catalog wins over both).
+- **Refresh is lead-only, ONCE PER PHASE, after the merge to `main`, in its own
+  `chore(graphify):` commit. Teammates: do not run `graphify update` at all** — if you already
+  did, revert `graphify-out/` and say so. (A small fix regenerates the whole graph — a
+  near-certain conflict in a generated file; mechanics + rationale: lead-playbook §6.)
+  ⚠ Between refreshes the graph is **stale by design** — an orientation aid, never an
+  authority. When it disagrees with the code, the code wins (and for SQL, see the binding
+  exception below: the catalog wins over both).
 - ⛔ **Exception, binding: graphify does NOT index SQL — and migration file text is STALE by design**
   (some migrations rewrite function bodies at runtime via `pg_get_functiondef()` + `replace()` +
   `execute`). For **any** schema / RLS / RPC / authorization question the **live catalog is the sole
   truth**: `pg_proc` (incl. **`prosecdef`** — a DEFINER's gate *replaces* RLS), `pg_policies`,
   `pg_policy`, `pg_trigger`, and the **ACLs**. Never graphify it, never grep it, never read the
   migration file and believe it. Reading files here has already produced a confident **false P0** and
-  burned an external auditor. ADR 0078 A28; the `Bash` graphify hook is off for this reason.
+  burned an external auditor. ADR 0078 "METHODOLOGY FINDING"; the `Bash` graphify hook is off for
+  this reason.
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know

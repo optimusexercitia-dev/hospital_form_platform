@@ -60,6 +60,10 @@ When a phase passes human approval, the lead:
 4. Updates `docs/backend-state.md` if the backend surface changed.
 5. Commits with `phase(N): complete — <summary>`. The team stays warm for the next phase.
 
+**Gate step-1 note (authz sweeps):** after any diff-scoped door-sweep run,
+`git checkout -- docs/reviews/authz-door-audit-findings.md` — a subset run overwrites the
+full-sweep findings file with partial results.
+
 ## 5. PROGRESS.md rotation & archive discipline
 
 **Keep PROGRESS.md small — every spawn reads it** (target a few hundred lines / well
@@ -86,3 +90,14 @@ Archive files under `docs/progress/` are append-only and never loaded by spawns 
 goes there to stay out of every teammate's context. The durable map of what the backend
 already provides lives in **`docs/backend-state.md`** (the lead keeps it current) so
 per-phase lead notes reference it instead of re-deriving it each phase.
+
+## 6. graphify refresh (lead-only)
+
+Refresh the graph **once per phase, after the phase merges to `main`, in its own
+`chore(graphify):` commit** — never after each change, never on a side branch.
+`graphify update .` is AST-only (no API cost) but rebuilds the **whole** graph: a
+one-function fix once produced a **12,729-line** diff in `graphify-out/`. With parallel
+sessions the norm here (`docs/worktrees.md`), a side-branch refresh is a near-certain
+conflict in a generated file nobody can meaningfully review or resolve — which is why
+the regeneration never rides along with reviewable code, and why teammates are told
+never to run it (CLAUDE.md, graphify section).
