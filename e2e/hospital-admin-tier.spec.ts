@@ -1,5 +1,6 @@
 import { test, expect, request as playwrightRequest } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { uniqueCpf } from "./helpers/cpf"
 
 /**
  * Phase A — Hospital-admin tier, 4-tier audit & committee titles — E2E suite.
@@ -126,6 +127,23 @@ async function expectAccessDenied(
   if (leakageLocator) {
     await expect(leakageLocator).not.toBeVisible()
   }
+}
+
+/**
+ * The identifier-first register flow (AFF W3/T3.1 — ADR 0097 D12) no longer renders
+ * the create form on load: `/usuarios/novo` starts on the CPF step, and the create
+ * form only appears once a lookup for that CPF returns nothing (outcome A). Every
+ * caller here wants a FRESH person (never seeded), so this always resolves outcome A —
+ * `getByRole('textbox', { name: 'CPF' })`, not `getByLabel('CPF')`, which also matches
+ * the "Comece pelo CPF" region's accessible name (frontend handoff, PROGRESS.md AFF).
+ */
+async function beginRegistrationWithFreshCpf(
+  page: import('@playwright/test').Page,
+  cpf: string,
+) {
+  await page.getByRole('textbox', { name: 'CPF' }).fill(cpf)
+  await page.getByRole('button', { name: /buscar pessoa/i }).click()
+  await expect(page.getByLabel('Nome completo')).toBeVisible({ timeout: 10_000 })
 }
 
 // ---------------------------------------------------------------------------
@@ -650,22 +668,34 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     await expect(page.getByText(/Analista Qualidade B/i)).not.toBeVisible()
   })
 
-  test('register form: home-hospital field is LOCKED to central-a for hospitaladmin.a1', async ({ page }) => {
+  test('register form: hospital is LOCKED to central-a for hospitaladmin.a1 — a read-only display, not a chooser', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
+    await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
-    const hospitalField = page.getByLabel('Hospital de origem')
-    await expect(hospitalField).toBeVisible({ timeout: 10_000 })
-    await expect(hospitalField).toHaveValue('Hospital Central A')
-    await expect(hospitalField).toHaveAttribute('readonly', '')
+    // AFF W3/T3.3 (ADR 0051 D7 / ADR 0097): `getByLabel('Hospital de origem')` is
+    // GONE — a hospital_admin's target hospital is a plain read-only <p>, not a form
+    // control (the create form never asks; it is hard-set server-side regardless).
+    // Assert BOTH halves of "locked": the name renders as text, and there is no
+    // selectable Hospital control on the page at all.
+    const vinculoHeading = page.getByRole('heading', { name: /vínculo hospitalar/i })
+    await expect(vinculoHeading).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Hospital Central A')).toBeVisible()
+    await expect(
+      page.getByRole('combobox', { name: /^hospital/i }),
+    ).toHaveCount(0)
   })
 
-  test('hospitaladmin.a1 registers a new user, home hospital hard-set to central-a', async ({ page }) => {
+  test('hospitaladmin.a1 registers a new user via CPF lookup, home hospital hard-set to central-a', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
+    const cpf = uniqueCpf()
+    await beginRegistrationWithFreshCpf(page, cpf)
 
-    const uniqueEmail = `e2e.hosp.a1.${Date.now()}@test.local`
-    await page.getByLabel(/nome completo/i).fill('Pessoa Teste Hospital A1')
+    const ts = Date.now()
+    const uniqueEmail = `e2e.hosp.a1.${ts}@test.local`
+    const uniqueName = `Pessoa Teste Hospital A1 ${ts}`
+    await page.getByLabel(/nome completo/i).fill(uniqueName)
     await page.getByLabel(/^e-mail$/i).fill(uniqueEmail)
     const categoryField = page.getByLabel(/categoria profissional/i)
     if (await categoryField.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -684,14 +714,33 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     await expect(page).not.toHaveURL(/\/novo$/, { timeout: 15_000 })
 
     // Verify the user now shows up in hospitaladmin.a1's (central-a-scoped) directory.
-    await page.goto('/o/rede-a/manage/usuarios')
-    await page.getByPlaceholder(/buscar/i).fill('Pessoa Teste Hospital A1').catch(() => {})
-    await expect(page.getByText('Pessoa Teste Hospital A1').first()).toBeVisible({
+    // Scoped to the EXACT user via the server-side `?search=` filter (not an unfiltered
+    // page-1 guess) — a fixed, non-unique name across repeated runs previously left this
+    // assertion positional-luck-dependent; the accumulated E2E users of prior runs
+    // (this file alone, plus sibling AFF/user-registration specs sharing the same DB)
+    // can push a same-named row off an unfiltered page 1 (pre-existing fragility,
+    // exposed by running the AFF targeted set together — not a product defect).
+    await page.goto(`/o/rede-a/manage/usuarios?search=${encodeURIComponent(uniqueEmail)}`)
+    await expect(page.getByText(uniqueName).first()).toBeVisible({
       timeout: 10_000,
     })
   })
 
-  test('hospitaladmin.a1 can deactivate a central-a user', async ({ page }) => {
+  // SPEC-DRIFT, NOT A REGRESSION (found running this file for T3.6): this test
+  // originally asserted "hospitaladmin.a1 can deactivate a central-a user" — true
+  // under ADR 0051 Phase A. AFF ADR 0097 D14 / ADR 0098 §W3.2 deliberately and
+  // explicitly REMOVES that capability: "account deactivation is unreachable by
+  // hospital admins — `app.is_active` is a platform-wide kill switch, so one
+  // hospital's offboarding must never end a professional's access at another."
+  // `UserLifecycleActions`' `canManageAccountStatus={isOrgAdmin}` (src/app/o/[org]/
+  // manage/usuarios/[userId]/page.tsx:139) hides the Desativar/Suspender controls
+  // entirely for a hospital_admin — this is the CURRENT, ratified contract, so the
+  // test is rewritten rather than left asserting the superseded behaviour (the "281
+  // D1 was inverted, not deleted" lesson: a fixed/changed decision leaving behind a
+  // test pinning the OLD behaviour is how the next reader "repairs" it back in).
+  // Org-level deactivation is unaffected and covered separately
+  // (user-registration.spec.ts AC3, with orgadmin.a).
+  test('hospitaladmin.a1 CANNOT deactivate a central-a user (D14 — account lifecycle is org_admin-only)', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto('/o/rede-a/manage/usuarios')
     await page.getByText(/Enfermeira CCIH Dois/i).first().click()
@@ -699,18 +748,15 @@ test.describe('HA-6: Hospital-scoped user directory + registration + lifecycle',
     await expect(page.getByRole('heading', { name: 'Situação da conta' })).toBeVisible({
       timeout: 10_000,
     })
-    await page.getByRole('button', { name: /^Desativar$/ }).click()
-    const dialog = page.getByRole('alertdialog')
-    await expect(dialog).toBeVisible()
-    await dialog.getByRole('button', { name: /^Desativar$/ }).click()
-
-    await expect(page.getByText(/desativad/i).first()).toBeVisible({ timeout: 10_000 })
-
-    // Cleanup: reactivate.
-    await page.getByRole('button', { name: /^Reativar$/ }).click()
-    const reactivateDialog = page.getByRole('alertdialog')
-    await expect(reactivateDialog).toBeVisible()
-    await reactivateDialog.getByRole('button', { name: /^Reativar$/ }).click()
+    // No lifecycle controls at all for a hospital_admin — hiding is UX only (Rule 1);
+    // the server boundary (`authorizeOrgAdminForUser`) is Vitest-covered
+    // (`d14-person-level.test.ts`, ADR 0098 §W3.2 — a service-role action has no RLS
+    // to assert against through the UI, so this is the reachable half of the claim).
+    await expect(page.getByRole('button', { name: /^Desativar$/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^Suspender$/ })).toHaveCount(0)
+    await expect(
+      page.getByText(/só pode ser alterada por um administrador da organização|é feito por um administrador da organização/i),
+    ).toBeVisible()
   })
 
   test('hospitaladmin.a1 is refused (404) on a sibling-hospital user (secundario-a has none seeded — use org-b user as the boundary)', async ({ page }) => {

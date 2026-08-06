@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { uniqueCpf } from "./helpers/cpf"
 
 /**
  * Phase 3 — Admin Area & User Management
@@ -130,6 +131,14 @@ async function registerActiveOrgUser(
   await signInAs(page, 'orgadmin.a@test.local')
   await page.goto('/o/rede-a/manage/usuarios/novo')
   await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+
+  // AFF W3/T3.1 (ADR 0097 D12): the create form no longer renders on load — the
+  // route starts on the CPF step, and the create form (outcome A) appears only
+  // once a lookup for that CPF returns nothing. A fresh `uniqueCpf()` always
+  // resolves outcome A for a brand-new candidate.
+  await page.getByRole('textbox', { name: 'CPF' }).fill(uniqueCpf())
+  await page.getByRole('button', { name: /buscar pessoa/i }).click()
+  await expect(page.getByLabel('Nome completo')).toBeVisible({ timeout: 10_000 })
 
   await page.getByLabel('Nome completo').fill(fullName)
   await page.getByLabel('E-mail').fill(email)

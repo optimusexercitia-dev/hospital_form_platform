@@ -117,7 +117,7 @@ Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc
 | -- | ----- | ----- | ----- |
 | **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
 | **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ✅ **done** — migrations `20260909000500`–`000900`; ADR 0098 §W2 |
-| **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ▶ backend ✅ (migrations `20260909001000`–`001100`; ADR 0098 §W3) · frontend in progress · T3.6 pending `tester` |
+| **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ▶ backend ✅ (migrations `20260909001000`–`001100`; ADR 0098 §W3) · frontend ✅ · T3.6 ✅ `tester` (2026-08-06) — 1 bug filed (BUG-AFF-1, pre-existing, not AFF-caused) |
 
 **File ownership (binding for this workstream):** `backend` owns `supabase/**` (migrations, pgTAP,
 `seed.sql`, **and `supabase/demo/seed-revisao-prontuario.sql` — audit MEDIUM-2, it is in no gate**),
@@ -392,6 +392,38 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🟡 **BUG-AFF-1 — `addStaff`'s `authorizeStaffOps` has no `hospital_admin` arm; the
+commission's own "Adicionar membro" picker is fully offered to a hospital_admin and
+refused only at submit.** Filed 2026-08-06, AFF T3.6 (`tester`). **NOT an AFF
+regression** — `src/lib/members/actions.ts` was last touched by `36a69d5`
+(`feat(mem-w2,w3)`, unrelated to AFF) and its `authorizeStaffOps` has had only two arms
+(staff_admin of the commission, or org_admin of its org) since before this workstream.
+**Repro (RED-proven, `e2e/aff-hospital-affiliation.spec.ts` AFF-1 "BUG-AFF-1: …"):** as
+`hospitaladmin.dual@test.local` (hospital_admin of both `central-a` and `secundario-a`,
+Rede A), reach `/o/rede-a/c/etica/manage/members` (renders fine — the page gate
+`getCommissionAccessByOrg` and the candidate list `list_addable_commission_members`
+both already admit hospital_admin via `is_commission_admin_of`'s hospital leg, ADR 0097
+finding 1), click "Adicionar membro", search and select a real, addable org person,
+click "Adicionar". **Expected:** the person is added (a hospital_admin managing a
+committee under a hospital they administer is exactly what "manage/members" is for —
+mirrored by the SIBLING door `assignCommitteeRole`/`authorizeForCommission`, which
+DOES admit hospital_admin via `authorizeHospitalOps(hospitalId)`, `src/lib/users/
+actions.ts:369-384`). **Actual:** `[role="status"]` renders "Você não tem permissão
+para esta ação." — the whole picker flow (search, select, enable the submit button) is
+offered and interactive, then refused only on the final call. **Violates:** CLAUDE.md
+Architecture Rule 1 in spirit (a fully-enabled control that always fails for this role
+is not that different from hiding-as-the-boundary — the UI implies a capability the
+server never grants) and the "a new door must inherit every sibling arm" lesson (memory:
+new-door-must-inherit-every-sibling-arm) — here the OLDER door is the one missing the
+arm its newer sibling has. **Fix (for `backend`, not `tester`):** add a third arm to
+`authorizeStaffOps` (`src/lib/members/actions.ts:74-98`) — `hospital_admin` of the
+commission's `hospital_id`, mirroring `authorizeForCommission`'s
+`authorizeHospitalOps(hospitalId)` leg exactly. **Workaround used to complete AFF-1's
+own committee-seating step:** `orgadmin.a@test.local` (fully authorized on both doors).
+**Spec-drift vs defect call:** DEFECT, not spec drift — the READ-side gates (page +
+candidate list) and the SIBLING write door both already treat hospital_admin as a
+valid committee manager; only `addStaff` disagrees.
+
 🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
 (QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
 **Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
@@ -580,6 +612,7 @@ evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2E
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-06 | **AFF T3.6 · `tester` · targeted run** — new `e2e/aff-hospital-affiliation.spec.ts` (11 tests) + repaired `e2e/{user-registration,hospital-admin-tier,phase3-admin-members}.spec.ts` (locator/CPF-step fixes), `--project=chromium --workers=1`, dev server, on the live (non-reset) local DB | **76 passed · 0 failed · 1 deliberate skip (env-gated invite-mode) · 77 collected.** New spec run independently TWICE, 11/11 both times. `--workers=1` required — full parallelism (`fullyParallel`'s default worker count) reproducibly timed out every `page.goto('/login')` even though the server answered curl/direct-hit fine (concurrent-login contention under this sandboxed shell, not a product issue); serialized runs were reliable across ~6 repeats. **1 bug filed: BUG-AFF-1** (pre-existing `addStaff` authorization gap, not AFF-caused — full repro in the Bug Log). **1 pre-existing spec fragility fixed in passing** (`hospital-admin-tier.spec.ts` HA-6's "registers a new user" test asserted against a fixed, non-unique display name on an UNFILTERED directory page — luck-dependent once enough same-session registrations accumulated; now scoped to `?search=<unique email>` like its siblings). **1 test rewritten for a ratified ADR decision, not a regression**: HA-6's "can deactivate" assumed the pre-AFF (ADR 0051) contract; ADR 0097 D14 / ADR 0098 §W3.2 deliberately made account deactivation `org_admin`-only, so the test now asserts the controls are ABSENT for a hospital_admin (mirrors the "281 D1 inverted, not deleted" convention) |
 | 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · FULL `e2e:prod`** (RESET+REBUILD, 84 specs / 16 batches) | **970 passed · 1 failed · 0 flaky · 2 did-not-run** — denominator reconciled, no batch gaps, no `reset FAILED`. **2 infra re-runs** (batch 8 `server_dead=1 conn_errors=64`; batch 15 `server_dead=1 conn_errors=22`), both cleared — twin server deaths matching the known `supabase_vector` auth-gateway crash-loop, and both dead batches are login-heavy. **The 1 real failure was MEM2-1, and it was a PRODUCT DEFECT rather than a test bug** → BUG-A11Y-001 in the Bug Log. FUP-BULK-1's `bulk-case-creation.spec.ts` GREEN; the new `technical-direction-referrals.spec.ts` GREEN against the prod build. ⚠ The 2 did-not-run are MEM2-2/2-3, skipped by serial mode after MEM2-1 failed — accounted, not lost |
 | 2026-08-05 | **MEM follow-ups + BUG-AUTHZ-002 · pgTAP full suite** on a fresh `db reset` of the MERGED tree (285 migrations) | **PASS — Files=160 / Tests=4903.** Includes `298_authz_p0_isolation.sql` **32/32 on its first-ever execution** — and against `main`'s rewritten `seed.sql`, which the fixtures are pinned to by id, so that was luck rather than design — plus `299_hospital_content_door_noun_rule.sql` **11/11**. ⚠ An earlier run on the **non-reset** DB showed 4 failures (`100_dashboard` #19 "1079 anon-executable", `252` Bad-plan abort, + the 2 real ones): the first two were pgtap-in-catalog / leftover-state artifacts and vanished on the reset. CLAUDE.md's "fresh reset" instruction is load-bearing, not hygiene |
 | 2026-08-05 | **FUP-AUTHZ-2 · `p0b-isolation-mutation-audit.sh` Batch 4** — the 15 keystones | **15/15 RED-PROVEN**; controls green in all four files (250 14 ok · 251 40 · 252 48 · 298 32, 0 not-ok). Each keystone reddens when ITS policy opens, so none is vacuous |

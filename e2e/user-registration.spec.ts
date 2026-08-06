@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { uniqueCpf } from "./helpers/cpf"
 
 /**
  * User Registration & Identity Management
@@ -65,6 +66,23 @@ async function signInAs(
   await cachedSignIn(page, email, password)
 }
 
+/**
+ * AFF W3/T3.1 (ADR 0097 D12) — `/usuarios/novo` no longer renders the create form on
+ * load; it starts on the CPF step, and the create form (outcome A) appears only after
+ * a lookup for that CPF returns nothing. Every caller in this file wants a brand-new
+ * person, so a fresh `uniqueCpf()` always resolves outcome A. `getByRole('textbox',
+ * { name: 'CPF' })`, not `getByLabel('CPF')` — the latter also matches the "Comece
+ * pelo CPF" region's accessible name (two nodes, strict-mode violation).
+ */
+async function beginRegistrationWithFreshCpf(
+  page: import('@playwright/test').Page,
+  cpf: string,
+) {
+  await page.getByRole('textbox', { name: 'CPF' }).fill(cpf)
+  await page.getByRole('button', { name: /buscar pessoa/i }).click()
+  await expect(page.getByLabel('Nome completo')).toBeVisible({ timeout: 10_000 })
+}
+
 async function waitForMailpitMessage(
   toAddress: string,
   timeoutMs = 20_000,
@@ -120,6 +138,7 @@ test.describe('AC1 — org_admin registers a user; appears ATIVO in the director
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+    await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
     const token = uniqueToken()
     const email = `registro.${token}@test.local`
@@ -194,6 +213,7 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+    await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
     const token = uniqueToken()
     const email = `ativar.${token}@test.local`
@@ -240,6 +260,7 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+    await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
     const token = uniqueToken()
     const email = `ativar.invite.${token}@test.local`
@@ -418,6 +439,11 @@ test.describe('AC5 — email collision blocks with a clear pt-BR error', () => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+    // A FRESH, never-used CPF — the collision under test is on EMAIL, not CPF. The CPF
+    // lookup step (D12) resolves "not found" (this CPF belongs to nobody), landing on
+    // the create form; the pre-existing EMAIL collision block then fires at submit,
+    // unchanged (ADR 0097 D8 — registerUser's hard email-collision backstop).
+    await beginRegistrationWithFreshCpf(page, uniqueCpf())
 
     await page.getByLabel('Nome completo').fill('Colisão De Teste')
     await page.getByLabel('E-mail').fill('ativo.registro@test.local') // already exists (d2)
@@ -503,6 +529,23 @@ test.describe('AC7 — keyboard-only flow', () => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+
+    // Keyboard-only through the CPF step (D12's identifier-first flow) FIRST: the
+    // create form does not exist until a lookup resolves "not found". Same
+    // hydration-race guard as the name field below (page.focus() is not
+    // auto-waiting — it races RSC streaming and can silently no-op).
+    const cpfInput = page.getByRole('textbox', { name: 'CPF' })
+    await expect(cpfInput).toBeEditable({ timeout: 10_000 })
+    await expect(async () => {
+      await cpfInput.focus()
+      await expect(cpfInput).toBeFocused({ timeout: 1_000 })
+    }).toPass({ timeout: 10_000 })
+    await page.keyboard.type(uniqueCpf())
+    const buscarButton = page.getByRole('button', { name: /buscar pessoa/i })
+    await buscarButton.focus()
+    await expect(buscarButton).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByLabel('Nome completo')).toBeVisible({ timeout: 10_000 })
 
     const token = uniqueToken()
     const email = `teclado.${token}@test.local`
