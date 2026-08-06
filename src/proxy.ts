@@ -92,12 +92,23 @@ function redirectPreservingCookies(
 
 export const config = {
   // Run on every path EXCEPT Next internals, the favicon, static asset files
-  // (matched by a trailing file extension), and the orchestrator liveness probe
+  // (matched by a trailing file extension), the orchestrator liveness probe
   // `/api/health` (must return 200 to Coolify/Docker WITHOUT a session, so it is
-  // excluded from the gate entirely — see src/app/api/health/route.ts). `/auth/*`
-  // and the public auth pages still pass through to their handlers/pages — they
-  // are handled inside `proxy` as public, not excluded here.
+  // excluded from the gate entirely — see src/app/api/health/route.ts), and
+  // `/api/webhooks/*`. `/auth/*` and the public auth pages still pass through to
+  // their handlers/pages — they are handled inside `proxy` as public, not
+  // excluded here.
+  //
+  // ⚠ `api/webhooks` (MIN, ADR 0099 D10) is a MACHINE caller with no cookie: the
+  // `minute_generator` service POSTs a signed callback. Left inside the matcher the
+  // session gate would redirect it to /login, the service would record a 3xx as a
+  // delivered callback or retry it into the same wall, and the job would sit
+  // `processing` until the 24 h TTL failed it — with no error anywhere pointing at
+  // auth. Its authorization is the HMAC signature over the raw body
+  // (`src/lib/audio-jobs/hmac.ts`), which is a stronger gate than a session cookie
+  // for this caller, not a weaker one. Any future webhook belongs under this prefix
+  // for the same reason.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|map)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/health|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|map)$).*)',
   ],
 }

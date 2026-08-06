@@ -262,6 +262,67 @@ prop.
 
 ## 3. Server-action surface needed from B5
 
+> ### ⚠ §3 IS SUPERSEDED IN PLACES — B5 HAS LANDED (backend, 2026-08-06)
+>
+> Per this document's own rule ("where this brief and the eventual B5 signatures disagree,
+> B5's real signatures win — but a disagreement should come back to this doc as a
+> correction, not a silent drift"), here is the correction list. **The authoritative
+> source is now `src/lib/minutes-jobs/` itself.** Nine changes, each forced by the
+> substrate rather than by preference:
+>
+> 1. **`MinutesDraft.agenda_items` → `agenda`.** ⛔ The most important one. The SQL side is
+>    the authority: `apply_minutes_review` reads `draft->'agenda'`. Under the old name
+>    apply finds nothing, writes nothing, and **reports success** — a silent no-op, not an
+>    error. `normalize.test.ts` pins the key.
+> 2. **`startMinutesJob` now returns `uploadUrl`** (the full signed URL, token already in
+>    the query string) alongside `path`/`token`. §3.3's `{jobId, path, token}` only works
+>    with the supabase-js helper, which cannot report progress. **Verified upload recipe**,
+>    probed against the running stack: `PUT` the `uploadUrl` with a `FormData` carrying
+>    `cacheControl` and the file under the **empty** field name, and **no auth headers at
+>    all** — no `apikey`, no `authorization`. Do not set `Content-Type`; the browser must
+>    set the multipart boundary. That returned HTTP 200; the token in the URL is the whole
+>    authorization.
+> 3. **`applyMinutesReview(jobId, draft)`** takes the draft. It saves a copy with the
+>    verbatim owner/deadline folded into each description (D7) and then applies — apply
+>    reads the draft from the ROW, so the fold cannot happen in flight. Folding on autosave
+>    instead would keep re-writing a hint into a description the reviewer just cleaned up.
+> 4. **`MinutesDraft` gained `unassigned_resolutions`** (`{key, text}[]`). The service's
+>    `Resolution.agenda_item_index` is a **positional index into `agenda_items`**, not a
+>    ref; an index-less resolution has no agenda home and D6 says it stays attachable on
+>    the review page. Dropping it would lose a recorded decision. Apply ignores this key.
+> 5. **`existing_discussion_notes` / `existing_resolution` are filled at READ time** by
+>    `getMinutesJobForReview` from the LIVE agenda rows, not frozen into the draft by the
+>    webhook. The meeting's own text can change between the callback and the review, and
+>    the overwrite warning must show what is actually about to be replaced. A `ref` whose
+>    row has since been deleted is returned to F3 as `ref: null` (a new item), matching how
+>    apply degrades a dangling ref.
+> 6. **`MinutesDraftNextMeeting` is `{suggested_date, location_text, note}`** — the service
+>    sends `{starts_at, location_text, raw}`; `location_text` was missing from §3.2.
+> 7. **`MinutesDraftSpeaker` gained `spoke`**, and its `label` resolves to the attendee's
+>    name. It is merged from the service's TWO lists (`attendees` = `SpeakerAttribution`,
+>    and `unidentified_speakers`), so `utterance_count` is 0 for a resolved attendee — the
+>    service only counts utterances for voices it could not attribute.
+> 8. **`minutes_md` can be empty.** It is `str | None` service-side on purpose (a missing
+>    narrative must not fail an hour of transcription). The normalizer falls back to
+>    `summary`, then to `''`. F3 must render an empty ata editor gracefully rather than
+>    assuming prose exists.
+> 9. **`MinutesJobStatus` and the apply counts** live in `@/lib/minutes-jobs/types`;
+>    `ApplyMinutesReviewState.counts` gained `actionsUnassigned` (how many action items
+>    were created with no owner because the named person was not a commission member).
+>
+> Unchanged and confirmed: `getActiveMinutesJob`, `getMinutesJobForReview`,
+> `submitMinutesJob`, `cancelMinutesJob`, `saveMinutesDraft`, `readMinutesTranscript`, the
+> `ActionState` shape, and `reconcileMinutesJob` staying off the frontend surface.
+> `MeetingListItem.minutesJobStatus` shipped exactly as §3.1 proposed (lead decision 1) —
+> implemented as a third batched `.in(...)` read inside `listMeetings`, matching the two
+> aggregates already there, **not** a PostgREST embed (no PGRST201 exposure).
+>
+> Error vocabulary (§7.3, lead decision 3) is published in
+> `src/lib/minutes-jobs/messages.ts`: `HC0S0`–`HC0S6` plus the mapped `HC000`/`HC021`,
+> with `mapMinutesError` and a pt-BR `MINUTES_MESSAGES` catalog. **`HC000`/`HC021` can
+> never reach the UI**: `apply_minutes_review` catches both inside the transaction and
+> re-raises `HC0S6`.
+
 This is the contract. Types live wherever backend's B4/B5 file split puts them (`types.ts` per the
 plan); signatures below are what frontend code will import and call. `ActionState` is copied from
 `src/lib/meetings/actions.ts` verbatim, not reinvented — reuse the same shape family so

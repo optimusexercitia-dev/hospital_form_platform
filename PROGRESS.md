@@ -120,19 +120,28 @@ highest `20260909001300`.
 | B1 migration: bucket + enum + `meeting_minutes_jobs` | backend | ✅ 2026-08-06 | `20260910000100_audio_minutes_schema.sql`. Enum `audio_job_status`; table + touch trigger + partial-unique active index; ONE SELECT policy (`app.is_staff_admin_of(app.commission_of_meeting(...))`); bucket `meeting-audio` 500 MB / 15 audio MIMEs; `config.toml` `[storage]` 50MiB → 512MiB (stack stopped+started, applies to every worktree). **RLS enabled, NOT forced** (0/157 tables force it; the DEFINERs run as the owner) and the grant excludes **`result` as well as `transcript`** — both deviations reported |
 | B2 migration: RPCs/doors/audit/flag | backend | ✅ 2026-08-06 | `20260910000200_audio_minutes_doors.sql`. 6 user RPCs + 2 service-role webhook helpers + `app.can_read_minutes_transcript` + `app.assert_audio_minutes_enabled`; both audited-read registries carry the `minutes_transcript.read` arm; flag row ships **disabled** (`seed.sql` forces ON for local/E2E). Error block **HC0S0–HC0S6**. **All RPCs are `public.*`, not `app.*`** — `config.toml` exposes only `public`, so the planned `app.` names would have been unreachable through PostgREST; reported |
 | B3 gen:types | backend | ✅ 2026-08-06 | pgTAP dropped (verified `pg_extension` empty) before `npm run gen:types` |
-| B4 generic `src/lib/audio-jobs/` client | backend | — | kind-agnostic; HMAC verify |
-| B5 `src/lib/minutes-jobs/` module | backend | — | context composer D14: agenda titles only |
-| B6 webhook route `api/webhooks/audio-jobs` | backend | — | raw-body HMAC; idempotent 200s |
-| B7 notifications · B8 env/runbook | backend | — | |
+| B4 generic `src/lib/audio-jobs/` client | backend | ✅ 2026-08-06 | `types.ts` (mirrors service `schema_version` **2.1**, not the plan's 2.0 — ADR 0007 added `metrics`) · `hmac.ts` · `metadata.ts` · `client.ts`. Kind-agnostic; zero meeting knowledge |
+| B5 `src/lib/minutes-jobs/` module | backend | ✅ 2026-08-06 | `actions/queries/reconcile/context/normalize/sanitize/messages/types/constants/callback-url`. D14 composer proven titles-only by neutralization. `reconcileMinutesJob` **internal** (lead decision 2). F4 wired as a 3rd batched `.in()` inside `listMeetings` — **not** an embed (no PGRST201 exposure) |
+| B6 webhook route `api/webhooks/audio-jobs` | backend | ✅ 2026-08-06 | Raw-body HMAC before parse; 401 only for signature, 200 for every permanent condition. **`src/proxy.ts` matcher now excludes `api/webhooks`** — without it the session gate redirected the callback to `/login` and the job died at the 24 h TTL. Probed on a real standalone build: webhook **401**, gated page **307** (contrast), health **200** |
+| B7 notification | backend | ✅ 2026-08-06 | Migration `20260910000300` — **not** app code. `app.enqueue_notification` is unreachable over PostgREST, so the call moved inside the two webhook RPCs. Reuses the `meeting`/`meeting`/`pending` vocabulary: the plan's names violate three `notifications` CHECK constraints |
+| B8 env & runbook | backend | ✅ 2026-08-06 | `.env.example` + [audio-minutes-runbook.md](docs/deployment/audio-minutes-runbook.md) (3 ceilings, callback reachability + the curl probe, key-rotation order, pre-enable checklist). **No "existing public-base-URL var" exists** — added `MINUTES_CALLBACK_BASE_URL` as a callback-specific override, request origin as the default |
 | F1 Ata card slot · F2 upload dialog | frontend | — | Design brief ✅ 2026-08-06: [audio-minutes-ui.md](docs/design/audio-minutes-ui.md) — component tree + §3 contract handed to backend for B5; implementation not started (blocked on B5 landing) |
 | F3 review page · F4 list badge · F5 nav | frontend | — | Design brief ✅ 2026-08-06 (same doc) — `MinutesDraft` shape (§3.2), state machine (§4), pt-BR copy (§5), a11y/motion plan (§6). §7's 6 open questions **answered by the lead in §9** — F3 is unblocked once B5 lands. Load-bearing answer: storage-js 2.108.1 `FileOptions` has **no `onUploadProgress`** and its upload is fetch-based, so F2 uploads via a raw `XMLHttpRequest` PUT |
 | T1 pgTAP (with B2) | backend | ✅ 2026-08-06 | `supabase/tests/305_audio_minutes.sql`, **105 assertions**, green on a fresh reset (suite **166 files / 5171**, PASS). Fixture asserts all four flags it depends on. **10 keystones verified by neutralization** — each guard reverted, each run REQUIRED red; two test defects found that way and fixed (see below) |
-| T2 unit · T3 E2E · T5 manual smoke | owners/tester | — | fixtures from service W3 |
-| T4 authz arms | backend | ✅ 2026-08-06 (arms 1–3) | `ARM=census` **HOLDS** (440 gates / 448 verdicts) · `ARM=floor` **HOLDS** (84 never-called doors, all allowlisted) · **diff-scoped `ARM=policy`** over the two new gates → **0 BLIND, 0 ERROR, both COVERED** by `305_audio_minutes.sql`; verdicts hand-merged into `docs/reviews/authz-door-audit-findings.md` (a subset run overwrites it). Re-run after B4–B8 |
+| T2 unit | backend | ✅ 2026-08-06 | **111 assertions** across `hmac` · `metadata` · `normalize` · `context` (the D14 keystone) · `sanitize` · the webhook route with real `Request` fixtures. **11 guards verified by neutralization**, all red. Full Vitest **1137/1137** |
+| T3 E2E · T5 manual smoke | tester/owners | — | fixtures from service W3; `signCallbackBody` is exported for the D16 signed-callback fixtures |
+| T4 authz arms | backend | ✅ 2026-08-06 (re-run after B4–B8) | `ARM=census` **HOLDS** (440 gates / 448 verdicts — unchanged by B4–B8) · `ARM=floor` **HOLDS** (84 never-called doors, all allowlisted) · **diff-scoped `ARM=policy`** was run for B1–B3 over the two new gates → **0 BLIND, 0 ERROR, both COVERED** by `305_audio_minutes.sql`, verdicts hand-merged into `docs/reviews/authz-door-audit-findings.md`. **B4–B8 added NO new policy and NO new `prosecdef`** (migration `20260910000300` replaces two functions that already landed in B2), so no further diff-scoped sweep is owed |
 
 Coordination: local `config.toml` storage cap 50 MiB → **512MiB, landed with B1** — the shared stack
 was stopped + started to pick it up. The file is committed, so **every worktree inherits it** and any
 other session must restart its own stack.
+
+**T2 neutralization audit (11 guards, all red).** One harness defect worth recording: the
+D14 keystone first reported GREEN-ON-NEUTRALIZED because the patch anchor
+`.select(AGENDA_TITLE_COLUMNS)` occurs **first inside a comment**, so `String.replace`
+rewrote the prose and left the real call armed. The harness now rejects an ambiguous
+anchor outright. Same family as the standing lesson: a comment is an assertion that goes
+stale silently — here it silently disarmed the tool checking the assertion.
 
 **T1 neutralization audit — two test defects found by requiring red, both fixed:**
 - the apply call ran as a bare statement, so removing the O2 assignee downgrade **aborted the

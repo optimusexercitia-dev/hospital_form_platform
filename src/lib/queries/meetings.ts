@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
 import { listAttachments } from '@/lib/queries/attachments'
+import { listActiveMinutesJobStatuses } from '@/lib/minutes-jobs/queries'
 import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
 import {
   DEFAULT_PAGE_SIZE,
@@ -105,6 +106,15 @@ export interface MeetingListItem {
    * "Assinaturas pendentes" column renders `—`). Never negative.
    */
   pendingSignatures: number | null
+  /**
+   * MIN (ADR 0099 D11) — `'processing'` or `'done'` when this meeting has an audio-minutes
+   * job in that state, else `null`. F4's list badge, and its ONLY new data need.
+   *
+   * `null` also when the `audio_minutes` flag is off (the batched read short-circuits, so
+   * an OFF tenant never queries the jobs table from the list at all) and for every
+   * consumer of the shared mapper other than {@link listMeetings}.
+   */
+  minutesJobStatus: 'processing' | 'done' | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -444,6 +454,7 @@ export function mapMeetingListItem(r: MeetingRow): MeetingListItem {
     // reverse meetings read) get the neutral defaults.
     pendingActionItems: 0,
     pendingSignatures: null,
+    minutesJobStatus: null,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -585,6 +596,19 @@ export async function listMeetings(
     }
   }
 
+  // (3) MIN (ADR 0099 D11 / F4): audio-job status per meeting, for the list badge.
+  //
+  // A third SCOPED `.in(...)` read joined in memory, matching (1) and (2) above rather
+  // than a PostgREST embed. The plan called this a "lateral join"; PostgREST cannot
+  // express one from the client, and the embed alternative would add a second FK path to
+  // an already-reachable table — which is how un-hinted embeds elsewhere in this codebase
+  // broke with PGRST201. This is bounded (one round trip per page, not per row), so the
+  // N+1 the instruction was guarding against is still avoided.
+  //
+  // The read is RLS-scoped like everything else here: `meeting_minutes_jobs_select` is
+  // staff_admin-only, so a plain member simply gets no badge — no UI branch required.
+  const minutesJobByMeeting = await listActiveMinutesJobStatuses(meetingIds)
+
   const rows = pageData.map((m) => {
     const base = mapListItem(m)
     const pendingSignatures =
@@ -599,6 +623,7 @@ export async function listMeetings(
       ...base,
       pendingActionItems: pendingActionsByMeeting.get(m.id) ?? 0,
       pendingSignatures,
+      minutesJobStatus: minutesJobByMeeting.get(m.id) ?? null,
     }
   })
 
