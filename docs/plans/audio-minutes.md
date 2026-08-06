@@ -9,6 +9,38 @@ gate). **Flag:** `audio_minutes`, default OFF, enable-migration authored with th
 phase but the flag row ships disabled (a flag without its seed/enable path leaves
 the phase dark after `db push`).
 
+> ## ✅ B0 is done — these resolutions BIND the tasks below
+>
+> Full record + evidence: **[audio-minutes-b0-findings.md](./audio-minutes-b0-findings.md)**
+> (catalog-derived, 2026-08-06). Where this plan and that document disagree, **the
+> findings win** — the text below was written before the catalog was read.
+>
+> 1. **canEdit is `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))`** —
+>    nothing wider. `update_meeting_minutes` is SECURITY **INVOKER**, and its
+>    `app.assert_meeting_staff_admin` gate is `is_staff_admin_of` alone.
+>    **PO decision O1: `administrativo`/`schedule_meetings` is EXCLUDED** from the
+>    audio feature, mirroring today's Ata editor.
+> 2. **Audit kinds must be dotted** (`audit_log_action_shape` CHECK). Use
+>    `minutes_job.created` · `.submitted` · `.completed` · `.failed` · `.cancelled` ·
+>    `.applied` · `minutes_transcript.read`. The `meeting_minutes_job_*` names below
+>    are **invalid** and would be rejected at write time.
+> 3. **The transcript door gates itself first.** The audited-read path is an
+>    allowlist in **two** places (`public.log_audit_access`'s literal list **and**
+>    `app._audit_access_authorized`'s `case`), and the latter short-circuits `true`
+>    for `platform_admin` — so "the access log accepted it" is **not** authorization
+>    (noun rule). Gate on `is_staff_admin_of` + status `done` before recording.
+> 4. **`apply_minutes_review` calls `public.create_committee_action_item`** — it does
+>    not re-implement it. **PO decision O2: the `action_items` flag stays ON** (it is
+>    enabled today), so apply relies on it; still map its `HC000`/`HC021` to pt-BR
+>    rather than leaking the raw error. The assignee must satisfy
+>    `app.is_member_of_for(commission, assignee)` — so F3's owner select offers
+>    **commission members only**.
+> 5. **Set `app.in_meeting_rpc` around the `minutes_md` write** —
+>    `guard_meeting_status` keys on that GUC and triggers fire inside DEFINER too.
+> 6. **`meeting_minutes_jobs.meeting_id` is `ON DELETE CASCADE`**, mirroring
+>    `meeting_agenda_items`. **PO decision O3:** orphaned audio is left to the 24 h
+>    TTL sweep (extended to cover objects with no live job); no delete hook in v1.
+
 ⚠ Standing caveats that bind every task here:
 - This document is **not authoritative on substrate**. Any SQL fact below
   (predicate names, policy shapes, column lists on existing tables) is verified
@@ -40,7 +72,11 @@ B0 → B1 → B2 → B3 ─→ B4 → B5 → B6 → B7 → B8
 
 ---
 
-## B0 — Preflight (backend)
+## B0 — Preflight ✅ DONE 2026-08-06 (lead)
+
+**Answers: [audio-minutes-b0-findings.md](./audio-minutes-b0-findings.md).** Branch
+confirmed to already contain post-AFF `main`; 298 registered == 298 files; window
+`20260910000100`+ holds. The original checklist is kept below for the record.
 
 1. Rebase onto post-AFF `main`; fresh `supabase db reset`; confirm
    registered == files.
@@ -94,7 +130,7 @@ cross-kind vocabulary; future interview-job tables reuse it.
 
 ```
 id                uuid pk default gen_random_uuid()
-meeting_id        uuid not null references meetings(id)   -- delete behavior per B0.3
+meeting_id        uuid not null references meetings(id) on delete cascade  -- B0 §6
 requested_by      uuid not null references profiles(id)
 status            audio_job_status not null default 'uploading'
 audio_path        text                                    -- storage object path
@@ -116,8 +152,9 @@ created_at / updated_at timestamptz not null default now() (+ touch trigger per 
   `where status in ('uploading','processing','done')` — D4/D13's one-active-job
   rule, enforced by the DB not the UI.
 - Index on `(status, created_at)` for the reconciliation scan.
-- **RLS:** enable + force. One SELECT policy: requester's commission canEdit
-  predicate (B0.2's real form) over the job's meeting. **Column-level SELECT
+- **RLS:** enable + force. One SELECT policy:
+  `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))` — the same
+  predicate every `meeting_agenda_items` write policy uses. **Column-level SELECT
   grant excludes `transcript`** (grant the explicit column list; `transcript`
   is reachable only through the B2 door — and remember: a column the grant list
   omits reads 42501, which is the point). No INSERT/UPDATE/DELETE policies for
@@ -137,15 +174,15 @@ gate → work (RLS-equivalent denial first, integrity second).
   passes the canEdit predicate; no active job (rely on the partial unique index
   for the race — catch `unique_violation` into a pt-BR-coded error). Inserts
   `uploading` row with `audio_path` composed server-side; audit
-  `meeting_minutes_job_created`.
+  `minutes_job.created`.
 - `app.submit_minutes_job(p_job_id uuid, p_service_job_id text)` — guards:
   canEdit; status `uploading`. Sets `processing` + `service_job_id`; audit
-  `meeting_minutes_job_submitted`.
+  `minutes_job.submitted`.
 - `app.cancel_minutes_job(p_job_id uuid)` — guards: canEdit; status in
   (`uploading`,`processing`,`done`) — cancelling an unreviewed `done` job is
   legal (user gives up on review). Sets `cancelled` + `cancelled_at`, purges
   `result`/`draft`/`transcript` (+`purged_at`); audit
-  `meeting_minutes_job_cancelled`. (Audio delete + service cancel are app-side,
+  `minutes_job.cancelled`. (Audio delete + service cancel are app-side,
   B5 — storage and HTTP don't belong in SQL.)
 - `app.save_minutes_draft(p_job_id uuid, p_draft jsonb)` — guards: canEdit;
   status `done`; `p_draft` size sanity cap (~2 MB) so a broken client can't
@@ -157,19 +194,33 @@ gate → work (RLS-equivalent denial first, integrity second).
      live `meeting_agenda_items` row of THIS meeting → update
      `discussion_notes` / `resolution`; dangling or null ref → insert appended
      at the end (position = max+1, respecting the deferrable-unique ordering).
-  3. Kept action items → `action_items` hub rows via the B0.2-verified door
-     (owner user_id when resolved, else unassigned; verbatim text folded into
-     description app-side before save, so SQL stays dumb).
+  3. Kept action items → **`public.create_committee_action_item(p_commission =>
+     …, p_source_type => 'meeting', p_meeting_id => …, p_agenda_item_id => …,
+     p_title => …, p_description => …, p_assigned_to => …, p_due_date => …)`** —
+     call the door, never insert into `action_items` directly (B0 §4). Owner
+     user_id when resolved, else unassigned; verbatim text folded into
+     description app-side before save, so SQL stays dumb. Map its `HC000`
+     (flag) / `HC021` (assignee not a commission member) to pt-BR — the raw
+     error must not surface (Rule 10). An assignee that fails the member check
+     is downgraded to unassigned rather than aborting the apply.
   4. `meetings.minutes_md := draft->>'minutes_md'` (already sanitized app-side,
      B5 — the RPC additionally rejects raw `<` HTML as belt-and-braces per
-     Rule 7).
+     Rule 7). **Wrap the UPDATE in `set_config('app.in_meeting_rpc','on',true)`
+     … `'off'`**, as `update_meeting_minutes` does — `guard_meeting_status`
+     keys on that GUC and fires inside DEFINER too (B0 §7).
   5. Job → `applied`, purge content columns, `applied_at`/`purged_at`; audit
-     `meeting_minutes_job_applied` with `{agenda_updated, agenda_created,
+     `minutes_job.applied` with `{agenda_updated, agenda_created,
      actions_created}` counts (counts, never content).
 - `app.read_minutes_transcript(p_job_id uuid) returns text` — the audited door
-  (D8/D15): canEdit + status `done`; emits the read-audit row (who/that; the
-  house audited-free-text-read pattern from the safety module, resolved from
-  catalog at build); returns `transcript`.
+  (D8/D15). **It gates itself FIRST** — `app.is_staff_admin_of` + status `done`
+  — and only then records the access. The house path
+  (`public.log_audit_access`) is an allowlist in **two** places that both need a
+  `minutes_transcript.read` arm, and its authorizer
+  `app._audit_access_authorized` **returns true early for `platform_admin`**, so
+  a door that inferred authorization from it would breach the noun rule
+  (B0 §3). Recommended shape: a boolean `app.can_read_minutes_transcript(
+  p_job_id, p_uid)` with **no admin arm**, referenced by the new
+  `_audit_access_authorized` arm and checked directly by the door.
 - Webhook helpers (`service_role`-only execute): `app.complete_minutes_job(
   p_job_id, p_result jsonb, p_transcript text)` — `processing → done`, stores
   `result`, seeds `draft := result`-derived shape, `received_at`; and
@@ -179,8 +230,12 @@ gate → work (RLS-equivalent denial first, integrity second).
 - **Flag:** insert `audio_minutes` disabled into the flag store (house pattern
   from the latest `enable_*` migration) + add the key to `FeatureFlags` in
   [feature-flags.ts](../../src/lib/queries/feature-flags.ts).
-- **Audit event kinds** registered per the house enum/CHECK if one exists
-  (verify B0) — all six `meeting_minutes_job_*` kinds (D15).
+- **Audit event kinds** — there is **no enum**, only
+  `audit_log_action_shape CHECK (position('.' in action) > 1)`. The seven kinds
+  are `minutes_job.created` / `.submitted` / `.completed` / `.failed` /
+  `.cancelled` / `.applied` and `minutes_transcript.read` (D15). Writer:
+  `app.audit_write(action, entity_type, entity_id, commission, summary,
+  metadata, organization, hospital)`.
 
 ## B3 — Types (backend)
 
@@ -257,7 +312,9 @@ any auth middleware matcher (verify `src/proxy.ts` / middleware config at build)
 
 ## B7 — Notification (backend, D11)
 
-On done/failed: `app.enqueue_notification` (signature per B0.2) to
+On done/failed: `app.enqueue_notification(p_user_id, p_commission_id, p_kind,
+p_milestone, p_is_reminder, p_entity_type, p_entity_id, p_title, p_body,
+p_dedup_key)` — 10 positional args, DEFINER (B0 §5) — to
 `requested_by` — pt-BR title/body, deep link to
 `…/meetings/[meetingId]/revisao-ata` (done) or the meeting page (failed).
 
@@ -309,9 +366,11 @@ under `src/components/meetings/review/`:
   discussion/resolution side-by-side with extracted, editable, include toggle;
   new → editable + removable; attach-resolution select for index-less
   resolutions.
-- `actions-review.tsx` — rows with owner select (attendees with `user_id`),
-  date picker, verbatim `owner_text`/`deadline_text` shown as hints, include
-  toggle.
+- `actions-review.tsx` — rows with owner select, date picker, verbatim
+  `owner_text`/`deadline_text` shown as hints, include toggle. ⚠ The select
+  offers only attendees who are **commission members** — the action-items door
+  enforces `app.is_member_of_for` and rejects anyone else with `HC021`
+  (B0 §4 R2), so a guest attendee must not be selectable as owner.
 - `next-meeting-card.tsx` — suggestion display; post-apply the success state
   offers "Agendar próxima reunião" opening the existing create-meeting dialog
   prefilled (D7).
@@ -420,9 +479,9 @@ before pilot-tenant flag enablement, alongside the service's DPA gates (D17).
   local + one prod smoke).
 - **Download-URL TTL vs queue depth**: 6 h chosen against the service's job
   budget; confirm against its deployed `JOB_TIMEOUT_SECONDS`.
-- **`action_items` insert path**: hub door shape assumed RPC-or-RLS; B0.2
-  resolves; if it's a guarded DEFINER, `apply_minutes_review` must call it, not
-  re-implement it (a new door must inherit every sibling arm).
+- ~~**`action_items` insert path**~~ — **resolved (B0 §4)**: it is a guarded
+  DEFINER, `public.create_committee_action_item`, and `apply_minutes_review`
+  calls it.
 - **Draft concurrency**: last-write-wins accepted for v1 (small canEdit circle).
 - **Meeting deleted / status changed mid-job**: apply re-guards `held`; job rows
   on deleted meetings follow B0.3's FK decision.

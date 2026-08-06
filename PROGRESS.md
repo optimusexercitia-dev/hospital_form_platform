@@ -132,9 +132,11 @@ Coordination: local `config.toml` storage cap 50 MiB must rise for 500 MB upload
 `supabase stop && supabase start` on the **shared** stack; this session's stack is single-owner
 today (lead-verified), bump lands with B1.
 
-**Blocking on the PO (B0 §"Open questions"):** O1 `administrativo`/`schedule_meetings` excluded from
-audio? · O2 apply behaviour when the `action_items` flag is OFF (degrade vs refuse) · O3 orphaned
-audio after a cascaded meeting delete (24 h TTL sweep vs delete hook).
+**PO decisions 2026-08-06 (all three resolved, recorded in the findings doc):** O1 `administrativo`
+is **excluded** — audio mirrors the Ata editor's `app.is_staff_admin_of`. O2 the `action_items` flag
+**stays ON** (verified enabled), so apply relies on the door; no degrade path. O3 orphaned audio is
+left to the **24 h TTL sweep**, extended to cover objects with no live job; no delete hook in v1.
+The plan's six required edits are **applied** — B1 may start.
 
 ### ⬛ AFF — Hospital affiliation, person identity & the org people directory · **COMPLETE 2026-08-06**
 

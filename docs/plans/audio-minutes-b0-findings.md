@@ -181,23 +181,32 @@ worktree at once.
 
 ---
 
-## Open questions for the lead / PO
+## PO decisions — resolved 2026-08-06
 
-- **O1** — Confirm `administrativo` + `schedule_meetings` is **excluded** from the
-  audio feature (mirrors today's ata editor). Including it would mean widening
-  `update_meeting_minutes` too, which is out of this scope.
-- **O2** — Apply-time behaviour when the `action_items` flag is OFF: degrade and
-  report (recommended), or refuse the whole apply?
-- **O3** — Orphaned audio after a cascaded meeting delete (§6): accept the 24 h
-  TTL sweep for v1, or add a delete hook now?
+- **O1 — `administrativo` is EXCLUDED.** The audio feature mirrors today's Ata
+  editor exactly: `app.is_staff_admin_of` and nothing wider. The RLS/RPC
+  asymmetry noted in §1 stays as it is — pre-existing, not this feature's to fix.
+- **O2 — the `action_items` flag stays ON.** Verified enabled in
+  `app.feature_flags` (it is a single global table, not per-tenant), so apply may
+  rely on the door succeeding. Rider **R1 is withdrawn**: no degrade path. Its
+  `HC000`/`HC021` are still mapped to pt-BR rather than surfaced raw (Rule 10),
+  and an assignee failing the member check is downgraded to unassigned rather
+  than aborting the apply. **R2 stands** — F3's owner select offers commission
+  members only.
+- **O3 — 24 h TTL sweep, no delete hook.** B5's reconciliation is extended to
+  delete audio objects older than 24 h that have no live job, which covers the
+  cascade-orphan case without adding a door to the meetings module.
 
-## Plan edits required before B1
+## Plan edits required before B1 — ✅ all applied 2026-08-06
 
-1. Replace every "canEdit predicate" reference with
-   `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))` (§1).
-2. Rename all six audit kinds to dotted form (§2).
-3. Rewrite the B2 transcript-door bullet for the two-registry + independent-gate
+Landed in [audio-minutes.md](./audio-minutes.md) as a binding "B0 is done" preamble
+plus in-place fixes to B1, B2, B7, F3 and the risk list:
+
+1. ✅ canEdit → `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))` (§1).
+2. ✅ All audit kinds renamed to dotted form (§2).
+3. ✅ B2 transcript-door bullet rewritten for the two-registry + independent-gate
    shape (§3).
-4. Add riders R1/R2 to the `apply_minutes_review` bullet (§4).
-5. Add "set `app.in_meeting_rpc`" to the `apply_minutes_review` bullet (§7).
-6. Pin the FK to `ON DELETE CASCADE` and note the orphan-audio rider (§6).
+4. ✅ `apply_minutes_review` now names `create_committee_action_item` explicitly,
+   with the R2 rider carried into F3 (§4).
+5. ✅ `app.in_meeting_rpc` wrap added to the `minutes_md` write (§7).
+6. ✅ FK pinned to `ON DELETE CASCADE`; orphan-audio handled by O3 (§6).
