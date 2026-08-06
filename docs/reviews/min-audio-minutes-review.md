@@ -329,4 +329,207 @@ worth doing together.
 
 ---
 
-**CHANGES REQUESTED**
+**CHANGES REQUESTED** *(round 1 — superseded by round 2 below)*
+
+---
+
+# Round 2 — re-review of the remediation delta
+
+- **Date:** 2026-08-06 · **Range:** `831d5a8..b015513`
+- **Fix commits:** `cba04fd` (frontend a11y) · `0939437` (backend B1 / M1 / M2 / N6 / N7 / I5) ·
+  `6e4d4a6` (tester proof) · migration `20260910000400_audio_minutes_audio_reclaim.sql`
+- **Method:** same standard as round 1 — the catalog and the code, never the fix reports.
+  Every claim below was re-derived from `pg_proc` / `pg_policy` / ACLs or from the file, and
+  the round-1 authz probe was re-run in full as a regression check.
+
+## Round-1 findings — disposition
+
+| # | Finding | Status |
+| --- | --- | --- |
+| **B1** | Apply never deletes the audio | ✅ **FIXED — and proven** |
+| **M1** | The O3 orphan sweep does not exist | ✅ **FIXED — built, not just documented** |
+| **M2** | Lazy TTL ≠ the asserted ≤ 24 h ceiling | ✅ **ACCEPTED — ADR 0099 Amendment 1** |
+| N1–N5, I6 | a11y batch + raw UUID | ✅ Fixed, and now **verified live** |
+| N6, N7, I5 | error map, `server-only`, dead strings | ✅ Fixed (N7 with a cost — see R3) |
+
+### B1 — verified fixed, and the proof is the part that matters
+
+**Catalog.** `public.apply_minutes_review` now reads `j.audio_path` into `v_audio_path` in
+its opening `select` (line 31-32 of `prosrc`) and returns it alongside the counts. The
+rebuild preserved everything a `DROP`+`CREATE` silently loses: `prosecdef = t`, owner
+`postgres`, `proconfig = {search_path=app, public, pg_catalog}`, and
+`proacl` still carrying `authenticated=X` — checked explicitly, because a rebuilt DEFINER
+losing its ACL is a standing failure mode in this codebase.
+
+**Code.** `actions.ts:319-334` deletes **after** the RPC and wraps it in `try/catch` that is
+deliberately swallowed. That ordering is right: the ata is written and the review committed
+by that point, so a storage hiccup must not surface as a failed apply — and the sweep is now
+a real backstop for the miss.
+
+**Proof.** `e2e/meeting-audio-minutes.spec.ts:458-530` (scenario 1b) is exactly the assertion
+round 1 said was absent, and it is **non-vacuous**: it establishes a baseline that the object
+genuinely exists after upload (`:481`), asserts it **survives** the `audio_release: false`
+callback with `audio_deleted_at` still null (`:502-505`) — the pre-fix state, asserted
+positively rather than assumed — and only then asserts gone + stamped after Concluir
+(`:522-526`). It would have failed before `0939437`. `DoneCallbackRefs.audioRelease` defaults
+to `true`, so scenario 1's existing callback-path coverage is unchanged rather than traded
+away. pgTAP `7.15a` asserts the returned `audio_path` equals the row's actual value, not
+merely non-null.
+
+### M1 — verified built; the blunter predicate is accepted, and is better than what O3 wrote
+
+`public.list_stale_meeting_audio(int, int)` — `prosecdef = t`, returns
+`TABLE(object_path text, job_id uuid)`, `proacl = {postgres=X, service_role=X}`. No
+`authenticated`, no `anon`, no `PUBLIC`.
+
+I probed the door rather than reading its grant: **`authenticated` (both `chefe.ccih` and
+`platform@test.local`) and `anon` are all refused at the ACL.** It enumerates every tenant's
+object paths, so that split is load-bearing, and pgTAP `11.6`/`11.7` assert it **both ways** —
+11.7 exists precisely so 11.6 could not pass for a function that was simply dead.
+
+**I proved the detector can find something**, rather than accepting an empty result as health.
+Seeding four objects in one rolled-back transaction:
+
+| specimen | expected | actual |
+| --- | --- | --- |
+| 30 h old, **no job row at all** (cascade orphan) | found, `job_id` NULL | ✅ found, NULL |
+| 30 h old, owned by an **`applied`** job (the B1 leftover) | found, with its `job_id` | ✅ found, with id |
+| fresh object in `meeting-audio` | **not** swept | ✅ excluded |
+| 99 h old in `form-assets` | **not** swept | ✅ excluded |
+
+**On the blunter predicate.** Round 1 asked for "the sweep O3 promised **or** an honest
+correction". This delivers both, and deliberately overshoots O3's wording: every
+`meeting-audio` object past 24 h, no per-status branching. I accept it, and I think it is the
+better rule. "Objects with no live job" would have left the failed-delete case unswept — which
+is precisely the class that produced B1. A deviation that makes a reclamation rule *wider* and
+*less branched* is the safe direction; the one to refuse would be the reverse. `sweep.ts:14-19`
+argues this in the file rather than leaving it to a commit message.
+
+Round 1 also faulted the runbook for asserting a control that did not exist. Runbook §5 is
+now rewritten to describe the mechanism that was actually built, names both triggers, warns
+explicitly against quoting a retention figure without reading Amendment 1, and adds an
+operator query (`select * from public.list_stale_meeting_audio(24, 50);`) with "empty is the
+healthy steady state". That closes the documentation half properly.
+
+### M2 — accepted
+
+ADR 0099 **Amendment 1** does what round 1 asked and rather more: it separates what D2
+promises from what the mechanism guarantees, states the residual in one plain sentence
+("≤ 24 h **plus the gap to the next activity in that tenant**, not a wall-clock guarantee"),
+explains why `pg_cron` is not worth taking for a flag-OFF feature, and lists what would
+reopen it. The last trigger is the sharp one and I want it on the record here too: **a D18
+interview recording is case-PHI, and a Class-1 PHI recording outliving its ceiling is a
+different severity of problem from a committee meeting doing so.** Whoever builds interviews
+inherits this amendment, not just this decision.
+
+### MINOR / INFO batch
+
+Verified at the markup level and, more importantly, through the **accessibility API** in the
+new E2E assertions — which closes round 1's real gap here, since the frontend's own pass could
+not hydrate a browser and could only argue structurally.
+
+- **N1** — the file input resolves through `getByLabel("Arquivo de áudio")` in
+  `uploadAudioAndSubmit`, exercised by every uploading test. `getByLabel` only matches a
+  genuine label/`aria-label` association, so the locator *is* the assertion.
+- **N2** — the percentage moved onto `role="progressbar"` with `aria-valuemin`/`max` asserted,
+  and only the phase text remains in `role="status" aria-live="polite"`. The spec holds the
+  uploading phase open with a routed delay on the PUT to assert it at all — a real test, not a
+  snapshot.
+- **N3** — `aria-label={formatAttachResolutionLabel(r.text)}`, truncated at 80 chars
+  (`minutes-labels.ts:137-141`). See R1 below for the residual.
+- **N4** — `date-picker.tsx` gained an optional `"aria-label"` prop, applied to the trigger.
+  I checked the shape myself because it is a shared component across 22 files: it is **purely
+  additive** — an optional prop that resolves to `undefined` at every other call site, which
+  React omits. No behavior change anywhere else. Per-row names `"Prazo — <title>"` asserted.
+- **N5** — fixed at the render boundary, which is the right place:
+  `displaySpeakerLabel` (`minutes-labels.ts:147-150`) tests the label against a UUID regex and
+  falls back to a pt-BR unknown-speaker label, so a normalizer regression cannot put a machine
+  id on screen.
+- **I6** — `aria-controls` targets now always exist (`hidden` attribute rather than conditional
+  mount); the include checkboxes hold the stable name `"Incluir na ata"` with state carried by
+  Radix's `aria-checked`, and both scenario 1 and the keyboard-only scenario 8 now drive them
+  by role + `toBeChecked()`.
+- **N6 / N7 / I5** — error map, `server-only`, dead strings: fixed. The three misrouted
+  success strings are gone and `ActionState.error` is now an error channel only; the success
+  banner supplies the pt-BR confirmation, asserted in the spec.
+
+## New observations from the delta (none blocking)
+
+**R1 (MINOR) — N3's fix is per-resolution, not per-target, and that is my spec's fault.**
+The attach button now announces `"Anexar: <resolution text>"`, but the same resolution renders
+one button **per agenda card** (the spec asserts `toHaveCount(3)`), so a screen-reader user
+hears three identically-named buttons and must rely on card context to know which item they
+are attaching to. Frontend implemented exactly the `aria-label` round 1 prescribed; the
+residual is in what I prescribed. Folding the target into the name
+(`"Anexar '<resolução>' a '<item>'"`) would close it. Non-blocking.
+
+**R2 (MINOR, open follow-up) — an undiagnosed click-delivery anomaly, mitigated not explained.**
+The tester records that `transcript-panel.tsx`'s disclosure click intermittently never reaches
+React when the spec file declares ≥ 8 tests (bisected: 7 always passes, 8+ always misses), with
+the failure landing in scenario 1, which runs *first* — ruling out shared browser or DB state.
+It is mitigated by a retry helper that always re-checks the real `aria-expanded`, so the
+assertion is not weakened. I accept the "environment artifact" reading: it corroborates the
+independent hydration oddity frontend hit in the same sandbox (`document.hidden: true`,
+`requestAnimationFrame` never firing, on *pre-existing unrelated* buttons). But a click that
+never reaches React is not self-evidently harness-only, and the mechanism is unexplained.
+Worth one look on different hardware before the pilot; not worth blocking a flag-OFF feature.
+
+**R3 (INFO) — my N7 had a cost I did not foresee, and on `hmac.ts` it was probably not worth it.**
+Adding `import 'server-only'` to `hmac.ts` made it unimportable from Playwright's esbuild
+loader (Next aliases that package per-bundle; the alias is webpack-only), so
+`e2e/helpers/minutes.ts:15-22` now carries an **inlined copy of `signCallbackBody`**. D16's
+property — "it tests our verification for real" — is now "against a transcribed twin". Drift
+**fails closed** (a scheme change in `hmac.ts` would red every MIN scenario with a 401), so
+this is safe, and it is flagged in PROGRESS.md. But `hmac.ts` reads no env and takes the secret
+as a parameter, so it would have failed closed if bundled anyway — the guard bought little and
+cost a duplicated security routine. Either keeping it or reverting it on `hmac.ts` alone is
+fine by me; `metadata.ts` should keep it.
+
+**R4 (INFO) — the sweep is a global maintenance task triggered per-tenant.** Any tenant's
+callback or page load runs a bounded pass (200 objects / 10 min / instance) over **every**
+tenant's stale objects. Correct for a TTL and no disclosure risk — the door is unreachable by
+any user role — but the throttle is per-instance and global, not per-tenant. Immaterial at
+pilot volume; worth knowing if audio volume ever grows.
+
+**R5 (INFO) — `search_path` is the house pattern, not the plan's `''`.** All three MIN DEFINERs
+carry `search_path=app, public, pg_catalog`, shared by **671** DEFINER functions here. Not a
+shadowing risk: the path is pinned in `proconfig` (a caller cannot inject), the bodies are
+fully qualified, and `authenticated`/`anon` hold **no CREATE** on `app`, `public` or `storage`
+(verified). Closing the loop since the plan text said otherwise.
+
+## Regression check
+
+The delta touched a migration that rebuilds an existing DEFINER, so I re-ran round 1's
+authorization probe in full rather than assuming. **Identical results:** `platform_admin` sees
+0 rows and is refused by all six user-facing doors (`sem permissão`) and by the ACL on both
+webhook helpers; `org_admin`, plain staff and `anon` likewise; `chefe.ccih` reads normally.
+`meeting_minutes_jobs` still carries **exactly one** policy (SELECT, `authenticated`, unchanged
+qual), the `authenticated` grant still lists **16** columns with `transcript` and `result`
+excluded, and `read_minutes_transcript`'s body hash is unchanged. No new policy and one new
+`prosecdef`, whose ACL I probed directly.
+
+Local DB left canonical: all probes ran in rolled-back transactions — 0 job rows, 0
+`meeting-audio` objects, `audio_minutes` still `t` as seeded.
+
+## Still open at sign-off (none blocking)
+
+- **R1** — N3's per-resolution name is ambiguous across target cards.
+- **R2** — the undiagnosed click-delivery anomaly; retry-mitigated, worth one look elsewhere.
+- **R3** — the duplicated `signCallbackBody` in the E2E helper (or revert `server-only` on `hmac.ts`).
+- **T5 manual smoke** — still owed by the owners before the flag is enabled anywhere, per D17.
+- **Cutover** — migrations `20260910000100/200/300/400` are local-only; `db push` needs the
+  human's authorization and must be sequenced with the AFF push. Dark either way while the flag
+  is OFF.
+- The Cloud storage upload limit (runbook §2) is still blank and is a **pre-enable** gate, not a
+  merge gate.
+
+## Verdict
+
+The blocker is fixed at the layer that had the defect, the proof that was missing now exists
+and is non-vacuous, the sweep was **built** rather than documented away, and the one thing that
+genuinely could not be fixed without reopening D10 was recorded as an accepted deviation
+that names its own reopening conditions. Round 1's authorization posture is unregressed.
+
+---
+
+**APPROVED**

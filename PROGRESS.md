@@ -372,7 +372,8 @@ not a defect — it reads exactly like a real red.
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **MIN** — Meeting audio → generated ata (ADR 0099 D1–D18) | ⛔ **CHANGES REQUESTED (r1)** — 1 BLOCKER (apply never deletes the audio; D2 + acceptance 4, invisible to E2E because both fixtures pin `audio_release: true`), 2 MAJOR (the O3 orphan sweep does not exist; lazy TTL ≠ the asserted ≤24 h ceiling), 7 MINOR, 6 INFO | 2026-08-06 | [r1](docs/reviews/min-audio-minutes-review.md) |
+| **MIN** — Meeting audio → generated ata (ADR 0099 D1–D18) | ✅ **APPROVED (r2)** — BLOCKER + both MAJORs closed & independently re-verified (sweep door probed, detector proven able to find an orphan; authz probe re-run unregressed); 3 MINOR open (R1 N3 name ambiguity, R2 undiagnosed click anomaly, R3 duplicated `signCallbackBody`) | 2026-08-06 | [r2](docs/reviews/min-audio-minutes-review.md#round-2--re-review-of-the-remediation-delta) |
+| ~~**MIN** — round 1 (B1 apply never deletes the audio; M1 the O3 sweep does not exist; M2 lazy TTL)~~ | ⛔ CHANGES REQUESTED — 1 BLOCKER, 2 MAJOR, 7 MINOR, 6 INFO | 2026-08-06 | [r1](docs/reviews/min-audio-minutes-review.md) |
 | **AFF** — Hospital affiliation, person identity & the org people directory (ADR 0097 D1–D19 + ADR 0098) | ✅ **APPROVED (r2)** — F1–F7 closed & re-verified; 2 MINOR open (N1, N2) | 2026-08-06 | [r2](docs/reviews/aff-review.md#8-round-2--re-review-of-the-remediation-delta-86ce0d15b4b1df) |
 | ~~**AFF** — round 1 (F1–F7 filed: Rule 10 string, detector blind to named conditions, audit-arm & CPF-probe gaps)~~ | ✅ APPROVED — 6 non-blocking follow-ups, all open at sign-off | 2026-08-06 | [r1](docs/reviews/aff-review.md) |
 | **PCI** — Process/Case Integrity audit remediation (ADR 0095) | ✅ APPROVED (r2) | 2026-08-05 | [r2](docs/reviews/process-integrity-and-template-versioning-review.md#round-2--re-review-head-f6c847d) |
