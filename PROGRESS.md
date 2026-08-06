@@ -117,7 +117,7 @@ Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc
 | -- | ----- | ----- | ----- |
 | **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
 | **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ✅ **done** — migrations `20260909000500`–`000900`; ADR 0098 §W2 |
-| **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ⏸ blocked on W2 contract |
+| **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ▶ backend ✅ (migrations `20260909001000`–`001100`; ADR 0098 §W3) · frontend in progress · T3.6 pending `tester` |
 
 **File ownership (binding for this workstream):** `backend` owns `supabase/**` (migrations, pgTAP,
 `seed.sql`, **and `supabase/demo/seed-revisao-prontuario.sql` — audit MEDIUM-2, it is in no gate**),
@@ -196,6 +196,38 @@ findings reports were **merged**, not discarded.
 > 0097 finding 9 and the external census classify as a real dominance gap, and D18 fixes. A fixed
 > bug leaving behind a test that asserts the old behaviour is how the next reader "repairs" the
 > code back into the defect.
+
+**W3 backend result (`backend`, 2026-08-06).** Migrations `20260909001000` (the
+deactivated-account guard, `HC0R4`) · `001100` (the `update_affiliation` door + the
+`affiliation.updated` audit arm). `OrgUserDetail` now carries `affiliations: UserAffiliation[]`
+and the three transitional singular fields are gone; D14 is enforced by
+`authorizeOrgAdminForUser` across name/CPF/category/credentials AND the account lifecycle;
+`registerUser` requires, validates, normalizes and stores `cpf` with a front-loaded collision
+block; `lookupOrgPeople` + `updateAffiliation` landed in `src/lib/affiliations/actions.ts`;
+T3.4 seats `hospital_admin` alongside `org_admin` when an org has exactly one hospital.
+Gates: **296 registered == 296 files** · pgTAP **165 files / 5050 tests PASS** (`304` = **23**)
+· Vitest **1003/1003** · lint 0/0 · typecheck clean · `ARM=census` and `ARM=floor` HOLD.
+
+> ⚠ **THE AUTHZ SWEEP EXAMINED NONE OF THE W3 DOORS, AND "0 BLIND" SAYS SO ONLY IF YOU
+> KNOW THAT.** The diff-scoped run over `update_affiliation` / `update_affiliation_for` /
+> `affiliate_person` printed **PREDICATE ARM: empty, POLICY ARM: empty, BLIND 0, ERROR 0** —
+> because W3 changed no policies and these doors return `uuid`, so the boolean arm's
+> neutralization (rewrite the body to `select true`) has no meaning and is skipped silently.
+> The row-door arm does not apply either. `ARM=census` does not flag them, since void/uuid
+> write-path doors are not in its population. **They are covered ONLY by pgTAP `304` §1–§2**
+> (ACL split, authority arms, and observed-state assertions). This is a second instance of
+> the hole the lead is amending ADR 0079 for.
+
+> ⚠ **T3.5's blast radius, measured.** The seed change reded **11 assertions in 5 files**, all
+> traced and fixed at the spec that owned the assumption: `301` §2 (two CPF literals collided
+> with newly-seeded values), `302` §2/§5 (a fixture subject the new HC0R4 guard now refuses,
+> plus an absolute `audit_log` count that was never hermetic — `frontend`'s dev server hitting
+> the same local DB reded it, and the assertions are now baseline-scoped), and `190`/`224`/`293`
+> (anti-lockout suites that inherited "the bootstrap has no org_admin"). **No fixture was
+> clamped to preserve an old count.**
+
+> ⚠ **`301` §4's fixture is now idempotent by construction** — T3.5 seeds the D2 affiliation, so
+> a blind insert duplicated the pair and aborted the file on `hospital_affiliations_active_uq`.
 
 > ⚠ **`seed.sql` is a contract with ~900 pgTAP tests + E2E.** T3.5 adds an org (Rede C), personas and
 > affiliation rows; the very constants ADR 0097 cites (21/34 memberships, 13/30 profiles, 6 dangling)

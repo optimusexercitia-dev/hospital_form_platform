@@ -27,6 +27,11 @@ declare
   st_x2 uuid := gen_random_uuid();
   sa_y uuid := gen_random_uuid();
   st_y uuid := gen_random_uuid();
+  -- AFF T3.5 / FUP-PCITV-1 row 6 — the ORG_ADMIN the hermetic fixture never had.
+  -- Its absence left the `is_commission_admin_of` ORG disjunct of six existing
+  -- isolation keystones unexercised: every one of them denied (or admitted) through
+  -- the staff_admin arm, so the org arm could have been anything at all.
+  oa_b uuid := gen_random_uuid();
   comm_x uuid := gen_random_uuid();
   comm_y uuid := gen_random_uuid();
   -- Multi-tenancy: commissions.{hospital_id,organization_id} are NOT NULL since
@@ -133,7 +138,8 @@ begin
     ('00000000-0000-0000-0000-000000000000', st_x,  'authenticated', 'authenticated', st_x  || '@test', now(), now()),
     ('00000000-0000-0000-0000-000000000000', st_x2, 'authenticated', 'authenticated', st_x2 || '@test', now(), now()),
     ('00000000-0000-0000-0000-000000000000', sa_y,  'authenticated', 'authenticated', sa_y  || '@test', now(), now()),
-    ('00000000-0000-0000-0000-000000000000', st_y,  'authenticated', 'authenticated', st_y  || '@test', now(), now());
+    ('00000000-0000-0000-0000-000000000000', st_y,  'authenticated', 'authenticated', st_y  || '@test', now(), now()),
+    ('00000000-0000-0000-0000-000000000000', oa_b,  'authenticated', 'authenticated', oa_b  || '@test', now(), now());
 
   update public.profiles set full_name = 'Admin', is_admin = true where id = admin_id;
   update public.profiles set full_name = 'StaffAdmin X' where id = sa_x;
@@ -141,6 +147,7 @@ begin
   update public.profiles set full_name = 'Staff X2' where id = st_x2;
   update public.profiles set full_name = 'StaffAdmin Y' where id = sa_y;
   update public.profiles set full_name = 'Staff Y' where id = st_y;
+  update public.profiles set full_name = 'OrgAdmin B' where id = oa_b;
 
   -- One org + hospital for the fixture; commissions.organization_id is
   -- auto-derived from hospital_id by the trigger (we set hospital_id only).
@@ -153,11 +160,18 @@ begin
   -- profiles_tenant_has_org_trg checks this at COMMIT). Anchor the bootstrap's
   -- tenant users to this fixture org now that it exists; the admin stays org-less.
   update public.profiles set home_organization_id = org_b
-    where id in (sa_x, st_x, st_x2, sa_y, st_y);
+    where id in (sa_x, st_x, st_x2, sa_y, st_y, oa_b);
 
   insert into public.commissions (id, name, slug, created_by, hospital_id) values
     (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id, hosp_b),
     (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);
+
+  -- The org-tier grant (organization_id set, hospital + commission NULL, per
+  -- memberships_scope_shape). This makes `app.is_commission_admin_of(comm_x)` true for
+  -- oa_b through its ORG leg, with no commission row at all — which is precisely the
+  -- disjunct the fixture could not reach before.
+  insert into public.memberships (organization_id, principal_id, role) values
+    (org_b, oa_b, 'org_admin');
 
   insert into public.memberships (commission_id, principal_id, role) values
     (comm_x, sa_x, 'staff_admin'),
@@ -241,7 +255,7 @@ begin
 
   v := jsonb_build_object(
     'admin', admin_id, 'sa_x', sa_x, 'st_x', st_x, 'st_x2', st_x2,
-    'sa_y', sa_y, 'st_y', st_y, 'comm_x', comm_x, 'comm_y', comm_y,
+    'sa_y', sa_y, 'st_y', st_y, 'oa_b', oa_b, 'comm_x', comm_x, 'comm_y', comm_y,
     'form_u', form_u, 'ver_u', ver_u, 'sec_u', sec_u, 'item_mc', item_mc,
     'form_s', form_s, 'ver_s', ver_s,
     'sec_s0', sec_s0, 'sec_s1', sec_s1, 'sec_cond', sec_cond,

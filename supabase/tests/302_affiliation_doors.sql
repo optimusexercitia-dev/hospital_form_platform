@@ -15,10 +15,10 @@
 -- the SQLSTATE that identifies the arm under test (42501 authority vs HC0G3 physician),
 -- which is the structural defence authz-handoff §7.1 recommends.
 --
--- Assertion count: 50
+-- Assertion count: 51
 
 begin;
-select plan(50);
+select plan(51);
 
 -- Asserted preconditions, not assumed ones (§7.3): a flag read at the wrong moment is
 -- how a suite silently skips its own keystones.
@@ -39,7 +39,11 @@ create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000f1'::uuid as td_a,       -- technical_director of central-a
   '00000000-0000-0000-0000-0000000000f2'::uuid as td_deputy_a, -- TD DEPUTY of central-a, NEVER affiliated
   '00000000-0000-0000-0000-0000000000d1'::uuid as seatless,   -- novato.pendente: ZERO memberships
-  '00000000-0000-0000-0000-0000000000d4'::uuid as sibling_subject, -- ZERO memberships
+  -- Seated ONLY at secundario-a (nsp_coordinator), so for a central-a admin every leg
+  -- is false — the §4.3 deny arm. Was `desativado.conta` until T3.5 seeded the world
+  -- with a deactivated-account guard that (correctly) refuses to affiliate it.
+  '00000000-0000-0000-0000-0000000000c5'::uuid as sibling_subject,
+  '00000000-0000-0000-0000-0000000000d4'::uuid as deactivated_subject, -- is_active = false
   '0c000000-0000-0000-0000-00000000000a'::uuid as org_a,
   '0c000000-0000-0000-0000-00000000000b'::uuid as org_b,
   '05000000-0000-0000-0000-00000000000a'::uuid as central_a,
@@ -96,7 +100,7 @@ select lives_ok(
   '2.1 ALLOW: a hospital_admin affiliates an in-org person to the hospital it administers');
 
 select throws_ok(
-  $$select public.affiliate_person('00000000-0000-0000-0000-0000000000d4',
+  $$select public.affiliate_person('00000000-0000-0000-0000-0000000000c5',
                                    '05000000-0000-0000-0000-0000000000a2')$$,
   '42501', null,
   '2.2 DENY: ... and NOT to a sibling hospital it does not administer');
@@ -137,9 +141,22 @@ reset role;
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false);
 set local role authenticated;
 select lives_ok(
-  $$select public.affiliate_person('00000000-0000-0000-0000-0000000000d4',
+  $$select public.affiliate_person('00000000-0000-0000-0000-0000000000c5',
                                    '05000000-0000-0000-0000-0000000000a2')$$,
   '2.8 DOMINANCE: an org_admin may affiliate at ANY hospital of its org (D18)');
+
+-- AFF W3/T3.1 (ADR 0098 §W3.3). A DEACTIVATED account cannot be affiliated. The UI is
+-- told by `list_org_people`'s `is_active`, but Rule 1 says the UI is not the boundary —
+-- so this asserts the KERNEL refuses, at the door the product calls.
+--
+-- ⚠ The code is the discriminator on purpose: HC0R4 proves the DEACTIVATION arm
+-- refused, not the authority arm (42501) or the tenant arm (HC0R0). The caller here is
+-- an org_admin of the target's own org, so those two arms are satisfied.
+select throws_ok(
+  $$select public.affiliate_person('00000000-0000-0000-0000-0000000000d4',
+                                   '05000000-0000-0000-0000-0000000000a2')$$,
+  'HC0R4', null,
+  '2.8b DENY: a DEACTIVATED account cannot be affiliated — refused by the deactivation arm (HC0R4), not by authority');
 reset role;
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000003', false);
@@ -177,7 +194,7 @@ select throws_ok(
   '3.2 REFUSED with a HOSPITAL-tier seat (technical_director) — the arm a commission-only check would miss');
 
 select throws_ok(
-  $$select public.end_affiliation('00000000-0000-0000-0000-0000000000d4',
+  $$select public.end_affiliation('00000000-0000-0000-0000-0000000000c5',
                                   '05000000-0000-0000-0000-00000000000a')$$,
   'HC0R2', null,
   '3.3 a person with no ACTIVE affiliation here is HC0R2, not HC0R1 — the two refusals are distinguishable');
@@ -276,12 +293,18 @@ reset role;
 -- ============================================================================
 -- §5 list_org_people — the ratified directory (D10/D11).
 -- ============================================================================
--- ⚠ Clear the claims first. `test_helpers.claims_for` sets a TRANSACTION-local GUC, so
--- `auth.uid()` is still populated after `reset role`, and `guard_profile_privileged_columns`
--- treats any non-null auth.uid() as an in-session caller and refuses an identity-column
--- write. A null actor is the service path this fixture models.
-select test_helpers.claims_for(null, false);
-update public.profiles set cpf = '11144477735' where id = (select seatless from k);
+-- ⚠ NO CPF IS WRITTEN HERE. `seed.sql` assigns novato.pendente 12345678909 (T3.5), and
+-- overwriting it with another persona's seeded value was a UNIQUE violation. Reading
+-- the SEEDED value is also the stronger test: it exercises the row the product path
+-- would have created, not one this file invented.
+
+-- ⚠ BASELINE FIRST. `audit_log` is a SHARED, APPEND-ONLY table and this suite runs
+-- against the persisted seed, so an absolute `count(*) = 2` over `person.cpf_lookup`
+-- silently counts rows this transaction did not create — a dev server hitting the same
+-- local database is enough to red it, which is exactly how it was caught. Every §5
+-- audit assertion below is scoped to rows NOT in this snapshot.
+create temp table cpf_audit_before on commit drop as
+  select id from public.audit_log where action = 'person.cpf_lookup';
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false);
 set local role authenticated;
@@ -332,23 +355,25 @@ select is(
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.list_org_people((select org_a from k), null, '11144477735')), 1,
+  (select count(*)::int from public.list_org_people((select org_a from k), null, '12345678909')), 1,
   '5.7 an EXACT full-length CPF resolves the person');
 select is(
-  (select count(*)::int from public.list_org_people((select org_a from k), null, '1114447773')), 0,
+  (select count(*)::int from public.list_org_people((select org_a from k), null, '1234567890')), 0,
   '5.8 a PARTIAL CPF resolves NOTHING — no prefix search over national IDs (D11)');
 reset role;
 
-select cmp_ok(
-  (select count(*)::int from public.audit_log where action = 'person.cpf_lookup'), '>=', 2,
-  '5.9 every p_cpf call emitted an audit row (D11 / audit LOW-2) — the match AND the miss');
 select is(
   (select count(*)::int from public.audit_log
-    where action = 'person.cpf_lookup'
-      and (metadata::text like '%11144477735%' or summary like '%11144477735%')), 0,
+    where action = 'person.cpf_lookup' and id not in (select id from cpf_audit_before)), 2,
+  '5.9 every p_cpf call emitted an audit row, and ONLY those two (D11 / audit LOW-2) — the match AND the miss');
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from cpf_audit_before)
+      and (metadata::text like '%12345678909%' or summary like '%12345678909%')), 0,
   '5.10 ... and NOT ONE of them carries the CPF digits (Rule 11: that and who, never the payload)');
 select ok(
-  (select bool_and(actor_id = (select ha1 from k)) from public.audit_log where action = 'person.cpf_lookup'),
+  (select bool_and(actor_id = (select ha1 from k)) from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from cpf_audit_before)),
   '5.11 ... each naming the ACTOR — which is why this door runs on the cookie client, not the service client');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false);
@@ -358,7 +383,8 @@ select is(
   '5.12 a NAME search still works (partial match is fine for names)');
 reset role;
 select is(
-  (select count(*)::int from public.audit_log where action = 'person.cpf_lookup'), 2,
+  (select count(*)::int from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from cpf_audit_before)), 2,
   '5.13 ... and emitted NO audit row — only CPF lookups are logged (parity with the existing directory door)');
 
 -- ============================================================================

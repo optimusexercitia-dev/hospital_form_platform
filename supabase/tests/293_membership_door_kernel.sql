@@ -19,7 +19,7 @@
 
 begin;
 -- 7 ACL/structure + 8 equivalence grid + 6 narrowings + 3 service-door reachability = 24.
-select plan(24);
+select plan(25);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -220,6 +220,24 @@ select is(
 
 -- Anti-lockout, now binding on the service path. org_b has exactly one org_admin
 -- after this grant, so revoking it must raise HC0G1.
+-- ⚠ PRECONDITION, ASSERTED RATHER THAN INHERITED (AFF T3.5). This section reasons about
+-- "the LAST org_admin", so it must CONTROL how many exist — and until T3.5 it merely
+-- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
+-- bootstrap (FUP-PCITV-1 row 6: without one, the ORG disjunct of
+-- `is_commission_admin_of` was unexercised by six isolation keystones), and these
+-- assertions went red — correctly. One fixture cannot satisfy both specs, so the spec
+-- that OWNS the count normalizes it here, explicitly, instead of depending on a
+-- fixture it does not control. Rolled back with the transaction like everything else.
+-- Targets ONLY the bootstrap's own persona, by its key in the fixture's jsonb — not
+-- "every org_admin of org_b", which also deleted the one this file builds for itself.
+delete from public.memberships
+ where role = 'org_admin' and commission_id is null and hospital_id is null
+   and principal_id = (((select v from ctx)) ->> 'oa_b')::uuid;
+select is(
+  (select count(*)::int from public.memberships
+    where organization_id = (select org_b from k) and role = 'org_admin'), 0,
+  '3.2b org_admin precondition: org_b starts this section with ZERO org_admins');
+
 select test_helpers.claims_for(null, false);
 do $$
 begin

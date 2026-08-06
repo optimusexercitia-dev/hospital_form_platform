@@ -68,7 +68,12 @@ $seed_select$;
 -- ---------------------------------------------------------------------------
 insert into public.organizations (id, name, slug, created_by) values
   ('0c000000-0000-0000-0000-00000000000a', 'Rede Hospitalar A', 'rede-a', null),
-  ('0c000000-0000-0000-0000-00000000000b', 'Rede Hospitalar B', 'rede-b', null);
+  ('0c000000-0000-0000-0000-00000000000b', 'Rede Hospitalar B', 'rede-b', null),
+  -- AFF T3.5 (ADR 0097 D16/D17) -- REDE C: the SINGLE-HOSPITAL TENANT. One org, one
+  -- hospital, one person holding org_admin AND hospital_admin. That combination was
+  -- structurally insertable all along (finding 8) but UNSEATABLE through any product
+  -- path until T2.5, so this persona is the fixture that proves T3.4 provisions it.
+  ('0c000000-0000-0000-0000-00000000000c', 'Rede Hospitalar C', 'rede-c', null);
 
 insert into public.hospitals (id, organization_id, name, slug) values
   ('05000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000a', 'Hospital Central A', 'central-a'),
@@ -77,7 +82,9 @@ insert into public.hospitals (id, organization_id, name, slug) values
   -- hospital isolation WITHIN one org is testable (a hospital_admin of central-a
   -- must see NOTHING of this hospital's commissions). It gets its own commission
   -- (Comissão de Ética) below.
-  ('05000000-0000-0000-0000-0000000000a2', '0c000000-0000-0000-0000-00000000000a', 'Hospital Secundário A', 'secundario-a');
+  ('05000000-0000-0000-0000-0000000000a2', '0c000000-0000-0000-0000-00000000000a', 'Hospital Secundário A', 'secundario-a'),
+  -- Rede C's ONLY hospital (AFF T3.5).
+  ('05000000-0000-0000-0000-00000000000c', '0c000000-0000-0000-0000-00000000000c', 'Hospital Unico C', 'unico-c');
 
 -- ---------------------------------------------------------------------------
 -- Auth users. We insert directly into auth.users; the on_auth_user_created
@@ -139,6 +146,20 @@ declare
     -- are per-persona or hospital-row counts; 189's pqs.a-not-in-secundário keystone is
     -- a DIFFERENT persona).
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c7', 'email', 'pqsdual.a@test.local',   'name', 'NSP Dual A',             'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- AFF T3.5 (ADR 0097) -- the scenario the whole workstream was written for.
+    --   dr.john  = employed by BOTH central-a and secundario-a of Rede A, and on a
+    --              committee at each. The cross-hospital professional; registerUser
+    --              used to block his second registration on the email collision.
+    --   solo.c   = Rede C's sole administrator: org_admin AND hospital_admin of the
+    --              org's only hospital (D16 -- no `solo_admin` role, the model already
+    --              carries it).
+    -- WARNING: `novato.pendente` (...d1) is deliberately NOT listed here: it already
+    -- exists, holds ZERO memberships, and AFF affiliates it below WITHOUT a committee.
+    -- That second fixture pins D2's entire premise -- a registered-but-uncommitteed
+    -- person must be visible to their own hospital's admin -- and without it the
+    -- feature can regress to "roster = commission members" and still pass everything.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000a1', 'email', 'dr.john@test.local',     'name', 'John Silva',             'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c0', 'email', 'solo.c@test.local',      'name', 'Admin Unico C',          'org', '0c000000-0000-0000-0000-00000000000c'),
     -- User-registration lifecycle personas (org-a), for the directory + status
     -- badges + enforcement E2E. Their derived status is set by the status-patch
     -- block below (pending = clear email_confirmed_at; suspended = future
@@ -244,7 +265,8 @@ end $$;
 -- commissions.organization_id is auto-derived from hospital_id by the trigger.
 -- ---------------------------------------------------------------------------
 update public.organizations set created_by = '00000000-0000-0000-0000-0000000000b0'
-where id in ('0c000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000b');
+where id in ('0c000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000b',
+             '0c000000-0000-0000-0000-00000000000c');
 
 -- MEM (S1): the three role tables collapsed into public.memberships. Org/hospital-tier
 -- grants seed as memberships rows (principal_id + scope columns per the shape CHECK).
@@ -277,7 +299,14 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 insert into public.memberships (organization_id, hospital_id, principal_id, role) values
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'hospital_admin'),
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin'),
-  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin');
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin'),
+  -- AFF T3.5 -- Rede C's solo administrator holds BOTH tiers. `memberships_grant_uq`
+  -- keys on `role`, so the org row and the hospital row coexist; ADR 0097 D16 rejected
+  -- a combined `solo_admin` role precisely because the model already expresses this.
+  ('0c000000-0000-0000-0000-00000000000c', '05000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-0000000000c0', 'hospital_admin');
+
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
+  ('0c000000-0000-0000-0000-00000000000c', null, '00000000-0000-0000-0000-0000000000c0', 'org_admin');
 
 -- Diretor Técnico rows (ADR 0094 W4) — hospital tier, same shape as hospital_admin.
 -- Inserted directly rather than through appoint_technical_director because the seed
@@ -296,7 +325,33 @@ insert into public.hospital_affiliations
   (principal_id, organization_id, hospital_id, hospital_employee_id, started_on)
 values
   ('00000000-0000-0000-0000-0000000000e1', '0c000000-0000-0000-0000-00000000000a',
-   '05000000-0000-0000-0000-00000000000a', 'MAT-A1', '2024-01-01');
+   '05000000-0000-0000-0000-00000000000a', 'MAT-A1', '2024-01-01'),
+  -- AFF T3.5 -- Dr. John works at BOTH Rede A hospitals, with a DIFFERENT matricula at
+  -- each. That asymmetry is the whole reason matricula moved off `profiles` (D3): a
+  -- single column cannot hold two employments.
+  ('00000000-0000-0000-0000-0000000000a1', '0c000000-0000-0000-0000-00000000000a',
+   '05000000-0000-0000-0000-00000000000a', 'MAT-JOHN-CENTRAL', '2023-03-01'),
+  ('00000000-0000-0000-0000-0000000000a1', '0c000000-0000-0000-0000-00000000000a',
+   '05000000-0000-0000-0000-0000000000a2', 'MAT-JOHN-SEC', '2025-02-01'),
+  -- THE D2 FIXTURE: affiliated, on ZERO committees. Without this row the roster can
+  -- silently regress to "commission members" and every other test still passes.
+  ('00000000-0000-0000-0000-0000000000d1', '0c000000-0000-0000-0000-00000000000a',
+   '05000000-0000-0000-0000-00000000000a', 'MAT-NOVATO', '2026-01-05'),
+  -- Rede C's solo admin is affiliated to the hospital they administer (an administrator
+  -- absent from their own roster is a bug -- the reason self-affiliation is allowed).
+  ('00000000-0000-0000-0000-0000000000c0', '0c000000-0000-0000-0000-00000000000c',
+   '05000000-0000-0000-0000-00000000000c', 'MAT-C1', '2024-06-01');
+
+-- AFF T3.5 -- CPF, the person key (ADR 0097 D7). Only the personas the identifier-first
+-- flow and the CPF-lookup keystones actually search for: `registerUser` now REQUIRES a
+-- CPF, so the seed models people registered under that rule. Digits-only, check-digit
+-- valid -- a wrong digit fails the reset loudly via app.is_valid_cpf's CHECK rather
+-- than seeding a value the product itself could never have created.
+update public.profiles set cpf = '11144477735' where id = '00000000-0000-0000-0000-0000000000a1';
+update public.profiles set cpf = '52998224725' where id = '00000000-0000-0000-0000-0000000000c0';
+update public.profiles set cpf = '12345678909' where id = '00000000-0000-0000-0000-0000000000d1';
+update public.profiles set cpf = '98765432100' where id = '00000000-0000-0000-0000-0000000000e1';
+update public.profiles set cpf = '00000000191' where id = '00000000-0000-0000-0000-0000000000b1';
 
 -- ---------------------------------------------------------------------------
 -- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);
@@ -334,6 +389,11 @@ insert into public.memberships (commission_id, principal_id, role) values
   -- operator (enrolled in both central-a + secundário-a rosters below) — closes the
   -- "PQS operator who is a commission member" + multi-hospital-switcher E2E gaps.
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000c7', 'staff'),
+  -- AFF T3.5 -- Dr. John sits on a committee at EACH hospital he is employed by (CCIH
+  -- here, Etica at secundario-a below). `memberships_one_commission_role_uq` is
+  -- PER-COMMISSION, so one person on two committees is legitimate; it is the same
+  -- person the email-collision block used to refuse a second registration for.
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a1', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000005', 'staff_admin'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000006', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000007', 'staff'),
@@ -354,7 +414,11 @@ insert into public.memberships (commission_id, principal_id, role) values
   -- a suspended member must be denied by app.is_member_of). Pending + deactivated
   -- stay committee-less (a common "no committee yet" state).
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d2', 'staff'),
-  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d3', 'staff');
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d3', 'staff'),
+  -- AFF T3.5 -- Dr. John's SECOND committee, at his SECOND hospital (Etica lives under
+  -- secundario-a). This pair is the cross-hospital professional end to end: two
+  -- affiliations, two matriculas, two committees, one account, one CPF.
+  ('e0000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000a1', 'staff');
 
 -- ---------------------------------------------------------------------------
 -- User-registration: professional-category assignment + credentials + the

@@ -165,12 +165,28 @@ insert into public.memberships (commission_id, principal_id, role)
 -- ============================================================================
 -- §4 · Anti-lockout HC0G1 (last org_admin) + non-last succeeds
 -- ============================================================================
+
+-- ⚠ PRECONDITION, ASSERTED RATHER THAN INHERITED (AFF T3.5). This section reasons about
+-- "the LAST org_admin", so it must CONTROL how many exist; until T3.5 it merely
+-- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
+-- bootstrap (FUP-PCITV-1 row 6 — without one, the ORG disjunct of
+-- `is_commission_admin_of` was unexercised by six isolation keystones). One fixture
+-- cannot satisfy both specs, so the spec that OWNS the count normalizes it here.
+-- ⚠ Runs BEFORE the role switch below: a DELETE as `authenticated` is refused and
+-- aborts the file — which is how the first placement of this block was caught.
+-- Targets ONLY the bootstrap's own persona, by its key in the fixture's jsonb — not
+-- "every org_admin of org_b", which also deleted the one this file builds for itself.
+delete from public.memberships
+ where role = 'org_admin' and commission_id is null and hospital_id is null
+   and principal_id = (((select v from ctx)) ->> 'oa_b')::uuid;
+
 -- sa_x is currently org_b's ONLY org_admin -> a self... no: sa_x cannot self-revoke
 -- via self path anyway; revoke a DIFFERENT last-admin. Set up: grant a 2nd org_admin,
 -- then revoke sa_x (non-last, succeeds), then revoke the survivor (last, HC0G1).
 set local role authenticated;
 select set_config('request.jwt.claims',
   json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+
 select lives_ok($$ select public.grant_role('organization',
   (select org_b from k), 'org_admin', (select st_y from k)) $$,
   '4.1: org_admin grants a SECOND org_admin (setup)');

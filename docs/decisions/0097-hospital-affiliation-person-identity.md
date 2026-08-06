@@ -217,7 +217,16 @@ contradiction surfaces. This ADR resolves it.
     bug); the door comments say so, so a later reader does not "fix" it.
 14. **Person-level fields are `org_admin`-only.** Name, CPF, professional category and
     credentials are facts about the person, not about a hospital; two hospital admins
-    editing them is a silent cross-hospital write. A hospital admin edits only their own
+    editing them is a silent cross-hospital write.
+    > **Amended at build time — ADR [0098](./0098-aff-w1-substrate-shape-decisions.md)
+    > §W3.2.** This decision asserted server-side enforcement that DID NOT EXIST until
+    > AFF W3: every one of these actions ran through `authorizeForUser`, whose hospital
+    > arm admits a `hospital_admin`. `authorizeOrgAdminForUser` is now the boundary, and
+    > it covers the account lifecycle too (deactivate / reactivate / suspend), because
+    > `app.is_active` is a platform-wide kill switch. Keystoned in Vitest, not pgTAP —
+    > the path is service-role, so there is no RLS to assert against. One deliberate
+    > asymmetry: **creating** a person with a CPF is permitted to any authorized
+    > registrar; only **changing** one is org_admin-only. A hospital admin edits only their own
     affiliation row and their own hospital's committee memberships. Removal by a hospital
     admin is strictly scoped to their own hospital's subtree; **account deactivation is
     unreachable by hospital admins** — `app.is_active` is folded into every membership

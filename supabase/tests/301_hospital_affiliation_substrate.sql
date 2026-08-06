@@ -176,10 +176,14 @@ select is(app.is_valid_cpf(null), false,
 -- treats a null auth.uid() as the trusted service path, which is the path these writes
 -- model. (§7.4 exercises the in-session arm.)
 -- ============================================================================
+-- ⚠ These digits must NOT be any value `seed.sql` assigns (T3.5 gave CPFs to
+-- dr.john, solo.c, novato.pendente, hospitaladmin.a1 and orgadmin.a). Both literals
+-- below were seeded values until T3.5 and this file went red on a UNIQUE violation —
+-- correctly, which is the seed contract working as designed.
 select lives_ok(
-  $$update public.profiles set cpf = '11144477735'
+  $$update public.profiles set cpf = '23456789092'
      where id = '00000000-0000-0000-0000-0000000000d1'$$,
-  '2.1 a valid CPF stores');
+  '2.1 a valid CPF stores (overwriting the one seed.sql assigned)');
 
 select throws_ok(
   $$update public.profiles set cpf = '11144477736'
@@ -188,14 +192,14 @@ select throws_ok(
   '2.2 a bad check digit is REFUSED by profiles_cpf_valid (23514)');
 
 select throws_ok(
-  $$update public.profiles set cpf = '11144477735'
+  $$update public.profiles set cpf = '23456789092'
      where id = '00000000-0000-0000-0000-0000000000d4'$$,
   '23505', null,
-  '2.3 CPF is unique platform-wide — a duplicate is REFUSED (23505)');
+  '2.3 CPF is unique platform-wide — a duplicate of 2.1''s value is REFUSED (23505)');
 
 -- The twin: 2.3 must not be passing because "no second CPF may be stored at all".
 select lives_ok(
-  $$update public.profiles set cpf = '52998224725'
+  $$update public.profiles set cpf = '34567890175'
      where id = '00000000-0000-0000-0000-0000000000d4'$$,
   '2.4 TWIN: a DIFFERENT valid CPF on the same person still stores (2.3 is uniqueness, not a blanket refusal)');
 
@@ -268,18 +272,34 @@ select lives_ok(
 --   sibling_subject (d4) @ secundario-a       — ha1 reaches it by NO leg (the DENY arm)
 -- d1 and d4 hold ZERO memberships, which is what keeps leg 4 out of their evaluation.
 -- ============================================================================
+-- ⚠ IDEMPOTENT BY CONSTRUCTION, and it has to be: T3.5 added the D2 fixture, so
+-- `seed.sql` now ALREADY affiliates novato.pendente to central-a. A blind insert
+-- duplicated that pair and aborted this file on `hospital_affiliations_active_uq` —
+-- the seed contract doing exactly its job. Insert only what is missing, then union the
+-- pre-existing rows in: a data-modifying CTE's effects are invisible to sibling CTEs,
+-- so the second arm sees only rows that predate this statement and cannot double-count.
 create temp table fx on commit drop as
-with ins as (
+with wanted (principal_id, hospital_id) as (
+  values ('00000000-0000-0000-0000-0000000000d1'::uuid, '05000000-0000-0000-0000-00000000000a'::uuid),
+         ('00000000-0000-0000-0000-0000000000f1'::uuid, '05000000-0000-0000-0000-0000000000a2'::uuid),
+         ('00000000-0000-0000-0000-0000000000d4'::uuid, '05000000-0000-0000-0000-0000000000a2'::uuid)
+), ins as (
   insert into public.hospital_affiliations (principal_id, organization_id, hospital_id)
-  values ('00000000-0000-0000-0000-0000000000d1', '0c000000-0000-0000-0000-00000000000a',
-          '05000000-0000-0000-0000-00000000000a'),
-         ('00000000-0000-0000-0000-0000000000f1', '0c000000-0000-0000-0000-00000000000a',
-          '05000000-0000-0000-0000-0000000000a2'),
-         ('00000000-0000-0000-0000-0000000000d4', '0c000000-0000-0000-0000-00000000000a',
-          '05000000-0000-0000-0000-0000000000a2')
+  select w.principal_id, '0c000000-0000-0000-0000-00000000000a'::uuid, w.hospital_id
+  from wanted w
+  where not exists (
+    select 1 from public.hospital_affiliations a
+    where a.principal_id = w.principal_id and a.hospital_id = w.hospital_id
+      and a.ended_on is null
+  )
   returning id, principal_id
 )
-select id, principal_id from ins;
+select id, principal_id from ins
+union all
+select a.id, a.principal_id
+from public.hospital_affiliations a
+join wanted w on w.principal_id = a.principal_id and w.hospital_id = a.hospital_id
+where a.ended_on is null;
 grant select on fx to authenticated;
 
 -- leg 1 — self.

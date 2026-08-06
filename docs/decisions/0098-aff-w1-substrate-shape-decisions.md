@@ -129,6 +129,86 @@ real dominance gaps, and D18 (PO-ruled) fixes it. A deny twin (`D1b`, a commissi
 staff_admin still refused) was added in the same edit so widening the gate did not
 silently remove §D's only authority-deny arm.
 
+## W3 — product surfaces, person-level authority, provisioning
+
+**W3.1 — `OrgUserDetail` carries an affiliation LIST; the three singular fields are
+gone.** `homeHospitalId` / `homeHospitalName` / `hospitalEmployeeId` were a W1
+compatibility shim that let the frontend keep compiling across the column drop. They
+lie about the domain the moment the feature works: a professional employed by two
+hospitals of one organisation has two matrículas and two start dates, and a "primary
+(earliest active)" field silently picks one. `UserAffiliation` is declared in
+`src/lib/users/types.ts` — the client-safe contract module — rather than in the
+`server-only` query module, so a Client Component rendering a roster never imports
+across the server boundary.
+
+**W3.2 — D14 is enforced in TypeScript, and that is the only place it CAN be.**
+`updateUserProfile`, `upsertCredential`, `removeCredential`, `deactivateUser`,
+`reactivateUser` and `suspendUser` ran through `authorizeForUser`, whose hospital arm
+admits a `hospital_admin`. So D14 ("person-level fields are org_admin-only") was
+asserted in an ADR and enforced nowhere. `authorizeOrgAdminForUser` is the new
+boundary. Three consequences worth stating:
+
+- **There is no RLS backstop and there cannot be one.** These actions run on the
+  service-role client. The `profiles` column grants that lock `cpf` govern PostgREST
+  only; the service client walks straight around them. So the keystones are Vitest
+  (`d14-person-level.test.ts`), not pgTAP — a test that cannot reach the boundary
+  cannot test it.
+- **The gate fires on a CHANGE, not on a field being present.** The edit form always
+  POSTS name and category, so gating on presence would deny a hospital admin their own
+  legitimate matrícula edit. Compared against the current row with `is distinct from`
+  semantics, exactly like the privileged-column trigger.
+- **Creating a person with a CPF is NOT editing one.** `registerUser` accepts `cpf`
+  from any authorized registrar including a `hospital_admin`; changing it later is
+  org_admin-only. D14's stated rationale is that "two hospital admins editing them is a
+  silent cross-hospital write" — at creation there is no other hospital's value to
+  overwrite, and D12's identifier-first flow has the registrar type the CPF to search
+  before it offers to create.
+
+**W3.3 — the deactivated-account guard reads the MASTER SWITCH, not `app.is_active`.**
+A deactivated account cannot be affiliated (`HC0R4`). The guard deliberately reads
+`profiles.is_active` and NOT `app.is_active(p_user)`, which also folds
+`suspended_until`: a suspension is temporary and reversible, and refusing to record
+someone's employment because they are suspended this week would quietly turn an HR
+record into a disciplinary one.
+
+**W3.4 — dates get their own door; the create door does not grow the capability.**
+`update_affiliation` (kernel + `auth.uid()` wrapper + `_for` twin, same shape as its
+siblings) owns matrícula and start-date edits. An earlier draft widened
+`affiliate_person`'s update path with `started_on = coalesce(p_started_on, started_on)`
+and it was **withdrawn before commit** for two reasons, the second decisive:
+
+1. a create door that quietly acquires a date-mutation capability is how doors grow
+   undeclared powers; and
+2. **the audit trigger emitted `created` / `ended` only, so the change would have been
+   an UNAUDITED mutation** (Rule 11). The `affiliation.updated` arm added here is what
+   makes the capability recordable at all — and it also closes a gap the create door
+   already had, since its matrícula refresh on an existing row was itself unaudited.
+
+`affiliate_person` therefore still IGNORES `p_started_on` for an existing row. That is a
+load-bearing claim in a comment, so pgTAP `304` §3 pins it executably: a future edit
+that "helpfully" wires the date through goes red.
+
+**W3.5 — the SQL↔TS error-arm contract is executable in BOTH directions.** `toState`
+ends in `default: generic`, which makes a missing arm INVISIBLE — the switch is total,
+so nothing can report a SQLSTATE as unhandled; it just degrades into "try again", a
+retry instruction for a condition retrying cannot fix. `HC0R4` shipped exactly that way
+and was found by `frontend` reading the door, not by any gate. The fix is not the one
+arm but the comparison: `door-error-arms.test.ts` derives the codes from the door
+MIGRATIONS and requires an arm for each, and pgTAP `304` §6 asserts the LIVE kernels
+raise exactly that set — source-to-source and catalog-to-contract, so a runtime-patched
+code cannot hide from both. This is "a new door must inherit every sibling arm" with the
+enumeration crossing a LANGUAGE boundary.
+
+**W3.6 — the shared pgTAP bootstrap gained an `org_admin`, and three suites had to own
+their preconditions.** FUP-PCITV-1 row 6: without one, the ORG disjunct of
+`is_commission_admin_of` was unexercised by six isolation keystones. Adding it reded
+eight anti-lockout assertions in `190` / `224` / `293`, which had inherited "the
+bootstrap creates none" rather than controlling it. A suite reasoning about "the LAST
+org_admin" must control how many exist, so each now deletes **the bootstrap's own
+persona, by its key in the fixture jsonb** — not "every org_admin of org_b", which also
+deleted the one the file builds for itself. One fixture cannot satisfy two specs; the
+spec that owns the count normalizes it.
+
 ## Consequence recorded, not discovered later
 
 `20260909000300` removes the `home_hospital_id` leg from both `profiles` SELECT

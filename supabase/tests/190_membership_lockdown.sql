@@ -21,7 +21,7 @@
 --       + scope; NO PHI in payload) AND the affected chains stay verify_audit_chain-intact.
 
 begin;
-select plan(37);
+select plan(38);
 
 -- HARD REQUIREMENT (QA-B-1 lesson): the keystone assertions below exercise
 -- add_pqs_member (needs the roster live) and rely on audit_write actually emitting
@@ -51,6 +51,24 @@ grant select on k to authenticated;
 --   sa_x  -> org_admin of org_b (the appointer / anti-lockout subject / chain reader)
 --   sa_y  -> nsp_org_admin of org_b (curates the PQS roster; direct-write attacker)
 --   st_x  -> per-hospital nsp_coordinator of hosp_b (a full PHI operator)
+-- ⚠ PRECONDITION, ASSERTED RATHER THAN INHERITED (AFF T3.5). This file reasons about
+-- "the LAST org_admin", so it must CONTROL how many exist — and until T3.5 it merely
+-- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
+-- bootstrap (FUP-PCITV-1 row 6: without one, the ORG disjunct of
+-- `is_commission_admin_of` was unexercised by six isolation keystones), and the
+-- anti-lockout assertions went red — correctly. One fixture cannot satisfy both specs,
+-- so the spec that OWNS the count normalizes it HERE, before building its own, instead
+-- of depending on a fixture it does not control. Rolled back with the transaction.
+-- Targets ONLY the bootstrap's own persona, by its key in the fixture's jsonb — not
+-- "every org_admin of org_b", which also deleted the one this file builds for itself.
+delete from public.memberships
+ where role = 'org_admin' and commission_id is null and hospital_id is null
+   and principal_id = (((select v from ctx)) ->> 'oa_b')::uuid;
+select is(
+  (select count(*)::int from public.memberships
+    where organization_id = (select org_b from k) and role = 'org_admin'), 0,
+  '0.0 org_admin precondition: org_b starts with ZERO org_admins before this file builds its own');
+
 insert into public.memberships (organization_id, principal_id, role, hospital_id)
   values ((select org_b from k), (select sa_x from k), 'org_admin', null);
 insert into public.memberships (organization_id, principal_id, role, hospital_id)
