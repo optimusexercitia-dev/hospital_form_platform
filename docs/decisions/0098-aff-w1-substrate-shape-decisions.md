@@ -209,6 +209,56 @@ persona, by its key in the fixture jsonb** — not "every org_admin of org_b", w
 deleted the one the file builds for itself. One fixture cannot satisfy two specs; the
 spec that owns the count normalizes it.
 
+**W3.7 — BUG-AFF-1: `authorizeStaffOps` was a mirror STRICTER than its doors.**
+`src/lib/members/actions.ts`'s staff-management gate had two arms — `staff_admin` of the
+commission, `org_admin` of its org — while every door it fronts gates on
+`app.is_commission_admin_of[_for]`, which resolves to
+`has_role('organization', c.organization_id, 'org_admin') OR has_role('hospital',
+c.hospital_id, 'hospital_admin')`. The hospital leg was missing in the mirror and present
+everywhere else.
+
+Catalog evidence, re-verified door by door rather than inferred from one:
+
+| door | gate | admits `hospital_admin` |
+| --- | --- | --- |
+| `appoint_administrativo` | `is_staff_admin_of OR is_commission_admin_of` | yes |
+| `revoke_administrativo` | `is_staff_admin_of OR is_commission_admin_of` | yes |
+| `grant_member_capability` | `is_staff_admin_of OR is_commission_admin_of` | yes |
+| `revoke_member_capability` | `is_staff_admin_of OR is_commission_admin_of` | yes |
+| `grant_role` → `app.grant_role_impl` | commission arm: `is_admin_for OR is_staff_admin_of_for OR is_commission_admin_of_for` (both roles, incl. the T1.0 replacement branch) | yes |
+| `revoke_role` → `app.revoke_role_impl` | commission arm: `is_staff_admin_of_for OR is_commission_admin_of_for` | yes |
+
+The READ side admitted them too (`list_addable_commission_members` is org-scoped — finding
+1), which is why the picker populated and the refusal arrived only at submit. **Adding the
+leg grants nothing the database did not already grant**; it removes a drift that made the
+UI lie.
+
+⚠ **Why nothing caught it: a mirror that is too strict FAILS CLOSED, and a refusal always
+looks like the system working.** The recorded lesson is "a door mirror must be neither
+weaker nor stronger than the authority it fronts" — the usual instance is a mirror too
+weak, which leaks; this is the same defect pointing the other way, which merely makes a
+feature impossible. Nothing in a policy sweep, an error log or a green test distinguishes
+"correctly denied" from "denied by a drifted mirror".
+
+Two further notes, both deliberate:
+
+- **`isInactive` was missing too**, and is now checked. `is_commission_admin_of_for` folds
+  `app.is_active`, but `getSessionContext` reports `isInactive` separately and does NOT
+  empty the grant lists — so a suspended caller passed the mirror and was refused by the
+  door. Second instance of the same drift, found while deriving the first; strictly
+  narrowing.
+- **The `platform_admin` omission STAYS.** `grant_role_impl` carries an `is_admin_for`
+  arm, so here the mirror is deliberately *stricter* than its door — the noun rule
+  (ADR 0078 A35) keeps platform_admin out of commission content, and `inviteStaff` runs
+  service-role where this check is the only control. Stated so it is not "corrected" later.
+
+Keystoned in `src/lib/members/staff-ops-mirror.test.ts`, in the shape that would have
+caught it: a hospital admin completes `addStaff` end to end **and reaches `grant_role`**
+(an `ok` with no door call is a no-op), and is refused for a commission at a **sibling
+hospital**. The DENY arm is load-bearing — mutation-proved: making the leg blanket
+(`hospitalAdminOf.length > 0`) reds it, which is what stops this fix from becoming a
+widening.
+
 ## Consequence recorded, not discovered later
 
 `20260909000300` removes the `home_hospital_id` leg from both `profiles` SELECT

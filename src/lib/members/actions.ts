@@ -61,19 +61,50 @@ const CAPABILITIES: readonly MemberCapability[] = [
 ]
 
 /**
- * Authorize a staff-management action for a specific commission: a staff_admin of
- * THAT commission, OR an org_admin of the commission's ORGANIZATION. Returns false
- * (deny) otherwise.
+ * Authorize a staff-management action for a specific commission. This is the app-layer
+ * MIRROR of the authority the six doors below already enforce, and it must be neither
+ * weaker NOR STRONGER than they are.
  *
- * SECURITY (multi-tenancy): the platform_admin `isAdmin` short-circuit is
- * DELIBERATELY ABSENT. `inviteStaff` runs on the SERVICE-ROLE client (bypasses
- * RLS), so this TS check is the ONLY control there — a platform admin must NOT
- * invite/manage staff in any commission. (`removeStaff` is invoker/RLS-backed but
- * uses the same gate for a consistent, non-escalating policy.)
+ * ⚠ BUG-AFF-1 — IT WAS STRONGER, AND THAT IS WHY NOTHING CAUGHT IT. The mirror had two
+ * arms (staff_admin of the commission, org_admin of its org) while every door it fronts
+ * gates on `app.is_commission_admin_of[_for]`, which resolves to:
+ *
+ *     has_role('organization', c.organization_id, 'org_admin')
+ *  OR has_role('hospital',     c.hospital_id,     'hospital_admin')
+ *
+ * — the HOSPITAL leg was missing here and present everywhere else. Verified against the
+ * live catalog for all six doors this helper fronts, not inferred from one:
+ *   `appoint_administrativo`, `revoke_administrativo`, `grant_member_capability` and
+ *   `revoke_member_capability` each gate on `is_staff_admin_of OR is_commission_admin_of`;
+ *   `grant_role`/`revoke_role` delegate to `app.grant_role_impl`/`app.revoke_role_impl`,
+ *   whose commission-tier arms admit `is_commission_admin_of_for` for BOTH `staff` and
+ *   `staff_admin` (including the T1.0 role-replacement branch).
+ * The READ side already admitted them too — `list_addable_commission_members` is org-scoped
+ * (ADR 0097 finding 1), which is why the picker populated. So a hospital admin got a full
+ * candidate list and a generic refusal at submit, and widening this grants NOTHING the
+ * database did not already grant.
+ *
+ * A mirror that is too STRICT fails CLOSED, and a refusal always looks like the system
+ * working — which is the whole reason this survived. Recorded in ADR 0098 §W3.7; do not
+ * re-narrow it "for consistency" with the other TS checks.
+ *
+ * ⚠ `isInactive` is checked here for the same reason, and it is a SECOND instance of the
+ * same drift found while deriving this one: `is_commission_admin_of_for` folds
+ * `app.is_active(p_user_id)`, but `getSessionContext` does not empty the grant lists for a
+ * suspended or deactivated caller — it reports `isInactive` separately. Every sibling
+ * helper checks it; this one did not. Strictly narrowing, and it makes the mirror faithful.
+ *
+ * SECURITY (multi-tenancy): the platform_admin `isAdmin` short-circuit remains
+ * DELIBERATELY ABSENT. `inviteStaff` runs on the SERVICE-ROLE client (bypasses RLS), so
+ * this TS check is the ONLY control there — a platform admin must NOT invite/manage staff
+ * in any commission. That is a place where the mirror is deliberately stricter than
+ * `grant_role_impl` (which carries an `is_admin_for` arm), and it is stated rather than
+ * accidental: the noun rule (ADR 0078 A35) keeps platform_admin out of commission content.
  */
 async function authorizeStaffOps(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
+  if (context.isInactive) return false
 
   // staff_admin of this exact commission.
   if (
@@ -84,17 +115,30 @@ async function authorizeStaffOps(commissionId: string): Promise<boolean> {
     return true
   }
 
-  // org_admin of the commission's organization.
-  if (context.orgAdminOf.length === 0) return false
+  // The two `is_commission_admin_of` legs. Both need the commission's scope columns, so
+  // they share one read — and that read is RLS-scoped on purpose: a caller who cannot
+  // SELECT the commission cannot administer it either. (`commissions_select_member_or_admin`
+  // carries `app.is_hospital_admin_of(hospital_id)`, so the hospital leg is reachable —
+  // checked live, because a gate whose own precondition denies it is an inert fix.)
+  if (context.orgAdminOf.length === 0 && context.hospitalAdminOf.length === 0) return false
   const supabase = await createClient()
   const { data } = await supabase
     .from('commissions')
-    .select('organization_id')
+    .select('organization_id, hospital_id')
     .eq('id', commissionId)
     .maybeSingle()
-  const orgId = data?.organization_id
-  if (!orgId) return false
-  return context.orgAdminOf.some((o) => o.organization.id === orgId)
+  if (!data) return false
+
+  if (
+    data.organization_id &&
+    context.orgAdminOf.some((o) => o.organization.id === data.organization_id)
+  ) {
+    return true
+  }
+  return (
+    Boolean(data.hospital_id) &&
+    context.hospitalAdminOf.some((h) => h.hospital.id === data.hospital_id)
+  )
 }
 
 /**
