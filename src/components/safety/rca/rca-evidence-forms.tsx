@@ -142,19 +142,26 @@ function UploadDialog({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
           {error && <FormBanner tone="error">{error}</FormBanner>}
           <div className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Arquivo</span>
+            <label htmlFor="rca-evidence-file" className="font-medium">
+              Arquivo
+            </label>
             <input
+              id="rca-evidence-file"
               type="file"
               name="file"
               accept={ACCEPT}
               required
               onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+              aria-describedby="rca-evidence-hint"
               className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-secondary-foreground hover:file:bg-muted focus-visible:outline-none"
             />
             {fileName && (
               <span className="text-xs text-muted-foreground">{fileName}</span>
             )}
-            <span className="text-xs text-muted-foreground">
+            <span
+              id="rca-evidence-hint"
+              className="text-xs text-muted-foreground"
+            >
               PDF, imagem, Word, Excel, CSV ou texto, até 25 MB.
             </span>
           </div>

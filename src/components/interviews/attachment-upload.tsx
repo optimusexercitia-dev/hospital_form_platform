@@ -118,14 +118,18 @@ function UploadDialog({
           )}
 
           <div className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Arquivo</span>
+            <label htmlFor="interview-attachment-file" className="font-medium">
+              Arquivo
+            </label>
             <input
+              id="interview-attachment-file"
               type="file"
               name="file"
               accept={ACCEPT}
               required
               onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
               aria-invalid={state?.fieldErrors?.file ? true : undefined}
+              aria-describedby="interview-attachment-hint"
               className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-secondary-foreground hover:file:bg-muted focus-visible:outline-none"
             />
             {fileName && (
@@ -134,7 +138,10 @@ function UploadDialog({
                 {fileName}
               </span>
             )}
-            <span className="text-xs text-muted-foreground">
+            <span
+              id="interview-attachment-hint"
+              className="text-xs text-muted-foreground"
+            >
               PDF, imagem, Word, Excel, CSV ou texto, até 25 MB. Para gravações de
               áudio, use “Adicionar gravação”.
             </span>

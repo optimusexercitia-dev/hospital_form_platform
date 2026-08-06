@@ -112,6 +112,15 @@ Full record (task table, gate narrative, neutralization audits, PO decisions, QA
 (`seed.sql` forces ON for local/E2E — a flag-OFF spec must toggle it itself). Pre-enable
 gates live in Follow-ups → FUP-MIN-CUTOVER.
 
+**2026-08-06 — N1's out-of-scope original fixed.** Review N1 noted the unlabeled span-caption
+file input it fixed in `minutes-upload-dialog.tsx` was *copied* from the pre-existing
+`meetings/attachment-upload.tsx:115-117`, left out of MIN's scope. A repo sweep of
+`type="file"` found the pattern in **5** components — that one plus `interviews/attachment-upload`,
+`cases/case-document-upload`, `safety/rca/rca-evidence-forms`, `safety/capa/capa-evidence-forms`
+(all other file inputs already labeled or `aria-hidden` behind a labeled trigger). All five now
+use the N1 fix (`<label htmlFor>` + `id` + `aria-describedby` → hint). Lint + typecheck green;
+meetings dialog verified in-browser (input's `labels` = "Arquivo", hint resolves).
+
 ### ⬛ AFF — Hospital affiliation, person identity & the org people directory · **COMPLETE 2026-08-06**
 
 Detail + completion record (final gate, the three retro lessons, the open-at-close index, and why AFF
