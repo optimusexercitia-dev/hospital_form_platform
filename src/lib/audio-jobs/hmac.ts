@@ -1,5 +1,3 @@
-import 'server-only'
-
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 /**
@@ -28,6 +26,14 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
  *
  * Pure and dependency-free (no env reads, no I/O) so it is unit-testable — the secret is
  * passed in by the caller.
+ *
+ * ⚠ Deliberately NOT `import 'server-only'`, unlike its siblings `client.ts` / `metadata.ts`
+ * (which DO read env and must keep it). The guard bought nothing here — this module holds no
+ * secret and reads no env, so a client bundle would only get a keyless hash function — and it
+ * cost real coverage: Next aliases `server-only` per-bundle and the alias is webpack-only, so
+ * Playwright's esbuild loader could not import this file and the E2E helper had to inline a
+ * transcribed copy of `signCallbackBody`, testing a twin instead of the real routine
+ * (MIN review r2, residual R3). Re-add it the moment this module reads env or embeds a secret.
  */
 
 /** Default replay window, each side of the service's timestamp. */

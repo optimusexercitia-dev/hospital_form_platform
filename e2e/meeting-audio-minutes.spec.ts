@@ -370,20 +370,37 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
       page.getByRole("button", { name: "Prazo — Ação sem responsável identificado" }),
     ).toBeVisible();
 
-    // N3 (QA a11y batch, cba04fd): every loose-resolution "attach" button carries a
-    // DISTINCT accessible name (previously every one announced the identical "Anexar a
-    // um item", N times, indistinguishable to a screen reader). The fixture's one loose
-    // resolution ("Decisão sem item de pauta associado." — agenda_item_index: null)
-    // renders an attach affordance on all three agenda cards.
-    const attachButtonName = "Anexar: Decisão sem item de pauta associado.";
-    await expect(page.getByRole("button", { name: attachButtonName })).toHaveCount(3);
+    // R1 (MIN QA r2 residual, on top of N3): every loose-resolution "attach" button
+    // carries a UNIQUE accessible name — N3 folded in the resolution text, but the same
+    // loose resolution still renders one button PER agenda card, so N identically-named
+    // buttons remained indistinguishable to a screen reader. R1 folds the TARGET agenda
+    // item's title into the name too (`formatAttachResolutionLabel`), which is what
+    // actually disambiguates the three buttons below — this split into three distinct
+    // single-match locators (replacing the old shared-name `toHaveCount(3)`) IS the
+    // proof R1 is closed.
+    const attachButtonNameFor = (agendaItemTitle: string) =>
+      `Anexar a um item: "Decisão sem item de pauta associado." a "${agendaItemTitle}"`;
+    const attachOnMatchedCard = page.getByRole("button", {
+      name: attachButtonNameFor("Item existente — mantido"),
+    });
+    const attachOnStruckCard = page.getByRole("button", {
+      name: attachButtonNameFor("Item existente — será excluído na revisão"),
+    });
+    const attachOnNewCard = page.getByRole("button", {
+      name: attachButtonNameFor("Item novo levantado na reunião"),
+    });
+    await expect(attachOnMatchedCard).toHaveCount(1);
+    await expect(attachOnStruckCard).toHaveCount(1);
+    await expect(attachOnNewCard).toHaveCount(1);
     // Exercise it too: attaching folds the resolution into the target card and removes
     // the shared pool, so the affordance disappears everywhere at once.
     const newItemCard = page.locator(
       'li:has(textarea[aria-label="Discussão — Item novo levantado na reunião"])',
     );
-    await newItemCard.getByRole("button", { name: attachButtonName }).click();
-    await expect(page.getByRole("button", { name: attachButtonName })).toHaveCount(0);
+    await newItemCard.getByRole("button", { name: attachButtonNameFor("Item novo levantado na reunião") }).click();
+    await expect(attachOnMatchedCard).toHaveCount(0);
+    await expect(attachOnStruckCard).toHaveCount(0);
+    await expect(attachOnNewCard).toHaveCount(0);
     await expect(page.getByText("Decisões sem item de pauta associado")).toHaveCount(0);
 
     // Autosave indicator settles before Concluir.

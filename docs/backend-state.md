@@ -71,8 +71,9 @@ Full feature record → `docs/progress/min-audio-minutes.md` · runbook →
 - **Audit kinds** (dotted, per the `audit_log_action_shape` CHECK): `minutes_job.created/`
   `.submitted/.completed/.failed/.cancelled/.applied` + `minutes_transcript.read`.
 - **App layer**: `src/lib/audio-jobs/` (kind-agnostic v2.1 contract client, HMAC
-  `sha256("<ts>.<rawBody>")` ±5 min, `server-only` on hmac/metadata — NB: that makes them
-  unimportable from Playwright, the E2E helper inlines `signCallbackBody`);
+  `sha256("<ts>.<rawBody>")` ±5 min; `server-only` on **client/metadata only** (they read env) —
+  `hmac.ts` deliberately omits it so the E2E helper imports the real `signCallbackBody`,
+  MIN review r2 R3; re-add it the moment the module reads env or embeds a secret);
   `src/lib/minutes-jobs/` (actions/queries/reconcile/**sweep**/context/normalize/sanitize/
   messages HC0S0–HC0S6); webhook `src/app/api/webhooks/audio-jobs/route.ts` — raw-body HMAC,
   401 only for bad signature, 200 for permanent conditions; **`src/proxy.ts` matcher excludes

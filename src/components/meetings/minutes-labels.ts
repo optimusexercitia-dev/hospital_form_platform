@@ -72,6 +72,8 @@ export const MINUTES_UI = {
   agendaExtractedLabel: "Extraído do áudio",
   agendaIncludeToggle: "Incluir na ata",
   agendaNewTitlePlaceholder: "Título do novo item de pauta",
+  /** Stands in for an agenda item's title inside a composed accessible name while it is still untitled. */
+  agendaItemFallbackName: "item de pauta",
   agendaNoItems: "Nenhum item de pauta foi extraído do áudio.",
   looseResolutionsHeading: "Decisões sem item de pauta associado",
   looseResolutionsBody:
@@ -128,16 +130,42 @@ export function formatElapsed(fromIso: string, nowMs: number = Date.now()): stri
   return `há ${hours} h`;
 }
 
-/**
- * N3: a stable, per-resolution accessible name for the agenda card's "attach" buttons —
- * every button shares the same visible label ("Anexar a um item"), so without this every
- * screen-reader user hears the identical name N times. Truncated so a long dictated
- * decision doesn't produce an unreadable name.
- */
-export function formatAttachResolutionLabel(text: string): string {
+/** The 80-char discipline for one part of a composed accessible name (N3/R1). */
+const LABEL_PART_MAX_CHARS = 80;
+
+function truncateLabelPart(text: string): string {
   const trimmed = text.trim();
-  const short = trimmed.length > 80 ? `${trimmed.slice(0, 80)}…` : trimmed;
-  return `Anexar: ${short}`;
+  return trimmed.length > LABEL_PART_MAX_CHARS
+    ? `${trimmed.slice(0, LABEL_PART_MAX_CHARS)}…`
+    : trimmed;
+}
+
+/**
+ * N3 + R1: a UNIQUE accessible name for the agenda card's "attach" buttons.
+ *
+ * Every button shares the same visible label ("Anexar a um item"), and the same loose
+ * resolution renders one button PER agenda card — so naming by resolution alone (N3's
+ * first fix) still left a screen-reader user hearing N identically-named buttons with no
+ * way to tell which item they were attaching to. R1 folds the TARGET into the name, which
+ * is what actually distinguishes the buttons: the pair (resolution, agenda item) is unique
+ * across the whole review page.
+ *
+ * Both parts are truncated independently so a long dictated decision can never push the
+ * agenda item — the disambiguating half — out of the name.
+ *
+ * The name is PREFIXED with the button's own visible label, read from the same constant the
+ * button renders, so the two cannot drift apart. That is WCAG 2.5.3 (Label in Name): a
+ * speech-input user says "Anexar a um item", and the accessible name must contain that
+ * visible text for the command to match. No arrow/symbol characters — screen readers
+ * announce them noisily.
+ */
+export function formatAttachResolutionLabel(
+  resolutionText: string,
+  agendaItemTitle: string,
+): string {
+  const resolution = truncateLabelPart(resolutionText);
+  const item = truncateLabelPart(agendaItemTitle) || MINUTES_UI.agendaItemFallbackName;
+  return `${MINUTES_UI.looseResolutionAttach}: "${resolution}" a "${item}"`;
 }
 
 /** A bare UUID (v1–v5 shape) — the machine identifier `normalize.ts` falls back to when a speaker name lookup misses (N5). */

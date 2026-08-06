@@ -105,7 +105,7 @@ export function AgendaReviewCard({
             onChange={(e) => onChange({ ...item, discussion_notes: e.target.value })}
             disabled={!item.include}
             className="min-h-20 text-sm"
-            aria-label={`Discussão — ${item.title || "item de pauta"}`}
+            aria-label={`Discussão — ${item.title || MINUTES_UI.agendaItemFallbackName}`}
           />
         </div>
       </div>
@@ -130,7 +130,7 @@ export function AgendaReviewCard({
             onChange={(e) => onChange({ ...item, resolution: e.target.value })}
             disabled={!item.include}
             className="min-h-16 text-sm"
-            aria-label={`Resolução — ${item.title || "item de pauta"}`}
+            aria-label={`Resolução — ${item.title || MINUTES_UI.agendaItemFallbackName}`}
           />
         </div>
       </div>
@@ -150,7 +150,7 @@ export function AgendaReviewCard({
               disabled={!item.include}
               onClick={() => onAttachResolution(r)}
               title={r.text}
-              aria-label={formatAttachResolutionLabel(r.text)}
+              aria-label={formatAttachResolutionLabel(r.text, item.title)}
             >
               {MINUTES_UI.looseResolutionAttach}
             </Button>

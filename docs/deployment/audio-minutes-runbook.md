@@ -41,7 +41,13 @@ A 500 MB upload has to clear **all three**, and only the first is in the migrati
    plan-dependent. **Confirm the pilot project's plan admits 500 MB BEFORE enabling the
    flag** and record the value here:
 
-   > Pilot project upload limit as configured: _(fill in at cutover)_
+   > Pilot project upload limit as configured: **BLOCKED as of 2026-08-06** — org
+   > `Rede Madre` (project `azkbbhskturikxpgmafq`) is on the **Free plan**, whose
+   > global upload cap is a hard 50 MB. Meeting 500 MB requires a **Pro upgrade**
+   > (then raise the global upload limit in Dashboard → Project Settings → Storage
+   > and record the configured value here). The bucket-level cap is already
+   > 524288000 (catalog-verified). Human decision — do not enable the flag before
+   > this line records a configured value ≥ 500 MB.
 
 ## 3. Callback reachability
 
