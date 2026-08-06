@@ -59,6 +59,8 @@ if (!SUPABASE_SERVICE_KEY) {
 }
 const DESATIVADO_UID = '00000000-0000-0000-0000-0000000000d4'
 const DR_JOHN_UID = '00000000-0000-0000-0000-0000000000a1'
+const HOSPITALADMIN_A1_UID = '00000000-0000-0000-0000-0000000000e1'
+const CCIH_NAME = 'Comissão de Controle de Infecção Hospitalar'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -594,6 +596,96 @@ test.describe('AFF-5: matrícula/start-date edits go through updateAffiliation a
     await expect(restoredRow.getByLabel('Matrícula')).toHaveValue(original, {
       timeout: 10_000,
     })
+  })
+})
+
+test.describe('AFF-6: endAffiliation blockers name the actual seats (D5, HC0R1)', () => {
+  // QA pass 1 found English text (" — no hospital") rendered inside this pt-BR alert.
+  // It survived every prior gate because NO E2E exercised the blockers list at all —
+  // and specifically not its HOSPITAL-TIER arm, the one the external audit's MEDIUM-3
+  // added so that ending an affiliation cannot orphan a sitting technical director's
+  // seat. `frontend` fixed the string (" — cargo do hospital") AND a second, deeper
+  // defect underneath it: the confirm `AlertDialog` closed ONLY on success, so a
+  // refusal rendered BEHIND the still-open dialog — dimmed and `aria-hidden`, since
+  // Radix hides everything outside an open dialog. The blockers list was therefore
+  // INERT to assistive technology (and looked like the button did nothing to a sighted
+  // admin). Both dialogs (this one and `user-lifecycle-actions.tsx`'s D14 refusal, the
+  // identical shape) now close on either outcome.
+  //
+  // ⚠ Assert via `getByRole('alert')`, NOT `getByText` — that is what actually pins the
+  // dialog-closing fix. A text locator would pass even if the alert went back behind an
+  // `aria-hidden` wrapper; a role-based locator times out on text that is plainly
+  // visible in a screenshot specifically WHEN it is `aria-hidden`, which is the
+  // accessibility bug itself, not a bad selector.
+  //
+  // The two tests assert DIFFERENT rendered text (a committee name vs. "cargo do
+  // hospital") so that a spec passing on either arm alone could not have caught this —
+  // exactly how the hospital-tier arm went unseen: every hand check used a committee
+  // seat.
+
+  test('commission-tier blocker: ending dr.john\'s Central A affiliation is refused and names his CCIH seat', async ({
+    page,
+  }) => {
+    // dr.john holds an active `staff` membership of CCIH (central-a) — READ-ONLY safe:
+    // the door refuses the end, so nothing about the pinned T3.5 fixture changes.
+    await signInAs(page, 'hospitaladmin.a1@test.local')
+    await page.goto(`/o/rede-a/manage/usuarios/${DR_JOHN_UID}`)
+
+    const centralRow = page
+      .locator('div')
+      .filter({ has: page.getByText(CENTRAL_A_NAME, { exact: true }) })
+      .filter({ has: page.getByRole('button', { name: /encerrar vínculo/i }) })
+      .first()
+    await centralRow.getByRole('button', { name: /encerrar vínculo/i }).click()
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    await dialog.getByRole('button', { name: /^encerrar vínculo$/i }).click()
+
+    // The dialog must close on refusal too (the fixed bug) — the alert is otherwise
+    // unreachable to a role-based query, `aria-hidden` behind it.
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 })
+    const alert = page.getByRole('region', { name: 'Vínculos hospitalares' }).getByRole('alert')
+    await expect(alert).toBeVisible({ timeout: 10_000 })
+    await expect(alert).toContainText('Remova estas funções antes de encerrar o vínculo')
+    // The rendered blocker names the ROLE and the COMMITTEE — not a generic refusal,
+    // and never the raw English fallback (" — no hospital") QA caught.
+    await expect(alert).toContainText(`Membro — ${CCIH_NAME}`)
+    await expect(alert).not.toContainText('no hospital')
+  })
+
+  test('hospital-tier blocker (never rendered before this spec): ending hospitaladmin.a1\'s OWN affiliation is refused and names their Administração do hospital seat', async ({
+    page,
+  }) => {
+    // CORRECTED FIXTURE (the lead's first pointer, dt.a, was verified against the live
+    // catalog and does NOT work — 0 active affiliations, so there is nothing to end and
+    // the refusal never fires). `hospitaladmin.a1@test.local` is the one seed persona
+    // both affiliated to a hospital (central-a, 1 active row) AND holding a hospital-
+    // tier seat there (`hospital_admin`, no commission membership at all — verified
+    // live) — exactly the shape D5's hospital-tier arm exists for. READ-ONLY safe, same
+    // as the commission-tier test: the door refuses the end, so nothing in the seed
+    // changes and no cleanup is needed.
+    await signInAs(page, 'orgadmin.a@test.local')
+    await page.goto(`/o/rede-a/manage/usuarios/${HOSPITALADMIN_A1_UID}`)
+
+    const centralRow = page
+      .locator('div')
+      .filter({ has: page.getByText(CENTRAL_A_NAME, { exact: true }) })
+      .filter({ has: page.getByRole('button', { name: /encerrar vínculo/i }) })
+      .first()
+    await centralRow.getByRole('button', { name: /encerrar vínculo/i }).click()
+    const dialog = page.getByRole('alertdialog')
+    await expect(dialog).toBeVisible({ timeout: 5_000 })
+    await dialog.getByRole('button', { name: /^encerrar vínculo$/i }).click()
+
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 })
+    const alert = page.getByRole('region', { name: 'Vínculos hospitalares' }).getByRole('alert')
+    await expect(alert).toBeVisible({ timeout: 10_000 })
+    await expect(alert).toContainText('Remova estas funções antes de encerrar o vínculo')
+    // The hospital-tier arm: no committee to name, so the seat is identified by role
+    // alone plus the settled pt-BR "cargo do hospital" qualifier — never the English
+    // fallback QA caught, and never a bare, unqualified role with no seat description.
+    await expect(alert).toContainText('Administração do hospital — cargo do hospital')
+    await expect(alert).not.toContainText('no hospital')
   })
 })
 

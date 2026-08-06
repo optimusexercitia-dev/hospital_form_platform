@@ -594,7 +594,13 @@ test('AC-4 evidence-link and assessment writes each emit an audit_log row', asyn
   expect(std.ok, `upsert_standard D: ${std.text}`).toBeTruthy()
   const stdDId = std.json.id
 
-  const markerT0 = new Date().toISOString()
+  // DB-clock marker, not a host (node) one — `occurred_at` is written by the SAME
+  // database this compares it against, and under full-gate load the container clock
+  // can sit momentarily behind the host's. A host-minted marker then filters the row
+  // straight back out of its own scoping predicate, which reads as "the audit row was
+  // never emitted" (a false product-defect signature) when it is a cross-clock
+  // comparison. One clock, both sides.
+  const markerT0 = sqlOne('select clock_timestamp()::text;')
 
   const link = await linkEvidenceRpc(page, token, {
     commission: COMMISSION_CCIH,
