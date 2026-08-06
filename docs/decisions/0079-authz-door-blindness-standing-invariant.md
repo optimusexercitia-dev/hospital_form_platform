@@ -325,3 +325,62 @@ noticed (`228_ethics_e1.sql` also failed a real assertion), so in substance the 
 covered. It stays ERROR anyway: the shape rule exists to stop verdicts being awarded by
 judgement, and an audit that exempts itself from its own rule is the failure this program
 keeps finding in others. It owes a clean verdict.
+
+## Amendment 5 — the census is blind to WRITE-PATH doors, and ARM 1's write sweep is a frozen list (2026-08-06)
+
+**Found in AFF/W2** (ADR [0097](./0097-hospital-affiliation-person-identity.md)), by the
+`backend` teammate noticing that a diff-scoped `ARM=policy` run reported `0 BLIND` over five
+brand-new DEFINER doors **having swept none of them** — their boolean-predicate arm printed
+empty, because the doors return `uuid`, not `boolean`. Investigated by the lead; the hole is
+wider than the observation.
+
+**The measurement, from the live catalog.** ARM 3's LIVE domain is `prosecdef` functions in
+`app`/`public` where the return type is `bool` **or** (`proretset` and
+`authenticated`-executable), plus every RLS policy. A **scalar- or void-returning DEFINER
+door is in none of those sets.** It does not need a verdict to pass the census; it is not
+*seen* by the census. `ARM=census` therefore reports HOLDS over such a door **because the
+door is invisible, not because it is accounted** — which is precisely the vacuity Amendment 3
+exists to close, recurring in a shape Amendment 3's own filter cannot express.
+
+ARM 1 does have a write-path sweep (`p0-authz-writepath-audit.sh`), and it is the right
+harness. But its domain is **two frozen enumerations**: a hand-written list of **7** named
+raise-guards, and a **captured snapshot** of 33 write policies embedded in the script. Neither
+is derived from the catalog, so **nothing added since it was written has ever entered it** —
+the "a remembered-doors allowlist is blind in exactly the case that matters" lesson, now
+holding at the harness level rather than in the code it audits.
+
+**Blast radius, measured not estimated.** Filtering the catalog by the *property* rather than
+the return type — `prosecdef`, `authenticated`-reachable, scalar/void, whose comment-stripped
+`prosrc` both references an identity primitive (`app.is_*`/`can_*`/`has_*`/`member_can`,
+`public.is_*`, `auth.uid`) **and** raises `42501` or an `HC*` code — yields **201** functions.
+**6** of them are named in any of the three findings reports.
+
+**What this does and does not claim.** It does **not** claim 201 leaks. Most are certainly
+covered in substance by keystones that assert through them; AFF's own
+`affiliate_person_impl` / `end_affiliation_impl` / `grant_role_impl` are in the class and are
+covered in substance — `302_affiliation_doors.sql` carries mutation-proven keystones through
+each (opening the D13 tenant check, granting the `_for` twin to `authenticated`, and narrowing
+the any-tier blocker check all go red). The claim is narrower and worse: **they carry no sweep
+verdict, and the arm whose entire job is to detect a missing verdict cannot see that they are
+missing one.** "Covered in substance" is what every gate this program has caught looked like
+right up to the moment someone opened it.
+
+**Two caveats, recorded so the follow-up does not inherit a false premise.** The 201 is a
+*candidate* domain from a regex, not a classification — a `prosrc` regex matches comments (the
+standing lesson; `--` comments were stripped here, `/* */` were not), so the real count is
+lower. And the class is not per-function: AFF's gate lives in an
+owner-only kernel (`app.*_impl`, ACL `postgres=X`) while reachability lives in its
+`authenticated` wrapper, whose own body names no identity primitive. **A per-function domain
+misses that door from both ends** — the domain has to follow the call edge, which is why this
+is harness work and not a filter tweak.
+
+**Decision.** Recorded now, scheduled as **FUP-AFF-1**, not built inside AFF — the same call
+Amendment 4 made when row-doors were found to need harness work rather than triage. It does
+**not** block AFF: AFF's doors are covered in substance and mutation-proven, and AFF's gate
+record must say exactly that rather than citing `ARM=census` as their coverage. Scope when it
+runs: derive the write-path domain from the catalog by the property (following the
+wrapper→kernel call edge), fold it into ARM 3's LIVE set, and give
+`p0-authz-writepath-audit.sh` a derived worklist in place of its two frozen enumerations.
+⚠ **And dry-run the new detector against a hand-classified sample before believing its
+output** — Amendment 4's harness reported 0 guards in all 45 doors and was completely wrong,
+and "no write-path door needs a verdict" is exactly as coherent a false result.
