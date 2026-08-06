@@ -711,3 +711,45 @@ particular can start cleanly — none block F1/F2, which only need §3.1's `getA
 §3.3's `startMinutesJob`/`submitMinutesJob`/`cancelMinutesJob`. Once B5 lands with real signatures
 matching (or correcting, with this doc updated to match) §3, F1 → F2 → F3 → F4 → F5 can proceed in
 the plan's stated order.
+
+---
+
+## 9. Lead answers to §7 (2026-08-06)
+
+Authored by the lead, appended to the frontend teammate's brief. These are
+decisions, not suggestions — §7's questions are closed by them.
+
+1. **F4 data shape → lateral join inside `listMeetings`.** The plan's F4 text
+   already calls for "one join/lateral in the list read"; a separate batched
+   call re-opens the N+1 risk the moment someone forgets to batch it. Backend
+   extends `MeetingListItem` with `minutesJobStatus`.
+   ⚠ Rider for backend: adding a second FK path to an already-reachable table
+   has broken un-hinted PostgREST embeds elsewhere in this codebase (PGRST201).
+   If the read goes through an embed rather than a view/lateral, **pin the
+   embed to the intended FK**.
+2. **`reconcileMinutesJob` is internal.** `getActiveMinutesJob` and
+   `getMinutesJobForReview` call it before returning; it is **not** exported to
+   the frontend. Lazy reconciliation that a page has to remember to invoke is
+   reconciliation that silently stops running. Keep it off the §3.3 surface.
+3. **Yes — backend publishes `src/lib/minutes-jobs/messages.ts`** mirroring
+   `src/lib/meetings/messages.ts`, covering every code the two new doors can
+   raise plus the mapped `HC000`/`HC021` from `create_committee_action_item`.
+   Already inside B5's scope; now explicit.
+4. **Resolved as fact, not a fallback — use XHR.** Verified against the
+   installed `@supabase/storage-js` **2.108.1**: `uploadToSignedUrl(path, token,
+   fileBody, fileOptions?)` exists, but `FileOptions` is
+   `{cacheControl, contentType, upsert, duplex, metadata, headers}` — there is
+   **no `onUploadProgress`**, and the implementation is `fetch`-based, which
+   cannot report upload progress at all. TUS/resumable is not available against
+   a signed URL here either. So F2 does a plain `XMLHttpRequest` PUT to the
+   signed URL with `upload.onprogress`. For a 500 MB file this is not cosmetic:
+   a progressless 20-minute upload reads as a hung app. Document the
+   retry-from-scratch behaviour in the dialog copy.
+5. **Approved — `?ata_aplicada=1`, stripped via `router.replace`.** Small, and
+   the alternative (a toast surviving a redirect) has no precedent here either.
+   Ensure the strip runs in an effect keyed to the param so a back-navigation
+   cannot resurrect the banner.
+6. **Same tab — do not introduce `target="_blank"`.** Being the platform's first
+   is reason enough to decline: consistency across every in-app link is worth
+   more than preserving step-1 state that, as noted, holds nothing destructive.
+   Re-opening the dialog after editing attendees costs two clicks.
