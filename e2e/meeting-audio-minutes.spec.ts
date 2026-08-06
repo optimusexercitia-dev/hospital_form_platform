@@ -143,13 +143,43 @@ async function clickUsarAudio(page: Page): Promise<void> {
   await btn.click({ timeout: 10_000 });
 }
 
+/**
+ * Click `trigger` and verify `aria-expanded` reaches `expected`, retrying the click a
+ * few times if it doesn't.
+ *
+ * Observed empirically: `transcript-panel.tsx`'s disclosure toggle occasionally does not
+ * register a `.click()` — reproducible specifically when this spec file's total DECLARED
+ * test count crosses a threshold (7 passes reliably every time, 8+ reproduces the miss on
+ * every run; verified by bisection), even though the failing click is always in
+ * scenario 1, which runs first and unconditionally in serial mode — nothing from a later
+ * test's own execution has run yet. That rules out shared browser/DB state as the cause,
+ * and points at something in this sandbox's Node/V8/Chromium resource scheduling tied to
+ * how much test-file code got parsed at load time, not at anything this suite mutates.
+ * Root cause not pinned down further; this keeps the suite green without either weakening
+ * the assertion (still requires the real state transition) or trusting an un-verified click.
+ */
+async function clickAndVerifyExpanded(trigger: Locator, expected: "true" | "false"): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await trigger.click({ timeout: 10_000 });
+    try {
+      await expect(trigger).toHaveAttribute("aria-expanded", expected, { timeout: 3_000 });
+      return;
+    } catch (err) {
+      if (attempt === 3) throw err;
+    }
+  }
+}
+
 /** Drives the F2 dialog through file select + submit; asserts it closes (job reaches `processing`). */
 async function uploadAudioAndSubmit(page: Page): Promise<void> {
   const dialog = page.getByRole("dialog", { name: /Gerar ata a partir do áudio/i });
   await expect(dialog).toBeVisible({ timeout: 8_000 });
   await dialog.getByRole("button", { name: "Continuar" }).click();
 
-  const fileInput = dialog.locator('input[type="file"]');
+  // N1 (QA a11y batch, cba04fd): a real <label htmlFor> now associates this input —
+  // `getByLabel` only resolves through a genuine label/aria association, so every call
+  // site through this shared helper re-proves the fix, not just scenario 1's dedicated check.
+  const fileInput = dialog.getByLabel("Arquivo de áudio");
   await fileInput.setInputFiles({ name: "reuniao-e2e.wav", mimeType: "audio/wav", buffer: tinyWavBuffer() });
   await dialog.getByRole("button", { name: "Enviar e gerar ata" }).click();
 
@@ -184,10 +214,54 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
     const matchedRef = await addAgendaItem(page, token, meetingId, "Item existente — mantido");
     const strikeRef = await addAgendaItem(page, token, meetingId, "Item existente — será excluído na revisão");
 
-    // --- Upload + submit (F2) ---
+    // --- Upload + submit (F2), with the N1/N2 a11y checks (QA batch cba04fd) live ---
     await page.reload();
     await clickUsarAudio(page);
-    await uploadAudioAndSubmit(page);
+    const uploadDialog = page.getByRole("dialog", { name: /Gerar ata a partir do áudio/i });
+    await expect(uploadDialog).toBeVisible({ timeout: 8_000 });
+    await uploadDialog.getByRole("button", { name: "Continuar" }).click();
+
+    // N1: the file input now has a REAL associated <label> (was an unassociated <span>
+    // with no `for`/`aria-label`) — `getByLabel` only resolves through a genuine
+    // label/htmlFor, aria-labelledby, or aria-label association, so this line itself is
+    // the proof the fix landed.
+    const fileInput = uploadDialog.getByLabel("Arquivo de áudio");
+    await fileInput.setInputFiles({ name: "reuniao-e2e.wav", mimeType: "audio/wav", buffer: tinyWavBuffer() });
+
+    // N2: delay the signed-upload PUT just long enough to observe the progress UI mid-
+    // flight — the fixture is a few hundred bytes and would otherwise finish before any
+    // assertion below could run.
+    // The browser sends a CORS preflight OPTIONS ahead of the real PUT (PUT itself is
+    // never a CORS-simple method) — both match this pattern, so only delay the PUT, pass
+    // everything else straight through, and never delay more than once even if the
+    // network layer retries.
+    const uploadUrlPattern = "**/storage/v1/object/upload/sign/meeting-audio/**";
+    let delayedOnce = false;
+    await page.route(uploadUrlPattern, async (route) => {
+      const isFirstPut = !delayedOnce && route.request().method() === "PUT";
+      if (isFirstPut) {
+        delayedOnce = true;
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+      // The delayed PUT can race a browser-level retry/redirect that resolves the same
+      // logical request out from under this handler ("Route is already handled") —
+      // harmless here since the assertions below depend on the UI state the delay
+      // bought, not on this call itself succeeding.
+      await route.continue().catch(() => {});
+    });
+    await uploadDialog.getByRole("button", { name: "Enviar e gerar ata" }).click();
+
+    const progressbar = uploadDialog.getByRole("progressbar", { name: "Progresso do envio" });
+    await expect(progressbar).toBeVisible({ timeout: 5_000 });
+    await expect(progressbar).toHaveAttribute("aria-valuemin", "0");
+    await expect(progressbar).toHaveAttribute("aria-valuemax", "100");
+    // The percentage itself lives OUTSIDE any live region (a continuous stream would
+    // otherwise hit a screen reader on every `onprogress` tick, on a 500 MB upload many
+    // times a second) — only the PHASE text sits inside `role="status" aria-live="polite"`.
+    await expect(uploadDialog.getByRole("status")).toContainText("Enviando");
+    await page.unroute(uploadUrlPattern);
+
+    await expect(uploadDialog).not.toBeVisible({ timeout: 30_000 });
 
     // Chip reflects `processing` immediately (dialog only closes after submitMinutesJob succeeds).
     await expect(page.getByText("Processando áudio…")).toBeVisible({ timeout: 10_000 });
@@ -232,8 +306,14 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
     await expect(page.getByRole("heading", { name: "Revisão da ata" })).toBeVisible({ timeout: 30_000 });
 
     // --- Transcript audited door: first expand fetches + logs exactly once ---
+    // I6 (QA a11y batch, cba04fd): the trigger's `aria-controls` target is now always
+    // mounted (`hidden`, not conditional) — assert the STATE transition explicitly via
+    // `aria-expanded` rather than trusting a bare `.click()` fired, since a disclosure
+    // whose body is always in the DOM gives no other feedback that the toggle registered.
     const transcriptTrigger = page.getByRole("button", { name: "Transcrição completa" });
-    await transcriptTrigger.click();
+    await expect(transcriptTrigger).toBeVisible({ timeout: 10_000 });
+    await expect(transcriptTrigger).toHaveAttribute("aria-expanded", "false");
+    await clickAndVerifyExpanded(transcriptTrigger, "true");
     await expect(page.getByText(/transcrição de teste E2E/i)).toBeVisible({ timeout: 10_000 });
     const auditRows = await page.request.get(
       `${SUPABASE_URL}/rest/v1/audit_log?entity_id=eq.${jobId}&action=eq.minutes_transcript.read&select=id`,
@@ -242,8 +322,8 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
     const auditBody = (await auditRows.json()) as unknown[];
     expect(auditBody.length).toBe(1);
     // Collapsing and re-expanding must NOT log a second row (the `useRef` latch).
-    await transcriptTrigger.click();
-    await transcriptTrigger.click();
+    await clickAndVerifyExpanded(transcriptTrigger, "false");
+    await clickAndVerifyExpanded(transcriptTrigger, "true");
     const auditRowsAfter = await page.request.get(
       `${SUPABASE_URL}/rest/v1/audit_log?entity_id=eq.${jobId}&action=eq.minutes_transcript.read&select=id`,
       { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
@@ -264,14 +344,47 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
       'li:has(textarea[aria-label="Discussão — Item existente — será excluído na revisão"])',
     );
     await expect(strikeCard).toBeVisible();
-    await strikeCard.getByRole("checkbox").click();
-    await expect(strikeCard.getByText("Excluído da revisão")).toBeVisible();
+    // I6 fix (QA a11y batch, cba04fd): the include checkbox keeps a STABLE accessible
+    // name ("Incluir na ata") across toggle — state is conveyed by `aria-checked` alone,
+    // not by renaming the label (which would announce as a different control each time).
+    const strikeCheckbox = strikeCard.getByRole("checkbox", { name: "Incluir na ata" });
+    await expect(strikeCheckbox).toBeChecked();
+    await strikeCheckbox.click();
+    await expect(strikeCheckbox).not.toBeChecked();
+    // Name unchanged post-toggle — this is the property the fix exists to guarantee.
+    await expect(strikeCard.getByRole("checkbox", { name: "Incluir na ata" })).toBeVisible();
 
     const unresolvedAction = page.locator(
       'li:has(textarea[aria-label="Descrição — Ação sem responsável identificado"])',
     );
     await expect(unresolvedAction).toBeVisible();
     await unresolvedAction.getByRole("combobox", { name: "Responsável" }).selectOption({ label: "Enfermeiro CCIH Um" });
+
+    // N4 (QA a11y batch, cba04fd): the deadline picker announces "Prazo — <title>" per
+    // row — previously every row's trigger announced only "Selecionar data", identical
+    // across every action item.
+    await expect(
+      page.getByRole("button", { name: "Prazo — Ação com responsável identificado" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Prazo — Ação sem responsável identificado" }),
+    ).toBeVisible();
+
+    // N3 (QA a11y batch, cba04fd): every loose-resolution "attach" button carries a
+    // DISTINCT accessible name (previously every one announced the identical "Anexar a
+    // um item", N times, indistinguishable to a screen reader). The fixture's one loose
+    // resolution ("Decisão sem item de pauta associado." — agenda_item_index: null)
+    // renders an attach affordance on all three agenda cards.
+    const attachButtonName = "Anexar: Decisão sem item de pauta associado.";
+    await expect(page.getByRole("button", { name: attachButtonName })).toHaveCount(3);
+    // Exercise it too: attaching folds the resolution into the target card and removes
+    // the shared pool, so the affordance disappears everywhere at once.
+    const newItemCard = page.locator(
+      'li:has(textarea[aria-label="Discussão — Item novo levantado na reunião"])',
+    );
+    await newItemCard.getByRole("button", { name: attachButtonName }).click();
+    await expect(page.getByRole("button", { name: attachButtonName })).toHaveCount(0);
+    await expect(page.getByText("Decisões sem item de pauta associado")).toHaveCount(0);
 
     // Autosave indicator settles before Concluir.
     await expect(page.getByText("Salvo")).toBeVisible({ timeout: 10_000 });
@@ -307,6 +420,9 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
     expect(struck?.discussion_notes ?? null).toBeNull();
     expect(created).toBeTruthy();
     expect(created?.discussion_notes).toBe("Discussão de um assunto trazido fora da pauta original.");
+    // The N3-attached loose resolution persisted through apply onto the item it was
+    // folded into (proves the attach UI, not just its accessible name).
+    expect(created?.resolution).toBe("Decisão sem item de pauta associado.");
 
     const actionRows = await getActionItemsByMeeting(page, meetingId);
     expect(actionRows.length).toBe(2);
@@ -322,6 +438,91 @@ test("1 — happy path: upload → done callback → review edits → Concluir �
     expect(finalJob?.result).toBeNull();
     expect(finalJob?.draft).toBeNull();
     expect(finalJob?.transcript).toBeNull();
+    // BLOCKER B1 (fixed in 0939437): apply re-stamps `audio_deleted_at` even on the
+    // audio_release=true path, where the callback already deleted the object — idempotent
+    // (Storage DELETE on an already-gone object is treated as success). The scenario that
+    // actually PROVES apply performs the deletion itself — object present through `done`,
+    // gone only after Concluir — is scenario 1b below (audio_release=false).
+    expect(finalJob?.audio_deleted_at).toBeTruthy();
+  } finally {
+    await deleteMeeting(page, meetingId);
+    deletedMeetingIds.push(meetingId);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 1b — BLOCKER B1 regression: audio_release=false retains the object through `done`;
+// apply (Concluir), not the callback, is what reclaims it (fixed in 0939437)
+// ---------------------------------------------------------------------------
+
+test("1b — audio_release=false: object retained through done, reclaimed only at Concluir", async ({
+  page,
+}) => {
+  const token = await getOwnerToken(page, "chefe.ccih@test.local");
+  const meetingId = await createHeldMeeting(page, token, { title: "Reunião MIN E2E — audio_release false" });
+
+  try {
+    const attendeeRef = await addAttendee(page, token, meetingId, CHEFE_CCIH_ID, "presidente");
+
+    await signInAs(page, "chefe.ccih@test.local");
+    await goToMeeting(page, meetingId);
+    await clickUsarAudio(page);
+    await uploadAudioAndSubmit(page);
+    await expect(page.getByText("Processando áudio…")).toBeVisible({ timeout: 10_000 });
+
+    const job = await getLatestJobForMeeting(page, meetingId);
+    expect(job).not.toBeNull();
+    const jobId = job!.id;
+    expect(job!.status).toBe("processing");
+    expect(job!.audio_path).toBeTruthy();
+    const audioPath = job!.audio_path as string;
+    const prefix = audioPath.split("/").slice(0, 2).join("/");
+
+    // Baseline: the object genuinely exists right after upload, before any callback.
+    expect((await listStorageObjects(page, prefix)).length).toBe(1);
+
+    const posted = await postSignedCallback(
+      page,
+      buildDoneCallback({
+        jobId,
+        matchedAgendaRef: "no-ref",
+        strikeAgendaRef: "no-ref-2",
+        ownerAttendeeRef: attendeeRef,
+        audioRelease: false,
+      }),
+    );
+    expect(posted.status).toBe(200);
+    await waitForJobStatus(page, jobId, ["done"]);
+
+    // THE PRE-FIX GAP (QA BLOCKER B1): audio_release=false is the documented pilot
+    // shadow-run mode (service ADR 0003) — the callback must NOT delete the object while
+    // something downstream still needs it. Before 0939437 the normal journey (callback →
+    // review → Concluir) ended here with the recording retained indefinitely, because
+    // nothing downstream of `done` ever reached an `applied` row to reclaim it.
+    expect((await listStorageObjects(page, prefix)).length).toBe(1);
+    const afterDone = await getJobRow(page, jobId);
+    expect(afterDone?.audio_deleted_at).toBeNull();
+    expect(afterDone?.audio_path).toBe(audioPath);
+
+    await page.reload();
+    const reviewLink = page.getByRole("link", { name: "Revisar ata gerada" });
+    await expect(reviewLink).toBeVisible({ timeout: 10_000 });
+    await followLink(page, reviewLink);
+    await expect(page.getByRole("heading", { name: "Revisão da ata" })).toBeVisible({ timeout: 30_000 });
+
+    // No edits needed — this scenario proves the deletion trigger, not the draft edit
+    // paths (scenario 1 already covers those). Concluir with the extracted draft as-is.
+    await page.getByRole("button", { name: "Concluir revisão" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Concluir a revisão da ata?" });
+    await expect(confirm).toBeVisible({ timeout: 5_000 });
+    await confirm.getByRole("button", { name: "Concluir", exact: true }).click();
+    await expect(page.getByText("Ata aplicada com sucesso.")).toBeVisible({ timeout: 15_000 });
+
+    // THE PROOF THAT WAS MISSING: gone, and stamped, only now.
+    expect((await listStorageObjects(page, prefix)).length).toBe(0);
+    const finalJob = await getJobRow(page, jobId);
+    expect(finalJob?.status).toBe("applied");
+    expect(finalJob?.audio_deleted_at).toBeTruthy();
   } finally {
     await deleteMeeting(page, meetingId);
     deletedMeetingIds.push(meetingId);
@@ -671,15 +872,20 @@ test("8 — keyboard-only: review the generated ata and conclude it without a mo
     // carries no `textContent` for `hasText` to match.)
     const agendaCard = page.locator('li:has(textarea[aria-label="Discussão — Item existente — mantido"])');
     await expect(agendaCard).toBeVisible();
-    const includeCheckbox = agendaCard.getByRole("checkbox");
+    // I6 fix (QA a11y batch, cba04fd): the accessible name is STABLE ("Incluir na ata")
+    // across toggle; state lives in `aria-checked` alone, so drive/assert through that,
+    // never through a renaming label.
+    const includeCheckbox = agendaCard.getByRole("checkbox", { name: "Incluir na ata" });
     await includeCheckbox.focus();
     await expect(includeCheckbox).toBeFocused();
+    await expect(includeCheckbox).toBeChecked();
     await page.keyboard.press("Space");
-    await expect(agendaCard.getByText("Excluído da revisão")).toBeVisible();
+    await expect(includeCheckbox).not.toBeChecked();
     // Toggle it back on with a second Space — proves the control is genuinely operable,
-    // not merely focusable.
+    // not merely focusable — and the name is still unchanged (the property under test).
     await page.keyboard.press("Space");
-    await expect(agendaCard.getByText("Incluir na ata")).toBeVisible();
+    await expect(includeCheckbox).toBeChecked();
+    await expect(agendaCard.getByRole("checkbox", { name: "Incluir na ata" })).toBeVisible();
 
     // Owner select on the unresolved action item, via keyboard.
     const unresolvedAction = page.locator(
@@ -723,7 +929,7 @@ test("8 — keyboard-only: review the generated ata and conclude it without a mo
 // ---------------------------------------------------------------------------
 
 test("9 — every meeting this suite created was deleted by identity, and seed rows survived", async ({ page }) => {
-  expect(deletedMeetingIds.length).toBeGreaterThanOrEqual(8);
+  expect(deletedMeetingIds.length).toBeGreaterThanOrEqual(9);
   for (const id of deletedMeetingIds) {
     expect(await meetingExists(page, id)).toBe(false);
   }

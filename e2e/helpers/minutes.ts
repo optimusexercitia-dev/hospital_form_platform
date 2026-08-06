@@ -1,10 +1,24 @@
 import { createServer, type Server } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac } from "node:crypto";
 import { execSync } from "node:child_process";
 import type { Page } from "@playwright/test";
 
-import { signCallbackBody } from "@/lib/audio-jobs/hmac";
 import type { CallbackPayload, MeetingMinutesResult } from "@/lib/audio-jobs/types";
+
+/**
+ * Mirrors `signCallbackBody` from `@/lib/audio-jobs/hmac` — inlined rather than
+ * imported. That module gained `import 'server-only'` (QA a11y batch N7, `cba04fd`),
+ * which is a Next.js-webpack-only convention: Next aliases `server-only` to a no-op for
+ * server bundles and to a throwing stub for client ones, but Playwright's own esbuild-
+ * based TS loader knows nothing about that alias, so it always gets the raw npm
+ * package — which throws unconditionally on import. Importing the real module from a
+ * spec/helper is therefore no longer possible; this is the same one-line algorithm
+ * (verified against the source at the time of writing), kept in exact sync by
+ * `hmac.test.ts`'s own fixtures existing on the app side. Flagged in PROGRESS.md.
+ */
+function signCallbackBody(rawBody: string, timestamp: string, secret: string): string {
+  return `sha256=${createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex")}`;
+}
 
 /**
  * Shared scaffolding for `meeting-audio-minutes.spec.ts` (ADR 0099, MIN plan T3).
@@ -421,6 +435,14 @@ export interface DoneCallbackRefs {
   matchedAgendaRef: string;
   strikeAgendaRef: string;
   ownerAttendeeRef: string;
+  /**
+   * Service ADR 0003 shadow-comparison flag. Defaults to `true` (the platform's own
+   * `deleteAudio` fires right on the callback) so every EXISTING call site keeps its
+   * original coverage of that path unchanged. Pass `false` to exercise the pilot's
+   * documented shadow-run mode instead — the callback must NOT delete the object, and
+   * (BLOCKER B1, fixed in `0939437`) reclamation must happen at apply time instead.
+   */
+  audioRelease?: boolean;
 }
 
 export function buildDoneCallback(refs: DoneCallbackRefs): CallbackPayload {
@@ -486,7 +508,7 @@ export function buildDoneCallback(refs: DoneCallbackRefs): CallbackPayload {
     job_type: "meeting_minutes",
     status: "done",
     metadata: { platform_job_id: refs.jobId, job_type: "meeting_minutes" },
-    audio_release: true,
+    audio_release: refs.audioRelease ?? true,
     result,
     metrics: null,
     error: null,
