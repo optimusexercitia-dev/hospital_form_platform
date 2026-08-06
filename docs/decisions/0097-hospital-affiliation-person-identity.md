@@ -1,10 +1,14 @@
 # ADR 0097 — Hospital affiliation, person identity (CPF) and the org-scoped people directory
 
-**Status:** Proposed (awaiting human approval; no build started) · **Date:** 2026-08-05
+**Status:** Accepted (PO-approved 2026-08-05; build started same day on
+`feat/hospital-affiliation-person-identity`) · **Date:** 2026-08-05
 **Inputs:** PO scenario of 2026-08-05 (a professional hired by a second hospital of the
 same organization) and the design interview that followed; three catalog-verified
 explorations of the live local stack (registration flow, `memberships`/`profiles` RLS,
-branch + ADR history). Plan:
+branch + ADR history); the **external audit of 2026-08-05**
+([docs/reviews/aff-adr-0097-external-audit.md](../reviews/aff-adr-0097-external-audit.md)),
+whose corrections (BLOCKER-1, HIGH-1, MEDIUM-3/5, MINOR-1, LOW-1/2/3) are folded into
+the decisions below — PO-ruled 2026-08-05. Plan:
 [docs/plans/hospital-affiliation-person-identity.md](../plans/hospital-affiliation-person-identity.md).
 Amends ADR [0048](./0048-user-registration-identity.md) (D1, D7, D9); reconciles ADR
 [0051](./0051-hospital-admin-tier-and-hospital-audit-tier.md) (D1, D7); complements ADR
@@ -102,10 +106,14 @@ contradiction surfaces. This ADR resolves it.
    retention regime of ADR 0035). No `UNIQUE (principal_id, hospital_id)` — historical
    rows are legitimate; a partial unique `(principal_id, hospital_id) WHERE ended_on IS
    NULL` enforces one *active* affiliation.
-5. **Ending an affiliation is REFUSED while the person holds active commission
-   memberships under that hospital**, with the blocking memberships enumerated to the
-   caller. A governance platform must not revoke committee seats as a side effect of an
-   HR action.
+5. **Ending an affiliation is REFUSED while the person holds active memberships of ANY
+   tier under that hospital** — commission seats (`staff`, `staff_admin`) **and**
+   hospital-tier seats (`hospital_admin`, `technical_director`,
+   `technical_director_deputy`, `nsp_coordinator`, `pqs_member`) alike — with the
+   blocking memberships enumerated to the caller. A governance platform must not revoke
+   or orphan seats as a side effect of an HR action; a commission-only check would let
+   an admin end a sitting technical director's affiliation while the TD role lives on
+   (audit MEDIUM-3).
 
 ### Visibility
 
@@ -115,15 +123,28 @@ contradiction surfaces. This ADR resolves it.
    independently of this feature — a hospital admin who cannot render their own technical
    director's name is a live defect. This is a deliberate RLS widening and carries a
    diff-scoped `ARM=policy` run plus keystones with **both** ALLOW and DENY arms, the DENY
-   arm being a sibling hospital's admin.
+   arm being a sibling hospital's admin. **The DENY arm pins the default state, not a hard
+   boundary**: D13's door lets any in-org hospital admin self-serve an affiliation
+   (audited, actor-named), after which the affiliation leg admits them — the tenant
+   boundary remains the *organization* (finding 1), and a future auditor must not read
+   the DENY keystone as tenant isolation (audit LOW-1).
 
 ### Identity
 
 7. **`profiles.cpf` is the person key.** Column nullable (a documented escape for foreign
    professionals without a later schema change), **required at the action layer**, check
    digits validated, stored digits-only, **unique platform-wide**. Global uniqueness
-   creates an enumeration surface *identical to the one `profiles_email_key` already
-   creates* — recorded here explicitly rather than discovered in a later audit.
+   creates an enumeration surface *of the same kind as* the one `profiles_email_key`
+   already creates — but **wider in practice** (audit LOW-3): the CPF space is 11 digits
+   with check digits, densely machine-enumerable, where emails are not. The audience is
+   bounded to authenticated tenant admins, and D11's audit row on CPF lookups is the
+   compensating control. Recorded here explicitly rather than discovered in a later audit.
+   **Reads are column-locked** (audit HIGH-1): `cpf` is excluded from the `authenticated`
+   column grants on `profiles` — the row policies deliberately admit co-commission
+   members, and a national ID must not ride along on a colleague's row read. All CPF
+   reads and writes go through the action layer (service client) and the DEFINER doors;
+   the person's own account page surfaces it via a server action. Precedent:
+   `case_referral`'s column-level grants.
    Rationale over email: at 150 people across five hospitals, homonyms ("João Silva") are
    the realistic collision, and CPF is how HR already identifies staff. The first
    customer uses personal emails, so email churn is **not** the driving argument.
@@ -143,18 +164,26 @@ contradiction surfaces. This ADR resolves it.
 ### The directory
 
 10. **The org-scoped people directory is RATIFIED, not invented.** A new DEFINER RPC
-    `list_org_people(p_org_id, p_search)` gated `app.is_org_admin_of(org) OR
-    app.is_org_level_admin_within(org)` — the second helper already exists, already
-    treats `hospital_admin` as an org-level actor, and is used in **no policy today**.
-    Doing nothing would have ratified finding 1 silently; this makes it a stated decision
-    with an ADR and door coverage. **This amends ADR 0048 D1** — the org-scoped directory
-    is reachable by hospital admins, which is what the product already does.
+    `list_org_people(p_org_id, p_search)` gated `app.is_org_admin_of(org)` **OR the
+    caller holds an active `hospital_admin` membership in the org** — an **inline
+    predicate, deliberately NOT `app.is_org_level_admin_within`** (audit MEDIUM-5 +
+    MINOR-1): that helper also admits `nsp_org_admin`, which would silently hand the
+    directory to NSP — a disclosure this ADR does not make; NSP access waits for a
+    demonstrated workflow need, as a one-line amendment. The helper is also **not**
+    unused, contrary to an earlier draft of this decision — it is a live leg of
+    `organizations_select`, so borrowing or editing it moves `organizations` visibility
+    too. Doing nothing would have ratified finding 1 silently; this makes it a stated
+    decision with an ADR and door coverage. **This amends ADR 0048 D1** — the org-scoped
+    directory is reachable by hospital admins, which is what the product already does.
 11. **Payload:** name, email, professional category, and **same-org affiliations** (one
     organization is one legal controller, and without affiliations an admin cannot tell
     two homonyms apart). Nothing beyond the org. **CPF is a search input only and is never
     returned to the client** — `list_org_people` takes it as an exact-match parameter.
     Partial CPF matching is refused outright: it is an enumeration oracle over national
-    IDs and no workflow needs it. Name and email may match partially.
+    IDs and no workflow needs it. Name and email may match partially. **Every
+    CPF-parameterized call emits an audit row** (Rule 11; audit LOW-2) recording the
+    actor, the org, and whether it matched (the matched `user_id` when it did) — **never
+    the CPF digits themselves** (Rule 11 logs *that* and *who*, never payloads).
 12. **One identifier-first registration flow**, not two buttons. The first field resolves
     the identifier, then branches: not found → the current create form; found in my org,
     unaffiliated → offer to affiliate; found and already affiliated → link to their page;
@@ -201,12 +230,25 @@ contradiction surfaces. This ADR resolves it.
     arm, reds the ADR-0094 completeness grid until it has grant *and* revoke arms, and
     adds a tenth OR-term every future gate must remember — a permanent authorization tax
     for a UI convenience the model already handles.
-17. **Provisioning seats both roles when the organization has exactly one hospital**, via
-    the service path with `p_actor` = the provisioning platform admin, which sidesteps the
-    self-grant guard **without weakening it**. Multi-hospital orgs keep the explicit
-    appointment step. Relaxing the self-grant guard for `org_admin → hospital_admin` was
-    considered and rejected: the "you are granting yourself a subset" premise is exactly
-    what finding 9 shows to be untrue.
+17. **Provisioning seats both roles when the organization has exactly one hospital**,
+    via `grant_role_for` with `p_actor` = the provisioning platform admin, which
+    sidesteps the self-grant guard **without weakening it**. ⚠ **This requires a
+    one-arm widening delivered in this workstream** (audit BLOCKER-1): as verified
+    against the live catalog, `grant_role_impl`'s `hospital_admin` branch requires
+    `app.is_org_admin_of_for(org, p_actor)` with **no `is_admin_for` arm** — the
+    platform admin is denied 42501, and the fallback (seat `org_admin` first, they
+    self-grant `hospital_admin`) hits the self-grant guard. There is **no working path
+    today**; an earlier draft of this decision asserted one existed, having live-probed
+    only the self-grant hazard. **The fix: the `hospital_admin` branch gains
+    `app.is_admin_for(p_actor)`, symmetric with the `org_admin` branch** — sanctioned by
+    the noun rule (memberships are platform_admin's tenancy arm) and carrying ALLOW +
+    DENY keystones. Side effect, accepted: platform_admin can seat hospital admins at
+    any time, exactly as it already can seat org admins. The `technical_director`
+    branch keeps its deliberate no-`is_admin_for` posture — direção técnica is tenant
+    governance, not tenancy. Multi-hospital orgs keep the explicit appointment step.
+    Relaxing the self-grant guard for `org_admin → hospital_admin` was considered and
+    rejected: the "you are granting yourself a subset" premise is exactly what finding 9
+    shows to be untrue.
 18. **Dominance becomes an enforced invariant.** A pgTAP grid — mechanically the shape of
     the ADR-0094 role-completeness grid — reads gates from `pg_policies` + `prosrc` and
     asserts every gate admitting `is_hospital_admin_of` also admits `is_org_admin_of`,
@@ -230,7 +272,16 @@ contradiction surfaces. This ADR resolves it.
 - **`home_hospital_id`'s removal is a multi-file refactor**, not a column drop: it appears
   in two `profiles` policies, in `registerUser`'s hospital-admin arm, in
   `updateUserProfile`'s validation, and in the `?hospital=` deep-link plumbing of ADR 0051
-  D7. Each site becomes an affiliation read.
+  D7. Each site becomes an affiliation read. Two sites the audit added: the
+  **`guard_profile_privileged_columns` trigger** compares both doomed columns — plpgsql
+  is late-bound, so the drop *succeeds* and every later `profiles` UPDATE fails 42703 at
+  runtime unless the trigger is rewritten in the same migration; and the **customer demo
+  seed** (`supabase/demo/seed-revisao-prontuario.sql`) sets `home_hospital_id` while
+  living in **no gate and no teammate's scope** (the TV lesson).
+- **D7's column lock converts `profiles` to column-list grants.** Excluding `cpf` from
+  the `authenticated` grant means revoking the table-level grant and re-granting explicit
+  column lists — from then on **every new `profiles` column needs its own GRANT or reads
+  42501** (the standing `case_referral` lesson now applies to `profiles`).
 - **The register screen stops being a create-only surface.** "Registrar pessoa" keeps its
   label but resolves before it creates, which is the behavioural core of this ADR.
 - **This workstream ratifies an existing over-disclosure.** Finding 1 is live today with
@@ -260,3 +311,7 @@ contradiction surfaces. This ADR resolves it.
 | A combined `solo_admin` role | Permanent authorization tax for a UI convenience the model already supports. |
 | Relaxing the self-grant guard for `org_admin → hospital_admin` | Punches a hole in a keystone deliberately inlined to survive the service path, on a dominance premise finding 9 disproves. |
 | Narrowing `memberships` SELECT instead of widening `profiles` | Would hide a hospital's own technical director from its own administrator. |
+| A dedicated provisioning door instead of the D17 arm | One more DEFINER door to census, sweep, and keystone forever, for a single missing arm the noun rule already sanctions. |
+| Leaving `cpf` under the table-level `profiles` grant | The co-member row-policy leg would expose a national ID to any colleague sharing a commission (audit HIGH-1). |
+| A separate `person_identifiers` table for CPF | Cleaner isolation but a heavier build (table + RLS + door + audit) for one column the grant layer can lock. |
+| Gating the directory via `is_org_level_admin_within` | Silently admits `nsp_org_admin` — an undebated disclosure — and the helper is load-bearing in `organizations_select` (audit MEDIUM-5, MINOR-1). |
