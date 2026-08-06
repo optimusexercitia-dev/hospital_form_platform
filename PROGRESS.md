@@ -115,7 +115,7 @@ Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc
 
 | WS | Scope | Owner | State |
 | -- | ----- | ----- | ----- |
-| **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ▶ **in progress** |
+| **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
 | **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ⏸ blocked on W1 |
 | **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ⏸ blocked on W2 contract |
 
@@ -143,6 +143,31 @@ reads 42501** — the standing `case_referral` lesson now applies to `profiles`)
 > [org.ts:199](src/lib/queries/org.ts)'s embed string `profiles!profiles_home_hospital_id_fkey(count)`
 > **typechecks after the drop and fails only at runtime** (the TV dropped-column mechanism — grep is
 > the authority for the client layer, the catalog for SQL).
+
+**W1 result (`backend`, 2026-08-06).** Migrations `20260909000100` (`hospital_affiliations` + its
+four-leg policy + the `affiliation.created/ended` audit trigger) · `000200` (`app.is_valid_cpf`,
+`profiles.cpf`, and the column-list grant conversion — `authenticated` now holds
+`SELECT/INSERT/UPDATE` on **11 named columns**, table-level `dDxtm` untouched) · `000300` (the two
+policy legs, the `guard_profile_privileged_columns` rewrite, the DROP) · `000400`
+(`professional_profiles.cpf`). Gates: **289 registered == 289 files** on a fresh reset · pgTAP
+**162 files / 4961 tests PASS** (new suite `301`, **40 assertions**) · Vitest **984/984** · lint
+0 errors 0 warnings · typecheck clean · authz **`ARM=census` HOLDS** (the new policy was correctly
+flagged UNKNOWN first, then swept) and **`ARM=floor` HOLDS**; the diff-scoped door sweep over
+`hospital_affiliations_select` + both altered `profiles` policies returned **3 COVERED, 0 BLIND,
+0 ERROR** (the findings report was *merged*, not `git checkout`-ed, so the subset run did not
+discard 400+ committed verdicts). **11 mutations were run against `301`; every one went red on its
+target** (each of the four policy legs individually, `using(true)` for all four deny arms, the
+column lock, the stale trigger body, the partial unique, the composite FK, the CPF validator, the
+DML grant). Shape decisions ADR 0097 left open are recorded in ADR
+[0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md).
+
+> ⚠ **W1→W2 SEQUENCING HAZARD, measured not predicted.** `20260909000300` removes the
+> `home_hospital_id` leg and adds nothing; the replacement legs are **T2.3**. Seed reach is
+> unchanged (`hospitaladmin.a1` still reads 13/30 profiles, 21/34 memberships — ADR 0097's own
+> constants), but a person registered at a hospital and seated on **no committee** was read through
+> that leg on the product path, so between W1 and T2.3 their hospital's admin cannot read their
+> profile. **`e2e/hospital-admin-tier.spec.ts` HA-6 asserts exactly that person is visible** — do not
+> run the E2E gate between W1 and T2.3. pgTAP `301` §5.1 pins the gap and **T2.3 must invert it**.
 
 > ⚠ **`seed.sql` is a contract with ~900 pgTAP tests + E2E.** T3.5 adds an org (Rede C), personas and
 > affiliation rows; the very constants ADR 0097 cites (21/34 memberships, 13/30 profiles, 6 dangling)

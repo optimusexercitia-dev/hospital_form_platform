@@ -284,6 +284,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | form_versions.form_versions_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,255_ethics_e2_targeted.sql,60_builder.sql |
 | forms.forms_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,186_member_titles.sql,40_rls.sql |
 | forms.forms_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,186_member_titles.sql,40_rls.sql |
+| hospital_affiliations.hospital_affiliations_select (SELECT) | policy | open->true | COVERED | 301_hospital_affiliation_substrate.sql |
 | hospital_departments.hospital_departments_select (SELECT) | policy | open->true | COVERED | 201_hospital_departments.sql |
 | hospital_departments.hospital_departments_write (ALL) | policy | open->true | COVERED | 201_hospital_departments.sql |
 | hospitals.hospitals_select (SELECT) | policy | open->true | COVERED | 170_multitenancy_hierarchy.sql,188_hospital_user_mgmt.sql |
