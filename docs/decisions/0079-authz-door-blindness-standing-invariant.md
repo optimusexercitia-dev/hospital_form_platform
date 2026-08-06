@@ -374,6 +374,16 @@ owner-only kernel (`app.*_impl`, ACL `postgres=X`) while reachability lives in i
 misses that door from both ends** — the domain has to follow the call edge, which is why this
 is harness work and not a filter tweak.
 
+**It recurred inside the same workstream, after being written down.** AFF/W3 created four more
+gates (`app.update_affiliation_impl`, `public.update_affiliation`, `public.update_affiliation_for`,
+`app.trg_audit_hospital_affiliations`) and changed **zero** policies. Its diff-scoped run printed
+`PREDICATE ARM: empty · POLICY ARM: empty · BLIND 0 · ERROR 0` — **it examined none of them.** A
+second instance one workstream later, with the amendment already drafted, is the argument against
+treating this as an AFF curiosity: the arm reports a clean result **in the same words** whether it
+swept everything or nothing, and only reading its per-arm output distinguishes the two. Until
+FUP-AFF-1 lands, **a diff-scoped `0 BLIND` over new doors is not evidence of coverage** — the run
+must state which arm saw which gate, and a phase citing it must cite the keystones instead.
+
 **Decision.** Recorded now, scheduled as **FUP-AFF-1**, not built inside AFF — the same call
 Amendment 4 made when row-doors were found to need harness work rather than triage. It does
 **not** block AFF: AFF's doors are covered in substance and mutation-proven, and AFF's gate
