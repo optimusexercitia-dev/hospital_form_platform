@@ -343,13 +343,19 @@ select is(
 reset role;
 
 -- ============================================================================
--- §5 THE W1 GAP — pinned deliberately, and OWNED BY W2/T2.3, WHICH MUST INVERT IT.
+-- §5 THE W1 GAP, NOW CLOSED — INVERTED BY W2/T2.3 (20260909000700), AS PLANNED.
 --
--- 20260909000300 REMOVES the `home_hospital_id` leg from both `profiles` SELECT
--- policies and adds nothing; the affiliation + membership legs that replace it are
--- W2/T2.3. So a hospital admin can see THAT a person is employed at their hospital and
--- still not read the person's profile. This is the executable form of that warning: it
--- is not a property worth keeping, and T2.3 flips the second half to 1.
+-- W1's `20260909000300` removed the `home_hospital_id` leg from both `profiles` SELECT
+-- policies and added nothing, so for the length of one workstream a hospital admin
+-- could see THAT a person was employed at their hospital and still not read the
+-- person's profile. This assertion was written in W1 to PIN that gap, with "⚠ W2/T2.3
+-- INVERTS THIS" in its own name; T2.3's affiliation leg has now landed and the second
+-- half reads 1.
+--
+-- It is kept (inverted) rather than deleted, because the pair of counts is exactly the
+-- property D2 exists for: a committee-less employee must be visible to their own
+-- hospital's administrator. `302` §4 keystones the leg itself with ALLOW and DENY arms;
+-- this one keystones the END-TO-END shape the workstream was created to fix.
 -- ============================================================================
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false);
 set local role authenticated;
@@ -358,8 +364,8 @@ select ok(
     join fx on fx.id = a.id
    where a.principal_id = (select unaffiliated_subject from k)) = 1
   and (select count(*)::int from public.profiles
-        where id = (select unaffiliated_subject from k)) = 0,
-  '5.1 W1 GAP (⚠ W2/T2.3 INVERTS THIS): the hospital admin reads the AFFILIATION of a committee-less employee but ZERO of their PROFILE');
+        where id = (select unaffiliated_subject from k)) = 1,
+  '5.1 W1 GAP CLOSED (T2.3 inverted this): the hospital admin reads BOTH the affiliation AND the profile of a committee-less employee');
 reset role;
 
 -- ============================================================================
