@@ -124,8 +124,8 @@ highest `20260909001300`.
 | B5 `src/lib/minutes-jobs/` module | backend | — | context composer D14: agenda titles only |
 | B6 webhook route `api/webhooks/audio-jobs` | backend | — | raw-body HMAC; idempotent 200s |
 | B7 notifications · B8 env/runbook | backend | — | |
-| F1 Ata card slot · F2 upload dialog | frontend | — | may start on B2 contract stubs |
-| F3 review page · F4 list badge · F5 nav | frontend | — | `frontend-design` skill first |
+| F1 Ata card slot · F2 upload dialog | frontend | — | Design brief ✅ 2026-08-06: [audio-minutes-ui.md](docs/design/audio-minutes-ui.md) — component tree + §3 contract handed to backend for B5; implementation not started (blocked on B5 landing) |
+| F3 review page · F4 list badge · F5 nav | frontend | — | Design brief ✅ 2026-08-06 (same doc) — `MinutesDraft` shape (§3.2), state machine (§4), pt-BR copy (§5), a11y/motion plan (§6); 6 open questions in §7 need answers before F3 starts |
 | T1 pgTAP (with B2) · T2 unit · T3 E2E · T4 authz arms · T5 manual smoke | backend/owners/tester | — | fixtures from service W3 |
 
 Coordination: local `config.toml` storage cap 50 MiB must rise for 500 MB uploads — requires
