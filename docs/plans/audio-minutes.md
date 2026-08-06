@@ -53,17 +53,35 @@ B0 → B1 → B2 → B3 ─→ B4 → B5 → B6 → B7 → B8
    existing delete posture (cascade vs restrict — mirror whatever
    `meeting_agenda_items` does).
 4. Record the reserved migration window in PROGRESS.md.
+5. Schedule the `config.toml` storage-limit bump (B1 ceiling 2) with whoever
+   owns the local stack — it needs `supabase stop && supabase start`, so it is
+   a coordination item, not an in-flight edit.
 
 ## B1 — Migration 1: storage + table (backend)
 
-**`meeting-audio` bucket.** Private. ⚠ Every existing bucket is 25 MiB with no
-audio MIME types (fact from the service repo's integration notes) — this bucket
-needs its own `file_size_limit` (500 MB, D3) and `allowed_mime_types`
-(`audio/mp4`, `audio/aac`, `audio/mpeg`, `audio/wav`, `audio/x-wav`,
-`audio/ogg`, `audio/webm` — verify the exact strings browsers emit for `.m4a`
-at build time). Check local `supabase/config.toml` global `file_size_limit`
-doesn't clamp below 500 MB, and note the Cloud project setting in the deploy
-runbook. **No storage RLS policies for `authenticated`** — all object access is
+**`meeting-audio` bucket.** Private, with its own `file_size_limit` (500 MB, D3)
+and `allowed_mime_types` (`audio/mp4`, `audio/aac`, `audio/mpeg`, `audio/wav`,
+`audio/x-wav`, `audio/ogg`, `audio/webm` — verify the exact strings browsers
+emit for `.m4a` at build time). Per-bucket limits are a **project convention,
+not a Supabase constraint**: the nine existing buckets are document/image
+stores set to 26214400 (25 MiB), except `form-assets` at 5242880 (5 MiB). This
+bucket simply sets different values — nothing is inherited.
+
+⚠ **Three size ceilings must all admit 500 MB; the bucket's is only one.**
+1. `storage.buckets.file_size_limit` — this migration.
+2. **Local: `supabase/config.toml:118` `[storage] file_size_limit = "50MiB"`** —
+   a **global** cap above every local bucket. Left as-is, a 500 MB upload fails
+   locally no matter what the bucket says. Raising it requires
+   **`supabase stop && supabase start`**, which restarts the *shared* stack:
+   coordinate with any other session before touching it (docs/worktrees.md), and
+   note the file is committed, so the change lands for every worktree at once.
+3. **Cloud: the project's storage upload-size setting**, whose maximum is
+   plan-dependent — confirm the pilot project's plan admits 500 MB *before* the
+   flag is enabled, and record the value in the deploy runbook (B8).
+Add an E2E or smoke assertion that a >50 MB file actually uploads, so a
+forgotten ceiling fails loudly rather than at the first real 2 h recording.
+
+**No storage RLS policies for `authenticated`** — all object access is
 server-side (signed upload URL minted by B5; signed download URL for the
 service; service-role delete). Path convention:
 `<meeting_id>/<job_id>/<sanitized_filename>`.
@@ -394,8 +412,10 @@ before pilot-tenant flag enablement, alongside the service's DPA gates (D17).
 
 ## Risks / verify-at-build
 
-- **Signed-upload mechanics + 500 MB**: bucket-level limit vs global
-  `config.toml` limit vs Cloud setting; TUS availability against signed URLs.
+- **Signed-upload mechanics + 500 MB**: the three ceilings in B1 (bucket /
+  local `config.toml` 50 MiB / Cloud plan setting) — the local one is confirmed
+  too low today and its fix restarts the shared stack. Plus TUS availability
+  against signed URLs.
 - **Callback reachability**: only the deployed pilot proves the real path (T5
   local + one prod smoke).
 - **Download-URL TTL vs queue depth**: 6 h chosen against the service's job
