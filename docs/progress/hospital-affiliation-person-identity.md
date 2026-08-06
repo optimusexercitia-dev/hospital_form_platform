@@ -239,3 +239,88 @@ and F2 (the dialog now closing on refusal) at once. See Test Run Summary for run
 > "Sem hospital de origem" became the chip "Sem vínculo hospitalar"; and `getByLabel('CPF')` matches
 > **two** nodes (the field and the region "Comece pelo CPF") — use
 > `getByRole('textbox', { name: 'CPF' })`.
+
+---
+
+## Completion record — rotated from PROGRESS.md 2026-08-06 (§6 step 5)
+
+**COMPLETE 2026-08-06.** ADR [0097](../decisions/0097-hospital-affiliation-person-identity.md) +
+[0098](../decisions/0098-aff-w1-substrate-shape-decisions.md); backend surface →
+`docs/backend-state.md` (AFF section). QA **APPROVED** r1 + **APPROVED final** r2
+([review](../reviews/aff-review.md)). PO-approved 2026-08-06.
+
+Final gate: lint 0/0 · typecheck · Vitest **1026/1026** · `db reset` **298=298** · pgTAP
+**165 files / 5066 PASS** on a fresh reset · `ARM=census` + `ARM=floor` **INVARIANT HOLDS** ·
+`e2e:prod` **GATE GREEN — 985 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches
+(no gaps) · 0 `reset FAILED` · accounted 986/991**.
+
+### The three lessons this workstream leaves behind
+
+> ⚠ **It fired FOUR times: an enumeration's boundary must be the PROPERTY, not a syntax and not a
+> remembered list.** (1) The error-code drift detector enumerated `errcode = '[A-Z0-9]{5}'`, so it
+> could not see `check_violation` — the *same* defect it was built to catch, in the *same* file.
+> (2) The diff-derivation grep was case-sensitive, but `pg_get_functiondef` emits **uppercase**, so it
+> listed 1 of 4 changed gates (ADR 0079 Amendment 5a). (3) `302` §1's ACL enumeration covered "the
+> doors that existed when I wrote it", and `log_cpf_probe_for` arrived two commits later inheriting
+> nothing — while its ACL is its *entire* boundary. (4) A unit test transcribed the membership-role
+> list and claimed in its header that widening the CHECK would red it; it could not, because Vitest
+> cannot reach the database. **Every one was caught by a mutation or a catalog read. None by review.**
+> Classes filed as FUP-AFF-3 / FUP-AFF-4.
+
+> ⚠ **Second recurring shape: a comment is an assertion that goes stale silently — three instances.**
+> A security comment justified `platform_admin`'s omission by citing `inviteStaff` running
+> service-role; **`inviteStaff` does not exist anywhere in the repo**, and the BUG-AFF-1 fix
+> *expanded* that comment rather than checking it. A test header claimed a power the code lacked.
+> PROGRESS.md carried the same false claim. Where a claim is load-bearing, encode it executably
+> (`301` §0.10 pins the `profiles` column-grant rule; `304` §10 pins the role fixture) or name the
+> owning ADR.
+
+> ⚠ **Three defects were invisible to every gate and visible only by executing the branch.**
+> The pt-BR/English defect in the `HC0R1` blockers list survived lint + typecheck + 1023 unit tests
+> + a full E2E gate **because no test reached that branch** — every blockers case anyone had ever
+> rendered was a *commission* seat, and the seed's obvious fixture (`dr.john`) produces only that
+> arm. Underneath it: the confirm dialog closed **only on success**, so refusals rendered behind an
+> open Radix dialog — `aria-hidden`, **inert to assistive technology** — which also hid the D14
+> `orgAdminOnly` refusal. Found because `getByRole('alert')` timed out on visibly-present text:
+> **the locator failure WAS the accessibility bug.**
+
+### Open at close, by design (none blocking)
+
+Full entries live in PROGRESS.md → *Follow-ups / Deferred Items*; this is the index only.
+
+- **FUP-AFF-1** — the authz census cannot see write-path doors; it recurred *inside* this workstream
+  after being written up. AFF's doors are covered by `302`/`304` keystones — **never cite
+  `ARM=census` for them.**
+- **FUP-AFF-2** — D7's nullable-`cpf` escape for a foreign professional is now unreachable, since CPF
+  is required at the action layer.
+- **FUP-AFF-3** — derive door ACLs from `pg_proc` rather than remembering the door set.
+- **FUP-AFF-4** — make the membership-role list a Postgres ENUM so `tsc` enforces it.
+
+Separately, and **not** a follow-up but an open operational gap → tracked as **BUG-BOOTSTRAP-001** in
+PROGRESS.md's Bug Log: there is still no in-app path to create a `platform_admin`.
+
+### Why AFF was built — the five catalog-verified findings (rotated from *Remaining pre-pilot work* item 1)
+
+Origin: the PO scenario of a professional hired by a **second hospital of the same organization** —
+`registerUser` blocks on the email collision and there is no "this person already exists, vincular"
+path. Evidence in ADR 0097's Context:
+
+1. `list_addable_commission_members` **already** discloses the whole org roster to a hospital admin —
+   the feature was half-shipped and undeclared.
+2. `profiles.home_hospital_id` was populated on **1 of 30** profiles, so its RLS leg was inert.
+3. `memberships` SELECT was **wider** than `profiles` SELECT — a hospital admin read **6** membership
+   rows whose principals they could not name, including their own `technical_director`.
+4. No row expressed "employed at this hospital", and `hospital_employee_id` (matrícula) was singular
+   on `profiles` though it is per-employment.
+5. ADR 0051 D1's **"org_admin dominates hospital_admin" is false** — `set_standard_ownership` and
+   `standard_ownerships_select` admitted `hospital_admin` with no `org_admin` arm (BUG-AUTHZ-001's
+   shape); both fixed in W2 behind a new dominance grid.
+
+Single-hospital tenants were settled with **no model change** — one principal already holds
+`org_admin` + `hospital_admin` (probed live) — but **no product path could seat it** (the self-grant
+guard fires on the service path too), so W3 seats both at provisioning.
+
+It was sequenced ahead of the pilot deploy because it is mostly schema (a new `hospital_affiliations`
+table, `profiles.cpf`, two dropped columns, a widened `profiles` policy, two new DEFINER doors), and
+every one of those is free while `supabase db reset` is free and materially more expensive the day
+after the remote `db push`.

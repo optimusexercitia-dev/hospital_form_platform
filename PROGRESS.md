@@ -105,58 +105,16 @@
 
 ### ⬛ AFF — Hospital affiliation, person identity & the org people directory · **COMPLETE 2026-08-06**
 
-Detail rotated → [hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md).
+Detail + completion record (final gate, the three retro lessons, the open-at-close index, and why AFF
+was built) rotated → [hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md).
 ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) + [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md);
 backend surface → `docs/backend-state.md` (AFF section). QA **APPROVED** r1 + **APPROVED final** r2
-[review](docs/reviews/aff-review.md). PO-approved **2026-08-06**.
+[review](docs/reviews/aff-review.md). PO-approved **2026-08-06**. Gate: pgTAP **165 files / 5066** ·
+Vitest **1026/1026** · `e2e:prod` **985 passed / 0 failed** · `ARM=census` + `ARM=floor` **HOLDS**.
 
-Final gate: lint 0/0 · typecheck · Vitest **1026/1026** · `db reset` **298=298** · pgTAP
-**165 files / 5066 PASS** on a fresh reset · `ARM=census` + `ARM=floor` **INVARIANT HOLDS** ·
-`e2e:prod` **GATE GREEN — 985 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches
-(no gaps) · 0 `reset FAILED` · accounted 986/991**.
-
-> ⚠ **The lesson this workstream leaves behind, because it fired FOUR times: an enumeration's
-> boundary must be the PROPERTY, not a syntax and not a remembered list.** (1) The error-code drift
-> detector enumerated `errcode = '[A-Z0-9]{5}'`, so it could not see `check_violation` — the *same*
-> defect it was built to catch, in the *same* file. (2) The diff-derivation grep was
-> case-sensitive, but `pg_get_functiondef` emits **uppercase**, so it listed 1 of 4 changed gates
-> (ADR 0079 Amendment 5a). (3) `302` §1's ACL enumeration covered "the doors that existed when I
-> wrote it", and `log_cpf_probe_for` arrived two commits later inheriting nothing — while its ACL is
-> its *entire* boundary. (4) A unit test transcribed the membership-role list and claimed in its
-> header that widening the CHECK would red it; it could not, because Vitest cannot reach the
-> database. **Every one was caught by a mutation or a catalog read. None by review.** Classes filed
-> as FUP-AFF-3 / FUP-AFF-4.
-
-> ⚠ **Second recurring shape: a comment is an assertion that goes stale silently — three instances.**
-> A security comment justified `platform_admin`'s omission by citing `inviteStaff` running
-> service-role; **`inviteStaff` does not exist anywhere in the repo**, and the BUG-AFF-1 fix
-> *expanded* that comment rather than checking it. A test header claimed a power the code lacked.
-> PROGRESS.md carried the same false claim. Where a claim is load-bearing, encode it executably
-> (`301` §0.10 pins the `profiles` column-grant rule; `304` §10 pins the role fixture) or name the
-> owning ADR.
-
-> ⚠ **Three defects were invisible to every gate and visible only by executing the branch.**
-> The pt-BR/English defect in the `HC0R1` blockers list survived lint + typecheck + 1023 unit tests
-> + a full E2E gate **because no test reached that branch** — every blockers case anyone had ever
-> rendered was a *commission* seat, and the seed's obvious fixture (`dr.john`) produces only that
-> arm. Underneath it: the confirm dialog closed **only on success**, so refusals rendered behind an
-> open Radix dialog — `aria-hidden`, **inert to assistive technology** — which also hid the D14
-> `orgAdminOnly` refusal. Found because `getByRole('alert')` timed out on visibly-present text:
-> **the locator failure WAS the accessibility bug.**
-
-**Open, by design** (none blocking): **FUP-AFF-1** (the authz census cannot see write-path doors —
-it recurred *inside* this workstream after being written up; AFF's doors are covered by `302`/`304`
-keystones, **never cite `ARM=census` for them**) · **FUP-AFF-2** (D7's nullable-`cpf` escape for a
-foreign professional is now unreachable, since CPF is required at the action layer) ·
-**FUP-AFF-3** (derive door ACLs from `pg_proc`) · **FUP-AFF-4** (make the role list a Postgres enum
-so `tsc` enforces it). Separately: **there is still no in-app path to create a `platform_admin`** —
-`is_admin` is set only by direct SQL, and the guard requires an existing admin to promote another,
-so the first production one is a manual bootstrap step that appears in no runbook.
-
-⚠ **The remote database has NONE of these migrations.** `main` carries code expecting
-`hospital_affiliations`, `profiles.cpf` and the ten doors while the remote still has
-`home_hospital_id`/`hospital_employee_id`. The pilot `db push` must precede any deploy from `main`,
-and it needs the **user's own auth** (background agents are auto-denied).
+Still open, none blocking: **FUP-AFF-1…4** (Follow-ups section below — FUP-AFF-1 carries the standing
+trap: **never cite `ARM=census` for AFF's doors**) and **BUG-BOOTSTRAP-001** (Bug Log below). The
+remote `db push` this work made mandatory is *Remaining pre-pilot work* item 2.
 
 
 ### ⬛ Membership hardening + Diretor Técnico (ADR 0094) — COMPLETE, rotated 2026-08-05
@@ -187,44 +145,29 @@ the pilot. **That block is complete — but ADR [0097](docs/decisions/0097-hospi
 (AFF) re-gated the pilot on 2026-08-05; see item 1.** Completed items are not re-listed here; the Phase
 Status table above is the index. What is actually left:
 
-**1. ✅ AFF — Hospital affiliation, person identity & the org people directory. COMPLETE and
-PO-APPROVED 2026-08-06** — record under *Current Phase Tasks* above; detail rotated to
-[hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md).
-**It no longer gates the pilot deploy** (item 2 below is now next). ADR
-[0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · plan
-[hospital-affiliation-person-identity.md](docs/plans/hospital-affiliation-person-identity.md) (W1
-substrate → W2 doors/visibility → W3 product surfaces). **Gates the pilot deploy** — it is mostly
-schema (a new `hospital_affiliations` table, `profiles.cpf`, two dropped columns, a widened `profiles`
-policy, two new DEFINER doors), and every one of those is free while `supabase db reset` is free and
-materially more expensive the day after the remote `db push`. Origin: the PO scenario of a professional
-hired by a **second hospital of the same organization** — `registerUser` blocks on the email collision
-and there is no "this person already exists, vincular" path. **Five catalog-verified findings drive it**
-(evidence in the ADR's Context): (a) `list_addable_commission_members` **already** discloses the whole
-org roster to a hospital admin — the feature is half-shipped and undeclared; (b) `profiles.home_hospital_id`
-is populated on **1 of 30** profiles, so its RLS leg is inert; (c) `memberships` SELECT is **wider** than
-`profiles` SELECT — a hospital admin reads **6** membership rows whose principals they cannot name,
-including their own `technical_director`; (d) no row expresses "employed at this hospital", and
-`hospital_employee_id` (matrícula) is singular on `profiles` though it is per-employment; (e) ADR 0051 D1's
-**"org_admin dominates hospital_admin" is false** — `set_standard_ownership` and `standard_ownerships_select`
-admit `hospital_admin` with no `org_admin` arm (BUG-AUTHZ-001's shape), both fixed in W2 behind a new
-dominance grid. Also settles single-hospital tenants: **no model change** — one principal already holds
-`org_admin` + `hospital_admin` (probed live) — but **no product path can seat it** (the self-grant guard
-fires on the service path too), so W3 seats both at provisioning.
+**1. ✅ AFF — COMPLETE and PO-APPROVED 2026-08-06.** No longer gates the pilot deploy (item 2 is now
+next). Pointer under *Current Phase Tasks* above; record + the five findings that drove it →
+[hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md);
+ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md).
 
-**2. ▶ The pilot deploy itself — user-gated, NOT started.** ✅ The **git** half is already done: Phase 16
-is merged to `main` and `main` == `origin/main` at `484a254` (verified by a live `git fetch` 2026-08-04,
-not by reading this file — the row above claimed "not merged/pushed" for a day after it was both).
-**What remains is the deploy proper:** the **Coolify** app deploy + the remote **`db push`** of every
-local-only migration (the S1–S3 batch onward — every S-phase built local-first by design). **This is
-when the ETH·E1 m2 flag flip reaches production.** ⚠ The remote `db push` needs the **user's own auth** —
-background agents are auto-denied.
+**2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing.** ✅ The **git**
+half is done: `main` == `origin/main` (verified by a live `git fetch`, not by reading this file — the
+row here claimed "not merged/pushed" for a day after it was both). **What remains is the deploy
+proper:** the **Coolify** app deploy + the remote **`db push`** of every local-only migration (the
+S1–S3 batch onward — every S-phase built local-first by design). **This is when the ETH·E1 m2 flag
+flip reaches production.** ⚠ The remote `db push` needs the **user's own auth** — background agents
+are auto-denied.
+⚠ **AFF raised this from a chore to a blocker: the remote database has NONE of the AFF migrations.**
+`main` carries code expecting `hospital_affiliations`, `profiles.cpf` and the ten doors while the
+remote still has `home_hospital_id` / `hospital_employee_id`. **A deploy from `main` without the
+`db push` first would fail at runtime**, not degrade gracefully.
 
 **3. ⬛ ~~BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.~~**
 **FIXED 2026-08-05** (`20260908000100`, held by `299_hospital_content_door_noun_rule.sql` 11/11) — no
-longer gates the pilot deploy. Full entry in the Bug Log below, including why the parity test this row
-prescribed had to be written differently: enumerated live, the property returns **four** doors, and
-`verify_audit_chain` must NOT return zero rows (its `is_admin()` is the platform tier, and audit is
-platform_admin's own noun).
+longer gates the pilot deploy. Full entry → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+(rotated 2026-08-06), including why the parity test this row prescribed had to be written differently:
+enumerated live, the property returns **four** doors, and `verify_audit_chain` must NOT return zero
+rows (its `is_admin()` is the platform tier, and audit is platform_admin's own noun).
 
 **4. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
@@ -281,6 +224,25 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
+onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
+narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
+which is why it is here rather than in Follow-ups. Surfaced during AFF, **not caused by it**.
+**Mechanism:** `is_admin` is set only by direct SQL, and the promote guard requires an **existing**
+admin to promote another — so the set is closed under the product. On a fresh production database it
+starts empty and nothing in the app can open it. **Impact:** the first production `platform_admin` is
+a manual `update profiles set is_admin = true …` that **appears in no runbook** — not in
+`docs/deployment/`, not in the pilot-deploy checklist (*Remaining pre-pilot work* item 2). Whoever
+runs the pilot deploy hits this with no written instruction.
+⚠ **Not a security defect — the closure is deliberate** (it is what stops self-promotion, and the
+guard is correct). The defect is that the bootstrap is undocumented and unautomated, so do **not**
+"fix" it by weakening the guard.
+**Status:** OPEN, unassigned. Two candidate dispositions, PO's call: (a) document it as an explicit
+step in the pilot-deploy runbook — cheapest, and sufficient for one pilot tenant; (b) a
+seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks nothing today** (local +
+E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
+gate), but it is on the critical path of the **first production deploy**.
 
 🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
 (QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
