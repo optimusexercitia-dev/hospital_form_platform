@@ -103,6 +103,39 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### ▶ MIN — Meeting audio → generated ata (`audio_minutes`) · **IN PROGRESS, started 2026-08-06**
+
+ADR [0099](docs/decisions/0099-meeting-audio-minutes.md) (D1–D18) · plan
+[audio-minutes.md](docs/plans/audio-minutes.md) (authoritative task list B0–B8 / F1–F5 / T1–T5) ·
+branch `feat/meeting-minutes` (worktree), rebased onto post-AFF `main` (`ec0296d`) 2026-08-06.
+Service half (`minute_generator` W0–W5) **complete** — contract v2 `schema_version` 2.0, canonical
+callback fixtures in its `tests/fixtures/`. Flag `audio_minutes` ships **OFF**.
+
+**Migration window: `20260910000100`+** — **confirmed 2026-08-06**: 298 registered == 298 files,
+highest `20260909001300`.
+
+| Task | Owner | Status | Notes |
+| --- | --- | --- | --- |
+| B0 preflight (catalog: canEdit predicate, meetings SELECT policy, action_items door, `enqueue_notification` sig; FK posture; window) | lead | ✅ 2026-08-06 | Findings: [audio-minutes-b0-findings.md](docs/plans/audio-minutes-b0-findings.md) — **5 plan corrections**, 3 open questions O1–O3. **Plan edits (its §"Plan edits required") must land before B1.** |
+| B1 migration: bucket + enum + `meeting_minutes_jobs` | backend | — | 3 size ceilings; `transcript` column-grant exclusion; FK `on delete cascade` (B0 §6) |
+| B2 migration: RPCs/doors/audit/flag | backend | — | 6 user RPCs + 2 service-role webhook helpers; canEdit = `app.is_staff_admin_of` (B0 §1); dotted audit kinds (B0 §2); transcript door gates independently of `log_audit_access` (B0 §3) |
+| B3 gen:types | backend | — | pgTAP dropped |
+| B4 generic `src/lib/audio-jobs/` client | backend | — | kind-agnostic; HMAC verify |
+| B5 `src/lib/minutes-jobs/` module | backend | — | context composer D14: agenda titles only |
+| B6 webhook route `api/webhooks/audio-jobs` | backend | — | raw-body HMAC; idempotent 200s |
+| B7 notifications · B8 env/runbook | backend | — | |
+| F1 Ata card slot · F2 upload dialog | frontend | — | may start on B2 contract stubs |
+| F3 review page · F4 list badge · F5 nav | frontend | — | `frontend-design` skill first |
+| T1 pgTAP (with B2) · T2 unit · T3 E2E · T4 authz arms · T5 manual smoke | backend/owners/tester | — | fixtures from service W3 |
+
+Coordination: local `config.toml` storage cap 50 MiB must rise for 500 MB uploads — requires
+`supabase stop && supabase start` on the **shared** stack; this session's stack is single-owner
+today (lead-verified), bump lands with B1.
+
+**Blocking on the PO (B0 §"Open questions"):** O1 `administrativo`/`schedule_meetings` excluded from
+audio? · O2 apply behaviour when the `action_items` flag is OFF (degrade vs refuse) · O3 orphaned
+audio after a cascaded meeting delete (24 h TTL sweep vs delete hook).
+
 ### ⬛ AFF — Hospital affiliation, person identity & the org people directory · **COMPLETE 2026-08-06**
 
 Detail + completion record (final gate, the three retro lessons, the open-at-close index, and why AFF
