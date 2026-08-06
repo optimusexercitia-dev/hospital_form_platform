@@ -17,13 +17,15 @@ import {
 import { listMeetingActionItems } from "@/lib/queries/meeting-action-items";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { meetingsEnabled } from "@/lib/meetings/actions";
-import { chartersEnabled } from "@/lib/queries/feature-flags";
+import { audioMinutesEnabled, chartersEnabled } from "@/lib/queries/feature-flags";
 import { getCarryForwardSuggestions } from "@/lib/queries/charters";
+import { getActiveMinutesJob } from "@/lib/minutes-jobs/queries";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listCasesBoard } from "@/lib/queries/cases";
 import { MeetingHeader } from "@/components/meetings/meeting-header";
 import { CarryForwardPanel } from "@/components/charters/carry-forward-panel";
 import { MeetingMinutesEditor } from "@/components/meetings/meeting-minutes-editor";
+import { MinutesAppliedBanner } from "@/components/meetings/minutes-applied-banner";
 import { AgendaPanel } from "@/components/meetings/agenda-panel";
 import { AttendeesPanel } from "@/components/meetings/attendees-panel";
 import { CaseLinker } from "@/components/meetings/case-linker";
@@ -50,10 +52,14 @@ export const metadata: Metadata = {
  */
 export default async function MeetingDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string; meetingId: string }>;
+  /** `ata_aplicada=1` — MIN's F3 redirect carries the post-apply success banner (§9.5). */
+  searchParams: Promise<{ ata_aplicada?: string }>;
 }) {
   const { org, commission, meetingId } = await params;
+  const { ata_aplicada } = await searchParams;
   const slug = commission;
 
   if (!(await meetingsEnabled())) {
@@ -100,6 +106,8 @@ export default async function MeetingDetailPage({
     actionItemsOn,
     closedSessions,
     reservedItems,
+    audioMinutesOn,
+    activeMinutesJob,
   ] = await Promise.all([
     listMeetingAgenda(meetingId),
     listMeetingAttendees(meetingId),
@@ -114,6 +122,10 @@ export default async function MeetingDetailPage({
     // where authorized, else the non-identifying stub.
     listClosedSessions(meetingId),
     listReservedSessionItems(meetingId),
+    // MIN (ADR 0099 F1): the flag + the Ata card's audio slot state. Both request-
+    // memoized/RLS-scoped; a member reads no job row and the slot renders nothing.
+    audioMinutesEnabled(),
+    getActiveMinutesJob(meetingId),
   ]);
 
   // Coordinator-only authoring data: the roster (member picker, assignees), the
@@ -173,10 +185,18 @@ export default async function MeetingDetailPage({
         isCoordinator={isCoordinator}
       />
 
+      <MinutesAppliedBanner applied={ata_aplicada === "1"} />
+
       <MeetingMinutesEditor
         meetingId={meeting.id}
         minutesMd={meeting.minutesMd}
         canEdit={canEdit}
+        meetingStatus={meeting.status}
+        org={org}
+        slug={slug}
+        audioMinutesEnabled={audioMinutesOn}
+        activeMinutesJob={activeMinutesJob}
+        attendees={attendees.map((a) => ({ id: a.id, displayName: a.displayName }))}
       />
 
       <AgendaPanel meetingId={meeting.id} items={agenda} canEdit={canEdit} />

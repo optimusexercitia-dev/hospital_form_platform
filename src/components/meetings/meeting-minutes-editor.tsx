@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { FileText, Lock } from "lucide-react";
 
 import { updateMeetingMinutes } from "@/lib/meetings/actions";
+import type { MinutesJobSummary } from "@/lib/minutes-jobs/types";
+import type { MeetingStatus } from "@/lib/queries/meetings";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
+import { MinutesAudioSlot } from "./minutes-audio-slot";
 
 /**
  * The meeting MINUTES (ata) narrative (F2): a free-form sanitized-Markdown body
@@ -17,15 +20,32 @@ import { FormBanner } from "@/components/auth/form-banner";
  * Editable only while the meeting is unlocked (`agendada`/`realizada`); once the
  * meeting is concluded it is shown read-only (the server also rejects writes).
  * `canEdit` is decided by the parent from the meeting status.
+ *
+ * The header's right side also hosts MIN's audio-minutes slot (ADR 0099 F1) — the
+ * `MinutesAudioSlot` child, fed the same `canEdit` this editor already receives (design
+ * brief §1.4: it is exactly the audio feature's own canEdit predicate, nothing wider).
  */
 export function MeetingMinutesEditor({
   meetingId,
   minutesMd,
   canEdit,
+  meetingStatus,
+  org,
+  slug,
+  audioMinutesEnabled,
+  activeMinutesJob,
+  attendees,
 }: {
   meetingId: string;
   minutesMd: string | null;
   canEdit: boolean;
+  meetingStatus: MeetingStatus;
+  /** Org slug — a plain string; MIN's review-page/attendees hrefs are built downstream. */
+  org: string;
+  slug: string;
+  audioMinutesEnabled: boolean;
+  activeMinutesJob: MinutesJobSummary | null;
+  attendees: { id: string; displayName: string | null }[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -70,16 +90,28 @@ export function MeetingMinutesEditor({
             </span>
           )}
         </div>
-        {canEdit && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleSave}
-            disabled={isPending || !dirty}
-          >
-            {isPending ? "Salvando…" : "Salvar ata"}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canEdit && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSave}
+              disabled={isPending || !dirty}
+            >
+              {isPending ? "Salvando…" : "Salvar ata"}
+            </Button>
+          )}
+          <MinutesAudioSlot
+            meetingId={meetingId}
+            org={org}
+            slug={slug}
+            meetingStatus={meetingStatus}
+            canEdit={canEdit}
+            audioMinutesEnabled={audioMinutesEnabled}
+            activeJob={activeMinutesJob}
+            attendees={attendees}
+          />
+        </div>
       </div>
 
       {error && <FormBanner tone="error">{error}</FormBanner>}

@@ -71,6 +71,7 @@ export function MeetingFormDialog({
   meetingTypes,
   members = [],
   meeting,
+  initialValues,
 }: {
   mode: "create" | "edit";
   open: boolean;
@@ -88,6 +89,13 @@ export function MeetingFormDialog({
   members?: MemberListItem[];
   /** Required for `edit`. */
   meeting?: MeetingDetail;
+  /**
+   * CREATE-mode prefill for a suggestion that has no `MeetingDetail` yet — e.g. MIN's
+   * F3 "Agendar próxima reunião" (ADR 0099 D7), seeded from an advisory next-meeting
+   * suggestion rather than an existing row. Ignored when `mode !== "create"` or when
+   * `meeting` is present (edit always wins). Omitted → defaults exactly as today.
+   */
+  initialValues?: { title?: string; scheduledStart?: string; locationText?: string };
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -109,20 +117,28 @@ export function MeetingFormDialog({
   const [convocarTodos, setConvocarTodos] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>(allUserIds);
 
-  const [title, setTitle] = useState(meeting?.title ?? "");
+  // Create-mode prefill: `meeting` (edit) always wins; `initialValues` only applies
+  // when creating from a suggestion (e.g. MIN's "Agendar próxima reunião").
+  const seedTitle = meeting?.title ?? (mode === "create" ? initialValues?.title : undefined) ?? "";
+  const seedStart =
+    meeting?.scheduledStart ??
+    (mode === "create" ? initialValues?.scheduledStart : undefined) ??
+    null;
+  const seedLocation =
+    meeting?.locationText ?? (mode === "create" ? initialValues?.locationText : undefined) ?? "";
+
+  const [title, setTitle] = useState(seedTitle);
   const [meetingTypeId, setMeetingTypeId] = useState(
     meeting?.meetingTypeId ?? "",
   );
   const [modality, setModality] = useState<MeetingModality>(
     meeting?.modality ?? "presencial",
   );
-  const [start, setStart] = useState(
-    toDateTimeLocalValue(meeting?.scheduledStart ?? null),
-  );
+  const [start, setStart] = useState(toDateTimeLocalValue(seedStart));
   const [end, setEnd] = useState(
     toDateTimeLocalValue(meeting?.scheduledEnd ?? null),
   );
-  const [locationText, setLocationText] = useState(meeting?.locationText ?? "");
+  const [locationText, setLocationText] = useState(seedLocation);
   const [meetingUrl, setMeetingUrl] = useState(meeting?.meetingUrl ?? "");
 
   // Reset local state each time the dialog opens (render-phase prop-sync).
@@ -131,12 +147,12 @@ export function MeetingFormDialog({
     setWasOpen(open);
     if (open) {
       setState(null);
-      setTitle(meeting?.title ?? "");
+      setTitle(seedTitle);
       setMeetingTypeId(meeting?.meetingTypeId ?? "");
       setModality(meeting?.modality ?? "presencial");
-      setStart(toDateTimeLocalValue(meeting?.scheduledStart ?? null));
+      setStart(toDateTimeLocalValue(seedStart));
       setEnd(toDateTimeLocalValue(meeting?.scheduledEnd ?? null));
-      setLocationText(meeting?.locationText ?? "");
+      setLocationText(seedLocation);
       setMeetingUrl(meeting?.meetingUrl ?? "");
       // Participants reset to the zero-config default (convocar todos).
       setConvocarTodos(true);

@@ -20,6 +20,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { NativeSelect } from "@/components/ui/native-select";
 import { MeetingStatusBadge, MeetingTypeChip } from "./meeting-badges";
+import { MinutesListBadge } from "./minutes-list-badge";
 import { MEETING_STATUS_LABEL, MODALITY_LABEL } from "./meeting-labels";
 import { formatMeetingNumber, formatSchedule } from "./format";
 
@@ -310,7 +311,12 @@ export function MeetingsList({
                       </span>
                     </td>
                     <td className="px-3 py-2.5 align-middle">
-                      <MeetingStatusBadge status={m.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <MeetingStatusBadge status={m.status} />
+                        {m.minutesJobStatus && (
+                          <MinutesListBadge status={m.minutesJobStatus} />
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2.5 align-middle text-right tabular-nums">
                       {m.pendingActionItems > 0 ? (
