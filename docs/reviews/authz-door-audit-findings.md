@@ -10,6 +10,20 @@ gate (open it so it grants/allows regardless), run the FULL pgTAP suite, read
 Baseline: Files=156, Tests=4796, Result: PASS.
 Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 
+> ⚠ **HAND-MERGED, 2026-08-05 (FUP-AUTHZ-4).** Six
+> `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}` rows were moved
+> from BLIND to COVERED after a **diff-scoped** re-sweep returned COVERED for all six
+> (baseline Files=160, Tests=4903 — the merged tree, not this file's older 156/4796), each
+> held by `supabase/tests/297_process_template_versioning.sql`. The merge is by hand because
+> a subset run OVERWRITES this report with only its own cases, so it has nowhere to leave a
+> verdict (ADR 0079 Amendment 1, hazard 1). Leaving them would have kept six stale BLINDs
+> standing — which is what ARM 1 was reporting as "no longer BLIND — prune", a note for a
+> condition already fixed.
+>
+> Those six rows are the ONLY hand-edited region; nothing else was reordered. The next FULL
+> sweep regenerates this file and re-derives them from scratch — if it files them under BLIND
+> again, the keystone regressed and their allowlist lines must come back with them.
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
@@ -65,16 +79,10 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | meeting_signatures.meeting_signatures_select (SELECT) | policy | open->true | BLIND |  |
 | notification_preferences.notification_preferences_select_own (SELECT) | policy | open->true | BLIND |  |
 | patient_xref.patient_xref_select_pqs (SELECT) | policy | open->true | BLIND |  |
-| process_template_narratives.process_template_narratives_select (SELECT) | policy | open->true | BLIND |  |
-| process_template_narratives.process_template_narratives_staff_admin_write (ALL) | policy | open->true | BLIND |  |
-| process_template_outcomes.process_template_outcomes_select (SELECT) | policy | open->true | BLIND |  |
-| process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | process_template_phase_allowed_results.process_template_phase_allowed_results_select (SELECT) | policy | open->true | BLIND |  |
 | process_template_phase_allowed_results.process_template_phase_allowed_results_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | process_template_phase_offered_results.process_template_phase_offered_results_select (SELECT) | policy | open->true | BLIND |  |
 | process_template_phase_offered_results.process_template_phase_offered_results_staff_admin_write (ALL) | policy | open->true | BLIND |  |
-| process_template_phases.process_template_phases_select (SELECT) | policy | open->true | BLIND |  |
-| process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | process_templates.process_templates_select (SELECT) | policy | open->true | BLIND |  |
 | process_templates.process_templates_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | professional_categories.professional_categories_admin_write (ALL) | policy | open->true | BLIND |  |
@@ -297,6 +305,12 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | phase_results.phase_results_staff_admin_write (ALL) | policy | open->true | COVERED | 160_phase_results.sql |
 | process_template_custom_fields.process_template_custom_fields_select (SELECT) | policy | open->true | COVERED | 188_case_custom_fields.sql |
 | process_template_custom_fields.process_template_custom_fields_staff_admin_write (ALL) | policy | open->true | COVERED | 188_case_custom_fields.sql |
+| process_template_narratives.process_template_narratives_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
+| process_template_narratives.process_template_narratives_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
+| process_template_outcomes.process_template_outcomes_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
+| process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
+| process_template_phases.process_template_phases_select (SELECT) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
+| process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 297_process_template_versioning.sql (diff-scoped re-sweep 2026-08-05) |
 | professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql |
 | professional_profiles.professional_profiles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | profiles.profiles_admin_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |

@@ -5,11 +5,17 @@
 # (an authz gate no keystone exercises — green over a live leak) cannot silently
 # recur. It has two arms; run both.
 #
-#   ARM 1  POLICY/PREDICATE BLIND ⊆ ALLOWLIST
-#     Run the two neutralization sweeps (p0-authz-door-audit.sh +
-#     p0-authz-writepath-audit.sh); union their BLIND sets; assert every BLIND is
-#     in the committed allowlist (authz-blind-allowlist.txt). A BLIND not on the
-#     allowlist ⇒ non-zero exit = a NEW un-keystoned authz gate (the regression).
+#   ARM 1  POLICY/PREDICATE/ROW-DOOR BLIND ⊆ ALLOWLIST
+#     Run the THREE neutralization sweeps (p0-authz-door-audit.sh +
+#     p0-authz-writepath-audit.sh + p0-authz-rowdoor-audit.sh); union their BLIND
+#     sets; assert every BLIND is in the committed allowlist
+#     (authz-blind-allowlist.txt). A BLIND not on the allowlist ⇒ non-zero exit =
+#     a NEW un-keystoned authz gate (the regression).
+#
+#     The third sweep joined on 2026-08-05 (FUP-AUTHZ-3). Row-returning DEFINER
+#     doors have no boolean to open, so the other two are structurally blind to
+#     them — and BUG-AUTHZ-002 was a live leak in exactly that class. It opens a
+#     door's identity guard (`if <cond> then` -> `if false then`) instead.
 #
 #   ARM 2  NEVER-CALLED-DOOR FLOOR
 #     With track_functions=all, run the full pgTAP suite, then assert every
@@ -61,6 +67,7 @@ FLOOR_ALLOW="$HERE/authz-neverclled-door-allowlist.txt"
 UNSWEPT="$HERE/authz-unswept-backlog.txt"
 DOOR_FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
 WP_FINDINGS="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
+ROW_FINDINGS="$ROOT/docs/reviews/authz-rowdoor-audit-findings.md"
 ARM="${ARM:-all}"
 FROMFINDINGS="${FROMFINDINGS:-0}"
 mkdir -p "$WORK"
@@ -84,6 +91,22 @@ verdicts_from_findings () {
     | sed -E 's/^\| *//; s/ *\|.*$//' | grep -vE '^$'
 }
 
+# ARM 3, ROW-DOOR variant — same idea, but the row-door report has a FOURTH table whose
+# rows are NOT verdicts: UNSUPPORTED means "this harness has no mechanism for that door",
+# which is the opposite of a sweep result. Counting those as verdicts would let a door be
+# deleted from the backlog on the strength of the harness ADMITTING it could not test it —
+# the census hole ARM 3 exists to close, reopened by a bookkeeping accident. So filter on
+# the verdict column (col 4) and take only the three real outcomes.
+# ⚠ FS is a CHARACTER CLASS, not an escaped pipe. `-F' *\| *'` makes awk warn and fall
+# back to plain `|`, which as a regex is ALTERNATION — it matches the empty string, so
+# every field shifts and the filter silently prints NOTHING. Empty output here reads
+# exactly like "no row-door has a verdict yet", which would make ARM 3 pass by finding
+# the doors in the backlog instead: green, and blind to whether the report is even parsed.
+verdicts_from_rowfindings () {
+  awk -F' *[|] *' '/^[|] / && ($5=="BLIND"||$5=="COVERED"||$5=="ERROR") {print $2}' "$1" 2>/dev/null \
+    | grep -vE '^$'
+}
+
 # ARM 3 — the "Skipped SELECT/ALL policies (qual = true)" bullet list, reshaped from
 # `- `tbl / polname / CMD`` into the sweep's canonical `tbl.polname (CMD)` label. These
 # were deliberately not neutralized (true -> true is a vacuous no-op), which is itself a
@@ -104,14 +127,17 @@ run_arm_policy () {
 
   if [ "$FROMFINDINGS" = "1" ]; then
     echo "  mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)"
-    { blind_from_findings "$DOOR_FINDINGS"; blind_from_findings "$WP_FINDINGS"; } | sort -u > "$blinds"
+    { blind_from_findings "$DOOR_FINDINGS"; blind_from_findings "$WP_FINDINGS"
+      blind_from_findings "$ROW_FINDINGS"; } | sort -u > "$blinds"
   else
-    echo "  mode: FULL SWEEP (p0-authz-door-audit.sh + p0-authz-writepath-audit.sh) — ~90 min"
+    echo "  mode: FULL SWEEP (door + writepath + rowdoor) — ~105 min"
     ( cd "$ROOT" && bash "$HERE/p0-authz-door-audit.sh" )      || { echo "  *** door sweep failed"; RC=1; }
     ( cd "$ROOT" && bash "$HERE/p0-authz-writepath-audit.sh" ) || { echo "  *** writepath sweep failed"; RC=1; }
-    # Both sweeps write a machine-readable BLIND tsv (col2 = gate) into $WORK.
+    ( cd "$ROOT" && bash "$HERE/p0-authz-rowdoor-audit.sh" )   || { echo "  *** rowdoor sweep failed"; RC=1; }
+    # All three sweeps write a machine-readable BLIND tsv (col2 = gate) into $WORK.
     { awk -F'\t' 'NR>1{print $2}' "$WORK/blinds.tsv" 2>/dev/null;
-      awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_writepath.tsv" 2>/dev/null; } | sort -u > "$blinds"
+      awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_writepath.tsv" 2>/dev/null;
+      awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_rowdoor.tsv" 2>/dev/null; } | sort -u > "$blinds"
   fi
 
   local n; n=$(wc -l < "$blinds" | tr -d '[:space:]')
@@ -230,6 +256,7 @@ run_arm_census () {
   # ACCOUNTED = a verdict exists anywhere. The BLIND allowlist counts too: those gates
   # were swept and found BLIND, which is a verdict.
   { verdicts_from_findings "$DOOR_FINDINGS"; verdicts_from_findings "$WP_FINDINGS"
+    verdicts_from_rowfindings "$ROW_FINDINGS"
     skipped_from_findings "$DOOR_FINDINGS"; skipped_from_findings "$WP_FINDINGS"
     allow_body "$ALLOWLIST"; allow_body "$UNSWEPT"
   } | sort -u > "$accounted"

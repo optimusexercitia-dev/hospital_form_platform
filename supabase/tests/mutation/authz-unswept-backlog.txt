@@ -31,7 +31,7 @@
 # messages and item labels. Scheduling is a PO decision; the point of this note is that
 # ARM 3 holding is not evidence about that class.
 #
-# ── HOW THIS FILE GREW (99 entries, and every jump has a cause worth reading) ──
+# ── HOW THIS FILE GREW (59 entries, and every jump has a cause worth reading) ──
 #   46  2026-08-04 · the first census, over booleans + policies (root cause below)
 #   +2  2026-08-05 · process_template_versions_{select,staff_admin_write} — the PCI+TV
 #                    merge; the phase keystoned its six CHILD policies and not its own
@@ -39,6 +39,13 @@
 #  +45  2026-08-05 · row-returning DEFINER doors, after BUG-AUTHZ-002 proved the
 #                    boolean-only domain could not see a live leak (see that block)
 #   +6  2026-08-05 · the `swept:` section (verdicts with nowhere else to live)
+#   -6  2026-08-05 · FUP-AUTHZ-4 burned that section back down to zero: the six
+#                    verdicts were hand-merged into the findings md, so they now live
+#                    where ARM 1 and ARM 3 both read them
+#  -34  2026-08-05 · FUP-AUTHZ-3 built the missing row-door harness and swept it. 34 of
+#                    the 45 row-doors now carry a verdict in
+#                    docs/reviews/authz-rowdoor-audit-findings.md (32 COVERED, 1 BLIND
+#                    +allowlisted, 1 ERROR) and left this file. ELEVEN remain, below.
 #
 # ── Why 46 gates were unswept on 2026-08-04 (the root cause, not 46 oversights) ──
 # The two sweeps enumerate DIFFERENT, and both INCOMPLETE, domains:
@@ -115,23 +122,30 @@ app.department_belongs_to_commission(p_department_id uuid, p_commission_id uuid)
 process_template_versions.process_template_versions_select (SELECT)
 process_template_versions.process_template_versions_staff_admin_write (ALL)
 
-# -- ROW-RETURNING DEFINER DOORS (45), added to the census 2026-08-05 after BUG-AUTHZ-002.
-#    Every one is authenticated-reachable, `prosecdef`, and returns ROWS — so by the
-#    standing rule (a DEFINER's gate REPLACES RLS) the gate inside each IS the whole
-#    boundary. None has ever been through a neutralization sweep, because both sweeps
-#    enumerate booleans and policies: the door audit neutralizes a predicate to `true`,
-#    which is meaningless for a function that returns a table.
+# -- ROW-RETURNING DEFINER DOORS — 11 of the original 45 remain. SWEPT AND UNSUPPORTED,
+#    which is a DIFFERENT claim from the rest of this file and must not be read as the same.
+#    Every other line here means *nobody has asked*. These eleven were asked, by
+#    `p0-authz-rowdoor-audit.sh` (ADR 0079 Amendment 4), and the harness answered that it
+#    has no mechanism for them: their gate is not a statement-level guard it can open, but
+#    an identity conjunct INSIDE the query (`where m.principal_id = auth.uid()`) or a
+#    `declare`d array of the caller's own hospitals. There is nothing to rewrite, so no
+#    verdict exists — not BLIND, not COVERED. They are recorded UNSUPPORTED in
+#    docs/reviews/authz-rowdoor-audit-findings.md and stay here, because the census must
+#    keep counting a door the audit could not test.
 #
-#    ⚠ This class is NOT hypothetical debt. BUG-AUTHZ-002 lived here: two of these doors
+#    The other 34 left this file on 2026-08-05 carrying real verdicts: 32 COVERED (8 of
+#    them only after `supabase/tests/300_rowdoor_gate_keystones.sql` was written for
+#    them), 1 BLIND-and-allowlisted as a measured backstop (`get_case_meeting_links`),
+#    1 ERROR (`open_attachment` — opening its guard makes an unauthorized principal hit
+#    `log_audit_access`, which RAISES and aborts 208_attachments.sql, so the run shape
+#    stops matching baseline and no clean verdict can be read; it owes one).
+#
+#    ⚠ This class is NOT hypothetical debt. BUG-AUTHZ-002 lived here: two row-doors
 #    returned commission content to platform_admin against ADR 0078 A35's noun rule, and
 #    a boolean-only census could not see them. Fixed by `20260908000100`, held by
 #    `299_hospital_content_door_noun_rule.sql` — whose §4 is the model for what each of
-#    these eventually owes: a COMPUTED enumeration plus a row-count assertion per
-#    principal, never a predicate call.
-#
-#    Sweeping them needs a neutralization the door audit does not have yet (open the
-#    INTERNAL gate; setting the return type to `true` is meaningless here). That harness
-#    work is the blocker, not triage.
+#    these eleven owes: a COMPUTED enumeration plus a row-count assertion per principal,
+#    never a predicate call. `300_rowdoor_gate_keystones.sql` is a worked example.
 
 app.case_phase_option_aggregates(p_case_phase_id uuid)
 app.eligible_voters(p_case_id uuid)
@@ -139,45 +153,11 @@ app.response_validation_errors(p_response_id uuid)
 app.signoff_target(p_response_id uuid, p_section_id uuid)
 app.submitted_form_responses(p_form_id uuid)
 public.capa_kpis()
-public.case_action_items_kpis(p_commission_id uuid)
-public.case_tag_report(p_commission_id uuid, p_from date, p_to date)
 public.commission_overview()
-public.dashboard_completion_by_member(p_form_id uuid, p_from date, p_to date)
-public.dashboard_distributions(p_form_id uuid, p_from date, p_to date)
-public.dashboard_entity_references(p_form_id uuid, p_from date, p_to date)
-public.dashboard_export_rows(p_form_id uuid, p_from date, p_to date)
-public.dashboard_form_totals(p_commission_id uuid, p_from date, p_to date)
-public.dashboard_free_text(p_form_id uuid, p_from date, p_to date, p_limit integer)
-public.dashboard_matrix_cells(p_form_id uuid, p_from date, p_to date)
-public.dashboard_risk_scores(p_form_id uuid, p_from date, p_to date)
-public.dashboard_submissions_over_time(p_form_id uuid, p_from date, p_to date)
-public.documents_due_for_review(p_commission uuid)
-public.evidence_candidates(p_commission uuid, p_kind text, p_query text)
-public.get_case_meeting_links(p_case_id uuid)
-public.get_meeting_agenda_items(p_meeting_id uuid)
-public.get_meeting_cases(p_meeting_id uuid)
-public.get_reserved_session_items(p_meeting_id uuid)
-public.get_standard_assessment(p_commission uuid, p_standard uuid)
-public.hospital_document_register(p_hospital uuid, p_doc_type text, p_status text, p_review_overdue_only boolean)
-public.hospital_indicator_rollup(p_hospital uuid)
-public.hospital_readiness(p_hospital uuid, p_framework uuid)
-public.indicator_kpis(p_commission uuid)
-public.indicator_series(p_indicator uuid, p_from text, p_to text)
-public.list_addable_commission_members(p_commission_id uuid, p_search text)
-public.list_approver_candidates(p_commission uuid)
-public.list_case_access(p_case uuid)
 public.list_cases_board(p_commission_id uuid, p_limit integer)
-public.list_commission_documents(p_commission uuid)
 public.list_my_assigned_capa_actions()
-public.list_referral_target_commissions(p_source_commission_id uuid)
-public.list_signoff_queue(p_commission_id uuid)
 public.my_pending_meeting_signatures()
-public.open_attachment(p_id uuid)
 public.pqs_inbox(p_status text, p_suspected_harm_level text, p_reporting_commission_id uuid, p_cursor_reported_at timestamp with time zone, p_cursor_id uuid, p_limit integer)
-public.readiness_evidence(p_commission uuid, p_standard uuid)
-public.readiness_report(p_commission uuid, p_framework uuid)
-public.triage_disposition(p_event_id uuid)
-public.verify_audit_chain(p_commission uuid, p_organization uuid, p_hospital uuid)
 
 # ════════════════════════════════════════════════════════════════════════════════
 # helper: NOT an authorization decision — the result does not depend on WHO is asking.
@@ -229,13 +209,17 @@ public.remind_document_approver(p_version_id uuid, p_approver_id uuid)
 #        next FULL sweep re-emits the findings md carrying its verdict.
 # ════════════════════════════════════════════════════════════════════════════════
 
-# -- PCI+TV phase, 2026-08-05 (commit dcc5a4d): swept BLIND, now keystoned by
-#    supabase/tests/297_process_template_versioning.sql. These six were ALSO on
-#    authz-blind-allowlist.txt from an earlier sweep, so ARM 1 will report them as
-#    "no longer BLIND — prune"; that pruning is the follow-up, not a defect.
-process_template_narratives.process_template_narratives_select (SELECT)
-process_template_narratives.process_template_narratives_staff_admin_write (ALL)
-process_template_outcomes.process_template_outcomes_select (SELECT)
-process_template_outcomes.process_template_outcomes_staff_admin_write (ALL)
-process_template_phases.process_template_phases_select (SELECT)
-process_template_phases.process_template_phases_staff_admin_write (ALL)
+# -- (EMPTY as of 2026-08-05 — FUP-AUTHZ-4 closed the only occupants.)
+#    The six process_template_{phases,narratives,outcomes}_{select,staff_admin_write}
+#    policies lived here from the PCI+TV phase (commit dcc5a4d). A diff-scoped re-sweep
+#    returned COVERED for all six; their verdicts were HAND-MERGED into
+#    docs/reviews/authz-door-audit-findings.md, and only then were their lines deleted
+#    from here AND from authz-blind-allowlist.txt.
+#
+#    ⚠ THE ORDER IS THE WHOLE POINT, and it is the trap the next occupant will hit.
+#    ARM 1 compares the findings md's BLIND table against the allowlist. Pruning the
+#    allowlist FIRST — while the findings still list the gate as BLIND — makes ARM 1
+#    fail for a condition that was already fixed. And deleting a `swept:` line without
+#    a findings verdict makes ARM 3 report the gate as an unswept NEWCOMER. So a line
+#    leaves this section only after the findings md carries its verdict: full sweep, or
+#    hand-merge as above.

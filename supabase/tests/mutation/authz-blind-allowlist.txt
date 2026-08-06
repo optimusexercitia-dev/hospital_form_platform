@@ -116,16 +116,10 @@ notification_preferences.notification_preferences_select_own (SELECT)
 notification_preferences.notification_preferences_update_own (UPDATE)
 notifications.notifications_update_own (UPDATE)
 patient_xref.patient_xref_select_pqs (SELECT)
-process_template_narratives.process_template_narratives_select (SELECT)
-process_template_narratives.process_template_narratives_staff_admin_write (ALL)
-process_template_outcomes.process_template_outcomes_select (SELECT)
-process_template_outcomes.process_template_outcomes_staff_admin_write (ALL)
 process_template_phase_allowed_results.process_template_phase_allowed_results_select (SELECT)
 process_template_phase_allowed_results.process_template_phase_allowed_results_staff_admin_write (ALL)
 process_template_phase_offered_results.process_template_phase_offered_results_select (SELECT)
 process_template_phase_offered_results.process_template_phase_offered_results_staff_admin_write (ALL)
-process_template_phases.process_template_phases_select (SELECT)
-process_template_phases.process_template_phases_staff_admin_write (ALL)
 process_templates.process_templates_select (SELECT)
 process_templates.process_templates_staff_admin_write (ALL)
 professional_categories.professional_categories_admin_write (ALL)
@@ -144,3 +138,16 @@ referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)
 referral_types.referral_types_write_admin (ALL)
 reply_outcomes.reply_outcomes_write_admin (ALL)
 responses.responses_delete_own_draft (DELETE)
+
+# FUP-AUTHZ-3 (2026-08-05) — the ROW-DOOR sweep's single BLIND, and a genuine backstop.
+#   `p0-authz-rowdoor-audit.sh` swept 34 row-returning DEFINER doors. Nine came back
+#   BLIND; `supabase/tests/300_rowdoor_gate_keystones.sql` moved EIGHT to COVERED. The
+#   ninth is below, and it is here rather than keystoned because no keystone can hold it:
+#   MEASURED, not argued — with `get_case_meeting_links`'s `can_read_case` guard rewritten
+#   to `if false then`, the outsider (chefe.farm, same org, not in commission A) STILL
+#   reads 0 rows, while the legitimate staff_admin still reads 1. The query carries a
+#   second independent gate, `app.can_reach_meeting(mc.meeting_id, v_uid)`, enforcing the
+#   same boundary. The outer guard is defense-in-depth, so opening it is unobservable
+#   through the door — the allowlist's "genuine backstop" case, with the experiment as the
+#   justification instead of an assertion that it must be fine.
+public.get_case_meeting_links(p_case_id uuid)
