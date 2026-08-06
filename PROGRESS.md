@@ -155,6 +155,13 @@ stale silently — here it silently disarmed the tool checking the assertion.
   `-A -t` prints TAP inside an aligned table and `^not ok` never matched. A detector that finds
   nothing must be proven able to find something.)
 
+**Deferred-to-cutover (backend handover, 2026-08-06):** (1) migrations `20260910000100/200/300`
+are **local-only** — `db push` needs the human's authorization (auto-denied for agents) and must be
+sequenced with the AFF push `main` already owes; dark either way while the flag is OFF. (2) runbook
+§2 has a deliberate blank: the pilot project's **Cloud storage upload limit is plan-dependent** and
+unreadable locally — if it is under 500 MB the bucket/config ceilings are moot; confirm before the
+flag flips, not during the smoke.
+
 **PO decisions 2026-08-06 (all three resolved, recorded in the findings doc):** O1 `administrativo`
 is **excluded** — audio mirrors the Ata editor's `app.is_staff_admin_of`. O2 the `action_items` flag
 **stays ON** (verified enabled), so apply relies on the door; no degrade path. O3 orphaned audio is
