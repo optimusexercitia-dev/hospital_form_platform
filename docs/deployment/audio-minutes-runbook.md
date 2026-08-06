@@ -96,17 +96,43 @@ callback secrets and try each — noted here as the known fix, deliberately not 
 ## 5. Audio custody (D2)
 
 Audio lives in the private `meeting-audio` bucket and is deleted at the earliest of:
-callback with `audio_release=true`, apply, cancel, failure, or the **24 h TTL**.
+callback with `audio_release=true`, **apply**, cancel, failure, or the **24 h TTL**.
 
-The TTL is enforced lazily, on page load, by `reconcileMinutesJob` — there is no cron.
-Two behaviours worth knowing during an incident:
+The first four are event-driven and prompt. **The TTL is not a timer** — there is no
+cron (D10), so it is evaluated only when something happens. Two triggers run the sweep:
+
+- **every webhook callback delivery** (machine-driven — does not wait for a human), and
+- **a page load** that reconciles a job.
+
+Each runs `sweepStaleAudio` (`src/lib/minutes-jobs/sweep.ts`), a bounded pass over
+`public.list_stale_meeting_audio` that deletes **every** `meeting-audio` object older
+than 24 h and stamps `audio_deleted_at` on the owning job row when one still exists.
+It is throttled to once per 10 minutes per app instance.
+
+⚠ **Read ADR 0099 Amendment 1 before quoting a retention figure to anyone.** The real
+ceiling is "≤ 24 h plus the gap to the next activity in that tenant", not a wall-clock
+guarantee. In a tenant where nothing happens at all, nothing triggers.
+
+Three behaviours worth knowing during an incident:
 
 - A `done` job past 24 h loses its **audio only**. The job stays `done` and keeps its
   transcript/draft: destroying a review the user can already see would be data loss
   wearing a TTL costume.
 - A cascaded delete (the meeting row is deleted) takes the job row with it and orphans
-  the storage object. There is no delete hook in v1 (PO decision O3); the object is
-  swept by the same 24 h rule.
+  the storage object. There is no delete hook in v1 (PO decision O3) — the **sweep**
+  reclaims it, and it is the only thing that can, because every other deletion path
+  starts from a job row that no longer exists.
+- The sweep's predicate is deliberately blunt: *any* object past 24 h, with no
+  per-status branching. A delete that failed, a crashed request and an orphan all
+  collapse into the same rule.
+
+To check the sweep's backlog by hand (service-role connection):
+
+```sql
+select * from public.list_stale_meeting_audio(24, 50);
+-- rows = objects past the TTL awaiting a trigger. job_id NULL = cascade-orphaned.
+-- Empty is the healthy steady state.
+```
 
 ## 6. Pre-enable checklist
 

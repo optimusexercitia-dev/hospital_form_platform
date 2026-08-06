@@ -12828,6 +12828,13 @@ export type Database = {
           version_number: number
         }[]
       }
+      list_stale_meeting_audio: {
+        Args: { p_limit?: number; p_older_than_hours?: number }
+        Returns: {
+          job_id: string
+          object_path: string
+        }[]
+      }
       log_audit_access: {
         Args: {
           p_action: string

@@ -16,10 +16,10 @@
 -- it. A fixture missing a flag-enable silently SKIPS its own keystones and the suite
 -- still reports green (pgtap-fixture-flag-gaps). Never trust the self-reported total.
 --
--- Assertion count: 106
+-- Assertion count: 115
 
 begin;
-select plan(106);
+select plan(115);
 
 -- =========================================================================
 -- §0 PRECONDITIONS — asserted, not assumed.
@@ -590,6 +590,21 @@ select is(
   (select a1 from ag),
   '7.15 ... and the agenda_ref was resolved onto the source agenda item');
 
+-- QA BLOCKER B1. apply must hand the caller the object path, or the app CANNOT reclaim
+-- the recording — and nothing else ever reaches an `applied` row (reconcile no-ops on it;
+-- the read returns before reconciling a non-displayable status). In the pilot's
+-- `audio_release = false` shadow mode that left the whole normal journey retaining audio
+-- forever. The storage delete itself is app-side and asserted in E2E; THIS is the half
+-- that is assertable server-side, and its absence was the defect.
+select is(
+  (select r->>'audio_path' from applied),
+  (select audio_path from public.meeting_minutes_jobs where id = (select id from jid)),
+  '7.15a B1: apply RETURNS audio_path, so the caller can delete the object (D2 lists '
+  '`apply` among the deletion triggers). cancel_minutes_job already did this; apply did not');
+select isnt((select r->>'audio_path' from applied), null,
+  '7.15b ... and it is non-null for a job that still has its recording — a null here '
+  'would make 7.15a pass vacuously by comparing null to null');
+
 select is((select status::text from public.meeting_minutes_jobs where id = (select id from jid)), 'applied',
   '7.16 the job reached `applied`');
 select ok(
@@ -771,6 +786,65 @@ select is(
   'release its audio when the feature is switched off underneath it');
 
 update app.feature_flags set enabled = true where key = 'audio_minutes';
+
+-- =========================================================================
+-- §11 THE O3 STALE-AUDIO SWEEP (QA M1). PO decision O3 promised a 24h sweep "extended to
+-- cover objects with no live job" and two documents said it existed; nothing enumerated
+-- storage.objects at all. `meeting_minutes_jobs.meeting_id` is ON DELETE CASCADE, so a
+-- deleted meeting destroys the only pointer to its recording — no per-row path can ever
+-- reach it. These assert the READ half (SQL cannot delete: storage.protect_delete()
+-- refuses direct DML, so the deletion lives in the app).
+-- =========================================================================
+insert into storage.objects (bucket_id, name, created_at) values
+  ('meeting-audio', 'orphan-meeting/orphan-job/gravacao.m4a', now() - interval '30 hours'),
+  ('meeting-audio', 'fresh-meeting/fresh-job/gravacao.m4a',  now() - interval '2 hours');
+
+select is(
+  (select count(*)::int from public.list_stale_meeting_audio(24, 200)
+    where object_path = 'orphan-meeting/orphan-job/gravacao.m4a'), 1,
+  '11.1 M1: a CASCADE-ORPHANED object — no job row anywhere — is found by the sweep. '
+  'This is the case O3 named and the one no job-row-driven path could ever reach');
+select is(
+  (select job_id from public.list_stale_meeting_audio(24, 200)
+    where object_path = 'orphan-meeting/orphan-job/gravacao.m4a'), null,
+  '11.2 ... reported with job_id NULL, which is how the caller knows there is no row to stamp');
+select is(
+  (select count(*)::int from public.list_stale_meeting_audio(24, 200)
+    where object_path = 'fresh-meeting/fresh-job/gravacao.m4a'), 0,
+  '11.3 TWIN of 11.1: an object INSIDE the TTL is NOT swept — without this, 11.1 would '
+  'pass just as well for a sweep that returned everything and deleted live recordings');
+
+-- An object belonging to a REAL job (the §9 cancelled one), aged past the TTL: the sweep
+-- must find it AND name its job, so audio_deleted_at can be stamped.
+update storage.objects set created_at = now() - interval '30 hours'
+  where name = (select audio_path from public.meeting_minutes_jobs where id = (select id from j3));
+insert into storage.objects (bucket_id, name, created_at)
+  select 'meeting-audio', audio_path, now() - interval '30 hours'
+  from public.meeting_minutes_jobs where id = (select id from j3)
+  on conflict (bucket_id, name) do nothing;
+
+select is(
+  (select job_id from public.list_stale_meeting_audio(24, 200)
+    where object_path = (select audio_path from public.meeting_minutes_jobs where id = (select id from j3))),
+  (select id from j3),
+  '11.4 an object whose job row still exists is reported WITH that job id (the caller '
+  'stamps audio_deleted_at only for those, and only after storage confirms the delete)');
+
+select is(
+  (select count(*)::int from public.list_stale_meeting_audio(24, 1)), 1,
+  '11.5 p_limit bounds the batch — the sweep runs on a webhook delivery and a page load, '
+  'so an unbounded scan would be a latency bug on the hot path');
+
+select ok(
+  not has_function_privilege('authenticated', 'public.list_stale_meeting_audio(int,int)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.list_stale_meeting_audio(int,int)', 'EXECUTE')
+  and not has_function_privilege('public', 'public.list_stale_meeting_audio(int,int)', 'EXECUTE'),
+  '11.6 the sweep reader is NOT executable by authenticated/anon/PUBLIC — it enumerates '
+  'object paths across every tenant, which is a cross-tenant read no user may make');
+select ok(
+  has_function_privilege('service_role', 'public.list_stale_meeting_audio(int,int)', 'EXECUTE'),
+  '11.7 TWIN of 11.6: service_role CAN execute it (11.6 is a SPLIT, not a blanket revoke — '
+  'it would pass identically if the sweep were simply unreachable and therefore dead)');
 
 select * from finish();
 rollback;

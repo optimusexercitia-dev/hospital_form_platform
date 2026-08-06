@@ -8,6 +8,7 @@ import {
   MEETING_AUDIO_BUCKET,
   RECONCILE_AFTER_HOURS,
 } from './constants'
+import { sweepStaleAudio } from './sweep'
 import type { MinutesJobStatus } from './types'
 
 /**
@@ -38,6 +39,12 @@ export type ReconcileOutcome = 'noop' | 'failed_job' | 'deleted_audio'
 const HOUR_MS = 60 * 60 * 1000
 
 export async function reconcileMinutesJob(job: ReconcilableJob): Promise<ReconcileOutcome> {
+  // The O3 sweep rides along on every page load, throttled in-process. It is row-agnostic
+  // on purpose: a cascade-orphaned object has NO job row, so no amount of per-row
+  // reconciliation can ever reach it — which is exactly the gap O3 promised to close and
+  // the reason this call is here rather than inside `run`'s status branches.
+  void sweepStaleAudio()
+
   try {
     return await run(job)
   } catch {

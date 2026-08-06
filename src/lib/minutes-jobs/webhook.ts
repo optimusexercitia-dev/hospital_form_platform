@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { MEETING_AUDIO_BUCKET } from './constants'
 import { defaultMakeKey, normalizeMinutesResult } from './normalize'
 import { deleteAudio } from './reconcile'
+import { sweepStaleAudio } from './sweep'
 
 /**
  * The `meeting_minutes` arm of the audio-jobs webhook (ADR 0099 D10/D18).
@@ -39,6 +40,12 @@ export async function handleMeetingMinutesCallback(
   platformJobId: string,
   payload: CallbackPayload,
 ): Promise<HandlerOutcome> {
+  // The O3 sweep's other trigger, and the better of the two: a callback is machine-driven
+  // and regular, so reclamation does not wait for a human to open a page. Throttled
+  // in-process, fire-and-forget — it must never delay or fail the 200 this route owes the
+  // service.
+  void sweepStaleAudio()
+
   const admin = createAdminClient()
 
   if (payload.status === 'done') {

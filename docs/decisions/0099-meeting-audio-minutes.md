@@ -182,5 +182,48 @@ while the contract and schema are free to change:
 - Interviews (and any later kind) inherit a proven template: enum value + context/
   result models + processor on the service; table + policies + webhook handler on
   the platform. Nothing generic needs reopening.
-- The platform holds meeting audio transiently (≤ 24 h) and transcript text for the
-  life of a job — both inside RLS + audited doors, neither as a standing store.
+- The platform holds meeting audio transiently (≤ 24 h — but see Amendment 1, which
+  qualifies this) and transcript text for the life of a job — both inside RLS +
+  audited doors, neither as a standing store.
+
+## Amendment 1 (2026-08-06) — the ≤ 24 h audio ceiling is LAZY-ENFORCED
+
+**Status:** accepted deviation, recorded at the QA gate
+([review](../reviews/min-audio-minutes-review.md) M2). It qualifies D2 and the
+Consequences bullet above; it does not change either decision.
+
+**What D2 promises.** Audio is deleted at the earliest of: a callback with
+`audio_release = true`, apply, cancel, failure-acknowledged, or a 24 h hard TTL.
+
+**What the mechanism actually guarantees.** The first four are *event-driven* and
+prompt — each is a line of code on a path a user or the service has just taken.
+The fifth is not a timer. D10 chose **lazy recovery with no cron**, so the TTL is
+evaluated only when something happens:
+
+- on every webhook callback delivery (machine-driven, needs no human), and
+- on a page load that reconciles a job,
+
+each of which now also runs the O3 sweep — a bounded pass that deletes **every**
+`meeting-audio` object older than 24 h, including those whose job row was
+cascade-deleted with its meeting and therefore has no per-row path to it at all.
+
+**The residual, stated plainly.** In a tenant where *nothing happens* — no
+callbacks arriving, nobody opening a meeting or review page — nothing triggers, and
+an object can outlive 24 h until the next event. The ceiling is therefore
+"≤ 24 h plus the gap to the next activity in that tenant", not a wall-clock
+guarantee. The window is bounded in practice by any single callback or page view,
+which is why the sweep is hooked to the webhook and not only to page loads.
+
+**Why this is accepted rather than fixed.** Adding `pg_cron` would buy a wall-clock
+guarantee at the cost of the "no new cron infrastructure" decision in D10, a
+scheduled job to monitor, and a second execution context with service-role reach
+over storage. For a feature that ships flag-OFF, whose audio is *already* deleted
+promptly on all four event paths, and whose data class is a transient recording the
+platform never intended to keep, that trade is not worth taking now.
+
+**What would reopen it.** A pilot tenant observed retaining audio materially past
+24 h; a regulator or DPA asking for an enforceable ceiling rather than a
+best-effort one; or the arrival of a second audio kind (D18 interviews) whose
+recordings are case-PHI — that last one alone should force the cron conversation,
+because a Class-1 PHI recording outliving its ceiling is a different severity of
+problem from a committee meeting doing so.

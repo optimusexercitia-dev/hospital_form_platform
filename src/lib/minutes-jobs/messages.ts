@@ -43,16 +43,13 @@ export const MINUTES_MESSAGES = {
   activeJobExists:
     'Já existe um processamento de áudio em andamento para esta reunião.',
   jobWrongState: 'Este processamento não está mais neste estado. Atualize a página.',
-  reviewUnavailable: 'Esta revisão não está mais disponível.',
 
   // Draft / apply
   draftInvalid: 'Não foi possível salvar o rascunho da revisão.',
-  draftTooLarge: 'O rascunho da revisão excede o tamanho permitido.',
   ataHasHtml: 'O texto da ata contém HTML não permitido. Remova as marcações e tente novamente.',
-  newAgendaItemNeedsTitle: 'Informe um título para cada novo item de pauta.',
   actionItemsUnavailable:
     'O módulo de itens de ação não está disponível. Os itens de ação não puderam ser criados.',
-  applyFailed: 'Não foi possível concluir a revisão. Tente novamente.',
+  assigneeNotMember: 'O responsável indicado não é membro da comissão.',
 
   // Upload
   fileTooLarge: 'O arquivo excede o limite de 500 MB.',
@@ -62,24 +59,34 @@ export const MINUTES_MESSAGES = {
 
   // Transcript door
   transcriptUnavailable: 'Não foi possível carregar a transcrição.',
-
-  // Success
-  jobStarted: 'Áudio enviado para processamento.',
-  jobCancelled: 'Processamento cancelado.',
-  reviewApplied: 'Ata aplicada com sucesso.',
 } as const
+
+// NOTE: there are deliberately no success strings here. `ActionState.error` is an ERROR
+// channel — `use-minutes-action.ts` surfaces it only when `!ok` — so the former
+// `jobStarted` / `jobCancelled` / `reviewApplied` entries were unreachable by
+// construction (QA I5). Success copy belongs to the UI's own pt-BR labels.
 
 /**
  * Map a PostgREST/Postgres error onto pt-BR.
  *
- * `HC000` / `HC021` do NOT appear here: `apply_minutes_review` already catches both from
- * `create_committee_action_item` inside the transaction and re-raises them as `HC0S6`,
- * so the action-items door's raw codes can never reach this layer (B0 §4 / Rule 10).
- * They are listed as constants below only so a reviewer can see they were considered.
+ * `HC000` / `HC021` ARE handled here even though nothing should ever deliver them:
+ * `apply_minutes_review` catches both from `create_committee_action_item` inside its
+ * transaction and re-raises `HC0S6`, and no MIN action calls that door directly.
+ *
+ * ⚠ They are in the switch because the safety property otherwise lives ONLY in a TS
+ * comment describing SQL. Delete that `exception` block in the RPC and this file silently
+ * becomes wrong — the codes would escape to the pt-BR generic, which is safe but says
+ * nothing useful. Encoding them executably costs two lines and makes the escape hatch
+ * behave correctly instead of merely harmlessly (QA N6; the standing "a comment is an
+ * assertion that goes stale silently" lesson).
  */
 export function mapMinutesError(error: { code?: string; message?: string } | null): string {
   if (!error) return MINUTES_MESSAGES.generic
   switch (error.code) {
+    case HC_ACTION_ITEMS_FLAG_OFF:
+      return MINUTES_MESSAGES.actionItemsUnavailable
+    case HC_ASSIGNEE_NOT_MEMBER:
+      return MINUTES_MESSAGES.assigneeNotMember
     case HC_AUDIO_MINUTES_OFF:
       return MINUTES_MESSAGES.unavailable
     case HC_MEETING_NOT_ELIGIBLE:

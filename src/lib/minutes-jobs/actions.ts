@@ -211,7 +211,10 @@ export async function submitMinutesJob(jobId: string): Promise<ActionState> {
   if (submitError) return { ok: false, error: mapMinutesError(submitError) }
 
   revalidateMinutes()
-  return { ok: true, error: MINUTES_MESSAGES.jobStarted }
+  // No message on the success path: `ActionState.error` is an ERROR channel and
+  // `use-minutes-action.ts` only surfaces it when `!ok`, so a success string here was
+  // simply unreachable. The UI announces success from its own pt-BR labels.
+  return { ok: true }
 }
 
 async function failAndCleanUp(
@@ -256,7 +259,7 @@ export async function cancelMinutesJob(jobId: string): Promise<ActionState> {
   }
 
   revalidateMinutes()
-  return { ok: true, error: MINUTES_MESSAGES.jobCancelled }
+  return { ok: true }
 }
 
 /** F3's debounced autosave. */
@@ -313,16 +316,32 @@ export async function applyMinutesReview(
   const { data, error } = await supabase.rpc('apply_minutes_review', { p_job_id: jobId })
   if (error) return { ok: false, error: mapMinutesError(error) }
 
-  const counts = data as Record<string, number> | null
+  const applied = data as { audio_path?: string | null } & Record<string, number> | null
+
+  // D2 names `apply` as one of the audio-deletion triggers, and it was the missing one:
+  // in the pilot's `audio_release = false` shadow mode the whole normal journey — callback
+  // → review → Concluir — used to end with the recording retained indefinitely, because
+  // nothing else ever reaches an `applied` row.
+  //
+  // AFTER the RPC, and never allowed to un-apply it: the review is committed and the ata
+  // is written by this point, so a storage hiccup must not surface as a failed apply. A
+  // missed object is picked up by the O3 sweep on the next trigger.
+  if (applied?.audio_path) {
+    try {
+      await deleteAudio(jobId, applied.audio_path)
+    } catch {
+      // Deliberately swallowed — see above. The sweep is the backstop.
+    }
+  }
+
   revalidateMinutes()
   return {
     ok: true,
-    error: MINUTES_MESSAGES.reviewApplied,
     counts: {
-      agendaUpdated: counts?.agenda_updated ?? 0,
-      agendaCreated: counts?.agenda_created ?? 0,
-      actionsCreated: counts?.actions_created ?? 0,
-      actionsUnassigned: counts?.actions_unassigned ?? 0,
+      agendaUpdated: applied?.agenda_updated ?? 0,
+      agendaCreated: applied?.agenda_created ?? 0,
+      actionsCreated: applied?.actions_created ?? 0,
+      actionsUnassigned: applied?.actions_unassigned ?? 0,
     },
   }
 }
