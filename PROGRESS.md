@@ -116,7 +116,7 @@ Branch **`feat/hospital-affiliation-person-identity`** (cut from `main` @ `f41fc
 | WS | Scope | Owner | State |
 | -- | ----- | ----- | ----- |
 | **W1** | Substrate — `hospital_affiliations` (T1.1) · `profiles.cpf` + column-list grant conversion (T1.2) · drop `home_hospital_id` / `hospital_employee_id` as a refactor (T1.3) · `professional_profiles.cpf` (T1.4) · pgTAP (T1.5) | `backend` | ✅ **done** — migrations `20260909000100`–`000400`; ADR [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) |
-| **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ⏸ blocked on W1 |
+| **W2** | Doors, visibility & the dominance grid — `affiliate_person` / `end_affiliation` (T2.1) · `list_org_people` (T2.2) · widened `profiles` SELECT (T2.3) · dominance grid + the 2 live gaps (T2.4) · `grant_role_impl` hospital arm (T2.5) · pgTAP (T2.6) | `backend` | ✅ **done** — migrations `20260909000500`–`000900`; ADR 0098 §W2 |
 | **W3** | Product surfaces — identifier-first registration (T3.1) · affiliation-derived roster (T3.2) · affiliation management + field ownership (T3.3) · single-hospital provisioning (T3.4) · seed Rede C (T3.5) · E2E (T3.6) | `frontend` + `backend` | ⏸ blocked on W2 contract |
 
 **File ownership (binding for this workstream):** `backend` owns `supabase/**` (migrations, pgTAP,
@@ -161,13 +161,41 @@ column lock, the stale trigger body, the partial unique, the composite FK, the C
 DML grant). Shape decisions ADR 0097 left open are recorded in ADR
 [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md).
 
-> ⚠ **W1→W2 SEQUENCING HAZARD, measured not predicted.** `20260909000300` removes the
-> `home_hospital_id` leg and adds nothing; the replacement legs are **T2.3**. Seed reach is
-> unchanged (`hospitaladmin.a1` still reads 13/30 profiles, 21/34 memberships — ADR 0097's own
-> constants), but a person registered at a hospital and seated on **no committee** was read through
-> that leg on the product path, so between W1 and T2.3 their hospital's admin cannot read their
-> profile. **`e2e/hospital-admin-tier.spec.ts` HA-6 asserts exactly that person is visible** — do not
-> run the E2E gate between W1 and T2.3. pgTAP `301` §5.1 pins the gap and **T2.3 must invert it**.
+> ✅ **W1→W2 SEQUENCING HAZARD — CLOSED.** W1's `20260909000300` removed the `home_hospital_id`
+> leg and added nothing, so a person registered at a hospital and seated on no committee was
+> invisible to their own hospital's admin (seed reach was unchanged at 13/30 and 21/34 — the
+> product path was the live case). **T2.3 (`20260909000700`) has landed and `301` §5.1 is
+> INVERTED**: it now reads "the hospital admin reads BOTH the affiliation AND the profile of a
+> committee-less employee", and the mutation oracle confirms it goes red when the affiliation leg
+> is removed. The E2E gate is unblocked on this axis.
+
+**W2 result (`backend`, 2026-08-06).** Migrations `20260909000500` (the affiliation ACTOR KERNEL +
+`auth.uid()` wrappers + `_for` service twins + the delete guard + the `affiliation.deleted` audit
+arm) · `000600` (`list_org_people`, inline-gated, CPF-audited) · `000700` (the two `profiles` legs)
+· `000800` (both dominance gaps) · `000900` (`grant_role_impl`'s `is_admin_for` arm, regenerated
+programmatically from live `pg_get_functiondef` with a single anchored replacement). Gates:
+**294 registered == 294 files** on a fresh reset · pgTAP **164 files / 5024 tests PASS** (`302` =
+**50** assertions, `303` = **12**) · Vitest **988/988** · lint 0/0 (the door gate now covers
+`hospital_affiliations`) · typecheck clean · authz **`ARM=census` HOLDS** (it correctly flagged
+`list_org_people` UNKNOWN first — swept via the ROW-DOOR arm, since the boolean-gate arm has no
+mechanism for a table-returning door) and **`ARM=floor` HOLDS**; the diff-scoped run, derived from
+the migration diff, returned **3 policies COVERED + 1 row-door COVERED, 0 BLIND, 0 ERROR**. Both
+findings reports were **merged**, not discarded.
+
+> ⚠ **One vacuous keystone was found and fixed — by the mutation oracle, not by review.** `302`
+> §4.2 asserted the membership leg using `dt.a` as its subject, but §3's fixture had affiliated
+> `dt.a`, so the **affiliation** leg admitted them: removing the membership leg left the assertion
+> GREEN. The subject is now `dt.dep.a` (a hospital-tier seat, never affiliated), with §4.2a
+> asserting that subject has zero affiliation rows so the arm under test is the only path.
+> Thirteen SQL mutations + one TS mutation were run one at a time; every one now goes red on its
+> target, and the three that first reported "still green" were **harness** failures (the mutation
+> had not landed) — each was re-run with its pre-image asserted.
+
+> ⚠ **`281` D1 was INVERTED (not deleted), and gained a deny twin.** It pinned "org_admin is
+> REJECTED by `set_standard_ownership`" as a "D7 asymmetry, verified" — the exact behaviour ADR
+> 0097 finding 9 and the external census classify as a real dominance gap, and D18 fixes. A fixed
+> bug leaving behind a test that asserts the old behaviour is how the next reader "repairs" the
+> code back into the defect.
 
 > ⚠ **`seed.sql` is a contract with ~900 pgTAP tests + E2E.** T3.5 adds an org (Rede C), personas and
 > affiliation rows; the very constants ADR 0097 cites (21/34 memberships, 13/30 profiles, 6 dangling)

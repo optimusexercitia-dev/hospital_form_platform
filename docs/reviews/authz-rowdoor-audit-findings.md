@@ -50,6 +50,7 @@ Row-returning doors in the live catalog: 45.
 | public.indicator_series(p_indicator uuid, p_from text, p_to text) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_addable_commission_members(p_commission_id uuid, p_search text) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_approver_candidates(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 200_controlled_documents.sql |
+| public.list_org_people(p_org_id uuid, p_search text, p_cpf text) | rowdoor | open-guard(1) | COVERED | 302_affiliation_doors.sql |
 | public.list_case_access(p_case uuid) | rowdoor | open-guard(1) | COVERED | 144_case_access.sql |
 | public.list_commission_documents(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_referral_target_commissions(p_source_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |

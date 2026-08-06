@@ -106,6 +106,12 @@ contradiction surfaces. This ADR resolves it.
    retention regime of ADR 0035). No `UNIQUE (principal_id, hospital_id)` — historical
    rows are legitimate; a partial unique `(principal_id, hospital_id) WHERE ended_on IS
    NULL` enforces one *active* affiliation.
+   > **Amended at build time — ADR [0098](./0098-aff-w1-substrate-shape-decisions.md)
+   > §W2.3.** "Never DELETE" is now a CONSTRAINT, not a convention:
+   > `guard_affiliation_no_delete` (origin-enabled, mirroring `guard_profile_no_delete`),
+   > plus an `affiliation.deleted` audit arm on a trigger promoted to `ENABLE ALWAYS`
+   > — because `session_replication_role = replica` is the only mode a hard delete can
+   > occur in, and an origin-only audit arm would have been unreachable code.
 5. **Ending an affiliation is REFUSED while the person holds active memberships of ANY
    tier under that hospital** — commission seats (`staff`, `staff_admin`) **and**
    hospital-tier seats (`hospital_admin`, `technical_director`,
@@ -195,7 +201,15 @@ contradiction surfaces. This ADR resolves it.
 13. **Affiliation mutates through a DEFINER door** (`affiliate_person` / `end_affiliation`),
     `authenticated`-executable, no table DML grant — consistent with the `memberships`
     posture, because a write that grants read access to a person's profile is an
-    authorization mutation regardless of its HR clothing. The door hard-fails when
+    authorization mutation regardless of its HR clothing.
+    > **Amended at build time — ADR [0098](./0098-aff-w1-substrate-shape-decisions.md)
+    > §W2.1.** It is an ACTOR KERNEL plus TWO wrappers, not one door: `registerUser` runs
+    > service-role with no `auth.uid()`, so a single `auth.uid()` door leaves the bypass
+    > on the path that creates most affiliations and this decision's tenant check never
+    > runs there. Shape mirrors `grant_role_impl`/`grant_role`/`grant_role_for`:
+    > `app.*_impl` kernels owner-only, `public.affiliate_person` / `end_affiliation` to
+    > `authenticated`, `public.*_for` to `service_role` only. Enforced by
+    > `npm run lint:memberships-door`, extended to `hospital_affiliations`. The door hard-fails when
     `profiles.home_organization_id ≠ the hospital's organization` — the tenant check
     `resolveOrInviteUser` is **missing today** ([src/lib/members/invite.ts:50](../../src/lib/members/invite.ts)),
     which is fixed in the same pass. **Self-affiliation is permitted** (unlike a role
