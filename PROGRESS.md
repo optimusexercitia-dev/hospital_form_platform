@@ -290,10 +290,22 @@ only produces the commission arm; the hospital-tier arm needs someone **affiliat
 holding a hospital-tier seat there**, which in the seed is **`hospitaladmin.a1`** (`hospital_admin` of
 Central A, no commission) — derived from the catalog, not guessed.
 **Hardening:** `ROLE_LABELS` completeness is now executable (`affiliations-panel.test.ts`, 3 tests)
-against `memberships_role_check` as the named authority — all 9 roles covered, so the `?? role`
-fallback that would leak an English snake_case identifier is unreachable, and a 10th role reds the
-suite instead of shipping. Both assertions were **mutation-proven** (drop `technical_director`'s
-label → red; set a label equal to its key → red), then the pre-image restored.
+— all 9 roles covered, so the `?? role` fallback that would leak an English snake_case identifier is
+unreachable today. Both assertions were **mutation-proven** (drop `technical_director`'s label → red;
+set a label equal to its key → red), then the pre-image restored.
+**Corrected by QA N1 (`frontend`, 2026-08-06) — the claim above was overstated as first written.**
+It said a 10th role "reds the suite instead of shipping"; that was **false**. The test transcribed the
+role list and `memberships_role_check` is a CHECK over `text`, **not an enum** — the list is absent
+from `database.ts` and **Vitest cannot reach the database**, so widening the CHECK left the test green
+while a raw English identifier rendered in the pt-BR alert. The array is deleted; the test now imports
+`backend`'s committed fixture `src/lib/members/__fixtures__/membership-roles.json` (`dc11daf`), closing
+the third link of the chain `memberships_role_check` → pgTAP `304` §10 (fixture == live CHECK, both
+directions) → `membership-roles.test.ts` (JSON == the copy in `304`) → **this test** (every fixture role
+has a pt-BR label). ⚠ **Scope, stated precisely:** widening the CHECK still does not red this test —
+only `304` §10 notices, and only when `npm run test:db` runs; a widened CHECK whose fixture is never
+regenerated stays green here. It is a **build-time gate, not a runtime guard**. Mutation-proven both
+directions (fixture `+ quality_officer` → red on the missing label; fixture `− pqs_member` → red on the
+reverse assertion), each reverted via `git checkout`. `a1fd581`.
 Gates: typecheck **0** · lint **0/0** · Vitest **1013/1013**. Three previously unreachable branches
 were rendered in a running app and read on screen: the hospital-tier blocker, the zero-affiliation
 empty state, and outcome B for a person with no affiliation.
