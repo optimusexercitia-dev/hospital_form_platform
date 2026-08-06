@@ -244,58 +244,11 @@ seed/CLI-driven bootstrap that mints the first admin idempotently. **Blocks noth
 E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is invisible to every
 gate), but it is on the critical path of the **first production deploy**.
 
-🔴 **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
-(QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
-**Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
-template, add a narrative slot (works), then (a) open its edit dialog, change the title,
-submit, or (b) click its trash icon and confirm removal. **Expected:** (a) the dialog
-closes and the card shows the new title; (b) the card disappears and the DB row is gone.
-**Actual:** both fail with the friendly pt-BR toast "Narrativa não encontrada." — (a) the
-edit dialog stays open showing that banner, title unchanged; (b) the confirm dialog closes
-(Radix default) but the page-level banner shows the same message and the card/DB row
-survive untouched. **Root cause (F-1):** `commissionOfTemplateNarrative`
-(`src/lib/case-narratives/actions.ts:232`) selects the PostgREST embed
-`process_templates(commission_id)` from `.from('process_template_narratives')`. ADR-0096
-dropped `process_template_narratives.template_id` — the FK that embed relied on — so
-PostgREST rejects it with `PGRST200` at parse time. The helper discards `error` and
-returns `null` from `data?.process_templates?.commission_id ?? null`, so both
-`updateTemplateNarrative` and `removeTemplateNarrative` take the `!commissionId`
-early-return and answer with `MESSAGES.missingNarrative` ("Narrativa não encontrada.").
-Fails CLOSED, not an authz hole, but both actions are fully wired to the UI
-(`narrative-slot-dialog.tsx:129` / `template-builder-shell.tsx:243`), so this is a
-deterministic dead end for every staff_admin, on their own commission's own template.
-**Violates:** PHASES.md TV acceptance for narrative-slot authoring (edit/remove parity
-with create); ARCHITECTURE.md Rule 9 data-access-layer correctness (the query no longer
-matches the live FK graph). **Spec (RED-proven against current HEAD, before any fix):**
-`e2e/process-template-narrative-slot-crud.spec.ts` — two independent tests (own draft
-template + own narrative slot each, no shared/seeded fixture), asserting the CORRECT
-behavior (edit persists the new title; remove deletes the row), so both currently fail
-red for exactly the F-1 reason: `narrative-slot EDIT` fails at the "dialog closed"
-assertion (stays open, showing `status: Narrativa não encontrada.`); `narrative-slot
-REMOVE` fails at the "no not-found banner" assertion (banner present; DOM snapshot
-confirms the slot card `region "Slot Para Remover …"` survived). **Owner:** `backend`
-(fix `commissionOfTemplateNarrative` to resolve the commission without the dead FK
-embed — e.g. join through `process_template_versions.template_id` in two round trips, or
-add a substitute FK/view). **Status:** ✅ **FIXED by `backend` 2026-08-05** — no migration
-needed (client-layer only). `commissionOfTemplateNarrative` now selects the nested embed
-`process_template_versions(process_templates(commission_id))` — a single round trip along
-the live FK path `process_template_narratives.template_version_id →
-process_template_versions.template_id → process_templates`, derived from `pg_constraint`
-and mirroring `contextOfPhase` (`src/lib/process-templates/actions.ts:179`). **Verified
-against PostgREST, not `tsc`:** the old embed returns `PGRST200` ("Could not find a
-relationship…", hint: "Perhaps you meant 'process_template_versions'"); the new one
-returns the correct `commission_id` for a real slot under an authenticated session.
-Both actions' resolver helpers (all 5 in the file) now log the discarded `error` instead
-of folding a query failure into an indistinguishable "not found". **Mutation-checked:**
-reverting only the select string turns the spec red again (2 failed) and fires the new
-log line — so the green is causally attributable to the fix, not to environment.
-`e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
-unmodified — final gate verification remains `tester`'s.
-
 ### Closed — rotated 2026-08-04 · 2026-08-06 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
 
 | Bug | Summary | Closed |
 | --- | --- | --- |
+| **BUG-TV-001** | Process-template narrative-slot EDIT and REMOVE were dead end-to-end — ADR 0096 dropped the FK a one-hop PostgREST embed relied on, and the helper folded the resulting `PGRST200` into a friendly "Narrativa não encontrada." Fixed by `c557a32` (client layer, no migration) via the live 3-relation path; green on two full prod gates. ⚠ **A `.select()` is an opaque string and `.maybeSingle<T>()` asserts rather than validates** — the dead embed typechecked perfectly. Verify embed changes against PostgREST, never `tsc` | 2026-08-06 |
 | **BUG-AUTHZ-002** | The BUG-AUTHZ-001 sweep enumerated by **name prefix** (`dashboard_*`) where the property is "DEFINER door returning commission content" — it left the same `app.is_admin()` arm live in `hospital_document_register` + `hospital_indicator_rollup`. Fixed by `20260908000100`, held by pgTAP `299` (11/11); red-before-green proven (3 docs / 2 rollups → 0 / 0). ⚠ The entry's own prescribed test was wrong — `verify_audit_chain`'s `is_admin()` arm is its **platform-tier** branch and is correct BY DESIGN | 2026-08-05 |
 | **BUG-RCA-001** | `listRcaCitationTargets` selected `case_interviews.scheduled_start` — a column that lives on `interview_sessions`. `42703` → `data` null → **every interview silently dropped** from the RCA citation picker. PO ruled "the interview's date" = earliest session; pinned by `rca.test.ts` (5 cases), not a comment. Zero `42703` across 286 embed sites after the fix | 2026-08-05 |
 | **BUG-A11Y-001** | `useFieldIds(name)` used `name` as both form key and DOM id — three id collisions on `/admin` sent each later form's labels at the earlier form's controls. ⚠ The **first fix was INERT** (`controlProps` still returned `id: name`); caught only by dumping the live DOM. Systemic `useId()` fix deliberately deferred → FUP-A11Y-1 | 2026-08-05 |

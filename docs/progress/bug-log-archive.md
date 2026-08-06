@@ -1151,3 +1151,69 @@ complete without them: `200_controlled_documents.sql` #30 *required* `>= 2` rows
 **non-vacuity control**, so fixing the bug removed the control and left E1/E2 unfalsifiable. E3 is
 re-anchored on `verify_audit_chain`. **A control anchored on a defect evaporates when the defect is
 fixed — anchor it on something correct BY DESIGN.**
+
+---
+
+## TV phase — BUG-TV-001 (rotated from PROGRESS.md 2026-08-06, closed at rotation)
+
+⬛ **BUG-TV-001 — process-template narrative-slot EDIT and REMOVE are dead end-to-end
+(QA finding F-1, `tester`-owned F-2 coverage).** Filed 2026-08-05, TV phase.
+**Repro:** as `chefe.ccih@test.local` (staff_admin, CCIH/Rede A), create a draft process
+template, add a narrative slot (works), then (a) open its edit dialog, change the title,
+submit, or (b) click its trash icon and confirm removal. **Expected:** (a) the dialog
+closes and the card shows the new title; (b) the card disappears and the DB row is gone.
+**Actual:** both fail with the friendly pt-BR toast "Narrativa não encontrada." — (a) the
+edit dialog stays open showing that banner, title unchanged; (b) the confirm dialog closes
+(Radix default) but the page-level banner shows the same message and the card/DB row
+survive untouched. **Root cause (F-1):** `commissionOfTemplateNarrative`
+(`src/lib/case-narratives/actions.ts:232`) selects the PostgREST embed
+`process_templates(commission_id)` from `.from('process_template_narratives')`. ADR-0096
+dropped `process_template_narratives.template_id` — the FK that embed relied on — so
+PostgREST rejects it with `PGRST200` at parse time. The helper discards `error` and
+returns `null` from `data?.process_templates?.commission_id ?? null`, so both
+`updateTemplateNarrative` and `removeTemplateNarrative` take the `!commissionId`
+early-return and answer with `MESSAGES.missingNarrative` ("Narrativa não encontrada.").
+Fails CLOSED, not an authz hole, but both actions are fully wired to the UI
+(`narrative-slot-dialog.tsx:129` / `template-builder-shell.tsx:243`), so this is a
+deterministic dead end for every staff_admin, on their own commission's own template.
+**Violates:** PHASES.md TV acceptance for narrative-slot authoring (edit/remove parity
+with create); ARCHITECTURE.md Rule 9 data-access-layer correctness (the query no longer
+matches the live FK graph). **Spec (RED-proven against current HEAD, before any fix):**
+`e2e/process-template-narrative-slot-crud.spec.ts` — two independent tests (own draft
+template + own narrative slot each, no shared/seeded fixture), asserting the CORRECT
+behavior (edit persists the new title; remove deletes the row), so both currently fail
+red for exactly the F-1 reason: `narrative-slot EDIT` fails at the "dialog closed"
+assertion (stays open, showing `status: Narrativa não encontrada.`); `narrative-slot
+REMOVE` fails at the "no not-found banner" assertion (banner present; DOM snapshot
+confirms the slot card `region "Slot Para Remover …"` survived). **Owner:** `backend`
+(fix `commissionOfTemplateNarrative` to resolve the commission without the dead FK
+embed — e.g. join through `process_template_versions.template_id` in two round trips, or
+add a substitute FK/view). **Status:** ✅ **FIXED by `backend` 2026-08-05** — no migration
+needed (client-layer only). `commissionOfTemplateNarrative` now selects the nested embed
+`process_template_versions(process_templates(commission_id))` — a single round trip along
+the live FK path `process_template_narratives.template_version_id →
+process_template_versions.template_id → process_templates`, derived from `pg_constraint`
+and mirroring `contextOfPhase` (`src/lib/process-templates/actions.ts:179`). **Verified
+against PostgREST, not `tsc`:** the old embed returns `PGRST200` ("Could not find a
+relationship…", hint: "Perhaps you meant 'process_template_versions'"); the new one
+returns the correct `commission_id` for a real slot under an authenticated session.
+Both actions' resolver helpers (all 5 in the file) now log the discarded `error` instead
+of folding a query failure into an indistinguishable "not found". **Mutation-checked:**
+reverting only the select string turns the spec red again (2 failed) and fires the new
+log line — so the green is causally attributable to the fix, not to environment.
+`e2e/process-template-narrative-slot-crud.spec.ts` 2/2 green locally (chromium); spec
+unmodified — final gate verification remains `tester`'s.
+**CLOSED 2026-08-06 (lead).** The entry’s own last condition — “final gate verification
+remains `tester`’s” — is discharged, and was already discharged when the row was written: the fix
+`c557a32` is an **ancestor of** `f6c847d`, which is the commit the **PCI + TV final `e2e:prod`**
+ran green on (965 passed / 0 failed), and the **AFF final gate** then ran the full 85-spec suite
+green again on 2026-08-06 (985 passed / 0 failed · 16 batches, no gaps · 0 did-not-run · accounted
+986/991). Re-verified at the **code** layer, not from this entry’s text: the resolver now selects
+`process_template_versions(process_templates(commission_id))` and `console.error`s the discarded
+error instead of folding it into “not found”.
+⚠ **Honest limit of the evidence:** the gate artifacts are gone from disk, so this rests on the
+gate’s denominator reconciliation (no batch gaps, 0 did-not-run, 986/991 accounted) rather than on
+seeing these 2 tests named in a log. That is the project’s own standard for “the suite actually ran
+it” — but it is a reconciliation, not a sighting.
+⚠ **The row sat 🔴 for a day after it was green.** Nothing re-reads a bug row once its Status line
+says FIXED; the marker is what gets scanned. When a fix lands, move the MARKER in the same edit.
