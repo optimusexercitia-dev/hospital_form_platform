@@ -855,48 +855,140 @@ foreign-org isolation. Manually walked once too, DB-confirmed.
 ⚠ **Still owed:** a DT who is ALSO a commission member lands on their commission and has no nav link
 to the inbox. Reachable by URL; a nav entry for the dual-hat case is open.
 
-### 🟡 FUP-A11Y-1 — `useFieldIds` should derive the DOM id from `useId()`
+### ⬛ FUP-A11Y-1 — `useFieldIds` derives the DOM id from `useId()`. ✅ DONE 2026-08-05.
 
-BUG-A11Y-001 was fixed by breaking three ties by hand. The CLASS remains: `name` still doubles as the DOM
-id, so the next two forms sharing a field name on one page reproduce it silently — nothing in typecheck,
-lint, build or E2E sees a duplicate id.
+BUG-A11Y-001 was fixed by breaking three ties by hand; the CLASS remained (`name` doubled as the DOM id,
+so the next two forms sharing a field name on one page reproduced it silently). `useFieldIds` now returns
+`` `${name}-${useId()}` `` as the control id and keeps `name` as the form key alone. The three hand-written
+`id:` ties on `/admin` are deleted — one mechanism, not two. The `id` option survives, re-purposed: it PINS
+an id for a control something addresses, and its JSDoc says so.
 
-**Fix:** derive the control id from React's `useId()` and keep `name` as the form key. Evidence it is
-safe: every one of the **38** call sites is a top-level `const` (so a hook is legal there), and nothing
-reads the literal ids — the only hardcoded `-description`/`-error` strings, in `charter-form.tsx`, are
-self-consistent pairs that do not come from the hook.
+**Live-DOM verified on `/admin`**, the page that carried the three collisions: 0 duplicate ids, and all 7
+labels resolve to a control **inside their own `<form>`** (the defect was cross-form resolution, so
+`sameForm` is the assertion that matters, not mere uniqueness). No console/hydration error — `useId` is
+SSR-stable by construction.
 
-**Not done in-session by choice:** a shared primitive behind 38 components, changed with no cheap
-re-verification, is how a regression ships. It wants its own change with a full E2E run behind it.
+⚠⚠ **IT SHIPPED A REGRESSION, AND ONLY THE E2E GATE CAUGHT IT — BUG-A11Y-002.** `ethics-e2-procedure.spec.ts`
+FLOW-7 (the required keyboard-only vote flow) tabs until `i.id === 'ethics-vote-value'`. With a generated
+id that predicate never matches, `reachedSelect` is false, and FLOW-8…12 then never run because the file is
+serial. **My pre-flight sweep looked for `locator('#id')` and quoted `#id` strings — so its boundary was a
+SYNTAX, and this is an id EQUALITY comparison.** Same failure as the memory that says *if your enumeration's
+boundary is a filename, it's wrong*: here it was a selector shape, and the real property is "anything that
+depends on a hook-produced DOM id". The correct sweep — id equality, `getAttribute('id')`,
+`getElementById`, `toHaveAttribute('id'|'for')`, and every `tabUntil` predicate — finds **exactly one** such
+site, now fixed at the SOURCE with `{ id: "ethics-vote-value" }` rather than by editing the spec (§6 step 2:
+engineers never edit specs to pass). Nothing in lint, typecheck, `next build`, 963 unit tests or the live
+`/admin` DOM check could see it.
 
-### 🟡 FUP-AUTHZ-3 — 45 row-returning DEFINER doors have never been swept
+⚠ **The prior entry's safety evidence was wrong on its central claim.** It said "nothing reads the literal
+ids — the only hardcoded `-description`/`-error` strings, in `charter-form.tsx`, do not come from the hook."
+In fact **fourteen** files build ids by hand (`assessment-form`, `case-access-panel`, `file-correction-control`,
+`reopen-case-button`, `correct-submission-button`, `group-block`, `matrix-grid`, `reference-picker`,
+`risk-matrix-picker`, `repeating-group-block`, `input-item` ×3 sites, …) and E2E hardcodes 11 `#id`
+selectors. The change was safe anyway — but for a DIFFERENT reason, established by enumeration rather than
+by trusting the note: **none of those ids is hook-produced.** The hand-built ones are self-consistent pairs
+in components that never call the hook, and the wizard's addressed ids (`item-<id>-opt-<i>`, the radio
+`name`) come from `fieldScope`, not from `controlProps.id`. Every spec that touches a hook id READS it off
+the DOM first (`getAttribute('id')`, splitting `aria-describedby`) and only then builds `#${id}` — so they
+bind behaviour, not spelling.
 
-Registered as `gate:` debt in `authz-unswept-backlog.txt` when ARM 3's domain was extended
-(2026-08-05). Every one is authenticated-reachable, `prosecdef`, and returns ROWS — so by the standing
-rule (*a DEFINER's gate REPLACES RLS*) the gate inside each IS the whole boundary. **Not hypothetical:
-BUG-AUTHZ-002 lived in this class**, leaking commission content to platform_admin.
+⚠ **`useId()`'s output shape is a moving target and the code now says so.** React 18 emitted `:r0:` — `:` is
+not a legal CSS ident — and 19.2.4 emits `_r_0_`. The hook strips to the plain token, because
+`required-marker.test.tsx` and `e2e/ff3-validations.spec.ts` both string-build `#${id}` from
+`aria-describedby`. **My first comment asserted the wrong format** (`«r0»`) and was corrected against a live
+probe, not from memory.
 
-**Blocked on harness work, not triage:** the door audit neutralizes a predicate to `true`, which is
-meaningless for a function returning a table. Sweeping these needs a neutralization that opens the
-INTERNAL gate. `299_hospital_content_door_noun_rule.sql` §4 is the model for what each then owes — a
-computed enumeration plus a row-count assertion per principal, never a predicate call.
+**Pinned by `src/components/ui/field.test.tsx` (4 cases), mutation-proven per arm:** reverting to
+`options.id ?? name` reds the duplicate-id case AND the label-resolution case. ⚠ The CSS-ident case is
+**deliberately recorded as NOT pinned to the `replace()`** — React 19.2.4's own format already satisfies it,
+so deleting that line leaves the test green. It binds the emitted shape, which is what a React upgrade would
+break. Saying so beats letting a future reader mistake it for a mutation-proven guard.
 
-### 🟡 FUP-AUTHZ-4 — prune 6 now-COVERED entries from the BLIND allowlist — **ORDERING TRAP**
+`rules-of-hooks` under `--max-warnings=0` is the hook-position gate: it errors on a hook in a non-component
+function, so a green `npm run lint` across all **118** call sites IS the proof, and no call site needed
+moving. 963 unit tests green.
+
+### ⬛ FUP-AUTHZ-3 — the 45 row-returning DEFINER doors are swept. ✅ DONE 2026-08-05.
+
+The blocker was harness work, and that is what this was: **`supabase/tests/mutation/p0-authz-rowdoor-audit.sh`**,
+a THIRD sweep joining ARM 1 (ADR 0079 **Amendment 4**). The boolean sweep opens a gate by rewriting its
+body to `select true`; a function returning `TABLE(...)` has no boolean to open. This one opens the
+door's **identity guard** — `if <cond> then` → `if false then` — so the door returns the rows it would
+have withheld, then reads the suite exactly as the other two do. Wired into ARM 1's BLIND union and
+ARM 3's verdict sources.
+
+**Result over all 45: 32 COVERED · 1 BLIND (allowlisted, measured backstop) · 1 ERROR · 11 UNSUPPORTED.**
+Nine came back BLIND; **`supabase/tests/300_rowdoor_gate_keystones.sql`** (18 assertions) moved **eight**
+to COVERED — proven by re-running the sweep, not by review.
+
+⚠ **The ninth stayed BLIND, and that is the finding worth keeping.** `get_case_meeting_links`'s guard
+is backstopped by a second gate inside its own query (`app.can_reach_meeting`). **Measured, not argued:**
+with the guard rewritten to `if false then` the outsider **still reads 0** while the legitimate
+staff_admin still reads 1 — so no row-count assertion through that door can ever red on the guard.
+Allowlisted as a genuine backstop with that experiment as the justification; the assertion stays but
+now says in the file that it is **not** a keystone. Writing nine assertions, watching eight red, and
+assuming the ninth held would have been the *"7 keystones that could not fail"* error committed inside
+the file written to end it.
+
+⚠ **`open_attachment` is ERROR and deliberately NOT upgraded.** Opening its guard lets an unauthorized
+principal reach `log_audit_access`, which RAISES → `208_attachments.sql` aborts (planned 50, ran 36) →
+run shape ≠ baseline. Something clearly noticed (`228_ethics_e1.sql` failed a real assertion), so in
+substance it is covered — but the shape rule exists to stop verdicts awarded by judgement. It owes a
+clean verdict.
+
+**11 UNSUPPORTED stay in the backlog, and the word is load-bearing.** Their gate is an identity
+conjunct *inside* the query, not a statement guard, so there is nothing to rewrite — the harness
+returns **no verdict**, which is neither BLIND nor COVERED. ARM 3 got a row-door-specific extractor
+that filters on the verdict column precisely so an UNSUPPORTED row cannot be mistaken for a sweep
+result and let a door leave the census on the strength of the harness admitting it could not test it.
+
+⚠ **My first harness reported 0 guards in ALL 45 doors — a complete false negative that reads exactly
+like an honest finding** ("no door has an openable guard" is coherent). The tag regex was an E-string
+copied from the boolean sweep, which returns NULL when evaluated directly. Caught only by dry-running
+the detector against the catalog and comparing to a hand classification of the bodies. **A detector
+that finds nothing must be proven able to find something before its silence is believed.** The same
+class bit again within the hour: ARM 3's new extractor used `-F' *\| *'`, where awk treats `\|` as
+alternation matching the empty string, and printed nothing — ARM 3 would have stayed green while never
+parsing the report at all.
+
+⚠ **And the first sweep had a SOUNDNESS bug, not just a broken case.** `\yif\y[^;]*?<authz>[^;]*?\ythen\y`
+could span from an OUTER `if … then` across an inner guard (plpgsql puts no `;` between them),
+collapsing both into one `if false then`. `verify_audit_chain` failed to compile — **the lucky
+outcome**. The same swallow in a door without an `elsif` chain still compiles, opens a condition that
+is *not* an authorization decision, and reports whatever the suite then did as a verdict about the
+gate: **a false COVERED manufactured by the audit itself.** Blast radius was established by diffing
+both regexes over every body — exactly 1 of 45 — and the corrected re-run changed exactly that one
+verdict (ERROR → COVERED), confirming the analysis empirically.
+
+**Verified after:** `ARM=census` HOLDS (436 live gates, all carrying a verdict); the ARM 1 offender set
+is **byte-identical to HEAD** (the 15 pre-existing FUP-AUTHZ-2 items) — this work introduced zero new
+un-keystoned gates. pgTAP 161 files / 4921 tests green.
+
+### ⬛ FUP-AUTHZ-4 — pruned the 6 now-COVERED entries from the BLIND allowlist. ✅ DONE 2026-08-05.
 
 The PCI+TV phase keystoned the six `process_template_{phases,narratives,outcomes}_{select,staff_admin_write}`
-policies but left their allowlist lines in place, so ARM 1 reports them as "no longer BLIND — prune".
-Recorded in the backlog's `swept:` section meanwhile.
+policies but left their allowlist lines in place, so ARM 1 reported them as "no longer BLIND — prune".
 
-⚠ **Filed as 🟢 housekeeping on 2026-08-05 and corrected the same day — pruning them NOW would break
-ARM 1.** The prune is only safe AFTER the committed findings md is regenerated. ARM 1 compares the
-findings' BLIND table against the allowlist, and that table still lists these six as BLIND (the
-diff-scoped sweep that cleared them discards its report by design — Amendment 1 hazard 1). Prune
-first and ARM 1 sees six BLINDs with no allowlist line and fails, for a condition that was fixed a day
-earlier.
+**Executed in the mandated order**, which was the whole content of the item: a **diff-scoped ARM 1** over
+exactly those six (baseline Files=160, Tests=4903) returned **COVERED ×6**, each attributed to
+`supabase/tests/297_process_template_versioning.sql` → those verdicts were **hand-merged** from the subset
+report into `docs/reviews/authz-door-audit-findings.md` (BLIND table → COVERED table) → *only then* were
+the six allowlist lines and the six `swept:` backlog lines deleted, in the same change. The subset report
+was discarded with `git checkout --` as Amendment 1 requires.
 
-**Correct order:** full ARM 1 sweep (or a diff-scoped run whose verdicts are hand-merged into the
-findings) → *then* delete the six allowlist lines and their `swept:` entries in the same commit. Until
-then the stale-entry note ARM 1 prints is the correct state, not a defect.
+**Both arms verified after:** `ARM=census` **HOLDS** (436 live gates, all carrying a verdict — the six now
+carry theirs from the findings md, which is what makes deleting the `swept:` lines safe), and ARM 1's
+"no longer BLIND — prune" note is **gone**.
+
+⚠ **ARM 1 still exits non-zero — 15 offenders, and they are NOT from this change.** Proven, not assumed:
+the offender set computed from `git show HEAD:` versions of the findings + allowlist is **byte-identical**
+to the set after the prune. They are the known FUP-AUTHZ-2 fifteen (the 2026-07-27 out-of-phase ETH
+hotfix's write policies). Recomputing the before/after sets is cheap and is the only thing that separates
+"pre-existing" from "I broke it" — a `tail` of the output cannot.
+
+The `swept:` section is now **empty**, and its header carries the ordering trap in full: prune the
+allowlist first and ARM 1 fails for an already-fixed condition; delete a `swept:` line with no findings
+verdict and ARM 3 reports the gate as an unswept newcomer.
 
 ### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
 

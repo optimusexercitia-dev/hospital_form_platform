@@ -245,3 +245,83 @@ check named the five `validate_template_*` signatures ADR 0096 re-keyed to
 `p_template_version_id`, and it caught three policy names that had been entered from a commit
 message instead of the catalog. Two directions, two real catches.
 
+
+## Amendment 4 — ARM 1 gains a THIRD sweep: row-returning doors (2026-08-05)
+
+**Why.** Amendment 3 put row-returning DEFINER doors into the *census* domain, which asks only
+"has anything ever asked?". It could not put them into ARM 1, which asks "does a keystone
+notice when this opens?" — because **there was no mechanism to open one**. The boolean sweep
+neutralizes a gate by rewriting its body to `select true`; a function returning `TABLE(...)`
+has no boolean to open. So all 45 landed in `authz-unswept-backlog.txt` as `gate:` debt with a
+verdict in no direction, and the note said the blocker was harness work, not triage. This
+amendment is that harness work (FUP-AUTHZ-3).
+
+**Decision.** A third sweep, `p0-authz-rowdoor-audit.sh`, joins ARM 1. Domain: every
+`prosecdef`, `authenticated`-reachable, row-returning function in `app`/`public`. It opens a
+door's **identity guard** — `if <cond> then` → `if false then` — so the door returns the rows
+it would have withheld, then runs the full pgTAP suite and reads `Result:` exactly as the
+other two do. Header, signature, return type, volatility, DEFINER and `search_path` are
+untouched; only the body changes (§7.15b), and the restore is byte-compared (§7.5).
+
+**The condition, never the deny arm.** Blanking the `raise`/`return` instead would also open
+guards that are not authorization — `list_case_access` raises `no_data_found` for a missing
+case — and a keystone noticing *that* would be recorded as a keystone noticing the authz gate.
+**A false COVERED is worse than no verdict**: it is "audit one layer, infer the next" (§7.14)
+wearing the audit's own badge. So a guard is rewritten only when its condition references an
+identity primitive (`app.is_*`, `app.can_*`, `app.has_*`, `app.member_can`, `public.is_*`,
+`auth.uid`). A feature-flag guard matches none of those and is deliberately left closed: a
+flag decides whether a feature exists, never who may use it.
+
+**UNSUPPORTED is a first-class outcome, and it is NOT a verdict.** 11 of the 45 state their
+gate as a conjunct inside the query (`where m.principal_id = auth.uid()`) or as a `declare`d
+array of the caller's hospitals. There is no statement to rewrite, so the harness records
+UNSUPPORTED with the reason, and those doors **stay in the backlog**. ARM 3 was given a
+row-door-specific extractor that filters on the verdict column precisely so an UNSUPPORTED row
+cannot be mistaken for a sweep result — otherwise a door could be deleted from the census
+backlog on the strength of the harness *admitting it could not test it*, reopening the exact
+hole Amendment 3 closed. They owe a walk-through keystone in the shape of
+`supabase/tests/299_hospital_content_door_noun_rule.sql` §4: a computed enumeration plus a
+row-count assertion per principal, never a predicate call.
+
+⚠ **The first version of this harness reported 0 guards in all 45 doors and was wrong.** The
+tag regex was written as an E-string (`E'\nAS (\$[^$]*\$)'`, copied from the boolean sweep's
+`DO` block) and returns NULL when evaluated directly; the plain form `'\nAS (\$[^$]*\$)'`
+works. Every door would have been filed UNSUPPORTED — a *complete* false negative that looks
+exactly like an honest result, since "no door has an openable guard" is a coherent finding. It
+was caught only by dry-running the detector against the catalog before the sweep and comparing
+its count to a hand classification of the bodies. **A detector that finds nothing must be
+proven able to find something**, on the same evidence, before its silence is believed. The same
+class bit a second time in the same hour: ARM 3's new extractor used `-F' *\| *'`, where awk
+treats `\|` as alternation matching the empty string, and printed nothing — which would have
+left ARM 3 passing via the backlog while never parsing the report at all.
+
+**Outcome of the first full row-door sweep (2026-08-05).** 45 doors: **32 COVERED, 1
+BLIND-and-allowlisted, 1 ERROR, 11 UNSUPPORTED**. Nine came back BLIND on the first clean
+run; `supabase/tests/300_rowdoor_gate_keystones.sql` was written for them and moved
+**eight** to COVERED, each assertion a row count through the door with a non-vacuity twin
+(the outsider reads 0 *and* the legitimate authority still reads the counts measured on
+the seed — a denial assertion against a door that returns nothing to anybody passes with
+the gate wide open). The denial principal is `chefe.farm`, staff_admin of a sibling
+commission in the SAME org: a fully foreign principal can be stopped by the tenant
+boundary before the door's own gate is reached, and the keystone would then be exercising
+cross-org isolation while claiming to pin the commission gate.
+
+**The ninth is the interesting one, and it stayed BLIND.** `get_case_meeting_links`'s
+guard is `if not app.can_read_case(...) then return;` — but its query carries a second,
+independent gate, `app.can_reach_meeting(mc.meeting_id, v_uid)`. Measured, not argued:
+with the guard rewritten to `if false then`, the outsider **still reads 0 rows** while the
+legitimate staff_admin still reads 1. No row-count assertion through that door can
+distinguish the guard's presence from its absence, so it is allowlisted as a genuine
+backstop with that experiment as the justification. The keystone file keeps its assertion
+— the behaviour is worth pinning — but says explicitly that it is **not** a keystone for
+the guard. Writing 9 assertions, watching 8 red, and then claiming the ninth "obviously"
+holds too is the "7 keystones that could not fail" error committed inside the file written
+to end it. The sweep is what caught it; reading the file could not have.
+
+**`open_attachment` is recorded ERROR, deliberately not upgraded.** Opening its guard lets
+an unauthorized principal reach `log_audit_access`, which RAISES — so `208_attachments.sql`
+aborts (planned 50, ran 36) and the run shape stops matching baseline. Something plainly
+noticed (`228_ethics_e1.sql` also failed a real assertion), so in substance the door is
+covered. It stays ERROR anyway: the shape rule exists to stop verdicts being awarded by
+judgement, and an audit that exempts itself from its own rule is the failure this program
+keeps finding in others. It owes a clean verdict.
