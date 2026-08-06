@@ -43,7 +43,7 @@
 
 begin;
 
-select plan(37);
+select plan(38);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -325,15 +325,36 @@ select is(
 reset role;
 
 -- ===========================================================================
--- §D · set_standard_ownership — is_hospital_admin_of ONLY. org_admin
--- REJECTED (the read/write asymmetry with Migration E).
+-- §D · set_standard_ownership — hospital_admin OR org_admin (AFF T2.4).
+--
+-- ⚠ D1 IS INVERTED FROM WHAT IT ASSERTED BEFORE 2026-08-06, DELIBERATELY. It read
+-- "org_admin is REJECTED … (D7 asymmetry, verified)" — but "verified" there described
+-- the BEHAVIOUR, not a decision that the behaviour was right. ADR 0097 finding 9, and
+-- an independent external census, both classify this exact gate as one of the two REAL
+-- dominance gaps: an org_admin who happened to hold no hospital_admin membership was
+-- refused 42501 on their own organisation's hospital. ADR 0097 D18 (PO-ruled
+-- 2026-08-05) fixes both, and `20260909000800` is that fix. Leaving this assertion
+-- as-is would have pinned the defect — the recorded trap where a fixed bug leaves
+-- behind a test asserting the OLD behaviour, and the next reader "repairs" the code.
+--
+-- D1b is added in the same edit so §D keeps an AUTHORITY-deny arm: widening a gate
+-- must not silently remove the only assertion that it denies anyone at all.
 -- ===========================================================================
 select test_helpers.claims_for((select org_admin_uid from personas), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.set_standard_ownership(%L, %L, %L) $$,
+    (select hosp_b from k), '28100000-0000-0000-0000-000000000001', (select comm_x from k)),
+  'D1. org_admin is ACCEPTED — an org_admin dominates a hospital_admin (ADR 0097 D18; this assertion was inverted by AFF T2.4)'
+);
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_standard_ownership(%L, %L, %L) $$,
     (select hosp_b from k), '28100000-0000-0000-0000-000000000001', (select comm_x from k)),
-  '42501', null, 'D1. org_admin is REJECTED — can read the hospital surface elsewhere (Migration E) but cannot WRITE ownership (D7 asymmetry, verified)'
+  '42501', null, 'D1b. a commission staff_admin is still REJECTED — T2.4 ADDED an arm, it did not open the door'
 );
 reset role;
 
