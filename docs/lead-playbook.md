@@ -78,9 +78,11 @@ history. At the Record step, rotate:
 - **Test Run Summary** → keep only the **most recent gate's** rows live; move the rest to
   `docs/progress/test-run-archive.md`.
 - **QA Verdicts** → **one line only**: verdict + date + link to
-  `docs/reviews/phase-N-review.md` (which holds the full analysis). Don't restate the
-  rationale in PROGRESS.md, and don't grow `docs/progress/qa-verdicts-archive.md`
-  (redundant with the review doc).
+  `docs/reviews/phase-N-review.md` (which holds the full analysis). Keep only the
+  **current milestone's** rows live; move older concluded rows **verbatim** to
+  `docs/progress/qa-verdicts-archive.md`'s "Collapsed one-line index" section. Never
+  restate rationale in either file — the index exists only to preserve the
+  feature-name → review-file mapping and the struck loop rows.
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
 - **Follow-ups / Deferred** → keep only **OPEN** (`[ ]`/`[~]`) items live; move resolved

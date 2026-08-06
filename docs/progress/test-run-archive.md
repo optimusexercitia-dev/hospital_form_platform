@@ -522,3 +522,39 @@ held the six heaviest FF specs in a single server lifetime. Re-running the ident
 ⚠ **pgTAP needs a FRESH `supabase db reset`.** A second suite run against the same DB gives
 **4200 + a hard abort in `161_recommend_result_source`** (that file mutates feature flags). That is
 contamination, not a defect — the lead tripped over it once and it reads exactly like a real red.
+
+
+## MEM · Phase 16 gate · FF-4 · FF-5 · ad-hoc-batch rows (rotated from PROGRESS.md 2026-08-06)
+
+> Verbatim one-line gate rows from the live Test Run Summary (dates 2026-07-28 → 2026-08-04),
+> rotated at the 2026-08-06 size rotation. ⚠ Some of these rows’ full narratives were already
+> archived in the 2026-08-04 section above — rows are kept verbatim here anyway (duplication
+> over loss). PROGRESS.md keeps the 2026-08-05/06 rows live: the current green-gate baseline
+> (MEM full `e2e:prod` 970-pass + pgTAP 4903 + census/floor) and AFF’s close-out runs.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-08-04 | **MEM W4 · `p0-authz-invariant.sh` `ARM=policy` FULL sweep** (302 door cases + write-path, ~5 h) | **`INVARIANT VIOLATED`** — BLIND set 83, **15 not allowlisted**. ⚠ **none is MEM/W4** (its migration has 0 `create/alter/drop policy`); the 15 are a dated census of every RLS added since 2026-07-18 → FUP-AUTHZ-2. Pruned 4 now-COVERED entries (72→68) |
+| 2026-08-04 | **MEM W4 · diff-scoped ARM 1** (4 gates derived from the migration diff, 4m20s) | **3 COVERED · 1 ERROR · 0 BLIND** — `can_read_referral_metadata` / `can_read_referral_phi` / `is_technical_director_of_for` covered; `can_manage_referral_target` unauditable (aborts files) → covered by `295`'s 13/13 mutation audit instead |
+| 2026-08-04 | **MEM W1–W4 · FULL `e2e:prod`** (16 batches) | **954 passed · 1 failed · 2 flaky · 5 skips · 962/962 accounted** — denominator reconciled vs `spec-counts.txt`, no batch gaps, no `reset FAILED`; 1 infra re-run (batch 7 server death, 47 setup reds, cleared 61/61). The 1 failure = **FUP-BULK-1**, pre-existing and identical on `main` |
+| 2026-08-04 | **MEM W1–W4 · pgTAP on a fresh reset** (+`291` 35, `292` 25, `293` 24, `294` 29) | **155 files / 4736 · PASS** |
+| 2026-08-04 | **MEM · mutation audits** — `w1` · `w2` · `w3` · `w4` | **9/9 · 9/9 · 8/8 · 8/8 RED-PROVEN**, every control all-green |
+| 2026-08-04 | **MEM W1–W3 · targeted `e2e:prod`** (8 specs, `RESET=1`) — W3 caller migration | **171 passed · 0 failed · 0 flaky · GATE GREEN** |
+| 2026-08-04 | **MEM W1+W2 · targeted `e2e:prod`** (7 specs, `RESET=1`) — session bootstrap re-plumb | **160 passed · 0 failed · 1 deliberate skip · GATE GREEN** |
+| 2026-08-04 | **MEM · lint · typecheck · Vitest** (lint now chains `lint:memberships-door`) | 0/0 · clean · **901/901** |
+| 2026-08-04 | ⚠ **MEM · `p0-authz-invariant.sh` `ARM=floor`** | **`INVARIANT VIOLATED`** — 3 *indicator* doors never-called. NOT attributable to MEM (they read 0 calls with their own suite run ALONE and passing); all 5 MEM doors ARE exercised. Needs a `main` baseline → FUP-MEM-1 |
+| 2026-08-04 | **Phase 16 · GATE (declare-green)** — pgTAP on a fresh reset | **151 files / 4623 · PASS** |
+| 2026-08-04 | **Phase 16 · GATE** — full `e2e:prod` | **962 of 962 accounted · 0 assertion failures** (2 flaky passed on retry, 12 deliberate skips) |
+| 2026-08-04 | **Phase 16 · GATE** — `p0-authz-invariant.sh` `ARM=floor` | **`INVARIANT HOLDS`** — 89 never-called doors, all allowlisted |
+| 2026-08-04 | **Phase 16 · GATE** — lint · typecheck · Vitest · real `next build` | 0/0 · clean · **901** · EXIT=0 |
+| 2026-08-04 | Phase 16 · tester · BUG-P16-006 fix, fresh reset #1 → the 5 phase16 specs combined | **31/31 GREEN** |
+| 2026-08-04 | Phase 16 · tester · **second independent fresh reset** (indicator ids confirmed live to differ from run #1 and from the removed literals) | **31/31 GREEN** |
+| 2026-08-03 | Phase 16 · tester · 5 new specs combined (dev server, chromium, workers=1) | **31/31** — core 7 · freshness 9 · hospital 6 · restricted 5 · clone 4 |
+| 2026-08-03 | Ad-hoc bug batch · scoped gate (`RESET=1 RETRIES=0`) — phase8-dashboard + both phase22 specs | **93/93 · GATE GREEN** |
+| 2026-08-03 | Ad-hoc batch · 4-spec isolation batch (the BUG-E2EISO-001 repro, verbatim) | **80/80 · GATE GREEN** — does not reproduce |
+| 2026-08-03 | Ad-hoc batch · `bulk-case-creation` fresh DB, then the **same DB again** (BUG-E2EISO-003 repro) | **8/8 · 8/8** — does not reproduce |
+| 2026-08-03 | Ad-hoc batch · pgTAP · Vitest · lint/tsc | **4301/4301** (+ new `270_…` 8/8, mutation-falsifiable) · **873/873** · 0/0 |
+| 2026-08-03 | **FF-4 · DECLARE-GREEN** full `e2e:prod` (`87fbdde`, `RESET=1 REBUILD=1`) | **901 passed · coverage 926 of 931 · 0 FF-4 defects** — all 15 batches ran |
+| 2026-08-03 | FF-4 · FIRST full `e2e:prod` (`b5c505e`) | 849 passed · batch 4 `reset FAILED` → 66 never ran; re-run standalone **66/66**, no regression |
+| 2026-08-03 | FF-4 · tester · `ff4-power-authoring.spec.ts` (prod standalone) | **6/7** deterministic — the 1 was BUG-FF4-001, real |
+| 2026-07-28 | **FF-5 · final bar** at `598447e` | pgTAP **4240/4240** · Vitest **851** · `next build` EXIT=0 · full `e2e:prod` **863 passed, 0 real failures** |
