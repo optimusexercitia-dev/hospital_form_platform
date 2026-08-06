@@ -98,6 +98,19 @@ export interface MinutesDraftSpeaker {
   spoke: boolean
 }
 
+/**
+ * A resolution the service could not tie to an agenda item (D6).
+ *
+ * The service's `Resolution.agenda_item_index` is a POSITIONAL index into its own
+ * `agenda_items`; when it is null or out of range the decision has no agenda home. D6
+ * says such a resolution stays attachable on the review page — F3 moves its text into an
+ * agenda entry's `resolution` and drops it from this array. Apply ignores the key.
+ */
+export interface MinutesDraftLooseResolution {
+  key: string
+  text: string
+}
+
 export interface MinutesDraft {
   minutes_md: string
   /** ⚠ `agenda`, not `agenda_items` — this is the key `apply_minutes_review` reads. */
@@ -105,6 +118,18 @@ export interface MinutesDraft {
   action_items: MinutesDraftActionItem[]
   next_meeting: MinutesDraftNextMeeting | null
   speakers: MinutesDraftSpeaker[]
+  /**
+   * Index-less resolutions awaiting attachment (D6).
+   *
+   * ⚠ This lives on `MinutesDraft` — the ROUND-TRIP type — and not beside it on
+   * `MinutesReviewData`, because `save_minutes_draft` is a whole-column OVERWRITE
+   * (`update … set draft = p_draft`, no merge). Anything the review page holds outside
+   * the draft object is destroyed by the first autosave a few seconds after the page
+   * opens. Keeping it here makes the round trip safe by construction; a sibling field
+   * would have to be threaded through save separately, which is the same bug one layer
+   * up.
+   */
+  unassigned_resolutions: MinutesDraftLooseResolution[]
 }
 
 // --- the review page's server payload ---------------------------------------

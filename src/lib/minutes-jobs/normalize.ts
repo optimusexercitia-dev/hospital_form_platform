@@ -3,6 +3,7 @@ import type {
   MinutesDraft,
   MinutesDraftActionItem,
   MinutesDraftAgendaItem,
+  MinutesDraftLooseResolution,
   MinutesDraftSpeaker,
 } from './types'
 
@@ -48,14 +49,24 @@ export interface NormalizeContext {
 
 export const defaultMakeKey = (prefix: string, index: number): string => `${prefix}-${index}`
 
-/** A resolution the service could not tie to an agenda item (D6). Display + attach only. */
-export interface LooseResolution {
-  key: string
-  text: string
-}
+/**
+ * A resolution the service could not tie to an agenda item (D6).
+ *
+ * Re-exported from `./types` rather than declared here. It used to be a WRITE-SIDE LOCAL
+ * type, which is precisely how `unassigned_resolutions` came to be missing from
+ * `MinutesDraft`: the normalizer produced it, the column stored it, and the read side —
+ * which only knew `MinutesDraft` — rebuilt the draft without it. Since
+ * `save_minutes_draft` overwrites the whole column, the first autosave then destroyed it.
+ * A round-tripped field must live on the round-trip type.
+ */
+export type LooseResolution = MinutesDraftLooseResolution
 
-/** What the normalizer produces: the draft plus the loose resolutions F3 can attach. */
-export type NormalizedDraft = MinutesDraft & { unassigned_resolutions: LooseResolution[] }
+/**
+ * What the normalizer produces. Now exactly `MinutesDraft` — the alias is kept because
+ * callers name it, and because it documents that the normalizer owes the FULL draft
+ * shape, not a subset the read side has to re-derive.
+ */
+export type NormalizedDraft = MinutesDraft
 
 export function normalizeMinutesResult(
   result: MeetingMinutesResult,

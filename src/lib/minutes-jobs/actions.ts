@@ -18,7 +18,7 @@ import { composeMeetingMinutesContext } from './context'
 import { MINUTES_MESSAGES, mapMinutesError } from './messages'
 import { foldVerbatimIntoDescription } from './normalize'
 import { deleteAudio } from './reconcile'
-import { stripHtmlTags } from './sanitize'
+import { sanitizeDraft } from './sanitize'
 import type { MinutesApplyCounts, MinutesDraft } from './types'
 
 /**
@@ -346,10 +346,3 @@ export async function readMinutesTranscript(jobId: string): Promise<ReadTranscri
   return { ok: true, transcript: data }
 }
 
-/**
- * Clean the ata before it is stored (Rule 7). See `./sanitize.ts` for why a bare `<`
- * survives and why this runs on the way IN rather than only at apply time.
- */
-function sanitizeDraft(draft: MinutesDraft): MinutesDraft {
-  return { ...draft, minutes_md: stripHtmlTags(draft.minutes_md ?? '') }
-}

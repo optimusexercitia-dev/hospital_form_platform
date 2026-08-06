@@ -16,10 +16,10 @@
 -- it. A fixture missing a flag-enable silently SKIPS its own keystones and the suite
 -- still reports green (pgtap-fixture-flag-gaps). Never trust the self-reported total.
 --
--- Assertion count: 105
+-- Assertion count: 106
 
 begin;
-select plan(105);
+select plan(106);
 
 -- =========================================================================
 -- §0 PRECONDITIONS — asserted, not assumed.
@@ -498,8 +498,28 @@ update public.meeting_minutes_jobs set draft = jsonb_build_object(
     jsonb_build_object('title', 'Ação com dono', 'assigned_to', (select st_x from k)::text,
                        'due_date', '2026-12-01', 'agenda_ref', (select a1 from ag)::text),
     jsonb_build_object('title', 'Ação sem dono válido', 'assigned_to', (select sa_y from k)::text),
-    jsonb_build_object('title', 'Ação excluída', 'include', false)))
+    jsonb_build_object('title', 'Ação excluída', 'include', false)),
+  -- Keys apply does NOT read, carried deliberately. `unassigned_resolutions` (D6) is a
+  -- real one: index-less resolutions the reviewer can still attach, which must survive in
+  -- the row because save_minutes_draft OVERWRITES the whole column. `speakers` is
+  -- display-only (D12). `some_future_field` stands in for anything a newer deploy adds.
+  -- Every §7 assertion below therefore runs against a draft carrying unread keys.
+  'unassigned_resolutions', jsonb_build_array(
+    jsonb_build_object('key', 'res-0', 'text', 'Decisão sem item de pauta')),
+  'speakers', jsonb_build_array(
+    jsonb_build_object('label', 'Dra. Ana', 'attendee_ref', null, 'utterance_count', 3)),
+  'some_future_field', jsonb_build_object('nested', jsonb_build_array('valor')))
   where id = (select id from jid);
+
+-- Asserted, not assumed (§7.3): if a future edit drops these keys from the fixture, the
+-- inertness case below stops being exercised and nothing else would notice.
+select ok(
+  (select draft ? 'unassigned_resolutions' and draft ? 'some_future_field'
+   from public.meeting_minutes_jobs where id = (select id from jid)),
+  '7.2a PRECONDITION: the draft carries keys apply does NOT read. Every §7 assertion '
+  'below therefore also proves those keys are INERT on the write path — which is what '
+  'makes it safe for the TS layer to round-trip them through save_minutes_draft (a '
+  'whole-column OVERWRITE, so anything the client drops is destroyed in the row)');
 
 -- The apply is run INSIDE lives_ok, not as a bare statement. A bare `create temp table …
 -- as select apply(…)` that RAISES aborts the transaction, and every remaining assertion

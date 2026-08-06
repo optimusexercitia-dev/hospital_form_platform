@@ -18,6 +18,8 @@
  * matches `<[A-Za-z!/?]`, and so does this.
  */
 
+import type { MinutesDraft } from './types'
+
 /** Matches an HTML/XML tag opener, a closing tag, or a comment/PI — never a bare `<`. */
 const TAG_RE = /<\/?[A-Za-z][^>]*>?|<[!?][^>]*>?/g
 
@@ -35,4 +37,18 @@ export function stripHtmlTags(value: string): string {
 /** True when the value still carries a tag opener — mirrors the SQL guard's predicate. */
 export function containsHtmlTag(value: string): boolean {
   return /<[A-Za-z!/?]/.test(value)
+}
+
+/**
+ * Clean a draft's ata text on the way to the database.
+ *
+ * ⚠ SPREAD, never a field-by-field rebuild. This sits on the WRITE half of a round trip
+ * whose store (`save_minutes_draft`) is a whole-column overwrite, so any key this
+ * function fails to carry is destroyed in the row. It was already correct; it lives here
+ * rather than privately inside `actions.ts` so that the round trip
+ * `coerceDraft → sanitizeDraft` can be asserted in one test — `actions.ts` carries
+ * `'use server'`, where every export must be an async server action.
+ */
+export function sanitizeDraft(draft: MinutesDraft): MinutesDraft {
+  return { ...draft, minutes_md: stripHtmlTags(draft.minutes_md ?? '') }
 }

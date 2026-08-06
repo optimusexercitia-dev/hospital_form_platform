@@ -233,6 +233,26 @@ export async function getMinutesJobForReview(jobId: string): Promise<MinutesRevi
  * The column is `jsonb`, so the generated type is `Json` — a cast would be a lie the
  * compiler happily accepts. A draft written by an older normalizer, or hand-edited, must
  * degrade to an empty-but-valid draft rather than crashing the review page.
+ *
+ * ⚠ **PRESERVE-BY-DEFAULT — this function is a load-bearing safety property, not a
+ * formatter.** It spreads `raw` FIRST and only then coerces the fields it knows about.
+ * The obvious alternative — building the return object field by field — silently drops
+ * every key the author did not enumerate, and it typechecks perfectly (same class as the
+ * `.select()`-is-a-string trap: the compiler cannot see an omission in a value it is
+ * asked to construct).
+ *
+ * That is not a cosmetic loss here. `save_minutes_draft` is a whole-column OVERWRITE
+ * (`update … set draft = p_draft`, no merge), so the sequence is:
+ *
+ *     F3 opens → coerceDraft drops key K → reviewer types → autosave writes the
+ *     coerced object back → K is gone from the row, permanently, within seconds.
+ *
+ * That is exactly how `unassigned_resolutions` — real committee decisions the service
+ * recorded — were being destroyed before anyone could see them. Spreading first makes
+ * the round trip lossless for anything we have not thought of yet, including a draft
+ * written by a newer deploy and read by an older one mid-rollout. `apply_minutes_review`
+ * ignores keys it does not read, so an unknown key is inert on the write path, and the
+ * RPC's own ~2 MB cap bounds the cost of carrying it.
  */
 export function coerceDraft(value: unknown): MinutesDraft {
   const empty: MinutesDraft = {
@@ -241,11 +261,15 @@ export function coerceDraft(value: unknown): MinutesDraft {
     action_items: [],
     next_meeting: null,
     speakers: [],
+    unassigned_resolutions: [],
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return empty
   const raw = value as Record<string, unknown>
 
   return {
+    // Everything we do not know about rides along untouched.
+    ...(raw as Partial<MinutesDraft>),
+    // …and everything we DO know about is defensively normalized, because F3 renders it.
     minutes_md: typeof raw.minutes_md === 'string' ? raw.minutes_md : '',
     agenda: Array.isArray(raw.agenda) ? (raw.agenda as MinutesDraftAgendaItem[]) : [],
     action_items: Array.isArray(raw.action_items)
@@ -256,5 +280,8 @@ export function coerceDraft(value: unknown): MinutesDraft {
         ? (raw.next_meeting as MinutesDraft['next_meeting'])
         : null,
     speakers: Array.isArray(raw.speakers) ? (raw.speakers as MinutesDraft['speakers']) : [],
+    unassigned_resolutions: Array.isArray(raw.unassigned_resolutions)
+      ? (raw.unassigned_resolutions as MinutesDraft['unassigned_resolutions'])
+      : [],
   }
 }
