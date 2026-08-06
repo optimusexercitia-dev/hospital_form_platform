@@ -182,6 +182,17 @@ mechanism for a table-returning door) and **`ARM=floor` HOLDS**; the diff-scoped
 the migration diff, returned **3 policies COVERED + 1 row-door COVERED, 0 BLIND, 0 ERROR**. Both
 findings reports were **merged**, not discarded.
 
+> ⚠ **That "0 BLIND" does NOT cover W2's four `uuid`-returning affiliation doors** (QA finding —
+> the W3 record carries this disclaimer and W2's did not). `20260909000500` added
+> `affiliate_person` / `affiliate_person_for` / `end_affiliation` / `end_affiliation_for`, and the
+> boolean-gate arm **cannot see them**: it neutralizes by rewriting a body to `select true`, which
+> is meaningless for a `uuid`-returning door, so it skips them silently — and ARM 3's census
+> population is bool-or-set-returning, so it does not flag them either. **Their coverage is
+> `302` §1–§3's mutation-proven keystones, not the sweep.** This is the hole recorded in ADR
+> [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 5 / FUP-AFF-1,
+> and it is the reason that amendment exists — the arm reports a clean result in the same words
+> whether it swept everything or nothing.
+
 > ⚠ **One vacuous keystone was found and fixed — by the mutation oracle, not by review.** `302`
 > §4.2 asserted the membership leg using `dt.a` as its subject, but §3's fixture had affiliated
 > `dt.a`, so the **affiliation** leg admitted them: removing the membership leg left the assertion
