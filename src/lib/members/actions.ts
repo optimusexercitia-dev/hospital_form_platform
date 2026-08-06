@@ -95,11 +95,20 @@ const CAPABILITIES: readonly MemberCapability[] = [
  * helper checks it; this one did not. Strictly narrowing, and it makes the mirror faithful.
  *
  * SECURITY (multi-tenancy): the platform_admin `isAdmin` short-circuit remains
- * DELIBERATELY ABSENT. `inviteStaff` runs on the SERVICE-ROLE client (bypasses RLS), so
- * this TS check is the ONLY control there — a platform admin must NOT invite/manage staff
- * in any commission. That is a place where the mirror is deliberately stricter than
- * `grant_role_impl` (which carries an `is_admin_for` arm), and it is stated rather than
- * accidental: the noun rule (ADR 0078 A35) keeps platform_admin out of commission content.
+ * DELIBERATELY ABSENT — the mirror is stricter than `grant_role_impl` here, which DOES
+ * carry an `is_admin_for` arm. The reason is the noun rule (ADR 0078 A35): memberships are
+ * platform_admin's tenancy arm, but seating a person on a COMMISSION is commission
+ * content, and platform_admin is walled off from that.
+ *
+ * WARNING: THE REASON THIS COMMENT USED TO GIVE WAS FICTION. It said "`inviteStaff` runs
+ * on the SERVICE-ROLE client (bypasses RLS), so this TS check is the ONLY control there".
+ * `inviteStaff` DOES NOT EXIST -- not in `src/`, `e2e/` or `supabase/`; the only hit in
+ * the repo was that sentence, and commit `8155be2` expanded it rather than checking it.
+ * All six operations below write through a DEFINER door on the COOKIE client, so
+ * PostgreSQL re-derives authority for a real `auth.uid()` and this helper is a pre-check,
+ * NOT the only control. The posture is right; the justification was invented -- and a
+ * security-relevant comment justified by a phantom is worse than no comment, because the
+ * next reader trusts it.
  */
 async function authorizeStaffOps(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()

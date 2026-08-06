@@ -249,8 +249,13 @@ Two further notes, both deliberate:
   narrowing.
 - **The `platform_admin` omission STAYS.** `grant_role_impl` carries an `is_admin_for`
   arm, so here the mirror is deliberately *stricter* than its door — the noun rule
-  (ADR 0078 A35) keeps platform_admin out of commission content, and `inviteStaff` runs
-  service-role where this check is the only control. Stated so it is not "corrected" later.
+  (ADR 0078 A35) keeps platform_admin out of commission content. ⚠ **Corrected (F5):** an
+  earlier version of this bullet, and of the comment in `src/lib/members/actions.ts`,
+  justified the omission by saying "`inviteStaff` runs service-role where this check is the
+  only control". **`inviteStaff` does not exist anywhere in the repo** — the only hit was
+  the comment itself. All six operations write through a DEFINER door on the COOKIE client,
+  so this helper is a pre-check, not the only control. The posture is right; the stated
+  reason was fiction.
 
 Keystoned in `src/lib/members/staff-ops-mirror.test.ts`, in the shape that would have
 caught it: a hospital admin completes `addStaff` end to end **and reaches `grant_role`**
@@ -258,6 +263,39 @@ caught it: a hospital admin completes `addStaff` end to end **and reaches `grant
 hospital**. The DENY arm is load-bearing — mutation-proved: making the leg blanket
 (`hospitalAdminOf.length > 0`) reds it, which is what stops this fix from becoming a
 widening.
+
+**W3.8 — QA remediation (F2, F3, F3b, F4, F6, F7).** Two of the six are worth recording
+as lessons rather than as changes:
+
+- **F2 — the drift detector was blind INSIDE ITS OWN INPUTS.** It enumerated with
+  `errcode = '([A-Z0-9]{5})'` while six sites in the migrations it reads raised
+  `errcode = 'check_violation'`, a NAMED condition. The detector built to catch an unmapped
+  code could not see one, because its boundary was a **syntax** rather than the
+  **property**. Fixed on both halves: the kernels now raise a dedicated `HC0R5` (a shared
+  `23514` cannot be mapped honestly — every CHECK constraint raises it too, so the message
+  would have been right only circumstantially), and the detector normalizes named
+  conditions, **throws** on an unrecognised one, excludes trigger functions by RETURN TYPE,
+  and **resolves the forward-only chain last-write-wins** — its first widened version
+  produced a FALSE positive by reading superseded migration text as if it were live.
+- **F3b — a claim of record was broader than the truth, and the correction is NOT a fix.**
+  `app.audit_write` takes no actor parameter; it derives `auth.uid()`, which is NULL on
+  every service-role path. So `affiliation.created` rows written through
+  `registerUser` → `affiliate_person_for` carry `actor_id = NULL`. This is **platform-wide
+  and pre-existing** (`membership.granted`, `form.created` identical), so it is a separate
+  workstream — but ADR 0097's LOW-1 cites "the audit trigger on `affiliation.created` names
+  the actor" as the compensating control for the soft DENY keystone, and that is true on
+  the interactive path and **false on the provisioning path**. Corrected at the assertion;
+  the platform gap is flagged for scheduling, not patched here. `log_cpf_probe_for` threads
+  its actor through the **metadata** for the same reason, rather than pretending `actor_id`
+  is populated.
+
+F3 pinned all four audit arms — `.created`/`.ended` had none, and `20260909001100` REBUILT
+the trigger, so an arm lost in that rewrite would have left no line in the diff. F4 audits
+the registration half of the CPF oracle, which ADR 0097 LOW-3 names alongside the lookup
+half. F6 added the three D14 arms that reverted cleanly (`removeCredential`,
+`reactivateUser`, `suspendUser`). F7 made the `profiles` column-grant rule executable: the
+set of columns without an `authenticated` SELECT grant must be exactly `{cpf}`, so a column
+added without its GRANT reds instead of surfacing as a 42501 a year later.
 
 ## Consequence recorded, not discovered later
 

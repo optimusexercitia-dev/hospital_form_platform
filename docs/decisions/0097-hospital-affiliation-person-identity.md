@@ -134,6 +134,16 @@ contradiction surfaces. This ADR resolves it.
    (audited, actor-named), after which the affiliation leg admits them — the tenant
    boundary remains the *organization* (finding 1), and a future auditor must not read
    the DENY keystone as tenant isolation (audit LOW-1).
+   > ⚠ **Corrected at build time (AFF F3b).** LOW-1 offered "the audit trigger on
+   > `affiliation.created` names the actor" as the compensating control. That holds on the
+   > INTERACTIVE path only. `app.audit_write` takes no actor parameter — it derives
+   > `auth.uid()` — so an affiliation created through `registerUser` →
+   > `affiliate_person_for` records **`actor_id = NULL`**: the actor is known, threaded
+   > into the kernel and written to `created_by`, then dropped by the audit layer.
+   > Measured live: 5/5 `affiliation.created` unattributed. This is **platform-wide and
+   > pre-existing** (`membership.granted`, `form.created` alike), so it is scheduled as its
+   > own workstream rather than patched inside AFF — but the compensating control is weaker
+   > than this decision claims, and `created_by` is the attribution that actually survives.
 
 ### Identity
 

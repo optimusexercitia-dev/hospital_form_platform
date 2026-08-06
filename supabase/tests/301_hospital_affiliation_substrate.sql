@@ -24,10 +24,10 @@
 --  * **A narrowing passes its negative keystone by construction (§7.7).** Every deny
 --    arm here has a positive twin on the same table and the same reader.
 --
--- Assertion count: 40
+-- Assertion count: 41
 
 begin;
-select plan(40);
+select plan(41);
 
 -- Personas + scopes (deterministic seed ids — never gen_random_uuid()).
 create temp table k on commit drop as select
@@ -92,6 +92,24 @@ select has_column('public', 'professional_profiles', 'cpf', '0.8 professional_pr
 select ok(
   not has_schema_privilege('authenticated', 'public', 'CREATE'),
   '0.9 authenticated holds no CREATE on schema public — the premise that the residual REFERENCES(cpf) grant is inert');
+
+-- F7 — THE COLUMN-GRANT RULE, MADE EXECUTABLE. Until now its discoverability rested on a
+-- `comment on table`: "every new profiles column needs its own GRANT or it reads 42501".
+-- A comment cannot fail. This can: the set of `profiles` columns WITHOUT an
+-- `authenticated` SELECT grant must be exactly {cpf}. Add a column and forget the GRANT
+-- and it reds here, instead of surfacing as a 42501 to somebody a year from now; add a
+-- column and wrongly grant `cpf` and it reds too.
+select is(
+  (select coalesce(string_agg(c.column_name, ',' order by c.column_name), '')
+     from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'profiles'
+      and not exists (
+        select 1 from information_schema.column_privileges g
+         where g.table_schema = 'public' and g.table_name = 'profiles'
+           and g.grantee = 'authenticated' and g.privilege_type = 'SELECT'
+           and g.column_name = c.column_name)),
+  'cpf',
+  '0.10 F7: the profiles columns with NO authenticated SELECT grant are exactly {cpf} — the column-grant rule, executable');
 
 -- ============================================================================
 -- §1 THE CPF PAIR. app.is_valid_cpf <-> isValidCpf (src/lib/users/cpf.ts) is a

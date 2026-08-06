@@ -12738,6 +12738,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_cpf_probe_for: {
+        Args: { p_actor: string; p_matched?: string; p_org_id: string }
+        Returns: undefined
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_document_obsolete: {
         Args: { p_document_id: string }

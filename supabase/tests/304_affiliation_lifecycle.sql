@@ -10,10 +10,10 @@
 -- returned without raising the whole time. A door that "did not raise" is not a door
 -- that worked — §2 and §3 both assert OBSERVED STATE, never the absence of an error.
 --
--- Assertion count: 23
+-- Assertion count: 32
 
 begin;
-select plan(23);
+select plan(32);
 
 update app.feature_flags set enabled = true where key in ('audit_trail');
 
@@ -211,8 +211,93 @@ select is(
             where n.nspname = 'app'
               and p.proname in ('affiliate_person_impl','end_affiliation_impl','update_affiliation_impl')) b,
           regexp_matches(b.src, 'errcode = ''([A-Z0-9]{5})''', 'g') m),
-  '42501,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4',
+  '42501,HC0R0,HC0R1,HC0R2,HC0R3,HC0R4,HC0R5',
   '6.1 the LIVE affiliation kernels raise exactly the SQLSTATE set the TS mapper has arms for (a new code reds here AND in door-error-arms.test.ts)');
+
+-- ============================================================================
+-- §7 (F3) RULE 11 — ALL FOUR AUDIT ARMS, not just the two the update door added.
+--
+-- `.updated` and `.deleted` were keystoned; `.created` and `.ended` — the two that fire
+-- on every real HR action — had no assertion anywhere. And `20260909001100` REBUILT
+-- `app.trg_audit_hospital_affiliations` wholesale to add the `.updated` arm, which is
+-- the "a rebuild silently loses properties the original carried" shape: if an arm
+-- vanished in that rewrite there would be no line in the diff to notice it. Every arm is
+-- now pinned by BEHAVIOUR (emit the event, read the row back), never by reading prosrc.
+-- ============================================================================
+create temp table audit_arm_before on commit drop as
+  select id from public.audit_log
+   where action in ('affiliation.created', 'affiliation.ended');
+
+-- ⚠ SUBJECT CHOICE IS LOAD-BEARING: `unaffiliated` (nspcoord.a2) holds an nsp_coordinator
+-- seat at secundario-a, so `end_affiliation` correctly refuses it with HC0R1 (D5 blocks on
+-- seats of ANY tier) and §7.2 aborted. `seatless` holds ZERO memberships anywhere, so the
+-- end path is exercised rather than the refusal path.
+select public.affiliate_person_for((select orgadmin_a from k), (select seatless from k),
+                                   (select secundario_a from k), 'MAT-ARM');
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'affiliation.created' and id not in (select id from audit_arm_before)), 1,
+  '7.1 `affiliation.created` fires on a real affiliation (the arm no keystone covered)');
+
+select public.end_affiliation_for((select orgadmin_a from k), (select seatless from k),
+                                  (select secundario_a from k));
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'affiliation.ended' and id not in (select id from audit_arm_before)), 1,
+  '7.2 `affiliation.ended` fires on a soft end (likewise)');
+
+select ok(
+  (select count(distinct action)::int from public.audit_log
+    where action like 'affiliation.%') >= 3,
+  '7.3 at least three distinct affiliation arms are live in ONE run — a rebuild that dropped one reds here');
+
+-- The metadata contract, asserted on the arms themselves rather than assumed from the
+-- one that happened to be tested: scope ids and the principal, never a payload.
+select is(
+  (select count(*)::int from public.audit_log
+    where action in ('affiliation.created', 'affiliation.ended')
+      and id not in (select id from audit_arm_before)
+      and (metadata ->> 'user_id') is null), 0,
+  '7.4 every new arm row names the principal (Rule 11 records WHO)');
+select is(
+  (select count(*)::int from public.audit_log
+    where action in ('affiliation.created', 'affiliation.ended')
+      and id not in (select id from audit_arm_before)
+      and metadata::text like '%MAT-ARM%'), 0,
+  '7.5 ...and NONE carries the matricula — an employer-issued identifier is payload');
+
+-- ============================================================================
+-- §8 (F4) THE OTHER HALF OF THE CPF EXISTENCE ORACLE.
+--
+-- ADR 0097 LOW-3 names TWO probes: `list_org_people`'s p_cpf lookup AND `registerUser`'s
+-- collision block. D11's audit row is the compensating control for the ORACLE, so
+-- auditing only the first half was inconsistent with the reasoning that justified it.
+-- ============================================================================
+create temp table probe_before on commit drop as
+  select id from public.audit_log where action = 'person.cpf_lookup';
+
+select lives_ok(
+  $$select public.log_cpf_probe_for('00000000-0000-0000-0000-0000000000b1',
+      '0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d1')$$,
+  '8.1 the registration-side probe emits');
+
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from probe_before)
+      and metadata ->> 'source' = 'registration'), 1,
+  '8.2 ...tagged `source: registration`, so the two halves are told apart by a PRESENT value');
+
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from probe_before)
+      and (metadata::text like '%12345678909%' or summary like '%12345678909%')), 0,
+  '8.3 ...and it carries NO CPF DIGITS (Rule 11: that and who, never the payload)');
+
+select is(
+  (select metadata ->> 'actor_user_id' from public.audit_log
+    where action = 'person.cpf_lookup' and id not in (select id from probe_before)),
+  '00000000-0000-0000-0000-0000000000b1',
+  '8.4 ...and it names the ACTOR in metadata — actor_id itself is NULL on every service path (a platform-wide gap, not an AFF one)');
 
 select * from finish();
 rollback;

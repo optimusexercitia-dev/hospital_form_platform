@@ -49,6 +49,8 @@ let session: SessionShape = orgAdminSession
 let rows: Record<string, unknown> = {}
 /** Every write the actions attempt, so a DENY can be proven to have written NOTHING. */
 let writes: { table: string; op: string; payload: unknown }[] = []
+/** Every RPC the actions issue — the F4 arm asserts the audit probe is among them. */
+let rpcCalls: { fn: string; args: unknown }[] = []
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('next/headers', () => ({ headers: async () => new Map() }))
@@ -71,7 +73,17 @@ function makeAdmin() {
     for (const m of ['select', 'eq', 'is', 'in', 'not', 'order', 'limit', 'returns']) {
       self[m] = chain
     }
-    self.maybeSingle = async () => ({ data: rows[table] ?? null, error: null })
+    // A table's configured value may be an ARRAY, in which case it is a QUEUE consumed one
+  // read at a time. registerUser reads `profiles` TWICE — the email pre-check, then the
+  // CPF pre-check — and a single fixed row makes the first read answer for both, so the
+  // email collision returns before the CPF path is ever reached.
+  self.maybeSingle = async () => {
+    const configured = rows[table]
+    if (Array.isArray(configured)) {
+      return { data: (configured.shift() as unknown) ?? null, error: null }
+    }
+    return { data: configured ?? null, error: null }
+  }
     self.then = (resolve: (v: { data: unknown; error: null }) => unknown) =>
       resolve({ data: rows[table] ?? [], error: null })
     for (const op of ['update', 'insert', 'upsert', 'delete']) {
@@ -84,7 +96,10 @@ function makeAdmin() {
   }
   return {
     from: (table: string) => builder(table),
-    rpc: async () => ({ data: null, error: null }),
+    rpc: async (fn: string, args: unknown) => {
+      rpcCalls.push({ fn, args })
+      return { data: null, error: null }
+    },
   }
 }
 
@@ -92,6 +107,7 @@ const FORBIDDEN = /administrador da organiza/i
 
 beforeEach(() => {
   writes = []
+  rpcCalls = []
   rows = {
     profiles: {
       id: TARGET,
@@ -138,6 +154,39 @@ describe('D14 — a hospital_admin cannot change person-level fields', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(FORBIDDEN)
     expect(writes.filter((w) => w.table === 'professional_credentials')).toHaveLength(0)
+  })
+
+  it('CREDENTIAL REMOVAL is REFUSED', async () => {
+    // F6: `removeCredential` shared `upsertCredential`'s gate but had no arm of its own —
+    // reverting it reded nothing. A credential is a fact about the PERSON either way.
+    session = hospitalAdminSession
+    const { removeCredential } = await import('./actions')
+    const result = await removeCredential('cred-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(FORBIDDEN)
+    expect(writes.filter((w) => w.op === 'delete')).toHaveLength(0)
+  })
+
+  it('REACTIVATION is REFUSED', async () => {
+    // F6. The inverse of deactivation is equally platform-wide: re-enabling an account
+    // restores access at every hospital and committee it holds, not just at this one.
+    session = hospitalAdminSession
+    const { reactivateUser } = await import('./actions')
+    const result = await reactivateUser(TARGET)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(FORBIDDEN)
+    expect(writes.filter((w) => w.op === 'update')).toHaveLength(0)
+  })
+
+  it('SUSPENSION is REFUSED', async () => {
+    // F6. Suspension routes through the same `app.is_active` kill switch as deactivation,
+    // so a hospital admin suspending someone would lock them out platform-wide.
+    session = hospitalAdminSession
+    const { suspendUser } = await import('./actions')
+    const result = await suspendUser(TARGET, null)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(FORBIDDEN)
+    expect(writes.filter((w) => w.op === 'update')).toHaveLength(0)
   })
 
   it('ACCOUNT DEACTIVATION is REFUSED — it is a platform-wide kill switch', async () => {
@@ -187,6 +236,16 @@ describe('D14 — the org_admin ALLOW twins (the narrowing does not deny everyon
     const { deactivateUser } = await import('./actions')
     expect((await deactivateUser(TARGET)).ok).toBe(true)
   })
+
+  it('an org_admin CAN reactivate, suspend, and remove a credential', async () => {
+    // The twins for F6's three arms: a narrowing that denies EVERYONE passes its negative
+    // keystones by construction, so each deny needs a matching allow.
+    session = orgAdminSession
+    const { reactivateUser, suspendUser, removeCredential } = await import('./actions')
+    expect((await reactivateUser(TARGET)).ok, 'reactivate').toBe(true)
+    expect((await suspendUser(TARGET, null)).ok, 'suspend').toBe(true)
+    expect((await removeCredential('cred-1')).ok, 'removeCredential').toBe(true)
+  })
 })
 
 describe('D14 — the gate fires on a CHANGE, not on a field being present', () => {
@@ -220,6 +279,32 @@ describe('registerUser — CPF is required, validated and normalized (ADR 0097 D
     } as never)
     expect(result.ok).toBe(false)
     expect(result.fieldErrors?.cpf).toBeTruthy()
+  })
+
+  it('AUDITS the collision probe, and refuses the duplicate (ADR 0097 LOW-3)', async () => {
+    // F4: the registration block is the OTHER half of the CPF existence oracle, and D11's
+    // audit row is the compensating control for the oracle as a whole. It emitted nothing.
+    session = orgAdminSession
+    // Queue: the EMAIL pre-check must miss (null) so execution reaches the CPF pre-check,
+    // which then hits an existing holder.
+    rows.profiles = [null, { id: 'someone-else', home_organization_id: ORG_A, is_active: true }]
+    const { registerUser } = await import('./actions')
+    const result = await registerUser({
+      homeOrganizationId: ORG_A,
+      fullName: 'Novo Alguém',
+      email: 'novo@test.local',
+      professionalCategoryId: 'cat-1',
+      cpf: '111.444.777-35',
+      password: 'Test1234!',
+    })
+
+    expect(result.fieldErrors?.cpf, 'the collision must still block').toBeTruthy()
+    const probe = rpcCalls.find((c) => c.fn === 'log_cpf_probe_for')
+    expect(probe, 'the collision path must emit an audit probe').toBeTruthy()
+    expect(
+      JSON.stringify(probe?.args),
+      'the probe must never carry the CPF digits',
+    ).not.toMatch(/11144477735/)
   })
 
   it('refuses an invalid check digit', async () => {

@@ -41,6 +41,7 @@ const MESSAGES = {
   foreignOrg: 'Esta pessoa não pertence a esta organização.',
   notFound: 'Vínculo ativo não encontrado.',
   badDate: 'A data informada é incompatível com o período do vínculo.',
+  missingHospital: 'Hospital não encontrado.',
   deactivated:
     'Esta conta está desativada. Reative a conta antes de registrar um vínculo hospitalar.',
   stillSeated:
@@ -97,6 +98,8 @@ function toState(error: PgErrorish): AffiliationActionState {
       return { ok: false, error: MESSAGES.badDate }
     case 'HC0R4':
       return { ok: false, error: MESSAGES.deactivated }
+    case 'HC0R5':
+      return { ok: false, error: MESSAGES.missingHospital }
     default:
       // ⚠ `default` is why an unmapped code is INVISIBLE: the switch is total, so no
       // compiler, linter or test can report one as unhandled — it just silently

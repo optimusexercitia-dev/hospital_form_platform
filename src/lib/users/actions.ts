@@ -521,6 +521,18 @@ export async function registerUser(
   if (cpfLookupError) {
     return { ok: false, error: MESSAGES.generic }
   }
+  // ADR 0097 LOW-3 / D11 — this block is the REGISTRATION half of the CPF existence
+  // oracle, and D11's audit row is the compensating control for the oracle as a whole.
+  // The directory half (`list_org_people`) audits itself; this one could not, because it
+  // runs service-role with no auth.uid(). Emitted for BOTH outcomes, never with the
+  // digits — a probe that found nothing is exactly as interesting to an auditor as one
+  // that found someone.
+  await admin.rpc('log_cpf_probe_for', {
+    p_actor: context.userId,
+    p_org_id: input.homeOrganizationId,
+    p_matched: cpfHolder?.id ?? undefined,
+  })
+
   if (cpfHolder) {
     return { ok: false, fieldErrors: { cpf: MESSAGES.cpfCollision } }
   }
