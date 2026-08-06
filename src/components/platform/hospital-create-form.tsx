@@ -44,19 +44,17 @@ export function HospitalCreateForm({
   const orgField = useFieldIds("organizationId", {
     hasError: Boolean(state?.fieldErrors?.organizationId),
   });
-  // ⚠ Distinct DOM ids, same form keys. `OrganizationCreateForm` renders ABOVE this one
-  // on /admin and also uses `name` and `slug`; with the field name doubling as the id,
-  // that put duplicate ids on the page and `htmlFor` resolved to the FIRST match — so
-  // THIS form's "Nome"/"Identificador" labels pointed at the ORGANIZATION form's inputs.
-  // `formData.get("name"/"slug")` in `createHospital` is unaffected: only the ids change.
+  // `OrganizationCreateForm` renders ABOVE this one on /admin and also uses the form
+  // keys `name` and `slug` (BUG-A11Y-001). The hand-written `id:` ties that first fixed
+  // that are gone: `useFieldIds` now generates a per-instance DOM id, so sharing a form
+  // key across two forms on one page no longer collides. `formData.get("name"/"slug")`
+  // in `createHospital` reads the key, which is unchanged.
   const nameField = useFieldIds("name", {
     hasError: Boolean(state?.fieldErrors?.name),
-    id: "hospitalName",
   });
   const slugField = useFieldIds("slug", {
     hasError: Boolean(state?.fieldErrors?.slug),
     hasDescription: true,
-    id: "hospitalSlug",
   });
 
   function handleNameChange(value: string) {

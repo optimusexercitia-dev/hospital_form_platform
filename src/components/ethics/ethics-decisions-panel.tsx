@@ -353,7 +353,13 @@ function CastVoteDialog({
   const [vote, setVote] = useState<VoteValue>(VOTE_OPTIONS[0].value);
   const [rationale, setRationale] = useState("");
   const { run, isPending, error, clearError } = useEthicsAction();
-  const voteIds = useFieldIds("ethics-vote-value");
+  // ⚠ PINNED id. `e2e/ethics-e2-procedure.spec.ts` FLOW-7 is the required keyboard-only
+  // flow and tabs until it finds `i.id === 'ethics-vote-value'` — an id EQUALITY check,
+  // not a `#id` selector, which is why the FUP-A11Y-1 sweep for `#`-selectors did not
+  // see it and the generated id broke the spec. This is the `id` option's intended use:
+  // a control something addresses by id says so at the source, where the next person to
+  // change this line will read it.
+  const voteIds = useFieldIds("ethics-vote-value", { id: "ethics-vote-value" });
   const rationaleIds = useFieldIds("ethics-vote-rationale");
 
   function onOpenChange(next: boolean) {
