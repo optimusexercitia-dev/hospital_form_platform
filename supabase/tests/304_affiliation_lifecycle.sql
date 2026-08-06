@@ -10,10 +10,10 @@
 -- returned without raising the whole time. A door that "did not raise" is not a door
 -- that worked — §2 and §3 both assert OBSERVED STATE, never the absence of an error.
 --
--- Assertion count: 32
+-- Assertion count: 38
 
 begin;
-select plan(32);
+select plan(38);
 
 update app.feature_flags set enabled = true where key in ('audit_trail');
 
@@ -298,6 +298,94 @@ select is(
     where action = 'person.cpf_lookup' and id not in (select id from probe_before)),
   '00000000-0000-0000-0000-0000000000b1',
   '8.4 ...and it names the ACTOR in metadata — actor_id itself is NULL on every service path (a platform-wide gap, not an AFF one)');
+
+-- ============================================================================
+-- §9 (N2) `log_cpf_probe_for` — THE ACL IS ITS ENTIRE BOUNDARY.
+--
+-- Unlike its siblings this door fronts nothing: it writes one audit row and returns.
+-- There is no authority arm inside it to keystone, which makes the GRANT the only thing
+-- standing between "the registration path records a CPF probe" and "anyone signed in can
+-- forge audit rows naming any actor in any organisation". §8's `lives_ok` runs as the
+-- suite's superuser with no `set local role`, so it never touched that boundary.
+--
+-- These are the arms `302` §1.1–1.5 gave every other door. This one did not inherit them
+-- because it landed in a later commit than its siblings — the recorded "a new door must
+-- inherit EVERY sibling arm" lesson, where the enumeration's boundary was a COMMIT rather
+-- than the door set.
+-- ============================================================================
+select ok(
+  has_function_privilege('service_role', 'public.log_cpf_probe_for(uuid,uuid,uuid)', 'EXECUTE'),
+  '9.1 service_role CAN execute the probe door (registerUser runs there)');
+
+select ok(
+  not has_function_privilege('authenticated', 'public.log_cpf_probe_for(uuid,uuid,uuid)', 'EXECUTE'),
+  '9.2 ⭐ authenticated CANNOT — the door takes an explicit actor, so a signed-in caller could otherwise forge attributed audit rows');
+
+select ok(
+  not has_function_privilege('anon', 'public.log_cpf_probe_for(uuid,uuid,uuid)', 'EXECUTE'),
+  '9.3 anon cannot execute it');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'log_cpf_probe_for'
+      and has_function_privilege('public', p.oid, 'EXECUTE')), 0,
+  '9.4 t19: PUBLIC cannot execute it (REVOKE before GRANT)');
+
+-- ============================================================================
+-- §10 (N1) THE MEMBERSHIP-ROLE FIXTURE ↔ THE LIVE CHECK.
+--
+-- `memberships_role_check` is a CHECK over `text`, NOT a Postgres enum, so the role list
+-- does not appear in the generated types and NO unit test can reach the authority. A UI
+-- test that transcribes the list therefore cannot notice a widening — it just ships an
+-- untranslated identifier into pt-BR copy, which is what BUG-AFF-F1 was.
+--
+-- So the CPF pattern applies: ONE authority, a committed fixture, a gate at EACH end.
+--   * this assertion pins  fixture  ==  live CHECK   (a widening or a narrowing reds here);
+--   * `src/lib/members/membership-roles.test.ts` pins the JSON file == the copy embedded
+--     below, so neither can be edited alone;
+--   * the UI test (frontend-owned) pins label coverage against the JSON file.
+-- Widen the CHECK and the loop runs: pgTAP reds → author regenerates the fixture →
+-- Vitest reds on the missing label.
+--
+-- ⚠ WHAT THIS DOES NOT DO, stated because the defect being fixed was a comment claiming a
+-- power the code lacked: it does not detect a widening at RUNTIME, and it does not fire
+-- until this suite runs. It is a build-time gate, not a guard.
+-- ============================================================================
+create temp table role_fixture on commit drop as
+select jsonb_array_elements_text(
+  ($roles${
+  "authority": "memberships_role_check",
+  "generatedFrom": "pg_constraint",
+  "roles": [
+    "org_admin",
+    "nsp_org_admin",
+    "hospital_admin",
+    "nsp_coordinator",
+    "staff_admin",
+    "staff",
+    "pqs_member",
+    "technical_director",
+    "technical_director_deputy"
+  ]
+}$roles$::jsonb) -> 'roles') as role;
+
+create temp table role_live on commit drop as
+select m[1] as role
+from (
+  select regexp_matches(pg_get_constraintdef(oid), '''([a-z_]+)''::text', 'g') as m
+  from pg_constraint
+  where conrelid = 'public.memberships'::regclass and conname = 'memberships_role_check'
+) x;
+
+-- NON-VACUITY FIRST. If the extractor's regex matched nothing, an empty fixture would
+-- equal an empty live set and §10.2 would pass having compared nothing to nothing.
+select cmp_ok((select count(*)::int from role_live), '>', 5,
+  '10.1 NON-VACUITY: the CHECK extractor actually resolves roles from pg_get_constraintdef');
+
+select is(
+  (select string_agg(role, ',' order by role) from role_fixture),
+  (select string_agg(role, ',' order by role) from role_live),
+  '10.2 ⭐ the committed membership-role fixture EQUALS the live memberships_role_check set (exact, both directions — a widening AND a narrowing red here)');
 
 select * from finish();
 rollback;

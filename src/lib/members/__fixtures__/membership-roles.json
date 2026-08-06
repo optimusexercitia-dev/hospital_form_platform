@@ -1,0 +1,15 @@
+{
+  "authority": "memberships_role_check",
+  "generatedFrom": "pg_constraint",
+  "roles": [
+    "org_admin",
+    "nsp_org_admin",
+    "hospital_admin",
+    "nsp_coordinator",
+    "staff_admin",
+    "staff",
+    "pqs_member",
+    "technical_director",
+    "technical_director_deputy"
+  ]
+}
