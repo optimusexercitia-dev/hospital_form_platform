@@ -20,7 +20,7 @@
 -- =============================================================================
 
 begin;
-select plan(21);
+select plan(25);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -248,6 +248,58 @@ select is(
   app._case_caps((select case_eg from cs), (select qr from p)),
   app._cap_bit('read_case_content') | app._cap_bit('read_case_deliberation'),
   '4.5 D6 EXCEPTION PATH: an explicit grant on a locked case admits via S3 (content + S3''s read closure), NOT via S7 — no overview bit, so the mask discriminates the arm');
+
+-- =============================================================================
+-- §5 — THE BYTES LAYER (M8, lead ruling 2026-08-06). Live-probed before the cut:
+-- the reviewer READ standard-tier case bytes through
+-- attachments_obj_select_readable -> can_read_case -> S7 — an un-audited,
+-- PHI-capable path no threading list named. The cut: case/interview BYTES
+-- additionally require read_case_deliberation — which every content source
+-- except S7 confers (the load-bearing lattice invariant; q1 `open_bytes_cut`
+-- proves 5.2 can fail). Metadata stays reviewer-visible (the panel renders
+-- names, links stay dead by DB fact, not UI choice — Rule 1).
+-- =============================================================================
+
+insert into storage.objects (bucket_id, name)
+select 'attachments', 'case/' || cs.case_a || '/probe-bytes.pdf' from cs
+union all
+select 'attachments', 'case/' || cs.case_eg || '/probe-bytes-eg.pdf' from cs;
+
+insert into public.attachments
+  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
+select '00000000-0000-0000-0000-0000000d8201', 'case', cs.case_a, 'documento', 'Doc QO',
+       'attachments', 'case/' || cs.case_a || '/probe-bytes.pdf', 'standard', k.sa_x
+from cs, k;
+
+select test_helpers.claims_for((select qr from p), false);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.attachments a, cs
+    where a.owner_type = 'case' and a.owner_id = cs.case_a),
+  1,
+  '5.1 METADATA stays reviewer-visible: the documents panel renders the file NAME (can_read_attachment untouched)');
+
+select is(
+  (select count(*)::int from storage.objects o, cs
+    where o.bucket_id = 'attachments' and o.name = 'case/' || cs.case_a || '/probe-bytes.pdf'),
+  0,
+  '5.2 BYTES CUT ⭐⭐ (M8): the reviewer reaches ZERO object rows of a case they read in full — the DB is the boundary, not the missing link');
+
+select is(
+  (select count(*)::int from storage.objects o, cs
+    where o.bucket_id = 'attachments' and o.name = 'case/' || cs.case_eg || '/probe-bytes-eg.pdf'),
+  1,
+  '5.3 GRANT PATH INTACT ⭐: the S3-granted reviewer on the LOCKED case reads its bytes (grant closure confers deliberation) — the cut is capability-shaped, not identity-shaped');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from storage.objects where bucket_id = 'attachments'),
+  2,
+  '5.4 NON-VACUITY twin: the coordinator reads BOTH probe objects — 5.2''s zero is the cut, not an empty bucket');
+reset role;
 
 select * from finish();
 rollback;

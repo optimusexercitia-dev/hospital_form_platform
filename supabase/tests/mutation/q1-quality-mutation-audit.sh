@@ -122,6 +122,24 @@ begin
         v_qual);
     end;
 
+  elsif p_what = 'open_bytes_cut' then
+    -- Delete M8's bytes conjunct: the reviewer would again read un-audited,
+    -- PHI-capable case bytes. 308 §5.2 must notice.
+    declare v_qual text;
+    begin
+      select pg_get_expr(polqual, polrelid) into v_qual
+      from pg_policy pol join pg_class c on c.oid = pol.polrelid
+      join pg_namespace pn on pn.oid = c.relnamespace
+      where pn.nspname = 'storage' and c.relname = 'objects'
+        and pol.polname = 'attachments_obj_select_readable';
+      if v_qual !~ 'read_case_deliberation' then
+        raise exception 'MUTATION NO-OP: needle not found -> bytes cut absent from the live policy';
+      end if;
+      execute format(
+        'alter policy attachments_obj_select_readable on storage.objects using (%s)',
+        '(bucket_id = ''attachments''::text) AND app.can_read_attachment((storage.foldername(name))[1], ((storage.foldername(name))[2])::uuid, auth.uid())');
+    end;
+
   elsif p_what = 'arm_seventh_door' then
     -- D11 boundary breach: a ROW-LEVEL door acquires the reviewer arm.
     d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
@@ -183,7 +201,8 @@ SNAP_SQL="select md5(
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
       or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows')))
-  || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin'))"
+  || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin')
+  || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='attachments_obj_select_readable'))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
 
 echo "=== Q1 MUTATION AUDIT — every keystone must go RED when ITS OWN guarantee is reverted ==="
@@ -228,6 +247,11 @@ run_case "open_commissions_reviewer_arm -> excluded rows leak" \
   "select app._mut_q1('open_commissions_reviewer_arm');" \
   "SHELL .*: the reviewer.s commissions universe|CONSISTENCY .*: opting the last commission out" \
   "supabase/tests/310_quality_board_door.sql"
+
+run_case "open_bytes_cut -> un-audited PHI-capable bytes" \
+  "select app._mut_q1('open_bytes_cut');" \
+  "BYTES CUT .*: the reviewer reaches ZERO object rows" \
+  "supabase/tests/308_case_caps_s7.sql"
 
 run_case "arm_seventh_door -> the D11 boundary breach" \
   "select app._mut_q1('arm_seventh_door');" \

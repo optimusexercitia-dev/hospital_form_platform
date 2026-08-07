@@ -115,11 +115,25 @@ TD-style), `CommissionAccess.isQualityViewer` (**a FLAG, never a member role** �
 `src/lib/members/__fixtures__/membership-roles.json` == `304` §10 embed ==
 `ROLE_LABELS` (frontend adds the pt-BR label).
 
-**Verification.** pgTAP `306`–`310` (111 assertions) + `270` rewrite (13) + `292`/`293`
+**Bytes layer (M8 `20260911000700` — lead ruling, post-probe).** S7 had propagated
+to standard-tier case attachment BYTES (`attachments_obj_select_readable` →
+`can_read_attachment('case'|'interview')` → `can_read_case`) — live-probed, un-audited,
+PHI-capable, named by no threading list. The cut: case/interview bytes ADDITIONALLY
+require `read_case_deliberation` — the load-bearing lattice invariant is that every
+content-conferring source EXCEPT S7 also confers deliberation (S1/S3-closure/S4/S6;
+D4 makes S7 the sole exception), so LOST=0 for every pre-existing reader, the
+reviewer keeps METADATA (the panel renders names; `attachments_select` untouched)
+and reaches ZERO object rows, and an S3-granted reviewer still reads bytes (the D6
+graduation path is capability-shaped). `attachments-phi` has **zero SELECT
+policies** (probed; M8 postcondition pins it). Reopening reviewer documents is
+Phase B+ WITH an audit emit — never by deleting the conjunct. Pinned: `308` §5
+(all four directions; 5.2 was observed RED pre-M8) + q1 `open_bytes_cut`.
+
+**Verification.** pgTAP `306`–`310` (120 assertions) + `270` rewrite (13) + `292`/`293`
 recuts; seed personas quality.a/.a2/.b + CCIH→visible (0-row-guarded bracket);
-`q1-quality-mutation-audit.sh` **7/7 RED-PROVEN** (restore md5-verified, 5 controls
-green); w3/w4 harnesses re-signatured; w4 `widen_dt_scope_shape` re-add carries the
-new arm.
+`q1-quality-mutation-audit.sh` **10/10 RED-PROVEN** (restore md5-verified incl. both
+mutated policy quals, 5 controls green); w3/w4 harnesses re-signatured; w4
+`widen_dt_scope_shape` re-add carries the new arm.
 
 ## MIN — Meeting audio → generated ata (2026-08-06; ADR 0099 + Amendment 1; migrations `20260910000100`–`…000400`; flag `audio_minutes` **OFF** — seed forces ON for local/E2E)
 
