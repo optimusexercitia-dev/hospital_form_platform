@@ -22,10 +22,19 @@ Row-returning doors in the live catalog: 45.
 |---|---|---|---|---|
 | public.get_case_meeting_links(p_case_id uuid) | rowdoor | open-guard(1) | BLIND |  |
 
+> ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100).** The `public.quality_board_summary`
+> row below was merged by hand from a **diff-scoped** run (baseline Files=171,
+> Tests=5297, Result: PASS) — a subset run OVERWRITES this report (ADR 0079 Amendment 1
+> hazard 1). The same run RE-swept the six aggregate `dashboard_*` doors after M5
+> (`20260911000400`) OR-ed `app.can_read_quality_dashboards` into their gates: all six
+> still COVERED (now additionally noticed by `309_dashboard_quality_arm.sql` /
+> `310_quality_board_door.sql`); their standing rows below are left as generated.
+
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.quality_board_summary(p_organization_id uuid) | rowdoor | open-guard(1) | COVERED | 310_quality_board_door.sql (QO·A hand-merge — see header note) |
 | public.case_action_items_kpis(p_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 113_case_action_items.sql |
 | public.case_tag_report(p_commission_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 112_case_tags.sql |
 | public.dashboard_completion_by_member(p_form_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 270_authz_dashboard_gate_uniformity.sql |
