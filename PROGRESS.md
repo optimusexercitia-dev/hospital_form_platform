@@ -492,6 +492,34 @@ S5 deliberation proof onto a surface that is still deliberation-gated post-C1, s
 as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
 delete the cases without replacing what they proved.
 
+### 🔴 FUP-QO-5 — the authz sweep machinery leaves `anon` EXECUTE grants that can MASK a real leak (2026-08-07)
+
+Found by `backend` during QO·A's final estate run, surfaced rather than self-filed. **Out of scope for
+QO·A; not a product defect; not caused by M10.**
+
+The pgTAP estate first came back **FAIL** on `100_dashboard` t19 — *"no public function is
+anon-executable"*, **have 1079, want 0**. On a **fresh `supabase db reset --local` the count is 0** and
+everything passes. Something in the mutation-harness / door-sweep machinery leaves broad `anon` EXECUTE
+grants behind in the session.
+
+⚠ **The dangerous direction is the second one.** A spurious red is merely expensive. But the same
+contamination means t19 — the invariant that **no public function is anon-executable** — can **PASS on a
+genuinely regressed catalog** whenever it runs after a sweep, because the grants it would flag are
+indistinguishable from the ones the harness left. An anon-executable door is close to the worst outcome
+this codebase has; its guard is currently **sensitive to run order**, which is the same property that
+makes a keystone vacuous.
+
+Note the shape: this is a **test-environment side effect disarming a later assertion** — the identical
+class as the QO·A finding where `record_recusal` succeeding earlier in a pgTAP file recused the principal,
+flipped `is_case_excluded`, and made a later D7 keystone refuse through the *exclusion* arm while
+returning the same SQLSTATE as the gate under test (see the `308` §6 header). Both are "the thing that
+ran before quietly changed what the next assertion means."
+
+Proposed scope: make the harness restore the ACLs it perturbs (it already byte-compares function bodies —
+extend that discipline to `proacl`), **or** have t19 assert against a baseline captured on a clean reset
+rather than an absolute zero. Until then: **never trust a `100_dashboard` t19 result that did not run on a
+fresh reset**, in either direction.
+
 ### 🟡 FUP-QO-4 — KPI-strip scope vs. the chip filter: a design ambiguity, NOT a defect (2026-08-07, lead)
 
 Found by `tester` while writing the A.9 chip-row extension — **by reading the source rather than writing the
