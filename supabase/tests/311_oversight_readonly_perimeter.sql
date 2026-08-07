@@ -26,7 +26,7 @@
 -- =============================================================================
 
 begin;
-select plan(24);
+select plan(39);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -105,6 +105,20 @@ select '00000000-0000-0000-0000-0000000f1301', cs.case_a,
 insert into public.case_interviews (id, commission_id, case_id, interview_number, interview_category, title, created_by)
 select '00000000-0000-0000-0000-0000000f1401', k.comm_x, cs.case_a, 1, 'witness', 'Entrevista', k.sa_x from cs, k;
 
+-- QA r2 R1 - the EIGHTH and NINTH members of the interview family. Both reach
+-- the same data through RAW can_read_case, so M10's helper-named boundary never
+-- covered them. `external_url` is the sharp one: NOT a storage object, so
+-- M8/M9's bytes cut never governed it either.
+insert into public.case_interview_links (interview_id, title, external_url)
+values ('00000000-0000-0000-0000-0000000f1401', 'Gravacao de audio (link externo)',
+        'https://example.com/recordings/probe-perimetro.mp3');
+insert into public.attachments
+  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
+select '00000000-0000-0000-0000-0000000f1450', 'interview', '00000000-0000-0000-0000-0000000f1401',
+       'documento', 'Transcricao assinada (rascunho)', 'attachments',
+       'interview/00000000-0000-0000-0000-0000000f1401/transcricao.pdf', 'standard', k.sa_x
+from k;
+
 -- Action item, case_restricted scope (the one arm that routes can_read_case).
 insert into public.action_items (id, commission_id, source_type, source_case_id, title, status_id, visibility_scope, created_by)
 select '00000000-0000-0000-0000-0000000f1501', k.comm_x, 'case', cs.case_a, 'Pendência',
@@ -165,6 +179,12 @@ select ok(not app.can_read_action_item('00000000-0000-0000-0000-0000000f1501', (
   '3.3 ACTION ITEMS: the case_restricted arm no longer admits the reviewer');
 select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000f1501'), 0,
   '3.4 ...and the row is invisible');
+select is((select count(*)::int from public.case_interview_links
+           where interview_id = '00000000-0000-0000-0000-0000000f1401'), 0,
+  '3.7 INTERVIEW FAMILY, 8th MEMBER (QA r2 R1): ZERO case_interview_links - the reviewer must not learn the interview title, let alone WHERE ITS AUDIO LIVES (external_url is not a storage object, so the M8/M9 bytes cut never governed it)');
+select is((select count(*)::int from public.attachments
+           where owner_type = 'interview' and owner_id = '00000000-0000-0000-0000-0000000f1401'), 0,
+  '3.8 INTERVIEW FAMILY, 9th MEMBER (QA r2 R1): ZERO interview-owned attachment metadata (can_read_attachment interview arm was raw can_read_case)');
 reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -172,6 +192,12 @@ select ok(app.can_read_interview('00000000-0000-0000-0000-0000000f1401', (select
   '3.5 NON-VACUITY twin: the coordinator reads the interview');
 select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000f1501'), 1,
   '3.6 NON-VACUITY twin: ...and the action item');
+select is((select count(*)::int from public.case_interview_links
+           where interview_id = '00000000-0000-0000-0000-0000000f1401'), 1,
+  '3.9 NON-VACUITY twin: the coordinator DOES read the interview link - 3.7 zero is the cut, not an empty fixture');
+select is((select count(*)::int from public.attachments
+           where owner_type = 'interview' and owner_id = '00000000-0000-0000-0000-0000000f1401'), 1,
+  '3.10 NON-VACUITY twin: ...and the interview attachment');
 reset role;
 
 -- =============================================================================
@@ -194,23 +220,120 @@ reset role;
 -- read predicates moved TOGETHER, and cases_select did NOT (re-pointing it
 -- would revoke the feature). Covers the 6 ethics tables not tested above.
 -- =============================================================================
+-- 5.1 WAS A COUNT AGAINST A LITERAL LIST, and that is exactly how the 8th and
+-- 9th interview-family members escaped (QA r2 R1): a member never in the list
+-- can never red it. It is now a DERIVATION over the catalog - enumerate every
+-- policy reaching an interview anchor and require NONE to still route the
+-- widened predicate. A ninth table appearing tomorrow reds on its own, with no
+-- list for anyone to remember to update.
+--
+-- (`app.can_read_case(` cannot match `app.can_read_case_committee(` - the paren
+-- placement differs - so this finds exactly the un-cut ones.)
 select is(
-  (select count(*)::int from pg_policies where schemaname='public' and qual ~ 'can_read_case_committee'
-     and tablename in ('case_votes','case_decisions','ethics_allegations','ethics_appeals',
-                       'ethics_case_details','ethics_decision_details','ethics_findings',
-                       'ethics_hearings','ethics_notifications','action_items')),
-  10,
-  '5.1 CATALOG ⭐: all TEN case-content SELECT policies (9 deliberation-grade + action_items, whose case_restricted arm routes can_read_case directly) route the committee-plane predicate');
+  (select coalesce(string_agg(tablename || '.' || policyname, ', ' order by tablename), '')
+     from pg_policies
+    where schemaname = 'public'
+      and qual ~ 'case_of_interview\('
+      and qual ~ 'app\.can_read_case\('),
+  '',
+  '5.1 DERIVED FAMILY CLOSURE: ZERO interview-anchored policies still route the widened can_read_case - an invariant over the FAMILY, not a count against a remembered list');
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='app' and p.proname in ('can_read_professional_profile','can_read_interview','can_read_action_item')
      and regexp_replace(p.prosrc,'--[^\n]*','','g') ~ 'can_read_case_committee'),
   3,
   '5.2 CATALOG: the three read predicates route it too');
+select cmp_ok(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public' and qual ~ 'case_of_interview\('),
+  '>', 0,
+  '5.1b NON-VACUITY for 5.1: interview-anchored policies EXIST - so 5.1 empty result means "none leak", not "none found" (the empty-set-as-a-pass trap)');
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_attachment')
+    ~ 'can_read_case_committee\(app\.case_of_interview',
+  '5.2b CATALOG: can_read_attachment INTERVIEW arm is cut (its case arm deliberately is NOT - case metadata stays visible per the lead ruling)');
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and policyname in ('case_conflict_declarations_select', 'case_recusals_select')
+      and qual ~ 'app\.can_read_case\('),
+  2,
+  '5.2c PO RULING PINNED (2026-08-07): conflict + recusal records stay READABLE by the reviewer - governance metadata, and reviewing how conflicts were handled is core oversight work. The reviewer MAY SEE a recusal and MAY NOT AUTHOR one; do not "fix" the asymmetry');
 select ok(
   (select qual from pg_policies where schemaname='public' and tablename='cases' and policyname='cases_select')
     !~ 'can_read_case_committee',
   '5.3 NOT OVER-CUT (catalog): cases_select is deliberately NOT re-pointed — that would revoke the oversight read itself');
+
+-- =============================================================================
+-- 6 - THE LATTICE INVARIANT (QA r2 R2, MAJOR): every content-conferring source
+-- EXCEPT S7 also confers read_case_deliberation.
+--
+-- M8, M9, M10 and M11 ALL rest on this, and until now it was PROSE. The
+-- consequence is Phase B's and it is bad: the day a SECOND
+-- content-without-deliberation principal exists, app.is_oversight_only_reader
+-- classifies them as an oversight reader and silently cuts them from ~20
+-- surfaces - LOST != 0 WITH A GREEN SUITE, because every other keystone is
+-- written against either the reviewer (expects the cut) or the coordinator
+-- (holds both bits). Nothing else in the estate is positioned to notice.
+--
+-- Asserted per SOURCE of app._case_caps, not per principal. Where a source
+-- confers content, a NON-VACUITY twin proves the implication is not vacuous;
+-- where it confers none, that is stated explicitly.
+-- =============================================================================
+create temp table lat on commit drop as
+  select '00000000-0000-0000-0000-0000000f1601'::uuid as u_assignee,
+         '00000000-0000-0000-0000-0000000f1602'::uuid as u_grantee;
+grant select on lat to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+select '00000000-0000-0000-0000-000000000000', u, 'authenticated', 'authenticated', u || '@test', now(), now()
+from (select u_assignee as u from lat union all select u_grantee from lat) q;
+select test_helpers.claims_for(null, false);
+update public.profiles set home_organization_id = (select org_b from k)
+ where id in (select u_assignee from lat union all select u_grantee from lat);
+insert into public.memberships (commission_id, principal_id, role)
+select k.comm_x, l.u_assignee, 'staff' from k, lat l union all
+select k.comm_x, l.u_grantee,  'staff' from k, lat l;
+update public.case_narratives set assigned_to = (select u_assignee from lat)
+ where case_id = (select case_a from cs);
+insert into public.case_access_grants
+  (case_id, principal_id, source, read_case_content, read_case_deliberation,
+   read_standard_phi, read_restricted_phi, write_case_content, reason_code, granted_by)
+select cs.case_a, l.u_grantee, 'manual_grant', true, false, false, false, false,
+       'coordinator_grant', k.sa_x
+from cs, lat l, k;
+
+select ok(
+  app.has_case_capability((select case_a from cs), (select sa_x from k), 'read_case_content')
+  and app.has_case_capability((select case_a from cs), (select sa_x from k), 'read_case_deliberation'),
+  '6.1 LATTICE S1 coordinator: confers content AND deliberation');
+select ok(
+  not app.has_case_capability((select case_a from cs), (select u_assignee from lat), 'read_case_content')
+  or app.has_case_capability((select case_a from cs), (select u_assignee from lat), 'read_case_deliberation'),
+  '6.2 LATTICE S4 assignment: content implies deliberation');
+select ok(
+  app.has_case_capability((select case_a from cs), (select u_assignee from lat), 'read_case_content'),
+  '6.2b NON-VACUITY: ...and the assignment DOES confer content, so 6.2 is not vacuously true');
+select ok(
+  not app.has_case_capability((select case_a from cs), (select u_grantee from lat), 'read_case_content')
+  or app.has_case_capability((select case_a from cs), (select u_grantee from lat), 'read_case_deliberation'),
+  '6.3 LATTICE S3 grant: content implies deliberation - the grant ROW sets read_case_deliberation=false, and the resolver read-closure adds it anyway');
+select ok(
+  app.has_case_capability((select case_a from cs), (select u_grantee from lat), 'read_case_content'),
+  '6.3b NON-VACUITY: ...and the grant DOES confer content');
+select ok(
+  not app.has_case_capability((select case_a from cs), (select st_x from k), 'read_case_content'),
+  '6.4 LATTICE S5 committee member: confers NO content (deliberation only - A15), so it can never be misread as oversight-only');
+select ok(
+  not app.has_case_capability((select case_a from cs), (select oa_b from k), 'read_case_content'),
+  '6.5 LATTICE S2 org_admin: confers NO content (A4 removed it) - manage_case_access only');
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = '_case_caps'
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_quality_reviewer_of_for'),
+  1,
+  '6.6 LATTICE THE SOLE EXCEPTION: S7 is the only arm conferring content WITHOUT deliberation (D4). If a second one is ever added, is_oversight_only_reader silently cuts it from ~20 surfaces - this file is where that must be re-proven');
 
 select * from finish();
 rollback;

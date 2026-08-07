@@ -5,7 +5,7 @@
 #   bash supabase/tests/mutation/q1-quality-mutation-audit.sh
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
-# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 17 cases.
+# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 19 cases.
 #
 # ⚠ Keep this count and the run_case list in sync — a header that names a stale
 # figure is an assertion that goes stale silently (the class this project has
@@ -216,6 +216,24 @@ begin
       end loop;
     end;
 
+  elsif p_what = 'open_interview_links' then
+    -- M11.A: the 8th family member back onto the widened predicate.
+    declare v_q text;
+    begin
+      select pg_get_expr(polqual, polrelid) into v_q from pg_policy where polname='case_interview_links_select';
+      v_q := app._mut_q1_sub(v_q, 'app.can_read_case_committee(', 'app.can_read_case(');
+      execute format('alter policy case_interview_links_select on public.case_interview_links using (%s)', v_q);
+    end;
+
+  elsif p_what = 'open_interview_attachments' then
+    -- M11.B: the 9th - can_read_attachment's interview arm only.
+    declare v_d text;
+    begin
+      v_d := pg_get_functiondef('app.can_read_attachment(text,uuid,uuid)'::regprocedure);
+      v_d := app._mut_q1_sub(v_d, 'can_read_case_committee(app.case_of_interview', 'can_read_case(app.case_of_interview');
+      execute v_d;
+    end;
+
   elsif p_what = 'open_resolver_door' then
     -- No-op M9's door conjunct: the reviewer would again resolve a bucket+path
     -- the app signs with service_role — the door-shaped hole beside M8's policy.
@@ -366,6 +384,16 @@ run_case "open_action_items -> predicate AND policy halves" \
 run_case "open_deliberation_policies -> votes/decisions/ethics" \
   "select app._mut_q1('open_deliberation_policies');" \
   "D4 .*: the reviewer reads ZERO case_decisions|D4 .*: ...zero case_votes|D4 .*: ...zero ethics_allegations" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "open_interview_links -> the 8th family member" \
+  "select app._mut_q1('open_interview_links');" \
+  "INTERVIEW FAMILY, 8th MEMBER" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "open_interview_attachments -> the 9th" \
+  "select app._mut_q1('open_interview_attachments');" \
+  "INTERVIEW FAMILY, 9th MEMBER" \
   "supabase/tests/311_oversight_readonly_perimeter.sql"
 
 run_case "open_resolver_door -> the door beside the policy" \

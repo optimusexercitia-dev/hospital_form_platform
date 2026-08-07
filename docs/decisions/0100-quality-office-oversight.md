@@ -140,6 +140,20 @@ doors.
 subtracts a bit from a principal who is consumed by more surfaces than S7 ever was. Run
 the consumer enumeration BEFORE writing its migrations, not after QA finds the misses.
 
+**Third instance (QA r2 R1, 2026-08-07) — and the sharpest, because the guard could not catch it.**
+M10 §B2 wrote *"7 tables route `can_read_interview`"*. Accurate, and that was the bug: it defined
+the family as **things that call a particular helper** when the family is **things OWNED BY an
+interview**. Two members reached the same data through raw `can_read_case` — `case_interview_links`
+(carrying `external_url`: where the interview audio lives, and not a storage object, so the M8/M9
+bytes cut never governed it) and `can_read_attachment`'s `'interview'` arm. This was written down
+one section *after* M10 documented catching the identical shape on `action_items_select`.
+
+**Corollary, now binding: a guard whose boundary is a literal list cannot close a family.**
+`311` §5.1 counted a hardcoded table list against a literal — a member never in the list can never
+red it. Replaced by a DERIVATION over the catalog (every policy reaching an interview anchor must
+not route the widened predicate), with a non-vacuity twin proving the population is non-empty.
+**Prefer: derive the set, assert over the derivation, and twin it against the empty set.**
+
 ## Alternatives rejected
 
 - **The handoff's runtime-mutable permission catalog** (`role_definitions` /
