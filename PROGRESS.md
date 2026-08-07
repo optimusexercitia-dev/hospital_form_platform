@@ -492,6 +492,39 @@ S5 deliberation proof onto a surface that is still deliberation-gated post-C1, s
 as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
 delete the cases without replacing what they proved.
 
+### 🟡 FUP-QO-6 — the oversight toggle intermittently fails to confirm within 10 s; DB-vs-UI **unclassified** (2026-08-07)
+
+Found by `tester` once its restore check stopped trusting optimistic client state. **Pre-existing —
+not introduced by QO·A, and invisible until now BY CONSTRUCTION**: the previous check read
+`CommissionOversightToggle`'s optimistic value, which updates synchronously before the server action
+starts, so it reported success every time regardless of what the server did. Making the check honest
+is what surfaced this.
+
+**Signature (consistent, ~3 failures in ~13 early attempts, ≈23%):** a failing run takes **~11.5 s**
+against **~2.5–3.0 s** on a pass — the reload-based assertion burning its full 10 s timeout. So the
+confirmation is *not* being read too early; the state genuinely is not observable within the window.
+
+⚠ **The decisive fact is NOT established.** At the moment of failure, is the DB correct with the page
+stale, or **did the write never land**? That distinction is the whole severity question: stale UI is a
+known annoyance here, but an intermittent write failure means **D9's governance control silently
+no-ops ~1 in 4 times** and an admin would believe a committee is under oversight when it is not.
+
+A bounded diagnostic (15 isolated runs + an out-of-process ~1.4 s DB poller, 216 samples) came back
+**15/15 PASS — unreproduced**. The only `excluded` readings were the expected mid-test transients of
+passing runs. `tester` stopped at the bound rather than extending, and reported the absence of the
+fact instead of manufacturing one.
+
+**The streak is itself evidence.** P(0 failures in 15 trials) at a constant 20–25 % rate is ~1.3–3.5 %.
+The likeliest reading is that failures **cluster with environmental contention** rather than being
+independent per-trial draws — the diagnostic ran isolated and unloaded. Consequence for the gate:
+`RETRIES=1` retries moments after the first attempt, i.e. under the *same* conditions, so the naive
+~6 % residual-spurious-red figure is an **optimistic floor, not a ceiling**.
+
+⛔ **Do not "fix" this by raising the timeout** — that hides precisely the question above. Next step is
+to reproduce under **load** (during a full `e2e:prod` run, not in isolation) with the out-of-process
+poller attached, then classify. In-browser instrumentation is useless here: it perturbed the measurement
+(6/6 green with logging on, recurrence once removed).
+
 ### 🔴 FUP-QO-5 — the authz sweep machinery leaves `anon` EXECUTE grants that can MASK a real leak (2026-08-07)
 
 Found by `backend` during QO·A's final estate run, surfaced rather than self-filed. **Out of scope for
