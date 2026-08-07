@@ -42,7 +42,13 @@ export default async function NarrativeEditorPage({
     caseAccessEnabled(),
     getCaseDetail(caseId),
   ]);
-  if (!access || access.role === null) notFound();
+  // ADR 0100 D10 — same widening as the parent case page: a quality reviewer
+  // resolves `role: null` + `isQualityViewer`, and reads the narrative body under
+  // the S7 arm's `read_case_content`. Write authority below is unchanged and
+  // already refuses them: `canEditNarrative` needs `caps.canWriteContent` (the arm
+  // confers no write bit) or narrative assignment (a reviewer is never an
+  // assignee), and `canConclude` needs lifecycle or that same assignment.
+  if (!access || (access.role === null && !access.isQualityViewer)) notFound();
   if (!flagOn) notFound();
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();

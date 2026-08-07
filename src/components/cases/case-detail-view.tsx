@@ -60,6 +60,7 @@ import type {
 } from "@/components/referrals/referral-send-wizard";
 import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
 import { CasePrimarySubjectPanel } from "@/components/cases/case-primary-subject-panel";
+import { QualityViewerChip } from "@/components/quality/quality-viewer-chip";
 import type { MyCaseRole } from "@/lib/queries/cases";
 
 /**
@@ -141,6 +142,8 @@ export function CaseDetailView({
   correctionsEnabled = false,
   corrections = [],
   narrativeRevisions = {},
+  viewerKind = "member",
+  backLabel = "Meus Casos",
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -248,9 +251,38 @@ export function CaseDetailView({
   corrections?: CorrectionRequest[];
   /** narrativeId → its revision history (newest-first). Default `{}`. */
   narrativeRevisions?: Record<string, NarrativeRevision[]>;
+  /**
+   * WHO IS READING (ADR 0100 D7/D10). `'oversight'` = a `quality_reviewer`:
+   * strictly read-only, PHI-free, no correction filing, no NSP notification.
+   * Default `'member'` keeps every existing caller byte-identical.
+   *
+   * ⚠ ONE DISCRIMINATOR, NOT FOUR BOOLEANS, and deliberately so. This component
+   * already carries seven capability/flag booleans; adding a 3rd/4th behavioural
+   * one would scatter the read-only contract across independent props that a
+   * future caller can get PARTLY right — the failure `architecture-avoid-boolean-props`
+   * describes. An explicit variant makes "is this the oversight reader?" a single
+   * question with a single answer (`patterns-explicit-variants`).
+   *
+   * ⚠ THIS IS NOT THE SECURITY BOUNDARY. The DB is: the S7 arm of `app._case_caps`
+   * confers `read_case_content | view_case_overview` and nothing else, so every
+   * write door refuses a reviewer regardless of what renders. This prop exists so
+   * the UI does not OFFER what the DB would refuse — the host page independently
+   * resolves the same affordances off, so neither side alone can open a write path.
+   */
+  viewerKind?: "member" | "oversight";
+  /**
+   * Label for the self-contained header's back link. Defaults to `"Meus Casos"`,
+   * which was hardcoded here until ADR 0100 — a reviewer arrives from the quality
+   * console and has no "Meus Casos" (that route is member-gated), so `backHref`
+   * alone was not enough to avoid pointing them at a 404.
+   */
+  backLabel?: string;
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
+  // ADR 0100 D7 — the oversight reader. Three affordances on this page are NOT
+  // derived from `caps` and would otherwise render for them; see each use site.
+  const isOversight = viewerKind === "oversight";
   // Activate/reassign: an `assign_case_phases` Administrativo OR anyone who already
   // manages lifecycle (a coordinator) — the latter keeps coordinators from regressing
   // regardless of what the page passes.
@@ -278,14 +310,21 @@ export function CaseDetailView({
   // the security boundary (RLS + the DEFINER doors are — Rule 1): filing is open to any
   // case-content reader while the case is OPEN; approve/reject mirror `canManageLifecycle`
   // (coordinator/admin). `null` when the flag is off → no correction chrome at all.
-  const correctionCaps: CorrectionCaps | null = correctionsEnabled
-    ? {
-        enabled: true,
-        canFile: isOpen,
-        canApprove: caps.canManageLifecycle,
-        viewerId,
-      }
-    : null;
+  //
+  // ⚠ ADR 0100 D7: `canFile: isOpen` admits ANY case-content reader — which the
+  // quality reviewer now is (D3 confers `read_case_content`). Filing a correction
+  // request is a WRITE, so without the `!isOversight` guard every phase and
+  // narrative card would offer the reviewer a "Corrigir…" affordance. This is one
+  // of the two write affordances on this page that `caps` does NOT close.
+  const correctionCaps: CorrectionCaps | null =
+    correctionsEnabled && !isOversight
+      ? {
+          enabled: true,
+          canFile: isOpen,
+          canApprove: caps.canManageLifecycle,
+          viewerId,
+        }
+      : null;
   // The per-card request lists resolve requester/corrector ids → human names. Built
   // from data the host already loaded; each list renders nothing when its target has
   // no requests. (The phase/narrative LABELS the old cockpit needed are gone — a list
@@ -337,7 +376,13 @@ export function CaseDetailView({
   // case. (The frozen contract does not project `primary_subject_kind` onto
   // `CaseDetail`; `patientEnabled` is the available, equivalent guard. `terminology`
   // is available on `detail.terminology` should later copy need per-type wording.)
-  const showPatientPanel = casePatientEnabled && c.patientEnabled;
+  //
+  // ⚠ ADR 0100 D5: the reviewer arm carries ZERO PHI bits, so `get_case_patient`
+  // returns null for them. Rendering the panel anyway would offer an "Exibir
+  // identificação" button that fails — and, worse, would disclose that this case
+  // HAS a patient, which is itself PHI-adjacent. Omitted entirely for oversight.
+  const showPatientPanel =
+    casePatientEnabled && c.patientEnabled && !isOversight;
   const revealPatient = revealCasePatient.bind(null, c.id);
   const savePatient = setCasePatient.bind(null, c.id);
 
@@ -370,7 +415,7 @@ export function CaseDetailView({
             className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             <ArrowLeft aria-hidden="true" className="size-4" />
-            Meus Casos
+            {backLabel}
           </Link>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 flex-col gap-1.5">
@@ -396,7 +441,14 @@ export function CaseDetailView({
                     colorToken={detail.outcome.colorToken}
                   />
                 )}
-                {caseAccessEnabled && <CaseRoleChip role={myRole} />}
+                {/* ADR 0100 D10 — the oversight reader gets the office chip, not
+                    the capability-derived "viewer" chip, which would read as
+                    "a colleague granted access to this case". */}
+                {isOversight ? (
+                  <QualityViewerChip />
+                ) : (
+                  caseAccessEnabled && <CaseRoleChip role={myRole} />
+                )}
               </div>
               {c.label && (
                 <p className="max-w-prose text-muted-foreground text-pretty">
@@ -420,11 +472,16 @@ export function CaseDetailView({
                 concluded case (mirrors the coordinator top bar). Lifecycle MANAGEMENT
                 lives on the coordinator `/manage/...` route, so here the right side
                 only offers the "Gerenciar caso" link to a coordinator. */}
-            {(patientSafetyEnabled ||
+            {/* ⚠ ADR 0100 D7: `NotifyEventDialog` is gated on the FEATURE FLAG
+                alone — no capability check anywhere — so it is the second write
+                affordance on this page that `caps` does not close. Notifying an
+                event is a WRITE (it creates a patient-safety event) and its
+                pre-fill bridge carries PHI, both forbidden to the reviewer. */}
+            {((patientSafetyEnabled && !isOversight) ||
               caps.canManageLifecycle ||
               (isOpen && canEditMeta)) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
-                {patientSafetyEnabled && (
+                {patientSafetyEnabled && !isOversight && (
                   <NotifyEventDialog
                     commissionId={c.commissionId}
                     caseId={c.id}

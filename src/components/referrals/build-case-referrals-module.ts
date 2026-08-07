@@ -103,3 +103,57 @@ export async function buildCaseReferralsModule(
   // wizard loads it lazily on its patient step via the audited `loadCaseSafetyPrefill`
   // bridge, so the `event_patient.read` audit fires on intent, not on card mount.
 }
+
+/**
+ * The READ-ONLY assembly, for the quality-office oversight reader (ADR 0100 D3/D7;
+ * the lead's Q3 ruling). The referral LIST is case content the reviewer may read —
+ * a case's cross-committee trajectory is close to why the quality office exists —
+ * so the card still renders. What it must NOT carry is WIZARD FUEL.
+ *
+ * ⚠ WHY THIS IS A SEPARATE FUNCTION rather than a `readOnly` flag on the one above.
+ * The wizard-only inputs are `targetCommissions` (an enumeration of OTHER
+ * commissions) and `technicalDirectionHospitalId`. Passing `sourceHospitalId: null`
+ * suppresses only the second — `listReferralTargetCommissions` is unconditional in
+ * the main assembler, so the "obvious" call-site fix silently does half the job.
+ * That half-application is exactly what a boolean parameter invites and what an
+ * explicit variant prevents (`patterns-explicit-variants`): here the two fields are
+ * empty by CONSTRUCTION, not by an argument someone has to remember to pass.
+ *
+ * Note the wizard is `canManageLifecycle`-gated and so never opens for a reviewer
+ * anyway — this removes the reads and the enumeration, not a reachable affordance.
+ * It is defence in depth plus two fewer RPCs per case-detail render.
+ */
+export async function buildCaseReferralsModuleReadOnly(
+  detail: CaseDetail,
+  documents: CaseDocumentWithUrl[],
+): Promise<CaseReferralsModule | null> {
+  if (!(await referralsEnabled())) return null;
+
+  const referrals = await listCaseOutboundReferrals(detail.case.id);
+
+  const narratives = detail.narratives
+    .filter((n) => (n.bodyMd ?? "").trim().length > 0)
+    .map((n) => ({
+      id: n.id,
+      label: n.title?.trim() || n.typeLabel,
+      bodyMd: n.bodyMd as string,
+    }));
+
+  return {
+    referrals,
+    // Vocabulary the LIST needs to label existing rows stays; both are PHI-free
+    // per-org catalogues, not a picker of things the reviewer could act on.
+    referralTypes: await listReferralTypes(),
+    requestedActions: await listReferralRequestedActions(),
+    // Wizard-only, empty by construction — see the header.
+    targetCommissions: [],
+    technicalDirectionHospitalId: null,
+    narratives,
+    documents: documents.map((d) => ({
+      id: d.id,
+      title: d.title,
+      mimeType: d.mimeType,
+      sizeBytes: d.sizeBytes,
+    })),
+  };
+}

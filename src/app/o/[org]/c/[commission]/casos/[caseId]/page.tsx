@@ -30,7 +30,11 @@ import { meetingsEnabled } from "@/lib/meetings/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
-import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
+import {
+  buildCaseReferralsModule,
+  buildCaseReferralsModuleReadOnly,
+} from "@/components/referrals/build-case-referrals-module";
+import { qualidadeHref } from "@/lib/routing";
 import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
 import { getCaseTemplateProvenance } from "@/lib/queries/process-templates";
 
@@ -69,7 +73,13 @@ export default async function StaffCaseDetailPage({
   const { org, commission, caseId } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role === null) notFound();
+  if (!access || (access.role === null && !access.isQualityViewer)) notFound();
+
+  // ADR 0100 D10 — the oversight reader. `role` stays `null` (never mapped to a
+  // member role, or every `role === 'staff_admin'` write gate would open), so
+  // this flag is what distinguishes them from the platform_admin the gate above
+  // still refuses.
+  const isOversight = access.isQualityViewer;
 
   // Flag OFF → this staff surface does not exist yet.
   if (!(await caseAccessEnabled())) notFound();
@@ -129,8 +139,15 @@ export default async function StaffCaseDetailPage({
     listCaseTags(access.commission.id),
     listCaseTagsForCase(caseId),
     listCaseActionItems(caseId),
-    interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
-    meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
+    // ADR 0100 D4 (lead ruling on Q4) — interviews and meetings are DELIBERATION,
+    // which the oversight arm deliberately does not confer. Skipped entirely
+    // rather than fetched-and-hidden: a card reading "Nenhuma reunião" would be a
+    // false statement to the reviewer, and a count without content would leak the
+    // very volume D4 withholds. Omission asserts nothing in either direction.
+    interviewsOn && !isOversight
+      ? listCaseInterviews(caseId)
+      : Promise.resolve([]),
+    meetingsOn && !isOversight ? listCaseMeetings(caseId) : Promise.resolve([]),
     caseCustomFieldsOn
       ? listCaseCustomFieldValues(caseId)
       : Promise.resolve([]),
@@ -143,11 +160,20 @@ export default async function StaffCaseDetailPage({
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
-  const referralsModule = await buildCaseReferralsModule(
-    detail,
-    documents,
-    access.commission.hospitalId,
-  );
+  //
+  // ADR 0100 (lead ruling on Q3) — SPLIT for the oversight reader: the referral
+  // LIST is case content under D3, but the wizard FUEL is not. The read-only
+  // variant drops `targetCommissions` + `technicalDirectionHospitalId` by
+  // construction. (Passing `hospitalId: null` to the main assembler would have
+  // suppressed only the second — `listReferralTargetCommissions` is unconditional
+  // there, so the obvious one-line version does half the job.)
+  const referralsModule = isOversight
+    ? await buildCaseReferralsModuleReadOnly(detail, documents)
+    : await buildCaseReferralsModule(
+        detail,
+        documents,
+        access.commission.hospitalId,
+      );
 
   // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
   const correctionsData = await buildCaseCorrectionsData(detail);
@@ -173,28 +199,38 @@ export default async function StaffCaseDetailPage({
       caseTags={caseTags}
       actionItems={actionItems}
       interviews={interviews}
-      interviewsEnabled={interviewsOn}
+      interviewsEnabled={interviewsOn && !isOversight}
       meetings={meetings}
-      meetingsEnabled={meetingsOn}
-      patientSafetyEnabled={patientSafetyOn}
-      casePatientEnabled={casePatientOn}
+      meetingsEnabled={meetingsOn && !isOversight}
+      // Host-side half of the D7 read-only contract. `CaseDetailView` suppresses
+      // these again from `viewerKind`, deliberately: a future host that forgets a
+      // prop still cannot open a write path, and a future caller that forgets
+      // `viewerKind` still cannot either. Neither side alone is load-bearing.
+      patientSafetyEnabled={patientSafetyOn && !isOversight}
+      casePatientEnabled={casePatientOn && !isOversight}
       narrativesEnabled={narrativesOn}
       caseAccessEnabled
       viewerId={access.context.userId}
       myRole={myRole}
       withHeader
-      backHref={commissionHref(org, commission, "meus-casos")}
+      viewerKind={isOversight ? "oversight" : "member"}
+      backHref={
+        isOversight
+          ? qualidadeHref(org)
+          : commissionHref(org, commission, "meus-casos")
+      }
+      backLabel={isOversight ? "Escritório da Qualidade" : "Meus Casos"}
       templateProvenance={templateProvenance}
       referralsModule={referralsModule}
       canManagePhaseResults={canManagePhaseResults}
       phaseResultOptions={phaseResultOptions}
       actionItemsEnabled={actionItemsOn}
       canAssignPhases={canInCommission(access, "assign_case_phases")}
-      canEditMeta={canEditMeta}
+      canEditMeta={canEditMeta && !isOversight}
       departments={departments}
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       customFields={customFields}
-      correctionsEnabled={correctionsData.enabled}
+      correctionsEnabled={correctionsData.enabled && !isOversight}
       corrections={correctionsData.requests}
       narrativeRevisions={correctionsData.narrativeRevisions}
     />

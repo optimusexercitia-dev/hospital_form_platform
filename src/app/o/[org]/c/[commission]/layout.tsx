@@ -27,6 +27,7 @@ import {
 } from "@/lib/queries/feature-flags";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { QualityViewerShell } from "@/components/quality/quality-viewer-shell";
 
 /**
  * Commission area shell. Server Component.
@@ -36,14 +37,20 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
  * so we render `notFound()` for both and leak nothing about which commissions
  * exist (Phase 2 acceptance: foreign/unknown commission → 404).
  *
- * We ALSO `notFound()` when `access.role === null`. Under multi-tenancy that role
- * is null for exactly one caller: a platform_admin who is neither a member of this
- * commission nor an org_admin of its org. The platform_admin is walled off from
- * all tenant data, so it must not load a commission area at all (RLS already
- * returns it empty data — this closes the route itself; BUG-MT-005). A legitimate
- * commission-area user is always a member (`staff`/`staff_admin`) OR an org_admin
- * of the org (resolved to the `staff_admin` coordinator role by the resolver), so
- * no real user is denied by this check.
+ * `access.role === null` now has TWO callers, so it no longer decides the gate
+ * alone (ADR 0100 D10 widened it):
+ *
+ *  - a **platform_admin** who is neither a member nor an org_admin of the org —
+ *    walled off from all tenant data, so it must not load a commission area at
+ *    all (RLS already returns it empty data; this closes the route itself,
+ *    BUG-MT-005). Still `notFound()`.
+ *  - a **quality reviewer** (`isQualityViewer`), whose oversight arm confers real
+ *    READ access to this commission's cases but no membership and no write
+ *    capability. It gets the reduced {@link QualityViewerShell} instead — see the
+ *    early return below for why a separate shell rather than a hidden sidebar.
+ *
+ * Everyone else reaching the member branch is a member (`staff`/`staff_admin`) or
+ * a commission-admin resolved to `staff_admin`.
  *
  * The sidebar shows live count badges. These reuse existing read queries (no new
  * backend): the coordinator-only counts (open cases, pending sign-offs) are only
@@ -60,8 +67,32 @@ export default async function CommissionLayout({
   const { org, commission } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role === null) {
+  if (!access || (access.role === null && !access.isQualityViewer)) {
     notFound();
+  }
+
+  // ADR 0100 D10 — the quality reviewer reaches this commission with `role: null`
+  // (a FLAG, never a member role) and gets a DIFFERENT SHELL, returning before
+  // the member branch below runs at all.
+  //
+  // ⚠ This is not a nicety, it is the affordance boundary. `AppSidebar`'s
+  // predicate ends `return role === null || item.roles.includes(role)` — `null`
+  // is the platform-admin "show everything" branch — so rendering the member
+  // shell for a reviewer would light up every coordinator nav item (Construtor,
+  // Gerenciar, Painel, Configurações…), each of which then 404s them. Returning
+  // early also skips the eleven flag reads and five count queries below, all of
+  // which are meaningless for a principal holding no membership.
+  if (access.role === null) {
+    return (
+      <QualityViewerShell
+        org={org}
+        commissionName={access.commission.name}
+        fullName={access.context.fullName}
+        email={access.context.email}
+      >
+        {children}
+      </QualityViewerShell>
+    );
   }
 
   const commissionId = access.commission.id;
@@ -212,6 +243,12 @@ export default async function CommissionLayout({
         accreditationEnabled={accreditationOn}
         isNspCoordinator={nspAccess?.isCoordinator ?? false}
         isPqsMember={nspAccess?.isPqsMember ?? false}
+        // ADR 0100 — the dual-hatted case: a committee member/coordinator who
+        // ALSO holds a reviewer seat in this org lands on their commission, so
+        // this is their only route into the console.
+        isQualityReviewer={access.context.qualityReviewerOf.some(
+          (q) => q.organization.id === access.organization.id,
+        )}
         notificationBell={<NotificationBell />}
       />
       <main className="min-w-0 flex-1">
