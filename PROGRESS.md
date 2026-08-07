@@ -127,7 +127,13 @@ PO rulings 2026-08-07 (asked before work started; each pre-empted a recorded def
 | F4 | FUP-QO-2 — catalog-derived role→landing guard (enumerate `memberships_role_check` from the catalog; every role must resolve to a landing route) | backend (+frontend if `page.tsx` must change) | ✅ 2026-08-07 (`49883c2`, ADR 0101) — **guard fired on its first run: `nsp_coordinator` + `pqs_member` are instances 4 and 5; fix needs `page.tsx` (frontend)** |
 | F5 | FUP-QO-4 — records-only close (ruling above) | lead | ✅ 2026-08-07 |
 | F6 | FUP-QO-6 — full `e2e:prod` under load with DB poller; classify stale-UI vs lost-write | tester | ☐ |
-| F7 | FUP-QO-2 close — route `nsp_coordinator` + `pqs_member` (the guard's catch, instances 4+5) | backend (filter) + frontend (`page.tsx` branch) | ◐ backend half ✅ 2026-08-07 (`c5b9dca`, `nspOperatorOf`); **frontend branch + `KNOWN_UNROUTED` flip OUTSTANDING** |
+| F7 | FUP-QO-2 close — route `nsp_coordinator` + `pqs_member` (the guard's catch, instances 4+5) | backend (filter) + frontend (`page.tsx` branch) | ✅ 2026-08-07 — backend half (`c5b9dca`, `nspOperatorOf`); **frontend half `11d60ad`**: `page.tsx` NSP-operator branch (first of the three office branches) + `KNOWN_UNROUTED` emptied. Guard 14/14 green — both roles resolve to `/o/<org>/nsp` (URL asserted via a throwaway probe, deleted); lint + typecheck clean; vitest **1172** |
+| F8 | `list_my_nsp_hospitals()` lacks the `is_active` + unexpired filters every sibling carries; direct caller `capa-operator-gate.ts:26` sits outside the org-read cover | backend | ✅ 2026-08-07 (`20260912000100`) — `145` §I red-first I2/I3/I6, 42/42 after; door dropped from the floor allowlist (6 recorded calls). **Fresh-reset gates PARKED** pending "stack is yours" |
+
+Lead acceptances 2026-08-07: **F1's audit-trigger amendment ACCEPTED** (`trg_audit_memberships`
+role-change arm now carries `expires_at_before/_after` when the expiry moves — Rule 11; keystoned
+4.13c, mutation-proven E6). **ARCHITECTURE.md Rule 12 `pqs_members` line corrected by the lead**
+(no such table; roster = hospital-scoped `memberships`).
 
 ### ⬛ QO·A — Quality-office oversight, Phase A · **COMPLETE 2026-08-07**
 
@@ -441,6 +447,48 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### ✅ FUP-QO-8 — RESOLVED 2026-08-07 (backend, F8) — `list_my_nsp_hospitals()` ignored `is_active` and expiry (2026-08-07, backend; lead-scoped)
+
+Found while grounding F7's landing-surface check — i.e. by reading the door I was about to route
+users through, not by looking for it. The NSP console-entry door read `public.memberships` **raw**:
+no `app.is_active` gate and no `expires_at is null or expires_at > now()` filter, while **every**
+sibling in the same lane carries both (`is_pqs_member_of_for`, `is_pqs_member_of_any`,
+`is_pqs_operator_in_org_for`).
+
+⚠ **The reason it survived is the interesting part.** In the console path the org read
+(`organizations_select` → `app.is_pqs_operator_in_org`) applies the correct filters, so the shell
+was saved by the **org read**, not by the door — the laxity was invisible exactly where anyone
+would look for it. `src/components/indicators/capa-operator-gate.ts:26` calls it **directly**,
+outside that cover, so an expired or deactivated `pqs_member` kept the "Abrir plano de ação (CAPA)"
+affordance. Display-only (`open_capa_plan` re-gates, 42501), so no data leak — but a DEFINER door
+whose own gate is weaker than its siblings' is invisible to a policy-shaped audit by construction
+(`prosecdef` REPLACES RLS), and it becomes a leak the first time someone reads data from it.
+
+⚠ **It had NO pgTAP caller at all** — it sat on `authz-neverclled-door-allowlist.txt`, which is
+precisely how its gate drifted below its siblings' unnoticed. That is the floor arm reporting a real
+blind spot rather than a bookkeeping nit.
+
+**Fix — migration `20260912000100`.** `app.is_active` moved into a `me` CTE (an inactive caller
+yields no rows, both union arms collapse, and the existing `coalesce(..., '[]')` returns the
+documented safe default — no second exit path to keep in sync); expiry filter + `hospital_id is not
+null` on **both** arms. `create or replace`, unchanged signature: BEFORE/AFTER catalog snapshots
+identical property-for-property, **including the `authenticated=X/postgres` ACL that IS this door's
+reachability**.
+
+**Caller sweep before writing a line:** SQL callers **ZERO** (comment-stripped `prosrc` scan +
+`pg_policies` scan); TS callers exactly one RPC site (`pqs.ts:223`) with two consumers
+(`getNspAccessByOrg`, `capa-operator-gate`). Both ask "may this caller operate here NOW" — **the
+laxity was not load-bearing for anyone**, so no STOP-and-report was warranted.
+
+**Evidence.** `145` §I (I1–I7), **red-first observed before the migration: I2 / I3 / I6 red
+(`have: 1, want: 0`), 42/42 ran**. Positive twins on both sides (I1/I5) and a both-ways probe (I4 —
+reactivating restores the row, so I3's zero came from `is_active` and not a broken fixture); I6
+exists because the coordinator arm is a **separate union branch** and a one-arm fix passes I1–I4.
+`jsonb_array_length`, never `count(*)` — the door returns scalar jsonb, so `count(*)` is always 1
+and would read the same on both sides of the fix. I7 pins the ACL structurally. Post-fix 42/42.
+Door **removed from the floor allowlist** — verified with `track_functions='all'` that pgTAP now
+records **6 calls**, so `ARM=floor` will see it as genuinely called.
 
 ### 🟡 FUP-QO-7 — the case-access door still has the seam limit the role door just lost (2026-08-07, backend)
 
