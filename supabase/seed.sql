@@ -2342,6 +2342,16 @@ update app.feature_flags set enabled = true where key = 'accreditation';
 -- flag off itself and restore it, because this seed hands it ON.
 update app.feature_flags set enabled = true where key = 'audio_minutes';
 
+-- PDF document printing (ADR 0104). The flag row ships DISABLED from
+-- 20260913000300 and stays disabled in production until the module's phase
+-- gates close; this line forces it ON for local/E2E only, matching every other
+-- pre-gate flag above. All four doors (mint/open/revoke/lookup) assert it
+-- (app.assert_document_printing_enabled() -> check_violation), so without this
+-- the whole PDF·P1 pgTAP + E2E surface would be unreachable and pass vacuously.
+-- The 312 suite ASSERTS this flag state as a precondition (§7.3 — a flag
+-- asserted cannot go stale silently).
+update app.feature_flags set enabled = true where key = 'document_printing';
+
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
 -- row-complete rule is exercised by simply filling the form) and one

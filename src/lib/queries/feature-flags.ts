@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Feature-flags data-access (WS-6 P4 — consolidated flag read; Architecture
@@ -115,6 +116,13 @@ export interface FeatureFlags {
   // minute_generator DPA gates and a prod smoke (D17). Resolve the VALUE in
   // `app.feature_flags.enabled`, never this comment.
   audio_minutes: boolean
+  // PDF·P1 (ADR 0104): record-semantics PDF minting + QR verification. Gates the
+  // mint/list/revoke UI, the serving route, and all four DEFINER doors
+  // (app.assert_document_printing_enabled() → check_violation), so the feature is
+  // dark on both sides of the boundary. Seeded OFF in
+  // `20260913000300_document_printing_flag`; `seed.sql` forces it ON for local/E2E.
+  // Resolve the VALUE in `app.feature_flags.enabled`, never this comment.
+  document_printing: boolean
 }
 
 /** A flag key. */
@@ -342,4 +350,25 @@ export async function accreditationEnabled(): Promise<boolean> {
  */
 export async function audioMinutesEnabled(): Promise<boolean> {
   return featureEnabled('audio_minutes')
+}
+
+/**
+ * PDF·P1 (ADR 0104): the `document_printing` flag, readable WITHOUT a session —
+ * for the PUBLIC `/verificar` pages, which are unauthenticated by design (D10)
+ * and `notFound()` when the module is off.
+ *
+ * Deliberately NOT `featureEnabled('document_printing')`: that path calls the
+ * `get_feature_flags()` RPC through the cookie client, and `get_feature_flags`
+ * has NO anon EXECUTE (catalog-verified 2026-08-07) — granting it one would
+ * widen an unauthenticated surface for a convenience read (lead ruling,
+ * 2026-08-07). Instead the flag rides the same server-only service-role path
+ * the verification lookup already uses. Authenticated screens keep using
+ * `featureEnabled('document_printing')` as usual.
+ */
+export async function documentPrintingEnabled(): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('get_feature_flags')
+  if (error) return false // fail closed: no flags, no public surface
+  const flags = (data ?? {}) as Record<string, boolean>
+  return flags['document_printing'] === true
 }

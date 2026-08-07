@@ -59,6 +59,11 @@ export interface PrintedDocumentVerification {
   mintedAt: string
   sourceKind: PrintedDocumentSourceKind
   hospitalName: string
+  /** Registry id — non-null ONLY when the caller is authenticated AND passes the
+   * source-visibility door (server-enforced in the lookup RPC via `p_viewer`).
+   * Anonymous callers ALWAYS receive null (D10: no anonymous download, no oracle).
+   * Feeds the logged-in-viewer link to `/api/documents/<id>`. */
+  documentId: string | null
 }
 
 /** Lookup key for a verification: the QR token or the typed short code. */

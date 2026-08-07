@@ -7335,6 +7335,94 @@ export type Database = {
           },
         ]
       }
+      printed_documents: {
+        Row: {
+          commission_id: string
+          contains_phi: boolean
+          content_hash: string
+          id: string
+          minted_at: string
+          minted_by: string
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          revoked_reason_class: string | null
+          source_id: string
+          source_kind: string
+          status: string
+          storage_path: string
+          superseded_at: string | null
+          template_key: string
+          template_version: number
+          verification_short_code: string
+          verification_token: string
+        }
+        Insert: {
+          commission_id: string
+          contains_phi?: boolean
+          content_hash: string
+          id?: string
+          minted_at?: string
+          minted_by: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          revoked_reason_class?: string | null
+          source_id: string
+          source_kind: string
+          status?: string
+          storage_path: string
+          superseded_at?: string | null
+          template_key: string
+          template_version: number
+          verification_short_code: string
+          verification_token: string
+        }
+        Update: {
+          commission_id?: string
+          contains_phi?: boolean
+          content_hash?: string
+          id?: string
+          minted_at?: string
+          minted_by?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          revoked_reason_class?: string | null
+          source_id?: string
+          source_kind?: string
+          status?: string
+          storage_path?: string
+          superseded_at?: string | null
+          template_key?: string
+          template_version?: number
+          verification_short_code?: string
+          verification_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printed_documents_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printed_documents_minted_by_fkey"
+            columns: ["minted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printed_documents_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_template_custom_fields: {
         Row: {
           created_at: string
@@ -9354,6 +9442,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      verification_lookups: {
+        Row: {
+          id: number
+          looked_up_at: string
+          matched: boolean
+          source_kind: string | null
+          token_hash: string
+        }
+        Insert: {
+          id?: never
+          looked_up_at?: string
+          matched: boolean
+          source_kind?: string | null
+          token_hash: string
+        }
+        Update: {
+          id?: never
+          looked_up_at?: string
+          matched?: boolean
+          source_kind?: string | null
+          token_hash?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -12855,6 +12967,17 @@ export type Database = {
         Args: { p_actor: string; p_matched?: string; p_org_id: string }
         Returns: undefined
       }
+      lookup_printed_document: {
+        Args: { p_credential: string; p_viewer?: string }
+        Returns: {
+          document_id: string
+          hospital_name: string
+          matched: boolean
+          minted_at: string
+          source_kind: string
+          status: string
+        }[]
+      }
       mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_document_obsolete: {
         Args: { p_document_id: string }
@@ -12925,6 +13048,46 @@ export type Database = {
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       meeting_cadence_status: { Args: { p_commission: string }; Returns: Json }
       meetings_enabled: { Args: never; Returns: boolean }
+      mint_printed_document: {
+        Args: {
+          p_contains_phi?: boolean
+          p_content_hash: string
+          p_id: string
+          p_source_id: string
+          p_source_kind: string
+          p_template_key: string
+          p_template_version: number
+          p_verification_short_code: string
+          p_verification_token: string
+        }
+        Returns: {
+          commission_id: string
+          contains_phi: boolean
+          content_hash: string
+          id: string
+          minted_at: string
+          minted_by: string
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          revoked_reason_class: string | null
+          source_id: string
+          source_kind: string
+          status: string
+          storage_path: string
+          superseded_at: string | null
+          template_key: string
+          template_version: number
+          verification_short_code: string
+          verification_token: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "printed_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       my_pending_meeting_signatures: {
         Args: never
         Returns: {
@@ -13059,6 +13222,14 @@ export type Database = {
           p_target_commission_id: string
         }
         Returns: string
+      }
+      open_printed_document: {
+        Args: { p_id: string }
+        Returns: {
+          contains_phi: boolean
+          status: string
+          storage_path: string
+        }[]
       }
       open_reserved_session: { Args: { p_meeting_id: string }; Returns: string }
       patient_access_audit: {
@@ -14236,6 +14407,36 @@ export type Database = {
       revoke_org_admin: {
         Args: { p_org: string; p_user: string }
         Returns: undefined
+      }
+      revoke_printed_document: {
+        Args: { p_id: string; p_reason: string; p_reason_class: string }
+        Returns: {
+          commission_id: string
+          contains_phi: boolean
+          content_hash: string
+          id: string
+          minted_at: string
+          minted_by: string
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          revoked_reason_class: string | null
+          source_id: string
+          source_kind: string
+          status: string
+          storage_path: string
+          superseded_at: string | null
+          template_key: string
+          template_version: number
+          verification_short_code: string
+          verification_token: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "printed_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       revoke_role: {
         Args: {
