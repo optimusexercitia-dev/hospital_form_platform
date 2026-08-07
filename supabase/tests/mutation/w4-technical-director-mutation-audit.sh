@@ -41,13 +41,13 @@ create or replace function app._mut_w4(p_what text) returns void
 declare d text;
 begin
   if p_what = 'remove_flag_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w4_sub(d, 'perform app.assert_technical_director_enabled();', 'null;');
     execute d;
 
   elsif p_what = 'admit_platform_admin' then
     -- The tidy-up a future reader is most likely to make.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w4_sub(d,
       'if not (app.is_org_admin_of_for(v_org, p_actor)
             or app.is_hospital_admin_of_for(p_scope_id, p_actor)) then
@@ -59,17 +59,17 @@ begin
     execute d;
 
   elsif p_what = 'remove_physician_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w4_sub(d, 'and pc.key = ''physician''', 'and true');
     execute d;
 
   elsif p_what = 'ignore_category_is_active' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w4_sub(d, 'and pc.is_active', 'and true');
     execute d;
 
   elsif p_what = 'remove_titular_door_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w4_sub(d, 'if p_role = ''technical_director''
        and exists (', 'if false
        and exists (');
@@ -92,6 +92,9 @@ begin
           when 'pqs_member'     then ((organization_id is not null) and (hospital_id is not null) and (commission_id is null))
           when 'technical_director'        then true
           when 'technical_director_deputy' then true
+          -- QO·A M1: the arm must ride along or the re-add refuses seeded reviewer
+          -- rows and the mutation ABORTS instead of proving anything.
+          when 'quality_reviewer' then ((organization_id is not null) and (hospital_id is not null) and (commission_id is null))
           when 'staff_admin'    then ((commission_id is not null) and (organization_id is null) and (hospital_id is null))
           when 'staff'          then ((commission_id is not null) and (organization_id is null) and (hospital_id is null))
           else false

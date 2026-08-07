@@ -1,6 +1,15 @@
 -- BUG-AUTHZ-001 keystone — the dashboard DEFINER gate admits commission/org admins and
 -- NOT platform_admin (migration 20260903000700).
 --
+-- QO·A REWRITE (ADR 0100 D11, migration 20260911000400): the ONE-uniform-gate
+-- contract is now a TWO-CLASS contract. Six AGGREGATE doors additionally admit an
+-- oversight quality_reviewer via app.can_read_quality_dashboards; the three
+-- ROW-LEVEL doors (export_rows, free_text, completion_by_member) do NOT. §9
+-- below holds the class boundary from the catalog — it is the ONLY guard on the
+-- D11 six/three split, and q1-quality-mutation-audit.sh case `arm_seventh_door`
+-- proves it can fail (arming a row-level door reds t10). Behavioural depth for
+-- the reviewer lives in 309; this file pins the boundary + one live pair.
+--
 -- WHY THIS FILE EXISTS. The bug survived because nothing asserted the property. The
 -- census behind ADR 0078 A35 read `pg_policies`, and `responses`' policies were correct
 -- — the leak was a SECURITY DEFINER gate, which a policy-shaped audit is structurally
@@ -23,7 +32,7 @@
 -- instead. That is a real limit of this file, stated rather than papered over.
 
 begin;
-select plan(8);
+select plan(13);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -177,6 +186,81 @@ select is(
      and pg_get_functiondef(p.oid) ~ 'app\.is_commission_admin_of\('),
   9,
   'INVARIANT ⭐ (+ non-vacuity for t7): all NINE public.dashboard_* functions carry the is_commission_admin_of arm');
+
+-- ==========================================================================
+-- t9/t10 — THE QO·A TWO-CLASS BOUNDARY (ADR 0100 D11), from the catalog and
+-- comment-stripped (§7.2 — a prosrc regex happily counts comments). t9 is an
+-- ARRAY equality: a seventh armed door, a missing sixth, or a renamed door all
+-- red it. t10 is the row-level half; t9's non-empty result is its non-vacuity
+-- guard (same regex, 6 hits — the pattern provably finds arms).
+-- ==========================================================================
+select is(
+  (select coalesce(array_agg(p.proname::text order by p.proname), '{}'::text[])
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname like 'dashboard\_%'
+     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'can_read_quality_dashboards'),
+  array['dashboard_distributions','dashboard_entity_references','dashboard_form_totals',
+        'dashboard_matrix_cells','dashboard_risk_scores','dashboard_submissions_over_time'],
+  'TWO-CLASS ⭐⭐: EXACTLY the six aggregate doors carry the quality_reviewer arm (D11 — the boundary''s only structural guard)');
+
+select is(
+  (select count(*)::int
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('dashboard_export_rows','dashboard_free_text','dashboard_completion_by_member')
+     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'can_read_quality_dashboards'),
+  0,
+  'TWO-CLASS ⭐: the three ROW-LEVEL doors carry ZERO trace of the reviewer arm');
+
+-- ==========================================================================
+-- t11/t12 — one LIVE pair on this file's own fixture: a reviewer of the
+-- fixture hospital, commission opted in. Distributions opens (aggregate),
+-- export_rows stays shut (row-level) — the same calls t1/t2 prove non-vacuous
+-- for the staff_admin.
+-- ==========================================================================
+create temp table qr270 on commit drop as select gen_random_uuid() as qr;
+grant select on qr270 to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+select '00000000-0000-0000-0000-000000000000', qr, 'authenticated', 'authenticated',
+       qr || '@test', now(), now() from qr270;
+-- Clear the t5/t6 claims: the identity-column guard refuses this patch from a
+-- non-service SESSION; the superuser fixture path needs auth.uid() null.
+select test_helpers.claims_for(null, false);
+update public.profiles set home_organization_id = '00000000-0000-0000-0000-0000000a0001'
+  where id = (select qr from qr270);
+insert into public.memberships (organization_id, hospital_id, principal_id, role)
+select '00000000-0000-0000-0000-0000000a0001', '00000000-0000-0000-0000-0000000b0001',
+       qr, 'quality_reviewer' from qr270;
+select set_config('app.in_commission_rpc', 'on', true);
+update public.commissions set quality_oversight = 'visible' where id = (select comm_x from k);
+select set_config('app.in_commission_rpc', 'off', true);
+
+select test_helpers.claims_for((select qr from qr270), false);
+set local role authenticated;
+select cmp_ok(
+  (select count(*)::int from public.dashboard_distributions((select form_d from ids))),
+  '>', 0,
+  'REVIEWER ARM ⭐: an oversight reviewer reads a non-empty dashboard_distributions (aggregate class open)');
+
+select is(
+  (select count(*)::int from public.dashboard_export_rows((select form_d from ids))),
+  0,
+  'REVIEWER ARM ⭐: the same reviewer takes ZERO rows from dashboard_export_rows (row-level class shut)');
+reset role;
+
+-- ==========================================================================
+-- t13 — the M5 no-property-loss invariant, held by the suite instead of a
+-- one-shot migration check: all nine doors keep prosecdef AND both original
+-- admin arms (a rebuild that dropped either would pass a green build).
+-- ==========================================================================
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname like 'dashboard\_%'
+     and p.prosecdef
+     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_staff_admin_of'
+     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_commission_admin_of'),
+  9,
+  'REBUILD GUARD ⭐: all nine doors keep SECURITY DEFINER + both original admin arms');
 
 select * from finish();
 rollback;

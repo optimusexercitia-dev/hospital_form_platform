@@ -26,6 +26,15 @@
 --                             physician, hospital-tier, NO commission membership
 --   dt.dep.a@test.local       DT deputy of the same hospital. Equal authority to the
 --                             titular (ADR 0094 D1), which is what it is here to prove
+--   quality.a@test.local      quality_reviewer of Hospital Central A (ADR 0100) —
+--                             hospital-tier, NO commission membership; reads CCIH
+--                             (oversight-visible below) and NOT Farmácia (excluded)
+--   quality.a2@test.local     quality_reviewer of Hospital Secundário A — the
+--                             same-org/other-hospital scoping fixture (sees neither
+--                             CCIH nor Farmácia; secundario-a has no visible committee)
+--   quality.b@test.local      quality_reviewer of Hospital Central B (Rede B) — the
+--                             cross-org isolation fixture (reaches NOTHING in Rede A;
+--                             Rede B's committees all stay 'excluded' = empty board)
 
 set search_path = public, extensions;
 
@@ -198,7 +207,17 @@ declare
     -- referral through the hospital-tier arm alone, and a committee grant would make
     -- every audience test pass through the wrong arm.
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f1', 'email', 'dt.a@test.local',               'name', 'Diretor Técnico A',   'org', '0c000000-0000-0000-0000-00000000000a'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f2', 'email', 'dt.dep.a@test.local',           'name', 'Substituto DT A',     'org', '0c000000-0000-0000-0000-00000000000a')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f2', 'email', 'dt.dep.a@test.local',           'name', 'Substituto DT A',     'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- Quality-office oversight (ADR 0100 D1). Like the DT pair, NONE of the three
+    -- holds a commission membership — the reviewer must reach committee content
+    -- through the hospital-tier S7 arm alone; a committee grant would make every
+    -- oversight test pass through the wrong arm.
+    --   quality.a  -> reviewer of central-a  (CCIH visible below = the positive)
+    --   quality.a2 -> reviewer of secundario-a (same org, other hospital = scoping)
+    --   quality.b  -> reviewer of central-b  (Rede B = cross-org; all-excluded board)
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f3', 'email', 'quality.a@test.local',          'name', 'Revisora Qualidade A',  'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f4', 'email', 'quality.a2@test.local',         'name', 'Revisor Qualidade A2',  'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f5', 'email', 'quality.b@test.local',          'name', 'Revisora Qualidade B',  'org', '0c000000-0000-0000-0000-00000000000b')
   );
   u jsonb;
 begin
@@ -315,6 +334,18 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f1', 'technical_director'),
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f2', 'technical_director_deputy');
 
+-- Quality-office oversight rows (ADR 0100 D1) — hospital tier, same shape as the DT
+-- pair above; inserted directly because the seed runs with no session (the grant door
+-- resolves its actor from auth.uid()). One row per (reviewer, hospital) — D1's
+-- multi-hospital model. No expires_at: permanent local fixtures.
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f3', 'quality_reviewer'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000f4', 'quality_reviewer'),
+  ('0c000000-0000-0000-0000-00000000000b', '05000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000f5', 'quality_reviewer');
+
+-- Oversight classification fixture: see the DO block AFTER the commissions insert
+-- below (it must run once CCIH exists — an earlier UPDATE is a silent 0-row no-op).
+
 -- Q2 hospital-scoped directory: the hospital_admin's employment link to central-a.
 -- AFF W1 (ADR 0097 D1/D3): this used to be `profiles.home_hospital_id`, which was
 -- dropped by 20260909000300 — "works at this hospital" is a `hospital_affiliations`
@@ -376,6 +407,28 @@ insert into public.commissions (id, name, slug, created_by, hospital_id) values
   -- referral). A central-a NSP operator must get NOTHING on this hospital's PHI; the
   -- secundario-a operator (pqs.a2 / nspcoord.a2) reads it (189 isolation keystone).
   ('e0000000-0000-0000-0000-0000000000e2', 'Comissão de Segurança do Paciente A2',        'seguranca-a2', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2');
+
+-- Oversight classification fixture (ADR 0100 D8): CCIH opts IN — through the guard's
+-- GUC bracket, the same convention as app.in_case_rpc below (the trigger blocks any
+-- unbracketed write, superuser included; pgTAP 307 §3.2 pins that). EVERY other
+-- commission keeps the 'excluded' default deliberately: Farmácia A is the
+-- same-hospital denial fixture, Rede B's committees give quality.b an empty board.
+do $$
+declare v_n int;
+begin
+  -- One DO block = one transaction, so the txn-local GUC actually reaches the
+  -- UPDATE (three top-level autocommitted statements would silently not bracket).
+  perform set_config('app.in_commission_rpc', 'on', true);
+  update public.commissions set quality_oversight = 'visible'
+    where id = 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (central-a)
+  get diagnostics v_n = row_count;
+  if v_n <> 1 then
+    -- A 0-row UPDATE is a silent fixture failure (it happened: the block first sat
+    -- ABOVE the commissions insert). Fail the seed loudly instead.
+    raise exception 'oversight fixture: expected to classify exactly 1 commission, hit %', v_n;
+  end if;
+  perform set_config('app.in_commission_rpc', 'off', true);
+end $$;
 
 -- Commission-tier grants seed as memberships rows (commission_id set; org/hospital null).
 insert into public.memberships (commission_id, principal_id, role) values

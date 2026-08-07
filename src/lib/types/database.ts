@@ -3993,6 +3993,7 @@ export type Database = {
           id: string
           name: string
           organization_id: string
+          quality_oversight: string
           slug: string
           updated_at: string
         }
@@ -4003,6 +4004,7 @@ export type Database = {
           id?: string
           name: string
           organization_id: string
+          quality_oversight?: string
           slug: string
           updated_at?: string
         }
@@ -4013,6 +4015,7 @@ export type Database = {
           id?: string
           name?: string
           organization_id?: string
+          quality_oversight?: string
           slug?: string
           updated_at?: string
         }
@@ -12455,6 +12458,7 @@ export type Database = {
       }
       grant_role: {
         Args: {
+          p_expires_at?: string
           p_role: string
           p_scope_id: string
           p_scope_type: string
@@ -12466,6 +12470,7 @@ export type Database = {
       grant_role_for: {
         Args: {
           p_actor: string
+          p_expires_at?: string
           p_role: string
           p_scope_id: string
           p_scope_type: string
@@ -13272,6 +13277,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      quality_board_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          commission_id: string
+          commission_name: string
+          commission_slug: string
+          hospital_id: string
+          hospital_name: string
+          locked_cases: number
+          open_cases: number
+          total_cases: number
+        }[]
       }
       rca_writer_can_write: { Args: { p_rca_id: string }; Returns: boolean }
       read_minutes_transcript: { Args: { p_job_id: string }; Returns: string }
@@ -14558,6 +14576,10 @@ export type Database = {
       }
       set_case_visibility: {
         Args: { p_case_id: string; p_policy: string }
+        Returns: undefined
+      }
+      set_commission_oversight: {
+        Args: { p_commission_id: string; p_oversight: string }
         Returns: undefined
       }
       set_document_version_file: {

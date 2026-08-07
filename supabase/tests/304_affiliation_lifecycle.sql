@@ -365,7 +365,8 @@ select jsonb_array_elements_text(
     "staff",
     "pqs_member",
     "technical_director",
-    "technical_director_deputy"
+    "technical_director_deputy",
+    "quality_reviewer"
   ]
 }$roles$::jsonb) -> 'roles') as role;
 

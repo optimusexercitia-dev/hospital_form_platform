@@ -38,22 +38,22 @@ create or replace function app._mut_w3(p_what text) returns void
 declare d text;
 begin
   if p_what = 'authenticated_gets_service_door' then
-    execute 'grant execute on function public.grant_role_for(uuid,text,uuid,text,uuid,uuid) to authenticated';
+    execute 'grant execute on function public.grant_role_for(uuid,text,uuid,text,uuid,uuid,timestamptz) to authenticated';
 
   elsif p_what = 'authenticated_gets_kernel' then
-    execute 'grant execute on function app.grant_role_impl(uuid,text,uuid,text,uuid,uuid) to authenticated';
+    execute 'grant execute on function app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz) to authenticated';
 
   elsif p_what = 'drift_session_wrapper' then
     -- ONE path breaks: the session wrapper loses the actor. The kernel and the
     -- service door are untouched, so this is exactly "the two entry points drifted".
-    d := pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d, '(select auth.uid())', 'null::uuid');
     execute d;
 
   elsif p_what = 'widen_role_pin' then
     -- BOTH paths widen equally: a plain staff_admin may grant staff_admin. The grid's
     -- equality check cannot see this; the named cell must.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d,
       'if not (app.is_admin_for(p_actor)
               or app.is_commission_admin_of_for(p_scope_id, p_actor)) then',
@@ -63,7 +63,7 @@ begin
     execute d;
 
   elsif p_what = 'remove_self_grant_check' then
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d, 'if p_user = p_actor then', 'if false then');
     execute d;
 
@@ -72,7 +72,7 @@ begin
     -- app._deny_self_grant looks correct and IS correct on the session path, but that
     -- helper compares against auth.uid(), which is null on the service path — so the
     -- guard silently evaporates exactly where it is newly needed.
-    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d,
       'if p_user = p_actor then
     raise exception ''não é permitido conceder acesso a si mesmo'' using errcode = ''42501'';
@@ -91,7 +91,7 @@ begin
 
   elsif p_what = 'inline_authority_in_wrapper' then
     -- The wrapper grows its own authority arm: "written once" is no longer true.
-    d := pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid)'::regprocedure);
+    d := pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d,
       'perform app.grant_role_impl',
       'if not app.is_staff_admin_of(p_scope_id) then null; end if;

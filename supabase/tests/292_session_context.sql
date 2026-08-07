@@ -179,13 +179,17 @@ update public.memberships set expires_at = null
  where principal_id = (select st_x from k) and commission_id = (select comm_x from k);
 
 -- =============================================================================
--- §2 — THE EXPIRY INVARIANT (T2.3b): nothing WRITES memberships.expires_at
+-- §2 — THE EXPIRY INVARIANT (T2.3b, QO·A-recut): exactly ONE sanctioned writer
 -- =============================================================================
 --
 -- Comment-stripped, because a prosrc regex happily matches a `-- ... expires_at ...`
 -- line and would report a writer that does not exist (authz-handoff §7.2). Read
 -- filters (`expires_at is null or expires_at > now()`) are expected and allowed; what
 -- must not exist is an assignment or an insert naming the column.
+-- QO·A RECUT (ADR 0100 D9, migration 20260911000200): W2's "nothing writes
+-- expires_at" contract deliberately gains its FIRST sanctioned writer — the
+-- grant kernel's INSERT path. The invariant is now a SINGLETON set, which is a
+-- sharper pin than zero: a second writer (or losing the kernel's) reds this.
 select is(
   (select coalesce(string_agg(n.nspname||'.'||p.proname, ', ' order by p.proname), '')
      from pg_proc p
@@ -194,8 +198,8 @@ select is(
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'memberships'
       and (regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~* 'set\s+expires_at'
         or regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~* 'insert\s+into\s+public\.memberships[^;]*expires_at')),
-  '',
-  '2.1 T2.3b: NO function in app/public writes memberships.expires_at');
+  'app.grant_role_impl',
+  '2.1 T2.3b/QO·A: app.grant_role_impl is the ONLY expires_at writer in app/public (the D9 setter — and nothing else)');
 
 -- The probe must be capable of finding a writer. Plant one, confirm it is seen,
 -- drop it — otherwise 2.1 is a regex that matches nothing for the wrong reason.
@@ -214,13 +218,16 @@ select is(
 
 drop function app._t292_expiry_writer();
 
--- grant_role must not acquire an expiry parameter either — structural, not textual.
+-- QO·A RECUT (D9): the GRANT door alone carries the p_expires_at setter; the
+-- revoke path deliberately does not (revocation is delete — D13 keeps it so).
+-- Structural, not textual, as before.
 select is(
-  (select count(*)::int from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  (select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
+     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.proname in ('grant_role','revoke_role')
       and pg_get_function_identity_arguments(p.oid) ~* 'expir'),
-  0,
-  '2.3 T2.3b: neither door takes an expiry argument');
+  'grant_role',
+  '2.3 T2.3b/QO·A: EXACTLY the grant door takes an expiry argument — revoke_role must never grow one');
 
 -- =============================================================================
 -- §3 — THE ROLE-COMPLETENESS GRID (T2.5)
@@ -250,7 +257,12 @@ insert into role_scope (role, scope_type) values
   -- check_violation, not HC0G0, so "the arm exists" and "the feature is live" stay
   -- distinguishable.
   ('technical_director',        'hospital'),
-  ('technical_director_deputy', 'hospital');
+  ('technical_director_deputy', 'hospital'),
+  -- QO·A (ADR 0100 D1, migration 20260911000000/-000200): the checklist fired
+  -- exactly as designed — M1 added the role to the CHECK and 3.1 went red until
+  -- this row landed WITH the M3 grant/revoke arms (3.3/3.4 verify the arms
+  -- behaviourally, by error code).
+  ('quality_reviewer',          'hospital');
 -- 3.3/3.4 read this table while `set local role authenticated` is in force.
 grant select on role_scope to authenticated;
 

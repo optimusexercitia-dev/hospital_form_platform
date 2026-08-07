@@ -38,7 +38,7 @@ grant select on k to authenticated;
 
 select is(
   (select count(*)::int from unnest(array['authenticated','anon','public']) as r(who)
-    where has_function_privilege(r.who, 'public.grant_role_for(uuid,text,uuid,text,uuid,uuid)', 'EXECUTE')),
+    where has_function_privilege(r.who, 'public.grant_role_for(uuid,text,uuid,text,uuid,uuid,timestamptz)', 'EXECUTE')),
   0,
   '1.1 grant_role_for: NO EXECUTE for authenticated/anon/PUBLIC (naming an actor must be service-only)');
 
@@ -49,21 +49,21 @@ select is(
   '1.2 revoke_role_for: NO EXECUTE for authenticated/anon/PUBLIC');
 
 select ok(
-  has_function_privilege('service_role', 'public.grant_role_for(uuid,text,uuid,text,uuid,uuid)', 'EXECUTE'),
+  has_function_privilege('service_role', 'public.grant_role_for(uuid,text,uuid,text,uuid,uuid,timestamptz)', 'EXECUTE'),
   '1.3 POSITIVE TWIN: service_role DOES hold EXECUTE (the probe distinguishes roles)');
 
 -- The kernels are internal: not even service_role calls them directly, so a future
 -- caller cannot skip the wrappers and, with them, the ACL boundary.
 select is(
   (select count(*)::int from unnest(array['authenticated','anon','public','service_role']) as r(who)
-    where has_function_privilege(r.who, 'app.grant_role_impl(uuid,text,uuid,text,uuid,uuid)', 'EXECUTE')),
+    where has_function_privilege(r.who, 'app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)', 'EXECUTE')),
   0,
   '1.4 app.grant_role_impl is owner-only (the kernel is not a public entry point)');
 
 -- The incumbent doors must still be reachable by ordinary users, or every
 -- cookie-authenticated caller breaks.
 select ok(
-  has_function_privilege('authenticated', 'public.grant_role(text,uuid,text,uuid,uuid)', 'EXECUTE')
+  has_function_privilege('authenticated', 'public.grant_role(text,uuid,text,uuid,uuid,timestamptz)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.revoke_role(text,uuid,text,uuid)', 'EXECUTE'),
   '1.5 the session doors remain EXECUTE-able by authenticated');
 
