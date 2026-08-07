@@ -117,11 +117,11 @@ time**). Built in the **worktree** `worktrees/feat/quality-office-oversight` on 
 | # | Task | Owner | Status |
 | - | ---- | ----- | ------ |
 | A.0 | Catalog re-verification pass + migration plan (the plan's [V-CAT]/[INF] markers re-proven against the live catalog) | backend | ✅ 2026-08-06 — [buildnotes](docs/plans/quality-office-oversight-buildnotes.md): 34-row discrepancy table (2 plan claims **CHANGED**: dashboard deny = empty `return;` not 42501; pgTAP 270 does NOT go red under M5 — rewrite is a strengthening), HC0G0 fail-closed RED-proven by execution, M1–M7 versions `20260911000000`–`000600`, rebuild-loss strategy + 6 mutation cases + ~140-assertion testing note. **Awaiting lead plan approval before any migration** |
-| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ⏳ |
-| A.2 | M3 — `grant_role_impl`/`revoke_role_impl` quality arm + `p_expires_at` setter plumbing | backend | ⏳ |
-| A.3 | M4 — `_case_caps` S7 arm (+ the stale S3 comment) · M5 — six aggregate dashboard doors + pgTAP `270` two-class rewrite | backend | ⏳ |
-| A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ⏳ |
-| A.5 | Seed personas + oversight fixtures · pgTAP `306`–`310` · `q1-quality-mutation-audit.sh` (6 RED-proven) · diff-scoped door sweep | backend | ⏳ |
+| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ✅ 2026-08-06 — `20260911000000`/`000100` applied; red-first aborts/reds observed pre-apply; pgTAP `306` 37/37 + `307` 22/22. One documented residual: the guard is BEFORE UPDATE only, so an INSERT may carry an initial classification (`307` 1.3 pins it; lead to rule if it closes) |
+| A.2 | M3 — `grant_role_impl`/`revoke_role_impl` quality arm + `p_expires_at` setter plumbing | backend | ✅ 2026-08-06 — `20260911000200`; DROP+CREATE ACLs re-established byte-identical (catalog-diffed); `292`/`293` recut to the new contract (expiry-writer singleton + grant-door-only expiry arg + role grid); w3/w4 harness signatures updated; FUP-QO-1 pins the two deferred seam limits executably (`306` §4) |
+| A.3 | M4 — `_case_caps` S7 arm (+ BOTH stale comments incl. `_cap_bit`) · M5 — six aggregate dashboard doors + pgTAP `270` two-class rewrite | backend | ✅ 2026-08-06 — `20260911000300`/`000400`; needle-rewrite with single-replacement proof + 6/3 catalog postcondition; `308` 21/21 · `309` 15/15 · `270` 13/13 (two-class invariant + rebuild guard) |
+| A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ✅ 2026-08-06 — `20260911000500`/`000600` (ALTER POLICY, quals diffed: one disjunct each; `is_org_level_admin_within` untouched, postcondition-pinned); `310` 16/16 (disjoint counts per ruling g; PHI-free shape pinned); `database.ts` regenerated (+22 lines, additive) |
+| A.5 | Seed personas + oversight fixtures · pgTAP `306`–`310` · `q1-quality-mutation-audit.sh` (7 RED-proven incl. `arm_seventh_door`) · ARM gates + diff-scoped door sweep | backend | ✅ 2026-08-06 — seed: quality.a/.a2/.b + CCIH→visible (0-row-guarded DO bracket; first placement no-opped silently and now fails loudly); full pgTAP fresh-reset **171 files / 5297 / 1 red → fixed** (`304` §10 role-census tripwire → fixture chain extended: 304 + `membership-roles.json`); **q1 7/7 RED-PROVEN, RESTORE md5-verified, 5 controls green**; `ARM=census` red→green via the diff-scoped sweep (see gate log); `ARM=floor` + sweep verdicts recorded at completion |
 | A.6 | `src/lib/queries/quality.ts` + `session.ts` `isQualityViewer` branch (contract-first: signatures posted before impl) | backend | ⏳ |
 | A.7 | `/o/[org]/qualidade` route group (layout/board/dashboards) — `frontend-design` skill first | frontend | 📝 **plan written 2026-08-06** — [frontend plan](docs/plans/quality-office-oversight-frontend-plan.md) (file list, screen design, states, D6 locked-count presentation, testing note). **Awaiting lead plan approval; no implementation started** |
 | A.8 | Case-page viewer branch + write-affordance suppression · oversight toggle in `/o/[org]/manage/comissoes` · nav/`qualidadeHref` | frontend | 📝 **plan written 2026-08-06** — same doc §3 (22-row suppression matrix). **3 scope findings vs plan §A.3:** ① the commission **layout** (`c/[commission]/layout.tsx` L63) carries the same `role === null` gate and 404s the reviewer before the page runs — and widening it naively shows the FULL member sidebar (`AppSidebar.isVisible` treats `role === null` as "admin sees everything"); ② `src/app/page.tsx` root landing has no reviewer branch → a pure reviewer hits "sem acesso" (the BUG-HAT-001 / Diretor-Técnico shape, 3rd recurrence); ③ two live WRITE affordances are gated on a **flag**, not on caps — `NotifyEventDialog` (`patientSafetyEnabled` alone) and `correctionCaps.canFile = isOpen`. FE set is **27 files**, not §A.3's ~16–18 |
@@ -424,6 +424,23 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### 🟡 FUP-QO-1 — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
+
+M3 (`20260911000200`) added the D9 expiry SETTER to the grant chain; enforcement was already
+universal. Two behaviors are **deliberately deferred**, lead-acked at plan approval, and — because
+Phase C's break-glass (ADR 0100 D14) will ride this exact seam — each is pinned **executably** in
+pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not surprise D14):
+
+- **Re-grant does not extend expiry.** An identical (principal, role, org, hospital, commission)
+  grant with a NEW `p_expires_at` hits the **targeted** `ON CONFLICT … DO NOTHING` and leaves the
+  existing row's expiry untouched (`306` 4.5/4.6). Break-glass "extend the window" therefore needs
+  its own door decision in Phase C (revoke+regrant, or a widen of the conflict clause).
+- **The commission-tier atomic-replace UPDATE path does not write `expires_at`** (`306` 4.13) —
+  a role change keeps the ORIGINAL expiry and ignores the new argument.
+
+Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
+(singleton set, both directions).
 
 ### 🔴 FUP-QO-2 — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
 

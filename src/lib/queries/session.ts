@@ -90,6 +90,21 @@ export interface TechnicalDirectionMembership {
   role: 'technical_director' | 'technical_director_deputy'
 }
 
+/**
+ * A hospital whose quality office the caller reviews for (ADR 0100 D1,
+ * `quality_reviewer`) — hospital-scoped, one entry per reviewed hospital.
+ *
+ * ⚠ STRICTLY READ-ONLY standing (D7): nothing may map this to a member role.
+ * The reviewer reaches committee content through the DB's S7 arm
+ * (`app._case_caps`) on oversight-VISIBLE commissions only; this list exists so
+ * the shell can route `/o/[org]/qualidade` and flag the read-only case view —
+ * never to open a write affordance.
+ */
+export interface QualityReviewMembership {
+  organization: OrganizationRef
+  hospital: HospitalRef
+}
+
 export interface SessionContext {
   userId: string
   email: string
@@ -139,6 +154,13 @@ export interface SessionContext {
    * the shape-now/inert-now seam). Empty in Phase A.
    */
   nspOrgAdminOf: OrgAdminMembership[]
+  /**
+   * Hospitals whose quality office the caller reviews for (ADR 0100,
+   * `quality_reviewer`). Empty for everyone else. Like the technical direction,
+   * this office confers no commission membership — without this list the shell
+   * cannot route the reviewer anywhere (FUP-QO-2 is exactly that failure).
+   */
+  qualityReviewerOf: QualityReviewMembership[]
 }
 
 /**
@@ -301,6 +323,31 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     }))
     .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
 
+  // ADR 0100 QO·A — quality review. The same "adding a role means adding a FILTER
+  // here, not a query" seam as the technical direction above.
+  const qualityReviewerOf: QualityReviewMembership[] = grants
+    .filter(
+      (
+        g,
+      ): g is SessionGrant & {
+        organization: OrganizationRef
+        hospital: NonNullable<SessionGrant['hospital']>
+      } =>
+        g.role === 'quality_reviewer' &&
+        g.organization !== null &&
+        g.hospital !== null,
+    )
+    .map((g) => ({
+      organization: g.organization,
+      hospital: {
+        id: g.hospital.id,
+        slug: g.hospital.slug,
+        name: g.hospital.name,
+        organizationId: g.hospital.organization_id,
+      },
+    }))
+    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
+
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
   // the JWT already authenticated the user), default to `active`: RLS is the real
   // data backstop, and we must not hard-lock a valid session on a read miss.
@@ -331,6 +378,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     hospitalAdminOf,
     technicalDirectionOf,
     nspOrgAdminOf,
+    qualityReviewerOf,
   }
 })
 
@@ -404,6 +452,16 @@ export interface CommissionAccess {
    * 0061). `false` when the flag is OFF. Independent of `capabilities` — an
    * Administrativo may hold zero capabilities. */
   isAdministrativo: boolean
+  /**
+   * ADR 0100 D10 — the caller reaches this commission ONLY as a quality
+   * reviewer (hospital-scoped `quality_reviewer` of the commission's hospital,
+   * commission oversight-visible). Always paired with `role: null`: the
+   * reviewer is a FLAG, never a member role — mapping it to `'staff_admin'`
+   * would open every `role === 'staff_admin'` write gate, which D7 forbids.
+   * Write affordances stay hidden; the DB arm (S7 confers read bits only) is
+   * the boundary either way.
+   */
+  isQualityViewer: boolean
 }
 
 export const getCommissionAccessByOrg = cache(
@@ -473,6 +531,21 @@ async function getCommissionAccessByOrgUncached(
   const role: CommissionRole | null =
     memberRole ?? (isCommAdmin ? 'staff_admin' : null)
 
+  // ADR 0100 D10 — the quality-reviewer VIEWER branch. Evaluated only when the
+  // member/commission-admin checks above resolved nothing: a reviewer who is
+  // ALSO a member keeps their member role (and its affordances) untouched. No
+  // oversight-visibility re-check here — the commission row above is RLS-scoped,
+  // and for a bare reviewer the ONLY admitting arm of
+  // `commissions_select_member_or_admin` is `is_quality_reviewer_of(hospital) AND
+  // quality_oversight = 'visible'` (M6), so an excluded commission never reaches
+  // this line (`!commissionRow` already returned null → 404).
+  const isQualityViewer =
+    role === null &&
+    commission.hospitalId !== null &&
+    context.qualityReviewerOf.some(
+      (q) => q.hospital.id === commission.hospitalId,
+    )
+
   // Administrativo standing (ADR 0061), flag-aware. The self arm of the SELECT
   // policies returns the caller's own rows; we still filter to (commission, self)
   // explicitly. When the flag is OFF, the rows may exist but confer nothing (the
@@ -498,7 +571,15 @@ async function getCommissionAccessByOrgUncached(
     capabilities = (capRows ?? []).map((r) => r.capability)
   }
 
-  return { context, organization, commission, role, capabilities, isAdministrativo }
+  return {
+    context,
+    organization,
+    commission,
+    role,
+    capabilities,
+    isAdministrativo,
+    isQualityViewer,
+  }
 }
 
 /**
@@ -554,6 +635,48 @@ export const getTechnicalDirectionAccessByOrg = cache(
     if (held.length === 0) return null
 
     return { context, organization: held[0].organization, hospitals: held }
+  },
+)
+
+/**
+ * The quality-office console access resolver (ADR 0100 D10) — the seam behind
+ * `/o/[org]/qualidade/**`, mirroring {@link getNspAccessByOrg}'s shape with the
+ * technical-direction resolver's NO-DATABASE-READ resolution: a reviewer's ONLY
+ * standing is a hospital-tier membership, and `session_context` (SECURITY
+ * DEFINER) already returned the org ref alongside each grant — match the slug
+ * against it. (The `organizations_select` RLS arm for the reviewer EXISTS — M6,
+ * `is_quality_reviewer_in_org` — and is what makes the org-scoped screens'
+ * direct reads work; console ENTRY just doesn't need the round trip.)
+ *
+ * Returns `null` (→ `notFound()`, leaking nothing) when the caller reviews no
+ * hospital of this org. `hospitals` drives the `?hospital=` data filter
+ * (hospital is NEVER a URL segment — ADR 0041 D8). Everything the console shows
+ * is re-gated at the data doors: the board door 42501s a non-reviewer, and every
+ * case row rides `app.can_read_case` (the S7 arm; D6 keeps locked cases out).
+ */
+export const getQualidadeAccessByOrg = cache(
+  async (
+    orgSlug: string,
+  ): Promise<{
+    context: SessionContext
+    organization: OrganizationRef
+    orgId: string
+    hospitals: QualityReviewMembership[]
+  } | null> => {
+    const context = await getSessionContext()
+    if (!context) return null
+
+    const held = context.qualityReviewerOf.filter(
+      (q) => q.organization.slug === orgSlug,
+    )
+    if (held.length === 0) return null
+
+    return {
+      context,
+      organization: held[0].organization,
+      orgId: held[0].organization.id,
+      hospitals: held,
+    }
   },
 )
 
