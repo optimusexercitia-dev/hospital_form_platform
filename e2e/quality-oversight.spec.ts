@@ -100,13 +100,30 @@ const FARMACIA_CASE = 'dba00000-0000-0000-0000-0000000000b1' // case_number 1
 const NOT_FOUND_GLOBAL = 'Não encontramos esta página.'
 const CCIH_SWITCH_NAME =
   'Supervisão da qualidade — Comissão de Controle de Infecção Hospitalar'
+const FARMACIA_SWITCH_NAME =
+  'Supervisão da qualidade — Comissão de Farmácia e Terapêutica'
 
-/** Read a KPI card's VALUE paragraph by its label text (see quality-kpi-strip.tsx:
- *  each card is one <div> with 3 <p> children — label, value, sub-line — and no
- *  nested <div>s, so filtering the region's <div>s by label text isolates exactly
- *  one card. */
+/**
+ * Read a KPI card's VALUE paragraph by its label text.
+ *
+ * ⚠ Deliberately walks from the EXACT label text node to its own parent,
+ * rather than `region.locator('div').filter({ hasText: label })` (the
+ * original shape, which broke silently after `quality-kpi-strip.tsx` grew a
+ * wrapping <div> around the grid — commit 7ca0207). Once that wrapper
+ * exists, a `hasText`-filtered `div` search matches BOTH the wrapper (every
+ * label's text is somewhere in its subtree) AND the specific card, and a
+ * chained `.locator('p').nth(1)` over two matched roots does not reliably
+ * resolve to the card's own value paragraph. Locating the unique exact-text
+ * label first and taking its immediate parent is robust to any number of
+ * ancestor wrappers introduced above the card, because it never searches
+ * downward through them in the first place.
+ */
 function kpiValue(region: Locator, label: string): Locator {
-  return region.locator('div').filter({ hasText: label }).locator('p').nth(1)
+  return region
+    .getByText(label, { exact: true })
+    .locator('xpath=..')
+    .locator('p')
+    .nth(1)
 }
 
 async function signIn(page: Page, email: string) {
@@ -153,12 +170,23 @@ test.describe('QO·A — oversight board', () => {
       page.getByRole('heading', { name: 'Casos sob supervisão' }),
     ).toBeVisible({ timeout: 10_000 })
 
-    const kpi = page.getByRole('region', { name: 'Indicadores da supervisão' })
+    // The region's accessible name comes from its own visible <h2> via
+    // aria-labelledby (commit 7ca0207) — matching that heading, not an
+    // aria-label string that could drift from what's on screen.
+    const kpi = page.getByRole('region', { name: 'Visão geral' })
     await expect(kpi).toBeVisible()
     await expect(kpiValue(kpi, 'Comissões')).toHaveText('1')
     await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('5')
     await expect(kpiValue(kpi, 'Em aberto')).toHaveText('4')
     await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
+    // FUP-QO-4's scope note is conditional on commissions.length > 1 — for
+    // this single-commission reviewer it must NOT render (there is nothing
+    // for it to disambiguate: the strip and the one-row table already agree).
+    await expect(
+      page.getByText(
+        'Somatório de todas as comissões sob supervisão — não muda com o filtro de comissão abaixo.',
+      ),
+    ).toHaveCount(0)
 
     // POSITIVE — specific seeded case numbers, never a bare row count.
     for (const n of ['0001', '0002', '0003', '0004', '0005']) {
@@ -531,6 +559,181 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
     await expect(
       page.getByRole('switch', { name: CCIH_SWITCH_NAME }),
     ).toBeVisible({ timeout: 10_000 })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 12. Multi-commission board (D10 cross-committee) — the reason the console
+//    exists: a reviewer seeing ACROSS committees, not just one. No seed
+//    fixture provides a second oversight-visible commission for quality.a —
+//    `backend` proved adding one reds tenant-isolation keystones 171/189 or
+//    destroys the quality.a2 / same-hospital-excluded fixtures — so this test
+//    establishes the precondition itself, via the SAME door the D9 toggle
+//    test above uses (`set_commission_oversight`). This exercises the real
+//    onboarding flow ADR 0100 D8 describes (an admin opts a committee in,
+//    the board gains it) rather than testing a seed state that arrived by
+//    magic. Restored by commission NAME/id (never positionally) inside
+//    try/finally; the restore is ASSERTED at the end, not trusted.
+//
+//    Ground truth (live-probed via the real RPC path, then reverted —
+//    2026-08-07): with CCIH + Farmácia both visible, quality.a's
+//    `quality_board_summary` returns CCIH (5/4/1, unchanged) + Farmácia
+//    (total=1, open=1, locked=0 — its one case is case_number 1, "Análise
+//    de parecer — CCIH", pending). Both commissions mint case_number
+//    independently, so "Caso 0001" is NOT a unique accessible name once
+//    both are visible — disambiguated below by label text, never the bare
+//    case number, to avoid a strict-mode collision.
+//
+//    ⚠ VERIFIED, not assumed, and deliberately asserted rather than
+//    omitted: the KPI strip and the locked-count note are both computed
+//    server-side from the FULL oversight-visible commission set and
+//    rendered as SIBLINGS of the client-filtered board (`page.tsx`) — no
+//    prop path carries the chip's client-side selection state back up to
+//    them. They stay the GLOBAL aggregate regardless of which chip is
+//    active; only the table ROWS narrow. Confirmed a design question, not a
+//    defect (lead ruling 2026-08-07) — recorded as FUP-QO-4. Asserting the
+//    constant-across-selection behavior explicitly (not omitting it) means
+//    this test notices if a later change makes the strip recompute.
+// ---------------------------------------------------------------------------
+
+test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
+  test('flipping a second commission visible: the chip row mounts, narrows the board per selection, KPI/locked-count stay the global aggregate, and the excluded-elsewhere commission stays absent throughout', async ({
+    page,
+  }) => {
+    await signIn(page, 'quality.a@test.local')
+    await page.goto(QUALIDADE)
+    await expect(
+      page.getByRole('heading', { name: 'Casos sob supervisão' }),
+    ).toBeVisible({ timeout: 10_000 })
+    // BEFORE: single commission, so the chip row (>1 gate) does not mount,
+    // and a commission fully outside quality.a's hospital scope is absent.
+    await expect(
+      page.getByRole('group', { name: 'Filtrar casos por comissão' }),
+    ).toHaveCount(0)
+    let body = (await page.locator('body').textContent()) ?? ''
+    expect(body).not.toContain('Comissão de Ética')
+
+    await signIn(page, 'hospitaladmin.a1@test.local')
+    await page.goto(COMISSOES)
+    const toggle = page.getByRole('switch', { name: FARMACIA_SWITCH_NAME })
+    await expect(toggle).toBeVisible({ timeout: 10_000 })
+    await expect(toggle).not.toBeChecked()
+
+    try {
+      // KEYBOARD-operated, mirroring the D9 toggle test's discipline.
+      await toggle.focus()
+      await expect(toggle).toBeFocused()
+      await page.keyboard.press('Space')
+      await expect(toggle).toBeChecked({ timeout: 10_000 })
+
+      await signIn(page, 'quality.a@test.local')
+      await page.goto(QUALIDADE)
+      await expect(
+        page.getByRole('heading', { name: 'Casos sob supervisão' }),
+      ).toBeVisible({ timeout: 10_000 })
+
+      // CHIP ROW MOUNTS — lists both commissions, correct names + counts.
+      const chips = page.getByRole('group', {
+        name: 'Filtrar casos por comissão',
+      })
+      await expect(chips).toBeVisible({ timeout: 10_000 })
+      const ccihChip = chips.getByRole('button', {
+        name: /^Comissão de Controle de Infecção Hospitalar/,
+      })
+      const farmaciaChip = chips.getByRole('button', {
+        name: /^Comissão de Farmácia e Terapêutica/,
+      })
+      await expect(ccihChip).toBeVisible()
+      await expect(ccihChip).toContainText('5')
+      await expect(ccihChip).toContainText('1 restrito')
+      await expect(farmaciaChip).toBeVisible()
+      await expect(farmaciaChip).toContainText('1')
+      await expect(farmaciaChip).not.toContainText('restrito')
+
+      // KPI + locked-count note: the GLOBAL aggregate (FUP-QO-4) — asserted
+      // ONCE here, before any chip is touched, then re-asserted unchanged
+      // after selection below. Region located by its visible <h2> (commit
+      // 7ca0207), not an aria-label string.
+      const kpi = page.getByRole('region', { name: 'Visão geral' })
+      await expect(kpiValue(kpi, 'Comissões')).toHaveText('2')
+      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('6')
+      await expect(kpiValue(kpi, 'Em aberto')).toHaveText('5')
+      await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
+      await expect(
+        page.getByText('1 caso restrito não aparece nesta lista.'),
+      ).toBeVisible()
+      // FUP-QO-4's own scope note, IN the strip — must render now that >1
+      // commission is visible (the exact condition that makes "Casos
+      // visíveis: 6" above the per-commission table ambiguous otherwise).
+      await expect(
+        page.getByText(
+          'Somatório de todas as comissões sob supervisão — não muda com o filtro de comissão abaixo.',
+        ),
+      ).toBeVisible()
+
+      // "Todas": both commissions' case_number-1 rows coexist — a genuine
+      // number collision (each commission mints its own sequence), so the
+      // bare case-number link now matches BOTH; disambiguate by label.
+      await expect(
+        page.getByRole('link', { name: 'Caso 0001' }),
+      ).toHaveCount(2)
+      await expect(page.getByText('Óbito UTI leito 7')).toBeVisible()
+      await expect(page.getByText('Análise de parecer — CCIH')).toBeVisible()
+
+      // SELECT Farmácia — narrows to its case only; CCIH's cases (incl. the
+      // still-locked case 6) disappear from the table.
+      await farmaciaChip.click()
+      await expect(page.getByText('Análise de parecer — CCIH')).toBeVisible()
+      await expect(page.getByText('Óbito UTI leito 7')).toHaveCount(0)
+      await expect(
+        page.getByRole('link', { name: 'Caso 0001' }),
+      ).toHaveCount(1)
+
+      // KPI/locked-count UNCHANGED by the selection (FUP-QO-4 — the
+      // constant-aggregate behavior, pinned rather than omitted).
+      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('6')
+      await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
+
+      // SELECT CCIH — narrows the other way; Farmácia's case disappears.
+      await ccihChip.click()
+      await expect(page.getByText('Óbito UTI leito 7')).toBeVisible()
+      await expect(
+        page.getByText('Análise de parecer — CCIH'),
+      ).toHaveCount(0)
+      await expect(
+        page.getByRole('link', { name: 'Caso 0006' }),
+      ).toHaveCount(0) // the locked case — still invisible under this filter too
+
+      // The fully out-of-scope commission stayed absent through the whole
+      // flip, proving the flip's effect is scoped to Farmácia, not global.
+      body = (await page.locator('body').textContent()) ?? ''
+      expect(body).not.toContain('Comissão de Ética')
+    } finally {
+      // RESTORE by commission NAME (the switch's aria-label is keyed to
+      // it), never positionally.
+      await signIn(page, 'hospitaladmin.a1@test.local')
+      await page.goto(COMISSOES)
+      const toggleAgain = page.getByRole('switch', {
+        name: FARMACIA_SWITCH_NAME,
+      })
+      await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
+      if (await toggleAgain.isChecked()) {
+        await toggleAgain.focus()
+        await page.keyboard.press('Space')
+        await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
+      }
+    }
+
+    // ASSERT the restore landed — Farmácia disappears from quality.a's
+    // board again (the chip row un-mounts, and the same-hospital-excluded
+    // denial fixture the rest of this file relies on is genuinely back).
+    await signIn(page, 'quality.a@test.local')
+    await page.goto(QUALIDADE)
+    await expect(
+      page.getByRole('group', { name: 'Filtrar casos por comissão' }),
+    ).toHaveCount(0)
+    body = (await page.locator('body').textContent()) ?? ''
+    expect(body).not.toContain('Farmácia')
   })
 })
 
