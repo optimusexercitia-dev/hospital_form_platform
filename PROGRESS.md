@@ -105,6 +105,14 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### ⬛ QO·FUP — FUP-QO close-out (F1–F9) · **COMPLETE 2026-08-07** · QA **APPROVED (r2)**
+
+All of FUP-QO-1…8 resolved (QO-6 accepted-provisional, open LOW; QO-9 filed, open). Full record —
+PO rulings D-FUP-1/4/6/6b + the NULL-expiry ruling (ADR 0103), task table F1–F9, gate detail —
+rotated → [qo-fup-close-out.md](docs/progress/qo-fup-close-out.md). Review:
+[qo-fup-review.md](docs/reviews/qo-fup-review.md) · ADRs 0101/0102/0103 · migrations
+`20260912000000`+`…000100` · E2E all 1019 accounted green.
+
 ### ⬛ QO·A — Quality-office oversight, Phase A · **COMPLETE 2026-08-07**
 
 Full record (task table, the five findings, the M8→M11 narrative, perf numbers, gate detail) rotated →
@@ -323,6 +331,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-07 | **QO·FUP F6 · `tester` · full `e2e:prod` under load (`REBUILD=1`, defaults) + the out-of-process DB poller, for FUP-QO-6** — main gate: 1019 collected, 17 batches, `--` no `reset FAILED`, batches 1–17 present/no gaps. **Plus a scoped `SPECS=` resume** (`REBUILD=0`, build intact) covering exactly the 3 batches the main gate could not prove clean: b4 (5 specs, crashed exit127/0 tests), b12 (6 specs, 1 failed + 6 did-not-run), b17 (1 spec, 1 failed + 6 did-not-run) — plus a confirmatory solo re-run of `phase14b-triage` (b11's failing spec) | **GATE RED on the main run, but every red re-proven GREEN on isolated fresh-reset re-run — no deterministic regression found.** Main gate: **924 passed · 5 failed · 0 infra · 5 flaky · 12 did-not-run · accounted 946/1019**. Root cause of all 5 real failures + the b4 crash: a **PGRST002 schema-cache-not-ready race right after `db reset`**, filed separately as **FUP-QO-9** (classifier gap, owner backend/`scripts/e2e-prod-gate.sh` — not re-litigated here). Resume run: **155 passed · 0 failed · 0 flaky · 0 did-not-run · accounted 155/156** — b4's 69 tests (ethics-e1/e2/e3a, ff1, ff2) **69/69 clean**, b12's 67 tests (phase16-accreditation ×4, phase17-documents, phase2-auth-shell) **67/67 clean**, b17's `wizard-others-ux` **7/7 clean**, `phase14b-triage` T1–T9 **13/13 clean** (matches the ALREADY-documented order-dependent baseline flake from the prior QO·A gate row above — same exact signature, re-confirmed, not new). **Combined: every one of the 1019 originally-collected tests is now accounted for and green** (either clean in the main run or clean in the isolated resume). ⚠ **Process note, corrected mid-run**: the lead flagged the main gate as "dead, not running" based on a static `batch-17.log` + idle host — verified from evidence (output-file mtime exactly matching the printed `GATE SUMMARY`/`GATE RED` line, zero live processes, batches 1–17 timestamped in unbroken sequence) that the run had actually **completed normally**; batch 17 wasn't retried because its failure (PGRST002) doesn't match the classifier's connection-error signature, not because anything hung. **FUP-QO-6 classification (the task's actual question): NOT REPRODUCED under load.** `quality-oversight.spec.ts` ran once in the main gate (batch 16, 11:48–11:51) with **all D9/D10 toggle tests passing cleanly** — WRITE PATH 1.5s, READ PATH 1.6s, D10 WRITE 1.3s, D10 READ 1.9s, no failure/no near-timeout anywhere near the previously-seen ~11.5s pattern. **Poller had continuous coverage** (13:52:44–16:12:5x UTC across two overlapping segments, ~12,100 total samples, 0 gaps) but **caught zero `excluded` samples for `ccih`** in the batch-16 window — the WRITE-PATH flip+revert (`finally`-block restore) completes in under the poller's ~1.6s interval, i.e. sampling aliasing, not a lost-write signal; consistent with (not proof against) the write landing correctly and fast. **What this run adds to the FUP-QO-6 record**: one additional trial under genuine full-suite load with zero reproduction, extending the prior 15/15-isolated streak; the honest read given the ~20–25% base rate is that either the failure mode is rarer than believed or clusters with a specific contention shape this run's timing didn't hit — **still not established**, and this tester is not manufacturing a classification where none exists. Poller logs kept at `oversight-samples.log` / `oversight-samples-resume.log` (scratchpad, not committed) for anyone re-opening FUP-QO-6 |
 | 2026-08-07 | **QO·A · LEAD · FINAL `e2e:prod` gate on the post-M11 tree (`bcbda01`)** — `REBUILD=1`, defaults; 1019 collected, 17 batches. Stack pre-flighted with a **settle window (two samples, 20 s apart)**, not a single glance — 0 runners / 0 servers / port clear / 0 chrome shells both times. **Plus 3 follow-on runs** to close what the gate could not prove: (a) re-run of every spec in the 4 affected batches (b3/b6/b12/b13, 270 tests, `BATCH_TESTS=25`), (b) a 3-spec run to close the 9 that cascaded (23 tests, `BATCH_TESTS=12`), (c) `phase14b-triage` alone on a fresh reset (13 tests) | **QO IS GREEN. Suite green modulo the documented order-dependent flaky baseline.** Main gate: **905 passed · 6 failed · 0 infra · 6 flaky · 97 did-not-run · accounted 1014/1019**, `reset FAILED` = **1**. ⚠ **The 97 unrun are the headline, not the 6 failures** — 69 of them because **batch 13's `db reset` failed outright**, dropping that batch from the gate's own arithmetic; `1014/1019` would otherwise have read as near-complete coverage. Batches 1–17 present, no gaps. **`quality-oversight.spec.ts`: 18/19 passed outright + 1 flaky** (`:275` root landing, failed once at **15.9 s** then passed on retry at **1.3 s** — cold start on the first test after a fresh server, not a defect). Every substantive QO assertion passed: both D9/D10 write-path/read-path splits, D6 lockdown + coordinator control, cross-org isolation + own-console control, excluded-commission 404 + Farmácia-coordinator control, keyboard-only flow. **NONE of the 6 failures is QO** — and **every one is order-dependent, proven by cross-validation**: `case-phase-result` · `form-builder-enhancements` · `phase16-accreditation-core` all **failed in the main gate and PASSED in run (a)**; `charters-cadence` **passed in the main gate, failed in (a), then PASSED in (b)**; `phase14b-triage` T1–T3 failed in-batch but pass **13/13 alone on a fresh reset** (run c). No deterministic failure survives two runs. **All 97 unrun are now covered**: run (a) accounted **270/270** with 0 `reset FAILED` (incl. `phase22-referrals` **40 ok / 0 failed**, the 69 lost to the failed reset), run (b) **GATE GREEN 23/23**. ⚠ **Lead process failures recorded**: (1) an earlier gate survived `TaskStop` — it kills the wrapper, **not** the gate script's tree — and a **single port-3000 sample** "verifying" the kill landed between per-batch server restarts, so the zombie ran on through batches 5→9 and collided with `backend`'s resets **in both directions** (that run is VOID; see the collision note). (2) Two further unscoped-detector errors: a watcher keyed on `batch-3.log` fired while batch 4 still ran, and a `grep` across **all** `batch-*.log` (incl. stale files from prior runs) reported "33 QO failures" that did not exist. **Scope every detector to the run under test, and never verify a kill with one sample** |
 | 2026-08-07 | **QO·A · `tester` · scoped 7-spec re-run (NOT a full gate)** — `processless-cases` + both `process-template-*` + 4 siblings + `quality-oversight`, `BATCH_TESTS=25`, fresh build | **70 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 2 skipped of 72 collected**, 4 batches, self-terminated 05:28:36→05:33:54. `quality-oversight.spec.ts` **18/18** in batch 4. Independently reconciled by the lead against `spec-counts.txt` before the collision was diagnosed. ⚠ Recorded as a **scoped verification, not a Phase-Gate suite run** — `tester` declined to write it into this table for exactly that reason, which was the correct call |
 | 2026-08-07 | **QO·A · LEAD · full `e2e:prod` gate #1 (pre-D7-fix baseline)** — `REBUILD=1`, defaults otherwise (`BATCH_TESTS=70`, `RESET=1`, `RETRIES=1`, `INFRA_RETRY=1`); HEAD `9bb789b` **plus one comment-only uncommitted diff** in `e2e/quality-oversight.spec.ts` (stable throughout — the gate runs files on disk, not HEAD; recorded rather than claimed as a clean freeze). 87 spec files → 16 batches, fresh server + fresh DB per batch | **GATE RED — 992 passed · 8 failed · 0 infra · 4 flaky · 8 did-not-run · 3 INFRA re-runs · accounted 1012/1017.** Structural checks clean **first**: `reset FAILED` = **0**, batches 1–16 present with **no gaps**. ⚠ **Two reading traps hit, both the lead's:** (1) the task notification reported **exit 0** while the gate's own exit was **1** — the wrapper ended in `tail`, so `$?` was `tail`'s; *the exit code is not the signal*. (2) A first triage grep for the spec name AND `fail` **on the same line** returned "quality-oversight: NO failures" — impossible to match, since Playwright prints them on separate lines; a detector scoped to the wrong property, whose silence read as good news. Re-extracted per batch for real attribution. **Attribution: 3 of 8 are QO** (`quality-oversight.spec.ts` b15 — `Casos visíveis` expected `5`, received **`15`**: batch 15 runs `processless-cases` + both `process-template-*` specs before it on the shared DB and they create CCIH cases. **Spec defect, not product** — `Comissões` still 1, locked case still invisible; the reviewer correctly saw the extra cases). **5 are unrelated baseline flake**: `nsp-per-hospital:120` · `phase14b-triage` T1–T3 · `recommend-result` RR-1a. `nsp-per-hospital` was **not** written off — it asserts cross-hospital isolation next to M6's widened `hospitals_select`/`organizations_select`, so `backend` probed it live: populations 3/1/1 disjoint, `pqs.a` sees exactly central-a's 3, `is_quality_reviewer_of(secundario-a)` and `is_quality_reviewer_in_org(rede-a)` both **false**, `hospitals_select` yields zero for `pqs.a` → **isolation HOLDS, M6 exonerated** (its own first two probes read `0/0` with a zero control and were discarded — a hospital UUID had been passed into `pqs_inbox`'s `p_status text`). **8 did-not-run in b16 — nothing proven for them; must be covered in the re-run.** Gate #2 follows the D7 cut wave + the tester's contamination fix |
@@ -340,6 +349,8 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **QO·FUP** — follow-up close-out (F1–F8; ADRs 0101/0102) | ✅ **APPROVED (r2)** — `6b6f894` closes **R1** at all three record sites with **visible corrections** (not silent rewrites); **FUP-QO-7 re-scoped to the true finding, re-graded PHI-grade, and correctly NOT declared a defect** (blank expiry may legitimately mean "permanent" — needs its own property-bounded caller sweep + PO ruling + an executable pin either way; door untouched). Its new reachability claim re-verified from the catalog (`grant_case_access` / `create_case` / `create_case_from_template` — exactly those three). Recorded root cause is the reusable half: **a fixed-width `substring(… for N)` is a WINDOW, not a delimiter — absence inside it is not absence**, and it failed in the urgency-suppressing direction. **R2** recut onto the property "reaches `app.grant_role_impl`" — doors + SQL tier match my sweep exactly. **R3** both `platform/actions.ts` sites fixed *with the why*, plus a real bonus catch (`pqs/actions.ts` named a `(hospital,user)` PK that does not exist). Lint/typecheck/vitest 1172 re-run green after the `src/` edits. **2 MINOR carried forward, non-blocking:** the recut TS list is short by 3 (`org/actions.ts:238`/`:320`/`:385` — the callers of three SQL functions it does name; 9 → 12, none passes `p_expires_at`, ruling unaffected) + 3 line numbers drifted inside the same commit; and the R3 sweep covered `src/` only, leaving `145_pqs_membership.sql:112` + `224_memberships_collapse.sql:435` — both residuals are the same class as the finding they correct (a property's transitive closure; the union of scoped sweeps). Plus r1's R4–R6 INFO. | 2026-08-07 | [r2](docs/reviews/qo-fup-review.md#round-2--re-review-of-the-6b6f894-corrections) |
+| ~~**QO·FUP** — round 1 (R1 case-door divergence recorded backwards)~~ | ⛔ CHANGES REQUESTED (r1) — **no shipped code needs to change**; every behavioural deliverable re-derived from the live catalog and correct, all gates green on a fresh reset (pgTAP 5371, `ARM=census` + `ARM=floor` hold, f1-seam **6/6**, a2 **12/12** with both controls, vitest 1172, lint/typecheck clean — this also discharges F8's PARKED fresh-reset gates). **R1 MAJOR (blocking):** ADR 0102 + FUP-QO-7 + backend-state.md state as *catalog-verified* that `app._grant_case_access_unchecked` "omits `expires_at`" / "keeps the do-nothing seam" — the catalog shows `expires_at = excluded.expires_at` **present and uncoalesced**, i.e. the opposite and worse: a blank-expiry re-grant **clears** a time-boxed PHI grant to permanent (reproduced through the real door), and FUP-QO-7 as filed points away from it. **R2 MINOR:** the caller sweep carrying the NULL ruling names 3 callers; the real set is 3 doors / 8+ sites (`grant_role_for` and 5 SQL callers unlisted) — conclusion survives, re-swept. **R3 MINOR:** 4 prose sites still assert the pre-F1 `on conflict do nothing`. 3 INFO. | 2026-08-07 | [qo-fup](docs/reviews/qo-fup-review.md) |
 | **QO·A** — Quality-office oversight, Phase A (ADR 0100 D1–D11) | ✅ **APPROVED (r3)** — R1 + R2 closed by M11 (`20260911001000`) at the level that generalises. **R1:** interview family re-derived independently by **FK closure to `case_interviews`** (a structural property, not text) = 8 tables + the `attachments` `'interview'` dispatcher arm — **zero** still route the widened `can_read_case`; behaviourally reviewer **0** / coordinator **1** on both former leaks; the `'case'` arm survives and is guarded by an **inverted postcondition** (fails if it is ever changed). **R2:** 8 lattice assertions present, S3/S4 twins genuinely non-vacuous (each proves the antecedent), all 8 green pre-M11 on a true 312 catalog — pinned an invariant, did not repair a break. **§5.1** is a real derivation with an empty-set twin and mirrored as a migration postcondition. **PO ruling** pinned in the catalog (both `COMMENT ON POLICY`, in-migration so they survive a reset) and by `311` §5.2c, which reds on re-point/delete/rename. **Carried forward, non-blocking:** 1 MINOR (§6's S3/S4 fixtures also hold `staff`, so S5 supplies the deliberation half — the assertions cannot isolate the arm they name; one-line fix, **land before Phase B**) + 2 INFO (§5.1's anchor is a token so DEFINER doors fall outside it; 6.4/6.5 lack positive twins and 6.6 is a marker not a proof) + r1's m3. | 2026-08-07 | [r3](docs/reviews/quality-office-oversight-review.md#9-round-3--re-review-of-the-m11-closure) |
 | ~~**QO·A** — round 2 (R1 interview family incomplete; R2 lattice invariant unpinned)~~ | ⛔ CHANGES REQUESTED (r2) — r1's B1/M1/M2/m1/m2 + the perf record all **CLOSED** by M10 (`20260911000900`) and closed well. **2 new, both in the remediation:** **R1 BLOCKER** — the interview-family cut is incomplete: `case_interview_links_select` and `can_read_attachment`'s `'interview'` arm still route the raw `can_read_case`, so the reviewer reads the interview's **external audio-recording URL** (`external_url` is column-granted; seeded value is a `.mp3`) and its transcript's title while `can_read_interview` is **false** — M10 cut 7 of the family's 8 tables because the enumeration boundary was a *predicate name*, and `311` §5.1's hardcoded table count cannot detect a member never in the list. **R2 MAJOR** — the lattice invariant M8+M9+M10 all rest on ("content without deliberation ⟺ S7") is pinned by no keystone; a future content-conferring arm silently over-cuts ~20 surfaces with LOST ≠ 0 and nothing reds. Consumer enumeration **independently re-derived** (71 fns / 46 policies) — agrees with M10 everywhere except R1; `case_participants` chased and cleared (`is_org_member` needs `commission_id NOT NULL`). §6 disarming sweep: **no further instance.** | 2026-08-07 | [r2](docs/reviews/quality-office-oversight-review.md#8-round-2--re-review-of-the-m10-remediation) |
 | ~~**QO·A** — round 1 (B1 three write doors on `can_read_case`; M1 Class-2 identity; M2 interviews)~~ | ⛔ CHANGES REQUESTED — 1 BLOCKER (B1: D7 breached — `file_correction_request` / `declare_conflict` / `record_recusal` gate on `can_read_case` alone, which S7 satisfies; live-probed reachable, unpinned by any suite, and `308` 1.4 is vacuous w.r.t. them), 2 MAJOR (M1 Class-2 `professional_profiles` reachable vs. D5; M2 interviews DB-open / UI-hidden vs. Rule 1), 3 MINOR | 2026-08-07 | [r1](docs/reviews/quality-office-oversight-review.md) |
@@ -418,46 +429,20 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
-### 🟡 FUP-QO-1 — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
+### 🟢 FUP-QO-6 — oversight-toggle slow-confirm: **annoyance severity ACCEPTED provisionally (PO ruling 2026-08-07)**; open LOW priority, DB-vs-UI formally unclassified
 
-M3 (`20260911000200`) added the D9 expiry SETTER to the grant chain; enforcement was already
-universal. Two behaviors are **deliberately deferred**, lead-acked at plan approval, and — because
-Phase C's break-glass (ADR 0100 D14) will ride this exact seam — each is pinned **executably** in
-pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not surprise D14):
+**PO ruling 2026-08-07 (D-FUP-6b):** after 16 total trials with 0 recurrences (15 isolated +
+1 full-load gate with a continuous ~12,100-sample out-of-process poller — see the Test Run
+Summary row), the stale-UI (annoyance) assumption is **accepted provisionally for the pilot**.
+The lost-write question stays formally open at LOW priority; nobody manufactures a
+classification. If it recurs, the recorded next step is a targeted 20–30× repeated-trial run
+of the D9 test alone under artificial contention with a **sub-second** poller (the ~1.6 s
+interval aliases past the flip — proven this run). ⛔ The original "do not fix by raising the
+timeout" stands. Original record + diagnostic history below.
 
-- **Re-grant does not extend expiry.** An identical (principal, role, org, hospital, commission)
-  grant with a NEW `p_expires_at` hits the **targeted** `ON CONFLICT … DO NOTHING` and leaves the
-  existing row's expiry untouched (`306` 4.5/4.6). Break-glass "extend the window" therefore needs
-  its own door decision in Phase C (revoke+regrant, or a widen of the conflict clause).
-- **The commission-tier atomic-replace UPDATE path does not write `expires_at`** (`306` 4.13) —
-  a role change keeps the ORIGINAL expiry and ignores the new argument.
+<details><summary>Original entry (2026-08-07, pre-ruling)</summary>
 
-Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
-(singleton set, both directions).
-
-### 🟡 FUP-QO-3 — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
-
-Found while re-running the sibling audits after QO·A M4. `a2-mutation-audit.sh` reads
-**10/12 RED-PROVEN**; the two others are **stale since Gate 2 C1** (2026-07-17,
-`456d008` — zero diff on the QO·A branch, proven):
-
-- **`K8 member_default` is VACUOUS**: its expected-red positive reads `meeting_cases`,
-  which C1 made **member-wide** — the read no longer routes S5's
-  `read_case_deliberation`, so dropping the member arm reds nothing. A detector
-  reporting coverage it does not have (same class as "a detector that finds nothing
-  must be proven able to find something").
-- **`Kv member_ignores_visibility` is UNANCHORED**: its expected-red string
-  ("reads NO ata section for the explicit_grants_only case") no longer exists
-  anywhere in `supabase/tests/` — C1's rewrite of `234` deleted the K8-twin it
-  targeted. The harness reports ABSENT, which is the tri-state doing its job.
-
-**Until retargeted, read `a2`'s coverage claim as 10/12, not 12/12.** Needs its own
-retarget unit on the m5/m6 precedent (relocate the discriminating power — e.g. the
-S5 deliberation proof onto a surface that is still deliberation-gated post-C1, such
-as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
-delete the cases without replacing what they proved.
-
-### 🟡 FUP-QO-6 — the oversight toggle intermittently fails to confirm within 10 s; DB-vs-UI **unclassified** (2026-08-07)
+### the oversight toggle intermittently fails to confirm within 10 s; DB-vs-UI unclassified
 
 Found by `tester` once its restore check stopped trusting optimistic client state. **Pre-existing —
 not introduced by QO·A, and invisible until now BY CONSTRUCTION**: the previous check read
@@ -490,97 +475,35 @@ to reproduce under **load** (during a full `e2e:prod` run, not in isolation) wit
 poller attached, then classify. In-browser instrumentation is useless here: it perturbed the measurement
 (6/6 green with logging on, recurrence once removed).
 
-### 🔴 FUP-QO-5 — the authz sweep machinery leaves `anon` EXECUTE grants that can MASK a real leak (2026-08-07)
+**F6 result (2026-08-07, tester, under real full-gate load): still NOT REPRODUCED.** `quality-oversight.spec.ts`
+ran once inside the full `e2e:prod` gate (batch 16, 87-file suite, `RESET=1`); all 4 D9/D10 toggle tests
+passed clean — WRITE PATH 1.5s, READ PATH 1.6s, D10 WRITE 1.3s, D10 READ 1.9s, none near the ~11.5s
+failure signature. The out-of-process DB poller (docker-exec psql against `commissions.quality_oversight`,
+~1.2–1.6s interval, continuous 13:52:44–16:12:5x UTC, ~12,100 samples, 0 gaps) recorded **zero `excluded`
+samples for `ccih`** across the whole batch-16 window — the WRITE-PATH test's flip + `finally`-block revert
+completes faster than the poller's sampling interval, so this is aliasing (too fast to catch), not a
+failed-to-flip signal; the DB row that WAS sampled around the test window read `visible` with a fresh
+`updated_at` consistent with a clean, fast round-trip. Extends the non-reproduction streak to 15 isolated
++ 1 full-load run, 0 failures. **The severity question remains formally open** — this run did not supply
+a failure to classify, and no classification is manufactured in its absence. Evidence + poller logs:
+`docs/../PROGRESS.md` Test Run Summary (2026-08-07, "QO·FUP F6"); raw poller logs are in the tester's
+scratchpad (not committed — out-of-band per the task's own instruction), `oversight-samples.log` /
+`oversight-samples-resume.log`.
 
-Found by `backend` during QO·A's final estate run, surfaced rather than self-filed. **Out of scope for
-QO·A; not a product defect; not caused by M10.**
+</details>
 
-The pgTAP estate first came back **FAIL** on `100_dashboard` t19 — *"no public function is
-anon-executable"*, **have 1079, want 0**. On a **fresh `supabase db reset --local` the count is 0** and
-everything passes. Something in the mutation-harness / door-sweep machinery leaves broad `anon` EXECUTE
-grants behind in the session.
+### 🟡 FUP-QO-9 — the e2e:prod gate's infra classifier misses two PGRST002 shapes (2026-08-07, tester→lead; owner: backend / `scripts/e2e-prod-gate.sh`)
 
-⚠ **The dangerous direction is the second one.** A spurious red is merely expensive. But the same
-contamination means t19 — the invariant that **no public function is anon-executable** — can **PASS on a
-genuinely regressed catalog** whenever it runs after a sweep, because the grants it would flag are
-indistinguishable from the ones the harness left. An anon-executable door is close to the worst outcome
-this codebase has; its guard is currently **sensitive to run order**, which is the same property that
-makes a keystone vacuous.
-
-Note the shape: this is a **test-environment side effect disarming a later assertion** — the identical
-class as the QO·A finding where `record_recusal` succeeding earlier in a pgTAP file recused the principal,
-flipped `is_case_excluded`, and made a later D7 keystone refuse through the *exclusion* arm while
-returning the same SQLSTATE as the gate under test (see the `308` §6 header). Both are "the thing that
-ran before quietly changed what the next assertion means."
-
-⭐ **MECHANISM IDENTIFIED 2026-08-07 (`backend`) — it is NOT the sweep machinery.** Installing **`pgtap`
-into `public`** is what does it: `create extension pgtap` (which the standalone single-file run workflow
-performs) leaves **~1079 extension-owned functions anon-executable**, and t19 then fails. Measured both
-ways: pgtap present → **1079**; after a reset that drops it → **0**.
-
-That turns a vague hygiene item into a precise, cheap fix — **install pgtap into its own schema**, or have
-t19 **exclude extension-owned functions** (join `pg_depend` → `pg_extension`). The latter is the more
-honest invariant: t19 means "no *first-party* public function is anon-executable", and it should say so
-rather than counting a number that a test dependency can move.
-
-Until fixed: **never trust a `100_dashboard` t19 result that did not run on a fresh reset**, in either
-direction — it reds spuriously with pgtap installed, and (the dangerous half) it can pass on a regressed
-catalog because the grants it would flag are indistinguishable from pgtap's.
-
-### 🟡 FUP-QO-4 — KPI-strip scope vs. the chip filter: a design ambiguity, NOT a defect (2026-08-07, lead)
-
-Found by `tester` while writing the A.9 chip-row extension — **by reading the source rather than writing the
-assertion the lead's brief asked for.** The lead's coverage bullet ("the KPI strip and locked count recompute
-per filter") does not match what ships, and the code is the thing that was right.
-
-`QualityKpiStrip` and the locked-count note in `qualidade/page.tsx` are computed **server-side from the full
-`commissions` array** and rendered as *siblings* of `QualityBoardView`, which is where the chip-selection
-`useState` lives. No path exists for a chip click to reach either. Selecting a chip narrows **only the table
-rows**; the strip stays the global aggregate over every oversight-visible commission. `QualityKpiStrip`'s own
-docstring agrees ("derived entirely from `quality_board_summary` rows already loaded by the page").
-
-**Ruled NOT a bug.** The strip is a context header ("how much do I oversee in total"); the chips are a table
-filter. Making the strip recompute means lifting client state above a Server Component — an architecture
-change — and **no ADR 0100 decision settles which scope is correct**. D10 specifies a cross-committee board
-and PHI-free aggregates; it is silent on filter interaction.
-
-⚠ The user-visible consequence, and the reason this is logged rather than dropped: once two commissions are
-oversight-visible, a reviewer can see **"Casos visíveis: 6" directly above a table showing one row.** Both
-numbers are correct; together they read as contradictory. A presentational label clarifying the strip's scope
-was explored as a near-zero-cost mitigation (lead → `frontend`, 2026-08-07) with a hard instruction to stop
-if it needed anything beyond a text change.
-
-Pinned executably: A.9 asserts the strip and locked count stay **constant** across chip selections. That is
-deliberate — if someone later makes the strip recompute, the test notices. **Post-pilot PO decision**; if the
-ruling flips, that assertion is the thing to update, not delete.
-
-### 🔴 FUP-QO-2 — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
-
-Found by `frontend` during QO·A planning, **verified by the lead against the live code**, and in scope
-for QO·A only as a one-instance fix — **the class is open.**
-
-`src/app/page.tsx` routes a signed-in user through platform_admin → org_admin → hospital_admin →
-nsp_org_admin → `context.memberships` (commission-scoped) → technical_director → `NoAccess`. Any
-principal whose authority is **hospital- or org-scoped with `commission_id NULL`** is stepped over by
-every branch and lands on "Você ainda não tem acesso" — an account that looks unprovisioned while
-being fully provisioned. `quality_reviewer` is exactly that shape.
-
-⚠ **This is the third instance of one failure.** The first was BUG-HAT-001; the second was the Diretor
-Técnico, patched after the fact by ADR 0094 W4 — and that patch's own comment, still in the file at
-`src/app/page.tsx:103-111`, states the mechanism outright: *"The office confers no membership, so every
-branch above steps over it and the account looked unprovisioned."* The lesson was written down, in the
-right file, and did not prevent recurrence three months later. **Prose in a comment is not a guard.**
-
-Note the near-miss: QO·A's own plan (§A.3) did not list `src/app/page.tsx`. Had the teammate not read
-the routing chain unprompted, `quality_reviewer` would have shipped as recurrence three *undetected* —
-the pilot's primary daily user, unable to log in to anything.
-
-Proposed scope (post-A): a guard that cannot be forgotten — e.g. a test that enumerates
-`memberships_role_check`'s role list from the catalog and asserts each role resolves to a landing route,
-so a **newly added role with no home fails the suite** rather than failing the user. The enumeration's
-boundary must be the role list itself, not a remembered list of routes. Same class as FUP-AFF-3 below;
-relates to ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s
-standing-invariant discipline.
+Found during the QO·FUP F6 gate run (2026-08-07, GATE RED 924/5/5/12). A **PGRST002
+schema-cache-not-ready race right after `db reset`** hit batches 3 (self-healed), 12 and 17
+(each failed + cascaded 6 did-not-run); batch 4 crashed outright at 42 s / exit 127 / **0 tests**.
+Two classifier gaps, neither a product defect: (a) PGRST002 ("Could not query the database for
+the schema cache") is not recognized as INFRA, so those batches are not auto-retried; (b) the
+infra check requires `failed>0`, so a zero-test crash slips past both the auto-retry and the
+connection-error counter — an unrun batch that only the denominator check catches. Fix shape:
+teach the classifier both signatures (and/or have the reset path wait for PostgREST schema-cache
+readiness before starting a batch). The lead relayed the diagnosis; tester deliberately did not
+edit the script (not its file).
 
 ### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
 

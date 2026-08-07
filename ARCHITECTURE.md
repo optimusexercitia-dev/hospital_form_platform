@@ -336,10 +336,13 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       **isolated** into dedicated tables (`event_patient` is a 0..1 satellite of
       `patient_safety_event`), never inlined onto governance rows and never
       selected on queue/list/aggregate paths.
-    - **Membership, not admin** — the NSP domain gates on `app.is_pqs_member`,
-      backed by a real `public.pqs_members` table (no `is_admin` fallback). A
-      platform admin is **not** an NSP actor — it must be enrolled in
-      `pqs_members` to read or write any NSP/PHI content (deliberate IT/clinical
+    - **Membership, not admin** — the NSP domain gates on the `app.is_pqs_member*`
+      predicates, backed by hospital-scoped **`memberships`** rows (roles
+      `pqs_member` / `nsp_coordinator`; no `is_admin` fallback). ⚠ **There is no
+      `pqs_members` table** — this file once said otherwise (same class as the
+      `commission_members` / `case_patient` scars); verify against the catalog,
+      never this line. A platform admin is **not** an NSP actor — it must hold a
+      PQS membership to read or write any NSP/PHI content (deliberate IT/clinical
       duty separation). Disposal is the sole admin-or-PQS exception (below).
     - **Access control** — RLS is the authority (Rule 1). The governance event is
       readable access-follows-custody (current custodian + reporting committee for

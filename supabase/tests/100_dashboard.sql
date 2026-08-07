@@ -11,7 +11,7 @@
 -- superuser to read freely.
 
 begin;
-select plan(21);
+select plan(22);   -- FUP-QO-5: +19c, the control that proves t19 can find something
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -352,18 +352,69 @@ select ok(
   'dashboard_export_rows is NOT anon-executable but remains authenticated-executable'
 );
 
--- 19) Generic guard: NO public function (prokind='f') is anon-executable. Any
--- future function that re-leaks anon EXECUTE (via PUBLIC inheritance or a stray
--- grant) trips this assertion.
-select is(
-  (select count(*)::int
-   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+-- 19) Generic guard: NO FIRST-PARTY public function (prokind='f') is
+-- anon-executable. Any future function that re-leaks anon EXECUTE (via PUBLIC
+-- inheritance or a stray grant) trips this assertion.
+--
+-- ⭐ FUP-QO-5 (2026-08-07). Until now this counted EVERY function in `public`, and
+-- `create extension pgtap` (which the standalone single-file run workflow performs,
+-- and which several mutation harnesses install as a preflight) puts ~1079
+-- extension-owned functions there, ALL anon-executable. Measured both ways: pgtap
+-- present -> 1079; after a reset that drops it -> 0.
+--   • The cheap half of the damage was a spurious RED.
+--   • ⛔ The DANGEROUS half is the other direction: a genuine anon leak was
+--     indistinguishable from pgtap's grants, so this guard PASSED on a regressed
+--     catalog whenever it ran after a sweep. An assertion whose verdict depends on
+--     run order is the same property that makes a keystone vacuous.
+-- The invariant we actually mean is "no FIRST-PARTY public function is
+-- anon-executable", so it now says so: extension-owned functions (a `pg_depend`
+-- row with deptype 'e' pointing at a `pg_extension`) are excluded by PROPERTY, not
+-- by name — a `proname not like 'pg_tap%'` filter would be a syntax boundary and
+-- would go stale on the next extension.
+--
+-- ⚠ A detector that finds nothing must be proven able to find something. The
+-- helper below is defined ONCE and used by BOTH 19 and its 19c control, so the
+-- control cannot drift away from the assertion it is proving (a duplicated query
+-- proves the duplicate, not the guard).
+create function pg_temp.first_party_anon_execs() returns int language sql stable as $$
+  select count(*)::int
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.prokind = 'f'
-     and has_function_privilege('anon', p.oid, 'EXECUTE')),
+     and has_function_privilege('anon', p.oid, 'EXECUTE')
+     and not exists (
+       select 1
+         from pg_depend d
+        where d.classid = 'pg_proc'::regclass
+          and d.objid   = p.oid
+          and d.deptype = 'e'          -- owned by an extension (pg_depend -> pg_extension)
+     );
+$$;
+
+select is(
+  pg_temp.first_party_anon_execs(),
   0,
-  'no public function is anon-executable (catches any future PUBLIC re-leak)'
+  'no FIRST-PARTY public function is anon-executable (extension-owned excluded; catches any future PUBLIC re-leak)'
 );
+
+-- 19c) ⭐ THE CONTROL FOR 19 (FUP-QO-5). 19 asserting `0` is indistinguishable from
+-- a query that can never return anything — the exact "a detector that finds nothing
+-- must be proven able to find something" trap. Plant a FIRST-PARTY anon-executable
+-- function and require the SAME expression to move 0 -> 1, then drop it. This also
+-- proves the pg_depend exclusion is not over-broad: a first-party function has no
+-- deptype 'e' row and must still be counted.
+-- ⛔ Deliberately NOT a savepoint. pgTAP keeps its test counter in transaction-local
+-- state, so `rollback to savepoint` after an `is()` would rewind the counter and
+-- desynchronise every later test number from the plan. Plant, assert, DROP.
+create function public._fup_qo5_canary() returns int language sql immutable as $$ select 1 $$;
+grant execute on function public._fup_qo5_canary() to anon;
+select is(
+  pg_temp.first_party_anon_execs(),
+  1,
+  '19c CONTROL: the t19 detector MOVES 0 -> 1 on a planted first-party anon-executable function (it can find something)'
+);
+drop function public._fup_qo5_canary();
 
 -- 19b) Explicit anon-revoke coverage for the Case data-model batch (093000–093003):
 -- every NEW or re-CREATE-OR-REPLACEd public function must be anon-non-executable

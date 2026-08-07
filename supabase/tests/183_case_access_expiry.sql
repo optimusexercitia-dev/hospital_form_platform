@@ -28,7 +28,7 @@
 -- a status/snapshot guard would otherwise bite.
 
 begin;
-select plan(19);
+select plan(23);   -- FUP-QO-7 close: +§E (E0-E3) — the PO-ruled re-grant expiry semantics
 
 -- case_access + referral flags ON (the expiry filter lives on both surfaces).
 update app.feature_flags set enabled = true
@@ -196,6 +196,110 @@ select ok((select expires_at from la) is not null,
   'list_case_access: returns the grant''s expires_at');
 select is((select reason from la), 'Apoio à análise',
   'list_case_access: returns the grant''s reason (trimmed, non-blank)');
+
+-- ============================================================================
+-- §E — RE-GRANT EXPIRY SEMANTICS: a NULL p_expires_at means PERMANENT, INTENDED.
+--      PO ruling 2026-08-07 (FUP-QO-7); ADR 0103.
+--
+-- ⛔ READ THIS BEFORE "FIXING" ANYTHING BELOW. `app._grant_case_access_unchecked`'s
+-- `on conflict … do update set` list ends with `expires_at = excluded.expires_at` —
+-- UNCOALESCED, deliberately. Re-granting a time-boxed grant with a NULL expiry makes
+-- it PERMANENT. That looks exactly like the silent privilege widening ADR 0102 §2
+-- REFUSED for the role door, and someone will eventually "fix" it by adding a
+-- `coalesce`. These assertions exist to stop that.
+--
+-- ⭐ THE ASYMMETRY IS THE DESIGN, and it turns on the CALLERS, not on taste:
+--   • Role door (`app.grant_role_impl`, ADR 0102): NO caller passes `p_expires_at` —
+--     all 12 TS sites omit it — so "NULL clears" would have been an accident nobody
+--     asked for. NULL therefore means LEAVE UNCHANGED.
+--   • This door: exactly ONE caller can deliver a NULL expiry to an EXISTING grant —
+--     `grantCaseAccess` (src/lib/case-access/actions.ts). ⚠ NOT via a blank field: the
+--     grant dialog's expiry control is a NativeSelect (`Sem prazo` / `30 dias` /
+--     `90 dias` / `Data específica`), and the one blankable control — the DatePicker
+--     under `Data específica` — fails client-side validation when empty. NULL reaches
+--     the door ONLY through the EXPLICIT `Sem prazo` choice, so it is a deliberate
+--     human instruction, never an accident. On re-grant, `Sem prazo` therefore REMOVES
+--     an existing expiry. `create_case` / `create_case_from_template` reach the
+--     kernel only via the creator self-grant with a hardcoded null on a BRAND-NEW case,
+--     where no conflict row can exist — the DO UPDATE arm is unreachable from them.
+-- Same operator, opposite meaning, because the two doors have opposite caller
+-- populations. Do NOT unify them without re-running BOTH caller sweeps.
+--
+-- ⚠ FALSIFIABILITY. These pin CURRENT behaviour, so they are green on first run — the
+-- vacuity trap. Proven falsifiable by TWO neutralisations on 2026-08-07, each a one-line
+-- `replace()` over `pg_get_functiondef` inside a rolled-back transaction. MEASURED, not
+-- predicted:
+--   • `expires_at = coalesce(excluded.expires_at, case_access_grants.expires_at)`
+--     → **E1 RED, and only E1** (E0/E2/E3 stayed green). That is the tightest possible
+--       proof that E1 pins the NULL-clear specifically and nothing else.
+--   • `expires_at = greatest(excluded.expires_at, case_access_grants.expires_at)`
+--     → **E0, E1, E3 RED; E2 green.** Wider than the label's parenthetical suggests,
+--       because a ratchet also refuses E0's 7-day narrowing of the 30-day grant the
+--       earlier sections leave behind. Recorded as measured rather than tidied: the
+--       claim E3 makes ("a greatest() door passes E2 and reds here") holds exactly.
+-- E2/E3 are the both-directions twin that keeps E1 honest: without them, a door that
+-- ignored `p_expires_at` entirely would also satisfy "a NULL argument leaves it null".
+--
+-- ⛔ Assert as OWNER, not as the caller. `case_access_grants` is RLS-scoped; reading it
+-- under `set local role authenticated` returned NO ROW and made all four assertions red
+-- on the first attempt. A grantee-invisible row is indistinguishable from a wrong value
+-- through an `ok()` — so the door is CALLED as `authenticated` and every read below runs
+-- after `reset role`.
+-- ============================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+
+-- Start from a time-boxed grant, through the REAL door (not pg_temp.set_grant — the ruling is about what the DOOR does).
+set local role authenticated;
+select public.grant_case_access((select case_x from cs), (select st_x from k), 'read',
+       now() + interval '7 days', null, false, false);
+reset role;   -- ⛔ assert as OWNER: case_access_grants is RLS-scoped, and a
+              -- grantee-invisible row would read as 'no row' and fake every ok() below.
+select ok(
+  (select g.expires_at is not null and g.expires_at < now() + interval '8 days'
+   from public.case_access_grants g
+   where g.case_id = (select case_x from cs) and g.principal_id = (select st_x from k)
+     and g.revoked_at is null),
+  'E0 fixture: the door seeded a 7-day time-boxed grant');
+
+-- E1 — THE RULING. Re-grant with a NULL expiry (the UI's explicit `Sem prazo`): the
+-- grant becomes PERMANENT.
+set local role authenticated;
+select public.grant_case_access((select case_x from cs), (select st_x from k), 'read',
+       null, null, false, false);
+reset role;   -- ⛔ assert as OWNER: case_access_grants is RLS-scoped, and a
+              -- grantee-invisible row would read as 'no row' and fake every ok() below.
+select ok(
+  (select g.expires_at is null
+   from public.case_access_grants g
+   where g.case_id = (select case_x from cs) and g.principal_id = (select st_x from k)
+     and g.revoked_at is null),
+  'E1 ⭐ PO RULING 2026-08-07 (ADR 0103): re-granting with a NULL expiry (the UI''s explicit ''Sem prazo'') CLEARS it — the grant becomes permanent, ON PURPOSE. Do not add a coalesce here; ADR 0102 ruled the opposite for the ROLE door because its callers never pass the argument, and this door''s UI deliberately does.');
+
+-- E2 — the positive twin, EXTEND direction. A passed expiry overwrites.
+set local role authenticated;
+select public.grant_case_access((select case_x from cs), (select st_x from k), 'read',
+       now() + interval '30 days', null, false, false);
+reset role;   -- ⛔ assert as OWNER: case_access_grants is RLS-scoped, and a
+              -- grantee-invisible row would read as 'no row' and fake every ok() below.
+select ok(
+  (select g.expires_at > now() + interval '29 days'
+   from public.case_access_grants g
+   where g.case_id = (select case_x from cs) and g.principal_id = (select st_x from k)
+     and g.revoked_at is null),
+  'E2 twin (EXTEND): a supplied expiry overwrites — null -> 30 days');
+
+-- E3 — the positive twin, SHORTEN direction. Absolute set, not a ratchet: without this a greatest() implementation would satisfy E2 while silently refusing to close a PHI window early.
+set local role authenticated;
+select public.grant_case_access((select case_x from cs), (select st_x from k), 'read',
+       now() + interval '2 days', null, false, false);
+reset role;   -- ⛔ assert as OWNER: case_access_grants is RLS-scoped, and a
+              -- grantee-invisible row would read as 'no row' and fake every ok() below.
+select ok(
+  (select g.expires_at < now() + interval '3 days' and g.expires_at > now()
+   from public.case_access_grants g
+   where g.case_id = (select case_x from cs) and g.principal_id = (select st_x from k)
+     and g.revoked_at is null),
+  'E3 twin (SHORTEN): ...and a shorter one shortens — absolute set, not a ratchet (a greatest() door passes E2 and reds here)');
 
 select * from finish();
 rollback;

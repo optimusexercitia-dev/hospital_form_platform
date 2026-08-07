@@ -410,6 +410,7 @@ function GrantDialog({
             <NativeSelect
               id="grant-expiry"
               className="h-10 py-2"
+              aria-describedby="grant-expiry-hint"
               value={preset}
               onChange={(e) => {
                 setPreset(e.target.value as ExpiryPreset);
@@ -421,6 +422,21 @@ function GrantDialog({
               <option value="90">90 dias</option>
               <option value="date">Data específica</option>
             </NativeSelect>
+            {/* FUP-QO-7 (PO ruling 2026-08-07): permanent access must be STATED, not
+                inferred — a coordinator should never grant or extend permanent access to
+                a case (and its PHI) without reading that they did. Note the permanent
+                option here is the explicit “Sem prazo” preset: this dialog has no
+                blank-means-permanent field, and a cleared date under “Data específica”
+                is a validation error, not a permanent grant.
+                The second wording is the re-grant case, and it is not a guess — the door
+                overwrites the expiry unconditionally (`expires_at = excluded.expires_at`
+                in `app._grant_case_access_unchecked`, read from the catalog), so picking
+                “Sem prazo” while editing a grant that HAS a prazo drops it. */}
+            <p id="grant-expiry-hint" className="text-xs text-muted-foreground">
+              {grant?.expiresAt
+                ? "“Sem prazo” torna o acesso permanente e remove o prazo atual — válido até ser revogado."
+                : "“Sem prazo” concede acesso permanente — válido até ser revogado."}
+            </p>
             {preset === "date" && (
               <div className="mt-1">
                 <DatePicker

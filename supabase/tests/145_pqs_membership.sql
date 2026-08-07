@@ -19,7 +19,7 @@
 --     of the referral BUG-NSP-002 guard).
 
 begin;
-select plan(35);
+select plan(42);   -- QO·FUP F8: +§I (I1-I7) — the list_my_nsp_hospitals door
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -109,7 +109,11 @@ select ok(
   app.is_pqs_member_of_for((select hosp_b from k), (select sa_x from k)),
   'C4: sa_x now enrolled → is_pqs_member_of_for = true after add_pqs_member');
 
--- Duplicate enrollment is idempotent (on conflict do nothing).
+-- Duplicate enrollment is idempotent. ⚠ NOT because the kernel does nothing: since
+-- QO·FUP F1 (ADR 0102) the clause is `on conflict … do update set expires_at =
+-- coalesce(excluded.expires_at, memberships.expires_at)`. It is idempotent HERE because
+-- add_pqs_member takes no expiry argument, so coalesce(null, existing) writes the
+-- existing value back. This comment said `on conflict do nothing` until 2026-08-07.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select lives_ok(
@@ -364,6 +368,99 @@ select is(
   (select count(*)::int from public.audit_log where action = 'event_patient.read') - (select before from rc),
   1,
   'H4: exactly ONE event_patient.read row (broad-non-PHI + no-PHI reads write none)');
+
+-- ============================================================================
+-- §I: list_my_nsp_hospitals() — the door honours `is_active` and expiry
+--     (QO·FUP F8 / FUP-QO-8; migration 20260912000100).
+--
+-- WHY HERE AND WHY AT ALL. This door read `public.memberships` RAW: no is_active
+-- gate, no expiry filter, while EVERY sibling predicate in this very file carries
+-- both (§A/§B assert them). In the console path the org read
+-- (`organizations_select` -> `app.is_pqs_operator_in_org`) applies the correct
+-- filters, so the laxity was masked there — but
+-- src/components/indicators/capa-operator-gate.ts:26 calls the door DIRECTLY, and
+-- an expired or deactivated member kept the CAPA affordance.
+--
+-- ⚠ The door was on authz-neverclled-door-allowlist.txt — i.e. NO pgTAP test
+-- called it at all, which is precisely why its gate could drift below its
+-- siblings' unnoticed. §I removes it from that allowlist by driving it for real.
+--
+-- ⛔ jsonb_array_length, never count(*): the door returns a SCALAR jsonb array, so
+-- `select count(*) from list_my_nsp_hospitals()` is ALWAYS 1 and would report the
+-- same value on both sides of the fix (the recorded 7.10 trap — a probe that does
+-- not MOVE is measuring the wrong thing).
+-- ============================================================================
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 1,
+  'I1 POSITIVE TWIN: the enrolled, active, unexpired member sees exactly 1 operator hospital (else every negative below is vacuous)');
+reset role;
+
+-- EXPIRED. Injected as postgres: no product path sets a PAST expiry (grant_role
+-- refuses `p_expires_at <= now()` at the door — 306 4.4), so the only way to reach
+-- this state is the same one an already-elapsed grant reaches by waiting.
+update public.memberships set expires_at = now() - interval '1 hour'
+ where principal_id = (select admin from k) and role = 'pqs_member';
+
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 0,
+  'I2 ⭐ EXPIRED: an elapsed enrollment resolves to NO operator hospital (the door filtered nothing before F8)');
+reset role;
+
+-- Restore the expiry, then take the OTHER arm away: deactivate the principal.
+update public.memberships set expires_at = null
+ where principal_id = (select admin from k) and role = 'pqs_member';
+update public.profiles set is_active = false where id = (select admin from k);
+
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 0,
+  'I3 ⭐ DEACTIVATED: an inactive principal resolves to NO operator hospital, even with a live unexpired grant');
+reset role;
+
+update public.profiles set is_active = true where id = (select admin from k);
+
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 1,
+  'I4 ⭐ THE PROBE MOVES BOTH WAYS: reactivating restores the hospital — so I3''s zero came from is_active, not from a broken fixture');
+reset role;
+
+-- The COORDINATOR arm is a SEPARATE union branch with its own filters. A fix applied
+-- to one arm only passes I1-I4 and reds here.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 1,
+  'I5 POSITIVE TWIN: the appointed coordinator sees exactly 1 operator hospital');
+reset role;
+
+update public.memberships set expires_at = now() - interval '1 hour'
+ where principal_id = (select sa_y from k) and role = 'nsp_coordinator';
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  jsonb_array_length(public.list_my_nsp_hospitals()), 0,
+  'I6 ⭐ EXPIRED (COORDINATOR ARM): the second union branch carries the same filters — a one-arm fix passes I1-I4 and reds here');
+reset role;
+
+update public.memberships set expires_at = null
+ where principal_id = (select sa_y from k) and role = 'nsp_coordinator';
+
+-- STRUCTURAL: the tightening must not have cost the door its reachability. A
+-- DROP+CREATE would silently lose `authenticated=X` and the door would 42501 for
+-- everyone — a failure this file's behavioural assertions cannot distinguish from
+-- "correctly denied" once the caller is denied for any reason.
+select ok(
+  has_function_privilege('authenticated', 'public.list_my_nsp_hospitals()', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.list_my_nsp_hospitals()', 'EXECUTE'),
+  'I7 STRUCTURAL: the door keeps its authenticated EXECUTE grant and stays anon-non-executable (create-or-replace preserved the ACL)');
 
 select * from finish();
 rollback;

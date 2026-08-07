@@ -208,13 +208,21 @@ begin
   update public.memberships set expires_at = now() where false;
 end; $w$;
 
+-- ⭐ RECUT 2026-08-07 (QO·FUP F1 / ADR 0102). This was `count = 1` — the planted
+-- writer alone — because the sanctioned writer only matched 2.1's OTHER disjunct
+-- (`insert into public.memberships ... expires_at`). F1's extend-on-regrant adds
+-- `on conflict ... DO UPDATE SET expires_at = ...`, so `app.grant_role_impl` now
+-- matches the `set` half too and the honest count is 2. Asserted as the NAMED SET
+-- rather than a count: `2` would also be satisfied by the planted writer plus some
+-- unrelated third writer, which is precisely what this file exists to catch.
 select is(
-  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  (select coalesce(string_agg(n.nspname||'.'||p.proname, ', ' order by p.proname), '')
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('app','public')
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'memberships'
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~* 'set\s+expires_at'),
-  1,
-  '2.2 POSITIVE TWIN: the probe DOES detect a planted expiry writer');
+  'app._t292_expiry_writer, app.grant_role_impl',
+  '2.2 POSITIVE TWIN: the probe DOES detect a planted expiry writer — and sees EXACTLY it plus the one sanctioned door (F1: the DO UPDATE SET arm)');
 
 drop function app._t292_expiry_writer();
 

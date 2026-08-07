@@ -53,7 +53,13 @@ function revalidateNsp(): void {
  * Enroll `userId` into `hospitalId`'s PQS roster (grants that hospital's PHI read).
  * Backed by the `add_pqs_member(p_hospital_id, p_user_id)` DEFINER RPC, gated
  * `is_nsp_org_admin_of(org_of_hospital) OR is_nsp_coordinator_of(hospital)` (42501
- * otherwise); idempotent (`on conflict do nothing` on the `(hospital,user)` PK). A
+ * otherwise). The RPC is a one-liner over `public.grant_role('hospital', …,
+ * 'pqs_member', …)`, so the conflict target is `memberships_grant_uq`
+ * (principal_id, role, organization_id, hospital_id, commission_id) — NOT a
+ * `(hospital,user)` PK, which is what this line claimed until 2026-08-07. Idempotent
+ * because no expiry is passed: since QO·FUP F1 (ADR 0102) the kernel's clause is
+ * `do update set expires_at = coalesce(excluded.expires_at, memberships.expires_at)`,
+ * not `do nothing`, so `coalesce(null, existing)` writes the existing value back. A
  * coordinator may enroll THEMSELVES here to appear on the roster (they already read
  * PHI via the coordinator arm).
  */

@@ -7,6 +7,12 @@ import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { MemberCapability } from '@/lib/queries/members'
 import type { NspHospitalGrant } from '@/lib/pqs/roster-types'
 import { deriveUserStatus, type UserStatus } from '@/lib/users/types'
+// The pure role partition (FUP-QO-2). Value import; the back-edge from
+// session-grants.ts is type-only and therefore erased — no runtime cycle.
+import {
+  partitionGrants,
+  type SessionGrant,
+} from '@/lib/queries/session-grants'
 // The TS mirror of `is_commission_admin_of` (ADR 0051): org_admin-of-org OR
 // hospital_admin-of-hospital. access.ts imports ONLY types from this module, so
 // this value import is not a runtime cycle (the back-edge is type-only, erased).
@@ -105,6 +111,26 @@ export interface QualityReviewMembership {
   hospital: HospitalRef
 }
 
+/**
+ * A hospital whose NSP (Núcleo de Segurança do Paciente) the caller OPERATES —
+ * an enrolled `pqs_member` or an appointed `nsp_coordinator` (NSP-per-hospital,
+ * ADR 0052). Both roles are hospital-scoped with `commission_id NULL`.
+ *
+ * ⚠ `role` is carried for DISPLAY ONLY and nothing may be gated on it here. The
+ * console-entry gate is `getNspAccessByOrg` → `list_my_nsp_hospitals()`, and every
+ * PHI read is re-gated per hospital at its own DEFINER door (Rule 12). This list
+ * exists so the shell can ROUTE the operator; it confers nothing.
+ *
+ * FUP-QO-2 (F7): added because a principal holding ONLY one of these two roles had
+ * no `SessionContext` field at all, so every branch in `src/app/page.tsx` stepped
+ * over them and they landed on "sem acesso" — instances four and five of that class.
+ */
+export interface NspOperatorMembership {
+  organization: OrganizationRef
+  hospital: HospitalRef
+  role: 'pqs_member' | 'nsp_coordinator'
+}
+
 export interface SessionContext {
   userId: string
   email: string
@@ -161,6 +187,13 @@ export interface SessionContext {
    * cannot route the reviewer anywhere (FUP-QO-2 is exactly that failure).
    */
   qualityReviewerOf: QualityReviewMembership[]
+  /**
+   * Hospitals whose NSP the caller operates — `pqs_member` OR `nsp_coordinator`
+   * (ADR 0052). Empty for everyone else. Like the technical direction and the
+   * quality office, these confer no commission membership; without this list the
+   * shell has no way to route the operator (FUP-QO-2 instances four and five).
+   */
+  nspOperatorOf: NspOperatorMembership[]
 }
 
 /**
@@ -208,19 +241,9 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   // The RPC's return type is `Json`; this is its documented shape (see the migration
   // 20260905000200 header). Narrowed once, here, rather than at each use.
-  interface SessionGrant {
-    role: string
-    organization: OrganizationRef | null
-    hospital: (Omit<HospitalRef, 'organizationId'> & {
-      organization_id: string
-    }) | null
-    commission: {
-      id: string
-      name: string
-      slug: string
-      organization: OrganizationRef
-    } | null
-  }
+  // ⭐ FUP-QO-2: the `SessionGrant` shape and the role partition below it moved to
+  // `./session-grants` — a PURE module with no server imports — so the catalog-derived
+  // role-to-landing guard can run the REAL derivation instead of a re-implementation.
   const ctx = ctxData as {
     profile: {
       full_name: string | null
@@ -234,119 +257,22 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   const grants: SessionGrant[] = ctx?.grants ?? []
 
-  const memberships: Membership[] = grants
-    .filter(
-      (
-        g,
-      ): g is SessionGrant & {
-        role: CommissionRole
-        commission: NonNullable<SessionGrant['commission']>
-      } =>
-        g.commission !== null &&
-        g.commission.organization !== null &&
-        (g.role === 'staff' || g.role === 'staff_admin'),
-    )
-    .map((g) => ({ commission: g.commission, role: g.role }))
-    .sort((a, b) =>
-      a.commission.name.localeCompare(b.commission.name, 'pt-BR'),
-    )
-
-  const orgsForRole = (role: string): OrgAdminMembership[] =>
-    grants
-      .filter(
-        (g): g is SessionGrant & { organization: OrganizationRef } =>
-          g.role === role && g.organization !== null,
-      )
-      .map((g) => ({ organization: g.organization }))
-      .sort((a, b) =>
-        a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
-      )
-
-  const orgAdminOf: OrgAdminMembership[] = orgsForRole('org_admin')
-  // ADR 0051; inert until Phase B, shape now.
-  const nspOrgAdminOf: OrgAdminMembership[] = orgsForRole('nsp_org_admin')
-
-  // Hospitals the caller is hospital_admin of (ADR 0051). Each grant carries the org
-  // + hospital so `adminedHospitals`/`isHospitalAdmin` resolve without a second hop.
-  // The embedded hospital is snake_cased (organization_id); map it to the camelCase
-  // HospitalRef the SessionContext exposes.
-  const hospitalAdminOf: HospitalAdminMembership[] = grants
-    .filter(
-      (
-        g,
-      ): g is SessionGrant & {
-        organization: OrganizationRef
-        hospital: NonNullable<SessionGrant['hospital']>
-      } =>
-        g.role === 'hospital_admin' &&
-        g.organization !== null &&
-        g.hospital !== null,
-    )
-    .map((g) => ({
-      organization: g.organization,
-      hospital: {
-        id: g.hospital.id,
-        slug: g.hospital.slug,
-        name: g.hospital.name,
-        organizationId: g.hospital.organization_id,
-      },
-    }))
-    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
-
-  // ADR 0094 W4 — technical direction. Exactly the "adding a role means adding a
-  // FILTER here, not a query" seam the W2 re-plumb above describes: `session_context`
-  // is generic over roles and already returned these grants; nothing consumed them.
-  // Both roles land in ONE list because D1 makes them one authority.
-  const technicalDirectionOf: TechnicalDirectionMembership[] = grants
-    .filter(
-      (
-        g,
-      ): g is SessionGrant & {
-        role: 'technical_director' | 'technical_director_deputy'
-        organization: OrganizationRef
-        hospital: NonNullable<SessionGrant['hospital']>
-      } =>
-        (g.role === 'technical_director' ||
-          g.role === 'technical_director_deputy') &&
-        g.organization !== null &&
-        g.hospital !== null,
-    )
-    .map((g) => ({
-      organization: g.organization,
-      hospital: {
-        id: g.hospital.id,
-        slug: g.hospital.slug,
-        name: g.hospital.name,
-        organizationId: g.hospital.organization_id,
-      },
-      role: g.role,
-    }))
-    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
-
-  // ADR 0100 QO·A — quality review. The same "adding a role means adding a FILTER
-  // here, not a query" seam as the technical direction above.
-  const qualityReviewerOf: QualityReviewMembership[] = grants
-    .filter(
-      (
-        g,
-      ): g is SessionGrant & {
-        organization: OrganizationRef
-        hospital: NonNullable<SessionGrant['hospital']>
-      } =>
-        g.role === 'quality_reviewer' &&
-        g.organization !== null &&
-        g.hospital !== null,
-    )
-    .map((g) => ({
-      organization: g.organization,
-      hospital: {
-        id: g.hospital.id,
-        slug: g.hospital.slug,
-        name: g.hospital.name,
-        organizationId: g.hospital.organization_id,
-      },
-    }))
-    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
+  // ⭐ FUP-QO-2 — the ROLE PARTITION, now in `./session-grants`. It is the FIRST of
+  // two seams a new role must cross before its holder lands anywhere (the second is
+  // `src/app/page.tsx`'s branch chain), and it has been missed three times: a role
+  // with no filter here produces an all-empty context, which every branch in
+  // `page.tsx` steps over. `session-grants.test.ts` enumerates the vocabulary from
+  // `memberships_role_check` in the LIVE CATALOG and drives this exact function, so a
+  // role added to the CHECK with no home reds the suite instead of the user.
+  const {
+    memberships,
+    orgAdminOf,
+    hospitalAdminOf,
+    technicalDirectionOf,
+    nspOrgAdminOf,
+    qualityReviewerOf,
+    nspOperatorOf,
+  } = partitionGrants(grants)
 
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
   // the JWT already authenticated the user), default to `active`: RLS is the real
@@ -379,6 +305,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     technicalDirectionOf,
     nspOrgAdminOf,
     qualityReviewerOf,
+    nspOperatorOf,
   }
 })
 

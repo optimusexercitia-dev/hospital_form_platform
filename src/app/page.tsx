@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth/actions";
 import { getSessionContext } from "@/lib/queries/session";
-import { commissionHref, orgHref, qualidadeHref } from "@/lib/routing";
+import { commissionHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 
 /**
  * Root role-landing. Server Component — resolves where the signed-in user
@@ -18,6 +18,7 @@ import { commissionHref, orgHref, qualidadeHref } from "@/lib/routing";
  *  - nsp_org_admin of ≥1 org            → /o/<org>/nsp-org  (org NSP-admin console)
  *  - exactly one commission membership  → /o/<org>/c/<commission>
  *  - more than one membership           → /c            (grouped picker)
+ *  - NSP operator of ≥1 hospital        → /o/<org>/nsp  (nsp_coordinator | pqs_member)
  *  - technical direction of ≥1 hospital → /o/<org>/direcao-tecnica
  *  - quality reviewer of ≥1 hospital    → /o/<org>/qualidade
  *  - none of the above                  → friendly "sem acesso" screen
@@ -101,6 +102,26 @@ export default async function Home() {
 
   if (context.memberships.length > 1) {
     redirect("/c");
+  }
+
+  // ADR 0101 / FUP-QO-2 (F7) — the NSP operators (`nsp_coordinator`, `pqs_member`).
+  // Instances 4 and 5 of the class the two branches below describe, and the first ones
+  // NOT found by a user hitting the dead end: the catalog-derived guard
+  // `src/lib/queries/session-grants.test.ts` enumerates `memberships_role_check` and
+  // fired on its first run naming both roles. Both are hospital-scoped with
+  // `commission_id NULL`, so every branch above stepped over them while the account was
+  // fully provisioned — the NSP console was reachable all along (`list_my_nsp_hospitals()`
+  // unions both roles and `organizations_select` admits them), just not from the front
+  // door.
+  //
+  // FIRST of the three office branches, and after the commission branches for the same
+  // reason they are: the NSP hat is worn ALONGSIDE a day job, so this only changes the
+  // outcome for someone who would otherwise dead-end. `nspOperatorOf` is
+  // hospital-name-sorted, so the first entry is a stable pick for an operator covering
+  // several hospitals; the console re-gates server-side. The entry's `role` is DISPLAY
+  // ONLY — nothing here gates on it.
+  if (context.nspOperatorOf.length > 0) {
+    redirect(nspHref(context.nspOperatorOf[0].organization.slug));
   }
 
   // ADR 0094 W4 / FUP-MEM-3b — the Diretor Técnico. Placed AFTER the commission
