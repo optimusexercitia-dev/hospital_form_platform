@@ -222,6 +222,47 @@ function oversightOf(slug: 'ccih' | 'farmacia'): string {
   )
 }
 
+const COMMISSION_ID: Record<'ccih' | 'farmacia', string> = {
+  ccih: 'a0000000-0000-0000-0000-0000000000a1',
+  farmacia: 'b0000000-0000-0000-0000-0000000000b1',
+}
+const HOSPITALADMIN_A1_UID = '00000000-0000-0000-0000-0000000000e1'
+
+/**
+ * Set a commission's oversight classification DIRECTLY through the real
+ * door (`public.set_commission_oversight`), out-of-process, as
+ * hospitaladmin.a1 — never a raw UPDATE (the guard trigger blocks that
+ * outside the RPC's own GUC bracket anyway, mirroring `seed.sql`'s own
+ * `app.in_commission_rpc` usage). Used to ESTABLISH a precondition for a
+ * READ-path test without first driving an admin through the UI: the write
+ * path is proven end-to-end by its own sibling test (keyboard flip → real
+ * DB change), so a read-path test only needs the precondition to already be
+ * true, not to re-derive it live. This is what lets the read-path tests
+ * sign in as exactly one principal (lead ruling 2026-08-07, after three
+ * rounds of UI-based confirmation pushed the combined admin+reviewer test
+ * over its timeout budget — an admin in one session and a reviewer in
+ * another are two different people at two different desks; nothing about
+ * the product requires them to share a browser context).
+ */
+function setOversightViaDoor(
+  slug: 'ccih' | 'farmacia',
+  value: 'visible' | 'excluded',
+): void {
+  execSync(
+    `docker exec -i ${DB_CONTAINER} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -tA`,
+    {
+      input: `
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"${HOSPITALADMIN_A1_UID}","role":"authenticated"}', true);
+select public.set_commission_oversight('${COMMISSION_ID[slug]}', '${value}');
+commit;
+`,
+      encoding: 'utf8',
+    },
+  )
+}
+
 // ---------------------------------------------------------------------------
 // 1. Root landing (FUP-QO-2) — load-bearing: three principals of this shape
 //    (hospital-tier membership, commission_id NULL) have previously landed on
@@ -305,10 +346,23 @@ test.describe('QO·A — oversight board', () => {
     }
     // The commission's identity is legible on the board (Comissão column) even
     // though the filter-chip UI never mounts for a single-commission reviewer
-    // (see the file header finding).
+    // (see the file header finding). Asserted explicitly, not just implied:
+    // the chip row (>1 gate) must not render here.
+    await expect(
+      page.getByRole('group', { name: 'Filtrar casos por comissão' }),
+    ).toHaveCount(0)
     await expect(
       page.getByText('Comissão de Controle de Infecção Hospitalar').first(),
     ).toBeVisible()
+    // A commission from a DIFFERENT hospital under the same org (not merely
+    // excluded — outside quality.a's hospital scope entirely) never leaks
+    // onto the board. Relocated here from the multi-commission test's old
+    // "BEFORE" section when that test was split (2026-08-07) — this is the
+    // single-commission instance of the same property; the 2-commission
+    // instance (does it still hold once the board is busier) stays in the
+    // multi-commission read test.
+    const singleCommissionBody = (await page.locator('body').textContent()) ?? ''
+    expect(singleCommissionBody).not.toContain('Comissão de Ética')
     // D6's PHI-free note line.
     await expect(
       page.getByText('1 caso restrito não aparece nesta lista.'),
@@ -596,23 +650,26 @@ test.describe('QO·A — cross-org isolation', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 10. Admin toggles oversight (D9) — hospital_admin flips CCIH; quality.a's
-//    board reflects it live; a staff_admin (the committee itself) cannot
-//    reach the toggle at all, paired against org_admin who can. The toggle
-//    is operated by KEYBOARD (Space on the Switch), covering the second
-//    keyboard path the frontend plan names.
+// 10. Admin toggles oversight (D9) — split 2026-08-07 (lead ruling, iteration
+//    4 of the same test) into a WRITE-path test (hospitaladmin.a1 only:
+//    proves the keyboard flip reaches the database) and a READ-path test
+//    (quality.a only, precondition set directly through the door: proves the
+//    reviewer's board honours the database). Chained, they cover the same
+//    property the original single combined test did — an admin in one
+//    session and a reviewer in another are two different people at two
+//    different desks; nothing about the product requires them to share a
+//    browser context, and three rounds of tightening the combined test's UI
+//    confirmations (reload, response-wait, then SQL) never fixed the actual
+//    problem, which was simply too many sign-ins in one test (each
+//    `cachedSignIn` costs a cookie clear + a login round-trip). A staff_admin
+//    (the committee itself) still cannot reach the toggle at all, paired
+//    against org_admin who can — both stay single-persona, unchanged.
 // ---------------------------------------------------------------------------
 
 test.describe('QO·A — admin toggles oversight (D9)', () => {
-  test('hospitaladmin.a1 flips CCIH to excluded (keyboard); quality.a\'s board loses it live; restored after', async ({
+  test('WRITE PATH: hospitaladmin.a1 flips CCIH to excluded by keyboard, and the database actually changes', async ({
     page,
   }) => {
-    // Doubled from Playwright's 30s default: this test now confirms BOTH
-    // the flip AND the revert via a real server round-trip + reload each
-    // (not just the switch's own optimistic state), on top of the two
-    // full sign-ins + page loads either side already needed — legitimately
-    // more wall-clock work, not a mask for flakiness.
-    test.setTimeout(60_000)
     await signIn(page, 'hospitaladmin.a1@test.local')
     await page.goto(COMISSOES)
 
@@ -622,28 +679,83 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
 
     try {
       // KEYBOARD-ONLY activation — focus + Space, no .click() anywhere. This
-      // IS the a11y path under test, so it stays keyboard-driven; the
-      // optimistic check right after is part of that behavior (the switch
-      // visibly responding to Space is what a11y here means).
+      // IS the a11y path under test; the optimistic check right after is
+      // part of that behavior (the switch visibly responding to Space).
       await toggle.focus()
       await expect(toggle).toBeFocused()
       await page.keyboard.press('Space')
       await expect(toggle).not.toBeChecked({ timeout: 10_000 })
-      // ⚠ CONFIRM IN THE DATABASE, not via reload — live-diagnosed
-      // 2026-08-07 across three rounds of tightening: the switch's own
-      // state (even a confirmed HTTP response, even a post-reload DOM read)
-      // is UI, and every UI-based confirmation this file tried eventually
-      // pushed the test over its timeout budget (batch 3: 5.0m for 24
-      // tests) or hung outright. A single out-of-process `sqlOne` query is
-      // strictly STRONGER evidence the mutation landed — it observes the
-      // row itself, not a rendering of it — and costs one fast query
-      // instead of a full page load. This is plumbing ("did the write land
-      // before moving on"), not the behavior under test.
+      // CONFIRM IN THE DATABASE, not via reload/response-wait — a single
+      // out-of-process `sqlOne` query is strictly STRONGER evidence the
+      // mutation landed than any UI-based confirmation (it observes the row
+      // itself, not a rendering of it), and this is what actually fixed the
+      // false-positive/hang history this file went through (2026-08-07).
       expect(
         oversightOf('ccih'),
         'CCIH oversight did not actually flip to excluded in the database',
       ).toBe('excluded')
+    } finally {
+      // RESTORE — this DB is shared with other tests in this file and other
+      // sessions. Best-effort even if an assertion above threw.
+      //
+      // ⚠ CLEANUP USES .click(), NOT KEYBOARD, even though the FLIP under
+      // test above is deliberately keyboard-driven (that IS this test's
+      // a11y point). Live-diagnosed 2026-08-07 (the lead's batch-15 re-run +
+      // an immediate audit_log query): a real, flaky CCIH revert attempt
+      // left NO `commission.oversight_changed` audit row at all — a plain
+      // no-op, not a refusal (which still emits one). `.focus()` is not
+      // auto-waiting — it races RSC streaming and can no-op silently, a
+      // documented precedent in this repo. The cleanup is not under test,
+      // so it uses the most reliable interaction available.
+      const toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
+      await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
+      if (!(await toggleAgain.isChecked())) {
+        await toggleAgain.click()
+        await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
+      }
+      // Confirmed in the DATABASE, computed alongside the scoped,
+      // non-empty-text alert check (a bare `page.getByRole('alert')`
+      // false-positived on an unrelated, empty element elsewhere on the
+      // page — live-caught 2026-08-07) so a failure still says WHY: refused
+      // vs. a silent no-op.
+      //
+      // ⚠ `.allTextContents()`, NOT `.textContent()` — live-diagnosed
+      // 2026-08-07 (single instrumented run, timestamped): on the SUCCESS
+      // path no alert renders at all, so this locator matches ZERO
+      // elements. `.textContent()` is an ACTION, not an assertion — on a
+      // zero-match locator it RETRIES (does not reject) until its timeout,
+      // and with none given here that means the test's own global timeout;
+      // `.catch(() => null)` never sees a rejection until that full wait
+      // elapses. This was the actual mechanism behind both write-path
+      // tests hanging to exactly the test timeout after the split — the
+      // toggle interaction itself (proven above) took ~1.2s end-to-end.
+      // `.allTextContents()` resolves immediately with whatever currently
+      // matches, empty array included — no wait-for-existence.
+      const ccihFinal = oversightOf('ccih')
+      const ccihAlertTexts = await toggleAgain
+        .locator('xpath=../..')
+        .getByRole('alert')
+        .allTextContents()
+      const ccihAlertText = (ccihAlertTexts[0] ?? '').trim()
+      expect(
+        ccihFinal,
+        ccihAlertText
+          ? `revert REFUSED by the door: ${ccihAlertText}`
+          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+      ).toBe('visible')
+    }
+  })
 
+  test('READ PATH: quality.a\'s board loses CCIH once the database says excluded', async ({
+    page,
+  }) => {
+    // Precondition set DIRECTLY through the door, not by driving
+    // hospitaladmin.a1 through the UI first — the write path is proven
+    // end-to-end by the sibling test above. This test is about whether the
+    // reviewer's board honours the database, which needs exactly one
+    // signed-in principal, not two.
+    setOversightViaDoor('ccih', 'excluded')
+    try {
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
       await expect(
@@ -652,61 +764,12 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
       const body = (await page.locator('body').textContent()) ?? ''
       expect(body).not.toContain('Controle de Infecção')
     } finally {
-      // RESTORE — this DB is shared with other tests in this file and other
-      // sessions. Best-effort even if an assertion above threw.
-      //
-      // ⚠ CLEANUP USES .click(), NOT KEYBOARD, even though the FLIP under
-      // test above is deliberately keyboard-driven (that IS this test's
-      // a11y point — it must stay that way). Live-diagnosed 2026-08-07 (the
-      // lead's batch-15 re-run + an immediate audit_log query): a real,
-      // flaky CCIH revert attempt left NO `commission.oversight_changed`
-      // audit row at all for the revert — not a refusal (which still emits
-      // one; the audit write sits after the authority check), a plain
-      // no-op. `.focus()` is not auto-waiting — it races RSC streaming and
-      // can no-op silently, a documented precedent in this repo that reads
-      // like an a11y defect but is a timing bug. The cleanup is not under
-      // test, so it must not share the fragility of the thing it protects
-      // against; `.click()` is the most reliable interaction available —
-      // this stays `.click()` even after the confirmation below moved to
-      // SQL, since it is the INTERACTION that was diagnosed unreliable, not
-      // the confirmation.
-      await signIn(page, 'hospitaladmin.a1@test.local')
-      await page.goto(COMISSOES)
-      const toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
-      await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
-      if (!(await toggleAgain.isChecked())) {
-        await toggleAgain.click()
-        await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
-      }
-      // ⚠ CONFIRM IN THE DATABASE, not via a Server-Action response-wait
-      // plus a reload — that combination (each individually justified) was
-      // the accumulated cost that pushed this test over its timeout budget
-      // (live-diagnosed 2026-08-07, batch 3: 5.0m for 24 tests). A single
-      // out-of-process `sqlOne` query is strictly stronger evidence than
-      // either: it observes the row itself, not an HTTP response about it
-      // or a rendering of it. Computed unconditionally alongside the
-      // scoped, non-empty-text alert check (live-caught 2026-08-07: a bare
-      // `page.getByRole('alert')` false-positived on an unrelated, empty
-      // element elsewhere on the page) so a failure here still tells you
-      // WHY — refused vs. a silent no-op — without an extra round trip.
-      const ccihFinal = oversightOf('ccih')
-      const ccihAlert = toggleAgain.locator('xpath=../..').getByRole('alert')
-      const ccihAlertText =
-        (await ccihAlert.textContent().catch(() => null))?.trim() ?? ''
+      setOversightViaDoor('ccih', 'visible')
       expect(
-        ccihFinal,
-        ccihAlertText
-          ? `revert REFUSED by the door: ${ccihAlertText}`
-          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+        oversightOf('ccih'),
+        'CCIH restore via the door did not land',
       ).toBe('visible')
     }
-
-    // Confirm the restore actually landed from quality.a's side too.
-    await signIn(page, 'quality.a@test.local')
-    await page.goto(QUALIDADE)
-    await expect(page.getByRole('link', { name: 'Caso 0001' })).toBeVisible({
-      timeout: 10_000,
-    })
   })
 
   test('D9: the committee cannot opt itself in — chefe.ccih (staff_admin) has no reach to /manage/comissoes at all', async ({
@@ -735,13 +798,24 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
 //    exists: a reviewer seeing ACROSS committees, not just one. No seed
 //    fixture provides a second oversight-visible commission for quality.a —
 //    `backend` proved adding one reds tenant-isolation keystones 171/189 or
-//    destroys the quality.a2 / same-hospital-excluded fixtures — so this test
-//    establishes the precondition itself, via the SAME door the D9 toggle
-//    test above uses (`set_commission_oversight`). This exercises the real
-//    onboarding flow ADR 0100 D8 describes (an admin opts a committee in,
-//    the board gains it) rather than testing a seed state that arrived by
-//    magic. Restored by commission NAME/id (never positionally) inside
-//    try/finally; the restore is ASSERTED at the end, not trusted.
+//    destroys the quality.a2 / same-hospital-excluded fixtures — so these
+//    tests establish the precondition themselves, via the SAME door the D9
+//    toggle tests above use (`set_commission_oversight`). This exercises the
+//    real onboarding flow ADR 0100 D8 describes (an admin opts a committee
+//    in, the board gains it) rather than testing a seed state that arrived
+//    by magic.
+//
+//    Split 2026-08-07 (lead ruling, same rationale as the D9 toggle split
+//    above — and this test carried the SAME multi-sign-in shape, one worse:
+//    it interleaved quality.a/hospitaladmin.a1 THREE times, not two) into a
+//    WRITE-path test (hospitaladmin.a1 only: proves the keyboard flip
+//    reaches the database, in both directions — visible then back to
+//    excluded, mirroring the CCIH write-path test) and a READ-path test
+//    (quality.a only, precondition set directly through the door: proves
+//    the reviewer's board honours the database once TWO commissions are
+//    visible, and again once reverted to one). Chained, they cover the same
+//    property the original combined test did. Restored by commission
+//    NAME/id (never positionally); each restore is ASSERTED, not trusted.
 //
 //    Ground truth (live-probed via the real RPC path, then reverted —
 //    2026-08-07): with CCIH + Farmácia both visible, quality.a's
@@ -765,27 +839,9 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
-  test('flipping a second commission visible: the chip row mounts, narrows the board per selection, KPI/locked-count stay the global aggregate, and the excluded-elsewhere commission stays absent throughout', async ({
+  test('WRITE PATH: hospitaladmin.a1 flips Farmácia to visible by keyboard, and the database actually changes', async ({
     page,
   }) => {
-    // Doubled from Playwright's 30s default — same reason as the CCIH
-    // toggle test: the flip AND the revert now each confirm via a real
-    // server round-trip + reload, on top of this test's already-larger
-    // scope (multiple sign-ins, chip interactions, two board reads).
-    test.setTimeout(60_000)
-    await signIn(page, 'quality.a@test.local')
-    await page.goto(QUALIDADE)
-    await expect(
-      page.getByRole('heading', { name: 'Casos sob supervisão' }),
-    ).toBeVisible({ timeout: 10_000 })
-    // BEFORE: single commission, so the chip row (>1 gate) does not mount,
-    // and a commission fully outside quality.a's hospital scope is absent.
-    await expect(
-      page.getByRole('group', { name: 'Filtrar casos por comissão' }),
-    ).toHaveCount(0)
-    let body = (await page.locator('body').textContent()) ?? ''
-    expect(body).not.toContain('Comissão de Ética')
-
     await signIn(page, 'hospitaladmin.a1@test.local')
     await page.goto(COMISSOES)
     const toggle = page.getByRole('switch', { name: FARMACIA_SWITCH_NAME })
@@ -793,22 +849,72 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
     await expect(toggle).not.toBeChecked()
 
     try {
-      // KEYBOARD-operated, mirroring the D9 toggle test's discipline — the
-      // interaction stays keyboard-driven (this IS the a11y point), and the
-      // optimistic check right after is part of that behavior.
+      // KEYBOARD-ONLY activation — mirrors the CCIH write-path test's
+      // discipline (this IS the a11y point under test).
       await toggle.focus()
       await expect(toggle).toBeFocused()
       await page.keyboard.press('Space')
       await expect(toggle).toBeChecked({ timeout: 10_000 })
-      // CONFIRM IN THE DATABASE, not via reload — same discipline as the
-      // CCIH toggle test (see its note): a single out-of-process query is
-      // strictly stronger evidence than any UI-based confirmation, and
-      // every UI-based one tried here eventually cost too much wall clock.
+      // CONFIRM IN THE DATABASE — same discipline as the CCIH write-path
+      // test: a single out-of-process query is strictly stronger evidence
+      // than any UI-based confirmation, and every UI-based one tried here
+      // eventually cost too much wall clock.
       expect(
         oversightOf('farmacia'),
         'Farmácia oversight did not actually flip to visible in the database',
       ).toBe('visible')
+    } finally {
+      // RESTORE — .click(), not keyboard (cleanup is not under test, the
+      // flip above is deliberately keyboard-driven and stays that way).
+      // Same discipline as the CCIH write-path test's `finally`:
+      // live-diagnosed 2026-08-07, a real revert attempt can leave NO
+      // `commission.oversight_changed` audit row at all (a silent no-op,
+      // not a refusal — which still emits one), so the DB check is paired
+      // with a scoped, non-empty-text alert check so a failure still says
+      // WHY: refused vs. a silent no-op.
+      //
+      // ⚠ `.allTextContents()`, NOT `.textContent()` — same fix as the CCIH
+      // write-path test's `finally` (live-diagnosed 2026-08-07, single
+      // instrumented run): on the SUCCESS path no alert renders, so this
+      // locator matches ZERO elements, and `.textContent()` RETRIES on a
+      // zero-match locator until its timeout instead of rejecting — with
+      // none given here that's the test's own global timeout, and
+      // `.catch(() => null)` never sees a rejection until that full wait
+      // elapses. This was the actual mechanism behind both write-path tests
+      // hanging to exactly the test timeout after the split.
+      const toggleAgain = page.getByRole('switch', {
+        name: FARMACIA_SWITCH_NAME,
+      })
+      await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
+      if (await toggleAgain.isChecked()) {
+        await toggleAgain.click()
+        await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
+      }
+      const farmaciaFinal = oversightOf('farmacia')
+      const farmaciaAlertTexts = await toggleAgain
+        .locator('xpath=../..')
+        .getByRole('alert')
+        .allTextContents()
+      const farmaciaAlertText = (farmaciaAlertTexts[0] ?? '').trim()
+      expect(
+        farmaciaFinal,
+        farmaciaAlertText
+          ? `revert REFUSED by the door: ${farmaciaAlertText}`
+          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+      ).toBe('excluded')
+    }
+  })
 
+  test("READ PATH: quality.a's board gains Farmácia once the database says visible — chip row, global KPI aggregate, per-chip narrowing, cross-consistency, and the excluded-elsewhere commission stays absent throughout", async ({
+    page,
+  }) => {
+    // Precondition set DIRECTLY through the door, not by driving
+    // hospitaladmin.a1 through the UI first — the write path is proven
+    // end-to-end by the sibling test above. This test is about whether the
+    // reviewer's board honours the database once TWO commissions are
+    // visible, which needs exactly one signed-in principal, not two.
+    setOversightViaDoor('farmacia', 'visible')
+    try {
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
       await expect(
@@ -935,67 +1041,35 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       expect(ccihRendered + farmaciaRendered).toBe(totalRendered)
 
       // The fully out-of-scope commission stayed absent through the whole
-      // flip, proving the flip's effect is scoped to Farmácia, not global.
-      body = (await page.locator('body').textContent()) ?? ''
+      // 2-commission board — a materially different condition from the
+      // single-commission instance of this same check in the oversight-
+      // board test above, so it is kept here rather than treated as
+      // redundant with it.
+      const body = (await page.locator('body').textContent()) ?? ''
       expect(body).not.toContain('Comissão de Ética')
     } finally {
-      // RESTORE by commission NAME (the switch's aria-label is keyed to
-      // it), never positionally.
-      //
-      // ⚠ CLEANUP USES .click(), NOT KEYBOARD — same discipline as the CCIH
-      // toggle test's `finally`. The FLIP under test above stays keyboard-
-      // driven (that IS the point there); the cleanup is not under test and
-      // must use the most reliable interaction available. Live-diagnosed
-      // 2026-08-07 (lead's batch-15 re-run + audit_log query): a real CCIH
-      // revert attempt left NO `commission.oversight_changed` audit row at
-      // all — a plain no-op, not a refusal (which still emits one; the
-      // audit write sits after the authority check). `.focus()` is not
-      // auto-waiting — races RSC streaming, no-ops silently, a documented
-      // precedent in this repo.
-      await signIn(page, 'hospitaladmin.a1@test.local')
-      await page.goto(COMISSOES)
-      const toggleAgain = page.getByRole('switch', {
-        name: FARMACIA_SWITCH_NAME,
-      })
-      await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
-      if (await toggleAgain.isChecked()) {
-        await toggleAgain.click()
-        await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
-      }
-      // ⚠ CONFIRM IN THE DATABASE, not via a Server-Action response-wait
-      // plus a reload — same discipline as the CCIH toggle test's `finally`
-      // (see its note): that combination was the accumulated cost that
-      // pushed this test over its timeout budget, live-diagnosed
-      // 2026-08-07. This is also THE original bug this file's investigation
-      // started from — Farmácia's revert silently not landing here is what
-      // poisoned the retry and the later keyboard-only test in the very
-      // first batch-15 run. A single out-of-process query settles it
-      // directly, computed alongside the scoped, non-empty-text alert check
-      // so a failure still says WHY.
-      const farmaciaFinal = oversightOf('farmacia')
-      const farmaciaAlert = toggleAgain
-        .locator('xpath=../..')
-        .getByRole('alert')
-      const farmaciaAlertText =
-        (await farmaciaAlert.textContent().catch(() => null))?.trim() ?? ''
+      // RESTORE through the SAME door used to set the precondition — no
+      // second hospitaladmin.a1 sign-in needed; the write path is proven
+      // end-to-end by the sibling test above.
+      setOversightViaDoor('farmacia', 'excluded')
       expect(
-        farmaciaFinal,
-        farmaciaAlertText
-          ? `revert REFUSED by the door: ${farmaciaAlertText}`
-          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+        oversightOf('farmacia'),
+        'Farmácia restore via the door did not land',
       ).toBe('excluded')
     }
 
-    // ASSERT the restore landed — Farmácia disappears from quality.a's
-    // board again (the chip row un-mounts, and the same-hospital-excluded
-    // denial fixture the rest of this file relies on is genuinely back).
-    await signIn(page, 'quality.a@test.local')
+    // ASSERT the restore is honoured from the READER's side too — Farmácia
+    // disappears from quality.a's board again (the chip row un-mounts, and
+    // the same-hospital-excluded denial fixture the rest of this file
+    // relies on is genuinely back). Reuses the already-signed-in session
+    // above — no additional cachedSignIn cost. Only reached if the `try`
+    // block above passed, same as the original combined test's shape.
     await page.goto(QUALIDADE)
     await expect(
       page.getByRole('group', { name: 'Filtrar casos por comissão' }),
     ).toHaveCount(0)
-    body = (await page.locator('body').textContent()) ?? ''
-    expect(body).not.toContain('Farmácia')
+    const finalBody = (await page.locator('body').textContent()) ?? ''
+    expect(finalBody).not.toContain('Farmácia')
   })
 })
 
