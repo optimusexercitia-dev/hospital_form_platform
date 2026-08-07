@@ -106,13 +106,30 @@ export function QualityKpiStrip({
   ];
 
   return (
-    <section
-      aria-label="Indicadores da supervisão"
-      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-    >
-      {cards.map((c, i) => (
-        <KpiCard key={c.label} {...c} index={i} />
-      ))}
+    <section aria-labelledby="quality-kpi-heading" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h2 id="quality-kpi-heading" className="text-base font-semibold">
+          Visão geral
+        </h2>
+        {/* Scope, stated where the numbers are (FUP-QO-4). The strip aggregates
+            every oversight-visible commission; the chips below filter only the
+            table. Both are correct, and side by side they read as contradictory
+            — "Casos visíveis: 6" directly above a one-row table. Rendered only
+            when more than one commission is visible, i.e. exactly when the chip
+            row exists and the ambiguity is possible; `commissions.length` is
+            already in hand, so this needs no new prop and no state lifting. */}
+        {commissions.length > 1 ? (
+          <p className="text-xs text-muted-foreground text-pretty">
+            Somatório de todas as comissões sob supervisão — não muda com o
+            filtro de comissão abaixo.
+          </p>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {cards.map((c, i) => (
+          <KpiCard key={c.label} {...c} index={i} />
+        ))}
+      </div>
     </section>
   );
 }
