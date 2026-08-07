@@ -124,10 +124,15 @@ after it was written).
 | B5 | backend | Serving route + pdf-lib overlay + verification RPC/rate-limit | ⬜ |
 | B6 | backend | pgTAP suite + ARM census/floor + diff-scoped policy sweep | ⬜ |
 | B7 | backend | Docs: backend-state.md, docs/deployment/pdf-renderer.md, .env.example; local Gotenberg recipe | ⬜ |
-| F1 | frontend | `/verificar` public pages (after B1 contracts) | ⬜ |
-| F2 | frontend | Mint dialog + printed-docs list + revoke dialog (frontend-design skill first) | ⬜ |
+| F1 | frontend | `/verificar` public pages (after B1 contracts) | ✅ done 2026-08-07 (`56e5529`) — new `(public)` route group + shell · `/verificar` landing (plain `<form>` + server-action redirect: works with JS off, the right floor for a damaged-QR fallback) · `/verificar/[token]` result + `loading.tsx`, `force-dynamic` so no verdict is ever cached past a revoke · `VerificationResult` renders only the anemic tuple, download link strictly on non-null `documentId`. Two lookup keys disambiguated by `?via=codigo`, never by sniffing a backend-owned format. Gated via backend's service-role `documentPrintingEnabled()`. **Blocked: browser verification pending B5** — `/verificar` is still absent from `PUBLIC_PATHS` in `src/proxy.ts` (verified 2026-08-07), so it is login-walled today; the lookup is also still a throwing stub, which the page renders as the pt-BR "não foi possível verificar agora" state (deliberately NOT "não reconhecido") |
+| F2 | frontend | Mint dialog + printed-docs list + revoke dialog (frontend-design skill first) | ✅ done 2026-08-07 (`56e5529`) — `frontend-design` skill applied; `src/components/printing/` (mint button+dialog, "Documentos emitidos" panel, status chip, revoke dialog, shared pt-BR labels) wired into `…/dashboard/submissions/[responseId]`. Mint dialog names the FINAL/RASCUNHO mark before it exists; success moves focus to the download link (keyboard mint→download). Panel header renders immediately, only the registry read suspends; a failed read shows a notice, never an empty list. Revoke = closed reason class + mandatory PHI-free free text wired via `aria-describedby`. `canRevoke` reuses the page's existing `staff_admin` gate — no new permission signal. Downloads only via the registry's `downloadPath` (never a Storage URL) |
 | T1 | tester | E2E: mint→download→verify(logged-out)→revoke→overlay + keyboard-only mint flow | ⬜ |
 | Q1 | qa | Phase review `docs/reviews/phase-PDF-P1-review.md` | ⬜ |
+
+**Lead notes (PDF·P1):**
+- B2 plan approved with amendments: verification token/short-code generated in the mint ACTION pre-render (the QR is in the canonical bytes; door validates format + uniqueness); mint door checks the storage object exists at the derived path; 4 backend deviations acked (text+CHECK vocab · door-derived storage path · in-door overlay flag · service-role-only lookup with `p_viewer`).
+- Flag gate for public `/verificar`: NO anon grant on `get_feature_flags()`; backend provides a server-only service-role `documentPrintingEnabled()` helper; pages `notFound()` when off.
+- `[ ]` **FUP-PDF-1** — creator-mint has no UI surface in P1: the only response-detail screen (`…/submissions/[responseId]`) is wholly `staff_admin`-gated, so D11's "anyone who can view the source may mint" exists at the door but not in the UI for response creators. Deliberate P1 scope; candidate P2+ follow-up (creator-facing mint surface).
 
 ### ⬛ QO·FUP — FUP-QO close-out (F1–F9) · **COMPLETE 2026-08-07** · QA **APPROVED (r2)**
 
