@@ -68,6 +68,7 @@
 | **MIN** | **Meeting audio → generated ata** [0099](docs/decisions/0099-meeting-audio-minutes.md) (+Amdt 1) · [record](docs/progress/min-audio-minutes.md) — flag `audio_minutes` **OFF** at ship | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1158** · `db reset` 301=301 | ✅ pgTAP **166f/5181** fresh reset · MIN spec 10/10 ×4 · `e2e:prod` ×2 **GREEN (triaged, 0 code failures)** · census+floor HOLD · diff-scoped policy 0 BLIND | ✅ **APPROVED (r2)** [review](docs/reviews/min-audio-minutes-review.md) — r1 BLOCKER (apply never reclaimed audio) fixed+proven; 3 MINOR open (R1–R3) | ✅ 2026-08-06 | 2026-08-06 | branch `feat/meeting-minutes` |
 | **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
 | **QO·A** | **Quality-office oversight — Phase A** (classification + `quality_reviewer` + UI) [0100](docs/decisions/0100-quality-office-oversight.md) · [plan](docs/plans/quality-office-oversight.md) — **pilot-blocking** | ✅ **complete** | ✅ lint 0/0 · tsc · Vitest **1158** · `db reset` 313=313 | ✅ pgTAP **172f/5355** fresh reset · `q1` **20/20 RED-proven** (7 controls) · `ARM=census` + `ARM=floor` **HOLD** · `e2e:prod` QO **18/19 + 1 cold-start flaky**, 0 QO failures suite-wide, all 97 did-not-run covered | ✅ **APPROVED (r3)** [review](docs/reviews/quality-office-oversight-review.md) — r1 ⛔ / r2 ⛔ / r3 ✅; 5 real findings, all closed structurally | ✅ 2026-08-07 | 2026-08-07 | branch `feat/quality-office-oversight` → `main` |
+| **PDF·P1** | **PDF document printing — Forms + full skeleton** [0104](docs/decisions/0104-pdf-document-printing-module.md) · [plan](docs/plans/pdf-document-printing.md) — flag `document_printing` OFF; P2–P4 follow | 🟡 **in progress** (started 2026-08-07) | – | – | – | – | – | worktree branch `worktree-pdf-printing-p1` |
 
 > ⚠ **Two PCI/TV caveats survive the ✅ above — read them before treating this as deployable.**
 >
@@ -104,6 +105,29 @@
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### 🟡 PDF·P1 — PDF printing: Forms + full skeleton · **IN PROGRESS** (started 2026-08-07)
+
+ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) · plan
+[pdf-document-printing.md](docs/plans/pdf-document-printing.md) §2. Worktree branch
+`worktree-pdf-printing-p1`. **Migration window: `20260913000000+`** (highest registered at
+start: `20260912000100`; the plan's `20260911001000` figure is stale — two workstreams landed
+after it was written).
+
+| # | Owner | Task | Status |
+| --- | --- | --- | --- |
+| B0 | backend | §8 [INF] register: catalog verification pass (audit_write signature, response-visibility predicate, door template, matcher, storage-policy shape, flag idiom) | ✅ done 2026-08-07 — findings reported to lead; key: no single response-visibility predicate exists (arm = the `responses_select`+targeted+admin disjunction, mirrored explicitly, NEVER invoker-RLS delegation); `/verificar` NOT in `PUBLIC_PATHS` → login-walled today (F1 must add it); deps: `uqr@0.1.3` + `pdf-lib@1.17.1` |
+| B1 | backend | Contract-first: `src/lib/pdf/types.ts` (`DocumentPayload`) + provider/mint-action typed stubs posted for frontend | ✅ done 2026-08-07 — `src/lib/pdf/types.ts` (envelope + `form_response` body) · `src/lib/pdf-mint/actions.ts` (mint/revoke stubs) · `src/lib/queries/printed-documents.ts` (list + verification-lookup stubs); lint+typecheck green |
+| B2 | backend | Migrations M1–M4 + `verification_lookups` (plan approval REQUIRED before authoring — new RLS shape + DEFINER doors) | ⬜ blocked on B0 plan review |
+| B3 | backend | Pure renderer `src/lib/pdf/` + fingerprint test + ESLint purity gate (red-teamed) | ⬜ |
+| B4 | backend | Forms data provider + `src/lib/pdf-mint/` orchestration (semaphore, Gotenberg client, all-or-nothing mint) | ⬜ |
+| B5 | backend | Serving route + pdf-lib overlay + verification RPC/rate-limit | ⬜ |
+| B6 | backend | pgTAP suite + ARM census/floor + diff-scoped policy sweep | ⬜ |
+| B7 | backend | Docs: backend-state.md, docs/deployment/pdf-renderer.md, .env.example; local Gotenberg recipe | ⬜ |
+| F1 | frontend | `/verificar` public pages (after B1 contracts) | ⬜ |
+| F2 | frontend | Mint dialog + printed-docs list + revoke dialog (frontend-design skill first) | ⬜ |
+| T1 | tester | E2E: mint→download→verify(logged-out)→revoke→overlay + keyboard-only mint flow | ⬜ |
+| Q1 | qa | Phase review `docs/reviews/phase-PDF-P1-review.md` | ⬜ |
 
 ### ⬛ QO·FUP — FUP-QO close-out (F1–F9) · **COMPLETE 2026-08-07** · QA **APPROVED (r2)**
 
