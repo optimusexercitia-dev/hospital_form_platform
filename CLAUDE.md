@@ -196,7 +196,7 @@ reviews plans, and does **not** write feature code. **Lead orchestration protoco
 [docs/lead-playbook.md](./docs/lead-playbook.md)** (lead only).
 
 **Delegation:** exploration/grep → Haiku · implementation → Sonnet · architecture &
-multi-file refactors → Opus · read-only reviewers → Haiku/Sonnet.
+multi-file refactors → Opus/Fable · read-only reviewers → Haiku/Sonnet.
 
 | Teammate   | Agent type          | Scope |
 | ---------- | ------------------- | ----- |
