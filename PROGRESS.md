@@ -105,6 +105,29 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### 🟦 QO·FUP — FUP-QO-1…6 close-out (started 2026-08-07, branch `feat/quality-office-oversight`)
+
+PO rulings 2026-08-07 (asked before work started; each pre-empted a recorded deferral):
+
+- **D-FUP-1 (closes the FUP-QO-1 question):** implement **extend-on-regrant now** — an identical
+  re-grant with a new `p_expires_at` UPDATES the existing row's expiry, and the commission-tier
+  atomic-replace path WRITES the new expiry. pgTAP `306` §4 pins recut to the new contract; ADR
+  amendment required (0100 D9 seam). Phase C break-glass then rides a seam that already extends.
+- **D-FUP-4 (closes FUP-QO-4):** KPI strip **stays the global aggregate**; the shipped scope label
+  (`quality-kpi-strip.tsx`, renders only when >1 commission is visible) is the resolution. A.9's
+  constancy assertion stands. **RESOLVED — records-only.**
+- **D-FUP-6:** QO-6 reproduction runs **under load** (full `e2e:prod` with the out-of-process DB
+  poller attached), per the follow-up's own next-step note.
+
+| # | Task | Owner | Status |
+| - | ---- | ----- | ------ |
+| F1 | FUP-QO-1 — extend-on-regrant migration + `306` §4 recut + ADR | backend | ☐ |
+| F2 | FUP-QO-5 — `100_dashboard` t19 excludes extension-owned functions (pg_depend→pg_extension) + prove-can-find-something control | backend | ✅ 2026-08-07 (`bac7821`) |
+| F3 | FUP-QO-3 — retarget vacuous `a2` K8/Kv cases; a2 back to 12/12 RED-PROVEN | backend | ✅ 2026-08-07 (`bac7821`) |
+| F4 | FUP-QO-2 — catalog-derived role→landing guard (enumerate `memberships_role_check` from the catalog; every role must resolve to a landing route) | backend (+frontend if `page.tsx` must change) | ✅ 2026-08-07 (`49883c2`, ADR 0101) — **guard fired on its first run: `nsp_coordinator` + `pqs_member` are instances 4 and 5; fix needs `page.tsx` (frontend)** |
+| F5 | FUP-QO-4 — records-only close (ruling above) | lead | ✅ 2026-08-07 |
+| F6 | FUP-QO-6 — full `e2e:prod` under load with DB poller; classify stale-UI vs lost-write | tester | ☐ |
+
 ### ⬛ QO·A — Quality-office oversight, Phase A · **COMPLETE 2026-08-07**
 
 Full record (task table, the five findings, the M8→M11 narrative, perf numbers, gate detail) rotated →
@@ -435,7 +458,18 @@ pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not
 Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
 (singleton set, both directions).
 
-### 🟡 FUP-QO-3 — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
+### ✅ FUP-QO-3 — RESOLVED 2026-08-07 (backend, F3, `bac7821`) — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
+
+**Resolution.** Neither case deleted; both RETARGETED onto `241` (the summary-masking lane, where
+`read_case_deliberation` is still the gate — `app._project_meeting_case` masks `summary`) plus `241`'s
+direct `has_case_capability` PRE probe, on the m5/m6 precedent. `run_case` now takes a per-case source
+file, and the CONTROL runs once per targeted suite (a red in a file whose control never ran is not
+evidence). **`a2` reads 12/12 RED-PROVEN**, and each retarget was inspected line by line rather than
+trusted from the verdict column: `drop_member_default` → `have: false / want: true` (the capability
+genuinely vanished) **and** `have: NULL / want: RESUMO_CD` (the masking surface genuinely masked);
+`member_ignores_visibility` → `have: true / want: false` **and** `have: RESUMO_EG / want: NULL` (the
+over-grant genuinely leaks the sub-group summary to a plain member). 16/16 tests ran under both
+mutations — no abort; controls all green (234: 54, 241: 16).
 
 Found while re-running the sibling audits after QO·A M4. `a2-mutation-audit.sh` reads
 **10/12 RED-PROVEN**; the two others are **stale since Gate 2 C1** (2026-07-17,
@@ -490,7 +524,7 @@ to reproduce under **load** (during a full `e2e:prod` run, not in isolation) wit
 poller attached, then classify. In-browser instrumentation is useless here: it perturbed the measurement
 (6/6 green with logging on, recurrence once removed).
 
-### 🔴 FUP-QO-5 — the authz sweep machinery leaves `anon` EXECUTE grants that can MASK a real leak (2026-08-07)
+### ✅ FUP-QO-5 — RESOLVED 2026-08-07 (backend, F2) — t19 could MASK a real `anon` EXECUTE leak (2026-08-07)
 
 Found by `backend` during QO·A's final estate run, surfaced rather than self-filed. **Out of scope for
 QO·A; not a product defect; not caused by M10.**
@@ -523,11 +557,18 @@ t19 **exclude extension-owned functions** (join `pg_depend` → `pg_extension`).
 honest invariant: t19 means "no *first-party* public function is anon-executable", and it should say so
 rather than counting a number that a test dependency can move.
 
-Until fixed: **never trust a `100_dashboard` t19 result that did not run on a fresh reset**, in either
-direction — it reds spuriously with pgtap installed, and (the dangerous half) it can pass on a regressed
-catalog because the grants it would flag are indistinguishable from pgtap's.
+✅ **RESOLVED 2026-08-07 (backend, F2, `bac7821`).** t19 now counts **first-party** functions only,
+excluding extension-owned ones by PROPERTY (`pg_depend.deptype = 'e'` → `pg_extension`), never by name —
+a `proname not like 'pg_tap%'` filter would be a syntax boundary and would go stale on the next
+extension. The verdict no longer depends on run order in either direction. New **19c CONTROL** plants a
+first-party anon-executable function and requires the SAME expression to move **0 → 1** (both share one
+`pg_temp` helper, so the control cannot drift away from the assertion it proves); it plants-asserts-drops
+rather than using a savepoint, because `rollback to savepoint` would rewind pgTAP's transaction-local
+test counter. Verified BOTH directions: **22/22 with pgtap installed into `public`** (raw count 1079,
+first-party 0) and **PASS via `supabase test db` on a fresh reset**. The "never trust a t19 result that
+did not run on a fresh reset" caveat is retired.
 
-### 🟡 FUP-QO-4 — KPI-strip scope vs. the chip filter: a design ambiguity, NOT a defect (2026-08-07, lead)
+### ✅ FUP-QO-4 — RESOLVED 2026-08-07 (PO ruling D-FUP-4: strip stays global; shipped scope label is the fix; A.9 stands) — KPI-strip scope vs. the chip filter
 
 Found by `tester` while writing the A.9 chip-row extension — **by reading the source rather than writing the
 assertion the lead's brief asked for.** The lead's coverage bullet ("the KPI strip and locked count recompute
@@ -581,6 +622,29 @@ so a **newly added role with no home fails the suite** rather than failing the u
 boundary must be the role list itself, not a remembered list of routes. Same class as FUP-AFF-3 below;
 relates to ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s
 standing-invariant discipline.
+
+**GUARD BUILT 2026-08-07 (backend, F4, `49883c2`; ADR
+[0101](docs/decisions/0101-role-landing-guard.md)) — `src/lib/queries/session-grants.test.ts`.** It
+enumerates `memberships_role_check` from `pg_constraint` at test time (the derivation `292` §3 already
+uses) and drives **both** seams for real: the role partition, extracted behaviour-identical into a pure
+`src/lib/queries/session-grants.ts` so it can load without `next/headers`, and then the **unmodified
+default export of `src/app/page.tsx`** (only `getSessionContext` / `signOut` / `next/navigation.redirect`
+stubbed; `@/lib/routing` stays real). Nothing is re-implemented. Red-proven: neutralising the
+`quality_reviewer` arm of `partitionGrants` reds exactly that role's case; restoring it returns 12/12.
+Two vacuity controls ship with it — a synthetic role the catalog does not admit must report NoAccess, and
+the routed roles must not collapse onto a single landing URL. It **fails loud** when the stack is down
+rather than skipping.
+
+⛔ **THE GUARD FIRED ON ITS FIRST RUN — the class is at FIVE instances, not three.**
+**`nsp_coordinator` and `pqs_member`** are hospital-scoped with `commission_id NULL`, have **no
+`partitionGrants` filter at all**, and are therefore stepped over by every branch in `page.tsx`: a
+principal holding only one of them gets an all-empty `SessionContext` and lands on "Você ainda não tem
+acesso". Pre-existing, not introduced here. Held in the test's `KNOWN_UNROUTED` **ledger**, which is
+asserted in BOTH directions — an unlisted unrouted role reds, and a listed role that starts landing also
+reds — so it cannot be silenced by leaving it alone. **The remaining fix spans `src/app/page.tsx`
+(frontend-owned) and one `partitionGrants` filter (backend); it is NOT done.** Needs a lead/PO call on
+where a pure `nsp_coordinator` / `pqs_member` should land (the NSP console under `/o/<org>/nsp` is the
+obvious candidate) before either half is written.
 
 ### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
 
