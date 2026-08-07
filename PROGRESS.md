@@ -123,8 +123,8 @@ time**). Built in the **worktree** `worktrees/feat/quality-office-oversight` on 
 | A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ⏳ |
 | A.5 | Seed personas + oversight fixtures · pgTAP `306`–`310` · `q1-quality-mutation-audit.sh` (6 RED-proven) · diff-scoped door sweep | backend | ⏳ |
 | A.6 | `src/lib/queries/quality.ts` + `session.ts` `isQualityViewer` branch (contract-first: signatures posted before impl) | backend | ⏳ |
-| A.7 | `/o/[org]/qualidade` route group (layout/board/dashboards) — `frontend-design` skill first | frontend | ⏳ |
-| A.8 | Case-page viewer branch + write-affordance suppression · oversight toggle in `/o/[org]/manage/comissoes` · nav/`qualidadeHref` | frontend | ⏳ |
+| A.7 | `/o/[org]/qualidade` route group (layout/board/dashboards) — `frontend-design` skill first | frontend | 📝 **plan written 2026-08-06** — [frontend plan](docs/plans/quality-office-oversight-frontend-plan.md) (file list, screen design, states, D6 locked-count presentation, testing note). **Awaiting lead plan approval; no implementation started** |
+| A.8 | Case-page viewer branch + write-affordance suppression · oversight toggle in `/o/[org]/manage/comissoes` · nav/`qualidadeHref` | frontend | 📝 **plan written 2026-08-06** — same doc §3 (22-row suppression matrix). **3 scope findings vs plan §A.3:** ① the commission **layout** (`c/[commission]/layout.tsx` L63) carries the same `role === null` gate and 404s the reviewer before the page runs — and widening it naively shows the FULL member sidebar (`AppSidebar.isVisible` treats `role === null` as "admin sees everything"); ② `src/app/page.tsx` root landing has no reviewer branch → a pure reviewer hits "sem acesso" (the BUG-HAT-001 / Diretor-Técnico shape, 3rd recurrence); ③ two live WRITE affordances are gated on a **flag**, not on caps — `NotifyEventDialog` (`patientSafetyEnabled` alone) and `correctionCaps.canFile = isOpen`. FE set is **27 files**, not §A.3's ~16–18 |
 | A.9 | E2E `e2e/quality-oversight.spec.ts` + keyboard-only flow | tester | ⏳ |
 | A.10 | Phase review | qa | ⏳ |
 
@@ -424,6 +424,34 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### 🔴 FUP-QO-2 — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
+
+Found by `frontend` during QO·A planning, **verified by the lead against the live code**, and in scope
+for QO·A only as a one-instance fix — **the class is open.**
+
+`src/app/page.tsx` routes a signed-in user through platform_admin → org_admin → hospital_admin →
+nsp_org_admin → `context.memberships` (commission-scoped) → technical_director → `NoAccess`. Any
+principal whose authority is **hospital- or org-scoped with `commission_id NULL`** is stepped over by
+every branch and lands on "Você ainda não tem acesso" — an account that looks unprovisioned while
+being fully provisioned. `quality_reviewer` is exactly that shape.
+
+⚠ **This is the third instance of one failure.** The first was BUG-HAT-001; the second was the Diretor
+Técnico, patched after the fact by ADR 0094 W4 — and that patch's own comment, still in the file at
+`src/app/page.tsx:103-111`, states the mechanism outright: *"The office confers no membership, so every
+branch above steps over it and the account looked unprovisioned."* The lesson was written down, in the
+right file, and did not prevent recurrence three months later. **Prose in a comment is not a guard.**
+
+Note the near-miss: QO·A's own plan (§A.3) did not list `src/app/page.tsx`. Had the teammate not read
+the routing chain unprompted, `quality_reviewer` would have shipped as recurrence three *undetected* —
+the pilot's primary daily user, unable to log in to anything.
+
+Proposed scope (post-A): a guard that cannot be forgotten — e.g. a test that enumerates
+`memberships_role_check`'s role list from the catalog and asserts each role resolves to a landing route,
+so a **newly added role with no home fails the suite** rather than failing the user. The enumeration's
+boundary must be the role list itself, not a remembered list of routes. Same class as FUP-AFF-3 below;
+relates to ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s
+standing-invariant discipline.
 
 ### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
 
