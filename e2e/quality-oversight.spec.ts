@@ -573,6 +573,12 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
   test('hospitaladmin.a1 flips CCIH to excluded (keyboard); quality.a\'s board loses it live; restored after', async ({
     page,
   }) => {
+    // Doubled from Playwright's 30s default: this test now confirms BOTH
+    // the flip AND the revert via a real server round-trip + reload each
+    // (not just the switch's own optimistic state), on top of the two
+    // full sign-ins + page loads either side already needed — legitimately
+    // more wall-clock work, not a mask for flakiness.
+    test.setTimeout(60_000)
     await signIn(page, 'hospitaladmin.a1@test.local')
     await page.goto(COMISSOES)
 
@@ -581,11 +587,39 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
     await expect(toggle).toBeChecked()
 
     try {
-      // KEYBOARD-ONLY activation — focus + Space, no .click() anywhere.
+      // KEYBOARD-ONLY activation — focus + Space, no .click() anywhere. This
+      // IS the a11y path under test, so unlike the cleanup below it must
+      // stay keyboard-driven — but the RESULT still needs confirming, not
+      // just the interaction method.
       await toggle.focus()
       await expect(toggle).toBeFocused()
+      // ⚠ Live-diagnosed 2026-08-07 (lead's batch-15 re-run): the very next
+      // line used to be `not.toBeChecked()` right after the press, which
+      // satisfies INSTANTLY on `setCurrent(target)` — that fires
+      // synchronously before the async server action even starts. The test
+      // then signed in as quality.a and read her board on the strength of
+      // that client-side value alone, with no confirmation the mutation had
+      // reached the database. One code path over from the exact bug this
+      // commit fixed in the `finally` revert: THE SWITCH'S OWN STATE IS
+      // NEVER EVIDENCE A MUTATION LANDED, in either direction.
+      //
+      // ⚠ Deliberately NOT wrapping the keyboard press in
+      // `page.waitForResponse()` the way the `.click()`-based cleanup below
+      // does — measured live: pairing `Promise.all([waitForResponse(...),
+      // page.keyboard.press(...)])` here made every subsequent state check
+      // hang out to its own full timeout, repeatedly, even though the
+      // response itself came back 200 with no refusal (confirmed via temp
+      // instrumentation, then reverted). The mechanism wasn't chased
+      // further — the reload-based confirmation below is already the
+      // discipline proven reliable throughout this investigation (Stage
+      // A/B), so it carries the guarantee alone here without the
+      // interaction some other property of a keyboard-triggered Server
+      // Action seems to have with `waitForResponse`.
       await page.keyboard.press('Space')
       await expect(toggle).not.toBeChecked({ timeout: 10_000 })
+      await page.reload()
+      const toggleReloaded = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
+      await expect(toggleReloaded).not.toBeChecked({ timeout: 10_000 })
 
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
@@ -630,12 +664,27 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
         // nor the checked state changes) — the two are otherwise
         // indistinguishable from the audit trail alone, since a refusal
         // never reaches the audit emit either.
-        const errorAlert = page.getByRole('alert')
-        const refused = await errorAlert.isVisible().catch(() => false)
+        //
+        // ⚠ SCOPED + NON-EMPTY, not `page.getByRole('alert')` bare (live-
+        // caught 2026-08-07 gate re-run: the page-wide query matched SOME
+        // other `role="alert"` element with EMPTY text, false-positiving a
+        // refusal that never happened — the wrong direction for a
+        // diagnostic). `CommissionOversightToggle` only ever renders its own
+        // alert with real message content (`{error ? <p role="alert">
+        // {error}</p> : null}` — never an intentionally empty string), so
+        // walking up from THIS toggle to its own wrapping container and
+        // requiring non-empty text rules out whatever unrelated element
+        // matched before, structurally, not by chance.
+        const errorAlert = toggleAgain
+          .locator('xpath=../..')
+          .getByRole('alert')
+        const alertText =
+          (await errorAlert.textContent().catch(() => null))?.trim() ?? ''
+        const refused = alertText.length > 0
         expect(
           response.ok() && !refused,
           refused
-            ? `revert REFUSED by the door: ${await errorAlert.textContent().catch(() => '(unreadable)')}`
+            ? `revert REFUSED by the door: ${alertText}`
             : `revert POST returned ${response.status()} (ok=${response.ok()})`,
         ).toBe(true)
         await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
@@ -721,6 +770,11 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
   test('flipping a second commission visible: the chip row mounts, narrows the board per selection, KPI/locked-count stay the global aggregate, and the excluded-elsewhere commission stays absent throughout', async ({
     page,
   }) => {
+    // Doubled from Playwright's 30s default — same reason as the CCIH
+    // toggle test: the flip AND the revert now each confirm via a real
+    // server round-trip + reload, on top of this test's already-larger
+    // scope (multiple sign-ins, chip interactions, two board reads).
+    test.setTimeout(60_000)
     await signIn(page, 'quality.a@test.local')
     await page.goto(QUALIDADE)
     await expect(
@@ -741,11 +795,23 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
     await expect(toggle).not.toBeChecked()
 
     try {
-      // KEYBOARD-operated, mirroring the D9 toggle test's discipline.
+      // KEYBOARD-operated, mirroring the D9 toggle test's discipline — the
+      // interaction stays keyboard-driven, but (same live diagnosis, one
+      // code path over) the RESULT gets confirmed via a reload, never
+      // trusted from the switch's own optimistic state alone. Deliberately
+      // NOT wrapped in `page.waitForResponse()` — see the CCIH toggle
+      // test's note: that combination measurably hung every subsequent
+      // check here, so this relies on the reload alone, the same
+      // discipline Stage A/B already proved reliable.
       await toggle.focus()
       await expect(toggle).toBeFocused()
       await page.keyboard.press('Space')
       await expect(toggle).toBeChecked({ timeout: 10_000 })
+      await page.reload()
+      const toggleReloaded = page.getByRole('switch', {
+        name: FARMACIA_SWITCH_NAME,
+      })
+      await expect(toggleReloaded).toBeChecked({ timeout: 10_000 })
 
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
@@ -909,12 +975,25 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
         ])
         // Distinguishes refusal (an error alert renders) from a silent
         // no-op — otherwise indistinguishable from the audit trail alone.
-        const errorAlert = page.getByRole('alert')
-        const refused = await errorAlert.isVisible().catch(() => false)
+        //
+        // ⚠ SCOPED + NON-EMPTY, not `page.getByRole('alert')` bare (live-
+        // caught 2026-08-07: this exact bare query false-positived a
+        // refusal on an unrelated, empty-text `role="alert"` element
+        // elsewhere on the page — see the CCIH toggle test's identical
+        // note). `CommissionOversightToggle` only ever renders its own
+        // alert with real content, never intentionally empty, so scoping to
+        // THIS toggle's own container plus a non-empty-text requirement
+        // rules the false match out structurally.
+        const errorAlert = toggleAgain
+          .locator('xpath=../..')
+          .getByRole('alert')
+        const alertText =
+          (await errorAlert.textContent().catch(() => null))?.trim() ?? ''
+        const refused = alertText.length > 0
         expect(
           response.ok() && !refused,
           refused
-            ? `revert REFUSED by the door: ${await errorAlert.textContent().catch(() => '(unreadable)')}`
+            ? `revert REFUSED by the door: ${alertText}`
             : `revert POST returned ${response.status()} (ok=${response.ok()})`,
         ).toBe(true)
         await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
