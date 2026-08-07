@@ -33,6 +33,7 @@ grant select on ctx to authenticated;
 create temp table k on commit drop as
   select (v->>'sa_x')::uuid as sa_x, (v->>'st_x')::uuid as st_x,
          (v->>'comm_x')::uuid as comm_x, (v->>'org_b')::uuid as org_b,
+         (v->>'oa_b')::uuid as oa_b,
          (v->>'hosp_b')::uuid as hosp_b
   from ctx;
 grant select on k to authenticated;
@@ -295,8 +296,13 @@ update public.profiles set home_organization_id = (select org_b from k)
 insert into public.memberships (commission_id, principal_id, role)
 select k.comm_x, l.u_assignee, 'staff' from k, lat l union all
 select k.comm_x, l.u_grantee,  'staff' from k, lat l;
-update public.case_narratives set assigned_to = (select u_assignee from lat)
- where case_id = (select case_a from cs);
+-- 311 has no narrative of its own; the S4 arm needs a real assignment row, and an
+-- UPDATE against a non-existent row silently confers nothing (0 rows) — which is
+-- how 6.2b caught this fixture bug rather than passing vacuously.
+insert into public.case_narratives (id, case_id, title, type_label, display_position, status, assigned_to, created_by)
+select '00000000-0000-0000-0000-0000000f1610', cs.case_a, 'Narrativa Lattice', 'Relato', 1,
+       'open', l.u_assignee, k.sa_x
+from cs, lat l, k;
 insert into public.case_access_grants
   (case_id, principal_id, source, read_case_content, read_case_deliberation,
    read_standard_phi, read_restricted_phi, write_case_content, reason_code, granted_by)
