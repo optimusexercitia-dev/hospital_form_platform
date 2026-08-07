@@ -34,7 +34,7 @@ import {
 
 import type { CommissionRole, Membership } from "@/lib/queries/session";
 import { cn } from "@/lib/utils";
-import { nspHref, orgHref } from "@/lib/routing";
+import { nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
 import { UserMenu } from "./user-menu";
 
@@ -318,6 +318,7 @@ export function AppSidebar({
   accreditationEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
+  isQualityReviewer = false,
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
   org: string;
@@ -390,6 +391,17 @@ export function AppSidebar({
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
   isPqsMember?: boolean;
+  /**
+   * Whether the current user holds a `quality_reviewer` seat in THIS commission's
+   * org (ADR 0100). Shows the "Escritório da Qualidade" console link.
+   *
+   * ⚠ Only ever true for a reviewer who is ALSO a member/coordinator here — a bare
+   * reviewer never reaches this sidebar at all: the commission layout returns the
+   * reduced `QualityViewerShell` for them, precisely because `role === null` makes
+   * `isVisible()` below show EVERY item. This link exists so the dual-hatted user
+   * (who lands on their commission, not the console) still has a way in.
+   */
+  isQualityReviewer?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -628,6 +640,48 @@ export function AppSidebar({
                         )}
                       />
                       <span className="flex-1 truncate">Núcleo de Segurança</span>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            );
+          })()}
+
+          {/* Quality-office console — shown to a member who ALSO holds a
+              `quality_reviewer` seat in this org (ADR 0100). Org-level href. */}
+          {isQualityReviewer && (() => {
+            const href = qualidadeHref(org);
+            const isActive = pathname.startsWith(href);
+            return (
+              <div className="mb-4">
+                <p className="px-2 pb-1.5 text-[0.65rem] font-semibold tracking-[0.08em] text-sidebar-foreground/45 uppercase">
+                  Organização
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  <li>
+                    <Link
+                      href={href}
+                      onClick={closeDrawer}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                        isActive
+                          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                          : "font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                      )}
+                    >
+                      <ClipboardCheck
+                        aria-hidden="true"
+                        className={cn(
+                          "size-[1.05rem] shrink-0 transition-colors",
+                          isActive
+                            ? "text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/55 group-hover:text-sidebar-foreground",
+                        )}
+                      />
+                      <span className="flex-1 truncate">
+                        Escritório da Qualidade
+                      </span>
                     </Link>
                   </li>
                 </ul>

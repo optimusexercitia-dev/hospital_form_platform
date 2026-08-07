@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { signOut } from "@/lib/auth/actions";
 import { getSessionContext } from "@/lib/queries/session";
-import { commissionHref, orgHref } from "@/lib/routing";
+import { commissionHref, orgHref, qualidadeHref } from "@/lib/routing";
 
 /**
  * Root role-landing. Server Component — resolves where the signed-in user
@@ -18,6 +18,8 @@ import { commissionHref, orgHref } from "@/lib/routing";
  *  - nsp_org_admin of ≥1 org            → /o/<org>/nsp-org  (org NSP-admin console)
  *  - exactly one commission membership  → /o/<org>/c/<commission>
  *  - more than one membership           → /c            (grouped picker)
+ *  - technical direction of ≥1 hospital → /o/<org>/direcao-tecnica
+ *  - quality reviewer of ≥1 hospital    → /o/<org>/qualidade
  *  - none of the above                  → friendly "sem acesso" screen
  *
  * platform_admin is walled off from tenant data (it holds no memberships), so it
@@ -113,6 +115,21 @@ export default async function Home() {
     redirect(
       orgHref(context.technicalDirectionOf[0].organization.slug, "direcao-tecnica"),
     );
+  }
+
+  // ADR 0100 — the quality reviewer (FUP-QO-2). Placed here for the SAME reason
+  // as the Diretor Técnico above, and it is the same failure a third time: the
+  // office is hospital-scoped with `commission_id NULL`, so every branch above
+  // steps over it and the account looked unprovisioned while being fully
+  // provisioned. For the pilot's PRIMARY DAILY USER that would have meant signing
+  // in to "Você ainda não tem acesso".
+  //
+  // After the commission branches on purpose: a reviewer who also belongs to a
+  // committee keeps landing where they always did, and reaches the console from
+  // the sidebar's "Escritório da Qualidade" entry. This branch only changes the
+  // outcome for someone who would otherwise hit the dead end.
+  if (context.qualityReviewerOf.length > 0) {
+    redirect(qualidadeHref(context.qualityReviewerOf[0].organization.slug));
   }
 
   // No org-admin role and no commissions — nothing to route to. Show a calm,

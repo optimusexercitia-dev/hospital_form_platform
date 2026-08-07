@@ -85,6 +85,7 @@ export const ROLE_LABELS: Record<string, string> = {
   nsp_coordinator: "Coordenação do NSP",
   nsp_org_admin: "Administração do NSP",
   pqs_member: "Membro do PQS",
+  quality_reviewer: "Revisão da qualidade",
 };
 
 function roleLabel(role: string): string {

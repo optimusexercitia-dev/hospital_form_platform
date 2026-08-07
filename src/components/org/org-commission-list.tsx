@@ -4,6 +4,7 @@ import { ArrowUpRight, Hospital } from "lucide-react";
 import type { OrgCommissionDetail } from "@/lib/queries/org";
 import { orgHref } from "@/lib/routing";
 import { initials } from "@/components/org/format";
+import { CommissionOversightToggle } from "@/components/org/commission-oversight-toggle";
 
 /**
  * Vertical stack of full-width commission cards for the org-admin area
@@ -34,14 +35,24 @@ export function OrgCommissionList({
     <ul className="flex flex-col gap-4">
       {commissions.map((commission, index) => (
         <li key={commission.id}>
-          <Link
-            href={orgHref(org, "manage", "comissoes", commission.slug)}
+          {/* ⚠ The whole card used to be ONE <Link>. The oversight toggle (ADR
+              0100 D9) is an interactive control, and a button inside an anchor is
+              invalid HTML — the click target and the keyboard path both break. So
+              the card is a container and the commission NAME carries the link.
+              Consequence for tests: this row's accessible name moved from the
+              whole card to the name, which re-scopes any locator keyed on it. */}
+          <div
             style={{ ["--rise-delay" as string]: `${index * 60}ms` }}
-            className="animate-rise-in group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-6"
+            className="animate-rise-in group flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-md sm:flex-row sm:flex-wrap sm:items-center sm:gap-6"
           >
             <div className="flex min-w-0 flex-col gap-1 sm:w-64 sm:shrink-0">
               <h3 className="truncate text-lg font-semibold">
-                {commission.name}
+                <Link
+                  href={orgHref(org, "manage", "comissoes", commission.slug)}
+                  className="rounded transition-colors hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                >
+                  {commission.name}
+                </Link>
               </h3>
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono">/{commission.slug}</span>
@@ -89,12 +100,23 @@ export function OrgCommissionList({
                   {commission.formCount === 1 ? "formulário" : "formulários"}
                 </span>
               </div>
-              <ArrowUpRight
-                className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary"
-                aria-hidden="true"
+              <CommissionOversightToggle
+                commissionId={commission.id}
+                commissionName={commission.name}
+                oversight={commission.qualityOversight}
               />
+              <Link
+                href={orgHref(org, "manage", "comissoes", commission.slug)}
+                aria-label={`Abrir ${commission.name}`}
+                className="rounded focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+              >
+                <ArrowUpRight
+                  className="size-5 shrink-0 text-muted-foreground transition-[color,transform] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary"
+                  aria-hidden="true"
+                />
+              </Link>
             </div>
-          </Link>
+          </div>
         </li>
       ))}
     </ul>
