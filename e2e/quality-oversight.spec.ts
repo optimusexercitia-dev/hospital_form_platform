@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn } from './helpers/auth'
 
@@ -186,6 +187,39 @@ async function renderedOpenCaseCount(page: Page): Promise<number> {
 
 async function signIn(page: Page, email: string) {
   await cachedSignIn(page, email)
+}
+
+// ---------------------------------------------------------------------------
+// DB-truth confirmation — mirrors the sqlOne/psql pattern already used
+// elsewhere in e2e/ (e.g. e2e/helpers/accreditation.ts, per its own header
+// note, itself mirroring ff5-references.spec.ts — this project's convention
+// is a local copy per file/helper rather than one shared cross-domain
+// import). Out-of-process (a synchronous `docker exec … psql`, no browser
+// involved), which is why it can replace a page.reload() confirmation
+// entirely rather than merely supplement it: it is strictly STRONGER
+// evidence that a mutation landed — it observes the row itself, not a
+// rendering of it — and it costs a single fast query instead of a full page
+// load. Used ONLY to confirm plumbing ("did the write land before moving
+// on"), never for the behavior actually under test (the reviewer's board
+// reacting, which stays a real UI read).
+const DB_CONTAINER = 'supabase_db_azkbbhskturikxpgmafq'
+
+function sqlOne(query: string): string {
+  const out = execSync(
+    `docker exec -i ${DB_CONTAINER} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -tA`,
+    { input: query, encoding: 'utf8' },
+  )
+    .toString()
+    .trim()
+  const rows = out === '' ? [] : out.split(/\r?\n/)
+  expect(rows.length, `expected exactly one row from: ${query}`).toBe(1)
+  return rows[0]
+}
+
+function oversightOf(slug: 'ccih' | 'farmacia'): string {
+  return sqlOne(
+    `select quality_oversight from public.commissions where slug = '${slug}';`,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -588,38 +622,27 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
 
     try {
       // KEYBOARD-ONLY activation — focus + Space, no .click() anywhere. This
-      // IS the a11y path under test, so unlike the cleanup below it must
-      // stay keyboard-driven — but the RESULT still needs confirming, not
-      // just the interaction method.
+      // IS the a11y path under test, so it stays keyboard-driven; the
+      // optimistic check right after is part of that behavior (the switch
+      // visibly responding to Space is what a11y here means).
       await toggle.focus()
       await expect(toggle).toBeFocused()
-      // ⚠ Live-diagnosed 2026-08-07 (lead's batch-15 re-run): the very next
-      // line used to be `not.toBeChecked()` right after the press, which
-      // satisfies INSTANTLY on `setCurrent(target)` — that fires
-      // synchronously before the async server action even starts. The test
-      // then signed in as quality.a and read her board on the strength of
-      // that client-side value alone, with no confirmation the mutation had
-      // reached the database. One code path over from the exact bug this
-      // commit fixed in the `finally` revert: THE SWITCH'S OWN STATE IS
-      // NEVER EVIDENCE A MUTATION LANDED, in either direction.
-      //
-      // ⚠ Deliberately NOT wrapping the keyboard press in
-      // `page.waitForResponse()` the way the `.click()`-based cleanup below
-      // does — measured live: pairing `Promise.all([waitForResponse(...),
-      // page.keyboard.press(...)])` here made every subsequent state check
-      // hang out to its own full timeout, repeatedly, even though the
-      // response itself came back 200 with no refusal (confirmed via temp
-      // instrumentation, then reverted). The mechanism wasn't chased
-      // further — the reload-based confirmation below is already the
-      // discipline proven reliable throughout this investigation (Stage
-      // A/B), so it carries the guarantee alone here without the
-      // interaction some other property of a keyboard-triggered Server
-      // Action seems to have with `waitForResponse`.
       await page.keyboard.press('Space')
       await expect(toggle).not.toBeChecked({ timeout: 10_000 })
-      await page.reload()
-      const toggleReloaded = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
-      await expect(toggleReloaded).not.toBeChecked({ timeout: 10_000 })
+      // ⚠ CONFIRM IN THE DATABASE, not via reload — live-diagnosed
+      // 2026-08-07 across three rounds of tightening: the switch's own
+      // state (even a confirmed HTTP response, even a post-reload DOM read)
+      // is UI, and every UI-based confirmation this file tried eventually
+      // pushed the test over its timeout budget (batch 3: 5.0m for 24
+      // tests) or hung outright. A single out-of-process `sqlOne` query is
+      // strictly STRONGER evidence the mutation landed — it observes the
+      // row itself, not a rendering of it — and costs one fast query
+      // instead of a full page load. This is plumbing ("did the write land
+      // before moving on"), not the behavior under test.
+      expect(
+        oversightOf('ccih'),
+        'CCIH oversight did not actually flip to excluded in the database',
+      ).toBe('excluded')
 
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
@@ -643,64 +666,39 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
       // can no-op silently, a documented precedent in this repo that reads
       // like an a11y defect but is a timing bug. The cleanup is not under
       // test, so it must not share the fragility of the thing it protects
-      // against; `.click()` is the most reliable interaction available.
+      // against; `.click()` is the most reliable interaction available —
+      // this stays `.click()` even after the confirmation below moved to
+      // SQL, since it is the INTERACTION that was diagnosed unreliable, not
+      // the confirmation.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
-      let toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
+      const toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
       if (!(await toggleAgain.isChecked())) {
-        // Assert the revert actually FIRED before trusting it — wait on the
-        // Server Action's own response rather than reloading and hoping.
-        const [response] = await Promise.all([
-          page.waitForResponse(
-            (r) =>
-              r.url().endsWith(COMISSOES) && r.request().method() === 'POST',
-            { timeout: 10_000 },
-          ),
-          toggleAgain.click(),
-        ])
-        // Distinguishes refusal (the door 42501s/HC0-rejects and the toggle
-        // renders its error alert) from a silent no-op (neither the alert
-        // nor the checked state changes) — the two are otherwise
-        // indistinguishable from the audit trail alone, since a refusal
-        // never reaches the audit emit either.
-        //
-        // ⚠ SCOPED + NON-EMPTY, not `page.getByRole('alert')` bare (live-
-        // caught 2026-08-07 gate re-run: the page-wide query matched SOME
-        // other `role="alert"` element with EMPTY text, false-positiving a
-        // refusal that never happened — the wrong direction for a
-        // diagnostic). `CommissionOversightToggle` only ever renders its own
-        // alert with real message content (`{error ? <p role="alert">
-        // {error}</p> : null}` — never an intentionally empty string), so
-        // walking up from THIS toggle to its own wrapping container and
-        // requiring non-empty text rules out whatever unrelated element
-        // matched before, structurally, not by chance.
-        const errorAlert = toggleAgain
-          .locator('xpath=../..')
-          .getByRole('alert')
-        const alertText =
-          (await errorAlert.textContent().catch(() => null))?.trim() ?? ''
-        const refused = alertText.length > 0
-        expect(
-          response.ok() && !refused,
-          refused
-            ? `revert REFUSED by the door: ${alertText}`
-            : `revert POST returned ${response.status()} (ok=${response.ok()})`,
-        ).toBe(true)
+        await toggleAgain.click()
         await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
       }
-      // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
-      // state: `CommissionOversightToggle.onCheckedChange` calls
-      // `setCurrent(target)` SYNCHRONOUSLY, before its async
-      // `setCommissionOversight()` server action even starts — so a check
-      // against the just-clicked switch alone could still pass on a
-      // mutation that has not actually landed. This `finally` runs even
-      // when the test above failed partway through (the whole point of
-      // `finally`), so it must not itself trust state a slow/failed
-      // mutation could fake — a reload re-fetches the TRUE persisted value.
-      await page.reload()
-      toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
-      await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
+      // ⚠ CONFIRM IN THE DATABASE, not via a Server-Action response-wait
+      // plus a reload — that combination (each individually justified) was
+      // the accumulated cost that pushed this test over its timeout budget
+      // (live-diagnosed 2026-08-07, batch 3: 5.0m for 24 tests). A single
+      // out-of-process `sqlOne` query is strictly stronger evidence than
+      // either: it observes the row itself, not an HTTP response about it
+      // or a rendering of it. Computed unconditionally alongside the
+      // scoped, non-empty-text alert check (live-caught 2026-08-07: a bare
+      // `page.getByRole('alert')` false-positived on an unrelated, empty
+      // element elsewhere on the page) so a failure here still tells you
+      // WHY — refused vs. a silent no-op — without an extra round trip.
+      const ccihFinal = oversightOf('ccih')
+      const ccihAlert = toggleAgain.locator('xpath=../..').getByRole('alert')
+      const ccihAlertText =
+        (await ccihAlert.textContent().catch(() => null))?.trim() ?? ''
+      expect(
+        ccihFinal,
+        ccihAlertText
+          ? `revert REFUSED by the door: ${ccihAlertText}`
+          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+      ).toBe('visible')
     }
 
     // Confirm the restore actually landed from quality.a's side too.
@@ -796,22 +794,20 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
 
     try {
       // KEYBOARD-operated, mirroring the D9 toggle test's discipline — the
-      // interaction stays keyboard-driven, but (same live diagnosis, one
-      // code path over) the RESULT gets confirmed via a reload, never
-      // trusted from the switch's own optimistic state alone. Deliberately
-      // NOT wrapped in `page.waitForResponse()` — see the CCIH toggle
-      // test's note: that combination measurably hung every subsequent
-      // check here, so this relies on the reload alone, the same
-      // discipline Stage A/B already proved reliable.
+      // interaction stays keyboard-driven (this IS the a11y point), and the
+      // optimistic check right after is part of that behavior.
       await toggle.focus()
       await expect(toggle).toBeFocused()
       await page.keyboard.press('Space')
       await expect(toggle).toBeChecked({ timeout: 10_000 })
-      await page.reload()
-      const toggleReloaded = page.getByRole('switch', {
-        name: FARMACIA_SWITCH_NAME,
-      })
-      await expect(toggleReloaded).toBeChecked({ timeout: 10_000 })
+      // CONFIRM IN THE DATABASE, not via reload — same discipline as the
+      // CCIH toggle test (see its note): a single out-of-process query is
+      // strictly stronger evidence than any UI-based confirmation, and
+      // every UI-based one tried here eventually cost too much wall clock.
+      expect(
+        oversightOf('farmacia'),
+        'Farmácia oversight did not actually flip to visible in the database',
+      ).toBe('visible')
 
       await signIn(page, 'quality.a@test.local')
       await page.goto(QUALIDADE)
@@ -958,66 +954,36 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       // precedent in this repo.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
-      let toggleAgain = page.getByRole('switch', {
+      const toggleAgain = page.getByRole('switch', {
         name: FARMACIA_SWITCH_NAME,
       })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
       if (await toggleAgain.isChecked()) {
-        // Assert the revert actually FIRED before trusting it — wait on the
-        // Server Action's own response rather than reloading and hoping.
-        const [response] = await Promise.all([
-          page.waitForResponse(
-            (r) =>
-              r.url().endsWith(COMISSOES) && r.request().method() === 'POST',
-            { timeout: 10_000 },
-          ),
-          toggleAgain.click(),
-        ])
-        // Distinguishes refusal (an error alert renders) from a silent
-        // no-op — otherwise indistinguishable from the audit trail alone.
-        //
-        // ⚠ SCOPED + NON-EMPTY, not `page.getByRole('alert')` bare (live-
-        // caught 2026-08-07: this exact bare query false-positived a
-        // refusal on an unrelated, empty-text `role="alert"` element
-        // elsewhere on the page — see the CCIH toggle test's identical
-        // note). `CommissionOversightToggle` only ever renders its own
-        // alert with real content, never intentionally empty, so scoping to
-        // THIS toggle's own container plus a non-empty-text requirement
-        // rules the false match out structurally.
-        const errorAlert = toggleAgain
-          .locator('xpath=../..')
-          .getByRole('alert')
-        const alertText =
-          (await errorAlert.textContent().catch(() => null))?.trim() ?? ''
-        const refused = alertText.length > 0
-        expect(
-          response.ok() && !refused,
-          refused
-            ? `revert REFUSED by the door: ${alertText}`
-            : `revert POST returned ${response.status()} (ok=${response.ok()})`,
-        ).toBe(true)
+        await toggleAgain.click()
         await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
       }
-      // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
-      // state. ⚠ THIS IS WHAT ACTUALLY BROKE, live, in the batch-15 gate run
-      // (2026-08-07): `CommissionOversightToggle.onCheckedChange` calls
-      // `setCurrent(target)` SYNCHRONOUSLY, before its async
-      // `setCommissionOversight()` server action even starts, so the
-      // `not.toBeChecked()` check above can pass on a mutation that has not
-      // landed (or that failed and rolled back a moment later, after this
-      // block had already moved on). Because this test's FIRST attempt
-      // failed inside `try` (at the contamination-sensitive KPI assertion
-      // this same commit fixes), the code after this whole try/finally
-      // NEVER RAN — so the only thing standing between a failed restore and
-      // Playwright's automatic retry was this block, and it was trusting the
-      // wrong state. Retry #1 then failed on its very FIRST assertion
-      // (chip row present when none was expected — Farmácia was still
-      // 'visible'), and the LATER keyboard-only test failed too (TWO "Caso
-      // 0001" links — Farmácia's case had never stopped being visible). One
-      // bug, three failures. A reload re-fetches the TRUE persisted value.
-      await page.reload()
-      toggleAgain = page.getByRole('switch', { name: FARMACIA_SWITCH_NAME })
-      await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
+      // ⚠ CONFIRM IN THE DATABASE, not via a Server-Action response-wait
+      // plus a reload — same discipline as the CCIH toggle test's `finally`
+      // (see its note): that combination was the accumulated cost that
+      // pushed this test over its timeout budget, live-diagnosed
+      // 2026-08-07. This is also THE original bug this file's investigation
+      // started from — Farmácia's revert silently not landing here is what
+      // poisoned the retry and the later keyboard-only test in the very
+      // first batch-15 run. A single out-of-process query settles it
+      // directly, computed alongside the scoped, non-empty-text alert check
+      // so a failure still says WHY.
+      const farmaciaFinal = oversightOf('farmacia')
+      const farmaciaAlert = toggleAgain
+        .locator('xpath=../..')
+        .getByRole('alert')
+      const farmaciaAlertText =
+        (await farmaciaAlert.textContent().catch(() => null))?.trim() ?? ''
+      expect(
+        farmaciaFinal,
+        farmaciaAlertText
+          ? `revert REFUSED by the door: ${farmaciaAlertText}`
+          : 'revert click registered but the database still shows the wrong value (silent no-op)',
+      ).toBe('excluded')
     }
 
     // ASSERT the restore landed — Farmácia disappears from quality.a's
