@@ -195,7 +195,10 @@ all-green). Six cases → expected REDs:
 - **(e) Second stale comment** (`_cap_bit`'s "RESERVED + UNCONSUMED") — updated in M4
   alongside the plan's S3 comment (table row 14).
 - **(f) M2 error codes:** authority → `42501` (role-door family convention), invalid
-  value → a distinct code (`HC0Q0`) so authority and validation stay
+  value → a distinct code (**`HC0L0`** as built — this line proposed `HC0Q0`, which the
+  lead REJECTED at plan approval because `HC0Q*` is occupied through `HC0QE` by the
+  forms-validation/accreditation work; reusing it would let a validation keystone pass
+  on an unrelated error. Corrected here per QA m2 — the door raises `HC0L0`) so authority and validation stay
   distinct-SQLSTATE per §7.1's structural defence. P0002 for unknown commission.
 - **(g) M7 return shape (proposal, pinned at A.6 contract time):** per visible
   commission of hospitals the caller reviews — `(commission_id, commission_name,

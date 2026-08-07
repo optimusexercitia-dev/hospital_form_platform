@@ -495,7 +495,7 @@ async function getCommissionAccessByOrgUncached(
   const { data: commissionRow } = await supabase
     .from('commissions')
     .select(
-      'id, name, slug, hospital_id, organization:organizations!inner(id, slug, name)',
+      'id, name, slug, hospital_id, quality_oversight, organization:organizations!inner(id, slug, name)',
     )
     .eq('slug', commissionSlug)
     .eq('organization.slug', orgSlug)
@@ -533,15 +533,22 @@ async function getCommissionAccessByOrgUncached(
 
   // ADR 0100 D10 — the quality-reviewer VIEWER branch. Evaluated only when the
   // member/commission-admin checks above resolved nothing: a reviewer who is
-  // ALSO a member keeps their member role (and its affordances) untouched. No
-  // oversight-visibility re-check here — the commission row above is RLS-scoped,
-  // and for a bare reviewer the ONLY admitting arm of
-  // `commissions_select_member_or_admin` is `is_quality_reviewer_of(hospital) AND
-  // quality_oversight = 'visible'` (M6), so an excluded commission never reaches
-  // this line (`!commissionRow` already returned null → 404).
+  // ALSO a member keeps their member role (and its affordances) untouched.
+  //
+  // ⚠ The oversight-visibility test is EXPLICIT and load-bearing. An earlier
+  // version omitted it, reasoning that for a bare reviewer the only admitting
+  // arm of `commissions_select_member_or_admin` is the M6 reviewer arm (which
+  // carries `quality_oversight = 'visible'`) — that invariant is FALSE (QA m1):
+  // `is_pqs_operator_of(hospital_id)` and `is_nsp_org_admin_of(organization_id)`
+  // also admit the row. A reviewer who is ALSO a PQS operator of the same
+  // hospital would therefore resolve an EXCLUDED commission and be flagged a
+  // quality viewer on it. The DB still yields nothing (S7 requires 'visible', so
+  // it failed closed on data), but the flag would be wrong — so it is now tested
+  // here rather than inferred from a policy's arm set.
   const isQualityViewer =
     role === null &&
     commission.hospitalId !== null &&
+    commissionRow.quality_oversight === 'visible' &&
     context.qualityReviewerOf.some(
       (q) => q.hospital.id === commission.hospitalId,
     )
