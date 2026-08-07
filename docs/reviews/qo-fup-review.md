@@ -270,3 +270,110 @@ manufacture a classification, which is the right posture.
 R1 (correct three records, re-scope FUP-QO-7), R2 (restate the sweep by property), R3
 (four prose lines). R4–R6 are informational. No migration, no application code, and no
 test needs to change; nothing needs re-running except a re-read of the corrected records.
+
+---
+
+# Round 2 — re-review of the `6b6f894` corrections
+
+- **Reviewer:** `qa` · **Date:** 2026-08-07 · **Diff:** `0b03424..6b6f894` (5 files, records + 2 comment blocks)
+- **Verdict: ✅ `APPROVED`** — R1 (the blocker) fully closed; R2 and R3 substantially
+  closed with a small residual tail, carried forward non-blocking.
+
+## R1 — MAJOR · **CLOSED**, and closed better than asked
+
+All three sites now match the fact I established from the catalog, each with a **visible
+correction** rather than a silent rewrite (ADR 0102 "⛔ CORRECTION … This bullet said the
+opposite and was wrong"; PROGRESS.md "⛔ Read this entry, not its first version";
+backend-state.md "⚠ CORRECTED … the previous sentence here was BACKWARDS"). Keeping the
+wrong claim visible beside the right one is the correct choice for a record that another
+agent may have already read.
+
+Re-verified independently:
+
+- The corrected statement matches the catalog: the `do update` list **ends with
+  `expires_at = excluded.expires_at`, uncoalesced**.
+- **FUP-QO-7 is re-scoped to the true finding** and re-graded **PHI-grade** — and, correctly,
+  is *not* declared a defect. The entry's instruction that the door **must not be changed on
+  that assumption** (a blank expiry may legitimately mean "permanent"; the role door's ruling
+  turned on *no caller passing the argument*, and this door's UI deliberately does) is the
+  right call and the one I would have asked for. The three named prerequisites — a caller
+  sweep bounded by "reaches `app._grant_case_access_unchecked`", a PO ruling, and an
+  executable pin either way — are the correct closure conditions.
+- Its new reachability claim checks out: a catalog sweep for callers of
+  `app._grant_case_access_unchecked` returns exactly `public.grant_case_access`,
+  `public.create_case`, `public.create_case_from_template` — the three named.
+- `306` 4.4's "mirrors `grant_case_access` verbatim" is correctly preserved as still-true
+  for the refusal.
+
+The recorded **root cause is the valuable part** and I could not have supplied it: the probe
+was `substring(prosrc from position('on conflict' in prosrc) for 600)`, the list runs past
+600 characters, and `expires_at` sat just beyond the cut — *the window's edge was read as the
+statement's end*. "A fixed-width `substring(… for N)` is a **window, not a delimiter** — the
+absence of a token inside it is not absence" generalises well beyond this door, and the note
+that it failed in the **urgency-suppressing** direction is the right thing to have noticed.
+
+## R2 — MINOR · closed in substance; **residual: the recut list is still short by three**
+
+The boundary is correctly restated as the property *"reaches `app.grant_role_impl`"*, the
+`_for` twin is in, and the ruling is shown to survive on the larger population. The 3 public
+doors and 5 SQL functions match my own catalog sweep exactly.
+
+**Residual (non-blocking).** The TS tier says **9 sites**; the property-bounded set is **12**.
+The paragraph names `assign_hospital_admin`, `assign_nsp_org_admin` and `assign_nsp_coordinator`
+in the SQL tier but omits their TS call sites:
+
+- `src/lib/org/actions.ts:238` → `assign_nsp_coordinator`
+- `src/lib/org/actions.ts:320` → `assign_hospital_admin`
+- `src/lib/org/actions.ts:385` → `assign_nsp_org_admin`
+
+(`assign_org_admin` correctly has no TS caller — only a generated-types entry.) I re-swept all
+12: **none passes `p_expires_at`**; the only `p_expires_at` in `src/` remains
+`case-access/actions.ts:181`, a different door. So the ruling is unaffected and the count is
+if anything more favourable. Also cosmetic: three line numbers in the new list went stale
+inside the same commit that wrote them — `platform/actions.ts:210`→`:215`, `:247`→`:255`,
+`pqs/actions.ts:65`→`:71` — shifted by its own comment edits.
+
+Worth naming plainly because the paragraph invokes *"an enumeration's boundary must be the
+property, not a syntax"* while itself stopping one hop short: it enumerated the SQL functions
+but not their callers. The property has a transitive closure; the list took one step of it.
+
+## R3 — MINOR · half closed; **residual: the sweep covered `src/` only**
+
+Both `src/lib/platform/actions.ts` sites are fixed, and fixed with the *why* — that these
+calls stay idempotent **because they pass no expiry**, `coalesce(null, existing)` writing the
+existing value back, and that this is "no longer a blanket no-op". That is the right shape: it
+survives the next reader asking "may I pass an expiry here?". The bonus fix at
+`src/lib/pqs/actions.ts` is a genuine catch — the comment named a `(hospital,user)` PK that
+does not exist; the real arbiter is `memberships_grant_uq`.
+
+**Residual (non-blocking).** Two of the four sites I listed are untouched, both under
+`supabase/tests/`:
+
+- `supabase/tests/145_pqs_membership.sql:112` — "Duplicate enrollment is idempotent (on
+  conflict do nothing)". This describes `add_pqs_member` → `grant_role` → the kernel, i.e.
+  **the same door whose identical claim was just corrected in `pqs/actions.ts`.**
+- `supabase/tests/224_memberships_collapse.sql:435` — "§11 · Grant idempotency (on conflict
+  do nothing — no duplicate row)".
+
+A residual sweep of `src/` is otherwise clean: the only remaining "do nothing" hits are the
+deliberate historical quotations ("was `do nothing` until 2026-08-07", "not `do nothing`") plus
+two unrelated ones (`affiliations-panel.tsx` English prose; `meetings/actions.ts` describing a
+`meeting_participants` insert, a different table). Same recorded class as R2's residual —
+**the union of scoped sweeps is not a sweep**; `src/` was swept and `supabase/tests/` was not.
+
+## Gates re-run after the `src/` edits
+
+`npm run lint` (incl. `lint:css-vars` + `lint:memberships-door`) clean · `npm run typecheck`
+clean · full vitest **1172 / 77 files** green. No migration, SQL, or spec file was touched, so
+the round-1 database gates (pgTAP 5371, `ARM=census`, `ARM=floor`, `f1-expiry-seam` 6/6,
+`a2` 12/12) stand unchanged.
+
+## Carried forward, non-blocking
+
+1. **R2 residual** — add `org/actions.ts:238` / `:320` / `:385` to the TS site list (9 → 12)
+   and refresh the three drifted line numbers, in ADR 0102 §2 · PROGRESS.md · backend-state.md.
+2. **R3 residual** — the two `supabase/tests/` prose sites above.
+3. R4–R6 from round 1 (ADR 0102's no-caller-yet note; the flag-off NSP 404; the guard's coarse
+   collapse control) remain informational.
+
+None affects behaviour, security, or any gate. Land them before the branch merges.
