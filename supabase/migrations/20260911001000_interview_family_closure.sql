@@ -95,6 +95,15 @@ end $$;
 --     has no consumer in the model. Reading other members' records has an
 --     obvious consumer — the oversight review itself.
 --
+-- ⚠ HOW THIS RULING IS PINNED, stated precisely (QA r3): TWO ways, not three.
+--   1. the two catalog comments below - durable and visible in pg_policies to
+--      anyone inspecting the arms, but a comment CANNOT FAIL; and
+--   2. pgTAP 311 section 5.2c - the SINGLE FAILING PIN, which reds if either
+--      policy is ever moved onto the committee plane.
+-- This migration block deliberately does NOT add a postcondition for the
+-- ruling: a migration postcondition runs ONCE at apply time and cannot guard a
+-- later change, so it would read as a third guard while protecting nothing.
+--
 -- Shape, stated once: the reviewer MAY SEE that a member recused, and MAY NOT
 -- CREATE such a record themselves. Acknowledged consequence: this does reveal
 -- that a NAMED member declared a conflict on a case.

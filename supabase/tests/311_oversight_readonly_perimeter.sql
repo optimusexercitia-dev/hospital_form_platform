@@ -293,9 +293,18 @@ from (select u_assignee as u from lat union all select u_grantee from lat) q;
 select test_helpers.claims_for(null, false);
 update public.profiles set home_organization_id = (select org_b from k)
  where id in (select u_assignee from lat union all select u_grantee from lat);
-insert into public.memberships (commission_id, principal_id, role)
-select k.comm_x, l.u_assignee, 'staff' from k, lat l union all
-select k.comm_x, l.u_grantee,  'staff' from k, lat l;
+-- ⚠⚠ THESE TWO ARE DELIBERATELY **NOT** MEMBERS of comm_x (QA r3 MINOR).
+-- They used to be seeded as staff, which meant the S5 committee-member arm
+-- supplied read_case_deliberation and 6.2/6.3 could NOT isolate S4/S3 at all —
+-- they would have passed on deliberation that came from somewhere else. That is
+-- the R2 scenario verbatim, sitting on the arm most likely to be edited: drop
+-- S3's read-closure and a real NON-MEMBER grantee (the normal case for a grant)
+-- becomes content-without-deliberation, is classified oversight-only by
+-- app.is_oversight_only_reader, and is silently cut from ~20 surfaces WITH A
+-- GREEN SUITE. Catalog-verified: case_narratives.assigned_to,
+-- case_phases.assigned_to and case_access_grants.principal_id all FK to
+-- profiles ONLY, and _case_caps' S4/S3 arms carry no membership test, so a
+-- non-member is a valid - and the ONLY isolating - fixture here.
 -- 311 has no narrative of its own; the S4 arm needs a real assignment row, and an
 -- UPDATE against a non-existent row silently confers nothing (0 rows) — which is
 -- how 6.2b caught this fixture bug rather than passing vacuously.

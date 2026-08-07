@@ -5,7 +5,7 @@
 #   bash supabase/tests/mutation/q1-quality-mutation-audit.sh
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
-# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 19 cases.
+# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 20 cases.
 #
 # ⚠ Keep this count and the run_case list in sync — a header that names a stale
 # figure is an assertion that goes stale silently (the class this project has
@@ -234,6 +234,26 @@ begin
       execute v_d;
     end;
 
+  elsif p_what = 'drop_grant_read_closure' then
+    -- QA r3 MINOR, and the R2 scenario made executable. Remove the S3 read
+    -- closure so a manual_grant confers content WITHOUT deliberation. A real
+    -- NON-MEMBER grantee is then classified oversight-only by
+    -- app.is_oversight_only_reader and silently cut from ~20 surfaces.
+    -- 311 section 6.3 must red. NOTE: with the OLD fixture (grantee seeded as
+    -- staff of comm_x) the S5 arm supplied deliberation and this case could NOT
+    -- have redded - so this mutation also proves the fixture fix landed.
+    declare v_d text;
+    begin
+      v_d := pg_get_functiondef('app._case_caps(uuid,uuid)'::regprocedure);
+      v_d := app._mut_q1_sub(v_d,
+        'if v_g.read_case_content then
+      v_caps := v_caps | app._cap_bit(''read_case_content'')
+                       | app._cap_bit(''read_case_deliberation'');',
+        'if v_g.read_case_content then
+      v_caps := v_caps | app._cap_bit(''read_case_content'');');
+      execute v_d;
+    end;
+
   elsif p_what = 'open_resolver_door' then
     -- No-op M9's door conjunct: the reviewer would again resolve a bucket+path
     -- the app signs with service_role — the door-shaped hole beside M8's policy.
@@ -394,6 +414,11 @@ run_case "open_interview_links -> the 8th family member" \
 run_case "open_interview_attachments -> the 9th" \
   "select app._mut_q1('open_interview_attachments');" \
   "INTERVIEW FAMILY, 9th MEMBER" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "drop_grant_read_closure -> S3 content w/o deliberation" \
+  "select app._mut_q1('drop_grant_read_closure');" \
+  "LATTICE S3 grant: content implies deliberation" \
   "supabase/tests/311_oversight_readonly_perimeter.sql"
 
 run_case "open_resolver_door -> the door beside the policy" \
