@@ -29,6 +29,7 @@ export async function CaseDocumentsPanel({
   documents,
   variant = "default",
   canWrite = true,
+  canDownload = true,
 }: {
   caseId: string;
   documents: CaseDocumentWithUrl[];
@@ -40,6 +41,17 @@ export async function CaseDocumentsPanel({
    * delete affordances.
    */
   canWrite?: boolean;
+  /**
+   * Whether this viewer may obtain document BYTES at all (ADR 0100 D3/D7 — the
+   * quality reviewer may read case metadata but not download attachments).
+   * Default `true`, so every existing caller is unchanged.
+   *
+   * Suppresses BOTH download paths, deliberately: the direct signed-URL anchor
+   * AND the audited `OpenAttachmentButton` fallback. Gating only the anchor would
+   * leave the reviewer with the audited door on every row — see the note at the
+   * use site for why that is the more dangerous of the two.
+   */
+  canDownload?: boolean;
 }) {
   const flagOn = await attachmentsEnabled();
   const canWriteNow = canWrite && flagOn;
@@ -109,7 +121,17 @@ export async function CaseDocumentsPanel({
               </div>
 
               <div className="flex shrink-0 items-start gap-0.5">
-                {doc.signedUrl ? (
+                {/* ⚠ ADR 0100 — `signedUrl: null` is OVERLOADED, and the second
+                    meaning arrived with M8. It used to mean exactly one thing:
+                    "PHI tier, use the audited door". After the bytes cut it ALSO
+                    means "storage refused to sign for you", which is the state a
+                    quality reviewer is now in for STANDARD-tier documents. Both
+                    land in the same else-branch, so without `canDownload` the
+                    reviewer is offered `OpenAttachmentButton` on every row — the
+                    audited door, which signs with the SERVICE ROLE and therefore
+                    does not consult the storage policy M8 cut at all. The panel
+                    cannot tell the two nulls apart, so the host resolves it. */}
+                {!canDownload ? null : doc.signedUrl ? (
                   <a
                     href={doc.signedUrl}
                     target="_blank"

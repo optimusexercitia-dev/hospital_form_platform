@@ -674,6 +674,11 @@ export function CaseDetailView({
                 documents={documents}
                 variant="rail"
                 canWrite={caps.canWriteContent}
+                // ADR 0100 — metadata yes, bytes no. See the panel's own note:
+                // after M8 a standard-tier row arrives with `signedUrl: null` for
+                // the reviewer, which without this would fall through to the
+                // audited service-role door on every document.
+                canDownload={!isOversight}
               />
             </div>
             {interviewsEnabled && (
