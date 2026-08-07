@@ -12,7 +12,7 @@
 -- =============================================================================
 
 begin;
-select plan(16);
+select plan(21);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -210,6 +210,86 @@ select is(
   0,
   '3.6 CONSISTENCY ⭐: opting the last commission out empties BOTH the board door and the RLS shell in the same instant (no drift between the two surfaces)');
 reset role;
+
+-- =============================================================================
+-- §4 — THE CROSS-COMMITTEE BOARD (ADR 0100 D10). Everything above exercises the
+-- board with ONE visible commission; the console exists so a quality office can
+-- read ACROSS the clinical committees of its hospital, and that path had no DB
+-- coverage (tester found the same hole in the FE chip row, which only mounts at
+-- commissions.length > 1).
+--
+-- Built ENTIRELY IN-TRANSACTION and rolled back: `seed.sql` is a contract with
+-- ~900 tests and every route to a second seeded visible commission moves a
+-- tenant-isolation count (171: org-a commissions; 189: org-a hospitals). Those
+-- assertions exist to go red when a tenant's SHAPE changes — bending them to fit
+-- a fixture is the corrosive habit, so the fixture comes here instead (lead
+-- ruling 2026-08-06). The E2E half drives the real onboarding flow through
+-- set_commission_oversight.
+--
+-- ANTI-CONFLATION BY CONSTRUCTION: the two commissions carry DIFFERENT locked
+-- counts (1 vs 2). A door that summed globally, or cross-attributed, reads 3/3
+-- and reds 4.4 — a same-count fixture would pass either way.
+-- =============================================================================
+
+create temp table cs2 on commit drop as
+  select '00000000-0000-0000-0000-0000000e2001'::uuid as comm_2,
+         '00000000-0000-0000-0000-0000000e2101'::uuid as c2_open_a,
+         '00000000-0000-0000-0000-0000000e2102'::uuid as c2_open_b,
+         '00000000-0000-0000-0000-0000000e2103'::uuid as c2_eg_1,
+         '00000000-0000-0000-0000-0000000e2104'::uuid as c2_eg_2;
+grant select on cs2 to authenticated;
+
+-- A SECOND committee of the SAME hospital the reviewer reviews. Born 'excluded'
+-- (the M2 INSERT guard refuses anything else outside the bracket — 307 §1.3);
+-- both commissions are then opted in through the bracket, which also restores
+-- comm_x after §3.6 opted it out.
+insert into public.commissions (id, name, slug, created_by, hospital_id)
+select cs2.comm_2, 'Comissão Dois QO', 'comm-qo2-' || substr(cs2.comm_2::text, 1, 8),
+       k.sa_x, k.hosp_b
+from cs2, k;
+
+select set_config('app.in_commission_rpc', 'on', true);
+update public.commissions set quality_oversight = 'visible'
+  where id in ((select comm_x from k), (select comm_2 from cs2));
+select set_config('app.in_commission_rpc', 'off', true);
+
+insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, status)
+select cs2.c2_open_a, cs2.comm_2, 99911, k.sa_x, 'commission_default',   'not_started' from cs2, k union all
+select cs2.c2_open_b, cs2.comm_2, 99912, k.sa_x, 'commission_default',   'in_review'   from cs2, k union all
+select cs2.c2_eg_1,   cs2.comm_2, 99913, k.sa_x, 'explicit_grants_only', 'not_started' from cs2, k union all
+select cs2.c2_eg_2,   cs2.comm_2, 99914, k.sa_x, 'explicit_grants_only', 'not_started' from cs2, k;
+
+select test_helpers.claims_for((select qr from p), false);
+
+select is(
+  (select count(*)::int from public.quality_board_summary((select org_b from k))),
+  2,
+  '4.1 CROSS-COMMITTEE ⭐⭐ (D10): the board returns BOTH oversight-visible committees of the reviewed hospital — the multi-commission shape the console exists for');
+
+select is(
+  (select array_agg(b.commission_id order by b.commission_name)
+     from public.quality_board_summary((select org_b from k)) b),
+  (select array_agg(x order by x) from (select (select comm_x from k) as x union all select (select comm_2 from cs2)) s),
+  '4.2 ...and they are exactly the two visible commissions (comm_y, still excluded, is absent)');
+
+select is(
+  (select b.total_cases || '/' || b.open_cases || '/' || b.locked_cases
+     from public.quality_board_summary((select org_b from k)) b, k
+    where b.commission_id = k.comm_x),
+  '3/2/1',
+  '4.3 PER-COMMISSION ATTRIBUTION: the first committee keeps its own totals unchanged by the arrival of a second (3 readable / 2 open / 1 locked)');
+
+select is(
+  (select b.total_cases || '/' || b.open_cases || '/' || b.locked_cases
+     from public.quality_board_summary((select org_b from k)) b, cs2
+    where b.commission_id = cs2.comm_2),
+  '2/2/2',
+  '4.4 ...and the second reports ITS OWN (2 readable / 2 open / 2 locked) — DIFFERENT locked counts, so a globally-summed or cross-attributed count reads 3/3 and reds here');
+
+select ok(
+  (select sum(b.locked_cases)::int from public.quality_board_summary((select org_b from k)) b) = 3
+  and (select count(distinct b.locked_cases)::int from public.quality_board_summary((select org_b from k)) b) = 2,
+  '4.5 LOCKED STAYS PER-ROW ⭐: the locked population tiles across commissions (1 + 2 = 3) and the two rows genuinely differ — the D6 count is attributed, never aggregated org-wide');
 
 select * from finish();
 rollback;

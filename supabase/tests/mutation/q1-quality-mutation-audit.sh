@@ -5,9 +5,21 @@
 #   bash supabase/tests/mutation/q1-quality-mutation-audit.sh
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
-# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 7 cases.
+# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 12 cases.
 #
-# Three of these matter more than the rest:
+# ⚠ Keep this count and the run_case list in sync — a header that names a stale
+# figure is an assertion that goes stale silently (the class this project has
+# paid for repeatedly).
+#
+# Five of these matter more than the rest:
+#
+#   open_bytes_cut / open_resolver_door — the bytes layer has TWO halves and each
+#   is invisible to the other's sweep: M8's storage policy lives in the `storage`
+#   schema (outside the door-audit's `public` population) and M9's door is a
+#   2-guard rowdoor whose CASE-expression defeats the rowdoor neutralizer
+#   (ERROR, and "ERROR is not a pass"). These two cases ARE that coverage.
+#
+# Three more:
 #
 #   grant_arm_admits_platform — the PO ruled (D9, mirroring the DT ruling) that a
 #   platform_admin may NOT seat a quality reviewer. The arm looks asymmetric next
@@ -140,6 +152,15 @@ begin
         '(bucket_id = ''attachments''::text) AND app.can_read_attachment((storage.foldername(name))[1], ((storage.foldername(name))[2])::uuid, auth.uid())');
     end;
 
+  elsif p_what = 'drop_board_correlation' then
+    -- The board's per-commission attribution: drop the lateral's correlation so
+    -- every row counts the WHOLE org. 310 §4 exists to catch exactly this, and
+    -- its two commissions carry DIFFERENT locked counts so the conflation is
+    -- observable (a same-count fixture would stay green).
+    d := pg_get_functiondef('public.quality_board_summary(uuid)'::regprocedure);
+    d := app._mut_q1_sub(d, 'where ca.commission_id = c.id', 'where true');
+    execute d;
+
   elsif p_what = 'open_resolver_door' then
     -- No-op M9's door conjunct: the reviewer would again resolve a bucket+path
     -- the app signs with service_role — the door-shaped hole beside M8's policy.
@@ -209,7 +230,7 @@ SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
-      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows','open_attachment')))
+      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows','open_attachment','quality_board_summary')))
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin')
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='attachments_obj_select_readable'))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
@@ -262,6 +283,11 @@ run_case "open_bytes_cut -> un-audited PHI-capable bytes" \
   "BYTES CUT .*: the reviewer reaches ZERO object rows" \
   "supabase/tests/308_case_caps_s7.sql"
 
+run_case "drop_board_correlation -> org-wide counts per row" \
+  "select app._mut_q1('drop_board_correlation');" \
+  "PER-COMMISSION ATTRIBUTION|LOCKED STAYS PER-ROW" \
+  "supabase/tests/310_quality_board_door.sql"
+
 run_case "open_resolver_door -> the door beside the policy" \
   "select app._mut_q1('open_resolver_door');" \
   "RESOLVE DOOR .*: the reviewer calling open_attachment" \
@@ -287,6 +313,7 @@ for src in supabase/tests/306_quality_reviewer_role.sql \
            supabase/tests/307_commission_oversight.sql \
            supabase/tests/308_case_caps_s7.sql \
            supabase/tests/309_dashboard_quality_arm.sql \
+           supabase/tests/310_quality_board_door.sql \
            supabase/tests/270_authz_dashboard_gate_uniformity.sql; do
   docker cp "$src" "$DB:/tmp/_noop_q1.sql" >/dev/null
   control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_q1.sql 2>&1)
