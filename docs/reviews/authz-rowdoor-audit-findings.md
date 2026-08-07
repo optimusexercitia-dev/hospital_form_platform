@@ -30,10 +30,20 @@ Row-returning doors in the live catalog: 45.
 > still COVERED (now additionally noticed by `309_dashboard_quality_arm.sql` /
 > `310_quality_board_door.sql`); their standing rows below are left as generated.
 
+> ⚠ **HAND-MERGED, 2026-08-07 (PDF·P1 / ADR 0104).** The `public.open_printed_document`
+> row below was merged by hand from a **diff-scoped** run (baseline Files=173,
+> Tests=5444, Result: PASS; COVERED 1, BLIND 0, UNSUPPORTED 0) — a subset run
+> OVERWRITES this report (ADR 0079 Amendment 1 hazard 1). Its call-time authority is
+> additionally A33 drill-proven (D3: guard drop → 312 t27/t28 RED). The write doors
+> `mint_printed_document` / `revoke_printed_document` and the service_role-only
+> `lookup_printed_document` are outside this sweep's authenticated-reachable
+> row-door domain; their gates are RED-proven by the 312 A33 drills (D2/D4/D6).
+
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.open_printed_document(p_id uuid) | rowdoor | open-guard(1) | COVERED | 312_printed_documents.sql (PDF·P1 hand-merge — see header note) |
 | public.quality_board_summary(p_organization_id uuid) | rowdoor | open-guard(1) | COVERED | 310_quality_board_door.sql (QO·A hand-merge — see header note) |
 | public.case_action_items_kpis(p_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 113_case_action_items.sql |
 | public.case_tag_report(p_commission_id uuid, p_from date, p_to date) | rowdoor | open-guard(1) | COVERED | 112_case_tags.sql |
