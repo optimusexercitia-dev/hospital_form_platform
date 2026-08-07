@@ -1,10 +1,16 @@
 # QO·A Review — Quality-office oversight, Phase A (ADR 0100 D1–D11)
 
-**Reviewer:** `qa` · **Date:** 2026-08-07 · **Branch:** `feat/quality-office-oversight` @ `9bb789b`
-**Scope:** ADR [0100](../decisions/0100-quality-office-oversight.md) **Phase A only** — D1–D11.
-D12/D13/D14 (Phases B/C) are out of scope and were not audited.
+**Reviewer:** `qa` · **Scope:** ADR [0100](../decisions/0100-quality-office-oversight.md)
+**Phase A only** — D1–D11. D12/D13/D14 (Phases B/C) out of scope, not audited.
 
-# VERDICT: ⛔ CHANGES REQUESTED
+| Round | Date | Commit | Verdict |
+|---|---|---|---|
+| **r2** | 2026-08-07 | `1f8c8a9` (M10 = `f6b622a`) | ⛔ **CHANGES REQUESTED** — r1 fully closed; **2 new**: R1 BLOCKER (interview-family cut incomplete), R2 MAJOR (the lattice invariant is unpinned). **[§8](#8-round-2--re-review-of-the-m10-remediation)** |
+| r1 | 2026-08-07 | `9bb789b` | ⛔ CHANGES REQUESTED — 1 BLOCKER, 2 MAJOR, 3 MINOR (below) |
+
+---
+
+# ROUND 1 — VERDICT: ⛔ CHANGES REQUESTED
 
 One blocker (**B1**), two majors (**M1**, **M2**), three minors. The blocker is a
 **D7 breach**: three `authenticated`-executable SECURITY DEFINER **write** doors gate on
@@ -415,3 +421,272 @@ On the fix round I will re-audit: the three doors' new authority (from
 on M1/M2 and its pin, m1–m3, and a fresh **read-vs-write** consumer sweep of
 `can_read_case` / `has_case_capability` over `pg_proc` and both `pg_policies` columns. Nothing
 else needs re-deriving — §5 stands.
+
+---
+
+# 8. ROUND 2 — re-review of the M10 remediation
+
+**Date:** 2026-08-07 · **Branch:** `feat/quality-office-oversight` @ `1f8c8a9` · **Delta under
+review:** `f6b622a` (M10 `20260911000900_oversight_readonly_perimeter`), `efb498b` (308 §6
+vacuity fix), `ad2e099` (m1 + m2 + perf record), pgTAP `311`, `q1` 12→17 cases.
+
+## VERDICT: ⛔ CHANGES REQUESTED
+
+**Round 1 is fully closed** — B1, M1, M2 and all three minors, and closed better than I
+asked (§8.4). Two **new** findings, both in the remediation itself, both live on the seed
+and verified against the live catalog:
+
+| # | Severity | Finding |
+|---|---|---|
+| **R1** | ⛔ **BLOCKER** | The interview-family cut is **incomplete**. `case_interview_links` and interview-owned `attachments` still route the raw `can_read_case`, so the reviewer reads an interview's **external audio-recording URL** and its transcript's title while `can_read_interview` is **false** for that same interview. |
+| **R2** | ⚠ **MAJOR** | The **lattice invariant** that M8, M9 and M10 all rest on ("content without deliberation ⟺ S7, and nothing else") is asserted in prose and in two-principal fixtures, but **pinned by no keystone**. A future content-conferring arm silently over-cuts ~20 surfaces with LOST ≠ 0 and nothing goes red. |
+
+R1 is a narrow fix — two predicates in one migration — not a redesign. I am holding the
+verdict because it is an RLS hole against a PO-ratified exclusion, which my own r1 standard
+says blocks regardless of how much else is right; and because it is the **fourth** instance
+of this phase's one failure class, which is precisely the thing the new standing rule exists
+to stop.
+
+---
+
+## 8.1 R1 (BLOCKER) — the interview family has eight tables; M10 cut seven
+
+> **Requirement:** ADR 0100 **D4** (no `read_case_deliberation`; deliberation rides
+> `case_access_grants` only) as operationalised by the PO's M10 ruling and Q4 — *"a count
+> without content leaks deliberation volume, which is precisely what D4 withholds."*
+> **and Architecture Rule 1.**
+
+**[CAT] — live catalog, fresh reset, post-M10 (312 migrations registered):**
+
+```
+case_interview_links / case_interview_links_select
+  :: app.can_read_case(app.case_of_interview(interview_id), auth.uid())     <- raw, uncut
+
+reviewer-reachable rows: 1 of 1   |  can_read_interview says: 0
+seeded row -> title = 'Gravacao de audio (link externo)'
+             external_url = 'https://example.com/recordings/caso-0001-entrevista.mp3'
+authenticated SELECT cols: created_at, created_by, deleted_at, deleted_by,
+                           external_url, id, interview_id, title      <- external_url granted
+
+interview-owned attachments reviewer-reachable: 1 of 1
+             title = 'Transcricao assinada (rascunho)'
+
+CONTROL: can_read_interview(seeded CCIH interview, quality.a) = false
+         can_read_case(that interview's case, quality.a)      = true
+```
+
+**Failure scenario, concrete.** `quality.a` opens a CCIH case they legitimately read.
+`case_interviews` is invisible to them (`311` §3.2 proves it). They then
+`select title, external_url from case_interview_links` through PostgREST and receive the
+**URL of the interview's audio recording**, plus — from `attachments` — the title of its
+signed transcript. They now know the case has an interview, what it is called, and where its
+audio lives. If that external URL is a shareable cloud link (the column exists precisely so
+it can be one), they have the recording itself. Interview **bytes** are cut by M8/M9 — but
+`external_url` is not a storage object at all, so no storage policy governs it and M8/M9
+never touched it.
+
+**Second route, same family:** `can_read_attachment`'s `'interview'` arm is
+`app.can_read_case(app.case_of_interview(p_owner_id), p_uid)` — also raw. M10 re-pointed
+`can_read_interview`, `can_read_professional_profile` and `can_read_action_item`;
+`can_read_attachment` was not in that set.
+
+**Why the enumeration missed it, and why that is the important part.** M10's §B2 says
+*"Interviews (7 tables route `can_read_interview`)"* — accurate, and **that is the bug**: the
+boundary was a **predicate name**, so a family member that reaches the same object through a
+*different* predicate was structurally outside it. The migration documents catching exactly
+this shape one section later —
+
+> *"⚠ `action_items` routes `can_read_case` DIRECTLY in its `case_restricted` arm — cutting
+> `app.can_read_action_item` (B3) does NOT reach this policy."*
+
+— and then repeats it for interviews. My own r1 policy sweep listed
+`case_interview_links_select` (it matches `can_read_case\s*\(`), so it was inside the
+50-policy population and was classified as leave-open; I find no record anywhere —
+migration, `311`, `q1`, PROGRESS, plan — that it was considered. This is the project's
+documented *"an enumeration's boundary must be the property, not a syntax"* lesson, hit
+again.
+
+**`311` cannot detect it.** §3 asserts `can_read_interview` is false and the
+`case_interviews` row invisible — both true and both irrelevant to a table that does not
+route that predicate. §5.1's catalog invariant counts a **hardcoded table list**
+(`case_votes`, `case_decisions`, 7x `ethics_*`, `action_items`) against 10, so a family
+member never in the list can never make it fail. A count against a literal is not an
+invariant over a family.
+
+**Ask.**
+1. Re-point `case_interview_links_select` and `can_read_attachment`'s `'interview'` arm to
+   `app.can_read_case_committee`, with M10's single-replacement proof and postconditions.
+2. Add the behavioural keystone to `311` §3 — reviewer reads **zero** `case_interview_links`
+   and zero interview-owned `attachments` on `case_a`, each with a coordinator twin — and a
+   `q1` case that neutralises the new conjunct and REDs it.
+3. **Replace §5.1's literal count with a property.** The durable form is a catalog assertion
+   with no table list in it, e.g. *"every `authenticated` SELECT policy whose qual reaches
+   `can_read_case` (directly or through `can_read_interview` / `can_read_action_item` /
+   `can_read_attachment` / `can_read_professional_profile`) is either in the ratified
+   oversight-VISIBLE set or routes `can_read_case_committee`"* — with the visible set as the
+   short, reviewed literal and the consumer side derived. Then the next family member is
+   caught by the suite instead of by the next review.
+4. While there: `case_conflict_declarations_select` and `case_recusals_select` remain raw
+   `can_read_case`. The PO has just ruled the reviewer may not **write** either record
+   because "a conflict declaration or recusal from a principal excluded from deliberation
+   has no consumer". Reading other members' conflict and recusal records is arguably the
+   same register. **Not a finding** — I am not asserting D3 excludes them — but it is the
+   one remaining pair whose classification is asymmetric with the ruling, and it should get
+   an explicit yes/no rather than defaulting.
+
+## 8.2 R2 (MAJOR) — the load-bearing invariant is prose, not a keystone
+
+M8 (`attachments_obj_select_readable`), M9 (`open_attachment` in-body) and M10 (both
+perimeter predicates, hence 3 write doors + 10 policies + 3 read predicates) **all** rest on
+one claim, stated in M10's header:
+
+> *"every content-conferring source EXCEPT S7 also confers `read_case_deliberation` … So
+> LOST = 0 for every pre-existing reader and writer, and the only principal cut is the
+> oversight reviewer."*
+
+**[CAT]** I re-verified it holds today by reading the live `_case_caps`: S1 both · S2 no
+content · S3 grant closure content⇒deliberation · S4 both · S5 deliberation only · S6 both ·
+S7 content only. True.
+
+**[SRC]** Nothing asserts it. `311` 0.2 and 0.3 assert it for *the reviewer* and *the
+coordinator* on *one case* — two instances of a universal. `308` names it in a comment.
+`q1` neutralises the cuts, not the invariant.
+
+**Failure scenario.** Phase B is a subtractive change to `_case_caps`' org-admin plane; a
+future S8, or an A4-style narrowing that removes a deliberation bit while leaving content,
+produces a second content-without-deliberation principal. `is_oversight_only_reader` then
+classifies that principal as an oversight reader and **silently cuts them** from interviews,
+Class-2 identity, votes, decisions, the ethics family, action items, attachment bytes, the
+`open_attachment` door and three write doors. That is LOST ≠ 0 across ~20 surfaces, and
+every existing keystone still passes, because every one of them is written against the
+reviewer (expects the cut) or the coordinator (holds both bits). The suite would report
+green while the platform quietly revoked a working principal's reach — the
+*no-regression-claim-needs-an-over-grant-twin* shape, inverted.
+
+**Ask.** One executable pin, cheap: for a matrix of principal shapes on one case — plain
+member (S5), phase assignee (S4), content-grantee (S3), NSP referral-touched (S6),
+coordinator (S1), org-admin (S2) — assert `is_oversight_only_reader` is **false** for every
+one of them, paired with `true` for the reviewer. Six `ok()`s and the invariant stops being
+a comment. Phase B is the instance that will break it.
+
+## 8.3 The three specific asks
+
+**(1) Independent re-derivation — done, and it is what found R1.** I did not read
+`backend`'s list. **[CAT]** I built a recursive closure over comment-stripped `prosrc`
+(schemas `app`, `public`, `storage`, `prolang <> 12`), seeded from `can_read_case\s*\(` /
+`read_case_content` / `view_case_overview`, depth 6 → **71 functions**, then swept
+`pg_policies` over **both** `qual` and `with_check` → **46 policies**. Diff against the
+shipped cut:
+
+- **Agreement on every door M10 touched.** The three write doors are the complete set of
+  `authenticated`-executable DML doors in the closure admitting on `can_read_case` alone; I
+  spot-verified two of the eleven "safe" ones from their bodies (`link_evidence` gates
+  `is_staff_admin_of` first; `can_write_interview` requires staff_admin or interviewer). The
+  "11 of 14 safe for per-door reasons" claim is sound, and a blanket predicate would indeed
+  have broken them.
+- **One family incomplete** → R1.
+- **One candidate I chased and cleared:** `case_participants_select` stays raw
+  `can_read_case`, so the roster row is reviewer-visible — but `participants_select` and
+  `case_participant_roles_select` both gate on `app.is_org_member`, whose body **[CAT]**
+  requires `m.commission_id is not null` + a commission join, which a reviewer row
+  (commission NULL) never satisfies. So `display_name` is closed and the reviewer sees
+  opaque UUIDs. M10's Class-2 cut is **not** bypassed by this route, and `311` 4.3 correctly
+  keeps the roster row as a not-over-cut control.
+- **`meeting_cases`** write policies carry `is_staff_admin_of AND …` — reviewer refused by
+  the first conjunct. Confirmed again post-M10.
+
+**(2) Fixture placement — verified, and it is the best part of `311`.** Every fixture is on
+`case_a`: `commission_default` (not locked), in an oversight-**visible** commission, of a
+reviewed hospital. The precondition is **asserted, not inherited** — 0.1 (`can_read_case`
+true), 0.2 (content without deliberation, expressed in the underlying **bits** so the file
+runs and reds against the pre-M10 catalog where the helper does not exist), 0.3 (coordinator
+control). Every negative has a coordinator twin (1.3, 2.4–2.6, 3.5, 3.6). §4 adds the
+**over-cut** controls that a deny-everything patch would fail. The Class-2 fixture is
+deliberately moved off the locked case with the reason written down; the ethics category is
+**minted** rather than borrowed because `bootstrap()` truncates the org-scoped vocab and a
+borrowed row would fail closed for the wrong reason. Coverage honesty is stated, not papered
+over (6 of 7 ethics tables ride §5's catalog invariant, `ethics_allegations` is the
+behavioural representative). I could not run it (§8.5), but by construction **none of these
+assertions passes on a seed coincidence** — and PROGRESS records 11 observed REDs against
+the pre-M10 catalog, which is the right evidence.
+
+**(3) The §6 disarming pattern — swept, one instance, already the fixed one.** I traced
+every mutation-between-assertions in all six QO suites:
+
+| Suite | Shape found | Verdict |
+|---|---|---|
+| `308` §6 | `record_recusal` succeeded → flipped `is_case_excluded` → later keystones refused through the **exclusion** arm with the same 42501 | **The instance.** Fixed: correction door first, self-excluding door last; message-level assertions; 6.5 pins the second 42501 site apart. |
+| `308` §2/§3 | expiry / deactivation / classification flips, and recusal+respondent inserts | Each restored immediately; **3.3 re-proves reach after every deny fixture is removed** — the discipline, applied. |
+| `308` §6 tail | 6.4's `lives_ok(declare_conflict)` **succeeds** and writes a row | Checked: a conflict declaration does not flip `is_case_excluded` (= respondent ∨ recused), so 6.5 is unaffected. Safe. |
+| `310` §3.6→§4 | §3.6 opts the last commission **out**, §4 then depends on it being visible | **Recognised and handled** — §4's bracket re-opts both commissions in, and the comment says so explicitly. |
+| `310` §2/§3 | expiry, deactivation | Restored in place. |
+| `307` | GUC-bracketed writes; §4.2 even asserts the fixture write emits **no** oversight verb | Clean. |
+| `309` | classification flip and expiry | Both restored before the next section. |
+| `306` | blanket `delete … where role='quality_reviewer'` (fixture reset between shape positive and negatives); §4.7 backdates `st_x` | Neither disarms a later assertion — the negatives need no reviewer row, and 4.10+ move to `st_x2` on a commission grant. |
+| `311` | **no mutation after the fixture block at all** | Immune by construction. |
+
+**No further instance.** The one that existed is fixed, and the fix is better than the bug:
+message-level assertions were the right response to two 42501 sites in one door, and the
+tell that found it — *"a keystone that does not red under its own cut is not pinning that
+cut"* — is the transferable rule.
+
+## 8.4 Round 1: closed, and how
+
+| r1 | Status | Evidence |
+|---|---|---|
+| **B1** — 3 write doors on `can_read_case` | ✅ **CLOSED** | **[CAT]** all three carry `is_oversight_only_reader` (M10 postcondition asserts 3 of 3). `record_recusal`'s coordinator arm preserved — only the "any reader" arm narrowed. Behaviourally proven both directions on the seed per PROGRESS (pre-cut the reviewer **filed a real correction request**). PO ruled exclude all three, reasoning recorded in-migration. |
+| **B1's vacuous pin** — `308` 1.4 | ✅ **CLOSED, correctly** | Kept and honestly relabelled *"no write BIT (necessary, NOT sufficient … consulted by no admitting door)"*, real pin moved to §6 per door. Deleting it would have lost the bit-level fact; this keeps both and removes the false certification. |
+| **M1** — Class-2 identity | ✅ **CLOSED** | `can_read_professional_profile` routes `can_read_case_committee`; `311` §1 pins profiles + the satellite with a coordinator twin, fixture **moved off** the locked case. |
+| **M2** — interviews DB-open / UI-hidden | ⚠ **PARTIAL** | 7 of 8 tables closed (`311` §3.1–3.2). Votes, decisions and the 7 ethics tables closed too — families my r1 named but did not pin. **The 8th is R1.** |
+| **m1** — false `isQualityViewer` invariant | ✅ **CLOSED** (`ad2e099`) | Now an **explicit** `commissionRow.quality_oversight === 'visible'` conjunct, with the false invariant and the dual-hatted PQS/NSP counter-example written into the comment. `quality_oversight` added to the select (`session.ts:498`). |
+| **m2** — `HC0Q0` drift | ✅ **CLOSED** | buildnotes §6(f) now states `HC0L0` as built. |
+| **m3** — stale `canDownload` comment | ⚪ **OPEN**, frontend-owned, cosmetic. |
+| **§A.5 perf, unrecorded** | ✅ **CLOSED** | Numbers now in PROGRESS A.1/A.5: reviewer `list_cases_board` 5.8 ms / 5 rows vs coordinator 14.4 ms / 6 · `quality_board_summary` 10.6 ms · member scan 5.4 ms · reviewer `storage.objects` scan 35.7 ms / 18 objects (0 visible) — inside the ~44 ms in-body envelope. |
+
+**The standing rule** — *conferring a capability bit requires enumerating its CONSUMERS, not
+just its producers* — is recorded in ADR 0100, in plan §A.2 as an explicit "⛔ THE MISSING
+AXIS / this list was INCOMPLETE BY CONSTRUCTION", and in M10's own header, with the Phase B
+warning attached. That is the right home for it and the right wording. R1 does not weaken
+it; R1 is what happens when the rule is applied with the boundary still set one notch too
+narrow.
+
+**M10 as a migration** is the strongest in the phase: single-needle replacement with a
+**length-delta proof** that exactly one substitution landed, `ALTER POLICY` (never
+DROP+CREATE), four postconditions including the inverted one that `cases_select` must
+**not** be re-pointed, and the two-shape split (an explicit exclusion for write paths, the
+committee-plane predicate for read paths) with the reason — *"a predicate correct for a read
+path is NOT automatically correct for a write path"* — stated rather than assumed.
+
+## 8.5 What I could not check this round
+
+- **No test execution, again.** pgTAP 172/5340, `q1` 17/17 with 7 controls, census+floor
+  HOLD, vitest 1158, E2E 18/18, `phase14b-triage` 13/13 — all **read in source and reasoned
+  about, not reproduced.** R1 and R2 are findings about what the suites do not assert, which
+  is unaffected by whether they pass.
+- **No mutating probe.** I did not call the three cut doors as the reviewer to watch them
+  refuse; §8.1's R1 rests on read-only evaluation of the policy's own USING expression with
+  the reviewer's uid substituted, plus the catalog grants. **The probe I would want run:**
+  ```sql
+  begin;
+  select test_helpers.claims_for((select id from auth.users where email='quality.a@test.local'), false);
+  set local role authenticated;
+  select id, title, external_url from public.case_interview_links;   -- expect 0 rows. Observed predicate: TRUE.
+  select id, title from public.attachments where owner_type='interview';
+  rollback;
+  ```
+- **Allowlists:** confirmed at source level — `p0-authz-invariant.sh`,
+  `authz-blind-allowlist.txt` and `authz-neverclled-door-allowlist.txt` are byte-identical to
+  `main` and contain **0** `quality` tokens. Nothing from M10 was allowlisted.
+- The local DB cycled through `db reset` twice mid-review (the gate). Every **[CAT]** fact in
+  §8 was captured on a settled catalog at 312 registered migrations, and R1's probe was
+  **re-run and re-confirmed after the second reset** on a fresh seed.
+- **Out of scope for this verdict, and I agree with the classification:** FUP-QO-5 (`anon`
+  EXECUTE grants left by sweep machinery that can mask a real leak in `100_dashboard` t19)
+  and FUP-QO-6 (oversight-toggle confirmation flake). I did not audit either.
+
+## 8.6 Re-review scope for r3
+
+Only: the two re-pointed interview surfaces (from `pg_get_functiondef` / `pg_policies`),
+their new keystones and `q1` case, `311` §5.1 rewritten as a property rather than a literal
+count, the six-shape `is_oversight_only_reader` pin, and the ruling on §8.1 ask (4).
+Everything in §8.4 and §5 stands and needs no re-derivation.
