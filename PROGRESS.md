@@ -129,6 +129,7 @@ PO rulings 2026-08-07 (asked before work started; each pre-empted a recorded def
 | F6 | FUP-QO-6 — full `e2e:prod` under load with DB poller; classify stale-UI vs lost-write | tester | ✅ 2026-08-07 — **NOT REPRODUCED under load** (see Test Run Summary row); D9/D10 toggle tests all passed clean (1.3–1.9s), poller (continuous, ~12,100 samples) caught the flip too fast to sample (aliasing) but no failure to classify. Streak extended, question still formally open |
 | F7 | FUP-QO-2 close — route `nsp_coordinator` + `pqs_member` (the guard's catch, instances 4+5) | backend (filter) + frontend (`page.tsx` branch) | ✅ 2026-08-07 — backend half (`c5b9dca`, `nspOperatorOf`); **frontend half `11d60ad`**: `page.tsx` NSP-operator branch (first of the three office branches) + `KNOWN_UNROUTED` emptied. Guard 14/14 green — both roles resolve to `/o/<org>/nsp` (URL asserted via a throwaway probe, deleted); lint + typecheck clean; vitest **1172** |
 | F8 | `list_my_nsp_hospitals()` lacks the `is_active` + unexpired filters every sibling carries; direct caller `capa-operator-gate.ts:26` sits outside the org-read cover | backend | ✅ 2026-08-07 (`20260912000100`) — `145` §I red-first I2/I3/I6, 42/42 after; door dropped from the floor allowlist (6 recorded calls). **Fresh-reset gates PARKED** pending "stack is yours" |
+| F9 | FUP-QO-7 ruling — the grant dialog must STATE that a permanent grant is permanent | frontend | ✅ 2026-08-07 (`095d9b9`) — hint on the expiry field in `case-access-panel.tsx`, `aria-describedby="grant-expiry-hint"`. ⚠ **The task's premise did not match the UI**: this dialog has NO blank expiry field — permanent is the explicit `Sem prazo` preset, and a cleared date under `Data específica` is a validation error, not permanent. Hint worded to the real control; "deixe em branco" would have been false. Re-grant clause catalog-verified (`app._grant_case_access_unchecked` sets `expires_at = excluded.expires_at`, so `Sem prazo` on an existing grant DROPS its prazo). Text-only; lint + typecheck clean; vitest **1172** |
 
 Lead acceptances 2026-08-07: **F1's audit-trigger amendment ACCEPTED** (`trg_audit_memberships`
 role-change arm now carries `expires_at_before/_after` when the expiry moves — Rule 11; keystoned
@@ -493,7 +494,41 @@ and would read the same on both sides of the fix. I7 pins the ACL structurally. 
 Door **removed from the floor allowlist** — verified with `track_functions='all'` that pgTAP now
 records **6 calls**, so `ARM=floor` will see it as genuinely called.
 
-### 🔴 FUP-QO-7 — the case-access PHI door NULL-CLEARS expiry on re-grant, UI-reachable (2026-08-07; **RE-SCOPED 2026-08-07 after QA R1 — the original entry was BACKWARDS**)
+### ✅ FUP-QO-7 — RESOLVED 2026-08-07 (PO ruling: **a NULL `p_expires_at` means PERMANENT — INTENDED**; ADR 0103; pinned in `183` §E) — the case-access PHI door NULL-CLEARS expiry on re-grant, UI-reachable
+
+**Ruling.** The PO ruled the behaviour **intended**: `_grant_case_access_unchecked`'s uncoalesced
+`expires_at = excluded.expires_at` **stays exactly as it is**, and the door was not changed.
+The two doors are ruled OPPOSITELY on purpose, and the deciding fact is the **caller population**:
+the role door has **no** caller that passes an expiry (all 12 TS sites omit it), so a NULL argument
+there is an accident nobody asked for → NULL = leave unchanged (ADR 0102); this door has **exactly
+one** — `grantCaseAccess` → NULL = make permanent (ADR 0103).
+
+⚠ **The UI cannot send NULL by accident — that is what makes the ruling safe** (corrected by
+`frontend`'s F9 before this entry was committed; the first framing said "blank expiry field" and
+there is no such field). The grant dialog's expiry control is a **NativeSelect** — `Sem prazo` /
+`30 dias` / `90 dias` / `Data específica` — and the only blankable control, the DatePicker under
+`Data específica`, **fails client-side validation when empty**. NULL reaches the door ONLY through
+the explicit **`Sem prazo`** choice, whose meaning on a re-grant is therefore "remove the existing
+expiry" (frontend added hint text saying exactly that). ⚠ **Do not unify the two doors without
+re-running BOTH caller sweeps.**
+
+**Caller sweep, bounded by the property "reaches `app._grant_case_access_unchecked`"** (line numbers
+are a 2026-08-07 snapshot — resolve by symbol): `public.grant_case_access` passes `p_expires_at`
+through verbatim, TS caller `grantCaseAccess` (`case-access/actions.ts:177`) — **the only path by which
+a NULL expiry can reach an EXISTING grant**, and only deliberately; `public.create_case` and
+`public.create_case_from_template` reach the kernel only for the creator self-grant with a hardcoded
+`null` on a BRAND-NEW case, where no conflicting row can exist, so the `DO UPDATE` arm is
+**unreachable** from them (TS: `createCase` `cases/actions.ts:547`, `createCaseFromTemplate` `:469`).
+
+**Pin + falsifiability.** `183` §E (E0–E3), plan 19→23. Green on first run — the vacuity trap — so
+proven by TWO neutralisations, recorded **as measured, not as predicted**: adding the `coalesce`
+reds **E1 and only E1**; swapping `greatest()` reds **E0/E1/E3** and leaves E2 green (wider than the
+tidy sentence, because a ratchet also refuses E0's narrowing). ⛔ First attempt read
+`case_access_grants` under `set local role authenticated` and all four went red on RLS — a
+grantee-invisible row is indistinguishable from a wrong value through an `ok()`, so the door is
+CALLED as `authenticated` and every assertion runs after `reset role`.
+
+<details><summary>The finding as filed (and the mis-reading that preceded it)</summary>
 
 ⛔ **Read this entry, not its first version.** It originally said the case door "omits `expires_at`",
 i.e. that it kept the seam limit F1 removed from the role door — and told this follow-up's future
@@ -510,6 +545,8 @@ expiry sets `expires_at = null`. It is **UI-reachable** — `src/lib/case-access
 Reachable through `public.grant_case_access` (and `create_case` / `create_case_from_template`).
 
 **Severity: PHI-grade.** Not "a divergence to tidy up".
+
+</details>
 
 ⚠ **NOT a defect until the PO says so, and the door must NOT be changed on that assumption.** An
 admin re-granting case access with a blank expiry may legitimately mean "make this permanent" — the
@@ -633,7 +670,20 @@ S5 deliberation proof onto a surface that is still deliberation-gated post-C1, s
 as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
 delete the cases without replacing what they proved.
 
-### 🟡 FUP-QO-6 — the oversight toggle intermittently fails to confirm within 10 s; DB-vs-UI **unclassified** (2026-08-07)
+### 🟢 FUP-QO-6 — oversight-toggle slow-confirm: **annoyance severity ACCEPTED provisionally (PO ruling 2026-08-07)**; open LOW priority, DB-vs-UI formally unclassified
+
+**PO ruling 2026-08-07 (D-FUP-6b):** after 16 total trials with 0 recurrences (15 isolated +
+1 full-load gate with a continuous ~12,100-sample out-of-process poller — see the Test Run
+Summary row), the stale-UI (annoyance) assumption is **accepted provisionally for the pilot**.
+The lost-write question stays formally open at LOW priority; nobody manufactures a
+classification. If it recurs, the recorded next step is a targeted 20–30× repeated-trial run
+of the D9 test alone under artificial contention with a **sub-second** poller (the ~1.6 s
+interval aliases past the flip — proven this run). ⛔ The original "do not fix by raising the
+timeout" stands. Original record + diagnostic history below.
+
+<details><summary>Original entry (2026-08-07, pre-ruling)</summary>
+
+### the oversight toggle intermittently fails to confirm within 10 s; DB-vs-UI unclassified
 
 Found by `tester` once its restore check stopped trusting optimistic client state. **Pre-existing —
 not introduced by QO·A, and invisible until now BY CONSTRUCTION**: the previous check read
@@ -680,6 +730,8 @@ a failure to classify, and no classification is manufactured in its absence. Evi
 `docs/../PROGRESS.md` Test Run Summary (2026-08-07, "QO·FUP F6"); raw poller logs are in the tester's
 scratchpad (not committed — out-of-band per the task's own instruction), `oversight-samples.log` /
 `oversight-samples-resume.log`.
+
+</details>
 
 ### ✅ FUP-QO-5 — RESOLVED 2026-08-07 (backend, F2) — t19 could MASK a real `anon` EXECUTE leak (2026-08-07)
 

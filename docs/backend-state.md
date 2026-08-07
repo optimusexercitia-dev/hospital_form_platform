@@ -127,9 +127,23 @@ sibling PHI door `app._grant_case_access_unchecked` "deliberately KEEPS the do-n
 It does not. Its `do update` list ENDS with `expires_at = excluded.expires_at` —
 **uncoalesced**. That door already extends on re-grant **and NULL-CLEARS**, which is the exact
 shape ADR 0102 §2 refused for the role door, on a door carrying `read_standard_phi` /
-`read_restricted_phi`. → **FUP-QO-7** (re-scoped; PHI-grade; needs its own caller sweep AND a
-PO ruling — do NOT change that door on the assumption it is a defect). Phase C break-glass
-(D14) now rides a role seam that already extends.
+`read_restricted_phi`.
+✅ **RULED INTENDED 2026-08-07 (PO; ADR [0103](decisions/0103-case-access-blank-expiry-is-permanent.md)) —
+FUP-QO-7 resolved.** The uncoalesced `expires_at = excluded.expires_at` **stays**; the door is
+unchanged. The two doors are ruled **oppositely on purpose**, and the deciding fact is the **caller
+population**: the role door has **no** caller that passes an expiry (12 TS sites, all omit it), so a
+NULL there is an accident nobody asked for ⇒ leave unchanged; this door has **exactly one** —
+`grantCaseAccess` (`case-access/actions.ts:177`) ⇒ make permanent. ⚠ **The UI cannot send NULL by
+accident:** the grant dialog's expiry control is a **NativeSelect** (`Sem prazo` / `30 dias` /
+`90 dias` / `Data específica`) and the only blankable control — the DatePicker under
+`Data específica` — fails client-side validation when empty, so NULL arrives ONLY via the explicit
+`Sem prazo` choice, which on a re-grant means "remove the existing expiry". `create_case` /
+`create_case_from_template` reach the kernel only via the creator self-grant with a hardcoded `null`
+on a BRAND-NEW case, so the `DO UPDATE` arm is unreachable from them. Pinned: `183` §E (E0–E3, plan
+19→23); falsifiable — the `coalesce` neutralisation reds **E1 and only E1**, `greatest()` reds
+E0/E1/E3. ⚠ **Do not unify the two doors without re-running BOTH caller sweeps** — the asymmetry is a
+property of who calls them, and it stops being true the day a caller changes. Phase C break-glass
+(D14) rides a role seam that already extends.
 
 **Resolver.** `app._case_caps` S7 (after S5, before S3): oversight-visible commission
 of a reviewed hospital ⇒ `read_case_content | view_case_overview` = 5 EXACTLY — no
