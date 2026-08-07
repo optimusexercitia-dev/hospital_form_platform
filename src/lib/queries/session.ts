@@ -111,6 +111,26 @@ export interface QualityReviewMembership {
   hospital: HospitalRef
 }
 
+/**
+ * A hospital whose NSP (Núcleo de Segurança do Paciente) the caller OPERATES —
+ * an enrolled `pqs_member` or an appointed `nsp_coordinator` (NSP-per-hospital,
+ * ADR 0052). Both roles are hospital-scoped with `commission_id NULL`.
+ *
+ * ⚠ `role` is carried for DISPLAY ONLY and nothing may be gated on it here. The
+ * console-entry gate is `getNspAccessByOrg` → `list_my_nsp_hospitals()`, and every
+ * PHI read is re-gated per hospital at its own DEFINER door (Rule 12). This list
+ * exists so the shell can ROUTE the operator; it confers nothing.
+ *
+ * FUP-QO-2 (F7): added because a principal holding ONLY one of these two roles had
+ * no `SessionContext` field at all, so every branch in `src/app/page.tsx` stepped
+ * over them and they landed on "sem acesso" — instances four and five of that class.
+ */
+export interface NspOperatorMembership {
+  organization: OrganizationRef
+  hospital: HospitalRef
+  role: 'pqs_member' | 'nsp_coordinator'
+}
+
 export interface SessionContext {
   userId: string
   email: string
@@ -167,6 +187,13 @@ export interface SessionContext {
    * cannot route the reviewer anywhere (FUP-QO-2 is exactly that failure).
    */
   qualityReviewerOf: QualityReviewMembership[]
+  /**
+   * Hospitals whose NSP the caller operates — `pqs_member` OR `nsp_coordinator`
+   * (ADR 0052). Empty for everyone else. Like the technical direction and the
+   * quality office, these confer no commission membership; without this list the
+   * shell has no way to route the operator (FUP-QO-2 instances four and five).
+   */
+  nspOperatorOf: NspOperatorMembership[]
 }
 
 /**
@@ -244,6 +271,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     technicalDirectionOf,
     nspOrgAdminOf,
     qualityReviewerOf,
+    nspOperatorOf,
   } = partitionGrants(grants)
 
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
@@ -277,6 +305,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     technicalDirectionOf,
     nspOrgAdminOf,
     qualityReviewerOf,
+    nspOperatorOf,
   }
 })
 

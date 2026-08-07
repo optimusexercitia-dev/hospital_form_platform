@@ -3,6 +3,7 @@ import type {
   HospitalAdminMembership,
   HospitalRef,
   Membership,
+  NspOperatorMembership,
   OrgAdminMembership,
   OrganizationRef,
   QualityReviewMembership,
@@ -63,6 +64,7 @@ export type SessionRoleLists = Pick<
   | 'technicalDirectionOf'
   | 'nspOrgAdminOf'
   | 'qualityReviewerOf'
+  | 'nspOperatorOf'
 >
 
 const camelHospital = (h: NonNullable<SessionGrant['hospital']>): HospitalRef => ({
@@ -172,6 +174,32 @@ export function partitionGrants(grants: SessionGrant[]): SessionRoleLists {
     }))
     .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
 
+  // ADR 0052 / FUP-QO-2 F7 — the hospital-scoped NSP operator. `pqs_member` and
+  // `nsp_coordinator` land in ONE list because routing does not distinguish them:
+  // `list_my_nsp_hospitals()` (the console-entry door, catalog-verified) admits both,
+  // and `organizations_select` admits both through `app.is_pqs_operator_in_org`. The
+  // coordinator's extra authority is roster curation INSIDE the console, decided there
+  // by `isCoordinator` — never by which branch routed the user.
+  const nspOperatorOf: NspOperatorMembership[] = grants
+    .filter(
+      (
+        g,
+      ): g is SessionGrant & {
+        role: 'pqs_member' | 'nsp_coordinator'
+        organization: OrganizationRef
+        hospital: NonNullable<SessionGrant['hospital']>
+      } =>
+        (g.role === 'pqs_member' || g.role === 'nsp_coordinator') &&
+        g.organization !== null &&
+        g.hospital !== null,
+    )
+    .map((g) => ({
+      organization: g.organization,
+      hospital: camelHospital(g.hospital),
+      role: g.role,
+    }))
+    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
+
   return {
     memberships,
     orgAdminOf,
@@ -179,5 +207,6 @@ export function partitionGrants(grants: SessionGrant[]): SessionRoleLists {
     technicalDirectionOf,
     nspOrgAdminOf,
     qualityReviewerOf,
+    nspOperatorOf,
   }
 }

@@ -205,10 +205,13 @@ const CATALOG_ROLES = readRoleVocabularyFromCatalog()
  *
  * `nsp_coordinator` / `pqs_member` (found 2026-08-07 by this guard on its first run,
  * pre-existing): both are hospital-scoped with `commission_id NULL` — the exact shape
- * FUP-QO-2 describes — and `partitionGrants` has no filter for either, so a principal
- * holding only one of them gets an all-empty `SessionContext` and `page.tsx` steps
- * over every branch. Reported to the lead; the fix spans `src/app/page.tsx`, which is
- * frontend-owned.
+ * FUP-QO-2 describes.
+ *
+ * ⚠ HALF-FIXED, DELIBERATELY. F7 landed the backend seam — `partitionGrants` now
+ * emits `nspOperatorOf` for both roles — but the `src/app/page.tsx` branch that
+ * consumes it is FRONTEND-owned and has not landed yet. Do NOT re-add a
+ * `partitionGrants` filter; it is already there. When frontend's branch lands, DELETE
+ * these two entries — the stale-entry assertion below will red until you do.
  */
 const KNOWN_UNROUTED = ['nsp_coordinator', 'pqs_member']
 
