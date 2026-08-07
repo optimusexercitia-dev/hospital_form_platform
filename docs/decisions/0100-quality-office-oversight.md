@@ -117,6 +117,29 @@ plus a `break_glass_requests` record (reason/scope/approval/expiry) and notifica
 **NO new predicate arms** — the platform_admin noun-rule wall stays intact
 (account-lockout emergencies are already within platform_admin's identity nouns).
 
+## Standing rule (added 2026-08-07 after QO·A; the most transferable thing this program produced)
+
+**Conferring a capability bit requires enumerating its CONSUMERS, not just its producers.**
+
+The plan's threading list (§A.2) enumerated the arms that had to CHANGE. It had **no axis
+for who already consumes the bit being conferred.** Granting S7 `read_case_content`
+silently enrolled the oversight reviewer into every existing consumer of that bit,
+wherever it lived — and that leaked **three times in one phase**: attachment bytes (M8),
+the `open_attachment` DEFINER door whose action signs with the service role (M9), and
+three write doors plus five read families (M10).
+
+**Method that works** (all three were found this way, none by reading the plan): derive
+the consumer set from the LIVE catalog by PROPERTY — a transitive closure over
+comment-stripped `prosrc` **and** `pg_policies`, seeded from the predicate and the
+capability literals — then classify **per door**. The per-door pass is not optional: 11
+of the 14 authenticated DML doors in QO·A's closure were safe for reasons visible only
+individually, so a blanket predicate over the closure would have broken eleven working
+doors.
+
+⚠ **Phase B (the org_admin content wall) is a far larger instance of exactly this** — it
+subtracts a bit from a principal who is consumed by more surfaces than S7 ever was. Run
+the consumer enumeration BEFORE writing its migrations, not after QA finds the misses.
+
 ## Alternatives rejected
 
 - **The handoff's runtime-mutable permission catalog** (`role_definitions` /

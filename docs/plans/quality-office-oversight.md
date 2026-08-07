@@ -118,6 +118,16 @@ appear automatically once M4 lands.
 **Must change:** `grant_role_impl` / `revoke_role_impl` · `_case_caps` · the six
 aggregate dashboard doors + new helper · `commissions_select_member_or_admin` /
 `hospitals_select` / `organizations_select` · pgTAP 270's contract.
+**⛔ THE MISSING AXIS (added 2026-08-07 — this list was INCOMPLETE BY CONSTRUCTION).**
+Everything below enumerates arms that must CHANGE. It has no axis for **who already
+CONSUMES the bit being conferred** — and conferring `read_case_content` on S7 enrolled
+the reviewer into every existing consumer of that bit. That leaked three times (M8
+bytes · M9 `open_attachment` · M10 three write doors + five read families). Before
+conferring a bit, derive its consumer set from the live catalog by PROPERTY (transitive
+closure over comment-stripped `prosrc` AND `pg_policies`) and classify PER DOOR — 11 of
+14 DML doors in that closure were safe for per-door reasons a blanket predicate would
+have broken. Standing rule recorded in ADR 0100.
+
 **Must NOT change (verify no accidental inclusion):** `is_org_level_admin_within`
 [V-CAT] · `eligible_voters` (commission-scoped; reviewer rows have commission NULL —
 confirm body [INF]) · `memberships_select` (hospital arm already exposes reviewer rows

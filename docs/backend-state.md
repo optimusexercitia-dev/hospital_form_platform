@@ -129,9 +129,24 @@ policies** (probed; M8 postcondition pins it). Reopening reviewer documents is
 Phase B+ WITH an audit emit — never by deleting the conjunct. Pinned: `308` §5
 (all four directions; 5.2 was observed RED pre-M8) + q1 `open_bytes_cut`.
 
-**Verification.** pgTAP `306`–`310` (120 assertions) + `270` rewrite (13) + `292`/`293`
+**Read-only perimeter (M10 `20260911000900`).** S7's `read_case_content` had enrolled the
+reviewer into every existing CONSUMER of that bit. Closed in two shapes: the three
+authenticated write doors (`declare_conflict`, `file_correction_request`, `record_recusal`)
+get an EXPLICIT `app.is_oversight_only_reader` exclusion (a read predicate is not
+automatically correct on a write path); the read families get `app.can_read_case_committee`
+(= `can_read_case` as it meant BEFORE S7) — Class-2 `professional_profiles` /
+`professional_participants` (Rule 12/D5), `can_read_interview` (7 tables),
+`can_read_action_item`, and **10** SELECT policies (votes + decisions + 7 `ethics_*` +
+`action_items`, whose `case_restricted` arm routes `can_read_case` DIRECTLY — cutting the
+predicate does NOT reach it). ⚠ `cases_select` is deliberately NOT re-pointed
+(postcondition-pinned: re-pointing it revokes the feature). Both new predicates rest on the
+lattice invariant that every content source EXCEPT S7 confers `read_case_deliberation`, so
+LOST = 0 for every pre-existing reader/writer. ⚠ `file_correction_request` raises 42501 at
+TWO sites (authority; corrector designation) — assert the MESSAGE, not the code.
+
+**Verification.** pgTAP `306`–`311` (154 assertions) + `270` rewrite (13) + `292`/`293`
 recuts; seed personas quality.a/.a2/.b + CCIH→visible (0-row-guarded bracket);
-`q1-quality-mutation-audit.sh` **10/10 RED-PROVEN** (restore md5-verified incl. both
+`q1-quality-mutation-audit.sh` **17/17 RED-PROVEN** (restore md5-verified incl. both
 mutated policy quals, 5 controls green); w3/w4 harnesses re-signatured; w4
 `widen_dt_scope_shape` re-add carries the new arm.
 

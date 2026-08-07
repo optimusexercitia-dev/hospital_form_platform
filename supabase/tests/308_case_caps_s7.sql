@@ -20,7 +20,7 @@
 -- =============================================================================
 
 begin;
-select plan(32);
+select plan(33);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -344,54 +344,85 @@ reset role;
 -- =============================================================================
 -- §6 — THE D7 WRITE PIN, PER DOOR (M10; replaces 1.4's vacuous claim).
 --
--- Derived by PROPERTY, not memory: the transitive closure over comment-stripped
--- prosrc + pg_policies from `can_read_case(` / 'read_case_content' /
--- 'view_case_overview' yielded 14 authenticated-executable DML doors; per-door
--- gate reading narrowed the admitting set to exactly these THREE (the other 11
--- gate on can_write_case_content, can_write_action_item_stake, or
--- is_staff_admin_of FIRST — safe for reasons only visible per door).
+-- Derived by PROPERTY: the closure over prosrc + pg_policies from
+-- `can_read_case(` / 'read_case_content' / 'view_case_overview' gave 14
+-- authenticated DML doors; per-door gate reading narrowed the admitting set to
+-- these THREE (the other 11 gate on can_write_case_content,
+-- can_write_action_item_stake, or is_staff_admin_of FIRST).
 --
--- Each is asserted REFUSED for the reviewer and PERMITTED for a twin, so no
--- assertion can pass because a precondition failed instead of the gate.
--- Mutation: q1 `open_write_doors` reverts all three → every 6.x negative reds.
+-- ⚠⚠ ORDER IS LOAD-BEARING, and getting it wrong made the FIRST version of 6.1
+-- VACUOUS. `record_recusal` SUCCEEDED pre-cut and recused the reviewer FROM THIS
+-- CASE — which flips `is_case_excluded`, so every later assertion refused
+-- through the EXCLUSION arm instead of the D7 gate, returning the same 42501 and
+-- reading as a pass. The correction door therefore runs FIRST, and the
+-- self-excluding door LAST. (Tell that exposed it: `open_write_doors` reddened
+-- the other two but never this one — a keystone that does not red when its own
+-- cut is neutralised is not pinning that cut.)
+--
+-- ⚠ file_correction_request raises 42501 at TWO sites: the D7 authority gate
+-- ("você não pode solicitar correções neste caso") and corrector designation
+-- ("apenas administradores podem designar o corretor", reachable only when
+-- p_permitted_corrector is non-NULL). SAME SQLSTATE, DIFFERENT FAILURE CLASS —
+-- so each assertion below pins the MESSAGE, not just the code, and 6.5 pins the
+-- other raise so the two paths cannot collapse unnoticed.
 -- =============================================================================
 create temp table wd on commit drop as
   select '00000000-0000-0000-0000-0000000d8301'::uuid as narrative_id;
 grant select on wd to authenticated;
 
--- A completed narrative on case_a: file_correction_request needs a completed
--- target, so without this the door would refuse on WORKFLOW STATE (HC0M0) and
--- the keystone would catch the wrong raise (§7.1 trap 3).
-insert into public.case_narratives (id, case_id, title, type_label, display_position, status, created_by)
-select wd.narrative_id, cs.case_a, 'Narrativa', 'Relato', 1, 'completed', k.sa_x from wd, cs, k;
+-- The target must be COMPLETED and carry an assignee: with p_permitted_corrector
+-- NULL the door defaults the corrector to the assignee, and a NULL one raises
+-- HC0M4 — refusing for a WORKFLOW reason and never reaching the D7 gate. The
+-- assignee must itself hold case CONTENT (a plain member holds deliberation
+-- only), so the coordinator is the valid choice.
+insert into public.case_narratives (id, case_id, title, type_label, display_position, status, assigned_to, created_by)
+select wd.narrative_id, cs.case_a, 'Narrativa', 'Relato', 1, 'completed', k.sa_x, k.sa_x from wd, cs, k;
 
 select test_helpers.claims_for((select qr from p), false);
 set local role authenticated;
 select throws_ok(
+  format($$select public.file_correction_request('correction', null, %L, 'motivo', 'factual')$$,
+         (select narrative_id from wd)),
+  '42501', 'você não pode solicitar correções neste caso',
+  '6.1 D7 DOOR ⭐⭐: the reviewer CANNOT file_correction_request — pinned on the AUTHORITY message, not the ambiguous 42501 (its own comment read "any case-content reader may file")');
+select throws_ok(
   format($$select public.declare_conflict(%L, 'financial_interest', 'motivo')$$, (select case_a from cs)),
   'P0002', null,
-  '6.1 D7 DOOR ⭐⭐: the reviewer CANNOT declare_conflict on a case they read in full');
+  '6.2 D7 DOOR ⭐⭐: ...cannot declare_conflict on a case they read in full');
 select throws_ok(
   format($$select public.record_recusal(%L, %L, 'motivo')$$,
          (select case_a from cs), (select qr from p)),
   'P0002', null,
-  '6.2 D7 DOOR ⭐⭐: ...cannot record_recusal (self-service, closed by PO ruling — a recusal from a principal excluded from deliberation has no consumer)');
-select throws_ok(
-  format($$select public.file_correction_request('narrative', null, %L, 'motivo', 'factual')$$,
-         (select narrative_id from wd)),
-  '42501', null,
-  '6.3 D7 DOOR ⭐⭐: ...cannot file_correction_request (its own comment said "any case-content reader may file")');
+  '6.3 D7 DOOR ⭐⭐: ...cannot record_recusal (self-service, closed by PO ruling — a recusal from a principal excluded from deliberation has no consumer). RUNS LAST: succeeding here would self-exclude and mask 6.1/6.2');
 reset role;
 
 -- ⚠ TWIN CHOICE IS LOAD-BEARING: a plain member (S5) holds read_case_deliberation
--- but NOT read_case_content, so `can_read_case` is false for them and the door
--- refuses for a reason unrelated to the cut — the wrong-arm fixture (§7.1 trap 1).
+-- but NOT read_case_content, so can_read_case is false for them and the door
+-- refuses for a reason unrelated to the cut (§7.1 trap 1 — the wrong-arm fixture).
 -- The coordinator holds content AND deliberation, so it isolates the cut exactly.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   format($$select public.declare_conflict(%L, 'financial_interest', 'motivo')$$, (select case_a from cs)),
-  '6.4 NON-VACUITY twin: a deliberation-holding reader (coordinator) STILL declares a conflict — 6.1 is the reviewer cut, not a dead door');
+  '6.4 NON-VACUITY twin: a deliberation-holding reader (coordinator) STILL declares a conflict — 6.2 is the reviewer cut, not a dead door');
+reset role;
+
+-- 6.5 — the OTHER 42501. st_x gets case CONTENT through an explicit grant (S3),
+-- so it passes the D7 authority gate but is not a staff_admin: passing an
+-- explicit corrector must still hit the DESIGNATION raise. Pins the two 42501
+-- sites apart, so a future change cannot collapse them silently.
+insert into public.case_access_grants
+  (case_id, principal_id, source, read_case_content, read_case_deliberation,
+   read_standard_phi, read_restricted_phi, write_case_content, reason_code, granted_by)
+select cs.case_a, k.st_x, 'manual_grant', true, true, false, false, false, 'coordinator_grant', k.sa_x
+from cs, k;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$select public.file_correction_request('correction', null, %L, 'motivo', 'factual', %L)$$,
+         (select narrative_id from wd), (select sa_x from k)),
+  '42501', 'apenas administradores podem designar o corretor',
+  '6.5 THE OTHER 42501 ⭐: a non-admin content-reader passing an explicit corrector hits the DESIGNATION raise — same code, different failure class, pinned apart from 6.1');
 reset role;
 
 select * from finish();

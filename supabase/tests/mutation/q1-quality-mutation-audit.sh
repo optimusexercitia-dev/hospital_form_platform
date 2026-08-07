@@ -345,7 +345,7 @@ run_case "drop_board_correlation -> org-wide counts per row" \
 
 run_case "open_write_doors -> D7 breached at three doors" \
   "select app._mut_q1('open_write_doors');" \
-  "D7 DOOR .*: the reviewer CANNOT declare_conflict|D7 DOOR .*: ...cannot record_recusal" \
+  "D7 DOOR .*: the reviewer CANNOT file_correction_request|D7 DOOR .*: ...cannot declare_conflict|D7 DOOR .*: ...cannot record_recusal" \
   "supabase/tests/308_case_caps_s7.sql"
 
 run_case "open_class2 -> Rule 12 professional identity" \
