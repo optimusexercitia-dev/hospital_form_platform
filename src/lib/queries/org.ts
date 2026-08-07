@@ -82,6 +82,11 @@ export interface OrgCommissionDetail extends OrgCommissionSummary {
   coordinators: { userId: string; fullName: string; email: string }[]
   /** Count of forms owned by the commission. */
   formCount: number
+  /** ADR 0100 D8 — the commission's quality-oversight classification. Fails
+   * closed: 'excluded' is the DEFAULT, not a penalty state. Written ONLY via
+   * `setCommissionOversight` (the guarded audited door); this read renders the
+   * toggle's current state on `/o/[org]/manage/comissoes`. */
+  qualityOversight: 'visible' | 'excluded'
 }
 
 /**
@@ -517,6 +522,7 @@ interface CommissionDetailRow {
   name: string
   slug: string
   hospital_id: string | null
+  quality_oversight: 'visible' | 'excluded'
   hospitals: { name: string } | null
   members: { count: number }[]
   coordinators: {
@@ -548,7 +554,7 @@ export async function listManagedCommissionsDetailed(
   let query = supabase
     .from('commissions')
     .select(
-      `id, name, slug, hospital_id, hospitals:hospital_id(name),
+      `id, name, slug, hospital_id, quality_oversight, hospitals:hospital_id(name),
        members:memberships!memberships_commission_id_fkey(count),
        coordinators:memberships!memberships_commission_id_fkey(principal_id, profiles:principal_id(full_name, email)),
        forms(count)`,
@@ -570,6 +576,7 @@ export async function listManagedCommissionsDetailed(
     slug: c.slug,
     hospitalId: c.hospital_id,
     hospitalName: c.hospitals?.name ?? null,
+    qualityOversight: c.quality_oversight,
     memberCount: c.members[0]?.count ?? 0,
     coordinators: c.coordinators
       .filter(

@@ -58,11 +58,15 @@ CHECK (visible|excluded)`. ONLY writer: `public.set_commission_oversight(uuid,te
 (DEFINER; authority `is_hospital_admin_of OR is_org_admin_of` → 42501 — the committee
 cannot opt itself out, platform_admin stays out (noun rule); validation `HC0L0`;
 unknown `P0002`; audited `commission.oversight_changed` with previous value).
-`app.guard_commission_oversight` (BEFORE UPDATE OF the column, `IS DISTINCT FROM`,
-GUC `app.in_commission_rpc` txn-local bracket) traps raw writes for EVERYONE incl.
-superuser — the seed brackets its fixture. ⚠ Documented residual (lead to rule):
-INSERT may carry an initial classification (guard is UPDATE-only, the
-`guard_case_visibility` posture) — pgTAP `307` 1.3 pins it.
+`app.guard_commission_oversight` (BEFORE **INSERT OR** UPDATE OF the column,
+`IS DISTINCT FROM` on the update arm, GUC `app.in_commission_rpc` txn-local bracket)
+traps raw writes for EVERYONE incl. superuser — the seed brackets its fixture.
+**INSERT arm (lead ruling 2026-08-06, stricter than the `guard_case_visibility`
+sibling):** outside the bracket a commission may only be BORN `'excluded'` (the
+column default — creation flows untouched); zero SQL functions insert into
+`commissions`, so raw PostgREST creation was a live D9 breach (initial `'visible'`
+with no door/audit, `is_admin()` admitted via `commissions_admin_write`'s WITH
+CHECK). Pinned both directions by `307` 1.3–1.5; RED-proven by q1 `insert_arm_noop`.
 
 **Role doors.** `grant_role_impl`/`revoke_role_impl` gained the quality arm —
 authority = the technical_director shape (`is_org_admin_of_for OR

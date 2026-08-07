@@ -117,7 +117,7 @@ time**). Built in the **worktree** `worktrees/feat/quality-office-oversight` on 
 | # | Task | Owner | Status |
 | - | ---- | ----- | ------ |
 | A.0 | Catalog re-verification pass + migration plan (the plan's [V-CAT]/[INF] markers re-proven against the live catalog) | backend | ✅ 2026-08-06 — [buildnotes](docs/plans/quality-office-oversight-buildnotes.md): 34-row discrepancy table (2 plan claims **CHANGED**: dashboard deny = empty `return;` not 42501; pgTAP 270 does NOT go red under M5 — rewrite is a strengthening), HC0G0 fail-closed RED-proven by execution, M1–M7 versions `20260911000000`–`000600`, rebuild-loss strategy + 6 mutation cases + ~140-assertion testing note. **Awaiting lead plan approval before any migration** |
-| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ✅ 2026-08-06 — `20260911000000`/`000100` applied; red-first aborts/reds observed pre-apply; pgTAP `306` 37/37 + `307` 22/22. One documented residual: the guard is BEFORE UPDATE only, so an INSERT may carry an initial classification (`307` 1.3 pins it; lead to rule if it closes) |
+| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ✅ 2026-08-06 — `20260911000000`/`000100` applied; red-first aborts/reds observed pre-apply; pgTAP `306` 37/37 + `307` 22/22. INSERT residual **CLOSED by lead ruling 2026-08-06** (M2 amended, local-only branch): the guard is now BEFORE INSERT OR UPDATE — outside the bracket a commission may only be born `'excluded'`; `307` 1.3–1.5 pin both directions; q1 `insert_arm_noop` REDs 1.3. Post-amend estate: pgTAP **171/5299 PASS** fresh reset · q1 **9/9 RED-PROVEN** · `ARM=census` + `ARM=floor` HOLD |
 | A.2 | M3 — `grant_role_impl`/`revoke_role_impl` quality arm + `p_expires_at` setter plumbing | backend | ✅ 2026-08-06 — `20260911000200`; DROP+CREATE ACLs re-established byte-identical (catalog-diffed); `292`/`293` recut to the new contract (expiry-writer singleton + grant-door-only expiry arg + role grid); w3/w4 harness signatures updated; FUP-QO-1 pins the two deferred seam limits executably (`306` §4) |
 | A.3 | M4 — `_case_caps` S7 arm (+ BOTH stale comments incl. `_cap_bit`) · M5 — six aggregate dashboard doors + pgTAP `270` two-class rewrite | backend | ✅ 2026-08-06 — `20260911000300`/`000400`; needle-rewrite with single-replacement proof + 6/3 catalog postcondition; `308` 21/21 · `309` 15/15 · `270` 13/13 (two-class invariant + rebuild guard) |
 | A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ✅ 2026-08-06 — `20260911000500`/`000600` (ALTER POLICY, quals diffed: one disjunct each; `is_org_level_admin_within` untouched, postcondition-pinned); `310` 16/16 (disjoint counts per ruling g; PHI-free shape pinned); `database.ts` regenerated (+22 lines, additive) |
@@ -441,6 +441,28 @@ pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not
 
 Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
 (singleton set, both directions).
+
+### 🟡 FUP-QO-3 — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
+
+Found while re-running the sibling audits after QO·A M4. `a2-mutation-audit.sh` reads
+**10/12 RED-PROVEN**; the two others are **stale since Gate 2 C1** (2026-07-17,
+`456d008` — zero diff on the QO·A branch, proven):
+
+- **`K8 member_default` is VACUOUS**: its expected-red positive reads `meeting_cases`,
+  which C1 made **member-wide** — the read no longer routes S5's
+  `read_case_deliberation`, so dropping the member arm reds nothing. A detector
+  reporting coverage it does not have (same class as "a detector that finds nothing
+  must be proven able to find something").
+- **`Kv member_ignores_visibility` is UNANCHORED**: its expected-red string
+  ("reads NO ata section for the explicit_grants_only case") no longer exists
+  anywhere in `supabase/tests/` — C1's rewrite of `234` deleted the K8-twin it
+  targeted. The harness reports ABSENT, which is the tri-state doing its job.
+
+**Until retargeted, read `a2`'s coverage claim as 10/12, not 12/12.** Needs its own
+retarget unit on the m5/m6 precedent (relocate the discriminating power — e.g. the
+S5 deliberation proof onto a surface that is still deliberation-gated post-C1, such
+as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
+delete the cases without replacing what they proved.
 
 ### 🔴 FUP-QO-2 — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
 

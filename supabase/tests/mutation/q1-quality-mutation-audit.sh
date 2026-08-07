@@ -96,6 +96,16 @@ begin
       raise exception ''apenas o administrador da organização ou do hospital pode designar o revisor da qualidade''');
     execute d;
 
+  elsif p_what = 'insert_arm_noop' then
+    -- No-op the guard's INSERT arm (lead ruling 2026-08-06): a commission could
+    -- again be BORN 'visible' through raw PostgREST — no door, no audit,
+    -- platform_admin admitted. 307 §1.3 must notice.
+    d := pg_get_functiondef('app.guard_commission_oversight()'::regprocedure);
+    d := app._mut_q1_sub(d,
+      'if new.quality_oversight is distinct from ''excluded'' and not v_in_rpc then',
+      'if false then');
+    execute d;
+
   elsif p_what = 'open_commissions_reviewer_arm' then
     -- The ARM-scoped policy mutation (covers the door-sweep ERROR on this policy:
     -- opening the WHOLE policy breaks the suite's run shape, so the whole-policy
@@ -197,6 +207,11 @@ run_case "door_authority -> anyone classifies oversight" \
 run_case "guard_noop -> raw column writes sail through" \
   "select app._mut_q1('guard_noop');" \
   "GUARD .*: an org_admin raw PATCH|GUARD: even a superuser write" \
+  "supabase/tests/307_commission_oversight.sql"
+
+run_case "insert_arm_noop -> born-visible commissions" \
+  "select app._mut_q1('insert_arm_noop');" \
+  "INSERT ARM .*: an INSERT carrying .visible. outside the bracket is refused" \
   "supabase/tests/307_commission_oversight.sql"
 
 run_case "force_dashboard_helper -> six doors go permissive" \

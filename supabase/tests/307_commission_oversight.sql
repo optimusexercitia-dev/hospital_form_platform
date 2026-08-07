@@ -7,10 +7,10 @@
 -- commissions grants authenticated full DML behind commissions_admin_write),
 -- and the explicit audit verb.
 --
--- DOCUMENTED RESIDUAL (deliberate, plan-approved shape): the guard is BEFORE
--- UPDATE only — an INSERT may carry an initial classification (the sibling
--- guard_case_visibility posture). Reported to the lead in the A.1 build report;
--- if a future ruling closes it, 1.3 below is the assertion to recut.
+-- The guard covers INSERT AND UPDATE (lead ruling 2026-08-06 — deliberately
+-- stricter than the guard_case_visibility sibling: a case may be created
+-- carrying a policy, a commission is D8-mandated to be born 'excluded').
+-- 1.3/1.5 pin both directions; q1 case `insert_arm_noop` proves 1.3 can fail.
 --
 -- RED-FIRST record: pre-M2 this file aborts at the first quality_oversight
 -- reference (column does not exist). Falsifiability: q1 mutation cases
@@ -19,7 +19,7 @@
 -- =============================================================================
 
 begin;
-select plan(22);
+select plan(24);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -79,12 +79,34 @@ select throws_ok(
   '23514', null,
   '1.2 the value CHECK admits only visible|excluded');
 
-select lives_ok(
+-- 1.3–1.5 — the INSERT arm (lead ruling 2026-08-06, closing the D9 breach: zero
+-- SQL functions insert into commissions, so creation is a raw PostgREST write
+-- whose WITH CHECK admits org/hospital/platform admins — an initial 'visible'
+-- landed with no door, no audit, and platform_admin admitted against the noun
+-- rule). Asserted on the REACHABLE path: as an org_admin under the
+-- authenticated role, exactly the PostgREST shape.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select throws_ok(
   $$insert into public.commissions (id, name, slug, hospital_id, quality_oversight)
     select '00000000-0000-0000-0000-00000000c307', 'Insert Classified', 'insert-qo',
            k.hosp_b, 'visible' from k$$,
-  '1.3 DOCUMENTED RESIDUAL: an INSERT may carry an initial classification (guard is BEFORE UPDATE — sibling posture; recut deliberately if a ruling closes it)');
--- (the row stays — its audit trail FK forbids delete, and the txn rolls back anyway)
+  '23514', null,
+  '1.3 INSERT ARM ⭐ (D9): an INSERT carrying ''visible'' outside the bracket is refused — a commission cannot be born opted-in');
+
+select lives_ok(
+  $$insert into public.commissions (id, name, slug, hospital_id)
+    select '00000000-0000-0000-0000-00000000c308', 'Insert Default', 'insert-qo-def',
+           k.hosp_b from k$$,
+  '1.4 ...an INSERT omitting the column succeeds untouched (every existing creation flow)...');
+reset role;
+
+select is(
+  (select quality_oversight from public.commissions
+    where id = '00000000-0000-0000-0000-00000000c308'),
+  'excluded',
+  '1.5 ...and lands born-excluded (D8 — deny by default). Bracketed provisioning inserts remain sanctioned (the 3.4 GUC path).');
+-- (rows stay — the audit-trail FK forbids delete; the txn rolls back anyway)
 
 -- =============================================================================
 -- §2 — THE DOOR: authority (42501) -> validation (HC0L0), distinct SQLSTATEs.

@@ -5,11 +5,22 @@
 -- opts each clinical committee in; a sensitive committee (Ética) is simply never
 -- opted in. The column is an AUTHORIZATION INPUT, so it gets the full
 -- set_case_visibility/M6 discipline: a guarded, audited DEFINER door is the ONLY
--- writer, and a BEFORE UPDATE trigger blocks raw column writes — load-bearing,
--- not belt-and-braces: `commissions` grants authenticated full table DML behind
+-- writer, and the guard trigger blocks raw column writes — load-bearing, not
+-- belt-and-braces: `commissions` grants authenticated full table DML behind
 -- `commissions_admin_write` (is_admin OR org_admin OR hospital_admin), so without
 -- the trigger any of those — including platform_admin — flips the column by raw
 -- PATCH, silently (trg_audit_commissions diffs only name/slug).
+--
+-- ⚠ The guard covers INSERT too (lead ruling, 2026-08-06), deliberately STRICTER
+-- than the guard_case_visibility sibling: a case may legitimately be CREATED
+-- carrying a visibility policy, but a commission is ADR-mandated (D8) to be BORN
+-- 'excluded'. Zero SQL functions insert into `commissions` — creation goes
+-- straight through PostgREST under the caller's JWT, and `commissions_admin_write`'s
+-- WITH CHECK includes `app.is_admin()` — so an unguarded INSERT was a live D9
+-- breach (an initial classification with no door, no audit, and platform_admin
+-- admitted against the noun rule). Outside the `app.in_commission_rpc` bracket an
+-- INSERT may only carry 'excluded' (the column default — every existing creation
+-- flow is untouched); opt-in goes through the audited door.
 --
 -- Door authority (D9): is_hospital_admin_of OR is_org_admin_of. platform_admin
 -- stays OUT (noun rule — this is commission-content adjacency, not tenancy).
@@ -48,7 +59,19 @@ as $function$
 declare
   v_in_rpc boolean := coalesce(current_setting('app.in_commission_rpc', true), 'off') = 'on';
 begin
-  -- ⚠ `BEFORE UPDATE OF quality_oversight` fires when the column is MENTIONED in
+  if tg_op = 'INSERT' then
+    -- D8: a commission is BORN 'excluded'. Outside the bracket, any other initial
+    -- classification is refused — no creation flow passes the column (it
+    -- defaults), so nothing legitimate trips this; opt-in is the audited door's
+    -- job. (OLD does not exist on INSERT — this branch must come first.)
+    if new.quality_oversight is distinct from 'excluded' and not v_in_rpc then
+      raise exception 'commissions are created excluded; opt in via set_commission_oversight'
+        using errcode = 'check_violation';
+    end if;
+    return new;
+  end if;
+
+  -- ⚠ `UPDATE OF quality_oversight` fires when the column is MENTIONED in
   -- the SET list, NOT when it changes. The `is distinct from` test is therefore
   -- mandatory: without it, a full-row PATCH carrying an UNCHANGED value would eat
   -- a spurious raise (the guard_case_visibility lesson, kept verbatim).
@@ -61,7 +84,7 @@ end;
 $function$;
 
 create trigger guard_commission_oversight_trg
-  before update of quality_oversight on public.commissions
+  before insert or update of quality_oversight on public.commissions
   for each row execute function app.guard_commission_oversight();
 
 -- -----------------------------------------------------------------------------
