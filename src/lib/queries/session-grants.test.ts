@@ -199,21 +199,20 @@ const CATALOG_ROLES = readRoleVocabularyFromCatalog()
  *
  * ⛔ This is a LEDGER, not a mute button. It is asserted to be EXACTLY the unrouted
  * set (both directions), so:
- *   • a fourth role arriving with no home reds `every role in the catalog lands`;
+ *   • any further role arriving with no home reds `every role in the catalog lands`;
  *   • fixing one of these reds `the ledger has no stale entries`.
  * Neither can be satisfied by leaving this list alone.
  *
+ * ⭐ CURRENTLY EMPTY — every role `memberships_role_check` admits now has a landing.
  * `nsp_coordinator` / `pqs_member` (found 2026-08-07 by this guard on its first run,
- * pre-existing): both are hospital-scoped with `commission_id NULL` — the exact shape
- * FUP-QO-2 describes.
- *
- * ⚠ HALF-FIXED, DELIBERATELY. F7 landed the backend seam — `partitionGrants` now
- * emits `nspOperatorOf` for both roles — but the `src/app/page.tsx` branch that
- * consumes it is FRONTEND-owned and has not landed yet. Do NOT re-add a
- * `partitionGrants` filter; it is already there. When frontend's branch lands, DELETE
- * these two entries — the stale-entry assertion below will red until you do.
+ * pre-existing; instances 4 and 5 of the FUP-QO-2 class — both hospital-scoped with
+ * `commission_id NULL`) were removed the same day when F7 closed BOTH seams: the
+ * backend one (`partitionGrants` emits `nspOperatorOf`) and the frontend one (the
+ * `src/app/page.tsx` NSP-operator branch). They now resolve to `/o/<org>/nsp` through
+ * the real chain. The `string[]` annotation is deliberate: a bare `[]` would infer
+ * `never[]` and turn the filters below into type errors instead of no-ops.
  */
-const KNOWN_UNROUTED = ['nsp_coordinator', 'pqs_member']
+const KNOWN_UNROUTED: string[] = []
 
 describe('FUP-QO-2 — every membership role resolves to a landing route', () => {
   it('reads a non-trivial role vocabulary from the live catalog', () => {
