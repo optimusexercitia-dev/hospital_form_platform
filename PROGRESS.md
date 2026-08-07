@@ -492,20 +492,42 @@ and would read the same on both sides of the fix. I7 pins the ACL structurally. 
 Door **removed from the floor allowlist** — verified with `track_functions='all'` that pgTAP now
 records **6 calls**, so `ARM=floor` will see it as genuinely called.
 
-### 🟡 FUP-QO-7 — the case-access door still has the seam limit the role door just lost (2026-08-07, backend)
+### 🔴 FUP-QO-7 — the case-access PHI door NULL-CLEARS expiry on re-grant, UI-reachable (2026-08-07; **RE-SCOPED 2026-08-07 after QA R1 — the original entry was BACKWARDS**)
 
-Found while grounding F1's plan; **filed, not fixed — out of scope by instruction.**
-`app._grant_case_access_unchecked`'s `on conflict (case_id, principal_id, source, source_entity_id)
-where revoked_at is null do update set …` runs `read_case_content … granted_at` and **omits
-`expires_at`** (catalog-verified). So re-granting an existing case access with a new expiry silently
-keeps the old window — exactly the behaviour F1 has just removed from `grant_role`. `306` 4.4's
-comment says the past-expiry refusal "mirrors `grant_case_access` verbatim"; that remains true for
-the *refusal* and is now false for the *re-grant*, so the comment is one premise-change away from
-being a stale claim. Needs a PO call: either follow the role door (extend-on-regrant, NULL =
-leave-unchanged) or pin the divergence executably in the case-access suite so it stops looking like
-an oversight. ⚠ Whichever way it goes, the caller sweep must be redone for `grant_case_access` —
-F1's NULL ruling turned entirely on which arguments production callers actually pass, and that
-answer is not transferable between doors.
+⛔ **Read this entry, not its first version.** It originally said the case door "omits `expires_at`",
+i.e. that it kept the seam limit F1 removed from the role door — and told this follow-up's future
+owner to consider **adding** a capability the door **already has**, pointing them away from a live
+widening. QA reproduced from the live catalog and through the real door and inverted it.
+
+**The actual finding.** `app._grant_case_access_unchecked`'s `on conflict (case_id, principal_id,
+source, source_entity_id) where revoked_at is null do update set …` list **ENDS with
+`expires_at = excluded.expires_at` — uncoalesced**. So the case-access door **already extends on
+re-grant, and NULL-CLEARS**: as case coordinator, re-granting an existing 7-day grant with a blank
+expiry sets `expires_at = null`. It is **UI-reachable** — `src/lib/case-access/actions.ts:181` sends
+`p_expires_at: expiry ?? undefined`. This is the exact silent-privilege-widening shape ADR 0102 §2
+**refused** for the role door, on a door that carries **`read_standard_phi` / `read_restricted_phi`**.
+Reachable through `public.grant_case_access` (and `create_case` / `create_case_from_template`).
+
+**Severity: PHI-grade.** Not "a divergence to tidy up".
+
+⚠ **NOT a defect until the PO says so, and the door must NOT be changed on that assumption.** An
+admin re-granting case access with a blank expiry may legitimately mean "make this permanent" — the
+role door's ruling turned on the fact that *no* caller passes the argument, and the case door has a
+UI that deliberately sends it. What this needs: **(1)** its own caller sweep bounded by the property
+"reaches `app._grant_case_access_unchecked`", **(2)** a PO ruling on the intended NULL semantics,
+**(3)** whichever way it goes, an executable pin so the behaviour stops being discoverable only by
+reading. `306` 4.4's "mirrors `grant_case_access` verbatim" refers to the **past-expiry refusal** and
+is still true — only the re-grant gloss was wrong.
+
+⭐ **How the mis-reading happened — the reusable half.** The probe was
+`substring(prosrc from position('on conflict' in prosrc) for 600)`. The `do update` list is longer
+than 600 characters and `expires_at` sat just past the cut, so the **window's edge was read as the
+statement's end**. **A fixed-width `substring(… for N)` is a WINDOW, not a delimiter — the absence of
+a token inside it is not absence.** It is the "text is not truth" family one level down: the catalog
+*was* the source, and the *framing* of the query still produced a confident inversion. Note the
+direction — it under-reported a live widening, i.e. it failed in the urgency-suppressing direction,
+which is the same direction as the `case_referrals` flag-description scar. Ask of any extraction
+probe: *could my answer be an artifact of where I cut?*
 
 ### ✅ FUP-QO-1 — RESOLVED 2026-08-07 (backend, F1; PO ruling D-FUP-1) — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
 
@@ -514,10 +536,23 @@ Both limits closed inside `app.grant_role_impl`: the targeted `on conflict … d
 `do update set expires_at = coalesce(excluded.expires_at, memberships.expires_at)`, and the
 commission-tier atomic replace now writes `expires_at = coalesce(p_expires_at, expires_at)`. The
 value is **absolute, not a ratchet** (a shorter argument shortens — D14 must be able to close a
-window early). **NULL = LEAVE UNCHANGED**, decided by a caller sweep rather than symmetry: all three
-production callers omit the argument (`admin/actions.ts:285` — the *replace* path,
-`members/actions.ts:235`, `org/actions.ts:618`), so "NULL clears" would have made every ordinary
-member-add and promotion silently strip a deliberately-set expiry.
+window early). **NULL = LEAVE UNCHANGED**, decided by a caller sweep rather than symmetry: **no
+production caller passes the argument**, so "NULL clears" would have made every ordinary member-add
+and promotion silently strip a deliberately-set expiry.
+
+⚠ **The recorded sweep was RE-CUT 2026-08-07 (QA R2), and the ruling SURVIVED.** It first read
+"all three production callers" and named `admin/actions.ts:285`, `members/actions.ts:235`,
+`org/actions.ts:618` — the output of a `rpc('grant_role'` grep, a boundary drawn by **syntax**, which
+missed the `_for` twin entirely. Bounded by the PROPERTY "reaches `app.grant_role_impl`" the set is:
+**3 public doors** (`grant_role`, `grant_role_for`, `appoint_technical_director`); **5 further SQL
+functions** through them (`add_pqs_member`, `assign_org_admin`, `assign_hospital_admin`,
+`assign_nsp_org_admin`, `assign_nsp_coordinator`); **9 TS RPC sites** — `admin/actions.ts:285` ·
+`members/actions.ts:235` · `org/actions.ts:581` + `:618` · `platform/actions.ts:210` + `:247` ·
+`pqs/actions.ts:65` · `users/actions.ts:714` + `:949`. **None of the 9 passes `p_expires_at`.** The
+ruling therefore holds on a population 3× larger — and now includes the two platform-provisioning
+sites, which would have been the worst place to clear an expiry silently. Third instance this
+workstream of the recorded rule: **an enumeration's boundary must be the property, not a syntax**
+(the others: F2's error-code detector, the case-sensitive diff-derivation grep).
 
 **Rule 11 companion, and it is the part worth reading.** `app.trg_audit_memberships`'s UPDATE branch
 is if/**elsif** and `role_changed` **wins** over `expiry_changed`. Harmless until now, because the

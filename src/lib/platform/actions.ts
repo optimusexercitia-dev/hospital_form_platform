@@ -202,7 +202,12 @@ export async function assignOrgAdmin(
     // ORG-TIER row (`commission_id` NULL), so `memberships_one_commission_role_uq`
     // (partial, `WHERE commission_id IS NOT NULL`) does not apply: a principal may
     // legitimately hold org_admin AND nsp_org_admin of the same organization. The
-    // kernel's `on conflict do nothing` keeps a repeat provision idempotent.
+    // kernel's targeted `on conflict … do update set expires_at = coalesce(
+    // excluded.expires_at, memberships.expires_at)` (QO·FUP F1, ADR 0102 — it was
+    // `do nothing` until 2026-08-07) keeps a repeat provision idempotent HERE
+    // *because this call passes no expiry*: `coalesce(null, existing)` writes the
+    // existing value back. It is no longer a blanket no-op — start passing
+    // `p_expires_at` and a repeat provision becomes an expiry write.
     const actorId = (await getSessionContext())?.userId
     if (!actorId) {
       return { ok: false, error: MESSAGES.forbidden }
@@ -234,9 +239,12 @@ export async function assignOrgAdmin(
     //
     // Exactly ONE hospital, or nothing: with two or more there is no unambiguous
     // choice, and D16 keeps the explicit appointment step for multi-hospital orgs.
-    // A repeat provision is idempotent (the kernel's targeted `on conflict do
-    // nothing`), and `ADR 0097` finding 8 confirms one principal may legitimately
-    // hold `org_admin` + `hospital_admin` of the same org.
+    // A repeat provision is idempotent because this call passes NO expiry — the
+    // kernel's targeted `on conflict … do update set expires_at = coalesce(
+    // excluded.expires_at, memberships.expires_at)` (QO·FUP F1, ADR 0102; it was
+    // `do nothing` until 2026-08-07) then writes the existing value back. And
+    // `ADR 0097` finding 8 confirms one principal may legitimately hold
+    // `org_admin` + `hospital_admin` of the same org.
     const { data: hospitals } = await admin
       .from('hospitals')
       .select('id')

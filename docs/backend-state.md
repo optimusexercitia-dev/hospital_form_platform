@@ -106,15 +106,30 @@ migration `20260912000000`, ADR 0102 — PO ruling D-FUP-1):** an identical re-g
 new `p_expires_at` now UPDATES the expiry (targeted `on conflict … do update set
 expires_at = coalesce(excluded.expires_at, memberships.expires_at)`), and the
 commission-tier atomic-replace UPDATE writes it (same coalesce). **NULL = leave
-unchanged** (never clears — all three production callers omit the arg; "make permanent"
-stays revoke+regrant). Absolute set, not a ratchet (shorten works — `306` 4.14).
+unchanged** (never clears; "make permanent" stays revoke+regrant). Absolute set, not a
+ratchet (shorten works — `306` 4.6b).
+**Caller set, bounded by the PROPERTY "reaches `app.grant_role_impl`"** (QA R2 re-sweep —
+the original record said "three production callers", which was a `rpc('grant_role'` GREP
+bounded by SYNTAX and missed the `_for` twin entirely): **3 public doors** call the kernel
+(`grant_role`, `grant_role_for`, `appoint_technical_director`); **5 further SQL functions**
+reach it through them (`add_pqs_member`, `assign_org_admin`, `assign_hospital_admin`,
+`assign_nsp_org_admin`, `assign_nsp_coordinator`); **9 TS RPC sites** —
+`admin/actions.ts:285`, `members/actions.ts:235`, `org/actions.ts:581` + `:618`,
+`platform/actions.ts:210` + `:247`, `pqs/actions.ts:65`, `users/actions.ts:714` + `:949`.
+**NONE of the 9 passes `p_expires_at`** — the NULL ruling survives on a population three
+times larger than the one it was decided on.
 `292` §2.2 is now a **named-set** assertion (`app._t292_expiry_writer, app.grant_role_impl`).
 `trg_audit_memberships`'s role-change arm carries `expires_at_before/_after` when the
 expiry also moved (Rule 11 — a role-replace that writes expiry is no longer unaudited;
 keystone 4.13c). Pins: `306` §4 (45 tests) + `f1-expiry-seam-audit.sh` 6/6 RED-PROVEN.
-⚠ The sibling PHI door `app._grant_case_access_unchecked` deliberately KEEPS the
-do-nothing seam → **FUP-QO-7** (needs its own caller sweep; F1's NULL ruling does not
-transfer). Phase C break-glass (D14) now rides a seam that already extends.
+⚠ **CORRECTED 2026-08-07 (QA R1) — the previous sentence here was BACKWARDS.** It said the
+sibling PHI door `app._grant_case_access_unchecked` "deliberately KEEPS the do-nothing seam".
+It does not. Its `do update` list ENDS with `expires_at = excluded.expires_at` —
+**uncoalesced**. That door already extends on re-grant **and NULL-CLEARS**, which is the exact
+shape ADR 0102 §2 refused for the role door, on a door carrying `read_standard_phi` /
+`read_restricted_phi`. → **FUP-QO-7** (re-scoped; PHI-grade; needs its own caller sweep AND a
+PO ruling — do NOT change that door on the assumption it is a defect). Phase C break-glass
+(D14) now rides a role seam that already extends.
 
 **Resolver.** `app._case_caps` S7 (after S5, before S3): oversight-visible commission
 of a reviewed hospital ⇒ `read_case_content | view_case_overview` = 5 EXACTLY — no
