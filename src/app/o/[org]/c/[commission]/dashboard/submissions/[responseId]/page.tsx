@@ -11,7 +11,13 @@ import { getSignedAssetUrl, type VersionTree } from "@/lib/queries/forms";
 import { SubmissionDetailView } from "@/components/dashboard/submission-detail-view";
 import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
 import { CorrectSubmissionButton } from "@/components/dashboard/correct-submission-button";
+import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
 import { supersedeResponseAction } from "@/lib/responses/actions";
+import { featureEnabled } from "@/lib/queries/feature-flags";
+import {
+  mintPrintedDocument,
+  revokePrintedDocument,
+} from "@/lib/pdf-mint/actions";
 
 export const metadata: Metadata = {
   title: "Resposta enviada",
@@ -39,7 +45,14 @@ export default async function SubmissionDetailPage({
     notFound();
   }
 
-  const detail = await getSubmissionDetail(responseId);
+  // Independent reads — the flag lookup must not queue behind the detail fetch.
+  // This screen is authenticated, so it uses the ordinary request-memoized
+  // reader (the service-role `documentPrintingEnabled()` exists for the public
+  // `/verificar` pages, which have no session to read flags with).
+  const [detail, printingEnabled] = await Promise.all([
+    getSubmissionDetail(responseId),
+    featureEnabled("document_printing"),
+  ]);
   if (!detail || detail.commissionId !== access.commission.id) {
     notFound();
   }
@@ -109,6 +122,24 @@ export default async function SubmissionDetailPage({
         signoffs={detail.signoffs}
         imageUrls={imageUrls}
       />
+
+      {/* Printed documents (PDF·P1; ADR 0104). Flag-gated platform-wide.
+          `canRevoke` reuses THIS page's existing staff_admin gate (asserted at
+          the top) rather than introducing a second permission signal — ADR 0104
+          D11 puts revocation with `staff_admin` of the owning commission, which
+          is exactly who can reach this screen at all. The server action
+          re-checks it regardless; hiding the affordance is not the control. */}
+      {printingEnabled ? (
+        <PrintedDocumentsSection
+          sourceKind="form_response"
+          sourceId={detail.responseId}
+          watermark={isSubmitted ? "final" : "draft"}
+          scopeLabel={`${detail.formTitle} · versão ${detail.versionNumber}`}
+          canRevoke={access.role === "staff_admin"}
+          mintAction={mintPrintedDocument}
+          revokeAction={revokePrintedDocument}
+        />
+      ) : null}
     </div>
   );
 }
