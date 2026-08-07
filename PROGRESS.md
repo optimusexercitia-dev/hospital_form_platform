@@ -117,7 +117,7 @@ time**). Built in the **worktree** `worktrees/feat/quality-office-oversight` on 
 | # | Task | Owner | Status |
 | - | ---- | ----- | ------ |
 | A.0 | Catalog re-verification pass + migration plan (the plan's [V-CAT]/[INF] markers re-proven against the live catalog) | backend | ✅ 2026-08-06 — [buildnotes](docs/plans/quality-office-oversight-buildnotes.md): 34-row discrepancy table (2 plan claims **CHANGED**: dashboard deny = empty `return;` not 42501; pgTAP 270 does NOT go red under M5 — rewrite is a strengthening), HC0G0 fail-closed RED-proven by execution, M1–M7 versions `20260911000000`–`000600`, rebuild-loss strategy + 6 mutation cases + ~140-assertion testing note. **Awaiting lead plan approval before any migration** |
-| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ✅ 2026-08-06 — `20260911000000`/`000100` applied; red-first aborts/reds observed pre-apply; pgTAP `306` 37/37 + `307` 22/22. INSERT residual **CLOSED by lead ruling 2026-08-06** (M2 amended, local-only branch): the guard is now BEFORE INSERT OR UPDATE — outside the bracket a commission may only be born `'excluded'`; `307` 1.3–1.5 pin both directions; q1 `insert_arm_noop` REDs 1.3. **M8 `20260911000700` (post-probe lead ruling): the BYTES cut** — live-probed that S7 reached standard-tier case attachment BYTES via `attachments_obj_select_readable` → `can_read_case` (un-audited, PHI-capable, un-enumerated surface; `attachments-phi` probed CLOSED — zero SELECT policies); ONE policy arm: case/interview bytes additionally require `read_case_deliberation` (which every content source EXCEPT S7 confers — the pinned lattice invariant), so the reviewer keeps metadata (panel names) and reaches ZERO object rows while every pre-existing reader and the S3-granted-reviewer graduation path are untouched; `308` §5 pins all four directions, **5.2 observed RED on the pre-M8 catalog** (the gap as a failing keystone). Final estate: pgTAP **171/5303 PASS** fresh reset · q1 **10/10 RED-PROVEN** (restore md5 incl. both policy quals) · `ARM=census` + `ARM=floor` HOLD · `database.ts` no diff (policy-only) |
+| A.1 | M1–M2 — `quality_reviewer` role substrate + `commissions.quality_oversight` + `set_commission_oversight` door + guard trigger | backend | ✅ 2026-08-06 — `20260911000000`/`000100` applied; red-first aborts/reds observed pre-apply; pgTAP `306` 37/37 + `307` 22/22. INSERT residual **CLOSED by lead ruling 2026-08-06** (M2 amended, local-only branch): the guard is now BEFORE INSERT OR UPDATE — outside the bracket a commission may only be born `'excluded'`; `307` 1.3–1.5 pin both directions; q1 `insert_arm_noop` REDs 1.3. **M8 `20260911000700` (post-probe lead ruling): the BYTES cut** — live-probed that S7 reached standard-tier case attachment BYTES via `attachments_obj_select_readable` → `can_read_case` (un-audited, PHI-capable, un-enumerated surface; `attachments-phi` probed CLOSED — zero SELECT policies); ONE policy arm: case/interview bytes additionally require `read_case_deliberation` (which every content source EXCEPT S7 confers — the pinned lattice invariant), so the reviewer keeps metadata (panel names) and reaches ZERO object rows while every pre-existing reader and the S3-granted-reviewer graduation path are untouched; `308` §5 pins all four directions, **5.2 observed RED on the pre-M8 catalog** (the gap as a failing keystone). **M9 `20260911000800`** closes the door-shaped hole M8 left (found by `frontend`): `open_attachment` is `prosecdef` and its action signs with the **service role**, so storage RLS never runs on that mint — the same conjunct now sits in-body (BUG-QO-001, Bug Log, with the honest M8-record amendment). **Referral doors probed, not read** — all four (2 RPCs + 2 storage policies) deny the reviewer with discriminating coordinator twins; one twin initially read 0/0 from a wrong fixture path (attachment-id in the referral-id slot) and was re-probed to 0/1. `createAdminClient()` sweep: `open_attachment` was the only user-reachable service-role sign. **`310` §4 adds the cross-committee board coverage IN-TRANSACTION** (lead ruling: the seed stays untouched — every route to a second seeded visible commission moves `171`/`189` isolation counts; the E2E half drives the real `set_commission_oversight` onboarding flow). **FINAL ESTATE:** pgTAP **171 files / 5311 / PASS** fresh reset · q1 **12/12 RED-PROVEN** (restore md5 across 2 policy quals + 3 doors; 6 controls green) · `ARM=census` + `ARM=floor` **HOLD** · typecheck ✅ lint ✅ vitest **1158/1158** · `database.ts` no diff (policy/body-only) · 311 migrations registered == 311 files |
 | A.2 | M3 — `grant_role_impl`/`revoke_role_impl` quality arm + `p_expires_at` setter plumbing | backend | ✅ 2026-08-06 — `20260911000200`; DROP+CREATE ACLs re-established byte-identical (catalog-diffed); `292`/`293` recut to the new contract (expiry-writer singleton + grant-door-only expiry arg + role grid); w3/w4 harness signatures updated; FUP-QO-1 pins the two deferred seam limits executably (`306` §4) |
 | A.3 | M4 — `_case_caps` S7 arm (+ BOTH stale comments incl. `_cap_bit`) · M5 — six aggregate dashboard doors + pgTAP `270` two-class rewrite | backend | ✅ 2026-08-06 — `20260911000300`/`000400`; needle-rewrite with single-replacement proof + 6/3 catalog postcondition; `308` 21/21 · `309` 15/15 · `270` 13/13 (two-class invariant + rebuild guard) |
 | A.4 | M6 — three tenancy SELECT policy arms · M7 — `quality_board_summary` door · `gen:types` | backend | ✅ 2026-08-06 — `20260911000500`/`000600` (ALTER POLICY, quals diffed: one disjunct each; `is_org_level_admin_within` untouched, postcondition-pinned); `310` 16/16 (disjoint counts per ruling g; PHI-free shape pinned); `database.ts` regenerated (+22 lines, additive) |
@@ -488,6 +488,33 @@ retarget unit on the m5/m6 precedent (relocate the discriminating power — e.g.
 S5 deliberation proof onto a surface that is still deliberation-gated post-C1, such
 as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
 delete the cases without replacing what they proved.
+
+### 🟡 FUP-QO-4 — KPI-strip scope vs. the chip filter: a design ambiguity, NOT a defect (2026-08-07, lead)
+
+Found by `tester` while writing the A.9 chip-row extension — **by reading the source rather than writing the
+assertion the lead's brief asked for.** The lead's coverage bullet ("the KPI strip and locked count recompute
+per filter") does not match what ships, and the code is the thing that was right.
+
+`QualityKpiStrip` and the locked-count note in `qualidade/page.tsx` are computed **server-side from the full
+`commissions` array** and rendered as *siblings* of `QualityBoardView`, which is where the chip-selection
+`useState` lives. No path exists for a chip click to reach either. Selecting a chip narrows **only the table
+rows**; the strip stays the global aggregate over every oversight-visible commission. `QualityKpiStrip`'s own
+docstring agrees ("derived entirely from `quality_board_summary` rows already loaded by the page").
+
+**Ruled NOT a bug.** The strip is a context header ("how much do I oversee in total"); the chips are a table
+filter. Making the strip recompute means lifting client state above a Server Component — an architecture
+change — and **no ADR 0100 decision settles which scope is correct**. D10 specifies a cross-committee board
+and PHI-free aggregates; it is silent on filter interaction.
+
+⚠ The user-visible consequence, and the reason this is logged rather than dropped: once two commissions are
+oversight-visible, a reviewer can see **"Casos visíveis: 6" directly above a table showing one row.** Both
+numbers are correct; together they read as contradictory. A presentational label clarifying the strip's scope
+was explored as a near-zero-cost mitigation (lead → `frontend`, 2026-08-07) with a hard instruction to stop
+if it needed anything beyond a text change.
+
+Pinned executably: A.9 asserts the strip and locked count stay **constant** across chip selections. That is
+deliberate — if someone later makes the strip recompute, the test notices. **Post-pilot PO decision**; if the
+ruling flips, that assertion is the thing to update, not delete.
 
 ### 🔴 FUP-QO-2 — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
 
