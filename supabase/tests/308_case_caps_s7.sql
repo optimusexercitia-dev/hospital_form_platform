@@ -20,7 +20,7 @@
 -- =============================================================================
 
 begin;
-select plan(25);
+select plan(28);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -267,8 +267,12 @@ select 'attachments', 'case/' || cs.case_eg || '/probe-bytes-eg.pdf' from cs;
 
 insert into public.attachments
   (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
-select '00000000-0000-0000-0000-0000000d8201', 'case', cs.case_a, 'documento', 'Doc QO',
+select '00000000-0000-0000-0000-0000000d8201'::uuid, 'case', cs.case_a, 'documento', 'Doc QO',
        'attachments', 'case/' || cs.case_a || '/probe-bytes.pdf', 'standard', k.sa_x
+from cs, k
+union all
+select '00000000-0000-0000-0000-0000000d8202'::uuid, 'case', cs.case_eg, 'documento', 'Doc QO EG',
+       'attachments', 'case/' || cs.case_eg || '/probe-bytes-eg.pdf', 'standard', k.sa_x
 from cs, k;
 
 select test_helpers.claims_for((select qr from p), false);
@@ -299,6 +303,35 @@ select is(
   (select count(*)::int from storage.objects where bucket_id = 'attachments'),
   2,
   '5.4 NON-VACUITY twin: the coordinator reads BOTH probe objects — 5.2''s zero is the cut, not an empty bucket');
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 5.5–5.7 — THE RESOLVE DOOR (M9). The storage policy is not the whole bytes
+-- layer: public.open_attachment (prosecdef) resolves bucket+path and the app
+-- signs it with the SERVICE ROLE — storage RLS never runs on that mint (the
+-- BUG-AUTHZ-001 shape, caught by frontend). The door must carry the SAME cut,
+-- or M8 is a boundary with a door-shaped hole beside it. q1 `open_resolver_door`
+-- proves 5.5 can fail.
+-- ---------------------------------------------------------------------------
+select test_helpers.claims_for((select qr from p), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8201')),
+  0,
+  '5.5 RESOLVE DOOR ⭐⭐ (M9): the reviewer calling open_attachment on a standard-tier case document resolves NOTHING — no path, no service-role URL');
+
+select is(
+  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8202')),
+  1,
+  '5.6 GRANT PATH through the door: the S3-granted reviewer on the LOCKED case still resolves its document (capability-shaped, like 5.3)');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8201')),
+  1,
+  '5.7 NON-VACUITY twin: the coordinator resolves the same document — 5.5''s zero is the door''s cut, not a broken door');
 reset role;
 
 select * from finish();

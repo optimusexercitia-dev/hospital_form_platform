@@ -140,6 +140,15 @@ begin
         '(bucket_id = ''attachments''::text) AND app.can_read_attachment((storage.foldername(name))[1], ((storage.foldername(name))[2])::uuid, auth.uid())');
     end;
 
+  elsif p_what = 'open_resolver_door' then
+    -- No-op M9's door conjunct: the reviewer would again resolve a bucket+path
+    -- the app signs with service_role — the door-shaped hole beside M8's policy.
+    d := pg_get_functiondef('public.open_attachment(uuid)'::regprocedure);
+    d := app._mut_q1_sub(d,
+      'if v_row.owner_type in (''case'', ''interview'')',
+      'if false and v_row.owner_type in (''case'', ''interview'')');
+    execute d;
+
   elsif p_what = 'arm_seventh_door' then
     -- D11 boundary breach: a ROW-LEVEL door acquires the reviewer arm.
     d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
@@ -200,7 +209,7 @@ SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
-      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows')))
+      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows','open_attachment')))
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin')
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='attachments_obj_select_readable'))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
@@ -251,6 +260,11 @@ run_case "open_commissions_reviewer_arm -> excluded rows leak" \
 run_case "open_bytes_cut -> un-audited PHI-capable bytes" \
   "select app._mut_q1('open_bytes_cut');" \
   "BYTES CUT .*: the reviewer reaches ZERO object rows" \
+  "supabase/tests/308_case_caps_s7.sql"
+
+run_case "open_resolver_door -> the door beside the policy" \
+  "select app._mut_q1('open_resolver_door');" \
+  "RESOLVE DOOR .*: the reviewer calling open_attachment" \
   "supabase/tests/308_case_caps_s7.sql"
 
 run_case "arm_seventh_door -> the D11 boundary breach" \
