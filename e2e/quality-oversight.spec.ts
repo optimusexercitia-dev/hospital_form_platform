@@ -597,26 +597,58 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
     } finally {
       // RESTORE — this DB is shared with other tests in this file and other
       // sessions. Best-effort even if an assertion above threw.
+      //
+      // ⚠ CLEANUP USES .click(), NOT KEYBOARD, even though the FLIP under
+      // test above is deliberately keyboard-driven (that IS this test's
+      // a11y point — it must stay that way). Live-diagnosed 2026-08-07 (the
+      // lead's batch-15 re-run + an immediate audit_log query): a real,
+      // flaky CCIH revert attempt left NO `commission.oversight_changed`
+      // audit row at all for the revert — not a refusal (which still emits
+      // one; the audit write sits after the authority check), a plain
+      // no-op. `.focus()` is not auto-waiting — it races RSC streaming and
+      // can no-op silently, a documented precedent in this repo that reads
+      // like an a11y defect but is a timing bug. The cleanup is not under
+      // test, so it must not share the fragility of the thing it protects
+      // against; `.click()` is the most reliable interaction available.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
       let toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
       if (!(await toggleAgain.isChecked())) {
-        await toggleAgain.focus()
-        await page.keyboard.press('Space')
+        // Assert the revert actually FIRED before trusting it — wait on the
+        // Server Action's own response rather than reloading and hoping.
+        const [response] = await Promise.all([
+          page.waitForResponse(
+            (r) =>
+              r.url().endsWith(COMISSOES) && r.request().method() === 'POST',
+            { timeout: 10_000 },
+          ),
+          toggleAgain.click(),
+        ])
+        // Distinguishes refusal (the door 42501s/HC0-rejects and the toggle
+        // renders its error alert) from a silent no-op (neither the alert
+        // nor the checked state changes) — the two are otherwise
+        // indistinguishable from the audit trail alone, since a refusal
+        // never reaches the audit emit either.
+        const errorAlert = page.getByRole('alert')
+        const refused = await errorAlert.isVisible().catch(() => false)
+        expect(
+          response.ok() && !refused,
+          refused
+            ? `revert REFUSED by the door: ${await errorAlert.textContent().catch(() => '(unreadable)')}`
+            : `revert POST returned ${response.status()} (ok=${response.ok()})`,
+        ).toBe(true)
         await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
       }
       // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
-      // state (root-caused live via the batch-15 gate log, 2026-08-07):
-      // `CommissionOversightToggle.onCheckedChange` calls `setCurrent(target)`
-      // SYNCHRONOUSLY, before the async `setCommissionOversight()` server
-      // action even starts — so `expect(toggle).toBeChecked()` right after
-      // the click can pass on a mutation that has not landed yet, or that
-      // fails a moment later and rolls back client-side after this block has
-      // already moved on. This `finally` runs even when the test above
-      // failed partway through (the whole point of `finally`), so it must
-      // not itself trust state a slow/failed mutation could fake — a reload
-      // re-fetches the TRUE persisted value.
+      // state: `CommissionOversightToggle.onCheckedChange` calls
+      // `setCurrent(target)` SYNCHRONOUSLY, before its async
+      // `setCommissionOversight()` server action even starts — so a check
+      // against the just-clicked switch alone could still pass on a
+      // mutation that has not actually landed. This `finally` runs even
+      // when the test above failed partway through (the whole point of
+      // `finally`), so it must not itself trust state a slow/failed
+      // mutation could fake — a reload re-fetches the TRUE persisted value.
       await page.reload()
       toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
       await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
@@ -847,6 +879,17 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
     } finally {
       // RESTORE by commission NAME (the switch's aria-label is keyed to
       // it), never positionally.
+      //
+      // ⚠ CLEANUP USES .click(), NOT KEYBOARD — same discipline as the CCIH
+      // toggle test's `finally`. The FLIP under test above stays keyboard-
+      // driven (that IS the point there); the cleanup is not under test and
+      // must use the most reliable interaction available. Live-diagnosed
+      // 2026-08-07 (lead's batch-15 re-run + audit_log query): a real CCIH
+      // revert attempt left NO `commission.oversight_changed` audit row at
+      // all — a plain no-op, not a refusal (which still emits one; the
+      // audit write sits after the authority check). `.focus()` is not
+      // auto-waiting — races RSC streaming, no-ops silently, a documented
+      // precedent in this repo.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
       let toggleAgain = page.getByRole('switch', {
@@ -854,8 +897,26 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
       if (await toggleAgain.isChecked()) {
-        await toggleAgain.focus()
-        await page.keyboard.press('Space')
+        // Assert the revert actually FIRED before trusting it — wait on the
+        // Server Action's own response rather than reloading and hoping.
+        const [response] = await Promise.all([
+          page.waitForResponse(
+            (r) =>
+              r.url().endsWith(COMISSOES) && r.request().method() === 'POST',
+            { timeout: 10_000 },
+          ),
+          toggleAgain.click(),
+        ])
+        // Distinguishes refusal (an error alert renders) from a silent
+        // no-op — otherwise indistinguishable from the audit trail alone.
+        const errorAlert = page.getByRole('alert')
+        const refused = await errorAlert.isVisible().catch(() => false)
+        expect(
+          response.ok() && !refused,
+          refused
+            ? `revert REFUSED by the door: ${await errorAlert.textContent().catch(() => '(unreadable)')}`
+            : `revert POST returned ${response.status()} (ok=${response.ok()})`,
+        ).toBe(true)
         await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
       }
       // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
