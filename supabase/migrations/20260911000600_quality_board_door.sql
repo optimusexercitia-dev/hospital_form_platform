@@ -30,7 +30,14 @@ create function public.quality_board_summary(p_organization_id uuid)
  returns table(
    commission_id   uuid,
    commission_name text,
-   commission_slug citext,
+   -- extensions.citext, SCHEMA-QUALIFIED deliberately: CREATE FUNCTION resolves
+   -- parameter/return types against the SESSION search_path at creation time, not
+   -- against this function's own `set search_path` below. The local apply path has
+   -- `extensions` on its search_path and a bare `citext` worked; the remote
+   -- `db push` login role does NOT, and it failed with 42704 "type citext does not
+   -- exist" after M1-M6 had already landed. `commissions.slug` is citext on both
+   -- sides — the type was never the divergence, the resolution path was.
+   commission_slug extensions.citext,
    hospital_id     uuid,
    hospital_name   text,
    total_cases     integer,
