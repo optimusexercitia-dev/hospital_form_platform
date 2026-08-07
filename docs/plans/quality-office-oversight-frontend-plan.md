@@ -397,31 +397,38 @@ Nothing below is implemented against a guessed shape. Where I name a field, it i
 | D9 | `setCommissionOversight(commissionId, next)` server action in `src/lib/org/actions.ts`, returning the `MutationActionState` shape | file 17 | pt-BR mapping for 42501 / `HC0Q0` / P0002 **in the action layer** — raw SQLSTATEs must not reach the UI. |
 | D10 | `qualidadeHref` — mine (`src/lib/routing.ts`), listed only so the dependency graph is complete | many | No backend involvement. |
 
-**Open questions for backend (answers change the screen, not just the types):**
+**Q1–Q5 — RULED by the lead 2026-08-06.** Recorded here rather than left as open
+markers: a plan that still reads "lead call" after the call was made is the
+stale-comment failure this project has paid for repeatedly.
 
-- **Q1 — `listCaseDocuments` signed URLs.** Does it mint *working* storage URLs for a
-  `read_case_content` reader who holds **no membership**? If storage RLS denies, the
-  documents panel renders download links that 403. If unresolved by contract time I
-  render the panel read-only **without** download links for the oversight viewer.
-- **Q2 — `listMembers` / `listCaseTags` for a non-member.** They are called
-  unconditionally by the case page. If RLS returns `[]`, `memberNames` is empty and
-  correction/assignee attributions render as blanks. Empty is acceptable; an **error**
-  is not — the page must not throw for a legitimate reader.
-- **Q3 — outbound referrals card (matrix #17).** `buildCaseReferralsModule` loads
-  `targetCommissions` + `technicalDirectionHospitalId` purely as wizard fuel the viewer
-  can never use. **My proposal: `referralsModule={null}` for the viewer** (no card).
-  Counter-argument: the referral list is arguably case *content* under D3. **Lead call.**
-- **Q4 — interviews & meetings cards.** D4 keeps deliberation closed
-  (`read_meeting_case_section`). `listCaseInterviews` / `listCaseMeetings` presumably
-  return `[]`. A card that says *"Nenhuma reunião"* when the truth is *"not visible to
-  you"* is a small lie and, in the other direction, a hint about content. **My proposal:
-  omit both cards for the viewer** (`interviewsEnabled={false}`, `meetingsEnabled={false}`)
-  — no assertion either way. **Lead call.**
-- **Q5 — audit.** Opening a case as a non-coordinator emits `case.opened` (BE-5). Does
-  the reviewer's open emit the same event, and is the actor's oversight standing recorded?
-  Rule 11 says every read of another member's data is logged. FE does nothing here; I need
-  to know whether the UI should *say* so (the NSP console tells the reader their access is
-  registered — a one-line note under the case header would match that convention).
+- **Q1 — `listCaseDocuments` signed URLs → DEFAULT TO NO DOWNLOAD LINKS.** Render the
+  documents panel read-only **without** download links for the oversight viewer. Links
+  render **only** if `backend` proves storage RLS admits a no-membership
+  `read_case_content` reader **and** the download path is PHI-read-audited. A link that
+  403s is a broken UI; an unaudited PHI-bearing download is worse. Whichever way it
+  resolves, **it gets an E2E assertion** so the answer is pinned rather than remembered.
+- **Q2 — empty is acceptable, throwing is a BUG.** The page must not 500 for a
+  legitimate reader. Unresolved attributions render a neutral pt-BR fallback, never a
+  blank. (`backend` confirms whether `listMembers`/`listCaseTags` return `[]` or raise.)
+- **Q3 — outbound referrals: SPLIT IT.** The referral **list** is case content under D3
+  (cross-committee trajectory is close to the reason the quality office exists); the
+  **wizard fuel** is not — loading `targetCommissions` for a principal who can never file
+  one is dead weight *and* a small leak about other commissions. So: render the card
+  read-only, list only, **no wizard, no `targetCommissions`/`technicalDirectionHospitalId`
+  load**. ⚖ **Bounded fallback:** if that split costs more than ~one file of change, ship
+  `referralsModule={null}` instead and log a follow-up — D7 is strictly read-only and
+  shipping less beats shipping a leak. Decide on sight of the code; **report which way it
+  went**.
+- **Q4 — interviews & meetings: OMIT BOTH** (`interviewsEnabled={false}`,
+  `meetingsEnabled={false}`). A card reading *"Nenhuma reunião"* when the truth is *"not
+  visible to you"* is a false statement to the user; the inverse — a count without
+  content — leaks deliberation volume, which is precisely what D4 withholds. Omission
+  asserts nothing in either direction.
+- **Q5 — TELL THE REVIEWER THEIR ACCESS IS REGISTERED.** One line under the case header,
+  matching the NSP console convention ("A identificação do paciente não aparece nesta
+  lista — … com acesso registrado"). For an oversight tool this is both honest and a
+  healthy deterrent against casual browsing. `backend` confirms what event actually fires
+  so the copy describes the real thing, not an assumed one.
 
 ---
 
@@ -429,14 +436,44 @@ Nothing below is implemented against a guessed shape. Where I name a field, it i
 
 | Coupling | Owner | Risk |
 |---|---|---|
-| `src/lib/members/__fixtures__/membership-roles.json` gains `quality_reviewer` (backend, per pgTAP 304 §10) → **`src/components/users/affiliations-panel.test.ts` goes RED** until `ROLE_LABELS` (file 26, mine) gains the pt-BR label. | fixture: backend · label: frontend | The two **must land in the same wave**. This is the BUG-AFF-N1 chain working as designed — but it means backend's migration turns my unit suite red in the interim. Sequence: backend posts the fixture change, I land the label in the same PR/commit range. |
-| `affiliations-panel.test.ts` itself | ambiguous — colocated vitest beside a component I own, but "test specs are tester's" | **Lead call.** No edit should be needed (it iterates the fixture); flagging so nobody is surprised. |
+| `src/lib/members/__fixtures__/membership-roles.json` gains `quality_reviewer` (backend, per pgTAP 304 §10) ↔ `ROLE_LABELS.quality_reviewer` (file 26, mine). | fixture: backend · label: frontend | ⭐ **There is NO red-free ordering across two commits — proven, not reasoned.** See §6.1. |
+| `affiliations-panel.test.ts` itself | **frontend (ruled)** — CLAUDE.md scopes `tester` to `e2e/**`; a colocated vitest beside a component I own is mine. | No edit expected (it iterates the fixture); ownership recorded so nobody waits on tester. |
 | `src/lib/queries/session.ts`, `src/lib/queries/org.ts`, `src/lib/queries/dashboard.ts`, `src/lib/org/actions.ts`, `src/lib/queries/quality.ts` | **backend** | I touch none of them. Every need is in §5 as a request. |
 | `src/components/referrals/build-case-referrals-module.ts` | frontend (`src/components/**`) | Only if Q3 lands as "keep the card". Otherwise untouched. |
 | `src/components/dashboard/volume-trend.tsx` (file 27) | frontend | Shared with the commission dashboard. Behaviour change is *only* "hide an empty block", but it is a shared component → include the commission `dashboard` specs in the rerun set. |
 | `supabase/seed.sql` reviewer personas | backend (A.5) | The E2E specs and my manual verification both need `quality.a@test.local` before file 2 can be exercised. **My screens cannot be verified in-browser until A.5 lands** — see §7. |
 
 ---
+
+### 6.1 The role-label handshake has no red-free ordering (measured 2026-08-06)
+
+The instruction was to land the pt-BR label **first**, on the reasoning that doing so
+"removes the red window entirely". I tested it before complying. It does the opposite.
+
+`affiliations-panel.test.ts` is **bidirectional by design** — its own comment says *"The
+map must not drift the OTHER way either: a stale label for a removed role is dead pt-BR
+that a reader will mistake for a live case."* So:
+
+| Order | What reds |
+|---|---|
+| **label first** (fixture still 9 roles) | `carries no label for a role outside the fixture` — **measured:** `AssertionError: expected [ 'quality_reviewer' ] to deeply equal []` at `affiliations-panel.test.ts:61`. |
+| **fixture first** (label absent) | `labels every role in the membership-role fixture`. |
+
+And the fixture cannot move early either: pgTAP `304` §10 asserts fixture set == the live
+`memberships_role_check` set, so regenerating it before **M1** lands reds `304` instead.
+
+**Therefore the only red-free landing is both edits inside one commit range, after M1** —
+backend regenerates the fixture, I add the label, neither is pushed alone. The label was
+written, measured red, and **reverted**; it lands with backend's fixture change, not
+before it. (The lead's standing rule holds either way: a transient red between two commits
+on a feature branch is fine — *reporting* the branch green while it is red is not.)
+
+Label chosen: **`quality_reviewer: "Revisor da Qualidade"`** — person-scoped, matching
+every sibling in the map (`Coordenação do NSP`, `Membro do PQS`, `Direção técnica`), which
+name the *seat a person holds*, not the office. `ROLE_LABELS` renders per-person blockers
+in `end_affiliation`, so a person-scoped reading is the grammatical fit. The office name
+"Escritório da Qualidade" stays as the **console/chip** label (files 1, 15) where the
+subject genuinely is the office.
 
 ## 7. Testing note (aligned with plan §A.5's E2E list)
 
