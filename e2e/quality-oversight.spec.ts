@@ -654,6 +654,20 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       // ONCE here, before any chip is touched, then re-asserted unchanged
       // after selection below. Region located by its visible <h2> (commit
       // 7ca0207), not an aria-label string.
+      //
+      // ⚠ COVERAGE LIMIT, stated so it isn't mistaken for tested: Farmácia's
+      // real seed data is locked=0, so "Casos restritos: 1" below is
+      // consistent with BOTH correct per-commission attribution (1 + 0) AND
+      // a bug that sums wrong (also 1 + 0 = 1, indistinguishable at this
+      // value). This test cannot discriminate "attributes locked counts per
+      // commission" from "sums them wrong" — that property is pinned at the
+      // DB layer instead, in pgTAP `310` §4's deliberate 1-vs-2 fixture,
+      // mutation-proven by `q1`'s `drop_board_correlation` case. A second
+      // temporary flip here to get a real 1-vs-2 at the UI layer was
+      // considered and declined (lead ruling 2026-08-07): marginal coverage
+      // for more mutation/restore surface in the flakiest layer in the
+      // suite. If this value ever needs re-deriving, `310` §4 is where the
+      // real coverage lives, not here.
       const kpi = page.getByRole('region', { name: 'Visão geral' })
       await expect(kpiValue(kpi, 'Comissões')).toHaveText('2')
       await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('6')
