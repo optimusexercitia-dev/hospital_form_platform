@@ -14,7 +14,7 @@
 -- =============================================================================
 
 begin;
-select plan(37);
+select plan(45);   -- QO·FUP F1: +4.6b (x2), +4.6c, +4.13b (x2), +4.13c, +4.13d (x2)
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -265,13 +265,46 @@ select lives_ok(
          (select hosp_b from k), (select st_x from k)),
   '4.5 FUP-QO-1·A: re-granting an identical membership with a NEW expiry succeeds silently...');
 
+-- ⭐ RECUT 2026-08-07 (QO·FUP F1 / D-FUP-1, migration 20260912000000). This assertion
+-- pinned the OPPOSITE until now: the targeted `on conflict ... do nothing` left the
+-- existing expiry untouched, so break-glass (ADR 0100 D14) could not extend a window
+-- through the door. The PO ruled extend-on-regrant in; the pin is recut, not deleted.
 select ok(
-  (select m.expires_at < now() + interval '31 days'
+  (select m.expires_at > now() + interval '59 days'
    from public.memberships m, k
    where m.principal_id = k.st_x and m.role = 'quality_reviewer'),
-  '4.6 FUP-QO-1·A ⭐: ...and does NOT extend the existing expiry (targeted ON CONFLICT DO NOTHING — the deferred seam limit, pinned)');
+  '4.6 FUP-QO-1·A ⭐ EXTEND-ON-REGRANT: ...and the identical re-grant EXTENDED the existing expiry 30d -> 60d (on conflict DO UPDATE, D-FUP-1)');
 
--- Backdate (as postgres — no door mutates expiry; that is 292 §2.1's contract).
+-- ⭐ NEW 4.6b — the SHRINK direction. `p_expires_at` is an ABSOLUTE set, not a
+-- max(): a one-way ratchet would leave break-glass unable to close a window early,
+-- which is the more dangerous half of a governance control. A `greatest()`
+-- implementation passes 4.6 and fails here.
+select lives_ok(
+  format($$select public.grant_role('hospital', %L, 'quality_reviewer', %L, null, now() + interval '5 days')$$,
+         (select hosp_b from k), (select st_x from k)),
+  '4.6b fixture: re-grant the same membership with a SHORTER expiry');
+
+select ok(
+  (select m.expires_at < now() + interval '6 days' and m.expires_at > now()
+   from public.memberships m, k
+   where m.principal_id = k.st_x and m.role = 'quality_reviewer'),
+  '4.6b FUP-QO-1·A ⭐ ABSOLUTE, NOT A RATCHET: the re-grant SHORTENED 60d -> 5d (a greatest() implementation passes 4.6 and reds here)');
+
+-- ⭐ NEW 4.6c — the extend is AUDITED, and by the DOOR. 4.8 below also finds an
+-- expiry_changed row, but only after a MANUAL backdate; at this point in the file the
+-- door is the ONLY thing that has ever written expires_at, so this row can have no
+-- other author. Rule 11: a security control written without a trace is not written.
+select ok(
+  (select exists (
+     select 1 from public.audit_log
+     where action = 'membership.expiry_changed'
+       and (metadata->>'role') = 'quality_reviewer'
+       and metadata ? 'expires_at_before' and metadata ? 'expires_at_after'
+       and (metadata->>'expires_at_before') is distinct from (metadata->>'expires_at_after'))),
+  '4.6c FUP-QO-1 ⭐ AUDITED BY THE DOOR: the extend emitted membership.expiry_changed with a real before/after diff (no manual UPDATE has run yet)');
+
+-- Backdate (as postgres — the door now writes expiry, but only its own argument;
+-- forcing a PAST value still has no product path. 292 §2.1 pins the writer set).
 update public.memberships m set expires_at = now() - interval '1 hour'
   where m.principal_id = (select st_x from k) and m.role = 'quality_reviewer';
 
@@ -310,13 +343,66 @@ select lives_ok(
          (select comm_y from k), (select st_x2 from k)),
   '4.12 fixture: re-granting a DIFFERENT commission role takes the atomic-replace UPDATE path');
 
+-- ⭐ RECUT 2026-08-07 (QO·FUP F1 / D-FUP-1). Pinned the opposite until now: the
+-- atomic-replace UPDATE ignored `p_expires_at` entirely, so a role change silently
+-- carried the OLD window forward.
 select ok(
   (select m.role = 'staff_admin'
       and m.expires_at is not null
-      and m.expires_at < now() + interval '11 days'
+      and m.expires_at > now() + interval '89 days'
    from public.memberships m, k
    where m.principal_id = k.st_x2 and m.commission_id = k.comm_y),
-  '4.13 FUP-QO-1·B ⭐: the replace changed the ROLE but left expires_at untouched (10-day value survives; the 90-day argument was deliberately ignored — the deferred seam limit, pinned)');
+  '4.13 FUP-QO-1·B ⭐ REPLACE WRITES EXPIRY: the atomic replace changed the role AND wrote the 90-day argument (10-day value gone, D-FUP-1)');
+
+-- ⭐ NEW 4.13b — NULL SEMANTICS (the case D-FUP-1 left open; lead-ratified 2026-08-07).
+-- `p_expires_at IS NULL` means LEAVE UNCHANGED, not "clear". This is the shape ALL
+-- THREE production callers use — src/lib/admin/actions.ts:285, src/lib/members/
+-- actions.ts:235, src/lib/org/actions.ts:618 all omit the argument — so "NULL clears"
+-- would have made every ordinary member-add / promotion silently strip a deliberately
+-- set expiry: a privilege WIDENING shipped by a change whose purpose is the opposite.
+-- Making a grant permanent stays revoke + re-grant (a DELETE + INSERT, fully audited).
+select lives_ok(
+  format($$select public.grant_role('commission', %L, 'staff_admin', %L)$$,
+         (select comm_y from k), (select st_x2 from k)),
+  '4.13b fixture: re-grant the SAME commission role with NO expiry argument (the shape every production caller uses)');
+
+select ok(
+  (select m.expires_at is not null and m.expires_at > now() + interval '89 days'
+   from public.memberships m, k
+   where m.principal_id = k.st_x2 and m.commission_id = k.comm_y),
+  '4.13b FUP-QO-1 ⭐ NULL = LEAVE UNCHANGED: the omitted argument did NOT clear the 90-day expiry (a coalesce-less `set expires_at = excluded.expires_at` reds here)');
+
+-- ⭐ NEW 4.13c — the replace path is audited over the expiry too. The trigger's UPDATE
+-- branch is if/ELSIF and `role_changed` WINS, so before F1 a role+expiry change emitted
+-- ONE row carrying no expiry diff at all. F1 makes the replace WRITE expiry, so without
+-- this the new write would have had no trace — Rule 11. `role_changed` now carries the
+-- before/after when (and only when) the expiry also moved; no new verb, no payload.
+select ok(
+  (select exists (
+     select 1 from public.audit_log
+     where action = 'membership.role_changed'
+       and (metadata->>'role') = 'staff_admin'
+       and metadata ? 'expires_at_before' and metadata ? 'expires_at_after'
+       and (metadata->>'expires_at_before') is distinct from (metadata->>'expires_at_after'))),
+  '4.13c FUP-QO-1 ⭐ THE REPLACE IS AUDITED OVER EXPIRY: membership.role_changed carries expires_at_before/after when the replace moved the window (role_changed wins the if/elsif — without this the write had no trace)');
+
+-- ⭐ NEW 4.13d — NULL SEMANTICS ON THE *REPLACE* PATH. 4.13b covers the INSERT /
+-- ON CONFLICT arm (same role); this covers the atomic-replace arm (different role),
+-- which is a SEPARATE `coalesce` in a separate statement. Without it, dropping the
+-- coalesce there is invisible — and that arm is the one src/lib/admin/actions.ts:285
+-- (promote to staff_admin, no expiry argument) actually takes in production.
+select lives_ok(
+  format($$select public.grant_role('commission', %L, 'staff', %L)$$,
+         (select comm_y from k), (select st_x2 from k)),
+  '4.13d fixture: change the commission role BACK with no expiry argument (the atomic-replace path)');
+
+select ok(
+  (select m.role = 'staff'
+      and m.expires_at is not null
+      and m.expires_at > now() + interval '89 days'
+   from public.memberships m, k
+   where m.principal_id = k.st_x2 and m.commission_id = k.comm_y),
+  '4.13d FUP-QO-1 ⭐ NULL = LEAVE UNCHANGED (REPLACE ARM): the role changed and the 90-day window SURVIVED (a bare `expires_at = p_expires_at` reds here)');
 
 select * from finish();
 rollback;

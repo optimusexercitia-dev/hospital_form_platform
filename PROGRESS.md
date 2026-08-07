@@ -121,12 +121,13 @@ PO rulings 2026-08-07 (asked before work started; each pre-empted a recorded def
 
 | # | Task | Owner | Status |
 | - | ---- | ----- | ------ |
-| F1 | FUP-QO-1 — extend-on-regrant migration + `306` §4 recut + ADR | backend | ☐ |
+| F1 | FUP-QO-1 — extend-on-regrant migration + `306` §4 recut + ADR | backend | ✅ 2026-08-07 (`20260912000000`, ADR 0102) — `306` 37→45, red-first observed 6/43; `f1-expiry-seam-audit.sh` **6/6 RED-PROVEN** |
 | F2 | FUP-QO-5 — `100_dashboard` t19 excludes extension-owned functions (pg_depend→pg_extension) + prove-can-find-something control | backend | ✅ 2026-08-07 (`bac7821`) |
 | F3 | FUP-QO-3 — retarget vacuous `a2` K8/Kv cases; a2 back to 12/12 RED-PROVEN | backend | ✅ 2026-08-07 (`bac7821`) |
 | F4 | FUP-QO-2 — catalog-derived role→landing guard (enumerate `memberships_role_check` from the catalog; every role must resolve to a landing route) | backend (+frontend if `page.tsx` must change) | ✅ 2026-08-07 (`49883c2`, ADR 0101) — **guard fired on its first run: `nsp_coordinator` + `pqs_member` are instances 4 and 5; fix needs `page.tsx` (frontend)** |
 | F5 | FUP-QO-4 — records-only close (ruling above) | lead | ✅ 2026-08-07 |
 | F6 | FUP-QO-6 — full `e2e:prod` under load with DB poller; classify stale-UI vs lost-write | tester | ☐ |
+| F7 | FUP-QO-2 close — route `nsp_coordinator` + `pqs_member` (the guard's catch, instances 4+5) | backend (filter) + frontend (`page.tsx` branch) | ◐ backend half ✅ 2026-08-07 (`c5b9dca`, `nspOperatorOf`); **frontend branch + `KNOWN_UNROUTED` flip OUTSTANDING** |
 
 ### ⬛ QO·A — Quality-office oversight, Phase A · **COMPLETE 2026-08-07**
 
@@ -441,7 +442,51 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
-### 🟡 FUP-QO-1 — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
+### 🟡 FUP-QO-7 — the case-access door still has the seam limit the role door just lost (2026-08-07, backend)
+
+Found while grounding F1's plan; **filed, not fixed — out of scope by instruction.**
+`app._grant_case_access_unchecked`'s `on conflict (case_id, principal_id, source, source_entity_id)
+where revoked_at is null do update set …` runs `read_case_content … granted_at` and **omits
+`expires_at`** (catalog-verified). So re-granting an existing case access with a new expiry silently
+keeps the old window — exactly the behaviour F1 has just removed from `grant_role`. `306` 4.4's
+comment says the past-expiry refusal "mirrors `grant_case_access` verbatim"; that remains true for
+the *refusal* and is now false for the *re-grant*, so the comment is one premise-change away from
+being a stale claim. Needs a PO call: either follow the role door (extend-on-regrant, NULL =
+leave-unchanged) or pin the divergence executably in the case-access suite so it stops looking like
+an oversight. ⚠ Whichever way it goes, the caller sweep must be redone for `grant_case_access` —
+F1's NULL ruling turned entirely on which arguments production callers actually pass, and that
+answer is not transferable between doors.
+
+### ✅ FUP-QO-1 — RESOLVED 2026-08-07 (backend, F1; PO ruling D-FUP-1) — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
+
+**Resolution — migration `20260912000000`, ADR [0102](docs/decisions/0102-extend-on-regrant-expiry-seam.md).**
+Both limits closed inside `app.grant_role_impl`: the targeted `on conflict … do nothing` became
+`do update set expires_at = coalesce(excluded.expires_at, memberships.expires_at)`, and the
+commission-tier atomic replace now writes `expires_at = coalesce(p_expires_at, expires_at)`. The
+value is **absolute, not a ratchet** (a shorter argument shortens — D14 must be able to close a
+window early). **NULL = LEAVE UNCHANGED**, decided by a caller sweep rather than symmetry: all three
+production callers omit the argument (`admin/actions.ts:285` — the *replace* path,
+`members/actions.ts:235`, `org/actions.ts:618`), so "NULL clears" would have made every ordinary
+member-add and promotion silently strip a deliberately-set expiry.
+
+**Rule 11 companion, and it is the part worth reading.** `app.trg_audit_memberships`'s UPDATE branch
+is if/**elsif** and `role_changed` **wins** over `expiry_changed`. Harmless until now, because the
+replace path never touched `expires_at` — the change to that path is precisely what turned a dormant
+asymmetry into an unaudited write of a security control. `role_changed` now carries
+`expires_at_before`/`expires_at_after` when (and only when) the expiry also moved. Metadata only.
+
+**Evidence.** `306` recut 37 → 45; the six new/flipped keystones were **observed RED before the
+migration** (6 of 43, all 43 ran — no abort). `supabase/tests/mutation/f1-expiry-seam-audit.sh`:
+**6/6 RED-PROVEN**, control all green (45 ran). Three of those six (`ratchet`,
+`drop_insert_coalesce`, `drop_replace_coalesce`) leave the headline assertions 4.6/4.13 GREEN — the
+NULL semantics and the not-a-ratchet property would have been unpinned without them.
+`292` §2.1's singleton **survives unrecut** (re-verified: the `string_agg` still reads exactly
+`app.grant_role_impl`); §2.2 was **honestly recut** — the door now matches the `set expires_at` half
+too, so the positive twin asserts the NAMED SET rather than `count = 1`, since `2` would also be
+satisfied by an unrelated third writer. BEFORE/AFTER catalog snapshots identical property-for-property
+(`create or replace`, unchanged signature). Divergence from the sibling PHI door filed as **FUP-QO-7**.
+
+<details><summary>Original entry (the two deferred limits, for the record)</summary>
 
 M3 (`20260911000200`) added the D9 expiry SETTER to the grant chain; enforcement was already
 universal. Two behaviors are **deliberately deferred**, lead-acked at plan approval, and — because
@@ -457,6 +502,8 @@ pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not
 
 Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
 (singleton set, both directions).
+
+</details>
 
 ### ✅ FUP-QO-3 — RESOLVED 2026-08-07 (backend, F3, `bac7821`) — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
 
