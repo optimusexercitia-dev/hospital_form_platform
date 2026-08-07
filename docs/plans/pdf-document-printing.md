@@ -1,6 +1,6 @@
 # PDF Document Printing Module — Implementation Plan
 
-**Decision record:** ADR [0101](../decisions/0101-pdf-document-printing-module.md)
+**Decision record:** ADR [0104](../decisions/0104-pdf-document-printing-module.md) *(renumbered from 0101 at the QO·FUP merge — 0101 is the role-landing guard)*
 (read it first — decisions D1–D15 are PO-ratified, do not re-litigate). **Status:**
 planned, implementation NOT started. **Written:** 2026-08-07, by the lead session that
 ran the PO interview. **Audience:** the lead session that executes this, and its

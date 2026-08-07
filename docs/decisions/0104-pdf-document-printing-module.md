@@ -1,4 +1,9 @@
-# 0101 — PDF document printing module: record-semantics minting, single registry, template pipeline, QR verification
+# 0104 — PDF document printing module: record-semantics minting, single registry, template pipeline, QR verification
+
+> Renumbered 0101 → 0104 at the QO·FUP merge (2026-08-07): 0101 had been minted in parallel on
+> `feat/quality-office-oversight` for the role-landing guard, whose number is cited in code, tests
+> and reviews. This ADR was the cheaper rename (2 files). The two `docs(adr)`/`docs(plans)` commit
+> messages naming "ADR 0101" for this module predate the rename and cannot be amended.
 
 **Date:** 2026-08-07 · **Status:** 🟢 **ACCEPTED (design)** — ratified with the PO in a
 15-question interview, 2026-08-07; **implementation NOT started; no migration authored.**
