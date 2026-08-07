@@ -30,9 +30,20 @@
 #  5. ⛔ Re-emit from LIVE pg_get_functiondef, never from migration text: functions on
 #     this program are rewritten at runtime, so re-emitting from a file silently reverts
 #     intervening patches.
+#  6. ⭐ FUP-QO-3 (2026-08-07): A CASE'S TARGET SUITE IS PART OF THE CASE. Two cases
+#     below went vacuous because ADR 0078 Gate 2 C1 made the `meeting_cases` READ
+#     member-wide: their expected-red assertions in 234 stopped routing
+#     `read_case_deliberation`, so the arm could be dropped (or widened) with nothing
+#     going red — and one expected-red STRING stopped existing anywhere at all. Both
+#     are retargeted onto 241 (the summary-masking lane, which is still the surface
+#     `read_case_deliberation` actually gates) plus a direct `has_case_capability`
+#     probe. `run_case` therefore takes a PER-CASE source file, and the CONTROL runs
+#     for every source file used — a red in a file whose control was never run is not
+#     evidence.
 set -u
 DB=supabase_db_azkbbhskturikxpgmafq
 SRC="${SRC:-supabase/tests/234_authz_a2_resolver.sql}"
+SRC_C1="${SRC_C1:-supabase/tests/241_authz_c1_meeting_cases_tiers.sql}"
 WORK="${TMPDIR:-/tmp}"
 MARKER='grant select on k to authenticated;'
 
@@ -116,16 +127,22 @@ begin
 end; $m$;
 EOF
 
+# Every suite a case actually ran against — the CONTROL loop at the bottom reads this,
+# so a newly-targeted file cannot slip past the "is the harness lying?" check.
+CONTROL_SRCS=""
+
 run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red label patterns (| sep)
-  local label="$1" mut="$2" expect="$3"
+               # $4 = OPTIONAL target suite (defaults to $SRC) — see harness lesson 6.
+  local label="$1" mut="$2" expect="$3" src="${4:-$SRC}"
   local f="$WORK/muta2.sql"
   local line
-  line=$(grep -n "$MARKER" "$SRC" | head -1 | cut -d: -f1)
+  line=$(grep -n "$MARKER" "$src" | head -1 | cut -d: -f1)
   if [ -z "$line" ]; then
-    printf '%-44s *** HARNESS ERROR: marker not found in %s ***\n' "$label" "$SRC"; return
+    printf '%-44s *** HARNESS ERROR: marker not found in %s ***\n' "$label" "$src"; return
   fi
-  { head -n "$line" "$SRC"; printf '%s\n' "$PRELUDE"; printf '%s\n' "$mut";
-    tail -n +$((line+1)) "$SRC"; } > "$f"
+  { head -n "$line" "$src"; printf '%s\n' "$PRELUDE"; printf '%s\n' "$mut";
+    tail -n +$((line+1)) "$src"; } > "$f"
+  CONTROL_SRCS="$CONTROL_SRCS $src"
   docker cp "$f" "$DB:/tmp/muta2.sql" >/dev/null
   local out
   out=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/muta2.sql 2>&1)
@@ -219,28 +236,53 @@ run_case "K11 coordinator does NOT hold RRP" \
 
 # The member-default source is A15's whole correction. Dropping it must break the
 # deliberation surface WITHOUT touching content (which the coordinator/grant arms hold).
-run_case "K8  member_default source (A15)" \
+#
+# ⭐ RETARGETED 2026-08-07 (FUP-QO-3), TARGET SUITE 241. This case read 234's
+# "the ordinary member DOES read the ata section" — a count over `meeting_cases`,
+# which ADR 0078 Gate 2 C1 (456d008) made MEMBER-WIDE. Post-C1 that read no longer
+# routes read_case_deliberation at all, so dropping the member arm left it GREEN and
+# the case reported coverage it did not have. The discriminating power is relocated,
+# not deleted (the m5/m6 precedent): 241's summary-masking lane is where
+# read_case_deliberation is still the gate (app._project_meeting_case masks
+# `summary`), and 241's PRE-FLIGHT is a DIRECT has_case_capability probe that no
+# permissive sibling can satisfy. Both must go red.
+run_case "K8  member_default source (A15) [241]" \
   "select app._mut_a2('drop_member_default');" \
-  "K8 .* POSITIVE: the ordinary member DOES read the ata section|K8 positive twin"
+  "PRE .*the member HAS read_case_deliberation on the commission_default case|K5 NO-REGRESSION: .*reads the summary on the commission_default case" \
+  "$SRC_C1"
 
 # ⭐ MINOR-2 — the visibility_policy arm, relocated here from m6 (see the PRELUDE note).
 # Widening the member arm to ignore explicit_grants_only must hand a plain member the
-# ethics case's deliberation, which he must NOT reach — K8-twin goes RED.
-run_case "Kv  member ignores visibility (EG)" \
+# ethics case's deliberation, which he must NOT reach.
+#
+# ⭐ RETARGETED 2026-08-07 (FUP-QO-3), TARGET SUITE 241. Its expected-red string
+# ("reads NO ata section for the explicit_grants_only case") stopped existing anywhere
+# in supabase/tests/ when C1 rewrote 234's K8-twin — the harness reported ABSENT, which
+# is the tri-state doing its job, but the arm was unpinned meanwhile. The over-grant now
+# lands where explicit_grants_only still decides the outcome: the plain member must NOT
+# hold read_case_deliberation on the sub-group case (PRE probe), and must read a NULL
+# summary for it (the K5 masking surface). Widening the member arm flips both.
+run_case "Kv  member ignores visibility (EG) [241]" \
   "select app._mut_a2('member_ignores_visibility');" \
-  "reads NO ata section for the explicit_grants_only case"
+  "PRE .*but NOT on the sub-group case|K5 .*member without substance reach reads NULL summary on the sub-group case" \
+  "$SRC_C1"
 
 echo
-echo "=== CONTROL — an UNMUTATED run must be fully GREEN. If this prints anything other"
-echo "=== than 'control: all green', every RED above is suspect (the harness, not the fix)."
-LINE=$(grep -n "$MARKER" "$SRC" | head -1 | cut -d: -f1)
-{ head -n "$LINE" "$SRC"; tail -n +$((LINE+1)) "$SRC"; } > "$WORK/ctla2.sql"
-docker cp "$WORK/ctla2.sql" "$DB:/tmp/ctla2.sql" >/dev/null
-CTRL=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/ctla2.sql 2>&1)
-if echo "$CTRL" | grep -qE "^not ok"; then
-  echo "control: *** NOT GREEN — harness is lying ***"; echo "$CTRL" | grep -E "^not ok" | head -5
-elif ! echo "$CTRL" | grep -qE "^ok [0-9]+"; then
-  echo "control: *** ABSENT (aborted) — no test ran; every verdict above is void ***"
-else
-  echo "control: all green ($(echo "$CTRL" | grep -cE '^ok [0-9]+') tests ran)"
-fi
+echo "=== CONTROL — an UNMUTATED run of EVERY targeted suite must be fully GREEN. If this"
+echo "=== prints anything other than 'all green', every RED above is suspect (the harness,"
+echo "=== not the fix). One control per source file: a red in a file whose control never"
+echo "=== ran is not evidence (FUP-QO-3)."
+for csrc in $(printf '%s\n' $CONTROL_SRCS | sort -u); do
+  LINE=$(grep -n "$MARKER" "$csrc" | head -1 | cut -d: -f1)
+  { head -n "$LINE" "$csrc"; tail -n +$((LINE+1)) "$csrc"; } > "$WORK/ctla2.sql"
+  docker cp "$WORK/ctla2.sql" "$DB:/tmp/ctla2.sql" >/dev/null
+  CTRL=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/ctla2.sql 2>&1)
+  if echo "$CTRL" | grep -qE "^not ok"; then
+    echo "control $(basename "$csrc"): *** NOT GREEN — harness is lying ***"
+    echo "$CTRL" | grep -E "^not ok" | head -5
+  elif ! echo "$CTRL" | grep -qE "^ok [0-9]+"; then
+    echo "control $(basename "$csrc"): *** ABSENT (aborted) — no test ran; every verdict above is void ***"
+  else
+    echo "control $(basename "$csrc"): all green ($(echo "$CTRL" | grep -cE '^ok [0-9]+') tests ran)"
+  fi
+done
