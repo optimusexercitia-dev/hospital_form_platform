@@ -432,7 +432,14 @@ delete from public.memberships where commission_id=(select comm_x from k)
   and principal_id=(select st_y from k) and role='staff';
 
 -- ============================================================================
--- §11 · Grant idempotency (on conflict do nothing — no duplicate row)
+-- §11 · Grant idempotency — no duplicate row.
+--    ⚠ The mechanism changed on 2026-08-07: this header said `on conflict do nothing`.
+--    Since QO·FUP F1 (ADR 0102) the kernel's targeted clause is `do update set
+--    expires_at = coalesce(excluded.expires_at, memberships.expires_at)`. §11 still
+--    proves NO DUPLICATE ROW — which is what it is for, and what the targeted conflict
+--    target guarantees — but "nothing happens" is no longer true of the statement. The
+--    calls below pass no expiry, so coalesce(null, existing) writes the existing value
+--    back and the row is unchanged. `306` §4 owns the expiry behaviour itself.
 -- ============================================================================
 set local role authenticated;
 select set_config('request.jwt.claims',

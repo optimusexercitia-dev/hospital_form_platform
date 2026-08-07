@@ -40,16 +40,28 @@ having D14 inherit them.
    - **5 further SQL functions** reach it through those: `add_pqs_member`,
      `assign_org_admin`, `assign_hospital_admin`, `assign_nsp_org_admin`,
      `assign_nsp_coordinator`.
-   - **9 TS RPC sites**: `admin/actions.ts:285` · `members/actions.ts:235` ·
-     `org/actions.ts:581` + `:618` · `platform/actions.ts:210` + `:247` ·
-     `pqs/actions.ts:65` · `users/actions.ts:714` + `:949`.
+   - **12 TS RPC sites**, named by their enclosing server action — line numbers are a
+     2026-08-07 snapshot and drift (they already drifted once, inside the very commit
+     that first recorded them), so **resolve by symbol, not by line**:
+     `assignStaffAdmin` (`admin/actions.ts:285`) · `addStaff` (`members/actions.ts:235`) ·
+     `assignNspCoordinator` (`org/actions.ts:238`) · `assignHospitalAdmin`
+     (`org/actions.ts:320`) · `assignNspOrgAdmin` (`org/actions.ts:385`) ·
+     `appointTechnicalDirector` (`org/actions.ts:581`) ·
+     `appointTechnicalDirectorDeputy` (`org/actions.ts:618`) · `assignOrgAdmin`
+     (`platform/actions.ts:215` **and** `:255`) · `addPqsMember` (`pqs/actions.ts:71`) ·
+     `registerUser` (`users/actions.ts:714`) · `assignCommitteeRole`
+     (`users/actions.ts:949`).
+     `assign_org_admin` is SQL-reachable only — it has **no** TS RPC site, which is why
+     the count is 12 and not 13.
 
-   **None of the 9 passes `p_expires_at`**, so the ruling survives — on a population three
-   times the size of the one it was decided on, and now including the two
-   platform-provisioning sites, which would have been the worst place to clear an expiry
-   silently. (The migration header names only the original three; read this list, not
-   that one.) Same recorded class as F2's error-code detector and the case-sensitive diff
-   grep: **an enumeration's boundary must be the property, not a syntax.** "Make permanent" stays revoke + re-grant (DELETE +
+   **None of the 12 passes `p_expires_at`** — the only occurrence of that identifier in
+   any of the six caller files is the warning comment F1 added to `platform/actions.ts`.
+   The ruling therefore survives on a population **four times** the size of the one it was
+   decided on, and one that now includes both platform-provisioning sites, which would
+   have been the worst place to clear an expiry silently. (The migration header names only
+   the original three; read this list, not that one.) Same recorded class as F2's
+   error-code detector and the case-sensitive diff grep: **an enumeration's boundary must
+   be the property, not a syntax.** "Make permanent" stays revoke + re-grant (DELETE +
    INSERT, both audited). No `p_clear_expiry` flag now — that would be a declared
    parameter no caller passes.
 3. **Expiry only.** `granted_by` / `granted_at` / `title_id` are untouched on an

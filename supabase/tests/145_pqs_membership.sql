@@ -109,7 +109,11 @@ select ok(
   app.is_pqs_member_of_for((select hosp_b from k), (select sa_x from k)),
   'C4: sa_x now enrolled → is_pqs_member_of_for = true after add_pqs_member');
 
--- Duplicate enrollment is idempotent (on conflict do nothing).
+-- Duplicate enrollment is idempotent. ⚠ NOT because the kernel does nothing: since
+-- QO·FUP F1 (ADR 0102) the clause is `on conflict … do update set expires_at =
+-- coalesce(excluded.expires_at, memberships.expires_at)`. It is idempotent HERE because
+-- add_pqs_member takes no expiry argument, so coalesce(null, existing) writes the
+-- existing value back. This comment said `on conflict do nothing` until 2026-08-07.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select lives_ok(

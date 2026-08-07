@@ -547,13 +547,22 @@ and promotion silently strip a deliberately-set expiry.
 missed the `_for` twin entirely. Bounded by the PROPERTY "reaches `app.grant_role_impl`" the set is:
 **3 public doors** (`grant_role`, `grant_role_for`, `appoint_technical_director`); **5 further SQL
 functions** through them (`add_pqs_member`, `assign_org_admin`, `assign_hospital_admin`,
-`assign_nsp_org_admin`, `assign_nsp_coordinator`); **9 TS RPC sites** — `admin/actions.ts:285` ·
-`members/actions.ts:235` · `org/actions.ts:581` + `:618` · `platform/actions.ts:210` + `:247` ·
-`pqs/actions.ts:65` · `users/actions.ts:714` + `:949`. **None of the 9 passes `p_expires_at`.** The
-ruling therefore holds on a population 3× larger — and now includes the two platform-provisioning
-sites, which would have been the worst place to clear an expiry silently. Third instance this
+`assign_nsp_org_admin`, `assign_nsp_coordinator`); **12 TS RPC sites**, named by enclosing server
+action because line numbers drift (they drifted once inside the commit that first recorded them —
+**resolve by symbol**): `assignStaffAdmin` (`admin/actions.ts:285`) · `addStaff`
+(`members/actions.ts:235`) · `assignNspCoordinator` (`org/actions.ts:238`) · `assignHospitalAdmin`
+(`org/actions.ts:320`) · `assignNspOrgAdmin` (`org/actions.ts:385`) · `appointTechnicalDirector`
+(`org/actions.ts:581`) · `appointTechnicalDirectorDeputy` (`org/actions.ts:618`) · `assignOrgAdmin`
+(`platform/actions.ts:215` **and** `:255`) · `addPqsMember` (`pqs/actions.ts:71`) · `registerUser`
+(`users/actions.ts:714`) · `assignCommitteeRole` (`users/actions.ts:949`). `assign_org_admin` is
+SQL-reachable only (no TS site), which is why it is 12 and not 13. **None of the 12 passes
+`p_expires_at`** — the only occurrence of that identifier across the six caller files is the warning
+comment F1 itself added. The ruling therefore holds on a population **4× larger**, now including
+both platform-provisioning sites, the worst place to clear an expiry silently. Third instance this
 workstream of the recorded rule: **an enumeration's boundary must be the property, not a syntax**
-(the others: F2's error-code detector, the case-sensitive diff-derivation grep).
+(the others: F2's error-code detector, the case-sensitive diff-derivation grep). ⚠ Note the second
+lesson stacked on top: the first re-cut fixed the *boundary* and still shipped a *stale snapshot* —
+**a recorded line number is itself an assertion that goes stale silently.**
 
 **Rule 11 companion, and it is the part worth reading.** `app.trg_audit_memberships`'s UPDATE branch
 is if/**elsif** and `role_changed` **wins** over `expiry_changed`. Harmless until now, because the
