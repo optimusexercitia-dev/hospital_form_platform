@@ -126,6 +126,64 @@ function kpiValue(region: Locator, label: string): Locator {
     .nth(1)
 }
 
+/**
+ * The "strip agrees with the board" invariants — used in place of hard-coded
+ * KPI totals wherever the full `e2e:prod` gate can contaminate them.
+ *
+ * ⚠ WHY THIS EXISTS: the gate batches specs on a SHARED, un-reset-between-
+ * specs DB within a batch. `process-template-versioning.spec.ts`,
+ * `process-template-narrative-slot-crud.spec.ts` and `processless-cases.spec.ts`
+ * all create CCIH cases via `create_case_from_template` — a real batch-15 run
+ * observed "Casos visíveis" go from the seeded 5 to 15 for exactly this
+ * reason. A hard-coded total is a claim about the SEED, not about the page;
+ * this file's job is to test the page. Deriving the expectation from the
+ * SAME rendered DOM the KPI is summarizing is not just contamination-proof,
+ * it is the STRONGER property: it catches a strip that drifts out of sync
+ * with its own table, which a magic number never could.
+ *
+ * NOT converted (kept as hard values, and why):
+ *   - `Comissões` in the single-commission test — never case-count-derived;
+ *     the earlier `toHaveCount(0)` check on the chip row already establishes
+ *     there is exactly one commission in scope.
+ *   - `Casos restritos` (D6's locked count) — verified (not assumed) that
+ *     none of batch 15's case-creating siblings
+ *     (process-template-narrative-slot-crud / process-template-versioning /
+ *     processless-cases, plus phase8-dashboard / phi-remediation /
+ *     platform-org-admin-provisioning) reference `visibility_policy` or a
+ *     `case_type_id` at all (grepped 2026-08-07), so every case they create
+ *     takes the platform default (`commission_default`), never
+ *     `explicit_grants_only`. This value stays hard-coded, but the
+ *     verification is what makes that safe, not an assumption.
+ *   - Every REACH assertion (cases 1–5 present, Caso 0006 invisible,
+ *     Farmácia absent, a chip selection hiding the sibling's cases) —
+ *     contamination ADDS rows with NEW, higher case numbers; it does not
+ *     remove existing ones or reveal a locked one. These were never the
+ *     problem and stay exactly as authored.
+ */
+
+/** Every case-number link currently rendered on the board (each row has
+ * exactly one), scoped to the table to avoid matching anything else on the
+ * page. `\d+`, not a fixed 4 digits — `formatCaseNumber` zero-pads to a
+ * FLOOR of 4, so a contamination-heavy run can mint a 5-digit case number. */
+function renderedCaseLinks(page: Page): Locator {
+  return page.getByRole('table').getByRole('link', { name: /^Caso \d+$/ })
+}
+
+/** The DB's own definition of "open" (`quality_board_summary`: `status not
+ * in ('completed','cancelled')`, mirrored client-side by
+ * `isTerminalCaseStatus`) applied to whatever is actually rendered: total
+ * rows minus the two terminal-status badge texts ("Concluído"/"Cancelado" —
+ * `CASE_STATUS_META`), not a recount of what the seed was expected to hold. */
+async function renderedOpenCaseCount(page: Page): Promise<number> {
+  const table = page.getByRole('table')
+  const [total, concluded, cancelled] = await Promise.all([
+    renderedCaseLinks(page).count(),
+    table.getByText('Concluído', { exact: true }).count(),
+    table.getByText('Cancelado', { exact: true }).count(),
+  ])
+  return total - concluded - cancelled
+}
+
 async function signIn(page: Page, email: string) {
   await cachedSignIn(page, email)
 }
@@ -176,8 +234,25 @@ test.describe('QO·A — oversight board', () => {
     const kpi = page.getByRole('region', { name: 'Visão geral' })
     await expect(kpi).toBeVisible()
     await expect(kpiValue(kpi, 'Comissões')).toHaveText('1')
-    await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('5')
-    await expect(kpiValue(kpi, 'Em aberto')).toHaveText('4')
+
+    // "Casos visíveis"/"Em aberto" — asserted against what's ACTUALLY
+    // rendered (the "strip agrees with the board" invariant, see the
+    // helpers' doc comment), not the seeded 5/4. The full gate batches
+    // specs on a shared DB; sibling specs in the same batch
+    // (process-template-*, processless-cases) mint additional CCIH cases
+    // before this test runs, and a hard-coded total reds on the row count
+    // moving for a reason that has nothing to do with this feature.
+    const totalRendered = await renderedCaseLinks(page).count()
+    const openRendered = await renderedOpenCaseCount(page)
+    await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText(
+      String(totalRendered),
+    )
+    await expect(kpiValue(kpi, 'Em aberto')).toHaveText(String(openRendered))
+    // A FLOOR, not just an invariant: the seeded 5 must still be present so
+    // this cannot pass vacuously if the reviewer regressed to reading ZERO
+    // cases (0 rendered === "0" KPI is internally consistent but wrong).
+    expect(totalRendered).toBeGreaterThanOrEqual(5)
+
     await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
     // FUP-QO-4's scope note is conditional on commissions.length > 1 — for
     // this single-commission reviewer it must NOT render (there is nothing
@@ -524,13 +599,27 @@ test.describe('QO·A — admin toggles oversight (D9)', () => {
       // sessions. Best-effort even if an assertion above threw.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
-      const toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
+      let toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
       if (!(await toggleAgain.isChecked())) {
         await toggleAgain.focus()
         await page.keyboard.press('Space')
         await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
       }
+      // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
+      // state (root-caused live via the batch-15 gate log, 2026-08-07):
+      // `CommissionOversightToggle.onCheckedChange` calls `setCurrent(target)`
+      // SYNCHRONOUSLY, before the async `setCommissionOversight()` server
+      // action even starts — so `expect(toggle).toBeChecked()` right after
+      // the click can pass on a mutation that has not landed yet, or that
+      // fails a moment later and rolls back client-side after this block has
+      // already moved on. This `finally` runs even when the test above
+      // failed partway through (the whole point of `finally`), so it must
+      // not itself trust state a slow/failed mutation could fake — a reload
+      // re-fetches the TRUE persisted value.
+      await page.reload()
+      toggleAgain = page.getByRole('switch', { name: CCIH_SWITCH_NAME })
+      await expect(toggleAgain).toBeChecked({ timeout: 10_000 })
     }
 
     // Confirm the restore actually landed from quality.a's side too.
@@ -632,7 +721,9 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
         page.getByRole('heading', { name: 'Casos sob supervisão' }),
       ).toBeVisible({ timeout: 10_000 })
 
-      // CHIP ROW MOUNTS — lists both commissions, correct names + counts.
+      // CHIP ROW MOUNTS — lists both commissions. Default selection is
+      // "Todas" (no `?comissao=`), so the table already shows every
+      // readable row from BOTH commissions before any click.
       const chips = page.getByRole('group', {
         name: 'Filtrar casos por comissão',
       })
@@ -644,16 +735,16 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
         name: /^Comissão de Farmácia e Terapêutica/,
       })
       await expect(ccihChip).toBeVisible()
-      await expect(ccihChip).toContainText('5')
-      await expect(ccihChip).toContainText('1 restrito')
       await expect(farmaciaChip).toBeVisible()
-      await expect(farmaciaChip).toContainText('1')
+      // D6: Farmácia's real seed data carries no locked case — this is a
+      // stable NEGATIVE regardless of how many open cases contaminate it.
       await expect(farmaciaChip).not.toContainText('restrito')
 
-      // KPI + locked-count note: the GLOBAL aggregate (FUP-QO-4) — asserted
-      // ONCE here, before any chip is touched, then re-asserted unchanged
-      // after selection below. Region located by its visible <h2> (commit
-      // 7ca0207), not an aria-label string.
+      // KPI + locked-count note: the GLOBAL aggregate (FUP-QO-4), derived
+      // from "Todas" (the default view) — the SAME "strip agrees with the
+      // board" invariant as the single-commission test, not the seeded
+      // 5+1=6 / 4+1=5. Region located by its visible <h2> (commit 7ca0207),
+      // not an aria-label string.
       //
       // ⚠ COVERAGE LIMIT, stated so it isn't mistaken for tested: Farmácia's
       // real seed data is locked=0, so "Casos restritos: 1" below is
@@ -667,18 +758,28 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       // considered and declined (lead ruling 2026-08-07): marginal coverage
       // for more mutation/restore surface in the flakiest layer in the
       // suite. If this value ever needs re-deriving, `310` §4 is where the
-      // real coverage lives, not here.
+      // real coverage lives, not here. Verified (not assumed): none of
+      // batch 15's case-creating siblings reference `visibility_policy` or
+      // a `case_type_id` (grepped 2026-08-07), so nothing they create can
+      // be `explicit_grants_only`.
       const kpi = page.getByRole('region', { name: 'Visão geral' })
+      const totalRendered = await renderedCaseLinks(page).count()
+      const openRendered = await renderedOpenCaseCount(page)
       await expect(kpiValue(kpi, 'Comissões')).toHaveText('2')
-      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('6')
-      await expect(kpiValue(kpi, 'Em aberto')).toHaveText('5')
+      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText(
+        String(totalRendered),
+      )
+      await expect(kpiValue(kpi, 'Em aberto')).toHaveText(String(openRendered))
       await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
+      // FLOOR: the seeded CCIH(5) + Farmácia(1), so this cannot pass
+      // vacuously on a regressed empty board.
+      expect(totalRendered).toBeGreaterThanOrEqual(6)
       await expect(
         page.getByText('1 caso restrito não aparece nesta lista.'),
       ).toBeVisible()
       // FUP-QO-4's own scope note, IN the strip — must render now that >1
       // commission is visible (the exact condition that makes "Casos
-      // visíveis: 6" above the per-commission table ambiguous otherwise).
+      // visíveis" above the per-commission table ambiguous otherwise).
       await expect(
         page.getByText(
           'Somatório de todas as comissões sob supervisão — não muda com o filtro de comissão abaixo.',
@@ -695,21 +796,36 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       await expect(page.getByText('Análise de parecer — CCIH')).toBeVisible()
 
       // SELECT Farmácia — narrows to its case only; CCIH's cases (incl. the
-      // still-locked case 6) disappear from the table.
+      // still-locked case 6) disappear from the table. The chip's own count
+      // is checked against WHAT SELECTING IT ACTUALLY RENDERS, not a magic
+      // number: a fixed `toContainText('1')` would keep PASSING under
+      // contamination purely because e.g. "11" also contains "1" —
+      // passing for the wrong reason, which is worse than failing outright.
       await farmaciaChip.click()
+      const farmaciaRendered = await renderedCaseLinks(page).count()
+      await expect(farmaciaChip).toContainText(String(farmaciaRendered))
+      expect(farmaciaRendered).toBeGreaterThanOrEqual(1)
       await expect(page.getByText('Análise de parecer — CCIH')).toBeVisible()
       await expect(page.getByText('Óbito UTI leito 7')).toHaveCount(0)
       await expect(
         page.getByRole('link', { name: 'Caso 0001' }),
       ).toHaveCount(1)
 
-      // KPI/locked-count UNCHANGED by the selection (FUP-QO-4 — the
-      // constant-aggregate behavior, pinned rather than omitted).
-      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText('6')
+      // KPI/locked-count UNCHANGED by the selection (FUP-QO-4) — re-asserted
+      // against the CAPTURED "Todas" totals above, never re-derived from the
+      // now-filtered subset (which would give a smaller, wrong number).
+      await expect(kpiValue(kpi, 'Casos visíveis')).toHaveText(
+        String(totalRendered),
+      )
       await expect(kpiValue(kpi, 'Casos restritos')).toHaveText('1')
 
       // SELECT CCIH — narrows the other way; Farmácia's case disappears.
+      // Same chip-count-matches-its-own-filter discipline as Farmácia's.
       await ccihChip.click()
+      const ccihRendered = await renderedCaseLinks(page).count()
+      await expect(ccihChip).toContainText(String(ccihRendered))
+      await expect(ccihChip).toContainText('1 restrito')
+      expect(ccihRendered).toBeGreaterThanOrEqual(5)
       await expect(page.getByText('Óbito UTI leito 7')).toBeVisible()
       await expect(
         page.getByText('Análise de parecer — CCIH'),
@@ -717,6 +833,12 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       await expect(
         page.getByRole('link', { name: 'Caso 0006' }),
       ).toHaveCount(0) // the locked case — still invisible under this filter too
+
+      // Internal consistency: the two per-commission filtered counts sum to
+      // the unfiltered "Todas" total — catches a row double-counted or
+      // silently dropped by the client-side filter, independent of any
+      // particular contamination amount.
+      expect(ccihRendered + farmaciaRendered).toBe(totalRendered)
 
       // The fully out-of-scope commission stayed absent through the whole
       // flip, proving the flip's effect is scoped to Farmácia, not global.
@@ -727,7 +849,7 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
       // it), never positionally.
       await signIn(page, 'hospitaladmin.a1@test.local')
       await page.goto(COMISSOES)
-      const toggleAgain = page.getByRole('switch', {
+      let toggleAgain = page.getByRole('switch', {
         name: FARMACIA_SWITCH_NAME,
       })
       await expect(toggleAgain).toBeVisible({ timeout: 10_000 })
@@ -736,6 +858,26 @@ test.describe('QO·A — multi-commission board (D10 cross-committee)', () => {
         await page.keyboard.press('Space')
         await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
       }
+      // CONFIRM ON A FRESH SERVER ROUND-TRIP, never the client's optimistic
+      // state. ⚠ THIS IS WHAT ACTUALLY BROKE, live, in the batch-15 gate run
+      // (2026-08-07): `CommissionOversightToggle.onCheckedChange` calls
+      // `setCurrent(target)` SYNCHRONOUSLY, before its async
+      // `setCommissionOversight()` server action even starts, so the
+      // `not.toBeChecked()` check above can pass on a mutation that has not
+      // landed (or that failed and rolled back a moment later, after this
+      // block had already moved on). Because this test's FIRST attempt
+      // failed inside `try` (at the contamination-sensitive KPI assertion
+      // this same commit fixes), the code after this whole try/finally
+      // NEVER RAN — so the only thing standing between a failed restore and
+      // Playwright's automatic retry was this block, and it was trusting the
+      // wrong state. Retry #1 then failed on its very FIRST assertion
+      // (chip row present when none was expected — Farmácia was still
+      // 'visible'), and the LATER keyboard-only test failed too (TWO "Caso
+      // 0001" links — Farmácia's case had never stopped being visible). One
+      // bug, three failures. A reload re-fetches the TRUE persisted value.
+      await page.reload()
+      toggleAgain = page.getByRole('switch', { name: FARMACIA_SWITCH_NAME })
+      await expect(toggleAgain).not.toBeChecked({ timeout: 10_000 })
     }
 
     // ASSERT the restore landed — Farmácia disappears from quality.a's
