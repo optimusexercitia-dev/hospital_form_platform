@@ -96,6 +96,22 @@ begin
       raise exception ''apenas o administrador da organização ou do hospital pode designar o revisor da qualidade''');
     execute d;
 
+  elsif p_what = 'open_commissions_reviewer_arm' then
+    -- The ARM-scoped policy mutation (covers the door-sweep ERROR on this policy:
+    -- opening the WHOLE policy breaks the suite's run shape, so the whole-policy
+    -- neutralization can't be scored there — ADR 0079 "ERROR is not a pass").
+    -- Drop the visibility conjunct: a reviewer would see EXCLUDED commissions' rows.
+    declare v_qual text;
+    begin
+      select pg_get_expr(polqual, polrelid) into v_qual
+      from pg_policy where polname = 'commissions_select_member_or_admin';
+      v_qual := app._mut_q1_sub(v_qual,
+        ' AND (quality_oversight = ''visible''::text)', '');
+      execute format(
+        'alter policy commissions_select_member_or_admin on public.commissions using (%s)',
+        v_qual);
+    end;
+
   elsif p_what = 'arm_seventh_door' then
     -- D11 boundary breach: a ROW-LEVEL door acquires the reviewer arm.
     d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
@@ -152,10 +168,12 @@ if ! docker exec "$DB" psql -U postgres -d postgres -tAc "select 1 from pg_exten
 fi
 
 # §RESTORE precondition: snapshot every function this audit mutates.
-SNAP_SQL="select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.oid))
-from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
-   or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows'))"
+SNAP_SQL="select md5(
+  (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
+   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
+      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows')))
+  || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin'))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
 
 echo "=== Q1 MUTATION AUDIT — every keystone must go RED when ITS OWN guarantee is reverted ==="
@@ -190,6 +208,11 @@ run_case "grant_arm_admits_platform -> the PO ruling" \
   "select app._mut_q1('grant_arm_admits_platform');" \
   "NOUN RULE .*: platform_admin cannot seat a reviewer" \
   "supabase/tests/306_quality_reviewer_role.sql"
+
+run_case "open_commissions_reviewer_arm -> excluded rows leak" \
+  "select app._mut_q1('open_commissions_reviewer_arm');" \
+  "SHELL .*: the reviewer.s commissions universe|CONSISTENCY .*: opting the last commission out" \
+  "supabase/tests/310_quality_board_door.sql"
 
 run_case "arm_seventh_door -> the D11 boundary breach" \
   "select app._mut_q1('arm_seventh_door');" \

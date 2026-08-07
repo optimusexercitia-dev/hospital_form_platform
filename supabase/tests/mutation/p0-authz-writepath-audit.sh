@@ -117,7 +117,7 @@ want () {  # $1 = match key (guard proname or policy name); 0 if in CASES (or CA
 # pg_get_functiondef snapshot (⚠ assert_meeting_staff_admin is STABLE and NOT SECURITY
 # DEFINER — do not "fix" it), body with the authz raise removed.
 # ─────────────────────────────────────────────────────────────────────────────────────
-GUARD_KEYS="assert_capa_writable assert_meeting_staff_admin assert_interview_writable assert_rca_writable assert_session_writable assert_referral_draft_writable assert_referral_target_acts"
+GUARD_KEYS="assert_capa_writable assert_meeting_staff_admin assert_interview_writable assert_rca_writable assert_session_writable assert_referral_draft_writable assert_referral_target_acts set_commission_oversight"
 
 guard_sig () {
   case "$1" in
@@ -128,6 +128,9 @@ guard_sig () {
     assert_session_writable)        echo "app.assert_session_writable(uuid)";;
     assert_referral_draft_writable) echo "app.assert_referral_draft_writable(uuid)";;
     assert_referral_target_acts)    echo "app.assert_referral_target_acts(uuid,text[])";;
+    # QO·A (ADR 0100 D9; Amendment 5 frozen-list scope-in): the oversight door is a
+    # raise-guard-shaped write door — its 42501 authority block is the whole boundary.
+    set_commission_oversight)       echo "public.set_commission_oversight(uuid,text)";;
     *) echo "";;
   esac
 }
@@ -284,6 +287,41 @@ begin
       using errcode = 'HC070';
   end if;
   return v_referral;
+end;
+$function$;
+SQL
+    ;;
+    set_commission_oversight) cat <<'SQL'
+CREATE OR REPLACE FUNCTION public.set_commission_oversight(p_commission_id uuid, p_oversight text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'app', 'public', 'pg_catalog'
+AS $function$
+declare
+  v_comm public.commissions;
+begin
+  select * into v_comm from public.commissions where id = p_commission_id;
+  if v_comm.id is null then
+    raise exception 'comissão não encontrada' using errcode = 'P0002';
+  end if;
+
+  -- P0-WRITEPATH-NEUT: authz raise removed (the is_hospital_admin_of OR
+  -- is_org_admin_of 42501 block — ADR 0100 D9 — opened). Validation, the GUC
+  -- bracket and the audit verb are PRESERVED (non-authz workflow).
+  if p_oversight is null or p_oversight not in ('visible', 'excluded') then
+    raise exception 'classificação de supervisão inválida' using errcode = 'HC0L0';
+  end if;
+
+  perform set_config('app.in_commission_rpc', 'on', true);
+  update public.commissions set quality_oversight = p_oversight where id = p_commission_id;
+  perform set_config('app.in_commission_rpc', 'off', true);
+
+  perform app.audit_write('commission.oversight_changed', 'commission', p_commission_id, p_commission_id,
+    'Supervisão da qualidade alterada',
+    jsonb_build_object(
+      'quality_oversight', p_oversight,
+      'previous_quality_oversight', v_comm.quality_oversight));
 end;
 $function$;
 SQL

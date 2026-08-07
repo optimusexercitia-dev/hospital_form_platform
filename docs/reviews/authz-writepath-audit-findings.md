@@ -12,6 +12,15 @@ Baseline: Files=156, Tests=4796, Result: PASS.
 Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
 `assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
 
+> ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100 D9; Amendment 5 scope-in).** The
+> `public.set_commission_oversight(uuid,text)` row below was merged by hand from a
+> **diff-scoped** run (`CASES="set_commission_oversight"`, baseline Files=171,
+> Tests=5297, Result: PASS) — a subset run OVERWRITES this report, so the verdict has
+> nowhere else to land (ADR 0079 Amendment 1 hazard 1). The guard entered the frozen
+> Arm-1 list (now 8) in the same change; its authority + raw-write guard are
+> additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
+> `guard_noop`).
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
@@ -24,6 +33,7 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql (QO·A hand-merge — see header note) |
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
 | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
 | app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |

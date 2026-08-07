@@ -114,10 +114,35 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | referral_types.referral_types_write_admin (ALL) | policy | open->true | BLIND |  |
 | reply_outcomes.reply_outcomes_write_admin (ALL) | policy | open->true | BLIND |  |
 
+> ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100).** The first seven rows of the COVERED
+> table below are the quality-oversight gates, merged by hand from a **diff-scoped**
+> sweep (`CASES="set_commission_oversight is_quality_reviewer_of … organizations_select"`,
+> baseline Files=171, Tests=5297, Result: PASS). Same reason as the MIN block above
+> (ADR 0079 Amendment 1 hazard 1 / Amendment 3). Notes:
+> - `commissions.commissions_select_member_or_admin` read **ERROR** under the
+>   whole-policy `open->true` neutralization (run-shape != baseline — opening ALL
+>   commissions to everyone breaks sibling fixtures mid-file). "ERROR is not a pass":
+>   it is covered instead by the **arm-scoped** mutation
+>   `q1-quality-mutation-audit.sh :: open_commissions_reviewer_arm` (drop the
+>   `quality_oversight = 'visible'` conjunct → `310_quality_board_door.sql` §3.1/§3.6
+>   RED-PROVEN, restore md5-verified) — recorded here so the census sees a verdict.
+> - `public.set_commission_oversight` is a WRITE door: its verdict lives in
+>   `authz-writepath-audit-findings.md` (Amendment 5 scope-in; COVERED), and its
+>   authority + guard are additionally RED-proven by q1 `door_authority` + `guard_noop`.
+> - `public.quality_board_summary` + the six armed `dashboard_*` doors are ROW doors:
+>   their verdicts live in `authz-rowdoor-audit-findings.md` (diff-scoped run, same day).
+
 ## COVERED (asserted-through) + ERROR (harness bug)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| app.can_read_quality_dashboards(p_commission_id uuid) | predicate | positive | COVERED | 100_dashboard.sql,172_phaseb_rls_rewrite.sql,270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql |
+| app.is_quality_reviewer_in_org(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,310_quality_board_door.sql |
+| app.is_quality_reviewer_of(p_hospital_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,184_hospital_admin_isolation.sql,188_hospital_user_mgmt.sql,309_dashboard_quality_arm.sql,310_quality_board_door.sql |
+| app.is_quality_reviewer_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,171_cross_org_isolation.sql,184_hospital_admin_isolation.sql,188_hospital_user_mgmt.sql,252_authz_p0_isolation.sql,298_authz_p0_isolation.sql,306_quality_reviewer_role.sql,308_case_caps_s7.sql,309_dashboard_quality_arm.sql,310_quality_board_door.sql |
+| commissions.commissions_select_member_or_admin (SELECT) | policy | open->true | COVERED | ERROR at whole-policy neutralization (run-shape); covered ARM-SCOPED by q1 open_commissions_reviewer_arm → 310 §3.1/§3.6 RED-PROVEN (see the QO·A note above) |
+| hospitals.hospitals_select (SELECT) | policy | open->true | COVERED | 170_multitenancy_hierarchy.sql,188_hospital_user_mgmt.sql,310_quality_board_door.sql |
+| organizations.organizations_select (SELECT) | policy | open->true | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,310_quality_board_door.sql |
 | app.can_read_minutes_transcript(p_job_id uuid, p_uid uuid) | predicate | positive | COVERED | 305_audio_minutes.sql |
 | meeting_minutes_jobs.meeting_minutes_jobs_select (SELECT) | policy | open->true | COVERED | 305_audio_minutes.sql |
 | app.assert_not_case_excluded(p_case_id uuid) | predicate | assert_noop | COVERED | 188_case_custom_fields.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,244_authz_c6_reserved_session_lifecycle.sql,264_correction_requests.sql,265_reopen_void_narrative.sql |
