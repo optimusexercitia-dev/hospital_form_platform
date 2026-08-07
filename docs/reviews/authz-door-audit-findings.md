@@ -136,6 +136,8 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| app.can_read_case_committee(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 311_oversight_readonly_perimeter.sql,308_case_caps_s7.sql (QO·A M10 hand-merge — diff-scoped, baseline Files=172 Tests=5339) |
+| app.is_oversight_only_reader(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | ERROR under the harness's force-to-TRUE neutralization — this predicate is DENY-shaped (true ⇒ deny everyone), so opening it breaks the run shape rather than widening reach. "ERROR is not a pass": covered ARM-SCOPED by q1 `open_write_doors` (neutralizes its USE in all three D7 doors) → 308 §6.1/§6.2 RED-PROVEN |
 | app.can_read_quality_dashboards(p_commission_id uuid) | predicate | positive | COVERED | 100_dashboard.sql,172_phaseb_rls_rewrite.sql,270_authz_dashboard_gate_uniformity.sql,309_dashboard_quality_arm.sql |
 | app.is_quality_reviewer_in_org(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,310_quality_board_door.sql |
 | app.is_quality_reviewer_of(p_hospital_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,184_hospital_admin_isolation.sql,188_hospital_user_mgmt.sql,309_dashboard_quality_arm.sql,310_quality_board_door.sql |

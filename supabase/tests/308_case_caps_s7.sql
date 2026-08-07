@@ -20,7 +20,7 @@
 -- =============================================================================
 
 begin;
-select plan(28);
+select plan(32);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -103,9 +103,16 @@ select ok(
   not app.can_read_case_patient((select case_a from cs), (select qr from p)),
   '1.3 PHI STAYS CLOSED ⭐ (D5/Rule 12): the reviewer never reaches read_standard_phi');
 
+-- ⚠ 1.4 WAS THE PHASE'S SHARPEST ARTIFACT and is kept only as the bit-level
+-- half. It asserted `not can_write_case_content` and READ like the D7 pin —
+-- but the three authenticated write doors that admitted the reviewer
+-- (declare_conflict, file_correction_request, record_recusal) gate on
+-- `can_read_case` and NEVER CONSULT that bit, so it certified nothing about the
+-- actual write surface. A present test that certifies the wrong thing is worse
+-- than an absent one. The real pin is §6, enumerated per door.
 select ok(
   not app.can_write_case_content((select case_a from cs), (select qr from p)),
-  '1.4 strictly read-only (D7): no write bit');
+  '1.4 no write BIT (necessary, NOT sufficient — the D7 door pin is §6; this bit is consulted by no admitting door)');
 
 select ok(
   not app.has_case_capability((select case_a from cs), (select qr from p), 'read_case_deliberation'),
@@ -332,6 +339,59 @@ select is(
   (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8201')),
   1,
   '5.7 NON-VACUITY twin: the coordinator resolves the same document — 5.5''s zero is the door''s cut, not a broken door');
+reset role;
+
+-- =============================================================================
+-- §6 — THE D7 WRITE PIN, PER DOOR (M10; replaces 1.4's vacuous claim).
+--
+-- Derived by PROPERTY, not memory: the transitive closure over comment-stripped
+-- prosrc + pg_policies from `can_read_case(` / 'read_case_content' /
+-- 'view_case_overview' yielded 14 authenticated-executable DML doors; per-door
+-- gate reading narrowed the admitting set to exactly these THREE (the other 11
+-- gate on can_write_case_content, can_write_action_item_stake, or
+-- is_staff_admin_of FIRST — safe for reasons only visible per door).
+--
+-- Each is asserted REFUSED for the reviewer and PERMITTED for a twin, so no
+-- assertion can pass because a precondition failed instead of the gate.
+-- Mutation: q1 `open_write_doors` reverts all three → every 6.x negative reds.
+-- =============================================================================
+create temp table wd on commit drop as
+  select '00000000-0000-0000-0000-0000000d8301'::uuid as narrative_id;
+grant select on wd to authenticated;
+
+-- A completed narrative on case_a: file_correction_request needs a completed
+-- target, so without this the door would refuse on WORKFLOW STATE (HC0M0) and
+-- the keystone would catch the wrong raise (§7.1 trap 3).
+insert into public.case_narratives (id, case_id, title, type_label, display_position, status, created_by)
+select wd.narrative_id, cs.case_a, 'Narrativa', 'Relato', 1, 'completed', k.sa_x from wd, cs, k;
+
+select test_helpers.claims_for((select qr from p), false);
+set local role authenticated;
+select throws_ok(
+  format($$select public.declare_conflict(%L, 'financial_interest', 'motivo')$$, (select case_a from cs)),
+  'P0002', null,
+  '6.1 D7 DOOR ⭐⭐: the reviewer CANNOT declare_conflict on a case they read in full');
+select throws_ok(
+  format($$select public.record_recusal(%L, %L, 'motivo')$$,
+         (select case_a from cs), (select qr from p)),
+  'P0002', null,
+  '6.2 D7 DOOR ⭐⭐: ...cannot record_recusal (self-service, closed by PO ruling — a recusal from a principal excluded from deliberation has no consumer)');
+select throws_ok(
+  format($$select public.file_correction_request('narrative', null, %L, 'motivo', 'factual')$$,
+         (select narrative_id from wd)),
+  '42501', null,
+  '6.3 D7 DOOR ⭐⭐: ...cannot file_correction_request (its own comment said "any case-content reader may file")');
+reset role;
+
+-- ⚠ TWIN CHOICE IS LOAD-BEARING: a plain member (S5) holds read_case_deliberation
+-- but NOT read_case_content, so `can_read_case` is false for them and the door
+-- refuses for a reason unrelated to the cut — the wrong-arm fixture (§7.1 trap 1).
+-- The coordinator holds content AND deliberation, so it isolates the cut exactly.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$select public.declare_conflict(%L, 'financial_interest', 'motivo')$$, (select case_a from cs)),
+  '6.4 NON-VACUITY twin: a deliberation-holding reader (coordinator) STILL declares a conflict — 6.1 is the reviewer cut, not a dead door');
 reset role;
 
 select * from finish();

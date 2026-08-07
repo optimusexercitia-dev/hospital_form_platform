@@ -5,7 +5,7 @@
 #   bash supabase/tests/mutation/q1-quality-mutation-audit.sh
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
-# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 12 cases.
+# QO·A (ADR 0100) MUTATION AUDIT — quality_reviewer oversight, 17 cases.
 #
 # ⚠ Keep this count and the run_case list in sync — a header that names a stale
 # figure is an assertion that goes stale silently (the class this project has
@@ -161,6 +161,61 @@ begin
     d := app._mut_q1_sub(d, 'where ca.commission_id = c.id', 'where true');
     execute d;
 
+  elsif p_what = 'open_write_doors' then
+    -- M10.A: revert the D7 exclusion on all three write doors at once.
+    declare v_d text; v_f text;
+    begin
+      foreach v_f in array array['declare_conflict','file_correction_request','record_recusal'] loop
+        v_d := pg_get_functiondef((select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                                   where n.nspname='public' and p.proname=v_f));
+        if v_d !~ 'is_oversight_only_reader' then
+          raise exception 'MUTATION NO-OP: % lacks the D7 exclusion', v_f;
+        end if;
+        v_d := replace(v_d, 'app.is_oversight_only_reader(p_case_id, auth.uid())', 'false');
+        v_d := replace(v_d, 'app.is_oversight_only_reader(v_case_id, auth.uid())', 'false');
+        execute v_d;
+      end loop;
+    end;
+
+  elsif p_what = 'open_class2' then
+    declare v_d text;
+    begin
+      v_d := pg_get_functiondef('app.can_read_professional_profile(uuid,uuid)'::regprocedure);
+      v_d := app._mut_q1_sub(v_d, 'app.can_read_case_committee(', 'app.can_read_case(');
+      execute v_d;
+    end;
+
+  elsif p_what = 'open_interviews' then
+    declare v_d text;
+    begin
+      v_d := pg_get_functiondef('app.can_read_interview(uuid,uuid)'::regprocedure);
+      v_d := app._mut_q1_sub(v_d, 'app.can_read_case_committee(', 'app.can_read_case(');
+      execute v_d;
+    end;
+
+  elsif p_what = 'open_action_items' then
+    declare v_d text; v_q text;
+    begin
+      v_d := pg_get_functiondef('app.can_read_action_item(uuid,uuid)'::regprocedure);
+      v_d := app._mut_q1_sub(v_d, 'app.can_read_case_committee(', 'app.can_read_case(');
+      execute v_d;
+      select pg_get_expr(polqual, polrelid) into v_q from pg_policy where polname='action_items_select';
+      v_q := app._mut_q1_sub(v_q, 'app.can_read_case_committee(', 'app.can_read_case(');
+      execute format('alter policy action_items_select on public.action_items using (%s)', v_q);
+    end;
+
+  elsif p_what = 'open_deliberation_policies' then
+    declare r record; v_q text;
+    begin
+      for r in select tablename, policyname, qual from pg_policies
+               where schemaname='public' and qual ~ 'can_read_case_committee'
+                 and tablename in ('case_votes','case_decisions','ethics_allegations')
+      loop
+        v_q := replace(r.qual, 'app.can_read_case_committee(', 'app.can_read_case(');
+        execute format('alter policy %I on public.%I using (%s)', r.policyname, r.tablename, v_q);
+      end loop;
+    end;
+
   elsif p_what = 'open_resolver_door' then
     -- No-op M9's door conjunct: the reviewer would again resolve a bucket+path
     -- the app signs with service_role — the door-shaped hole beside M8's policy.
@@ -230,7 +285,7 @@ SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('_case_caps','is_quality_reviewer_of_for','guard_commission_oversight','can_read_quality_dashboards','grant_role_impl'))
-      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows','open_attachment','quality_board_summary')))
+      or (n.nspname='public' and p.proname in ('set_commission_oversight','dashboard_export_rows','open_attachment','quality_board_summary','declare_conflict','file_correction_request','record_recusal')))
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='commissions_select_member_or_admin')
   || (select pg_get_expr(polqual, polrelid) from pg_policy where polname='attachments_obj_select_readable'))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
@@ -288,6 +343,31 @@ run_case "drop_board_correlation -> org-wide counts per row" \
   "PER-COMMISSION ATTRIBUTION|LOCKED STAYS PER-ROW" \
   "supabase/tests/310_quality_board_door.sql"
 
+run_case "open_write_doors -> D7 breached at three doors" \
+  "select app._mut_q1('open_write_doors');" \
+  "D7 DOOR .*: the reviewer CANNOT declare_conflict|D7 DOOR .*: ...cannot record_recusal" \
+  "supabase/tests/308_case_caps_s7.sql"
+
+run_case "open_class2 -> Rule 12 professional identity" \
+  "select app._mut_q1('open_class2');" \
+  "CLASS-2 .*: the reviewer reads ZERO professional_profiles|CLASS-2: ...and zero professional_participants" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "open_interviews -> the 7-table interview family" \
+  "select app._mut_q1('open_interviews');" \
+  "INTERVIEWS .*: can_read_interview is FALSE" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "open_action_items -> predicate AND policy halves" \
+  "select app._mut_q1('open_action_items');" \
+  "ACTION ITEMS: the case_restricted arm" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
+run_case "open_deliberation_policies -> votes/decisions/ethics" \
+  "select app._mut_q1('open_deliberation_policies');" \
+  "D4 .*: the reviewer reads ZERO case_decisions|D4 .*: ...zero case_votes|D4 .*: ...zero ethics_allegations" \
+  "supabase/tests/311_oversight_readonly_perimeter.sql"
+
 run_case "open_resolver_door -> the door beside the policy" \
   "select app._mut_q1('open_resolver_door');" \
   "RESOLVE DOOR .*: the reviewer calling open_attachment" \
@@ -314,6 +394,7 @@ for src in supabase/tests/306_quality_reviewer_role.sql \
            supabase/tests/308_case_caps_s7.sql \
            supabase/tests/309_dashboard_quality_arm.sql \
            supabase/tests/310_quality_board_door.sql \
+           supabase/tests/311_oversight_readonly_perimeter.sql \
            supabase/tests/270_authz_dashboard_gate_uniformity.sql; do
   docker cp "$src" "$DB:/tmp/_noop_q1.sql" >/dev/null
   control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_q1.sql 2>&1)
