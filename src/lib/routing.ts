@@ -79,6 +79,31 @@ export function nspHref(
 }
 
 /**
+ * The per-org quality-office console URL: `/o/{org}/qualidade` plus any nested
+ * path segments. Backs the standalone Escritório da Qualidade area (the
+ * cross-committee case board + the aggregate compliance dashboards), gated
+ * per-org on holding an unexpired `quality_reviewer` membership in ≥1 hospital of
+ * the org (ADR 0100 D1/D10).
+ *
+ * ⚠ HOSPITAL IS NEVER A SEGMENT HERE. A reviewer may cover several hospitals, but
+ * the hospital is carried as a `?hospital=` search param on these paths (ADR 0041
+ * Decision 8, restated by ADR 0100 D10) — exactly as the NSP console and the
+ * `/manage` area do. Query strings are the caller's business (this file builds
+ * path only), so there is deliberately no `hospital` parameter below: a helper
+ * that accepted one would be the first place the segment could creep back in.
+ *
+ * @example qualidadeHref('org-a')               // /o/org-a/qualidade
+ * @example qualidadeHref('org-a', 'dashboards') // /o/org-a/qualidade/dashboards
+ */
+export function qualidadeHref(
+  org: string,
+  ...segments: Array<string | number>
+): string {
+  const base = `/o/${encodeURIComponent(org)}/qualidade`
+  return buildPath(base, segments)
+}
+
+/**
  * Deep-link target for a S1·N notification (Phase 20, ADR 0076). Pure path
  * construction — the caller (`queries/notifications.ts`) resolves the
  * org/commission slugs and, for CAPA, the `capa_plan` id via batched `.in(...)`
