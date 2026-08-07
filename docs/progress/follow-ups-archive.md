@@ -646,3 +646,348 @@ hotfix's write policies). Recomputing the before/after sets is cheap and is the 
 The `swept:` section is now **empty**, and its header carries the ordering trap in full: prune the
 allowlist first and ARM 1 fails for an already-fixed condition; delete a `swept:` line with no findings
 verdict and ARM 3 reports the gate as an unswept newcomer.
+
+---
+
+## Rotated 2026-08-07 — QO·FUP close-out (FUP-QO-1/2/3/4/5/7/8; QA APPROVED r2)
+
+### ✅ FUP-QO-8 — RESOLVED 2026-08-07 (backend, F8) — `list_my_nsp_hospitals()` ignored `is_active` and expiry (2026-08-07, backend; lead-scoped)
+
+Found while grounding F7's landing-surface check — i.e. by reading the door I was about to route
+users through, not by looking for it. The NSP console-entry door read `public.memberships` **raw**:
+no `app.is_active` gate and no `expires_at is null or expires_at > now()` filter, while **every**
+sibling in the same lane carries both (`is_pqs_member_of_for`, `is_pqs_member_of_any`,
+`is_pqs_operator_in_org_for`).
+
+⚠ **The reason it survived is the interesting part.** In the console path the org read
+(`organizations_select` → `app.is_pqs_operator_in_org`) applies the correct filters, so the shell
+was saved by the **org read**, not by the door — the laxity was invisible exactly where anyone
+would look for it. `src/components/indicators/capa-operator-gate.ts:26` calls it **directly**,
+outside that cover, so an expired or deactivated `pqs_member` kept the "Abrir plano de ação (CAPA)"
+affordance. Display-only (`open_capa_plan` re-gates, 42501), so no data leak — but a DEFINER door
+whose own gate is weaker than its siblings' is invisible to a policy-shaped audit by construction
+(`prosecdef` REPLACES RLS), and it becomes a leak the first time someone reads data from it.
+
+⚠ **It had NO pgTAP caller at all** — it sat on `authz-neverclled-door-allowlist.txt`, which is
+precisely how its gate drifted below its siblings' unnoticed. That is the floor arm reporting a real
+blind spot rather than a bookkeeping nit.
+
+**Fix — migration `20260912000100`.** `app.is_active` moved into a `me` CTE (an inactive caller
+yields no rows, both union arms collapse, and the existing `coalesce(..., '[]')` returns the
+documented safe default — no second exit path to keep in sync); expiry filter + `hospital_id is not
+null` on **both** arms. `create or replace`, unchanged signature: BEFORE/AFTER catalog snapshots
+identical property-for-property, **including the `authenticated=X/postgres` ACL that IS this door's
+reachability**.
+
+**Caller sweep before writing a line:** SQL callers **ZERO** (comment-stripped `prosrc` scan +
+`pg_policies` scan); TS callers exactly one RPC site (`pqs.ts:223`) with two consumers
+(`getNspAccessByOrg`, `capa-operator-gate`). Both ask "may this caller operate here NOW" — **the
+laxity was not load-bearing for anyone**, so no STOP-and-report was warranted.
+
+**Evidence.** `145` §I (I1–I7), **red-first observed before the migration: I2 / I3 / I6 red
+(`have: 1, want: 0`), 42/42 ran**. Positive twins on both sides (I1/I5) and a both-ways probe (I4 —
+reactivating restores the row, so I3's zero came from `is_active` and not a broken fixture); I6
+exists because the coordinator arm is a **separate union branch** and a one-arm fix passes I1–I4.
+`jsonb_array_length`, never `count(*)` — the door returns scalar jsonb, so `count(*)` is always 1
+and would read the same on both sides of the fix. I7 pins the ACL structurally. Post-fix 42/42.
+Door **removed from the floor allowlist** — verified with `track_functions='all'` that pgTAP now
+records **6 calls**, so `ARM=floor` will see it as genuinely called.
+
+### ✅ FUP-QO-7 — RESOLVED 2026-08-07 (PO ruling: **a NULL `p_expires_at` means PERMANENT — INTENDED**; ADR 0103; pinned in `183` §E) — the case-access PHI door NULL-CLEARS expiry on re-grant, UI-reachable
+
+**Ruling.** The PO ruled the behaviour **intended**: `_grant_case_access_unchecked`'s uncoalesced
+`expires_at = excluded.expires_at` **stays exactly as it is**, and the door was not changed.
+The two doors are ruled OPPOSITELY on purpose, and the deciding fact is the **caller population**:
+the role door has **no** caller that passes an expiry (all 12 TS sites omit it), so a NULL argument
+there is an accident nobody asked for → NULL = leave unchanged (ADR 0102); this door has **exactly
+one** — `grantCaseAccess` → NULL = make permanent (ADR 0103).
+
+⚠ **The UI cannot send NULL by accident — that is what makes the ruling safe** (corrected by
+`frontend`'s F9 before this entry was committed; the first framing said "blank expiry field" and
+there is no such field). The grant dialog's expiry control is a **NativeSelect** — `Sem prazo` /
+`30 dias` / `90 dias` / `Data específica` — and the only blankable control, the DatePicker under
+`Data específica`, **fails client-side validation when empty**. NULL reaches the door ONLY through
+the explicit **`Sem prazo`** choice, whose meaning on a re-grant is therefore "remove the existing
+expiry" (frontend added hint text saying exactly that). ⚠ **Do not unify the two doors without
+re-running BOTH caller sweeps.**
+
+**Caller sweep, bounded by the property "reaches `app._grant_case_access_unchecked`"** (line numbers
+are a 2026-08-07 snapshot — resolve by symbol): `public.grant_case_access` passes `p_expires_at`
+through verbatim, TS caller `grantCaseAccess` (`case-access/actions.ts:177`) — **the only path by which
+a NULL expiry can reach an EXISTING grant**, and only deliberately; `public.create_case` and
+`public.create_case_from_template` reach the kernel only for the creator self-grant with a hardcoded
+`null` on a BRAND-NEW case, where no conflicting row can exist, so the `DO UPDATE` arm is
+**unreachable** from them (TS: `createCase` `cases/actions.ts:547`, `createCaseFromTemplate` `:469`).
+
+**Pin + falsifiability.** `183` §E (E0–E3), plan 19→23. Green on first run — the vacuity trap — so
+proven by TWO neutralisations, recorded **as measured, not as predicted**: adding the `coalesce`
+reds **E1 and only E1**; swapping `greatest()` reds **E0/E1/E3** and leaves E2 green (wider than the
+tidy sentence, because a ratchet also refuses E0's narrowing). ⛔ First attempt read
+`case_access_grants` under `set local role authenticated` and all four went red on RLS — a
+grantee-invisible row is indistinguishable from a wrong value through an `ok()`, so the door is
+CALLED as `authenticated` and every assertion runs after `reset role`.
+
+<details><summary>The finding as filed (and the mis-reading that preceded it)</summary>
+
+⛔ **Read this entry, not its first version.** It originally said the case door "omits `expires_at`",
+i.e. that it kept the seam limit F1 removed from the role door — and told this follow-up's future
+owner to consider **adding** a capability the door **already has**, pointing them away from a live
+widening. QA reproduced from the live catalog and through the real door and inverted it.
+
+**The actual finding.** `app._grant_case_access_unchecked`'s `on conflict (case_id, principal_id,
+source, source_entity_id) where revoked_at is null do update set …` list **ENDS with
+`expires_at = excluded.expires_at` — uncoalesced**. So the case-access door **already extends on
+re-grant, and NULL-CLEARS**: as case coordinator, re-granting an existing 7-day grant with a blank
+expiry sets `expires_at = null`. It is **UI-reachable** — `src/lib/case-access/actions.ts:181` sends
+`p_expires_at: expiry ?? undefined`. This is the exact silent-privilege-widening shape ADR 0102 §2
+**refused** for the role door, on a door that carries **`read_standard_phi` / `read_restricted_phi`**.
+Reachable through `public.grant_case_access` (and `create_case` / `create_case_from_template`).
+
+**Severity: PHI-grade.** Not "a divergence to tidy up".
+
+</details>
+
+⚠ **NOT a defect until the PO says so, and the door must NOT be changed on that assumption.** An
+admin re-granting case access with a blank expiry may legitimately mean "make this permanent" — the
+role door's ruling turned on the fact that *no* caller passes the argument, and the case door has a
+UI that deliberately sends it. What this needs: **(1)** its own caller sweep bounded by the property
+"reaches `app._grant_case_access_unchecked`", **(2)** a PO ruling on the intended NULL semantics,
+**(3)** whichever way it goes, an executable pin so the behaviour stops being discoverable only by
+reading. `306` 4.4's "mirrors `grant_case_access` verbatim" refers to the **past-expiry refusal** and
+is still true — only the re-grant gloss was wrong.
+
+⭐ **How the mis-reading happened — the reusable half.** The probe was
+`substring(prosrc from position('on conflict' in prosrc) for 600)`. The `do update` list is longer
+than 600 characters and `expires_at` sat just past the cut, so the **window's edge was read as the
+statement's end**. **A fixed-width `substring(… for N)` is a WINDOW, not a delimiter — the absence of
+a token inside it is not absence.** It is the "text is not truth" family one level down: the catalog
+*was* the source, and the *framing* of the query still produced a confident inversion. Note the
+direction — it under-reported a live widening, i.e. it failed in the urgency-suppressing direction,
+which is the same direction as the `case_referrals` flag-description scar. Ask of any extraction
+probe: *could my answer be an artifact of where I cut?*
+
+### ✅ FUP-QO-1 — RESOLVED 2026-08-07 (backend, F1; PO ruling D-FUP-1) — `p_expires_at` seam limits, deferred to Phase C (2026-08-06, backend; consumer: **D14 break-glass**)
+
+**Resolution — migration `20260912000000`, ADR [0102](docs/decisions/0102-extend-on-regrant-expiry-seam.md).**
+Both limits closed inside `app.grant_role_impl`: the targeted `on conflict … do nothing` became
+`do update set expires_at = coalesce(excluded.expires_at, memberships.expires_at)`, and the
+commission-tier atomic replace now writes `expires_at = coalesce(p_expires_at, expires_at)`. The
+value is **absolute, not a ratchet** (a shorter argument shortens — D14 must be able to close a
+window early). **NULL = LEAVE UNCHANGED**, decided by a caller sweep rather than symmetry: **no
+production caller passes the argument**, so "NULL clears" would have made every ordinary member-add
+and promotion silently strip a deliberately-set expiry.
+
+⚠ **The recorded sweep was RE-CUT 2026-08-07 (QA R2), and the ruling SURVIVED.** It first read
+"all three production callers" and named `admin/actions.ts:285`, `members/actions.ts:235`,
+`org/actions.ts:618` — the output of a `rpc('grant_role'` grep, a boundary drawn by **syntax**, which
+missed the `_for` twin entirely. Bounded by the PROPERTY "reaches `app.grant_role_impl`" the set is:
+**3 public doors** (`grant_role`, `grant_role_for`, `appoint_technical_director`); **5 further SQL
+functions** through them (`add_pqs_member`, `assign_org_admin`, `assign_hospital_admin`,
+`assign_nsp_org_admin`, `assign_nsp_coordinator`); **12 TS RPC sites**, named by enclosing server
+action because line numbers drift (they drifted once inside the commit that first recorded them —
+**resolve by symbol**): `assignStaffAdmin` (`admin/actions.ts:285`) · `addStaff`
+(`members/actions.ts:235`) · `assignNspCoordinator` (`org/actions.ts:238`) · `assignHospitalAdmin`
+(`org/actions.ts:320`) · `assignNspOrgAdmin` (`org/actions.ts:385`) · `appointTechnicalDirector`
+(`org/actions.ts:581`) · `appointTechnicalDirectorDeputy` (`org/actions.ts:618`) · `assignOrgAdmin`
+(`platform/actions.ts:215` **and** `:255`) · `addPqsMember` (`pqs/actions.ts:71`) · `registerUser`
+(`users/actions.ts:714`) · `assignCommitteeRole` (`users/actions.ts:949`). `assign_org_admin` is
+SQL-reachable only (no TS site), which is why it is 12 and not 13. **None of the 12 passes
+`p_expires_at`** — the only occurrence of that identifier across the six caller files is the warning
+comment F1 itself added. The ruling therefore holds on a population **4× larger**, now including
+both platform-provisioning sites, the worst place to clear an expiry silently. Third instance this
+workstream of the recorded rule: **an enumeration's boundary must be the property, not a syntax**
+(the others: F2's error-code detector, the case-sensitive diff-derivation grep). ⚠ Note the second
+lesson stacked on top: the first re-cut fixed the *boundary* and still shipped a *stale snapshot* —
+**a recorded line number is itself an assertion that goes stale silently.**
+
+**Rule 11 companion, and it is the part worth reading.** `app.trg_audit_memberships`'s UPDATE branch
+is if/**elsif** and `role_changed` **wins** over `expiry_changed`. Harmless until now, because the
+replace path never touched `expires_at` — the change to that path is precisely what turned a dormant
+asymmetry into an unaudited write of a security control. `role_changed` now carries
+`expires_at_before`/`expires_at_after` when (and only when) the expiry also moved. Metadata only.
+
+**Evidence.** `306` recut 37 → 45; the six new/flipped keystones were **observed RED before the
+migration** (6 of 43, all 43 ran — no abort). `supabase/tests/mutation/f1-expiry-seam-audit.sh`:
+**6/6 RED-PROVEN**, control all green (45 ran). Three of those six (`ratchet`,
+`drop_insert_coalesce`, `drop_replace_coalesce`) leave the headline assertions 4.6/4.13 GREEN — the
+NULL semantics and the not-a-ratchet property would have been unpinned without them.
+`292` §2.1's singleton **survives unrecut** (re-verified: the `string_agg` still reads exactly
+`app.grant_role_impl`); §2.2 was **honestly recut** — the door now matches the `set expires_at` half
+too, so the positive twin asserts the NAMED SET rather than `count = 1`, since `2` would also be
+satisfied by an unrelated third writer. BEFORE/AFTER catalog snapshots identical property-for-property
+(`create or replace`, unchanged signature). Divergence from the sibling PHI door filed as **FUP-QO-7**.
+
+<details><summary>Original entry (the two deferred limits, for the record)</summary>
+
+M3 (`20260911000200`) added the D9 expiry SETTER to the grant chain; enforcement was already
+universal. Two behaviors are **deliberately deferred**, lead-acked at plan approval, and — because
+Phase C's break-glass (ADR 0100 D14) will ride this exact seam — each is pinned **executably** in
+pgTAP `306` §4 rather than in prose (a changed behavior must red the suite, not surprise D14):
+
+- **Re-grant does not extend expiry.** An identical (principal, role, org, hospital, commission)
+  grant with a NEW `p_expires_at` hits the **targeted** `ON CONFLICT … DO NOTHING` and leaves the
+  existing row's expiry untouched (`306` 4.5/4.6). Break-glass "extend the window" therefore needs
+  its own door decision in Phase C (revoke+regrant, or a widen of the conflict clause).
+- **The commission-tier atomic-replace UPDATE path does not write `expires_at`** (`306` 4.13) —
+  a role change keeps the ORIGINAL expiry and ignores the new argument.
+
+Also recorded: `292` §2.1 now pins `app.grant_role_impl` as the **only** `expires_at` writer
+(singleton set, both directions).
+
+</details>
+
+### ✅ FUP-QO-3 — RESOLVED 2026-08-07 (backend, F3, `bac7821`) — two vacuous `a2` mutation cases: the audit's coverage claim is overstated (2026-08-06, backend; lead-ratified file-don't-fix)
+
+**Resolution.** Neither case deleted; both RETARGETED onto `241` (the summary-masking lane, where
+`read_case_deliberation` is still the gate — `app._project_meeting_case` masks `summary`) plus `241`'s
+direct `has_case_capability` PRE probe, on the m5/m6 precedent. `run_case` now takes a per-case source
+file, and the CONTROL runs once per targeted suite (a red in a file whose control never ran is not
+evidence). **`a2` reads 12/12 RED-PROVEN**, and each retarget was inspected line by line rather than
+trusted from the verdict column: `drop_member_default` → `have: false / want: true` (the capability
+genuinely vanished) **and** `have: NULL / want: RESUMO_CD` (the masking surface genuinely masked);
+`member_ignores_visibility` → `have: true / want: false` **and** `have: RESUMO_EG / want: NULL` (the
+over-grant genuinely leaks the sub-group summary to a plain member). 16/16 tests ran under both
+mutations — no abort; controls all green (234: 54, 241: 16).
+
+Found while re-running the sibling audits after QO·A M4. `a2-mutation-audit.sh` reads
+**10/12 RED-PROVEN**; the two others are **stale since Gate 2 C1** (2026-07-17,
+`456d008` — zero diff on the QO·A branch, proven):
+
+- **`K8 member_default` is VACUOUS**: its expected-red positive reads `meeting_cases`,
+  which C1 made **member-wide** — the read no longer routes S5's
+  `read_case_deliberation`, so dropping the member arm reds nothing. A detector
+  reporting coverage it does not have (same class as "a detector that finds nothing
+  must be proven able to find something").
+- **`Kv member_ignores_visibility` is UNANCHORED**: its expected-red string
+  ("reads NO ata section for the explicit_grants_only case") no longer exists
+  anywhere in `supabase/tests/` — C1's rewrite of `234` deleted the K8-twin it
+  targeted. The harness reports ABSENT, which is the tri-state doing its job.
+
+**Until retargeted, read `a2`'s coverage claim as 10/12, not 12/12.** Needs its own
+retarget unit on the m5/m6 precedent (relocate the discriminating power — e.g. the
+S5 deliberation proof onto a surface that is still deliberation-gated post-C1, such
+as the `241` summary-masking lane or a direct `has_case_capability` probe) — never
+delete the cases without replacing what they proved.
+
+### ✅ FUP-QO-5 — RESOLVED 2026-08-07 (backend, F2) — t19 could MASK a real `anon` EXECUTE leak (2026-08-07)
+
+Found by `backend` during QO·A's final estate run, surfaced rather than self-filed. **Out of scope for
+QO·A; not a product defect; not caused by M10.**
+
+The pgTAP estate first came back **FAIL** on `100_dashboard` t19 — *"no public function is
+anon-executable"*, **have 1079, want 0**. On a **fresh `supabase db reset --local` the count is 0** and
+everything passes. Something in the mutation-harness / door-sweep machinery leaves broad `anon` EXECUTE
+grants behind in the session.
+
+⚠ **The dangerous direction is the second one.** A spurious red is merely expensive. But the same
+contamination means t19 — the invariant that **no public function is anon-executable** — can **PASS on a
+genuinely regressed catalog** whenever it runs after a sweep, because the grants it would flag are
+indistinguishable from the ones the harness left. An anon-executable door is close to the worst outcome
+this codebase has; its guard is currently **sensitive to run order**, which is the same property that
+makes a keystone vacuous.
+
+Note the shape: this is a **test-environment side effect disarming a later assertion** — the identical
+class as the QO·A finding where `record_recusal` succeeding earlier in a pgTAP file recused the principal,
+flipped `is_case_excluded`, and made a later D7 keystone refuse through the *exclusion* arm while
+returning the same SQLSTATE as the gate under test (see the `308` §6 header). Both are "the thing that
+ran before quietly changed what the next assertion means."
+
+⭐ **MECHANISM IDENTIFIED 2026-08-07 (`backend`) — it is NOT the sweep machinery.** Installing **`pgtap`
+into `public`** is what does it: `create extension pgtap` (which the standalone single-file run workflow
+performs) leaves **~1079 extension-owned functions anon-executable**, and t19 then fails. Measured both
+ways: pgtap present → **1079**; after a reset that drops it → **0**.
+
+That turns a vague hygiene item into a precise, cheap fix — **install pgtap into its own schema**, or have
+t19 **exclude extension-owned functions** (join `pg_depend` → `pg_extension`). The latter is the more
+honest invariant: t19 means "no *first-party* public function is anon-executable", and it should say so
+rather than counting a number that a test dependency can move.
+
+✅ **RESOLVED 2026-08-07 (backend, F2, `bac7821`).** t19 now counts **first-party** functions only,
+excluding extension-owned ones by PROPERTY (`pg_depend.deptype = 'e'` → `pg_extension`), never by name —
+a `proname not like 'pg_tap%'` filter would be a syntax boundary and would go stale on the next
+extension. The verdict no longer depends on run order in either direction. New **19c CONTROL** plants a
+first-party anon-executable function and requires the SAME expression to move **0 → 1** (both share one
+`pg_temp` helper, so the control cannot drift away from the assertion it proves); it plants-asserts-drops
+rather than using a savepoint, because `rollback to savepoint` would rewind pgTAP's transaction-local
+test counter. Verified BOTH directions: **22/22 with pgtap installed into `public`** (raw count 1079,
+first-party 0) and **PASS via `supabase test db` on a fresh reset**. The "never trust a t19 result that
+did not run on a fresh reset" caveat is retired.
+
+### ✅ FUP-QO-4 — RESOLVED 2026-08-07 (PO ruling D-FUP-4: strip stays global; shipped scope label is the fix; A.9 stands) — KPI-strip scope vs. the chip filter
+
+Found by `tester` while writing the A.9 chip-row extension — **by reading the source rather than writing the
+assertion the lead's brief asked for.** The lead's coverage bullet ("the KPI strip and locked count recompute
+per filter") does not match what ships, and the code is the thing that was right.
+
+`QualityKpiStrip` and the locked-count note in `qualidade/page.tsx` are computed **server-side from the full
+`commissions` array** and rendered as *siblings* of `QualityBoardView`, which is where the chip-selection
+`useState` lives. No path exists for a chip click to reach either. Selecting a chip narrows **only the table
+rows**; the strip stays the global aggregate over every oversight-visible commission. `QualityKpiStrip`'s own
+docstring agrees ("derived entirely from `quality_board_summary` rows already loaded by the page").
+
+**Ruled NOT a bug.** The strip is a context header ("how much do I oversee in total"); the chips are a table
+filter. Making the strip recompute means lifting client state above a Server Component — an architecture
+change — and **no ADR 0100 decision settles which scope is correct**. D10 specifies a cross-committee board
+and PHI-free aggregates; it is silent on filter interaction.
+
+⚠ The user-visible consequence, and the reason this is logged rather than dropped: once two commissions are
+oversight-visible, a reviewer can see **"Casos visíveis: 6" directly above a table showing one row.** Both
+numbers are correct; together they read as contradictory. A presentational label clarifying the strip's scope
+was explored as a near-zero-cost mitigation (lead → `frontend`, 2026-08-07) with a hard instruction to stop
+if it needed anything beyond a text change.
+
+Pinned executably: A.9 asserts the strip and locked count stay **constant** across chip selections. That is
+deliberate — if someone later makes the strip recompute, the test notices. **Post-pilot PO decision**; if the
+ruling flips, that assertion is the thing to update, not delete.
+
+### ✅ FUP-QO-2 — RESOLVED 2026-08-07 (F4+F7: catalog-derived role→landing guard, ADR 0101, `KNOWN_UNROUTED` empty; guard caught + F7 routed instances 4+5) — a non-commission-scoped role lands on "sem acesso": THIRD recurrence (2026-08-06, lead)
+
+Found by `frontend` during QO·A planning, **verified by the lead against the live code**, and in scope
+for QO·A only as a one-instance fix — **the class is open.**
+
+`src/app/page.tsx` routes a signed-in user through platform_admin → org_admin → hospital_admin →
+nsp_org_admin → `context.memberships` (commission-scoped) → technical_director → `NoAccess`. Any
+principal whose authority is **hospital- or org-scoped with `commission_id NULL`** is stepped over by
+every branch and lands on "Você ainda não tem acesso" — an account that looks unprovisioned while
+being fully provisioned. `quality_reviewer` is exactly that shape.
+
+⚠ **This is the third instance of one failure.** The first was BUG-HAT-001; the second was the Diretor
+Técnico, patched after the fact by ADR 0094 W4 — and that patch's own comment, still in the file at
+`src/app/page.tsx:103-111`, states the mechanism outright: *"The office confers no membership, so every
+branch above steps over it and the account looked unprovisioned."* The lesson was written down, in the
+right file, and did not prevent recurrence three months later. **Prose in a comment is not a guard.**
+
+Note the near-miss: QO·A's own plan (§A.3) did not list `src/app/page.tsx`. Had the teammate not read
+the routing chain unprompted, `quality_reviewer` would have shipped as recurrence three *undetected* —
+the pilot's primary daily user, unable to log in to anything.
+
+Proposed scope (post-A): a guard that cannot be forgotten — e.g. a test that enumerates
+`memberships_role_check`'s role list from the catalog and asserts each role resolves to a landing route,
+so a **newly added role with no home fails the suite** rather than failing the user. The enumeration's
+boundary must be the role list itself, not a remembered list of routes. Same class as FUP-AFF-3 below;
+relates to ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s
+standing-invariant discipline.
+
+**GUARD BUILT 2026-08-07 (backend, F4, `49883c2`; ADR
+[0101](docs/decisions/0101-role-landing-guard.md)) — `src/lib/queries/session-grants.test.ts`.** It
+enumerates `memberships_role_check` from `pg_constraint` at test time (the derivation `292` §3 already
+uses) and drives **both** seams for real: the role partition, extracted behaviour-identical into a pure
+`src/lib/queries/session-grants.ts` so it can load without `next/headers`, and then the **unmodified
+default export of `src/app/page.tsx`** (only `getSessionContext` / `signOut` / `next/navigation.redirect`
+stubbed; `@/lib/routing` stays real). Nothing is re-implemented. Red-proven: neutralising the
+`quality_reviewer` arm of `partitionGrants` reds exactly that role's case; restoring it returns 12/12.
+Two vacuity controls ship with it — a synthetic role the catalog does not admit must report NoAccess, and
+the routed roles must not collapse onto a single landing URL. It **fails loud** when the stack is down
+rather than skipping.
+
+⛔ **THE GUARD FIRED ON ITS FIRST RUN — the class is at FIVE instances, not three.**
+**`nsp_coordinator` and `pqs_member`** are hospital-scoped with `commission_id NULL`, have **no
+`partitionGrants` filter at all**, and are therefore stepped over by every branch in `page.tsx`: a
+principal holding only one of them gets an all-empty `SessionContext` and lands on "Você ainda não tem
+acesso". Pre-existing, not introduced here. Held in the test's `KNOWN_UNROUTED` **ledger**, which is
+asserted in BOTH directions — an unlisted unrouted role reds, and a listed role that starts landing also
+reds — so it cannot be silenced by leaving it alone. **The remaining fix spans `src/app/page.tsx`
+(frontend-owned) and one `partitionGrants` filter (backend); it is NOT done.** Needs a lead/PO call on
+where a pure `nsp_coordinator` / `pqs_member` should land (the NSP console under `/o/<org>/nsp` is the
+obvious candidate) before either half is written.
+
