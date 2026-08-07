@@ -5,7 +5,8 @@
 
 | Round | Date | Commit | Verdict |
 |---|---|---|---|
-| **r2** | 2026-08-07 | `1f8c8a9` (M10 = `f6b622a`) | ⛔ **CHANGES REQUESTED** — r1 fully closed; **2 new**: R1 BLOCKER (interview-family cut incomplete), R2 MAJOR (the lattice invariant is unpinned). **[§8](#8-round-2--re-review-of-the-m10-remediation)** |
+| **r3** | 2026-08-07 | `72f3dc7` (M11 = `a8450c2`) | ✅ **APPROVED** — R1 + R2 closed at the level that generalises. 1 MINOR + 2 INFO carried forward, none blocking. **[§9](#9-round-3--re-review-of-the-m11-closure)** |
+| r2 | 2026-08-07 | `1f8c8a9` (M10 = `f6b622a`) | ⛔ CHANGES REQUESTED — r1 fully closed; **2 new**: R1 BLOCKER (interview-family cut incomplete), R2 MAJOR (the lattice invariant is unpinned). **[§8](#8-round-2--re-review-of-the-m10-remediation)** |
 | r1 | 2026-08-07 | `9bb789b` | ⛔ CHANGES REQUESTED — 1 BLOCKER, 2 MAJOR, 3 MINOR (below) |
 
 ---
@@ -690,3 +691,255 @@ Only: the two re-pointed interview surfaces (from `pg_get_functiondef` / `pg_pol
 their new keystones and `q1` case, `311` §5.1 rewritten as a property rather than a literal
 count, the six-shape `is_oversight_only_reader` pin, and the ruling on §8.1 ask (4).
 Everything in §8.4 and §5 stands and needs no re-derivation.
+
+---
+
+# 9. ROUND 3 — re-review of the M11 closure
+
+**Date:** 2026-08-07 · **Branch:** `feat/quality-office-oversight` @ `72f3dc7` · **Delta:**
+`a8450c2` (M11 `20260911001000_interview_family_closure`), `4300216` (`311` lattice fixture
+fixes), pgTAP `311` §5.1/§5.2b/§5.2c/§6, `q1` 17→19.
+
+## VERDICT: ✅ APPROVED
+
+Both r2 findings are closed, and closed at the level that generalises rather than at the
+level that passes today. Nothing is open, nothing is exposed, and I found no new blocker.
+
+Carried forward as follow-ups, none blocking: **one MINOR** (§9.3 — the S3/S4 lattice
+fixtures cannot isolate the arm they name; one-line fix, should land before **Phase B**,
+which is the change that will exercise it) and **two INFO** (§9.5).
+
+---
+
+## 9.1 Ask ① — R1 is closed, and the `'case'` arm survived
+
+**[CAT], live, 313 registered == 313 files:**
+
+```
+app.can_read_attachment:
+  when 'case'        then app.can_read_case(p_owner_id, p_uid)                                  <- UNCHANGED
+  when 'meeting'     then app.is_member_of_for(app.commission_of_meeting(p_owner_id), p_uid)    <- UNCHANGED
+  when 'interview'   then app.can_read_case_committee(app.case_of_interview(p_owner_id), p_uid) <- CUT
+  when 'action_item' then app.can_read_action_item(p_owner_id, p_uid)                           <- UNCHANGED
+
+case_interview_links_select :: app.can_read_case_committee(app.case_of_interview(interview_id), auth.uid())
+```
+
+**Behavioural re-probe, read-only, with discriminating twins on the live seed:**
+
+```
+case_interview_links      reviewer=0   coordinator=1   of 1
+interview attachments     reviewer=0   coordinator=1   of 1
+case-owned attachments    reviewer=1   of 3      <- NOT over-cut: the earlier metadata ruling survives
+```
+
+Each zero is twinned against a coordinator reading the same row, so neither is "the table is
+empty". The r2 disclosure — the interview's `external_url` pointing at
+`…/caso-0001-entrevista.mp3`, and the `Transcrição assinada (rascunho)` attachment title — is
+gone.
+
+**Independent re-derivation, and I used a stronger property than last round.** Rather than
+re-running my text closure, I derived the interview family by **recursive FK closure to
+`case_interviews`** — a structural property that owes nothing to how any policy is spelled —
+and classified each member's SELECT policy:
+
+| Table (FK closure, depth ≤ 4) | Routes |
+|---|---|
+| `case_interviews` · `case_interview_interviewers` · `case_interview_subjects` · `interview_sessions` · `interview_summaries` · `interview_topics` · `interview_session_attendance` | `can_read_interview` → committee-plane |
+| `case_interview_links` | **`can_read_case_committee` directly** (M11) |
+| `attachments` (`owner_type='interview'`) | **`can_read_case_committee` via the dispatcher arm** (M11) |
+| `rca_evidence` (FK outlier, NSP plane) | `app.can_read_event` — not in the reviewer's closure; 0 rows, structurally out of scope |
+
+**Zero members still route the widened `can_read_case`.** The family is complete and closed.
+
+The migration is built the way I asked: single-needle replacement with a **length-delta
+proof**, and — the part that matters most — an **inverted postcondition** that fails if the
+`'case'` arm is ever changed:
+
+```sql
+if (…prosrc of can_read_attachment…) !~ 'when ''case'' then\s+app\.can_read_case\(' then
+  raise exception 'M11 postcondition: the case arm of can_read_attachment was changed
+                   (metadata must stay visible — lead ruling)';
+```
+
+That is a guard against the *over-cut* direction, which is the one nobody usually writes.
+
+## 9.2 Ask ② — `311` §5.1 genuinely generalises, within a stated anchor
+
+The claim under test is not "it passes today" but "would a ninth member red it". **Yes, for
+the shape that actually bit.**
+
+```sql
+select is(
+  (select coalesce(string_agg(tablename||'.'||policyname, ', ' order by tablename), '')
+     from pg_policies
+    where schemaname='public' and qual ~ 'case_of_interview\(' and qual ~ 'app\.can_read_case\('),
+  '', '5.1 DERIVED FAMILY CLOSURE …');
+
+select cmp_ok((select count(*) from pg_policies where qual ~ 'case_of_interview\('), '>', 0,
+  '5.1b NON-VACUITY for 5.1 …');
+```
+
+- **It is a derivation, not a count against a literal.** No table list appears. A ninth
+  policy anchored on `case_of_interview(` and still routing the widened predicate is named in
+  the failure message with no one having to remember it.
+- **The regex distinction is sound** — `app\.can_read_case\(` cannot match
+  `app.can_read_case_committee(` because of the trailing `\(`. Verified, not taken on trust.
+- **5.1b is the empty-set twin**, so an empty result means "none leak", never "none found".
+  This is the specific trap that ate two probes earlier in the phase; it is now closed in the
+  guard itself.
+- **The same derivation is a migration postcondition**, so the invariant holds at apply time
+  and at test time, not just one of them.
+
+**Residual, stated so the boundary is known rather than assumed (INFO, §9.5·a):** the anchor
+is the token `case_of_interview(` in a policy `qual`. A future member that reaches the
+interview by a *different* anchor — an inline `exists (select 1 from case_interviews i …)`, a
+new `commission_of_interview()` helper, a new intermediate predicate, or a DEFINER **door**
+(which `pg_policies` cannot see at all) — sits outside it. Concretely: **§5.1 would not have
+caught the `attachments` half of R1**, whose qual contains neither token; that half needed
+its own bespoke assertion (5.2b). So the guard is derivation-over-an-anchor plus one literal,
+not a family-complete invariant. My FK-closure pass above confirms there is nothing to catch
+today, so this is a note about future detection strength, not a gap.
+
+The corollary now in ADR 0100 — *a guard whose boundary is a literal list cannot close a
+family; derive the set, assert over the derivation, twin it against the empty set* — is the
+right generalisation and correctly stated.
+
+## 9.3 Ask ③ — R2's eight assertions: non-vacuous, with one isolation gap (MINOR)
+
+**The twins you asked about are correct.** 6.2 and 6.3 are implications
+(`NOT content OR deliberation`), which pass vacuously when the antecedent is false — and each
+is paired with an explicit antecedent proof:
+
+- **6.2b** asserts the assignment **does** confer `read_case_content`. `u_assignee` holds
+  only `staff` (S5 = deliberation only), so the content bit can come from nowhere but S4. The
+  antecedent is live.
+- **6.3b** asserts the grant **does** confer `read_case_content`, and the grant row sets
+  `read_case_deliberation = false` on purpose, so 6.3 is testing the resolver's read-closure
+  rather than the row. That is exactly the right fixture.
+- **6.1** (S1 = content ∧ deliberation) is a conjunction — cannot pass vacuously.
+- **6.4 / 6.5** state S5 and S2 confer **no** content, which is what stops either from being
+  misread as oversight-only. Correct claims.
+
+PROGRESS records that all eight were **green pre-M11** on a true 312-migration catalog (M11
+held out of `migrations/` to get one) while 3.7/3.8/5.1/5.2b were red. That is the right
+evidence and the right shape: R2 pinned an invariant rather than repairing a break, and the
+file proves it by not moving.
+
+**⚠ MINOR — the S3/S4 fixtures cannot isolate the arm they name.** §6's header says
+*"Asserted per SOURCE of `app._case_caps`, not per principal."* Both principals are also
+inserted as `staff` of `comm_x`:
+
+```sql
+insert into public.memberships (commission_id, principal_id, role)
+select k.comm_x, l.u_assignee, 'staff' from k, lat l union all
+select k.comm_x, l.u_grantee,  'staff' from k, lat l;
+```
+
+**[CAT]** `_case_caps`' S5 arm (`if v_member and not v_eg`) confers `read_case_deliberation`,
+and `case_a` is `commission_default`. So the deliberation half of 6.2 and 6.3 is supplied by
+**S5**, not by S4 or S3. Remove S4's or S3's read-closure tomorrow and both assertions stay
+**green** — the principal still holds deliberation through membership.
+
+Why that matters, specifically: a grant's normal subject is **not** a member (granting access
+to an existing member is the redundant case). Drop S3's `read_case_content ⇒
+read_case_deliberation` closure and a real non-member grantee becomes
+content-without-deliberation → `is_oversight_only_reader` classifies them as an oversight
+reader → they are silently cut from ~20 surfaces with LOST ≠ 0 and a green suite. That is the
+R2 scenario verbatim, at the one arm most likely to be edited.
+
+**[CAT] the fix is a one-liner and nothing blocks it:** `case_access_grants.principal_id` and
+`case_narratives.assigned_to` are FKs to `profiles` only — no constraint requires a
+membership. Drop the two `memberships` inserts, or add a non-member `u_grantee2` /
+`u_assignee2` twin beside them. Then 6.2/6.3 isolate the source and the header's claim
+becomes true.
+
+**Not blocking**: the invariant itself holds — I re-verified all seven arms directly against
+the live `_case_caps` body (S1 both · S2 no content · S3 closure content⇒deliberation · S4
+both · S5 deliberation only · S6 both · S7 content only). Nothing is exposed today. This
+strengthens a new guard against a future change, and **Phase B is that change**, so it should
+land before Phase B rather than after.
+
+## 9.4 Ask ④ — the PO-ruling pins are real and would fail loudly
+
+**[CAT] the catalog carries both comments**, verbatim and directive:
+
+> `case_conflict_declarations_select` — *"ADR 0100 (PO ruling 2026-08-07): deliberately stays
+> on the widened can_read_case … Do not 'fix' the asymmetry with the write doors; it is the
+> ruling."*
+>
+> `case_recusals_select` — *"… while D7 forbids them RECORDING one. **Acknowledged
+> consequence: reveals that a named member recused on a case.**"*
+
+Naming the consequence rather than only the permission is the right way to write a ruling
+down; it is what lets a future reader re-open the question on the merits.
+
+**[SRC]** both `comment on policy` statements are in M11 (L101, L106), so they survive a
+`db reset` — a catalog comment set outside a migration would silently vanish, and it does
+not.
+
+**Would it fail if someone cut those policies?** Yes. `311` §5.2c:
+
+```sql
+select is((select count(*)::int from pg_policies
+           where policyname in ('case_conflict_declarations_select','case_recusals_select')
+             and qual ~ 'app\.can_read_case\('), 2, '5.2c PO RULING PINNED …');
+```
+
+**[CAT]** both policies currently match (`case_recusals_select`'s qual is a three-arm
+disjunction whose first arm is `app.can_read_case(case_id, auth.uid())`). Re-point either to
+`can_read_case_committee` and the count drops to 1 → red. Delete either → red. Rename either
+→ red. It fails in every direction a tidying sweep would take.
+
+**One accuracy correction, not a defect:** the ruling is pinned **two** executable ways, not
+three. The catalog comments are documentation (nothing fails when they drift), and M11's
+postcondition block covers only the interview closure and the two attachment arms — there is
+no postcondition for the conflict/recusal non-cut. `311` §5.2c is the single failing pin, and
+it is sufficient. Worth correcting wherever "three ways" is written down, per this project's
+own rule about load-bearing claims.
+
+## 9.5 Carried forward (INFO, no action required for this phase)
+
+- **(a)** `311` §5.1's anchor is the token `case_of_interview(` in a policy `qual`; DEFINER
+  doors and differently-anchored policies fall outside it (§9.2). If the family grows, prefer
+  an FK-closure derivation — `pg_constraint` recursion to `case_interviews` — which is what I
+  used above and owes nothing to spelling.
+- **(b)** `311` 6.4/6.5 (S5 and S2 confer no content) have **no positive twin**: if a future
+  `test_helpers.bootstrap()` changed what `st_x`/`oa_b` are, both would pass vacuously as
+  "this user has no capabilities at all". One `ok(has_case_capability(…, 'read_case_deliberation'))`
+  beside 6.4 fixes it. Related: **6.6 is a marker, not a proof** — it counts occurrences of
+  `is_quality_reviewer_of_for` in `_case_caps` (= 1), which a new S8 arm using a *different*
+  predicate would not move. Its own label says so honestly ("this file is where that must be
+  re-proven"), and the invariant is not statically decidable, so I regard the marker as the
+  right pragmatic choice — recorded so nobody later mistakes it for the proof.
+- **(c)** r1's **m3** (the `canDownload` comment in `case-documents-panel.tsx`, stale since
+  M9) remains open. Cosmetic, frontend-owned.
+
+## 9.6 What I did not check
+
+Same constraint, same honesty. **I ran no tests this round either** — pgTAP 172/5355, `q1`
+19/19 with 7 controls, `ARM=census` + `ARM=floor`, vitest 1158, `database.ts` no-diff, and
+the `e2e:prod` triage (18/19 + 1 cold-start flaky; 6 non-QO failures cross-validated as
+order-dependent; 97 did-not-run covered by follow-on runs) are **read in PROGRESS and
+reasoned about, not reproduced**. Everything I assert in §9 is either **[CAT]** from the live
+catalog at 313 registered migrations, or **[SRC]** from the tree. No mutating probe was run;
+§9.1's zeros are read-only evaluations of each policy's own predicate with the reviewer's uid
+substituted, twinned against the coordinator.
+
+## 9.7 Verdict, plainly
+
+**APPROVED.** Take it to the PO.
+
+Three rounds found five real issues — a live D7 write breach, a Class-2 identity path, a
+UI-only interview suppression, an incomplete family cut, and an unpinned load-bearing
+invariant — and every one was closed at the level that generalises: the write doors by an
+explicit exclusion rather than a role check, the read families by a predicate that names the
+question, the family closure by a derivation rather than a list, and the invariant by
+assertions rather than a comment. The standing rule the phase produced — *conferring a
+capability bit requires enumerating its CONSUMERS, not just its producers* — is recorded in
+the ADR, in the plan at the exact place that was wrong, and in the migration that fixed it,
+with the Phase B warning attached. That rule is worth more than the feature.
+
+Two things to carry into Phase B, in priority order: the §9.3 fixture isolation (before, not
+after — Phase B is the change that exercises it), and the consumer enumeration run **before**
+the migrations are written rather than after QA finds the misses.
