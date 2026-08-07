@@ -64,7 +64,7 @@ Row-returning doors in the live catalog: 45.
 | public.list_commission_documents(p_commission uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_referral_target_commissions(p_source_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
 | public.list_signoff_queue(p_commission_id uuid) | rowdoor | open-guard(1) | COVERED | 205_administrativo.sql,80_signoffs.sql |
-| public.open_attachment(p_id uuid) | rowdoor | open-guard(2) | ERROR | 228_ethics_e1.sql |
+| public.open_attachment(p_id uuid) | rowdoor | open-guard(2) | ERROR | 228_ethics_e1.sql · QO·A M9 (2026-08-06): the multi-line `has_case_capability(CASE…END)` arm defeats the neutralizer's paren-matcher (pre-existing 2-guard ERROR, not M9-caused). "ERROR is not a pass" → covered ARM-SCOPED by q1 `open_resolver_door` → 308 §5.5 RED-PROVEN (reviewer resolves 0 / coordinator 1) |
 | public.readiness_evidence(p_commission uuid, p_standard uuid) | rowdoor | open-guard(1) | COVERED | 283_accreditation_readiness_report.sql |
 | public.readiness_report(p_commission uuid, p_framework uuid) | rowdoor | open-guard(1) | COVERED | 283_accreditation_readiness_report.sql |
 | public.triage_disposition(p_event_id uuid) | rowdoor | open-guard(1) | COVERED | 300_rowdoor_gate_keystones.sql |
