@@ -312,7 +312,7 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🟡 **BUG-PDF2-001 — printed-documents empty-state copy hardcodes "desta resposta" for every
+✅ **BUG-PDF2-001 — printed-documents empty-state copy hardcodes "desta resposta" for every
 source kind, including meetings.** Filed 2026-08-08 (tester, PDF·P2 M-T1). **Repro:** mint
 nothing on a fresh meeting, open its "Documentos emitidos" panel → empty state reads "Nenhum
 documento emitido **a partir desta resposta** ainda." **Expected:** copy that reads correctly
@@ -325,6 +325,18 @@ the P2 acceptance list references it. **Owner:** frontend, whenever `src/compone
 is next touched (do NOT special-case this alone — the fix is presumably a `sourceKind`-driven
 label, which is exactly the kind of shared-component edit the phase's review question asks to
 be justified, not free-floated into M-F1's diff post hoc).
+**FIXED 2026-08-08 (frontend, `2e8ef7f`)** — kind-aware copy parameterized in
+`src/components/printing/labels.ts` (`documentSourcePhrase` + four copy helpers), per the lead's
+recorded ruling authorizing this as legitimate parameterization rather than an abstraction leak.
+`form_response` → "desta resposta", `meeting` → "desta reunião"; `case`/`interview` fall through
+to a neutral "deste registro" rather than being enumerated ahead of the phases that build them.
+⚠ **The filed repro was the empty state, but a sweep of `src/components/printing/` found the same
+defect in FOUR more strings** — all in the mint dialog (`mint-document-button.tsx`): its
+description, the supersession sentence, and both watermark rationales. All five are fixed. The
+watermark rationale needed kind-aware SENTENCES, not noun substitution: a form response is final
+once *submitted*, a meeting once its ata is *signed*, so a noun swap would have produced "A
+reunião já foi enviada". Copy only — no structural change; `WATERMARK_COPY` became
+`WATERMARK_MARK` + `watermarkReasonCopy(kind, watermark)`. Lint + typecheck + `next build` green.
 
 🟡 **BUG-PDF2-002 — the meeting-detail route's `notFound()` returns HTTP 200, not 404, on the
 prod-standalone build.** Filed 2026-08-08 (tester, PDF·P2 M-T1, test 3). **Repro:** any
