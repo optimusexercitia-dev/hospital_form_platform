@@ -40,6 +40,7 @@ import { ReservedSessionsPanel } from "@/components/meetings/reserved-sessions-p
 import { isEditableStatus } from "@/components/meetings/meeting-labels";
 import { formatMeetingNumber } from "@/components/meetings/format";
 import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
+import { meetingWatermarkFor } from "@/lib/pdf/documents/meeting";
 import {
   mintPrintedDocument,
   revokePrintedDocument,
@@ -277,10 +278,12 @@ export default async function MeetingDetailPage({
           unchanged — a new kind is a provider + a template + an RLS arm, and
           wiring this screen needed no edit to any of them.
 
-          Watermark: FINAL only from `signed` onward. This mirrors the payload
-          provider's own derivation (see `MeetingDocumentBody.statusDisplay`'s
-          contract note) — if the dialog previewed a different mark than the
-          renderer stamps, it would be lying about what goes on paper.
+          Watermark comes from `meetingWatermarkFor` — the SAME pure helper the
+          payload provider calls, not a second copy of the rule. The dialog
+          promises a mark before the document exists, so if its derivation could
+          drift from the renderer's it would eventually lie about what goes on
+          paper; sharing the function makes that drift impossible rather than
+          merely unlikely.
 
           `canRevoke` reuses this page's existing coordinator signal; no new
           permission check. And note what is deliberately ABSENT: meeting
@@ -292,11 +295,7 @@ export default async function MeetingDetailPage({
         <PrintedDocumentsSection
           sourceKind="meeting"
           sourceId={meeting.id}
-          watermark={
-            meeting.status === "signed" || meeting.status === "distributed"
-              ? "final"
-              : "draft"
-          }
+          watermark={meetingWatermarkFor(meeting.status)}
           scopeLabel={`${formatMeetingNumber(meeting.meetingNumber)} · ${meeting.title}`}
           canRevoke={isCoordinator}
           mintAction={mintPrintedDocument}
