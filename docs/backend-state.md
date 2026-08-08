@@ -1798,7 +1798,7 @@ credential HASH only).
   `20260913000400`, QA MINOR-4): not-found is indistinguishable from denial by design —
   revoke MERGES it into the 42501 raise, open returns no-row-no-audit, lookup answers
   `matched=false`. No door is an existence oracle.
-- **Tests:** pgTAP `312_printed_documents.sql` (69; fail-closed ELSE + platform_admin denial
+- **Tests:** pgTAP `312_printed_documents.sql` (73; fail-closed ELSE + platform_admin denial
   keystones; A33 drills D1–D6 RED-proven); Vitest fingerprint/overlay/semaphore/lookup
   (`p_viewer` declared-param pin + rate-limit pin); e2e smoke
   `scripts/smoke/pdf-mint.smoke.ts` (`vitest.smoke.config.ts`; needs stack + sidecar).
