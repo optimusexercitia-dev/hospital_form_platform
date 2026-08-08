@@ -1,6 +1,11 @@
 # Phase PDF·P2 — QA Review
 
-**CHANGES REQUESTED**
+**APPROVED (r2)** — BLOCKER-1 closed and independently re-proven by constructing the
+exploit class on live data; MAJOR-1 closed by the PO's Package A ruling (A8); all 7 MINORs
+closed. See [§ Round 2](#round-2--verification-of-the-package-a-fix-wave). The r1 review below
+is left intact as the baseline the fix wave was measured against.
+
+*r1 verdict was:* **CHANGES REQUESTED**
 
 One BLOCKER (an authorization widening on the new meeting arm, verified behaviourally against
 the live catalog) and one MAJOR that needs a PO ruling rather than a code change. **The
@@ -448,3 +453,178 @@ review question was written to surface.
 
 *Reviewed by `qa` against the live catalog, 2026-08-08. Read-only on application code,
 migrations, specs and queries; this file and the PROGRESS rows are the only artifacts written.*
+
+---
+
+# Round 2 — verification of the Package A fix wave
+
+**Verdict: APPROVED (r2).** BLOCKER-1 closed. MAJOR-1 closed. MINOR-1…7 all closed.
+Two new INFO, both forward-looking notes for P3/P4 rather than defects.
+
+**Date:** 2026-08-08 · **Range:** `258e1a0..HEAD` — `f45e75b` (ADR A7/A8/A9) · `7bd5a8e`
+(migration `20260914000100` + all 7 MINORs) · `4b4293a` (shared watermark derivation) ·
+`1e1d0b5`/`69563cd` (progress + E2E). 16 files, +856/−40. Migrations **322 == 322 files**,
+`20260914000100` at head.
+
+**Method.** Re-probed, never read from the report. The centrepiece — whether the new
+conjunction actually excludes the party my blocker named — was settled by **constructing the
+exploit class myself on live seed data inside a rolled-back transaction**, because the seed
+alone contains no persona in that class and a predicate that never fires would have "closed"
+the blocker vacuously. Property-diff was taken against my own r1-recorded baseline values.
+Re-ran `npm run lint` (exit 0), `npx tsc --noEmit` (exit 0), PDF unit tests (**22 pass**).
+
+## BLOCKER-1 — CLOSED, and proven rather than accepted
+
+**The spec.** ADR 0104 **A7** now states the rule my r1 said had to be decided: for a domain
+that masks content per caller, printed-document sight is *source reach **AND** unmasked
+full-content sight*, on mint **and** download. It names the two rejected alternatives
+(masked-minimum bytes; paper semantics) — so it is remedy (a) from my r1, chosen deliberately.
+
+**The mechanism, verified live.** The dispatch now reads:
+
+```sql
+when 'meeting' then
+  return app.can_reach_meeting(p_source_id, p_uid)
+     and app.can_read_full_meeting_content(p_source_id, p_uid);
+```
+
+I diffed the new helper term-by-term against the **live** `_project_meeting_agenda_item`
+masking it must mirror:
+
+| masking term | helper term | verdict |
+| --- | --- | --- |
+| `title := null` if respondent of **any** linked case | `exists(meeting_cases mc where mc.agenda_item_id = ai.id and app.is_case_respondent(mc.case_id, p_uid))` | **mirrors** (slightly stricter — no presence guard; see INFO-r2-1) |
+| 3 free-text fields `:= null` unless `read_case_deliberation` on **every** linked case | `(description/discussion_notes/resolution is not null) and exists(… not has_case_capability(…, 'read_case_deliberation'))` | **mirrors**, with a **presence guard** — it declines to refuse when masking would null nothing. Correct, and the more permissive direction only where there is no content at stake |
+| `v_cases is null` → no masking | both branches require `exists(meeting_cases …)`, so an unlinked item contributes nothing | **mirrors** |
+
+`SECURITY DEFINER`, `STABLE`, `search_path=''` hardened, **explicit `p_uid`** with no
+`auth.uid()` inside — not an invoker trap.
+
+**The proof that it discriminates.** The seed contains no persona with `reach = t` and
+`full_sight = f`, so on seed data alone the conjunction adds nothing and t40 could not be
+confirmed from outside the test transaction. I therefore built the missing class myself —
+inserting the four-row participants chain (`participants` → `professional_profiles` →
+`professional_participants` → `case_participants` with the `respondent_doctor` role) to make
+`chefe.ccih` — a **full commission member who reaches the meeting** — a respondent of the case
+linked to that meeting's agenda item, then rolled back:
+
+| | `respondent` | `reach` | `full_sight` | **arm** |
+| --- | --- | --- | --- | --- |
+| `chefe.ccih` before | f | **t** | t | **t** |
+| `chefe.ccih` as respondent | **t** | **t** | **f** | **f** |
+
+`ROLLBACK` confirmed; nothing persisted. **Reach is unchanged and the arm still flips to
+false** — so the denial is the new conjunct, not reach and not the persona. That is exactly
+the r1 exploit chain, now closed, and both mint and download route this same dispatch.
+
+**The keystones are non-vacuous and assert their own preconditions**, which is what I asked
+for: t39 pins that `is_case_respondent(case_a, st_x2)` is genuinely true (the participants
+chain is real, not a name); **t40** asserts the predicate *discriminates* in one `ok()` —
+coordinator in, deliberation-masked member out, respondent out; **t42 is the over-grant twin**
+— the *same* persona passes on the **un-linked** meeting, ruling out "this persona can't reach
+anything". t41/t43 are the two denial arms, t44 keeps the coordinator in, t47/t48 pin the
+download and mint sides separately. The fixture change from `commission_default` to
+`explicit_grants_only` on `case_a` (to manufacture a genuinely deliberation-masked member) is
+self-protecting: t33's precondition would red if it broke `sa_x`'s reach.
+
+## MAJOR-1 — CLOSED
+
+**A8** rules the label **presence-derived and automatic**, explicitly *not* the D9 per-mint
+patient-identifier choice (which stays absent for meetings and still needs its own upstream
+domain ADR — my r1 point preserved rather than papered over). The provider's derivation covers
+every column I cited plus one I had not:
+
+```ts
+const containsPhi =
+  caseLinks.some((link) => link.agendaItemId !== null) ||   // process number in the title
+  detail.minutesMd !== null ||                              // PHI-BEARING
+  agenda.some((i) => i.description !== null ||              // PHI-BEARING ×3
+                     i.discussionNotes !== null || i.resolution !== null)
+```
+
+All four catalog-`PHI-BEARING` columns are covered. t45/t46 pin that a masked-class ata mints
+`contains_phi = true` and lands under `phi/`; t50 pins that a clean ata labels false and stays
+under `std/`; **t49 pins that `form_response` still refuses `contains_phi = true` (`HC0D2`)** —
+my verification item 4, satisfied.
+
+**Worth naming: A8's correctness depends on A7.** Presence-testing is only meaningful because
+A7 guarantees the provider now runs *exclusively* for a caller with unmasked sight — otherwise
+a masked minter would read nulls and honestly label a PHI-bearing ata as clean. The two
+amendments interlock, and the provider comment says so. That is the right reason, not a
+coincidence.
+
+## The scope rulings, re-derived
+
+**Ruling 1 superseded correctly.** I re-counted kind-conditional sites from the live door body
+myself: **exactly three** — PHI capability (`p_contains_phi and p_source_kind <> 'meeting'`),
+template coherence, commission resolution. Every other `p_source_kind` occurrence is a
+pass-through argument, a `where source_kind =` column comparison, or an insert/audit value.
+The in-file trio marker matches, and A8 records that a **fourth** is now the leak signal.
+The PHI gate is shaped as an inverted allowlist (`<> 'meeting'`), so any *unregistered* kind
+also refuses `contains_phi` — fails closed.
+
+**Property diff — clean.** Against my own r1-recorded values: `can_view_printed_document` and
+`mint_printed_document` both retain `prosecdef = t`, identical `proacl`
+(`{postgres,authenticated,service_role}` / `{postgres,service_role,authenticated}`) and
+identical `proconfig`. `lookup_` remains service_role-only. The new helper is granted to
+`authenticated` (required — the policy path calls it) and is DEFINER with a hardened
+`search_path`. Nothing lost across three re-emits now.
+
+**A9** corrects the plan formula to include the mint surface, crediting the r1 framing point,
+and the plan §3 text was updated to match.
+
+## MINOR-1…7 — all closed
+
+| # | r1 finding | closure (verified) |
+| --- | --- | --- |
+| 1 | `hospital_admin` control unpinned | **t51** asserts `is_hospital_admin_of_for(hosp_b, ha_b)` is true — pins the tier directly, which is stronger than the cross-arm form I suggested |
+| 2 | revoke-without-sight asymmetry untested | **t52/t53/t54** pin it in **both** directions with the D11 citation: the same `oa_b` cannot OPEN (0 rows) but MAY revoke, and the revocation is attributed to the admin actor. Now a recorded decision, not an accident |
+| 3 | t45's type-confused fixture | repointed to a **fresh uuid**, with an honest comment that the ELSE denies before entity resolution and that 313 t37 holds the real-fixture specimen |
+| 4 | t30 mislabeled "minter" | label now says "plain-staff **member**"; 312 t30 keeps the minter property |
+| 5 | watermark derivation duplicated | `meetingWatermarkFor(status)` exported from the template module; provider **and** dialog both consume it (`4b4293a`) — one derivation, no drift surface |
+| 6 | 4 unpinned template branches | `MEETING_FINAL_SIGNED` now also sets `quorum: null`, `agenda: []`, `attendance: []`; the vacuity control asserts all four degenerate branches variant-only **and** their populated counterparts canonical-only, bidirectionally. Variant hash moved as it must; the two `form_response` hashes and the meeting **canonical** hash are untouched |
+| 7 | raw enum key could print onto paper | `ENUM_FALLBACK = '—'` at all five sites, **and** `ACTION_STATUS_DISPLAY` retyped from `Record<string, string>` to `Record<MeetingActionItemStatus, string>` so the map is total and the fallback is dead until the union widens. Both halves fixed |
+
+## New in r2 — two forward-looking INFO
+
+**INFO-r2-1 — `can_read_full_meeting_content` is fail-OPEN standalone; only the conjunction
+order saves it.** Probed:
+
+```
+helper alone, nonexistent meeting  → t     (vacuous `not exists` over zero agenda rows)
+can_reach_meeting, same            → f
+composed dispatch arm              → f     ✅
+```
+
+Correct as composed, because `can_reach_meeting` is the first conjunct. But the helper is a
+newly-granted `authenticated`-executable predicate whose *standalone* answer for an unknown or
+agenda-less meeting is "yes". P3/P4 must not reuse it without the reach conjunct. Cheap
+hardening if wanted: an `exists(meetings where id = p_meeting_id)` guard inside the helper.
+
+**INFO-r2-2 — a comment went stale inside the fix that changed it.**
+`template-fingerprints.ts` still describes `final_signed` as pinning the "**quorum line**" —
+but MINOR-6's fix set `quorum: null` on that fixture, and the test two files away now asserts
+`expect(html).not.toContain('Quórum:')`. The comment asserts the opposite of the assertion.
+One line; flagged because this is the project's most-repeated defect class.
+
+## Carried forward unchanged
+
+FUP-PDF-1…4 (P1 deferrals) and BUG-PDF2-002 (pre-existing Phase-10 `notFound`→200, spun off
+separately) are unaffected by this wave and remain open against their own owners.
+
+## What the fix wave did well
+
+The wave answered a policy question with a policy ruling first (A7/A8 as ADR amendments naming
+their rejected alternatives), then implemented it — rather than patching the symptom. Three
+things stand out. **t42** is an over-grant twin nobody asked for, and it is the single
+assertion that makes t41 mean what its label says. **t40** pre-empted the exact vacuity check
+I had to run manually — the fix wave anticipated that a conjunct which never fires would be a
+false close. And **A8's dependence on A7 was reasoned explicitly in the provider comment**,
+which is the kind of load-bearing "why" that usually gets lost between two commits.
+
+---
+
+*Round 2 reviewed by `qa` against the live catalog, 2026-08-08 — including a rolled-back
+transaction used solely to construct and re-prove the r1 exploit class. Read-only on
+application code, migrations, specs and queries; this file and the PROGRESS rows are the only
+artifacts written.*
