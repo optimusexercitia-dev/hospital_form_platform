@@ -257,7 +257,9 @@ surface anywhere.
   `can_view_printed_document` (delegate to meeting visibility [INF — catalog]);
   provider registration. pgTAP: the new arm + the OTHER kinds still false.
 - **The review question for this phase is exactly one:** did P2 touch anything outside
-  provider/template/arm/tests? If yes, the abstraction leaked — fix the abstraction.
+  provider/template/arm/**mint surface**/tests? If yes, the abstraction leaked — fix the
+  abstraction. *(Formula corrected per ADR 0104 A9; the P2 build also ratified A7/A8 —
+  full-sight conjunction for per-caller-masked domains + presence-derived PHI labeling.)*
 
 ## 4. Phase P3 — Cases (the PHI delta)
 

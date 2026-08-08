@@ -304,3 +304,27 @@ side-door) · own Playwright container (Chromium patch burden) · in-process ren
   `p_viewer` (server-verified session uid) — the app-layer rate limiter fronts its only
   call path; `get_feature_flags` gained **no** anon grant (the public pages read the
   flag through a server-only service-role helper).
+
+## Amendments (P2 build, 2026-08-08 — PO-ratified "Package A", QA BLOCKER-1/MAJOR-1)
+
+- **A7 (sharpens D11 for per-caller-masked domains):** where a source domain masks
+  content **per caller** (first instance: meeting agenda items — respondent title
+  masking + `read_case_deliberation`-gated free text), printed-document sight is
+  **source reach AND unmasked full-content sight**, applied to mint AND download alike.
+  The canonical bytes are therefore always the COMPLETE artifact, identical regardless
+  of minter; a masked caller (e.g. the respondent of a linked case) can neither mint
+  nor download — the same exclusion the domain's screens enforce. Rejected: baking a
+  masked minimum (no complete ata could exist — fails the PO's coordinator-prints-
+  complete requirement) and paper semantics (would reverse D11's "never grants sight").
+- **A8 (amends D9/D12 — conservative PHI labeling, NOT the per-mint PHI choice):** an
+  ata containing any masked-class content (the domain's `PHI-BEARING free text`
+  columns) mints with **`contains_phi = true` derived automatically from presence** —
+  non-suppressible band, `phi/` storage. This is honest labeling of content the domain
+  already lawfully holds; the D9 per-mint patient-identifier choice remains ABSENT for
+  meetings and still requires its own upstream domain ADR. Consequence: the mint door's
+  PHI-capability gate becomes per-kind — the **third** sanctioned kind-conditional site
+  (the registration-mirror trio: template coherence · commission resolution · PHI
+  capability). A FOURTH kind-conditional site in the door is the abstraction-leak
+  signal (supersedes the P2 "exactly 2" marker).
+- **A9 (plan formula):** a new kind = provider + template + RLS arm **+ mint surface**
+  + tests (QA framing correction — the four-word formula was short one term).
