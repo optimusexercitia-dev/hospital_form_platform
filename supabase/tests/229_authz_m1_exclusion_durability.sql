@@ -520,11 +520,23 @@ select is((select sensitivity_tier from public.attachments where id = '00000000-
   'M1·4 §W-2.5: …and its Rule 12 tier survives her');
 
 -- POSITIVE TWIN: a NON-excluded coordinator still declassifies.
-select test_helpers.claims_for((select sa_y from k), false);
+--
+-- ⚠ PRINCIPAL CORRECTED BY QO·B (20260915), and the OLD ONE WAS MISLABELLED. This twin
+-- said "coordinator" but passed `sa_y`, which line 107 of this file inserts as *a CLEAN
+-- org_admin of org_x* — so it was really proving that the TENANCY admin could
+-- declassify, via reclassify_attachment's is_commission_admin_of arm (the §W-2.5 note at
+-- L319 spells that dependency out). QO·B M4 removes that arm (ADR 0100 D12), so the twin
+-- had to move to a principal who genuinely is what the assertion CLAIMS.
+--
+-- It is now `sa_x`, the real staff_admin of comm_x. That keeps the twin's JOB intact —
+-- proving the exclusion fix deleted no legitimate coordinator reach — and makes its text
+-- true for the first time. Had it simply been inverted, the file would have lost its only
+-- evidence that declassification still works for anyone at all.
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   $$ select public.reclassify_attachment('00000000-0000-0000-0000-0000000f0601', 'standard', null) $$,
-  'M1·4 POSITIVE TWIN ⭐: a non-excluded coordinator STILL declassifies (no reach deleted)');
+  'M1·4 POSITIVE TWIN ⭐: a non-excluded coordinator STILL declassifies (no reach deleted) — sa_x, a REAL staff_admin, since QO·B');
 reset role;
 
 -- ---- can_read_action_item (A22 + A24·5) ----------------------------------

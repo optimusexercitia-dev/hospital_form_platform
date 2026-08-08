@@ -296,11 +296,18 @@ select throws_ok(
   'I1 GUARD: a DIFFERENT-org org_admin is DENIED dispose_case_phi on this org''s case (42501)');
 reset role;
 
+-- ⛔ INVERTED BY QO·B (20260915), PO ruling Q9. This asserted the OPPOSITE: the
+-- case's-own-org org_admin was ALLOWED to dispose PHI through the org-scoped grant.
+-- ADR 0100 D12 + Q9 cut dispose_case_phi from the tenancy admin — destroying Rule 12
+-- data is not a duty for a principal that holds ZERO PHI bits (D5). Disposal is now a
+-- functional-role act: the happy path below runs as sa_x, a real staff_admin, so this
+-- inversion does NOT leave the door unproven — it relocates who proves it.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
-select lives_ok(
+select throws_ok(
   $$ select public.dispose_case_phi((select case_i1 from i1), 'subject_request') $$,
-  'I1 GUARD: the case''s-org org_admin is ALLOWED dispose_case_phi (org-scoped grant)');
+  '42501', null,
+  'I1 GUARD ⭐ QO·B: the case''s-org org_admin is now DENIED dispose_case_phi (D12/Q9 — zero PHI bits, so no PHI destruction)');
 reset role;
 
 -- =========================================================================
