@@ -1,6 +1,9 @@
 # Phase PDF·P1 — QA Review
 
-**APPROVED**
+**APPROVED (r2)** — both r1 MAJORs closed and independently re-verified; 6 of 9 MINORs closed;
+3 MINORs deferred by agreement as recorded open follow-ups. See
+[§ Round 2](#round-2--verification-of-the-fix-wave) for the r2 verification record; the
+sections below are the r1 review, left intact as the baseline the fix wave was measured against.
 
 **Phase:** PDF·P1 — PDF document printing, Forms + full skeleton
 **Reviewer:** `qa` · **Date:** 2026-08-07 · **Branch:** `worktree-pdf-printing-p1`
@@ -686,3 +689,173 @@ Recommended in the same pass: **MINOR-1** (HC0D*-only allowlist), **MINOR-5** (e
 
 *Reviewed by `qa` against the live catalog, 2026-08-07. Read-only on application code,
 migrations, specs and queries; this file is the only artifact written.*
+
+---
+
+# Round 2 — verification of the fix wave
+
+**Verdict: APPROVED (r2).** Both MAJORs closed. MINOR-4/5/6/7/8/9 closed. MINOR-1/2/3 deferred
+by agreement and recorded below as open follow-ups.
+
+**Date:** 2026-08-07 · **Range reviewed:** `7e9c8f6..HEAD` — `6da8e78` (ADR amendments) ·
+`a33fb68` + `cb49e65` (reason-class labels) · `e53c6c9` (FIX-1…5) · `93f307a` (backend-state
+P0002 sweep). 14 files, +264/−21.
+
+**Method.** Same discipline as r1: **nothing below was accepted from a commit message.** The
+purity gate was re-probed with four fresh `eslint --stdin` shapes; the revoke door was read
+from `pg_get_functiondef` and its `proacl`/`prosecdef`/`proconfig` re-checked for re-emit
+property loss; the index was confirmed present in `pg_indexes`; the label fallback was
+property-swept rather than read. Registered migrations == files (**320 == 320**), with
+`20260913000400` at the head. Re-ran `npm run lint` (exit 0), `npx tsc --noEmit` (exit 0), and
+the PDF unit tests (**18 pass**, up from 16 — the two new fingerprint tests). Per instruction
+the full pgTAP/E2E suites were not re-run; backend's fresh-reset 73/73 and full `test:db` PASS
+stand as recorded.
+
+## Closed
+
+**MAJOR-1 — purity gate now cuts on the property. CLOSED.** I re-ran my r1 probes plus two
+shapes the r1 finding did not use:
+
+| probe specifier | probe file | r1 | r2 |
+| --- | --- | --- | --- |
+| `@/lib/supabase/server` | `src/lib/pdf/__p.ts` | error | error (no regression) |
+| `../supabase/server` | `src/lib/pdf/__p.ts` | **0 problems** | **error** ✅ |
+| `../../queries/printed-documents` | `src/lib/pdf/documents/__p.ts` | **0 problems** | **error** ✅ |
+| `../../supabase` (bare directory) | `src/lib/pdf/documents/__p.ts` | not probed | **error** ✅ |
+
+`eslint.config.mjs:66-98` now enumerates the relative shapes at depths 1–3 plus a
+`**/lib/{supabase,queries}/**` catch-all, and the in-file comment records *why* the boundary is
+the property and not a specifier syntax — which is the part that keeps the fix from rotting.
+
+**MAJOR-2 — the fingerprint guard now pins the remaining branches, non-vacuously. CLOSED.**
+`FINAL_PHI_LOGO` (`fingerprint.test.ts:90-113`) is a frozen variant with `watermarks:['final']`,
+`containsPhi:true` and a real logo data-URI, recorded as
+`variants.final_phi_logo = 871e8761…c304`. What earns the close is the companion test *"the
+variant genuinely renders the pinned branches (no vacuous fixture)"*: it asserts the variant
+HTML contains `class="wm-chip wm-chip-final"`, the confidentiality band and `<img class="lh-logo"`,
+**and that the canonical HTML does not** — so the two pins are proven to cover disjoint
+branches rather than merely differing. It also asserts on **markup forms rather than bare class
+tokens**, with the reasoning stated inline that the CSS block defines those selectors in every
+document and a token-contains would therefore be vacuous. That is the §7.1 discipline applied
+by the author without being asked for it, and it is the difference between a variant and a
+guard. *(My r1 text also listed `formatDate` as uncovered; on re-reading that was over-broad —
+`formatDate` is a provider-side formatter whose output arrives pre-formatted in the `value`
+string, not a template branch, so a fingerprint variant is the wrong instrument. Correctly
+omitted.)*
+
+**MINOR-4 — existence oracle closed, and the re-emit lost nothing. CLOSED.** The **live** body
+(`pg_get_functiondef`) now merges both denials into one raise:
+
+```sql
+  select * into v_row from public.printed_documents where id = p_id;
+  if v_row.id is null
+     or not (app.is_staff_admin_of_for(v_row.commission_id, auth.uid())
+             or app.is_commission_admin_of_for(v_row.commission_id, auth.uid())) then
+    raise exception 'apenas a coordenação da comissão pode anular um documento emitido'
+      using errcode = '42501';
+```
+
+I specifically checked the re-emit for the recorded "a REBUILD silently loses properties the
+original carried" hazard, property by property from the catalog: `prosecdef = t` ✅,
+`proconfig = {search_path=app, public, pg_catalog}` ✅, and
+`proacl = {postgres=X/postgres,service_role=X/postgres,authenticated=X/postgres}` ✅ —
+identical to r1. All four doors' ACLs re-checked in the same query and unchanged, `lookup_`
+still service_role-only. `P0002` is gone from the **live** module surface; it survives only in
+the superseded `20260913000100` file text, which is correct (applied migrations are not edited)
+and is exactly why this was verified from `pg_proc`.
+
+**MINOR-5 — the four fallbacks are wrapped. CLOSED.** `form-response.ts:32,34`,
+`qr-footer.ts:24`, `signature-block.ts:15` are now `esc(formatDateTime(…))`, and `format.ts`
+carries the explanation at the source of the hazard. The proof that this is a genuine no-op on
+the normal path is in the diff itself: `template-fingerprints.ts`'s canonical `fingerprint`
+line is **unchanged**, i.e. rendering well-formed dates through `esc` produced byte-identical
+output.
+
+**MINOR-6 — ADR 0104 Amendments A1–A6. CLOSED**, and better than asked: A1 records a residual
+I had not raised (a direct RPC caller may supply his own format-valid token, degrading only his
+own document's verifiability). A3 names the enum-re-key/policy-stranding defect class as the
+reason for text+CHECK. The deviations are now discoverable from `docs/decisions/` rather than
+from a PROGRESS section due to rotate.
+
+**MINOR-7 — the index is now table-level law. CLOSED.** `312` t73 inserts a second `active` row
+for an existing triple **as the owner** and expects `23505`. It threads the trap I flagged: the
+fixture's `storage_path` is correctly derived from its id (`std/…dddd.pdf`) and `content_hash`
+is 64 hex chars, so `pd_storage_path_derived` and the hash CHECK cannot fire first and steal
+the SQLSTATE. Index confirmed live in `pg_indexes`:
+`CREATE UNIQUE INDEX printed_documents_one_active … WHERE (status = 'active'::text)`.
+
+**MINOR-8 — both door-coverage gaps closed. CLOSED.** t70 asserts `platform_admin` reads 0 rows
+from `open_printed_document`, t71 asserts that denial emitted **no** audit row (cumulative
+count still 1 — non-vacuous, since an audit-on-deny regression makes it 2). t72 covers the
+fourth door's flag gate and is falsifiable by construction: it uses `sa_x`, a persona who
+**would succeed** on every other check (active doc, valid reason class, non-blank reason), so
+removing the flag assert produces no throw and reds the test. Choosing that persona rather than
+a conveniently-denied one is the wrong-arm-fixture lesson applied correctly.
+
+**MINOR-9 — the raw identifier is now unrenderable. CLOSED**, and property-swept rather than
+patched at the one site I named. `revokeReasonClassLabel()` (`labels.ts:82-89`) falls back to
+"Outro motivo", the old `?? value` helper is deleted, and the panel no longer imports the raw
+array. I swept every remaining consumer: the only other one is
+`revoke-document-dialog.tsx:180`, which **iterates** the closed vocabulary to render `<option>`s
+and so cannot emit an unknown value. There is no surviving path from a stored class to a raw
+token.
+
+## Deferred — recorded as open follow-ups
+
+These were deferred by agreement, not resolved. They remain open against the module and should
+be picked up before P3 routes PHI paths through the same shapes:
+
+- **MINOR-2 — returns-row re-exposure.** `mint_printed_document` and `revoke_printed_document`
+  are still `returns printed_documents`, so a direct PostgREST call returns `storage_path` and
+  `verification_token` — the two columns the column-list GRANT deliberately withholds. Impact
+  stays low for the r1 reasons (app layer projects them away; a browser `mint` cannot satisfy
+  Amendment B; the path is derivable and grants no bytes). Fix remains: narrow both to
+  `returns table (…)` over the granted column list.
+- **MINOR-3 — limiter granularity.** The verification limiter is still a global in-process
+  counter (60/min shared by all anonymous visitors, `5 × N` per-credential across N instances),
+  so one client can deny verification to everyone on an instance. The stale
+  `printed-documents.ts:152` comment claiming the limiter message is shown "verbatim" is also
+  unchanged — the page still collapses it into `unavailable`.
+- **MINOR-1 — SQLSTATE-allowlist text mapping.** `SURFACEABLE_CODES` still allowlists `42501`
+  and `23514`, which Postgres also raises in English. Still latent (no live path found in r1),
+  still worth gating on `HC0D*` only.
+
+## New in r2 (both one-line, non-blocking)
+
+- **r2-INFO-1 — a now-dead allowlist entry.** `src/lib/pdf-mint/actions.ts:95` still lists
+  `'P0002'` in `SURFACEABLE_CODES`, but after FIX-3 **no door in the module raises it**. Harmless
+  (it can no longer match), but it is a stale assertion about the door surface sitting in the
+  same allowlist that deferred MINOR-1 will rewrite — sweep it in that pass.
+- **r2-INFO-2 — a stale count two lines below the sweep.** `docs/backend-state.md:1801` still
+  reads *"pgTAP `312_printed_documents.sql` (**69**; …)"*; the suite is now **73**
+  (`plan(73)`, t70–t73 added by FIX-5). The `93f307a` sweep corrected the SQLSTATE line at
+  `:1797` accurately and left the count immediately below it. Exactly the class the module's own
+  docs keep flagging — a number in prose that no gate checks.
+
+## Residual on MAJOR-1, stated for honesty rather than as a finding
+
+The relative-escape ban enumerates depths 1–3 explicitly; the `**/lib/supabase/**` catch-all
+matches on the specifier text, so it does not cover a depth-≥4 relative escape. I probed it:
+`../../../../supabase/server` from a hypothetical `src/lib/pdf/a/b/c/x.ts` returns **0
+problems**. This is not currently reachable — `src/lib/pdf/` nests exactly one level
+(`primitives/`, `documents/`), so the config already covers two levels more than exist, and
+exploiting it requires inventing a three-deep subtree. I am recording it only so the next
+person to deepen that tree knows the gate's edge; if it is ever worth closing properly, the
+directory-based `import/no-restricted-paths` (which resolves paths instead of matching
+specifier strings) is the instrument that has no depth parameter at all.
+
+## What the fix wave did well
+
+The wave did not merely satisfy the findings — in three places it went to the shape the
+finding was *about*. MAJOR-1 was fixed as a property cut with the reasoning recorded in the
+config, not as three more patterns. MAJOR-2 shipped a vacuity control proving the new fixture
+covers branches the old one does not, which is the check I would otherwise have had to run
+myself. t72 picked the persona that makes the assertion falsifiable rather than the one that
+makes it pass. And MINOR-9 was closed by deleting the affordance (a single sanctioned label
+function) instead of fixing the one call site I happened to name — which is why my property
+sweep found nothing left to report.
+
+---
+
+*Round 2 reviewed by `qa` against the live catalog, 2026-08-07. Read-only on application code,
+migrations, specs and queries; this file and the PROGRESS rows are the only artifacts written.*
