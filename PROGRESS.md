@@ -121,7 +121,7 @@ no remote `db push` of the two P2 migrations. The PO is handling the pending ite
 
 **📌 PDF program — ALL open items (registered for the PO, 2026-08-08):**
 - `[ ]` **FUP-PDF-1..4** — full entries under [Follow-ups](#follow-ups--deferred-items) below.
-- `[ ]` **BUG-PDF2-002** — meeting-detail `notFound()` returns HTTP 200 on prod builds (pre-existing ~Phase 10; security boundary intact) — open in the Bug Log below; also spun off as a session task chip.
+- `[x]` **BUG-PDF2-002** — RESOLVED BY-DESIGN 2026-08-08 (Next's streamed-notFound contract; no app change; contract pinned in E2E — Bug Log below + bug-log-archive.md for the full record). The session task chip was withdrawn.
 - `[ ]` **Remote `db push`** of `20260914000000` + `20260914000100` — NOT done (PO instruction); local + remote catalogs now DIFFER on the meeting arm until pushed.
 - `[ ]` **`git push origin main`** — the P2 merge is local-only; origin/main is at the P1 state (`9373ce8`).
 - `[ ]` **Gotenberg Coolify resource** — runbook [docs/deployment/pdf-renderer.md](docs/deployment/pdf-renderer.md); flag `document_printing` stays OFF in prod until this + both pushes exist.
@@ -307,30 +307,12 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🟡 **BUG-PDF2-002 — the meeting-detail route's `notFound()` returns HTTP 200, not 404, on the
-prod-standalone build.** Filed 2026-08-08 (tester, PDF·P2 M-T1, test 3). **Repro:** any
-`notFound()` reached inside `src/app/o/[org]/c/[commission]/meetings/[meetingId]/page.tsx` — reproduced
-both with a genuinely-restricted `participants_only` meeting for a non-attendee member AND with
-a plain nonexistent meeting id — renders the platform's custom 404 UI correctly (heading "Não
-encontramos esta página.", no meeting content, no mint button, no printed-documents panel) but
-the navigation's own `page.goto()` response reports **200**, not 404. **Expected:** 404, matching
-the sibling pattern already proven in P1 (`platform_admin` on `/dashboard/submissions/[id]`
-correctly returns 404). **Actual:** 200. **Pre-existing, NOT a P2 regression** — reproduces on a
-plain nonexistent-id case that predates this phase entirely (Meetings/Phase 10); PDF·P2 only
-*discovered* it via the new `participants_only` arm test. Likely candidate mechanism (unconfirmed):
-this page does 3 sequential `await`s before its guarding `notFound()` calls (`meetingsEnabled()`,
-`getCommissionAccessByOrg`, `getMeetingDetail`) vs. P1's 1, and the route ships its own
-`loading.tsx` — plausibly the same family as the `case-dialog-prod-refresh-layout-revalidate`
-class of prod-build streaming quirk (memory), where the shell commits a 200 status before a
-deeper segment's `notFound()` is discovered. **Severity MEDIUM, not a security leak** — the RLS
-boundary is independently confirmed holding (a raw PostgREST read under the excluded member's own
-JWT returns `[]`; the rendered content leaks nothing), so this is an HTTP-semantics correctness
-gap (matters to crawlers/monitoring/caching expectations), not unauthorized data exposure.
-**Owner:** frontend/backend, whichever owns `meetings/[meetingId]/page.tsx` — out of PDF·P2's own
-scope (the module didn't touch this control flow; its `PrintedDocumentsSection` renders strictly
-after every existing guard). `e2e/pdf-printing-meetings.spec.ts` asserts the actual (content-level)
-boundary and documents this status-code mismatch in a comment rather than asserting a status this
-route does not currently return.
+🟦 **BUG-PDF2-002 — RESOLVED BY-DESIGN 2026-08-08** (meeting-detail `notFound()` → HTTP 200 on
+prod builds is **Next's documented streamed-response contract**, not an app defect; guard-in-layout
+empirically disproven; P1's "sibling 404" was the commission LAYOUT denying pre-stream, and
+`dashboard/submissions/[responseId]` probe-confirmed to share the 200 contract). Contract pinned in
+`e2e/pdf-printing-meetings.spec.ts` test 3 (200 + noindex + 404 UI + zero leak). Full mechanism,
+disproof record, and the two costed real-404 paths (if ever required): bug-log-archive.md.
 
 ⬛ **BUG-QO-001 — the oversight reviewer reached case attachment BYTES; CLOSED in-phase by M8+M9
 (2026-08-06, backend; found by frontend post-M8).** Filed with an honest amendment to the M8

@@ -231,8 +231,14 @@ test.describe('PDF·P1 — printing', () => {
 
     // The response-detail screen is wholly staff_admin-gated; platform_admin
     // holds no commission membership at all, so `getCommissionAccessByOrg`
-    // returns null and the page calls notFound() before any detail read
-    // (ADR 0104 D11 noun rule: platform_admin may not mint/download/revoke).
+    // returns null (ADR 0104 D11 noun rule: platform_admin may not mint/
+    // download/revoke). The real 404 STATUS comes from the COMMISSION LAYOUT's
+    // own denial (`o/[org]/c/[commission]/layout.tsx`), which no loading.tsx
+    // wraps and therefore resolves before the response streams — NOT from the
+    // page's guard, which sits below `loading.tsx` boundaries and could only
+    // yield a streamed 200 + noindex + 404 UI (Next's documented contract; see
+    // BUG-PDF2-002's by-design resolution and the meetings spec's restricted-
+    // visibility test, which pins that streamed variant).
     expect(resp?.status()).toBe(404)
     await expect(page.getByRole('button', { name: 'Emitir documento' })).toHaveCount(0)
     await expect(page.getByText('Documentos emitidos')).toHaveCount(0)

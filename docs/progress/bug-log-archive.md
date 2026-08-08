@@ -1296,3 +1296,36 @@ once *submitted*, a meeting once its ata is *signed*, so a noun swap would have 
 reunião já foi enviada". Copy only — no structural change; `WATERMARK_COPY` became
 `WATERMARK_MARK` + `watermarkReasonCopy(kind, watermark)`. Lint + typecheck + `next build` green.
 
+
+🟦 **BUG-PDF2-002 — meeting-detail `notFound()` returns HTTP 200, not 404, on prod builds.
+RESOLVED BY-DESIGN 2026-08-08 (investigated solo session; no app change).** The status is
+**Next.js's documented streamed-response contract**, not an app defect, and the fix candidates
+were empirically exhausted on the prod-standalone build (Next **16.3.0 stable**, upgraded the
+same session): (1) **Baseline probe** — nonexistent meeting id under `chefe.ccih` → 200 with
+`<meta name="robots" content="noindex">` injected; **the P1 "sibling proven 404" was a misread**:
+a nonexistent `responseId` on `dashboard/submissions/[responseId]` under a legit `staff_admin`
+ALSO returns 200 — P1's platform_admin 404 fires in the **commission layout**
+(`o/[org]/c/[commission]/layout.tsx`), which **no `loading.tsx` wraps**, hence pre-stream.
+(2) **Mechanism** (per `node_modules/next/dist/docs` loading.md §Status Codes + streaming.md
+§The HTTP contract): the moment a `loading.tsx` fallback flushes, the 200 is committed; a later
+`notFound()` renders the 404 UI inline + injects noindex but can never change the status. The
+meeting-detail guard needs fresh DB reads (`getMeetingDetail` under RLS), which suspend below
+THREE nested boundaries (`c/[commission]/loading.tsx` → `meetings/loading.tsx` →
+`[meetingId]/loading.tsx`). (3) **Guard-in-layout DISPROVEN**: a new `[meetingId]/layout.tsx`
+running the guard (cache()-wrapped shared helper) still returned 200 — parent loading
+boundaries wrap **nested layouts** too (loading.md: "wraps not-found.js, page.js, and nested
+layout.js"); the restructure was reverted as pure cost (extra audit emit on `revisao-ata`,
+delayed soft-nav skeleton, zero status benefit). (4) **Remaining real-404 paths, both
+rejected as disproportionate**: removing all three loading boundaries (platform-wide
+instant-loading regression, violates the §1 UX mandate) or an RLS-scoped existence probe in
+`src/proxy.ts` per document request (a THIRD copy of the reach predicate for the door-audit
+sweeps to keep in sync, +1 DB round trip per view). **Security unaffected** — RLS boundary
+independently held throughout (raw PostgREST probe under the excluded JWT → `[]`); noindex
+covers SEO; the app is auth-gated. **Contract now pinned in E2E**
+(`e2e/pdf-printing-meetings.spec.ts` test 3: 200 + noindex + 404 UI + zero leak; comment
+explains that this assertion going red on a future Next = upgrade it to 404, not a
+regression). **Systemic corollary, recorded not fixed:** every detail route whose guard
+depends on a fresh read below a `loading.tsx` (`dashboard/submissions/[responseId]` —
+probe-confirmed — `casos/[caseId]`, `encaminhamentos/[referralId]`, `itens-de-acao/[itemId]`,
+`nsp/[eventId]`, …) shares this contract; if a compliance/monitoring requirement ever
+demands a real 404 on any of them, the two costed paths above are the menu.

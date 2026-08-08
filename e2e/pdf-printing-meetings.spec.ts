@@ -201,14 +201,25 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     // Observed app-layer boundary: the meeting-detail route calls notFound()
     // (getMeetingDetail returns null under RLS) and renders the platform's
     // custom 404 UI — no meeting content, no mint button, no printed-documents
-    // panel leaks. BUG-PDF2-002 (filed separately, pre-existing, NOT a P2
-    // regression): this route's notFound() returns HTTP 200 rather than 404 on
-    // the prod-standalone build — reproduced even for a plain nonexistent
-    // meeting id, so it predates this phase. The content-level boundary below
-    // is what's asserted; the status-code mismatch does not leak data.
+    // panel leaks. BUG-PDF2-002 (RESOLVED by-design 2026-08-08): the HTTP
+    // status here is 200, and that is Next's DOCUMENTED streamed-response
+    // contract, not an app defect — the page's guard needs a fresh DB read
+    // below this route's `loading.tsx`, so the skeleton flushes (locking the
+    // status) before notFound() can fire; Next compensates by injecting
+    // `<meta name="robots" content="noindex">`. A guard moved into a nested
+    // layout.tsx was empirically disproven (parent loading boundaries wrap
+    // nested layouts — still 200). P1's platform_admin 404 is NOT a
+    // counterexample: that denial fires in the COMMISSION layout, which no
+    // loading boundary wraps, hence pre-stream. The assertions below pin the
+    // full contract: 200 + noindex + 404 UI + zero content leak. If a future
+    // Next version starts returning a real 404 here, the status assertion
+    // going red is the signal to upgrade this to `toBe(404)` and close the
+    // book — not a regression.
     await signInAs(page, 'staff1.ccih@test.local')
-    await page.goto(meetingHref(meetingId))
+    const deniedResp = await page.goto(meetingHref(meetingId))
+    expect(deniedResp?.status()).toBe(200)
     await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toBeVisible()
+    expect(/<meta[^>]+robots[^>]+noindex/i.test((await deniedResp?.text()) ?? '')).toBe(true)
     await expect(page.getByRole('button', { name: 'Emitir documento' })).toHaveCount(0)
     await expect(page.getByText('Documentos emitidos')).toHaveCount(0)
   })
