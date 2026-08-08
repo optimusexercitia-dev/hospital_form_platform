@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { renderDocumentHtml, TEMPLATES } from './render'
 import { TEMPLATE_FINGERPRINTS } from './template-fingerprints'
-import type { DocumentPayload } from './types'
+import type { DocumentPayload, FormResponseDocumentBody } from './types'
 
 /**
  * ADR 0104 D4 — the template-staleness guard. A template that changes without
@@ -104,7 +104,9 @@ const FINAL_PHI_LOGO: DocumentPayload = {
   watermarks: ['final'],
   containsPhi: true,
   body: {
-    ...CANONICAL.body,
+    // P2 widened DocumentBody to a union; this fixture is the form_response
+    // member by construction (CANONICAL declares it literally above).
+    ...(CANONICAL.body as FormResponseDocumentBody),
     responseStatus: 'submitted',
     submittedAt: '2026-01-02T13:50:00.000Z',
   },

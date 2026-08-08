@@ -156,11 +156,77 @@ export interface FormResponseDocumentBody {
   sections: FormResponseDocumentSection[]
 }
 
+// ---------------------------------------------------------------------------
+// P2 body: meeting ata (ADR 0104 D15 rollout step 2 — PHI-free; ADR 0099's
+// meetings/minutes substrate is the source). Signatures do NOT live here —
+// the multi-signature footer renders from the ENVELOPE's `signatures` array
+// (D13; scope null = whole-document attestations), so the envelope shape is
+// unchanged by this member.
+// ---------------------------------------------------------------------------
+
+/** One attendance-list line. All display fields pre-formatted pt-BR by the
+ * provider (external attendees resolve to `name (org)`, never a user id). */
+export interface MeetingAttendanceEntry {
+  name: string
+  /** Presidente / Secretário(a) / Membro / Convidado(a). */
+  roleDisplay: string
+  /** Presente / Ausente / Justificado / Convocado. */
+  attendanceDisplay: string
+}
+
+/** One agenda item with its deliberation (discussion + resolution). */
+export interface MeetingAgendaEntry {
+  title: string
+  description: string | null
+  discussionNotes: string | null
+  resolution: string | null
+}
+
+/** One action item linked to the meeting — a REFERENCE line, not the item
+ * (the ata records that it exists and where it stands, never its full body). */
+export interface MeetingActionItemRef {
+  title: string
+  statusDisplay: string
+  assigneeDisplay: string | null
+  /** Pre-formatted pt-BR due date, or null. */
+  dueDisplay: string | null
+}
+
+/** P2 body: a meeting's ata. */
+export interface MeetingDocumentBody {
+  kind: 'meeting'
+  meetingNumber: number
+  title: string
+  meetingTypeDisplay: string | null
+  /** pt-BR lifecycle label (factual line; the draft/final WATERMARK is the
+   * envelope's — derived from `signed`/`distributed` vs earlier states, D7). */
+  statusDisplay: string
+  /** ISO-8601. */
+  scheduledStart: string
+  /** ISO-8601; null while not held. */
+  heldAt: string | null
+  heldEnd: string | null
+  modalityDisplay: string | null
+  locationDisplay: string | null
+  /** Null when the meeting records no quorum data. */
+  quorum: {
+    met: boolean | null
+    presentCount: number | null
+    eligibleCount: number | null
+  } | null
+  /** The minutes body (sanitized Markdown rendered as text — Rule 7; null
+   * until minutes exist). */
+  minutesMd: string | null
+  agenda: MeetingAgendaEntry[]
+  attendance: MeetingAttendanceEntry[]
+  actionItems: MeetingActionItemRef[]
+}
+
 /**
- * The per-kind discriminated union. P2–P4 add `meeting` / `case` / `interview`
- * members here — one variant per phase, envelope untouched.
+ * The per-kind discriminated union. P3–P4 add `case` / `interview` members
+ * here — one variant per phase, envelope untouched.
  */
-export type DocumentBody = FormResponseDocumentBody
+export type DocumentBody = FormResponseDocumentBody | MeetingDocumentBody
 
 // ---------------------------------------------------------------------------
 // The envelope (the frozen contract — plan §2.2)

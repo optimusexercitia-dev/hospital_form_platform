@@ -3,6 +3,11 @@ import {
   TEMPLATE_KEY as FORM_RESPONSE_TEMPLATE_KEY,
   TEMPLATE_VERSION as FORM_RESPONSE_TEMPLATE_VERSION,
 } from './documents/form-response'
+import {
+  renderMeetingBody,
+  TEMPLATE_KEY as MEETING_TEMPLATE_KEY,
+  TEMPLATE_VERSION as MEETING_TEMPLATE_VERSION,
+} from './documents/meeting'
 import { EMBEDDED_FONT_FACES } from './fonts.generated'
 import { renderLetterhead, renderQrFooter, renderWatermarks } from './primitives'
 import type { DocumentPayload } from './types'
@@ -23,6 +28,10 @@ export const TEMPLATES: Record<
   form_response: {
     key: FORM_RESPONSE_TEMPLATE_KEY,
     version: FORM_RESPONSE_TEMPLATE_VERSION,
+  },
+  meeting: {
+    key: MEETING_TEMPLATE_KEY,
+    version: MEETING_TEMPLATE_VERSION,
   },
 }
 
@@ -97,6 +106,8 @@ function renderBody(payload: DocumentPayload): string {
   switch (payload.body.kind) {
     case 'form_response':
       return renderFormResponseBody(payload.body)
+    case 'meeting':
+      return renderMeetingBody(payload.body)
     // No default: the switch is EXHAUSTIVE over DocumentBody — a new kind that
     // forgets its template is a compile error here, mirroring the SQL
     // dispatch's fail-closed ELSE (ADR 0104 D3).
