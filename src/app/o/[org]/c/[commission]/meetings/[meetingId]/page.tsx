@@ -17,7 +17,11 @@ import {
 import { listMeetingActionItems } from "@/lib/queries/meeting-action-items";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { meetingsEnabled } from "@/lib/meetings/actions";
-import { audioMinutesEnabled, chartersEnabled } from "@/lib/queries/feature-flags";
+import {
+  audioMinutesEnabled,
+  chartersEnabled,
+  featureEnabled,
+} from "@/lib/queries/feature-flags";
 import { getCarryForwardSuggestions } from "@/lib/queries/charters";
 import { getActiveMinutesJob } from "@/lib/minutes-jobs/queries";
 import { listMembers, sortMembers } from "@/lib/queries/members";
@@ -34,6 +38,12 @@ import { AttachmentsPanel } from "@/components/meetings/attachments-panel";
 import { SignaturesPanel } from "@/components/meetings/signatures-panel";
 import { ReservedSessionsPanel } from "@/components/meetings/reserved-sessions-panel";
 import { isEditableStatus } from "@/components/meetings/meeting-labels";
+import { formatMeetingNumber } from "@/components/meetings/format";
+import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
+import {
+  mintPrintedDocument,
+  revokePrintedDocument,
+} from "@/lib/pdf-mint/actions";
 
 export const metadata: Metadata = {
   title: "Detalhe da reunião",
@@ -108,6 +118,7 @@ export default async function MeetingDetailPage({
     reservedItems,
     audioMinutesOn,
     activeMinutesJob,
+    documentPrintingOn,
   ] = await Promise.all([
     listMeetingAgenda(meetingId),
     listMeetingAttendees(meetingId),
@@ -126,6 +137,10 @@ export default async function MeetingDetailPage({
     // memoized/RLS-scoped; a member reads no job row and the slot renders nothing.
     audioMinutesEnabled(),
     getActiveMinutesJob(meetingId),
+    // PDF·P2 (ADR 0104 D15): the printing module's platform-wide flag. Joins the
+    // existing parallel batch rather than a separate await — it is independent
+    // of every other read here.
+    featureEnabled("document_printing"),
   ]);
 
   // Coordinator-only authoring data: the roster (member picker, assignees), the
@@ -257,6 +272,37 @@ export default async function MeetingDetailPage({
         attachments={attachments}
         canEdit={isCoordinator}
       />
+
+      {/* Printed documents (PDF·P2; ADR 0104). The P1 components are reused
+          unchanged — a new kind is a provider + a template + an RLS arm, and
+          wiring this screen needed no edit to any of them.
+
+          Watermark: FINAL only from `signed` onward. This mirrors the payload
+          provider's own derivation (see `MeetingDocumentBody.statusDisplay`'s
+          contract note) — if the dialog previewed a different mark than the
+          renderer stamps, it would be lying about what goes on paper.
+
+          `canRevoke` reuses this page's existing coordinator signal; no new
+          permission check. And note what is deliberately ABSENT: meeting
+          visibility has no admin arm, so an org_admin who is not a member is
+          already turned away by the `isCommissionMember` gate above and never
+          reaches a mint surface. That is the domain's gate doing its job — not
+          something for this module to reproduce or compensate for. */}
+      {documentPrintingOn ? (
+        <PrintedDocumentsSection
+          sourceKind="meeting"
+          sourceId={meeting.id}
+          watermark={
+            meeting.status === "signed" || meeting.status === "distributed"
+              ? "final"
+              : "draft"
+          }
+          scopeLabel={`${formatMeetingNumber(meeting.meetingNumber)} · ${meeting.title}`}
+          canRevoke={isCoordinator}
+          mintAction={mintPrintedDocument}
+          revokeAction={revokePrintedDocument}
+        />
+      ) : null}
     </div>
   );
 }
