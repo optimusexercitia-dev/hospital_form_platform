@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 /**
  * One row in "minhas respostas" (F6) — a divider-separated list row (mirrors the
  * Casos board's scannable rows rather than a standalone card). The WHOLE row is a
- * single link:
+ * single link, and the target depends on status:
  *  - in_progress → back into the wizard to resume;
- *  - submitted → the read-only detail (same target as before — the Phase-7
- *    viewer replaces it; submitted rows currently redirect back here).
+ *  - submitted → the respondent's read-only viewer at `respostas/[responseId]`,
+ *    which is also where they print their own PDF (FUP-PDF-1). Before that route
+ *    existed, submitted rows led into the wizard, which bounced them straight to
+ *    its confirmation screen — a dead end.
  *
  * Status is a pill badge — icon + text, never colour alone (a11y): blue
  * ("accent") for "Em andamento", green ("success") for "Enviada". Renders an
@@ -34,14 +36,9 @@ export function MyResponseCard({
   const stamp = inProgress
     ? formatDate(response.updatedAt)
     : formatDate(response.submittedAt ?? response.updatedAt);
-  const href = commissionHref(
-    org,
-    slug,
-    "forms",
-    response.formId,
-    "responder",
-    response.id,
-  );
+  const href = inProgress
+    ? commissionHref(org, slug, "forms", response.formId, "responder", response.id)
+    : commissionHref(org, slug, "respostas", response.id);
 
   return (
     <li
