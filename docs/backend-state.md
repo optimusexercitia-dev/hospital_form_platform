@@ -1794,7 +1794,10 @@ credential HASH only).
   runbook `docs/deployment/pdf-renderer.md`.
 - **SQLSTATEs:** `HC0D1` validation · `HC0D2` PHI-mint refused · `HC0D3` storage object
   missing · `HC0D4` credential collision (retry signal) · `HC0D5` already revoked ·
-  authority `42501` · flag-off `check_violation` · not-found `P0002`.
+  authority `42501` · flag-off `check_violation`. **No `P0002` anywhere** (since
+  `20260913000400`, QA MINOR-4): not-found is indistinguishable from denial by design —
+  revoke MERGES it into the 42501 raise, open returns no-row-no-audit, lookup answers
+  `matched=false`. No door is an existence oracle.
 - **Tests:** pgTAP `312_printed_documents.sql` (69; fail-closed ELSE + platform_admin denial
   keystones; A33 drills D1–D6 RED-proven); Vitest fingerprint/overlay/semaphore/lookup
   (`p_viewer` declared-param pin + rate-limit pin); e2e smoke
