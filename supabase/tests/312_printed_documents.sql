@@ -106,10 +106,15 @@ select is(app.can_view_printed_document('form_response', (select resp_sub from r
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.meetings where id = (select meet_x from m)), 1,
-  't8 PRECONDITION: sa_x reads the meeting row itself under RLS — so t9''s false is the ELSE, never a missing fixture');
+  't8 PRECONDITION: sa_x reads the meeting row itself under RLS — the meeting fixture is real');
 reset role;
-select is(app.can_view_printed_document('meeting', (select meet_x from m), (select sa_x from k)), false,
-  't9 ⭐ FAIL-CLOSED: the meeting arm is UNREGISTERED in P1 — visible source, unreadable print kind (ADR 0104 D3)');
+-- P2 REPOINT (lead-acked): P1's t9 asserted the meeting arm was UNREGISTERED —
+-- that specimen INVERTS when M-B3 lands (the vacuity-control trap: a keystone
+-- anchored on a state a later phase legitimately changes). The fail-closed
+-- keystone now lives in 313 on REAL case/interview fixtures; t9 becomes a
+-- meeting-arm DENY leg (foreign-commission staff).
+select is(app.can_view_printed_document('meeting', (select meet_x from m), (select st_y from k)), false,
+  't9 meeting arm: foreign-commission staff is DENIED (the arm delegates to can_reach_meeting, which has no foreign arm)');
 select is(app.can_view_printed_document('bogus_kind', (select resp_sub from r), (select st_x from k)), false,
   't10 ⭐ FAIL-CLOSED: an unknown kind returns false, never an error, never true');
 
@@ -326,10 +331,15 @@ select throws_ok(
       (select tok3 from tk), (select sc3 from tk), true)$$,
   'HC0D2', null,
   't44 D9 fail-closed: no P1 kind is PHI-capable — contains_phi=true is refused before anything else module-side');
+-- P2 REPOINT (lead-acked): the `meeting` kind is registered since 20260914000000,
+-- so this write-side fail-closed probe moves to `interview` (still unregistered).
+-- ⚠ P4 NOTE: when the interview arm lands, repoint this to a then-unregistered
+-- kind or retire it in favour of 313's real-fixture keystones — do NOT leave it
+-- to invert silently (the t9 lesson).
 select throws_ok(
   $$select public.mint_printed_document(
-      (select doc4 from d), 'meeting', (select meet_x from m),
-      'meeting', 1, repeat('ab', 32),
+      (select doc4 from d), 'interview', (select meet_x from m),
+      'interview', 1, repeat('ab', 32),
       (select tok3 from tk), (select sc3 from tk), false)$$,
   '42501', null,
   't45 unregistered kind cannot mint EITHER — the dispatch''s ELSE guards the doors too (same fail-closed, write side)');
