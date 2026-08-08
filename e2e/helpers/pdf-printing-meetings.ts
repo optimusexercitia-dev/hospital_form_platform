@@ -98,6 +98,68 @@ export async function meetingStatus(page: Page, meetingId: string): Promise<stri
 }
 
 /**
+ * Add an agenda item WITH free-text substance (`description`) — the A7
+ * gated-content shape (`app._project_meeting_agenda_item`'s substance tier:
+ * masked for anyone lacking `read_case_deliberation` on every linked case).
+ * `./minutes`'s `addAgendaItem` only ever sends `p_title`; this is the same
+ * RPC with `p_description` added, needed to reproduce the QA r1 BLOCKER-1
+ * fixture shape (title masked for the respondent regardless; description
+ * masked for anyone without the deliberation capability).
+ */
+export async function addAgendaItemWithDescription(
+  page: Page,
+  token: string,
+  meetingId: string,
+  title: string,
+  description: string,
+): Promise<string> {
+  const id = await rpcOrThrow(page, token, 'create_meeting_agenda_item', {
+    p_meeting_id: meetingId,
+    p_title: title,
+    p_description: description,
+  })
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`create_meeting_agenda_item returned an unexpected shape: ${JSON.stringify(id)}`)
+  }
+  return id
+}
+
+/**
+ * Link a meeting (agenda item) to a case — `link_meeting_case` (authority:
+ * `assert_meeting_staff_admin` on the MEETING; the case just needs to exist).
+ * Real RPC, no seed mutation: it inserts a `meeting_cases` row referencing an
+ * EXISTING case, never touches the case or its participants.
+ */
+export async function linkMeetingCase(
+  page: Page,
+  token: string,
+  meetingId: string,
+  caseId: string,
+  agendaItemId: string,
+): Promise<void> {
+  await rpcOrThrow(page, token, 'link_meeting_case', {
+    p_meeting_id: meetingId,
+    p_case_id: caseId,
+    p_agenda_item_id: agendaItemId,
+  })
+}
+
+/**
+ * The seeded ETH·E1 ethics case (`supabase/seed.sql`, "Denúncia Ética
+ * (fixture E1)") — CCIH-commission, `explicit_grants_only` visibility, with
+ * `staff4.ccih@test.local` bound as its `respondent_doctor` (a REAL platform
+ * user, professional-identity chain already wired: `participants` ->
+ * `professional_profiles.user_id` -> `case_participants` role
+ * `respondent_doctor`) and `chefe.ccih` holding an explicit
+ * `read_case_deliberation` grant. Reused READ-ONLY here (never mutated) so
+ * the A7 respondent-denial test needs no new participants-chain fixture of
+ * its own — only a fresh meeting + agenda item + `link_meeting_case`, all via
+ * real RPCs.
+ */
+export const SEED_ETHICS_CASE_ID = 'ca000000-0000-0000-0000-0000000000e1'
+export const RESPONDENT_STAFF4_EMAIL = 'staff4.ccih@test.local'
+
+/**
  * Flip a meeting to `participants_only` visibility (ADR 0078 C3 — restricted
  * to attendees + reached via the SAME `app.can_reach_meeting` predicate the
  * PDF module's `meeting` RLS arm delegates to). No product RPC sets this

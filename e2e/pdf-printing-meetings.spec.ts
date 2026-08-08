@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test'
 
 import { focusByTabbing, serviceQuery } from './helpers/documents'
-import { articleForShortCode, SHORT_CODE_RE } from './helpers/pdf-printing'
+import { articleForShortCode, mintViaDialog, SHORT_CODE_RE } from './helpers/pdf-printing'
 import {
+  addAgendaItemWithDescription,
   addAttendee,
   createScheduledMeeting,
   getOwnerToken,
+  linkMeetingCase,
   markHeld,
   meetingHref,
   meetingStatus,
@@ -13,6 +15,8 @@ import {
   signInAs,
   signMeetingToSigned,
   CHEFE_CCIH_ID,
+  RESPONDENT_STAFF4_EMAIL,
+  SEED_ETHICS_CASE_ID,
 } from './helpers/pdf-printing-meetings'
 
 /**
@@ -248,5 +252,79 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     await page.keyboard.press('Enter')
     const download = await downloadPromise
     expect(download.suggestedFilename()).toMatch(/\.pdf$/)
+  })
+
+  /**
+   * ADR 0104 A7 (QA r1 BLOCKER-1 fix): printed-document sight over a
+   * per-caller-masked domain is source reach AND unmasked full-content sight,
+   * for MINT and DOWNLOAD alike. Fixture: a fresh meeting whose agenda item
+   * links the SEEDED ETH·E1 ethics case (`supabase/seed.sql`), on which
+   * `staff4.ccih` is already the `respondent_doctor` (a real platform user,
+   * professional-identity chain pre-wired) and `chefe.ccih` already holds an
+   * explicit `read_case_deliberation` grant. Only the meeting/agenda-item/link
+   * are freshly created here, all via real RPCs — the case and its
+   * participants are READ-ONLY seed data, never mutated.
+   */
+  test('A7: the linked case respondent cannot mint or download the ata', async ({ page }) => {
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 A7 — respondent denial')
+    const agendaItemId = await addAgendaItemWithDescription(
+      page,
+      token,
+      meetingId,
+      'Processo disciplinar em pauta',
+      'Substância deliberativa presente.',
+    )
+    await linkMeetingCase(page, token, meetingId, SEED_ETHICS_CASE_ID, agendaItemId)
+
+    // Coordinator: full sight (explicit read_case_deliberation grant on the
+    // seed case) -> mints fine.
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+    const { shortCode, downloadPath } = await mintViaDialog(page)
+    const documentId = downloadPath.split('/').pop()!
+
+    // A8: presence-derived PHI label + phi/ storage bifurcation. The panel/
+    // dialog UI carries no PHI indicator to assert through, so this is DB truth.
+    const [row] = await serviceQuery<{ contains_phi: boolean; storage_path: string }>(
+      page,
+      `printed_documents?id=eq.${documentId}&select=contains_phi,storage_path`,
+    )
+    expect(row?.contains_phi).toBe(true)
+    expect(row?.storage_path).toBe(`phi/${documentId}.pdf`)
+
+    const coordinatorDownload = await page.request.get(downloadPath)
+    expect(coordinatorDownload.status()).toBe(200)
+    expect((await coordinatorDownload.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
+
+    // staff4.ccih is the case's respondent AND a real CCIH member — the BASE
+    // reach predicate (`can_reach_meeting`, commission_default) admits them,
+    // so the meeting page itself is reachable (200, no BUG-PDF2-002 status-
+    // code confusion here — no notFound() path is taken at all). A7's
+    // full-sight conjunction is what must deny mint and download.
+    await signInAs(page, RESPONDENT_STAFF4_EMAIL)
+    const resp = await page.goto(meetingHref(meetingId))
+    expect(resp?.status()).toBe(200)
+    await expect(page.getByRole('button', { name: 'Emitir documento', exact: true })).toBeVisible()
+
+    // The coordinator's minted ata does not appear in the respondent's own
+    // panel — RLS on printed_documents denies the SELECT (no data leakage).
+    await expect(articleForShortCode(page, shortCode)).toHaveCount(0)
+
+    // Mint attempt fails server-side with the door's own pt-BR 42501 message
+    // (SURFACEABLE_CODES lets it through verbatim — see src/lib/pdf-mint/actions.ts).
+    await page.getByRole('button', { name: 'Emitir documento', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Emitir documento', exact: true }).click()
+    await expect(dialog.getByText(/sem autorização/i)).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByRole('alert')).toHaveCount(0) // never reaches the success state
+
+    // Download-path denial, probed directly under the respondent's own
+    // session (mirrors the P1 logged-out probe; here AUTHENTICATED-but-denied):
+    // open_printed_document returns no row for them, even for the coordinator's
+    // already-minted document — the serving route answers 404, never bytes.
+    const respondentDownload = await page.request.get(downloadPath)
+    expect(respondentDownload.status()).toBe(404)
   })
 })
