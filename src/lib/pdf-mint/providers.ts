@@ -2,6 +2,7 @@ import {
   buildFormResponsePayload,
   type MintRenderContext,
 } from '@/lib/forms/pdf-payload'
+import { buildMeetingPayload } from '@/lib/meetings/pdf-payload'
 import { TEMPLATES } from '@/lib/pdf/render'
 import type { DocumentPayload, PrintedDocumentSourceKind } from '@/lib/pdf/types'
 
@@ -33,17 +34,10 @@ export const PDF_PROVIDERS: Partial<
     phiCapable: false,
     build: buildFormResponsePayload,
   },
-  // PDF·P2 CONTRACT STUB (M-B2): registered now so the meeting mint surface
-  // can wire against real provider presence; the real payload builder
-  // (src/lib/meetings/pdf-payload.ts) lands with the P2 provider task. Until
-  // then a mint attempt fails here, cleanly, in pt-BR — and the DB door
-  // additionally denies the kind until the M-B3 dispatch arm ships.
   meeting: {
     templateKey: TEMPLATES.meeting.key,
     templateVersion: TEMPLATES.meeting.version,
     phiCapable: false, // meetings mint PHI-free only in v1 (ADR 0104 D9)
-    build: async () => {
-      throw new Error('A emissão de atas em PDF ainda não está disponível.')
-    },
+    build: buildMeetingPayload,
   },
 }

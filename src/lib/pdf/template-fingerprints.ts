@@ -27,4 +27,16 @@ export const TEMPLATE_FINGERPRINTS: Record<
         '871e8761e70f47c12084609bd69d10e539b4bf1454414b54870dafd78cb6c304',
     },
   },
+  meeting: {
+    version: 1,
+    // Canonical: RASCUNHO, no signatures ("— não assinado —" footer), minutes
+    // + agenda + attendance + action items populated.
+    fingerprint: '865b7e9f6ca2efd90fb3f7941bab68b73facbfc0384ce2d23764485179b4bade',
+    variants: {
+      // FINAL watermark + two attestation blocks + quorum line + the
+      // null-minutes and empty-action-items branches.
+      final_signed:
+        'fe2e86cb053484c3dc65402ba09a14d373539a101a9e8f020d03f492a93f8114',
+    },
+  },
 }

@@ -294,6 +294,37 @@ export async function getResponsePrintContext(
   }
 }
 
+/** Letterhead context of a meeting the CALLER can already reach. Same two-step
+ * shape (and rationale) as {@link getResponsePrintContext}: step 1 proves
+ * visibility under the caller's OWN RLS on `meetings` (the authority — routes
+ * `can_reach_meeting`); step 2 resolves the two DISPLAY NAMES via the service
+ * role (`hospitals_select` still has no member arm — nothing else crosses). */
+export async function getMeetingPrintContext(
+  meetingId: string,
+): Promise<{ commissionName: string; hospitalName: string } | null> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('meetings')
+    .select('id, commission_id')
+    .eq('id', meetingId)
+    .maybeSingle<{ id: string; commission_id: string }>()
+  if (!data) return null // not reachable → the mint fails closed upstream
+
+  const admin = createAdminClient()
+  const { data: names } = await admin
+    .from('commissions')
+    // hospitals FK-HINTED (two FKs exist — un-hinted answers PGRST201).
+    .select('name, hospitals!commissions_hospital_id_fkey(name)')
+    .eq('id', data.commission_id)
+    .maybeSingle<{ name: string; hospitals: { name: string } | null }>()
+
+  return {
+    commissionName: names?.name ?? '—',
+    hospitalName: names?.hospitals?.name ?? '—',
+  }
+}
+
 /** The current session's display name (emission line). Self-read via RLS. */
 export async function getViewerDisplayName(): Promise<string> {
   const supabase = await createClient()

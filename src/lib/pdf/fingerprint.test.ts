@@ -112,6 +112,101 @@ const FINAL_PHI_LOGO: DocumentPayload = {
   },
 }
 
+/** PDF·P2 — the meeting (ata) canonical fixture. FROZEN like {@link CANONICAL}:
+ * RASCUNHO, no signatures (the "— não assinado —" footer branch), minutes +
+ * agenda (all three field kinds) + attendance + action items populated. */
+const MEETING_CANONICAL: DocumentPayload = {
+  letterhead: {
+    hospitalName: 'Hospital Canônico',
+    hospitalAddress: null,
+    logoDataUri: null,
+    commissionName: 'Comissão de Controle de Infecção Hospitalar',
+  },
+  watermarks: ['draft'],
+  signatures: [],
+  qr: {
+    token: 'FIXTURETOKENMEETINGAAAABBBBCCCCD',
+    shortCode: 'BCDEFG2345',
+    url: 'https://example.invalid/verificar/FIXTURETOKENMEETINGAAAABBBBCCCCD',
+  },
+  emission: { at: '2026-01-03T14:00:00.000Z', byDisplay: 'João Emissor' },
+  containsPhi: false,
+  body: {
+    kind: 'meeting',
+    meetingNumber: 42,
+    title: 'Reunião ordinária de janeiro',
+    meetingTypeDisplay: 'Ordinária',
+    statusDisplay: 'Em assinatura',
+    scheduledStart: '2026-01-03T12:00:00.000Z',
+    heldAt: '2026-01-03T12:05:00.000Z',
+    heldEnd: '2026-01-03T13:30:00.000Z',
+    modalityDisplay: 'Presencial',
+    locationDisplay: 'Sala de reuniões 2',
+    quorum: { met: true, presentCount: 5, eligibleCount: 7 },
+    minutesMd: 'Ata canônica da reunião.\nSegundo parágrafo.',
+    agenda: [
+      {
+        title: 'Aprovação da ata anterior',
+        description: 'Leitura e aprovação.',
+        discussionNotes: 'Sem ressalvas.',
+        resolution: 'Aprovada por unanimidade.',
+      },
+      {
+        title: 'Item sem deliberação',
+        description: null,
+        discussionNotes: null,
+        resolution: null,
+      },
+    ],
+    attendance: [
+      { name: 'Maria Fixa', roleDisplay: 'Presidente', attendanceDisplay: 'Presente' },
+      { name: 'João Emissor', roleDisplay: 'Membro', attendanceDisplay: 'Ausente' },
+      {
+        name: 'Convidada Externa (Org Externa)',
+        roleDisplay: 'Convidado(a)',
+        attendanceDisplay: 'Convocado(a)',
+      },
+    ],
+    actionItems: [
+      {
+        title: 'Revisar protocolo de higienização',
+        statusDisplay: 'Aberto',
+        assigneeDisplay: 'Maria Fixa',
+        dueDisplay: '15/01/2026',
+      },
+    ],
+  },
+}
+
+/** The FINAL + signed variant: two attestation footer blocks, null minutes,
+ * empty action items (the branches the canonical cannot pin). */
+const MEETING_FINAL_SIGNED: DocumentPayload = {
+  ...MEETING_CANONICAL,
+  watermarks: ['final'],
+  signatures: [
+    {
+      name: 'Maria Fixa',
+      title: 'Presidente',
+      scope: null,
+      timestamp: '2026-01-04T10:00:00.000Z',
+      method: 'platform_signoff',
+    },
+    {
+      name: 'Carlos Secretário',
+      title: 'Secretário(a)',
+      scope: null,
+      timestamp: '2026-01-04T11:00:00.000Z',
+      method: 'platform_signoff',
+    },
+  ],
+  body: {
+    ...(MEETING_CANONICAL.body as import('./types').MeetingDocumentBody),
+    statusDisplay: 'Assinada',
+    minutesMd: null,
+    actionItems: [],
+  },
+}
+
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
 
 describe('template fingerprints (ADR 0104 D4)', () => {
@@ -159,6 +254,41 @@ describe('template fingerprints (ADR 0104 D4)', () => {
     expect(canonicalHtml).not.toContain('class="wm-chip wm-chip-final"')
     expect(canonicalHtml).not.toContain('DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE</div>')
     expect(canonicalHtml).not.toContain('<img class="lh-logo"')
+  })
+
+  it('meeting: registry version matches the committed record', () => {
+    expect(TEMPLATES.meeting.version).toBe(TEMPLATE_FINGERPRINTS.meeting.version)
+  })
+
+  it('meeting: structural fingerprint matches — a template change REQUIRES a version bump', () => {
+    const computed = sha256(renderDocumentHtml(MEETING_CANONICAL))
+    expect(
+      computed,
+      `Meeting template output changed (computed ${computed}). Deliberate change: bump ` +
+        `TEMPLATE_VERSION in documents/meeting.ts AND update template-fingerprints.ts together.`,
+    ).toBe(TEMPLATE_FINGERPRINTS.meeting.fingerprint)
+  })
+
+  it('meeting/final_signed: the FINAL + attestation-footer + null-minutes branches are pinned', () => {
+    const computed = sha256(renderDocumentHtml(MEETING_FINAL_SIGNED))
+    expect(
+      computed,
+      `Meeting variant output changed (computed ${computed}). Same rule: version + both fields together.`,
+    ).toBe(TEMPLATE_FINGERPRINTS.meeting.variants.final_signed)
+  })
+
+  it('the meeting variant genuinely renders its pinned branches (no vacuous fixture)', () => {
+    const html = renderDocumentHtml(MEETING_FINAL_SIGNED)
+    expect(html).toContain('class="wm-chip wm-chip-final"')
+    expect(html).toContain('Assinado eletronicamente por <strong>Carlos Secretário</strong>')
+    // Markup form, not the bare token — the shared shell CSS defines
+    // .signature-missing in EVERY document (the P1 FIX-2 lesson).
+    expect(html).not.toContain('class="signature-block signature-missing"')
+    const canonicalHtml = renderDocumentHtml(MEETING_CANONICAL)
+    expect(canonicalHtml).toContain('class="signature-block signature-missing"') // unsigned-footer branch
+    expect(canonicalHtml).not.toContain('class="wm-chip wm-chip-final"')
+    expect(canonicalHtml).toContain('class="ata-minutes"') // minutes branch canonical-only
+    expect(html).not.toContain('class="ata-minutes"')
   })
 
   it('the detector DETECTS: a representative template mutation moves the fingerprint', () => {

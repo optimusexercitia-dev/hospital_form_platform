@@ -41,6 +41,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const sha256 = (b: Uint8Array) => createHash('sha256').update(b).digest('hex')
 
 let mintedId: string | null = null
+let mintedMeetingDocId: string | null = null
+let smokeMeetingId: string | null = null
 
 beforeAll(async () => {
   userClient = createSupabaseJsClient<Database>(
@@ -58,10 +60,19 @@ beforeAll(async () => {
 afterAll(async () => {
   // Tidy the shared local stack (the row/object are smoke artifacts; audit
   // rows stay — the ledger is append-only by design).
+  const admin = createAdminClient()
   if (mintedId) {
-    const admin = createAdminClient()
     await admin.storage.from('printed-documents').remove([`std/${mintedId}.pdf`])
     await admin.from('printed_documents').delete().eq('id', mintedId)
+  }
+  if (mintedMeetingDocId) {
+    await admin.storage
+      .from('printed-documents')
+      .remove([`std/${mintedMeetingDocId}.pdf`])
+    await admin.from('printed_documents').delete().eq('id', mintedMeetingDocId)
+  }
+  if (smokeMeetingId) {
+    await userClient.from('meetings').delete().eq('id', smokeMeetingId)
   }
   await userClient.auth.signOut()
 })
@@ -130,5 +141,62 @@ describe('PDF·P1 end-to-end mint smoke', () => {
       // chefe.ccih is source-visible → the registry id comes back (D10).
       documentId: doc.id,
     })
+  })
+
+  it('PDF·P2: mints a meeting ATA end-to-end (real provider → Gotenberg → doors → hash → lookup)', async () => {
+    // chefe.ccih is staff_admin of CCIH — create a real meeting via the RPC.
+    const { data: membership } = await userClient
+      .from('memberships')
+      .select('commission_id')
+      .eq('role', 'staff_admin')
+      .not('commission_id', 'is', null)
+      .limit(1)
+    const commissionId = membership?.[0]?.commission_id
+    expect(commissionId, 'chefe.ccih staff_admin membership').toBeTruthy()
+
+    const { data: meeting, error: createError } = await userClient.rpc(
+      'create_meeting',
+      {
+        p_commission_id: commissionId!,
+        p_title: 'Reunião smoke PDF·P2',
+      },
+    )
+    expect(createError).toBeNull()
+    const meetingId = (meeting as unknown as { id: string }).id
+    smokeMeetingId = meetingId
+
+    // ── The REAL mint pipeline through the meeting kind ─────────────────────
+    const mint = await mintPrintedDocument({
+      sourceKind: 'meeting',
+      sourceId: meetingId,
+    })
+    expect(mint.error).toBeUndefined()
+    expect(mint.ok).toBe(true)
+    const doc = mint.document!
+    mintedMeetingDocId = doc.id
+    expect(doc.sourceKind).toBe('meeting')
+    expect(doc.status).toBe('active')
+
+    // ── Bytes hash-match the registry pin ───────────────────────────────────
+    const admin = createAdminClient()
+    const { data: blob } = await admin.storage
+      .from('printed-documents')
+      .download(`std/${doc.id}.pdf`)
+    const bytes = new Uint8Array(await blob!.arrayBuffer())
+    expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-')
+    const { data: row } = await admin
+      .from('printed_documents')
+      .select('content_hash, verification_token')
+      .eq('id', doc.id)
+      .single()
+    expect(sha256(bytes)).toBe(row!.content_hash)
+
+    // ── Lookup reports kind=meeting + the viewer id ─────────────────────────
+    const verification = await lookupPrintedDocumentVerification({
+      token: row!.verification_token,
+    })
+    expect(verification?.sourceKind).toBe('meeting')
+    expect(verification?.status).toBe('active')
+    expect(verification?.documentId).toBe(doc.id)
   })
 })

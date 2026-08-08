@@ -107,7 +107,8 @@ function renderBody(payload: DocumentPayload): string {
     case 'form_response':
       return renderFormResponseBody(payload.body)
     case 'meeting':
-      return renderMeetingBody(payload.body)
+      // The ata's multi-signature footer renders from the ENVELOPE (D13).
+      return renderMeetingBody(payload.body, payload.signatures)
     // No default: the switch is EXHAUSTIVE over DocumentBody — a new kind that
     // forgets its template is a compile error here, mirroring the SQL
     // dispatch's fail-closed ELSE (ADR 0104 D3).
