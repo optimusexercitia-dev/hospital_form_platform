@@ -1355,3 +1355,24 @@ one surface over. A `createAdminClient()` app-layer sweep (2026-08-06) confirmed
 was the ONLY service-role storage sign reachable by a signed-in user through a per-item door; the
 minutes-audio service-role signs are service-to-service / upload, admin-role-gated, not
 reviewer-reachable.
+
+## Rotated 2026-08-08 (cont.) — BUG-RESP-001; BUG-PDF2-002 live row retired
+
+BUG-PDF2-002's live-file summary row was removed at this rotation; its full entry (incl. the
+RESOLVED BY-DESIGN status) is above, under "Rotated 2026-08-08 at the PDF·P2 Record step".
+
+🟩 **BUG-RESP-001 — "Minhas respostas" listed the WHOLE commission to a `staff_admin`; FIXED
+2026-08-08** (found while placing FUP-PDF-1's creator route on top of that list). `listMyResponses`
+carried no `created_by` filter and leaned entirely on RLS — but `responses_select` is WIDER than
+the screen: it also grants a `staff_admin` every SUBMITTED row of the commission (and a
+commission-admin every row). Verified under `set role authenticated`: `chefe.ccih`, author of
+**zero** responses, read all **10** CCIH rows on a page titled "Minhas respostas". **Severity:**
+no privilege escalation and no cross-tenant leak — every row shown was one RLS already permits
+that reader — but the screen's own promise was false, and the resume/print affordances it offers
+are creator-shaped. **Fix:** `.eq('created_by', uid)` (uid from `getClaims()`, the ADR 0009 local
+JWT idiom), with the reason recorded at the call site so nobody "simplifies" it back out as
+redundant-with-RLS. **Pinned** by `e2e/pdf-printing.spec.ts` "Minhas respostas is OWN-only",
+asserted against DB truth rather than a row count; the control was run — reverting the filter
+turns that spec RED. **Lesson:** RLS being the security boundary (Rule 1) does not make it the
+SEMANTIC filter — "who may read this row" and "whose page is this" are different questions, and
+a read policy with an admin arm silently answers the first.
