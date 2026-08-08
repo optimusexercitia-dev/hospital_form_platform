@@ -1744,6 +1744,66 @@ high-water-row note below); 280/281/284's were a REAL ongoing "doors must still 
 fixed by having each section explicitly FORCE the flag OFF in-transaction rather than assert a now-false
 ambient claim. `283` carries no such section - a pre-existing gap, not introduced by the flip, left as-is.
 
+## PDF·P1 — PDF document printing: Forms + full skeleton (2026-08-07; ADR 0104; migrations `20260913000000`-`...000300`; flag `document_printing` **OFF** — seed forces ON local/E2E)
+
+**A generated PDF is a RECORD (D1):** minting stores canonical bytes in Storage + one
+`printed_documents` row (polymorphic `(source_kind, source_id)` — no FK, ADR D3; denormalized
+`commission_id`; `template_key`+`template_version`; sha-256 `content_hash`; `contains_phi`;
+status `active|superseded|revoked` text+CHECK; unique `verification_token` [≥192-bit b64url] +
+`verification_short_code` [10 chars of `A-HJ-NP-Z2-9`; lookup uppercases, so case-insensitive]).
+`pd_storage_path_derived` CHECK pins `storage_path = std|phi/<id>.pdf` (closes
+exfiltration-by-reference against ANY writer). Partial unique = ONE active per
+(source, template) — supersession's anchor. Column-list SELECT grant to authenticated
+**excluding** `storage_path`/`verification_token`/`revoked_reason`/`revoked_by`; **no DML grants**
+(door-only writes). `verification_lookups` = the D12 scan log (RLS on, 0 policies, 0 ACL;
+credential HASH only).
+
+- **Dispatch door** `app.can_view_printed_document(kind, id, uid)` — SECURITY DEFINER boolean,
+  one arm per kind delegating to the source domain's LIVE read surface (`form_response` arm
+  mirrors `responses_select` + targeted + admin chain), **`ELSE false` fail-closed**; the
+  registry RLS predicate AND the doors' authority check (never invoker-RLS — inside a DEFINER
+  an invoker EXISTS would run as owner, fail-open). No `is_admin()` anywhere: platform_admin
+  reads 0 rows, mints/opens/revokes nothing (D11 noun rule; keystoned).
+- **Doors** (authenticated+service_role; census verdicts COVERED, 2026-08-07):
+  `mint_printed_document(p_id, kind, source, template_key, template_version, content_hash,
+  token, short_code, contains_phi)` — authority = the dispatch; PHI refused in P1 (`HC0D2`);
+  format-validates the action-minted credentials (Amendment A; collision `HC0D4` → the action
+  re-mints); verifies the storage OBJECT exists first (Amendment B, `HC0D3`); supersedes prior
+  actives in-transaction; audits `document.minted`. `open_printed_document(p_id)` — the serving
+  route's core: call-time authority, no-row-no-audit on deny, audits `document.downloaded`
+  (`overlay_applied` computed in-door). `revoke_printed_document(p_id, class, reason)` —
+  staff_admin/commission-admin chain only, NOT the minter; `HC0D1` validation, `HC0D5`
+  already-revoked; audits `document.revoked`. `lookup_printed_document(credential, p_viewer)` —
+  **EXECUTE service_role ONLY** (the app-layer rate limiter in
+  `src/lib/queries/printed-documents.ts` fronts the only call path); anemic D10 tuple;
+  `document_id` only for a source-visible `p_viewer`; writes the scan log.
+- **Storage:** bucket `printed-documents` (private, 25 MB, `application/pdf`,
+  prefixes `std/` now + `phi/` from P3) with **ZERO storage.objects policies** — service-role
+  only; the serving route `/api/documents/[id]` is the ONLY byte path (D8), applying the
+  pdf-lib `SUBSTITUÍDO`/`ANULADO` overlay on non-active serves (canonical bytes stay
+  hash-faithful; `active` serves are byte-identical).
+- **App layer:** pure renderer `src/lib/pdf/` (ESLint `no-restricted-imports` purity gate;
+  embedded IBM Plex data-URI faces via `scripts/generate-pdf-fonts.mjs`; template
+  fingerprints per D4 in `template-fingerprints.ts` + proven-detecting test); providers
+  registry `src/lib/pdf-mint/providers.ts` (P1: `form_response` only; unregistered kind fails
+  closed); mint pipeline `src/lib/pdf-mint/actions.ts` (3-permit semaphore, 30 s Gotenberg
+  budget, upload-before-RPC + delete-on-failure — all-or-nothing D5); provider
+  `src/lib/forms/pdf-payload.ts` (caller-session Rule 9 reads; wizard-mirror visibility via
+  `evalVisibility`; signoffs → attestation blocks D13). Sidecar: pinned
+  `gotenberg/gotenberg:8.24.0`, `PDF_RENDERER_URL` + `PDF_VERIFICATION_BASE_URL` env —
+  runbook `docs/deployment/pdf-renderer.md`.
+- **SQLSTATEs:** `HC0D1` validation · `HC0D2` PHI-mint refused · `HC0D3` storage object
+  missing · `HC0D4` credential collision (retry signal) · `HC0D5` already revoked ·
+  authority `42501` · flag-off `check_violation` · not-found `P0002`.
+- **Tests:** pgTAP `312_printed_documents.sql` (69; fail-closed ELSE + platform_admin denial
+  keystones; A33 drills D1–D6 RED-proven); Vitest fingerprint/overlay/semaphore/lookup
+  (`p_viewer` declared-param pin + rate-limit pin); e2e smoke
+  `scripts/smoke/pdf-mint.smoke.ts` (`vitest.smoke.config.ts`; needs stack + sidecar).
+- ⚠ `hospitals_select` has NO member arm (catalog, 2026-08-07) — letterhead names resolve via
+  the caller-pre-authorized service-role read in `getResponsePrintContext` (step 1 proves
+  source visibility under the caller's own RLS; step 2 reads two display names). If a member
+  arm ever lands on `hospitals`, that helper can collapse to one query.
+
 ## Migrations (forward-only, additive)
 
 > **This table is a HISTORICAL index and stops at E1 (`20260720001070`).** From DOC-REDESIGN /

@@ -24,6 +24,12 @@ const PUBLIC_PATHS = [
   // page's sign-out clears the session — so it must be public AND excluded from
   // AUTHED_REDIRECT_AWAY below (the anti-loop fix; see requireUser + BE-6).
   '/conta-inativa',
+  // PDF·P1 (ADR 0104 D10): the QR-verification surface is UNAUTHENTICATED by
+  // design — an auditor holding paper scans the code with no account. Public
+  // path (not a matcher exclusion): the session still refreshes, so a
+  // logged-in viewer's page can offer the audited-download link. NOT in
+  // AUTHED_REDIRECT_AWAY: authenticated users verify documents too.
+  '/verificar',
 ] as const
 
 // Authenticated users are bounced AWAY from these to home — a logged-in user

@@ -46,6 +46,39 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // ADR 0104 D14 — the PDF renderer PURITY GATE. `src/lib/pdf/**` is the pure
+  // payload→HTML layer: unit-testable with no browser, no network, no Supabase.
+  // "Pure by convention" is the class of claim that goes stale silently, so the
+  // boundary is enforced mechanically: importing the supabase clients, the
+  // query layer, or `server-only` here is an ERROR. Impure orchestration
+  // (providers, mint pipeline, sidecar client) lives in `src/lib/pdf-mint/`.
+  {
+    files: ["src/lib/pdf/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/lib/supabase", "@/lib/supabase/*"],
+              message:
+                "src/lib/pdf is PURE (ADR 0104 D14) — no supabase clients here. Orchestration belongs in src/lib/pdf-mint/.",
+            },
+            {
+              group: ["@/lib/queries", "@/lib/queries/*"],
+              message:
+                "src/lib/pdf is PURE (ADR 0104 D14) — no query layer here. Data providers live in src/lib/<domain>/pdf-payload.ts.",
+            },
+            {
+              group: ["server-only"],
+              message:
+                "src/lib/pdf is PURE (ADR 0104 D14) — it must stay importable by Vitest with no server context.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -1,26 +1,38 @@
 'use server'
 
+import { createHash } from 'node:crypto'
+
+import { renderDocumentHtml } from '@/lib/pdf/render'
 import type { PrintedDocumentSourceKind } from '@/lib/pdf/types'
-import type { PrintedDocumentSummary } from '@/lib/queries/printed-documents'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import {
+  getViewerDisplayName,
+  type PrintedDocumentSummary,
+} from '@/lib/queries/printed-documents'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/types/database'
+
+import {
+  mintDocumentId,
+  mintVerificationShortCode,
+  mintVerificationToken,
+} from './credentials'
+import { renderPdfViaGotenberg } from './gotenberg'
+import { PDF_PROVIDERS } from './providers'
+import { mintSemaphore } from './semaphore'
 
 /**
- * PDF minting write actions (PDF·P1; ADR 0104 D5/D6/D11).
+ * PDF minting write actions (PDF·P1; ADR 0104 D5/D6/D11 + lead Amendment A).
  *
- * `src/lib/pdf-mint/` is the IMPURE orchestration half of the module — providers map,
- * mint pipeline, sidecar client. It imports domain queries and the supabase clients,
- * which is exactly why it lives OUTSIDE `src/lib/pdf/` (the pure renderer — ADR 0104
- * D14; enforced by the §6 lint gate).
+ * `src/lib/pdf-mint/` is the IMPURE orchestration half — providers map, mint
+ * pipeline, sidecar client — which is exactly why it lives OUTSIDE the pure
+ * `src/lib/pdf/` (ADR 0104 D14; enforced by the ESLint purity gate).
  *
- * ⛔ CONTRACT-FIRST STUBS — signatures are the frozen contract `frontend` compiles
- * against (posted at PDF·P1 task B1); bodies land after the B2 migrations. Keep
- * signatures stable; a shape change goes through the lead.
- *
- * Mint pipeline when implemented (D5 — synchronous, all-or-nothing, ~3-permit
- * semaphore, 30 s budget): flag check → provider lookup → payload build under the
- * caller's session → render HTML → Gotenberg POST → sha-256 → Storage upload →
- * `mint_printed_document` RPC (supersedes prior active mints of the same
- * (kind, source, template) inside one transaction, emits `document.minted`) → on RPC
- * failure the uploaded object is deleted. On timeout nothing is minted.
+ * The mint is synchronous and ALL-OR-NOTHING (D5): upload happens BEFORE the
+ * registry RPC and the object is deleted when the RPC fails; on timeout
+ * nothing is minted. Authority lives in the DB doors, never here — this
+ * pipeline only orchestrates.
  */
 
 // ---------------------------------------------------------------------------
@@ -46,9 +58,9 @@ export interface MintPrintedDocumentInput {
   sourceId: string
   /**
    * Per-mint PHI choice (ADR 0104 D9): explicit, default OFF, no memory of the
-   * choice. P1/P2 kinds are PHI-incapable — passing `true` for them FAILS the mint
-   * (fail closed); the option only renders for provider-declared PHI-capable kinds
-   * (P3+). PHI authorization is the source domain's existing door, never a new one.
+   * choice. P1/P2 kinds are PHI-incapable — passing `true` for them FAILS the
+   * mint (fail closed); the option only renders for provider-declared
+   * PHI-capable kinds (P3+).
    */
   includePhi?: boolean
 }
@@ -58,36 +70,214 @@ export interface RevokePrintedDocumentInput {
   documentId: string
   /** Constrained reason class (a closed vocabulary — never free text alone). */
   reasonClass: string
-  /** Mandatory free-text reason (D6). MUST be PHI-free — governance text about the
-   * record, not source content; the dialog instructs this inline. */
+  /** Mandatory free-text reason (D6). MUST be PHI-free — governance text about
+   * the record, not source content; the dialog instructs this inline. */
   reason: string
 }
 
 // ---------------------------------------------------------------------------
-// Actions (stubs — bodies land after the B2 migrations)
+// Internals
+// ---------------------------------------------------------------------------
+
+type PrintedDocumentRow =
+  Database['public']['Tables']['printed_documents']['Row']
+
+const GENERIC_MINT_ERROR =
+  'Não foi possível emitir o documento. Tente novamente.'
+const FLAG_OFF_ERROR = 'A emissão de documentos em PDF não está disponível.'
+
+/** SQLSTATEs whose pt-BR `raise` message is OURS and safe to surface verbatim
+ * (the M2 doors). Anything else gets the generic text — raw Postgres errors
+ * never reach the UI (CLAUDE.md §8). */
+const SURFACEABLE_CODES = new Set([
+  '42501',
+  '23514',
+  'P0002',
+  'HC0D1',
+  'HC0D2',
+  'HC0D3',
+  'HC0D5',
+])
+
+function mapDoorError(error: { code?: string; message?: string }): string {
+  if (error.code && SURFACEABLE_CODES.has(error.code) && error.message) {
+    return error.message
+  }
+  return GENERIC_MINT_ERROR
+}
+
+const sha256Hex = (bytes: Buffer) =>
+  createHash('sha256').update(bytes).digest('hex')
+
+function toSummary(
+  row: PrintedDocumentRow,
+  mintedByDisplay: string,
+): PrintedDocumentSummary {
+  return {
+    id: row.id,
+    sourceKind: row.source_kind as PrintedDocumentSourceKind,
+    sourceId: row.source_id,
+    templateKey: row.template_key,
+    templateVersion: row.template_version,
+    status: row.status as PrintedDocumentSummary['status'],
+    containsPhi: row.contains_phi,
+    mintedAt: row.minted_at,
+    mintedByDisplay,
+    verificationShortCode: row.verification_short_code,
+    revokedAt: row.revoked_at,
+    revokedReasonClass: row.revoked_reason_class,
+    downloadPath: `/api/documents/${row.id}`,
+  }
+}
+
+/** The QR must encode an ABSOLUTE public URL (D10) — configured, never derived
+ * from request headers (a spoofable Host would end up printed on paper). */
+function verificationBaseUrl(): string | null {
+  const base = process.env.PDF_VERIFICATION_BASE_URL
+  return base ? base.replace(/\/+$/, '') : null
+}
+
+/** Amendment A: an `HC0D4` collision means the short code is already minted —
+ * the credential is IN the bytes, so the whole mint re-renders with fresh
+ * credentials. 50-bit codes make a second collision negligible. */
+const MAX_MINT_ATTEMPTS = 3
+
+// ---------------------------------------------------------------------------
+// Actions
 // ---------------------------------------------------------------------------
 
 /**
  * Mint a printed document from a source artifact (D1 — a RECORD, not a view).
- * Authority: anyone who can VIEW the source artifact (D11; the same
- * `can_view_printed_document` dispatch the registry RLS uses — not admin-gated).
- * Re-minting the same (kind, source, template) marks prior mints `superseded`.
+ * Authority: anyone who can VIEW the source artifact (D11) — enforced by the
+ * `mint_printed_document` door via the same dispatch the registry RLS uses;
+ * this action only orchestrates.
  */
 export async function mintPrintedDocument(
-  _input: MintPrintedDocumentInput,
+  input: MintPrintedDocumentInput,
 ): Promise<MintPrintedDocumentState> {
-  throw new Error('mintPrintedDocument: not implemented (PDF·P1 B1 contract stub)')
+  if (!(await featureEnabled('document_printing'))) {
+    return { ok: false, error: FLAG_OFF_ERROR }
+  }
+
+  const provider = PDF_PROVIDERS[input.sourceKind]
+  if (!provider) {
+    // TS mirror of the SQL fail-closed ELSE (D3): unregistered kind, no mint.
+    return {
+      ok: false,
+      error: 'Este tipo de registro ainda não permite emissão em PDF.',
+    }
+  }
+  if (input.includePhi && !provider.phiCapable) {
+    return {
+      ok: false,
+      error: 'Este tipo de documento não permite emissão com dados de paciente.',
+    }
+  }
+
+  const base = verificationBaseUrl()
+  if (!base) {
+    return {
+      ok: false,
+      error:
+        'A emissão está indisponível: endereço de verificação não configurado.',
+    }
+  }
+
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const byDisplay = await getViewerDisplayName()
+
+  for (let attempt = 1; attempt <= MAX_MINT_ATTEMPTS; attempt++) {
+    // Amendment A: credentials BEFORE payload build — the QR carries the final
+    // verification URL inside the canonical bytes.
+    const id = mintDocumentId()
+    const token = mintVerificationToken()
+    const shortCode = mintVerificationShortCode()
+    const storagePath = `std/${id}.pdf`
+
+    let pdf: Buffer
+    try {
+      const payload = await provider.build(input.sourceId, {
+        qr: { token, shortCode, url: `${base}/verificar/${token}` },
+        emission: { at: new Date().toISOString(), byDisplay },
+      })
+      const html = renderDocumentHtml(payload)
+      // D5: semaphore-bounded render; over capacity waits briefly then fails
+      // pt-BR — never queues to disk. A timeout mints NOTHING (no upload yet).
+      pdf = await mintSemaphore.run(() => renderPdfViaGotenberg(html))
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : GENERIC_MINT_ERROR,
+      }
+    }
+
+    // Upload BEFORE the registry RPC (Amendment B: the door verifies the
+    // object exists); `upsert: false` — Rule 6, a path is written exactly once.
+    const { error: uploadError } = await admin.storage
+      .from('printed-documents')
+      .upload(storagePath, pdf, {
+        contentType: 'application/pdf',
+        upsert: false,
+      })
+    if (uploadError) {
+      return { ok: false, error: GENERIC_MINT_ERROR }
+    }
+
+    const { data, error: rpcError } = await supabase.rpc(
+      'mint_printed_document',
+      {
+        p_id: id,
+        p_source_kind: input.sourceKind,
+        p_source_id: input.sourceId,
+        p_template_key: provider.templateKey,
+        p_template_version: provider.templateVersion,
+        p_content_hash: sha256Hex(pdf),
+        p_verification_token: token,
+        p_verification_short_code: shortCode,
+        p_contains_phi: false,
+      },
+    )
+
+    if (!rpcError && data) {
+      const row = data as unknown as PrintedDocumentRow
+      return { ok: true, document: toSummary(row, byDisplay) }
+    }
+
+    // ALL-OR-NOTHING (D5): the registry refused — the orphan object goes.
+    await admin.storage.from('printed-documents').remove([storagePath])
+
+    if (rpcError?.code === 'HC0D4') {
+      // Short-code collision: full-loop retry with fresh credentials.
+      continue
+    }
+    return { ok: false, error: mapDoorError(rpcError ?? {}) }
+  }
+  return { ok: false, error: GENERIC_MINT_ERROR }
 }
 
 /**
- * Revoke a printed document (D6 — manual, rare, audited; for minted-from-wrong-data
- * cases). Authority: `staff_admin` of the owning commission + the admin chain — NOT
- * the minter (revocation is a governance act, not undo). Nothing is deleted: bytes
- * and rows are permanent; verification starts answering `revogado` and downloads
- * gain the `ANULADO` overlay (D8).
+ * Revoke a printed document (D6 — manual, rare, audited; for minted-from-
+ * wrong-data cases). Authority: `staff_admin` of the owning commission + the
+ * admin chain — NOT the minter (revocation is a governance act, not undo).
+ * Nothing is deleted: verification starts answering "revogado" and downloads
+ * gain the ANULADO overlay (D8).
  */
 export async function revokePrintedDocument(
-  _input: RevokePrintedDocumentInput,
+  input: RevokePrintedDocumentInput,
 ): Promise<PrintedDocumentActionState> {
-  throw new Error('revokePrintedDocument: not implemented (PDF·P1 B1 contract stub)')
+  if (!(await featureEnabled('document_printing'))) {
+    return { ok: false, error: FLAG_OFF_ERROR }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('revoke_printed_document', {
+    p_id: input.documentId,
+    p_reason_class: input.reasonClass,
+    p_reason: input.reason,
+  })
+  if (error) {
+    return { ok: false, error: mapDoorError(error) }
+  }
+  return { ok: true }
 }
