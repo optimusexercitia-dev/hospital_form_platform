@@ -85,8 +85,10 @@ history. At the Record step, rotate:
   feature-name → review-file mapping and the struck loop rows.
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
-- **Follow-ups / Deferred** → keep only **OPEN** (`[ ]`/`[~]`) items live; move resolved
-  `[x]` items to `docs/progress/follow-ups-archive.md`.
+- **Follow-ups / Deferred** → PROGRESS.md carries a **one-line index only** (severity ·
+  id · title · owner); full bodies of OPEN items live in `docs/progress/follow-ups.md`
+  (rotated 2026-08-08 — update BOTH on any state change). Move resolved items to
+  `docs/progress/follow-ups-archive.md` (out of both files).
 
 Archive files under `docs/progress/` are append-only and never loaded by spawns — detail
 goes there to stay out of every teammate's context. The durable map of what the backend
