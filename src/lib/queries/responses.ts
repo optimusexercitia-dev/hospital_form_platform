@@ -997,16 +997,29 @@ interface MyResponseRow {
 }
 
 /**
- * The caller's responses in a commission — submitted AND in_progress —
- * newest-activity first, for the "minhas respostas" history. Scoped to the
- * caller by `responses_select` (own rows, any status). The commission filter is
- * applied through the version's form so a single embed resolves title +
- * commission.
+ * The caller's OWN responses in a commission — submitted AND in_progress —
+ * newest-activity first, for the "minhas respostas" history.
+ *
+ * ⚠ The `created_by` filter is LOAD-BEARING, not belt-and-braces. RLS alone is
+ * WIDER than this screen: `responses_select` also grants a `staff_admin` every
+ * SUBMITTED row of the commission (and a commission-admin every row), so a
+ * bare RLS-scoped read put the whole commission's history on a page titled
+ * "Minhas respostas" — verified under `set role authenticated`: `chefe.ccih`,
+ * author of zero responses, saw all 10 CCIH rows. RLS is still the security
+ * boundary (Rule 1); this filter is the SEMANTIC one the title promises.
+ *
+ * The commission filter is applied through the version's form so a single embed
+ * resolves title + commission.
  */
 export async function listMyResponses(
   commissionId: string,
 ): Promise<MyResponse[]> {
   const supabase = await createClient()
+
+  // Local JWT verification (the ADR 0009 idiom) — no network round trip.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const uid = claimsData?.claims?.sub as string | undefined
+  if (!uid) return []
 
   // `!inner` on the version/form embeds: a response whose form was deleted
   // (orphaning its version) can't render a title and is dropped here rather than
@@ -1018,6 +1031,7 @@ export async function listMyResponses(
         'form_versions!inner(form_id, version_number, forms!inner(commission_id, title))',
     )
     .eq('commission_id', commissionId)
+    .eq('created_by', uid)
     .order('updated_at', { ascending: false })
     .returns<MyResponseRow[]>()
 
