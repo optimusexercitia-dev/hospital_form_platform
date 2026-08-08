@@ -991,3 +991,47 @@ reds — so it cannot be silenced by leaving it alone. **The remaining fix spans
 where a pure `nsp_coordinator` / `pqs_member` should land (the NSP console under `/o/<org>/nsp` is the
 obvious candidate) before either half is written.
 
+
+## FUP-PDF-1 — creator-mint had no UI surface — ✅ RESOLVED 2026-08-08
+
+Archived from PROGRESS.md at resolution. Original entry (2026-08-08, PDF·P1/P2; owner:
+frontend + lead placement decision):
+
+> ADR 0104 D11 grants mint to *anyone who can view the source*, and the doors support it — but
+> the only response-detail screen (`…/dashboard/submissions/[responseId]`) is wholly
+> `staff_admin`-gated, so a response **creator** has no UI from which to mint their own
+> submitted response's PDF. Deliberate P1/P2 scope, twice recorded. Fix = decide where a
+> creator sees their own submitted response and thread the existing `PrintedDocumentsSection`
+> there (pure prop-threading, proven by P2's meeting wiring).
+
+**Placement decision (PO, 2026-08-08):** a NEW respondent-side route
+`…/c/[commission]/respostas/[responseId]`, not a relaxed gate on the `staff_admin` dashboard
+screen — that screen's back-link, sidebar highlight and mental model are all admin, and dropping
+a plain `staff` into `/dashboard` is the wrong IA even though RLS would hold.
+
+**Shipped:** the new page + its `loading.tsx`; `MyResponseCard` now routes submitted rows there
+(in_progress rows still resume the wizard), which also retires the "full read-only viewer arrives
+in Phase 7" placeholder — a submitted row used to lead into the wizard and bounce to its
+confirmation screen. Authority is membership + RLS, deliberately NOT a re-derived creator check;
+`getSubmissionDetail` withholds what `responses_select` withholds and still emits
+`response.opened_foreign` for a staff_admin reading someone else's row. `canRevoke` stays
+`staff_admin`-only (D11: revocation is a governance act, not the minter's undo).
+
+**Zero backend change** — `app.can_view_printed_document`'s `form_response` arm already opened on
+`created_by = uid`, and the same predicate backs `printed_documents_select` and
+`open_printed_document`. The door was never over-tight; the UI was under-built, exactly as QA
+recorded at P1.
+
+**Verified:** `e2e/pdf-printing.spec.ts` 9/9 on a fresh reset, including a new spec that walks a
+plain `staff` respondent from "Minhas respostas" → own response → mint → 200 `%PDF-` download,
+with no revoke affordance. Catalog-confirmed afterwards: the minting principal was
+`staff2.ccih` / role `staff` — the platform's first non-admin mint.
+
+**Fixture hazard found and closed in the same change:** the first version picked the author's
+highest-id response, which collided with the id-ascending pool on the very first run (the seed
+mints response ids with `gen_random_uuid()`, so pool membership is re-rolled by every
+`db reset`). `creatorMintFixture` now recomputes and subtracts the pool prefix, and
+`submittedResponseIds` refuses a `count` beyond it.
+
+**Carried a pre-existing find:** BUG-RESP-001 (PROGRESS.md Bug Log) — `listMyResponses` had no
+`created_by` filter, so a `staff_admin` saw the whole commission on "Minhas respostas".

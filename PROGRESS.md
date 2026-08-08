@@ -120,7 +120,10 @@ scope question **HELD** (kind-sites = exactly 3, the A8 trio; a 4th = leak).
 no remote `db push` of the two P2 migrations. The PO is handling the pending items below.**
 
 **📌 PDF program — ALL open items (registered for the PO, 2026-08-08):**
-- `[ ]` **FUP-PDF-1..4** — full entries under [Follow-ups](#follow-ups--deferred-items) below.
+- `[x]` **FUP-PDF-1 — RESOLVED 2026-08-08** (creator mint surface shipped: new respondent route
+  `…/c/[commission]/respostas/[responseId]`; entry archived → follow-ups-archive.md). Carried a
+  pre-existing find, **BUG-RESP-001**, fixed with it — Bug Log below.
+- `[ ]` **FUP-PDF-2..4** — full entries under [Follow-ups](#follow-ups--deferred-items) below.
 - `[x]` **BUG-PDF2-002** — RESOLVED BY-DESIGN 2026-08-08 (Next's streamed-notFound contract; no app change; contract pinned in E2E — Bug Log below + bug-log-archive.md for the full record). The session task chip was withdrawn.
 - `[ ]` **Remote `db push`** of `20260914000000` + `20260914000100` — NOT done (PO instruction); local + remote catalogs now DIFFER on the meeting arm until pushed.
 - `[ ]` **`git push origin main`** — the P2 merge is local-only; origin/main is at the P1 state (`9373ce8`).
@@ -138,9 +141,9 @@ Full record (task table B0–B8/F1–F2/T1/Q1, lead notes, gate detail, e2e:prod
 both pending:** remote `db push` of the 5 migrations · Gotenberg Coolify resource per
 [docs/deployment/pdf-renderer.md](docs/deployment/pdf-renderer.md); flag stays OFF until both.
 
-**Open follow-ups:** FUP-PDF-1..4 — moved to full entries under **Follow-ups / Deferred
-Items** below (2026-08-08, P2 Record step); deploy prereqs + push status tracked in the
-PDF·P2 block above.
+**Open follow-ups:** FUP-PDF-**2..4** — full entries under **Follow-ups / Deferred Items**
+below (moved there 2026-08-08, P2 Record step). FUP-PDF-1 ✅ resolved 2026-08-08 → archived;
+deploy prereqs + push status tracked in the PDF·P2 block above.
 
 ### ⬛ QO·FUP — FUP-QO close-out (F1–F9) · **COMPLETE 2026-08-07** · QA **APPROVED (r2)**
 
@@ -307,6 +310,22 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🟩 **BUG-RESP-001 — "Minhas respostas" listed the WHOLE commission to a `staff_admin`; FIXED
+2026-08-08** (found while placing FUP-PDF-1's creator route on top of that list). `listMyResponses`
+carried no `created_by` filter and leaned entirely on RLS — but `responses_select` is WIDER than
+the screen: it also grants a `staff_admin` every SUBMITTED row of the commission (and a
+commission-admin every row). Verified under `set role authenticated`: `chefe.ccih`, author of
+**zero** responses, read all **10** CCIH rows on a page titled "Minhas respostas". **Severity:**
+no privilege escalation and no cross-tenant leak — every row shown was one RLS already permits
+that reader — but the screen's own promise was false, and the resume/print affordances it offers
+are creator-shaped. **Fix:** `.eq('created_by', uid)` (uid from `getClaims()`, the ADR 0009 local
+JWT idiom), with the reason recorded at the call site so nobody "simplifies" it back out as
+redundant-with-RLS. **Pinned** by `e2e/pdf-printing.spec.ts` "Minhas respostas is OWN-only",
+asserted against DB truth rather than a row count; the control was run — reverting the filter
+turns that spec RED. **Lesson:** RLS being the security boundary (Rule 1) does not make it the
+SEMANTIC filter — "who may read this row" and "whose page is this" are different questions, and
+a read policy with an admin arm silently answers the first.
+
 🟦 **BUG-PDF2-002 — RESOLVED BY-DESIGN 2026-08-08** (meeting-detail `notFound()` → HTTP 200 on
 prod builds is **Next's documented streamed-response contract**, not an app defect; guard-in-layout
 empirically disproven; P1's "sibling 404" was the commission LAYOUT denying pre-stream, and
@@ -446,15 +465,6 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 | _pre-2026-07_ | **35 earlier decision rows (Phases 0–14, 2026-06-11 → 2026-06-25) rotated 2026-08-04** — one line each, plus the verbose form of every one | [decisions-log.md](docs/progress/decisions-log.md) |
 
 ## Follow-ups / Deferred Items
-
-### 🟡 FUP-PDF-1 — creator-mint has no UI surface (2026-08-08, PDF·P1/P2; owner: frontend + lead placement decision)
-
-ADR 0104 D11 grants mint to *anyone who can view the source*, and the doors support it — but
-the only response-detail screen (`…/dashboard/submissions/[responseId]`) is wholly
-`staff_admin`-gated, so a response **creator** has no UI from which to mint their own
-submitted response's PDF. Deliberate P1/P2 scope, twice recorded. Fix = decide where a
-creator sees their own submitted response and thread the existing `PrintedDocumentsSection`
-there (pure prop-threading, proven by P2's meeting wiring).
 
 ### 🟡 FUP-PDF-2 — SQLSTATE allowlist can surface English Postgres text (QA P1 MINOR-1; owner: backend)
 
