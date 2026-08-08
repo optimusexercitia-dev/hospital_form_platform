@@ -125,6 +125,11 @@ arm + tests? If yes, the P1 abstraction leaked — stop and re-plan, don't patch
 | M-T1 | tester | E2E: ata mint→download→verify chain + RASCUNHO (unapproved minutes) vs FINAL (approved) watermark assertion | ⬜ |
 | M-Q1 | qa | Phase review `docs/reviews/phase-PDF-P2-review.md` — THE question above, plus the standard security axes over the arm re-emit | ⬜ |
 
+**Lead notes (PDF·P2):**
+- **Ruling (lead, 2026-08-08): the mint door's per-kind CASE (template coherence + commission resolution) is the SQL mirror of provider registration** — extending its two blocks per kind is part of the "RLS arm" deliverable, NOT an abstraction leak; a data-driven refactor mid-phase would be the forbidden pipeline surgery. Standing smell-marker: these two sites are the ONLY sanctioned per-kind conditionals in the door — a phase needing a THIRD kind-conditional site there IS the leak signal.
+- Meeting arm = pure delegation to the existing explicit-uid `app.can_reach_meeting` (every meeting child policy already routes through it). Delta vs the form_response arm, deliberate and test-pinned: **no commission/org/hospital-admin arm** (the C7 cut) + the attendee gate on restricted-visibility meetings — the module inherits the domain's own reach, D11.
+- Fail-closed keystone relocation: P1's `t9` used `meeting` as the unregistered-kind specimen, which INVERTS when the arm lands — repointed to real `case`/`interview` fixtures (the anchor-controls-on-what-is-correct-by-design rule). `312` t9/t45 repointed; P4 will repoint again (noted in-file).
+
 ### ⬛ PDF·P1 — PDF printing: Forms + full skeleton · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
 Full record (task table B0–B8/F1–F2/T1/Q1, lead notes, gate detail, e2e:prod triage) rotated →
