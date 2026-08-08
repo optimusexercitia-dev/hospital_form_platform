@@ -1,3 +1,4 @@
+import { meetingWatermarkFor } from '@/lib/pdf/documents/meeting'
 import { formatDate } from '@/lib/pdf/format'
 import type {
   DocumentPayload,
@@ -6,11 +7,15 @@ import type {
   MeetingActionItemRef,
   SignatureAttestation,
 } from '@/lib/pdf/types'
-import { listMeetingActionItems } from '@/lib/queries/meeting-action-items'
+import {
+  listMeetingActionItems,
+  type MeetingActionItemStatus,
+} from '@/lib/queries/meeting-action-items'
 import {
   getMeetingDetail,
   listMeetingAgenda,
   listMeetingAttendees,
+  listMeetingCases,
   listMeetingSignatures,
   type AttendanceStatus,
   type AttendeeRole,
@@ -66,12 +71,18 @@ const ATTENDANCE_DISPLAY: Record<AttendanceStatus, string> = {
   excused: 'Justificado(a)',
 }
 
-const ACTION_STATUS_DISPLAY: Record<string, string> = {
+const ACTION_STATUS_DISPLAY: Record<MeetingActionItemStatus, string> = {
   open: 'Aberto',
   in_progress: 'Em andamento',
   done: 'Concluído',
   cancelled: 'Cancelado',
 }
+
+/** QA MINOR-7: a NEW DB enum value must never print its raw English key onto a
+ * permanent record (Rule 10) — every display map falls back to the neutral
+ * pt-BR-safe "—", never the identifier. The maps stay TOTAL over their unions,
+ * so the fallback is dead code until the union widens under our feet. */
+const ENUM_FALLBACK = '—'
 
 /** Build the full {@link DocumentPayload} for a meeting the caller can reach.
  * Throws a pt-BR Error when it is unreachable (indistinguishable from
@@ -80,7 +91,7 @@ export async function buildMeetingPayload(
   meetingId: string,
   ctx: MintRenderContext,
 ): Promise<DocumentPayload> {
-  const [detail, context, agenda, attendees, signatureRows, actionItems] =
+  const [detail, context, agenda, attendees, signatureRows, actionItems, caseLinks] =
     await Promise.all([
       getMeetingDetail(meetingId),
       getMeetingPrintContext(meetingId),
@@ -88,6 +99,7 @@ export async function buildMeetingPayload(
       listMeetingAttendees(meetingId),
       listMeetingSignatures(meetingId),
       listMeetingActionItems(meetingId),
+      listMeetingCases(meetingId),
     ])
   if (!detail || !context) {
     throw new Error('Reunião não encontrada ou sem autorização de leitura.')
@@ -101,7 +113,7 @@ export async function buildMeetingPayload(
       const attendee = attendeeById.get(s.attendeeId)
       return {
         name: s.signerName ?? attendee?.displayName ?? 'Membro da comissão',
-        title: attendee ? ROLE_DISPLAY[attendee.role] : null,
+        title: attendee ? (ROLE_DISPLAY[attendee.role] ?? ENUM_FALLBACK) : null,
         scope: null, // whole-document attestation (ata footer, D13)
         timestamp: s.signedAt as string,
         method: 'platform_signoff' as const,
@@ -123,18 +135,37 @@ export async function buildMeetingPayload(
           ? `${a.externalName} (${a.externalOrg})`
           : a.externalName
         : 'Participante'),
-    roleDisplay: ROLE_DISPLAY[a.role],
-    attendanceDisplay: ATTENDANCE_DISPLAY[a.attendance] ?? a.attendance,
+    roleDisplay: ROLE_DISPLAY[a.role] ?? ENUM_FALLBACK,
+    attendanceDisplay: ATTENDANCE_DISPLAY[a.attendance] ?? ENUM_FALLBACK,
   }))
 
   const actionRefs: MeetingActionItemRef[] = actionItems.map((item) => ({
     title: item.title,
-    statusDisplay: ACTION_STATUS_DISPLAY[item.status] ?? item.status,
+    statusDisplay: ACTION_STATUS_DISPLAY[item.status] ?? ENUM_FALLBACK,
     assigneeDisplay: item.assignedToName,
     dueDisplay: item.dueDate ? formatDate(item.dueDate) : null,
   }))
 
-  const isFinal = detail.status === 'signed' || detail.status === 'distributed'
+  // A8 (PO-ratified, QA MAJOR-1) — CONSERVATIVE PHI LABELING, presence-derived,
+  // never a user choice (and NOT the D9 per-mint patient-identifier choice,
+  // which remains absent for meetings): the ata carries masked-class content
+  // when any agenda item is CASE-LINKED (its title is the process number the
+  // projection masks from a respondent) or any PHI-BEARING free-text column is
+  // present (minutes_md + the three deliberation-gated agenda fields — the
+  // catalog's own column classification). A7 guarantees this provider only
+  // runs UNMASKED, so presence here is the true content, minter-independent.
+  // Meeting-level case links with no agenda item are NOT rendered by the
+  // template and carry no printed identity — they do not trigger the label.
+  const containsPhi =
+    caseLinks.some((link) => link.agendaItemId !== null) ||
+    detail.minutesMd !== null ||
+    agenda.some(
+      (item) =>
+        item.description !== null ||
+        item.discussionNotes !== null ||
+        item.resolution !== null,
+    )
+
   const hasQuorumData =
     detail.quorumMet !== null ||
     detail.presentCount !== null ||
@@ -147,21 +178,22 @@ export async function buildMeetingPayload(
       logoDataUri: null,
       commissionName: context.commissionName,
     },
-    watermarks: [isFinal ? 'final' : 'draft'],
+    // QA MINOR-5: the ONE shared derivation (the dialog previews the same).
+    watermarks: [meetingWatermarkFor(detail.status)],
     signatures,
     qr: ctx.qr,
     emission: ctx.emission,
-    containsPhi: false, // meetings mint PHI-free only in v1 (ADR 0104 D9)
+    containsPhi,
     body: {
       kind: 'meeting',
       meetingNumber: detail.meetingNumber,
       title: detail.title,
       meetingTypeDisplay: detail.meetingTypeName,
-      statusDisplay: STATUS_DISPLAY[detail.status] ?? detail.status,
+      statusDisplay: STATUS_DISPLAY[detail.status] ?? ENUM_FALLBACK,
       scheduledStart: detail.scheduledStart,
       heldAt: detail.heldAt,
       heldEnd: detail.heldEnd,
-      modalityDisplay: MODALITY_DISPLAY[detail.modality] ?? detail.modality,
+      modalityDisplay: MODALITY_DISPLAY[detail.modality] ?? ENUM_FALLBACK,
       locationDisplay: detail.locationText ?? detail.meetingUrl,
       quorum: hasQuorumData
         ? {

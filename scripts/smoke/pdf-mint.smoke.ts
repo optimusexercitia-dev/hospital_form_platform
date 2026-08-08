@@ -199,4 +199,186 @@ describe('PDF·P1 end-to-end mint smoke', () => {
     expect(verification?.status).toBe('active')
     expect(verification?.documentId).toBe(doc.id)
   })
+
+  it('PDF·P2 fix wave (A7/A8): masked-content ata mints complete+PHI-labeled for the coordinator; a RESPONDENT can neither mint nor open', async () => {
+    const admin = createAdminClient()
+    // PromiseLike: supabase-js builders are thenables, not Promises.
+    const cleanup: Array<() => PromiseLike<unknown>> = []
+    try {
+      // ── Coordinator half: a case-linked, gated-text agenda item ───────────
+      const { data: cases } = await userClient
+        .from('cases')
+        .select('id, commission_id')
+        .limit(1)
+      const caseId = cases?.[0]?.id
+      const commissionId = cases?.[0]?.commission_id
+      expect(caseId, 'a seeded case chefe.ccih can read').toBeTruthy()
+
+      const { data: meeting, error: createError } = await userClient.rpc(
+        'create_meeting',
+        { p_commission_id: commissionId!, p_title: 'Ata sigilosa smoke A7/A8' },
+      )
+      expect(createError).toBeNull()
+      const meetingId = (meeting as unknown as { id: string }).id
+      cleanup.push(() => userClient.from('meetings').delete().eq('id', meetingId))
+
+      const { data: agendaItemId, error: agendaError } = await userClient.rpc(
+        'create_meeting_agenda_item',
+        {
+          p_meeting_id: meetingId,
+          p_title: 'Processo em deliberação',
+          p_description: 'Substância deliberativa presente.',
+        },
+      )
+      expect(agendaError).toBeNull()
+      const { error: linkError } = await userClient.rpc('link_meeting_case', {
+        p_meeting_id: meetingId,
+        p_case_id: caseId!,
+        p_agenda_item_id: agendaItemId as unknown as string,
+      })
+      expect(linkError).toBeNull()
+
+      const mint = await mintPrintedDocument({
+        sourceKind: 'meeting',
+        sourceId: meetingId,
+      })
+      expect(mint.error).toBeUndefined()
+      const doc = mint.document!
+      cleanup.push(async () => {
+        await admin.storage
+          .from('printed-documents')
+          .remove([`phi/${doc.id}.pdf`])
+        await admin.from('printed_documents').delete().eq('id', doc.id)
+      })
+      // A8: presence-derived PHI label + phi/ bifurcation, bytes hash-faithful.
+      expect(doc.containsPhi).toBe(true)
+      const { data: blob, error: dlError } = await admin.storage
+        .from('printed-documents')
+        .download(`phi/${doc.id}.pdf`)
+      expect(dlError).toBeNull()
+      const bytes = new Uint8Array(await blob!.arrayBuffer())
+      expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-')
+      const { data: row } = await admin
+        .from('printed_documents')
+        .select('content_hash, storage_path, contains_phi')
+        .eq('id', doc.id)
+        .single()
+      expect(row!.contains_phi).toBe(true)
+      expect(row!.storage_path).toBe(`phi/${doc.id}.pdf`)
+      expect(sha256(bytes)).toBe(row!.content_hash)
+
+      // ── Respondent half (A7): staff1.ccih becomes the case's respondent ───
+      const { data: comm } = await admin
+        .from('commissions')
+        .select('organization_id')
+        .eq('id', commissionId!)
+        .single()
+      const orgId = comm!.organization_id
+      const staff1 = createSupabaseJsClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } },
+      )
+      const { data: signIn, error: signInError } =
+        await staff1.auth.signInWithPassword({
+          email: 'staff1.ccih@test.local',
+          password: 'Test1234!',
+        })
+      expect(signInError).toBeNull()
+      const staff1Uid = signIn!.user!.id
+      cleanup.push(() => staff1.auth.signOut())
+
+      const { data: roleRows } = await admin
+        .from('case_participant_roles')
+        .select('id')
+        .eq('key', 'respondent_doctor')
+        .eq('organization_id', orgId)
+        .limit(1)
+      let roleId = roleRows?.[0]?.id
+      if (!roleId) {
+        const { data: newRole } = await admin
+          .from('case_participant_roles')
+          .insert({
+            organization_id: orgId,
+            key: 'respondent_doctor',
+            display_name: 'Médico respondente',
+            allowed_participant_types: ['professional'],
+          })
+          .select('id')
+          .single()
+        roleId = newRole!.id
+        cleanup.push(() =>
+          admin.from('case_participant_roles').delete().eq('id', roleId!),
+        )
+      }
+      const { data: participant } = await admin
+        .from('participants')
+        .insert({
+          organization_id: orgId,
+          participant_type: 'professional',
+          sensitivity_class: 'professional_identity',
+          display_name: 'Dr. Smoke Respondente',
+        })
+        .select('id')
+        .single()
+      cleanup.push(() =>
+        admin.from('participants').delete().eq('id', participant!.id),
+      )
+      const { data: profile } = await admin
+        .from('professional_profiles')
+        .insert({
+          organization_id: orgId,
+          user_id: staff1Uid,
+          full_name: 'Dr. Smoke Respondente',
+        })
+        .select('id')
+        .single()
+      cleanup.push(() =>
+        admin.from('professional_profiles').delete().eq('id', profile!.id),
+      )
+      await admin.from('professional_participants').insert({
+        participant_id: participant!.id,
+        professional_profile_id: profile!.id,
+      })
+      const { data: cp, error: cpError } = await admin
+        .from('case_participants')
+        .insert({
+          case_id: caseId!,
+          participant_id: participant!.id,
+          role_id: roleId!,
+        })
+        .select('id')
+        .single()
+      expect(cpError).toBeNull()
+      cleanup.push(() =>
+        admin.from('case_participants').delete().eq('id', cp!.id),
+      )
+
+      // Swap the mocked cookie client to the respondent and probe A7.
+      const coordinator = userClient
+      userClient = staff1
+      try {
+        const denied = await mintPrintedDocument({
+          sourceKind: 'meeting',
+          sourceId: meetingId,
+        })
+        expect(denied.ok).toBe(false)
+        expect(denied.error).toContain('sem autorização') // the door's 42501 pt-BR
+      } finally {
+        userClient = coordinator
+      }
+      const { data: opened } = await staff1.rpc('open_printed_document', {
+        p_id: doc.id,
+      })
+      expect(opened ?? []).toHaveLength(0) // A7 download side: no row for the respondent
+    } finally {
+      for (const fn of cleanup.reverse()) {
+        try {
+          await fn()
+        } catch {
+          /* best-effort cleanup */
+        }
+      }
+    }
+  })
 })

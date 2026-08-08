@@ -36,7 +36,7 @@ export const TEMPLATE_FINGERPRINTS: Record<
       // FINAL watermark + two attestation blocks + quorum line + the
       // null-minutes and empty-action-items branches.
       final_signed:
-        'fe2e86cb053484c3dc65402ba09a14d373539a101a9e8f020d03f492a93f8114',
+        '2af29e06c5df9cb43a4c6083e341c63f1ea00f2188376422ab7fb1544935deda',
     },
   },
 }

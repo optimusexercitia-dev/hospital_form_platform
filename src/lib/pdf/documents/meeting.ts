@@ -21,6 +21,18 @@ import type { MeetingDocumentBody, SignatureAttestation } from '../types'
 export const TEMPLATE_KEY = 'meeting'
 export const TEMPLATE_VERSION = 1
 
+/**
+ * The ONE watermark derivation for meetings (QA MINOR-5): FINAL ⇔ the minutes
+ * are approved+signed (`signed` | `distributed` — ADR 0104 D7); every other
+ * state — including `in_signature` and `cancelled` — is RASCUNHO. Consumed by
+ * the provider AND the mint dialog preview, so the mark the dialog promises is
+ * the mark the renderer stamps, by construction. PURE (string in, flag out) —
+ * importable from client code via `@/lib/pdf/documents/meeting`.
+ */
+export function meetingWatermarkFor(status: string): 'draft' | 'final' {
+  return status === 'signed' || status === 'distributed' ? 'final' : 'draft'
+}
+
 const STYLE = `<style>
 .ata-meta { font-size: 8.5pt; color: #444; margin-bottom: 5mm; }
 .ata-meta .meta-item { margin-right: 6mm; }

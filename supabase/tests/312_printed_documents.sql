@@ -331,14 +331,18 @@ select throws_ok(
       (select tok3 from tk), (select sc3 from tk), true)$$,
   'HC0D2', null,
   't44 D9 fail-closed: no P1 kind is PHI-capable — contains_phi=true is refused before anything else module-side');
--- P2 REPOINT (lead-acked): the `meeting` kind is registered since 20260914000000,
--- so this write-side fail-closed probe moves to `interview` (still unregistered).
--- ⚠ P4 NOTE: when the interview arm lands, repoint this to a then-unregistered
--- kind or retire it in favour of 313's real-fixture keystones — do NOT leave it
--- to invert silently (the t9 lesson).
+-- P2 REPOINT (lead-acked; fixture de-confused per QA MINOR-3): the `meeting`
+-- kind is registered since 20260914000000, so this write-side probe moved to
+-- `interview` with an HONEST fixture — a fresh uuid, because the ELSE denies
+-- BEFORE any entity resolution (the "visible source, unreadable kind" specimen
+-- with a REAL interview lives in 313 t37; this one pins only that an
+-- unhandled kind cannot reach the door at all).
+-- ⚠ P4 NOTE: when the interview arm lands, repoint to a then-unregistered kind
+-- or retire in favour of 313's real-fixture keystones — do NOT leave it to
+-- invert silently (the t9 lesson).
 select throws_ok(
   $$select public.mint_printed_document(
-      (select doc4 from d), 'interview', (select meet_x from m),
+      (select doc4 from d), 'interview', '00000000-0000-0000-0000-00000000dfff',
       'interview', 1, repeat('ab', 32),
       (select tok3 from tk), (select sc3 from tk), false)$$,
   '42501', null,

@@ -178,8 +178,9 @@ const MEETING_CANONICAL: DocumentPayload = {
   },
 }
 
-/** The FINAL + signed variant: two attestation footer blocks, null minutes,
- * empty action items (the branches the canonical cannot pin). */
+/** The FINAL + signed + DEGENERATE-STATE variant (QA MINOR-6): two attestation
+ * footer blocks, null minutes, EMPTY agenda, EMPTY attendance, null quorum,
+ * absent "Encaminhamentos" — every branch the populated canonical cannot pin. */
 const MEETING_FINAL_SIGNED: DocumentPayload = {
   ...MEETING_CANONICAL,
   watermarks: ['final'],
@@ -203,6 +204,9 @@ const MEETING_FINAL_SIGNED: DocumentPayload = {
     ...(MEETING_CANONICAL.body as import('./types').MeetingDocumentBody),
     statusDisplay: 'Assinada',
     minutesMd: null,
+    quorum: null,
+    agenda: [],
+    attendance: [],
     actionItems: [],
   },
 }
@@ -284,11 +288,20 @@ describe('template fingerprints (ADR 0104 D4)', () => {
     // Markup form, not the bare token — the shared shell CSS defines
     // .signature-missing in EVERY document (the P1 FIX-2 lesson).
     expect(html).not.toContain('class="signature-block signature-missing"')
+    // Degenerate-state branches (QA MINOR-6) — variant-only:
+    expect(html).toContain('— pauta sem itens registrados —')
+    expect(html).toContain('— sem participantes registrados —')
+    expect(html).not.toContain('Encaminhamentos')
+    expect(html).not.toContain('Quórum:')
     const canonicalHtml = renderDocumentHtml(MEETING_CANONICAL)
     expect(canonicalHtml).toContain('class="signature-block signature-missing"') // unsigned-footer branch
     expect(canonicalHtml).not.toContain('class="wm-chip wm-chip-final"')
     expect(canonicalHtml).toContain('class="ata-minutes"') // minutes branch canonical-only
     expect(html).not.toContain('class="ata-minutes"')
+    expect(canonicalHtml).toContain('Encaminhamentos')
+    expect(canonicalHtml).toContain('Quórum: atingido (5 de 7)')
+    expect(canonicalHtml).not.toContain('— pauta sem itens registrados —')
+    expect(canonicalHtml).not.toContain('— sem participantes registrados —')
   })
 
   it('the detector DETECTS: a representative template mutation moves the fingerprint', () => {

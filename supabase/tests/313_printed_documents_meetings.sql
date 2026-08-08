@@ -18,7 +18,7 @@
 -- =============================================================================
 
 begin;
-select plan(38);
+select plan(54);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -77,10 +77,48 @@ create temp table cs on commit drop as
   select '00000000-0000-0000-0000-00000000e301'::uuid as case_a,
          '00000000-0000-0000-0000-00000000e302'::uuid as iv_a;
 grant select on cs to authenticated;
+-- `explicit_grants_only`: suppresses the MEMBER arm of the capability lattice
+-- (A15 confers read_case_deliberation to members only under commission_default)
+-- — so st_x is a genuine DELIBERATION-MASKED member specimen for the A7
+-- keystones, while sa_x (coordinator) keeps full reach.
 insert into public.cases (id, commission_id, case_number, created_by, visibility_policy, status)
-select cs.case_a, k.comm_x, 990103, k.sa_x, 'commission_default', 'in_review' from cs, k;
+select cs.case_a, k.comm_x, 990103, k.sa_x, 'explicit_grants_only', 'in_review' from cs, k;
 insert into public.case_interviews (id, commission_id, case_id, interview_category, created_by)
 select cs.iv_a, k.comm_x, cs.case_a, 'administrative', k.sa_x from cs, k;
+
+-- The A7 fix-wave fixture: a meeting whose agenda item is CASE-LINKED with
+-- gated free text PRESENT, and st_x2 as the RESPONDENT of the linked case
+-- (participants-registry chain — the is_case_respondent shape, key
+-- 'respondent_doctor', resolved via professional_profiles.user_id).
+create temp table mc on commit drop as
+  select '00000000-0000-0000-0000-00000000e501'::uuid as meet_case,
+         '00000000-0000-0000-0000-00000000e502'::uuid as ai_c1,
+         '00000000-0000-0000-0000-00000000e511'::uuid as part_r,
+         '00000000-0000-0000-0000-00000000e512'::uuid as prof_r,
+         '00000000-0000-0000-0000-00000000e513'::uuid as role_r,
+         '00000000-0000-0000-0000-00000000e514'::uuid as cp_r,
+         '00000000-0000-0000-0000-00000000e521'::uuid as doc_mc1;
+grant select on mc to authenticated;
+insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start, visibility_policy)
+select mc.meet_case, k.comm_x, 990104, 'Reunião com pauta de caso', now(), 'commission_default' from mc, k;
+select set_config('app.in_meeting_rpc', 'on', true);
+insert into public.meeting_agenda_items (id, meeting_id, position, title, description)
+select mc.ai_c1, mc.meet_case, 0, 'Processo 990103', 'Substância deliberativa presente.' from mc;
+insert into public.meeting_cases (meeting_id, case_id, agenda_item_id)
+select mc.meet_case, cs.case_a, mc.ai_c1 from mc, cs;
+select set_config('app.in_meeting_rpc', 'off', true);
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+select mc.part_r, k.org_b, 'professional', 'professional_identity', 'Dr. Respondente' from mc, k;
+insert into public.professional_profiles (id, organization_id, user_id, full_name)
+select mc.prof_r, k.org_b, k.st_x2, 'Dr. Respondente' from mc, k;
+insert into public.professional_participants (participant_id, professional_profile_id)
+select mc.part_r, mc.prof_r from mc;
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types)
+select mc.role_r, k.org_b, 'respondent_doctor', 'Médico respondente', array['professional'] from mc, k;
+insert into public.case_participants (id, case_id, participant_id, role_id)
+select mc.cp_r, cs.case_a, mc.part_r, mc.role_r from mc, cs;
+insert into storage.objects (bucket_id, name)
+select 'printed-documents', 'phi/' || doc_mc1 || '.pdf' from mc;
 
 -- Registry ids + credentials; objects pre-exist for EVERY id a mint may reach,
 -- including the denial probes (authority must be the only gate).
@@ -246,10 +284,12 @@ select is(
 -- ── 5. Revoke on the meeting kind ────────────────────────────────────────────
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
+-- QA MINOR-4: doc_m2 was minted by sa_x at t20 (st_x minted doc_m1), so the
+-- label pins the PLAIN-STAFF property; 312 t30 pins the minter property.
 select throws_ok(
   $$select public.revoke_printed_document((select doc_m2 from d), 'wrong_data', 'Tentativa do emissor')$$,
   '42501', null,
-  't30 revoke: a plain-staff minter cannot revoke an ata print');
+  't30 revoke: a plain-staff member cannot revoke an ata print');
 reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -283,6 +323,78 @@ select is(app.can_view_printed_document('interview', (select iv_a from cs), (sel
   't37 ⭐ FAIL-CLOSED: the interview arm is UNREGISTERED through P3 — visible source, unreadable print kind');
 select is(app.can_view_printed_document('kind_inexistente', (select meet_def from m), (select sa_x from k)), false,
   't38 FAIL-CLOSED: an unknown kind is false, never an error, never true');
+
+-- ── 7. A7 full-sight conjunction + A8 PHI labeling (QA fix wave) ─────────────
+select is(app.is_case_respondent((select case_a from cs), (select st_x2 from k)), true,
+  't39 PRECONDITION: st_x2 IS the respondent of case_a — the participants-registry chain is REAL');
+select ok(app.can_read_full_meeting_content((select meet_case from mc), (select sa_x from k))
+      and not app.can_read_full_meeting_content((select meet_case from mc), (select st_x from k))
+      and not app.can_read_full_meeting_content((select meet_case from mc), (select st_x2 from k)),
+  't40 PRECONDITION ⭐: the full-sight predicate DISCRIMINATES — coordinator in, deliberation-masked member out, respondent out (mirrors the live projection terms)');
+select is(app.can_view_printed_document('meeting', (select meet_case from mc), (select st_x2 from k)), false,
+  't41 ⭐ A7: the RESPONDENT of a linked case is denied the ata — the exact party the projection blinds cannot reach the complete bytes');
+select is(app.can_view_printed_document('meeting', (select meet_def from m), (select st_x2 from k)), true,
+  't42 CONTROL: the SAME persona passes on the un-linked meeting — t41''s deny is the conjunction, never the persona or reach');
+select is(app.can_view_printed_document('meeting', (select meet_case from mc), (select st_x from k)), false,
+  't43 ⭐ A7: a member WITHOUT read_case_deliberation is denied where gated text is PRESENT');
+select is(app.can_view_printed_document('meeting', (select meet_case from mc), (select sa_x from k)), true,
+  't44 A7: the coordinator (full sight) passes — the complete ata remains mintable');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$select public.mint_printed_document(
+      (select doc_mc1 from mc), 'meeting', (select meet_case from mc),
+      'meeting', 1, repeat('dd', 32),
+      'MEETTOKEN4AAAABBBBCCCCDDDDEEEEFFFF', 'QRSTUV2345', true)$$,
+  't45 ⭐ A8: a masked-content ata mints with contains_phi=true (the per-kind PHI gate ACCEPTS the presence-derived label for meetings)');
+reset role;
+select is(
+  (select contains_phi::text || '|' || storage_path
+     from public.printed_documents where id = (select doc_mc1 from mc)),
+  'true|phi/' || (select doc_mc1 from mc) || '.pdf',
+  't46 A8: the label drives the phi/ storage bifurcation (the A4 derived-path CHECK, phi arm)');
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.open_printed_document((select doc_mc1 from mc))), 0,
+  't47 ⭐ A7, download side: the respondent cannot open the ata about his own process (no row, no audit)');
+select throws_ok(
+  $$select public.mint_printed_document(
+      '00000000-0000-0000-0000-00000000e5aa', 'meeting', (select meet_case from mc),
+      'meeting', 1, repeat('dd', 32),
+      'MEETTOKEN5AAAABBBBCCCCDDDDEEEEFFFF', 'RSTUVW2345', false)$$,
+  '42501', null,
+  't48 ⭐ A7, mint side: the respondent cannot mint the ata either — mint AND download alike');
+reset role;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.mint_printed_document(
+      '00000000-0000-0000-0000-00000000e5bb', 'form_response', (select resp_sub from r),
+      'form_response', 1, repeat('dd', 32),
+      'MEETTOKEN6AAAABBBBCCCCDDDDEEEEFFFF', 'STUVWX2345', true)$$,
+  'HC0D2', null,
+  't49 ⭐ A8: the PHI gate stays PER-KIND — form_response still refuses contains_phi=true (forms are PHI-free by classification)');
+reset role;
+select is((select contains_phi from public.printed_documents where id = (select doc_m1 from d)), false,
+  't50 A8: an ata with NO masked-class content labels false and lives under std/ (t15 pins the path)');
+select is(app.is_hospital_admin_of_for((select hosp_b from k), (select ha_b from ha)), true,
+  't51 CONTROL (QA MINOR-1): ha_b genuinely HOLDS the hospital_admin tier — t11''s deny is the arm''s, never a broken fixture');
+-- QA MINOR-2, lead-RULED deliberate (ADR 0104 D11): revocation is a GOVERNANCE
+-- act on commission_id — the admin chain may revoke an ata print it cannot
+-- download (revoke reveals no content; sight stays domain-scoped). Pinned in
+-- BOTH directions so the asymmetry is a decision, not an accident.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.open_printed_document((select doc_m1 from d))), 0,
+  't52 MINOR-2 pin, sight side: org_admin cannot OPEN the ata print (no meeting-arm admin sight)');
+select lives_ok(
+  $$select public.revoke_printed_document((select doc_m1 from d), 'minted_in_error', 'Revogação administrativa (D11 — ato de governança)')$$,
+  't53 MINOR-2 pin, governance side: the SAME org_admin MAY revoke it (D11 admin chain — deliberate asymmetry)');
+reset role;
+select ok(
+  (select status = 'revoked' and revoked_by = (select oa_b from k)
+     from public.printed_documents where id = (select doc_m1 from d)),
+  't54 MINOR-2 pin: the revocation is recorded to the admin actor');
 
 select * from finish();
 rollback;

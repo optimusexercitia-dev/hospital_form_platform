@@ -193,14 +193,19 @@ export async function mintPrintedDocument(
     const id = mintDocumentId()
     const token = mintVerificationToken()
     const shortCode = mintVerificationShortCode()
-    const storagePath = `std/${id}.pdf`
 
     let pdf: Buffer
+    let containsPhi: boolean
     try {
       const payload = await provider.build(input.sourceId, {
         qr: { token, shortCode, url: `${base}/verificar/${token}` },
         emission: { at: new Date().toISOString(), byDisplay },
       })
+      // A8 (ADR 0104): `containsPhi` is PRESENCE-DERIVED by the provider —
+      // conservative labeling of masked-class content, never a user choice.
+      // Distinct from `input.includePhi` (the D9 per-mint patient-identifier
+      // choice, gated on `provider.phiCapable` above and absent until P3).
+      containsPhi = payload.containsPhi
       const html = renderDocumentHtml(payload)
       // D5: semaphore-bounded render; over capacity waits briefly then fails
       // pt-BR — never queues to disk. A timeout mints NOTHING (no upload yet).
@@ -211,6 +216,9 @@ export async function mintPrintedDocument(
         error: error instanceof Error ? error.message : GENERIC_MINT_ERROR,
       }
     }
+    // The A4 derived path: the phi/ prefix keys off the SAME flag the door
+    // CHECK-pins (storage bifurcation, D9.4).
+    const storagePath = `${containsPhi ? 'phi' : 'std'}/${id}.pdf`
 
     // Upload BEFORE the registry RPC (Amendment B: the door verifies the
     // object exists); `upsert: false` — Rule 6, a path is written exactly once.
@@ -235,7 +243,7 @@ export async function mintPrintedDocument(
         p_content_hash: sha256Hex(pdf),
         p_verification_token: token,
         p_verification_short_code: shortCode,
-        p_contains_phi: false,
+        p_contains_phi: containsPhi,
       },
     )
 
