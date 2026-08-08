@@ -14,7 +14,7 @@ import {
 } from "@/components/printing/revoke-document-dialog";
 import {
   formatDateTimePtBr,
-  REVOKE_REASON_CLASSES,
+  revokeReasonClassLabel,
 } from "@/components/printing/labels";
 import { listPrintedDocuments } from "@/lib/queries/printed-documents";
 import type { PrintedDocumentSourceKind, WatermarkFlag } from "@/lib/pdf/types";
@@ -162,7 +162,7 @@ async function PrintedDocumentsList({
                 Anulado
                 {doc.revokedAt ? ` em ${formatDateTimePtBr(doc.revokedAt)}` : ""}
                 {doc.revokedReasonClass
-                  ? ` · ${reasonClassLabel(doc.revokedReasonClass)}`
+                  ? ` · ${revokeReasonClassLabel(doc.revokedReasonClass)}`
                   : ""}
               </p>
             ) : null}
@@ -192,13 +192,6 @@ async function PrintedDocumentsList({
       ))}
     </RiseInGroup>
   );
-}
-
-/** Maps a stored reason class to its pt-BR label, tolerating a value this build
- * does not know (the vocabulary can grow server-side before the UI catches up —
- * better to show the raw class than to drop the fact that a reason exists). */
-function reasonClassLabel(value: string): string {
-  return REVOKE_REASON_CLASSES.find((c) => c.value === value)?.label ?? value;
 }
 
 /** Streaming placeholder mirroring one registry row. */

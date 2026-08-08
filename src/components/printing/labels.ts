@@ -63,6 +63,31 @@ export const REVOKE_REASON_CLASSES = [
 /** A revocation reason class, derived from the rendered options. */
 export type RevokeReasonClass = (typeof REVOKE_REASON_CLASSES)[number]["value"];
 
+/**
+ * The pt-BR label for a stored reason class — the ONLY sanctioned way to render
+ * one, so no surface can reintroduce the raw value.
+ *
+ * An unknown class falls back to "Outro motivo", never to the identifier itself.
+ * The vocabulary is a server-side enum that can grow before this build knows
+ * about it, and echoing the raw value would put an English snake_case token
+ * (`wrong_data`) in front of a hospital user — breaking Rule 10 and leaking
+ * internal vocabulary into the UI at the same time.
+ *
+ * "Outro motivo" is the honest fallback rather than a blank or a guess: it is
+ * the closed vocabulary's own catch-all, so it still says truthfully that the
+ * annulment WAS classified, while claiming nothing about which class it was.
+ * The specific class remains intact in the audit ledger, which is where the
+ * precise value belongs.
+ */
+export function revokeReasonClassLabel(
+  value: string | null | undefined,
+): string {
+  return (
+    REVOKE_REASON_CLASSES.find((option) => option.value === value)?.label ??
+    "Outro motivo"
+  );
+}
+
 /** pt-BR date + time, matching the submissions surfaces. Falls back to the raw
  * value rather than throwing — a malformed timestamp must not blank a page. */
 export function formatDateTimePtBr(iso: string): string {
