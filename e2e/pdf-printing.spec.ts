@@ -3,7 +3,12 @@ import { test, expect } from '@playwright/test'
 import { COMMISSION_A_ID, focusByTabbing, signInAs } from './helpers/documents'
 import {
   articleForShortCode,
+  creatorMintFixture,
+  listedResponseIds,
   mintViaDialog,
+  myResponseDetailHref,
+  myResponsesHref,
+  responseIdsAuthoredBy,
   submissionDetailHref,
   submittedResponseIds,
   SHORT_CODE_RE,
@@ -250,6 +255,91 @@ test.describe('PDF·P1 — printing', () => {
     await expect(
       page.getByRole('heading', { name: 'Não foi possível verificar agora' }),
     ).toHaveCount(0)
+  })
+
+  // -------------------------------------------------------------------------
+  // FUP-PDF-1 — the CREATOR's mint surface
+  // -------------------------------------------------------------------------
+
+  test('creator surface: a plain staff respondent mints their OWN submitted response from "Minhas respostas"', async ({
+    page,
+  }) => {
+    /**
+     * ADR 0104 D11 grants mint to anyone who can view the source, and
+     * `app.can_view_printed_document`'s form_response arm has always opened on
+     * `created_by = uid`. Until FUP-PDF-1 the ONLY response-detail screen was
+     * staff_admin-gated, so that right was unreachable. This walks the whole
+     * creator path: own history -> own submitted response -> mint -> download.
+     *
+     * `creatorMintFixture` subtracts the id.asc pool the five tests above claim
+     * and asserts the author is a plain `staff` — see its doc for why picking a
+     * persona's "highest id" is NOT a safe substitute.
+     */
+    const { responseId, email } = await creatorMintFixture(page)
+
+    await signInAs(page, email)
+    await page.goto(myResponsesHref())
+
+    // The history lists the caller's OWN responses and nothing else. This
+    // author is a plain `staff`, so RLS alone would already scope it — the
+    // assertion that BITES is the staff_admin one below; this pins the happy
+    // path and, with the id check, proves we are in the right session.
+    const owned = await responseIdsAuthoredBy(page, email)
+    await expect(page.getByRole('heading', { name: 'Minhas respostas' })).toBeVisible()
+    const listed = await listedResponseIds(page)
+    expect(listed.length).toBeGreaterThan(0)
+    expect(listed.every((id) => owned.includes(id))).toBe(true)
+    expect(listed).toContain(responseId)
+
+    // A submitted row leads to the respondent's read-only viewer, NOT the wizard.
+    await page.goto(myResponseDetailHref(responseId))
+    await expect(page.getByRole('link', { name: 'Minhas respostas' }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Documentos emitidos' })).toBeVisible()
+
+    // Mint as the creator — the door authorises on `created_by`, not on role.
+    const { shortCode, downloadPath } = await mintViaDialog(page)
+    expect(shortCode).toMatch(SHORT_CODE_RE)
+
+    const article = articleForShortCode(page, shortCode)
+    await expect(article.getByText('Ativo', { exact: true })).toBeVisible()
+
+    // Download-time authority is the SAME predicate — the creator gets bytes.
+    const resp = await page.request.get(downloadPath)
+    expect(resp.status()).toBe(200)
+    const bytes = await resp.body()
+    expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+
+    // D11: revocation is a governance act, not the minter's undo. The creator
+    // holds no revoke affordance even over the document they just minted.
+    await expect(article.getByRole('button', { name: /anular/i })).toHaveCount(0)
+  })
+
+  test('creator surface: "Minhas respostas" is OWN-only — a staff_admin sees no foreign row there', async ({
+    page,
+  }) => {
+    /**
+     * `listMyResponses` leaned entirely on RLS, and `responses_select` is WIDER
+     * than this screen: it also grants a staff_admin every SUBMITTED row of the
+     * commission. chefe.ccih (author of zero seeded responses) therefore saw the
+     * whole commission's history on a page titled "Minhas respostas". Asserted
+     * against DB truth rather than a count, so a spec that later submits a
+     * response as chefe.ccih does not make this vacuous.
+     */
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(myResponsesHref())
+    await expect(page.getByRole('heading', { name: 'Minhas respostas' })).toBeVisible()
+
+    const own = await responseIdsAuthoredBy(page, 'chefe.ccih@test.local')
+    const listed = await listedResponseIds(page)
+    expect(listed.every((id) => own.includes(id))).toBe(true)
+
+    // And specifically: nothing authored by the two staff respondents leaks in.
+    const foreign = [
+      ...(await responseIdsAuthoredBy(page, 'staff1.ccih@test.local')),
+      ...(await responseIdsAuthoredBy(page, 'staff2.ccih@test.local')),
+    ]
+    expect(foreign.length).toBeGreaterThan(0) // the check is not vacuous
+    expect(listed.some((id) => foreign.includes(id))).toBe(false)
   })
 })
 
