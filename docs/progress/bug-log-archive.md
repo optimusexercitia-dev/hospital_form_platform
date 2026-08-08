@@ -1329,3 +1329,29 @@ depends on a fresh read below a `loading.tsx` (`dashboard/submissions/[responseI
 probe-confirmed — `casos/[caseId]`, `encaminhamentos/[referralId]`, `itens-de-acao/[itemId]`,
 `nsp/[eventId]`, …) shares this contract; if a compliance/monitoring requirement ever
 demands a real 404 on any of them, the two costed paths above are the menu.
+
+## BUG-QO-001 (rotated from PROGRESS.md 2026-08-08 — CLOSED in-phase by M8+M9)
+
+⬛ **BUG-QO-001 — the oversight reviewer reached case attachment BYTES; CLOSED in-phase by M8+M9
+(2026-08-06, backend; found by frontend post-M8).** Filed with an honest amendment to the M8
+record because M8's first close-out overstated it. **Mechanism:** S7 (the `quality_reviewer`
+content arm) propagated to two byte surfaces no threading list named — (1) the direct storage
+policy `attachments_obj_select_readable` (user-JWT `createSignedUrl`), and (2) `public.open_attachment`
+(`prosecdef`), whose app action signs the resolved path with the **service role**, which does NOT
+consult `storage.objects` policies at all. **The M8 record was wrong for ~one wave:** it said "the
+reviewer reaches zero object rows," true only of surface (1); surface (2) stayed open until M9,
+and `frontend` caught it by refusing to infer the door's gate from M8. **Impact:** latent, never
+shipped — case attachments can carry PHI and the byte fetch had no audit emit (Rule 11), but the
+console offers no download affordance (`bf0f824`) and the reviewer has no product path to the door;
+severity was byte-reachability in the DB, not a live UI leak. **Fix:** M8 (`20260911000700`, storage
+policy) + M9 (`20260911000800`, in-body `open_attachment` cut) both require `read_case_deliberation`
+for case/interview bytes — the bit every content source confers except S7 (D4). Metadata stays
+reviewer-visible; an S3-granted reviewer still reads (capability-shaped). **Live-probed both
+directions** (reviewer 0 / coordinator 1 on `open_attachment` and `storage.objects`); pinned by
+`308` §5 (5.2 + 5.5 each observed RED pre-fix) + q1 `open_bytes_cut` / `open_resolver_door`.
+**Lesson (the reason it's logged not silently fixed):** "reads 0 rows through RLS" says nothing
+about what a `SECURITY DEFINER` door signs with the service role — the exact BUG-AUTHZ-001 shape,
+one surface over. A `createAdminClient()` app-layer sweep (2026-08-06) confirmed `open_attachment`
+was the ONLY service-role storage sign reachable by a signed-in user through a per-item door; the
+minutes-audio service-role signs are service-to-service / upload, admin-role-gated, not
+reviewer-reachable.
