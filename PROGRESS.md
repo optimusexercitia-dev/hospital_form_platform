@@ -228,6 +228,23 @@ same principals read `responses` **13 / 13 / 7 / 5** and `answers` **50 / 50 / 2
 tenancy admin still reads ~2× the committee's own coordinator. **Lesson: an A/B baseline is
 invalidated by a `db reset` — capture and compare within one DB lifetime.**
 
+🔴 **BUG-QOB-003 — the UI still resolves a tenancy admin to `staff_admin`, so QO·B's wall closes
+underneath coordinator affordances that now cannot work.** Filed 2026-08-08 (QO·B, found while
+writing the E2E spec). **Not a security defect** — the DB wall holds and Architecture Rule 1 never
+relied on UI hiding — but a real UX/consistency defect that **Phase B introduces**.
+**[V-SRC]** [session.ts:459](src/lib/queries/session.ts:459):
+`const role = memberRole ?? (isCommAdmin ? 'staff_admin' : null)` — an org_admin/hospital_admin
+holding **no membership row** resolves to the coordinator role, and `canUseCapability` (~L530)
+opens on exactly `role === 'staff_admin'`. So after M1–M4 a tenancy admin still gets rendered
+write buttons and content surfaces, which then return empty lists or raise `sem permissão`.
+⚠ **Phase A already solved this shape and wrote the reason down** (session.ts ~L386): the
+quality_reviewer is *"a FLAG, never a member role — mapping it to `'staff_admin'` would open every
+`role === 'staff_admin'` write gate"*. Phase B needs the same treatment for the tenancy admins.
+**Precedent for the fix exists:** `e2e/cases-board-access.spec.ts` records that the cases board
+already **404s** an administration-only principal rather than showing an empty board.
+**Needs a PO ruling + frontend work** — options: (a) make the tenancy admin a flag and hide content
+surfaces; (b) 404 the content routes, mirroring the cases board; (c) accept. Owner: frontend.
+
 ⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
 2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:
 `get_case_detail(case_a)` **denied** (`caso … não encontrado`) and `cases` returned **0 rows**,

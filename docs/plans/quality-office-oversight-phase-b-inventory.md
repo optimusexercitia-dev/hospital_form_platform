@@ -297,6 +297,37 @@ is likewise org-level vocabulary → KEEP. Verified from `information_schema.col
    a privilege reset*; a rebuild silently loses the ACL) — worth it, or leave it?
 7. **Q7 — taxonomy & meetings (§4.7d, §4.7e):** cut or keep?
 
+## 6.2 Gate evidence so far (QO·B build, 2026-08-08)
+
+| Gate | Result |
+|---|---|
+| Migrations | **4** (`20260915000000`–`000300`), fresh reset **326 registered == 326 files** |
+| pgTAP | **175 files / 5535 / PASS** on a fresh reset |
+| A/B equivalence matrix | clean-seed 928-cell pre-image → **LOST = the 2 tenancy admins on the 7 ratified tables only · GAINED = 0 · KEEP-side 0/0** |
+| `b1` mutation audit | **11/11 RED-PROVEN** (8 under-cut + 3 over-cut), RESTORE byte-identical, CONTROL 33 ok / 0 not ok |
+| `ARM=census` | **HOLDS** — 450 live gates, 460 verdicts, no unswept newcomer |
+| `ARM=floor` | **HOLDS** — 82 never-called doors, all allowlisted |
+| Diff-scoped door sweep | **15 items**, derived from the migration diff — ⚠ in progress; first finding below |
+| E2E | spec written (`e2e/qob-org-admin-content-wall.spec.ts`); **not yet run** |
+| `qa` review | not started |
+
+**Open findings from this build:**
+
+- ⛔ **`app.can_read_document_object` is BLIND** (diff-scoped sweep, PREDICATE ARM).
+  Neutralizing it reds nothing in the entire suite. M2 changed this gate, and `314` keystones
+  its sibling `can_read_document_of_version` (2.4/2.5) but not it. It governs the
+  controlled-document **storage bytes**, so it is a content boundary, **not** an unreachable
+  backstop — §6 says keystone it, never allowlist it. Fix: add the missing 314 keystones.
+- 🔴 **BUG-QOB-003** — the UI still resolves a tenancy admin to `staff_admin`
+  ([session.ts:459](../../src/lib/queries/session.ts:459)), so the wall closes underneath
+  coordinator affordances that can no longer work. Not a security defect; needs a PO ruling.
+- 🔴 **FUP-QOB-1** — M1 made `response_group_instances_write_own_draft`'s `created_by` term
+  unobservable; `270` §J's keystone is annotated vacuous pending a ruling.
+- ⚠ **A killed sweep leaks a mutation.** The first diff-scoped run was cut off by a 10-minute
+  tool cap mid-case and left `indicator_measurements_select` neutralized to `true` in the live
+  catalog. Caught by checking the catalog rather than trusting the harness's restore; fixed by
+  a full reset. **Run the sweep detached, and verify the catalog after any aborted gate run.**
+
 ## 7. Sequencing once ratified
 
 | Step | Work | Gate |
