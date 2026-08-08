@@ -219,8 +219,14 @@ away), so the probe discriminates. On **submitted** rows the delete was stopped 
 `guard_submitted_response` **trigger** — a data-integrity guard doing an authorization job by
 accident; for **in-progress** rows nothing stood in the way. **Fixed** by QO·B M1
 (`20260915000000`), which drops the policy outright; post-fix the same statement returns no
-rows and `orgadmin.a` reads 0 responses / 0 answers, while the `staff_admin` control holds at
-25/49. Not a Phase-A regression — it predates the QO program; the inventory is what found it.
+rows and `orgadmin.a` reads 0 responses / 0 answers, while the `staff_admin` control holds.
+Not a Phase-A regression — it predates the QO program; the inventory is what found it.
+⚠ **Counts corrected 2026-08-08:** the "6 rows / 9 answers / 36 / 81 / 25 / 49" figures above were
+measured on a **live E2E-mutated DB**, not a fresh reset, so they are inflated. On a clean seed the
+same principals read `responses` **13 / 13 / 7 / 5** and `answers` **50 / 50 / 26 / 15**
+(org_admin / hospital_admin / staff_admin / staff). Mechanism, controls and verdict unchanged; the
+tenancy admin still reads ~2× the committee's own coordinator. **Lesson: an A/B baseline is
+invalidated by a `db reset` — capture and compare within one DB lifetime.**
 
 ⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
 2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:

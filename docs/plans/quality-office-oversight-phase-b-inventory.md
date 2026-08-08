@@ -61,6 +61,32 @@ sweep read 36 `FOR ALL` policies and the real target set was different. Classifi
 
 ## 3. What org_admin and hospital_admin actually reach today [MEAS]
 
+> ⚠ **CORRECTION (2026-08-08, during the M3 build).** The absolute counts in §3 and §3.1
+> were measured on a **live, E2E-mutated** local DB (the stack had been up for hours and
+> carried leftover rows from prior test runs), **not on a fresh `supabase db reset`**.
+> The mechanism, the controls and every qualitative finding are unaffected — but the
+> numbers are inflated. On a **clean seed** the same measurement is:
+>
+> | Table | org_admin | hospital_admin | staff_admin | staff |
+> |---|---|---|---|---|
+> | `responses` | **13** | **13** | 7 | 5 |
+> | `answers` | **50** | **50** | 26 | 15 |
+> | `answer_selected_options` | **47** | **47** | 29 | 18 |
+> | `indicator_measurements` | 8 | 8 | 8 | 8 |
+> | `printed_documents` | **0** | 0 | 0 | 0 |
+>
+> The headline holds on the clean seed — the tenancy admins still read roughly **twice**
+> what the committee's own coordinator does. `printed_documents` holds **zero** rows in a
+> clean seed, so M2's cut there is **not observable in the A/B matrix**; it is covered
+> instead by pgTAP `312`/`313`, which build their own fixtures.
+>
+> How this was caught: a `db reset` ran between the M2 and M3 captures, so the pre-image
+> and post-image came from different populations and the diff reported ~700 spurious
+> LOST + ~300 spurious GAINED cells, including on the KEEP side. The matrix was rebuilt
+> by holding all three migrations out, resetting, capturing, re-applying and re-capturing
+> — which is the only baseline this program should cite. **A/B baselines are invalidated
+> by a reset; capture and compare within one DB lifetime.**
+
 Measured under `set local role authenticated` with real JWT claims, in a rolled-back
 transaction. `staff_admin (chefe.ccih)` and `staff (staff1.ccih)` are the controls.
 
