@@ -21,7 +21,7 @@ export function renderQrFooter(qr: DocumentQr, emission: DocumentEmission): stri
     <div class="qr-verify">Verifique a autenticidade deste documento em:</div>
     <div class="qr-url">${esc(qr.url)}</div>
     <div class="qr-short">Código de verificação: <span class="qr-short-code">${esc(qr.shortCode)}</span></div>
-    <div class="qr-emission">Emitido em ${formatDateTime(emission.at)} por ${esc(emission.byDisplay)}</div>
+    <div class="qr-emission">Emitido em ${esc(formatDateTime(emission.at))} por ${esc(emission.byDisplay)}</div>
   </div>
 </footer>`
 }

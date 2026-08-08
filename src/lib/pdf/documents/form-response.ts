@@ -29,9 +29,9 @@ export function renderFormResponseBody(body: FormResponseDocumentBody): string {
     `<span class="meta-item">Versão do formulário: ${body.versionNumber}</span>`,
     `<span class="meta-item">Preenchido por: ${esc(body.respondentDisplay)}</span>`,
     `<span class="meta-item">Situação: ${STATUS_LABEL[body.responseStatus]}</span>`,
-    `<span class="meta-item">Iniciado em: ${formatDateTime(body.startedAt)}</span>`,
+    `<span class="meta-item">Iniciado em: ${esc(formatDateTime(body.startedAt))}</span>`,
     body.submittedAt
-      ? `<span class="meta-item">Enviado em: ${formatDateTime(body.submittedAt)}</span>`
+      ? `<span class="meta-item">Enviado em: ${esc(formatDateTime(body.submittedAt))}</span>`
       : '',
   ]
     .filter(Boolean)

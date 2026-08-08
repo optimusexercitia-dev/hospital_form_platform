@@ -12,7 +12,7 @@ import type { SignatureAttestation } from '../types'
 export function renderSignatureBlock(sig: SignatureAttestation): string {
   const title = sig.title ? `, ${esc(sig.title)}` : ''
   return `<div class="signature-block">
-  <div class="sig-line">Assinado eletronicamente por <strong>${esc(sig.name)}</strong>${title} — ${formatDateTime(sig.timestamp)}</div>
+  <div class="sig-line">Assinado eletronicamente por <strong>${esc(sig.name)}</strong>${title} — ${esc(formatDateTime(sig.timestamp))}</div>
   <div class="sig-caption">Assinatura eletrônica registrada na plataforma</div>
 </div>`
 }

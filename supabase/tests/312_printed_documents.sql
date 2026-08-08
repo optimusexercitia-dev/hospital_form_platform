@@ -21,7 +21,7 @@
 -- =============================================================================
 
 begin;
-select plan(69);
+select plan(73);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -471,6 +471,36 @@ select is(
   (select matched from public.lookup_printed_document(lower((select sc2 from tk)), null)),
   true,
   't69 lookup: a LOWERCASED presentation of a valid short code still matches (case-insensitive by normalization)');
+
+-- ── 17. QA fix wave (phase-PDF-P1-review; lead FIX-5) ────────────────────────
+select test_helpers.claims_for((select admin from k), true);
+set local role authenticated;
+select is((select count(*)::int from public.open_printed_document((select doc2 from d))), 0,
+  't70 ⭐ platform_admin may not OPEN either — the D11 noun-rule keystone now covers the fourth verb (QA MINOR-8b)');
+reset role;
+select is((select count(*)::int from public.audit_log
+            where action = 'document.downloaded' and entity_id = (select doc2 from d)), 1,
+  't71 audit: the platform_admin open denial emitted NOTHING (no row, no audit)');
+update app.feature_flags set enabled = false where key = 'document_printing';
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.revoke_printed_document((select doc2 from d), 'other', 'Tentativa com o recurso desligado')$$,
+  '23514', null,
+  't72 flag OFF: revoke fails with the house disabled-feature class too (QA MINOR-8a — the fourth door''s flag gate)');
+reset role;
+update app.feature_flags set enabled = true where key = 'document_printing';
+select throws_ok(
+  $$insert into public.printed_documents
+      (id, source_kind, source_id, commission_id, template_key, template_version,
+       content_hash, storage_path, verification_token, verification_short_code, minted_by)
+    select '00000000-0000-0000-0000-00000000dddd', 'form_response', r.resp_sub, k.comm_x,
+       'form_response', 1, repeat('55', 32),
+       'std/00000000-0000-0000-0000-00000000dddd.pdf',
+       'DUPACTIVETOKENAAAABBBBCCCCDDDDEEEE', 'KLMNPQ2345', k.sa_x
+    from r, k$$,
+  '23505', null,
+  't73 ⭐ one-active is TABLE-level law (QA MINOR-7): a second active row for the same (source, template) is impossible even for the OWNER — the partial unique index, not the door, is the anchor');
 
 select * from finish();
 rollback;

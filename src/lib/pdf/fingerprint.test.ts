@@ -87,6 +87,29 @@ const CANONICAL: DocumentPayload = {
   },
 }
 
+/**
+ * QA MAJOR-2 variant — FROZEN like {@link CANONICAL}. Exercises the branches
+ * the canonical fixture cannot: the FINAL chip (`watermarks: ['final']` — the
+ * branch every submitted response renders), the non-suppressible
+ * confidentiality band (`containsPhi: true` — the FIRST thing P3's PHI delta
+ * touches, pinned BEFORE it lands), and the letterhead logo `<img>`.
+ */
+const FINAL_PHI_LOGO: DocumentPayload = {
+  ...CANONICAL,
+  letterhead: {
+    ...CANONICAL.letterhead,
+    logoDataUri:
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  },
+  watermarks: ['final'],
+  containsPhi: true,
+  body: {
+    ...CANONICAL.body,
+    responseStatus: 'submitted',
+    submittedAt: '2026-01-02T13:50:00.000Z',
+  },
+}
+
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
 
 describe('template fingerprints (ADR 0104 D4)', () => {
@@ -110,6 +133,30 @@ describe('template fingerprints (ADR 0104 D4)', () => {
         `update template-fingerprints.ts (version + fingerprint) in the same commit. ` +
         `Never update the fingerprint without the version decision.`,
     ).toBe(recorded)
+  })
+
+  it('form_response/final_phi_logo: the FINAL-chip + PHI-band + logo branches are version-pinned too (QA MAJOR-2)', () => {
+    const computed = sha256(renderDocumentHtml(FINAL_PHI_LOGO))
+    const recorded = TEMPLATE_FINGERPRINTS.form_response.variants.final_phi_logo
+    expect(
+      computed,
+      `Variant output changed (computed ${computed}). A deliberate template change ` +
+        `requires the TEMPLATE_VERSION bump + BOTH fingerprint fields updated together.`,
+    ).toBe(recorded)
+  })
+
+  it('the variant genuinely renders the pinned branches (no vacuous fixture)', () => {
+    // MARKUP forms, not bare class tokens — the CSS block defines the
+    // selectors in EVERY document, so a token-contains would be vacuous.
+    const html = renderDocumentHtml(FINAL_PHI_LOGO)
+    expect(html).toContain('class="wm-chip wm-chip-final"')
+    expect(html).toContain('DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE</div>')
+    expect(html).toContain('<img class="lh-logo"')
+    // ...and the canonical fixture does NOT — the two pins cover disjoint branches.
+    const canonicalHtml = renderDocumentHtml(CANONICAL)
+    expect(canonicalHtml).not.toContain('class="wm-chip wm-chip-final"')
+    expect(canonicalHtml).not.toContain('DOCUMENTO CONFIDENCIAL — CONTÉM DADOS DE PACIENTE</div>')
+    expect(canonicalHtml).not.toContain('<img class="lh-logo"')
   })
 
   it('the detector DETECTS: a representative template mutation moves the fingerprint', () => {

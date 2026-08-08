@@ -52,6 +52,12 @@ const eslintConfig = defineConfig([
   // boundary is enforced mechanically: importing the supabase clients, the
   // query layer, or `server-only` here is an ERROR. Impure orchestration
   // (providers, mint pipeline, sidecar client) lives in `src/lib/pdf-mint/`.
+  //
+  // ⚠ QA MAJOR-1 (phase-PDF-P1-review): the boundary is the PROPERTY "reaches
+  // outside src/lib/pdf", never a specifier syntax — the module's own internal
+  // imports are all RELATIVE, so `../supabase/server` / `../../queries/…` are
+  // the natural escapes and MUST be banned alongside the `@/` alias forms.
+  // Both relative shapes are red-teamed (recorded in the PDF·P1 fix-wave).
   {
     files: ["src/lib/pdf/**"],
     rules: {
@@ -60,14 +66,36 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/lib/supabase", "@/lib/supabase/*"],
+              group: [
+                "@/lib/supabase",
+                "@/lib/supabase/*",
+                // relative escapes, any depth (pdf/ nests two levels today;
+                // the deep globs also cover any future nesting):
+                "../supabase",
+                "../supabase/*",
+                "../../supabase",
+                "../../supabase/*",
+                "../../../supabase",
+                "../../../supabase/*",
+                "**/lib/supabase/**",
+              ],
               message:
-                "src/lib/pdf is PURE (ADR 0104 D14) — no supabase clients here. Orchestration belongs in src/lib/pdf-mint/.",
+                "src/lib/pdf is PURE (ADR 0104 D14) — no supabase clients here, by ANY path shape. Orchestration belongs in src/lib/pdf-mint/.",
             },
             {
-              group: ["@/lib/queries", "@/lib/queries/*"],
+              group: [
+                "@/lib/queries",
+                "@/lib/queries/*",
+                "../queries",
+                "../queries/*",
+                "../../queries",
+                "../../queries/*",
+                "../../../queries",
+                "../../../queries/*",
+                "**/lib/queries/**",
+              ],
               message:
-                "src/lib/pdf is PURE (ADR 0104 D14) — no query layer here. Data providers live in src/lib/<domain>/pdf-payload.ts.",
+                "src/lib/pdf is PURE (ADR 0104 D14) — no query layer here, by ANY path shape. Data providers live in src/lib/<domain>/pdf-payload.ts.",
             },
             {
               group: ["server-only"],

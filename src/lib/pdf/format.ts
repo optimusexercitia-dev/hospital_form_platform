@@ -5,6 +5,11 @@
  * content-hash pipeline both rely on render determinism. Timestamps format in
  * the hospital-local zone (America/Sao_Paulo), the zone the paper will be read
  * in; per-tenant zones would enter as payload data if ever needed.
+ *
+ * ⚠ The unparseable-input fallback returns the INPUT string — so every
+ * template call site wraps these in `esc(...)` (QA MINOR-5): a well-formed
+ * date has no HTML metacharacters (esc is a no-op there), and a malformed
+ * payload value can never reach Chromium unescaped.
  */
 
 const TZ = 'America/Sao_Paulo'
