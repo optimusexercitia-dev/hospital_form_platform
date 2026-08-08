@@ -1267,3 +1267,32 @@ pre-existing answer-model-v2 bug FF-4 surfaced; ⚠ the obvious one-line fix wou
 evaluator parity, read the entry before touching `buildAnswerMaps`) · **BUG-E2EISO-002** (the
 `session_replication_role = replica` FK-CASCADE orphan leak, fixed across seven files behind one shared
 `e2e/helpers/purge-forms.ts`; production was never affected — app roles are denied the GUC).
+
+## Rotated 2026-08-08 at the PDF·P2 Record step
+
+✅ **BUG-PDF2-001 — printed-documents empty-state copy hardcodes "desta resposta" for every
+source kind, including meetings.** Filed 2026-08-08 (tester, PDF·P2 M-T1). **Repro:** mint
+nothing on a fresh meeting, open its "Documentos emitidos" panel → empty state reads "Nenhum
+documento emitido **a partir desta resposta** ainda." **Expected:** copy that reads correctly
+for whichever `sourceKind` the panel is bound to (a meeting is not "a resposta"). **Actual:**
+the string is a literal in `PrintedDocumentsList` (`src/components/printing/printed-documents-panel.tsx`),
+unchanged from P1 — reused AS-IS per the phase's own "provider + template + arm only" rule, so
+this is not a P2 regression, just P1's form-specific wording now visibly wrong on a second
+kind. **Severity LOW** — cosmetic pt-BR mismatch, no functional/security impact, no clause of
+the P2 acceptance list references it. **Owner:** frontend, whenever `src/components/printing/`
+is next touched (do NOT special-case this alone — the fix is presumably a `sourceKind`-driven
+label, which is exactly the kind of shared-component edit the phase's review question asks to
+be justified, not free-floated into M-F1's diff post hoc).
+**FIXED 2026-08-08 (frontend, `2e8ef7f`)** — kind-aware copy parameterized in
+`src/components/printing/labels.ts` (`documentSourcePhrase` + four copy helpers), per the lead's
+recorded ruling authorizing this as legitimate parameterization rather than an abstraction leak.
+`form_response` → "desta resposta", `meeting` → "desta reunião"; `case`/`interview` fall through
+to a neutral "deste registro" rather than being enumerated ahead of the phases that build them.
+⚠ **The filed repro was the empty state, but a sweep of `src/components/printing/` found the same
+defect in FOUR more strings** — all in the mint dialog (`mint-document-button.tsx`): its
+description, the supersession sentence, and both watermark rationales. All five are fixed. The
+watermark rationale needed kind-aware SENTENCES, not noun substitution: a form response is final
+once *submitted*, a meeting once its ata is *signed*, so a noun swap would have produced "A
+reunião já foi enviada". Copy only — no structural change; `WATERMARK_COPY` became
+`WATERMARK_MARK` + `watermarkReasonCopy(kind, watermark)`. Lint + typecheck + `next build` green.
+
