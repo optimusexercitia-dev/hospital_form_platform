@@ -207,6 +207,34 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+⬛ **BUG-QOB-001 — `responses_admin_all` let a tenancy admin DELETE other users' in-progress
+work.** Filed **and fixed** 2026-08-08 during QO·B step ① (kept here, not archived, until QO·B
+passes its §6 gate). **[CAT]** the policy was a bare `FOR ALL` with a single term,
+`app.is_commission_admin_of(commission_id)` — which is the **tenancy** admin (org_admin OR
+hospital_admin), *not* the committee's staff_admin. **Proven by execution, pre-fix:** as
+`orgadmin.a`, `delete from responses where status='in_progress' and created_by <> me` removed
+**6 rows** owned by `staff1`/`staff2`/others; the same principal read **9** of their draft
+answers. **Control:** identical statement as plain `staff` → **0 rows** (RLS filtered them
+away), so the probe discriminates. On **submitted** rows the delete was stopped only by the
+`guard_submitted_response` **trigger** — a data-integrity guard doing an authorization job by
+accident; for **in-progress** rows nothing stood in the way. **Fixed** by QO·B M1
+(`20260915000000`), which drops the policy outright; post-fix the same statement returns no
+rows and `orgadmin.a` reads 0 responses / 0 answers, while the `staff_admin` control holds at
+25/49. Not a Phase-A regression — it predates the QO program; the inventory is what found it.
+
+⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
+2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:
+`get_case_detail(case_a)` **denied** (`caso … não encontrado`) and `cases` returned **0 rows**,
+while `update_case_meta(case_a, 'PHASE-B-PROBE', …)` **SUCCEEDED** and renamed the case.
+**[CAT]** the door's authority block is `if app.is_staff_admin_of(v_commission) or
+app.is_commission_admin_of(v_commission)` and it **never consults `can_read_case`** — it reads
+`public.cases` directly inside SECURITY DEFINER, so RLS never applies. **Mechanism:** A4
+narrowed the case *read* plane (policies + 4 functions) and left the *write* doors on the
+tenancy predicate, so the two planes disagree. ~30 sibling doors share the shape (inventory
+§4.4). ⚠ Nothing in the ADR 0079 estate catches this: the doors are reachable and their gates
+are *present*, just wrong — and **25 of the 144 are INVOKER** (`prosecdef = f`), the
+AUDIT-INVOKER-WRAPPER blind spot in *Remaining pre-pilot work* item 4.
+
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
 narrative was rotated — **this was the one open item in it that existed in no other tracked place**,
@@ -325,6 +353,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 FUP-PDF-2 — SQLSTATE allowlist can surface English Postgres text (QA P1 MINOR-1; latent) — backend
 - 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; the token is the real widening) — backend
 - 🟡 FUP-PDF-4 — verification rate limiter is global + in-process (QA P1 MINOR-3) — backend
+- 🔴 **FUP-QOB-1** — QO·B M1 made `response_group_instances_write_own_draft`'s `created_by = auth.uid()` term **no longer independently observable**, so `270_ff1_repeating_groups` §J's reader-non-writer keystone (J1b) is **vacuous** and is annotated as such in the file. The write qual's `WITH CHECK` subquery reads `responses` under RLS, so a non-reader is denied by *invisibility*, never by the term — the exact qa MAJOR-2 trap the §J header records. Post-M1 the readers of an in-progress response's instances are exactly {creator, targeted respondent} and **both are writers**; `staff_admin` on a *submitted* response is stopped first by the immutability trigger (23514), which proves immutability, not the qual. **No replacement persona exists.** Needs a ruling: relocate the guard (a pgTAP-only fixture? a catalog postcondition on the policy text?) or accept the coincidence of read/write surfaces as the stronger pinned property — backend + qa
 - 🟡 FUP-QO-9 — the e2e:prod gate's infra classifier misses two PGRST002 shapes — backend / `scripts/e2e-prod-gate.sh`
 - 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set from `pg_proc`, not by remembering it — backend
 - 🟡 FUP-AFF-4 — make the membership-role list a Postgres ENUM (decide before the role set next changes) — backend

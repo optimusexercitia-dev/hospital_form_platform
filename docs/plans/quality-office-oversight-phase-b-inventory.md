@@ -2,9 +2,9 @@
 
 **Decision record:** ADR [0100](../decisions/0100-quality-office-oversight.md) **D12**.
 **Plan:** [quality-office-oversight.md](./quality-office-oversight.md) § "Phase B".
-**Status:** ⛔ **AWAITING PO RATIFICATION** — plan step ② is *"the PO ratifies the
-content-vs-configuration classification list **before any migration**"*. No migration is
-authored until §6 below is signed off.
+**Status:** ✅ **RATIFIED 2026-08-08** (§6) — D12 step ② satisfied, migrations authorized.
+**Build state:** M1 (response plane) + M2 (documents/printed) **landed and A/B-proven**;
+M3 (indicator measurements) and M4 (case-plane write doors, BUG-QOB-002) **not yet built**.
 **Derived:** 2026-08-08, from the **live catalog** of the local stack
 (`supabase_db_azkbbhskturikxpgmafq`), 322 registered == 322 files.
 
@@ -230,7 +230,26 @@ standing ADR 0079 sweep floors `prosecdef = t` and cannot see them. Any cut in t
 must be verified **behaviourally**, because neutralizing a gate they don't own proves
 nothing.
 
-## 6. ⛔ PO ratification — the questions that gate the migration
+## 6. ✅ PO ratification — RATIFIED 2026-08-08
+
+**The gate is passed.** D12 step ② is satisfied; migrations are authorized. Rulings:
+
+| # | Question | **PO ruling** |
+|---|---|---|
+| Q1 | Form definitions (§4.7a) | **KEEP as configuration.** Not in D12's content enumeration; hold no answers and no PHI. |
+| Q2 | Process templates (§4.7b) | **KEEP as configuration** (follows Q1). |
+| Q3 | Indicators (§4.7c) | **SPLIT** — keep the *definition* (`indicators`, `create/update_indicator`, `set_indicator_target`); **cut the *measurement*** (`indicator_measurements`, `record_indicator_measurement`, `compute_derived_measurement`). Aggregates stay per D12 ⑥. |
+| Q4 | hospital_admin | **Same wall as org_admin.** Both are admitted by the same predicate and measure identically; walling only org_admin would leave a documented bypass. |
+| Q5 | Severity of the two live defects | **File both as bugs now, fix in Phase B.** → **BUG-QOB-001** (fixed by M1) and **BUG-QOB-002** (pending M4). |
+| Q6 | Rename `is_commission_admin_of` → `is_tenancy_admin_of` | **Yes, but as a SEPARATE wave AFTER Phase B lands** — a rename rewrites nearly every body Phase B also edits, confounding the equivalence matrix. |
+| Q7 | Taxonomy & meetings (§4.7d/e) | **KEEP both as configuration.** Consistent with Q1 and with `case_types`. Rule: *org_admin shapes the containers, never reads what goes in them.* |
+
+⚠ **One correction to §4.1 made during build:** `phase_results` is **commission VOCABULARY**
+(`id, commission_id, label, color_token, is_adverse, archived, position`), not per-case
+results, so under Q7 it is **KEEP**, not CUT. §4.1 listed it wrongly. `case_participant_roles`
+is likewise org-level vocabulary → KEEP. Verified from `information_schema.columns`.
+
+### 6.1 Original questions (kept for the record)
 
 1. **Q1 — Form definitions (§4.7a):** cut or keep?
 2. **Q2 — Process templates (§4.7b):** cut or keep? (default: follow Q1)
