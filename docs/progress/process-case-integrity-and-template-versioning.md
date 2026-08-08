@@ -141,3 +141,47 @@ Probes reverted after every round; `grep MUTATION PROBE` clean and `git diff src
 > own "text is not truth / resolve the VALUE, not the noun" lesson, reproduced exactly. Comments in the
 > three affected files now state the mechanism as verified from the function bodies.
 
+
+## Phase Status rows + gate caveats (rotated verbatim from PROGRESS.md 2026-08-08)
+
+Caveat 1 (un-runnable `ARM=census`) was DISCHARGED 2026-08-05 — the arm landed with the
+membership-hardening merge and was run against the merged catalog; residue registered in
+FUP-PCITV-1 row 1. Caveat 2 was ruled VOID by the PO 2026-08-05. Rotated for the record:
+
+### PCI row
+
+| **PCI** | **Process/Case integrity audit remediation** [0095](docs/decisions/0095-process-case-integrity-audit-remediation.md) · [audit](docs/reviews/process-case-integrity-audit.md) · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 | ✅ pgTAP **158f/4860** fresh reset · 4 guards neutralization-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **0 BLIND** · `e2e:prod` **GATE GREEN 965p** (shared with TV) | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) (r1 CHANGES REQUESTED → BUG-TV-001 fixed) | ✅ 2026-08-05 | 2026-08-05 | `44cd9bb`…`f6c847d` → ff `main` |
+
+### TV row
+
+| **TV** | **Process-Template Versioning** [0096](docs/decisions/0096-process-template-versioning.md) (+ Amendments 1.1–1.7) — PO-directed full remodel · [detail](docs/progress/process-case-integrity-and-template-versioning.md) | ✅ complete | ✅ lint 0/0 · tsc · vitest 945 · `db reset` 284=284 | ✅ pgTAP **158f/4860 PASS** · `297` 37 assertions all mutation-proven · `ARM=floor` HOLDS · diff-scoped `ARM=policy` **6 COVERED / 0 BLIND** (was 6 BLIND) · `e2e:prod` **GATE GREEN — 965 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 16 batches · 0 reset FAILED · accounted 965/970** | ✅ **APPROVED** r2 [review](docs/reviews/process-integrity-and-template-versioning-review.md) | ✅ 2026-08-05 | 2026-08-05 | `6b9314c`…`f6c847d` → ff `main` |
+
+> ⚠ **Two PCI/TV caveats survive the ✅ above — read them before treating this as deployable.**
+>
+> 1. **`ARM=census` was never run, and could not be.** The script on this branch supports only
+>    `policy|floor|all`; the census arm — the one that catches a *newly added* gate, which passes
+>    `ARM=policy` vacuously by being in no BLIND set — exists solely as uncommitted work in the
+>    `feat/membership-hardening-technical-director` session, as does the CLAUDE.md §6 text requiring
+>    it. QA covered the substance by hand (all 6 new policies carry ALLOW **and** DENY arms; the
+>    apparent 7th gap traces to suite `188`). **Re-run `ARM=census` over these two workstreams once
+>    that branch lands** — this is the one gate arm this phase's record cannot claim.
+> 2. ~~**The TV backfill has never been exercised and structurally cannot be, locally** — rehearsal
+>    + remote snapshot blocking before `db push`.~~ **VOID (PO, 2026-08-05): the remote database is
+>    EMPTY.** The backfill therefore runs against zero rows there too — the same path `db reset` has
+>    exercised green on every local run — so `scripts/verify-tv-backfill.sh` and the snapshot are
+>    **no longer blocking**. ⚠ Keep the *mechanism* though, because it recurs: `db reset` applies
+>    migrations **then** `seed.sql`, so a backfill is invisible to local testing **forever** (ADR
+>    0096 A1.3) — a green reset is not weak evidence of a backfill, it is *no* evidence. The
+>    rehearsal script stays in the repo for the first `db push` that ever meets populated data.
+>
+>    ⚠ **The error to learn from is mine, not the code's.** ADR 0096 justified the whole
+>    backfill-not-reset strategy with one clause — *"the remote carries demo/pilot-prep data"* — and
+>    it was **never verified**. It then propagated into the ADR, the migration design, this table,
+>    and a lead risk assessment that called it "the largest residual risk on this branch". One
+>    unchecked premise, restated four times, reads as four confirmations. **Ask what is actually in
+>    an environment before designing around it** — the check took one question.
+>
+> *Historical:* PCI's first `e2e:prod` exited **0** while reporting `GATE RED (UNRUN)` — 655 of 962
+> tests never ran, because TV migration files landed on disk mid-gate and the gate resets per batch.
+> Superseded by the 965/965 run above. The lesson lives in `docs/testing/e2e-prod-build-gate.md`:
+> **authoring a migration during a gate is not inert, and the exit code is not the signal.**
