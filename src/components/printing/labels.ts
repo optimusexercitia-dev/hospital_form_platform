@@ -1,6 +1,7 @@
 import type {
   PrintedDocumentSourceKind,
   PrintedDocumentStatus,
+  WatermarkFlag,
 } from "@/lib/pdf/types";
 
 /**
@@ -26,6 +27,81 @@ export const DOCUMENT_KIND_LABELS: Record<PrintedDocumentSourceKind, string> = {
   meeting: "Ata de reunião",
   interview: "Entrevista",
 };
+
+/**
+ * How a document's SOURCE is referred to in running pt-BR copy ("os documentos
+ * emitidos ___"). BUG-PDF2-001: the printing components shipped in P1 with
+ * "desta resposta" hardcoded, which read wrong the moment a second kind arrived.
+ *
+ * Only kinds that actually render a mint surface are listed. `case` and
+ * `interview` deliberately fall through to the generic phrase rather than being
+ * enumerated ahead of the phases that build them — a label written now for a
+ * screen that does not exist is a claim nothing can check, and it would go stale
+ * silently.
+ */
+const KIND_SOURCE_PHRASE: Partial<Record<PrintedDocumentSourceKind, string>> = {
+  form_response: "desta resposta",
+  meeting: "desta reunião",
+};
+
+/** Kind-neutral fallback. "Registro" is the honest generic here — ADR 0104 D1's
+ * whole premise is that a mint produces a RECORD. */
+const GENERIC_SOURCE_PHRASE = "deste registro";
+
+/** The source phrase for one kind, e.g. "desta reunião". */
+export function documentSourcePhrase(kind: PrintedDocumentSourceKind): string {
+  return KIND_SOURCE_PHRASE[kind] ?? GENERIC_SOURCE_PHRASE;
+}
+
+/** Empty state for the "Documentos emitidos" panel. */
+export function noPrintedDocumentsCopy(kind: PrintedDocumentSourceKind): string {
+  return `Nenhum documento emitido a partir ${documentSourcePhrase(kind)} ainda.`;
+}
+
+/** Failed-registry-read notice for the panel. */
+export function printedDocumentsLoadErrorCopy(
+  kind: PrintedDocumentSourceKind,
+): string {
+  return `Não foi possível carregar os documentos emitidos ${documentSourcePhrase(kind)}. Atualize a página em alguns instantes.`;
+}
+
+/** The mint dialog's one-line summary of what is about to be produced. */
+export function mintDialogDescriptionCopy(
+  kind: PrintedDocumentSourceKind,
+): string {
+  return `Gera um PDF definitivo ${documentSourcePhrase(kind)} e o registra na plataforma.`;
+}
+
+/**
+ * WHY this mint will carry the mark it carries (ADR 0104 D7).
+ *
+ * Kind-aware SENTENCES, not a noun substitution: the condition that makes a
+ * document final differs per kind — a form response is final once *submitted*, a
+ * meeting once its ata is *signed*. Swapping only the noun would have produced
+ * "A reunião já foi enviada", which is not a thing that happens to a meeting.
+ */
+export function watermarkReasonCopy(
+  kind: PrintedDocumentSourceKind,
+  watermark: WatermarkFlag,
+): string {
+  const isFinal = watermark === "final";
+
+  if (kind === "form_response") {
+    return isFinal
+      ? "A resposta já foi enviada, então o documento sai como via final."
+      : "A resposta ainda está em andamento, então o documento sai marcado como rascunho.";
+  }
+
+  if (kind === "meeting") {
+    return isFinal
+      ? "A ata já foi assinada, então o documento sai como via final."
+      : "A ata ainda não foi assinada, então o documento sai marcado como rascunho.";
+  }
+
+  return isFinal
+    ? "A origem já está em estado final, então o documento sai como via final."
+    : "A origem ainda não está em estado final, então o documento sai marcado como rascunho.";
+}
 
 /** Short status word for chips and inline mentions (ADR 0104 D6). */
 export const DOCUMENT_STATUS_LABELS: Record<PrintedDocumentStatus, string> = {

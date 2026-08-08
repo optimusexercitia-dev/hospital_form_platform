@@ -14,6 +14,8 @@ import {
 } from "@/components/printing/revoke-document-dialog";
 import {
   formatDateTimePtBr,
+  noPrintedDocumentsCopy,
+  printedDocumentsLoadErrorCopy,
   revokeReasonClassLabel,
 } from "@/components/printing/labels";
 import { listPrintedDocuments } from "@/lib/queries/printed-documents";
@@ -122,10 +124,7 @@ async function PrintedDocumentsList({
           aria-hidden="true"
           className="mt-0.5 size-4 shrink-0 text-warning"
         />
-        <span>
-          Não foi possível carregar os documentos emitidos desta resposta.
-          Atualize a página em alguns instantes.
-        </span>
+        <span>{printedDocumentsLoadErrorCopy(sourceKind)}</span>
       </p>
     );
   }
@@ -133,7 +132,7 @@ async function PrintedDocumentsList({
   if (documents.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border bg-card/50 px-5 py-6 text-sm text-muted-foreground">
-        Nenhum documento emitido a partir desta resposta ainda.
+        {noPrintedDocumentsCopy(sourceKind)}
       </p>
     );
   }

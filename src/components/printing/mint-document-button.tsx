@@ -16,6 +16,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import {
+  documentSourcePhrase,
+  mintDialogDescriptionCopy,
+  watermarkReasonCopy,
+} from "@/components/printing/labels";
 import type {
   MintPrintedDocumentInput,
   MintPrintedDocumentState,
@@ -29,19 +34,15 @@ export type MintDocumentAction = (
   input: MintPrintedDocumentInput,
 ) => Promise<MintPrintedDocumentState>;
 
-/** Copy for the mark this mint will stamp (ADR 0104 D7). Both marks are stated
- * outright: every document declares its state, and an unwatermarked page is
- * evidence of tampering rather than the normal case — so the user is told which
- * mark they are about to put on paper BEFORE it exists. */
-const WATERMARK_COPY: Record<WatermarkFlag, { mark: string; why: string }> = {
-  final: {
-    mark: "FINAL",
-    why: "A resposta já foi enviada, então o documento sai como via final.",
-  },
-  draft: {
-    mark: "RASCUNHO",
-    why: "A resposta ainda está em andamento, então o documento sai marcado como rascunho.",
-  },
+/** The mark this mint will stamp (ADR 0104 D7). Both marks are stated outright:
+ * every document declares its state, and an unwatermarked page is evidence of
+ * tampering rather than the normal case — so the user is told which mark they
+ * are about to put on paper BEFORE it exists. The RATIONALE beside it is
+ * kind-aware (`watermarkReasonCopy`), because what makes a document final
+ * differs per kind. */
+const WATERMARK_MARK: Record<WatermarkFlag, string> = {
+  final: "FINAL",
+  draft: "RASCUNHO",
 };
 
 /**
@@ -118,7 +119,8 @@ export function MintDocumentButton({
     });
   }
 
-  const copy = WATERMARK_COPY[watermark];
+  const mark = WATERMARK_MARK[watermark];
+  const watermarkWhy = watermarkReasonCopy(sourceKind, watermark);
 
   return (
     <Dialog
@@ -147,7 +149,7 @@ export function MintDocumentButton({
         <DialogHeader>
           <DialogTitle>Emitir documento</DialogTitle>
           <DialogDescription>
-            Gera um PDF definitivo desta resposta e o registra na plataforma.
+            {mintDialogDescriptionCopy(sourceKind)}
           </DialogDescription>
         </DialogHeader>
 
@@ -167,17 +169,18 @@ export function MintDocumentButton({
             <div className="rounded-xl border border-primary/25 bg-accent/50 px-4 py-3">
               <p className="text-sm font-medium text-accent-foreground">
                 Marca d&rsquo;água:{" "}
-                <span className="font-mono tracking-wide">{copy.mark}</span>
+                <span className="font-mono tracking-wide">{mark}</span>
               </p>
               <p className="mt-1 text-sm leading-relaxed text-pretty text-muted-foreground">
-                {copy.why}
+                {watermarkWhy}
               </p>
             </div>
 
             <p className="text-sm leading-relaxed text-pretty text-muted-foreground">
               O documento emitido é permanente e não pode ser apagado. Se já
-              houver uma emissão anterior desta resposta, ela passa a constar
-              como <strong className="font-medium">substituída</strong> — a via
+              houver uma emissão anterior {documentSourcePhrase(sourceKind)},
+              ela passa a constar como{" "}
+              <strong className="font-medium">substituída</strong> — a via
               impressa continua autêntica, apenas deixa de ser a mais recente.
             </p>
 
