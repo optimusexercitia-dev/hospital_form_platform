@@ -1,15 +1,13 @@
 import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
-import { flattenItem } from "@/lib/queries/forms";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
-import { getSignedAssetUrl } from "@/lib/queries/forms";
+import { resolveTreeImageUrls } from "@/lib/queries/forms";
 import { getResponseForSignoff } from "@/lib/queries/signoffs";
 import { SignRunner } from "@/components/signoffs/sign-runner";
-import type { ImageContent } from "@/lib/queries/forms";
 import type { ResponseForSignoff } from "@/lib/queries/signoffs";
 import {
   toClientResponseForSignoff,
@@ -60,7 +58,7 @@ export default async function ReviewAndSignPage({
   // Defend against a tampered URL where the path's commission doesn't match.
   if (data.commissionId !== access.commission.id) notFound();
 
-  const imageUrls = await resolveImageUrls(data);
+  const imageUrls = await resolveTreeImageUrls(data.tree);
 
   // Adapter point: B2's `ResponseForSignoff` → the review screen's client props
   // (`signoffs[]` → map, nullable names → pt-BR fallbacks).
@@ -98,36 +96,4 @@ export default async function ReviewAndSignPage({
       />
     </div>
   );
-}
-
-/**
- * Resolve a `{ storage_path → signed URL }` map for every image block in the
- * response's version tree (server-side). Mirrors the wizard's resolver so image
- * previews render immediately in the read-only review.
- */
-async function resolveImageUrls(
-  data: ResponseForSignoff,
-): Promise<Record<string, string>> {
-  const paths = new Set<string>();
-  // FF-1: `Section.items` holds only TOP-LEVEL items, so walk through
-  // `flattenItem` — an image authored inside a container would otherwise
-  // resolve to no signed URL and render as a permanent placeholder.
-  for (const section of data.tree.sections) {
-    for (const item of section.items.flatMap(flattenItem)) {
-      if (item.itemType === "image" && item.content) {
-        const path = (item.content as ImageContent).storage_path;
-        if (path) paths.add(path);
-      }
-    }
-  }
-  const entries = await Promise.all(
-    [...paths].map(
-      async (path) => [path, await getSignedAssetUrl(path)] as const,
-    ),
-  );
-  const map: Record<string, string> = {};
-  for (const [path, url] of entries) {
-    if (url) map[path] = url;
-  }
-  return map;
 }

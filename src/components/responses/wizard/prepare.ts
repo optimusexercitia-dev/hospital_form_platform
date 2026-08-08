@@ -1,6 +1,6 @@
 import "server-only";
 
-import { flattenItem, getSignedAssetUrl } from "@/lib/queries/forms";
+import { flattenItem } from "@/lib/queries/forms";
 import type { Item, VersionTree } from "@/lib/queries/forms";
 import type {
   GroupInstance,
@@ -266,36 +266,4 @@ export function toWizardData(
     phaseResult,
     correction: correction ?? undefined,
   };
-}
-
-/**
- * Resolve a `{ storage_path → signed URL }` map for every image block in the
- * response's version tree (server-side, so previews render immediately). A null
- * URL falls back to a placeholder in `ImagePreview`. Mirrors the builder's
- * resolver so the two never drift.
- */
-export async function resolveImageUrls(
-  response: ResponseForFill,
-): Promise<Record<string, string>> {
-  const paths = new Set<string>();
-  // FF-1: walk THROUGH containers — an image block authored inside a group would
-  // otherwise resolve to no signed URL and render as a permanent placeholder.
-  for (const section of response.tree.sections) {
-    for (const item of section.items.flatMap(flattenItem)) {
-      if (item.itemType === "image" && item.content) {
-        const path = (item.content as { storage_path?: string }).storage_path;
-        if (path) paths.add(path);
-      }
-    }
-  }
-  const entries = await Promise.all(
-    [...paths].map(
-      async (path) => [path, await getSignedAssetUrl(path)] as const,
-    ),
-  );
-  const map: Record<string, string> = {};
-  for (const [path, url] of entries) {
-    if (url) map[path] = url;
-  }
-  return map;
 }

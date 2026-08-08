@@ -9,13 +9,11 @@ import { getResponseForFill } from "@/lib/queries/responses";
 import { getCasePhaseForFill } from "@/lib/queries/cases";
 import { getResponseSignoffs } from "@/lib/queries/signoffs";
 import { listCaseCorrectionRequests } from "@/lib/queries/corrections";
+import { resolveTreeImageUrls } from "@/lib/queries/forms";
 import { isOpenCorrection } from "@/components/cases/correction-labels";
 import { WizardRunner } from "@/components/responses/wizard/wizard-runner";
 import { ConfirmationScreen } from "@/components/responses/wizard/confirmation-screen";
-import {
-  resolveImageUrls,
-  toWizardData,
-} from "@/components/responses/wizard/prepare";
+import { toWizardData } from "@/components/responses/wizard/prepare";
 
 export const metadata: Metadata = {
   title: "Preencher fase",
@@ -117,7 +115,7 @@ export default async function PhaseResponderPage({
     correction ? null : { casePhaseId: fill.phase.id, result: fill.result },
     correction,
   );
-  const imageUrls = await resolveImageUrls(response);
+  const imageUrls = await resolveTreeImageUrls(response.tree);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">

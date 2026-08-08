@@ -7,12 +7,10 @@ import { ArrowLeft } from "lucide-react";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getResponseForFill } from "@/lib/queries/responses";
 import { getResponseSignoffs } from "@/lib/queries/signoffs";
+import { resolveTreeImageUrls } from "@/lib/queries/forms";
 import { WizardRunner } from "@/components/responses/wizard/wizard-runner";
 import { ConfirmationScreen } from "@/components/responses/wizard/confirmation-screen";
-import {
-  resolveImageUrls,
-  toWizardData,
-} from "@/components/responses/wizard/prepare";
+import { toWizardData } from "@/components/responses/wizard/prepare";
 
 export const metadata: Metadata = {
   title: "Preencher formulário",
@@ -81,7 +79,7 @@ export default async function ResponderPage({
     access.commission.name,
     signoffs,
   );
-  const imageUrls = await resolveImageUrls(response);
+  const imageUrls = await resolveTreeImageUrls(response.tree);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">

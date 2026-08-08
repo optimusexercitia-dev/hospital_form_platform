@@ -1328,3 +1328,45 @@ export async function getSignedAssetUrl(
     .createSignedUrl(storagePath, expiresInSeconds)
   return data?.signedUrl ?? null
 }
+
+/**
+ * The `{ storage_path → signed URL }` map for every `image` display item in a
+ * version tree — what the read-only renderers need to show authored images.
+ * Paths that resolve to no URL (missing object / no access) are OMITTED, so the
+ * renderer falls back to its placeholder.
+ *
+ * FF-1: `Section.items` holds only TOP-LEVEL items, so the walk goes through
+ * {@link flattenItem} — an image authored inside a container would otherwise
+ * resolve to no signed URL and render as a permanent placeholder.
+ *
+ * ⚠ This is the ONLY copy of this walk, and it must stay that way. It existed
+ * five times over (builder · version history · sign-off review · submission
+ * detail · the wizard's `prepare.ts`), each one carrying a comment promising it
+ * "mirrors" the others — and FF-1 still had to be fixed once per copy. Callers
+ * whose payload wraps the tree (`ResponseForFill`, `ResponseForSignoff`,
+ * `SubmissionDetail`) pass `x.tree` rather than growing an overload here: the
+ * next wrapper type is then a call site, not a sixth copy.
+ */
+export async function resolveTreeImageUrls(
+  tree: VersionTree,
+): Promise<Record<string, string>> {
+  const paths = new Set<string>()
+  for (const section of tree.sections) {
+    for (const item of section.items.flatMap(flattenItem)) {
+      if (item.itemType === 'image' && item.content) {
+        const path = (item.content as { storage_path?: string }).storage_path
+        if (path) paths.add(path)
+      }
+    }
+  }
+  const entries = await Promise.all(
+    [...paths].map(
+      async (path) => [path, await getSignedAssetUrl(path)] as const,
+    ),
+  )
+  const map: Record<string, string> = {}
+  for (const [path, url] of entries) {
+    if (url) map[path] = url
+  }
+  return map
+}

@@ -1,13 +1,12 @@
 import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
-import { flattenItem } from "@/lib/queries/forms";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Clock, Layers } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getSubmissionDetail } from "@/lib/queries/submissions";
-import { getSignedAssetUrl, type VersionTree } from "@/lib/queries/forms";
+import { resolveTreeImageUrls } from "@/lib/queries/forms";
 import { SubmissionDetailView } from "@/components/dashboard/submission-detail-view";
 import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
 import { CorrectSubmissionButton } from "@/components/dashboard/correct-submission-button";
@@ -57,7 +56,7 @@ export default async function SubmissionDetailPage({
     notFound();
   }
 
-  const imageUrls = await resolveImageUrls(detail.tree);
+  const imageUrls = await resolveTreeImageUrls(detail.tree);
   const member = detail.memberName ?? "Membro removido";
   const isSubmitted = detail.status === "submitted";
 
@@ -154,33 +153,4 @@ function formatDateTime(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-/** Resolve a `{ storage_path → signed URL }` map for the version's image blocks
- * (mirrors the version-history page's helper). */
-async function resolveImageUrls(
-  tree: VersionTree,
-): Promise<Record<string, string>> {
-  const paths = new Set<string>();
-  // FF-1: `Section.items` holds only TOP-LEVEL items, so walk through
-  // `flattenItem` — an image authored inside a container would otherwise
-  // resolve to no signed URL and render as a permanent placeholder.
-  for (const section of tree.sections) {
-    for (const item of section.items.flatMap(flattenItem)) {
-      if (item.itemType === "image" && item.content) {
-        const path = (item.content as { storage_path?: string }).storage_path;
-        if (path) paths.add(path);
-      }
-    }
-  }
-  const entries = await Promise.all(
-    [...paths].map(
-      async (path) => [path, await getSignedAssetUrl(path)] as const,
-    ),
-  );
-  const map: Record<string, string> = {};
-  for (const [path, url] of entries) {
-    if (url) map[path] = url;
-  }
-  return map;
 }

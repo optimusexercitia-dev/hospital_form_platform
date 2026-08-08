@@ -1,16 +1,14 @@
 import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
-import { flattenItem } from "@/lib/queries/forms";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
-  getSignedAssetUrl,
   getVersionTree,
   listForms,
   listVersions,
-  type VersionTree,
+  resolveTreeImageUrls,
 } from "@/lib/queries/forms";
 import { StatusBadge } from "@/components/forms/status-badge";
 import { ReadOnlyTree } from "@/components/forms/read-only-tree";
@@ -53,7 +51,7 @@ export default async function VersionsPage({
   const selectedId =
     v && versions.some((ver) => ver.id === v) ? v : null;
   const tree = selectedId ? await getVersionTree(selectedId) : null;
-  const imageUrls = tree ? await resolveImageUrls(tree) : {};
+  const imageUrls = tree ? await resolveTreeImageUrls(tree) : {};
 
   return (
     <div className="flex flex-col gap-8">
@@ -117,32 +115,4 @@ export default async function VersionsPage({
       </div>
     </div>
   );
-}
-
-/** Resolve a `{ storage_path → signed URL }` map for the version's image blocks. */
-async function resolveImageUrls(
-  tree: VersionTree,
-): Promise<Record<string, string>> {
-  const paths = new Set<string>();
-  // FF-1: `Section.items` holds only TOP-LEVEL items, so walk through
-  // `flattenItem` — an image authored inside a container would otherwise
-  // resolve to no signed URL and render as a permanent placeholder.
-  for (const section of tree.sections) {
-    for (const item of section.items.flatMap(flattenItem)) {
-      if (item.itemType === "image" && item.content) {
-        const path = (item.content as { storage_path?: string }).storage_path;
-        if (path) paths.add(path);
-      }
-    }
-  }
-  const entries = await Promise.all(
-    [...paths].map(
-      async (path) => [path, await getSignedAssetUrl(path)] as const,
-    ),
-  );
-  const map: Record<string, string> = {};
-  for (const [path, url] of entries) {
-    if (url) map[path] = url;
-  }
-  return map;
 }

@@ -7,10 +7,8 @@ import {
   getVersionTree,
   listForms,
   listVersions,
-  getSignedAssetUrl,
-  flattenItem,
+  resolveTreeImageUrls,
 } from "@/lib/queries/forms";
-import type { VersionTree } from "@/lib/queries/forms";
 import {
   controlledDocsEnabled,
   featureEnabled,
@@ -65,7 +63,7 @@ export default async function BuilderPage({
   if (draft) {
     // Pre-resolve signed URLs for any image blocks so the builder can show
     // previews without a client round trip per image.
-    const imageUrls = await resolveImageUrls(draft);
+    const imageUrls = await resolveTreeImageUrls(draft);
 
     // Phase 17, F7 — when controlled-documents is on, the publish dialog offers
     // optional document-control metadata (approver + effective date + review
@@ -140,7 +138,7 @@ export default async function BuilderPage({
   const published =
     versions.find((v) => v.status === "published") ?? versions[0] ?? null;
   const tree = published ? await getVersionTree(published.id) : null;
-  const imageUrls = tree ? await resolveImageUrls(tree) : {};
+  const imageUrls = tree ? await resolveTreeImageUrls(tree) : {};
 
   return (
     <PublishedReadOnly
@@ -153,30 +151,4 @@ export default async function BuilderPage({
       imageUrls={imageUrls}
     />
   );
-}
-
-/**
- * Resolve a `{ storage_path → signed URL }` map for every image block in a tree.
- * Done on the server so previews render immediately; a null URL falls back to a
- * placeholder in the UI.
- */
-async function resolveImageUrls(tree: VersionTree): Promise<Record<string, string>> {
-  const paths = new Set<string>();
-  // FF-1: `Section.items` holds only TOP-LEVEL items now, so walk through
-  // `flattenItem` — an image block authored inside a container would otherwise
-  // resolve to no signed URL and render as a permanent placeholder.
-  for (const item of tree.sections.flatMap((s) => s.items.flatMap(flattenItem))) {
-    if (item.itemType === "image" && item.content) {
-      const path = (item.content as { storage_path?: string }).storage_path;
-      if (path) paths.add(path);
-    }
-  }
-  const entries = await Promise.all(
-    [...paths].map(async (path) => [path, await getSignedAssetUrl(path)] as const),
-  );
-  const map: Record<string, string> = {};
-  for (const [path, url] of entries) {
-    if (url) map[path] = url;
-  }
-  return map;
 }
