@@ -130,96 +130,21 @@ no remote `db push` of the two P2 migrations. The PO is handling the pending ite
 - `[ ]` **Gotenberg Coolify resource** — runbook [docs/deployment/pdf-renderer.md](docs/deployment/pdf-renderer.md); flag `document_printing` stays OFF in prod until this + both pushes exist.
 - P3 build carry-forwards (not user actions): `can_read_full_meeting_content` is fail-open STANDALONE — never reuse without the `can_reach_meeting` conjunct; becomes `COMMENT ON FUNCTION` in P3's first migration · P4 repoints the relocated fail-closed keystones again (noted in-file in `312`/`313`).
 
-### ⬛ PDF·P1 — PDF printing: Forms + full skeleton · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
+### ⬛ Recently completed — rotated 2026-08-08; detail in `docs/progress/`
 
-Full record (task table B0–B8/F1–F2/T1/Q1, lead notes, gate detail, e2e:prod triage) rotated →
-[pdf-p1-forms-skeleton.md](docs/progress/pdf-p1-forms-skeleton.md). ADR
-[0104](docs/decisions/0104-pdf-document-printing-module.md) + Amendments A1–A6 · review
-[phase-PDF-P1-review.md](docs/reviews/phase-PDF-P1-review.md) (r1+r2) · migrations
-`20260913000000`–`…000400` · pgTAP `312` 73/73 · e2e:prod GREEN 0 real failures/1026 · flag
-`document_printing` **OFF** in prod (seed forces ON locally). **Deploy prereqs = USER actions,
-both pending:** remote `db push` of the 5 migrations · Gotenberg Coolify resource per
-[docs/deployment/pdf-renderer.md](docs/deployment/pdf-renderer.md); flag stays OFF until both.
+One line each. Gate numbers live in the **Phase Status** table above; the linked record carries the
+task table, findings and narrative. "Still open" points at the live sections further down this file.
 
-**Open follow-ups:** FUP-PDF-**2..4** — full entries under **Follow-ups / Deferred Items**
-below (moved there 2026-08-08, P2 Record step). FUP-PDF-1 ✅ resolved 2026-08-08 → archived;
-deploy prereqs + push status tracked in the PDF·P2 block above.
-
-### ⬛ QO·FUP — FUP-QO close-out (F1–F9) · **COMPLETE 2026-08-07** · QA **APPROVED (r2)**
-
-All of FUP-QO-1…8 resolved (QO-6 accepted-provisional, open LOW; QO-9 filed, open). Full record —
-PO rulings D-FUP-1/4/6/6b + the NULL-expiry ruling (ADR 0103), task table F1–F9, gate detail —
-rotated → [qo-fup-close-out.md](docs/progress/qo-fup-close-out.md). Review:
-[qo-fup-review.md](docs/reviews/qo-fup-review.md) · ADRs 0101/0102/0103 · migrations
-`20260912000000`+`…000100` · E2E all 1019 accounted green.
-
-### ⬛ QO·A — Quality-office oversight, Phase A · **COMPLETE 2026-08-07**
-
-Full record (task table, the five findings, the M8→M11 narrative, perf numbers, gate detail) rotated →
-[quality-office-oversight.md](docs/progress/quality-office-oversight.md). ADR
-[0100](docs/decisions/0100-quality-office-oversight.md) · QA **APPROVED (r3)**
-[review](docs/reviews/quality-office-oversight-review.md). Gate: 11 migrations · pgTAP **172 files /
-5355** · `q1` **20/20 RED-proven** · census+floor **HOLD** · vitest **1158** · `quality-oversight.spec.ts`
-**18/19 + 1 cold-start flaky**, no QO failures in the suite.
-
-**The rule this phase produced, and the reason to read the record:** *conferring a capability bit
-requires enumerating its **consumers**, not just its producers.* Three of the five findings were that
-one mistake in different clothes. **Phase B is the larger instance** — it subtracts a bit from a
-principal with far more consumers than S7 ever had. Corollary: *a guard whose boundary is a literal
-list cannot close a family — derive the set, assert over the derivation, twin it against the empty set.*
-
-Still open, none blocking: **FUP-QO-1…6** (Follow-ups below). Phases **B** (org_admin content wall) and
-**C** (lifecycle + break-glass) are **not** in this phase.
-
-### ⬛ MIN — Meeting audio → generated ata (`audio_minutes`) · **COMPLETE 2026-08-06**
-
-Full record (task table, gate narrative, neutralization audits, PO decisions, QA loop) →
-[docs/progress/min-audio-minutes.md](docs/progress/min-audio-minutes.md). QA **APPROVED (r2)**
-[review](docs/reviews/min-audio-minutes-review.md). Flag `audio_minutes` ships **OFF**
-(`seed.sql` forces ON for local/E2E — a flag-OFF spec must toggle it itself). Pre-enable
-gates live in Follow-ups → FUP-MIN-CUTOVER.
-
-**2026-08-06 — N1's out-of-scope original fixed.** Review N1 noted the unlabeled span-caption
-file input it fixed in `minutes-upload-dialog.tsx` was *copied* from the pre-existing
-`meetings/attachment-upload.tsx:115-117`, left out of MIN's scope. A repo sweep of
-`type="file"` found the pattern in **5** components — that one plus `interviews/attachment-upload`,
-`cases/case-document-upload`, `safety/rca/rca-evidence-forms`, `safety/capa/capa-evidence-forms`
-(all other file inputs already labeled or `aria-hidden` behind a labeled trigger). All five now
-use the N1 fix (`<label htmlFor>` + `id` + `aria-describedby` → hint). Lint + typecheck green;
-meetings dialog verified in-browser (input's `labels` = "Arquivo", hint resolves).
-
-### ⬛ AFF — Hospital affiliation, person identity & the org people directory · **COMPLETE 2026-08-06**
-
-Detail + completion record (final gate, the three retro lessons, the open-at-close index, and why AFF
-was built) rotated → [hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md).
-ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) + [0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md);
-backend surface → `docs/backend-state.md` (AFF section). QA **APPROVED** r1 + **APPROVED final** r2
-[review](docs/reviews/aff-review.md). PO-approved **2026-08-06**. Gate: pgTAP **165 files / 5066** ·
-Vitest **1026/1026** · `e2e:prod` **985 passed / 0 failed** · `ARM=census` + `ARM=floor` **HOLDS**.
-
-Still open, none blocking: **FUP-AFF-1…4** (Follow-ups section below — FUP-AFF-1 carries the standing
-trap: **never cite `ARM=census` for AFF's doors**) and **BUG-BOOTSTRAP-001** (Bug Log below). The
-remote `db push` this work made mandatory is *Remaining pre-pilot work* item 2.
-
-
-### ⬛ Membership hardening + Diretor Técnico (ADR 0094) — COMPLETE, rotated 2026-08-05
-
-Detail → [membership-hardening-technical-director.md](docs/progress/membership-hardening-technical-director.md).
-W1→W4 complete and merged to `main`; DT flag ON (`20260905000600`). Gate on the merged tree, fresh
-reset: pgTAP **160 files / 4903 · PASS** · lint 0/0 · typecheck · Vitest **954/954** · real
-`next build` · `ARM=census` and `ARM=floor` both **INVARIANT HOLDS**.
-
-Both programs that previously gated the pilot are closed: **Flexible-Forms 5/5** (ADR
-[0086](docs/decisions/0086-flexible-forms-pre-pilot.md) → [program outcome](docs/plans/flexible-forms-program.md))
-and **Phase 16** (ADR [0093](docs/decisions/0093-phase-16-standards-crosswalk-replan.md) →
-[record](docs/progress/phase-16-standards-crosswalk.md)). Case-type assignment (ADR 0088) shipped
-alongside → [case-type-assignment.md](docs/progress/case-type-assignment.md).
-
-
-### ▶ PCI + TV — Process/Case Integrity & Template Versioning · **COMPLETE 2026-08-05**
-
-Detail rotated to [process-case-integrity-and-template-versioning.md](docs/progress/process-case-integrity-and-template-versioning.md).
-Status + gate record: Phase Status table above (and its two standing caveats). QA r2 APPROVED.
+| Work | Done | Record | Still open (none blocking, tracked below) |
+| --- | --- | --- | --- |
+| **PDF·P1** — PDF printing: Forms + full skeleton · QA APPROVED (r2) | 2026-08-08 | [pdf-p1-forms-skeleton.md](docs/progress/pdf-p1-forms-skeleton.md) · ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) A1–A6 | FUP-PDF-2..4 (Follow-ups); deploy prereqs + push status in the **PDF·P2** block above |
+| **QO·FUP** — FUP-QO close-out (F1–F9) · QA APPROVED (r2) | 2026-08-07 | [qo-fup-close-out.md](docs/progress/qo-fup-close-out.md) · ADRs 0101/0102/0103 | FUP-QO-6 (accepted-provisional, LOW) · FUP-QO-9 |
+| **QO·A** — Quality-office oversight, Phase A · QA APPROVED (r3) | 2026-08-07 | [quality-office-oversight.md](docs/progress/quality-office-oversight.md) · ADR [0100](docs/decisions/0100-quality-office-oversight.md) | FUP-QO-1…6. ⚠ Phases **B** (org_admin content wall) and **C** (lifecycle + break-glass) are **not started**; **read the record's closing rule before B** — *conferring a capability bit requires enumerating its consumers* |
+| **MIN** — Meeting audio → generated ata; flag `audio_minutes` ships **OFF** (`seed.sql` forces ON for local/E2E, so a flag-OFF spec must toggle it itself) · QA APPROVED (r2) | 2026-08-06 | [min-audio-minutes.md](docs/progress/min-audio-minutes.md) | FUP-MIN-CUTOVER (the pre-enable gates) |
+| **AFF** — Hospital affiliation, person identity & the org people directory · QA APPROVED (r2), PO-approved | 2026-08-06 | [hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md) · ADRs [0097](docs/decisions/0097-hospital-affiliation-person-identity.md)/[0098](docs/decisions/0098-aff-w1-substrate-shape-decisions.md) · `docs/backend-state.md` (AFF) | FUP-AFF-1…4 — **FUP-AFF-1 carries the standing trap: never cite `ARM=census` for AFF's doors** · BUG-BOOTSTRAP-001 (Bug Log) · the remote `db push` it made mandatory = *Remaining pre-pilot work* item 2 |
+| **Membership hardening + Diretor Técnico** (ADR 0094) — W1→W4 merged, DT flag ON (`20260905000600`) | 2026-08-05 | [membership-hardening-technical-director.md](docs/progress/membership-hardening-technical-director.md) | — |
+| **Case-type assignment** (ADR 0088) — shipped alongside the above | 2026-08-05 | [case-type-assignment.md](docs/progress/case-type-assignment.md) | — |
+| **PCI + TV** — Process/Case Integrity & Template Versioning · QA APPROVED (r2) | 2026-08-05 | [process-case-integrity-and-template-versioning.md](docs/progress/process-case-integrity-and-template-versioning.md) | FUP-PCITV-1 |
 
 ### 📋 Remaining pre-pilot work
 
@@ -230,29 +155,29 @@ the pilot. **That block is complete — but ADR [0097](docs/decisions/0097-hospi
 (AFF) re-gated the pilot on 2026-08-05; see item 1.** Completed items are not re-listed here; the Phase
 Status table above is the index. What is actually left:
 
-**1. ✅ AFF — COMPLETE and PO-APPROVED 2026-08-06.** No longer gates the pilot deploy (item 2 is now
-next). Pointer under *Current Phase Tasks* above; record + the five findings that drove it →
-[hospital-affiliation-person-identity.md](docs/progress/hospital-affiliation-person-identity.md);
-ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md).
+**1. ✅ AFF — COMPLETE and PO-APPROVED 2026-08-06**, no longer gates the pilot deploy. Row in the
+*Recently completed* table above.
 
-**2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing.** ✅ The **git**
-half is done: `main` == `origin/main` (verified by a live `git fetch`, not by reading this file — the
-row here claimed "not merged/pushed" for a day after it was both). **What remains is the deploy
-proper:** the **Coolify** app deploy + the remote **`db push`** of every local-only migration (the
-S1–S3 batch onward — every S-phase built local-first by design). **This is when the ETH·E1 m2 flag
-flip reaches production.** ⚠ The remote `db push` needs the **user's own auth** — background agents
-are auto-denied.
-⚠ **AFF raised this from a chore to a blocker: the remote database has NONE of the AFF migrations.**
-`main` carries code expecting `hospital_affiliations`, `profiles.cpf` and the ten doors while the
-remote still has `home_hospital_id` / `hospital_employee_id`. **A deploy from `main` without the
-`db push` first would fail at runtime**, not degrade gracefully.
+**2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing.** Two halves,
+both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:
+- **`git push origin main`** — ⚠ **NOT done.** Live `git fetch` 2026-08-08: local `main` `970fc68`,
+  `origin/main` `9373ce8` (three commits ahead — the P2 merge + FUP-PDF-1 + this rotation). *This row
+  previously claimed `main == origin/main`; that was true only until the P2 merge landed locally.*
+- **Remote `db push`** — the AFF batch (2026-08-06) and the five PDF·P1 migrations (2026-08-08) are
+  **pushed and remote-catalog-verified** (Phase Status rows AFF / PDF·P1). What is **not** pushed:
+  `20260914000000` + `20260914000100` (PDF·P2), held by PO instruction — so local and remote catalogs
+  currently differ on the meeting arm. ⚠ The push needs the **user's own auth**; background agents are
+  auto-denied.
+- Then the **Coolify** app deploy — **this is when the ETH·E1 m2 flag flip reaches production**, and
+  when `document_printing` can be turned on (after the Gotenberg resource, PDF·P2 block above).
+⚠ Verify both halves live (`git fetch` + the remote catalog) before acting on this row — it has been
+stale in both directions before.
 
-**3. ⬛ ~~BUG-AUTHZ-002 — two hospital-tier DEFINER doors still carry the forbidden `is_admin()` arm.~~**
-**FIXED 2026-08-05** (`20260908000100`, held by `299_hospital_content_door_noun_rule.sql` 11/11) — no
-longer gates the pilot deploy. Full entry → [bug-log-archive.md](docs/progress/bug-log-archive.md)
-(rotated 2026-08-06), including why the parity test this row prescribed had to be written differently:
-enumerated live, the property returns **four** doors, and `verify_audit_chain` must NOT return zero
-rows (its `is_admin()` is the platform tier, and audit is platform_admin's own noun).
+**3. ⬛ ~~BUG-AUTHZ-002~~ — FIXED 2026-08-05** (`20260908000100`, held by
+`299_hospital_content_door_noun_rule.sql` 11/11); no longer gates the deploy. Full entry, including
+why the parity test this row prescribed had to be written differently (the property returns **four**
+doors; `verify_audit_chain` must NOT return zero rows) →
+[bug-log-archive.md](docs/progress/bug-log-archive.md).
 
 **4. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3

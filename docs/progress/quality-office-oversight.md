@@ -80,3 +80,11 @@ derive the set, assert over the derivation, and twin it against the empty set.*
 `src/components/**`; they never edit the same file. The reviewer is a **flag** on
 `CommissionAccess` (`isQualityViewer`), **never** a member role — mapping it to `'staff_admin'`
 opens write gates (ADR 0100 D10).
+
+## The rule this phase produced (rotated from PROGRESS.md 2026-08-08 — read before Phase B)
+
+*Conferring a capability bit requires enumerating its **consumers**, not just its producers.*
+Three of the five findings were that one mistake in different clothes. **Phase B is the larger
+instance** — it subtracts a bit from a principal with far more consumers than S7 ever had.
+Corollary: *a guard whose boundary is a literal list cannot close a family — derive the set,
+assert over the derivation, twin it against the empty set.*
