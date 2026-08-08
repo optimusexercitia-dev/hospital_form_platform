@@ -33,8 +33,11 @@ export const TEMPLATE_FINGERPRINTS: Record<
     // + agenda + attendance + action items populated.
     fingerprint: '865b7e9f6ca2efd90fb3f7941bab68b73facbfc0384ce2d23764485179b4bade',
     variants: {
-      // FINAL watermark + two attestation blocks + quorum line + the
-      // null-minutes and empty-action-items branches.
+      // The DEGENERATE-STATE pin (QA MINOR-6): FINAL watermark + two
+      // attestation footer blocks + null minutes + null quorum (no "Quórum:"
+      // line) + EMPTY agenda and attendance (their empty-state markers) +
+      // absent "Encaminhamentos" — every branch the populated canonical
+      // cannot exercise.
       final_signed:
         '2af29e06c5df9cb43a4c6083e341c63f1ea00f2188376422ab7fb1544935deda',
     },
