@@ -3,8 +3,14 @@
 **Decision record:** ADR [0100](../decisions/0100-quality-office-oversight.md) **D12**.
 **Plan:** [quality-office-oversight.md](./quality-office-oversight.md) § "Phase B".
 **Status:** ✅ **RATIFIED 2026-08-08** (§6) — D12 step ② satisfied, migrations authorized.
-**Build state:** M1 (response plane) + M2 (documents/printed) **landed and A/B-proven**;
-M3 (indicator measurements) and M4 (case-plane write doors, BUG-QOB-002) **not yet built**.
+**Build state:** **M1–M4 all landed** (`20260915000000`–`000300`) — response plane ·
+documents/printed · indicator measurements · case-plane write doors. A/B matrix clean on a
+clean seed; pgTAP **174 / 5502 / PASS** on a fresh reset (326 registered == 326 files);
+BUG-QOB-001 and BUG-QOB-002 both closed and behaviourally re-proven.
+**Still open before the §6 gate:** mutation audit (`b1-org-admin-wall-mutation-audit.sh`),
+the diff-scoped ADR 0079 door sweep + `ARM=census`/`ARM=floor`, new pgTAP suites for the
+wall itself, E2E, and `qa` review. Rulings Q8/Q9 (case-access + governance doors) were
+ratified 2026-08-08 and are recorded in M4's header.
 **Derived:** 2026-08-08, from the **live catalog** of the local stack
 (`supabase_db_azkbbhskturikxpgmafq`), 322 registered == 322 files.
 
