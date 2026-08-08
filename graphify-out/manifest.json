@@ -595,8 +595,8 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/meetings/[meetingId]/page.tsx": {
-    "mtime": 1786048529.207531,
-    "ast_hash": "caa5fb1197398d1b62d276661287887e",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "cc141cd7305529d956f01c8f645b1a83",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/meetings/error.tsx": {
@@ -4475,8 +4475,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1786187709.79062,
-    "ast_hash": "0ebcfb414cc91c9d02401e80af159795",
+    "mtime": 1786212073.8999765,
+    "ast_hash": "7ed92e1ef536d0b7ce8bbe40bbd8921c",
     "semantic_hash": ""
   },
   "README.md": {
@@ -4915,8 +4915,8 @@
     "semantic_hash": ""
   },
   "docs/progress/bug-log-archive.md": {
-    "mtime": 1786017145.7518878,
-    "ast_hash": "efaebe43027f375cd9b75fce951b0b68",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "8ab0465e122df871177e4097ad31324e",
     "semantic_hash": ""
   },
   "docs/progress/case-access.md": {
@@ -7220,8 +7220,8 @@
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-findings.md": {
-    "mtime": 1786187709.7968576,
-    "ast_hash": "96582ea73c9ae77fd990b4a21aaf9aed",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "6a6c37f6561d13001b57f6c927b7aeac",
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-p0-review.md": {
@@ -11000,13 +11000,13 @@
     "semantic_hash": ""
   },
   "docs/decisions/0104-pdf-document-printing-module.md": {
-    "mtime": 1786187709.79062,
-    "ast_hash": "5a803a823109db5bec9e89eb195573fa",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "0a0d7ed28cfd3e9e38b7cc9915582bdf",
     "semantic_hash": ""
   },
   "docs/plans/pdf-document-printing.md": {
-    "mtime": 1786127655.2440817,
-    "ast_hash": "cb30a4920aad0781ca21d5acc54b2bb4",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "8d21ccfde36366b4a53921ab631bf7a1",
     "semantic_hash": ""
   },
   "docs/progress/qo-fup-close-out.md": {
@@ -11035,8 +11035,8 @@
     "semantic_hash": ""
   },
   "scripts/smoke/pdf-mint.smoke.ts": {
-    "mtime": 1786187709.7968576,
-    "ast_hash": "7f9aa293494ed463e39d782af7e75f3b",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "8d9858e1a8ab76895a02f541f0b50c69",
     "semantic_hash": ""
   },
   "src/app/(public)/layout.tsx": {
@@ -11065,13 +11065,13 @@
     "semantic_hash": ""
   },
   "src/components/printing/labels.ts": {
-    "mtime": 1786187709.8069348,
-    "ast_hash": "5efb9665bdc5da262fa80630af87a68e",
+    "mtime": 1786212073.9005322,
+    "ast_hash": "7f570d32ff55195285339c5f20d51b27",
     "semantic_hash": ""
   },
   "src/components/printing/mint-document-button.tsx": {
-    "mtime": 1786187709.8069348,
-    "ast_hash": "0a4587db77345923c2e4341bdcecf1e9",
+    "mtime": 1786212073.9100645,
+    "ast_hash": "f89f103ae9f7e68b237af7aa25770233",
     "semantic_hash": ""
   },
   "src/components/printing/printed-document-status-chip.tsx": {
@@ -11080,8 +11080,8 @@
     "semantic_hash": ""
   },
   "src/components/printing/printed-documents-panel.tsx": {
-    "mtime": 1786187709.8125308,
-    "ast_hash": "2aa21716a11a905a7de7f257f9ea186d",
+    "mtime": 1786212073.9100645,
+    "ast_hash": "73b5dddd1779a02350a08c56f6d59179",
     "semantic_hash": ""
   },
   "src/components/printing/revoke-document-dialog.tsx": {
@@ -11105,8 +11105,8 @@
     "semantic_hash": ""
   },
   "src/lib/pdf-mint/actions.ts": {
-    "mtime": 1786187709.8125308,
-    "ast_hash": "583a45f17f665f23798f190f9f40d86e",
+    "mtime": 1786212073.9115303,
+    "ast_hash": "de5d01e597af40ad2e17726015ef44bc",
     "semantic_hash": ""
   },
   "src/lib/pdf-mint/credentials.ts": {
@@ -11120,8 +11120,8 @@
     "semantic_hash": ""
   },
   "src/lib/pdf-mint/providers.ts": {
-    "mtime": 1786187709.817095,
-    "ast_hash": "6c31b99d9209969884e368439f4b3bad",
+    "mtime": 1786212073.9115303,
+    "ast_hash": "e1af9f510daeb66c665c2c579efd77aa",
     "semantic_hash": ""
   },
   "src/lib/pdf-mint/semaphore.test.ts": {
@@ -11145,8 +11145,8 @@
     "semantic_hash": ""
   },
   "src/lib/pdf/fingerprint.test.ts": {
-    "mtime": 1786187709.817095,
-    "ast_hash": "425d6dab6bb57e37ff9b426012854250",
+    "mtime": 1786212073.9115303,
+    "ast_hash": "faa7af5ae204f35d38523c47119a90e3",
     "semantic_hash": ""
   },
   "src/lib/pdf/fonts.generated.ts": {
@@ -11190,7 +11190,7 @@
     "semantic_hash": ""
   },
   "src/lib/pdf/primitives/signature-block.ts": {
-    "mtime": 1786187709.817095,
+    "mtime": 1786190651.4808376,
     "ast_hash": "0e63f8e359ced660ed3b81592d6b0a95",
     "semantic_hash": ""
   },
@@ -11200,18 +11200,18 @@
     "semantic_hash": ""
   },
   "src/lib/pdf/render.ts": {
-    "mtime": 1786187709.817095,
-    "ast_hash": "13e0f1c66f857cb6d1ae2a1f4680d7d8",
+    "mtime": 1786212073.9115303,
+    "ast_hash": "f09dbff5a980d94a2c7d716b07e0e598",
     "semantic_hash": ""
   },
   "src/lib/pdf/template-fingerprints.ts": {
-    "mtime": 1786187709.827267,
-    "ast_hash": "b2660f9395f9f8b2f3071d2c3b46a655",
+    "mtime": 1786212073.9158335,
+    "ast_hash": "c925e0bc21afbbf52c8a3b0750ce7a97",
     "semantic_hash": ""
   },
   "src/lib/pdf/types.ts": {
-    "mtime": 1786187709.827267,
-    "ast_hash": "969960fa61387944df1ac67172d26c43",
+    "mtime": 1786212073.9158335,
+    "ast_hash": "627260caee285b1718f16726cfac4583",
     "semantic_hash": ""
   },
   "src/lib/queries/printed-documents.test.ts": {
@@ -11220,8 +11220,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/printed-documents.ts": {
-    "mtime": 1786187709.8282983,
-    "ast_hash": "7bc103a444ca3b76e9ef1107b8288c07",
+    "mtime": 1786212073.9158335,
+    "ast_hash": "8b853034fa755f922748a6f9883da1d2",
     "semantic_hash": ""
   },
   "supabase/migrations/20260913000000_printed_documents_schema.sql": {
@@ -11250,8 +11250,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/312_printed_documents.sql": {
-    "mtime": 1786187709.8376873,
-    "ast_hash": "5dd635c03871446e9a9e6ceaee98f257",
+    "mtime": 1786212073.9158335,
+    "ast_hash": "ffcaae56b5a85414ae5622ca211ea595",
     "semantic_hash": ""
   },
   "vitest.smoke.config.ts": {
@@ -11272,6 +11272,51 @@
   "docs/reviews/phase-PDF-P1-review.md": {
     "mtime": 1786187709.7968576,
     "ast_hash": "2337fac42a6269206c584cfee4e8a39d",
+    "semantic_hash": ""
+  },
+  "e2e/helpers/pdf-printing-meetings.ts": {
+    "mtime": 1786212073.9005322,
+    "ast_hash": "890e37280a08319927ae7fe22e043a5e",
+    "semantic_hash": ""
+  },
+  "e2e/pdf-printing-meetings.spec.ts": {
+    "mtime": 1786212073.9005322,
+    "ast_hash": "a03ff130811fa3d668da05a349f312b9",
+    "semantic_hash": ""
+  },
+  "src/lib/meetings/pdf-payload.ts": {
+    "mtime": 1786212073.9110796,
+    "ast_hash": "6d5fb678f17c33fbfc2e5229833f90b0",
+    "semantic_hash": ""
+  },
+  "src/lib/pdf/documents/meeting.ts": {
+    "mtime": 1786212073.9115303,
+    "ast_hash": "22ee080fdfeb763067a88456793bb555",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260914000000_pdf_p2_meeting_arm.sql": {
+    "mtime": 1786212073.9158335,
+    "ast_hash": "1c616d213b33cf3815f5984216afb786",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260914000100_pdf_p2_full_sight_phi_label.sql": {
+    "mtime": 1786212073.9158335,
+    "ast_hash": "086cb68848209a44efcc57076d45bf11",
+    "semantic_hash": ""
+  },
+  "supabase/tests/313_printed_documents_meetings.sql": {
+    "mtime": 1786212073.9158335,
+    "ast_hash": "ec1d24d9d7fa181402c2e792477a1362",
+    "semantic_hash": ""
+  },
+  "docs/progress/pdf-p2-meetings.md": {
+    "mtime": 1786212073.9005322,
+    "ast_hash": "2e0efcd0fe8c6de8211bd5a1488033f1",
+    "semantic_hash": ""
+  },
+  "docs/reviews/phase-PDF-P2-review.md": {
+    "mtime": 1786212073.9005322,
+    "ast_hash": "f094d464fcf715fe13c51df545909e6a",
     "semantic_hash": ""
   }
 }
