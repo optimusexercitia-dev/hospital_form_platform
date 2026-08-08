@@ -99,8 +99,14 @@ select is(app.can_view_printed_document('form_response', (select resp_sub from r
   't5 CONTROL: same-commission plain staff (non-creator) does NOT see it — the discriminating property is real');
 select is(app.can_view_printed_document('form_response', (select resp_prog from r), (select st_x from k)), true,
   't6 dispatch: creator sees his own in_progress draft (RASCUNHO prints are legal, D7)');
-select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select oa_b from k)), true,
-  't7 dispatch: org_admin reaches through the commission-admin chain (responses_admin_all mirror)');
+-- QO·B (ADR 0100 D12) INVERTED, 2026-08-08. This asserted the OPPOSITE until the
+-- org_admin content wall landed: it mirrored responses_admin_all, which QO·B M1
+-- DELETED, and M2 removed the matching is_commission_admin_of_for arm from
+-- can_view_printed_document's form_response leg. The mirror moved with the mirrored.
+-- Discriminating power is NOT lost: t3 (creator) and t4 (staff_admin on a submitted
+-- response) remain live positives, so a broken helper still reds this file.
+select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select oa_b from k)), false,
+  't7 ⭐ QO·B WALL: org_admin is DENIED the form_response arm — the tenancy admin holds administration and PHI-free aggregates, never row-level response content (D12)');
 
 -- ── 1. Fail-closed ELSE ⭐ ───────────────────────────────────────────────────
 select test_helpers.claims_for((select sa_x from k), false);

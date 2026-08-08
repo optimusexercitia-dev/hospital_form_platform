@@ -604,18 +604,45 @@ insert into public.memberships (organization_id, principal_id, role)
 select test_helpers.claims_for('ff100000-0000-0000-0000-0000000000a1'::uuid, false);
 set local role authenticated;
 
+-- ⛔ INVERTED BY QO·B (20260915) — and this inversion DEMOLISHES J1b's premise.
+-- ADR 0100 D12 removed the tenancy-admin arm from the response plane, so the
+-- org_admin minted above no longer reads a foreign draft at all.
 select is(
   (select count(*)::int from public.response_group_instances
     where response_id = 'ff100000-0000-0000-0000-000000000031'),
-  1, 'J1a. an org_admin CAN READ another member''s draft instances (so J1b is about the WRITE qual, not the SELECT policy)'
+  0, 'J1a. QO·B WALL: an org_admin can NO LONGER read another member''s draft instances (D12; was 1 before the wall)'
 );
 
+-- ⚠⚠ J1b IS NOW VACUOUS — ANNOTATED, NOT DELETED (A2 precedent), AND FILED AS
+--    FUP-QOB-1 rather than quietly left green.
+--
+-- This is qa MAJOR-2 reappearing through the front door. Its own header (above)
+-- records that J1 once passed for the WRONG REASON with a plain `staff`: the insert
+-- failed on the READ, because write_own_draft's WITH CHECK subquery reads
+-- public.responses UNDER RLS, so a caller who cannot SEE the parent row yields
+-- `exists = false` no matter what the `created_by = auth.uid()` term says. An
+-- org_admin was minted precisely to escape that — is_commission_admin_of was the only
+-- reader-non-writer available.
+--
+-- QO·B removes it, and NO REPLACEMENT EXISTS. Post-M1 the readers of an in_progress
+-- response's instances are exactly {creator, targeted respondent}, and BOTH are
+-- writers (can_write_targeted_response = can_access_targeted_response AND
+-- in_progress). The one other reader — staff_admin on a SUBMITTED response — is
+-- blocked first by the immutability trigger (23514, see I4), which proves
+-- immutability, not the write qual.
+--
+-- CONSEQUENCE, worth a ruling: `created_by = auth.uid()` in
+-- response_group_instances_write_own_draft is no longer INDEPENDENTLY OBSERVABLE —
+-- the read surface of an in-progress response now coincides exactly with its write
+-- surface. That is a STRONGER property than the one this keystone pinned, but it is
+-- not the property the keystone claims to pin. Deleting the term would leave this
+-- suite green; the guard against that must be relocated, not assumed.
 select throws_ok(
   $$insert into public.response_group_instances (response_id, group_item_id, position)
     values ('ff100000-0000-0000-0000-000000000031','ff100000-0000-0000-0000-000000000011', 5)$$,
   '42501',
   null,
-  'J1b. …and STILL cannot write one — the FOR ALL qual is strictly narrower than SELECT (reader-non-writer, ADR 0079)'
+  'J1b. [VACUOUS SINCE QO·B — FUP-QOB-1] denies, but now via invisibility of the parent, NOT via the write qual (reader-non-writer no longer constructible)'
 );
 
 reset role;
