@@ -97,6 +97,9 @@ ADR [0100](docs/decisions/0100-quality-office-oversight.md) **D12** · PO ruling
 | B.5 | A/B matrix · `b1` mutation audit (17/17) · ARM gates · 3 door sweeps | ✅ |
 | B.6 | E2E `qob-org-admin-content-wall.spec.ts` | ✅ 6/6 GATE GREEN |
 | B.7 | **`qa` review (gate step 3)** → **human approval (step 4)** → Record (step 5) | ⬜ **NOT STARTED** |
+| B.8 | **backend:** behavioural keystones + red-proofs for the M5/M6 doors that had only structural cover (self-audit risk #1). Population **re-derived from the live catalog**: **13 doors, not 12** (`dashboard_completion_by_member`'s 7.3 zero had no twin and no red-proof; the "nine + four" count in the brief was off by one) · `revoke_printed_document` re-confirmed a **deliberate KEEP** (ADR 0104 D11; M6 postcondition (c) + `314` 8.5 pin it) · the 4 correction doors never carried the tenancy arm (catalog-verified) so they were never in the hole. `314` §9/§10 **+27 assertions (plan 76)**, every denial twinned (distinct-SQLSTATE discipline: authority 42501/HC0J1/P0002-gate-2 precedes state gates) · `b1` extended **17→31 cases, 31/31 RED-PROVEN**, RESTORE byte-identical, CONTROLS 76+53 green | ✅ backend 2026-08-09 |
+| B.9 | **backend: FUP-QOB-1** — `270` §J **J1c** catalog pin on `response_group_instances_write_own_draft` (existence + `created_by = auth.uid()` in BOTH qual/with_check), **PROVISIONAL pending PO ratification**; red-proven by b1 `fup_qob1_drop_created_by` — **J1c reds while J1b stays green** (`ok 40` / `not ok 41`), demonstrating the recorded vacuity live | ✅ backend 2026-08-09 (PO ratification open) |
+| B.10 | **backend: BUG-QOB-003 backend half** — `session.ts` coercion removed (`role` = membership only), new `CommissionAccess.isTenancyAdmin` flag + `canConfigureCommission()` config seam (Q1–Q9 KEEP), `submissions.ts` `canCorrect` stale tenancy mirror cut. **UI half open → frontend** (commission layout currently 404s a bare tenancy admin) | ✅ backend 2026-08-09 |
 
 **Gate evidence:** fresh reset **328 == 328** · pgTAP **175f / 5553 / PASS** · A/B **LOST =
 ratified cells only · GAINED = 0 · KEEP 0/0** · `b1` **17/17 RED-PROVEN** (12 under-cut +
@@ -111,11 +114,13 @@ BOOLEAN gates; `ARM=floor` asks *called*, not *correct*; `314` asserted tables).
 M5+M6. Found by re-reading the ratified CUT list against the catalog — **a check no harness
 performs**, and one to run at the end of any subtractive phase.
 
-⚠ **Open before this phase can close:** **BUG-QOB-003** (the UI still maps a tenancy admin to
-`staff_admin`, so the wall closes underneath coordinator affordances — needs a PO ruling +
-frontend) · **FUP-QOB-1** · the self-audit's **#1 residual risk**: only **4 of the 16** M5/M6
-doors carry a *behavioural* keystone; the other twelve rest on structural postconditions, and
-this phase proved twice that a structural assertion cannot substitute for a behavioural one.
+⚠ **Open before this phase can close:** **BUG-QOB-003** (backend half ✅ 2026-08-09, B.10 —
+UI half open: frontend + the PO presentation ruling) · **FUP-QOB-1** (provisional pin ✅
+2026-08-09, B.9 — PO ratification open). ~~The self-audit's #1 residual risk (only 4 of the
+16 M5/M6 doors behaviourally keystoned)~~ **CLOSED 2026-08-09 by B.8** — all 13 remaining
+doors keystoned + red-proven (`b1` 31/31); post-B.8 gate re-run: fresh reset 328==328 ·
+pgTAP **175f/5581/PASS** · `ARM=census` + `ARM=floor` HOLD · lint 0/0 · tsc · vitest 1194
+(no RLS policy or prosecdef gate changed, so no diff-scoped sweep owed).
 
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
@@ -282,6 +287,20 @@ quality_reviewer is *"a FLAG, never a member role — mapping it to `'staff_admi
 already **404s** an administration-only principal rather than showing an empty board.
 **Needs a PO ruling + frontend work** — options: (a) make the tenancy admin a flag and hide content
 surfaces; (b) 404 the content routes, mirroring the cases board; (c) accept. Owner: frontend.
+**➜ BACKEND HALF DONE (backend, 2026-08-09 — B.10):** `session.ts` no longer coerces — `role` is
+the MEMBERSHIP role only; tenancy-admin standing is the new `CommissionAccess.isTenancyAdmin`
+flag (exactly the Phase-A quality_reviewer treatment), and configuration affordances gate through
+the new `canConfigureCommission()` (= membership coordinator OR tenancy admin — the Q1–Q9 KEEP
+seam: form definitions/builder, process templates, taxonomy + meeting settings, member
+management, indicator DEFINITIONS), while `canInCommission` closes for a bare tenancy admin by
+construction (all four ADR-0061 capabilities are content). Also cut the stale `canCorrect`
+mirror in `src/lib/queries/submissions.ts`, which still offered "Corrigir" to a tenancy admin
+whose `supersede_response` call M5 now 42501s. **UI half open (frontend):** the commission
+layout gate (`src/app/o/[org]/c/[commission]/layout.tsx:70`) now 404s a bare tenancy admin
+(`role === null`, not a viewer) — frontend must admit `isTenancyAdmin` there, route it to the
+KEEP surfaces only, and re-gate the ~25 `access.role !== 'staff_admin'` pages per the
+KEEP/CUT split (precise list in the backend B.10 report to the lead). The PO presentation
+ruling above is still open; the contract no longer blocks on it.
 
 ⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
 2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:
@@ -418,7 +437,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟡 FUP-PDF-2 — SQLSTATE allowlist can surface English Postgres text (QA P1 MINOR-1; latent) — backend
 - 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; the token is the real widening) — backend
 - 🟡 FUP-PDF-4 — verification rate limiter is global + in-process (QA P1 MINOR-3) — backend
-- 🔴 **FUP-QOB-1** — QO·B M1 made `response_group_instances_write_own_draft`'s `created_by = auth.uid()` term **no longer independently observable**, so `270_ff1_repeating_groups` §J's reader-non-writer keystone (J1b) is **vacuous** and is annotated as such in the file. The write qual's `WITH CHECK` subquery reads `responses` under RLS, so a non-reader is denied by *invisibility*, never by the term — the exact qa MAJOR-2 trap the §J header records. Post-M1 the readers of an in-progress response's instances are exactly {creator, targeted respondent} and **both are writers**; `staff_admin` on a *submitted* response is stopped first by the immutability trigger (23514), which proves immutability, not the qual. **No replacement persona exists.** Needs a ruling: relocate the guard (a pgTAP-only fixture? a catalog postcondition on the policy text?) or accept the coincidence of read/write surfaces as the stronger pinned property — backend + qa
+- 🟡 **FUP-QOB-1** — `response_group_instances_write_own_draft`'s `created_by` term unobservable post-M1 (J1b vacuous, annotated; no reader-non-writer persona exists). **PROVISIONAL guard landed 2026-08-09 (backend):** `270` §J **J1c** catalog pin (policy existence + the term in BOTH qual/with_check), red-proven via b1 `fup_qob1_drop_created_by` — J1c reds **while J1b stays green**, demonstrating the vacuity live. **Open: PO ratification** of the pin (or direct an alternative) → [body](docs/progress/follow-ups.md) — backend + qa
 - 🟡 FUP-QO-9 — the e2e:prod gate's infra classifier misses two PGRST002 shapes — backend / `scripts/e2e-prod-gate.sh`
 - 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set from `pg_proc`, not by remembering it — backend
 - 🟡 FUP-AFF-4 — make the membership-role list a Postgres ENUM (decide before the role set next changes) — backend
