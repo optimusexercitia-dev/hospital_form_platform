@@ -6,14 +6,14 @@
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
 # QO·B (ADR 0100 D12) MUTATION AUDIT — the org_admin / hospital_admin content wall.
-# 11 cases. ⚠ Keep this count and the run_case list in sync.
+# 14 cases. ⚠ Keep this count and the run_case list in sync.
 #
 # THIS AUDIT RUNS IN BOTH DIRECTIONS, and the second direction is the point.
 #
-#   UNDER-CUT (cases 1–8): revert one cut and its keystone must go red. This is the
+#   UNDER-CUT (cases 1–10): revert one cut and its keystone must go red. This is the
 #   ordinary shape — it proves each wall assertion can fail.
 #
-#   OVER-CUT (cases 9–11): remove a ratified KEEP and its guard must go red. QO·B is a
+#   OVER-CUT (cases 11–14): remove a ratified KEEP and its guard must go red. QO·B is a
 #   SPLIT, not a sweep: the PO kept form definitions, process templates, taxonomy,
 #   indicator DEFINITIONS, the three case-access doors and the two classification doors.
 #   Nothing in an "did we remove enough?" audit can see an over-cut, and an over-cut is
@@ -136,7 +136,30 @@ begin
       'if app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission) then');
     execute d;
 
+  elsif p_what = 'restore_free_text_door' then
+    -- M5's hole: a DEFINER door bypasses RLS entirely, so the tenancy admin read every
+    -- free-text answer while the responses table returned zero.
+    d := pg_get_functiondef('public.dashboard_free_text(uuid,date,date,integer)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_staff_admin_of(v_commission_id)',
+      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+    execute d;
+
+  elsif p_what = 'restore_export_rows_door' then
+    d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_staff_admin_of(v_commission_id)',
+      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+    execute d;
+
   -- ── OVER-CUT: remove a ratified KEEP; its guard must notice ───────────────
+  elsif p_what = 'overcut_aggregate_door' then
+    -- D12 (6) KEEPS the six PHI-free aggregates. The nine dashboard_* doors split
+    -- six-to-three, so "finish the job across all nine" is the plausible tidy-up.
+    d := pg_get_functiondef('public.dashboard_form_totals(uuid,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of(p_commission_id)', '');
+    execute d;
+
   elsif p_what = 'overcut_indicators_select' then
     -- PO ruling Q3 is a SPLIT: the DEFINITION stays readable. Sweeping it away with
     -- the measurement is the mistake a "cut the indicator family" tidy-up makes.
@@ -212,7 +235,7 @@ SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('can_read_document_of_version','can_read_document_object','can_view_printed_document'))
-      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality')))
+      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals')))
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='responses_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='answers_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='controlled_documents_select'),'')
@@ -257,6 +280,10 @@ run_case "restore_case_door_arm -> BUG-QOB-002 returns" \
   "select app._mut_b1('restore_case_door_arm');" \
   "org_admin can no longer WRITE case content"
 
+run_case "restore_free_text_door -> M5's hole reopens"   "select app._mut_b1('restore_free_text_door');"   "org_admin reads ZERO free-text answers through the door"
+
+run_case "restore_export_rows_door -> row-level export reopens"   "select app._mut_b1('restore_export_rows_door');"   "and zero export rows"
+
 echo
 echo "--- OVER-CUT: remove a ratified KEEP, the over-cut guard must notice ---"
 
@@ -267,6 +294,8 @@ run_case "overcut_indicators_select -> Q3's split collapses" \
 run_case "overcut_keep_door -> Q8's grant door is swept away" \
   "select app._mut_b1('overcut_keep_door');" \
   "all FIVE ratified KEEP doors must STILL admit"
+
+run_case "overcut_aggregate_door -> D12(6)'s aggregates swept away"   "select app._mut_b1('overcut_aggregate_door');"   "the AGGREGATE doors are KEPT"
 
 run_case "overcut_classification_door -> Q9's keep half collapses" \
   "select app._mut_b1('overcut_classification_door');" \

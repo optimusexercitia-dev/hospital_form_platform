@@ -238,6 +238,24 @@ update public.profiles set full_name = 'Org Admin', home_organization_id = (sele
 insert into public.memberships (organization_id, principal_id, role)
 select (c.v->>'org_b')::uuid, oa.org_admin_id, 'org_admin' from oa, ctx c;
 
+-- ⛔ ADDED BY QO·B M5. Check #6 used to supersede as org_admin_id, and its comment says
+-- why: NOT for authority, but to dodge responses_one_draft_per_user_idx, which a second
+-- sa_x successor on the same ver_u would collide with. M5 removed the tenancy admin's
+-- authority over supersede_response (ADR 0100 D12 — correcting a response is committee
+-- content work), so that principal can no longer stand in. A SECOND staff_admin of
+-- comm_x preserves the fixture's ACTUAL requirement — a different user who legitimately
+-- holds the capability — instead of weakening the check to fit the new wall.
+create temp table sa2 on commit drop as select gen_random_uuid() as sa_x2;
+grant select on sa2 to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+select '00000000-0000-0000-0000-000000000000', sa2.sa_x2, 'authenticated', 'authenticated',
+       sa2.sa_x2 || '@test', now(), now()
+from sa2;
+update public.profiles set full_name = 'Coordenadora 2', home_organization_id = (select (v->>'org_b')::uuid from ctx)
+  where id = (select sa_x2 from sa2);
+insert into public.memberships (commission_id, principal_id, role)
+select (c.v->>'comm_x')::uuid, sa2.sa_x2, 'staff_admin' from sa2, ctx c;
+
 select test_helpers.claims_for((select org_admin_id from oa), false);
 set local role authenticated;
 create temp table ov on commit drop as
@@ -299,13 +317,14 @@ reset role;
 -- ---------------------------------------------------------------------------
 -- ---- 6) one-chain (HC0H2) ----
 -- B (still submitted, untouched) is superseded once; a second attempt while
--- the successor is live must be refused. The FIRST supersede is done by
--- org_admin_id (a commission-admin of comm_x via org_b, created in check #3) —
--- NOT sa_x — because sa_x already holds an in_progress draft on ver_u from
--- check #2's successor (C'), and responses_one_draft_per_user_idx (one
--- in_progress draft per user per version) would collide with a second sa_x
--- successor on the same ver_u.
-select test_helpers.claims_for((select org_admin_id from oa), false);
+-- the successor is live must be refused. The FIRST supersede is done by sa_x2 (a SECOND
+-- staff_admin of comm_x) — NOT sa_x — because sa_x already holds an in_progress draft on
+-- ver_u from check #2's successor (C'), and responses_one_draft_per_user_idx (one
+-- in_progress draft per user per version) would collide with a second sa_x successor on
+-- the same ver_u. ⛔ It was org_admin_id until QO·B M5 walled the tenancy admin out of
+-- supersede_response; the draft-uniqueness constraint is the real requirement here, and
+-- a second coordinator satisfies it without borrowing authority the admin no longer has.
+select test_helpers.claims_for((select sa_x2 from sa2), false);
 set local role authenticated;
 select public.supersede_response((select resp_b from r), 'primeira correção');
 reset role;
@@ -445,7 +464,7 @@ select ok(
 
 -- ---------------------------------------------------------------------------
 -- ---- 12b) one-draft-per-user invariant (HC0H5) ----
--- The corrector (org_admin_id, a commission-admin of comm_x) already holds an
+-- The corrector (sa_x2, a SECOND staff_admin of comm_x) already holds an
 -- in_progress standalone draft of ver_s; superseding another SUBMITTED standalone
 -- response of the SAME ver_s would collide with responses_one_draft_per_user_idx,
 -- so the RPC pre-empts it with a clean HC0H5. Self-contained on ver_s to stay
@@ -459,12 +478,18 @@ grant select on r12b to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at)
 select r12b.resp_pred, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'submitted', now()
 from r12b, ctx c;
--- org_admin_id's OWN live in_progress standalone draft on the SAME ver_s.
+-- ⛔ CORRECTOR CHANGED BY QO·B M5. It was org_admin_id — but M5 walled the tenancy admin
+-- out of supersede_response, so that principal now raises 42501 on the AUTHORITY check
+-- and never reaches the HC0H5 pre-emption this test exists to prove. Swapped to sa_x2,
+-- who genuinely holds the capability; its ver_u draft slot was spent in check #6, and
+-- this fixture is on ver_s, so the one-draft-per-user index is free here. Keeping
+-- org_admin would have turned a real invariant into an authority test wearing its name.
+-- sa_x2's OWN live in_progress standalone draft on the SAME ver_s.
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
-select r12b.resp_draft, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, oa.org_admin_id, 'in_progress'
-from r12b, ctx c, oa;
+select r12b.resp_draft, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, sa2.sa_x2, 'in_progress'
+from r12b, ctx c, sa2;
 
-select test_helpers.claims_for((select org_admin_id from oa), false);
+select test_helpers.claims_for((select sa_x2 from sa2), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.supersede_response(%L, 'motivo') $$, (select resp_pred from r12b)),

@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(39);
+select plan(44);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -44,7 +44,8 @@ create temp table k on commit drop as
          (v->>'comm_x')::uuid as comm_x,
          (v->>'org_b')::uuid  as org_b,
          (v->>'hosp_b')::uuid as hosp_b,
-         (v->>'ver_u')::uuid  as ver_u
+         (v->>'ver_u')::uuid  as ver_u,
+         (v->>'form_u')::uuid as form_u
   from ctx;
 grant select on k to authenticated;
 
@@ -71,8 +72,19 @@ create temp table f on commit drop as
          '00000000-0000-0000-0000-00000000f401'::uuid as case1;
 grant select on f to authenticated;
 
-insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
-select f.resp_sub, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from f, k;
+-- resp_sub is born IN_PROGRESS, answered, then transitioned to submitted. A response
+-- inserted as 'submitted' cannot be answered afterwards (the immutability guard blocks
+-- it), and §7's dashboard keystones need a SUBMITTED free-text answer or their zeros are
+-- vacuous — the doors return empty rather than raising, so "0 rows" from an empty form
+-- is indistinguishable from "0 rows because the wall held".
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
+select f.resp_sub, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from f, k;
+insert into public.answers (response_id, item_id, question_key, form_version_id, value)
+select f.resp_sub, i.id, i.question_key, k.ver_u, to_jsonb('texto livre QO·B'::text)
+from f, k, public.form_items i
+where i.form_version_id = k.ver_u and i.item_type = 'free_text' and i.question_key is not null
+limit 1;
+update public.responses set status = 'submitted', submitted_at = now() where id = (select resp_sub from f);
 insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
 select f.resp_prog, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from f, k;
 
@@ -112,7 +124,12 @@ values ('00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-0000000
 
 insert into public.form_items (id, section_id, form_version_id, item_type, position, question_key, label)
 values ('00000000-0000-0000-0000-00000000f501', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'matrix', 0, 'qob_matrix', 'Matriz QO·B'),
-       ('00000000-0000-0000-0000-00000000f502', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'risk_matrix', 1, 'qob_risk', 'Risco QO·B');
+       ('00000000-0000-0000-0000-00000000f502', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'risk_matrix', 1, 'qob_risk', 'Risco QO·B'),
+       -- §7's dashboard doors filter item_type = 'free_text' AND value IS NOT NULL on a
+       -- SUBMITTED response. Owning the item here (rather than hoping the bootstrap
+       -- version has one) is what makes 7.5's twin real — and without a real twin the
+       -- whole section's zeros are unfalsifiable, which is how M5's hole survived.
+       ('00000000-0000-0000-0000-00000000f503', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'free_text', 2, 'qob_texto', 'Texto livre QO·B');
 
 insert into public.form_matrix_rows (id, item_id, form_version_id, position, code, label) values
   ('00000000-0000-0000-0000-00000000f511','00000000-0000-0000-0000-00000000f501','00000000-0000-0000-0000-00000000f541',0,'r1','Linha 1'),
@@ -128,6 +145,16 @@ select '00000000-0000-0000-0000-00000000f543', '00000000-0000-0000-0000-00000000
 insert into public.answers (id, response_id, item_id, question_key, form_version_id) values
   ('00000000-0000-0000-0000-00000000f531','00000000-0000-0000-0000-00000000f543','00000000-0000-0000-0000-00000000f501','qob_matrix','00000000-0000-0000-0000-00000000f541'),
   ('00000000-0000-0000-0000-00000000f532','00000000-0000-0000-0000-00000000f543','00000000-0000-0000-0000-00000000f502','qob_risk','00000000-0000-0000-0000-00000000f541');
+
+-- A SECOND response on the same version, answered with free text and then submitted —
+-- the fixture §7's dashboard doors actually read. Authored by st_x2, NOT st_x:
+-- responses_one_draft_per_user_idx allows one in_progress draft per user per version,
+-- and st_x already holds f543 on this version.
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
+select '00000000-0000-0000-0000-00000000f544', '00000000-0000-0000-0000-00000000f541', k.comm_x, k.st_x2, 'in_progress', now() from k;
+insert into public.answers (id, response_id, item_id, question_key, form_version_id, value)
+values ('00000000-0000-0000-0000-00000000f533','00000000-0000-0000-0000-00000000f544','00000000-0000-0000-0000-00000000f503','qob_texto','00000000-0000-0000-0000-00000000f541', to_jsonb('texto livre QO·B'::text));
+update public.responses set status='submitted', submitted_at=now() where id='00000000-0000-0000-0000-00000000f544';
 
 insert into public.answer_matrix_cells (answer_id, row_id, col_id)
 values ('00000000-0000-0000-0000-00000000f531','00000000-0000-0000-0000-00000000f511','00000000-0000-0000-0000-00000000f512');
@@ -367,6 +394,32 @@ select isnt(
     where schemaname='public' and tablename='indicators' and policyname='indicators_select'),
   '',
   '5.6 OVER-CUT GUARD (Q3): indicators_select still exists — its tenancy arm is asserted behaviourally by 3.2, and the definition half of the split must never be swept away with the measurement half');
+
+-- =============================================================================
+-- §7 — RESPONSE-PLANE DOORS (M5). ⛔ THIS SECTION EXISTS BECAUSE M1–M4 LEFT A HOLE.
+-- Six §4.1-ratified doors were never cut, and DEFINER doors bypass RLS entirely: the
+-- tenancy admin could still read every free-text answer in the commission while the
+-- table it came from returned zero. Nothing caught it — the A/B matrix measures TABLE
+-- visibility, the ADR 0079 sweep neutralizes BOOLEAN gates (these return SETOF), and
+-- ARM=floor asks only whether a door is CALLED. Four green gates, each blind to it in a
+-- different way. These keystones are the coverage that was missing.
+-- =============================================================================
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.dashboard_free_text('00000000-0000-0000-0000-00000000f540')), 0,
+  '7.1 ⭐⭐ WALL (M5): org_admin reads ZERO free-text answers through the door — pre-M5 this returned 6 while the responses table returned 0');
+select is((select count(*)::int from public.dashboard_export_rows('00000000-0000-0000-0000-00000000f540')), 0,
+  '7.2 ⭐ WALL (M5): ...and zero export rows');
+select is((select count(*)::int from public.dashboard_completion_by_member('00000000-0000-0000-0000-00000000f540')), 0,
+  '7.3 ⭐ WALL (M5): ...and zero completion-by-member rows');
+select cmp_ok((select count(*)::int from public.dashboard_form_totals((select comm_x from k))), '>', 0,
+  '7.4 ⭐ OVER-CUT GUARD (D12 (6)): the AGGREGATE doors are KEPT — the nine dashboard_* doors split six-to-three, and a follow-up that sweeps all nine reds HERE rather than reaching a customer');
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select cmp_ok((select count(*)::int from public.dashboard_free_text('00000000-0000-0000-0000-00000000f540')), '>', 0,
+  '7.5 NON-VACUITY TWIN ⭐: the coordinator DOES read free text through the same door on the same form — 7.1''s zero is the wall, not an empty form. Without this the whole section is unfalsifiable, which is exactly how the hole survived four gates');
+reset role;
 
 select * from finish();
 rollback;
