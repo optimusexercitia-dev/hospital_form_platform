@@ -818,11 +818,16 @@ export async function loadCaseSafetyPrefill(
  * the referral + its reply + shared items, PRESERVING the governance skeleton
  * (`ENC-NNNN` code, structural fields, status, provenance, audit chain). Mirrors
  * `dispose_event_phi` / `dispose_case_phi` — the referral module's third disposal
- * door. The `dispose_referral_phi` DEFINER is the authority: gated
- * `is_admin() OR is_commission_admin_of(source) OR is_pqs_operator_of(referral
+ * door. The `dispose_referral_phi` DEFINER is the authority: gated on the NSP arm of
+ * EITHER side — `is_pqs_operator_of(source hospital) OR is_pqs_operator_of(target
  * hospital)` (42501 otherwise; one-shot → HC056), audited at the HOSPITAL tier via the
  * source commission. `reason` is a CONSTRAINED category ({@link PhiDisposeReason}),
  * never free text. Backed by migration `20260710000000_nsp_per_hospital.sql`.
+ *
+ * ⚠ This gate has narrowed TWICE and this docblock was stale for both: ADR 0078 A35/M2
+ * removed the platform-admin bypass, and BUG-QOB-004 (PO ruling 2026-08-09,
+ * `20260917000000`) removed the tenancy tier. There is no staff_admin arm and never was,
+ * so disposal is NSP-exclusive. Verify against `pg_get_functiondef`, not this sentence.
  */
 export async function disposeReferralPhi(
   referralId: string,

@@ -47,8 +47,8 @@ const CONFIRM_PHRASE = "APAGAR";
  * The destructive LGPD-erasure control for a referral's PHI (NSP-per-hospital, ADR
  * 0052 §6; decision 5). Wired to the `disposeReferralPhi(referralId, reason)`
  * server action, which routes through the audited `dispose_referral_phi` DEFINER
- * door — gated `is_admin() OR is_commission_admin_of(source) OR
- * is_pqs_operator_of(referral hospital)` (the SERVER is authoritative; this UI gate
+ * door — gated on the NSP arm of either side, `is_pqs_operator_of(source hospital) OR
+ * is_pqs_operator_of(target hospital)` (the SERVER is authoritative; this UI gate
  * is defense-in-depth so an unentitled viewer never sees a dangling control).
  *
  * The action PERMANENTLY deletes the isolated patient record and redacts every PHI
@@ -60,9 +60,13 @@ const CONFIRM_PHRASE = "APAGAR";
  *
  * The PAGE decides whether to render this at all — it mounts the component only
  * when the authoritative `canDisposeReferralPhi` probe returns true (a PHI record
- * exists AND the viewer passes the exact RPC gate: admin / source commission-admin /
- * PQS operator of either endpoint hospital; BUG-NPH-002). So this component assumes
- * it is entitled and holds no gate of its own.
+ * exists AND the viewer passes the exact RPC gate: PQS operator of either endpoint
+ * hospital; BUG-NPH-002). So this component assumes it is entitled and holds no gate
+ * of its own.
+ *
+ * ⚠ The gate narrowed twice and this docblock was stale for both — ADR 0078 A35/M2
+ * dropped the platform-admin bypass, BUG-QOB-004 (`20260917000000`) dropped the tenancy
+ * tier. Read `pg_get_functiondef`, not this comment.
  */
 export function ReferralDisposeDialog({
   referralId,

@@ -25,7 +25,7 @@
 begin;
 -- 7 catalog + 7 submission + 11 audience + 5 lifecycle + 4 dialogue + 9 waiting_on
 -- + 6 dispositions + 4 handover + 5 flag-off + 2 completeness = 60.
-select plan(60);
+select plan(61);
 
 update app.feature_flags set enabled = true
   where key in ('case_referrals', 'case_access', 'audit_trail', 'technical_director');
@@ -565,20 +565,65 @@ select ok(
   '7.5 D6: the technical direction may READ the PHI it was sent and may NOT dispose of it');
 reset role;
 
--- ⚠ The twin needs a COMMISSION ADMIN, which `staff_admin` is not:
--- app.is_commission_admin_of_for resolves org_admin / hospital_admin, not the
--- committee coordinator. Asserting the twin on sa_x-as-staff_admin would have it fail
--- for a reason that has nothing to do with the DT — the wrong-arm fixture again. The
--- grant is made here (rather than in §8, where the handover also needs it) so the
--- twin measures disposal authority and nothing else.
+-- ⚠ RE-ANCHORED by BUG-QOB-004 (`20260917000000`). The twin used to run on a COMMISSION
+-- ADMIN — sa_x granted `org_admin` — because `staff_admin` was the wrong arm. The PO's
+-- CUT ruling removed the tenancy arm from this door outright, so that anchor no longer
+-- exists and the twin was pinning a capability the product deliberately deleted (the
+-- recorded shape: a fixed/removed behaviour leaves tests asserting the OLD one).
+--
+-- The control's JOB is unchanged and still necessary: without it, 7.5 passes vacuously
+-- the moment `can_dispose_referral_phi` returns a blanket false. So it re-anchors on the
+-- arm that SURVIVES the ruling — the NSP/PQS operator — rather than being deleted.
+--
+-- ⚠ It must be the SOURCE hospital. r1 targets the technical direction, so
+-- `target_commission_id` is NULL and `hospital_of_commission(NULL)` is NULL → the target
+-- arm cannot fire for a DT-targeted referral (catalog-checked, not assumed). A dedicated
+-- principal is seated holding ONLY `pqs_member` so the twin measures disposal authority
+-- and nothing else — sa_x is by now triple-hatted (coordinator + org_admin for §8's
+-- handover) and would blur exactly what this control is for.
+create temp table pqs on commit drop as select gen_random_uuid() as operator;
+grant select on pqs to authenticated;
+
+-- Clear the claims first — guard_profile_privileged_columns decides by `auth.uid() is
+-- null`, not by database role, so a leftover JWT makes this fixture raise even as
+-- postgres (same trap §8 documents below).
+select set_config('request.jwt.claims', null, true);
+do $$
+begin
+  insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', (select operator from pqs),
+          'authenticated', 'authenticated', (select operator from pqs) || '@test', now(), now());
+  update public.profiles
+     set home_organization_id = (select org_b from k),
+         professional_category_id = (select id from public.professional_categories where key = 'physician'),
+         full_name = 'NSP Operador'
+   where id = (select operator from pqs);
+end $$;
+
+insert into public.memberships (principal_id, organization_id, hospital_id, role)
+  values ((select operator from pqs), (select org_b from k), (select hosp_b from k), 'pqs_member');
+
+-- sa_x still needs org_admin for §8's atomic handover; the grant moves nowhere, it just
+-- stops being what the twin measures.
 insert into public.memberships (principal_id, organization_id, role)
   values ((select sa_x from k), (select org_b from k), 'org_admin');
 
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select operator from pqs), false);
 set local role authenticated;
 select ok(
   public.can_dispose_referral_phi((select id from r1)),
-  '7.6 POSITIVE TWIN for D6: the source-side commission admin still can (7.5 is not a blanket refusal)');
+  '7.6 POSITIVE TWIN for D6: the source-hospital NSP operator still can (7.5 is not a blanket refusal)');
+reset role;
+
+-- The other half of the re-anchor: prove the tenancy tier is now REFUSED on this door,
+-- so the CUT is asserted behaviourally and not merely by the migration's catalog
+-- postcondition. sa_x holds org_admin of org_b (granted just above) and is the source
+-- commission's own coordinator — the single most entitled tenancy principal there is.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select ok(
+  not public.can_dispose_referral_phi((select id from r1)),
+  '7.7 BUG-QOB-004: the source-side tenancy admin may NO LONGER dispose (arm CUT, PO ruling 2026-08-09)');
 reset role;
 
 -- =============================================================================
