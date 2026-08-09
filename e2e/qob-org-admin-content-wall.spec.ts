@@ -37,41 +37,46 @@ const ORG = 'rede-a'
 const COMMISSION = 'ccih'
 
 test.describe('QO·B — org_admin/hospital_admin content wall', () => {
-  test('CONTROL: the committee coordinator still reads response content', async ({ page }) => {
-    // This runs FIRST on purpose. If it fails, every denial below is meaningless —
-    // they would be denials of content that is not there.
-    await cachedSignIn(page, 'chefe.ccih@test.local')
-    await page.goto(`/o/${ORG}/c/${COMMISSION}/respostas`)
+  // ⚠ SURFACE CORRECTED AFTER THE FIRST E2E RUN WENT RED, and the red was RIGHT.
+  // These three originally pointed at /respostas — which is "Minhas respostas", the
+  // caller's OWN responses. That surface is empty for a tenancy admin REGARDLESS of
+  // QO·B, because they never created any: precisely the reach-not-row-count trap this
+  // file's own header warns about, walked into anyway. It also matched a nav link
+  // rather than a row, which is how it surfaced. The wall can only be observed on a
+  // surface that shows OTHER people's responses, so they now target the commission
+  // submissions browser, whose list is `ul[aria-label="Respostas"]`.
+  const SUBMISSIONS = `/o/${ORG}/c/${COMMISSION}/dashboard/submissions`
 
-    await expect(page).toHaveURL(new RegExp(`/o/${ORG}/c/${COMMISSION}/respostas`))
-    // The coordinator's response surface renders and is NOT the not-found boundary.
-    await expect(page.getByText(/não encontrad/i)).toHaveCount(0)
+  test('CONTROL: the committee coordinator reads the commission submissions', async ({ page }) => {
+    // Runs FIRST on purpose. If this fails, every denial below is meaningless — they
+    // would be denials of content that is not there.
+    await cachedSignIn(page, 'chefe.ccih@test.local')
+    await page.goto(SUBMISSIONS)
+
+    const list = page.getByRole('list', { name: 'Respostas' })
+    await expect(list).toBeVisible()
+    expect(await list.getByRole('listitem').count()).toBeGreaterThan(0)
   })
 
-  test('WALL: org_admin reaches no response content on the same surface', async ({ page }) => {
+  test('WALL: org_admin reads no commission submissions on the same surface', async ({ page }) => {
     await cachedSignIn(page, 'orgadmin.a@test.local')
-    await page.goto(`/o/${ORG}/c/${COMMISSION}/respostas`)
+    await page.goto(SUBMISSIONS)
 
-    // The discriminator is REACH: either the route refuses the tenancy admin, or it
-    // renders with zero response rows. Both are the wall; what must NEVER appear is a
-    // readable response belonging to a committee member.
-    const notFound = await page.getByText(/não encontrad/i).count()
-    if (notFound === 0) {
-      // Route rendered — then it must carry no response rows for this principal.
-      await expect(page.getByRole('link', { name: /resposta/i })).toHaveCount(0)
-    }
-    // Whichever branch held, the page must not expose answer content.
-    await expect(page.getByText(/resposta QO·B/i)).toHaveCount(0)
+    // ⚠ ASSERTED UNCONDITIONALLY. An earlier draft wrapped this in
+    // `if (refused === 0)`, so a 404 branch would have made the test assert NOTHING and
+    // still pass — a test that cannot fail. The wall may legitimately express itself
+    // either way (the route refuses the tenancy admin, or it renders with an empty
+    // list), and the list's ABSENCE is true in both, so no branch is needed.
+    // What must never appear is a readable submission row belonging to a committee
+    // member — the SAME rows the control just read.
+    await expect(page.getByRole('list', { name: 'Respostas' })).toHaveCount(0)
   })
 
   test('WALL (Q4): hospital_admin gets the same treatment as org_admin', async ({ page }) => {
     await cachedSignIn(page, 'hospitaladmin.a1@test.local')
-    await page.goto(`/o/${ORG}/c/${COMMISSION}/respostas`)
+    await page.goto(SUBMISSIONS)
 
-    const notFound = await page.getByText(/não encontrad/i).count()
-    if (notFound === 0) {
-      await expect(page.getByRole('link', { name: /resposta/i })).toHaveCount(0)
-    }
+    await expect(page.getByRole('list', { name: 'Respostas' })).toHaveCount(0)
   })
 
   test('KEEP: org_admin retains its administration surface', async ({ page }) => {
