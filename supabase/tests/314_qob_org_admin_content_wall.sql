@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(76);
+select plan(111);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -669,6 +669,236 @@ select lives_ok(
   $$ select public.mark_document_obsolete((select docb from f10)) $$,
   '10.19 NO-REGRESSION TWIN ⭐: ...still RETIRES the vigente document');
 reset role;
+
+-- =============================================================================
+-- §11 — CASE-PLANE WRITE DOORS (M7). ⛔ THIS SECTION EXISTS BECAUSE M4 CUT A
+-- PROXY POPULATION AND LEFT THE §4.4 LIST UNFULFILLED (QA r1 BLOCKER-1). M4's
+-- premise — "case-content mutators = the functions carrying assert_not_case_excluded"
+-- — was false: that guard came from A4-Unit-2's OWN enumeration, so every §4.4 door
+-- without it stayed armed. QA reproduced live writes at BOTH tenancy tiers
+-- (remove_case_participant set removed_at; record_recusal wrote a row;
+-- case_viewer_capabilities advertised can_manage_lifecycle over an unreadable case).
+--
+-- Same twin discipline as §9/§10: authority raises a DISTINCT SQLSTATE
+-- (HC0E4 / HC0J1 / 42501 / P0002-at-not-found) BEFORE the state/validation gates,
+-- so a coordinator twin that succeeds or reaches a LATER code attributes the oa_b
+-- denial to authority on the same fixture. These are the keystones M4 never wrote.
+-- =============================================================================
+
+-- ── §11 fixtures (as postgres — role was reset at the end of §10) ─────────────
+create temp table f11 on commit drop as
+  select '00000000-0000-0000-0000-00000000fb01'::uuid as case_d,   -- clean case in comm_x
+         '00000000-0000-0000-0000-00000000fb02'::uuid as pt_d,     -- a participant of case_d
+         '00000000-0000-0000-0000-00000000fb03'::uuid as role_d,
+         '00000000-0000-0000-0000-00000000fb04'::uuid as cp_d,     -- case_participants row
+         '00000000-0000-0000-0000-00000000fb05'::uuid as narr_ah,  -- an AD-HOC narrative
+         '00000000-0000-0000-0000-00000000fb06'::uuid as rec_live, -- a live recusal (st_x) to lift
+         '00000000-0000-0000-0000-00000000fb07'::uuid as tag_d,
+         '00000000-0000-0000-0000-00000000fb08'::uuid as case_e,   -- case_e: sa_x RECUSED (MAJOR-1)
+         '00000000-0000-0000-0000-00000000fb09'::uuid as narr_e,
+         '00000000-0000-0000-0000-00000000fb10'::uuid as phase_ah; -- an AD-HOC phase
+grant select on f11 to authenticated;
+
+insert into public.cases (id, commission_id, organization_id, case_number, label, created_by)
+select f11.case_d, k.comm_x, k.org_b, 990911, 'Caso M7 D', k.sa_x from f11, k;
+insert into public.cases (id, commission_id, organization_id, case_number, label, created_by)
+select f11.case_e, k.comm_x, k.org_b, 990912, 'Caso M7 E', k.sa_x from f11, k;
+
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+select f11.pt_d, k.org_b, 'other', 'non_sensitive', 'Alvo M7 D' from f11, k;
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types)
+select f11.role_d, k.org_b, 'm7d_alvo', 'Alvo M7 D', array['other'] from f11, k;
+insert into public.case_participants (id, case_id, participant_id, role_id)
+select f11.cp_d, f11.case_d, f11.pt_d, f11.role_d from f11;
+
+-- An AD-HOC narrative + AD-HOC phase on case_d (the delete doors reject a
+-- template-derived one before authority is even relevant, so the twin needs a
+-- genuinely ad-hoc row to reach past the authority gate).
+insert into public.case_narratives (id, case_id, type_label, display_position, status, is_ad_hoc)
+select f11.narr_ah, f11.case_d, 'Avulsa M7', 1, 'open', true from f11;
+insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status, is_ad_hoc)
+select f11.phase_ah, f11.case_d, 1, 'Fase avulsa M7', k.form_u, k.ver_u, 'pending', true from f11, k;
+
+-- A live recusal of st_x on case_d — lift_recusal's twin lifts it.
+insert into public.case_recusals (id, case_id, user_id, reason_md, source, recused_by)
+select f11.rec_live, f11.case_d, k.st_x, 'fixture', 'coordinator', k.sa_x from f11, k;
+
+insert into public.case_tags (id, commission_id, name)
+select f11.tag_d, k.comm_x, 'Tag M7 D' from f11, k;
+insert into public.case_tag_assignments (case_id, tag_id)
+select f11.case_d, f11.tag_d from f11;
+
+-- A narrative on case_e (for the MAJOR-1 zero-row narrative probe).
+insert into public.case_narratives (id, case_id, type_label, display_position, status)
+select f11.narr_e, f11.case_e, 'Resumo M7 E', 1, 'open' from f11;
+-- case_e: recuse sa_x from it, so sa_x passes authority (staff arm) but RLS hides
+-- the row — the exact MAJOR-1 shape the four INVOKER doors returned SUCCESS on.
+insert into public.case_recusals (case_id, user_id, reason_md, source, recused_by)
+select f11.case_e, k.sa_x, 'exclusão M7', 'coordinator', k.sa_x from f11, k;
+
+-- ── §11a — the tenancy admin is DENIED at every M7 door ───────────────────────
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.remove_case_participant((select cp_d from f11)) $$, 'HC0E4', null,
+  '11.1 ⭐⭐ WALL (M7): remove_case_participant refuses the tenancy admin on AUTHORITY (pre-M7 this SET removed_at — QA r1 BLOCKER-1)');
+select throws_ok(
+  $$ select public.set_case_participant_role((select cp_d from f11), (select role_d from f11)) $$, 'HC0E4', null,
+  '11.2 ⭐ WALL (M7): set_case_participant_role refuses on AUTHORITY (HC0E4, before the HC0E3 validation 11.19 reaches)');
+select throws_ok(
+  $$ select public.set_primary_subject((select cp_d from f11)) $$, 'HC0E4', null,
+  '11.3 ⭐ WALL (M7): set_primary_subject refuses the tenancy admin');
+select throws_ok(
+  $$ select public.add_case_participant((select case_d from f11), (select pt_d from f11), (select role_d from f11)) $$, 'HC0E4', null,
+  '11.4 ⭐ WALL (M7): add_case_participant refuses the tenancy admin (the §4.4 sibling M4''s text omitted)');
+select throws_ok(
+  $$ select public.record_recusal((select case_d from f11), (select st_x2 from k), 'x') $$, 'P0002', null,
+  '11.5 ⭐⭐ WALL (M7): record_recusal refuses the tenancy admin (pre-M7 it WROTE a case_recusals row — QA r1 BLOCKER-1). Raw not-found posture: authority failure = the no-reach not-found');
+select throws_ok(
+  $$ select public.lift_recusal((select rec_live from f11), 'x') $$, 'HC0E4', null,
+  '11.6 ⭐ WALL (M7): lift_recusal refuses the tenancy admin (QA r1 INFO-2 resolved: it was a LIVE leak, ADMITTED pre-M7 on a live recusal)');
+select throws_ok(
+  $$ select public.schedule_ethics_hearing((select case_d from f11), 'initial_hearing') $$, 'HC0J1', null,
+  '11.7 ⭐ WALL (M7): schedule_ethics_hearing refuses on AUTHORITY (HC0J1, before the HC0J0 ethics-state gate 11.20 reaches)');
+select throws_ok(
+  $$ select public.delete_ad_hoc_case_narrative((select narr_ah from f11)) $$, '42501', null,
+  '11.8 ⭐ WALL (M7): delete_ad_hoc_case_narrative refuses the tenancy admin');
+select throws_ok(
+  $$ select public.delete_ad_hoc_case_phase((select phase_ah from f11)) $$, '42501', null,
+  '11.9 ⭐ WALL (M7): delete_ad_hoc_case_phase refuses the tenancy admin');
+select throws_ok(
+  $$ select public.cancel_case((select case_d from f11)) $$, '42501', null,
+  '11.10 ⭐ WALL (M7): cancel_case refuses the tenancy admin on AUTHORITY (pre-M7 it returned SUCCESS writing nothing — MAJOR-1)');
+select throws_ok(
+  $$ select public.close_case((select case_d from f11)) $$, '42501', null,
+  '11.11 ⭐ WALL (M7): close_case refuses the tenancy admin on AUTHORITY');
+select throws_ok(
+  $$ select public.set_case_outcome((select case_d from f11), null) $$, 'P0002', null,
+  '11.12 ⭐ WALL (M7): set_case_outcome refuses the tenancy admin. INVOKER: its lookup reads public.cases directly under RLS, which A4 walls, so the deny is the RLS not-found (P0002) BEFORE the arm-cut authority gate — it never had the silent-success shape (measured)');
+select throws_ok(
+  $$ select public.update_case_narrative_body((select narr_ah from f11), 'M7-HACK') $$, 'P0002', null,
+  '11.13 ⭐ WALL (M7): update_case_narrative_body refuses the tenancy admin (§4.4-listed; the false TS comment cited this). INVOKER lookup joins case_narratives→cases under RLS → not-found P0002 before authority');
+select throws_ok(
+  $$ select public.bulk_create_cases((select ver_u from k)::uuid, null, 'todas', '[]'::jsonb) $$, null, null,
+  '11.14 ⭐ WALL (M7): bulk_create_cases refuses the tenancy admin (raises — not-found or 42501; the door is closed either way)');
+select is((select count(*)::int from public.case_tag_report((select comm_x from k))), 0,
+  '11.15 ⭐ WALL (M7): case_tag_report returns ZERO rows to the tenancy admin (pre-M7 it reported the commission''s tags)');
+select is(
+  ((select public.case_viewer_capabilities((select case_d from f11)))->>'can_manage_lifecycle')::boolean, false,
+  '11.16 ⭐⭐ WALL (M7): case_viewer_capabilities reports can_manage_lifecycle=FALSE for the tenancy admin (pre-M7 it advertised lifecycle authority over an unreadable case — the BUG-QOB-002 shape stated by the platform about itself, QA r1)');
+reset role;
+
+-- ── §11b — Q4 spot check: hospital_admin gets the same wall ──────────────────
+select test_helpers.claims_for((select ha_b from ha), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.remove_case_participant((select cp_d from f11)) $$, 'HC0E4', null,
+  '11.17 ⭐ (Q4): hospital_admin is refused by the same shared predicate — the case wall is not org_admin-only (QA r1 measured hospitaladmin.a1 writing pre-M7)');
+select is(
+  ((select public.case_viewer_capabilities((select case_d from f11)))->>'can_manage_lifecycle')::boolean, false,
+  '11.18 ⭐ (Q4): ...and case_viewer_capabilities denies hospital_admin lifecycle authority too');
+reset role;
+
+-- ── §11c — the coordinator twins (non-vacuity; each shares 11.x''s fixture) ───
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_case_participant_role((select cp_d from f11), (select role_d from f11)) $$,
+  '11.19 NON-VACUITY TWIN ⭐: the coordinator SETS the participant role (idempotent to role_d) — so 11.2''s HC0E4 was authority, not a dead door');
+select throws_ok(
+  $$ select public.schedule_ethics_hearing((select case_d from f11), 'initial_hearing') $$, 'HC0J0', null,
+  '11.20 TWIN (distinct-gate) ⭐: the coordinator REACHES schedule_ethics_hearing''s ethics-typed gate (HC0J0, case is not ethics) — so 11.7''s HC0J1 was authority');
+select throws_ok(
+  $$ select public.bulk_create_cases((select ver_u from k)::uuid, null, 'todas', '[]'::jsonb) $$, null, null,
+  '11.21 TWIN ⭐: the coordinator REACHES bulk_create_cases past authority (raises at template/scope validation, a DIFFERENT gate than 11.14''s) — non-vacuity of the door''s reachability');
+select cmp_ok((select count(*)::int from public.case_tag_report((select comm_x from k))), '>', 0,
+  '11.22 NON-VACUITY TWIN ⭐: the coordinator reads tag_report rows on the same commission — 11.15''s zero is the wall, not an empty commission');
+select is(
+  ((select public.case_viewer_capabilities((select case_d from f11)))->>'can_manage_lifecycle')::boolean, true,
+  '11.23 NON-VACUITY TWIN ⭐: the coordinator DOES hold can_manage_lifecycle on the same case — 11.16''s false is the wall');
+select lives_ok(
+  $$ select public.record_recusal((select case_d from f11), (select st_x2 from k), 'twin') $$,
+  '11.24 NON-VACUITY TWIN ⭐: the coordinator WRITES the recusal 11.5 was refused (same case, same target) — authority is the discriminator');
+select lives_ok(
+  $$ select public.lift_recusal((select rec_live from f11), 'twin') $$,
+  '11.25 NON-VACUITY TWIN ⭐: the coordinator LIFTS the live recusal 11.6 was refused');
+select lives_ok(
+  $$ select public.remove_case_participant((select cp_d from f11)) $$,
+  '11.26 NON-VACUITY TWIN ⭐: the coordinator REMOVES the participant 11.1/11.17 were refused (removed_at set) — the pre-M7 leak, now coordinator-only');
+reset role;
+
+-- ── §11d — MAJOR-1: the two silent-success INVOKER doors now RAISE ────────────
+-- An EXCLUDED staff_admin (sa_x, recused from case_e) resolves the commission via
+-- the DEFINER helper app.commission_of_case (RLS-exempt), passes the staff-arm
+-- authority gate, then the terminal DML runs under RLS and touches ZERO rows.
+-- ⚠ MEASURED, and it corrects QA r1's set of four: ONLY cancel_case and close_case
+-- had the silent-success shape (pre-M7 both returned SUCCESS with the case
+-- unchanged). set_case_outcome and update_case_narrative_body read cases /
+-- case_narratives DIRECTLY under RLS at their own lookup, so an excluded principal
+-- is denied there (P0002) and never reached the DML — they never silently
+-- succeeded (11.29/11.30 assert that denial; their zero-row guard is a defensive
+-- backstop, NOT the load-bearing gate, so the b1 audit red-proves the guard on
+-- cancel_case/close_case only). 11.31 is the positive control: the SAME
+-- coordinator cancels the case they are NOT excluded from.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.cancel_case((select case_e from f11)) $$, 'P0002', null,
+  '11.27 ⭐⭐ MAJOR-1: cancel_case RAISES not-found for the excluded coordinator via the NEW zero-row guard (pre-M7 it reported SUCCESS on a zero-row update — the silent no-op QA r1 measured; the b1 audit reverts the guard and this reds)');
+select throws_ok(
+  $$ select public.close_case((select case_e from f11)) $$, 'P0002', null,
+  '11.28 ⭐ MAJOR-1: close_case RAISES not-found via the zero-row guard (also no longer SKIPS the HC031 phase gate over RLS-invisible phases)');
+select throws_ok(
+  $$ select public.set_case_outcome((select case_e from f11), null) $$, 'P0002', null,
+  '11.29 MAJOR-1 (denies at LOOKUP, not silent): set_case_outcome''s RLS lookup already refuses the excluded coordinator — it never had the silent-success shape; asserted so the record is honest');
+select throws_ok(
+  $$ select public.update_case_narrative_body((select narr_e from f11), 'X') $$, 'P0002', null,
+  '11.30 MAJOR-1 (denies at LOOKUP, not silent): update_case_narrative_body''s RLS join already refuses the excluded coordinator');
+select lives_ok(
+  $$ select public.cancel_case((select case_d from f11)) $$,
+  '11.31 NON-VACUITY TWIN ⭐: the SAME coordinator cancels the case they are NOT excluded from (case_d) — so 11.27''s raise is the zero-row guard, not a broken door');
+reset role;
+
+-- ── §11e — CATALOG invariants: masked strips + the ratified-list correspondence ─
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f'
+      and p.proname in ('get_case_detail','list_my_cases')
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_commission_admin_of'),
+  0,
+  '11.32 ⭐ CATALOG (MINOR-1): get_case_detail + list_my_cases no longer NAME the tenancy admin — the masked tokens are stripped, so a future outer-predicate widening cannot silently arm them');
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname='public' and tablename='case_events'
+      and coalesce(qual,'')||' '||coalesce(with_check,'') ~ 'is_commission_admin_of'),
+  0,
+  '11.33 ⭐ CATALOG (MINOR-1): not one case_events policy still carries the masked tenancy arm');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.prokind='f'
+      and p.proname = any(array[
+        'update_case_meta','create_case','create_case_from_template','close_case','cancel_case',
+        'reopen_case','update_case_custom_field_values','conclude_narrative','unassign_narrative',
+        'update_case_narrative_body','delete_ad_hoc_case_narrative','delete_ad_hoc_case_phase',
+        'reassign_phase','set_case_phase_result_override','set_case_participant_role',
+        'remove_case_participant','set_primary_subject','set_case_outcome','record_recusal',
+        'lift_recusal','create_interview','schedule_ethics_hearing','get_case_detail','list_my_cases',
+        'case_viewer_capabilities','case_tag_report','dispose_case_phi','add_case_participant','bulk_create_cases'])
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_commission_admin_of'),
+  0,
+  '11.34 ⭐ CATALOG (BLOCKER-1 CORRESPONDENCE): every one of the 29 ratified §4.4 CUT-side doors is armless — the population is the LIST, checked item by item, not M4''s proxy');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace
+      and p.proname = any(array['grant_case_access','revoke_case_access','list_case_access',
+                                'set_case_visibility','set_case_confidentiality'])
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_commission_admin_of'),
+  5,
+  '11.35 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified case-access/classification KEEP doors still admit the tenancy admin — M7 cut the list MINUS these, not the whole plane');
+
 
 select * from finish();
 rollback;

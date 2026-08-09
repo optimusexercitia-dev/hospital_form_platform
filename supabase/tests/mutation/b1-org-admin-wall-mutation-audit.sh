@@ -6,7 +6,18 @@
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
 # QO·B (ADR 0100 D12) MUTATION AUDIT — the org_admin / hospital_admin content wall.
-# 31 cases. ⚠ Keep this count and the run_case list in sync.
+# 39 cases. ⚠ Keep this count and the run_case list in sync.
+#
+# EXTENDED AGAIN (2026-08-09, QA r1 BLOCKER-1 + MAJOR-1): 6 cases red-prove the M7
+# case-plane doors whose arm is LOAD-BEARING (314 §11 — remove_case_participant,
+# record_recusal, lift_recusal, case_viewer_capabilities, case_tag_report,
+# schedule_ethics_hearing), and 2 cases red-prove the zero-row not-found guard on
+# cancel_case/close_case (the two doors that actually exhibited MAJOR-1's
+# silent-success). set_case_outcome + update_case_narrative_body have NO arm-restore
+# case on purpose — their arm is a masked token behind an RLS lookup that already
+# denies the tenancy admin, so restoring it changes nothing (unfalsifiable by
+# construction; see the PRELUDE note). Their cut is covered by the catalog
+# correspondence 314 11.34, not by a vacuous mutation case.
 #
 # EXTENDED (2026-08-09, keystone closure of the self-audit's risk #1): cases 18–30
 # red-prove the THIRTEEN M5/M6 doors that previously rested only on the migrations'
@@ -267,6 +278,81 @@ begin
       'if not (app.is_member_of(p_commission) or app.is_commission_admin_of(p_commission)) then');
     execute d;
 
+  -- ── UNDER-CUT, the M7 CASE-PLANE doors (314 §11; QA r1 BLOCKER-1) ─────────
+  -- Each restores the tenancy disjunct (BOTH variants where the door carried
+  -- _for) that M7 cut, so its §11 denial keystone must red.
+  elsif p_what = 'restore_remove_participant_door' then
+    d := pg_get_functiondef('public.remove_case_participant(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_record_recusal_door' then
+    d := pg_get_functiondef('public.record_recusal(uuid,uuid,text,uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'v_is_coord_raw := app.is_staff_admin_of(v_commission);',
+      'v_is_coord_raw := app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission);');
+    execute d;
+
+  elsif p_what = 'restore_lift_recusal_door' then
+    d := pg_get_functiondef('public.lift_recusal(uuid,text)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_viewer_caps_door' then
+    -- case_viewer_capabilities: the can_manage_lifecycle bit used the _for variant.
+    d := pg_get_functiondef('public.case_viewer_capabilities(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_staff_admin_of_for(v_commission, v_uid)',
+      'app.is_staff_admin_of_for(v_commission, v_uid) or app.is_commission_admin_of_for(v_commission, v_uid)');
+    execute d;
+
+  elsif p_what = 'restore_tag_report_door' then
+    d := pg_get_functiondef('public.case_tag_report(uuid,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(p_commission_id)) then',
+      'if not (app.is_staff_admin_of(p_commission_id) or app.is_commission_admin_of(p_commission_id)) then');
+    execute d;
+
+  elsif p_what = 'restore_schedule_hearing_door' then
+    d := pg_get_functiondef('public.schedule_ethics_hearing(uuid,text,uuid,timestamptz)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  -- ⚠ NO restore_case_outcome_arm / restore_narrative_body_arm case, DELIBERATELY,
+  -- and this is a finding worth keeping (mirrors restore_answers_arm above). Both
+  -- doors are INVOKER and read public.cases / case_narratives DIRECTLY under RLS at
+  -- their OWN lookup, which A4 already walls for the tenancy admin — so the lookup
+  -- raises P0002 BEFORE the authority arm is ever evaluated. Restoring the arm alone
+  -- therefore changes NOTHING for the tenancy admin (314's 11.12/11.13 stay P0002 =
+  -- GREEN), i.e. the arm is a MASKED token, not the load-bearing gate. M7 cuts it as
+  -- catalog hygiene (postcondition (a) / 314 11.34 — the §4.4 correspondence), and
+  -- the behavioural denial (11.12/11.13) is red-proven by A4's RLS wall, not by
+  -- this arm. A b1 case here would be unfalsifiable BY CONSTRUCTION — the exact
+  -- §7.1 vacuity shape this harness exists to refuse.
+
+  -- ── MAJOR-1: the zero-row not-found guard on the two silent-success doors. ──
+  -- Reverting the guard restores the SILENT SUCCESS an excluded coordinator got,
+  -- so 314 §11d's 11.27/11.28 (which require the raise) must red.
+  elsif p_what = 'revert_cancel_zero_row_guard' then
+    d := pg_get_functiondef('public.cancel_case(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      E'  returning * into v_result;\n  if v_result.id is null then\n    raise exception ''caso % não encontrado'', p_case_id using errcode = ''no_data_found'';\n  end if;\n\n  update public.case_phases',
+      E'  returning * into v_result;\n\n  update public.case_phases');
+    execute d;
+
+  elsif p_what = 'revert_close_zero_row_guard' then
+    d := pg_get_functiondef('public.close_case(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      E'  returning * into v_result;\n  if v_result.id is null then\n    raise exception ''caso % não encontrado'', p_case_id using errcode = ''no_data_found'';\n  end if;\n\n  update public.case_phases',
+      E'  returning * into v_result;\n\n  update public.case_phases');
+    execute d;
+
   -- ── FUP-QOB-1: the J1c structural pin must notice the term''s deletion ─────
   elsif p_what = 'fup_qob1_drop_created_by' then
     -- Widen write_own_draft by DROPPING its created_by term. The creator still
@@ -378,7 +464,9 @@ SNAP_SQL="select md5(
       or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals','list_commission_documents','revoke_printed_document',
                                                'dashboard_completion_by_member','get_response_for_signoff','supersede_response','target_case_response',
                                                'create_controlled_document','update_controlled_document','publish_document','mark_document_obsolete','supersede_document',
-                                               'submit_document_for_approval','set_document_version_file','documents_due_for_review','remind_document_approver')))
+                                               'submit_document_for_approval','set_document_version_file','documents_due_for_review','remind_document_approver',
+                                               'remove_case_participant','record_recusal','lift_recusal','case_viewer_capabilities','case_tag_report',
+                                               'schedule_ethics_hearing','set_case_outcome','update_case_narrative_body','cancel_case','close_case')))
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='responses_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='answers_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='controlled_documents_select'),'')
@@ -483,6 +571,48 @@ run_case "restore_doc_obsolete_door -> retirement reopens" \
 run_case "restore_doc_review_list_door -> review queue leaks" \
   "select app._mut_b1('restore_doc_review_list_door');" \
   "documents_due_for_review returns ZERO rows"
+
+echo
+echo "--- UNDER-CUT: the M7 case-plane doors (314 §11; QA r1 BLOCKER-1) ---"
+
+run_case "restore_remove_participant_door -> participant removal reopens" \
+  "select app._mut_b1('restore_remove_participant_door');" \
+  "remove_case_participant refuses the tenancy admin on AUTHORITY"
+
+run_case "restore_record_recusal_door -> recusal write reopens" \
+  "select app._mut_b1('restore_record_recusal_door');" \
+  "record_recusal refuses the tenancy admin"
+
+run_case "restore_lift_recusal_door -> recusal lift reopens" \
+  "select app._mut_b1('restore_lift_recusal_door');" \
+  "lift_recusal refuses the tenancy admin"
+
+run_case "restore_viewer_caps_door -> lifecycle over-report reopens" \
+  "select app._mut_b1('restore_viewer_caps_door');" \
+  "case_viewer_capabilities reports can_manage_lifecycle=FALSE for the tenancy admin"
+
+run_case "restore_tag_report_door -> tag report leaks" \
+  "select app._mut_b1('restore_tag_report_door');" \
+  "case_tag_report returns ZERO rows to the tenancy admin"
+
+run_case "restore_schedule_hearing_door -> hearing scheduling reopens" \
+  "select app._mut_b1('restore_schedule_hearing_door');" \
+  "schedule_ethics_hearing refuses on AUTHORITY"
+
+# set_case_outcome / update_case_narrative_body: NO arm-restore case — their arm is
+# a masked token behind an RLS lookup that already denies the tenancy admin (see the
+# PRELUDE note). Their cut is covered by 314 11.34 (catalog correspondence), not here.
+
+echo
+echo "--- MAJOR-1: the zero-row not-found guard (314 §11d) ---"
+
+run_case "revert_cancel_zero_row_guard -> silent success returns" \
+  "select app._mut_b1('revert_cancel_zero_row_guard');" \
+  "cancel_case RAISES not-found for the excluded coordinator"
+
+run_case "revert_close_zero_row_guard -> silent success returns" \
+  "select app._mut_b1('revert_close_zero_row_guard');" \
+  "close_case RAISES not-found via the zero-row guard"
 
 echo
 echo "--- FUP-QOB-1: the J1c structural pin (runs 270, not 314) ---"
