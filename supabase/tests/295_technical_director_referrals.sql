@@ -615,15 +615,22 @@ select ok(
   '7.6 POSITIVE TWIN for D6: the source-hospital NSP operator still can (7.5 is not a blanket refusal)');
 reset role;
 
--- The other half of the re-anchor: prove the tenancy tier is now REFUSED on this door,
--- so the CUT is asserted behaviourally and not merely by the migration's catalog
--- postcondition. sa_x holds org_admin of org_b (granted just above) and is the source
--- commission's own coordinator — the single most entitled tenancy principal there is.
+-- ⚠ REVERSED WITHIN THE DAY, and the history is the point. `20260917000000` CUT the
+-- tenancy arm here (BUG-QOB-004, on the D5 precedent) and this assertion pinned the cut.
+-- `20260917000400` RESTORED it as a BACKSTOP once two facts surfaced while examining the
+-- sibling `dispose_event_phi`: a hospital can have ZERO NSP operators (`Hospital Unico C`),
+-- so NSP-only disposal strands an LGPD Art. 18 erasure obligation that belongs to the
+-- ORGANIZATION; and this platform already keeps the tenancy arm on the identically-shaped
+-- `revoke_printed_document` (ADR 0104 D11 — a governance act that reveals no content).
+--
+-- So the assertion flips rather than being deleted: it still measures the tenancy tier on
+-- this door, and it still fails loudly if someone re-cuts by symmetry. The DRAFTING cut is
+-- untouched and guarded separately (`314` 8.7).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select ok(
-  not public.can_dispose_referral_phi((select id from r1)),
-  '7.7 BUG-QOB-004: the source-side tenancy admin may NO LONGER dispose (arm CUT, PO ruling 2026-08-09)');
+  public.can_dispose_referral_phi((select id from r1)),
+  '7.7 BACKSTOP (FUP-QOB-3): the source-side tenancy admin CAN dispose again — disposal reveals no content, and an unstaffed-NSP hospital must still be able to honour an erasure request');
 reset role;
 
 -- =============================================================================

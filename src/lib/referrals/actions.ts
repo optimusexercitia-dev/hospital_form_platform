@@ -818,16 +818,20 @@ export async function loadCaseSafetyPrefill(
  * the referral + its reply + shared items, PRESERVING the governance skeleton
  * (`ENC-NNNN` code, structural fields, status, provenance, audit chain). Mirrors
  * `dispose_event_phi` / `dispose_case_phi` — the referral module's third disposal
- * door. The `dispose_referral_phi` DEFINER is the authority: gated on the NSP arm of
- * EITHER side — `is_pqs_operator_of(source hospital) OR is_pqs_operator_of(target
- * hospital)` (42501 otherwise; one-shot → HC056), audited at the HOSPITAL tier via the
- * source commission. `reason` is a CONSTRAINED category ({@link PhiDisposeReason}),
- * never free text. Backed by migration `20260710000000_nsp_per_hospital.sql`.
+ * door. The `dispose_referral_phi` DEFINER is the authority: the source-side TENANCY admin
+ * OR the NSP arm of either side — `is_tenancy_admin_of(source) OR
+ * is_pqs_operator_of(source hospital) OR is_pqs_operator_of(target hospital)` (42501
+ * otherwise; one-shot → HC056), audited at the HOSPITAL tier via the source commission.
+ * `reason` is a CONSTRAINED category ({@link PhiDisposeReason}), never free text.
  *
- * ⚠ This gate has narrowed TWICE and this docblock was stale for both: ADR 0078 A35/M2
- * removed the platform-admin bypass, and BUG-QOB-004 (PO ruling 2026-08-09,
- * `20260917000000`) removed the tenancy tier. There is no staff_admin arm and never was,
- * so disposal is NSP-exclusive. Verify against `pg_get_functiondef`, not this sentence.
+ * ⚠ This gate moved THREE times and this docblock was stale for the first two, so verify
+ * against `pg_get_functiondef` rather than this sentence: ADR 0078 A35/M2 removed the
+ * platform-admin bypass (still removed); BUG-QOB-004 (`20260917000000`) removed the
+ * tenancy tier; FUP-QOB-3 (`20260917000400`) RESTORED it as a **backstop** on the same
+ * day, because disposal reveals no content (the ADR 0104 D11 shape) and a hospital with no
+ * NSP roster would otherwise have nobody able to honour an LGPD Art. 18 erasure request.
+ * There is no staff_admin arm and never was. Note the asymmetry with drafting:
+ * `create_referral_draft` stays CUT — the backstop is disposal-only (pgTAP `314` 8.6/8.7).
  */
 export async function disposeReferralPhi(
   referralId: string,

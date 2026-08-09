@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(118);
+select plan(120);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -447,6 +447,36 @@ select is(
           ~ 'is_tenancy_admin_of'),
   1,
   '8.5 ⭐ RULING GUARD: revoke_printed_document KEEPS its tenancy arm — ADR 0104 D11 rules revocation a GOVERNANCE act that reveals no content. A "finish the printed-doc wall" sweep must red HERE rather than silently reverse a ruling it never read');
+
+-- ⭐ 8.6/8.7 — THE SAME GUARD, for the disposal family (PO ruling 2026-08-09, FUP-QOB-3).
+-- `dispose_event_phi` and `dispose_referral_phi` KEEP a tenancy arm alongside the NSP arm.
+-- The reasoning is 8.5's, applied consistently: disposal DISCLOSES NOTHING — it destroys —
+-- so it is a governance act, not a content read. Two facts decided it:
+--   · a hospital can have ZERO NSP operators (`Hospital Unico C` in the seed), and
+--     NSP-only disposal would leave such a hospital unable to honour an LGPD Art. 18
+--     erasure request — an obligation that sits with the ORGANIZATION (the *controlador*);
+--   · this platform already keeps the tenancy arm on the identically-shaped
+--     `revoke_printed_document`.
+-- ⚠ These exist because BUG-QOB-004 cut the referral arm on 2026-08-09 and the ruling was
+-- revisited the SAME DAY once those facts surfaced. Without a guard, the next "finish the
+-- disposal wall" sweep re-cuts it by symmetry and re-opens the compliance gap silently.
+-- The comment/whitespace stripping mirrors 8.5's: `prosrc` includes comments, and the
+-- headers of both doors DISCUSS the arms.
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace
+      and p.proname in ('dispose_event_phi', 'dispose_referral_phi', 'can_dispose_referral_phi')
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_tenancy_admin_of'),
+  3,
+  '8.6 ⭐ RULING GUARD (FUP-QOB-3): all THREE referral/event disposal doors KEEP a tenancy arm — disposal reveals no content (8.5''s reasoning) and an unstaffed-NSP hospital would otherwise have nobody able to honour an erasure request');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.proname='create_referral_draft'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_tenancy_admin_of'),
+  0,
+  '8.7 ⭐ SCOPE GUARD for 8.6: DRAFTING a referral stays CUT. The backstop is disposal-only — without this, "restore the referral arm" reads as restoring the whole pre-QOB-004 reach');
 
 -- =============================================================================
 -- §9 — RESPONSE-PLANE DOORS, the BEHAVIOURAL half M5 shipped without (self-audit

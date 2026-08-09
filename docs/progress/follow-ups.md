@@ -144,7 +144,39 @@ as undecided, with the measurement already done so whoever rules next does not r
 
 Owner: **PO** for items 3 + 5 (no deadline, nothing blocked); lead/backend for the scheduled waves.
 
-### 🔴 FUP-QOB-3 — `dispose_event_phi` is now the ONLY Rule-12 disposal door still granting a bare tenancy admin (found 2026-08-09 during the BUG-QOB-004 cut; needs a PO ruling)
+### ⬛ FUP-QOB-3 — RESOLVED 2026-08-09: `dispose_event_phi` KEEPS its tenancy arm, and referral disposal gets the same backstop BACK (PO)
+
+**PO ruling 2026-08-09.** The finding was framed as "event is the odd one out" — investigating it
+inverted that: **event was the one that got it right**, and the same-day BUG-QOB-004 cut had gone
+one step too far on the referral plane.
+
+**Two facts decided it, neither available when BUG-QOB-004 was ruled:**
+1. **A hospital can have ZERO NSP operators.** Measured: `Hospital Unico C` has none, and NSP
+   staffing is a separate onboarding step. NSP-only disposal leaves such a hospital unable to
+   honour an **LGPD Art. 18 erasure request** — an obligation that sits with the ORGANIZATION
+   (the *controlador*), not with a clinical nurse.
+2. **This platform already rules the other way for acts of this shape.** ADR 0104 D11 keeps the
+   tenancy arm on `revoke_printed_document` because revocation is a **governance act that reveals
+   no content** — guarded by pgTAP `314` 8.5. Disposal is identical in shape: it discloses
+   nothing, it destroys. D5's "zero PHI bits must not destroy Rule 12 data" guards against
+   destroying what you cannot verify; that is a real concern, and it is the same one D11 already
+   weighed and answered.
+
+**Executed (`20260917000400`):** the tenancy arm is restored on `dispose_referral_phi` +
+`can_dispose_referral_phi`. **`create_referral_draft` stays CUT** and the **UI wall stays** — the
+backstop is disposal-only. ⚠ For a BARE tenancy admin the capability is therefore reachable only
+out-of-band; that is deliberate and recorded, unlike BUG-QOB-004's accidental orphan. A tenancy
+admin who is also a committee member reaches it normally.
+
+**Guarded so it cannot be re-cut by symmetry:** `314` **8.6** (all three disposal doors keep the
+arm) + **8.7** (drafting stays cut) + `295` **§7.7** flipped to assert the backstop behaviourally.
+Red-proven: re-cutting the arm reds both 7.7 and 8.6 and nothing else.
+
+**Also fixed in the same wave — three stale pt-BR messages, one per direction:**
+`dispose_referral_phi` (fixed in `…000000`, re-fixed here), `dispose_case_phi` (**promised** an
+org-admin arm QO·B had removed) and `revoke_printed_document` (**hid** the tenancy arm it carries).
+⚠ The class: *every* time an arm moved, its sentence stayed. Invisible to every gate in the repo —
+no test reads prose — and user-facing in both harmful directions.
 
 Found by the **sibling-coherence check** run immediately after `20260917000000` landed — i.e. by
 asking "what do this door's siblings look like now", not by anything in the ruling's own scope.

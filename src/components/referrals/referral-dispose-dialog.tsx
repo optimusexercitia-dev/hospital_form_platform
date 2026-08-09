@@ -47,9 +47,10 @@ const CONFIRM_PHRASE = "APAGAR";
  * The destructive LGPD-erasure control for a referral's PHI (NSP-per-hospital, ADR
  * 0052 §6; decision 5). Wired to the `disposeReferralPhi(referralId, reason)`
  * server action, which routes through the audited `dispose_referral_phi` DEFINER
- * door — gated on the NSP arm of either side, `is_pqs_operator_of(source hospital) OR
- * is_pqs_operator_of(target hospital)` (the SERVER is authoritative; this UI gate
- * is defense-in-depth so an unentitled viewer never sees a dangling control).
+ * door — gated on the source-side tenancy admin OR the NSP arm of either side,
+ * `is_tenancy_admin_of(source) OR is_pqs_operator_of(source|target hospital)` (the SERVER
+ * is authoritative; this UI gate is defense-in-depth so an unentitled viewer never sees a
+ * dangling control).
  *
  * The action PERMANENTLY deletes the isolated patient record and redacts every PHI
  * free-text field across the referral, its reply, and shared items — the governance
@@ -60,13 +61,19 @@ const CONFIRM_PHRASE = "APAGAR";
  *
  * The PAGE decides whether to render this at all — it mounts the component only
  * when the authoritative `canDisposeReferralPhi` probe returns true (a PHI record
- * exists AND the viewer passes the exact RPC gate: PQS operator of either endpoint
- * hospital; BUG-NPH-002). So this component assumes it is entitled and holds no gate
- * of its own.
+ * exists AND the viewer passes the exact RPC gate: source-side tenancy admin, or PQS
+ * operator of either endpoint hospital; BUG-NPH-002). So this component assumes it is
+ * entitled and holds no gate of its own.
  *
- * ⚠ The gate narrowed twice and this docblock was stale for both — ADR 0078 A35/M2
- * dropped the platform-admin bypass, BUG-QOB-004 (`20260917000000`) dropped the tenancy
- * tier. Read `pg_get_functiondef`, not this comment.
+ * ⚠ The gate moved three times and this docblock was stale for the first two — ADR 0078
+ * A35/M2 dropped the platform-admin bypass, BUG-QOB-004 dropped the tenancy tier, and
+ * FUP-QOB-3 (`20260917000400`) restored it as a disposal-only backstop. Read
+ * `pg_get_functiondef`, not this comment.
+ *
+ * ⚠ A BARE tenancy admin still cannot REACH this component: `encaminhamentos/**` 404s
+ * them (the QO·B UI wall, deliberately kept). The restored arm is an authorization
+ * backstop for out-of-band use, not a product affordance — a tenancy admin who is also a
+ * committee member reaches it normally. Recorded so the absence looks deliberate.
  */
 export function ReferralDisposeDialog({
   referralId,
