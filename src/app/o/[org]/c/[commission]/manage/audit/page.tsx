@@ -2,7 +2,10 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import {
   listAudit,
   listAuditFilterActors,
@@ -62,7 +65,7 @@ export default async function CommissionAuditPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 
@@ -112,7 +115,15 @@ export default async function CommissionAuditPage({
         entity={sp.entity ?? null}
         from={sp.from ?? null}
         to={sp.to ?? null}
-        exportBasePath={commissionHref(org, commission, "manage", "audit", "export")}
+        // The CSV export rides the same KEEP classification as the trail itself
+        // (ADR 0100 D12, §4.5): whoever may read the trail may export it. The
+        // route handler re-gates on `canConfigureCommission` independently — this
+        // only decides whether the affordance is offered.
+        exportBasePath={
+          canConfigureCommission(access)
+            ? commissionHref(org, commission, "manage", "audit", "export")
+            : null
+        }
         commissionId={access.commission.id}
       />
 

@@ -971,13 +971,26 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     await expect(dialog).toBeHidden({ timeout: 10_000 })
   })
 
-  test('entitled caller (admin) disposes ENC-0004 PHI: APAGAR → success; PHI gone, ENC code remains', async ({
+  test('entitled caller (pqsdual.a) disposes ENC-0004 PHI: APAGAR → success; PHI gone, ENC code remains', async ({
     page,
   }) => {
-    // The GENUINELY-entitled + navigable disposer: admin@ (is_admin arm of the dispose
-    // gate; the ADR-documented platform erasure exception). Proves the door works
-    // end-to-end and preserves the non-PHI referral record (CFM retention).
-    await signInAs(page, 'admin@test.local')
+    // ⛔ QO·B, 2026-08-09 — swapped from admin@test.local, and corrected a stale
+    // claim in the process. `can_dispose_referral_phi` (catalog-verified) has NO
+    // `is_admin` arm at all — its authority is `is_commission_admin_of(source) OR
+    // is_pqs_operator_of(source_hospital) OR is_pqs_operator_of(target_hospital)`,
+    // none of it an "ADR-documented platform erasure exception"; only
+    // platform@test.local carries a real `is_admin` flag, and it is not this door's
+    // caller. admin@ authorized via the FIRST (tenancy-admin) arm, which QO·B never
+    // touched — but it is a bare CCIH tenancy admin with no membership row, so
+    // BUG-QOB-003's role-coercion removal now 404s it on this whole route before
+    // the DB gate is ever reached (see the WALL test in
+    // e2e/qob-org-admin-content-wall.spec.ts and this file's own AC-7 test above,
+    // "PQS operator who is a commission member (pqsdual.a) SEES the dispose
+    // control", which pins that reach). pqsdual.a authorizes via the SECOND arm
+    // (PQS operator of central-a AND secundario-a — this referral's two endpoints)
+    // and, being a real CCIH member, reaches the route regardless of the wall — so
+    // it proves the disposal end to end without relying on retired behavior.
+    await signInAs(page, 'pqsdual.a@test.local')
     await page.goto(REF_DETAIL_URL)
 
     const trigger = page

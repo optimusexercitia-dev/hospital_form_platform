@@ -173,8 +173,16 @@ select is(app.can_view_printed_document('meeting', (select meet_def from m), (se
   't10 ⭐ NO-ADMIN-ARM delta: org_admin is DENIED — the meetings domain admits members only (C7 cut); the module never grants sight the domain doesn''t (D11)');
 select is(app.can_view_printed_document('meeting', (select meet_def from m), (select ha_b from ha)), false,
   't11 ⭐ NO-ADMIN-ARM delta: hospital_admin is DENIED too');
-select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select oa_b from k)), true,
-  't12 CONTROL: the SAME org_admin passes the form_response arm — t10/t11 measure the meeting arm''s semantics, not a broken helper');
+-- QO·B (ADR 0100 D12) INVERTED, 2026-08-08. t12 used to prove "the helper is not
+-- broken" by showing the SAME org_admin passed a DIFFERENT kind. QO·B walls the
+-- tenancy admin out of the form_response arm too, so that control can no longer be
+-- built from oa_b — and the claim it made is now false rather than merely unused.
+-- The control's JOB is relocated, not dropped: t6 and t7 above are live ALLOW legs of
+-- this very helper (member on commission_default, attendee on participants_only), so
+-- t10/t11 still measure the meeting arm's semantics rather than a dead function.
+-- The form_response arm's own positives live in 312 (t3 creator, t4 staff_admin).
+select is(app.can_view_printed_document('form_response', (select resp_sub from r), (select oa_b from k)), false,
+  't12 ⭐ QO·B WALL: the SAME org_admin is denied the form_response arm too — the wall is kind-independent (D12); t6/t7 remain this helper''s live ALLOW legs');
 select is(app.can_view_printed_document('meeting', (select meet_def from m), (select admin from k)), false,
   't13 ⭐ platform_admin denied (D11 noun rule, meeting kind)');
 

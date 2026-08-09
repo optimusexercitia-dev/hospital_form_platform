@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 
 /**
@@ -25,7 +28,7 @@ export default async function IndicatorsLayout({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

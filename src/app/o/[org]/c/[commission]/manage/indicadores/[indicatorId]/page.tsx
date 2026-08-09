@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Pencil } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import {
   getIndicator,
   getIndicatorSeries,
@@ -32,6 +35,7 @@ import {
   INDICATOR_DIRECTION_LABELS,
   INDICATOR_FREQUENCY_LABELS,
   INDICATOR_STATUS_LABELS,
+  type Indicator,
 } from "@/lib/indicators/types";
 
 export const metadata: Metadata = {
@@ -42,7 +46,21 @@ export const metadata: Metadata = {
  * Indicator detail (Phase 15, F4 + F3 + F5 operator arm). Server shell: loads the
  * indicator, its series, measurements, and any CAPA plans in parallel, then
  * renders the run chart (F4), the measurement grid (F3), and the two-tier CAPA
- * affordance (F5). Coordinator-gated by the area layout.
+ * affordance (F5). Gated by the area layout + `canConfigureCommission`.
+ *
+ * ⭐ ADR 0100 D12, ruling Q3 — this page STRADDLES the content wall and is the
+ * one KEEP surface that splits:
+ *
+ *   - the indicator DEFINITION (code, name, target, direction, periodicity, data
+ *     source, description) is configuration → renders for a tenancy admin;
+ *   - the MEASUREMENT half (run chart, measurement grid, CAPA escalation) is
+ *     committee content → renders only for a principal with a MEMBERSHIP role.
+ *
+ * The content half is skipped at the READ, not hidden at the render: the four
+ * measurement reads never run for a tenancy admin. Rendering the panels against
+ * a DB that returns nothing would look identical to "this indicator has never
+ * been measured" — a wall that reads as missing data is a wall that gets filed
+ * as a bug, and the empty state would be a lie about the committee's work.
  */
 export default async function IndicatorDetailPage({
   params,
@@ -51,7 +69,7 @@ export default async function IndicatorDetailPage({
 }) {
   const { org, commission, indicatorId } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 
@@ -60,15 +78,11 @@ export default async function IndicatorDetailPage({
     notFound();
   }
 
-  const [series, measurements, plans, isPqsOperator] = await Promise.all([
-    getIndicatorSeries(indicatorId),
-    listIndicatorMeasurements(indicatorId),
-    listCapaPlansForIndicator(indicatorId),
-    isPqsOperatorOfIndicatorHospital(indicator),
-  ]);
-
-  // Measurements come newest-first; the latest drives the off-target escalation.
-  const latestMeasurement = measurements[0] ?? null;
+  // The measurement half is membership-gated (Q3). `role !== null` is the
+  // membership test post-BUG-QOB-003 — a bare tenancy admin resolves `null`.
+  // `null` here means "withheld", never "empty": the reads did not run.
+  const measurementHalf =
+    access.role !== null ? await loadMeasurementHalf(indicator) : null;
 
   const listHref = commissionHref(org, commission, "manage", "indicadores");
   const editHref = commissionHref(
@@ -137,29 +151,84 @@ export default async function IndicatorDetailPage({
         ) : null}
       </header>
 
-      <RunChartLoader
-        points={series}
-        unit={indicator.unit}
-        lowerWarn={indicator.lowerWarn}
-        upperWarn={indicator.upperWarn}
-      />
+      {measurementHalf ? (
+        <>
+          <RunChartLoader
+            points={measurementHalf.series}
+            unit={indicator.unit}
+            lowerWarn={indicator.lowerWarn}
+            upperWarn={indicator.upperWarn}
+          />
 
-      <CapaAffordance
-        indicator={indicator}
-        latestMeasurement={latestMeasurement}
-        isPqsOperator={isPqsOperator}
-        openCapaAction={openCapaFromIndicator}
-        createManualAction={createManualActionItem}
-        org={org}
-        plans={plans}
-      />
+          <CapaAffordance
+            indicator={indicator}
+            latestMeasurement={measurementHalf.latestMeasurement}
+            isPqsOperator={measurementHalf.isPqsOperator}
+            openCapaAction={openCapaFromIndicator}
+            createManualAction={createManualActionItem}
+            org={org}
+            plans={measurementHalf.plans}
+          />
 
-      <MeasurementGrid
-        indicator={indicator}
-        measurements={measurements}
-        recordAction={recordIndicatorMeasurement}
-        computeAction={computeDerivedMeasurement}
-      />
+          <MeasurementGrid
+            indicator={indicator}
+            measurements={measurementHalf.measurements}
+            recordAction={recordIndicatorMeasurement}
+            computeAction={computeDerivedMeasurement}
+          />
+        </>
+      ) : (
+        <MeasurementsWithheldNote />
+      )}
     </div>
+  );
+}
+
+/**
+ * The measurement half of the indicator page (ruling Q3): the series behind the
+ * run chart, the recorded measurements, the CAPA plans, and whether the reader
+ * operates the indicator hospital's NSP. Loaded together, or not at all.
+ */
+async function loadMeasurementHalf(indicator: Indicator) {
+  const [series, measurements, plans, isPqsOperator] = await Promise.all([
+    getIndicatorSeries(indicator.id),
+    listIndicatorMeasurements(indicator.id),
+    listCapaPlansForIndicator(indicator.id),
+    isPqsOperatorOfIndicatorHospital(indicator),
+  ]);
+
+  return {
+    series,
+    measurements,
+    plans,
+    isPqsOperator,
+    // Measurements come newest-first; the latest drives the off-target escalation.
+    latestMeasurement: measurements[0] ?? null,
+  };
+}
+
+/**
+ * What a tenancy admin sees where the measurement half would be (ruling Q3).
+ * States the boundary plainly instead of rendering an empty chart + empty grid,
+ * which would misreport the committee as having measured nothing.
+ */
+function MeasurementsWithheldNote() {
+  return (
+    <section
+      aria-labelledby="medicoes-restritas-heading"
+      className="animate-rise-in max-w-prose rounded-2xl border border-border bg-card p-6 shadow-xs"
+    >
+      <h2
+        id="medicoes-restritas-heading"
+        className="text-lg font-semibold"
+      >
+        Medições
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground text-pretty">
+        As medições, o gráfico de série e os planos de ação deste indicador
+        pertencem à comissão e não são exibidos à administração da rede ou do
+        hospital. A definição do indicador acima permanece sob sua gestão.
+      </p>
+    </section>
   );
 }

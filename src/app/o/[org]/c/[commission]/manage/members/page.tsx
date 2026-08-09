@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import {
   listMembers,
   listAddableMembers,
@@ -39,7 +42,7 @@ export default async function ManageMembersPage({
   const access = await getCommissionAccessByOrg(org, commission);
 
   // Unknown/inaccessible slug, or a caller who is neither coordinator nor admin.
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

@@ -313,25 +313,36 @@ select is(app.is_recused_from_case('00000000-0000-0000-0000-0000000f0001', (sele
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000f0001', (select sa_x from k)), false,
   'M1·2 RULE 12 (D9): …and the PHI door stays SHUT — both arms are Rule 12 doors');
 
--- POSITIVE TWIN: a NON-excluded coordinator still lifts the recusal. Without
--- this the fix may have silently deleted legitimate coordinator reach.
+-- ⛔ INVERTED BY QO·B M7 (20260916000000). This twin used sa_y (a CLEAN org_admin)
+-- to exercise "the org arm M1 deliberately KEEPS (C6)" — and QO·B M7 is exactly the
+-- later removal C6 anticipated ("A21's removal needs the resolver first"; the
+-- resolver has since landed and ADR 0100 D12 ratified the cut). So lift_recusal no
+-- longer admits the tenancy admin, and this is now a QO·B WALL assertion: sa_y is
+-- refused at authority (HC0E4). ⚠ The distinct-SQLSTATE point the original comment
+-- made still stands and still matters — HC0E4 (authority) ≠ HC0F1 (exclusion) — so
+-- this throws_ok on HC0E4 cannot be a false pass off the over-grant twin above.
 --
--- ⚠ The principal here is sa_y, a CLEAN org_admin of org_x — NOT `admin`. I first
--- wrote `admin` and this twin failed with HC0E4, which is the very error this
--- suite exists to make loud: lift_recusal's arms are is_staff_admin_of OR
--- is_commission_admin_of, and (catalog-verified) is_commission_admin_of_for admits
--- org_admin / hospital_admin but NOT platform_admin. Had HC0F1 shared HC0E4's code,
--- this twin would have "passed" as a throws_ok and proved nothing.
--- It also exercises the org arm M1 deliberately KEEPS (C6: keeping the arm and
--- adding the deny are orthogonal; A21's removal needs the resolver first).
+-- The M1 durability POSITIVE property ("a legitimate coordinator still lifts, no
+-- reach deleted") is now owned by 314 §11.25 (a non-excluded staff_admin lifts a
+-- live recusal) — this fixture has NO non-excluded staff_admin (st_x and st_x2 are
+-- both respondents, sa_x is the recused party), which is precisely why M1 reached
+-- for the org arm. Post-M7 that arm is gone, so the recusal is cleared DIRECTLY as
+-- fixture teardown below (not through the door) to restore sa_x for the M1·4 block.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-select lives_ok(
+select throws_ok(
   $$ select public.lift_recusal('00000000-0000-0000-0000-0000000f0401', 'analisado') $$,
-  'M1·2 POSITIVE TWIN ⭐: a NON-excluded coordinator still lifts the recusal (no reach deleted)');
+  'HC0E4', null,
+  'M1·2 → QO·B M7 WALL ⭐: the tenancy admin (sa_y/org_admin) can NO LONGER lift the recusal — the org arm M1 kept (C6) is removed by D12. HC0E4 (authority), distinct from the HC0F1 the over-grant twin above proves');
 reset role;
+-- Fixture teardown: clear sa_x's recusal directly (no non-excluded coordinator
+-- exists here post-M7 — see the note above) so the downstream M1·4 block sees sa_x
+-- as a clean coordinator. is_recused_from_case reads lifted_at.
+update public.case_recusals set lifted_at = now(), lifted_by = (select sa_x from k),
+       lift_reason_md = 'fixture teardown (QO·B M7: org-admin lift removed)'
+ where id = '00000000-0000-0000-0000-0000000f0401';
 select is(app.is_recused_from_case('00000000-0000-0000-0000-0000000f0001', (select sa_x from k)), false,
-  'M1·2 POSITIVE TWIN: …and the lift actually took effect');
+  'M1·2: the recusal is cleared for the downstream fixture (via direct teardown, since QO·B M7 removed the org-admin lift and no non-excluded coordinator exists in this fixture)');
 
 -- ---- record_recusal ------------------------------------------------------
 -- ⭐ The SELF arm must SURVIVE. Recusal is monotonically restrictive: it can only
@@ -499,8 +510,16 @@ values ('00000000-0000-0000-0000-0000000f0601', 'case', '00000000-0000-0000-0000
 
 select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select st_x from k)), false,
   'M1·4b D7: a respondent-coordinator CANNOT write attachments of her own case (incl. PHI disposal)');
-select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select sa_y from k)), true,
-  'M1·4b POSITIVE TWIN: a clean coordinator still writes attachments');
+-- ⛔ PRINCIPAL CORRECTED BY QO·B M6, and it was MISLABELLED — the second instance of
+-- this exact slip in this file. The twin said "coordinator" but passed `sa_y`, which
+-- line 107 inserts as a CLEAN ORG_ADMIN, so it was really proving that the TENANCY admin
+-- could write case attachments via can_write_attachment's `case` arm. M6 removes that
+-- arm (ADR 0100 D12 §4.3). Switched to sa_x, a real staff_admin — exactly the reasoning
+-- the M1·4b narrative twin twenty lines above already spells out for itself:
+-- "the twin is sa_x …, NOT sa_y … an org_admin is false here for reasons that have
+-- nothing to do with M1 — and the twin would prove nothing."
+select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select sa_x from k)), true,
+  'M1·4b POSITIVE TWIN: a clean coordinator still writes attachments — sa_x, a REAL staff_admin, since QO·B M6');
 
 -- ---- reclassify_attachment — the DIRECT-CHECK RESIDUE (§W-2.5) ------------
 -- The declassify arm checks the role DIRECTLY, so the helper fix does NOT reach
@@ -520,11 +539,23 @@ select is((select sensitivity_tier from public.attachments where id = '00000000-
   'M1·4 §W-2.5: …and its Rule 12 tier survives her');
 
 -- POSITIVE TWIN: a NON-excluded coordinator still declassifies.
-select test_helpers.claims_for((select sa_y from k), false);
+--
+-- ⚠ PRINCIPAL CORRECTED BY QO·B (20260915), and the OLD ONE WAS MISLABELLED. This twin
+-- said "coordinator" but passed `sa_y`, which line 107 of this file inserts as *a CLEAN
+-- org_admin of org_x* — so it was really proving that the TENANCY admin could
+-- declassify, via reclassify_attachment's is_commission_admin_of arm (the §W-2.5 note at
+-- L319 spells that dependency out). QO·B M4 removes that arm (ADR 0100 D12), so the twin
+-- had to move to a principal who genuinely is what the assertion CLAIMS.
+--
+-- It is now `sa_x`, the real staff_admin of comm_x. That keeps the twin's JOB intact —
+-- proving the exclusion fix deleted no legitimate coordinator reach — and makes its text
+-- true for the first time. Had it simply been inverted, the file would have lost its only
+-- evidence that declassification still works for anyone at all.
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   $$ select public.reclassify_attachment('00000000-0000-0000-0000-0000000f0601', 'standard', null) $$,
-  'M1·4 POSITIVE TWIN ⭐: a non-excluded coordinator STILL declassifies (no reach deleted)');
+  'M1·4 POSITIVE TWIN ⭐: a non-excluded coordinator STILL declassifies (no reach deleted) — sa_x, a REAL staff_admin, since QO·B');
 reset role;
 
 -- ---- can_read_action_item (A22 + A24·5) ----------------------------------

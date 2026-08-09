@@ -349,12 +349,17 @@ export async function requireUser(): Promise<SessionContext> {
  *   - the caller is neither a member of the commission, an org_admin of its org,
  *     nor a platform admin.
  *
- * `role` is the caller's effective coordinator-or-staff role in this commission:
- *   - their `commission_members` role when they are a member, ELSE
- *   - `'staff_admin'` when they are an org_admin of the commission's org (the
- *     org_admin → coordinator branch — an org_admin has coordinator authority
- *     over every commission in their org without an explicit membership row), ELSE
- *   - `null` for a platform admin viewing a commission they don't otherwise hold.
+ * `role` is the caller's MEMBERSHIP role in this commission — their `memberships`
+ * row when they are a member, else `null`. ⛔ BUG-QOB-003 (ADR 0100 D12): a
+ * tenancy admin (org_admin/hospital_admin) with no membership row is NO LONGER
+ * coerced to `'staff_admin'`. QO·B's content wall removed the tenancy admins from
+ * every committee-content surface, so the coercion opened coordinator affordances
+ * the DB now refuses (and, pre-wall, it was the UI half of the over-reach itself).
+ * Tenancy-admin standing is carried as the distinct `isTenancyAdmin` flag —
+ * exactly the Phase-A `isQualityViewer` treatment: a FLAG, never a member role.
+ * Configuration affordances (the Q1–Q9 KEEP set) gate via
+ * {@link canConfigureCommission}; content affordances gate on the membership
+ * role / {@link canInCommission} and stay closed to a bare tenancy admin.
  *
  * `capabilities` / `isAdministrativo` report the CALLER's own Administrativo
  * standing in THIS commission (ADR 0061): `isAdministrativo` = the caller holds a
@@ -389,6 +394,22 @@ export interface CommissionAccess {
    * the boundary either way.
    */
   isQualityViewer: boolean
+  /**
+   * ADR 0100 D12 (BUG-QOB-003) — the caller administers this commission's TENANCY
+   * (org_admin of its org OR hospital_admin of its hospital; the TS mirror of
+   * `app.is_commission_admin_of`). A FLAG, never a member role — QO·B walled the
+   * tenancy admins off committee CONTENT, so mapping them to `'staff_admin'`
+   * (the pre-QO·B behaviour) rendered write affordances the DB refuses.
+   * What this flag still confers (PO rulings Q1–Q9, the KEEP set): form
+   * DEFINITIONS/builder, process templates, committee taxonomy + meeting
+   * settings, member management, indicator DEFINITIONS — gate those via
+   * {@link canConfigureCommission}. What it must NEVER open: responses/dashboard
+   * row content, document content, indicator measurements, case content, or any
+   * {@link canInCommission} capability (all four are content capabilities).
+   * Independent of `role`: a tenancy admin who is ALSO a member keeps their
+   * membership role AND carries this flag.
+   */
+  isTenancyAdmin: boolean
 }
 
 export const getCommissionAccessByOrg = cache(
@@ -440,27 +461,32 @@ async function getCommissionAccessByOrgUncached(
     hospitalId: commissionRow.hospital_id,
   }
 
-  // Member role first; else a COMMISSION-ADMIN of this commission (org_admin of
-  // its org OR hospital_admin of its hospital — ADR 0051 Decision 1) maps to the
-  // coordinator (staff_admin) branch; else null (platform admin without a held
-  // role). BUG-HAT-002: the prior org_admin-only check 404'd a hospital_admin on
-  // every `/o/[org]/c/[commission]/manage/**` page. The hospital_admin mirrors
-  // org_admin here, so 'staff_admin'-equivalent is correct — no downstream page
-  // distinguishes the two (same as org_admin already resolves). RLS is the real
-  // authority; this TS seam only gates the notFound()/coordinator-UI branch.
+  // Member role from the membership row ONLY. ⛔ BUG-QOB-003 (ADR 0100 D12): the
+  // former `memberRole ?? (isCommAdmin ? 'staff_admin' : null)` coercion is GONE.
+  // QO·B's content wall (M1–M6) removed org_admin/hospital_admin from every
+  // committee-content surface, so resolving them to the coordinator role rendered
+  // write buttons and content screens that then returned empty lists or raised
+  // `sem permissão`. Tenancy-admin standing is now the distinct `isTenancyAdmin`
+  // flag below — the same treatment `isQualityViewer` got in Phase A (a FLAG,
+  // never a member role). Both tenancy tiers ride ONE predicate (Q4: the same
+  // wall), mirroring `app.is_commission_admin_of` — BUG-HAT-002's hospital_admin
+  // mirror is preserved by the shared flag, not by the coercion.
   const memberRole =
     context.memberships.find((m) => m.commission.id === commission.id)?.role ??
     null
-  const isCommAdmin = isCommissionAdmin(context, {
+  const isTenancyAdmin = isCommissionAdmin(context, {
     organizationId: organization.id,
     hospitalId: commissionRow.hospital_id,
   })
-  const role: CommissionRole | null =
-    memberRole ?? (isCommAdmin ? 'staff_admin' : null)
+  const role: CommissionRole | null = memberRole
 
   // ADR 0100 D10 — the quality-reviewer VIEWER branch. Evaluated only when the
-  // member/commission-admin checks above resolved nothing: a reviewer who is
-  // ALSO a member keeps their member role (and its affordances) untouched.
+  // membership check above resolved nothing: a reviewer who is ALSO a member
+  // keeps their member role (and its affordances) untouched. (Post-BUG-QOB-003 a
+  // tenancy admin has `role === null` too, so a tenancy admin who ALSO holds the
+  // reviewer flag now resolves as a quality viewer — correct: the reviewer
+  // standing is their only content-bearing standing, and the DB's S7 arm is what
+  // actually serves it.)
   //
   // ⚠ The oversight-visibility test is EXPLICIT and load-bearing. An earlier
   // version omitted it, reasoning that for a bare reviewer the only admitting
@@ -513,21 +539,99 @@ async function getCommissionAccessByOrgUncached(
     capabilities,
     isAdministrativo,
     isQualityViewer,
+    isTenancyAdmin,
   }
 }
 
 /**
  * Whether the caller may perform an Administrativo-gated action in a commission
- * (ADR 0061): a coordinator (staff_admin, which the resolver also assigns to
- * commission-admins) implicitly holds every capability; otherwise the caller must
- * hold the specific capability. The single seam the UI gates every delegated
- * affordance through — mirrors the DB gate `is_staff_admin_of OR member_can`.
+ * (ADR 0061): a MEMBERSHIP coordinator implicitly holds every capability;
+ * otherwise the caller must hold the specific capability. The single seam the UI
+ * gates every delegated affordance through — mirrors the DB gate
+ * `is_staff_admin_of OR member_can`.
+ *
+ * ⛔ ADR 0100 D12 (BUG-QOB-003): all four `MemberCapability` values
+ * (`schedule_meetings` / `create_cases` / `assign_case_phases` / `view_signoffs`)
+ * are committee CONTENT capabilities, so a bare tenancy admin holds NONE of them.
+ * That falls out of `role` now being membership-only — do NOT add an
+ * `isTenancyAdmin` arm here. Configuration affordances (the Q1–Q9 KEEP set) are
+ * a different seam: {@link canConfigureCommission}.
  */
 export function canInCommission(
   access: Pick<CommissionAccess, 'role' | 'capabilities'>,
   capability: MemberCapability,
 ): boolean {
   return access.role === 'staff_admin' || access.capabilities.includes(capability)
+}
+
+/**
+ * Whether the caller may administer this commission's CONFIGURATION — the
+ * PO-ratified KEEP surface of ADR 0100 D12 (rulings Q1–Q9): form
+ * DEFINITIONS/builder, process templates, committee taxonomy (tags, outcomes,
+ * narrative types, phase-result vocab), meeting types + settings, member
+ * management, and indicator DEFINITIONS (Q3 splits the family — the
+ * MEASUREMENT half is content and stays membership-gated).
+ *
+ * `true` for the commission's own membership coordinator AND for a tenancy admin
+ * (org_admin/hospital_admin — `isTenancyAdmin`), mirroring the DB, where every
+ * KEEP policy/door still reads `is_staff_admin_of OR is_commission_admin_of`.
+ *
+ * ⛔ NEVER gate a CONTENT affordance on this helper — content (responses,
+ * dashboards' row-level doors, documents, measurements, cases, sign-offs) is
+ * exactly what QO·B removed from the tenancy admins; those gates stay on
+ * `role === 'staff_admin'` / {@link canInCommission} / `isQualityViewer`.
+ */
+export function canConfigureCommission(
+  access: Pick<CommissionAccess, 'role' | 'isTenancyAdmin'>,
+): boolean {
+  return access.role === 'staff_admin' || access.isTenancyAdmin
+}
+
+/**
+ * Server-action variant of {@link canConfigureCommission}, resolved by commission
+ * id — the lib action guards (`src/lib/*\/actions.ts`) hold a `commissionId`, not
+ * a `CommissionAccess`. Same seam, same rule: the commission's own MEMBERSHIP
+ * coordinator, or a tenancy admin of its org/hospital.
+ *
+ * Mirrors `authorizeStaffOps` in `members/actions.ts`: the tenancy legs need the
+ * commission's scope columns, so they share one RLS-scoped read — deliberately
+ * RLS-scoped, because a caller who cannot SELECT the commission cannot administer
+ * it either. Inactive accounts fail closed.
+ *
+ * ⛔ Route only ADR 0100 D12 KEEP-surface (configuration) actions through this —
+ * the same warning as {@link canConfigureCommission}: a content action guard that
+ * adopts it re-opens the wall at the affordance layer (the BUG-QOB-003 class).
+ */
+export async function canConfigureCommissionById(
+  commissionId: string,
+): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isInactive) return false
+
+  if (
+    context.memberships.some(
+      (m) => m.commission.id === commissionId && m.role === 'staff_admin',
+    )
+  ) {
+    return true
+  }
+
+  if (context.orgAdminOf.length === 0 && context.hospitalAdminOf.length === 0) {
+    return false
+  }
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('commissions')
+    .select('organization_id, hospital_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  if (!data) return false
+
+  return isCommissionAdmin(context, {
+    organizationId: data.organization_id,
+    hospitalId: data.hospital_id,
+  })
 }
 
 /**

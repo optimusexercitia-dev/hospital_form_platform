@@ -192,16 +192,31 @@ select is(
   0,
   'org_admin A: commission_overview returns 0 of Qualidade (rede-b)');
 
--- Sees rede-a responses (seeded: 6 CCIH + 4 Farmácia + in_progress = ≥10 total).
-select ok(
+-- ⛔ UPDATED BY QO·B (20260915), exactly as A4 updated the case block below.
+-- This asserted `> 0` until the org_admin content wall landed. ADR 0100 D12 removed
+-- the tenancy-admin arm from the response plane (M1: responses_admin_all dropped,
+-- is_commission_admin_of removed from responses_select), so an Organization User
+-- ceases to be a Response Content source. org_admin A now reads ZERO responses in its
+-- OWN org too, not only rede-b. The noun rule still holds: it sees commissions,
+-- hospitals, memberships, profiles and the PHI-free aggregates — see the KEEP
+-- assertions above and in docs/plans/quality-office-oversight-phase-b-inventory.md.
+-- Measured pre-image for this exact persona: 36 CCIH+Farmácia responses.
+select is(
   (select count(*)::int from public.responses
-   where commission_id = (select comm_ccih from personas)) > 0,
-  'org_admin A: sees ≥1 CCIH responses');
+   where commission_id = (select comm_ccih from personas)),
+  0,
+  'org_admin A: sees 0 CCIH responses — QO·B content wall (D12), was ≥1 before');
+-- ⚠ ANNOTATED NEAR-VACUOUS (A2 precedent: annotate, do not delete). With the line
+-- above at 0, this rede-b assertion can no longer discriminate isolation from the
+-- wall — org_admin reads 0 responses everywhere. It is retained because it still reds
+-- if the wall is removed WITHOUT restoring cross-org isolation. The live cross-org
+-- proof for the response plane is the KEEP-side surfaces in this file plus the QO·B
+-- A/B matrix (orgadmin.b holds 0 CUT-side cells in both pre- and post-image).
 select is(
   (select count(*)::int from public.responses
    where commission_id = (select comm_qual from personas)),
   0,
-  'org_admin A: sees 0 Qualidade (rede-b) responses');
+  'org_admin A: sees 0 Qualidade (rede-b) responses [near-vacuous since QO·B — see note]');
 
 -- dashboard DEFINER RPC on rede-b form returns 0.
 select is(

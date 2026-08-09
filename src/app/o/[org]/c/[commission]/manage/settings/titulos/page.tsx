@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { listMemberTitles } from "@/lib/commissions/titles";
 import { phaseResultsEnabled } from "@/lib/queries/phase-results";
 import { meetingsEnabled } from "@/lib/meetings/actions";
@@ -32,7 +35,7 @@ export default async function TitlesSettingsPage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

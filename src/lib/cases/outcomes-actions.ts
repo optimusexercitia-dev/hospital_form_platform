@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
@@ -91,7 +91,13 @@ function revalidateCaseOutcome(): void {
   revalidatePath(DASHBOARD_PATH, 'page')
 }
 
-/** Authorize an outcome action: admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize a CASE-CONTENT outcome action (setCaseOutcome /
+ * setCaseOfferedOutcomes): admin, or a MEMBERSHIP staff_admin of THAT
+ * commission. ⛔ Deliberately NOT the config seam — per-case outcome writes are
+ * committee content under the ADR 0100 D12 wall, and their DB substrates
+ * (`set_case_outcome`, `set_case_offered_outcomes`) carry no tenancy arm.
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
@@ -99,6 +105,21 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   return context.memberships.some(
     (m) => m.commission.id === commissionId && m.role === 'staff_admin',
   )
+}
+
+/**
+ * Authorize a VOCABULARY/TEMPLATE outcome action (the case_outcomes CRUD +
+ * setProcessOutcomes): ADR 0100 D12 KEEP configuration (PO rulings Q7 + Q2), so
+ * this routes the `canConfigureCommissionById` seam (membership staff_admin OR
+ * tenancy admin) — mirroring the DB, where `case_outcomes_staff_admin_write` and
+ * the CRUD probes still read `is_staff_admin_of OR is_commission_admin_of`.
+ * The platform-admin arm is pre-existing and out of scope (recorded follow-up).
+ */
+async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return canConfigureCommissionById(commissionId)
 }
 
 async function commissionOfCase(
@@ -218,7 +239,7 @@ export async function createCaseOutcome(
   if (!input.label.trim()) {
     return { ok: false, fieldErrors: { label: MESSAGES.labelRequired } }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -254,7 +275,7 @@ export async function updateCaseOutcome(
   const supabase = await createClient()
   const commissionId = await commissionOfOutcome(supabase, outcomeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingOutcome }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -283,7 +304,7 @@ export async function reorderCaseOutcomes(
 ): Promise<ActionState> {
   if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
   if (orderedIds.length === 0) return { ok: true }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -313,7 +334,7 @@ export async function archiveCaseOutcome(
   const supabase = await createClient()
   const commissionId = await commissionOfOutcome(supabase, outcomeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingOutcome }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -347,7 +368,7 @@ export async function setProcessOutcomes(
   const supabase = await createClient()
   const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 

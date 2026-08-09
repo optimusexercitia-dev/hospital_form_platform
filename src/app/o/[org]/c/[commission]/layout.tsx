@@ -30,6 +30,23 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { QualityViewerShell } from "@/components/quality/quality-viewer-shell";
 
 /**
+ * Nav badges for a principal with no committee CONTENT standing (ADR 0100 D12).
+ * Every count in `SidebarCounts` counts content — cases, sign-offs, meeting
+ * signatures, referrals, action items — so a bare tenancy admin's are all zero
+ * by definition, not by a skipped read. Declared once so the type checker reds
+ * this branch if a future badge is added without a decision about it.
+ */
+const EMPTY_COUNTS: SidebarCounts = {
+  minhasFases: 0,
+  meusCasos: 0,
+  casos: 0,
+  assinaturas: 0,
+  reunioesPendentes: 0,
+  encaminhamentos: 0,
+  meusItensDeAcao: 0,
+};
+
+/**
  * Commission area shell. Server Component.
  *
  * `getCommissionAccessByOrg(org, commission)` returns null for an unknown slug OR a commission
@@ -37,8 +54,8 @@ import { QualityViewerShell } from "@/components/quality/quality-viewer-shell";
  * so we render `notFound()` for both and leak nothing about which commissions
  * exist (Phase 2 acceptance: foreign/unknown commission → 404).
  *
- * `access.role === null` now has TWO callers, so it no longer decides the gate
- * alone (ADR 0100 D10 widened it):
+ * `access.role === null` now has THREE callers, so it no longer decides the gate
+ * alone (ADR 0100 D10 widened it; D12 widened it again):
  *
  *  - a **platform_admin** who is neither a member nor an org_admin of the org —
  *    walled off from all tenant data, so it must not load a commission area at
@@ -48,9 +65,16 @@ import { QualityViewerShell } from "@/components/quality/quality-viewer-shell";
  *    READ access to this commission's cases but no membership and no write
  *    capability. It gets the reduced {@link QualityViewerShell} instead — see the
  *    early return below for why a separate shell rather than a hidden sidebar.
+ *  - a **tenancy admin** (`isTenancyAdmin` — org_admin/hospital_admin; ADR 0100
+ *    D12, BUG-QOB-003), who administers this commission's CONFIGURATION and
+ *    nothing else. Before QO·B the resolver coerced them to `'staff_admin'`, so
+ *    they reached the member branch and got the full coordinator menu; the wall
+ *    then refused every content surface behind it. They now get the member shell
+ *    with `navScope="configuration"` — the KEEP allowlist only.
  *
- * Everyone else reaching the member branch is a member (`staff`/`staff_admin`) or
- * a commission-admin resolved to `staff_admin`.
+ * Everyone else reaching the member branch is a member (`staff`/`staff_admin`). A
+ * member who ALSO administers the tenancy gets `"member-and-configuration"`, so
+ * the menu mirrors `canConfigureCommission` instead of re-deriving it.
  *
  * The sidebar shows live count badges. These reuse existing read queries (no new
  * backend): the coordinator-only counts (open cases, pending sign-offs) are only
@@ -67,7 +91,10 @@ export default async function CommissionLayout({
   const { org, commission } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || (access.role === null && !access.isQualityViewer)) {
+  if (
+    !access ||
+    (access.role === null && !access.isQualityViewer && !access.isTenancyAdmin)
+  ) {
     notFound();
   }
 
@@ -82,7 +109,7 @@ export default async function CommissionLayout({
   // Gerenciar, Painel, Configurações…), each of which then 404s them. Returning
   // early also skips the eleven flag reads and five count queries below, all of
   // which are meaningless for a principal holding no membership.
-  if (access.role === null) {
+  if (access.role === null && access.isQualityViewer) {
     return (
       <QualityViewerShell
         org={org}
@@ -95,17 +122,57 @@ export default async function CommissionLayout({
     );
   }
 
+  // ADR 0100 D12 (BUG-QOB-003) — the BARE TENANCY ADMIN branch. They hold no
+  // membership role, so every content read below would be denied or empty; they
+  // get the member shell narrowed to the KEEP configuration allowlist and only
+  // the two flag reads that allowlist actually depends on.
+  //
+  // ⚠ The narrowing is `navScope`, NOT a set of hidden items. `AppSidebar`'s
+  // predicate treats `configuration: true` as an opt-in, so a nav item added
+  // later is invisible here until someone deliberately marks it — the direction
+  // that fails closed. Sibling counts stay 0: every badge counts content.
+  if (access.role === null) {
+    const [configIndicatorsOn, configAuditOn] = await Promise.all([
+      qualityIndicatorsEnabled(),
+      auditTrailEnabled(),
+    ]);
+    return (
+      <div className="flex min-h-svh flex-col md:flex-row">
+        <AppSidebar
+          org={org}
+          slug={access.commission.slug}
+          commissionId={access.commission.id}
+          role={null}
+          navScope="configuration"
+          memberships={access.context.memberships}
+          commissionName={access.commission.name}
+          fullName={access.context.fullName}
+          email={access.context.email}
+          roleLabel="Administração"
+          counts={EMPTY_COUNTS}
+          qualityIndicatorsEnabled={configIndicatorsOn}
+          auditEnabled={configAuditOn}
+          notificationBell={<NotificationBell />}
+        />
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">
+            {children}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const commissionId = access.commission.id;
-  // `role` is non-null past the gate (member or org_admin coordinator); a
-  // staff_admin role is the coordinator. (Platform admins were 404'd above and
-  // never get coordinator powers in a tenant area.)
+  // `role` is non-null past the gate — the caller HOLDS a membership here (the
+  // resolver no longer manufactures one for a tenancy admin; BUG-QOB-003). A
+  // staff_admin role is the coordinator.
   const isCoordinator = access.role === "staff_admin";
-  // Whether the caller actually HOLDS a membership in this commission, vs. a
-  // commission-admin (org_admin/hospital_admin) whose coordinator `role` is
-  // resolved, not held (see getCommissionAccessByOrg). Mirrors the resolver's own
-  // `memberRole` derivation. Gates the member-participation "Reuniões" nav item:
-  // ADR 0078 C7 gives a non-member an empty meeting record, so the surface is
-  // hidden for them (config under Configurações → Reuniões stays reachable).
+  // Post-BUG-QOB-003 a non-null role IS a held membership, so this is now
+  // tautologically true on this branch. Kept as an explicit derivation rather
+  // than hardcoded `true`: it is the predicate "Reuniões" opts into (ADR 0078
+  // C7), and pinning it to a literal would silently mis-answer the next
+  // standing that reaches this branch without a membership row.
   const isCommissionMember = access.context.memberships.some(
     (m) => m.commission.id === commissionId,
   );
@@ -209,12 +276,7 @@ export default async function CommissionLayout({
     meusItensDeAcao: memberOverview?.pendingActionItems ?? 0,
   };
 
-  const roleLabel =
-    access.role === "staff_admin"
-      ? "Coordenação"
-      : access.role === "staff"
-        ? "Membro"
-        : "Administrador";
+  const roleLabel = access.role === "staff_admin" ? "Coordenação" : "Membro";
 
   return (
     <div className="flex min-h-svh flex-col md:flex-row">
@@ -223,6 +285,14 @@ export default async function CommissionLayout({
         slug={access.commission.slug}
         commissionId={commissionId}
         role={access.role}
+        // A member who ALSO administers the tenancy keeps their member nav AND
+        // gains the KEEP configuration items — the menu mirrors
+        // `canConfigureCommission`, which is exactly `staff_admin OR
+        // isTenancyAdmin`, rather than re-deriving the seam. For a coordinator
+        // this changes nothing: every configuration item is already theirs.
+        navScope={
+          access.isTenancyAdmin ? "member-and-configuration" : "member"
+        }
         memberships={access.context.memberships}
         commissionName={access.commission.name}
         fullName={access.context.fullName}

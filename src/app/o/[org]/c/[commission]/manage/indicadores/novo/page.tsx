@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { createIndicator } from "@/lib/indicators/actions";
 import { commissionHref } from "@/lib/routing";
 import { getDerivedPickerForms } from "@/components/indicators/derived-picker-data";
@@ -26,7 +29,7 @@ export default async function NewIndicatorPage({
 }) {
   const { org, commission } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

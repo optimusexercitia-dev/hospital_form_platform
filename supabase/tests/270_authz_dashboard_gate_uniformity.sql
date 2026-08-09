@@ -32,7 +32,7 @@
 -- instead. That is a real limit of this file, stated rather than papered over.
 
 begin;
-select plan(13);
+select plan(15);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -153,10 +153,17 @@ reset role;
 -- ==========================================================================
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
+-- ⛔ INVERTED BY QO·B M5 (20260915000400). This asserted that an org_admin NOW reads the
+-- submitted row — the unification that made all nine doors uniform. ADR 0100 D12 splits
+-- them again, on a different axis: the tenancy admin KEEPS the six PHI-free AGGREGATES
+-- and LOSES the three ROW-LEVEL doors (export_rows / free_text / completion_by_member),
+-- which are the same three D11 already closed to the quality_reviewer. The aggregate half
+-- of the unification survives and is asserted by the very next line, so this inversion
+-- narrows the claim rather than abandoning it.
 select is(
   (select count(*)::int from public.dashboard_export_rows((select form_d from ids))),
-  1,
-  'NEW ARM ⭐: org_admin of the owning org NOW reads the submitted row via dashboard_export_rows');
+  0,
+  'QO·B WALL ⭐: org_admin no longer reads the submitted row via dashboard_export_rows (ROW-LEVEL door, D12)');
 select cmp_ok(
   (select count(*)::int from public.dashboard_distributions((select form_d from ids))),
   '>', 0,
@@ -184,8 +191,18 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname like 'dashboard\_%'
      and pg_get_functiondef(p.oid) ~ 'app\.is_commission_admin_of\('),
-  9,
-  'INVARIANT ⭐ (+ non-vacuity for t7): all NINE public.dashboard_* functions carry the is_commission_admin_of arm');
+  6,
+  'INVARIANT ⭐ (+ non-vacuity for t7): the SIX AGGREGATE dashboard doors carry the is_commission_admin_of arm — QO·B M5 cut it from the three ROW-LEVEL doors (was 9 of 9 before the D12 split)');
+
+-- The other side of the two-class contract, asserted by NAME so the split cannot drift
+-- into the wrong three doors while the counts still add up.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname in ('dashboard_export_rows','dashboard_free_text','dashboard_completion_by_member')
+     and pg_get_functiondef(p.oid) ~ 'app\.is_commission_admin_of\('),
+  0,
+  'INVARIANT ⭐ QO·B: and the three ROW-LEVEL doors carry it ZERO times — named explicitly, because a bare count of 6 is satisfied by cutting ANY three');
 
 -- ==========================================================================
 -- t9/t10 — THE QO·A TWO-CLASS BOUNDARY (ADR 0100 D11), from the catalog and
@@ -259,8 +276,16 @@ select is(
      and p.prosecdef
      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_staff_admin_of'
      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_commission_admin_of'),
+  6,
+  'REBUILD GUARD ⭐: the six AGGREGATE doors keep SECURITY DEFINER + both admin arms (QO·B M5 removed the tenancy arm from the three ROW-LEVEL doors; was 9)');
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname like 'dashboard\_%'
+     and p.prosecdef
+     and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'app\.is_staff_admin_of'),
   9,
-  'REBUILD GUARD ⭐: all nine doors keep SECURITY DEFINER + both original admin arms');
+  'REBUILD GUARD ⭐ QO·B: ...and ALL NINE still keep SECURITY DEFINER + the committee''s own is_staff_admin_of arm — M5 removed the tenancy disjunct ONLY, never a door''s DEFINER property');
 
 select * from finish();
 rollback;

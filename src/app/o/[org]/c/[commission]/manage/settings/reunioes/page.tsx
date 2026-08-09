@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { getMeetingSettings, listMeetingTypes } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { phaseResultsEnabled } from "@/lib/queries/phase-results";
@@ -40,7 +43,7 @@ export default async function MeetingsSettingsTabPage({
   if (!meetingsOn) {
     notFound();
   }
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

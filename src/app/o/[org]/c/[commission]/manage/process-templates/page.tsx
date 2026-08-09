@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Workflow } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { listProcessTemplateVersions } from "@/lib/queries/process-templates";
 import { ProcessTemplateCard } from "@/components/process-templates/process-template-card";
 import { CreateProcessTemplateDialog } from "@/components/process-templates/create-process-template-dialog";
@@ -29,7 +32,7 @@ export default async function ProcessTemplatesListPage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

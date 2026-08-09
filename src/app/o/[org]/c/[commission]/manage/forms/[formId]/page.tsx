@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import {
   getEditableDraftTree,
   getVersionTree,
@@ -47,7 +50,7 @@ export default async function BuilderPage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 

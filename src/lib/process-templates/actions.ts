@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import {
   resolveOptionCodes,
@@ -138,14 +138,23 @@ function revalidateTemplates() {
   revalidatePath(TEMPLATE_PATH, 'page')
 }
 
-/** admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize a template action. Process templates are ADR 0100 D12 KEEP
+ * configuration (PO ruling Q2), so this routes the `canConfigureCommissionById`
+ * seam (membership staff_admin OR tenancy admin) — mirroring the DB, where the
+ * whole `process_template_*` policy family still carries the tenancy arm and the
+ * template RPCs are INVOKER with no in-body identity probe (RLS is the entire
+ * boundary). Pre-QO·B this guard was membership-only, silently converting the
+ * ratified KEEP into a CUT at the action layer (the BUG-QOB-003 class).
+ * ⚠ `setTemplateCaseType` deliberately carries NO pre-check here — its DB door
+ * (`set_template_case_type`, ADR 0088) is staff_admin-only by design.
+ * The platform-admin arm is pre-existing and out of scope (recorded follow-up).
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
   if (context.isAdmin) return true
-  return context.memberships.some(
-    (m) => m.commission.id === commissionId && m.role === 'staff_admin',
-  )
+  return canConfigureCommissionById(commissionId)
 }
 
 /** Resolve a template's commission via the RLS-scoped client (null = unseen). */

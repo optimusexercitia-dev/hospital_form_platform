@@ -1,6 +1,9 @@
 import { type NextRequest } from 'next/server'
 
-import { getCommissionAccessByOrg } from '@/lib/queries/session'
+import {
+  canConfigureCommission,
+  getCommissionAccessByOrg,
+} from '@/lib/queries/session'
 import {
   listAudit,
   AUDIT_ACTION_LABELS,
@@ -57,14 +60,17 @@ export async function GET(
   const { org, commission } = await params
   const { searchParams } = request.nextUrl
 
-  // Coarse gate: must be a coordinator (`staff_admin`) of this commission. The
-  // resolver maps an org_admin of the org to `staff_admin`, so coordinators are
-  // exactly `role === 'staff_admin'`; a platform_admin resolves to `role === null`
-  // (walled off from tenant data) and is denied. Route handlers are NOT behind the
-  // layout gate, so this is the only barrier on the direct URL (BUG-MT-005). RLS is
-  // the real authority; this returns a friendly 404 with no detail leak.
+  // Coarse gate: the commission's own coordinator OR a tenancy admin
+  // (`canConfigureCommission` — ADR 0100 D12: `audit_log` is on the ratified
+  // §4.5 KEEP list, tenancy/vocabulary/audit nouns, so the export stays
+  // available to org_admin/hospital_admin after BUG-QOB-003 removed the
+  // role coercion). A platform_admin resolves to `role === null` without the
+  // flag and is denied (walled off from tenant data). Route handlers are NOT
+  // behind the layout gate, so this is the only barrier on the direct URL
+  // (BUG-MT-005). RLS is the real authority; this returns a friendly 404 with
+  // no detail leak.
   const access = await getCommissionAccessByOrg(org, commission)
-  if (!access || access.role !== 'staff_admin') {
+  if (!access || !canConfigureCommission(access)) {
     return new Response('Não encontrado.', { status: 404 })
   }
 

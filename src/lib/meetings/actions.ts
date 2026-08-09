@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -82,7 +82,13 @@ function revalidateMeetings(): void {
   revalidatePath(MEETING_PATH, 'page')
 }
 
-/** Authorize: admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize a MEETING-CONTENT action: admin, or a MEMBERSHIP staff_admin of
+ * THAT commission. ⛔ Deliberately NOT the config seam — meetings are committee
+ * content under the ADR 0100 D12 wall (a tenancy admin reads 0 meetings), so
+ * every content action in this file keeps the membership-only gate. Only the
+ * meeting-TYPE/SETTINGS config actions route `authorizeCommissionConfig`.
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
@@ -90,6 +96,24 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   return context.memberships.some(
     (m) => m.commission.id === commissionId && m.role === 'staff_admin',
   )
+}
+
+/**
+ * Authorize a meeting-vocabulary/settings CONFIG action (createMeetingType /
+ * updateMeetingSettings): ADR 0100 D12 KEEP configuration (PO ruling Q7 —
+ * "org_admin shapes the containers, never reads what goes in them"), so this
+ * routes `canConfigureCommissionById` (membership staff_admin OR tenancy
+ * admin) — mirroring the DB, where `meeting_types_staff_admin_write` /
+ * `meeting_settings_staff_admin_write` and the CRUD probes carry the tenancy
+ * arm. (renameMeetingType/archiveMeetingType carry no TS pre-check at all —
+ * their armed INVOKER RPCs are the gate.) The platform-admin arm is
+ * pre-existing and out of scope.
+ */
+async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return canConfigureCommissionById(commissionId)
 }
 
 /** Resolve a meeting's commission via the RLS-scoped client (null = unseen). */
@@ -1299,7 +1323,7 @@ export async function createMeetingType(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MEETING_MESSAGES.forbidden }
   }
 
@@ -1368,7 +1392,7 @@ export async function updateMeetingSettings(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MEETING_MESSAGES.forbidden }
   }
 

@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeft,
   ArrowLeftRight,
   Award,
   BarChart3,
@@ -69,12 +70,47 @@ export interface SidebarCounts {
 
 type CountKey = keyof SidebarCounts;
 
+/**
+ * How much of the commission nav a principal gets (ADR 0100 D12 / BUG-QOB-003).
+ * A single tri-state rather than two booleans, because "configuration-only AND
+ * no configuration access" is not a reachable state and should not be typable.
+ *
+ *  - `"member"` — today's behaviour: the items their MEMBERSHIP role carries.
+ *  - `"member-and-configuration"` — their membership items PLUS the KEEP
+ *    configuration set: a principal who is a member here AND administers the
+ *    tenancy (org_admin/hospital_admin). Without this a `staff` member who is
+ *    also an org_admin would lose the builder/settings/members nav that
+ *    `canConfigureCommission` still admits them to.
+ *  - `"configuration"` — ONLY the KEEP configuration set: a BARE tenancy admin,
+ *    who holds no membership and whom QO·B walled off every content surface.
+ */
+export type SidebarNavScope =
+  | "member"
+  | "member-and-configuration"
+  | "configuration";
+
 interface NavItem {
   label: string;
   /** Relative path under /c/[slug] ("" = overview). */
   href: string;
   icon: typeof LayoutDashboard;
   roles: CommissionRole[];
+  /**
+   * Marks this item as part of the PO-ratified KEEP set of ADR 0100 D12
+   * (rulings Q1–Q9) — the CONFIGURATION surface a tenancy admin keeps: form
+   * definitions/builder, process templates, committee taxonomy + meeting
+   * settings, member management, indicator DEFINITIONS, and the audit trail.
+   *
+   * ⛔ This is a POSITIVE ALLOWLIST and must stay one. A `"configuration"`-scope
+   * principal sees an item ONLY if it opts in here, so a nav item added later
+   * defaults to INVISIBLE to them — the fail-closed direction. Never invert it
+   * into a `contentOnly` flag: that would make every future item leak until
+   * someone remembers to mark it.
+   *
+   * Gate the DESTINATION on `canConfigureCommission(access)` too — this flag
+   * shapes the menu, the page's own gate is the boundary.
+   */
+  configuration?: boolean;
   countKey?: CountKey;
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
   requiresFeature?:
@@ -135,6 +171,12 @@ interface NavGroup {
  * Sidebar navigation, grouped under eyebrows. Mirrors the role-aware item set of
  * the former top nav. Visibility here is convenience only — every protected route
  * still enforces access server-side (RLS + layout checks).
+ *
+ * Two families live in this list: CONTENT items (gated on the membership `roles`)
+ * and the KEEP CONFIGURATION items (`configuration: true`, ADR 0100 D12), which a
+ * tenancy admin keeps and which `navScope` selects. Keep the two distinctions
+ * independent — an item is not "coordinator-only" because it is configuration,
+ * nor content because a coordinator holds it.
  */
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -145,6 +187,10 @@ const NAV_GROUPS: NavGroup[] = [
         href: "",
         icon: LayoutDashboard,
         roles: ["staff", "staff_admin"],
+        // The commission root renders a MEMBER overview for a member and a
+        // CONFIGURATION landing for a bare tenancy admin (see page.tsx) — one
+        // href, two bodies, so it belongs to both scopes.
+        configuration: true,
       },
     ],
   },
@@ -220,12 +266,21 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Coordenação",
     items: [
-      { label: "Construtor", href: "manage/forms", icon: PencilLine, roles: ["staff_admin"] },
+      {
+        label: "Construtor",
+        href: "manage/forms",
+        icon: PencilLine,
+        roles: ["staff_admin"],
+        // KEEP — form DEFINITIONS/builder (ADR 0100 D12, ruling Q1).
+        configuration: true,
+      },
       {
         label: "Processos",
         href: "manage/process-templates",
         icon: Workflow,
         roles: ["staff_admin"],
+        // KEEP — process templates (ruling Q2).
+        configuration: true,
       },
       {
         label: "Casos",
@@ -252,6 +307,10 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Gauge,
         roles: ["staff_admin"],
         requiresFeature: "quality_indicators",
+        // KEEP — the indicator DEFINITION surfaces (ruling Q3 SPLIT). The
+        // MEASUREMENT half is content and is withheld inside the detail page;
+        // the list/create/edit-definition surfaces are configuration.
+        configuration: true,
       },
       {
         label: "Documentos",
@@ -280,13 +339,24 @@ const NAV_GROUPS: NavGroup[] = [
         icon: ScrollText,
         roles: ["staff_admin"],
         requiresFeature: "audit",
+        // KEEP — `audit_log` is on the §4.5 KEEP list.
+        configuration: true,
       },
-      { label: "Gerenciar", href: "manage/members", icon: Users, roles: ["staff_admin"] },
+      {
+        label: "Gerenciar",
+        href: "manage/members",
+        icon: Users,
+        roles: ["staff_admin"],
+        // KEEP — member management (ADR 0100 §4.5).
+        configuration: true,
+      },
       {
         label: "Configurações",
         href: "manage/settings",
         icon: Settings2,
         roles: ["staff_admin"],
+        // KEEP — committee taxonomy + meeting settings (rulings Q6/Q7).
+        configuration: true,
       },
     ],
   },
@@ -319,6 +389,7 @@ export function AppSidebar({
   isNspCoordinator = false,
   isPqsMember = false,
   isQualityReviewer = false,
+  navScope = "member",
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
   org: string;
@@ -326,7 +397,11 @@ export function AppSidebar({
   slug: string;
   /** The current commission's id — disambiguates the switcher across orgs. */
   commissionId: string;
-  /** null when a global admin views a commission they're not a member of. */
+  /**
+   * The caller's MEMBERSHIP role here, or null when they hold none — today that
+   * is a bare tenancy admin (`navScope: "configuration"`). A null role no longer
+   * widens the menu; it narrows it to whatever `navScope` admits.
+   */
   role: CommissionRole | null;
   memberships: Membership[];
   commissionName: string;
@@ -402,6 +477,11 @@ export function AppSidebar({
    * (who lands on their commission, not the console) still has a way in.
    */
   isQualityReviewer?: boolean;
+  /**
+   * Which slice of the nav this principal gets (ADR 0100 D12 / BUG-QOB-003).
+   * Defaults to `"member"` — today's behaviour. See {@link SidebarNavScope}.
+   */
+  navScope?: SidebarNavScope;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -410,8 +490,14 @@ export function AppSidebar({
   const closeDrawer = () => setOpen(false);
 
   const multiCommission = memberships.length > 1;
-  // Admins (no membership row) see the full menu; members see their role's.
-  // Feature-gated items also require their flag to be on.
+  // Which of the two item families this principal may see. A bare tenancy admin
+  // gets the configuration allowlist and NOTHING else; a member who also
+  // administers the tenancy gets both; everyone else gets their role's items.
+  const showsConfiguration = navScope !== "member";
+  const showsMemberItems = navScope !== "configuration";
+  // Members see their role's items; the KEEP configuration items additionally
+  // show for a principal who may configure this commission. Feature-gated items
+  // also require their flag to be on.
   const isVisible = (item: NavItem) => {
     if (item.requiresFeature === "meetings" && !meetingsEnabled) return false;
     if (item.requiresFeature === "audit" && !auditEnabled) return false;
@@ -439,8 +525,32 @@ export function AppSidebar({
     // Case-content items (Casos) hide for an administration-only principal, whose
     // board is empty and whose route 404s (ADR 0078 Gate 2).
     if (item.requiresCaseStanding && !hasCaseStanding) return false;
-    return role === null || item.roles.includes(role);
+    // The KEEP configuration allowlist (ADR 0100 D12) — the one family a tenancy
+    // admin keeps. Checked AFTER the feature gates so a dark flag still hides it.
+    if (item.configuration && showsConfiguration) return true;
+    if (!showsMemberItems) return false;
+    // ⛔ BUG-QOB-003: this used to read `role === null || …` — a "show the whole
+    // menu" branch for any principal without a membership role. It was written
+    // for platform_admin (since 404'd by the layout, BUG-MT-005) and it is the
+    // exact shape that lit up every coordinator affordance for an org_admin once
+    // the resolver stopped coercing them to `staff_admin`. A null role now shows
+    // member items to NOBODY; standing that is not a membership role must come
+    // in through `navScope`, explicitly.
+    return role !== null && item.roles.includes(role);
   };
+
+  // A `"configuration"`-scope principal is not a member of anything here, so the
+  // member eyebrows ("Meu trabalho", "Coordenação") would misdescribe the menu.
+  // Collapse the allowlist into one honest group, preserving NAV_GROUPS order.
+  const groups: NavGroup[] =
+    navScope === "configuration"
+      ? [
+          {
+            label: "Configuração da comissão",
+            items: NAV_GROUPS.flatMap((group) => group.items),
+          },
+        ]
+      : NAV_GROUPS;
 
   return (
     <>
@@ -519,9 +629,27 @@ export function AppSidebar({
           </button>
         </div>
 
-        {/* Commission switcher (or plain name when single-commission). */}
+        {/* Commission switcher (or plain name when single-commission). For a
+            configuration-scope principal there is no membership to switch
+            between — they get their way OUT instead (the org administration
+            area they actually live in) plus a scope badge, so the reduced menu
+            below reads as deliberate rather than broken. */}
         <div className="px-4 pb-3">
-          {multiCommission ? (
+          {navScope === "configuration" ? (
+            <div className="flex flex-col gap-1.5">
+              <Link
+                href={orgHref(org, "manage")}
+                onClick={closeDrawer}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md text-xs font-medium text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+              >
+                <ArrowLeft aria-hidden="true" className="size-3.5" />
+                Administração
+              </Link>
+              <span className="block max-w-full truncate px-0.5 text-sm font-medium text-sidebar-foreground/80">
+                {commissionName}
+              </span>
+            </div>
+          ) : multiCommission ? (
             <CommissionSwitcher
               memberships={memberships}
               currentCommissionId={commissionId}
@@ -538,7 +666,7 @@ export function AppSidebar({
           aria-label="Navegação da comissão"
           className="flex-1 overflow-y-auto px-3 py-1"
         >
-          {NAV_GROUPS.map((group) => {
+          {groups.map((group) => {
             const items = group.items.filter(isVisible);
             if (items.length === 0) return null;
             return (
@@ -608,8 +736,11 @@ export function AppSidebar({
             );
           })}
 
-          {/* NSP console link — shown to PQS members and org NSP coordinators. */}
-          {(isPqsMember || isNspCoordinator) && (() => {
+          {/* NSP console link — shown to PQS members and org NSP coordinators.
+              Never in configuration scope: that principal's org-level navigation
+              lives in the org administration sidebar, and this shell is their
+              commission-configuration workspace only. */}
+          {showsMemberItems && (isPqsMember || isNspCoordinator) && (() => {
             const href = nspHref(org);
             const isActive = pathname.startsWith(href);
             return (
@@ -649,7 +780,7 @@ export function AppSidebar({
 
           {/* Quality-office console — shown to a member who ALSO holds a
               `quality_reviewer` seat in this org (ADR 0100). Org-level href. */}
-          {isQualityReviewer && (() => {
+          {showsMemberItems && isQualityReviewer && (() => {
             const href = qualidadeHref(org);
             const isActive = pathname.startsWith(href);
             return (
@@ -692,7 +823,7 @@ export function AppSidebar({
           {/* Per-user document-approval queue — shown to any member when the
               controlled-documents feature is on, since an approver may be named
               from OUTSIDE their own commission (Phase 17, F4). Org-level href. */}
-          {controlledDocsEnabled && (() => {
+          {showsMemberItems && controlledDocsEnabled && (() => {
             const href = orgHref(org, "documentos-pendentes");
             const isActive = pathname.startsWith(href);
             return (

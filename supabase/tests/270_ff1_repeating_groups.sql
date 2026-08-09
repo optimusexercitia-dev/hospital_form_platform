@@ -17,7 +17,7 @@
 
 begin;
 
-select plan(52);
+select plan(53);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -604,22 +604,85 @@ insert into public.memberships (organization_id, principal_id, role)
 select test_helpers.claims_for('ff100000-0000-0000-0000-0000000000a1'::uuid, false);
 set local role authenticated;
 
+-- ⛔ INVERTED BY QO·B (20260915) — and this inversion DEMOLISHES J1b's premise.
+-- ADR 0100 D12 removed the tenancy-admin arm from the response plane, so the
+-- org_admin minted above no longer reads a foreign draft at all.
 select is(
   (select count(*)::int from public.response_group_instances
     where response_id = 'ff100000-0000-0000-0000-000000000031'),
-  1, 'J1a. an org_admin CAN READ another member''s draft instances (so J1b is about the WRITE qual, not the SELECT policy)'
+  0, 'J1a. QO·B WALL: an org_admin can NO LONGER read another member''s draft instances (D12; was 1 before the wall)'
 );
 
+-- ⚠⚠ J1b IS NOW VACUOUS — ANNOTATED, NOT DELETED (A2 precedent), AND FILED AS
+--    FUP-QOB-1 rather than quietly left green.
+--
+-- This is qa MAJOR-2 reappearing through the front door. Its own header (above)
+-- records that J1 once passed for the WRONG REASON with a plain `staff`: the insert
+-- failed on the READ, because write_own_draft's WITH CHECK subquery reads
+-- public.responses UNDER RLS, so a caller who cannot SEE the parent row yields
+-- `exists = false` no matter what the `created_by = auth.uid()` term says. An
+-- org_admin was minted precisely to escape that — is_commission_admin_of was the only
+-- reader-non-writer available.
+--
+-- QO·B removes it, and NO REPLACEMENT EXISTS. Post-M1 the readers of an in_progress
+-- response's instances are exactly {creator, targeted respondent}, and BOTH are
+-- writers (can_write_targeted_response = can_access_targeted_response AND
+-- in_progress). The one other reader — staff_admin on a SUBMITTED response — is
+-- blocked first by the immutability trigger (23514, see I4), which proves
+-- immutability, not the write qual.
+--
+-- CONSEQUENCE, worth a ruling: `created_by = auth.uid()` in
+-- response_group_instances_write_own_draft is no longer INDEPENDENTLY OBSERVABLE —
+-- the read surface of an in-progress response now coincides exactly with its write
+-- surface. That is a STRONGER property than the one this keystone pinned, but it is
+-- not the property the keystone claims to pin. Deleting the term would leave this
+-- suite green; the guard against that must be relocated, not assumed.
+--
+-- ➜ RELOCATED (FUP-QOB-1, 2026-08-09, PROVISIONAL pending PO ratification): the
+--   guard now lives in J1c below — an executable CATALOG PIN on the policy's
+--   qual/with_check text, red-proven by the b1 mutation audit
+--   (fup_qob1_drop_created_by: dropping the term reds J1c while J1b stays green,
+--   which DEMONSTRATES this annotation's vacuity claim in the same run). J1b is
+--   KEPT as-annotated (A2 precedent: annotate, never delete).
 select throws_ok(
   $$insert into public.response_group_instances (response_id, group_item_id, position)
     values ('ff100000-0000-0000-0000-000000000031','ff100000-0000-0000-0000-000000000011', 5)$$,
   '42501',
   null,
-  'J1b. …and STILL cannot write one — the FOR ALL qual is strictly narrower than SELECT (reader-non-writer, ADR 0079)'
+  'J1b. [VACUOUS SINCE QO·B — FUP-QOB-1] denies, but now via invisibility of the parent, NOT via the write qual (reader-non-writer no longer constructible)'
 );
 
 reset role;
 select set_config('request.jwt.claims', null, true);
+
+-- ⭐ J1c — FUP-QOB-1: the STRUCTURAL PIN that replaces J1b's collapsed behavioural
+-- surface. [PROVISIONAL — accepted pending PO ratification of FUP-QOB-1.]
+--
+-- Post-QO·B no reader-non-writer persona EXISTS for this policy (J1b's header): the
+-- read surface of an in-progress response's instances coincides exactly with its
+-- write surface, so `created_by = auth.uid()` cannot be isolated behaviourally.
+-- This pin is the strongest guard available WITHOUT inventing a persona: it asserts,
+-- from the LIVE CATALOG, that the policy (a) still exists on
+-- response_group_instances, FOR ALL, to authenticated, and (b) still carries the
+-- `created_by = auth.uid()` term in BOTH its USING and WITH CHECK halves. A
+-- structural assertion cannot substitute for a behavioural one (QO·B's own lesson) —
+-- but where the behavioural surface has COLLAPSED, an executable catalog pin beats
+-- an annotation alone: deleting the term reds THIS test (red-proven by the b1
+-- mutation audit's fup_qob1_drop_created_by case, which also shows J1b staying
+-- green under the same deletion — the vacuity claim, demonstrated); dropping or
+-- renaming the policy fails the count closed, no mutation needed.
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and tablename  = 'response_group_instances'
+      and policyname = 'response_group_instances_write_own_draft'
+      and cmd = 'ALL'
+      and 'authenticated' = any(roles)
+      and coalesce(qual, '')       ~ 'created_by = auth\.uid\(\)'
+      and coalesce(with_check, '') ~ 'created_by = auth\.uid\(\)'),
+  1,
+  'J1c. [FUP-QOB-1 STRUCTURAL PIN — PROVISIONAL] write_own_draft still exists, FOR ALL to authenticated, and carries created_by = auth.uid() in BOTH qual and with_check'
+);
 
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;

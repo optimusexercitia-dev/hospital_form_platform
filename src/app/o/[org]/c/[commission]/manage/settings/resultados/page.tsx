@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { listPhaseResults, phaseResultsEnabled } from "@/lib/queries/phase-results";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
@@ -39,7 +42,7 @@ export default async function PhaseResultsSettingsPage({
     meetingsEnabled(),
   ]);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
   if (!flagOn) {

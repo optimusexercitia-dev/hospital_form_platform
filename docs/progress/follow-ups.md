@@ -29,6 +29,70 @@ anonymous visitors — a trivial availability lever on the public `/verificar` s
 its "shown verbatim" code comment is false. Fix: per-credential granularity (keep the global
 cap as a backstop) + correct the comment. The RPC stays service_role-only; this is app-layer.
 
+### 🟡 FUP-QOB-1 — `created_by = auth.uid()` in `response_group_instances_write_own_draft` is no longer independently observable; PROVISIONAL structural pin landed (backend 2026-08-09; needs PO ratification)
+
+- **The collapse (filed 2026-08-08, QO·B):** M1's wall removed `is_commission_admin_of` —
+  the only reader-non-writer persona — from the response plane. Post-M1 the readers of an
+  in-progress response's instances are exactly {creator, targeted respondent}, and **both
+  are writers**; `staff_admin` on a *submitted* response is stopped first by the
+  immutability trigger (23514 — proves immutability, not the qual). `270` §J's J1b
+  reader-non-writer keystone is therefore VACUOUS (annotated in-file, kept per the A2
+  annotate-never-delete precedent). No replacement persona exists without inventing one.
+- **Interim guard (backend 2026-08-09, PROVISIONAL pending PO):** `270` §J **J1c** — an
+  executable CATALOG pin asserting the policy still exists (FOR ALL, to `authenticated`,
+  on `response_group_instances`) AND still carries `created_by = auth.uid()` in **both**
+  its USING and WITH CHECK halves. **Red-proven** by the b1 mutation audit's
+  `fup_qob1_drop_created_by` case: deleting the term reds J1c **while J1b stays green**
+  (observed live: `ok 40 — J1b` / `not ok 41 — J1c`) — the vacuity claim demonstrated in
+  the same run. The policy-disappears direction fails closed (the count), no mutation
+  needed.
+- **Honestly stated limit:** this is a STRUCTURAL pin, and QO·B's own lesson is that a
+  structural assertion cannot substitute for a behavioural one. It is accepted here
+  because the behavioural surface **collapsed** — there is no principal to probe with.
+  During implementation the behavioural alternatives were re-checked and none exists
+  without inventing a persona (a bespoke in-test SELECT grant would test the invented
+  grant, not the live surface).
+- **PO question:** ratify the pin as the standing guard, or direct an alternative
+  (invented pgTAP persona / accept the read≡write coincidence as the stronger pinned
+  property and retire J1b+J1c together).
+
+### 🔴 FUP-QOB-2 — the QO·B PO ratification package (registered 2026-08-09 at phase close; PO: "will be approached in a future session")
+
+QO·B closed QA-APPROVED (r2) + human-approved with a set of **lead rulings made in-phase** —
+each precedent- or catalog-backed, none PO-ratified yet. This entry is the single registry;
+full context in the [phase record](quality-office-oversight-phase-b.md) and the 2026-08-09
+Decisions-log row in PROGRESS.md.
+
+**The five lead rulings (ratify or reverse):**
+1. **BUG-QOB-003 fix shape** — tenancy admin = a session FLAG (`isTenancyAdmin`), never a
+   coerced role; content routes 404 (cases-board precedent); KEEP surfaces gate through
+   `canConfigureCommission`.
+2. **`manage/audit/**` + its CSV export = KEEP** (`audit_log` is on the ratified §4.5 list).
+3. **`manage/charter` = NOT KEEP** — `upsert_commission_charter` is staff_admin-only by
+   explicit design (HC0K0); the charter plane never carried a tenancy arm.
+4. **`manage/acreditacao/**` stays membership-gated** — no accreditation-plane policy carries
+   a tenancy arm; pre-QO·B "access" was the coercion rendering an empty shell.
+5. **Dual-hat (quality_reviewer + tenancy admin) keeps reviewer-shell precedence** — latent
+   (no persona holds both); needs a deliberate precedence ruling if such a principal ever
+   becomes real.
+
+**Plus the items with their own tracked entries, listed here for one-stop pickup:**
+- **FUP-QOB-1** — ratify the J1c structural pin (or direct an alternative guard).
+- **BUG-QOB-004** (Bug Log) — referrals were never classified by D12: rule
+  KEEP-and-surface (give `encaminhamentos/**` the `canConfigureCommission`-style treatment)
+  or CUT-the-arms (`create_referral_draft`/`dispose_referral_phi` lose
+  `is_commission_admin_of` in their own M-wave).
+- **`setTemplateCaseType`** — sits on the Q2 (KEEP) surface but its DB door
+  (`set_template_case_type`, ADR 0088) is staff_admin-only; making it follow Q2 is a DB
+  change, PO's call.
+- **The `is_commission_admin_of` → `is_tenancy_admin_of` rename wave** — PO-approved
+  2026-08-08, deliberately deferred until after QO·B; now unblocked.
+- *(Same family, pre-existing, recorded by backend during B.11: the `context.isAdmin`
+  platform-admin arms on content action pre-checks — a noun-rule sweep candidate at the TS
+  layer; DB re-gates, no leak.)*
+
+Owner: **PO + lead** (rulings), then backend/frontend per ruling.
+
 ### ▶ FUP-MIN-CUTOVER — audio-minutes pre-enable gates (feature merged, flag OFF)
 
 Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is authoritative):

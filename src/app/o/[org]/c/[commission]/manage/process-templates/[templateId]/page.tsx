@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import {
   getProcessTemplateWithVersion,
   phaseConditionTargets,
@@ -60,7 +63,7 @@ export default async function ProcessTemplateBuilderPage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 
