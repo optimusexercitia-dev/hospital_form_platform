@@ -242,7 +242,7 @@ function revalidateBuilder(): void {
  * (org_admin/hospital_admin) — mirroring the DB, where `forms_staff_admin_write`
  * (and the sections/items/options/matrix/validation/block-library substrates +
  * the `form-assets` storage policies) all still read
- * `is_staff_admin_of OR is_commission_admin_of`. Pre-QO·B this guard was
+ * `is_staff_admin_of OR is_tenancy_admin_of`. Pre-QO·B this guard was
  * membership-only, which silently converted the ratified KEEP into a CUT at the
  * action layer (the BUG-QOB-003 incoherence class, action-side).
  * RLS/the RPC gates still backstop every write; this yields the friendly pt-BR

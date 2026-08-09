@@ -136,7 +136,7 @@ select is(app.is_case_excluded('00000000-0000-0000-0000-0000000a2001', (select s
   'PRE ⭐: the plain member is NOT excluded — a poisoned fixture would mask a widening (proven trap)');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
   'PRE ⭐: the narrative assignee is NOT a coordinator — assignment is his ONLY arm');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), true,
   'PRE ⭐: the org_admin arm resolves for comm_x (the source A24 has no row for)');
 select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …and the org_admin is NOT a member of comm_x — so his cells measure the ORG arm, not the member arm');
@@ -175,7 +175,7 @@ select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a2001', (se
 -- ⛔ NOT `public.cases`, AND THE MUTATION AUDIT IS WHY. `cases` has TWO permissive
 -- policies: `cases_select` (can_read_case_or_admin, which carries its own deny) and
 -- `cases_staff_admin_write` — **FOR ALL**, so it grants SELECT too, on
--- `(is_staff_admin_of OR is_commission_admin_of) AND NOT is_case_excluded`, which never
+-- `(is_staff_admin_of OR is_tenancy_admin_of) AND NOT is_case_excluded`, which never
 -- touches the resolver. A coordinator therefore reads `cases` whatever _case_caps says:
 -- asserted against `cases` first, this keystone stayed GREEN with the coordinator
 -- source DELETED. `case_participants_select` is `app.can_read_case(case_id, auth.uid())`

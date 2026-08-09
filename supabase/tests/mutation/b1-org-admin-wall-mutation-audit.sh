@@ -84,7 +84,7 @@ begin
   if v_qual is null then
     raise exception 'MUTATION NO-OP: policy % not found', p_policy;
   end if;
-  if v_qual ~ 'is_commission_admin_of' then
+  if v_qual ~ 'is_tenancy_admin_of' then
     raise exception 'MUTATION NO-OP: % already carries the tenancy arm', p_policy;
   end if;
   execute format('alter policy %I on %s using (%s or %s)', p_policy, p_table, v_qual, p_arm);
@@ -99,12 +99,12 @@ begin
     -- M1 dropped this outright. Bring back the bare FOR ALL tenancy grant.
     execute $q$create policy responses_admin_all on public.responses
       as permissive for all to authenticated
-      using (app.is_commission_admin_of(commission_id))
-      with check (app.is_commission_admin_of(commission_id))$q$;
+      using (app.is_tenancy_admin_of(commission_id))
+      with check (app.is_tenancy_admin_of(commission_id))$q$;
 
   elsif p_what = 'restore_responses_select_arm' then
     perform app._mut_b1_arm('responses_select', 'public.responses',
-      'app.is_commission_admin_of(commission_id)');
+      'app.is_tenancy_admin_of(commission_id)');
 
   elsif p_what = 'restore_answers_arm' then
     -- ⚠ MEASURED DEPENDENCY, found by this audit scoring GREEN on the first attempt.
@@ -118,13 +118,13 @@ begin
     -- case restores BOTH and requires the answer keystone to red, which is the honest
     -- statement of what the pair guarantees.
     perform app._mut_b1_arm('responses_select', 'public.responses',
-      'app.is_commission_admin_of(commission_id)');
+      'app.is_tenancy_admin_of(commission_id)');
     perform app._mut_b1_arm('answers_select', 'public.answers',
-      'exists (select 1 from public.responses r where r.id = answers.response_id and app.is_commission_admin_of(r.commission_id))');
+      'exists (select 1 from public.responses r where r.id = answers.response_id and app.is_tenancy_admin_of(r.commission_id))');
 
   elsif p_what = 'restore_controlled_documents_arm' then
     perform app._mut_b1_arm('controlled_documents_select', 'public.controlled_documents',
-      'app.is_commission_admin_of(commission_id)');
+      'app.is_tenancy_admin_of(commission_id)');
 
   elsif p_what = 'restore_doc_wrapper' then
     -- The A4 K2 half: the POLICY is clean, the WRAPPER is what actually gates.
@@ -132,26 +132,26 @@ begin
       returns boolean language sql stable security definer
       set search_path to 'app', 'public', 'pg_catalog'
       as $f$ select app.is_member_of_for(app.commission_of_document_version(p_version_id), p_uid)
-                 or app.is_commission_admin_of_for(app.commission_of_document_version(p_version_id), p_uid); $f$$q$;
+                 or app.is_tenancy_admin_of_for(app.commission_of_document_version(p_version_id), p_uid); $f$$q$;
 
   elsif p_what = 'restore_print_wrapper' then
     d := pg_get_functiondef('app.can_view_printed_document(text,uuid,uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'return v_resp.created_by = p_uid',
       'return v_resp.created_by = p_uid
-          or app.is_commission_admin_of_for(v_resp.commission_id, p_uid)');
+          or app.is_tenancy_admin_of_for(v_resp.commission_id, p_uid)');
     execute d;
 
   elsif p_what = 'restore_measurement_arm' then
     perform app._mut_b1_arm('indicator_measurements_select', 'public.indicator_measurements',
-      'exists (select 1 from public.indicators i where i.id = indicator_measurements.indicator_id and app.is_commission_admin_of(i.commission_id))');
+      'exists (select 1 from public.indicators i where i.id = indicator_measurements.indicator_id and app.is_tenancy_admin_of(i.commission_id))');
 
   elsif p_what = 'restore_case_door_arm' then
     -- BUG-QOB-002: write-without-read returns.
     d := pg_get_functiondef('public.update_case_meta(uuid,text,uuid,text)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if app.is_staff_admin_of(v_commission) then',
-      'if app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission) then');
+      'if app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission) then');
     execute d;
 
   elsif p_what = 'restore_free_text_door' then
@@ -160,14 +160,14 @@ begin
     d := pg_get_functiondef('public.dashboard_free_text(uuid,date,date,integer)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_staff_admin_of(v_commission_id)',
-      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+      'app.is_staff_admin_of(v_commission_id) or app.is_tenancy_admin_of(v_commission_id)');
     execute d;
 
   elsif p_what = 'restore_export_rows_door' then
     d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_staff_admin_of(v_commission_id)',
-      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+      'app.is_staff_admin_of(v_commission_id) or app.is_tenancy_admin_of(v_commission_id)');
     execute d;
 
   elsif p_what = 'restore_doc_list_door' then
@@ -176,14 +176,14 @@ begin
     d := pg_get_functiondef('public.list_commission_documents(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_member_of(p_commission)',
-      'app.is_member_of(p_commission) or app.is_commission_admin_of(p_commission)');
+      'app.is_member_of(p_commission) or app.is_tenancy_admin_of(p_commission)');
     execute d;
 
   elsif p_what = 'restore_attachment_write_arm' then
     d := pg_get_functiondef('app.can_write_attachment(text,uuid,uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'return app.is_staff_admin_of_for(v_commission, p_uid);',
-      'return app.is_staff_admin_of_for(v_commission, p_uid) or app.is_commission_admin_of_for(v_commission, p_uid);');
+      'return app.is_staff_admin_of_for(v_commission, p_uid) or app.is_tenancy_admin_of_for(v_commission, p_uid);');
     execute d;
 
   -- ── UNDER-CUT, the M5/M6 DOOR keystones (314 §9/§10) ──────────────────────
@@ -191,91 +191,91 @@ begin
     d := pg_get_functiondef('public.dashboard_completion_by_member(uuid,date,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_staff_admin_of(v_commission_id)',
-      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+      'app.is_staff_admin_of(v_commission_id) or app.is_tenancy_admin_of(v_commission_id)');
     execute d;
 
   elsif p_what = 'restore_signoff_door' then
     d := pg_get_functiondef('public.get_response_for_signoff(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_staff_admin_of(v_response.commission_id)',
-      'app.is_staff_admin_of(v_response.commission_id) or app.is_commission_admin_of(v_response.commission_id)');
+      'app.is_staff_admin_of(v_response.commission_id) or app.is_tenancy_admin_of(v_response.commission_id)');
     execute d;
 
   elsif p_what = 'restore_supersede_response_door' then
     d := pg_get_functiondef('public.supersede_response(uuid,text)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_target_door' then
     d := pg_get_functiondef('public.target_case_response(uuid,uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_create_door' then
     d := pg_get_functiondef('public.create_controlled_document(uuid,text,text,integer,text,text[],text)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(p_commission)) then',
-      'if not (app.is_staff_admin_of(p_commission) or app.is_commission_admin_of(p_commission)) then');
+      'if not (app.is_staff_admin_of(p_commission) or app.is_tenancy_admin_of(p_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_update_door' then
     d := pg_get_functiondef('public.update_controlled_document(uuid,text,text,integer,text,text[],text)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_setfile_door' then
     d := pg_get_functiondef('public.set_document_version_file(uuid,text,text,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_submit_door' then
     d := pg_get_functiondef('public.submit_document_for_approval(uuid,jsonb,date,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_remind_door' then
     d := pg_get_functiondef('public.remind_document_approver(uuid,uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_publish_door' then
     d := pg_get_functiondef('public.publish_document(uuid,date,date,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_supersede_door' then
     d := pg_get_functiondef('public.supersede_document(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_obsolete_door' then
     d := pg_get_functiondef('public.mark_document_obsolete(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_doc_review_list_door' then
     d := pg_get_functiondef('public.documents_due_for_review(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_member_of(p_commission)) then',
-      'if not (app.is_member_of(p_commission) or app.is_commission_admin_of(p_commission)) then');
+      'if not (app.is_member_of(p_commission) or app.is_tenancy_admin_of(p_commission)) then');
     execute d;
 
   -- ── UNDER-CUT, the M7 CASE-PLANE doors (314 §11; QA r1 BLOCKER-1) ─────────
@@ -285,21 +285,21 @@ begin
     d := pg_get_functiondef('public.remove_case_participant(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_record_recusal_door' then
     d := pg_get_functiondef('public.record_recusal(uuid,uuid,text,uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'v_is_coord_raw := app.is_staff_admin_of(v_commission);',
-      'v_is_coord_raw := app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission);');
+      'v_is_coord_raw := app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission);');
     execute d;
 
   elsif p_what = 'restore_lift_recusal_door' then
     d := pg_get_functiondef('public.lift_recusal(uuid,text)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   elsif p_what = 'restore_viewer_caps_door' then
@@ -307,21 +307,21 @@ begin
     d := pg_get_functiondef('public.case_viewer_capabilities(uuid)'::regprocedure);
     d := app._mut_b1_sub(d,
       'app.is_staff_admin_of_for(v_commission, v_uid)',
-      'app.is_staff_admin_of_for(v_commission, v_uid) or app.is_commission_admin_of_for(v_commission, v_uid)');
+      'app.is_staff_admin_of_for(v_commission, v_uid) or app.is_tenancy_admin_of_for(v_commission, v_uid)');
     execute d;
 
   elsif p_what = 'restore_tag_report_door' then
     d := pg_get_functiondef('public.case_tag_report(uuid,date,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(p_commission_id)) then',
-      'if not (app.is_staff_admin_of(p_commission_id) or app.is_commission_admin_of(p_commission_id)) then');
+      'if not (app.is_staff_admin_of(p_commission_id) or app.is_tenancy_admin_of(p_commission_id)) then');
     execute d;
 
   elsif p_what = 'restore_schedule_hearing_door' then
     d := pg_get_functiondef('public.schedule_ethics_hearing(uuid,text,uuid,timestamptz)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
-      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+      'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
     execute d;
 
   -- ⚠ NO restore_case_outcome_arm / restore_narrative_body_arm case, DELIBERATELY,
@@ -373,14 +373,14 @@ begin
     -- ADR 0104 D11 KEEPS revoke_printed_document's tenancy arm: revocation is a
     -- governance act that reveals no content. Sweeping it is the plausible tidy-up.
     d := pg_get_functiondef('public.revoke_printed_document(uuid,text,text)'::regprocedure);
-    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of_for(v_row.commission_id, auth.uid())', '');
+    d := app._mut_b1_sub(d, ' or app.is_tenancy_admin_of_for(v_row.commission_id, auth.uid())', '');
     execute d;
 
   elsif p_what = 'overcut_aggregate_door' then
     -- D12 (6) KEEPS the six PHI-free aggregates. The nine dashboard_* doors split
     -- six-to-three, so "finish the job across all nine" is the plausible tidy-up.
     d := pg_get_functiondef('public.dashboard_form_totals(uuid,date,date)'::regprocedure);
-    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of(p_commission_id)', '');
+    d := app._mut_b1_sub(d, ' or app.is_tenancy_admin_of(p_commission_id)', '');
     execute d;
 
   elsif p_what = 'overcut_indicators_select' then
@@ -389,7 +389,7 @@ begin
     declare v_qual text;
     begin
       select pg_get_expr(polqual, polrelid) into v_qual from pg_policy where polname='indicators_select';
-      v_qual := app._mut_b1_sub(v_qual, ' OR app.is_commission_admin_of(commission_id)', '');
+      v_qual := app._mut_b1_sub(v_qual, ' OR app.is_tenancy_admin_of(commission_id)', '');
       execute format('alter policy indicators_select on public.indicators using (%s)', v_qual);
     end;
 
@@ -398,13 +398,13 @@ begin
     -- independently blocked (org_admin is not a commission member), NOT because the
     -- arm is absent. Cutting it is the plausible over-zealous sweep.
     d := pg_get_functiondef('public.grant_case_access(uuid,uuid,text,timestamptz,text,boolean,boolean)'::regprocedure);
-    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of(v_commission)', '');
+    d := app._mut_b1_sub(d, ' or app.is_tenancy_admin_of(v_commission)', '');
     execute d;
 
   elsif p_what = 'overcut_classification_door' then
     -- PO ruling Q9: set_case_confidentiality stays (classification shapes the container).
     d := pg_get_functiondef('public.set_case_confidentiality(uuid,text)'::regprocedure);
-    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of(v_case.commission_id)', '');
+    d := app._mut_b1_sub(d, ' or app.is_tenancy_admin_of(v_case.commission_id)', '');
     execute d;
 
   else

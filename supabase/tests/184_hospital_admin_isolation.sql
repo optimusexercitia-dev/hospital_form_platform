@@ -30,7 +30,7 @@ create temp table p on commit drop as select
 grant select on p to authenticated;
 
 -- ============================================================================
--- §1: predicate boundaries — is_hospital_admin_of + is_commission_admin_of
+-- §1: predicate boundaries — is_hospital_admin_of + is_tenancy_admin_of
 -- ============================================================================
 select test_helpers.claims_for((select ha1 from p), false);
 set local role authenticated;
@@ -40,14 +40,14 @@ select ok(not app.is_hospital_admin_of((select hosp_secundario_a from p)),
   'PREDICATE: is_hospital_admin_of(secundario-a) = false for ha1 (sibling hospital)');
 select ok(not app.is_hospital_admin_of((select hosp_central_b from p)),
   'PREDICATE: is_hospital_admin_of(central-b) = false for ha1 (other org)');
-select ok(app.is_commission_admin_of((select comm_ccih from p)),
-  'PREDICATE: is_commission_admin_of(CCIH) = true for ha1 (own hospital)');
-select ok(app.is_commission_admin_of((select comm_farmacia from p)),
-  'PREDICATE: is_commission_admin_of(Farmácia) = true for ha1 (own hospital)');
-select ok(not app.is_commission_admin_of((select comm_etica from p)),
-  'PREDICATE PROOF: is_commission_admin_of(Ética) = false for ha1 (SIBLING hospital, same org)');
-select ok(not app.is_commission_admin_of((select comm_qual_b from p)),
-  'PREDICATE PROOF: is_commission_admin_of(Qualidade B) = false for ha1 (other org)');
+select ok(app.is_tenancy_admin_of((select comm_ccih from p)),
+  'PREDICATE: is_tenancy_admin_of(CCIH) = true for ha1 (own hospital)');
+select ok(app.is_tenancy_admin_of((select comm_farmacia from p)),
+  'PREDICATE: is_tenancy_admin_of(Farmácia) = true for ha1 (own hospital)');
+select ok(not app.is_tenancy_admin_of((select comm_etica from p)),
+  'PREDICATE PROOF: is_tenancy_admin_of(Ética) = false for ha1 (SIBLING hospital, same org)');
+select ok(not app.is_tenancy_admin_of((select comm_qual_b from p)),
+  'PREDICATE PROOF: is_tenancy_admin_of(Qualidade B) = false for ha1 (other org)');
 reset role;
 
 -- ============================================================================
@@ -107,8 +107,8 @@ select is(
   (select count(*)::int from public.commissions
    where id in ((select comm_ccih from p),(select comm_farmacia from p),(select comm_etica from p))),
   0, 'RLS PROOF: org-b staff reads ZERO org-a commissions');
-select ok(not app.is_commission_admin_of((select comm_ccih from p)),
-  'PREDICATE: is_commission_admin_of(CCIH) = false for an org-b staff');
+select ok(not app.is_tenancy_admin_of((select comm_ccih from p)),
+  'PREDICATE: is_tenancy_admin_of(CCIH) = false for an org-b staff');
 reset role;
 
 -- ============================================================================
@@ -121,8 +121,8 @@ select is(
   (select count(*)::int from public.commissions
    where id in ((select comm_ccih from p),(select comm_farmacia from p),(select comm_etica from p))),
   3, 'RLS: org_admin.a reads ALL THREE org-a commissions (incl. sibling-hospital Ética)');
-select ok(app.is_commission_admin_of((select comm_etica from p)),
-  'PREDICATE: is_commission_admin_of(Ética) = true for org_admin.a (org tier unchanged)');
+select ok(app.is_tenancy_admin_of((select comm_etica from p)),
+  'PREDICATE: is_tenancy_admin_of(Ética) = true for org_admin.a (org tier unchanged)');
 reset role;
 
 -- ============================================================================

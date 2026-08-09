@@ -19,7 +19,7 @@ import type { MemberTitle } from '@/lib/commissions/titles-types'
  * imports everything from `@/lib/commissions/titles`.
  *
  * RLS (the authority): member-read for the commission; commission-admin write
- * (`is_staff_admin_of OR is_commission_admin_of`). These reads run on the ordinary
+ * (`is_staff_admin_of OR is_tenancy_admin_of`). These reads run on the ordinary
  * cookie-wired (RLS-scoped) client — a foreign caller gets `[]`.
  */
 

@@ -362,7 +362,7 @@ async function authorizeForUser(
 /**
  * Resolve the target commission's org + hospital, then authorize the caller as an
  * `org_admin` of the org OR (ADR 0051) a `hospital_admin` of the commission's
- * hospital — the TS mirror of `is_commission_admin_of`. A hospital_admin may thus
+ * hospital — the TS mirror of `is_tenancy_admin_of`. A hospital_admin may thus
  * assign staff only to commissions of ITS OWN hospital; a sibling hospital's
  * commission resolves to a different hospital_id and denies.
  */

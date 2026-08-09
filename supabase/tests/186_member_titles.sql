@@ -67,12 +67,12 @@ select throws_ok(
   'AUTHZ: a plain staff CANNOT create a title');
 reset role;
 
--- hospital_admin inherits management (via is_commission_admin_of).
+-- hospital_admin inherits management (via is_tenancy_admin_of).
 select test_helpers.claims_for((select ha1 from p), false);
 set local role authenticated;
 select lives_ok(
   $$select public.create_member_title('a0000000-0000-0000-0000-0000000000a1', 'Relator(a)')$$,
-  'CRUD: hospital_admin inherits title management (is_commission_admin_of)');
+  'CRUD: hospital_admin inherits title management (is_tenancy_admin_of)');
 reset role;
 
 -- ============================================================================
@@ -110,7 +110,7 @@ set local role authenticated;
 select is(
   (select count(*)::int from public.forms where commission_id = (select comm_farmacia from p)),
   0, 'DISPLAY-ONLY: a titled staff gains ZERO cross-commission read (still cannot read Farmácia)');
-select ok(not app.is_commission_admin_of((select comm_ccih from p)),
+select ok(not app.is_tenancy_admin_of((select comm_ccih from p)),
   'DISPLAY-ONLY: a titled staff is NOT a commission admin (title carries no access)');
 reset role;
 

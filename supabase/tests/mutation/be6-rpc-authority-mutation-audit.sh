@@ -25,7 +25,7 @@ declare d text := pg_get_functiondef(p_fn::regprocedure);
 begin
   if p_what = 'authority' then
     -- Neutralize the coordinator gate → a non-coordinator passes.
-    d := replace(d, 'not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission))', 'false');
+    d := replace(d, 'not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission))', 'false');
   else
     raise exception 'unknown mutation %', p_what;
   end if;

@@ -92,7 +92,7 @@ select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), fa
   'PRE ⭐: the delegate is NOT a member of comm_x — meetings_select cannot admit her');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …NOT a staff_admin of comm_x');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …NOT a commission_admin of comm_x — so her ONLY write-policy arm is member_can(schedule_meetings)');
 select is((select count(*)::int from public.commission_administrativo_capabilities
            where commission_id=(select comm_x from k) and user_id=(select st_y from k)

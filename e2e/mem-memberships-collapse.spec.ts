@@ -330,7 +330,7 @@ test('AC-3: self-grant via grant_role is rejected server-side (42501), never sil
   const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
   const chefeId = '00000000-0000-0000-0000-000000000002'
 
-  // chefe.ccih (staff_admin of CCIH, is_commission_admin_of=false) attempts to grant
+  // chefe.ccih (staff_admin of CCIH, is_tenancy_admin_of=false) attempts to grant
   // itself staff_admin again (a no-op-shaped self-grant) via the door directly.
   const resp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/grant_role`, {
     headers: {

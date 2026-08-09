@@ -580,7 +580,7 @@ select throws_ok(
 --   draft from them — so the insert failed on the READ, and dropping
 --   `created_by = auth.uid()` from the write qual left the suite 46/46.
 --   A reader-non-writer keystone needs a persona that genuinely CAN READ the row:
---   `is_commission_admin_of` is org_admin/hospital_admin (NOT staff_admin — qa
+--   `is_tenancy_admin_of` is org_admin/hospital_admin (NOT staff_admin — qa
 --   confirmed sa_x reads 0 foreign instances), so §J now mints an org_admin.
 --   J1a establishes the read; J1b is then unambiguously about the WRITE qual.
 -- ===========================================================================
@@ -591,7 +591,7 @@ insert into public.response_group_instances (id, response_id, group_item_id, pos
   values ('ff100000-0000-0000-0000-000000000032', 'ff100000-0000-0000-0000-000000000031', 'ff100000-0000-0000-0000-000000000011', 0);
 
 -- An org_admin of the fixture org: satisfies the SELECT policy's
--- is_commission_admin_of arm, but is NOT the draft's creator.
+-- is_tenancy_admin_of arm, but is NOT the draft's creator.
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
   values ('00000000-0000-0000-0000-000000000000', 'ff100000-0000-0000-0000-0000000000a1',
           'authenticated', 'authenticated', 'ff1-orgadmin@test', now(), now());
@@ -621,7 +621,7 @@ select is(
 -- failed on the READ, because write_own_draft's WITH CHECK subquery reads
 -- public.responses UNDER RLS, so a caller who cannot SEE the parent row yields
 -- `exists = false` no matter what the `created_by = auth.uid()` term says. An
--- org_admin was minted precisely to escape that — is_commission_admin_of was the only
+-- org_admin was minted precisely to escape that — is_tenancy_admin_of was the only
 -- reader-non-writer available.
 --
 -- QO·B removes it, and NO REPLACEMENT EXISTS. Post-M1 the readers of an in_progress

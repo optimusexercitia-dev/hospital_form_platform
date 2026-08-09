@@ -190,9 +190,9 @@ select is(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname like 'dashboard\_%'
-     and pg_get_functiondef(p.oid) ~ 'app\.is_commission_admin_of\('),
+     and pg_get_functiondef(p.oid) ~ 'app\.is_tenancy_admin_of\('),
   6,
-  'INVARIANT ⭐ (+ non-vacuity for t7): the SIX AGGREGATE dashboard doors carry the is_commission_admin_of arm — QO·B M5 cut it from the three ROW-LEVEL doors (was 9 of 9 before the D12 split)');
+  'INVARIANT ⭐ (+ non-vacuity for t7): the SIX AGGREGATE dashboard doors carry the is_tenancy_admin_of arm — QO·B M5 cut it from the three ROW-LEVEL doors (was 9 of 9 before the D12 split)');
 
 -- The other side of the two-class contract, asserted by NAME so the split cannot drift
 -- into the wrong three doors while the counts still add up.
@@ -200,7 +200,7 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('dashboard_export_rows','dashboard_free_text','dashboard_completion_by_member')
-     and pg_get_functiondef(p.oid) ~ 'app\.is_commission_admin_of\('),
+     and pg_get_functiondef(p.oid) ~ 'app\.is_tenancy_admin_of\('),
   0,
   'INVARIANT ⭐ QO·B: and the three ROW-LEVEL doors carry it ZERO times — named explicitly, because a bare count of 6 is satisfied by cutting ANY three');
 
@@ -275,7 +275,7 @@ select is(
    where n.nspname = 'public' and p.proname like 'dashboard\_%'
      and p.prosecdef
      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_staff_admin_of'
-     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_commission_admin_of'),
+     and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'app\.is_tenancy_admin_of'),
   6,
   'REBUILD GUARD ⭐: the six AGGREGATE doors keep SECURITY DEFINER + both admin arms (QO·B M5 removed the tenancy arm from the three ROW-LEVEL doors; was 9)');
 

@@ -9,10 +9,10 @@ import type { ActionState as MutationActionState } from '@/lib/safety/types'
  * Committee member-title mutations (ADR 0051 Decision 6) — a fifth per-commission
  * vocabulary (Presidente / Vice-Presidente / Secretário(a) …), DISPLAY-ONLY with
  * zero RLS/access semantics. Managed by the commission's `staff_admin` (admins
- * inherit via `is_commission_admin_of`, ADR 0051 Decision 1).
+ * inherit via `is_tenancy_admin_of`, ADR 0051 Decision 1).
  *
  * The DB authority is the A4 titles CRUD RPCs (non-DEFINER, in-body-gated
- * `is_staff_admin_of OR is_commission_admin_of` + RLS on the cookie client); these
+ * `is_staff_admin_of OR is_tenancy_admin_of` + RLS on the cookie client); these
  * `'use server'` actions call them and shape the pt-BR result. A forbidden caller's
  * RPC error (42501) surfaces as the generic pt-BR message — raw Postgres errors
  * never reach the UI (CLAUDE.md §8). Split out of `titles.ts` because a

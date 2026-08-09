@@ -102,7 +102,7 @@ select is(app.feature_enabled('action_items'), true,
 -- deny through the ROLE wrapper (gated since long before M5) and prove nothing.
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)), false,
   'PRE ⭐: the phase/action assignee is NOT staff_admin — the assignment is his ONLY arm');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_x from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_x from k)), false,
   'PRE ⭐: …nor commission_admin');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
   'PRE ⭐: the narrative assignee is NOT staff_admin either');

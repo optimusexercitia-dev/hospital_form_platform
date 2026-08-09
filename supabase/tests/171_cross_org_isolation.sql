@@ -195,7 +195,7 @@ select is(
 -- ⛔ UPDATED BY QO·B (20260915), exactly as A4 updated the case block below.
 -- This asserted `> 0` until the org_admin content wall landed. ADR 0100 D12 removed
 -- the tenancy-admin arm from the response plane (M1: responses_admin_all dropped,
--- is_commission_admin_of removed from responses_select), so an Organization User
+-- is_tenancy_admin_of removed from responses_select), so an Organization User
 -- ceases to be a Response Content source. org_admin A now reads ZERO responses in its
 -- OWN org too, not only rede-b. The noun rule still holds: it sees commissions,
 -- hospitals, memberships, profiles and the PHI-free aggregates — see the KEEP

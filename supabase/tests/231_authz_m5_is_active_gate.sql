@@ -4,7 +4,7 @@
 --   profiles.is_active AND (suspended_until is null or now() >= suspended_until)
 -- and fails closed on an absent profile. It was NEVER called inline by any case
 -- predicate — it was reached ONLY transitively, through the role wrappers
--- (is_staff_admin_of_for / is_commission_admin_of_for / is_member_of_for, and
+-- (is_staff_admin_of_for / is_tenancy_admin_of_for / is_member_of_for, and
 -- is_pqs_operator_of_for via both its legs).
 --
 -- Consequence: every RAW TABLE ARM — a case_access grant, a phase assignment, a
@@ -104,21 +104,21 @@ select is((select count(*)::int from public.patient_identifiers), 1,
 -- ===========================================================================
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)), false,
   'PRE ⭐: the phase assignee is NOT staff_admin of the case commission');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_x from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_x from k)), false,
   'PRE ⭐: …nor commission_admin — the phase assignment is his ONLY arm');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
   'PRE ⭐: the narrative assignee is NOT staff_admin of the case commission');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
   'PRE ⭐: …nor commission_admin — the narrative assignment is his ONLY arm');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: the READ grantee is NOT staff_admin of the case commission');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …nor commission_admin');
 select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …nor even a member — the grant is his ONLY arm');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select sa_y from k)), false,
   'PRE ⭐: the WRITE grantee is NOT staff_admin of the case commission (he is staff_admin of the OTHER one)');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select sa_y from k)), false,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select sa_y from k)), false,
   'PRE ⭐: …nor commission_admin — the write grant is his ONLY arm');
 -- The principals start ACTIVE. Without this the negatives below could be measuring
 -- a fixture that was never active in the first place (§7.1·3).

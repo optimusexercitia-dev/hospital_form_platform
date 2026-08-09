@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
  *
  * Every write routes through a SECURITY DEFINER RPC (posture (b) — the tables have
  * no direct write grant). Authoring (create/edit/add-version/submit/publish/
- * supersede/obsolete) is `is_staff_admin_of OR is_commission_admin_of`, enforced in
+ * supersede/obsolete) is `is_staff_admin_of OR is_tenancy_admin_of`, enforced in
  * the RPC — the sole authority (no client pre-check). Approve/reject is SIGN-OWN-ROW:
  * only a named, entitled (active same-hospital), still-pending approver may decide,
  * enforced in the RPC. All writes are AUDITED (Rule 11).

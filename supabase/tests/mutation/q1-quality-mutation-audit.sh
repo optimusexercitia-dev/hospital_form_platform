@@ -267,8 +267,8 @@ begin
     -- D11 boundary breach: a ROW-LEVEL door acquires the reviewer arm.
     d := pg_get_functiondef('public.dashboard_export_rows(uuid,date,date)'::regprocedure);
     d := app._mut_q1_sub(d,
-      'or app.is_commission_admin_of(v_commission_id)) then',
-      'or app.is_commission_admin_of(v_commission_id) or app.can_read_quality_dashboards(v_commission_id)) then');
+      'or app.is_tenancy_admin_of(v_commission_id)) then',
+      'or app.is_tenancy_admin_of(v_commission_id) or app.can_read_quality_dashboards(v_commission_id)) then');
     execute d;
 
   else

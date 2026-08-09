@@ -72,7 +72,7 @@ select is(app.has_case_capability('00000000-0000-0000-0000-0000000b1001', (selec
   'PRE ⭐: sa_y (foreign coordinator) has NO reach on comm_x''s case before any grant');
 select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: st_y (org_admin) is NOT a member of comm_x — the B6 arm cannot self-escalate');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), true,
   'PRE ⭐: …but the org-admin arm DOES resolve for comm_x (the deadlock exit is genuinely his)');
 
 -- ===========================================================================

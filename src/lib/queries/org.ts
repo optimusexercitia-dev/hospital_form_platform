@@ -540,7 +540,7 @@ interface CommissionDetailRow {
  * Comissões card (`/o/[org]/manage/comissoes`).
  *
  * RLS-safe for BOTH tiers: `memberships_select` and `forms_select` both gate on
- * the combined `app.is_commission_admin_of` predicate (org_admin OR
+ * the combined `app.is_tenancy_admin_of` predicate (org_admin OR
  * hospital_admin of the commission — ADR 0051), same as
  * {@link listManagedCommissions}. Coordinator rows whose profile RLS hid (null
  * `profiles`) are dropped; the remainder is sorted by name (pt-BR).

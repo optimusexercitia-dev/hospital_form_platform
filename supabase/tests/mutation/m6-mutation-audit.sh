@@ -50,7 +50,7 @@ begin
   -- functions on this program are rewritten at runtime, so re-emitting from a file
   -- silently reverts intervening patches (it has already broken one guard).
   if p_what = 'authority' then
-    -- `if not (is_staff_admin_of(x) or is_commission_admin_of(x))` -> never raises.
+    -- `if not (is_staff_admin_of(x) or is_tenancy_admin_of(x))` -> never raises.
     d := replace(d, 'app.is_staff_admin_of(', 'app._mut_true(');
   elsif p_what = 'exclusion' then
     d := replace(d, 'app.assert_not_case_excluded(', 'app._mut_noop(');

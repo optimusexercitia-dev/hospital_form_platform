@@ -199,8 +199,6 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.is_admin_for(p_user_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,224_memberships_collapse.sql,291_membership_invariants.sql,293_membership_door_kernel.sql |
 | app.is_case_excluded(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 188_case_custom_fields.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql,264_correction_requests.sql,265_reopen_void_narrative.sql |
 | app.is_case_respondent(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,254_ethics_e2_votes.sql,256_ethics_e2_hearings.sql,266_ethics_e3a_surfacing.sql,269_ethics_e3a_dashboard.sql |
-| app.is_commission_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4790) |
-| app.is_commission_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4790) |
 | app.is_document_approver_of(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 200_controlled_documents.sql,201_documents_redesign.sql |
 | app.is_document_version_approver(p_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 200_controlled_documents.sql |
 | app.is_entitled_document_approver(p_hospital uuid, p_user uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4769) |
@@ -227,6 +225,8 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.is_recused_from_case(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 188_case_custom_fields.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql,254_ethics_e2_votes.sql,256_ethics_e2_hearings.sql,264_correction_requests.sql,265_reopen_void_narrative.sql,266_ethics_e3a_surfacing.sql,267_ethics_e3a_autoderive.sql,269_ethics_e3a_dashboard.sql,281_accreditation_evidence_assessment.sql,283_accreditation_readiness_report.sql |
 | app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4588) |
 | app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4695) |
+| app.is_tenancy_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of`, verdict carried across (see note below) |
+| app.is_tenancy_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of_for`, verdict carried across |
 | app.is_technical_director_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 295_technical_director_referrals.sql |
 | app.referral_target_analyst(p_referral_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4651) |
 | accreditation_frameworks.accreditation_frameworks_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
@@ -391,3 +391,38 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 - `referral_requested_actions / referral_requested_actions_select_all / SELECT`
 - `referral_types / referral_types_select_all / SELECT`
 - `reply_outcomes / reply_outcomes_select_all / SELECT`
+
+---
+
+## Note — a RENAME moves a gate's verdict, and the census keys on NAMES (2026-08-09)
+
+`app.is_commission_admin_of(_for)` became `app.is_tenancy_admin_of(_for)` in
+`20260917000200`. Two things about that are worth keeping, because both are properties of
+this harness rather than of the rename:
+
+**1. `ARM=census` reported the renamed predicates as UNKNOWN — "no sweep has ever seen
+them" — and that was true only of the NAME.** The gate itself had carried a verdict since
+the full sweep; renaming it orphaned that verdict, because the census matches on the
+rendered signature. Left alone it would have reported a violation on every future run, and
+the obvious "fix" — sweeping and recording a fresh row — would have quietly created a
+duplicate for a gate that already had one. **So the rule is: when a gate is renamed, move
+its findings row in the same wave.** The rows above were carried across rather than
+re-derived, and are labelled as such.
+
+**2. The `ERROR` verdict is pre-existing and is NOT "unswept".** It reads as a gap and is
+not one. `run-shape!=baseline` is §7.15's guard: the neutralized run did not match the
+baseline's Files/Tests shape (5618 vs 5624 — six tests did not RUN), so the harness refuses
+to record a result. But the same run produced a **broad spread of genuine assertion
+failures** — cross-commission indicator reads, `case_tags` isolation, staff_admin-gated RPC
+denials, zeroed KPI rows — i.e. keystones notice this gate opening, loudly and in many
+suites. The gate is covered in substance; the harness simply cannot classify a predicate
+this load-bearing, because opening it destabilises the suite shape it measures against.
+
+That is a known class, not a one-off: `app.is_admin()`, `app.is_staff_admin_of(_for)`,
+`app.is_pqs_operator_of(_for)`, `app.is_pqs_member_of_for`, `app.is_entitled_document_approver`
+and `app.referral_target_analyst` all carry the identical `ERROR | run-shape!=baseline`.
+**The most central predicates in the platform are exactly the ones this harness cannot
+verdict** — which is worth fixing at the harness level (compare against a per-case expected
+shape, or treat "≥N genuine assertion failures" as COVERED regardless of shape) rather than
+by keystoning gates that are already densely asserted. Recorded, not actioned: it is a
+harness change, and this wave was a rename.

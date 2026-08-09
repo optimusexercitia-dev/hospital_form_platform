@@ -543,7 +543,7 @@ select is((select sensitivity_tier from public.attachments where id = '00000000-
 -- ⚠ PRINCIPAL CORRECTED BY QO·B (20260915), and the OLD ONE WAS MISLABELLED. This twin
 -- said "coordinator" but passed `sa_y`, which line 107 of this file inserts as *a CLEAN
 -- org_admin of org_x* — so it was really proving that the TENANCY admin could
--- declassify, via reclassify_attachment's is_commission_admin_of arm (the §W-2.5 note at
+-- declassify, via reclassify_attachment's is_tenancy_admin_of arm (the §W-2.5 note at
 -- L319 spells that dependency out). QO·B M4 removes that arm (ADR 0100 D12), so the twin
 -- had to move to a principal who genuinely is what the assertion CLAIMS.
 --

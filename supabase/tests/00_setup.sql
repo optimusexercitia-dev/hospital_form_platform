@@ -28,7 +28,7 @@ declare
   sa_y uuid := gen_random_uuid();
   st_y uuid := gen_random_uuid();
   -- AFF T3.5 / FUP-PCITV-1 row 6 — the ORG_ADMIN the hermetic fixture never had.
-  -- Its absence left the `is_commission_admin_of` ORG disjunct of six existing
+  -- Its absence left the `is_tenancy_admin_of` ORG disjunct of six existing
   -- isolation keystones unexercised: every one of them denied (or admitted) through
   -- the staff_admin arm, so the org arm could have been anything at all.
   oa_b uuid := gen_random_uuid();
@@ -167,7 +167,7 @@ begin
     (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);
 
   -- The org-tier grant (organization_id set, hospital + commission NULL, per
-  -- memberships_scope_shape). This makes `app.is_commission_admin_of(comm_x)` true for
+  -- memberships_scope_shape). This makes `app.is_tenancy_admin_of(comm_x)` true for
   -- oa_b through its ORG leg, with no commission row at all — which is precisely the
   -- disjunct the fixture could not reach before.
   insert into public.memberships (organization_id, principal_id, role) values

@@ -15,7 +15,7 @@
  *  - The hospital tier reads ONLY via `hospital_indicator_rollup` (a PHI-free
  *    DEFINER scorecard — counts + names), never the row (no table grant).
  *  - KPIs / series come from DEFINER RPCs gated `is_staff_admin_of OR
- *    is_commission_admin_of` (kpis) / member (series); a non-privileged caller
+ *    is_tenancy_admin_of` (kpis) / member (series); a non-privileged caller
  *    gets zeros / an empty list.
  *
  * PHI-FREE: indicators are aggregate process/quality metrics (ADR 0057).

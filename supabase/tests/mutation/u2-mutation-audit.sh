@@ -81,10 +81,10 @@ begin
     -- Drop the case-exclusion term from BOTH USING and WITH CHECK (back to pre-U2).
     execute $p$ alter policy action_items_staff_admin_write on public.action_items
       using ((app.is_staff_admin_of(commission_id)
-              or (app.is_commission_admin_of(commission_id)
+              or (app.is_tenancy_admin_of(commission_id)
                   and (visibility_scope is distinct from 'case_restricted'))))
       with check ((app.is_staff_admin_of(commission_id)
-              or (app.is_commission_admin_of(commission_id)
+              or (app.is_tenancy_admin_of(commission_id)
                   and (visibility_scope is distinct from 'case_restricted')))) $p$;
 
   elsif p_what = 'revert_recompute_guard' then

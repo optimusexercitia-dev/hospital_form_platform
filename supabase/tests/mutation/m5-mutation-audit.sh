@@ -10,7 +10,7 @@
 # The tempting mutation is `create or replace app.is_active(...) returns true`. That
 # is EXACTLY the global neuter the M1 harness warns against, and here it is worse
 # than useless: is_active is ALSO the gate inside is_staff_admin_of_for /
-# is_commission_admin_of_for / is_member_of_for / is_nsp_coordinator_of_for /
+# is_tenancy_admin_of_for / is_member_of_for / is_nsp_coordinator_of_for /
 # is_pqs_member_of_for. Neutering it globally would WIDEN every role arm at once, so
 # a keystone could go red because some unrelated role arm opened — telling us nothing
 # about M5's gate. Instead each case surgically rewrites ONE function's body to call a

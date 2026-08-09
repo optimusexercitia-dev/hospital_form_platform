@@ -67,7 +67,7 @@ const CAPABILITIES: readonly MemberCapability[] = [
  *
  * ⚠ BUG-AFF-1 — IT WAS STRONGER, AND THAT IS WHY NOTHING CAUGHT IT. The mirror had two
  * arms (staff_admin of the commission, org_admin of its org) while every door it fronts
- * gates on `app.is_commission_admin_of[_for]`, which resolves to:
+ * gates on `app.is_tenancy_admin_of[_for]`, which resolves to:
  *
  *     has_role('organization', c.organization_id, 'org_admin')
  *  OR has_role('hospital',     c.hospital_id,     'hospital_admin')
@@ -75,9 +75,9 @@ const CAPABILITIES: readonly MemberCapability[] = [
  * — the HOSPITAL leg was missing here and present everywhere else. Verified against the
  * live catalog for all six doors this helper fronts, not inferred from one:
  *   `appoint_administrativo`, `revoke_administrativo`, `grant_member_capability` and
- *   `revoke_member_capability` each gate on `is_staff_admin_of OR is_commission_admin_of`;
+ *   `revoke_member_capability` each gate on `is_staff_admin_of OR is_tenancy_admin_of`;
  *   `grant_role`/`revoke_role` delegate to `app.grant_role_impl`/`app.revoke_role_impl`,
- *   whose commission-tier arms admit `is_commission_admin_of_for` for BOTH `staff` and
+ *   whose commission-tier arms admit `is_tenancy_admin_of_for` for BOTH `staff` and
  *   `staff_admin` (including the T1.0 role-replacement branch).
  * The READ side already admitted them too — `list_addable_commission_members` is org-scoped
  * (ADR 0097 finding 1), which is why the picker populated. So a hospital admin got a full
@@ -89,7 +89,7 @@ const CAPABILITIES: readonly MemberCapability[] = [
  * re-narrow it "for consistency" with the other TS checks.
  *
  * ⚠ `isInactive` is checked here for the same reason, and it is a SECOND instance of the
- * same drift found while deriving this one: `is_commission_admin_of_for` folds
+ * same drift found while deriving this one: `is_tenancy_admin_of_for` folds
  * `app.is_active(p_user_id)`, but `getSessionContext` does not empty the grant lists for a
  * suspended or deactivated caller — it reports `isInactive` separately. Every sibling
  * helper checks it; this one did not. Strictly narrowing, and it makes the mirror faithful.
@@ -124,7 +124,7 @@ async function authorizeStaffOps(commissionId: string): Promise<boolean> {
     return true
   }
 
-  // The two `is_commission_admin_of` legs. Both need the commission's scope columns, so
+  // The two `is_tenancy_admin_of` legs. Both need the commission's scope columns, so
   // they share one read — and that read is RLS-scoped on purpose: a caller who cannot
   // SELECT the commission cannot administer it either. (`commissions_select_member_or_admin`
   // carries `app.is_hospital_admin_of(hospital_id)`, so the hospital leg is reachable —

@@ -450,7 +450,7 @@ test('AC-5a: non-operator staff_admin sees only the action-item fallback (no CAP
 //         (plan creation, hospital_id derivation, the commission-member READ
 //         arm, the foreign-staff_admin DENIAL) is proven the same way AC-6
 //         already proves loop closure: through the real `open_capa_plan` door,
-//         whose SQL-level gate (`is_commission_admin_of` OR PQS-operator) was
+//         whose SQL-level gate (`is_tenancy_admin_of` OR PQS-operator) was
 //         never touched by QO·B and still authorizes admin@ end to end.
 // ---------------------------------------------------------------------------
 
@@ -468,7 +468,7 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
 
   // The operator-tier AUTHORIZATION itself is unaffected by QO·B — proven
   // through the real door `open_capa_plan`, exactly as AC-6 below does for
-  // loop closure. Its SQL gate is `is_commission_admin_of(source_commission)
+  // loop closure. Its SQL gate is `is_tenancy_admin_of(source_commission)
   // OR is_pqs_operator_of(hospital)`, neither arm touched by the QO·B
   // migrations (M1–M6 never mention CAPA doors).
   const adminTok = await getOwnerToken(page, 'admin@test.local')
@@ -689,7 +689,7 @@ test('AC-8a: plain staff cannot edit indicators (RPC rejects; area 404)', async 
       data: { p_indicator: id, p_period_label: '2097-01', p_numerator: 1, p_denominator: 2 },
     },
   )
-  // The RPC is is_staff_admin_of OR is_commission_admin_of gated → 42501 forbidden.
+  // The RPC is is_staff_admin_of OR is_tenancy_admin_of gated → 42501 forbidden.
   expect(resp.status(), 'record_indicator_measurement forbidden for plain staff').toBe(403)
 
   // No row was written (RLS/RPC authority held).

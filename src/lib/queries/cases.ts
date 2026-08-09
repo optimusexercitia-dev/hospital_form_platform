@@ -980,7 +980,7 @@ const CASES_BOARD_CAP = 200
  * BOTH halves were false, and the second is the dangerous one — it described an
  * invariant the code never had (grantees and assignees always got rows) and would
  * have made an empty board look like the security model working. The RPC did carry
- * an `is_staff_admin_of OR is_commission_admin_of` fast-path, but it SHORT-CIRCUITED
+ * an `is_staff_admin_of OR is_tenancy_admin_of` fast-path, but it SHORT-CIRCUITED
  * the per-row filter rather than gating the call: it returned an org_admin an
  * `explicit_grants_only` ethics case, and returned a coordinator his OWN respondent
  * case, both with `can_read_case = false`. Removed in the ADR-0078 Gate-2 wave; a
