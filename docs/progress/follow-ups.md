@@ -121,10 +121,13 @@ as undecided, with the measurement already done so whoever rules next does not r
   arm and a DEFINER's gate *replaces* RLS. The doors were refusing what the boundary already
   granted. `create_case_from_template` deliberately keeps staff_admin-only (content, not
   container).
-- ▶ **The `is_commission_admin_of` → `is_tenancy_admin_of` rename wave** — PO-approved 2026-08-08,
-  re-confirmed 2026-08-09, sequenced LAST of the three waves so it sweeps a settled catalog once.
-  Live blast radius measured 2026-08-09: **77 functions + 54 policies + 318 repo files**, two
-  function objects (bare + `_for`).
+- ⬛ **The `is_commission_admin_of` → `is_tenancy_admin_of` rename** — **DONE 2026-08-09**
+  (`20260917000200`, ADR [0105](../decisions/0105-rename-is-tenancy-admin-of.md)). No shim;
+  historical docs deliberately not rewritten (PO). ⚠ **The mechanism was the opposite of the
+  D11 prior:** `pg_policy` stores a parsed tree referencing the function by **OID**, so all 54
+  policies followed the rename with **zero edits**; only `pg_proc.prosrc` (plain text) had to be
+  rewritten, 75 bodies. D11's "rewrote pg_proc, never pg_policy" was an **enum** re-key, where
+  labels are string literals — same-shaped task, different substrate. Measured, not assumed.
 - *(Same family, pre-existing, recorded by backend during B.11: the `context.isAdmin`
   platform-admin arms on content action pre-checks — a noun-rule sweep candidate at the TS
   layer; DB re-gates, no leak.)*
