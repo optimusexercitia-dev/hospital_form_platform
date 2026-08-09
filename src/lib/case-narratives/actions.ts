@@ -170,8 +170,12 @@ function revalidateCase(): void {
  * addAdHocNarrative / assignNarrative / unassignNarrative): admin, or a
  * MEMBERSHIP staff_admin of THAT commission. ⛔ Deliberately NOT the config
  * seam — per-case narrative writes are committee content under the ADR 0100 D12
- * wall (their DB substrates carry no tenancy arm; `update_case_narrative_body`
- * is on the ratified §4.4 CUT list).
+ * wall. The tenancy admin is walled at the DB by QO·B M7 (migration
+ * 20260916000000): `update_case_narrative_body` had its tenancy arm cut, and as
+ * an INVOKER door its RLS lookup denies the tenancy admin regardless; the
+ * add/assign/unassign narrative doors are DEFINER and lost their arm in the same
+ * migration (see §4.4). This membership-only pre-check mirrors that wall for a
+ * clean pt-BR forbidden — RLS/the RPC is the boundary (Architecture Rule 1).
  */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()

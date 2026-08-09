@@ -96,7 +96,8 @@ ADR [0100](docs/decisions/0100-quality-office-oversight.md) **D12** · PO ruling
 | B.4 | **M5 response DOORS · M6 document DOORS** — the hole M1–M4 left | ✅ |
 | B.5 | A/B matrix · `b1` mutation audit (17/17) · ARM gates · 3 door sweeps | ✅ |
 | B.6 | E2E `qob-org-admin-content-wall.spec.ts` | ✅ 6/6 GATE GREEN |
-| B.7 | **`qa` review (gate step 3)** → **human approval (step 4)** → Record (step 5) | ⬜ **NOT STARTED** |
+| B.7 | **`qa` review (gate step 3)** → **human approval (step 4)** → Record (step 5) | ⛔ **r1 CHANGES REQUESTED** ([review](docs/reviews/phase-QO-B-review.md)) → remediated in B.15 → awaiting r2 |
+| B.15 | **backend: QA r1 BLOCKER-1 + MAJOR-1 remediation — M7** (`20260916000000_qob_m7_case_door_wall_completion.sql`). M4 cut a PROXY population (*"functions carrying `assert_not_case_excluded`"*, a different wave's enumeration), leaving ~16 §4.4 doors armed; QA reproduced live writes at both tenancy tiers. **M7 derives the population from the RATIFIED §4.4 LIST ITSELF**, item by item against the live catalog: **20 functions edited** (16 armed doors incl. the QA-listed `remove_case_participant`/`record_recusal`/`case_viewer_capabilities` + the measured `add_case_participant`/`bulk_create_cases`/`lift_recusal` + 4 masked-token strips on `get_case_detail`/`list_my_cases`/`create_case`/`create_case_from_template`) + **3 `case_events` policy arms**. Postcondition asserts **CORRESPONDENCE to the enumerated §4.4 names**, not a count. **MAJOR-1:** `cancel_case`/`close_case` (the two doors that actually exhibited silent-success — `set_case_outcome`/`update_case_narrative_body` deny at their RLS lookup, measured) gain a **zero-row not-found guard**. Re-measured post-M7: every door DENIES both tiers, `orgadmin.b`+coordinator controls discriminate. Keystoned `314` **§11 +35 (plan 111)**; `b1` **31→39 cases, 39/39 RED-PROVEN** (2 vacuous arm-restores deliberately omitted — masked tokens behind an RLS lookup, covered by 11.34 catalog correspondence), RESTORE byte-identical, CONTROLS 111+53. Fixed **229** (its M1·2 positive twin used `sa_y`/org_admin to lift a recusal as a fixture side-effect — M7 removed that reach, cascading exclusion into 12 downstream tests; flipped to a wall assertion + direct recusal teardown, 89/89). Corrected the false `case-narratives/actions.ts` comment. **Gates:** fresh reset **329=329** · pgTAP **175f/5616/PASS** · diff-scoped door sweep **0 BLIND / 0 ERROR** (case_events_select COVERED; 2 write-check policies are narrowings, the ADR 0079 Amdt 5 write-path gap, pinned by 11.33) · `ARM=census`+`ARM=floor` **HOLD** · lint 0/0 · tsc · vitest 1194. Re-opened **BUG-QOB-002** (QA r1 finder) | ✅ backend 2026-08-09 (awaiting QA r2) |
 | B.8 | **backend:** behavioural keystones + red-proofs for the M5/M6 doors that had only structural cover (self-audit risk #1). Population **re-derived from the live catalog**: **13 doors, not 12** (`dashboard_completion_by_member`'s 7.3 zero had no twin and no red-proof; the "nine + four" count in the brief was off by one) · `revoke_printed_document` re-confirmed a **deliberate KEEP** (ADR 0104 D11; M6 postcondition (c) + `314` 8.5 pin it) · the 4 correction doors never carried the tenancy arm (catalog-verified) so they were never in the hole. `314` §9/§10 **+27 assertions (plan 76)**, every denial twinned (distinct-SQLSTATE discipline: authority 42501/HC0J1/P0002-gate-2 precedes state gates) · `b1` extended **17→31 cases, 31/31 RED-PROVEN**, RESTORE byte-identical, CONTROLS 76+53 green | ✅ backend 2026-08-09 |
 | B.9 | **backend: FUP-QOB-1** — `270` §J **J1c** catalog pin on `response_group_instances_write_own_draft` (existence + `created_by = auth.uid()` in BOTH qual/with_check), **PROVISIONAL pending PO ratification**; red-proven by b1 `fup_qob1_drop_created_by` — **J1c reds while J1b stays green** (`ok 40` / `not ok 41`), demonstrating the recorded vacuity live | ✅ backend 2026-08-09 (PO ratification open) |
 | B.10 | **backend: BUG-QOB-003 backend half** — `session.ts` coercion removed (`role` = membership only), new `CommissionAccess.isTenancyAdmin` flag + `canConfigureCommission()` config seam (Q1–Q9 KEEP), `submissions.ts` `canCorrect` stale tenancy mirror cut. **UI half open → frontend** (commission layout currently 404s a bare tenancy admin) | ✅ backend 2026-08-09 |
@@ -356,18 +357,31 @@ whether `encaminhamentos/**` should get its own `canConfigureCommission`-style K
 **a PO ruling this program never asked for**, same class as the standing rule *"conferring a
 capability requires enumerating its consumers."* Owner: PO/backend.
 
-⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
-2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:
-`get_case_detail(case_a)` **denied** (`caso … não encontrado`) and `cases` returned **0 rows**,
-while `update_case_meta(case_a, 'PHASE-B-PROBE', …)` **SUCCEEDED** and renamed the case.
-**[CAT]** the door's authority block is `if app.is_staff_admin_of(v_commission) or
-app.is_commission_admin_of(v_commission)` and it **never consults `can_read_case`** — it reads
-`public.cases` directly inside SECURITY DEFINER, so RLS never applies. **Mechanism:** A4
-narrowed the case *read* plane (policies + 4 functions) and left the *write* doors on the
-tenancy predicate, so the two planes disagree. ~30 sibling doors share the shape (inventory
-§4.4). ⚠ Nothing in the ADR 0079 estate catches this: the doors are reachable and their gates
-are *present*, just wrong — and **25 of the 144 are INVOKER** (`prosecdef = f`), the
-AUDIT-INVOKER-WRAPPER blind spot in *Remaining pre-pilot work* item 4.
+🔴 **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ. RE-OPENED
+2026-08-09 (QA r1 finder) → FIXED by M7 2026-08-09 (backend), pending QA r2 re-verification.**
+Filed 2026-08-08 (QO·B step ①). ⚠ **Was recorded CLOSED-by-M4 prematurely** — M4 cut a PROXY
+population (*"the functions carrying `assert_not_case_excluded`"*, a different wave's
+enumeration), so ~17 §4.4 doors that never carried that guard **stayed armed**. QA r1
+re-measured on a fresh reset and reproduced live writes at BOTH tenancy tiers:
+`remove_case_participant` set `removed_at`; `record_recusal` wrote a `case_recusals` row;
+`case_viewer_capabilities` reported `can_manage_lifecycle:true` over an unreadable case.
+**[MEAS]**, original repro: `get_case_detail(case_a)` denied (`caso … não encontrado`), `cases`
+0 rows, while `update_case_meta` SUCCEEDED. **Mechanism:** A4 narrowed the case *read* plane
+and left the *write* doors on the tenancy predicate; M4 cut only the subset carrying A4's
+guard. **Fix — M7 (`20260916000000`):** population derived from the **ratified §4.4 list
+itself**, item by item against the live catalog (20 functions edited: 16 armed doors + 4
+masked-token strips; 3 `case_events` policy arms). Post-M7 re-measurement, same fixtures:
+every door DENIES the tenancy admin at authority/not-found; `orgadmin.b` cross-org control and
+`chefe.ccih` coordinator twin both discriminate. Keystoned in `314` §11 (35 assertions,
+plan 111) and red-proven in `b1` (41/41, RESTORE byte-identical). The postcondition asserts
+CORRESPONDENCE to the enumerated §4.4 names, not a count (QA r1's core lesson: M4's
+count-shaped postcondition validated the proxy, not the list).
+⚠ **Also fixed under this bug (QA r1 MAJOR-1):** `cancel_case`/`close_case` are INVOKER doors
+whose authority admitted and whose terminal DML then no-op'd under RLS — they **returned
+SUCCESS writing nothing** for an authority-passing-but-RLS-invisible principal (an excluded
+staff_admin). M7 adds a zero-row not-found guard to those two (red-proven in `b1`); the other
+two QA named (`set_case_outcome`/`update_case_narrative_body`) were measured to deny at their
+RLS lookup and never had the silent-success shape — recorded honestly in `314` §11d.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
