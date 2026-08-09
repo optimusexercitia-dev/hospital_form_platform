@@ -307,17 +307,37 @@ is likewise org-level vocabulary → KEEP. Verified from `information_schema.col
 | `b1` mutation audit | **11/11 RED-PROVEN** (8 under-cut + 3 over-cut), RESTORE byte-identical, CONTROL 33 ok / 0 not ok |
 | `ARM=census` | **HOLDS** — 450 live gates, 460 verdicts, no unswept newcomer |
 | `ARM=floor` | **HOLDS** — 82 never-called doors, all allowlisted |
-| Diff-scoped door sweep | **15 items**, derived from the migration diff — ⚠ in progress; first finding below |
+| Diff-scoped door sweep | **15 scoped / 13 ran** (see note) — **3 BLIND, 10 COVERED, 0 harness ERROR**; the 3 keystoned and re-swept |
 | E2E | spec written (`e2e/qob-org-admin-content-wall.spec.ts`); **not yet run** |
 | `qa` review | not started |
 
-**Open findings from this build:**
+**Sweep note — 2 of the 15 scoped items did not run, and neither is a gap:**
+`responses_admin_all` no longer exists (M1 dropped it outright), and
+`controlled_documents_obj_insert_writable` lives in the **`storage`** schema, which is outside
+this harness's `public` population — the same blind spot q1's header records for M8. It is
+covered instead by `314` §5.1's catalog invariant, which spans `storage` explicitly.
+⚠ **The M4 case doors are not in this sweep either** — they are void/record-returning RPCs, not
+boolean gates, so the harness cannot neutralize them. Their coverage is the `b1` mutation audit
+(`restore_case_door_arm`, RED-PROVEN), not this arm. *Name the arm, never the script.*
 
-- ⛔ **`app.can_read_document_object` is BLIND** (diff-scoped sweep, PREDICATE ARM).
-  Neutralizing it reds nothing in the entire suite. M2 changed this gate, and `314` keystones
-  its sibling `can_read_document_of_version` (2.4/2.5) but not it. It governs the
-  controlled-document **storage bytes**, so it is a content boundary, **not** an unreachable
-  backstop — §6 says keystone it, never allowlist it. Fix: add the missing 314 keystones.
+**Findings from this build:**
+
+- ✅ **3 BLIND gates found and closed.** `app.can_read_document_object` ·
+  `answer_matrix_cells_select` · `answer_risk_matrix_select` — neutralizing each reddened
+  **nothing** in the whole suite. All three are content boundaries, so §6 required keystoning,
+  never allowlisting. Fixed by `314` 1.2c–1.2f and 2.8/2.9 (each with a non-vacuity twin), and
+  re-swept to confirm COVERED.
+  **Two lessons, both general:**
+  ① *A structural assertion cannot substitute for a behavioural one.* §5.1 greps the policy
+  qual for the tenancy arm — and a policy neutralized to `using(true)` contains no such text,
+  so §5.1 passes while the gate is wide open. The catalog invariant and the keystone cover
+  different failures; neither implies the other.
+  ② *Keystoning one wrapper of a pair does not carry the other.* `can_read_document_of_version`
+  came back **COVERED** off 2.4/2.5 while its sibling `can_read_document_object` was BLIND —
+  the precision of that contrast is what made the gap obvious.
+  ③ The two answer satellites were BLIND **because they hold zero rows in a clean seed** — the
+  same emptiness already flagged as invisible to the A/B matrix. Coverage honesty in a header
+  is not coverage; the fixture is.
 - 🔴 **BUG-QOB-003** — the UI still resolves a tenancy admin to `staff_admin`
   ([session.ts:459](../../src/lib/queries/session.ts:459)), so the wall closes underneath
   coordinator affordances that can no longer work. Not a security defect; needs a PO ruling.

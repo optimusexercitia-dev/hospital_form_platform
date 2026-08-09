@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(33);
+select plan(39);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -88,6 +88,52 @@ from f, k, public.form_items i
 where i.form_version_id = k.ver_u and i.question_key is not null
 limit 1;
 
+-- ── MATRIX SATELLITES ────────────────────────────────────────────────────────
+-- ⛔ ADDED AFTER THE DIFF-SCOPED DOOR SWEEP RETURNED **BLIND** for
+-- answer_matrix_cells_select and answer_risk_matrix_select. Both tables hold ZERO rows
+-- in a clean seed, so neutralizing their policies to `using(true)` reddened NOTHING in
+-- the whole suite — no keystone was asserting through them. §5.1's CATALOG invariant
+-- does not cover this: it greps the qual for the tenancy arm, and a policy opened to
+-- `true` has no such text, so it passes. A structural assertion cannot substitute for a
+-- behavioural one. These fixtures make the two policies observable.
+--
+-- ⚠ They need their OWN form version: the bootstrap's ver_u is PUBLISHED, and Rule 5
+-- makes a published version's structure immutable (the insert is refused outright).
+-- It stays a DRAFT — status changes must go through a door, and [CAT] the only
+-- version-related trigger on `responses` (guard_response_version_commission) checks the
+-- COMMISSION matches, never the status, so a draft version is a valid anchor here. The
+-- policies under test join answers -> responses and never look at version status.
+insert into public.forms (id, commission_id, title)
+select '00000000-0000-0000-0000-00000000f540', k.comm_x, 'Formulário QO·B (matriz)' from k;
+insert into public.form_versions (id, form_id, version_number, status)
+values ('00000000-0000-0000-0000-00000000f541', '00000000-0000-0000-0000-00000000f540', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, title, is_default)
+values ('00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 0, 'Seção QO·B', true);
+
+insert into public.form_items (id, section_id, form_version_id, item_type, position, question_key, label)
+values ('00000000-0000-0000-0000-00000000f501', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'matrix', 0, 'qob_matrix', 'Matriz QO·B'),
+       ('00000000-0000-0000-0000-00000000f502', '00000000-0000-0000-0000-00000000f542', '00000000-0000-0000-0000-00000000f541', 'risk_matrix', 1, 'qob_risk', 'Risco QO·B');
+
+insert into public.form_matrix_rows (id, item_id, form_version_id, position, code, label) values
+  ('00000000-0000-0000-0000-00000000f511','00000000-0000-0000-0000-00000000f501','00000000-0000-0000-0000-00000000f541',0,'r1','Linha 1'),
+  ('00000000-0000-0000-0000-00000000f521','00000000-0000-0000-0000-00000000f502','00000000-0000-0000-0000-00000000f541',0,'s1','Severidade 1');
+insert into public.form_matrix_columns (id, item_id, form_version_id, position, code, label) values
+  ('00000000-0000-0000-0000-00000000f512','00000000-0000-0000-0000-00000000f501','00000000-0000-0000-0000-00000000f541',0,'c1','Coluna 1'),
+  ('00000000-0000-0000-0000-00000000f522','00000000-0000-0000-0000-00000000f502','00000000-0000-0000-0000-00000000f541',0,'p1','Probabilidade 1');
+
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
+select '00000000-0000-0000-0000-00000000f543', '00000000-0000-0000-0000-00000000f541', k.comm_x, k.st_x, 'in_progress', now() from k;
+
+insert into public.answers (id, response_id, item_id, question_key, form_version_id) values
+  ('00000000-0000-0000-0000-00000000f531','00000000-0000-0000-0000-00000000f543','00000000-0000-0000-0000-00000000f501','qob_matrix','00000000-0000-0000-0000-00000000f541'),
+  ('00000000-0000-0000-0000-00000000f532','00000000-0000-0000-0000-00000000f543','00000000-0000-0000-0000-00000000f502','qob_risk','00000000-0000-0000-0000-00000000f541');
+
+insert into public.answer_matrix_cells (answer_id, row_id, col_id)
+values ('00000000-0000-0000-0000-00000000f531','00000000-0000-0000-0000-00000000f511','00000000-0000-0000-0000-00000000f512');
+insert into public.answer_risk_matrix (answer_id, severity_row_id, likelihood_col_id)
+values ('00000000-0000-0000-0000-00000000f532','00000000-0000-0000-0000-00000000f521','00000000-0000-0000-0000-00000000f522');
+
 -- doc_type / kind values are CHECK-constrained; taken from pg_constraint, not guessed.
 insert into public.controlled_documents (id, commission_id, code, title, doc_type)
 select f.doc1, k.comm_x, 'QOB-DOC-1', 'Documento QO·B', 'sop' from f, k;
@@ -122,6 +168,11 @@ select is((select count(*)::int from public.responses where id in (select resp_s
 select is((select count(*)::int from public.answers a join public.responses r on r.id=a.response_id
            where r.id = (select resp_prog from f)), 0,
   '1.2 ⭐ WALL: ...and zero of their answers');
+-- ⛔ 1.2c/1.2d ADDED AFTER THE DOOR SWEEP RETURNED **BLIND** for both satellites.
+select is((select count(*)::int from public.answer_matrix_cells), 0,
+  '1.2c ⭐ WALL (was BLIND): org_admin reads ZERO answer_matrix_cells — behavioural, because §5.1''s catalog grep still passes on a policy opened to `true`');
+select is((select count(*)::int from public.answer_risk_matrix), 0,
+  '1.2d ⭐ WALL (was BLIND): ...and ZERO answer_risk_matrix');
 select is((select count(*)::int from public.responses where id = (select resp_prog from f) and status='in_progress'), 0,
   '1.3 BUG-QOB-001: the in-progress draft it used to be able to DELETE is not even visible');
 -- ATTEMPT THE BUG. 1.3 only proves invisibility; the filed defect was a DESTRUCTIVE
@@ -149,6 +200,10 @@ select is((select count(*)::int from public.responses where id = (select resp_pr
 select is((select count(*)::int from public.answers a join public.responses r on r.id=a.response_id
            where r.id = (select resp_prog from f)), 1,
   '1.2b NON-VACUITY TWIN ⭐: the creator DOES read an answer on that response — 1.2''s zero is the wall. 1.2 shipped WITHOUT this twin and the mutation audit proved it unfalsifiable; the twin is the fix');
+select is((select count(*)::int from public.answer_matrix_cells), 1,
+  '1.2e NON-VACUITY TWIN ⭐: the creator DOES read the matrix cell — 1.2c''s zero is the wall, not the empty-in-seed table that made the sweep call it BLIND');
+select is((select count(*)::int from public.answer_risk_matrix), 1,
+  '1.2f NON-VACUITY TWIN ⭐: ...and the risk-matrix row');
 reset role;
 
 select test_helpers.claims_for((select sa_x from k), false);
@@ -184,6 +239,21 @@ select is(app.can_view_printed_document('form_response', (select resp_sub from f
   '2.6 ⭐ WRAPPER: can_view_printed_document''s form_response arm denies the tenancy admin — its mirror of responses_admin_all moved when M1 deleted that policy (printed_documents has 0 seed rows, so ONLY this behavioural probe covers it)');
 select is(app.can_view_printed_document('form_response', (select resp_sub from f), (select st_x from k)), true,
   '2.7 NON-VACUITY TWIN: ...and still admits the response''s creator');
+
+-- ⛔ 2.8/2.9 ADDED AFTER THE DOOR SWEEP RETURNED **BLIND** for can_read_document_object.
+-- Its sibling can_read_document_of_version came back COVERED (2.4/2.5), which is exactly
+-- what made the gap precise: I keystoned one wrapper of a pair and assumed the other was
+-- carried along. It is not — it gates the controlled-document STORAGE BYTES, a content
+-- boundary, so §6 says keystone it, never allowlist it. The object name's folder shape is
+-- [1] = commission_id, [2] = document_id (read from the function body, not guessed).
+select is(app.can_read_document_object(
+            (select comm_x from k)::text || '/' || (select doc1 from f)::text || '/arquivo.pdf',
+            (select oa_b from k)), false,
+  '2.8 ⭐ WRAPPER (was BLIND): can_read_document_object denies the tenancy admin the document BYTES');
+select is(app.can_read_document_object(
+            (select comm_x from k)::text || '/' || (select doc1 from f)::text || '/arquivo.pdf',
+            (select st_x from k)), true,
+  '2.9 NON-VACUITY TWIN: ...and still admits a committee member, so 2.8 is the wall and not a malformed object name');
 
 -- =============================================================================
 -- §3 — INDICATORS: the ruling is a SPLIT (Q3). Both halves asserted.
