@@ -359,3 +359,278 @@ found by asking the catalog which functions still carry the arm, then calling ea
 real principal with a control. The self-audit's risk ② said exactly this (*"the ratified CUT
 list was executed by hand, and I got it wrong twice… re-derive the population independently
 rather than re-run mine"*). It was right, and it was pointing at the plane it did not check.
+
+---
+---
+
+# QO·B — QA review, ROUND 2
+
+**Under test:** M7 (`e84994b`, migration `20260916000000_qob_m7_case_door_wall_completion.sql`)
+· records + comment fix (`a5b40e1`) · post-M7 declare-green gate B.16 (`3039b30`).
+**Reviewer:** `qa` · **Date:** 2026-08-09 · fresh `supabase db reset`, **329 registered ==
+329 files** verified before any reading.
+
+Backend's B.15 disposition table was read as **the claim under test, not as evidence**.
+Every closure below is my own re-probe on my own fixtures.
+
+## ✅ VERDICT: **APPROVED**
+
+BLOCKER-1 and MAJOR-1 are closed and I re-proved both. All four r1 MINOR/INFO items are
+resolved. M7 introduces no over-cut and no regression. One new **MINOR** — a stale
+PROGRESS.md summary block that contradicts its own section body — is record hygiene for the
+lead, not a gate blocker.
+
+---
+
+## ⛔ → ✅ BLOCKER-1 — CLOSED
+
+### Correspondence, re-derived independently
+
+I did **not** re-run M7's list. I extracted the 32 §4.4 names from the **inventory document
+itself** and asked the catalog:
+
+```
+CUT-SIDE STILL ARMED   : (none)          <- 27 names (32 minus the 5 ratified KEEPs)
+MISSING FROM CATALOG   : (none)          <- non-vacuity: every §4.4 name still exists
+KEEP STILL ARMED (5/5) : grant_case_access, revoke_case_access, list_case_access,
+                         set_case_visibility, set_case_confidentiality
+add_case_participant / bulk_create_cases armed? : (none)
+case_events policies armed? : 0
+```
+
+**M7's postcondition is the right shape**, and this was r1's core objection. It enumerates
+**names** — `v_cutside[29]` checked item-by-item for the token (a) — plus an explicit
+**non-vacuity existence check** (b) so a renamed door cannot make (a) pass over its absence,
+a KEEP-side over-cut guard (c), a `case_events` policy check (d), and a MAJOR-1
+guard-presence check (e). Its regex is bare `is_commission_admin_of`, not `\y…\y`, so it
+matches the `_for` variant — the §6.3 word-boundary lesson is applied, not merely cited.
+
+### Behavioural — my r1 probes, re-run, both tiers
+
+Preconditions asserted first: `is_commission_admin_of_for(CCIH, orgadmin.a) = true`,
+`is_staff_admin_of_for = false`, **`can_read_case = false`**; same predicate `true` for
+`hospitaladmin.a1`.
+
+| door | r1 `orgadmin.a` | **r2 `orgadmin.a`** | **r2 `hospitaladmin.a1`** | `chefe.ccih` twin |
+|---|---|---|---|---|
+| `remove_case_participant` | ADMITTED, `removed_at` SET | **`HC0E4`, NOT-REMOVED** | **`HC0E4`, NOT-REMOVED** | ADMITTED, `removed_at` set |
+| `record_recusal` | wrote 0 → 1 | **`P0002`, recusals 0** | **`P0002`, recusals 0** | ADMITTED, 0 → 1 |
+| `set_case_participant_role` | reached `HC0E3` (validation) | **`HC0E4` (authority)** | **`HC0E4`** | `HC0E3` |
+| `add_case_participant` | reached `P0002` (validation) | **`HC0E4`** | **`HC0E4`** | `P0002` |
+| `set_primary_subject` | reached validation | **`HC0E4`** | **`HC0E4`** | ADMITTED |
+| `schedule_ethics_hearing` | reached `HC0J0` (state) | **`HC0J1` (authority)** | **`HC0J1`** | `HC0J0` |
+| `case_viewer_capabilities` | `can_manage_lifecycle: true` | **`false`** | **`false`** | all `true` |
+
+**The polarity is exactly inverted from r1**: the tenancy tiers are now the ones stopped at
+the *authority* code while the coordinator reaches the *later* gate. That is the
+distinct-SQLSTATE discipline doing the work it was built for, and it means these zeros
+cannot be a dead door.
+
+`case_viewer_capabilities` no longer contradicts itself — the door that told the UI a
+principal could manage the lifecycle of a case it cannot read now answers `false` at both
+tiers while the coordinator keeps `true`.
+
+`case_tag_report` now gates on `is_staff_admin_of` alone and `return`s empty rather than
+raising. On the clean seed both principals read 0 (the seed holds no case tags), so my probe
+alone cannot discriminate — but **`314` 11.22 supplies the fixture and asserts the
+coordinator reads `> 0`**, which is precisely the coverage-honesty the phase owes on an
+empty-in-seed surface. Covered.
+
+### Keystone non-vacuity — I neutralized two of the NEW §11 gates
+
+Restored the pre-M7 disjunct to `remove_case_participant` and `case_viewer_capabilities`:
+
+```
+# Failed test 77:  11.1  remove_case_participant refuses the tenancy admin on AUTHORITY
+# Failed test 78:  11.2  set_case_participant_role refuses on AUTHORITY
+# Failed test 79:  11.3  set_primary_subject refuses the tenancy admin
+# Failed test 92:  11.16 case_viewer_capabilities reports can_manage_lifecycle=FALSE
+# Failed test 93:  11.17 (Q4) hospital_admin is refused by the same shared predicate
+# Failed test 94:  11.18 ...and case_viewer_capabilities denies hospital_admin too
+# Failed test 110: 11.34 CATALOG correspondence: all 29 §4.4 CUT-side doors armless
+Looks like you failed 9 tests of 111
+```
+
+Seven intended keystones red, **including both Q4 hospital_admin assertions and the
+correspondence invariant** (11.19/11.26 are the same fixture-order knock-on as r1's test 55).
+Restore **byte-identical** on both (`diff` clean); residual-mutation check across all 29
+CUT-side names = **0**.
+
+**BUG-QOB-002: I confirm re-closure.** It was correctly re-opened with r1 as finder; the
+defect is now behaviourally absent at both tenancy tiers with a discriminating twin.
+
+---
+
+## 🟠 → ✅ MAJOR-1 — CLOSED, and backend's narrowing of my set is CORRECT
+
+I claimed four doors had the silent-success shape. Backend claims only two did. **I verified
+the correction rather than accepting it**, and backend is right:
+
+```
+orgadmin.a:  cancel_case                -> 42501  (arm cut; authority denies)
+             close_case                 -> 42501
+             set_case_outcome           -> P0002  (its own RLS-bound lookup)
+             update_case_narrative_body -> P0002  (its own RLS-bound join)
+```
+
+`set_case_outcome` and `update_case_narrative_body` never reach DML for a principal who
+cannot see the row — they deny at the lookup, so they never had the shape. My r1 finding
+over-generalized from `cancel_case`'s behaviour to the family.
+
+**The reachable instance is the one that matters, and I built it.** Post-cut the tenancy
+admin is stopped at authority, so the only principal who can pass authority *and* be
+RLS-invisible is an **excluded `staff_admin`**. Fixture asserted real
+(`is_case_excluded = true` **and** `is_staff_admin_of_for = true`):
+
+```
+EXCLUDED-SA  cancel_case / close_case / set_case_outcome / update_case_narrative_body
+             -> P0002 not-found, all four
+POST STATE   status=pending · outcome_is_null=true · narrative_untouched=true
+CONTROL      the SAME coordinator, NOT excluded, cancel_case -> status=cancelled
+```
+
+**Zero success-report-with-no-write across all four doors and every principal I could
+construct**, with a positive control proving the door still works. The `close_case` variant
+of the defect — skipping the `HC031` phase gate because the phases were RLS-invisible — is
+gone with it.
+
+### The two declined b1 red-proofs: the reasoning HOLDS
+
+`314` §11d declines to red-prove the zero-row guard on `set_case_outcome` /
+`update_case_narrative_body` because on those doors the guard is a *defensive backstop*, not
+the load-bearing gate. I judged whether that hides a gap. It does not, for a reason worth
+stating: **11.29/11.30 still assert the denial behaviourally**, so the invariant *"an
+excluded coordinator is denied"* remains red-provable — if the RLS lookup were ever removed
+and the backstop failed to catch it, those two go red. What is *not* proven is the
+**attribution** of the denial to a specific mechanism. That is a real but narrow limit, and
+§11d states it in those terms rather than claiming coverage it does not have. A red-proof
+that can only pass is worse than an honest annotation; this is the annotation.
+
+---
+
+## r1 MINORs and INFOs — all resolved
+
+**MINOR-1 (masked arms) — CLOSED.** `get_case_detail`, `list_my_cases`,
+`create_case`/`create_case_from_template`'s self-grant skips, and all three `case_events`
+policy arms no longer name the predicate (catalog: 0). M7 chose to **strip rather than
+annotate**, which is the stronger of the two options I offered. Pinned by 11.32/11.33.
+
+**INFO-1 / INFO-2 — CLOSED; all three now measured and discriminating.**
+
+```
+lift_recusal              orgadmin.a -> HC0E4 (authority), lifted_at NULL
+                          chefe.ccih -> ADMITTED, lifted_at set
+bulk_create_cases         orgadmin.a -> 42501
+create_case_from_template orgadmin.a -> P0002 (RLS-bound template lookup), 0 new cases
+                          chefe.ccih -> ADMITTED, 1 new case
+```
+
+⚠ **r1's non-discrimination on `lift_recusal` was my own fixture bug, not a property of the
+door**: I resolved the recusal id *after* switching to `authenticated`, so RLS hid the row
+and I passed `NULL` into the door, which returned `HC0E1` for every principal. Resolving the
+id as `postgres` before the role switch makes it discriminate cleanly. A probe whose
+*fixture lookup* runs under the role being tested measures the fixture, not the gate.
+
+**MINOR-2 (gate artifacts) — DISCHARGED.** B.16 supersedes B.14 as the declare-green run
+(B.14's tree predated M7, so it could not have been the phase's gate regardless): **1046
+passed · 0 failed · 1 flaky · 0 did-not-run · accounted 1047/1052**, with the same constant 5
+permanent skips. The concern was that a *superseded* run's artifacts had been overwritten;
+the declare-green run is now a different, later, all-green one. The retention lesson still
+belongs in the worktree/gate doc — keep full-gate artifacts under a run-scoped directory
+before any scoped re-run — but it no longer bears on this phase's verdict.
+
+**The `case-narratives/actions.ts` comment — CORRECTED, and correctly.** It now cites M7 by
+migration number, states the INVOKER-lookup mechanism, and closes with *"RLS/the RPC is the
+boundary (Architecture Rule 1)"* — the guard is re-framed as a pt-BR-message mirror of the
+DB wall rather than as the wall.
+
+---
+
+## M7's own new surface — nothing found
+
+**No over-cut, measured as a delta.** r1 counted **93** functions carrying the token; the
+catalog now holds **73**. `93 − 20 = 73` matches M7's claimed 20 edits **exactly** — no
+collateral edit hid inside the wave. The KEEP estate is intact: `forms` 15 policies ·
+`process_template*` 16 · taxonomy/meeting 12 · `audit_log` 1, all still armed; behaviourally
+for `orgadmin.a`, forms 4 · addable members 17 · `indicator_kpis` 1 · process templates 2;
+and the five ratified KEEP case doors (`list_case_access`, `grant_case_access`,
+`set_case_visibility` probed) all still ADMIT.
+
+*My own over-cut detector produced five false positives* — `list_org_people`,
+`list_org_eligible_users`, `set_commission_oversight`, `reorder_departments`,
+`set_standard_ownership` "lost" an arm they never had: they route `is_org_admin_of` /
+`is_hospital_admin_of` directly. Checked before believing it; `list_org_people` still returns
+**28** rows to `orgadmin.a`. Recorded because a detector's hits are a hypothesis.
+
+**The `create_case` self-grant delta is confined.** Stripping the tenancy disjunct from the
+skip condition widens grants for exactly one persona (a member-creator who is also a tenancy
+admin, who would otherwise create a case they cannot read). It does **not** leak onto
+coordinators: a `staff_admin` creating a case yields **0** `case_access_grants` rows and
+still reads it (`can_read_case = true` via the coordinator arm).
+
+**The `229` re-anchor is sound — and I verified the re-homing rather than accepting it.**
+Converting M1·2's positive twin to a wall assertion could have quietly deleted an
+exclusion-durability property belonging to a *different* program (ADR 0078 M1). It did not:
+the distinct-SQLSTATE argument is preserved in place (`HC0E4` authority ≠ `HC0F1` exclusion,
+so the `throws_ok` cannot false-pass off the over-grant twin above it), the fixture teardown
+is done **directly rather than through the door** and is labelled teardown rather than
+assertion, and the lost positive property is re-homed to **`314` 11.25**, which I confirmed
+is a real `lives_ok` — a non-excluded coordinator lifting a live recusal. The reason the
+fixture has no clean coordinator (both `st_x`/`st_x2` are respondents, `sa_x` is the recused
+party) is stated, which is also why M1 originally reached for the org arm.
+
+**Findings-file integrity confirmed:** `docs/reviews/authz-door-audit-findings.md` is **393
+lines** and the tree is clean — the partial-sweep truncation was restored.
+
+**Regression, reproduced independently:** full pgTAP on my own fresh reset —
+**Files=175, Tests=5616, Result: PASS**, matching B.15's figure exactly. M7's blast radius is
+`supabase/` only (1 migration + 3 test/harness files); `a5b40e1` touches PROGRESS.md and one
+comment. No application code changed in the remediation.
+
+---
+
+## 🟡 NEW MINOR-3 — PROGRESS.md's summary blocks contradict their own section body
+
+Not a code defect; a §7 *"PROGRESS.md is the single source of truth"* defect, and the chronic
+marker-not-moved class.
+
+- **Phase Status row (line 71)** still reads `🟡 build complete, QA not started`,
+  `db reset 328=328`, `pgTAP 175f/5553`, `6 migrations (20260915000000–000500)`, QA column
+  `⬜ not started`, and closes with **"Closes BUG-QOB-001 · BUG-QOB-002"**.
+- **The "Gate evidence" block (line ~108-113)** likewise still reads `328 == 328`,
+  `175f / 5553`, `b1 17/17`, and **"Closes BUG-QOB-001 + BUG-QOB-002"**.
+
+Both predate M7 and both assert BUG-QOB-002 closed, while B.15 twelve lines below re-opens
+it and the Bug Log at line 361 carries it as 🔴 **RE-OPENED**. A reader who scans the status
+table — which is what the table is *for* — gets the pre-r1 picture. Update to 329 == 329 ·
+175f/5616 · 7 migrations · `b1` 39/39 · QA `⛔ r1 → ✅ r2`, and drop BUG-QOB-002 from the
+"Closes" list until this verdict is recorded. These are the lead's rows.
+
+---
+
+## Carried forward (unchanged from r1, none blocking)
+
+- **FUP-QOB-1** — PO ratification of the J1c provisional pin.
+- **BUG-QOB-004** — referral capability-reach regression; PO ruling on scope.
+- **Q6** — the `is_commission_admin_of` → `is_tenancy_admin_of` rename. r1 called BLOCKER-1
+  evidence for it; r2 does not weaken that. The predicate that reads as "the commission's own
+  admin" misled M4's population derivation, and it still reads that way in 73 places.
+- **`setTemplateCaseType`** not routed to the config seam (ADR 0088 door is staff_admin-only).
+- Pre-existing `context.isAdmin` platform-admin arms on content pre-checks — noun-rule sweep
+  candidates, out of scope.
+- **Gate-artifact retention** — keep full-gate logs under a run-scoped directory so a later
+  scoped run cannot overwrite the denominator file.
+
+## What r1 → r2 actually demonstrated
+
+r1's BLOCKER was a **population** defect: M4 substituted a proxy property for the ratified
+list and asserted the substitution as fact, and every green gate validated the proxy. M7's
+answer is the right one structurally — *the postcondition enumerates the names* — and the
+lesson generalizes past this phase: **a derived population needs a proof of correspondence to
+the thing it claims to derive, not a proof of its own size.** A count-shaped postcondition
+cannot fail on the one mistake that matters.
+
+Two smaller notes for the record, both about probes rather than code: my r1 four-door MAJOR-1
+set was one measurement too broad, and my r1 `lift_recusal` INFO was a fixture bug of my own
+(the lookup ran under the role being tested). Both were corrected by re-measuring, not by
+re-reading — which is the same conclusion this phase keeps reaching from the other side.
