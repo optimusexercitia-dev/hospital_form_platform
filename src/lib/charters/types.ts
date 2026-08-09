@@ -78,6 +78,26 @@ export interface MeetingCadenceStatus {
   meetingFrequency: MeetingFrequency | null
 }
 
+/**
+ * One row of `commission_cadence_overview()` — the TENANCY-tier read added by
+ * `20260917000300` (PO ruling 2026-08-09, charter ③).
+ *
+ * Distinct from {@link MeetingCadenceStatus} in scope, not in meaning: both classify via
+ * the same `app.cadence_status_of` helper, so the two can never disagree. This one is
+ * many-commissions-at-once and takes NO argument — the door derives its own row set from
+ * `is_tenancy_admin_of`, so a caller cannot ask about a commission it does not administer.
+ *
+ * Cadence only. ADR 0100 D12: that meetings happened and when is container-level; nothing
+ * here exposes an agenda, a minute or a participant, and `participants_only` meetings are
+ * excluded entirely so a closed session never surfaces even as a date.
+ */
+export interface CommissionCadenceRow {
+  commissionId: string
+  status: CadenceStatus
+  lastHeldAt: string | null
+  meetingFrequency: MeetingFrequency | null
+}
+
 /** One unresolved agenda item proposed for carry-forward (plan §5). */
 export interface CarryForwardAgendaItem {
   title: string

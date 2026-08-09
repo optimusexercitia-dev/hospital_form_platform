@@ -70,7 +70,7 @@ open question. J1b stays annotated-not-deleted per the A2 precedent. No further 
 
 </details>
 
-### 🟡 FUP-QOB-2 — the QO·B PO ratification package — **MOSTLY DISCHARGED 2026-08-09**; two rulings deliberately left OPEN
+### 🟡 FUP-QOB-2 — the QO·B PO ratification package — **DISCHARGED 2026-08-09 except ruling ⑤** (latent, no principal exists to affect)
 
 Registered at phase close, worked 2026-08-09 with the PO ruling item by item (the PO declined a
 block ratification and asked to be walked through each with its evidence — so every verdict below
@@ -95,14 +95,24 @@ was taken against a **live-catalog** measurement, not against the doc's own clai
 
 **LEFT OPEN BY DELIBERATE PO CHOICE (2 of 5)** — these are *not* pending review, they are recorded
 as undecided, with the measurement already done so whoever rules next does not re-derive it:
-3. 🟡 **`manage/charter` — KEEP vs NOT-KEEP: UNRULED.** The status quo (NOT KEEP) stands
-   operationally; nothing is blocked. *Measured:* `upsert_commission_charter` is `prosecdef`, sole
-   arm `is_staff_admin_of`, raises HC0K0; `commission_charters_select` = `app.is_member_of(...)`.
-   **No tenancy arm exists on the plane, read or write** — so "NOT KEEP" documents reality and
-   "KEEP" would be a widening (new grants on both door and policy + its own ADR), never a
-   restoration. ⚠ The live argument FOR keeping it: a charter defines the committee's scope and
-   composition, which reads like a *container* under D12's "the admin shapes the containers, never
-   reads what goes in them". Decide when a customer asks, not before.
+3. ⬛ **`manage/charter` — RULED 2026-08-09: NOT KEEP ratified, and the underlying need served a
+   different way.** The page stays coordinator-only. The oversight question it raised —
+   *"which committees are behind on meetings?"* — is answered instead by a **read-only cadence
+   column on `/o/[org]/manage/comissoes`**, the registry tenancy admins already own.
+   *Measured before ruling:* `upsert_commission_charter` is `prosecdef`, sole arm
+   `is_staff_admin_of`, raises HC0K0 with an explicit *"not org/hospital admin"* comment;
+   `commission_charters_select` = `app.is_member_of(...)`; and `authenticated` holds **SELECT
+   only** on the table, so every write must pass that one door. **No tenancy arm exists on the
+   plane at either layer** — unlike the Q2 template case, where RLS already admitted the
+   principal and only the doors refused. Granting the page would therefore have been a **genuine
+   widening at both layers**, and worse, it would hand out **WRITE** to satisfy a **READ** need:
+   the page is fundamentally an edit form for ONE committee, so it could not answer the actual
+   question without visiting each committee in turn. It would also dangle a broken affordance —
+   the linked regimento is a `controlled_documents` row, and documents are CUT (re-verified
+   2026-08-09), so "Ver documento" would 404 for the very principal being granted access.
+   ⚠ The charter row is far smaller than its name suggests: `meeting_frequency` +
+   `controlled_document_id` + bookkeeping. It is cadence config plus a POINTER; the regimento
+   itself lives in the documents module.
 5. 🟡 **Dual-hat (quality_reviewer + tenancy admin) precedence: UNRULED.** *Measured:* the seed
    holds exactly 3 `quality_reviewer` principals (`quality.a`, `quality.a2`, `quality.b`) and
    **none holds a tenancy-admin role** — genuinely latent, unfalsifiable either way today. The PO

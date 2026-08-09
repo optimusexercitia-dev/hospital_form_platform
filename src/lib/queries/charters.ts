@@ -3,7 +3,9 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { mapCharterError } from '@/lib/charters/messages'
 import type {
+  CadenceStatus,
   CharterUpsertResult,
+  CommissionCadenceRow,
   CommissionCharter,
   MeetingCadenceStatus,
   MeetingFrequency,
@@ -86,6 +88,47 @@ export async function getMeetingCadenceStatus(
   })
   if (error || !data) return null
   return data as unknown as MeetingCadenceStatus
+}
+
+/**
+ * Meeting cadence for EVERY commission the caller administers as a tenancy admin
+ * (`org_admin` / `hospital_admin`), keyed by commission id — the registry overview added
+ * by `20260917000300` (PO ruling 2026-08-09, charter ③).
+ *
+ * ONE round trip for the whole registry: the alternative, calling
+ * {@link getMeetingCadenceStatus} per row, is both N+1 and wrong (that door is
+ * member-scoped, so a bare tenancy admin gets `null` for every commission).
+ *
+ * The RPC takes NO argument on purpose — it derives its own row set from
+ * `is_tenancy_admin_of`, so there is no parameter through which to ask about a foreign
+ * commission. A caller with no tenancy standing simply gets an empty map, which renders
+ * as no badge rather than as an error.
+ */
+export async function getCommissionCadenceOverview(): Promise<
+  Record<string, CommissionCadenceRow>
+> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('commission_cadence_overview')
+  if (error || !data) return {}
+
+  const rows = data as unknown as {
+    commission_id: string
+    status: CadenceStatus
+    last_held_at: string | null
+    meeting_frequency: MeetingFrequency | null
+  }[]
+
+  return Object.fromEntries(
+    rows.map((r) => [
+      r.commission_id,
+      {
+        commissionId: r.commission_id,
+        status: r.status,
+        lastHeldAt: r.last_held_at,
+        meetingFrequency: r.meeting_frequency,
+      },
+    ]),
+  )
 }
 
 /**

@@ -228,6 +228,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.is_tenancy_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of`, verdict carried across (see note below) |
 | app.is_tenancy_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=175 Tests=5618) — RENAMED 2026-08-09 from `is_commission_admin_of_for`, verdict carried across |
 | app.is_technical_director_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | COVERED | 295_technical_director_referrals.sql |
+| public.commission_cadence_overview() | predicate | positive | COVERED | 261_charters_rpcs.sql (CAD-4/CAD-5, mutation-proven by hand — see the note below; the door-audit's predicate arm cannot reach this door) |
 | app.referral_target_analyst(p_referral_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4651) |
 | accreditation_frameworks.accreditation_frameworks_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
 | action_item_assignments.action_item_assignments_select (SELECT) | policy | open->true | COVERED | 113_case_action_items.sql |
@@ -426,3 +427,41 @@ verdict** — which is worth fixing at the harness level (compare against a per-
 shape, or treat "≥N genuine assertion failures" as COVERED regardless of shape) rather than
 by keystoning gates that are already densely asserted. Recorded, not actioned: it is a
 harness change, and this wave was a rename.
+
+---
+
+## Note — `commission_cadence_overview()`: the census demands a verdict the door-audit cannot produce (2026-08-09)
+
+Added by `20260917000300`. `ARM=census` flagged it as **UNKNOWN** the moment it landed —
+correctly; that is the arm's whole job, and it is the only arm that can see a brand-new gate
+(a newcomer is in no BLIND set, so `ARM=policy` passes it *vacuously*).
+
+**But the diff-scoped sweep then swept ZERO cases**, and that is not a pass:
+
+- the census's ARM-3 domain includes `prosecdef` functions that are **set-returning** and
+  `authenticated`-executable — this door qualifies;
+- the door-audit's **predicate arm** filters to functions returning **`boolean`** whose name
+  matches `^(is_|can_|has_|…)` — this door returns `TABLE(...)` and is named
+  `commission_…`, so it is outside that domain from both ends.
+
+So the two harnesses enumerate **different incomplete domains** (the structural hole already
+recorded as FUP-AFF-1 / ADR 0079 Amendment 5), and no amount of re-running resolves it: one
+arm requires a verdict the other cannot emit.
+
+**Verdict recorded as COVERED on mutation evidence, not on a sweep result** — the precedent
+AFF set (*"the gate record must NOT cite ARM=census as coverage; it must cite the
+mutation-proven keystones"*). What was actually done, by hand, on a fresh reset:
+
+> neutralised the door's `where app.is_tenancy_admin_of(c.id)` filter to `where true` →
+> **exactly tests 33–34 (`261` CAD-4, CAD-5) went RED and nothing else** — the cross-org
+> tenancy admin and the plain member both started receiving rows. Restore verified
+> **byte-identical**. The positive arms (CAD-2, CAD-3) stayed green throughout, as they must:
+> opening a door wider cannot break a test that asserts the door is open.
+
+That is precisely the property the sweep exists to establish — *does any keystone notice when
+this gate opens* — obtained the way the sweep would have obtained it. ⚠ Do **not** "resolve"
+this row by classifying the door as a `helper:` in `authz-unswept-backlog.txt`: it is a real
+authorization decision (it decides which commissions a caller sees), and filing it as a
+non-decision would be false. The durable fix is FUP-AFF-1's — widen the door-audit's domain
+to follow the **property** (prosecdef + authenticated-reachable + carries an identity
+primitive) rather than the return type and a name prefix.

@@ -22,7 +22,7 @@
 -- filter — and its mutation proof — cover it identically.
 
 begin;
-select plan(29);
+select plan(39);
 
 update app.feature_flags set enabled = true where key in ('charters', 'audit_trail');
 
@@ -33,6 +33,7 @@ create temp table k on commit drop as
   select (v->>'admin')::uuid  as admin,
          (v->>'sa_x')::uuid   as sa_x,
          (v->>'st_x')::uuid   as st_x,
+         (v->>'oa_b')::uuid   as oa_b,
          (v->>'sa_y')::uuid   as sa_y,
          (v->>'comm_x')::uuid as comm_x,
          (v->>'comm_y')::uuid as comm_y,
@@ -321,6 +322,156 @@ select throws_ok(
   'HC000', null, 'flag OFF → carry-forward raises HC000'
 );
 reset role;
+
+-- =============================================================================
+-- §CAD — commission_cadence_overview (`20260917000300`), the tenancy-tier read.
+--
+-- PO ruling 2026-08-09 (charter ③): `manage/charter` stays coordinator-only, and the
+-- oversight question it raised is answered by a READ-ONLY cadence overview on the registry
+-- the tenancy admin already owns. These pin that the door grants exactly that and no more.
+--
+-- The door takes NO arguments by design — the row set is derived from is_tenancy_admin_of,
+-- so a caller cannot ask about a commission it does not administer. That makes isolation
+-- structural, but structural is not observable: CAD-3/CAD-4/CAD-5 assert it by ROWS.
+-- =============================================================================
+
+-- ⚠ RE-ENABLE THE FLAG. Line 309 turns `charters` OFF for the flag-OFF/HC000 tests above,
+-- and this section runs after them — every door here calls assert_charters_enabled() first,
+-- so without this the whole block dies on `recurso indisponível` and reports as an ABORT
+-- (tests planned-but-not-run), not as failures. The recorded pgTAP fixture-flag-gap, in its
+-- nastier ordering-dependent form: the flag was correct when the file started.
+update app.feature_flags set enabled = true where key = 'charters';
+
+-- ⚠ CLEAR THE CLAIMS FIRST. `guard_profile_privileged_columns` treats identity columns as
+-- service-role-only and decides by `auth.uid() is null`, NOT by the database role — so a
+-- leftover `request.jwt.claims` from the section above makes the profile updates below
+-- raise, even running as postgres with the role reset.
+select set_config('request.jwt.claims', null, true);
+
+-- A tenancy admin of a DIFFERENT organization. bootstrap homes both commissions under one
+-- org, so `oa_b` cannot serve as the cross-org control — it would see everything and the
+-- test would pass for the wrong reason (the wrong-arm fixture trap).
+create temp table xorg on commit drop as
+  select gen_random_uuid() as org, gen_random_uuid() as admin;
+grant select on xorg to authenticated;
+insert into public.organizations (id, name, slug)
+  select org, 'Org Estranha CAD', 'org-estranha-cad' from xorg;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  select '00000000-0000-0000-0000-000000000000', admin, 'authenticated', 'authenticated',
+         admin || '@test', now(), now() from xorg;
+update public.profiles set home_organization_id = (select org from xorg)
+  where id = (select admin from xorg);
+insert into public.memberships (principal_id, organization_id, role)
+  select admin, org, 'org_admin' from xorg;
+
+-- A hospital_admin of hosp_b — the second tenancy tier. Cadence is a GRANT here rather
+-- than a wall, but the Q4 principle is the same: the two tiers must not diverge.
+create temp table hadm on commit drop as select gen_random_uuid() as ha;
+grant select on hadm to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  select '00000000-0000-0000-0000-000000000000', ha, 'authenticated', 'authenticated',
+         ha || '@test', now(), now() from hadm;
+update public.profiles set home_organization_id = (select org_b from k)
+  where id = (select ha from hadm);
+insert into public.memberships (principal_id, organization_id, hospital_id, role)
+  select (select ha from hadm), (select org_b from k), (select hosp_b from k), 'hospital_admin';
+
+-- ⭐ CAD-1 — PARITY. The reason app.cadence_status_of was extracted is that a second caller
+-- means a second copy of the rule, and two copies drift silently. This asserts the two
+-- paths answer identically for the SAME commission, read through their own gates: the
+-- overview as the tenancy admin, meeting_cadence_status as a real member.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+create temp table cadov on commit drop as
+  select commission_id, status, meeting_frequency from public.commission_cadence_overview();
+grant select on cadov to authenticated;
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select status from cadov where commission_id = (select comm_x from k)),
+  (public.meeting_cadence_status((select comm_x from k)) ->> 'status'),
+  'CAD-1 ⭐ PARITY: the tenancy overview and the member door classify comm_x identically — the extracted helper has not drifted from the original inline rule');
+reset role;
+
+-- ⭐ CAD-2 — the grant works, and at BOTH tiers.
+select is(
+  (select count(*)::int from cadov where commission_id in ((select comm_x from k), (select comm_y from k))),
+  2,
+  'CAD-2 ⭐ the org tenancy admin sees every commission it administers (both bootstrap commissions)');
+
+select test_helpers.claims_for((select ha from hadm), false);
+set local role authenticated;
+select ok(
+  (select count(*) from public.commission_cadence_overview()) > 0,
+  'CAD-3 ⭐ Q4 SYMMETRY: hospital_admin reaches the overview too — the two tenancy tiers do not diverge');
+reset role;
+
+-- ⭐ CAD-4 — THE OVER-GRANT TWIN, cross-tenant. CAD-2/CAD-3 pass by construction the moment
+-- the door returns anything; only a negative shows the grant stopped where it was meant to.
+select test_helpers.claims_for((select admin from xorg), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.commission_cadence_overview()),
+  0,
+  'CAD-4 ⭐⭐ OVER-GRANT TWIN: a tenancy admin of ANOTHER organization sees ZERO rows — the door derives its own row set, so there is no parameter through which to ask about a foreign commission');
+reset role;
+
+-- ⭐ CAD-5 — and it is not a general listing. A plain member of comm_x reads its own cadence
+-- through meeting_cadence_status; this door is the TENANCY surface and owes them nothing.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.commission_cadence_overview()),
+  0,
+  'CAD-5 ⭐ a plain committee member gets ZERO rows — the overview is the tenancy-oversight door, not a general cadence listing');
+reset role;
+
+-- ⭐ CAD-6 — the restricted-meeting filter is INHERITED, and must stay inherited. The NEW
+-- door carries its own copy of the `commission_default` predicate, so the existing §cadence
+-- proof of the OLD door says nothing about it.
+--
+-- Reuses the `excl` fixture rather than minting a participants_only meeting here: a direct
+-- participants_only INSERT trips the roster-nonempty guard (HC0C3), so a hand-rolled fixture
+-- would fail for a reason unrelated to the filter. `excl` is charter=mensal with an OLD
+-- commission_default meeting (→ em_atraso) plus a RECENT participants_only one — if the
+-- closed session were counted the answer would flip to em_dia. Line ~244 pins the same
+-- expectation on the member door, so CAD-6 is the tenancy-side twin of a proven property.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select is(
+  (select status from public.commission_cadence_overview() where commission_id = (select comm from excl)),
+  'em_atraso',
+  'CAD-6 ⭐ the overview EXCLUDES participants_only meetings: excl stays em_atraso on its old plenary — a closed session never reaches the tenancy tier, not even as a date');
+reset role;
+
+-- ⭐ CAD-7 — the boundary is INCLUSIVE, pinned directly on the helper. Flipping `<=` to `<`
+-- would mark a committee overdue a day early, and no other assertion here would notice
+-- (every fixture commission sits far from its boundary).
+-- ⚠ `semanal`, not `mensal`, and the reason is worth keeping. `interval '1 month'` compares
+-- as exactly 30 DAYS, but `now() - interval '1 month'` walks back a CALENDAR month — 31 days
+-- in a 31-day month. So the "exactly one period old" probe is 31 days against a 30-day
+-- window and lands em_atraso, which reads as a boundary bug and is not one (the original
+-- door had identical semantics). A week is exactly 7 days in both directions, so it pins the
+-- `<=` without the calendar confounder. The month behaviour itself is pinned by CAD-8b below
+-- rather than left as a surprise for the next reader.
+select is(
+  app.cadence_status_of('semanal', now() - interval '1 week'),
+  'em_dia',
+  'CAD-7 ⭐ boundary INCLUSIVE: a meeting exactly one period old is still em_dia (the original `<=`, preserved through the extraction)');
+select is(
+  app.cadence_status_of('semanal', now() - interval '1 week' - interval '1 day'),
+  'em_atraso',
+  'CAD-8 ⭐ ...and one day past the period is em_atraso — CAD-7 is a boundary, not a blanket pass');
+select is(
+  app.cadence_status_of('mensal', now() - interval '30 days'),
+  'em_dia',
+  'CAD-8b ⭐ DOCUMENTED SEMANTICS: `mensal` measures 30 DAYS, not a calendar month — `interval ''1 month''` compares as 30 days, so a committee meeting on the same date each month reads em_atraso for the last day of every 31-day month. Pre-existing, unchanged by the extraction, pinned here so it is a decision rather than a surprise');
+select is(
+  app.cadence_status_of(null, now()),
+  'sem_regimento',
+  'CAD-9 no configured frequency classifies as sem_regimento regardless of meetings held');
 
 select * from finish();
 rollback;

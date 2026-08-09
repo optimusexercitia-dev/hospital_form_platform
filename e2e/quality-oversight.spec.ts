@@ -1124,3 +1124,74 @@ test.describe('QO·A — keyboard-only flow', () => {
     ).toBeVisible({ timeout: 10_000 })
   })
 })
+
+test.describe('CAD — read-only meeting cadence on the committee registry', () => {
+  /**
+   * PO ruling 2026-08-09 (charter ③). `manage/charter` stays coordinator-only; the
+   * accreditation question it raised — "which of my committees are behind on meetings?" —
+   * is answered HERE instead, read-only, on the registry the tenancy admin already owns.
+   *
+   * Backed by `commission_cadence_overview()` (`20260917000300`), which takes NO argument:
+   * it derives its own row set from `is_tenancy_admin_of`, so a caller cannot ask about a
+   * commission it does not administer. pgTAP `261` §CAD pins the isolation (CAD-4/CAD-5,
+   * mutation-proven); these assert the surface actually renders and stays read-only.
+   */
+  test('orgadmin.a sees a cadence badge per committee, with the real per-committee status', async ({
+    page,
+  }) => {
+    await signIn(page, 'orgadmin.a@test.local')
+    await page.goto('/o/rede-a/manage/comissoes')
+
+    // Farmácia has a charter + a recent plenary in the seed → "Em dia". CCIH has no
+    // charter → "Regimento/cadência não configurado". Asserting DIFFERENT statuses on
+    // purpose: a badge that rendered one constant for every row would satisfy a
+    // "badge is visible" check and prove nothing about the data behind it.
+    await expect(
+      page.getByRole('status', {
+        name: /Cadência de reuniões de Comissão de Farmácia e Terapêutica: Em dia/i,
+      }),
+    ).toBeVisible({ timeout: 15_000 })
+
+    await expect(
+      page.getByRole('status', {
+        name: /Cadência de reuniões de Comissão de Controle de Infecção Hospitalar: Regimento\/cadência não configurado/i,
+      }),
+    ).toBeVisible()
+
+    // The accessible name carries the COMMITTEE, not just the status — with a dozen
+    // cards on screen, "Em dia" alone is ambiguous to a screen-reader user.
+    const badges = page.getByRole('status', { name: /Cadência de reuniões de/i })
+    expect(await badges.count()).toBeGreaterThan(1)
+  })
+
+  test('the cadence surface is READ-ONLY — no charter edit affordance reached the registry', async ({
+    page,
+  }) => {
+    await signIn(page, 'orgadmin.a@test.local')
+    await page.goto('/o/rede-a/manage/comissoes')
+    await expect(
+      page.getByRole('status', { name: /Cadência de reuniões de/i }).first(),
+    ).toBeVisible({ timeout: 15_000 })
+
+    // The whole point of the ruling: oversight WITHOUT handing out the coordinator's
+    // editor. If a future change wires an edit control in here, this reddens.
+    await expect(
+      page.getByRole('link', { name: /Regimento|Cadência/i }),
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole('button', { name: /Regimento|Periodicidade|Definir cadência/i }),
+    ).toHaveCount(0)
+  })
+
+  test('...and the charter page itself STILL 404s for the same tenancy admin', async ({
+    page,
+  }) => {
+    await signIn(page, 'orgadmin.a@test.local')
+    // The ruling's other half. Without this, the registry badge could be read as
+    // "cadence was opened up", when what was opened is a read-only projection of it.
+    await page.goto('/o/rede-a/c/ccih/manage/charter')
+    await expect(
+      page.getByRole('heading', { name: /Regimento & Cadência/i }),
+    ).toHaveCount(0)
+  })
+})

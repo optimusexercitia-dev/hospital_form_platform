@@ -10907,6 +10907,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      commission_cadence_overview: {
+        Args: never
+        Returns: {
+          commission_id: string
+          last_held_at: string
+          meeting_frequency: string
+          status: string
+        }[]
+      }
       commission_overview: {
         Args: never
         Returns: {
