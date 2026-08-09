@@ -320,6 +320,43 @@ covered instead by `314` §5.1's catalog invariant, which spans `storage` explic
 boolean gates, so the harness cannot neutralize them. Their coverage is the `b1` mutation audit
 (`restore_case_door_arm`, RED-PROVEN), not this arm. *Name the arm, never the script.*
 
+### ⛔ 6.3 The biggest finding of this build: **M1–M4 cut the tables and left the DOORS**
+
+M1 walled the response tables, M2 the document tables, and **every gate went green** —
+while **16 DEFINER doors on the same ratified CUT list were never touched.** A DEFINER
+door bypasses RLS entirely, so the tenancy admin could still read, through a door, exactly
+what the table refused. Measured on the post-M4 catalog as `orgadmin.a`:
+
+| Door | rows returned | fixed by |
+|---|---|---|
+| `dashboard_free_text` | **6** — free-text answers, the most sensitive payload | M5 |
+| `dashboard_export_rows` | **6** | M5 |
+| `dashboard_completion_by_member` | **2** | M5 |
+| `list_commission_documents` | **2** | M6 |
+| + `get_response_for_signoff`, `supersede_response`, `target_case_response` | — | M5 |
+| + 9 more controlled-document doors, `can_write_attachment`'s case arm | — | M6 |
+
+**Four green gates were each blind to this, in a different way** — and that is the
+transferable part:
+
+- the **A/B equivalence matrix** measures TABLE row visibility under RLS; a DEFINER door
+  is invisible to it *by construction*;
+- the **ADR 0079 door sweep** neutralizes BOOLEAN gates — these return `SETOF`, so they
+  were never in its population at all;
+- **`ARM=floor`** asks whether a door is *called*, not whether its gate is *right*;
+- **`314`** asserted the tables, not the doors.
+
+The union of scoped sweeps is not a sweep. What found it was the plainest possible check,
+and one no harness performs: **re-read the ratified CUT list and ask the catalog, item by
+item, "did I actually cut this?"**
+
+**⚠ And that check was itself wrong the first time.** `\yis_commission_admin_of\y`
+**cannot match `is_commission_admin_of_for`** — the word boundary fails before `_`. The
+first pass reported 10 findings; the corrected pattern reported 12. Every sweep in this
+repo that greps the short name is silently blind to every `_for` call site. M4's
+population was re-derived with the corrected pattern (no misses); M5/M6 postconditions
+match both variants deliberately.
+
 **Findings from this build:**
 
 - ✅ **3 BLIND gates found and closed.** `app.can_read_document_object` ·
