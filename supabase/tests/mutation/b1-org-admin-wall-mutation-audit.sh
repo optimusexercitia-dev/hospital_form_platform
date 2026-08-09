@@ -6,7 +6,7 @@
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
 # QO·B (ADR 0100 D12) MUTATION AUDIT — the org_admin / hospital_admin content wall.
-# 14 cases. ⚠ Keep this count and the run_case list in sync.
+# 17 cases. ⚠ Keep this count and the run_case list in sync.
 #
 # THIS AUDIT RUNS IN BOTH DIRECTIONS, and the second direction is the point.
 #
@@ -152,7 +152,30 @@ begin
       'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
     execute d;
 
+  elsif p_what = 'restore_doc_list_door' then
+    -- M6's hole, one plane over from M5's: the document POLICIES were cut while ten
+    -- DEFINER doors kept the tenancy arm and bypassed RLS entirely.
+    d := pg_get_functiondef('public.list_commission_documents(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_member_of(p_commission)',
+      'app.is_member_of(p_commission) or app.is_commission_admin_of(p_commission)');
+    execute d;
+
+  elsif p_what = 'restore_attachment_write_arm' then
+    d := pg_get_functiondef('app.can_write_attachment(text,uuid,uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'return app.is_staff_admin_of_for(v_commission, p_uid);',
+      'return app.is_staff_admin_of_for(v_commission, p_uid) or app.is_commission_admin_of_for(v_commission, p_uid);');
+    execute d;
+
   -- ── OVER-CUT: remove a ratified KEEP; its guard must notice ───────────────
+  elsif p_what = 'overcut_revoke_ruling' then
+    -- ADR 0104 D11 KEEPS revoke_printed_document's tenancy arm: revocation is a
+    -- governance act that reveals no content. Sweeping it is the plausible tidy-up.
+    d := pg_get_functiondef('public.revoke_printed_document(uuid,text,text)'::regprocedure);
+    d := app._mut_b1_sub(d, ' or app.is_commission_admin_of_for(v_row.commission_id, auth.uid())', '');
+    execute d;
+
   elsif p_what = 'overcut_aggregate_door' then
     -- D12 (6) KEEPS the six PHI-free aggregates. The nine dashboard_* doors split
     -- six-to-three, so "finish the job across all nine" is the plausible tidy-up.
@@ -235,7 +258,8 @@ SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('can_read_document_of_version','can_read_document_object','can_view_printed_document'))
-      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals')))
+      or (n.nspname='app' and p.proname = 'can_write_attachment')
+      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals','list_commission_documents','revoke_printed_document')))
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='responses_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='answers_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='controlled_documents_select'),'')
@@ -286,6 +310,15 @@ run_case "restore_export_rows_door -> row-level export reopens"   "select app._m
 
 echo
 echo "--- OVER-CUT: remove a ratified KEEP, the over-cut guard must notice ---"
+
+run_case "restore_doc_list_door -> M6's hole reopens"   "select app._mut_b1('restore_doc_list_door');"   "org_admin lists ZERO controlled documents through the door"
+
+run_case "restore_attachment_write_arm -> case attachment writes reopen"   "select app._mut_b1('restore_attachment_write_arm');"   "can no longer WRITE case attachments"
+
+echo
+echo "--- OVER-CUT (continued) ---"
+
+run_case "overcut_revoke_ruling -> ADR 0104 D11 silently reversed"   "select app._mut_b1('overcut_revoke_ruling');"   "revoke_printed_document KEEPS its tenancy arm"
 
 run_case "overcut_indicators_select -> Q3's split collapses" \
   "select app._mut_b1('overcut_indicators_select');" \

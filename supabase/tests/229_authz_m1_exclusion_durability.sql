@@ -499,8 +499,16 @@ values ('00000000-0000-0000-0000-0000000f0601', 'case', '00000000-0000-0000-0000
 
 select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select st_x from k)), false,
   'M1·4b D7: a respondent-coordinator CANNOT write attachments of her own case (incl. PHI disposal)');
-select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select sa_y from k)), true,
-  'M1·4b POSITIVE TWIN: a clean coordinator still writes attachments');
+-- ⛔ PRINCIPAL CORRECTED BY QO·B M6, and it was MISLABELLED — the second instance of
+-- this exact slip in this file. The twin said "coordinator" but passed `sa_y`, which
+-- line 107 inserts as a CLEAN ORG_ADMIN, so it was really proving that the TENANCY admin
+-- could write case attachments via can_write_attachment's `case` arm. M6 removes that
+-- arm (ADR 0100 D12 §4.3). Switched to sa_x, a real staff_admin — exactly the reasoning
+-- the M1·4b narrative twin twenty lines above already spells out for itself:
+-- "the twin is sa_x …, NOT sa_y … an org_admin is false here for reasons that have
+-- nothing to do with M1 — and the twin would prove nothing."
+select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select sa_x from k)), true,
+  'M1·4b POSITIVE TWIN: a clean coordinator still writes attachments — sa_x, a REAL staff_admin, since QO·B M6');
 
 -- ---- reclassify_attachment — the DIRECT-CHECK RESIDUE (§W-2.5) ------------
 -- The declassify arm checks the role DIRECTLY, so the helper fix does NOT reach

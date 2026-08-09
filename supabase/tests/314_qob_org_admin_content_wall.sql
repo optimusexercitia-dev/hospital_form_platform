@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(44);
+select plan(49);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -420,6 +420,33 @@ set local role authenticated;
 select cmp_ok((select count(*)::int from public.dashboard_free_text('00000000-0000-0000-0000-00000000f540')), '>', 0,
   '7.5 NON-VACUITY TWIN ⭐: the coordinator DOES read free text through the same door on the same form — 7.1''s zero is the wall, not an empty form. Without this the whole section is unfalsifiable, which is exactly how the hole survived four gates');
 reset role;
+
+-- =============================================================================
+-- §8 — CONTROLLED-DOCUMENT DOORS + the attachment write arm (M6). Same class of hole
+-- as §7, one plane over: M2 cut the document POLICIES and read WRAPPERS and went green,
+-- while ten §4.2-ratified DOORS kept the tenancy arm and bypassed RLS entirely.
+-- =============================================================================
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.list_commission_documents((select comm_x from k))), 0,
+  '8.1 ⭐⭐ WALL (M6): org_admin lists ZERO controlled documents through the door — pre-M6 this returned the commission''s documents while the table returned zero');
+reset role;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select cmp_ok((select count(*)::int from public.list_commission_documents((select comm_x from k))), '>', 0,
+  '8.2 NON-VACUITY TWIN ⭐: a committee MEMBER still lists them through the same door — 8.1''s zero is the wall, not an empty commission');
+reset role;
+select is(app.can_write_attachment('case', (select case1 from f), (select oa_b from k)), false,
+  '8.3 ⭐ WALL (M6, §4.3): the tenancy admin can no longer WRITE case attachments');
+select is(app.can_write_attachment('case', (select case1 from f), (select sa_x from k)), true,
+  '8.4 NON-VACUITY TWIN ⭐: the committee''s own coordinator still can');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.proname='revoke_printed_document'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_commission_admin_of'),
+  1,
+  '8.5 ⭐ RULING GUARD: revoke_printed_document KEEPS its tenancy arm — ADR 0104 D11 rules revocation a GOVERNANCE act that reveals no content. A "finish the printed-doc wall" sweep must red HERE rather than silently reverse a ruling it never read');
 
 select * from finish();
 rollback;
