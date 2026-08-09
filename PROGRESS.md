@@ -80,6 +80,43 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### 🟡 QO·B — Quality-office oversight, Phase B: the org_admin/hospital_admin CONTENT WALL · **BUILD COMPLETE, QA NOT STARTED**
+
+ADR [0100](docs/decisions/0100-quality-office-oversight.md) **D12** · PO rulings **Q1–Q9**
+(2026-08-08) · [inventory + classification + findings](docs/plans/quality-office-oversight-phase-b-inventory.md)
+· [author self-audit](docs/reviews/phase-QO-B-self-audit.md) (⚠ **not** a QA review, issues no verdict)
+· branch `feat/quality-office-oversight`, **13 commits, LOCAL-ONLY** (no push, per standing PO hold).
+
+| # | Task | State |
+|---|---|---|
+| B.0 | `311` §6 S3/S4 fixture isolation (QA r3 MINOR, *"land before Phase B"*) | ✅ already landed (`f140905`) — verified, not re-done |
+| B.1 | Catalog inventory: 87 policies + 144 functions route an admin predicate | ✅ committed |
+| B.2 | **PO ratifies the content-vs-configuration classification** (D12 step ②) | ✅ Q1–Q9 ratified |
+| B.3 | M1 responses · M2 documents · M3 indicator measurements · M4 18 case write doors | ✅ |
+| B.4 | **M5 response DOORS · M6 document DOORS** — the hole M1–M4 left | ✅ |
+| B.5 | A/B matrix · `b1` mutation audit (17/17) · ARM gates · 3 door sweeps | ✅ |
+| B.6 | E2E `qob-org-admin-content-wall.spec.ts` | ✅ 6/6 GATE GREEN |
+| B.7 | **`qa` review (gate step 3)** → **human approval (step 4)** → Record (step 5) | ⬜ **NOT STARTED** |
+
+**Gate evidence:** fresh reset **328 == 328** · pgTAP **175f / 5553 / PASS** · A/B **LOST =
+ratified cells only · GAINED = 0 · KEEP 0/0** · `b1` **17/17 RED-PROVEN** (12 under-cut +
+5 over-cut) · `ARM=census` + `ARM=floor` **HOLD** · door sweeps **0 BLIND** after remediation
+· lint 0/0 · tsc · vitest **1194**. Closes **BUG-QOB-001** + **BUG-QOB-002**.
+
+⛔ **The finding that matters more than the green table:** M1–M4 cut the **tables** and left
+**16 DEFINER doors** open — `orgadmin.a` still read **6 free-text answers** through
+`dashboard_free_text` while `responses` returned 0. **Four green gates were each blind to it
+in a different way** (the A/B matrix sees only tables; the ADR 0079 sweep neutralizes only
+BOOLEAN gates; `ARM=floor` asks *called*, not *correct*; `314` asserted tables). Closed by
+M5+M6. Found by re-reading the ratified CUT list against the catalog — **a check no harness
+performs**, and one to run at the end of any subtractive phase.
+
+⚠ **Open before this phase can close:** **BUG-QOB-003** (the UI still maps a tenancy admin to
+`staff_admin`, so the wall closes underneath coordinator affordances — needs a PO ruling +
+frontend) · **FUP-QOB-1** · the self-audit's **#1 residual risk**: only **4 of the 16** M5/M6
+doors carry a *behavioural* keystone; the other twelve rest on structural postconditions, and
+this phase proved twice that a structural assertion cannot substitute for a behavioural one.
+
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
 Full record (task table M-B1…M-Q1, lead notes, gate detail, the BLOCKER→Package-A narrative)
@@ -294,6 +331,8 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 > Older rows (MIN · AFF · MEM · PCI/TV and everything before) rotated **2026-08-07** at the QO·A
 > Record → [test-run-archive.md](docs/progress/test-run-archive.md).
 
+| 2026-08-08 | **QO·B · LEAD · full build + gate battery on a fresh reset** — 6 migrations (`20260915000000`–`…000500`), **328 registered == 328 files**; A/B equivalence matrix rebuilt on a CLEAN seed (928-cell pre-image, 5 personas × 41 tables); `b1` mutation audit; both ARM gates; 3 diff-scoped door sweeps; `SPECS=`-scoped `e2e:prod` | **ALL GREEN.** pgTAP **175 files / 5553 / PASS** · A/B **LOST = the 2 tenancy admins on the ratified tables ONLY · GAINED = 0 · KEEP-side 0/0**, `staff_admin`+`staff` controls unchanged, `orgadmin.b` 0 CUT-cells both images (cross-org control) · `b1` **17/17 RED-PROVEN** (12 under-cut + **5 over-cut**), RESTORE byte-identical, CONTROL 49 ok/0 · **`ARM=census`** (450 gates / 460 verdicts) **+ `ARM=floor`** (82 never-called, all allowlisted) **HOLD** · door sweeps: 15 diff-derived → 13 ran → **3 BLIND** → keystoned → **re-swept 3/3 COVERED**; `can_write_attachment` **COVERED**; 0 harness ERROR · E2E **6/6 GATE GREEN**, accounted 6/6, `reset FAILED` = 0 · lint 0/0 · tsc · vitest **1194**. ⛔ **The headline is NOT the green table: M1–M4 cut the TABLES and left 16 DEFINER DOORS open** — `orgadmin.a` still read **6 free-text answers** via `dashboard_free_text` while `responses` returned 0. Closed by M5+M6. **Four green gates were each blind to it in a different way** (A/B sees only tables · the 0079 sweep neutralizes only BOOLEAN gates · `ARM=floor` asks *called*, not *correct* · `314` asserted tables). Found by re-reading the ratified CUT list against the catalog — a check **no harness performs**. ⚠ **And that check was wrong on its first run**: `\yis_commission_admin_of\y` cannot match `…_for` (10 findings → 12 corrected). ⚠ **Process:** a **killed sweep LEAKS a mutation** — a 10-min tool cap cut run #1 mid-case and left `indicator_measurements_select` neutralized to `true` in the LIVE catalog (found by checking the catalog, not by trusting the harness's restore; fixed by a reset). A **partial sweep also overwrites the committed findings file** (would have replaced 356 lines with 11) — restored each time. The **E2E wrapper exited 0 while printing `FATAL: toolchain drift`** (worktree `node_modules` next 16.3.0-preview.5 vs declared 16.3.0 after the fast-forward; `npm ci`). |
+
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-08 | **Next 16.3.0-stable upgrade · solo session · FULL `e2e:prod` gate** (`npm run e2e:prod` from Git Bash, fresh build + per-batch `supabase db reset`, 17 batches) + BUG-PDF2-002 investigation probes, all on the prod-standalone build | **ZERO assertion failures on Next 16.3.0 stable.** Gate: **991 passed · 0 failed · 33 infra-unproven + 2 did-not-run (batch 5 only)**; the batch-5 spec set (ff2-matrix · ff3-validations · ff4-power-authoring · ff5-references · flagged-aggregate-result, 56 tests) then re-run foreground on a fresh reset → **56/56 GREEN**, so coverage is complete and the run is materially cleaner than the documented ~18–27 flaky baseline. Batch-5's infra event was the known Windows mid-run server-death class (its in-run Playwright retry re-created a `phase_results` fixture → cascading 23505s — fixture symptom, not defect). Also green on 16.3.0: tsc · lint · vitest 1194/1194 · both PDF suites 12/12 incl. the newly pinned BUG-PDF2-002 streamed-notFound contract assertions. Upgrade commit `39bf5ac`; resolution commit `2789b75` |
@@ -341,6 +380,8 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
+| 2026-08-08 | **QO·B content-wall classification RATIFIED (PO, Q1–Q9)** — **KEEP as configuration:** form definitions, `process_template_*`, committee taxonomy + meeting settings (*"the admin shapes the containers, never reads what goes in them"*). **SPLIT:** indicator DEFINITIONS keep, MEASUREMENTS cut. **hospital_admin gets the SAME wall** as org_admin (identical measured reach; walling only org_admin leaves a documented bypass). **Case-ACCESS doors KEEP** (A4 scope ruling + self-escalation independently blocked — an org_admin holds no membership row so its self-grant raises *"o responsável deve ser membro da comissão"*). **Classification doors KEEP** (`set_case_visibility`/`set_case_confidentiality` — mirrors `set_commission_oversight`); **`dispose_case_phi` CUT** (a principal with zero PHI bits does not destroy Rule 12 data — D5). **Both live defects filed as bugs AND fixed** (BUG-QOB-001/002). **`is_commission_admin_of` → `is_tenancy_admin_of` rename APPROVED but DEFERRED to its own wave AFTER QO·B**, so it cannot confound the equivalence matrix. | [0100](docs/decisions/0100-quality-office-oversight.md) D12 · [inventory §6](docs/plans/quality-office-oversight-phase-b-inventory.md) |
+| 2026-08-08 | **`revoke_printed_document` KEEPS the tenancy arm — the older ruling overrules the newer draft.** QO·B's §4.3 draft listed it CUT; **ADR 0104 D11** (QA MINOR-2, lead-ruled) already held revocation a **governance** act that reveals no content — the admin chain may revoke an ata print it cannot download. Per-door judgement beat the list. Pinned by a migration postcondition, keystone `314` 8.5, and mutation case `overcut_revoke_ruling`, so a future "finish the printed-doc wall" sweep reds instead of silently reversing a decision it never read. | [0104](docs/decisions/0104-pdf-document-printing-module.md) D11 |
 | 2026-08-05 | **AFF — hospital affiliation, CPF identity & the org people directory** (PO, grilling interview) — hospital affiliation becomes a **row** (`hospital_affiliations`, soft-ended, matrícula per employment) and is a **visibility input, never a capability input** (amends 0048 D7: hospital *is* now a read boundary); `profiles.home_hospital_id` + `hospital_employee_id` **dropped**; **`profiles.cpf`** platform-unique = the person key (nullable column, required at the action layer); the already-shipping org-wide roster disclosure **ratified** via `list_org_people` gated on `is_org_admin_of OR is_org_level_admin_within` (amends 0048 D1), CPF **exact-match input only, never in the payload**; one **identifier-first** registration flow (`registerUser` keeps its collision block as backstop — amends 0048 D9); `professional_profiles` gains `cpf` but linking is **deferred and only ever from inside a case** (a registration-side match would disclose ethics-case subjecthood); person-level fields **`org_admin`-only**, account deactivation unreachable by hospital admins; single-hospital tenants seat `org_admin` + `hospital_admin` at **provisioning** (no model change, no self-grant relaxation) behind a new **dominance grid** + 2 live gap fixes. **All pre-pilot** — the schema is free only while the reset is | [0097](docs/decisions/0097-hospital-affiliation-person-identity.md) · [plan](docs/plans/hospital-affiliation-person-identity.md) |
 | 2026-08-04 | **The authz door-blindness invariant becomes a PHASE STEP, diff-scoped** — §6 step 1 gains ARM 2 (~1 min) every phase + a **diff-scoped** ARM 1 whenever a phase touches an RLS policy or `prosecdef` gate (case list derived from the migration diff, never by hand); step 5 must **name the ARM, not the script**. The full ~5 h sweep stays a **periodic** audit — mandating it per phase would reproduce the failure it fixes, and a diff-scoped gate is adoptable today against the open 15-violation backlog | [0079 Amendment 1](docs/decisions/0079-authz-door-blindness-standing-invariant.md) · [CLAUDE.md §6](CLAUDE.md) |
 | 2026-08-04 | **Membership-hardening + Diretor Técnico: the four open items closed** (PO) — T1.0 = **atomic replace**; **platform_admin may NOT appoint a DT** (tenant governance, not tenancy administration — the only kernel grant arm with no `is_admin_for` branch); build **W1→W4 straight through** on one branch; `technical_director` flag **ships ON** at T4.9 | [0094 Amendment 1](docs/decisions/0094-membership-hardening-and-technical-director.md) · [plan](docs/plans/membership-hardening-technical-director.md) |

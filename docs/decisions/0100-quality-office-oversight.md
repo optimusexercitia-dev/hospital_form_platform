@@ -154,6 +154,49 @@ red it. Replaced by a DERIVATION over the catalog (every policy reaching an inte
 not route the widened predicate), with a non-vacuity twin proving the population is non-empty.
 **Prefer: derive the set, assert over the derivation, and twin it against the empty set.**
 
+## Standing rule II (added 2026-08-08 after QO·B — the *subtractive* twin of the rule above)
+
+**Cutting a principal from a TABLE does not cut it from the DOORS that read that table.**
+
+QO·B's M1 walled the response tables and M2 the document tables. Every gate went green.
+**Sixteen DEFINER doors on the same PO-ratified CUT list were never touched** — and a
+DEFINER door bypasses RLS entirely, so the tenancy admin went on reading through a door
+exactly what the table refused. Measured post-M4 as `orgadmin.a`: `dashboard_free_text`
+**6 rows** (free-text answers, the most sensitive payload on the plane),
+`dashboard_export_rows` 6, `list_commission_documents` 2. Closed by M5 + M6.
+
+**Four green gates were each blind to it, in a different way** — this is the part worth
+carrying forward, because each will be cited as coverage again:
+
+| Gate | Why it could not see it |
+|---|---|
+| A/B equivalence matrix | measures **table** row visibility under RLS; a DEFINER door is invisible *by construction* — it reported `GAINED = 0` throughout |
+| ADR 0079 door sweep | neutralizes **boolean** gates; these return `SETOF`, so they were never in its population |
+| `ARM=floor` | asks whether a door is **called**, not whether its gate is **right** |
+| the phase's own pgTAP | asserted the tables, not the doors |
+
+**What found it:** re-reading the ratified CUT list and asking the catalog, item by item,
+*"did I actually cut this?"* — the plainest check available, and **one no harness
+performs**. It is now a required closing step of any subtractive phase.
+
+⚠ **And the check was wrong on its first run.** `\yis_commission_admin_of\y` **cannot
+match `is_commission_admin_of_for`** — the word boundary fails before `_`. First pass: 10
+findings. Corrected: 12. Every sweep in this repo grepping the short name is silently
+blind to every `_for` call site.
+
+**Two corollaries, both proven inside this phase:**
+
+1. **A structural assertion cannot substitute for a behavioural one.** A catalog invariant
+   that greps a policy's `qual` for the arm **passes** on a policy neutralized to
+   `using(true)` — there is no such text in it. The door sweep found three BLIND gates the
+   catalog check had "covered". They cover different failures; neither implies the other.
+2. **A subtractive phase needs OVER-CUT guards, and nothing else provides them.** A
+   "did we remove enough?" audit is structurally incapable of seeing an over-cut, and an
+   over-cut is the failure that reaches a customer as *"the admin can no longer do their
+   job"*. QO·B's mutation audit runs 5 of its 17 cases in that direction, and one of them
+   guards a ruling from a *different* ADR (0104 D11) that a later sweep would otherwise
+   have reversed without ever reading it.
+
 ## Alternatives rejected
 
 - **The handoff's runtime-mutable permission catalog** (`role_definitions` /
