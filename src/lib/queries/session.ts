@@ -588,6 +588,53 @@ export function canConfigureCommission(
 }
 
 /**
+ * Server-action variant of {@link canConfigureCommission}, resolved by commission
+ * id — the lib action guards (`src/lib/*\/actions.ts`) hold a `commissionId`, not
+ * a `CommissionAccess`. Same seam, same rule: the commission's own MEMBERSHIP
+ * coordinator, or a tenancy admin of its org/hospital.
+ *
+ * Mirrors `authorizeStaffOps` in `members/actions.ts`: the tenancy legs need the
+ * commission's scope columns, so they share one RLS-scoped read — deliberately
+ * RLS-scoped, because a caller who cannot SELECT the commission cannot administer
+ * it either. Inactive accounts fail closed.
+ *
+ * ⛔ Route only ADR 0100 D12 KEEP-surface (configuration) actions through this —
+ * the same warning as {@link canConfigureCommission}: a content action guard that
+ * adopts it re-opens the wall at the affordance layer (the BUG-QOB-003 class).
+ */
+export async function canConfigureCommissionById(
+  commissionId: string,
+): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isInactive) return false
+
+  if (
+    context.memberships.some(
+      (m) => m.commission.id === commissionId && m.role === 'staff_admin',
+    )
+  ) {
+    return true
+  }
+
+  if (context.orgAdminOf.length === 0 && context.hospitalAdminOf.length === 0) {
+    return false
+  }
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('commissions')
+    .select('organization_id, hospital_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  if (!data) return false
+
+  return isCommissionAdmin(context, {
+    organizationId: data.organization_id,
+    hospitalId: data.hospital_id,
+  })
+}
+
+/**
  * The technical-direction access resolver (ADR 0094 W4 / FUP-MEM-3b) — the seam
  * behind `/o/[org]/direcao-tecnica/**`, mirroring {@link getCommissionAccessByOrg}.
  *

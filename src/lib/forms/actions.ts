@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
@@ -236,17 +236,24 @@ function revalidateBuilder(): void {
 }
 
 /**
- * Authorize a builder action for a commission: admin, or a staff_admin of THAT
- * commission. Mirrors `authorizeStaffOps` in members/actions.ts. RLS still
- * backstops every write; this yields the friendly pt-BR forbidden.
+ * Authorize a builder action for a commission. Form DEFINITIONS are ADR 0100 D12
+ * KEEP configuration (PO ruling Q1), so this routes the
+ * `canConfigureCommissionById` seam: membership staff_admin OR tenancy admin
+ * (org_admin/hospital_admin) — mirroring the DB, where `forms_staff_admin_write`
+ * (and the sections/items/options/matrix/validation/block-library substrates +
+ * the `form-assets` storage policies) all still read
+ * `is_staff_admin_of OR is_commission_admin_of`. Pre-QO·B this guard was
+ * membership-only, which silently converted the ratified KEEP into a CUT at the
+ * action layer (the BUG-QOB-003 incoherence class, action-side).
+ * RLS/the RPC gates still backstop every write; this yields the friendly pt-BR
+ * forbidden. The platform-admin arm is pre-existing and out of this change's
+ * scope (recorded follow-up).
  */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
   if (context.isAdmin) return true
-  return context.memberships.some(
-    (m) => m.commission.id === commissionId && m.role === 'staff_admin',
-  )
+  return canConfigureCommissionById(commissionId)
 }
 
 /** Map a write error to user-facing pt-BR copy (immutability vs generic). */

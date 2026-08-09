@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
@@ -99,7 +99,12 @@ function revalidateCaseResult(): void {
   revalidatePath(DASHBOARD_PATH, 'page')
 }
 
-/** Authorize a result action: admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize the CASE-CONTENT result action (overrideCasePhaseResult): admin, or
+ * a MEMBERSHIP staff_admin of THAT commission. ⛔ Deliberately NOT the config
+ * seam — a per-case result override is committee content under the ADR 0100 D12
+ * wall (`set_case_phase_result_override` is on the ratified §4.4 CUT list).
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
@@ -107,6 +112,21 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   return context.memberships.some(
     (m) => m.commission.id === commissionId && m.role === 'staff_admin',
   )
+}
+
+/**
+ * Authorize a phase-result VOCABULARY action (the phase_results CRUD): ADR 0100
+ * D12 KEEP configuration (PO ruling Q7 — `phase_results` is commission
+ * vocabulary, not per-case results), so this routes `canConfigureCommissionById`
+ * (membership staff_admin OR tenancy admin) — mirroring the DB, where
+ * `phase_results_staff_admin_write` and the CRUD probes still carry the tenancy
+ * arm. The platform-admin arm is pre-existing and out of scope.
+ */
+async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return canConfigureCommissionById(commissionId)
 }
 
 async function commissionOfResult(
@@ -192,7 +212,7 @@ export async function createPhaseResult(
   if (!input.label.trim()) {
     return { ok: false, fieldErrors: { label: MESSAGES.labelRequired } }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -226,7 +246,7 @@ export async function updatePhaseResult(
   const supabase = await createClient()
   const commissionId = await commissionOfResult(supabase, resultId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingResult }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -254,7 +274,7 @@ export async function reorderPhaseResults(
 ): Promise<ActionState> {
   if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
   if (orderedIds.length === 0) return { ok: true }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -283,7 +303,7 @@ export async function archivePhaseResult(
   const supabase = await createClient()
   const commissionId = await commissionOfResult(supabase, resultId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingResult }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 

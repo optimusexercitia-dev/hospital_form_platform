@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import { caseAccessEnabled } from '@/lib/case-access/actions'
@@ -165,7 +165,14 @@ function revalidateCase(): void {
   revalidatePath(CASES_LIST_PATH, 'page')
 }
 
-/** Authorize a narratives action: admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize a CASE-CONTENT narrative action (upsertNarrativeBody /
+ * addAdHocNarrative / assignNarrative / unassignNarrative): admin, or a
+ * MEMBERSHIP staff_admin of THAT commission. ⛔ Deliberately NOT the config
+ * seam — per-case narrative writes are committee content under the ADR 0100 D12
+ * wall (their DB substrates carry no tenancy arm; `update_case_narrative_body`
+ * is on the ratified §4.4 CUT list).
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
@@ -173,6 +180,23 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   return context.memberships.some(
     (m) => m.commission.id === commissionId && m.role === 'staff_admin',
   )
+}
+
+/**
+ * Authorize a narrative VOCABULARY/TEMPLATE action (the narrative-type CRUD +
+ * the template-narrative editors + the template case-layout reorder): ADR 0100
+ * D12 KEEP configuration (PO rulings Q7 + Q2), so this routes
+ * `canConfigureCommissionById` (membership staff_admin OR tenancy admin) —
+ * mirroring the DB, where `case_narrative_types_staff_admin_write` + the CRUD
+ * probes carry the tenancy arm and the template RPCs are INVOKER under the
+ * armed `process_template_*` policy family. The platform-admin arm is
+ * pre-existing and out of scope.
+ */
+async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return canConfigureCommissionById(commissionId)
 }
 
 // Every resolver below logs a QUERY error before returning null. A bare
@@ -388,7 +412,7 @@ export async function createNarrativeType(
   if (!(await narrativesEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -427,7 +451,7 @@ export async function updateNarrativeType(
   const supabase = await createClient()
   const commissionId = await commissionOfType(supabase, narrativeTypeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingType }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -459,7 +483,7 @@ export async function reorderNarrativeTypes(
   if (!(await narrativesEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -491,7 +515,7 @@ export async function archiveNarrativeType(
   const supabase = await createClient()
   const commissionId = await commissionOfType(supabase, narrativeTypeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingType }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -532,7 +556,7 @@ export async function addTemplateNarrative(
   const supabase = await createClient()
   const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -567,7 +591,7 @@ export async function updateTemplateNarrative(
   const supabase = await createClient()
   const commissionId = await commissionOfTemplateNarrative(supabase, narrativeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -606,7 +630,7 @@ export async function removeTemplateNarrative(
   const supabase = await createClient()
   const commissionId = await commissionOfTemplateNarrative(supabase, narrativeId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -640,7 +664,7 @@ export async function reorderCaseLayout(
   const supabase = await createClient()
   const commissionId = await commissionOfTemplateVersion(supabase, templateVersionId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 

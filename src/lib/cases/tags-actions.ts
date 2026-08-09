@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getSessionContext } from '@/lib/queries/session'
+import { canConfigureCommissionById, getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
@@ -63,6 +63,12 @@ function revalidateAssignments(): void {
   revalidatePath(DASHBOARD_PATH, 'page')
 }
 
+/**
+ * Authorize a CASE-CONTENT tag action (assign/unassign on a case): admin, or a
+ * MEMBERSHIP staff_admin of THAT commission. ⛔ Deliberately NOT the config
+ * seam — tagging a case is committee content under the ADR 0100 D12 wall
+ * (`assign_case_tag`/`unassign_case_tag` carry no tenancy arm).
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
@@ -70,6 +76,20 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
   return context.memberships.some(
     (m) => m.commission.id === commissionId && m.role === 'staff_admin',
   )
+}
+
+/**
+ * Authorize a tag VOCABULARY action (the case_tags CRUD): ADR 0100 D12 KEEP
+ * configuration (PO ruling Q7), so this routes `canConfigureCommissionById`
+ * (membership staff_admin OR tenancy admin) — mirroring the DB, where
+ * `case_tags_staff_admin_write` and the CRUD probes still carry the tenancy arm.
+ * The platform-admin arm is pre-existing and out of scope.
+ */
+async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return canConfigureCommissionById(commissionId)
 }
 
 async function commissionOfCase(
@@ -126,7 +146,7 @@ export async function createCaseTag(
   if (!name.trim()) {
     return { ok: false, fieldErrors: { name: MESSAGES.nameRequired } }
   }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -157,7 +177,7 @@ export async function renameCaseTag(
   const supabase = await createClient()
   const commissionId = await commissionOfTag(supabase, tagId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTag }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
@@ -183,7 +203,7 @@ export async function archiveCaseTag(tagId: string): Promise<ActionState> {
   const supabase = await createClient()
   const commissionId = await commissionOfTag(supabase, tagId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTag }
-  if (!(await authorizeCommission(commissionId))) {
+  if (!(await authorizeCommissionConfig(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
