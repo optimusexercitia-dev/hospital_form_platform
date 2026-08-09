@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  canConfigureCommission,
+} from "@/lib/queries/session";
 import { listIndicators } from "@/lib/queries/indicators";
 import type { MeasurementStatus } from "@/lib/indicators/types";
 import { commissionHref } from "@/lib/routing";
@@ -30,7 +33,7 @@ export default async function IndicatorsPage({
 }) {
   const { org, commission } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access || access.role !== "staff_admin") {
+  if (!access || !canConfigureCommission(access)) {
     notFound();
   }
 
