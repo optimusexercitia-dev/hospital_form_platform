@@ -595,9 +595,14 @@ test.describe('Deliverable 3: Org-User meetings hiding (C7)', () => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto(BASE)
 
-    // She resolves a commission-admin "staff_admin" role via `is_commission_admin_of`
-    // (session.ts: `memberRole ?? (isCommAdmin ? 'staff_admin' : null)`) WITHOUT a
-    // membership row — the commission layout renders for her (role !== null).
+    // ⛔ QO·B, 2026-08-09 — comment corrected, assertions below are unaffected.
+    // This used to describe `session.ts` coercing her to a `staff_admin` role
+    // (`memberRole ?? (isCommAdmin ? 'staff_admin' : null)`) WITHOUT a membership
+    // row; BUG-QOB-003 removed that coercion. She now resolves `role: null` +
+    // `isTenancyAdmin: true`, and the commission layout renders the reduced
+    // `navScope: "configuration"` shell for her instead (ADR 0100 D12) — still
+    // NOT the 404 branch, so the nav below still renders, just via a different
+    // mechanism than this comment used to describe.
     const nav = page.getByRole('navigation', { name: /navegação da comissão/i })
     await expect(nav).toBeVisible({ timeout: 10_000 })
     await expect(nav.getByRole('link', { name: 'Reuniões' })).toHaveCount(0)

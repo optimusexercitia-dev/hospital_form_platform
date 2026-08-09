@@ -307,6 +307,53 @@ layout gate (`src/app/o/[org]/c/[commission]/layout.tsx:70`) now 404s a bare ten
 KEEP surfaces only, and re-gate the ~25 `access.role !== 'staff_admin'` pages per the
 KEEP/CUT split (precise list in the backend B.10 report to the lead). The PO presentation
 ruling above is still open; the contract no longer blocks on it.
+**➜ UI HALF TESTER-VERIFIED 2026-08-09** (frontend shipped it in `1dfc3fb`): the 7-item KEEP nav
+allowlist, the configuration landing at the commission root, the indicator-detail Q3 split
+(definition renders, measurement withheld), all CUT routes 404ing with no leak, the
+`"member-and-configuration"` tri-state (manufactured live via the real member-add door — no seed
+persona held it), and coordinator no-regression are all pinned in
+`e2e/qob-org-admin-content-wall.spec.ts` (19/19, run twice, 0 flake) — see the Test Run Summary
+row below. Uncovered a related, separate finding while verifying — **BUG-QOB-004**.
+
+🔴 **BUG-QOB-004 — QO·B's UI half orphaned a DB-authorized referral capability for a bare
+tenancy admin; `encaminhamentos/**` was never part of the D12 classification.** Filed
+2026-08-09 (`tester`, writing the QO·B UI E2E extension). **Not a security defect** — nothing
+unauthorized became reachable; the opposite: an authorized capability became UNREACHABLE.
+**[CAT]** `docs/plans/quality-office-oversight-phase-b-inventory.md`'s §4 classification (the
+PO-ratified Q1–Q9 CUT/KEEP list) never mentions "referral" or "encaminhamento" anywhere —
+referrals were **out of scope** for the QO·B program. **[CAT]** confirmed live: `can_dispose_referral_phi`,
+`create_referral_draft`, and `dispose_referral_phi` still route `app.is_commission_admin_of`
+verbatim (`pg_get_functiondef`, unmodified by any `20260915*` QO·B migration) — the tenancy-admin
+disposal/draft capability is **fully intact at the DB layer**. **[MEAS]** but
+`src/app/o/[org]/c/[commission]/encaminhamentos/[referralId]/page.tsx:107`'s gate
+(`if (!access || access.role === null) notFound()`) **predates QO·B** — it was written when the
+session resolver coerced a tenancy admin to `role: 'staff_admin'`, so it always passed for them.
+BUG-QOB-003's coercion removal (backend, `4dd5cfa`) makes `access.role` genuinely `null` for a
+bare tenancy admin everywhere at once, including this route nobody re-examined during QO·B — so
+`admin@test.local` (org_admin of rede-a, zero CCIH membership) now 404s on every
+`encaminhamentos/**` route, unable to ever reach the "Apagar dados do paciente" button or the
+compose-draft affordance the DB still grants it. **Proven live, twice, on a fresh reset**:
+`e2e/phase22-referrals.spec.ts` "Flow 3d" (hub content) and `e2e/nsp-per-hospital.spec.ts` AC-7
+"entitled caller (admin) disposes ENC-0004 PHI" both reproduce the 404 for `admin@test.local`
+specifically (a genuine committee member on the SAME routes, e.g. `chefe.ccih`/`pqsdual.a`,
+reaches them fine — isolated by re-running each file fresh after ruling out an unrelated
+self-inflicted `case_referrals`-flag contamination artifact from an earlier scoped test run).
+**Blast radius, why this earned a bug rather than a silent spec-only fix:** `phase22-referrals.spec.ts`
+runs its whole file `mode: 'serial'`; Flow 3d's failure alone **skipped the remaining 29 tests** in
+that file (Flow 4a onward) when it broke — the single stale assertion was hiding nearly the whole
+file's coverage, a collateral-damage shape worth flagging on its own.
+**Disposition (tester):** did **not** rewrite the two affected tests to assert 404 — that would
+have silently canonized an unratified capability loss as intended behavior. Instead swapped both
+to `pqsdual.a@test.local` (a genuine CCIH `staff` member who is ALSO a central-a+secundario-a PQS
+operator — the same PQS-operator arm `can_dispose_referral_phi` grants, reached through a
+membership row the wall never touches), which restores full E2E proof of the underlying
+capability without depending on the now-retired coercion. Both files are green (40/40, 32/32) —
+see the Test Run Summary row below. **What is genuinely open:** whether `admin@`/`hospitaladmin.*`
+losing referral-hub reach is accepted as collateral (the capability lives on for anyone who is
+also a genuine committee member or PQS operator, which every real coordinator already is) or
+whether `encaminhamentos/**` should get its own `canConfigureCommission`-style KEEP treatment —
+**a PO ruling this program never asked for**, same class as the standing rule *"conferring a
+capability requires enumerating its consumers."* Owner: PO/backend.
 
 ⬛ **BUG-QOB-002 — a tenancy admin could WRITE case content it could not READ.** Filed
 2026-08-08 (QO·B step ①); **fix pending in M4**. **[MEAS]**, one transaction, one principal:
@@ -360,6 +407,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-09 | **QO·B · `tester` · BUG-QOB-003 UI-half gate step 2** — extended `e2e/qob-org-admin-content-wall.spec.ts` (6→19 tests: 7-item KEEP nav, configuration landing, indicator Q3 split, all CUT routes, coordinator no-regression, cross-org, keyboard-only, the manufactured `"member-and-configuration"` case) + swept 32 e2e files for stale org_admin/hospital_admin assumptions (an Explore sub-agent + direct catalog checks), fixing 4 confirmed-stale files. Prod-standalone server built + run from THIS worktree (cwd verified via `Get-CimInstance Win32_Process`); each touched file run to green on its own fresh `db reset` (case_referrals-flag cross-file contamination from an earlier scoped grep run was diagnosed and is not a product defect — full-file/fresh-reset runs are the ones reported below) | **All touched specs GREEN.** `qob-org-admin-content-wall.spec.ts` **19/19, run twice (0 flake)**. `phase15-indicators.spec.ts` **12/12** (AC-5b rewritten: UI now proves the withheld-CAPA-region contract instead of a since-impossible operator-button click; DB-level authorization proven via the real `open_capa_plan` door, mirroring AC-6). `hospital-admin-tier.spec.ts` **38/38** (1 test retired — "hospital-wide response reads" was pinning the exact over-reach QO·B removed; now asserts the ratified 404). `phase22-referrals.spec.ts` **40/40** (2 tests — Flow 3d/5a — swapped `admin@` → `pqsdual.a`; Flow 5a's old `if (isVisible) … else { if includes(PHI) … }` had gone silently VACUOUS post-QO·B, now asserts reach explicitly). `nsp-per-hospital.spec.ts` **32/32** (AC-7's disposal test swapped `admin@` → `pqsdual.a`; also corrected a false "`is_admin` arm" claim in a stale comment — catalog-verified `can_dispose_referral_phi` has no such arm). `meetings-reserved-sessions.spec.ts` Deliverable-3 **2/2** (comment-only fix, mechanism corrected, assertions were already right). `cases-board-access.spec.ts` **2/2, unmodified** (already-correct precedent, confirmed). **1 new bug filed: BUG-QOB-004** (encaminhamentos/** — a route never in QO·B's ratified scope — now 404s a bare tenancy admin who still holds live DB authorization there; not a security defect, a capability-reach regression). Lint 0/0 + `tsc --noEmit` clean on every touched file. `git branch --show-current` verified `feat/quality-office-oversight` before staging; `e2e/**` + `PROGRESS.md` only, no app code. **Full `e2e:prod` is the lead's step, not run here** |
 | 2026-08-08 | **Next 16.3.0-stable upgrade · solo session · FULL `e2e:prod` gate** (`npm run e2e:prod` from Git Bash, fresh build + per-batch `supabase db reset`, 17 batches) + BUG-PDF2-002 investigation probes, all on the prod-standalone build | **ZERO assertion failures on Next 16.3.0 stable.** Gate: **991 passed · 0 failed · 33 infra-unproven + 2 did-not-run (batch 5 only)**; the batch-5 spec set (ff2-matrix · ff3-validations · ff4-power-authoring · ff5-references · flagged-aggregate-result, 56 tests) then re-run foreground on a fresh reset → **56/56 GREEN**, so coverage is complete and the run is materially cleaner than the documented ~18–27 flaky baseline. Batch-5's infra event was the known Windows mid-run server-death class (its in-run Playwright retry re-created a `phase_results` fixture → cascading 23505s — fixture symptom, not defect). Also green on 16.3.0: tsc · lint · vitest 1194/1194 · both PDF suites 12/12 incl. the newly pinned BUG-PDF2-002 streamed-notFound contract assertions. Upgrade commit `39bf5ac`; resolution commit `2789b75` |
 | 2026-08-08 | **PDF·P2 · `tester` · QA r1 fix-wave (A7/A8) regression re-run + new A7 UI test** (`npx playwright test e2e/pdf-printing-meetings.spec.ts` and `e2e/pdf-printing.spec.ts --project=chromium --workers=1`, prod-standalone server, fresh `supabase db reset --local` per run, 322 migrations) — **NOT the full-suite `e2e:prod` gate** (lead's step) | **12/12 GREEN across two full runs (24/24 total)** — the existing fixtures (no case-linked agenda items) are unaffected by the A7/A8 conjunction, as predicted. **New test ("A7: the linked case respondent cannot mint or download the ata"): 3/3 GREEN** (1 solo + 2 in the full runs) — composed via real RPCs against the SEEDED ETH·E1 ethics case, no participants-chain fixture of its own needed; coordinator mints fine (contains_phi=true, phi/ storage, DB-truth checked) and downloads 200; respondent reaches the meeting (200, not a BUG-PDF2-002 repeat) but sees no panel entry, gets the door's verbatim 42501 on mint, and 404s probing the coordinator's download path directly. **0 new bugs.** One infra event (Windows prod-standalone server collapse mid-12-test-run, matches the documented flaky-baseline class) triaged by splitting into per-file runs, not filed. Detail: M-T1 row above |
 | 2026-08-08 | **PDF·P2 · `tester` · scoped run of the new phase spec + the P1 no-regression check** (`npx playwright test e2e/pdf-printing-meetings.spec.ts --project=chromium --workers=1`, prod-standalone server, fresh `supabase db reset --local` per run; then one UNMODIFIED run of `e2e/pdf-printing.spec.ts`) — **NOT the full-suite `e2e:prod` gate** (lead's step) | **New spec: 4/4 GREEN, run twice on independent fresh resets (8/8 total).** **P1 no-regression check: 7/7 GREEN** (first attempt hit the documented PGRST002 post-reset race — 2 spurious, retried once clean per house rule, not a regression). **2 bugs filed** (BUG-PDF2-001 LOW copy, BUG-PDF2-002 MEDIUM status-code-not-leak, both pre-existing/non-blocking — see Bug Log). Detail: M-T1 row above |

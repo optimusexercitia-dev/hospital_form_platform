@@ -24,14 +24,30 @@ import { cachedSignIn } from "./helpers/auth"
  *             Target: Farmácia. No reply. Used for the close-gate (HC076) test.
  *
  * **Personas (password Test1234!):**
- *   admin@test.local          rede-a org_admin + rede-a PQS roster (00…001) —
- *                             resolves to staff_admin on /o/rede-a/c/* (org_admin→
- *                             staff_admin); used for PostgREST/RPC truth-reads + setup.
- *                             NOT the vendor platform admin (that is platform@…b0).
+ *   admin@test.local          rede-a org_admin + rede-a PQS roster (00…001) — used for
+ *                             PostgREST/RPC truth-reads + setup (unaffected by QO·B: those
+ *                             calls carry their own JWT and never touch a commission UI
+ *                             route). NOT the vendor platform admin (that is platform@…b0).
+ *                             ⛔ QO·B, 2026-08-09: no longer used to reach a `/o/rede-a/c/*`
+ *                             commission-hub UI. It held zero CCIH membership rows even
+ *                             before QO·B; the resolver used to coerce it to `staff_admin`
+ *                             there, and QO·B (BUG-QOB-003) removed that coercion, so it is
+ *                             now a genuine `role: null` bare tenancy admin — the commission
+ *                             layout's `access.role === null → notFound()` gate (unrelated to
+ *                             and untouched by QO·B; it predates it) now 404s it on every
+ *                             `/c/[commission]/**` route, including `encaminhamentos/**`.
  *   pqs.a@test.local          enrolled rede-a PQS member (00…00c2) — the QPS actor for
  *                             the per-org QPS referral dashboard /o/rede-a/nsp/* and
  *                             full-trajectory reads. No commission/org membership, so it
- *                             404s on /o/rede-a/c/* commission hubs (use admin@ there).
+ *                             404s on /o/rede-a/c/* commission hubs.
+ *   pqsdual.a@test.local      plain CCIH `staff` (00…0c7) who is ALSO enrolled in the
+ *                             central-a + secundario-a PQS rosters — QO·B, 2026-08-09: the
+ *                             commission-hub substitute for admin@ above (Flow 3d, Flow 5a).
+ *                             A REAL membership row means `can_read_referral_metadata`'s
+ *                             `is_member_of_for(source_commission)` arm admits it regardless
+ *                             of the tenancy-admin wall, so it reaches the hub exactly as a
+ *                             committee member always could; its PQS enrollment is what these
+ *                             two flows actually mean by "QPS admin" reading the reply/PHI.
  *   chefe.ccih@test.local     staff_admin, CCIH           (00…002) — source coordinator
  *   staff1.ccih@test.local    staff, CCIH                 (00…003) — plain A member
  *   chefe.farm@test.local     staff_admin, Farmácia       (00…005) — target coordinator
@@ -634,11 +650,12 @@ test('Flow 3c: QPS admin can read B\'s linked case via get_case_detail', async (
 test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on detail page', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  // admin@ is rede-a org_admin → resolves to staff_admin on /o/rede-a/c/* (the
-  // commission-access resolver maps org_admin→staff_admin), so it can open ENC-0001
-  // via the CCIH commission hub. (pqs.a@ would 404 here — PQS-roster-only, no
-  // commission/org membership — so the QPS dashboard, not this hub, is its surface.)
+  // ⛔ QO·B, 2026-08-09: swapped from admin@test.local, which used to resolve to
+  // staff_admin on /o/rede-a/c/* via the now-removed coercion (BUG-QOB-003) and
+  // is a bare tenancy admin today (404s on encaminhamentos/** — see the file
+  // header). pqsdual.a is a REAL CCIH member (opens the hub on that arm alone)
+  // who is also PQS-enrolled, which is what "QPS admin" means for this flow.
+  await signInAs(page, 'pqsdual.a@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
   // Reply is visible
@@ -761,12 +778,25 @@ test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, n
   page,
   request,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  // ⛔ QO·B, 2026-08-09: swapped from admin@test.local — see Flow 3d's comment
+  // and the file header for why it no longer reaches this route. Also tightens
+  // a real gap the old version had: admin@'s reveal-button probe was wrapped in
+  // an `if (isVisible) … else { if (html.includes(PHI_NAME)) … }` with NO ELSE
+  // branch assertion, so once admin@ started 404ing this test went silently
+  // VACUOUS (green while proving nothing — the exact "a test that cannot fail"
+  // trap e2e/qob-org-admin-content-wall.spec.ts's own header warns against).
+  await signInAs(page, 'pqsdual.a@test.local')
 
   // Capture audit count BEFORE the reveal
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  // Assert reach explicitly, so a future regression here fails loudly instead of
+  // silently falling through the "PHI doesn't appear, nothing to assert" branch
+  // below.
+  await expect(
+    page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+  ).toHaveCount(0)
 
   // Click the reveal button (lazy: fires the audited `get_referral_patient` door)
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })

@@ -186,12 +186,25 @@ test.describe('HA-1: hospital_admin authority + cross-hospital/cross-org isolati
     await expect(page.getByText(/Comissão de Ética/i)).not.toBeVisible()
   })
 
-  test('hospitaladmin.a1 reads the CCIH dashboard and responses (hospital-wide response reads)', async ({ page }) => {
+  test('hospitaladmin.a1 no longer reads the CCIH dashboard (QO·B content wall — Q4: same wall as org_admin)', async ({ page }) => {
+    // ⛔ QO·B, 2026-08-09: this used to assert hospital-wide response READS —
+    // exactly the over-reach QO·B's content wall (ADR 0100 D12) was built to
+    // remove. `hospitaladmin.a1` is a bare tenancy admin here (hospital_admin,
+    // no CCIH membership row); D12's ruling Q4 puts hospital_admin on the SAME
+    // wall as org_admin, and the commission dashboard route gates strictly on
+    // `access.role === 'staff_admin'` (dashboard/page.tsx), which a bare
+    // tenancy admin never satisfies post-QO·B. Full negative coverage of this
+    // persona's KEEP surface lives in e2e/qob-org-admin-content-wall.spec.ts;
+    // this file's job is only to not keep pinning the retired behavior.
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto('/o/rede-a/c/ccih/dashboard')
     await expect(page).not.toHaveURL(/\/login/)
-    const res = await page.request.get('/o/rede-a/c/ccih/dashboard')
-    expect(res.status()).toBe(200)
+    // Content-based, not status-code-based: a route below a `loading.tsx`
+    // streams 200 before its own `notFound()` resolves (the platform's pinned
+    // streamed-notFound contract) — assert the rendered not-found UI.
+    await expect(
+      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+    ).toBeVisible({ timeout: 10_000 })
   })
 
   test('hospitaladmin.dual (both central-a and secundario-a) sees BOTH hospitals worth of commissions', async ({ page }) => {

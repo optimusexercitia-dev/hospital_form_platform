@@ -31,9 +31,18 @@ import { cachedSignIn } from "./helpers/auth"
  *                           a CCIH member, so it READS an indicator-sourced CAPA.
  *   chefe.farm@test.local   staff_admin of Farmácia (commission B, same org) —
  *                           foreign-commission read negative for CCIH indicators.
- *   admin@test.local        org_admin of rede-a (⇒ staff_admin on CCIH pages) AND
- *                           enrolled in central-a's PQS roster ⇒ PQS OPERATOR →
- *                           sees "Abrir plano de ação (CAPA)".
+ *   admin@test.local        org_admin of rede-a (bare tenancy admin — QO·B
+ *                           removed its former coercion to staff_admin, so it
+ *                           now genuinely holds NO CCIH membership) AND
+ *                           enrolled in central-a's PQS roster ⇒ PQS OPERATOR.
+ *                           (QO·B, 2026-08-09: AC-5b no longer drives the CAPA
+ *                           button through the UI — that region is WITHHELD
+ *                           for a bare tenancy admin (ruling Q3), and no other
+ *                           seed persona is both staff_admin/tenancy-admin of
+ *                           CCIH AND a central-a PQS operator to substitute.
+ *                           AC-5b now proves the UI withholding directly and
+ *                           drives `open_capa_plan` through the real door
+ *                           instead — see AC-5b's own header for detail.)
  *   hospitaladmin.a1@test.local  hospital_admin of central-a ONLY → rollup for
  *                           central-a's commissions; sees NOTHING of secundario-a.
  *   orgadmin.b@test.local   org_admin of rede-b → foreign rollup: no central-a rows.
@@ -411,9 +420,38 @@ test('AC-5a: non-operator staff_admin sees only the action-item fallback (no CAP
 
 // ---------------------------------------------------------------------------
 // AC-5b: Two-tier CAPA — a PQS OPERATOR (admin@test.local = org_admin of rede-a
-//         AND central-a PQS roster member) sees "Abrir plano de ação (CAPA)";
-//         opening it creates a plan carrying source_indicator_id + the derived
-//         central-a hospital_id, and a CCIH member (staff1.ccih) can READ it.
+//         AND central-a PQS roster member) opens a CAPA; the plan carries
+//         source_indicator_id + the derived central-a hospital_id, and a CCIH
+//         member (staff1.ccih) can READ it.
+//
+//         ⛔ QO·B, 2026-08-09 — REWRITTEN, not just re-personaed. The UI half of
+//         this AC is now UNREACHABLE BY CONSTRUCTION and no seed persona can
+//         restore it, which is worth spelling out because it looks at first
+//         like a simple swap:
+//           - The indicator detail page's OUTER gate is `canConfigureCommission`
+//             (staff_admin OR tenancy admin) — a plain `staff` member never
+//             passed it, QO·B or not (Phase 15 always scoped "Indicadores" to
+//             staff_admin — app-sidebar.tsx NAV_GROUPS). Tried pqsdual.a (a
+//             real CCIH `staff` + central-a PQS operator) first; it 404s here,
+//             proving the point.
+//           - The INNER gate for the measurement/CAPA half is `role !== null`
+//             (ruling Q3) — admin@ passes the outer gate (isTenancyAdmin) but
+//             now fails this one (role is genuinely null, the coercion is
+//             gone), so the CAPA button never renders for it either.
+//           - Central-a's PQS roster is {pqs.a, admin, pqsdual.a} (seed
+//             header) — NONE of the other two hold staff_admin/tenancy-admin
+//             standing on CCIH, so no combination of an existing persona
+//             clears BOTH gates at once. This AC's UI path is provably
+//             untestable with the current seed, not merely re-personaed.
+//         So: the UI-reach assertion is REPLACED with the one this file can
+//         actually prove today (the page renders, the CAPA region is
+//         withheld — matching e2e/qob-org-admin-content-wall.spec.ts's own
+//         Q3-split test), and the operator-tier AUTHORIZATION + DATA CONTRACT
+//         (plan creation, hospital_id derivation, the commission-member READ
+//         arm, the foreign-staff_admin DENIAL) is proven the same way AC-6
+//         already proves loop closure: through the real `open_capa_plan` door,
+//         whose SQL-level gate (`is_commission_admin_of` OR PQS-operator) was
+//         never touched by QO·B and still authorizes admin@ end to end.
 // ---------------------------------------------------------------------------
 
 test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hospital, readable by commission members', async ({ page }) => {
@@ -421,14 +459,29 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
   const id = await indicatorIdByCode(page, 'IND-0002')
   await page.goto(indicatorHref(id))
 
-  const capa = page.getByRole('region', { name: /plano de ação/i })
-  await expect(capa).toBeVisible({ timeout: 15_000 })
+  // The DEFINITION half renders (canConfigureCommission admits a tenancy
+  // admin); the CAPA/measurement half is WITHHELD (role === null, ruling Q3) —
+  // the button this AC used to click is provably gone, not merely hidden.
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('region', { name: /plano de ação/i })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Medições', level: 2 })).toBeVisible()
 
-  const openBtn = capa.getByRole('button', { name: /abrir plano de ação \(capa\)/i })
-  await expect(openBtn).toBeVisible()
-  await openBtn.click()
+  // The operator-tier AUTHORIZATION itself is unaffected by QO·B — proven
+  // through the real door `open_capa_plan`, exactly as AC-6 below does for
+  // loop closure. Its SQL gate is `is_commission_admin_of(source_commission)
+  // OR is_pqs_operator_of(hospital)`, neither arm touched by the QO·B
+  // migrations (M1–M6 never mention CAPA doors).
+  const adminTok = await getOwnerToken(page, 'admin@test.local')
+  const openResp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${adminTok}`,
+      'Content-Type': 'application/json',
+    },
+    data: { p_source: 'indicator', p_classification: 'corretiva', p_source_id: id },
+  })
+  expect(openResp.ok(), 'open_capa_plan still authorizes the PQS operator').toBeTruthy()
 
-  // After success the affordance refreshes and the plan is listed (link with a code).
   await expect
     .poll(
       async () =>
@@ -450,11 +503,6 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
   expect(plan.source_indicator_id).toBe(id)
   // hospital_id derived from the indicator's commission → central-a.
   expect(plan.hospital_id).toBe(CENTRAL_A_HOSPITAL_ID)
-
-  // The plan appears in the affordance's plan list (a CAPA code link).
-  await expect(capa.getByRole('link').filter({ hasText: /CAPA-\d+/ }).first()).toBeVisible({
-    timeout: 10_000,
-  })
 
   // Commission-member read arm: staff1.ccih (a plain CCIH member) can READ the plan
   // via can_read_capa's indicator arm — a JWT read returns the row.
