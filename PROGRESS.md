@@ -101,7 +101,8 @@ ADR [0100](docs/decisions/0100-quality-office-oversight.md) **D12** · PO ruling
 | B.9 | **backend: FUP-QOB-1** — `270` §J **J1c** catalog pin on `response_group_instances_write_own_draft` (existence + `created_by = auth.uid()` in BOTH qual/with_check), **PROVISIONAL pending PO ratification**; red-proven by b1 `fup_qob1_drop_created_by` — **J1c reds while J1b stays green** (`ok 40` / `not ok 41`), demonstrating the recorded vacuity live | ✅ backend 2026-08-09 (PO ratification open) |
 | B.10 | **backend: BUG-QOB-003 backend half** — `session.ts` coercion removed (`role` = membership only), new `CommissionAccess.isTenancyAdmin` flag + `canConfigureCommission()` config seam (Q1–Q9 KEEP), `submissions.ts` `canCorrect` stale tenancy mirror cut. **UI half open → frontend** (commission layout currently 404s a bare tenancy admin) | ✅ backend 2026-08-09 |
 | B.11 | **backend: KEEP-surface action guards routed through the config seam** (`60719df`) — lead-ruled in-phase: TS guards refusing tenancy admins on ratified-KEEP surfaces silently converted KEEP into CUT (same incoherence class as BUG-QOB-003). New `canConfigureCommissionById()`; **full guard-site enumeration** of `src/lib` + 2 backend route handlers: **8 KEEP-routed** (forms 18 sites · process-templates 17 · outcomes/results/tags/narrative-types/meeting-config · audit CSV export), **5 KEEP-already-correct** (members/titles/indicators/case-types/meeting-type INVOKER RPCs), **CUT halves verified armless** (+ do-not-route annotations). Every routed substrate **catalog-verified armed first** (so no guard opens onto a 42501). ⚠ `setTemplateCaseType` deliberately NOT routed — its DB door (`set_template_case_type`, ADR 0088) is staff_admin-only; a Q2-consistency change would be a DB wave, flagged for the PO. Pre-existing `context.isAdmin` platform-admin arms on content pre-checks recorded OUT of scope (noun-rule sweep candidate) | ✅ backend 2026-08-09 |
-| B.12 | **frontend: BUG-QOB-003 UI half** — commission layout admits `isTenancyAdmin`; nav `navScope` tri-state with fail-closed configuration allowlist; KEEP pages re-gated on `canConfigureCommission`; CUT routes 404 (cases-board precedent); indicator detail page split (definition renders, measurements membership-only); commission root branches to a configuration landing | 🔄 in flight |
+| B.12 | **frontend: BUG-QOB-003 UI half** (`1dfc3fb`, 21 files) — commission layout admits `isTenancyAdmin`; `AppSidebar` gains `navScope` tri-state + a **fail-closed `configuration` allowlist** (a later nav item is invisible to tenancy admins until opted in) + the `role === null` "show-everything" branch hardened to `role !== null` (the exact shape that produced this bug class); **17 KEEP pages** re-gated on `canConfigureCommission`; CUT routes 404 by construction; indicator detail **SPLIT** per Q3 (definition renders, the 4 measurement reads skipped entirely — an empty chart would misreport); commission root renders a **configuration landing** for a bare tenancy admin (all 5 member cards link to CUT surfaces). **Browser-verified** server-rendered output: `orgadmin.a` + `orgadmin.b` = 7-item KEEP nav, 13 KEEP routes render, 18 CUT routes 404, audit CSV real; `chefe.ccih` all 21 nav items + 14 routes — **no coordinator regression**; `multi` unchanged; cross-org 404 intact. ⚠ `staff`+tenancy-admin nav case unexercised (no seed persona) → tester. ⚠ Verification trap recorded: `preview_start` served MAIN's dev server, not the worktree — check the server cwd | ✅ frontend 2026-08-09 |
+| B.13 | **tester: E2E for the UI half** — extend `qob-org-admin-content-wall.spec.ts` (KEEP/CUT/split/landing/keyboard), manufacture the `staff`+tenancy-admin case via a real door, sweep specs pinning the old coerced contract, scoped chromium runs | 🔄 in flight |
 
 **Gate evidence:** fresh reset **328 == 328** · pgTAP **175f / 5553 / PASS** · A/B **LOST =
 ratified cells only · GAINED = 0 · KEEP 0/0** · `b1` **17/17 RED-PROVEN** (12 under-cut +
@@ -116,13 +117,16 @@ BOOLEAN gates; `ARM=floor` asks *called*, not *correct*; `314` asserted tables).
 M5+M6. Found by re-reading the ratified CUT list against the catalog — **a check no harness
 performs**, and one to run at the end of any subtractive phase.
 
-⚠ **Open before this phase can close:** **BUG-QOB-003** (backend half ✅ 2026-08-09, B.10 —
-UI half open: frontend + the PO presentation ruling) · **FUP-QOB-1** (provisional pin ✅
-2026-08-09, B.9 — PO ratification open). ~~The self-audit's #1 residual risk (only 4 of the
-16 M5/M6 doors behaviourally keystoned)~~ **CLOSED 2026-08-09 by B.8** — all 13 remaining
-doors keystoned + red-proven (`b1` 31/31); post-B.8 gate re-run: fresh reset 328==328 ·
-pgTAP **175f/5581/PASS** · `ARM=census` + `ARM=floor` HOLD · lint 0/0 · tsc · vitest 1194
-(no RLS policy or prosecdef gate changed, so no diff-scoped sweep owed).
+⚠ **Open before this phase can close:** ~~BUG-QOB-003~~ **both halves ✅ 2026-08-09 (B.10 backend
++ B.11 guard routing + B.12 UI)** — lead presentation rulings in the Decisions log, PO ratification
+listed for gate step 4 · **FUP-QOB-1** (provisional pin ✅ 2026-08-09, B.9 — PO ratification open)
+· B.13 tester E2E + the full `e2e:prod` declare-green run · QA review (B.7). ~~The self-audit's #1
+residual risk (only 4 of the 16 M5/M6 doors behaviourally keystoned)~~ **CLOSED 2026-08-09 by
+B.8** — all 13 remaining doors keystoned + red-proven (`b1` 31/31).
+**Post-B.12 full step-1 battery (2026-08-09, lead, fresh reset):** 328==328 · pgTAP
+**175f/5581/PASS** · `ARM=census` (450/460) + `ARM=floor` (82 allowlisted) **HOLD** · lint 0/0 ·
+tsc · vitest **1194/1194** (no RLS policy or prosecdef gate changed in B.10–B.12, so no
+diff-scoped sweep owed).
 
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
