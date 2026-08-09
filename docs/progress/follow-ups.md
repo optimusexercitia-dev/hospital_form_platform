@@ -112,9 +112,15 @@ as undecided, with the measurement already done so whoever rules next does not r
 - ⬛ **FUP-QOB-1** — J1c structural pin **RATIFIED** as the standing guard (own entry above).
 - ⬛ **BUG-QOB-004** — **RULED CUT-the-arms** (PO 2026-08-09), following the ratified D5 precedent
   verbatim. Executed as `20260917000000`; see the Bug Log entry for the closure record.
-- ▶ **`setTemplateCaseType`** — PO approved bringing it into Q2 consistency; scheduled as its own
-  wave (see PROGRESS.md). Catalog-confirmed starting state: `set_template_case_type` carries
-  `is_staff_admin_of` only, no tenancy arm.
+- ⬛ **`setTemplateCaseType`** — **DONE 2026-08-09** (`20260917000100`, ADR 0088 Amendment 1).
+  Both `set_template_case_type` **and `set_template_collects_patient`** gained the tenancy arm;
+  the second was never named in this list and was found by sweeping the plane by property.
+  ⚠ Recorded because it changes how the item should have been framed: this was **not a
+  widening**. Measured on a bare tenancy admin — direct `UPDATE` through RLS **wrote the row**
+  while both doors answered 42501, because all 16 `process_template*` policies already carry the
+  arm and a DEFINER's gate *replaces* RLS. The doors were refusing what the boundary already
+  granted. `create_case_from_template` deliberately keeps staff_admin-only (content, not
+  container).
 - ▶ **The `is_commission_admin_of` → `is_tenancy_admin_of` rename wave** — PO-approved 2026-08-08,
   re-confirmed 2026-08-09, sequenced LAST of the three waves so it sweeps a settled catalog once.
   Live blast radius measured 2026-08-09: **77 functions + 54 policies + 318 repo files**, two

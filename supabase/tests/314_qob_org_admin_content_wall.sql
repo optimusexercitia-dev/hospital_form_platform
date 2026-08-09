@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(111);
+select plan(118);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -899,6 +899,105 @@ select is(
   5,
   '11.35 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified case-access/classification KEEP doors still admit the tenancy admin — M7 cut the list MINUS these, not the whole plane');
 
+-- =============================================================================
+-- §12 — Q2 KEEP: the process-template DEFINER doors (`20260917000100`).
+--
+-- Q2 puts `process_template_*` on the KEEP side — a template is a CONTAINER the admin
+-- shapes. All 16 process_template POLICIES already carried the tenancy arm, but two
+-- SECURITY DEFINER doors gated on `is_staff_admin_of` alone, and a DEFINER's gate
+-- REPLACES RLS. Measured before the fix: a bare tenancy admin could write both target
+-- columns by direct DML through the FOR ALL write policy while both doors answered
+-- 42501 — so the doors were refusing an authorization that was already live, which is
+-- why closing the gap is not a widening.
+--
+-- ⚠ TWO doors, not one. The follow-up named only `set_template_case_type`;
+-- `set_template_collects_patient` is the identical shape on the identical table and was
+-- found by sweeping the plane BY PROPERTY. Both are pinned here so a future "finish the
+-- template wall" sweep cannot silently reverse the ruling on either.
+-- =============================================================================
+-- Flag explicitly, never by inheritance: set_template_collects_patient calls
+-- assert_case_patient_enabled() FIRST, so a flag-off fixture would make 12.3 raise
+-- check_violation and report a PASS-shaped skip of the authority it means to test.
+update app.feature_flags set enabled = true where key = 'case_patient';
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table tq2 on commit drop as
+  select (public.create_process_template((select comm_x from k), 'QOB Q2 Template', null)).id as tid,
+         null::uuid as vid;
+update tq2 set vid = app.draft_version_of_template(tid);
+grant select on tq2 to authenticated;
+reset role;
+
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.1 ⭐ KEEP DOOR (Q2): the tenancy admin declares a template''s case type — it shapes the container. Pre-20260917000100 this answered 42501 while the same principal could write the column by direct DML');
+select lives_ok(
+  $$ select public.set_template_collects_patient((select vid from tq2), true) $$,
+  '12.2 ⭐ KEEP DOOR (Q2) — THE TWIN THE FOLLOW-UP DID NOT NAME: same shape, same table, same defect. Fixing only its sibling would have left the plane half-consistent');
+reset role;
+
+select test_helpers.claims_for((select ha_b from ha), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.3 ⭐ Q4 SAME WALL: hospital_admin reaches it too — walling or opening only org_admin leaves a documented bypass');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.4 NO-REGRESSION TWIN ⭐: the coordinator STILL reaches it. Without this, 12.1/12.3 would also pass if the edit had broken the door open for everyone');
+reset role;
+
+-- ⭐ THE OVER-GRANT TWIN. A no-regression claim passes BY CONSTRUCTION when an arm is
+-- widened; only a negative can show the widening stopped where it was meant to.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '42501', null,
+  '12.5 ⭐⭐ OVER-GRANT TWIN: a PLAIN MEMBER of the very same commission is still REFUSED — the Q2 arm admits the tenancy tier, it did not become a blanket allow');
+reset role;
+
+-- ⭐ THE CONTROL ON THE OTHER SIDE OF THE D12 LINE. create_case_from_template lives on
+-- the same plane and must NOT have inherited the arm: it creates a CASE, which is
+-- content. This is the behavioural half of the migration's catalog postcondition.
+--
+-- ⚠ TWO fixture traps here, both hit while writing this and both recorded so the next
+-- author does not re-learn them:
+--   (a) the first argument is a TEMPLATE id, not a version id — passing `vid` makes the
+--       door raise `no_data_found` at step 1 (template unknown), which LOOKS like the
+--       denial being asserted and measures nothing;
+--   (b) the not-permitted branch deliberately raises `no_data_found` (P0002), NOT 42501,
+--       so an unauthorized caller cannot use the error to probe template existence.
+--       Asserting 42501 here fails for a reason that has nothing to do with authority.
+--   (c) pass the 5-char SQLSTATE, never the condition NAME: throws_ok treats a second
+--       argument that is not exactly 5 characters as the expected MESSAGE, so
+--       'no_data_found' silently became a message comparison against pt-BR text and
+--       red-flagged a door that was behaving correctly.
+-- Because tq2 is DRAFT-ONLY, an AUTHORIZED caller stops one gate later at
+-- `check_violation` ("apenas processos publicados") — which is what makes 12.6
+-- non-vacuous: the two principals are separated by WHICH gate stops them, not by
+-- whether something raised.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_case_from_template((select tid from tq2), 'QOB Q2 CASO', null, null) $$,
+  'P0002', null,
+  '12.6 ⭐ D12 LINE CONTROL: the SAME tenancy admin that just configured the template is stopped AT AUTHORITY when creating a case FROM it — shaping the container is KEEP, filling it is CUT');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_case_from_template((select tid from tq2), 'QOB Q2 CASO', null, null) $$,
+  '23514', null,
+  '12.7 ⭐ NON-VACUITY TWIN for 12.6: the coordinator passes authority and reaches the LATER published-version gate — so 12.6 measures the authority arm, not a template that nobody can use');
+reset role;
 
 select * from finish();
 rollback;
