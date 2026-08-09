@@ -6,7 +6,14 @@
 # Every row must read RED-PROVEN, and every CONTROL must read all-green.
 #
 # QO·B (ADR 0100 D12) MUTATION AUDIT — the org_admin / hospital_admin content wall.
-# 17 cases. ⚠ Keep this count and the run_case list in sync.
+# 31 cases. ⚠ Keep this count and the run_case list in sync.
+#
+# EXTENDED (2026-08-09, keystone closure of the self-audit's risk #1): cases 18–30
+# red-prove the THIRTEEN M5/M6 doors that previously rested only on the migrations'
+# structural postconditions (314 §9/§10 are their keystones), and case 31
+# (fup_qob1_drop_created_by) red-proves 270 §J's J1c structural pin — dropping the
+# `created_by = auth.uid()` term reds J1c while J1b stays green, which demonstrates
+# in one run the exact vacuity FUP-QOB-1 records.
 #
 # THIS AUDIT RUNS IN BOTH DIRECTIONS, and the second direction is the point.
 #
@@ -168,6 +175,113 @@ begin
       'return app.is_staff_admin_of_for(v_commission, p_uid) or app.is_commission_admin_of_for(v_commission, p_uid);');
     execute d;
 
+  -- ── UNDER-CUT, the M5/M6 DOOR keystones (314 §9/§10) ──────────────────────
+  elsif p_what = 'restore_completion_door' then
+    d := pg_get_functiondef('public.dashboard_completion_by_member(uuid,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_staff_admin_of(v_commission_id)',
+      'app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)');
+    execute d;
+
+  elsif p_what = 'restore_signoff_door' then
+    d := pg_get_functiondef('public.get_response_for_signoff(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'app.is_staff_admin_of(v_response.commission_id)',
+      'app.is_staff_admin_of(v_response.commission_id) or app.is_commission_admin_of(v_response.commission_id)');
+    execute d;
+
+  elsif p_what = 'restore_supersede_response_door' then
+    d := pg_get_functiondef('public.supersede_response(uuid,text)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_target_door' then
+    d := pg_get_functiondef('public.target_case_response(uuid,uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_create_door' then
+    d := pg_get_functiondef('public.create_controlled_document(uuid,text,text,integer,text,text[],text)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(p_commission)) then',
+      'if not (app.is_staff_admin_of(p_commission) or app.is_commission_admin_of(p_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_update_door' then
+    d := pg_get_functiondef('public.update_controlled_document(uuid,text,text,integer,text,text[],text)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_setfile_door' then
+    d := pg_get_functiondef('public.set_document_version_file(uuid,text,text,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_submit_door' then
+    d := pg_get_functiondef('public.submit_document_for_approval(uuid,jsonb,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_remind_door' then
+    d := pg_get_functiondef('public.remind_document_approver(uuid,uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_publish_door' then
+    d := pg_get_functiondef('public.publish_document(uuid,date,date,date)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_supersede_door' then
+    d := pg_get_functiondef('public.supersede_document(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_obsolete_door' then
+    d := pg_get_functiondef('public.mark_document_obsolete(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_staff_admin_of(v_commission)) then',
+      'if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then');
+    execute d;
+
+  elsif p_what = 'restore_doc_review_list_door' then
+    d := pg_get_functiondef('public.documents_due_for_review(uuid)'::regprocedure);
+    d := app._mut_b1_sub(d,
+      'if not (app.is_member_of(p_commission)) then',
+      'if not (app.is_member_of(p_commission) or app.is_commission_admin_of(p_commission)) then');
+    execute d;
+
+  -- ── FUP-QOB-1: the J1c structural pin must notice the term''s deletion ─────
+  elsif p_what = 'fup_qob1_drop_created_by' then
+    -- Widen write_own_draft by DROPPING its created_by term. The creator still
+    -- passes the exists() (so 270''s creator-write fixtures keep running and the
+    -- run shape stays baseline); J1b still passes 42501 via parent invisibility
+    -- (the vacuity FUP-QOB-1 records, demonstrated live); ONLY J1c may red.
+    execute $q$alter policy response_group_instances_write_own_draft
+      on public.response_group_instances
+      using (exists (select 1 from public.responses r
+                     where r.id = response_group_instances.response_id
+                       and r.status = 'in_progress'))
+      with check (exists (select 1 from public.responses r
+                          where r.id = response_group_instances.response_id
+                            and r.status = 'in_progress'))$q$;
+
   -- ── OVER-CUT: remove a ratified KEEP; its guard must notice ───────────────
   elsif p_what = 'overcut_revoke_ruling' then
     -- ADR 0104 D11 KEEPS revoke_printed_document's tenancy arm: revocation is a
@@ -213,15 +327,17 @@ begin
 end; $m$;
 EOF
 
-run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red patterns (| sep)
-  local label="$1" mut="$2" expect="$3"
+run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red patterns (| sep),
+               # $4 = optional suite file (defaults to $SRC — used by the 270-based
+               #      FUP-QOB-1 case; the marker line is shared between the suites)
+  local label="$1" mut="$2" expect="$3" src="${4:-$SRC}"
   local f="$WORK/mutb1.sql" line
-  line=$(grep -n "$MARKER" "$SRC" | head -1 | cut -d: -f1)
+  line=$(grep -n "$MARKER" "$src" | head -1 | cut -d: -f1)
   if [ -z "$line" ]; then
-    printf '%-56s *** HARNESS ERROR: marker not found in %s ***\n' "$label" "$SRC"; return
+    printf '%-56s *** HARNESS ERROR: marker not found in %s ***\n' "$label" "$src"; return
   fi
-  { head -n "$line" "$SRC"; printf '%s\n' "$PRELUDE"; printf '%s\n' "$mut";
-    tail -n +$((line+1)) "$SRC"; } > "$f"
+  { head -n "$line" "$src"; printf '%s\n' "$PRELUDE"; printf '%s\n' "$mut";
+    tail -n +$((line+1)) "$src"; } > "$f"
   docker cp "$f" "$DB:/tmp/mutb1.sql" >/dev/null
   local out
   out=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/mutb1.sql 2>&1)
@@ -259,12 +375,17 @@ SNAP_SQL="select md5(
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where (n.nspname='app' and p.proname in ('can_read_document_of_version','can_read_document_object','can_view_printed_document'))
       or (n.nspname='app' and p.proname = 'can_write_attachment')
-      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals','list_commission_documents','revoke_printed_document')))
+      or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals','list_commission_documents','revoke_printed_document',
+                                               'dashboard_completion_by_member','get_response_for_signoff','supersede_response','target_case_response',
+                                               'create_controlled_document','update_controlled_document','publish_document','mark_document_obsolete','supersede_document',
+                                               'submit_document_for_approval','set_document_version_file','documents_due_for_review','remind_document_approver')))
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='responses_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='answers_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='controlled_documents_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='indicator_measurements_select'),'')
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='indicators_select'),'')
+  || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='response_group_instances_write_own_draft'),'')
+  || coalesce((select pg_get_expr(polwithcheck, polrelid) from pg_policy where polname='response_group_instances_write_own_draft'),'')
   || coalesce((select count(*)::text from pg_policy where polname='responses_admin_all'),''))"
 SNAP_BEFORE=$(docker exec "$DB" psql -U postgres -d postgres -tAc "$SNAP_SQL")
 
@@ -309,6 +430,72 @@ run_case "restore_free_text_door -> M5's hole reopens"   "select app._mut_b1('re
 run_case "restore_export_rows_door -> row-level export reopens"   "select app._mut_b1('restore_export_rows_door');"   "and zero export rows"
 
 echo
+echo "--- UNDER-CUT: the 13 M5/M6 doors previously covered ONLY structurally (314 §9/§10) ---"
+
+run_case "restore_completion_door -> completion rows leak" \
+  "select app._mut_b1('restore_completion_door');" \
+  "and zero completion-by-member rows"
+
+run_case "restore_signoff_door -> sign-off payload leaks" \
+  "select app._mut_b1('restore_signoff_door');" \
+  "get_response_for_signoff refuses the tenancy admin"
+
+run_case "restore_supersede_response_door -> correction door reopens" \
+  "select app._mut_b1('restore_supersede_response_door');" \
+  "supersede_response refuses the tenancy admin"
+
+run_case "restore_target_door -> ethics targeting reopens" \
+  "select app._mut_b1('restore_target_door');" \
+  "target_case_response refuses the tenancy admin"
+
+run_case "restore_doc_create_door -> document creation reopens" \
+  "select app._mut_b1('restore_doc_create_door');" \
+  "create_controlled_document refuses the tenancy admin"
+
+run_case "restore_doc_update_door -> header edit reopens" \
+  "select app._mut_b1('restore_doc_update_door');" \
+  "update_controlled_document refuses the tenancy admin"
+
+run_case "restore_doc_setfile_door -> version file write reopens" \
+  "select app._mut_b1('restore_doc_setfile_door');" \
+  "set_document_version_file refuses the tenancy admin"
+
+run_case "restore_doc_submit_door -> approval submission reopens" \
+  "select app._mut_b1('restore_doc_submit_door');" \
+  "submit_document_for_approval refuses the tenancy admin"
+
+run_case "restore_doc_remind_door -> approver reminder reopens" \
+  "select app._mut_b1('restore_doc_remind_door');" \
+  "remind_document_approver refuses the tenancy admin"
+
+run_case "restore_doc_publish_door -> publication reopens" \
+  "select app._mut_b1('restore_doc_publish_door');" \
+  "publish_document refuses the tenancy admin"
+
+run_case "restore_doc_supersede_door -> supersession reopens" \
+  "select app._mut_b1('restore_doc_supersede_door');" \
+  "supersede_document refuses the tenancy admin"
+
+run_case "restore_doc_obsolete_door -> retirement reopens" \
+  "select app._mut_b1('restore_doc_obsolete_door');" \
+  "mark_document_obsolete refuses the tenancy admin"
+
+run_case "restore_doc_review_list_door -> review queue leaks" \
+  "select app._mut_b1('restore_doc_review_list_door');" \
+  "documents_due_for_review returns ZERO rows"
+
+echo
+echo "--- FUP-QOB-1: the J1c structural pin (runs 270, not 314) ---"
+
+# Dropping created_by from write_own_draft's qual+with_check must red J1c — and
+# ONLY J1c: J1b stays green under the same deletion (parent invisibility still
+# denies), which is FUP-QOB-1's vacuity claim demonstrated live in this run.
+run_case "fup_qob1_drop_created_by -> J1c pin notices, J1b cannot" \
+  "select app._mut_b1('fup_qob1_drop_created_by');" \
+  "FUP-QOB-1 STRUCTURAL PIN" \
+  "supabase/tests/270_ff1_repeating_groups.sql"
+
+echo
 echo "--- OVER-CUT: remove a ratified KEEP, the over-cut guard must notice ---"
 
 run_case "restore_doc_list_door -> M6's hole reopens"   "select app._mut_b1('restore_doc_list_door');"   "org_admin lists ZERO controlled documents through the door"
@@ -344,13 +531,15 @@ else
 fi
 
 echo
-echo "=== CONTROL — no mutation: the suite is GREEN (proves the harness is not a red-generator) ==="
-docker cp "$SRC" "$DB:/tmp/_noop_b1.sql" >/dev/null
-control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_b1.sql 2>&1)
-if echo "$control" | grep -qE "^not ok"; then
-  echo "*** CONTROL FAILED — $(basename "$SRC") has a failing assertion WITHOUT any mutation ***"
-  echo "$control" | grep -E "^not ok" | head -5
-else
-  ok=$(echo "$control" | grep -cE "^ok")
-  echo "CONTROL $(basename "$SRC"): all green ($ok ok, 0 not ok)"
-fi
+echo "=== CONTROL — no mutation: the suites are GREEN (proves the harness is not a red-generator) ==="
+for ctrl_src in "$SRC" "supabase/tests/270_ff1_repeating_groups.sql"; do
+  docker cp "$ctrl_src" "$DB:/tmp/_noop_b1.sql" >/dev/null
+  control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_b1.sql 2>&1)
+  if echo "$control" | grep -qE "^not ok"; then
+    echo "*** CONTROL FAILED — $(basename "$ctrl_src") has a failing assertion WITHOUT any mutation ***"
+    echo "$control" | grep -E "^not ok" | head -5
+  else
+    ok=$(echo "$control" | grep -cE "^ok")
+    echo "CONTROL $(basename "$ctrl_src"): all green ($ok ok, 0 not ok)"
+  fi
+done
