@@ -73,22 +73,24 @@ type CountKey = keyof SidebarCounts;
 
 /**
  * How much of the commission nav a principal gets (ADR 0100 D12 / BUG-QOB-003).
- * A single tri-state rather than two booleans, because "configuration-only AND
- * no configuration access" is not a reachable state and should not be typable.
+ * A single enum rather than two booleans, because the two families are chosen,
+ * never composed — see the ACT note below.
  *
- *  - `"member"` — today's behaviour: the items their MEMBERSHIP role carries.
- *  - `"member-and-configuration"` — their membership items PLUS the KEEP
- *    configuration set: a principal who is a member here AND administers the
- *    tenancy (org_admin/hospital_admin). Without this a `staff` member who is
- *    also an org_admin would lose the builder/settings/members nav that
- *    `canConfigureCommission` still admits them to.
+ *  - `"member"` — the items their MEMBERSHIP role carries.
  *  - `"configuration"` — ONLY the KEEP configuration set: a BARE tenancy admin,
  *    who holds no membership and whom QO·B walled off every content surface.
+ *
+ * ⛔ ACT (ADR 0106), S4 / QA MINOR-1 — there is deliberately NO composite
+ * `"member-and-configuration"` arm. It existed for a principal who was a member
+ * here AND administered the tenancy; ACT made that unreachable, because a
+ * session wears exactly one hat and `partitionGrants` routes membership roles
+ * and tenancy-admin roles to disjoint buckets. The arm was removed rather than
+ * left dead: a dead authorization-shaped branch is how a later widening
+ * re-lights a menu nobody tested. Re-adding it must therefore be a DELIBERATE
+ * act — and if the exclusion that killed it ever breaks,
+ * `nav-scope-exclusivity.test.ts` (co-located) reds first.
  */
-export type SidebarNavScope =
-  | "member"
-  | "member-and-configuration"
-  | "configuration";
+export type SidebarNavScope = "member" | "configuration";
 
 interface NavItem {
   label: string;
@@ -499,11 +501,19 @@ export function AppSidebar({
   const closeDrawer = () => setOpen(false);
 
   const multiCommission = memberships.length > 1;
-  // Which of the two item families this principal may see. A bare tenancy admin
-  // gets the configuration allowlist and NOTHING else; a member who also
-  // administers the tenancy gets both; everyone else gets their role's items.
-  const showsConfiguration = navScope !== "member";
-  const showsMemberItems = navScope !== "configuration";
+  // Which of the two item families this principal may see. The families are
+  // EXCLUSIVE under ACT (ADR 0106 — see {@link SidebarNavScope}): a bare tenancy
+  // admin gets the configuration allowlist and NOTHING else, a member gets their
+  // role's items and NOTHING else. Kept as two named booleans because
+  // `isVisible` below consults them at different points in its precedence chain.
+  //
+  // ⛔ Written as POSITIVE equality tests, not `!== "member"` / `!== "configuration"`
+  // as before. With the composite arm gone the two spellings agree today, but they
+  // fail in OPPOSITE directions if a third scope is ever added: `!==` would grant a
+  // brand-new scope BOTH families (open), `===` grants it NEITHER (closed). Same
+  // fail-closed reasoning as the `configuration` allowlist itself.
+  const showsConfiguration = navScope === "configuration";
+  const showsMemberItems = navScope === "member";
   // Members see their role's items; the KEEP configuration items additionally
   // show for a principal who may configure this commission. Feature-gated items
   // also require their flag to be on.

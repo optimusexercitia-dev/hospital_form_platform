@@ -76,9 +76,12 @@ const EMPTY_COUNTS: SidebarCounts = {
  *    then refused every content surface behind it. They now get the member shell
  *    with `navScope="configuration"` — the KEEP allowlist only.
  *
- * Everyone else reaching the member branch is a member (`staff`/`staff_admin`). A
- * member who ALSO administers the tenancy gets `"member-and-configuration"`, so
- * the menu mirrors `canConfigureCommission` instead of re-deriving it.
+ * Everyone else reaching the member branch is a member (`staff`/`staff_admin`) —
+ * and under ACT (ADR 0106) that is ALL they are, so this branch always renders
+ * `navScope="member"`. A principal wears exactly one hat, which makes membership
+ * and tenancy-admin standing mutually exclusive; the composite
+ * `"member-and-configuration"` scope was deleted with the branch that selected
+ * it (S4 / QA MINOR-1). See the `navScope` prop below for the derivation.
  *
  * The sidebar shows live count badges. These reuse existing read queries (no new
  * backend): the coordinator-only counts (open cases, pending sign-offs) are only
@@ -299,14 +302,25 @@ export default async function CommissionLayout({
         slug={access.commission.slug}
         commissionId={commissionId}
         role={access.role}
-        // A member who ALSO administers the tenancy keeps their member nav AND
-        // gains the KEEP configuration items — the menu mirrors
-        // `canConfigureCommission`, which is exactly `staff_admin OR
-        // isTenancyAdmin`, rather than re-deriving the seam. For a coordinator
-        // this changes nothing: every configuration item is already theirs.
-        navScope={
-          access.isTenancyAdmin ? "member-and-configuration" : "member"
-        }
+        // ACT (ADR 0106) — unconditionally `"member"` here. This used to read
+        // `access.isTenancyAdmin ? "member-and-configuration" : "member"`; the
+        // truthy arm went unreachable when ACT made a session wear exactly ONE
+        // hat, because `getSessionContext` filters every grant to the active
+        // role BEFORE `partitionGrants` splits it, and that partition routes
+        // `staff`/`staff_admin` (→ `memberships`, which is what puts a non-null
+        // `access.role` on this branch) and `org_admin`/`hospital_admin` (→
+        // `orgAdminOf`/`hospitalAdminOf`, which is all `isTenancyAdmin` reads)
+        // into DISJOINT buckets. One hat cannot fill both.
+        //
+        // Deleted outright rather than left as a silent string (QA MINOR-1, ACT
+        // S4): a future widening of that exclusion would otherwise have quietly
+        // re-lit an authorization-shaped nav scope nothing tested. Removal fails
+        // CLOSED — a widened principal gets this NARROWER scope, never extra
+        // configuration items — and `canConfigureCommission` still gates each
+        // destination, so nobody loses access, only menu entries. The invariant
+        // itself is carried by `src/components/shell/nav-scope-exclusivity.test.ts`,
+        // which reds in CI before such a widening could ship.
+        navScope="member"
         memberships={access.context.memberships}
         commissionName={access.commission.name}
         fullName={access.context.fullName}
