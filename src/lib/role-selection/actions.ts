@@ -66,3 +66,33 @@ export async function assumeRole(
 
   redirect(landingPath)
 }
+
+/**
+ * `assumeRole`, adapted to the plain `<form action={...}>` calling
+ * convention (`(formData: FormData) => void | Promise<void>` — Next.js's
+ * own constraint, not this codebase's) for callers that bind it directly
+ * rather than driving it through `useActionState`. Same bound-argument
+ * shape as `assumeRole(role, landingPath)` — a caller already writing
+ * `assumeRole.bind(null, role, landingPath)` as a form `action` swaps only
+ * the bound function, not the call shape.
+ *
+ * `assumeRole` itself is UNCHANGED and stays the contract for any caller
+ * that needs the `AssumeRoleState` result (`RolePickerForm`,
+ * `RoleSwitchHint` — both wire it through `useActionState` today; do not
+ * collapse them onto this wrapper, the two calling conventions need
+ * different return shapes).
+ *
+ * A rejected switch (`AssumeRoleState.ok === false` — e.g. the role was
+ * revoked between page load and click, `42501`) is swallowed here by
+ * design: a plain form action has nowhere to surface `error` to. The
+ * common case is unaffected (`assumeRole` still `redirect()`s on success,
+ * and that throw propagates through the `await` below unmodified, per
+ * Next's own redirect-via-throw contract). A caller that needs the error
+ * surfaced to the user must use `assumeRole` + `useActionState` instead.
+ */
+export async function assumeRoleFormAction(
+  role: Database['public']['Enums']['platform_role'],
+  landingPath: string,
+): Promise<void> {
+  await assumeRole(role, landingPath)
+}
