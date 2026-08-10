@@ -6,7 +6,9 @@
 - **Branch:** `feat/act-as-role-assumption` (worktree; based on local `main` @ `7b7a99c`)
 - **Sequencing:** **BEFORE the pilot** (PO decision, 2026-08-09). D10's big-bang
   justification depends on it; if the pilot moves first, D10 must be re-litigated.
-- **Status:** plan approved-pending; no stage started.
+- **Status:** plan revised after QA r1 (`docs/reviews/act-as-plan-review.md`:
+  CHANGES REQUESTED — all 9 findings addressed in this revision); r2 pending; no stage
+  started.
 
 ## 1. Decisions closed in the 2026-08-09 planning interview
 
@@ -24,10 +26,12 @@ All six are PO decisions; none may be silently reversed by a stage.
 Derived rulings (follow from the ADR; recorded so the build doesn't re-decide them):
 
 - **`session_context` is a DESIGNED hat-blind door.** The picker and the D9 hint need the
-  caller's FULL grant list (D9: "constructed purely from their own memberships"). It is
-  rewired OFF `has_role_any` onto an explicit own-grants query, commented as the D9
-  exemption, and allowlisted the way `service_role` is in D11 — deliberately, with the
-  reason, so a later "fix the inconsistency" doesn't break the picker.
+  caller's FULL grant list (D9: "constructed purely from their own memberships"). QA r1
+  correction: it was **never** a `has_role_any` caller (a comment-only regex hit — the
+  recorded `prosrc` trap), so there is nothing to rewire. Stage 3's task is a **no-op
+  confirmation**: comment its inline query as the D9 exemption, re-diff its "verbatim from
+  `has_role_any`" comment against the post-cutover `has_role_any` body, and allowlist it the
+  way `service_role` is in D11 — so a later "fix the inconsistency" doesn't break the picker.
 - **A switch lands on the new hat's landing route** — same destination as signing in with
   that hat.
 - **Audit stamp key: `metadata.acting_as`**, minted from the same claim the permission
@@ -60,10 +64,13 @@ keystone proving a third-party check is hat-independent. ⚠ Sweep by the proper
   ⚠ Remote: the hook must ALSO be enabled on Supabase Cloud (dashboard/CLI), a deploy
   step `db push` does not cover.
 - `app.has_role` — two overloads; 3-arg delegates to 4-arg (one body to change).
-- `app.has_role_any` — the sibling door; callers: `is_member_of`, `is_member_of_for`,
-  `public.session_context`.
+- `app.has_role_any` — the sibling door; callers: `is_member_of`, `is_member_of_for`
+  (**not** `session_context` — QA r1, comment-trap corrected).
 - The census: ADR 0106 corrected table (12 via has_role · 2 via has_role_any · 7 direct
-  readers · 14 delegators · 12 neither).
+  `is_*` readers · 14 delegators · 12 neither), **plus `can_manage_professional`** — the
+  8th direct reader, outside the `is_*` prefix (QA r1), DEFINER, gating 10
+  professional-identity/ethics-vocab write RPCs. Full population: **127** boolean gates in
+  `app` (47 `is_*` + 80 others).
 - `test_helpers.claims_for(p_user, p_is_admin)` — `supabase/tests/00_setup.sql:307`;
   PLUS inline `set_config('request.jwt.claims', …)` sites (130_audit,
   180_user_registration, …) — the Stage 1 sweep is bounded by the PROPERTY
@@ -74,12 +81,18 @@ keystone proving a third-party check is hat-independent. ⚠ Sweep by the proper
 
 ### Stage 0 — the role enum (FUP-AFF-4, scoped)
 **Owner: backend.** Introduce `app.platform_role` enum carrying the full role list
-(source: `memberships_role_check` — derive from the catalog). Consumers in this program:
-`active_role_selections.role`, the claim value, the picker (via generated types).
+(source: `memberships_role_check`, derived from the catalog, **plus `'platform_admin'`** —
+QA r1 BLOCKER: it is not a `memberships` value because it lives in `profiles.is_admin`, yet
+D11 requires it representable for the implicit break-glass hat, the selections table, and
+the `metadata.acting_as` audit stamp; adding it here is the decision, so Stage 3 doesn't
+re-derive it silently). Consumers in this program: `active_role_selections.role`, the claim
+value, the picker (via generated types).
 **Deliberately out of scope:** converting `memberships.role` (text + CHECK) to the enum —
 that is a re-key-class change with its own risk profile (the D11-anglicization lesson:
 enum work rewrote `pg_proc` and stranded `pg_policy`; re-sweep `pg_policies` after ANY
-enum change). Gate: lint/typecheck/pgTAP on fresh reset; `gen:types` regenerated.
+enum change). Gate: lint/typecheck/pgTAP on fresh reset; `gen:types` regenerated;
+`ARM=census` + `ARM=floor` (expected trivially green — named anyway, per 0079 Amendment 1:
+an unnamed standing gate is the one nobody runs).
 
 ### Stage 1 — harness first (D10's own emphasis)
 **Owner: tester (+backend for 00_setup.sql).**
@@ -94,17 +107,24 @@ enum change). Gate: lint/typecheck/pgTAP on fresh reset; `gen:types` regenerated
   `org_admin` A + `quality_reviewer` A1). ⚠ Additive only — do NOT add roles to existing
   personas: `seed.sql` is a contract with ~900 tests (the pigeonhole lesson). `multi@`
   stays as the D2 negative case: two commissions, ONE role type ⇒ no picker.
-Gate: full suites green (nothing enforced yet); inventory committed.
+Gate: full suites green (nothing enforced yet); inventory committed; `ARM=census` +
+`ARM=floor` (named per 0079 Amendment 1, as in Stage 0).
 
 ### Stage 2 — behaviour-preserving normalisation
-**Owner: backend.** The 7 direct `memberships` readers (`is_entitled_document_approver`,
-`is_hospital_member_of`, `is_org_level_admin_within`, `is_org_member`,
-`is_pqs_member_of_any`, `is_pqs_operator_in_org_for`, `is_quality_reviewer_in_org` — as
-of the census; re-derive) re-based onto `has_role`/`has_role_any`. **No semantic change.**
+**Owner: backend.** The **8** direct `memberships` readers re-based onto
+`has_role`/`has_role_any`. **No semantic change.** As of the QA-r1 census (re-derive at
+build time **by the property** — comment-stripped direct `memberships` read with no
+`has_role*` call, over ALL ~127 boolean gates in `app`/`public`, never by the `is_*`
+prefix): `is_entitled_document_approver`, `is_hospital_member_of`,
+`is_org_level_admin_within`, `is_org_member`, `is_pqs_member_of_any`,
+`is_pqs_operator_in_org_for`, `is_quality_reviewer_in_org`, **`can_manage_professional`**
+(QA r1 BLOCKER — the raw `role = 'staff_admin'` third arm; its 10 dependent write RPCs get
+their own keystone). Publish the sweep's reconciliation (count + names) to
+`docs/plans/act-as-buildnotes.md`.
 - `CREATE OR REPLACE` only — never `DROP`+`CREATE` (a rebuild silently loses the ACL);
   no parameter renames (a rename is a privilege reset).
 Gate: full Phase Gate step 1 incl. `ARM=census` + `ARM=floor` + **diff-scoped door sweep
-over exactly these 7** (list from the migration diff); fresh-reset pgTAP; e2e:prod green.
+over exactly these 8** (list from the migration diff); fresh-reset pgTAP; e2e:prod green.
 
 ### Stage 3 — THE ATOM (the only red window)
 One merge. **Backend:**
@@ -122,8 +142,17 @@ One merge. **Backend:**
   same third-party carve-out; `member_can` gains the D13 condition;
   `session_context` rewired per the §1 exemption.
 - `audit_write` generalises the `actor_is_admin` pattern → `metadata.acting_as`.
+- **Raw-policy sweep (QA r1):** sweep `pg_policies` (all schemas) for predicates reading
+  `memberships` directly without an `app.*` door. Known instance:
+  `profiles_select_self_or_admin`'s co-member arm (any-role co-membership ⇒ profile
+  visibility). Fix per the §2 caller-only binding: the CALLER side of the EXISTS goes
+  through hat-aware `is_member_of`; the *target* side stays any-role (what roles another
+  user holds is not a function of MY hat). Any sibling arms found join the same migration
+  or are recorded as reasoned, named exceptions — never left silently unswept.
 **Frontend** (frontend-design skill first): picker page (multi-role, at sign-in — a new
-first step in the `page.tsx` chain, which loses its precedence guessing entirely);
+first step in the `page.tsx` chain, which loses its precedence guessing entirely; carry
+the explicit role→landing-route table lifted from `page.tsx`'s own doc comment — all 10
+membership roles + `platform_admin` — so the mapping is not re-derived ad hoc mid-build);
 persistent hat indicator + dropdown switch (`assume_role` → `refreshSession()` →
 new hat's home); D9 hint component on the P5 choke-point guards, computed from own
 memberships only. All pt-BR.
@@ -134,7 +163,9 @@ Gate: FULL Phase Gate. Diff-scoped 0079 sweep over EVERY touched gate (derive fr
 migration diff). `ARM=census` is the arm that sees the brand-new `active_role()` gate
 (a new gate is in no BLIND set — Amendment 3). **Plus the revert-twin keystone:** a pgTAP
 test that goes RED when the active-role condition is removed from `has_role` (prove the
-detector can detect — a no-regression claim needs its over-grant twin).
+detector can detect — a no-regression claim needs its over-grant twin). ⚠ The keystone
+must assert through a table reached ONLY via `has_role` — no OR'd permissive sibling
+grant (authz-handoff §7.1 shape 6: a permissive sibling fakes both directions).
 
 ### Stage 4 — D14 arm audit + record
 **Owner: backend + qa.**
