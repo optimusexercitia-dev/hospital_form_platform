@@ -2100,3 +2100,185 @@ decision for the coordinator to make, not one to expand into silently.
 - `supabase/tests/100_dashboard.sql`, `supabase/tests/199_perf_sweep_wave2.sql` — the
   two fixture regressions (§6).
 - This section of `docs/plans/act-as-buildnotes.md`.
+
+## `assume_role` audit scope + the referral/indicator reachability question (backend, 2026-08-10)
+
+### 1. `assume_role`'s audit row — scoped to the assumed role's own tenancy
+
+Ruling (verbatim reasoning, not re-litigated): an assumption of `org_admin of Rede
+A` is an event ABOUT Rede A; leaving it unscoped both breaks tenancy-scoped audit
+completeness (Architecture Rule 11) and pollutes the platform-tier bucket with
+routine per-user noise. `platform_admin` genuinely has no tenant, so NULL stays
+correct ONLY for that case — and since a single-role `platform_admin` never calls
+`assume_role` (D11: the hook derives its hat implicitly, no picker in the path),
+`phase13-audit.spec.ts` AC-3f-platform (asserting the platform-tier chain is
+permanently empty) should then pass legitimately.
+
+**Fix** (`supabase/migrations/20260918002600_act_assume_role_audit_scope.sql`):
+`assume_role` now resolves the CALLER'S OWN membership row matching the role being
+assumed (`ORDER BY granted_at DESC NULLS LAST, id` — a deterministic pick for the
+case D2 makes possible but doesn't disambiguate: a caller holding the SAME role
+type across multiple scope instances, e.g. `staff_admin` of two commissions; the
+hat itself applies uniformly across every instance regardless of which one is
+picked for the audit summary, so this is an audit-narrative simplification, not an
+authorization decision) and passes its scope columns straight through to
+`audit_write` — the same columns `memberships_scope_shape` already guarantees are
+correctly NULL-shaped per role tier. `platform_admin` keeps its existing
+`profiles.is_admin` eligibility check and stamps no scope (the ruling's own
+carve-out).
+
+**Keystone** (`supabase/tests/315_act_stage3_hat_condition.sql`, extending the
+existing `assume_role` block): three scope tiers checked on the SAME fixtures
+already built there — org-tier (`sa_x` assumes `org_admin`, audit row scoped to
+`org_b`), commission-tier (`sa_x` assumes `staff_admin`, scoped to `comm_x`), and
+the platform carve-out (`admin`, still genuinely single-role at this point in the
+file, assumes `platform_admin`, all three scope columns correctly stay NULL).
+Confirmed RED against the unfixed function (`have: NULL, want: <org_b/comm_x
+uuid>` on the org-tier and commission-tier assertions specifically — the
+non-distinguishing assertions, and the platform carve-out, passed even pre-fix, as
+expected). 22/22 GREEN after the migration.
+
+### 2. Confirming the prediction, not assuming it — what else was in the platform bucket
+
+Before concluding the platform bucket empties, checked what it actually held (on
+the CURRENT, not-yet-reset local DB, which still carried `tester`'s E2E-run
+artifacts): 14 `active_role.assumed` rows (matching the coordinator's own catalog
+read) **plus 22 CAPA-action rows** (`capa.opened` ×5, `capa.closed` ×3,
+`capa.status_changed` ×9, `capa.reopened` ×1, `capa.effectiveness_recorded` ×4) —
+all landing in the SAME all-NULL platform-tier bucket. Traced the second
+population to `app.trg_audit_capa_plan` / `app.trg_audit_capa_effectiveness`: they
+resolve a CAPA's audit scope ONLY via `event_of_capa(new.id) → commission_of_event`
+— which resolves for an EVENT-sourced CAPA but returns NULL for `manual`-,
+`meeting`-, `indicator`-, and `audit_finding`-sourced ones (confirmed against
+`open_capa_plan`'s own hospital-derivation `CASE`, which resolves those four
+sources through the COMMISSION, never through an event at all) — even though
+`capa_plan.hospital_id` is a real, `NOT NULL` column available directly on every
+row, unused by the trigger.
+
+**This is a real, pre-existing, latent defect, independent of ACT** — confirmed NOT
+an artifact of the dirty local DB: a fresh `supabase db reset --local` shows the
+platform-tier bucket at a genuine 0 rows (seed.sql creates no CAPAs, matching
+AC-3f-platform's own comment "all seeded audit rows have organization_id set"), so
+it does not currently break that specific assertion on a clean run — but
+`e2e/phase14d-capa.spec.ts` creates multiple `p_source: 'manual'` CAPAs (confirmed
+by reading it), which — in a single `e2e:prod` invocation running the whole suite
+against one reset — WOULD populate the platform-tier bucket before
+AC-3f-platform runs later in the same session, reproducing the exact class of
+failure the assume_role fix was just written to prevent, for an entirely
+unrelated reason.
+
+**Not fixed here** — out of scope for the ruling, which was specifically about
+`assume_role`, and this is a different function family (`trg_audit_capa_plan`/
+`trg_audit_capa_effectiveness`, pre-existing, unrelated to the ACT program).
+Reported precisely so it isn't mistaken for an assume_role regression if
+AC-3f-platform ever reds in a full-suite run: the fix (were it undertaken) would
+be reading `new.hospital_id` directly instead of routing through
+`event_of_capa`/`commission_of_event`.
+
+### 3. The referral / indicator single-hat reachability question
+
+**`phase22-referrals.spec.ts` Flow 3d — NOT reachable under a single hat, by
+design, on the current product surface.**
+
+`app.can_read_referral_phi`'s gate, read live: `is_pqs_operator_of_for(source
+hospital) OR is_pqs_operator_of_for(target hospital) OR is_staff_admin_of_for(source
+commission) OR (non-draft AND is_staff_admin_of_for(target commission)) OR
+(non-draft AND referral_target_analyst) OR (non-draft AND target_type=
+'technical_director' AND is_technical_director_of_for(target hospital))` — matches
+the tester's own catalog read exactly. `pqsdual.a@` is plain `staff` (not
+`staff_admin`) at CCIH: her `staff` hat admits her to the commission-scoped hub
+route (`/o/[org]/c/[commission]/encaminhamentos/[id]`, the ONLY route with a
+referral-detail page) but satisfies none of the PHI arms above; her `pqs_member`
+hat would satisfy the first arm but does not admit her to that commission-scoped
+route at all (confirmed live by the tester, same mechanism as the NSP-per-hospital
+dispose tests).
+
+Checked for an alternate, PHI-capable route reachable under `pqs_member` alone:
+`/o/[org]/nsp/encaminhamentos` (the QPS cross-commission referrals dashboard)
+exists and IS reachable under `pqs_member`/`nsp_coordinator` — but its own doc
+comment states the design decision directly: **"PHI-FREE throughout — patient
+context never appears on this aggregate; it lives behind the per-referral audited
+PHI door."** Its table component (`ReferralDashboardTable`) documents WHY there is
+no deep link to the commission-scoped detail page: *"a pure QPS member (PQS
+roster) may not be a member of either commission, so the commission-scoped detail
+route isn't a safe target for them."* This is not an oversight — it is the exact
+population `pqsdual.a@` belongs to, and the product was deliberately built without
+a route that would let it reach PHI.
+
+**Answer: no, this flow is not reachable under a single hat, and there is no
+alternate route today.** The capability that disappears: a principal who is
+simultaneously (a) a plain `staff` (not `staff_admin`) of the referral's source
+commission and (b) a PQS operator of that commission's hospital could,
+pre-cutover, read a referral's PHI reply text in one session; post-cutover, no
+single hat lets them do both — the `staff` hat gets them to the page, the
+`pqs_member` hat would authorize the read but never gets them to the page, and the
+NSP-surface alternative was purpose-built PHI-free specifically because this
+combination exists. This is a genuine PO decision (accept the loss for this exact
+role combination, or add a PHI-capable path for PQS operators who are plain staff
+— e.g., a deep link from the NSP dashboard gated on the PHI predicate directly
+rather than commission membership). No arm was widened to investigate this.
+
+**`phase15-indicators.spec.ts` AC-5b — also not reachable under a single hat, but
+via a DIFFERENT mechanism than the test's own comment describes; flagging the
+correction because it changes what "widening" would even mean here.**
+
+The test's header comment states `open_capa_plan`'s gate as `is_tenancy_admin_of
+(source_commission) OR is_pqs_operator_of(hospital)`. Read live (not accepted from
+the comment, per this repo's own binding rule): for `p_source = 'indicator'` (and
+`'event'`/`'rca'`/`'meeting'`/`'audit_finding'`), the function's ONLY authorization
+check is `not app.is_pqs_operator_of(v_hospital)` — there is no `is_tenancy_admin_of`
+disjunct anywhere in `open_capa_plan`'s current body (confirmed against the exact
+migration I shipped for this function two tasks ago, `20260918002500_...sql`, and
+independently against the live `pg_get_functiondef` — both agree). So `admin@`'s
+`org_admin` hat does not fail this RPC because of a hat mismatch on a real OR-gate
+with two live arms; it fails because `is_tenancy_admin_of` was never one of this
+gate's arms to begin with, for any of these five sources — hatless OR org_admin OR
+any other non-PQS hat, all deny identically, pre- or post-ACT, because pre-ACT
+`is_pqs_operator_of` also had exactly one relevant condition (holding the
+membership), which `admin@` satisfies via `pqs_member`, not `org_admin`.
+
+What DOES require the union, in this flow, is the SEQUENCE, not a single gate: the
+indicator DETAIL PAGE's own entry gate is `canConfigureCommission` (`staff_admin`
+OR tenancy-admin) — confirmed by the test's own live-tried negative
+(`pqsdual.a`, a real CCIH `staff` + central-a PQS operator, 404s there) — and the
+"Abrir plano de ação (CAPA)" button that calls `open_capa_plan` is mounted
+EXCLUSIVELY on that page (`src/components/indicators/capa-affordance.tsx`; traced
+every reference to `open_capa_plan`/`openCapaPlan` in `src/app`+`src/components`+
+`src/lib` — the button is its only production call site for `p_source='indicator'`).
+Checked for an NSP-surface alternative the same way as the referral case:
+`/o/[org]/nsp/capa` exists but is DETAIL-ONLY (`[capaId]/page.tsx`, no list, no
+create form) — there is no route under the NSP/PQS surface that opens a NEW
+indicator-sourced CAPA at all.
+
+**Answer: no single-hat route exists for this exact flow either**, but the
+mechanism is two SEPARATE gates in sequence (a page-entry gate requiring
+`staff_admin`/tenancy-admin, then an action gate requiring `pqs_member`/
+`nsp_coordinator`) rather than one OR-gate whose two arms need different hats.
+Practically this still means the same capability loss the coordinator is asking
+about (a dual `org_admin`+`pqs_member` principal who could do both in one
+pre-cutover session now cannot, in one sitting, under any single hat) — but
+"widen an arm" is not even a coherent fix for it, since there is no single gate to
+widen: the two candidate fixes are (a) let the indicator page's own entry gate
+also admit a `pqs_member` viewing an off-target indicator at their own hospital
+(a route/UI change, not an RLS/RPC widening), or (b) accept the loss. Flagging the
+comment/catalog discrepancy explicitly so the PO conversation is grounded in the
+real mechanism, not the test's since-drifted description of it.
+
+### 4. Gate
+
+`supabase db reset --local` (343 registered == 343 files) → `npm run test:db`
+twice, tight back-to-back: both `Files=177, Tests=5670, Result: PASS` (+6 over the
+prior 5664 — the new assume_role scope keystones). `npm run gen:types`:
+byte-unchanged. `npm run lint` / `npm run typecheck`: clean. `ARM=census`: 461
+verdicts ≥ 450 live gates, unchanged (`assume_role` returns void, outside the
+census's boolean population). `ARM=floor`: clean, 80 never-called doors, all
+allowlisted. No diff-scoped door sweep needed — nothing newly touched is a
+boolean `prosecdef` gate or an RLS policy.
+
+### Commits (this section)
+
+- `supabase/migrations/20260918002600_act_assume_role_audit_scope.sql` — the fix.
+- `supabase/tests/315_act_stage3_hat_condition.sql` — the extended keystone.
+- This section of `docs/plans/act-as-buildnotes.md`.
+- No `e2e/**` changes (tester owns `phase13-audit.spec.ts`'s AC-3f-platform; it
+  should go green off this change alone, on a fresh reset, per the ruling).
