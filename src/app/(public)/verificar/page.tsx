@@ -18,6 +18,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * Never prerender. The flag gate below reads `get_feature_flags()` through the
+ * service-role client, and `SUPABASE_SERVICE_ROLE_KEY` is a RUNTIME secret — it
+ * is deliberately absent from the Docker build (only the two `NEXT_PUBLIC_*`
+ * vars are build args), so a build-time render throws "supabaseKey is required".
+ *
+ * Correct on its own terms even with the key present: a feature flag is
+ * per-request state. Baking this page at build time would freeze the platform's
+ * OFF default into a permanent 404 that no flag flip could clear without a
+ * rebuild. Matches `[token]/page.tsx`, which opts out for the same class of
+ * reason.
+ */
+export const dynamic = "force-dynamic";
+
 /** Longest short code we will forward to the lookup. Not a format assertion —
  * backend owns the code format — just a guard so a pasted essay never becomes a
  * URL path segment. */
