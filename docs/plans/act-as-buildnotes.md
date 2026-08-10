@@ -2282,3 +2282,139 @@ boolean `prosecdef` gate or an RLS policy.
 - This section of `docs/plans/act-as-buildnotes.md`.
 - No `e2e/**` changes (tester owns `phase13-audit.spec.ts`'s AC-3f-platform; it
   should go green off this change alone, on a fresh reset, per the ruling).
+
+**Update, same day**: `tester` independently re-verified this fix empirically (52
+tests with multiple hat switches on a fresh reset, then queried `audit_log`
+directly: zero `active_role.assumed` rows in the platform-null bucket) and marked
+`BUG-ACT-AUDIT-PLATFORM-TIER-1` RESOLVED. The prediction held.
+
+## BUG-CAPA-AUDIT-SCOPE-1 — fixed (backend, 2026-08-10)
+
+Filed (not fixed) in the previous section as a finding discovered while confirming
+the `assume_role` prediction. Escalated from predicted to observed and now blocks
+the Phase Gate: `tester` confirmed `AC-3f-platform` RED standalone against a
+contaminated state (empty-state text times out — the exact failure shape, not
+inferred from row counts), and found a SECOND, independent reproduction —
+`phase15-indicators.spec.ts` AC-5b (`p_source: 'indicator'`) reproduces the
+identical mechanism with no involvement from `phase14d-capa.spec.ts` at all
+(`audit_log` showed `capa.opened: 2` in the platform-null bucket after running
+only two spec files). Two independent paths meant the full suite would almost
+certainly red on it.
+
+### 1. The fix
+
+`app.trg_audit_capa_plan` and `app.trg_audit_capa_effectiveness` resolved audit
+scope ONLY via `v_comm := case when v_event is not null then
+app.commission_of_event(v_event) else null end` (`v_event` from
+`app.event_of_capa`, which itself only resolves `'event'`/`'rca'`-sourced CAPAs —
+confirmed live: its body is a bare `case ... else null end` over `capa_plan.source`).
+For the other four sources (`manual`, `meeting`, `indicator`, `audit_finding`),
+`v_comm` was always NULL and no fallback existed — even though `capa_plan.hospital_id`
+is a real column on the same row, unused by either trigger.
+
+Both triggers now fall back to `capa_plan.hospital_id` (`app.org_of_hospital`
+derives the organization) whenever the event chain doesn't resolve a commission.
+`trg_audit_capa_plan` fires ON `capa_plan`, so `new.hospital_id` is available
+directly; `trg_audit_capa_effectiveness` fires ON the sibling table
+`capa_effectiveness` (keyed by `capa_id`, already doing a `SELECT ... FROM
+capa_plan` for the summary's `code`) — extended that same SELECT to also fetch
+`hospital_id`. Computing the fallback unconditionally (not only inside an `if
+v_comm is null` branch) is harmless and simpler: `app.audit_write` itself derives
+`organization_id`/`hospital_id` FROM the passed commission whenever one is
+set, ignoring the separately-passed org/hospital values in that case — verified
+by the CONTROL keystone case below, not assumed.
+
+**This narrows, it does not widen.** It moves rows out of the platform-tier
+audit bucket into their correct tenant chain — a correctness fix to the audit
+trail under Architecture Rule 11. It grants no access, checks no authorization,
+and touches no RLS policy or predicate; the only change is which
+`audit_log.{organization_id,hospital_id,commission_id}` values a row is stamped
+with.
+
+### 2. `hospital_id` nullability — determined from the schema, not assumed
+
+`capa_plan.hospital_id` is `NOT NULL` (`information_schema.columns`), so the
+fallback is unconditionally available for `trg_audit_capa_plan` — every row has
+one, no further NULL-handling path is reachable. `capa_effectiveness.capa_id` is
+itself `NOT NULL` with `FOREIGN KEY (capa_id) REFERENCES capa_plan(id) ON DELETE
+CASCADE` (confirmed via `pg_constraint`), so `trg_audit_capa_effectiveness`'s
+`SELECT ... FROM capa_plan WHERE id = new.capa_id` is guaranteed to find the
+parent row, whose `hospital_id` is itself `NOT NULL` — `v_hospital` cannot be
+NULL there either. No defensive fallback-of-a-fallback was needed; stated rather
+than assumed.
+
+### 3. Sibling-trigger sweep — bounded by the property, not the name
+
+Coordinator's instruction: bound by "a trigger resolving scope solely through an
+event lookup", not by matching names. Two independent catalog greps over all 49
+`trg_audit_*` functions:
+
+- `prosrc LIKE '%event_of_%'` — 6 matches: the two CAPA triggers plus
+  `trg_audit_event_custody`, `trg_audit_event_patient`, `trg_audit_event_triage`,
+  `trg_audit_rca`.
+- The broader `prosrc LIKE '%else null end%'` (catches the conditional-null SHAPE
+  regardless of which helper function is called) — exactly 2 matches: the same
+  two CAPA triggers, and ONLY those two.
+
+The four near-miss candidates were checked individually, not waved off by the
+narrower grep's absence from the second: each calls
+`app.commission_of_event(new.event_id)` UNCONDITIONALLY — no `case`/null-check
+branch exists in their bodies at all. `event_id` is `NOT NULL` on all four
+underlying tables (`event_custody`, `event_patient`, `event_triage`, `rca` —
+verified via `information_schema.columns`), and `commission_of_event` reads
+`patient_safety_event.reporting_commission_id`, itself `NOT NULL`. The chain
+cannot return NULL for any of these four, by two independent NOT NULL
+constraints stacked in series — they do not share the vulnerable shape. Only
+`capa_plan.source` makes the event genuinely OPTIONAL (4 of 6 values have none).
+
+**Sweep result: exactly 2 vulnerable functions, both fixed here. 0 additional
+functions share the shape** — reported per the instruction ("if others share it,
+report them; do not fix beyond these two without telling me the count first");
+the count is zero, so there is nothing further to sequence.
+
+### 4. Keystone — red-first, `supabase/tests/317_act_capa_audit_scope.sql`
+
+A manual-source `capa_plan` row (inserted directly, bypassing `open_capa_plan`'s
+own RPC gate — already covered by the earlier P0 keystone — to isolate testing
+the TRIGGER itself), its status transitioned to exercise `capa.status_changed`,
+and a `capa_effectiveness` row for `capa.effectiveness_recorded`. Confirmed RED
+against the unfixed triggers: `capa.opened` org/hospital, `capa.status_changed`
+hospital, `capa.effectiveness_recorded` org/hospital — all `have: NULL` (5 of 9
+assertions; the `commission_id IS NULL` checks and the CONTROL case were
+correctly true even pre-fix, as expected — the CONTROL specifically proves
+non-vacuity: it is FALSE that everything in this file just happens to pass
+regardless). 9/9 GREEN after the migration.
+
+**CONTROL case, not skipped**: a genuine EVENT-sourced CAPA (real
+`patient_safety_event` + `capa_plan(source='event', source_event_id=...)`) still
+resolves `commission_id` via the existing chain, unaffected by the fallback —
+proving the fix doesn't disturb the path that already worked, and confirming
+`audit_write`'s own commission-derivation (not my added fallback) is what
+populates `organization_id`/`hospital_id` in that case.
+
+### 5. Catalog property diff
+
+Both: `prosecdef = t` (SECURITY DEFINER preserved), `provolatile = v` (volatile —
+correct for trigger functions, unchanged), empty ACL (matches the pre-fix
+functions — trigger functions are invoked by the trigger mechanism, not granted
+to a role directly), owner `postgres`, trigger bindings unchanged
+(`audit_capa_plan_trg` on `capa_plan`, `audit_capa_effectiveness_trg` on
+`capa_effectiveness`, same `tgtype`). `CREATE OR REPLACE` only — the trigger
+objects themselves were never dropped or recreated.
+
+### 6. Gate
+
+`supabase db reset --local` (344 registered == 344 files) → `npm run test:db`
+twice, tight back-to-back: both `Files=178, Tests=5679, Result: PASS` (+9 over
+the prior 5670 — this keystone file). `npm run gen:types`: byte-unchanged.
+`npm run lint` / `npm run typecheck`: clean. `ARM=census`: 461 verdicts ≥ 450
+live gates, unchanged (trigger functions are outside the census's boolean-gate
+population). `ARM=floor`: clean, 80 never-called doors, all allowlisted. No
+diff-scoped door sweep needed — neither function is a boolean `prosecdef` gate
+or an RLS policy.
+
+### Commits (this section)
+
+- `supabase/migrations/20260918002700_act_capa_audit_scope_fallback.sql` — the fix.
+- `supabase/tests/317_act_capa_audit_scope.sql` — the new red-first keystone.
+- This section of `docs/plans/act-as-buildnotes.md`.
