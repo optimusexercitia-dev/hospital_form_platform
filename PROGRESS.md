@@ -110,7 +110,27 @@
 > ⛔ Local-only throughout; nothing pushed, no `db push`. Remote cutover additionally
 > needs the auth hook ENABLED on Supabase Cloud (a step `db push` does not cover).
 >
-> **Gate evidence (all 2026-08-10, HEAD `81a72d1`):**
+> **Gate evidence, RE-EARNED after the QA fix (2026-08-10, HEAD `f4362fc`):** full
+`RESET=1 REBUILD=1 e2e:prod` **1001 passed · 0 failed · 2 flaky (known baseline, green on
+retry) · 56 never-ran** — batch 12's mid-gate `db reset` failed transiently; those 7 specs
+re-run as a scoped prod gate (fresh reset) **56/56 GREEN**. Accounting: 1001 + 2 + 56 + 5
+pre-existing skips = **1064 collected, zero assertion failures**. pgTAP **179 files / 5690
+tests PASS** · ARM=census 450/461 HOLD · ARM=floor 80 HOLD · diff-scoped door sweep over the
+2 changed gates 2 COVERED / 0 BLIND · `gen:types` byte-unchanged · lint 0/0 · tsc · Vitest 1194.
+
+🟡 **FUP-GATE-RESET-FLAKE (new, 2026-08-10, infra — not an ACT defect).** **Two consecutive
+full gates lost a whole batch to a transient mid-gate `supabase db reset` failure** (run 2:
+batch 8 / 61 tests; run 3: batch 12 / 56 tests), each re-running fully green when scoped. The
+gate suppresses the reset's stderr (`scripts/e2e-prod-gate.sh:346`,
+`supabase db reset --local >/dev/null 2>&1`), so the CAUSE is unrecoverable from the logs —
+worth capturing before diagnosing. ⚠ Note the reporting hazard, which this project has been
+burned by before: the summary line reads *"COVERAGE: accounted for 1059 of 1064"* — which
+scans as 99% while an entire batch never ran. The gate does print a loud `!! NEVER RAN`
+banner (it works — that is how both were caught); the risk is a reader quoting the coverage
+line alone. Also seen: `supabase_edge_runtime` sitting `Exited (255)` for hours, and
+`gotenberg-pdf` having **no restart policy** (it caused 8 environmental reds in run 1).
+
+**Superseded gate evidence (pre-QA-fix, HEAD `81a72d1`) — kept for the audit trail:**
 > - Full `RESET=1 REBUILD=1 e2e:prod`: **996 passed · 0 failed · 2 flaky (known
 >   baseline, green on retry) · 61 never-ran** — batch 8's mid-gate `db reset` failed
 >   transiently (its stale `batch-8.log` still shows run-1 content; the reset passed
