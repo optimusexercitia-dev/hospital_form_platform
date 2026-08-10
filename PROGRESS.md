@@ -89,7 +89,7 @@ the migration IS the cutover** (PO-locked). Migrations `20260918000000`–`…20
 `315`–`318`. **Gate:** `e2e:prod` green (1064 collected, zero assertion failures) · pgTAP **179
 files / 5690 tests** · **`ARM=census`** 450/461 and **`ARM=floor`** 80 both HOLD · **diff-scoped
 door sweep** over the changed gates 2 COVERED / 0 BLIND · lint 0/0 · tsc · Vitest 1194.
-⛔ **Local-only — never pushed; no `db push`.** Remote cutover additionally needs the auth hook
+✅ **MERGED to `main` + PUSHED 2026-08-10** (merge `ff0e76a`; green bar re-run ON THE MERGE: lint 0/0 · tsc · Vitest 1197 · `next build` EXIT=0 · 345 migrations registered == 345 files · pgTAP 179/5690 PASS). ⛔ **Remote `db push` NOT done.** Remote cutover additionally needs the auth hook
 **ENABLED on Supabase Cloud**, which `db push` does not cover.
 
 **Full detail rotated → [act-as-role-assumption.md](docs/progress/act-as-role-assumption.md)**
@@ -120,7 +120,7 @@ no remote `db push` of the two P2 migrations. The PO is handling the pending ite
 - `[ ]` **FUP-PDF-2..4** — full entries under [Follow-ups](#follow-ups--deferred-items) below.
 - `[x]` **BUG-PDF2-002** — RESOLVED BY-DESIGN 2026-08-08 (Next's streamed-notFound contract; no app change; contract pinned in E2E — Bug Log below + bug-log-archive.md for the full record). The session task chip was withdrawn.
 - `[ ]` **Remote `db push`** of `20260914000000` + `20260914000100` — NOT done (PO instruction); local + remote catalogs now DIFFER on the meeting arm until pushed.
-- `[ ]` **`git push origin main`** — the P2 merge is local-only; origin/main is at the P1 state (`9373ce8`).
+- `[x]` **`git push origin main`** — ✅ **DONE 2026-08-10**: `origin/main` = `ff0e76a` (the ACT merge), which carries the P2 merge, FUP-PDF-1 and everything held back before it. Verified in sync (`git fetch`: 0 ahead / 0 behind).
 - `[ ]` **Gotenberg Coolify resource** — runbook [docs/deployment/pdf-renderer.md](docs/deployment/pdf-renderer.md); flag `document_printing` stays OFF in prod until this + both pushes exist.
 - P3 build carry-forwards (not user actions): `can_read_full_meeting_content` is fail-open STANDALONE — never reuse without the `can_reach_meeting` conjunct; becomes `COMMENT ON FUNCTION` in P3's first migration · P4 repoints the relocated fail-closed keystones again (noted in-file in `312`/`313`).
 
@@ -180,9 +180,12 @@ pre-pilot. ⚠ **Two things this item still owes the pilot, neither covered by `
 
 **2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing *after* 1b.** Two halves,
 both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:
-- **`git push origin main`** — ⚠ **NOT done.** Live `git fetch` 2026-08-08: local `main` `970fc68`,
-  `origin/main` `9373ce8` (three commits ahead — the P2 merge + FUP-PDF-1 + this rotation). *This row
-  previously claimed `main == origin/main`; that was true only until the P2 merge landed locally.*
+- **`git push origin main`** — ✅ **DONE 2026-08-10** (user-authorized). `origin/main` = `ff0e76a`,
+  the ACT merge; verified in sync after `git fetch` (0 ahead / 0 behind). It carried 56 commits: the
+  whole ACT program plus everything previously held back (P2 merge, FUP-PDF-1, rotations). ⚠ Note for
+  the next reader: local `main` was 3 commits BEHIND origin at merge time (three user pushes made the
+  same day — audio-minutes callback flag, deployment env docs, /verificar prerender opt-out); those
+  were fast-forwarded in first, and the green bar was re-run ON the merged combination, not inherited.
 - **Remote `db push`** — the AFF batch (2026-08-06) and the five PDF·P1 migrations (2026-08-08) are
   **pushed and remote-catalog-verified** (Phase Status rows AFF / PDF·P1). What is **not** pushed:
   `20260914000000` + `20260914000100` (PDF·P2), held by PO instruction — so local and remote catalogs
