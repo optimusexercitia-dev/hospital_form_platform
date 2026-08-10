@@ -93,7 +93,7 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | --- | --- | --- | --- |
 | **S0** — the role enum | backend | ✅ 2026-08-09 · `8acebed` (+ placement fix) | `20260918000000`; **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11 break-glass hat / audit stamp). pgTAP 5636 PASS · ARM=census + ARM=floor HOLD |
 | **S1** — harness first | backend + tester | ✅ 2026-08-10 · `f87bfe6`·`d7e4ae5`·`d2bbc7a` · **gate CLOSED: e2e:prod 1049 pass + 1 known flaky + 5 pre-existing skips = 1055/1055, 0 failures** (batches 1–17 all present, no `reset FAILED`, 2 infra reruns accounted). ⚠ The gate's own "COVERAGE 1050 of 1055" line excludes skips from its numerator — it is NOT 5 unrun tests; reconcile per-batch before ever reading it as a gap | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` sweep bounded by the **property** not by filename: 166 sites = 140 resets + 1 canonical + **21 routed** + 4 structurally unreachable (`test_helpers` is minted by `00_setup.sql`, so `seed.sql`/demo can never reach it) · additive `dualhat.a@` persona · `loginFresh`/`cachedSignIn` `actAs` seam · seed-sensitivity sweep (7 candidate specs, 125 pass + 1 known skip, 0 regressions). ⚠ **S1 is not signed off until the full suite is green** — the scoped 126 is not the plan's "full suites green" |
-| **S2** — behaviour-preserving normalisation | backend | 🟡 running | the direct `memberships` readers re-based onto `has_role`/`has_role_any`, no semantic change; `CREATE OR REPLACE` only. ⚠ The "8" is a **hypothesis to falsify** — the census predates ADR 0105's rename, which rewrote 75 bodies. "Behaviour-preserving" must be proven by a before/after equivalence matrix, not by a green suite (a widening passes a no-regression test by construction) |
+| **S2** — behaviour-preserving normalisation | backend | 🟡 built `c7b3fb6`+`7972441`; **e2e:prod gate running (lead)** | 8 direct `memberships` readers re-based onto `has_role`/`has_role_any`, `CREATE OR REPLACE` only. The "8" was **re-derived from the catalog** (149 boolean gates, comment-stripped `prosrc`) and *happened* to reconcile with the census — a stronger claim than using it. Proof is a **61-case equivalence matrix** (TRUE/FALSE/cross-tenant/null-scope + a synthetic expired-membership fixture), captured before and after: **0/61 deltas, byte-identical**. Lead re-verified post-migration from the catalog: the `DIRECT-ONLY` bucket now holds exactly `has_role`+`has_role_any` themselves. pgTAP 5636 PASS **twice, second run without a reset** · ARM=census + ARM=floor HOLD · diff-scoped sweep 7 COVERED / 0 BLIND / 1 ERROR closed by a hand-run dual-direction mutation proof. Found + fixed BUG-ACT-CLAIMSFOR-1; opened BUG-ACT-EXPIRY-1 + BUG-ACT-ACL-1 (Bug Log) |
 | **S3** — THE ATOM (the only red window) | backend + frontend + tester | ⬜ design note done (`5b6cc05`), build not started | `active_role_selections` + `assume_role` + hook claim + the §2 caller-only binding + raw-policy sweep; picker/indicator/D9 hint; revert-twin keystone. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** ⚠ **SCOPE ADDITION** (`539930c`): the picker must be *reachable* — `signIn()` redirects via `resolveLanding()` and never renders `page.tsx`, so the plan's original placement was a door nothing reaches. Sweep by the property "computes a post-auth destination". 6 guard files, not ~5; 4 of them need new `not-found.tsx` boundaries |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted |
 
@@ -264,6 +264,33 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+🔴 **BUG-ACT-EXPIRY-1 — OPEN, LATENT (found by ACT Stage 2's equivalence matrix, 2026-08-10;
+deliberately NOT fixed there).** `app.can_manage_professional`'s raw `memberships` branch
+carries **no `expires_at` filter**, so a principal whose `staff_admin` membership has already
+expired still passes it — and it gates **10 professional-identity / ethics-vocab write RPCs**.
+Everywhere else the platform treats `expires_at` as live (`224_memberships_collapse.sql` §9
+pins the semantics: NULL never filters, a past date does). **Latent, not exploitable today:**
+`seed.sql` carries zero expired rows, which is why it took a synthetic fixture to observe at
+all — and why no existing test could have caught it. ⚠ **Stage 2 preserved the quirk on
+purpose** (a behaviour-preserving refactor must preserve flaws, or it is smuggling an authz
+change under a refactor) via an explicit compensating clause in
+`20260918001000`; do **not** read that clause as intended behaviour and do not "simplify" it
+without closing this bug first. **Disposition:** fix is a genuine *tightening* and therefore
+needs its own change with its own gate — not Stage 3 (the atom takes no unrelated payload).
+Candidate home: Stage 4 or a standalone follow-up. Lead to decide with the PO.
+
+🟡 **BUG-ACT-ACL-1 — OPEN, hardening gap (same origin, 2026-08-10).**
+`app.is_entitled_document_approver` has `proacl = NULL`, i.e. the Postgres default of
+`EXECUTE` to **PUBLIC** — wider than all 7 of its siblings, which carry an explicit grant.
+**Not a new regression** (Stage 2's `CREATE OR REPLACE` left it NULL→NULL, exactly as
+intended) and **not directly reachable**: `app` is not in `config.toml`'s exposed schemas, so
+PostgREST offers no route to it. It is one instance of a **known population** — see the
+standing *AUDIT-INVOKER-WRAPPER* item under §"Remaining pre-pilot work", which records that
+130 of 281 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`. **Disposition:** fold into
+that item rather than fixing piecemeal here; recorded so this specific instance is not
+re-discovered as though it were new. ⚠ Re-confirm the `proacl` reading from the catalog
+before acting — it was measured while a gate was mid-run.
 
 ⬛ **BUG-ACT-CLAIMSFOR-1 — RESOLVED 2026-08-10 (`backend`, found running ACT Stage 2's
 diff-scoped door sweep; fixed in the same session, not a migration).** `supabase test db`
