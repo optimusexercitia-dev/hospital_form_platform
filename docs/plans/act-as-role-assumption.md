@@ -191,13 +191,23 @@ One merge. **Backend:**
   through hat-aware `is_member_of`; the *target* side stays any-role (what roles another
   user holds is not a function of MY hat). Any sibling arms found join the same migration
   or are recorded as reasoned, named exceptions — never left silently unswept.
-**Frontend** (frontend-design skill first): picker page (multi-role, at sign-in — a new
-first step in the `page.tsx` chain, which loses its precedence guessing entirely; carry
-the explicit role→landing-route table lifted from `page.tsx`'s own doc comment — all 10
-membership roles + `platform_admin` — so the mapping is not re-derived ad hoc mid-build);
-persistent hat indicator + dropdown switch (`assume_role` → `refreshSession()` →
-new hat's home); D9 hint component on the P5 choke-point guards, computed from own
-memberships only. All pt-BR.
+**Frontend** (frontend-design skill first) — design note: `docs/design/act-role-picker.md`:
+picker page at **`/selecionar-perfil`** (route name is a **PO decision, 2026-08-10** — do not
+rename it; note the app says *papel* for role everywhere else, so the screen's copy stays
+"papel" even though the route reads "perfil"). Shown to multi-role principals at sign-in;
+⚠ **its placement is governed by the Stage 3 amendment above, not by "the `page.tsx`
+chain"** — `page.tsx` is not on the login path. Carry the explicit role→landing-route table
+lifted from `page.tsx`'s own doc comment — all 10 membership roles + `platform_admin` — so
+the mapping is not re-derived ad hoc mid-build; the design note records that the comment
+names 9 of 11 explicitly and that `staff_admin`/`staff` are described by grant-count
+instead, with `src/lib/queries/session-grants.ts` as the disambiguator.
+Persistent hat indicator + dropdown switch (`assume_role` → `refreshSession()` → new hat's
+home) — placement decided against a real screen: `src/components/shell/user-menu.tsx`, the
+one component common to every choke-point shell, which already carries a `roleLabel` slot.
+D9 hint component on the choke-point guards, computed from own memberships only —
+measured as **6 guards, not ~5** (direção técnica guards inline in its page, having no
+layout), and **only 2 of the 6 have route-scoped `not-found.tsx` boundaries** to mount the
+hint in; the other 4 need new sibling boundaries. All pt-BR.
 **Tester:** flip the Stage 1 seams; picker/switch/D9 specs incl. one keyboard-only flow;
 `dualhat.a@` positive + `multi@` negative; a spec proving a stale pre-cutover session
 (no hat) sees stranger-level nothing until re-login.
