@@ -2473,3 +2473,26 @@ ethics-e1 + phase13-audit + qob-content-wall **60p+1s** · nsp-per-hospital
 **32/32** · notifications **8/8** · case-access **23p+1s** · administrativo
 **10/10**. lint 0/0 · `tsc --noEmit` clean. Full `RESET=1 REBUILD=1 e2e:prod`
 result recorded in PROGRESS.md (the S3 row) once complete.
+
+### 4. The full gate (two runs) and what it caught
+
+Run 1 (`169668d`): 1048p/9f/2 flaky. The 9 split into (a) ONE real S3 security
+regression — `phase2-auth-shell`'s "404 body names no commission" caught the D9
+hint serializing the caller's full grant objects into every signed-in 404's RSC
+payload (`RoleSwitchHint` is a client component; props ship even when it renders
+nothing). Fixed in `81a72d1` by pre-computing each option's `landing` server-side
+and passing only `{role, count, landing}` strings — the grants never cross the
+client boundary. The test that caught it is a SECURITY assertion; re-pointing it
+was never on the table. (b) EIGHT environmental — the `gotenberg-pdf` sidecar
+(`PDF_RENDERER_URL`) had exited on a Docker restart (no restart policy; flagged
+as a hardening candidate) — restart + health 200 → both PDF specs 14/14.
+
+Run 2 (`81a72d1`): 996p/0f/2 baseline-flaky/61 never-ran — batch 8's mid-gate
+`db reset` failed TRANSIENTLY (manual retry passed immediately; the stale
+`batch-8.log` still carried run-1 content, the known stale-log trap). The 61
+were re-run as a scoped prod-standalone gate (fresh reset): 61/61 GREEN.
+Zero assertion failures across all 1064 collected tests, both runs combined.
+
+Close: pgTAP fresh-reset 178/5679 PASS · ARM=census 450/461 HOLD · ARM=floor 80
+HOLD · lint 0/0 · tsc · Vitest 1194. S3 closed; S4 not started; QA review +
+human approval pending.

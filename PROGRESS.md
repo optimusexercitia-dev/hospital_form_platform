@@ -80,55 +80,55 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md)) · **PAUSED 2026-08-10, mid-S3**
+### 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md)) · **S3 GATE GREEN 2026-08-10 — awaiting QA review (step 3) + human approval (step 4)**
 
-> ## ⏸ PICK-UP HERE — read this box first, then the S3 row below
+> ## ✅ S3 CLOSED BY THE LEAD AUDIT SESSION 2026-08-10 (resume after the pause)
 >
-> **State:** S0/S1/S2 ✅ each closed on a green full `e2e:prod` (1055/1055). **S3 is BUILT
-> — backend, frontend and tester all complete — but its gate has not gone green.** S4 not
-> started. QA review (Phase Gate step 3) not started. Nothing pushed; local-only throughout.
+> **State:** S0/S1/S2 ✅ · **S3 ✅ built + gate GREEN** (evidence below) · S4 ⬜ not
+> started (explicitly out of scope for the audit session). **QA review (Phase Gate step 3)
+> and human approval (step 4) are STILL PENDING** — the next session starts there.
+> ⛔ Local-only throughout; nothing pushed, no `db push`. Remote cutover additionally
+> needs the auth hook ENABLED on Supabase Cloud (a step `db push` does not cover).
 >
-> **The one required next action: re-run the full gate.**
-> ```
-> cd worktrees/feat/act-as-role-assumption && RESET=1 REBUILD=1 npm run e2e:prod
-> ```
-> The last run (2026-08-10, HEAD `4128cf6`) was **RED: 38 real + 4 infra + 74 never-ran**.
-> It was diagnosed to ONE systemic cause and fixed in `407d2b8` (see below), but **the fix
-> has not been validated by a full run** — only by per-file re-runs. Do not treat the 38 as
-> resolved until a full gate says so.
+> **Gate evidence (all 2026-08-10, HEAD `81a72d1`):**
+> - Full `RESET=1 REBUILD=1 e2e:prod`: **996 passed · 0 failed · 2 flaky (known
+>   baseline, green on retry) · 61 never-ran** — batch 8's mid-gate `db reset` failed
+>   transiently (its stale `batch-8.log` still shows run-1 content; the reset passed
+>   immediately on manual retry). Per the gate's own instruction the 61 were re-run as a
+>   scoped prod-standalone gate (`SPECS=` the 4 batch-8 files, fresh reset): **61/61
+>   GREEN**. Net accounting: 1057 passed + 2 flaky-then-green + 5 pre-existing skips
+>   = 1064 collected; **zero assertion failures anywhere**.
+> - pgTAP on a fresh reset: **Files=178, Tests=5679, PASS** (the post-`20260918002700`
+>   baseline). `ARM=census`: 450 live gates / 461 verdicts, no unswept newcomer.
+>   `ARM=floor`: 80 never-called doors, all allowlisted. (No RLS policy or boolean
+>   `prosecdef` gate changed after the S3 backend's own diff-scoped sweep — the audit
+>   session's fixes were spec-side plus one frontend serialization fix.)
+> - lint 0/0 · `tsc --noEmit` · Vitest **1194**.
 >
-> **What `407d2b8` did:** `BUG-ACT-NOTFOUND-COPY-1` at true scale — **81 exact-string 404
-> assertions across 36 files** (S3 added area-level `not-found.tsx` boundaries reading *"não
-> encontrada"* while the global one still reads *"Não encontramos esta página."*; `/não
-> encontr/i` matches both). 33 files fixed, 3 correctly left (prose / already-correct).
-> ⚠ **Denial was proven independently per site BEFORE any assertion was re-pointed** — a
-> "404 heading visible" test fails identically when the copy changed and when **access was
-> wrongly granted**, so a blanket replace could have converted a real regression to green.
-> **No P0 found; denial held everywhere checked.**
-> ⚠ **Do not derive which boundary fires from the URL prefix** — measured: it depends on
-> where in the render tree the specific denial reason is checked. `manage/**` hits the NEW
-> boundary for a flag-off or cross-hospital denial and the OLD global one for a role or
-> cross-org denial, same persona, same route.
+> **What the first full gate (RED: 9) actually found — two causes, both closed:**
+> 1. **A REAL S3 security regression** caught by `phase2-auth-shell`'s "404 body names no
+>    commission" assertion: the D9 hint mount serialized the caller's full grant objects
+>    (commission ids/names/slugs) into the RSC payload of EVERY signed-in 404 —
+>    `RoleSwitchHint` is a client component, so props ship even when it renders nothing.
+>    Fixed in `81a72d1`: `getRoleSwitchOptions` pre-computes each option's landing route
+>    server-side; only `{role, count, landing}` strings cross the client boundary; all 7
+>    `not-found.tsx` mounts updated. Hint behavior unchanged (act-role-assumption 9/9).
+> 2. **Eight environmental reds** (both PDF specs): the `gotenberg-pdf` sidecar
+>    (`PDF_RENDERER_URL`) had exited when Docker restarted — it carries **no restart
+>    policy**, so any Docker restart silently kills PDF minting. Restarted (health 200),
+>    14/14 green. ⚠ Candidate hardening: `docker update --restart unless-stopped
+>    gotenberg-pdf` (not done — infra change, PO's call).
 >
-> **SIX findings remain open and are NOT copy-related** (each with mechanism + exact error
-> text in the Bug Log — they were flagged, deliberately not fixed):
-> `qob-org-admin-content-wall` missing nav link · `charters-cadence` AC-5 `acting_as`
-> audit-metadata (possibly recurring as `ethics-e1-access-spine` AC-3b — *candidate only,
-> unconfirmed*) · `nsp-per-hospital` `admin@` reaching `/selecionar-perfil` with no `actAs`
-> (one more raw-grant site both sweeps missed) · `nsp-per-hospital` AC-7/AC-8 dispose-PHI
-> button · `case-access` AC-3a + `administrativo` POS-5 content-visibility ·
-> **`BUG-QO-OVERSIGHT-DOOR-1`** — `set_commission_oversight` now rejects a test helper's
-> **raw-`psql`** call (no JWT ⇒ no hat ⇒ the app-level check raises). ⚠ That last one is a
-> **class, not an instance**: any helper mutating through a hat-gated door without a JWT
-> context is now denied. Sweep for siblings before fixing it one at a time.
+> The six pre-pause findings + `notifications` N-1/N-3 were all resolved in `169668d`
+> (detail: Bug Log). The 74 pre-pause never-ran tests are fully accounted: they ran in
+> the two runs above (the only unrun set, run-2's 61, was re-run green).
 >
-> **The 74 never-ran tests are still unaccounted for** — `b1(10) b2(22) b3(2) b4(27) b7(2)
-> b8(1) b17(10)`. Nothing is proven for them and they are NOT among the 38. Re-derive them
-> from the next run; a gate summary that omits unrun tests has misled this project before.
->
-> **Also watch:** batches 5/8/14/15/17 each died with `server_dead=1` and 50–88 connection
-> errors before their rerun — materially worse instability than the S1/S2 gates on the same
-> suite. If it recurs, it is worth investigating rather than absorbing as infra noise.
+> ⚠ Still-open program items (NOT S3 blockers): **FUP-ACT-DISPOSE-UI** +
+> **FUP-ACT-CAPA-ASSIGN** (PO ratification — same family as the two ADR 0106 accepted
+> losses) · `BUG-VACUOUS-ASSERT-1` (pre-existing, repo-wide audit is its own pass) ·
+> `BUG-ACT-EXPIRY-1` (latent; S4 or standalone) · `BUG-ACT-ACL-1` (folded into
+> AUDIT-INVOKER-WRAPPER) · the `navScope="member-and-configuration"` dead branch +
+> the endorsed standing-sweep candidate (both carried into S4's list).
 
 Branch `feat/act-as-role-assumption` (worktree, based on `main` @ `7b7a99c`). Plan
 [act-as-role-assumption.md](docs/plans/act-as-role-assumption.md) — **QA APPROVED r2**
@@ -142,7 +142,7 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | **S0** — the role enum | backend | ✅ 2026-08-09 · `8acebed` (+ placement fix) | `20260918000000`; **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11 break-glass hat / audit stamp). pgTAP 5636 PASS · ARM=census + ARM=floor HOLD |
 | **S1** — harness first | backend + tester | ✅ 2026-08-10 · `f87bfe6`·`d7e4ae5`·`d2bbc7a` · **gate CLOSED: e2e:prod 1049 pass + 1 known flaky + 5 pre-existing skips = 1055/1055, 0 failures** (batches 1–17 all present, no `reset FAILED`, 2 infra reruns accounted). ⚠ The gate's own "COVERAGE 1050 of 1055" line excludes skips from its numerator — it is NOT 5 unrun tests; reconcile per-batch before ever reading it as a gap | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` sweep bounded by the **property** not by filename: 166 sites = 140 resets + 1 canonical + **21 routed** + 4 structurally unreachable (`test_helpers` is minted by `00_setup.sql`, so `seed.sql`/demo can never reach it) · additive `dualhat.a@` persona · `loginFresh`/`cachedSignIn` `actAs` seam · seed-sensitivity sweep (7 candidate specs, 125 pass + 1 known skip, 0 regressions). ⚠ **S1 is not signed off until the full suite is green** — the scoped 126 is not the plan's "full suites green" |
 | **S2** — behaviour-preserving normalisation | backend | ✅ 2026-08-10 · `c7b3fb6`+`7972441` · **gate CLOSED: e2e:prod 1050 pass + 5 skips = 1055/1055, 0 failures, 0 flaky** (batch 4's 15 reds correctly classified INFRA — `server_dead=1, conn_errors=29` — and green on rerun) | 8 direct `memberships` readers re-based onto `has_role`/`has_role_any`, `CREATE OR REPLACE` only. The "8" was **re-derived from the catalog** (149 boolean gates, comment-stripped `prosrc`) and *happened* to reconcile with the census — a stronger claim than using it. Proof is a **61-case equivalence matrix** (TRUE/FALSE/cross-tenant/null-scope + a synthetic expired-membership fixture), captured before and after: **0/61 deltas, byte-identical**. Lead re-verified post-migration from the catalog: the `DIRECT-ONLY` bucket now holds exactly `has_role`+`has_role_any` themselves. pgTAP 5636 PASS **twice, second run without a reset** · ARM=census + ARM=floor HOLD · diff-scoped sweep 7 COVERED / 0 BLIND / 1 ERROR closed by a hand-run dual-direction mutation proof. Found + fixed BUG-ACT-CLAIMSFOR-1; opened BUG-ACT-EXPIRY-1 + BUG-ACT-ACL-1 (Bug Log) |
-| **S3** — THE ATOM (the only red window) | backend + frontend + tester | 🟡 **backend + frontend DONE** 2026-08-10, tester not started | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester still needs: flip the Stage 1 seams, picker/switch/D9 specs, full `e2e:prod`. |
+| **S3** — THE ATOM (the only red window) | backend + frontend + tester + lead audit | ✅ **GATE GREEN 2026-08-10** · `81a72d1` · full `e2e:prod` 996p+0f+2 baseline-flaky, + the transiently-unrun batch 8 re-run **61/61** (zero assertion failures across all 1064 collected; 5 pre-existing skips) · pgTAP fresh-reset **178/5679 PASS** · ARM=census 450/461 HOLD · ARM=floor 80 HOLD · lint 0/0 · tsc · Vitest 1194 — see the close-out box above for the two first-gate causes (the D9-hint RSC grant-serialization leak, fixed; the gotenberg sidecar down, environmental). **QA review + human approval PENDING.** | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester half: seams flipped + picker/switch/D9 specs (9/9) + the threading/close-out rows below; the full-gate close is the lead-audit evidence in the status cell + box above. |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted. ⚠ Also carry in: the **endorsed standing-sweep candidate** — "raw `memberships … principal_id = auth.uid()` with no adjacent hat condition" belongs in the ADR 0079 door audit, because `capa_kpis` was found with a safe arm and a raw arm side by side, i.e. this population accreted from different authors over time and a one-off sweep will not hold |
 
 **⏸ S3 — what was found AFTER the stage was declared "built" (the reason it is still open).**
