@@ -80,8 +80,18 @@ fn: public.assume_role(p_role platform_role)
 # predicates that ride has_role and therefore the hat). Found by this sweep's
 # first run (2026-08-10), ruled same-class as session_context, subject to
 # lead/QA veto like every S4 ruling.
-# WRONG THE DAY: any RLS policy or DEFINER door derives a CAPABILITY from "the
-# caller can see this memberships row" (row-visibility-as-authorization); the
-# self arm must then be hat-scoped and the surfaces that list held roles moved
-# behind session_context().
+# WRONG THE DAY (either of two, added by the lead 2026-08-10):
+#  (a) any RLS policy or DEFINER door derives a CAPABILITY from "the caller can
+#      see this memberships row" (row-visibility-as-authorization); the self arm
+#      must then be hat-scoped and the surfaces that list held roles moved
+#      behind session_context().
+#  (b) this policy gains ANY further raw `memberships` arm. This entry keys on
+#      the WHOLE POLICY but reasons about ONE arm. Verified from the catalog
+#      2026-08-10: of its five arms only `principal_id = (select auth.uid())` is
+#      raw; the other four delegate to app.is_admin / is_member_of /
+#      is_tenancy_admin_of / is_org_admin_of / is_hospital_admin_of, all of which
+#      ride has_role and therefore the hat. A new raw arm would inherit this
+#      exemption SILENTLY — the sweep cannot see below policy granularity (a
+#      known blind spot, stated in the sweep header). Re-verify the arm census
+#      before trusting this line.
 policy: public.memberships.memberships_select (SELECT)
