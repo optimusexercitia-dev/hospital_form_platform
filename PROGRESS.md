@@ -265,6 +265,36 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+⬛ **BUG-ACT-CLAIMSFOR-1 — RESOLVED 2026-08-10 (`backend`, found running ACT Stage 2's
+diff-scoped door sweep; fixed in the same session, not a migration).** `supabase test db`
+could not be run twice against the same `supabase db reset --local` without erroring —
+`00_setup.sql (Wstat: 768, exited 3), Parse errors: No plan found in TAP output`, `Result:
+FAIL` with a Files/Tests count *below* baseline. **Cause:** ACT Stage 1 (2026-08-09) changed
+`test_helpers.claims_for` in `supabase/tests/00_setup.sql` to `drop function if exists
+test_helpers.claims_for(uuid, boolean); create function test_helpers.claims_for(uuid,
+boolean, text) ...` — a plain `create function`, not `create or replace`, to solve a
+real 2-arg->3-arg overload-collision risk. That fix is correct exactly once: on every
+`supabase test db` run *after* the first (no reset in between), the `drop` targets an
+overload that no longer exists (no-op) and the plain `create function` collides with the
+now-resident 3-arg signature. **Why the standing gate structure never caught it:** CLAUDE.md
+§6 step 1 requires pgTAP on a **fresh** reset, which is exactly the one condition under which
+this defect is invisible (a fresh reset always looks like "the first run"). The ADR 0079
+door-audit harness (`p0-authz-door-audit.sh`) is the one tool in this repo's protocol that
+calls `supabase test db` **repeatedly against one reset** — its own preflight comment assumes
+this is safe ("no pgtap preflight here... `supabase test db`... creates/drops
+test_helpers ITSELF per run"), and that assumption was false as of Stage 1. Reproduced
+deliberately twice (fresh reset -> PASS -> immediate rerun, no reset -> FAIL, both times) to
+rule out a one-off flake before fixing. **Fix:** `supabase/tests/00_setup.sql` — kept the
+one-time `drop function if exists test_helpers.claims_for(uuid, boolean)` (still needed for
+the arity-changing 2-arg->3-arg transition, which `CREATE OR REPLACE` cannot itself absorb),
+changed the `create function` to `create or replace function` (idempotent once the 3-arg
+signature is resident — unlike the arity change, a same-signature replace is always safe).
+**Verified:** fresh reset -> 3 consecutive `supabase test db` runs, no reset between any,
+all three `Files=175, Tests=5636, Result: PASS`; re-confirmed as part of the Stage 2 gate
+(run 1 fresh + run 2 no-reset, both PASS, identical counts) and a 4th time by the
+diff-scoped sweep's own preflight succeeding. Full mechanism + reproduction:
+[act-as-buildnotes.md](docs/plans/act-as-buildnotes.md) Stage 2 §6.
+
 ⬛ **BUG-QOB-004 — RESOLVED 2026-08-09 (PO ruled CUT-the-arms; `20260917000000`).** The DB moved
 to meet the UI rather than the reverse: `is_commission_admin_of` is gone from
 `can_dispose_referral_phi`, `dispose_referral_phi` and `create_referral_draft`

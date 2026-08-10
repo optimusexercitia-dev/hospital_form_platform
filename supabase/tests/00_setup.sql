@@ -321,9 +321,27 @@ $$;
 -- regress by omission, and the schema-level
 -- `grant execute on all functions in schema test_helpers to authenticated`
 -- a few lines down re-applies the ACL on every 00_setup.sql run regardless.
-drop function if exists test_helpers.claims_for(uuid, boolean);
-
-create function test_helpers.claims_for(
+--
+-- ACT Stage 2 regression fix (found running the diff-scoped door sweep,
+-- ADR 0079 Amendment 1): this DROP only ever matches the STALE 2-arg
+-- signature, so it is a no-op on every run after the first successful
+-- 2-arg -> 3-arg transition (the 2-arg overload is gone for good at that
+-- point). The block below was `create function` (not `create or replace`),
+-- which is safe exactly once — the FIRST run after this file changed, when
+-- no 3-arg claims_for existed yet to collide with. Every subsequent
+-- `supabase test db` invocation without an intervening `db reset` hit
+-- "function test_helpers.claims_for(uuid, boolean, text) already exists
+-- with same argument types" at 00_setup.sql itself, aborting before any TAP
+-- output — Files=175 but Result: FAIL, no plan found. This silently broke
+-- the load-bearing assumption p0-authz-door-audit.sh states outright ("this
+-- harness runs `supabase test db`... so there is NO pgtap preflight here")
+-- and every other workflow that calls `supabase test db` more than once
+-- against the same reset. Restored to `create or replace`: once the 3-arg
+-- signature is resident, CREATE OR REPLACE on the identical signature is
+-- always idempotent (unlike the 2-arg -> 3-arg transition, where the
+-- argument list itself changes identity) — the DROP above still handles
+-- that one-time transition, and OR REPLACE now handles every run after.
+create or replace function test_helpers.claims_for(
   p_user uuid,
   p_is_admin boolean default false,
   p_active_role text default null
