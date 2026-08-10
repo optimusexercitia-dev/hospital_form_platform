@@ -246,7 +246,7 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
    suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
    E2E-mutated DB yields spurious commission-count reds that are not defects.
-   **Authz gates** — `ARM=census` (~2 s) **and** `ARM=floor` (~1 min) of
+   **Authz gates** — `ARM=census` (~2 s), `ARM=hat` (~10 s) **and** `ARM=floor` (~1 min) of
    `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
    catches a gate you just added** — a brand-new gate is in no BLIND set, so it passes
    `ARM=policy` **vacuously** (ADR 0079 Amendment 3). **If the phase touched any RLS policy or
@@ -273,7 +273,8 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    (mechanics: lead-playbook §§4–5), updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
    `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
-   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked* — a gate record
+   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*, `ARM=hat`
+   whether any door reads `memberships` without the caller's hat — a gate record
    naming the script reads as full coverage while delivering the cheap half (ADR 0079;
    `docs/progress/follow-ups-archive.md`).
 
