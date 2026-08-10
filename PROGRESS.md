@@ -666,7 +666,15 @@ exercise multiple `assume_role` hat-switches — then queried `audit_log` direct
 the assumed role. See BUG-CAPA-AUDIT-SCOPE-1 below — the second, independent, pre-existing
 mechanism that pollutes the same bucket remains open; this one's resolution does not close that.
 
-🟡 **BUG-CAPA-AUDIT-SCOPE-1 — OPEN, pre-existing, NOT caused by ACT (`backend` traced the
+⬛ **BUG-CAPA-AUDIT-SCOPE-1 — RESOLVED 2026-08-10 (`backend`, migration
+`20260918002700_act_capa_audit_scope_fallback.sql` + red-first keystone
+`supabase/tests/317_act_capa_audit_scope.sql`, commits `bf85bce`+`55f4759`; this entry was
+stale-OPEN — the lead audit session reconciled it against the live catalog:
+`trg_audit_capa_plan` now falls back to `new.hospital_id`, verified via `pg_get_functiondef`,
+sibling-trigger sweep + catalog property diff in the buildnotes' own section).** The
+batch-packing red it could inflict on `phase13-audit` AC-3f-platform is therefore closed at
+the mechanism, not by loosening the assertion. Original finding preserved below:
+~~🟡 BUG-CAPA-AUDIT-SCOPE-1 — OPEN, pre-existing, NOT caused by ACT (`backend` traced the~~
 mechanism; `tester` independently verified against the live catalog + confirmed live in this
 database, 2026-08-10; filed per the coordinator's explicit instruction — not fixed).**
 `app.trg_audit_capa_plan` (verified live via `pg_get_functiondef`) resolves audit scope ONLY via
@@ -851,41 +859,64 @@ failures on exact-count/exact-content assertions when run alongside `perf-sweep-
 regressions, by re-running each alone on a fresh reset (`phase22-referrals` 40/40,
 `quality-oversight` 19/21 — the 2 remaining are BUG-QO-OVERSIGHT-DOOR-1 below, unrelated).
 
-**Non-copy findings surfaced during this sweep, NONE fixed (out of scope, flagged for the
-coordinator/owning team) — some already known from the prior round, listed again here for a
-single point of reference, others new**:
-- `qob-org-admin-content-wall.spec.ts` "member-and-configuration" test — missing "Formulários"
-  nav link (already flagged prior round).
-- `charters-cadence.spec.ts` AC-5 — `charter.upserted` audit metadata now includes an unexpected
-  extra key, `acting_as` (already flagged prior round). **Possibly wider than one test**:
-  `ethics-e1-access-spine.spec.ts` "AC-3b + AC-8" failed in-suite with a `toEqual` deep-equality
-  error on the SAME shape of assertion (an exact audit-metadata key/content check) — not isolated
-  to confirm definitively given scope, but the shape matches closely enough to name as a
-  candidate second site, not a confirmed one.
-- 🔴 **NEW — `nsp-per-hospital.spec.ts`: `admin@test.local` reached `/selecionar-perfil` with no
-  `actAs` argument** in "org_admin cannot self-delegate nsp_org_admin" — a raw-grant sign-in this
-  program's earlier threading pass missed. Same class as the already-closed
-  BUG-ACT-RAWGRANT-HATLESS-1, one more site.
-- 🔴 **NEW — `nsp-per-hospital.spec.ts` AC-7/AC-8: the "Apagar dados do paciente" (dispose PHI)
-  button is not found** for `pqsdual.a` in 2 tests, cascading a 3rd (`test.skip`-adjacent "did not
-  run"). Not investigated beyond confirming it is unrelated to any not-found copy or boundary —
-  a UI-affordance-visibility question, outside this bug's mechanism entirely.
-- 🔴 **NEW — `case-access.spec.ts` AC-3a and `administrativo.spec.ts` POS-5: unrelated
-  content-visibility failures** (a named `region`/`heading` not found on an otherwise-reached
-  page), each confirmed to have NOTHING to do with not-found copy (no 404/denial assertion
-  involved). `case-access.spec.ts`'s is serial-mode and cascades to skip 20 subsequent tests in
-  that file when run after it — worth the coordinator's attention for the scale of the cascade
-  alone, not chased further here.
-- 🔴 **NEW — `BUG-QO-OVERSIGHT-DOOR-1`, `quality-oversight.spec.ts`, confirmed via 2 clean
-  ISOLATED reproductions (not batch artifacts) on a fresh reset**: the test helper
-  `setOversightViaDoor` (a raw `docker exec psql` call with no Supabase auth/JWT context) now gets
-  rejected by `set_commission_oversight` with `ERROR: apenas o administrador do hospital ou da
-  organização pode alterar a supervisão da qualidade` — an app-level `RAISE` inside the DEFINER
-  function itself (not a raw Postgres permission error), meaning the function's own authorization
-  check is now failing for this call shape. Not investigated further (SQL mechanism, backend's
-  domain) — flagged with the exact error text and call site for a fast pickup.
-- `notifications.spec.ts` N-1 — a `selectOption` timeout on an "encarregado" dropdown, unrelated,
-  not investigated.
+**Non-copy findings surfaced during this sweep — ⬛ ALL RESOLVED 2026-08-10 (lead audit
+session, commit `169668d`; each verified green per-file on a fresh reset before the full
+gate re-run):**
+- ⬛ `qob-org-admin-content-wall.spec.ts` "member-and-configuration" — NOT a missing nav link:
+  the union nav is **structurally unreachable under one hat** (D5/D12 — the staff hat filters
+  the tenancy-admin grants, the org_admin hat filters the membership). Split into per-hat tests
+  that each prove the other scope's items absent (the PO-ruled union-loss shape). ⚠ App-side
+  consequence: `navScope="member-and-configuration"` is now a **dead branch** in
+  `c/[commission]/layout.tsx` — carried into S4's audit list, not deleted mid-S3.
+- ⬛ `charters-cadence.spec.ts` AC-5 + `ethics-e1-access-spine.spec.ts` AC-3b/AC-8 +
+  `phase13-audit.spec.ts` AC-1c (a third site the class sweep found, previously unflagged) —
+  `audit_write` (D8) stamps `acting_as` into every row's metadata when a hat is active
+  (catalog-verified, unconditional). All three exact-keys assertions updated to expect it;
+  the class sweep (`Object.keys(*metadata*)` + `toEqual` over `e2e/`) found exactly these 3.
+- ⬛ `nsp-per-hospital.spec.ts` hatless `admin@` — the sign-in was **vestigial** (immediately
+  replaced by the orgadmin.a sign-in the test actually uses); deleted, not threaded.
+- ⬛ `nsp-per-hospital.spec.ts` AC-7/AC-8 dispose button — a **third capability loss** of the
+  PO-ruled class: the dispose gate is `is_tenancy_admin_of(source) OR is_pqs_operator_of(either
+  endpoint hospital)` and the affordance mounts ONLY on the commission-scoped referral detail
+  page — tenancy admins + operators 404 there (QO·B wall), members lack every arm ⇒ **no single
+  hat reaches the dispose AFFORDANCE at all**. Rescoped: unreachability asserted per-hat; the
+  MECHANISM proven at the RPC door (hatted `pqs_member` disposes ENC-0004: PHI erased incl. the
+  redacted subject — the old "subject remains" assertion was stale vs. the live function — ENC
+  record kept, Rule 11 audit row `acting_as='pqs_member'`, PHI-free metadata). AC-8's
+  keyboard-only proof re-anchored on the still-reachable PHI reveal (chefe.ccih) so it stays
+  non-vacuous. **Follow-up: FUP-ACT-DISPOSE-UI (below).**
+- ⬛ `case-access.spec.ts` AC-3a and `administrativo.spec.ts` POS-5 — **NOT defects**: both
+  files fully green standalone on a fresh reset (23p+1s / 10p). The gate reds were cross-file
+  contamination; re-observed against the full gate re-run.
+- ⬛ `BUG-QO-OVERSIGHT-DOOR-1` — mechanism confirmed: `setOversightViaDoor` hand-mints
+  `request.jwt.claims` with no `active_role` key, and hand-minted claims **bypass the token
+  hook**, so the implicit single-role derive never runs — the hat-aware gate raised CORRECTLY.
+  Fix = mint the claim (`active_role: hospital_admin`), the same fix S1 applied to pgTAP's
+  `claims_for`. **Class sweep run as instructed**: `request.jwt.claims` over `e2e/` → exactly
+  one sibling, `technical-direction-referrals.spec.ts`'s `ensureSentDtReferral` (structurally
+  red the same way, likely hiding among the 74 never-ran) — fixed identically
+  (`active_role: staff_admin`). Both files green (36/36 with charters).
+- ⬛ `notifications.spec.ts` N-1 — the "encarregado" dropdown is fed by `listAssignableUsers()`,
+  a plain RLS `profiles` read, and the profiles SELECT policy has **no PQS-operator arm**
+  (catalog-verified) — the wide roster only ever existed through the org_admin half of admin@'s
+  hatless union; genuine single-role operators always saw ~only self, so this is a pre-existing
+  product narrowness whose union workaround ACT closed. Rescoped: option-absence asserted under
+  the operator hat; the assignment driven at the `addCapaAction` door (the N-3 vehicle);
+  notification-isolation assertions unchanged. N-3's red was collateral of N-1's mid-flow
+  timeout (green standalone, untouched). **Follow-up: FUP-ACT-CAPA-ASSIGN (below).**
+
+**Follow-ups filed by the lead audit session 2026-08-10 (PO ratification pending, same family
+as the two ADR 0106 accepted losses):**
+- 🟡 **FUP-ACT-DISPOSE-UI** — the referral-PHI dispose AFFORDANCE (LGPD erasure path) is
+  unreachable in the UI for every persona post-ADR-0106; the capability survives only at the
+  RPC door (hatted operator / tenancy admin via API). PO to decide where the affordance should
+  live (e.g., an NSP-surface or manage-tier mount). The dispose-dialog KEYBOARD flow returns
+  with whatever relocation is chosen.
+- 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators need a real assignee-roster door for CAPA actions
+  (`listAssignableUsers` reads `profiles` through RLS, which has no operator arm — operators
+  see ~only themselves in the picker). Pre-existing narrowness, no longer maskable by union
+  sessions. Candidate: a DEFINER roster door in the `list_addable_commission_members` family,
+  scoped + audited, with its own 0079 sweep entry.
 
 **On the 74 unrun tests** (`b1(10) b2(22) b3(2) b4(27) b7(2) b8(1) b17(10)`): no access to the
 gate's own batch partitioning or logs from this session, so no way to map these to specific test
@@ -994,7 +1025,15 @@ same-session via SendMessage. Owner: lead to assign (backend, almost certainly �
 is adding an `activeRole` check at each vulnerable guard/helper, not a `session_context()`
 change, since that RPC's hat-blindness is correct and load-bearing for the picker).
 
-🔴 **BUG-ACT-PICKER-SEED-1 — OPEN (`tester`, found writing Stage 3 E2E specs, 2026-08-10).**
+⬛ **BUG-ACT-PICKER-SEED-1 — RESOLVED 2026-08-10 (this entry was stale-OPEN; the lead audit
+session reconciled it against the tester's own close-out row, `a8da28d` + the raw-grant pass,
+and the live specs).** Disposition taken: option (a) — `actAs` threaded through every fresh
+sign-in of the 5 pre-existing multi-role personas (15 cookie files + 22 raw-grant files, each
+re-verified live per-file by the tester; `phase-multitenancy.spec.ts` deleted as redundant per
+the coordinator's decision), plus one final straggler (`nsp-per-hospital.spec.ts`'s vestigial
+hatless `admin@` sign-in) closed by the lead audit session in `169668d`. Seed personas keep
+their 2 role types — that diversity is now load-bearing E2E coverage of the picker itself.
+Original finding preserved below for the record:
 The buildnotes' claim ("today this is safe by construction... the only principal holding two
 role types is `dualhat.a@test.local`" — Stage 1 tester-half, the `accessToken` carry-forward
 note) is **false**, verified against the live catalog, not assumed:

@@ -2418,3 +2418,58 @@ or an RLS policy.
 - `supabase/migrations/20260918002700_act_capa_audit_scope_fallback.sql` — the fix.
 - `supabase/tests/317_act_capa_audit_scope.sql` — the new red-first keystone.
 - This section of `docs/plans/act-as-buildnotes.md`.
+
+---
+
+## Stage 3 — lead audit session (2026-08-10, resume after the pause)
+
+Charge: audit S1–S3 against reality, correct what blocks the gate, conclude S3.
+S4 explicitly not started.
+
+### 1. Audit — every recorded S1–S3 claim spot-checked against the substrate
+
+From the live catalog (never file text): `public.assume_role` present ·
+`active_role_selections` present · `has_role`(4-arg) + `has_role_any` both carry
+`IS NOT DISTINCT FROM` · `app.is_admin` carries the active-role condition ·
+`app.active_role` present · `config.toml` hook `enabled = true`. From source:
+`getSessionContext` filters grants by `activeRole` (session.ts:337) and `isAdmin`
+mirrors D11 (`claims.is_admin === true && activeRole === 'platform_admin'`).
+All recorded claims held. Two Bug Log rows were STALE-OPEN against the substrate
+and were reconciled (PICKER-SEED-1 — threading long done per the tester's own
+close-out row; CAPA-AUDIT-SCOPE-1 — fixed by `20260918002700` + keystone 317,
+`trg_audit_capa_plan` reads `new.hospital_id` live).
+
+### 2. The six open non-copy findings — all resolved (commit `169668d`)
+
+Full mechanism per finding in PROGRESS.md. The shape-level summary:
+
+- **Two were the same class as S1's `claims_for` fix**: hand-minted
+  `request.jwt.claims` bypass the hook, so no implicit hat derive —
+  `setOversightViaDoor` (quality-oversight) and `ensureSentDtReferral`
+  (technical-direction-referrals, found by the class sweep over `e2e/`, the only
+  sibling). Fix: mint `active_role` explicitly.
+- **Three were D8's `acting_as` stamp** hitting exact-keys audit-metadata
+  assertions — charters AC-5, ethics-e1 AC-3b/AC-8, phase13-audit AC-1c (the
+  third found by sweeping the PROPERTY `Object.keys(*metadata*)`+`toEqual`, not
+  the reported instances).
+- **Three were union-composition losses** needing the PO-ruled rewrite shape
+  (prove each hat + prove the composition gone): qob member-and-configuration
+  nav (the combined navScope is now a DEAD BRANCH in layout.tsx — S4 list),
+  nsp-per-hospital dispose AFFORDANCE (capability loss #3 — FUP-ACT-DISPOSE-UI;
+  mechanism preserved at the RPC door with a hatted pqs_member, incl. the
+  live-function fact that the SUBJECT is redacted, which the old test asserted
+  wrongly), and notifications N-1 (profiles policy has no operator arm —
+  FUP-ACT-CAPA-ASSIGN; assignment driven at the addCapaAction door).
+- **Two were not defects at all**: case-access AC-3a + administrativo POS-5 both
+  fully green standalone on a fresh reset — batch contamination.
+- AC-8's keyboard-only proof was re-anchored on the PHI reveal (chefe.ccih) so
+  the phase keeps a REAL keyboard flow while the dispose dialog is unreachable.
+
+### 3. Verification
+
+Per-file, fresh reset per group, chromium `--workers=1`:
+quality-oversight + technical-direction-referrals + charters-cadence **36/36** ·
+ethics-e1 + phase13-audit + qob-content-wall **60p+1s** · nsp-per-hospital
+**32/32** · notifications **8/8** · case-access **23p+1s** · administrativo
+**10/10**. lint 0/0 · `tsc --noEmit` clean. Full `RESET=1 REBUILD=1 e2e:prod`
+result recorded in PROGRESS.md (the S3 row) once complete.
