@@ -296,6 +296,193 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🔴 **BUG-ACT-RAWGRANT-HATLESS-1 — OPEN (`tester`, found threading `actAs` through the
+BUG-ACT-PICKER-SEED-1 follow-up, 2026-08-10; live-reproduced).** The cookie/picker mechanism
+(`cachedSignIn`/`loginFresh`) is not the only pre-existing sign-in surface affected by the false
+"only dualhat.a@ is multi-role" premise. ~20 spec files each define their OWN file-local
+`getOwnerToken`/`getToken`-style raw password-grant helper (pre-`accessToken()`-consolidation
+pattern; the lead's earlier "accessToken has zero call sites outside the helper, nothing for you
+there" check covered only the literal name `accessToken`, not this parallel, differently-named
+pattern — swept by the property via `grep -l grant_type=password`). A raw grant for one of the 4
+affected personas (excluding dualhat.a@, already tester-owned) mints a HATLESS token (no
+`active_role` claim, D5) unless the call site separately assumes a role — **confirmed live**:
+`phase15-indicators.spec.ts` AC-5b's `getOwnerToken(page, 'admin@test.local')` call → `POST
+rest/v1/rpc/open_capa_plan` → `open_capa_plan still authorizes the PQS operator: expect(false)
+.toBeTruthy()` — the RPC's own OR-gate (`is_tenancy_admin_of OR is_pqs_operator_of`) denies
+BOTH arms when hatless, even though either alone would legitimately pass. **Files combining a raw
+grant with one of the 4 personas** (grep-derived, not exhaustively triaged — same file may use
+BOTH the cookie and raw-grant surfaces): admin@ → case-patient, mem-memberships-collapse,
+notifications, patient-index, perf-sweep-wave2, phase10-meetings, phase13-audit,
+phase14a-safety-events, phase14b-triage, phase14c-rca, phase14d-capa, phase15-indicators,
+phase22-referrals, phase7-cases, phase8-dashboard, phi-remediation (16); orgadmin.b@ →
+charters-cadence, phase15-indicators (2); pqsdual.a@ → perf-sweep-wave2, phase22-referrals (2);
+staff1.qual.b@ → charters-cadence, ff3-validations, notifications, phase22-referrals (4).
+**Disposition, matching the coordinator's own ruling on the cookie surface:** each call site needs
+the SAME union-vs-single-hat judgment `actAs` threading used — but the FIX SHAPE differs (no
+picker involved; either call `assume_role` against that raw session before probing, or extend
+each local helper to accept/pass an explicit hat, per the Stage 1 buildnotes' own carry-forward
+obligation for `accessToken`). **Not fixed this session** — out of the originally-authorized
+scope (cookie/picker threading), substantially larger than that scope, and the coordinator has
+not yet ruled on it. Reported via SendMessage same-session; recommend a dedicated follow-up.
+
+🟡 **BUG-ACT-NOTFOUND-COPY-1 — OPEN, LOW SEVERITY (`tester`, found verifying the seed-persona
+`actAs` threading, 2026-08-10).** `user-registration.spec.ts` "a foreign org_admin (rede-b)
+cannot open a rede-a user detail page" asserts `getByText('Erro 404')` — the GLOBAL not-found
+page's eyebrow — but ACT Stage 3 added a NEW `manage/not-found.tsx` sibling boundary (frontend
+half, design-note §5.4 correction), which now catches a PAGE-level `notFound()` (the cross-org
+user-detail lookup) inside an already-entered `/o/rede-b/manage` shell, rendering DIFFERENT copy
+("Página não encontrada", no "Erro 404" text — plus the D9 hint, correctly excluding her active
+hat). **Security is intact**: she is correctly denied, zero data leaks (verified live —
+`ativo.registro@test.local` / `Ativo Registrado` both absent), the OTHER 3 assertions in this
+test would pass. Only the ONE `getByText('Erro 404')` line is checking stale, pre-Stage-3 copy.
+Not caused by the tester's `actAs` threading (org_admin is the correct, verified hat here — the
+shell renders correctly for her org); a side effect of Stage 3 frontend's new sibling boundary on
+a pre-existing, unrelated test. Out of the tester's session scope to fix (not one of the
+originally-threaded files); flagged for a follow-up spec correction.
+
+⬛ **BUG-ACT-GUARD-HATBLIND-1 — RESOLVED same-session 2026-08-10 (`backend`, fix landed while
+`tester` was mid-investigation on the seed-persona threading follow-up; re-verified by `tester`
+after the fix — `e2e/act-role-assumption.spec.ts` "The switch" now passes 9/9, fresh
+`supabase db reset --local` + a clean server restart).** Backend's fix: `src/lib/queries/session.ts`
+gained an active-role filter reaching every `partitionGrants()` consumer (`orgAdminOf` /
+`hospitalAdminOf` / `technicalDirectionOf` / `nspOrgAdminOf` / `qualityReviewerOf` /
+`nspOperatorOf` / `memberships`), plus migration `20260918002400_act_p0_hat_blind_nsp_hospitals.sql`
+fixing a SEPARATE hat-blind DEFINER door (`public.list_my_nsp_hospitals()` — a raw `memberships`
+UNION with no `has_role` routing) found while backend audited every consumer per the tester's
+report — a second vulnerability the tester's own repro did not surface (NSP wasn't one of the 2
+guards live-reproduced). Backend's migration comment independently confirms the tester's
+`nsp-org/layout.tsx` "fragile-safe" finding (its second check verified hat-aware, live, not
+assumed). Original finding preserved below for the record — verify `git log`/the live catalog
+for the final committed shape rather than trusting this prose once this rotates out.
+
+~~🔴 BUG-ACT-GUARD-HATBLIND-1 — OPEN, HIGH SEVERITY (`tester`, found writing the "the switch"
+Stage 3 spec, 2026-08-10; live-reproduced, not inferred).~~ At least 3 of the 6 D9 choke-point
+area guards admit a principal into an area their CURRENTLY ACTIVE hat does not authorize, as
+long as they hold ANY membership for that area under ANY hat — this is the exact fail-open D5/D12
+exists to prevent, confirmed at the application layer (as distinct from raw RLS table reads,
+which ARE correctly hat-gated — see below).
+
+**Live-reproduced twice, independently, ruling out caching as the cause:**
+1. `dualhat.a@test.local` signs in choosing **quality_reviewer** (fresh session, cookie's
+   `active_role` claim decoded and confirmed = `quality_reviewer`, never having visited
+   `/manage` this session) → `page.goto('/o/rede-a/manage')` → renders the **full org-admin
+   console** ("Rede Hospitalar A" h1, Comissões/Usuários/Hospitais/Painel/Indicadores/
+   Administradores/Trilha de auditoria nav, real counts), not a 404.
+2. Same persona, signs in choosing **org_admin** instead (UserMenu caption confirmed showing
+   "Administrador(a) da organização") → `page.goto('/o/rede-a/qualidade')` → renders the
+   **full quality-office console** ("Casos sob supervisão" h1, live case board), not a 404.
+
+**Root cause, verified against the live catalog and the TS source, not assumed:**
+`public.session_context()` is **deliberately hat-blind by design** (its own SQL comment,
+confirmed live via `pg_get_functiondef`: "this function is a DESIGNED hat-blind door... the
+picker and the D9 hint need the caller's FULL grant list"), for the picker/D9-hint's legitimate
+need. `getSessionContext()` (`src/lib/queries/session.ts`) calls this ONE RPC and correctly
+derives `activeRole`/`needsRoleSelection` from the verified JWT claim — but ALSO derives
+`orgAdminOf` / `hospitalAdminOf` / `qualityReviewerOf` / `nspOrgAdminOf` / `technicalDirectionOf`
+/ `nspOperatorOf` / `memberships` via `partitionGrants()` (`session-grants.ts`), a pure function
+with **zero reference to `activeRole` anywhere in its body** — it partitions by structural role
+fields only. At least these consumers read those fields DIRECTLY as their access decision, with
+no additional hat check:
+- `src/app/o/[org]/manage/layout.tsx` — `context.orgAdminOf` / `context.hospitalAdminOf`
+  (confirmed live-vulnerable, repro 1 above).
+- `getQualidadeAccessByOrg` (`session.ts`) — `context.qualityReviewerOf` (confirmed
+  live-vulnerable, repro 2 above).
+- `getTechnicalDirectionAccessByOrg` (`session.ts`) — `context.technicalDirectionOf` (same
+  code shape as the two confirmed cases; not independently live-reproduced — no seed persona
+  makes technical_director multi-hat today, so this is a code-reading inference, flagged as
+  such, not asserted as separately confirmed).
+- `isCommissionAdmin` (`src/lib/auth/access.ts`) — reads `ctx.orgAdminOf`/`ctx.hospitalAdminOf`
+  directly; used inside `getCommissionAccessByOrgUncached` to compute `isTenancyAdmin`. This is
+  narrower: the commission area's PRIMARY entry gate is a real, hat-aware RLS read
+  (`commissions_select_member_or_admin`, confirmed live: every arm delegates to
+  `has_role`/`has_role_any`-family predicates), so illegitimate ENTRY is not the concern here —
+  a legitimately-entered member could get wrongly elevated `isTenancyAdmin` UI/nav if they
+  ALSO structurally hold org_admin/hospital_admin under an inactive hat. The module's own
+  comment claims RLS is the backstop for any resulting data access ("a false positive here is
+  caught at every data door by RLS") — **not independently verified in this session**; flagged
+  as unverified, not asserted safe.
+
+**Confirmed SAFE, not merely assumed** — `src/app/o/[org]/nsp-org/layout.tsx`: its FIRST check
+(`context.nspOrgAdminOf`) is equally hat-blind, but its "defense in depth" SECOND check
+(`isNspOrgAdmin()` → RPC `is_nsp_org_admin_of_self` → `app.is_nsp_org_admin_of` →
+`is_nsp_org_admin_of_for(org, uid)` → `app.has_role('organization', org, 'nsp_org_admin', uid)`
+— traced live through all four hops) IS genuinely hat-aware (caller check, target=self), so this
+guard denies correctly overall. Flagged as **fragile-safe**, not robust-safe: if that second
+check is ever refactored away without the refactorer realizing it is the ONLY thing making this
+guard hat-aware, this guard becomes vulnerable too.
+
+**Not checked this session** (time-bounded, named rather than silently skipped): whether the raw
+RLS-scoped DATA queries *within* each vulnerable area (e.g., `manage`'s sub-pages,
+`qualidade/page.tsx`'s case board) independently re-deny via their own hat-aware doors —
+`qualidade/page.tsx`'s own doc comment claims "re-gated at the data doors: the board door 42501s
+a non-reviewer," which would mean the SHELL/nav renders wrongly but the case DATA might still be
+correctly denied. This was **not verified**. Against this: my `/manage` repro showed live,
+non-empty counts (Hospitais/Comissões/Respostas) and a fully populated, fully NAVIGABLE admin
+console (Administradores, Trilha de auditoria) — this is unambiguous evidence of a real,
+functional exposure at minimum for the org-manage area, whatever the qualidade case-board's own
+data-layer posture turns out to be.
+
+**What IS confirmed hat-gated, for contrast** — direct PostgREST/RLS reads: `GET
+/rest/v1/commissions?organization_id=eq.<org>` for this exact persona returns 0 rows hatless, 4
+rows under the org_admin hat (see the tester's own `act-role-assumption.spec.ts` "D5" spec,
+green). The defect is specifically in the **application-level area-entry guards**, not in RLS
+itself.
+
+**Spec documenting this, left RED on purpose, not softened:** `e2e/act-role-assumption.spec.ts`
+"The switch: assuming a hat then switching changes the landing route AND real authorization" —
+asserts the INTENDED (ADR-correct) behavior; fails at `page.goto('/o/rede-a/manage')` after
+switching to quality_reviewer, where the 404 heading never appears. Per the tester's own
+mandate this is not softened to pass. **Blocks:** the ACT Stage 3 Phase Gate (this is the D5/D12
+security claim the program exists to deliver) and `npm run e2e:prod`. Reported to lead + backend
+same-session via SendMessage. Owner: lead to assign (backend, almost certainly — the fix shape
+is adding an `activeRole` check at each vulnerable guard/helper, not a `session_context()`
+change, since that RPC's hat-blindness is correct and load-bearing for the picker).
+
+🔴 **BUG-ACT-PICKER-SEED-1 — OPEN (`tester`, found writing Stage 3 E2E specs, 2026-08-10).**
+The buildnotes' claim ("today this is safe by construction... the only principal holding two
+role types is `dualhat.a@test.local`" — Stage 1 tester-half, the `accessToken` carry-forward
+note) is **false**, verified against the live catalog, not assumed:
+```sql
+select m.principal_id, array_agg(distinct m.role order by m.role), count(distinct m.role)
+from public.memberships m group by m.principal_id having count(distinct m.role) > 1;
+```
+→ **6** principals hold 2+ distinct role TYPES: `admin@test.local` (org_admin + pqs_member),
+`orgadmin.b@test.local` (org_admin + staff_admin), `staff1.qual.b@test.local` (staff +
+staff_admin), `solo.c@test.local` (hospital_admin + org_admin — 0 e2e references today,
+dormant), `pqsdual.a@test.local` (pqs_member + staff), and the intended ACT fixture
+`dualhat.a@test.local`. `getSessionContext()`'s `needsRoleSelection` (session.ts:323-324) uses
+the identical grouping, so all 5 pre-existing personas now redirect to `/selecionar-perfil` on
+every fresh sign-in — **confirmed empirically**: a raw password grant for `admin@test.local`
+decodes to a JWT carrying no `active_role` claim at all.
+
+**Blast radius** (files that sign in FRESH as one of the 5, not just mention the email — grep
+`(cachedSignIn|signInAs|loginFresh)\(page, '<email>'`): `admin@test.local` → `nsp-per-hospital
+.spec.ts`, `phase-multitenancy.spec.ts`, `phase13-audit.spec.ts`, `phase15-indicators.spec.ts`,
+`phase2-auth-shell.spec.ts`, `phase3-admin-members.spec.ts` (6). `orgadmin.b@test.local` →
+`phase-multitenancy.spec.ts`, `phase17-documents.spec.ts`, `qob-org-admin-content-wall.spec.ts`,
+`user-registration.spec.ts` (4). `pqsdual.a@test.local` → `nsp-per-hospital.spec.ts`,
+`perf-sweep-wave2.spec.ts`, `phase22-referrals.spec.ts` (3). `staff1.qual.b@test.local` →
+`phase-multitenancy.spec.ts`, `technical-direction-referrals.spec.ts` (2).
+
+**Confirmed live with two real runs, not just reasoning:** (1) `phase2-auth-shell.spec.ts`
+"admin@test.local lands on /o/rede-a/manage" — this file predates the `e2e/helpers/auth.ts`
+consolidation and has its own local `signInAs` (bypasses the seam entirely) — silently lands on
+`/selecionar-perfil`, then times out on `toHaveURL('/o/rede-a/manage')`. This is a property of
+the already-committed backend+frontend, independent of anything the tester changed. (2)
+`qob-org-admin-content-wall.spec.ts` "orgadmin.b (org_admin of rede-b) still 404s..." — uses the
+shared `cachedSignIn` — the tester's new `loginFresh` guard throws cleanly
+(`landed on /selecionar-perfil with no actAs argument`), strictly better diagnostics than (1),
+but the underlying test is equally broken.
+
+**Why this is filed, not fixed:** these ~15 files span 8+ other programs (Phase 2/3/13/15/17,
+multitenancy, NSP, QO·B, user-registration, referrals, perf-sweep) — none is ACT Stage 3.
+Whether the right fix is (a) thread `actAs` through all ~15 call sites as ACT-Stage-3 cleanup,
+(b) reconsider whether these 5 seed personas should hold 2 role types, or (c) something else, is
+a coordination call. **Blocks:** `npm run e2e:prod` cannot be green until this is resolved —
+does NOT block the tester's own 7 new ACT specs (they use `dualhat.a@` only with an explicit
+`actAs`, and `multi@`/`chefe.ccih@`, both confirmed genuinely single-role-type). Reported to lead
++ backend same-session via SendMessage. Owner: lead to assign.
+
 ⬛ **BUG-ACT-NULLHAT-1 — RESOLVED same-session 2026-08-10 (`backend`, found running a manual
 sanity check before writing Stage 3's pgTAP, fixed in the same migration).** The plan's own
 §2 literal text — `... OR p_role = app.active_role())` — uses a plain `=` against

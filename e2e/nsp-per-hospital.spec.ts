@@ -60,10 +60,13 @@ const MRN_REF_XHOSP = 'PRT-A2-0002' // cross-hospital referral PHI
 const PATIENT_NAME_REF_XHOSP = 'Paciente Entre-Hospitais A'
 const REF_XHOSP_ID = 'efa00000-0000-0000-0000-0000000000a4'
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for the multi-role-type personas this file signs in (pqsdual.a@ —
+  // pqs_member + staff), which otherwise land on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** The full rendered <body> text — the PHI-leak canary for a page. */
@@ -236,7 +239,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('the switcher renders for a 2-grant operator and lists BOTH hospitals', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     const res = await page.goto('/o/rede-a/nsp')
     expect(res?.status()).toBe(200)
     await expect(
@@ -266,7 +269,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
     // PHI detail) via `?hospital=`. The config page shows the per-hospital RCA window
     // (central-a=45d, secundario-a=20d — distinct by seed) + the hospital name (rendered
     // when the operator serves >1 hospital), so a switch is observable there.
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     await page.goto('/o/rede-a/nsp/configuracoes')
     await expect(
       page.getByText('Configuração do hospital Hospital Central A').first(),
@@ -296,7 +299,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('a `?hospital=` deep link resolves the hospital-scoped surface to the addressed hospital', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     // Deep-link the CONFIG surface straight to secundario-a — a hospital this operator
     // DOES operate, so (unlike the tampered single-grant case) it resolves to it.
     await page.goto(
@@ -322,7 +325,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('the 2-grant operator can open EACH hospital-scoped event and read its PHI (both grants live)', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     // central-a event PHI (server-rendered on the event detail).
     await page.goto(`/o/rede-a/nsp/${EV_CENTRAL_A}`)
     // Event-detail PHI renders server-side; wait for the MRN itself (web-first,
@@ -944,7 +947,11 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
   test('PQS operator who is a commission member (pqsdual.a) SEES the dispose control (source-endpoint UI)', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    // ACT (ADR 0106): REF_DETAIL_URL is commission-scoped (/o/rede-a/c/ccih/...)
+    // — `staff` is what admits her to the commission area; empirically
+    // verified live (`pqs_member` here 404s — is_pqs_operator_of admits the
+    // bare commissions row but not this route).
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
     const res = await page.goto(REF_DETAIL_URL)
     expect(res?.status()).toBe(200)
     await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
@@ -990,7 +997,10 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     // (PQS operator of central-a AND secundario-a — this referral's two endpoints)
     // and, being a real CCIH member, reaches the route regardless of the wall — so
     // it proves the disposal end to end without relying on retired behavior.
-    await signInAs(page, 'pqsdual.a@test.local')
+    // ACT (ADR 0106): `staff` per the comment above — she reaches this
+    // commission-scoped route AS a CCIH member, not as a PQS operator
+    // (empirically verified: `pqs_member` 404s here).
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
     await page.goto(REF_DETAIL_URL)
 
     const trigger = page
@@ -1059,7 +1069,9 @@ test.describe('AC-8: keyboard-only flow through the dispose dialog', () => {
   test('pqsdual.a opens + arms the dispose dialog by keyboard (no submit)', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    // ACT (ADR 0106): `staff` — same commission-scoped-route reasoning as the
+    // two dispose tests above (empirically verified: `pqs_member` 404s here).
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
     await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
     const trigger = page

@@ -83,10 +83,13 @@ const CENTRAL_A_HOSPITAL_ID = '05000000-0000-0000-0000-00000000000a'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for admin@test.local (org_admin + pqs_member — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS evaluated under it). */
@@ -455,7 +458,9 @@ test('AC-5a: non-operator staff_admin sees only the action-item fallback (no CAP
 // ---------------------------------------------------------------------------
 
 test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hospital, readable by commission members', async ({ page }) => {
-  await signInAs(page, 'admin@test.local')
+  // canConfigureCommission admits a tenancy admin (the test's own comment
+  // below) — org_admin is the hat that makes that arm hold.
+  await signInAs(page, 'admin@test.local', undefined, 'org_admin')
   const id = await indicatorIdByCode(page, 'IND-0002')
   await page.goto(indicatorHref(id))
 

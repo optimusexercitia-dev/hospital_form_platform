@@ -75,10 +75,14 @@ async function signInAs(
   page: import('@playwright/test').Page,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for admin@test.local (org_admin + pqs_member — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /**
@@ -212,7 +216,7 @@ async function addMemberViaPicker(
 
 test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin', () => {
   test('admin creates a new commission and it appears in the list', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     // admin@ is org_admin of rede-a → lands on /o/rede-a/manage
     await expect(page).toHaveURL(/\/o\/rede-a\/manage/)
 
@@ -237,7 +241,7 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
 
   test('admin opens commission detail page for freshly-created commission', async ({ page }) => {
     // Create a commission first via the UI to have one to open.
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     await page.goto('/o/rede-a/manage/comissoes')
     await page.waitForURL('**/o/rede-a/manage/comissoes', { timeout: 10_000 })
 
@@ -265,7 +269,7 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     const ts = Date.now()
     const novelCoordinatorEmail = `coord.${ts}@test.local`
 
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     await page.goto('/o/rede-a/manage/comissoes')
     await page.waitForURL('**/o/rede-a/manage/comissoes', { timeout: 10_000 })
 
@@ -483,7 +487,7 @@ test.describe('AC3 — Role and commission boundary security', () => {
   })
 
   test('admin@test.local (org_admin) can access /o/rede-a/c/farmacia/manage/members', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     await page.goto('/o/rede-a/c/farmacia/manage/members')
     // Org-admin can access any commission's manage page in their org.
     await expect(page.getByRole('heading', { level: 1, name: /membros/i })).toBeVisible({ timeout: 10_000 })
@@ -528,7 +532,7 @@ test.describe('AC3 — Role and commission boundary security', () => {
 
 test.describe('AC4 — Keyboard-only commission create and AlertDialog confirm', () => {
   test('admin can create a commission using only the keyboard', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     // Navigate to the org-manage commissions page.
     await page.goto('/o/rede-a/manage/comissoes')
     await page.waitForURL('**/o/rede-a/manage/comissoes', { timeout: 10_000 })

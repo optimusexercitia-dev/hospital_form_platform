@@ -165,10 +165,13 @@ async function setReferralsFlag(req: APIRequestContext, enabled: boolean) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for pqsdual.a@test.local (pqs_member + staff — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a JWT for a persona (RLS evaluated under it). */
@@ -655,7 +658,11 @@ test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on d
   // is a bare tenancy admin today (404s on encaminhamentos/** — see the file
   // header). pqsdual.a is a REAL CCIH member (opens the hub on that arm alone)
   // who is also PQS-enrolled, which is what "QPS admin" means for this flow.
-  await signInAs(page, 'pqsdual.a@test.local')
+  // ACT (ADR 0106): the hub URL is commission-scoped (/o/rede-a/c/ccih/...) —
+  // her `staff` hat is what admits her to the commission area at all (the
+  // comment above's "opens the hub on that arm alone" IS the staff arm);
+  // pqs_member is hospital-tier and does not itself open a commission route.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
   // Reply is visible
@@ -785,7 +792,9 @@ test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, n
   // branch assertion, so once admin@ started 404ing this test went silently
   // VACUOUS (green while proving nothing — the exact "a test that cannot fail"
   // trap e2e/qob-org-admin-content-wall.spec.ts's own header warns against).
-  await signInAs(page, 'pqsdual.a@test.local')
+  // ACT (ADR 0106): same commission-scoped-hub reasoning as Flow 3d above —
+  // `staff` is what admits her to /o/rede-a/c/ccih/... at all.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
 
   // Capture audit count BEFORE the reveal
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)

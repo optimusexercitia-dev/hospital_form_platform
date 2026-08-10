@@ -60,10 +60,14 @@ async function signInAs(
   page: import('@playwright/test').Page,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for orgadmin.b@test.local (org_admin + staff_admin — 2 role types),
+  // which otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /**
@@ -643,7 +647,7 @@ test.describe('Security boundary — role restrictions', () => {
     // phase3-admin-members), so the RENDERED page is the authoritative security
     // assertion — assert the pt-BR 404 boundary and NO leakage of the rede-a
     // user's identity, rather than the raw request status.
-    await signInAs(page, 'orgadmin.b@test.local')
+    await signInAs(page, 'orgadmin.b@test.local', undefined, 'org_admin')
     await page.goto(`/o/rede-b/manage/usuarios/${userId}`)
     await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()

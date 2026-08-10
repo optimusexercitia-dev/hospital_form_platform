@@ -79,10 +79,13 @@ const FORM_A_V1 = '50000000-0000-0000-0000-00000000a001'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for pqsdual.a@test.local (pqs_member + staff — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS/RPC evaluated as this user). */
@@ -738,7 +741,7 @@ test.describe('P3 — keyset pagination', () => {
     insertedEventIds.push(...inserted.map((e) => e.id))
     expect(inserted.length).toBe(26)
 
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     await page.goto(`/o/${ORG_A}/nsp`)
 
     const nextBtn = page.getByRole('button', { name: /próxima página/i })
@@ -775,7 +778,7 @@ test.describe('P3 — keyset pagination', () => {
   test('P3-triage-workstation: no pagination control renders on the triage workstation (capped, full backlog)', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     await page.goto(`/o/${ORG_A}/nsp/triagem`)
     await expect(
       page.getByRole('heading', { name: /entrada de eventos/i }).first(),

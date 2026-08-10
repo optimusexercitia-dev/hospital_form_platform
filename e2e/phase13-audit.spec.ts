@@ -69,10 +69,13 @@ const STAFF1_CCIH_ID = '00000000-0000-0000-0000-000000000003'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for admin@test.local (org_admin + pqs_member — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS evaluated under it). */
@@ -902,7 +905,7 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
 test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commission feed incl. Farmácia rows', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'admin@test.local', undefined, 'org_admin')
   await page.goto('/o/rede-a/manage/audit')
 
   await expect(

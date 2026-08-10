@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { cachedSignIn } from './helpers/auth'
 
 /**
  * Phase 2 — Authentication & App Shell
@@ -23,20 +24,27 @@ const BASE = 'http://localhost:3000'
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Sign in via the UI form and wait for navigation to settle. */
+/**
+ * Sign in via the UI form and wait for navigation to settle.
+ *
+ * ACT (ADR 0106) — this used to be a hand-rolled, pre-consolidation
+ * implementation that bypassed `e2e/helpers/auth.ts` entirely. That is what
+ * made this file's own admin@test.local landing test fail SILENTLY (a
+ * `page.goto`-shaped timeout with no diagnostic) instead of with the shared
+ * helper's clear "landed on /selecionar-perfil with no actAs argument" error
+ * — found live while triaging BUG-ACT-PICKER-SEED-1. Routed through the
+ * shared `cachedSignIn` now (lead ruling, 2026-08-10): same signature, same
+ * post-condition (settled on a non-/login URL), plus the session cache (this
+ * file's own logins were spending real GoTrue password grants on every
+ * call) and the `actAs` seam for multi-role-type personas.
+ */
 async function signInAs(
   page: import('@playwright/test').Page,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ) {
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  // Wait for navigation away from /login (role-landing redirect).
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 15_000,
-  })
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Sign out via the user-menu and verify we land back on /login. */
@@ -64,7 +72,7 @@ test.describe('Role landing — correct area per persona', () => {
   })
 
   test('admin@test.local lands on /o/rede-a/manage (org_admin of rede-a)', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     await expect(page).toHaveURL(`${BASE}/o/rede-a/manage`)
   })
 
@@ -190,7 +198,7 @@ test.describe('Admin area server-side gating', () => {
   })
 
   test('admin@test.local (org_admin) accessing /admin gets 404', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     // admin@ is org_admin only (not is_admin) — /admin is walled off.
     const response = await page.request.get('/admin')
     expect(response.status()).toBe(404)

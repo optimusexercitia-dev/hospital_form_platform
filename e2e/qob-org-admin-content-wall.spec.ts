@@ -332,7 +332,7 @@ test.describe('QO·B UI — coordinator no-regression (chefe.ccih)', () => {
 
 test.describe('QO·B UI — cross-org boundary (orgadmin.b on rede-a)', () => {
   test('orgadmin.b (org_admin of rede-b) still 404s on a rede-a commission', async ({ page }) => {
-    await cachedSignIn(page, 'orgadmin.b@test.local')
+    await cachedSignIn(page, 'orgadmin.b@test.local', undefined, 'org_admin')
     await page.goto(`/o/${ORG}/c/${COMMISSION}`)
 
     await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible({
