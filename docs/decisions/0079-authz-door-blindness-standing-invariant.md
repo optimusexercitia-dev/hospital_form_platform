@@ -423,3 +423,47 @@ resolve **last-write-wins per function**, exactly as applying the chain does. *A
 cries wolf gets ignored, which is the same failure as one that stays silent* — Amendment 4's
 "prove it can find something" therefore has a twin: **prove it does not find what is not
 there.**
+
+## Amendment 6 — the census's population must be derived from CALL-SITE BINDING, not signature shape (2026-08-10)
+
+**Found by:** the ACT Stage 3 QA review (BLOCKER-1), on the ADR 0106 branch.
+
+**What this ADR's arms could not see.** `ARM=census` counts *boolean authz gates* and asks
+whether each carries a verdict. `ARM=floor` asks whether every door is *called*. A diff-scoped
+`ARM=policy` asks whether anything *notices* when a gate is opened. All three passed — and all
+three were blind to a gate that was **correct in shape and wrong about whose uid it held**.
+
+`app.is_admin_for(p_user_id uuid)` was classified as a third-party helper because its
+*signature takes a uuid*. Its only two callers, `app.grant_role_impl` and
+`app.revoke_role_impl`, receive `p_actor` from `public.grant_role` / `revoke_role`, which bind
+it to `(select auth.uid())`. It was therefore the **caller gate on the membership-grant door**,
+and it lacked the ADR 0106 D11 active-role condition its niladic sibling `app.is_admin()` had
+just been given — a platform_admin wearing any other hat could seat an `org_admin` or a
+`hospital_admin`. Every gate in this ADR passed while that was true, because none of them asks
+*whether the uid a gate tests is the caller's*.
+
+**Amendment.** When deriving the sweep population, a helper of the shape `*_for(uuid)` — or any
+gate taking a principal parameter — **may not be classified as third-party from its signature.**
+Classification is a property of its **call sites**: it is a third-party door only if **no**
+caller binds that parameter to the caller's identity, transitively. Concretely, the derivation
+must:
+
+1. Extract call arguments with a **balanced-paren** parser, never a regex. `(select auth.uid())`
+   is this codebase's house style and defeats one-level-nesting patterns — it is precisely what
+   hid this defect through two separate sweep attempts.
+2. Match arguments to **parameter positions**, then **propagate caller-boundness transitively
+   through the call graph** until it converges (2 hops sufficed on the 928-function corpus).
+3. Build edges on `name[[:space:]]*\(`, never a bare name substring — a *column* named
+   `is_admin` otherwise matches the *function* `app.is_admin` and manufactures a false edge
+   that makes an uncovered gate look already-covered.
+
+Applied once, this yields a real population rather than a list of instances: ~4,500
+call-argument observations → **61 caller-bound `(callee, param)` pairs**, of which 51 reach a
+hat gate and 10 are correctly hat-free. That is the artifact a closure claim needs.
+
+**The generalization, which is this ADR's own recurring theme:** *the boundary of an enumeration
+must be the property, not the syntax.* "Takes a uuid ⇒ third-party" is a syntactic boundary. So
+was "greps for the short helper name" (the `\yname\y` / `name_for` finding) and "the files in
+this directory". Each shipped a confident closure that was false. Full write-up with the method
+to repeat: `docs/progress/authz-handoff.md` §7.17. Fix + keystone: `20260918002800`,
+`supabase/tests/318_act_hat_blind_caller_gate_siblings.sql`.

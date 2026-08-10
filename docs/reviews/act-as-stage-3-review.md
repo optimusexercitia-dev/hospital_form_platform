@@ -1,7 +1,16 @@
 # ACT Stage 3 — QA review (ADR 0106, "act as" strict role assumption)
 
-- **Verdict: CHANGES REQUESTED**
-- Reviewer: `qa` · 2026-08-10
+- **Verdict: APPROVED** (round 2, head `8486497`) — see [§7 Round 2](#7-round-2--re-review-of-the-f4362fc--8486497-fix).
+- ~~Round 1 verdict: **CHANGES REQUESTED**~~ (head `4441d3e`) — 1 BLOCKER, 2 MAJOR. The
+  BLOCKER and MAJOR-1 are **fixed and independently verified**; MAJOR-2 is **correctly
+  dispositioned** as a pre-pilot follow-up. Round 1 is preserved below in full — the record
+  should show what was found and how it was resolved.
+- Reviewer: `qa` · r1 + r2 2026-08-10
+
+---
+
+## Round 1 (head `4441d3e`) — CHANGES REQUESTED
+
 - Branch `feat/act-as-role-assumption`, head `4441d3e`, based on local `main` @ `7b7a99c`
 - Scope: every commit `8efee81..4441d3e` (the S3 window), incl. the four lead-audit
   commits `169668d` / `d6e56d1` / `81a72d1` / `4441d3e`
@@ -562,4 +571,289 @@ something untrue (buildnotes :1453-1459 and the `authz-a30` "dead code" line). M
 disposition amendment, not a fix in this stage. MAJOR-2 needs a re-scoped follow-up and a
 decision before pilot.
 
-**Verdict: CHANGES REQUESTED.**
+**Round 1 verdict: CHANGES REQUESTED.**
+
+---
+
+# 7. Round 2 — re-review of the `f4362fc` / `8486497` fix
+
+- **Verdict: APPROVED**
+- Head `8486497` (`f4362fc` = the fix, `8486497` = the gate record). Diff over r1's
+  `4441d3e`: 1 migration, 1 pgTAP file, 3 doc files. No app code, no spec changes.
+- Everything below was re-derived from the **live catalog** or driven as a **live probe**.
+  I did not take a single number from the round-2 brief on trust, and one of the claims in
+  it does not survive contact (INFO-5).
+
+## 7.1 The fix, read from the catalog
+
+Both bodies now carry the caller-only pattern, and both are `CREATE OR REPLACE` — no
+`DROP`/`CREATE` anywhere in `20260918002800` (grepped; the only `grant` hits in that file
+are prose about the "membership-grant door"):
+
+```
+app.is_admin_for(p_user_id uuid):
+  exists(select 1 from public.profiles where id = p_user_id and is_admin = true)
+  and (p_user_id is distinct from (select auth.uid())
+       or app.active_role() is not distinct from 'platform_admin')
+
+app.can_manage_professional(p_org, p_uid) — the expired-staff_admin arm:
+  exists(… m.role='staff_admin' and m.expires_at is not null and m.expires_at <= now())
+  and (p_uid is distinct from (select auth.uid())
+       or app.active_role() is not distinct from 'staff_admin')
+```
+
+`IS NOT DISTINCT FROM`, so a hatless caller yields `FALSE`, never `NULL` — the
+BUG-ACT-NULLHAT-1 discipline applied consistently. The `service_role` exemption survives by
+construction: with `auth.uid()` NULL, `p_user_id is distinct from NULL` is TRUE and the
+third-party arm answers.
+
+**✅ BLOCKER-1 — CLOSED.** **✅ MAJOR-1 (hat dimension) — CLOSED.**
+
+## 7.2 Q1 — is it the class, or just the two instances? *(re-derived independently)*
+
+Your concern was right to raise: fixing the two functions I named would be an
+instance-bounded sweep. So I re-derived the population by the **property** instead, and I
+had to build a real tool to do it, because my r1 method could not have found it.
+
+**Method.** For all 928 functions in `app` + `public`: a balanced-paren extractor pulls
+every call's full argument list from the comment-stripped `prosrc`, splits it on
+**top-level** commas, and maps each argument to the callee's parameter position — **4,501
+call-argument observations**. Level 0 = an argument that is literally `auth.uid()`; then
+propagate: if callee `C`'s parameter at position *p* is caller-bound, any call inside `C`
+passing that parameter name is caller-bound too. Converged in 2 hops.
+
+> ⚠ **My r2 first attempt was wrong the same way my r1 sweep was, and it is worth
+> recording.** A regex with one level of paren nesting silently missed
+> `grant_role_impl((select auth.uid()), …)` — two levels deep — so `is_admin_for` did not
+> appear in its own population. A sweep for "who receives `auth.uid()`" that uses a regex
+> cannot see the argument it is looking for as soon as anyone writes `(select auth.uid())`,
+> which is this codebase's *house style*. Balanced-paren extraction is the only sound tool
+> here.
+
+**Result: 61 caller-bound `(callee, parameter)` pairs.** Cross-referenced against the
+strict-edge transitive closure to the four hat gates: **51 reach a hat gate, 10 do not.**
+All ten are correctly hat-free, and here is each one's reason so this reads as a real
+classification rather than a wave-through:
+
+| Survivor | Why it is correctly hat-blind |
+| --- | --- |
+| `is_case_respondent`, `is_recused_from_case` | the two **D6-named** immunes (protective — a hat change must not clear a recusal) |
+| `is_case_excluded` | `= respondent OR recused`; inherits D6 |
+| `referral_target_analyst` | phase/narrative assignment + `case_access_grants` rows — relationship-derived |
+| `can_access_targeted_response` | participant → professional-profile → `user_id` link — relationship-derived |
+| `can_write_targeted_response` | delegates to the above + a `status='in_progress'` check |
+| `can_read_correction_response` | `case_correction_requests.permitted_corrector = p_uid` — relationship-derived |
+| `attachment_confidentiality_ok` | `case_access_grants.max_confidentiality` rank — relationship-derived |
+| `is_active` | identity-free lifecycle (`profiles.is_active` + `suspended_until`) |
+| `_grant_case_access_unchecked` | a pure INSERT helper — the `auth.uid()` it receives is the **grantee**, not a gate input; both callers (`create_case`, `create_case_from_template`) gate the caller upstream with `is_staff_admin_of(...) or is_admin()`, both hat-aware |
+
+**Answer: no third member exists.** The fix closes the class, not just the instances.
+
+## 7.3 Q2 — third-party semantics *(verified, and beyond what 318 covers)*
+
+318 assertion 5 covers `is_admin_for(other)` and it stays green under both the fixed and
+the neutralized catalog (§7.5), so it is a genuine control.
+
+318 does **not** cover the third-party path of `can_manage_professional`, so I drove it.
+An unrelated principal asking about a target who holds an expired `staff_admin`:
+
+```
+asker hat = staff            -> true
+asker hat = quality_reviewer -> true
+asker HATLESS                -> true
+```
+
+Invariant across all three. ✅ One principal's hat does not change what the system concludes
+about another, on both fixed gates.
+
+## 7.4 Q3 — break-glass: intact, but **the E2E evidence you cited does not cover it**
+
+**The path is intact.** 318 assertion 8 (`lives_ok` on `public.grant_role('hospital', …,
+'hospital_admin', …)` under the `platform_admin` hat) exercises the genuinely caller-bound
+door, and I re-ran it green on the fixed catalog. ADR 0097 D17's provisioning path survives.
+
+**But `platform-org-admin-provisioning.spec.ts` is not evidence of that.** Its own docblock
+(lines 9-22) says it drives `assignOrgAdmin` → **`public.grant_role_for`**, the *service*
+door — `proacl = {postgres, service_role}`, no `authenticated` — invoked on the service
+client where, in its own words, `auth.uid()` is *"absent"*. With `auth.uid()` NULL,
+`is_admin_for(p_actor)` takes the **third-party** arm, which the fix structurally cannot
+touch. That spec would have been 3/3 green before the fix, after the fix, and after a
+*broken* fix. It proves the wiring it was written to prove; it proves nothing about D11.
+
+Filed as **INFO-5** below. The real coverage is 318 #8 — which is the right test, and it
+exists.
+
+⚠ One consequence worth stating, because it widens D11's own recorded risk: the fix extends
+the picker dependency from `is_admin()` to the **membership-grant door itself**. A
+`platform_admin` who ever becomes multi-role and has not picked a hat can no longer grant or
+revoke — correct under D5, but D11 says the break-glass hat *"must never depend on the
+picker, so no UI sits in the recovery path"*. The `315` tripwire (no `platform_admin` holds a
+membership; re-verified: 1 admin, 0 memberships) is now **doubly load-bearing** — it guards
+both the no-op argument and the recovery path. Worth one line in the ADR.
+
+## 7.5 Q5 — keystone 318 non-vacuity: **independently reproduced**
+
+I did not take the red-first record on trust. I ran the neutralization oracle myself:
+captured `md5(pg_get_functiondef(...))` for both gates, ran 318 against the fixed catalog,
+then `CREATE OR REPLACE`d both back to the **pre-fix bodies from my own r1 catalog dumps**,
+re-ran 318, then restored from the migration.
+
+| Run | Result |
+| --- | --- |
+| 318 vs **fixed** catalog | **11/11 ok** |
+| 318 vs **neutralized** catalog | **not ok 3 · not ok 6 · not ok 7 · not ok 11** — 7 controls green |
+| Restore | `can_manage_professional` `md5=dc1c7cc4…71f`, `is_admin_for` `md5=df975b25…4a3` — **byte-identical to the pre-neutralization baseline** |
+
+Exactly the four ⭐ assertions you recorded, and no others. Assertion 6 — `grant_role`
+succeeding under the staff hat — reproduces the r1 BLOCKER through the keystone itself.
+**The keystone bites.** ✅
+
+pgTAP arithmetic reconciles exactly: 318 declares `plan(11)` and I watched 11 assertions
+run; r1 baseline 178 files / 5679 tests → 179 / 5690 is +1 file / +11 tests. ✅
+`ARM=census` unchanged at 450/461 is consistent — the fix added no gate to the boolean
+population, it amended two existing members.
+
+## 7.6 Q6 — catalog property diff *(re-read, not assumed)*
+
+Post-restore, both functions:
+
+```
+secdef=true | vol=s (STABLE) | strict=false | leakproof=false | owner=postgres
+config={"search_path=app, public, pg_catalog"}
+acl={postgres=X/postgres, authenticated=X/postgres, service_role=X/postgres}
+```
+
+The ACL matches the sibling shape exactly (`has_role`, `has_role_any`,
+`is_org_admin_of_for`), the `search_path` pin survived, `SECURITY DEFINER` and `STABLE`
+survived, the owner is unchanged. The migration contains no `GRANT`/`REVOKE`/`DROP`, and
+`CREATE OR REPLACE` cannot drop an ACL — corroborated incidentally by my neutralized
+replace (also GRANT-less) still being executable by `authenticated` inside 318. **No
+property lost.** ✅
+
+## 7.7 Q4 — did you smuggle a tightening? *Not in the predicate. Partly in the outcome.*
+
+The expiry predicate is **byte-identical**; only the hat conjunct is new. And the quirk
+genuinely survives — I proved it against a **reachable** production shape, which is stronger
+than 318 assertion 10 claims for itself:
+
+```
+principal: LIVE staff_admin in org A  +  EXPIRED staff_admin in org B
+implicitly derived hat = staff_admin   (no picker needed — one live role type)
+can_manage_professional(orgB, self) = true      <- the quirk, alive
+has_role('commission', comm_B, 'staff_admin') = false   <- control
+```
+
+**But the outcome did change for one population, and the brief's "only the hat dimension
+moves" does not quite cover it.** A principal whose *only* `staff_admin` membership is the
+expired one can never obtain the `staff_admin` hat — `assume_role` validates live holding
+and `custom_access_token_hook` derives only from live memberships. So for them the arm is
+now permanently unreachable. Probed:
+
+```
+expired-only principal, asking about itself:
+  implicitly derived hat = <null>  ->  can_manage_professional = false   (was TRUE pre-fix)
+```
+
+That is BUG-ACT-EXPIRY-1's own tightening, arriving early, for the bug's *main* population —
+achieved not by touching expiry but by making the hat unobtainable. It narrows in the safe
+direction and follows inevitably from applying D5 correctly, so I am **not** asking you to
+undo it. Two record corrections instead (**MINOR-4**):
+
+1. BUG-ACT-EXPIRY-1's residual scope is now narrower than its text implies. It survives
+   **only** in the cross-org shape above — live `staff_admin` in another org plus an expired
+   one in `p_org`. Single-org expired principals are already tightened.
+2. **318 assertion 10 pins an unreachable state when a reachable one exists.** Its comment
+   is honest (*"asserts the FUNCTION's logic, not a reachable production journey"*), but the
+   cross-org fixture above pins the same claim against a state a real user can occupy, with
+   an implicitly-derived hat and no synthetic claim. That is the stronger positive twin.
+
+## 7.8 Round-2 findings
+
+- 🟡 **MINOR-4** — the two record corrections in §7.7 (BUG-ACT-EXPIRY-1's narrowed residual
+  scope; 318 assertion 10's fixture).
+- ⚪ **INFO-4** — 318 assertion 4's message says *"the two siblings now **AGREE** under a
+  non-matching hat"*, but the assertion is `ok(not app.is_admin())` — it measures one
+  sibling. Under neutralization it stayed **green** while the siblings genuinely disagreed.
+  The claim is established by #3 and #4 *together*; #4 alone cannot detect the divergence it
+  names. Harmless (the real distinguishing assertion is #3), but it is the shape you asked
+  me to watch for: a message asserting more than its expression checks. Re-word, or fold
+  both reads into one assertion.
+- ⚪ **INFO-5** — `platform-org-admin-provisioning.spec.ts` is not coverage of the D11
+  caller path (§7.4). Its 3/3 green should not be cited as break-glass evidence for this
+  fix; cite 318 #8 instead. Note the structural point it reveals: `assignOrgAdmin`, the
+  platform admin's *real* provisioning path, runs on the service client and was therefore
+  **never** exposed to the hole. The hole lived on `public.grant_role`, the `authenticated`
+  PostgREST door — Rule 1 in one sentence: the TS layer was never the boundary.
+
+## 7.9 Your three open questions
+
+**MAJOR-2 (LGPD erasure) — your disposition is right; I would not block S3 on it.**
+Blocking would require someone to decide *where* the affordance remounts, which is a product
+decision neither of us owns, and the alternatives (re-open the commission route to tenancy
+admins; add a tenancy-scoped disposal surface; give NSP a hospital-scoped one) have real
+governance consequences that ADR 0100's content wall was built to prevent. What made it a
+finding was never "it is unfixed" — it was that the follow-up did not carry the LGPD framing
+or the `20260917000400` precedent, so nobody downstream would know a ratified regulatory
+ruling had been voided by a different mechanism. You have fixed exactly that. My one ask:
+make it a **pilot-gate check**, not a follow-up-list entry — this program's own record shows
+"standing in prose alone" once meant a thing ran once in three weeks (ADR 0079). And sweep
+`dispose_event_phi` (FUP-QOB-3) for the same UI-reach shape before pilot, since the sibling
+was the door that surfaced the LGPD reasoning in the first place.
+
+**The AC-7 polarity thread — worth one hour, not a program.** Two assertions that are exact
+opposites over the same constant, same URL, same post-disposal state, both green across full
+gates: at least one was not measuring its subject. The catalog says the new one is right, so
+the *current* risk is low — but the cheap, high-value question is not "why did the old one
+pass", it is **"is the new one passing for the right reason?"** Run it with the disposal step
+removed: `expect(afterBody).not.toContain(REF_XHOSP_SUBJECT)` must go **RED**. If it stays
+green, the assertion is measuring page state that never contained the subject, and *that*
+would justify a broader pass. One targeted run answers it. I would not open a repo-wide
+assertion-reliability audit on this evidence alone; `BUG-VACUOUS-ASSERT-1` already owns that
+population.
+
+**Where the sweep lesson belongs — `docs/progress/authz-handoff.md` §7.** It is the file
+CLAUDE.md §5 already makes mandatory reading before any authorization or RLS work, it already
+holds the sibling lessons ("text is not truth", "`prosecdef` belongs beside `pg_policies`"),
+and this is the same genus. Two sentences, stated as a rule rather than a story:
+
+> **A caller gate can RECEIVE the caller's uid instead of reading it.** Classify by the
+> *call-site binding* (`p_uid := auth.uid()`), never by the signature's shape — a
+> parameterized gate is not automatically third-party-safe.
+> **Call-graph sweeps must use balanced-paren extraction, not regex.** An identifier
+> substring matches columns as well as functions (the `is_admin` column vs the `is_admin`
+> function), and a one-level regex cannot see `f((select auth.uid()))` — this codebase's
+> own house style. Both errors report closure they have not proved.
+
+The second half also belongs in ADR 0079 as an amendment, since it constrains how the
+standing door-audit derives its population — and `docs/progress/authz-a30-platform-admin-inventory.md:77`
+(*"`app.is_admin_for()` … is dead code"*, now 3 callers) should be corrected at the same
+time; it is a live example of the first rule failing.
+
+## 7.10 Round-2 status of the round-1 findings
+
+| r1 finding | Status |
+| --- | --- |
+| 🔴 **BLOCKER-1** `is_admin_for` hat-blind caller gate | ✅ **CLOSED** — catalog-verified, red-proven by my own neutralization run (318 #3/#6/#7), class re-derived by property with no third member |
+| 🟠 **MAJOR-1** `can_manage_professional` expired arm | ✅ **CLOSED** (hat dimension) — 318 #11 red-proven; third-party invariance separately probed; see MINOR-4 on the residual scope |
+| 🟠 **MAJOR-2** LGPD erasure reachability | 🟡 **Correctly dispositioned** — re-scoped to close-before-pilot with the `20260917000400` citation. Not an S3 blocker; make it a pilot-gate check |
+| 🟡 MINOR-1 `navScope` dead branch | open, S4, acceptable |
+| 🟡 MINOR-2 RSC grant-serialization consistency | open, record correction |
+| 🟡 MINOR-3 AC-8 keyboard narrowing | open, folded into FUP-ACT-DISPOSE-UI |
+| ⚪ INFO-1/2/3 | unchanged |
+
+## 7.11 Closing
+
+The fix is correct, complete for its class, non-vacuously tested, and property-preserving —
+and the two claims I could most easily have taken on trust (the red-first record and the
+break-glass coverage) are the two I checked hardest: one reproduced exactly, one turned out
+to be pointing at the wrong test. That is the right ratio for a round 2.
+
+What earns the approval is not that the two gates are patched — it is §7.2. You asked the
+question that mattered ("did I close the instances and miss the class?"), and the
+property-bounded re-derivation says the class is closed: 61 caller-bound parameters, 10
+without a hat path, all ten hat-free for a reason that survives being written down.
+
+Residual: one MINOR (two record corrections), two INFO, and three r1 MINORs already carried
+to S4. Nothing blocking.
+
+**Round 2 verdict: APPROVED.**

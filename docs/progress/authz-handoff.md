@@ -722,6 +722,57 @@ build bakes in whatever is on disk. The toolchain is a suspect, and the cheapest
 
 ---
 
+### 7.17 ⛔ A caller gate can RECEIVE the caller's uid — classify by CALL-SITE BINDING, never by signature shape (ACT Stage 3 QA review, 2026-08-10)
+
+**The rule, stated so it can be applied without the story:** when deciding whether an authz
+helper gates *the caller* or *a third party*, the deciding fact is **what its call sites
+actually pass**, not what its signature looks like. A `foo_for(p_user_id uuid)` helper is a
+third-party door **only if no caller binds that parameter to `auth.uid()`**. That is a fact
+about call sites; it must be read from them.
+
+**What it cost.** ACT Stage 3 gave `app.is_admin()` the D11 active-role condition and
+classified its parameterized sibling `app.is_admin_for(uuid)` as "the pre-existing,
+deliberately separate third-party door — correctly independent of any hat." That was
+**false**. Its only two callers — `grant_role_impl` / `revoke_role_impl` — receive `p_actor`
+from `public.grant_role` / `revoke_role`, which bind it to `(select auth.uid())`. So it was
+the **caller gate on the membership-grant door**, hat-blind: a platform_admin wearing any
+other hat could seat an `org_admin` or `hospital_admin` — the exact escalation D11 exists to
+refuse. Four green gates missed it (pgTAP, ARM=census, ARM=floor, a diff-scoped door sweep):
+every one of them asks whether a gate is *exercised*, none asks whether it is *correct about
+whose uid it holds*. Fixed in `20260918002800`; keystone `318`.
+
+**This is a FOURTH class of hat-blindness**, beside the three ACT already knew (application
+guards deriving from a hat-blind session context; a raw JWT-claim read; DEFINER doors reading
+`memberships` raw): **a boolean gate that RECEIVES the caller's uid as a parameter instead of
+reading `auth.uid()` itself.**
+
+**Two sweep-method rules, each of which independently hid this defect:**
+
+1. **Edges built from name substrings report closure they have not proved.** The reviewer's
+   own first sweep returned *zero* hat-blind gates — the **column** `is_admin` matched the
+   **function** `app.is_admin`, manufacturing a false edge that made `is_admin_for` look
+   already-covered. Requiring `name[[:space:]]*\(` surfaced it. Same shape as this repo's
+   earlier "`\yname\y` cannot match `name_for`" finding: the boundary must be the property,
+   not the syntax.
+2. **A regex cannot extract call arguments in this codebase — use balanced-paren
+   extraction.** The second attempt still missed `is_admin_for` because a one-level-nesting
+   regex cannot see `grant_role_impl((select auth.uid()), …)` — and `(select auth.uid())` is
+   the *house style* here. Any "who receives `auth.uid()`" sweep written as a regex is blind
+   by construction.
+
+**The method that actually closed it** (repeat it, don't re-invent it): balanced-paren
+argument extraction over all `app`+`public` function bodies → map each argument to its
+**parameter position** → propagate caller-boundness **transitively through the call graph**
+until it converges. On the 928-function corpus that yielded ~4,500 call-argument observations
+and **61 caller-bound `(callee, param)` pairs**, of which 51 reach a hat gate and 10 are
+correctly hat-free — a population, not a list of instances.
+
+**Standing consequence:** this constrains how the ADR 0079 door audit derives its own
+population — see that ADR's amendment. And note the structural lesson underneath: the hole
+lived on `public.grant_role`, the `authenticated` PostgREST door, while the platform admin's
+*real* TypeScript provisioning path runs on the service client and was never exposed to it.
+Architecture Rule 1 in one sentence — **the TS layer was never the boundary.**
+
 ## 8. Where the durable record lives
 
 | | |

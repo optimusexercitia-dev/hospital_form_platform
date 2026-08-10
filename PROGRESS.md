@@ -103,10 +103,53 @@
 > - **MAJOR-2 → ESCALATED, not fixed**: the LGPD Art. 18 erasure path — see
 >   **FUP-ACT-DISPOSE-UI** below, re-scoped from "UX ratification" to **close before pilot**.
 >   It needs a PO decision on *where* the affordance mounts; that is a product call, so it
->   is deliberately NOT bundled into S3.
+>   is deliberately NOT bundled into S3. **QA r2 agreed with this disposition and would not
+>   block S3 on it**, asking only that it become a **pilot-gate CHECK rather than a
+>   follow-up-list entry** — done: *Remaining pre-pilot work* **item 0**, phrased so it can
+>   be run and can fail ("name a persona who can both reach the surface and pass the door").
 >
-> **State:** S0/S1/S2 ✅ · **S3 built, gate re-earned green after the QA fix** · S4 ⬜ not
-> started. **QA re-review (step 3, round 2) and human approval (step 4) PENDING.**
+> ## ✅ QA ROUND 2 — **APPROVED** (2026-08-10, `docs/reviews/act-as-stage-3-review.md` §7)
+>
+> The reviewer re-derived the blocker's population **by property** rather than accepting my
+> instance-bounded fix, building a balanced-paren argument extractor over all 928
+> `app`+`public` functions and propagating caller-boundness transitively through the call
+> graph: **61 caller-bound `(callee, param)` pairs — 51 reach a hat gate, 10 are correctly
+> hat-free, no third member exists.** The class is closed, not just the two instances.
+> ⚠ Its own first r2 attempt reproduced the r1 bug (a one-level-nesting regex cannot see
+> `grant_role_impl((select auth.uid()), …)` — the house style), which is why the method,
+> not just the verdict, is now written into `authz-handoff.md` §7.17 + ADR 0079 Amendment 6.
+>
+> **Round-2 findings, all actioned in `1d5a56f`:**
+> - **MINOR-4(1)** — my "expiry semantics UNCHANGED" was too strong: an **expired-ONLY**
+>   principal can never obtain the hat, so for them the arm is now permanently unreachable
+>   (BUG-ACT-EXPIRY-1's tightening arriving early for its main population, via the hat).
+>   Corrected in both records; **BUG-ACT-EXPIRY-1 carries a scope-narrowing note** — it
+>   survives only in the cross-org shape.
+> - **MINOR-4(2)** — keystone 318 assertion 10 pinned an **unreachable** state. Re-cut onto
+>   the **reachable** cross-org fixture (live `staff_admin` in org A + expired in org B ⇒
+>   hat derived implicitly by the hook, no synthetic claim).
+> - **INFO-4** — assertion 4's message claimed the siblings "AGREE" while the expression
+>   measured only one of them (green under neutralization while they genuinely diverged —
+>   the exact shape I had asked the reviewer to watch for). Now compares both directly, so
+>   the keystone's red-first set goes **4 → 5** distinguishing assertions.
+> - **INFO-5** — **I cited the wrong break-glass evidence.** `platform-org-admin-provisioning
+>   .spec.ts` 3/3 proves nothing here: it drives `grant_role_for` (the SERVICE door) on the
+>   service client, taking the third-party arm the fix cannot touch — green before, after,
+>   and after a *broken* fix. Real coverage is **318 #8**. Corrected in the Bug Log.
+> - **AC-7 polarity thread** — closed in the hour QA scoped it: the sibling test asserts the
+>   subject **is** visible pre-disposal and the dispose test asserts it **absent** after, and
+>   a deliberate mutation (dispose a DIFFERENT referral) reds it. The assertion tracks the
+>   disposal. The broader population stays with `BUG-VACUOUS-ASSERT-1`.
+>
+> **Re-verification after those edits:** keystone 318 **11/11 green** on the fixed catalog;
+> neutralized to the pre-fix bodies → **exactly `not ok` 3, 4, 6, 7, 11** with all 6 controls
+> green; restore **md5-identical** on both function bodies. pgTAP **179 files / 5690 tests
+> PASS** · lint 0/0 · tsc. No app code or migration changed after the green gate, so the
+> `f4362fc` gate evidence stands (the edits are keystone + docs only).
+>
+> **State:** S0/S1/S2 ✅ · **S3 built, gate green, QA APPROVED (r2)** · S4 ⬜ not started.
+> **Human approval (Phase Gate step 4) is the ONLY remaining step**, then the §6 step-5
+> Record (incl. `docs/backend-state.md`, which does NOT yet carry the S3 surface).
 > ⛔ Local-only throughout; nothing pushed, no `db push`. Remote cutover additionally
 > needs the auth hook ENABLED on Supabase Cloud (a step `db push` does not cover).
 >
@@ -358,6 +401,19 @@ and re-expanded by ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) (
 the pilot. **That block is complete — but ADR [0097](docs/decisions/0097-hospital-affiliation-person-identity.md)
 (AFF) re-gated the pilot on 2026-08-05; see item 1.** Completed items are not re-listed here; the Phase
 Status table above is the index. What is actually left:
+
+**0. 🔴 PILOT-GATE CHECK — the LGPD Art. 18 referral-erasure path must have a working UI route
+(FUP-ACT-DISPOSE-UI).** Placed here, as a **gate check rather than a follow-up-list entry**, on the
+Stage-3 QA reviewer's explicit recommendation — *"this program's own record shows 'standing in prose
+alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 was written about).
+**The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
+hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
+persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the ACT block's
+FUP-ACT-DISPOSE-UI entry). Until one does, subject-erasure is API-only. **Decision owner: PO** —
+*where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
+tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
+non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
+un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
 **1. ✅ AFF — COMPLETE and PO-APPROVED 2026-08-06**, no longer gates the pilot deploy. Row in the
 *Recently completed* table above.
@@ -1180,10 +1236,39 @@ exactly these 2 gates: 2 COVERED / 0 BLIND / 0 ERROR**. Provably a **no-op on th
 (catalog-verified: 0 expired memberships ⇒ the raw arm cannot fire; 0 `is_admin` principals
 hold a membership ⇒ the caller path is unchanged), which is why no existing test could have
 caught either one — the same argument D11 rests on, now with a keystone behind it.
-⚠ **Expiry semantics deliberately UNCHANGED** — an expired staff_admin still passes that arm,
-it must now merely be wearing the hat. **BUG-ACT-EXPIRY-1 stays open** with its disposition
-intact (that fix is a genuine tightening and needs its own change and gate); keystone 318
-carries a positive twin pinning the preservation, so a future "simplification" reds.
+⚠ **Expiry PREDICATE deliberately unchanged — but the OUTCOME moved for one population, and
+the original wording here ("expiry semantics UNCHANGED") did not cover it** (QA r2 MINOR-4(1);
+corrected rather than quietly reworded). An expired staff_admin still passes the arm *when
+correctly hatted*, so the quirk survives — but only in the **cross-org** shape (live
+`staff_admin` elsewhere ⇒ implicit hat, plus an expired one in the target org). An
+**expired-ONLY** principal can never obtain the hat, so for them the arm is now permanently
+unreachable: BUG-ACT-EXPIRY-1's own tightening, arriving early for its main population, via
+the hat rather than via expiry. Safe direction; **not** undone. See the scope-narrowing note
+on BUG-ACT-EXPIRY-1 below. Keystone 318 assertion 10 pins the surviving shape against a
+**reachable** state (implicitly-derived hat, no synthetic claim), so a future "simplification"
+of the clause still reds.
+⚠ **Break-glass citation corrected (QA r2 INFO-5):** `platform-org-admin-provisioning.spec.ts`
+3/3 is **NOT** evidence for this fix and must not be cited as such — it drives `grant_role_for`
+(the SERVICE door, no `authenticated` in its `proacl`) on the service client where `auth.uid()`
+is absent, so it takes the THIRD-PARTY arm the fix structurally cannot touch; it would be green
+before, after, and after a *broken* fix. The real break-glass coverage is **keystone 318 #8**.
+Structural point worth keeping: `assignOrgAdmin`, the platform admin's real provisioning path,
+runs on the service client and was **never** exposed to the hole — the hole lived on
+`public.grant_role`, the `authenticated` PostgREST door. Architecture Rule 1 in one sentence:
+the TS layer was never the boundary.
+
+> ⚠ **SCOPE NARROWED 2026-08-10 (QA Stage-3 review r2, MINOR-4(1)) — read this before
+> working the bug below; its original text now overstates the reach.** After
+> `20260918002800` gave the raw arm a caller-only hat condition, the quirk survives **only
+> in the cross-org shape**: a principal holding a LIVE `staff_admin` in one org (so the hook
+> derives that hat implicitly) **plus** an expired `staff_admin` in the org being asked
+> about. An **expired-ONLY** principal can never obtain the `staff_admin` hat at all —
+> `assume_role` validates live holding and `custom_access_token_hook` derives only from live
+> rows — so for them the arm is already permanently unreachable. That is this bug's own
+> tightening arriving early for its **main** population, achieved via the hat rather than via
+> expiry, and it narrows in the safe direction (QA: "not asking you to undo it"). Keystone
+> `318` assertion 10 pins the surviving cross-org shape against a state a real user can
+> actually occupy.
 
 🔴 **BUG-ACT-EXPIRY-1 — OPEN, LATENT (found by ACT Stage 2's equivalence matrix, 2026-08-10;
 deliberately NOT fixed there).** `app.can_manage_professional`'s raw `memberships` branch

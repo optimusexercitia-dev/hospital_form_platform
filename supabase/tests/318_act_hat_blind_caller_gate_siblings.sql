@@ -57,9 +57,15 @@ set local role authenticated;
 select ok(
   not app.is_admin_for((select admin_id from k)),
   'is_admin_for(self) D11 ⭐ DISTINGUISHING: FALSE while wearing the staff hat (was TRUE pre-fix — the caller gate on the grant door)');
-select ok(
-  not app.is_admin(),
-  'is_admin() ⭐ the two siblings now AGREE under a non-matching hat (the divergence was the defect)');
+-- ⭐ QA r2 INFO-4: this assertion used to READ `ok(not app.is_admin())` while its
+-- message claimed the two siblings "agree" — a message asserting more than its
+-- expression checks, which stayed GREEN under neutralization while they genuinely
+-- diverged. Now it compares them directly, so it detects the divergence it names
+-- (RED pre-fix: is_admin()=false vs is_admin_for(self)=true — that gap WAS the bug).
+select is(
+  app.is_admin(),
+  app.is_admin_for((select admin_id from k)),
+  'is_admin() vs is_admin_for(self) ⭐ DISTINGUISHING: the siblings AGREE under a non-matching hat (they DIVERGED pre-fix)');
 reset role;
 
 -- ⭐ THIRD-PARTY INVARIANT (ADR 0106 §2): one principal''s hat must never change
@@ -108,35 +114,55 @@ reset role;
 -- an expired staff_admin still passes the arm when correctly hatted. If the expiry
 -- quirk is ever closed, THIS assertion is expected to change with it — that is the
 -- bug''s own change and its own gate, not a silent edit here.
-update public.memberships
-   set expires_at = now() - interval '1 day'
- where commission_id = (select comm_x from k)
-   and principal_id = (select sa_x from k)
-   and role = 'staff_admin';
+-- ⭐ QA r2 MINOR-4(2): the fixture is the REACHABLE cross-org shape, not a synthetic
+-- one. sa_x keeps its LIVE staff_admin on comm_x (org_b) and additionally holds an
+-- EXPIRED staff_admin in a SECOND org. That principal has exactly one LIVE role type,
+-- so `custom_access_token_hook` derives the staff_admin hat implicitly — no picker, no
+-- hand-minted claim, a state a real user can actually occupy. The previous version of
+-- this twin minted a staff_admin hat for an expired-ONLY principal, which `assume_role`
+-- and the hook both refuse to issue: it pinned the function's logic against a state
+-- nobody can reach. This one pins the same claim against a reachable one.
+create temp table o2 on commit drop as select gen_random_uuid() as org, gen_random_uuid() as hosp;
+grant select on o2 to authenticated;
+insert into public.organizations (id, name, slug)
+  values ((select org from o2), 'Org Expiry Twin', 'org-expiry-twin');
+insert into public.hospitals (id, organization_id, name, slug)
+  values ((select hosp from o2), (select org from o2), 'Hosp Expiry Twin', 'hosp-expiry-twin');
+insert into public.commissions (name, slug, created_by, hospital_id)
+  values ('Comissão Expiry Twin', 'comm-expiry-twin', (select admin_id from k), (select hosp from o2));
+create temp table c2 on commit drop as
+  select id from public.commissions where slug = 'comm-expiry-twin';
+grant select on c2 to authenticated;
+
+insert into public.memberships (commission_id, principal_id, role, expires_at)
+values ((select id from c2), (select sa_x from k), 'staff_admin', now() - interval '1 day');
 
 -- Precondition, asserted rather than assumed: has_role() already refuses the
 -- expired row, so anything still passing can ONLY be the raw arm under test.
-select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+-- (No explicit hat: `claims_for` mirrors the hook's own derive, which is the point.)
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select ok(
-  not app.has_role('commission', (select comm_x from k), 'staff_admin', (select sa_x from k)),
+  not app.has_role('commission', (select id from c2), 'staff_admin', (select sa_x from k)),
   'precondition: has_role() refuses the EXPIRED staff_admin row (so the raw arm is what the next assertions measure)');
 reset role;
 
--- POSITIVE TWIN, and it is load-bearing: correctly hatted, the expired arm STILL
--- fires. This pins that `20260918002800` changed ONLY the hat dimension and did
--- NOT smuggle in the expiry tightening that BUG-ACT-EXPIRY-1 owns — and it would
--- red if someone "simplified" the compensating clause away entirely.
--- ⚠ Honest about what this state is: an expired principal cannot actually ACQUIRE
--- the staff_admin hat today (`assume_role` validates live holding, and the token
--- hook derives only from live memberships), so this asserts the FUNCTION's logic,
--- not a reachable production journey. When the expiry quirk is closed, this
--- assertion is expected to flip — in that bug's own change, with its own gate.
-select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+-- POSITIVE TWIN, and it is load-bearing: with the hat implicitly derived from the
+-- LIVE membership in the other org, the expired arm STILL fires here. This pins that
+-- `20260918002800` changed ONLY the hat dimension and did NOT smuggle in the expiry
+-- tightening BUG-ACT-EXPIRY-1 owns — it would red if someone "simplified" the
+-- compensating clause away entirely.
+-- ⚠ Scope note (QA r2 MINOR-4(1)): this cross-org shape is now the ONLY surviving
+-- reach of the quirk. An expired-ONLY principal can never obtain the staff_admin hat
+-- (`assume_role` validates live holding; the hook derives only from live rows), so
+-- for them the arm is already permanently unreachable — BUG-ACT-EXPIRY-1's own
+-- tightening arriving early for its main population, via the hat rather than via
+-- expiry. BUG-ACT-EXPIRY-1's residual scope is narrower than its original text says.
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select ok(
-  app.can_manage_professional((select org_b from k), (select sa_x from k)),
-  'can_manage_professional: the EXPIRED-staff_admin arm STILL fires under the staff_admin hat (expiry semantics deliberately preserved — BUG-ACT-EXPIRY-1)');
+  app.can_manage_professional((select org from o2), (select sa_x from k)),
+  'can_manage_professional: the EXPIRED-staff_admin arm STILL fires under an IMPLICITLY-DERIVED staff_admin hat (reachable cross-org shape; expiry semantics preserved — BUG-ACT-EXPIRY-1)');
 reset role;
 
 -- ⭐ DISTINGUISHING: the same arm does NOT fire under a hat that is not
@@ -145,15 +171,16 @@ reset role;
 -- function's other arms — not `is_admin()`, not `is_org_admin_of(p_org)`, not
 -- `has_role(commission, …, 'staff_admin')` — so the raw expired arm is the only
 -- thing that could possibly answer true, and a green here cannot be a pass for
--- the wrong reason. (A `staff` row on comm_x is impossible: one role per
--- principal per commission, `memberships_one_commission_role_uq`.)
+-- the wrong reason. Adding it also gives sa_x a SECOND live role type, so the hat
+-- is now a genuine choice rather than an implicit derive — which is exactly the
+-- population ADR 0106 exists for.
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 values ((select org_b from k), (select hosp_b from k), (select sa_x from k), 'quality_reviewer');
 
 select test_helpers.claims_for((select sa_x from k), false, 'quality_reviewer');
 set local role authenticated;
 select ok(
-  not app.can_manage_professional((select org_b from k), (select sa_x from k)),
+  not app.can_manage_professional((select org from o2), (select sa_x from k)),
   'can_manage_professional D5 ⭐ DISTINGUISHING: the EXPIRED-staff_admin arm does NOT fire under the quality_reviewer hat (was TRUE pre-fix — 10 Class-2 write RPCs)');
 reset role;
 
