@@ -454,9 +454,21 @@ re-derive:
 2. **Multi-role personas are strangers.** A fresh password grant opens a **new session**
    with no `active_role_selections` row, and D5 says no row + multi-role ⇒ **no claim**.
    Every RLS probe issued with that token will resolve as a stranger.
-3. **Today this is safe by construction, not by design** — the only principal holding two
-   role *types* is `dualhat.a@test.local`, which is brand new and consumed by no spec yet.
-   That property expires the moment Stage 3's picker specs start using it.
+3. ~~**Today this is safe by construction** — the only principal holding two role *types* is
+   `dualhat.a@test.local`.~~ ⛔ **CORRECTED 2026-08-10 (lead) — that claim was FALSE and was
+   never measured.** The live catalog says **SIX** principals hold 2+ role types:
+   `admin@` (org_admin+pqs_member) · `orgadmin.b@` (org_admin+staff_admin) ·
+   `pqsdual.a@` (pqs_member+staff) · `solo.c@` (hospital_admin+org_admin) ·
+   `staff1.qual.b@` (staff+staff_admin) · `dualhat.a@` (the intended fixture). Found by
+   `tester` running the real query; the lead had asserted it from the plan's framing without
+   measuring. **This is the exact failure this repo keeps recording — a data claim stated as
+   fact.** Query, so it is never re-asserted: `select principal_id, count(distinct role) from
+   public.memberships where expires_at is null or expires_at > now() group by 1 having
+   count(distinct role) > 1;`
+   The `accessToken` exposure is therefore **wider** than written — but currently **moot**:
+   `accessToken` has **zero call sites** in `e2e/` outside the helper itself (measured). The
+   obligation below stands as forward-looking, and its first user must not assume the helper
+   is safe merely because nothing broke.
 
 **The obligation:** before Stage 3 declares green, enumerate the `accessToken` call sites
 (by the property — callers of the helper, not by filename) and, for each, determine whether
