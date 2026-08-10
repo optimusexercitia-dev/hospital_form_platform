@@ -416,6 +416,22 @@ than one hat would help.
 
 ### 5.4 Where it mounts — a second gap: only 2 of 6 have a route-level boundary
 
+> **CORRECTED 2026-08-10 during the Stage 3 build (frontend) — this section's mounting
+> plan was empirically disproven.** A choke-point guard's own `notFound()` (thrown
+> inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, **never**
+> a same-segment sibling `not-found.tsx` — verified three ways, the last on a real
+> production standalone build (not just `next dev`): an isolated synthetic route, the
+> real `manage`/`qualidade` guards on the dev server, then re-confirmed on
+> `.next/standalone/server.js`. The 6 area-specific `not-found.tsx` files described
+> below (2 pre-existing + 4 built for this) only catch a narrower case — a PAGE
+> *within* an already-entered area calling `notFound()` itself — never the guard's own
+> entry-denial, which is the case D9 exists for. The as-built mount is therefore the
+> GLOBAL boundary (session-gated so an anonymous 404 pays no extra cost), in addition
+> to the 6 narrower ones. Full derivation + the live proof:
+> `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half, §2. The text below is kept
+> as the historical record of the (wrong) assumption, not updated in place.
+
+
 `notFound()` throws to the **nearest** `not-found.tsx` boundary. Today:
 
 - **Qualidade** (`src/app/o/[org]/qualidade/not-found.tsx`) and **NSP**

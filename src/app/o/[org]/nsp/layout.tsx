@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getNspAccessByOrg } from "@/lib/queries/session";
+import { getNspAccessByOrg, getRawGrants } from "@/lib/queries/session";
 import { nspHref } from "@/lib/routing";
 import { referralsEnabled } from "@/lib/queries/referrals";
 import { patientIndexEnabled } from "@/lib/queries/patient-index";
@@ -51,10 +51,12 @@ export default async function NspConsoleLayout({
     access;
 
   // Feature flags gate the flag-dependent nav entries (Encaminhamentos /
-  // Pacientes). PHI-free reads; fail-closed to `false`.
-  const [referralsOn, patientIndexOn] = await Promise.all([
+  // Pacientes). PHI-free reads; fail-closed to `false`. `grants` feeds ACT's
+  // `UserMenu` "Trocar papel" switch (hat-blind by design, D9).
+  const [referralsOn, patientIndexOn, grants] = await Promise.all([
     referralsEnabled(),
     patientIndexEnabled(),
+    getRawGrants(),
   ]);
 
   return (
@@ -94,7 +96,12 @@ export default async function NspConsoleLayout({
           />
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { qualidadeHref } from "@/lib/routing";
+import type { SessionGrant } from "@/lib/queries/session-grants";
 import { UserMenu } from "@/components/shell/user-menu";
 
 /**
@@ -31,12 +32,20 @@ export function QualityViewerShell({
   commissionName,
   fullName,
   email,
+  activeRole = null,
+  grants = [],
   children,
 }: {
   org: string;
   commissionName: string;
   fullName: string | null;
   email: string;
+  /** ACT (ADR 0106 D12) — the caller's active hat, for `UserMenu`'s indicator
+   * caption + "Trocar papel" exclusion. */
+  activeRole?: string | null;
+  /** The caller's hat-blind grants (`getRawGrants()`), for `UserMenu`'s
+   * "Trocar papel" switch. */
+  grants?: SessionGrant[];
   children: React.ReactNode;
 }) {
   return (
@@ -63,7 +72,12 @@ export function QualityViewerShell({
             Somente leitura
           </span>
           <div className="ml-auto">
-            <UserMenu fullName={fullName} email={email} />
+            <UserMenu
+              fullName={fullName}
+              email={email}
+              activeRole={activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/queries/session";
+import { getRawGrants, requireUser } from "@/lib/queries/session";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { UserMenu } from "@/components/shell/user-menu";
 
@@ -29,7 +29,10 @@ export default async function AdminLayout({
   // `/o/[org]/nsp/**` (PQS-membership-gated), where a platform admin is walled off
   // from PHI (notFound), so the admin shell no longer advertises an NSP entry
   // (NSP-per-org, ADR 0042).
-  const auditOn = await auditTrailEnabled();
+  // ACT (ADR 0106) — the hat-blind grants feed `UserMenu`'s "Trocar papel"
+  // switch. A platform_admin's hat is always derived implicitly (D11), so this
+  // renders nothing extra unless the account ALSO holds a membership role.
+  const [auditOn, grants] = await Promise.all([auditTrailEnabled(), getRawGrants()]);
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -76,7 +79,12 @@ export default async function AdminLayout({
             ) : null}
           </nav>
           <div className="ml-auto">
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>

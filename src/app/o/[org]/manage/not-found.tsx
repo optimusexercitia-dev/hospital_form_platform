@@ -5,18 +5,18 @@ import { getRoleSwitchOptions } from "@/components/role/get-role-switch-options"
 import { RoleSwitchHint } from "@/components/role/role-switch-hint";
 
 /**
- * Not-found boundary for the commission area (new sibling — ACT ADR 0106,
- * design note §5.4). Reached for an unknown commission slug OR a commission
- * the caller may not access (member/oversight-viewer/tenancy-admin, per
- * `layout.tsx`'s own gate) — indistinguishable by design (RLS), so the base
- * copy must not distinguish them either (D4). The D9 hint below is an
- * ADDITIONAL, self-sourced fact appended after that base copy, never a
- * softening of it.
+ * In-shell 404 for the org-management area (new sibling — ACT ADR 0106).
  *
- * Cannot read the route's `org`/`commission` (not-found boundaries receive no
- * params), so the recovery link points at `/` rather than the commission root.
+ * ⚠ Does NOT catch `manage/layout.tsx`'s own `notFound()` (the "this org
+ * doesn't exist / you administer neither it nor any of its hospitals"
+ * entry-denial case) — verified live: a layout's own `notFound()` is caught
+ * only by an ancestor boundary above where that layout renders, never by its
+ * own segment's `not-found.tsx`. That entry-denial case lands on the GLOBAL
+ * `src/app/not-found.tsx` (which carries the same D9 hint, gated to
+ * authenticated callers). This boundary is reached only for a PAGE within an
+ * already-entered manage area calling `notFound()` itself.
  */
-export default async function CommissionNotFound() {
+export default async function OrgManageNotFound() {
   const { options, grants } = await getRoleSwitchOptions();
 
   return (
@@ -26,7 +26,8 @@ export default async function CommissionNotFound() {
       </span>
       <h1 className="text-2xl text-balance">Página não encontrada</h1>
       <p className="text-muted-foreground text-pretty">
-        Este endereço não existe ou você não tem acesso a esta comissão.
+        Este endereço não existe ou você não tem acesso à administração desta
+        organização.
       </p>
       <Link
         href="/"

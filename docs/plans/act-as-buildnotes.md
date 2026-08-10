@@ -1244,3 +1244,177 @@ same boundary Stage 2's derivation used). A new `text`-returning helper does
 not enter that population by construction, so its absence from the delta is
 consistent, not a miss — flagged because the plan's own text predicted a
 visible change that the catalog does not show.
+
+---
+
+## Stage 3 — frontend half (2026-08-10)
+
+Plan: `docs/plans/act-as-role-assumption.md` §4 Stage 3 Frontend paragraph. Design
+note: `docs/design/act-role-picker.md`. Built against the backend-posted signatures in
+§10 above (`SessionContext.activeRole`/`needsRoleSelection`, `getRawGrants()`,
+`getSelectableRoles()`, `assumeRole()` — all consumed as posted, no shape guessed).
+
+### 1. What landed
+
+New: `src/app/(auth)/selecionar-perfil/page.tsx` + `src/components/role/role-picker-form.tsx`
+(the picker) · `src/components/role/role-catalog.ts` (the ONE role→pt-BR-label and
+role→landing-route table, pure, no I/O, consumed by the picker, `UserMenu`, and the D9
+hint — "one map, many consumers") · `src/components/role/role-switch-hint.tsx` (the D9
+hint) · `src/components/role/get-role-switch-options.ts` (small server helper: hat-blind
+grants minus the caller's OWN active hat) · `src/app/o/[org]/direcao-tecnica/layout.tsx`
+(new shell — this console had none, per the design note §4.4 option (a)) · 4 new
+`not-found.tsx` siblings (`manage`, `nsp-org`, `c/[commission]`, `direcao-tecnica`).
+Edited: `src/app/page.tsx` (the one-line `needsRoleSelection` gate, exact position per
+the backend-posted dependency) · `src/components/shell/user-menu.tsx` (hat indicator +
+"Trocar papel") · the 9 layouts/components that render `UserMenu` (thread `activeRole`
++ `grants`) · `src/app/o/[org]/qualidade/not-found.tsx` + `.../nsp/not-found.tsx` (D9
+hint added) · `src/app/not-found.tsx` (the GLOBAL boundary — see finding #2, this
+became the primary D9 mount point, not a design-note afterthought).
+
+### 2. Finding that invalidated the design note's §5.4 mounting plan — verified live, not assumed
+
+**The design note (§5.4, my own earlier design-phase output) assumed a choke-point
+guard's OWN `notFound()` call — thrown from inside `manage/layout.tsx`,
+`qualidade/layout.tsx`, etc. — would be caught by a `not-found.tsx` file sitting in the
+SAME directory (a "sibling boundary"), and that 4 of the 6 areas needed one added.**
+This is false, confirmed three independent ways, the last one dispositive:
+
+1. An isolated synthetic route (`/test-nf`: a `layout.tsx` that unconditionally calls
+   `notFound()`, a sibling `not-found.tsx` carrying a literal marker string, a trivial
+   `page.tsx`) — the marker never rendered; the GLOBAL `src/app/not-found.tsx` rendered
+   instead. Reproduced with an added intermediate `layout.tsx`+`not-found.tsx` at a bare
+   parent segment (`[org]/`) — still the global one won.
+2. The REAL routes, dev server: `/o/rede-a/manage` and `/o/rede-a/qualidade` (as
+   `chefe.ccih@test.local`, who holds neither standing) both rendered the global 404,
+   not `manage/not-found.tsx` (new) or `qualidade/not-found.tsx` (PRE-EXISTING, and its
+   own docstring claimed — wrongly — to catch exactly this case: "Reached for BOTH
+   'this organization does not exist' and 'you review no hospital here'").
+3. **The dev-server results alone were not trusted** — Turbopack's file watcher in this
+   sandboxed session did not pick up brand-new top-level route files at all (confirmed
+   separately: a trivial new `/zzztest` page 404'd globally even with no `notFound()`
+   call anywhere in it), which could have contaminated finding #2. Re-verified on a
+   **real production standalone build** (`next build` + `.next/standalone/server.js`,
+   the same artifact `npm run e2e:prod` runs): `/o/rede-a/manage` and
+   `/o/rede-a/qualidade` for `chefe.ccih@` both still rendered the global 404. This is
+   the trustworthy result.
+
+**Mechanism (empirically derived, matches Next's own docs once read against the
+result):** a `notFound()` thrown from WITHIN a layout component's own function body is
+caught by an ancestor `NotFoundBoundary` ABOVE where that layout itself renders —
+never by that same segment's own `not-found.tsx`, and not by a bare intermediate
+segment's either (confirmed test #1's second variant). None of the six guard areas sit
+under an intermediate `layout.tsx` between themselves and the app root (`[org]/` and
+`o/` are both bare), so every one of the six guards' own entry-denial resolves at the
+GLOBAL boundary, full stop. A `not-found.tsx` sibling to the guard's OWN layout is
+reachable only for a narrower case: a PAGE within an ALREADY-ENTERED area calling
+`notFound()` itself (verified live too — `manage/hospitais/[hospitalId]/page.tsx` with
+a bogus id, as `orgadmin.a@test.local`, correctly rendered `manage/not-found.tsx`
+INSIDE the shell, sidebar intact).
+
+**Disposition, not a silent workaround:** kept all 6 area-specific `not-found.tsx`
+files (their docstrings corrected to state precisely what they DO catch — the
+narrower page-level case, not entry-denial) and additionally mounted `RoleSwitchHint`
+on the GLOBAL `src/app/not-found.tsx`, gated so an anonymous 404 pays no extra cost
+(`getRoleSwitchOptions()` returns `{options: [], grants: []}` for no session at
+`getRawGrants()`'s own documented boundary — no new query beyond what already runs).
+This is the actually-reachable mount point for the case D9 exists for. Flagged plainly
+per the task brief's "report a wrong assumption rather than ship dead code silently" —
+this is exactly that: shipping 6 not-found.tsx files that never fired for their
+intended purpose would have been silently non-functional D9 coverage.
+
+### 3. A second bug caught by the SAME live testing — the D9 hint suggesting the active hat
+
+First live test (`orgadmin.a@` hitting the bogus-hospital-id page inside their OWN
+manage area) rendered `RoleSwitchHint` suggesting "Seu papel de **Administrador(a) da
+organização** tem acesso mais amplo aqui" — their OWN currently-active hat, since
+`getSelectableRoles(grants)` is hat-blind by design and the not-found pages were
+originally passing its raw output straight through. Fixed by
+`get-role-switch-options.ts`: filter out `context.activeRole` before returning
+`options`, shared by all 7 mount points (6 area-specific + the global one) so the
+filter is written once, not copy-pasted. Re-verified live: `dualhat.a@test.local`
+(org_admin + quality_reviewer) active as `org_admin`, hitting `/o/rede-a/nsp` (no
+standing under either hat), now correctly shows ONLY "Revisor(a) da qualidade" —
+never "Administrador(a) da organização" (which would be nonsensical: they're already
+using that standing to be inside `/o/rede-a/**` at all in the sense that matters for a
+tenancy-scoped 404, though the REAL reason it's excluded is simpler — it's the active
+claim, full stop).
+
+### 4. The backend-posted `assumeRole` vs. `<form action>`'s own type contract
+
+`npm run build`'s TypeScript pass (not `next dev`, not `tsc` alone — a real `next
+build`) caught `assumeRole.bind(null, role, landingPath)` failing `<form action>`'s
+`(formData) => void | Promise<void>` contract: `assumeRole` resolves to
+`AssumeRoleState`, not `void` (by design — `RolePickerForm`/`RoleSwitchHint` need the
+returned `{ok, error}` via `useActionState`). Fixed locally first (a plain client
+wrapper discarding the return value); mid-build, backend independently posted
+`assumeRoleFormAction(role, landingPath): Promise<void>` in
+`src/lib/role-selection/actions.ts` — the same fix, canonicalized in the right file.
+Switched `user-menu.tsx` to the posted wrapper once it landed (`assumeRoleFormAction`
+for the plain-form "Trocar papel" items; `assumeRole` stays the contract for
+`RolePickerForm`/`RoleSwitchHint`, which need the error to show via `useActionState`).
+Re-verified working end-to-end after the switch (§6).
+
+### 5. `roleLabel` — the design note's own open question (§7 Q6), resolved
+
+`UserMenu`'s `roleLabel` prop is unchanged where a caller passes it explicitly (the
+commission shell keeps "Coordenação"/"Membro"/"Administração" — finer nuance within
+one hat). Where no caller passes it (qualidade/nsp/nsp-org/documentos-pendentes/admin/
+conta — none did, before this build), it now defaults to `platformRoleLabel(activeRole)`
+— those shells previously showed no caption at all. Backward compatible by
+construction (explicit always wins); resolves Q6 toward "the active hat's label
+everywhere a shell doesn't ask for finer nuance," not a full replacement.
+
+### 6. Live verification (production standalone build, real personas, real DB)
+
+`next build` (clean, `Compiled successfully` + `Finished TypeScript`, 0 errors) →
+`.next/standalone/server.js` run directly (`PORT=3001`, env sourced from `.env.local`,
+static/public staged per `scripts/e2e-prod-gate.sh`'s own recipe) → driven via the
+Claude Browser tools (`computer{action:"left_click"}` could not deliver trusted
+events in this sandboxed session — screenshots failed with "the Browser pane is not
+displayed, so the page is not compositing frames" — worked around with
+`element.click()` / a `pointerdown`+`pointerup` `PointerEvent` dispatch for opening
+the Radix dropdown, which DOES reach React's handlers; genuine `<form>` submits and
+navigations were exercised for real, only the INPUT-DELIVERY mechanism is a
+workaround, not the code under test):
+
+- **`dualhat.a@test.local`** (org_admin Rede A + quality_reviewer Hospital Central A,
+  no active hat) → signs in → **lands on `/selecionar-perfil`**, both roles shown with
+  their pt-BR labels and single-scope names ("Rede Hospitalar A" / "Hospital Central
+  A") → selects "Revisor(a) da qualidade" via a real radio `.click()` (state updates,
+  Continuar enables) → submits → **lands on `/o/rede-a/qualidade`**, real case data
+  renders, `UserMenu` caption reads "Revisor(a) da qualidade" (the default-from-
+  activeRole path, §5) → opens the account menu → "Trocar papel" shows exactly
+  "Administrador(a) da organização" (the OTHER hat, not itself) → clicks it → **lands
+  on `/o/rede-a/manage`**, real org data renders → navigates to `/o/rede-a/nsp` (no
+  standing under either hat) → global 404 + D9 hint: "Seu papel de **Revisor(a) da
+  qualidade** tem acesso mais amplo aqui" (correctly excludes the active `org_admin`
+  hat) → clicks "Trocar agora" → **lands on `/o/rede-a/qualidade`** again.
+- **`chefe.ccih@test.local`** (staff_admin, single role type) → signs in → lands
+  directly on the commission overview, **never sees the picker** → `UserMenu` shows
+  "Coordenação" (explicit `roleLabel`, unchanged) with **no "Trocar papel" section at
+  all** in the opened menu (confirmed via the DOM: only identity block + Sair).
+- **`multi@test.local`** (2 commissions, ONE role type — the D2 negative case) → signs
+  in → **lands on `/c`** (the pre-existing grouped commission picker), never
+  `/selecionar-perfil` → hitting `/o/rede-a/nsp` (no standing) → global 404, **no D9
+  hint rendered** (empty options, single role type minus itself).
+- Console: no React/hydration errors on any of the above; the only `[error]` entries
+  were expected `404` resource-load logs from the deliberate not-found navigations.
+
+### 7. Gate
+
+`npm run lint` — clean (eslint 0/0 + `lint:css-vars` + `lint:memberships-door`).
+`npm run typecheck` — clean. `next build` — clean (`Compiled successfully` +
+`Finished TypeScript`, 0 errors), all routes registered incl. `/selecionar-perfil` and
+the new `direcao-tecnica` layout. pgTAP/`ARM=*` — not re-run (this session touched
+zero SQL; the backend half's Stage 3 gate already covers the schema). Full `e2e:prod`
+— NOT run here (tester's phase-gate step, not built in this session); the live
+verification in §6 is a manual equivalent of the acceptance criteria's positive/
+negative personas, not a substitute for the tester's own specs.
+
+### 8. Scope note
+
+This session did not touch `supabase/**` or `src/lib/**` (two migrations and several
+test-file edits appeared in the working tree mid-session from `backend`'s concurrent
+work in the same worktree — left untouched, not staged, not committed by this
+commit). `docs/reviews/authz-door-audit-findings.md` also showed as modified
+mid-session (backend's door-audit sweep truncates/restores it) — left untouched.

@@ -19,6 +19,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { orgHref } from "@/lib/routing";
+import type { SessionGrant } from "@/lib/queries/session-grants";
 import { UserMenu } from "./user-menu";
 
 interface OrgNavItem {
@@ -122,6 +123,8 @@ export function OrgManageSidebar({
   qualityIndicatorsEnabled = false,
   accreditationEnabled = false,
   notificationBell,
+  activeRole = null,
+  grants = [],
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
   org: string;
@@ -146,6 +149,12 @@ export function OrgManageSidebar({
    * `next/headers` into the client bundle).
    */
   notificationBell?: React.ReactNode;
+  /** ACT (ADR 0106 D12) — the caller's active hat, for `UserMenu`'s indicator
+   * caption + "Trocar papel" exclusion. */
+  activeRole?: string | null;
+  /** The caller's hat-blind grants (`getRawGrants()`), for `UserMenu`'s
+   * "Trocar papel" switch. */
+  grants?: SessionGrant[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -313,7 +322,13 @@ export function OrgManageSidebar({
         <div className="flex items-center gap-2 border-t border-sidebar-border p-3">
           {notificationBell}
           <div className="min-w-0 flex-1">
-            <UserMenu fullName={fullName} email={email} roleLabel={roleLabel} />
+            <UserMenu
+              fullName={fullName}
+              email={email}
+              roleLabel={roleLabel}
+              activeRole={activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </aside>

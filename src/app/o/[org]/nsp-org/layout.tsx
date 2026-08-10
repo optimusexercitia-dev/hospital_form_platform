@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getSessionContext } from "@/lib/queries/session";
+import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { isNspOrgAdmin } from "@/lib/pqs/org-admin";
@@ -51,9 +51,11 @@ export default async function OrgNspAdminLayout({
   }
 
   // Defense in depth: confirm via the DEFINER probe + require the feature flag.
-  const [confirmed, patientSafetyOn] = await Promise.all([
+  // `grants` feeds ACT's `UserMenu` "Trocar papel" switch (hat-blind, D9).
+  const [confirmed, patientSafetyOn, grants] = await Promise.all([
     isNspOrgAdmin(organization.id),
     patientSafetyEnabled(),
+    getRawGrants(),
   ]);
   if (!confirmed || !patientSafetyOn) {
     notFound();
@@ -87,7 +89,12 @@ export default async function OrgNspAdminLayout({
           <OrgNspAdminNav org={organization.slug} />
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>

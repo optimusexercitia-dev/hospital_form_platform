@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import { getSessionContext } from "@/lib/queries/session";
+import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -35,9 +35,10 @@ export default async function PendingApprovalsLayout({
 }) {
   const { org } = await params;
 
-  const [flagOn, context] = await Promise.all([
+  const [flagOn, context, grants] = await Promise.all([
     controlledDocsEnabled(),
     getSessionContext(),
+    getRawGrants(),
   ]);
   if (!flagOn) {
     notFound();
@@ -103,7 +104,12 @@ export default async function PendingApprovalsLayout({
           <OrgApprovalsNav org={organization.slug} />
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>

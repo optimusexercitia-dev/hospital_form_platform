@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getQualidadeAccessByOrg } from "@/lib/queries/session";
+import { getQualidadeAccessByOrg, getRawGrants } from "@/lib/queries/session";
 import { qualidadeHref } from "@/lib/routing";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -42,7 +42,10 @@ export default async function QualityOfficeLayout({
   params: Promise<{ org: string }>;
 }) {
   const { org } = await params;
-  const access = await getQualidadeAccessByOrg(org);
+  const [access, grants] = await Promise.all([
+    getQualidadeAccessByOrg(org),
+    getRawGrants(),
+  ]);
 
   if (!access) {
     notFound();
@@ -81,7 +84,12 @@ export default async function QualityOfficeLayout({
           <QualityConsoleNav org={organization.slug} />
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </header>
