@@ -80,13 +80,33 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md)) · **S3 GATE GREEN 2026-08-10 — awaiting QA review (step 3) + human approval (step 4)**
+### 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md)) · **S3 QA round 1: CHANGES REQUESTED → blocker FIXED; re-review pending**
 
-> ## ✅ S3 CLOSED BY THE LEAD AUDIT SESSION 2026-08-10 (resume after the pause)
+> ## ⏸ PICK-UP HERE — S3 QA ROUND 1 CLOSED OUT, RE-REVIEW IS THE NEXT ACTION
 >
-> **State:** S0/S1/S2 ✅ · **S3 ✅ built + gate GREEN** (evidence below) · S4 ⬜ not
-> started (explicitly out of scope for the audit session). **QA review (Phase Gate step 3)
-> and human approval (step 4) are STILL PENDING** — the next session starts there.
+> **QA review r1 (`docs/reviews/act-as-stage-3-review.md`, 2026-08-10): CHANGES REQUESTED
+> — 1 BLOCKER + 2 MAJOR.** All three are now addressed (below), so the next action is a
+> **QA re-review (round 2)**, then human approval (step 4). ⚠ Per §6 a CHANGES-REQUESTED
+> verdict loops to step 1, which is why the gate evidence below was **re-earned after the
+> fix**, not carried over.
+>
+> - **BLOCKER-1 + MAJOR-1 → FIXED** (`20260918002800` + keystone `318`): a **fourth class
+>   of hat-blindness** — a boolean gate that RECEIVES the caller's uid as a parameter
+>   rather than reading `auth.uid()`. `app.is_admin_for` was the hat-blind **caller gate
+>   on the membership-grant door** (a platform_admin in any other hat could seat an
+>   org_admin/hospital_admin); `can_manage_professional`'s raw expired-staff_admin arm was
+>   equally hat-blind over 10 Class-2 write RPCs. Full record: Bug Log
+>   **BUG-ACT-S3-CALLERGATE-1**. The S3 sweep missed them by classifying `*_for(uuid)`
+>   helpers from their **signature shape** instead of their **call-site binding** — the
+>   buildnotes paragraph asserting the opposite is corrected in place, struck through, with
+>   the reasoning preserved.
+> - **MAJOR-2 → ESCALATED, not fixed**: the LGPD Art. 18 erasure path — see
+>   **FUP-ACT-DISPOSE-UI** below, re-scoped from "UX ratification" to **close before pilot**.
+>   It needs a PO decision on *where* the affordance mounts; that is a product call, so it
+>   is deliberately NOT bundled into S3.
+>
+> **State:** S0/S1/S2 ✅ · **S3 built, gate re-earned green after the QA fix** · S4 ⬜ not
+> started. **QA re-review (step 3, round 2) and human approval (step 4) PENDING.**
 > ⛔ Local-only throughout; nothing pushed, no `db push`. Remote cutover additionally
 > needs the auth hook ENABLED on Supabase Cloud (a step `db push` does not cover).
 >
@@ -907,11 +927,21 @@ gate re-run):**
 
 **Follow-ups filed by the lead audit session 2026-08-10 (PO ratification pending, same family
 as the two ADR 0106 accepted losses):**
-- 🟡 **FUP-ACT-DISPOSE-UI** — the referral-PHI dispose AFFORDANCE (LGPD erasure path) is
-  unreachable in the UI for every persona post-ADR-0106; the capability survives only at the
-  RPC door (hatted operator / tenancy admin via API). PO to decide where the affordance should
-  live (e.g., an NSP-surface or manage-tier mount). The dispose-dialog KEYBOARD flow returns
-  with whatever relocation is chosen.
+- 🔴 **FUP-ACT-DISPOSE-UI — RE-SCOPED 2026-08-10 by the Stage 3 QA review (MAJOR-2, escalated).
+  Filed originally as UX ratification; that framing was too weak.** This is the **LGPD Art. 18
+  subject-erasure path**, and the QA review established from the catalog that the two sets are
+  **disjoint**: every principal `dispose_referral_phi` authorizes (tenancy admin, PQS operator
+  of either endpoint hospital) is 404'd by the page that hosts the affordance
+  (`encaminhamentos/[referralId]/page.tsx:107`, `access.role === null`), and every principal
+  who can reach that page is refused by the door. So the erasure obligation has **no UI path at
+  all** — the capability survives only via a direct API call. ⚠ The reviewer found the
+  decisive precedent the original filing missed: migration `20260917000400` restored the
+  door's **tenancy-admin arm one day earlier, explicitly to un-strand this same obligation**
+  after QO·B cut it — i.e. the platform has already ruled once that this path must stay
+  reachable, and ACT re-stranded it by a different mechanism. **Disposition: close before
+  pilot, not "whenever the PO gets to it."** The decision that remains genuinely the PO's is
+  *where* the affordance mounts (an NSP-surface mount reaches operators; a manage-tier mount
+  reaches tenancy admins), not *whether*. The dispose-dialog KEYBOARD flow returns with it.
 - 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators need a real assignee-roster door for CAPA actions
   (`listAssignableUsers` reads `profiles` through RLS, which has no operator arm — operators
   see ~only themselves in the picker). Pre-existing narrowness, no longer maskable by union
@@ -1094,6 +1124,46 @@ FALSE, never NULL) in place of `=`, in both functions. Verified all 4 truth-tabl
 before, now guaranteed non-null. Matches the pre-existing house pattern in `app.is_active`
 (`coalesce(..., false)`, same rationale). Full finding + fix:
 `docs/plans/act-as-buildnotes.md` Stage 3 §2.
+
+⬛ **BUG-ACT-S3-CALLERGATE-1 — RESOLVED 2026-08-10 (found by the Stage 3 QA review as
+BLOCKER-1 + MAJOR-1; fixed by the lead in `20260918002800` + keystone `318`).** A **FOURTH
+class of hat-blindness**, distinct from the three the S3 build closed: **a boolean gate that
+RECEIVES the caller's uid as a parameter instead of reading `auth.uid()` itself.** Two gates:
+- **`app.is_admin_for(uuid)` (BLOCKER).** Its niladic sibling `is_admin()` got the D11
+  active-role condition in `20260918002200`; this one was classified "third-party door,
+  correctly hat-independent" — **from the signature shape, not the call-site binding**. Both
+  of its only two callers (`grant_role_impl`, `revoke_role_impl`) receive `p_actor` from
+  `public.grant_role`/`revoke_role`, which bind it to `(select auth.uid())`. So it **was the
+  caller gate on the membership-grant door**: a platform_admin wearing any other hat could
+  seat an `org_admin` or `hospital_admin` — the exact escalation D11 exists to refuse. Proven
+  live pre-fix (`active_role='staff'` ⇒ `is_admin()`=false, `is_admin_for(self)`=true,
+  `grant_role_impl` SUCCEEDED).
+- **`app.can_manage_professional` (MAJOR).** Its raw `memberships` arm — the expired-
+  staff_admin compensating clause Stage 2 preserved deliberately — carried no hat condition,
+  so it admitted a caller not wearing `staff_admin`, gating **10 Class-2 professional-identity
+  / ethics-vocabulary write RPCs**. ⚠ This means the S3 residual-closure claim ("the direct
+  `memberships` criterion was sufficient") was **not literally true** — recorded rather than
+  quietly amended.
+
+**Fix:** the house CALLER-ONLY pattern already carried by `app.has_role` —
+`and (<target> is distinct from auth.uid() or <hat> is not distinct from '<role>')` — so a
+question about a THIRD PARTY is unchanged (ADR 0106 §2: one principal's hat must never alter
+what the system concludes about another), and `IS NOT DISTINCT FROM` (never `=`) keeps it off
+the BUG-ACT-NULLHAT-1 fail-open. `CREATE OR REPLACE` only; catalog property diff confirms
+`prosecdef`/STABLE/ACL/`search_path` all byte-identical after.
+**Verification:** keystone `318` confirmed **RED against the unfixed catalog on all four ⭐
+DISTINGUISHING assertions** (incl. the real door: `grant_role` succeeded under the staff hat)
+while all 7 controls passed — including the third-party invariant and the break-glass
+`lives_ok`. Post-fix: pgTAP **179 files / 5690 tests PASS** (+1 file, +11 tests — exact
+reconciliation), ARM=census 450/461 HOLD, ARM=floor 80 HOLD, **diff-scoped door sweep over
+exactly these 2 gates: 2 COVERED / 0 BLIND / 0 ERROR**. Provably a **no-op on the E2E seed**
+(catalog-verified: 0 expired memberships ⇒ the raw arm cannot fire; 0 `is_admin` principals
+hold a membership ⇒ the caller path is unchanged), which is why no existing test could have
+caught either one — the same argument D11 rests on, now with a keystone behind it.
+⚠ **Expiry semantics deliberately UNCHANGED** — an expired staff_admin still passes that arm,
+it must now merely be wearing the hat. **BUG-ACT-EXPIRY-1 stays open** with its disposition
+intact (that fix is a genuine tightening and needs its own change and gate); keystone 318
+carries a positive twin pinning the preservation, so a future "simplification" reds.
 
 🔴 **BUG-ACT-EXPIRY-1 — OPEN, LATENT (found by ACT Stage 2's equivalence matrix, 2026-08-10;
 deliberately NOT fixed there).** `app.can_manage_professional`'s raw `memberships` branch

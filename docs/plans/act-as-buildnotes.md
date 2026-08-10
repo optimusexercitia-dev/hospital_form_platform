@@ -1454,9 +1454,46 @@ call is `is_admin_for(p_actor)`, a different, third-party-safe function) and
 `public.list_referral_target_commissions` (same pattern, same `is_admin_for`). Every
 real caller and every policy is structurally a CALLER check: `is_admin()` is niladic
 (no argument), reads `auth.uid()` internally, so there is no way for a caller to
-redirect it to check someone else. `app.is_admin_for(p_user_id)` is the pre-existing,
-deliberately separate third-party door — untouched, and correctly independent of any
-hat (no `auth.uid()`/`active_role()` dependency at all).
+redirect it to check someone else.
+
+> ⛔ **CORRECTED 2026-08-10 by the Stage 3 QA review (BLOCKER-1) — the sentence that
+> stood here was FALSE and is preserved struck through, because the *way* it was
+> wrong is the reusable lesson:**
+> ~~"`app.is_admin_for(p_user_id)` is the pre-existing, deliberately separate
+> third-party door — untouched, and correctly independent of any hat (no
+> `auth.uid()`/`active_role()` dependency at all)."~~
+>
+> `is_admin_for` had exactly **two** callers — `app.grant_role_impl` and
+> `app.revoke_role_impl` — and **both** receive `p_actor` from
+> `public.grant_role`/`revoke_role`, which bind it to `(select auth.uid())`. So
+> `is_admin_for(p_actor)` was the **caller gate on the membership-grant door**, and
+> it was hat-blind: a platform_admin wearing any other hat could seat an org_admin
+> or hospital_admin. Proven live before the fix — with `active_role='staff'`,
+> `is_admin()` returned false while `is_admin_for(self)` returned true and
+> `grant_role_impl` SUCCEEDED.
+>
+> **Why the sweep missed it, which is the part worth carrying forward:** the
+> classification was made from the function's **signature shape** ("takes a uuid ⇒
+> third-party door") instead of from its **call-site binding** ("what is actually
+> passed?"). That is this repo's own standing lesson — *the boundary of an
+> enumeration must be the property, not the syntax* — applied to a new surface. A
+> `*_for(uuid)` helper is a third-party door only if no call site binds the
+> parameter to the caller; that is a fact about call sites, and it must be read
+> from them. This is a **fourth class of hat-blindness**, alongside the three the
+> build had already closed: *a boolean gate that RECEIVES the caller's uid rather
+> than reading `auth.uid()` itself.*
+>
+> The reviewer also recorded that their own first closure sweep returned **zero**
+> hat-blind gates and was wrong — the *column* `is_admin` matched the *function*
+> `app.is_admin`, manufacturing a false edge that hid `is_admin_for`. Requiring
+> `name[[:space:]]*\(` surfaced it. **A sweep whose edges are name substrings
+> reports closure it has not proved** — the same shape as this program's earlier
+> `\yname\y` cannot match `name_for` finding.
+>
+> Fixed in `20260918002800` (both `is_admin_for` and the second gate the review
+> found, `can_manage_professional`'s raw expired-staff_admin arm), with the
+> caller-only condition `has_role` already uses, and keystone `318` — confirmed
+> RED against the unfixed catalog on all four ⭐ DISTINGUISHING assertions.
 
 **Break-glass, verified against the real hook, not simulated.** D11's own protection —
 a pure (single-role) platform_admin never needs the picker, the hook derives the hat
