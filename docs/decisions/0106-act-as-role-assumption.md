@@ -24,8 +24,20 @@ Recorded here because the plan file is a build artifact and this ADR is the dura
 1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…002800`).
 2. **`custom_access_token_hook` must be ENABLED on Supabase Cloud.** `db push` does **not**
    cover it — locally it is `config.toml`'s `[auth.hook.custom_access_token]`. Without it the
-   remote mints no `active_role` claim, and under D5 **every multi-role principal becomes a
-   stranger**: total lockout, not degradation. This is the highest-risk item in the program.
+   remote mints no `active_role` claim and, under D5, **EVERY user is a stranger — not just
+   multi-role ones**: the app is unusable until the hook is on. This is the highest-risk item
+   in the program.
+
+   ⚠ **The blast radius is easy to understate, and this record did** (corrected 2026-08-10,
+   S4). The tempting reading is "only multi-role principals are affected, since single-role
+   users have nothing to choose." It is wrong: **D11's implicit single-role derive lives
+   INSIDE the hook** (the `else` branch — exactly one live role type ⇒ derive). No hook means
+   that branch never runs either, so *nobody* gets a claim. `app.active_role()` then returns
+   NULL, and `has_role`'s caller-bound condition — `p_role is not distinct from
+   app.active_role()` — is false for every non-null role, so it fails **closed** for everyone.
+   Measured on a single-role persona with the claim absent: `active_role()` NULL,
+   `has_role(staff_admin, self)` false, commissions visible **0**. This moves deploy
+   sequencing from "some users degraded" to "the application is down".
 
 Because P4 makes the cutover unflagged, it also **forces re-login** — stale pre-cutover sessions
 see stranger-level nothing until they sign in again. Acceptable only because it lands pre-pilot
