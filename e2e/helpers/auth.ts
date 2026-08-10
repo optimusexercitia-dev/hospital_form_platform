@@ -46,11 +46,28 @@ const onLoginPage = (page: Page): boolean => {
   }
 }
 
-/** A real UI login. The only path that spends a GoTrue password grant. */
+/**
+ * A real UI login. The only path that spends a GoTrue password grant.
+ *
+ * @param _actAs — ACT (ADR 0106) Stage 1 harness seam (plan §4 Stage 1: "loginFresh
+ *   … gains an actAs seam — a no-op until the picker exists, flipped in ONE place at
+ *   Stage 3"). `_` -prefixed on purpose (house convention for an intentionally-unused
+ *   binding, CLAUDE.md §8) — this is NOT dead code to clean up. Once Stage 3 ships the
+ *   post-login role picker (multi-role principals land there before their final
+ *   destination), this function is the ONE place that drives it: after the
+ *   `waitForURL` below, branch on whether the picker rendered and, if so, select the
+ *   role matching this parameter (dropping the leading underscore at that point).
+ *   Every other function in this module funnels through here, so no other call site
+ *   needs to change when that lands. Left untyped against the generated
+ *   `Database['public']['Enums']['platform_role']` union deliberately — Stage 3 picks
+ *   the type once something actually consumes the value; coupling it now would be a
+ *   second thing Stage 3 has to touch.
+ */
 export async function loginFresh(
   page: Page,
   email: string,
   password: string = DEFAULT_PASSWORD,
+  _actAs?: string,
 ): Promise<void> {
   await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.getByLabel(/e-mail/i).waitFor({ state: 'visible', timeout: 30_000 })
@@ -58,6 +75,7 @@ export async function loginFresh(
   await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
+  // Stage 3 inserts the picker-interaction block here (see the `_actAs` doc above).
 }
 
 /**
@@ -67,17 +85,32 @@ export async function loginFresh(
  * the post-login destination (never /login). Every local `signInAs` in e2e/ delegates
  * here, so that contract must not weaken — specs rely on being "somewhere authenticated"
  * when this resolves.
+ *
+ * @param actAs — ACT (ADR 0106) Stage 1 harness seam (plan §4 Stage 1: "…and any
+ *   storage-state reuse path in the same module — gains an actAs seam"). This IS the
+ *   storage-state reuse path the plan means. Still UI-wise a no-op today (threaded
+ *   straight through to `loginFresh`'s own no-op parameter, see its doc), but the
+ *   cache key is partitioned by it starting now, deliberately: once Stage 3 makes the
+ *   active hat part of what a login produces, the SAME persona signed in under two
+ *   different hats is two different sessions, and a cache keyed on email alone would
+ *   silently hand back the wrong hat's cookies to a test that asked for the other one.
+ *   No existing call site passes `actAs`, so `cacheKey` collapses to plain `email` and
+ *   today's behavior is byte-identical — this is why Stage 3 does not need to revisit
+ *   the caching logic itself, only `loginFresh`'s body.
  */
 export async function cachedSignIn(
   page: Page,
   email: string,
   password: string = DEFAULT_PASSWORD,
+  actAs?: string,
 ): Promise<void> {
   // Always clear first: navigating to /login while still authenticated redirects to the
   // PREVIOUS user's home and no login form ever appears.
   await page.context().clearCookies()
 
-  const cached = memo.get(email)
+  const cacheKey = actAs ? `${email}::${actAs}` : email
+
+  const cached = memo.get(cacheKey)
   if (cached && cached.length > 0) {
     await page.context().addCookies(cached)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
@@ -85,14 +118,14 @@ export async function cachedSignIn(
       // Re-capture: @supabase/ssr may have rotated the refresh token during that
       // navigation. Storing the post-navigation set keeps this worker's copy current
       // instead of replaying a token the server has already consumed.
-      memo.set(email, await page.context().cookies())
+      memo.set(cacheKey, await page.context().cookies())
       return
     }
-    memo.delete(email) // session rejected — fall through to a real login
+    memo.delete(cacheKey) // session rejected — fall through to a real login
   }
 
-  await loginFresh(page, email, password)
-  memo.set(email, await page.context().cookies())
+  await loginFresh(page, email, password, actAs)
+  memo.set(cacheKey, await page.context().cookies())
 }
 
 /** Back-compat alias — the name 67 spec files already use. */
