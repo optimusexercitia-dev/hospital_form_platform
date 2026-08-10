@@ -1418,3 +1418,220 @@ test-file edits appeared in the working tree mid-session from `backend`'s concur
 work in the same worktree — left untouched, not staged, not committed by this
 commit). `docs/reviews/authz-door-audit-findings.md` also showed as modified
 mid-session (backend's door-audit sweep truncates/restores it) — left untouched.
+
+## Stage 3 — D11 + the 3-arg `has_role` BLIND (backend, 2026-08-10)
+
+Coordinator ruling on top of the Stage 3 backend-half report: implement D11 NOW
+(`is_admin()` gains the active-role condition), and disposition the 3-arg `has_role`
+BLIND finding from the earlier diff-scoped sweep — keystone it or drop it, no
+allowlist (it is reachable, just unused).
+
+### 1. `app.is_admin()` — D11 implementation
+
+Migration `20260918002200_act_stage3_is_admin_hat_condition.sql`. Same shape as
+`has_role`/`has_role_any`: `v_is_admin and (app.active_role() is not distinct from
+'platform_admin')` — `IS NOT DISTINCT FROM`, not `=` (BUG-ACT-NULLHAT-1's fix,
+reapplied here for the same reason: a hatless caller's `active_role()` is NULL, and
+`TRUE and NULL` is NULL, not FALSE).
+
+**Blast radius, measured not trusted.** Comment-stripped, balanced-paren sweep of all
+928 functions in `app`/`public` (same corpus/script as Stage 2's equivalence proof):
+17 real callers, 26 RLS policies. Two raw-grep hits were comment-only false
+positives — `app.revoke_role_impl` (comment says "no is_admin() here", but the real
+call is `is_admin_for(p_actor)`, a different, third-party-safe function) and
+`public.list_referral_target_commissions` (same pattern, same `is_admin_for`). Every
+real caller and every policy is structurally a CALLER check: `is_admin()` is niladic
+(no argument), reads `auth.uid()` internally, so there is no way for a caller to
+redirect it to check someone else. `app.is_admin_for(p_user_id)` is the pre-existing,
+deliberately separate third-party door — untouched, and correctly independent of any
+hat (no `auth.uid()`/`active_role()` dependency at all).
+
+**Break-glass, verified against the real hook, not simulated.** D11's own protection —
+a pure (single-role) platform_admin never needs the picker, the hook derives the hat
+implicitly — checked two ways in `315_act_stage3_hat_condition.sql`'s new block: (a)
+CONTROL — the fixture's `admin` made multi-role (org_admin@org_b added) — the hook now
+mints NO `active_role` claim (a real choice is needed); (b) restored to pure
+platform_admin (membership removed) — the hook mints `active_role='platform_admin'`
+with zero picker/UI involvement. Both against `public.custom_access_token_hook`
+directly, not a hand-simulated claim.
+
+### 2. `assume_role`'s chicken-and-egg bug — found proactively, before shipping
+
+The third-party sweep above requires reasoning about every caller of `is_admin()`,
+including `public.assume_role` itself — which called `app.is_admin()` to check
+ELIGIBILITY to ACQUIRE the `platform_admin` hat. Once `is_admin()` requires the
+active-role claim to ALREADY equal `platform_admin`, that check is circular for the
+one population it exists to serve: a multi-role platform_admin trying to switch INTO
+that hat from any OTHER hat, or from a hatless session, could never pass — `is_admin()`
+would require the very hat they are trying to acquire. Proven live before shipping (not
+inferred): synthetic org_admin membership added to the seed platform_admin, active
+hat set to `org_admin`, `app.is_admin()` called directly → `f`. Fixed in the same
+migration by having the `platform_admin` branch check the raw entitlement
+(`profiles.is_admin`) directly — the identical shape the function's own `else` branch
+already used for ordinary roles (a raw `memberships` existence check, never
+`has_role`/`has_role_any`) — because `assume_role` answers "am I entitled to switch to
+this", not "is this my current hat". Zero seed personas exercise this path today (no
+platform_admin is multi-role), so it shipped as a proactive fix, not a bug-fix-after-
+red.
+
+### 3. No-op proof — empirical, with the coordinator-required synthetic fixture
+
+The no-op argument ("D11 changes nothing today") rests entirely on data: zero
+platform_admins hold any membership in `seed.sql`, so every platform_admin session is
+single-role and the hook derives the hat implicitly. That fixture — a MULTI-role
+platform_admin — does not exist in seed, so it was constructed by hand
+(`is_admin_matrix.sql`, run manually against the live catalog, not committed as
+throwaway scaffolding): a synthetic `org_admin` membership added to the seed
+platform_admin, then an 8-case × 2-phase matrix (BEFORE the pre-D11 body, temporarily
+restored via `CREATE OR REPLACE` inside a transaction; AFTER the shipped D11 body) run
+against the identical claim sequence:
+
+| case | BEFORE (pre-D11) | AFTER (D11) |
+|---|---|---|
+| multi-role admin, hat=platform_admin | T | T |
+| multi-role admin, hat=org_admin (⭐ distinguishing) | **T** | **F** |
+| multi-role admin, no hat | T | F |
+| plain org_admin, never admin | F | F |
+| plain staff_admin, never admin | F | F |
+| random non-member | F | F |
+| downstream `can_curate_pqs_vocab(null)`, wrong hat | T | F |
+| downstream `can_curate_pqs_vocab(null)`, matching hat | T | T |
+
+Only the ⭐ row (and its downstream echo) differs — every other row, including the
+downstream caller, is byte-identical across both phases. This is the ONLY row able to
+distinguish the two implementations (a single-role platform_admin, which is every
+OTHER pgTAP fixture in the suite, produces `T` under both bodies regardless — a
+single-role admin with no active hat still resolves the SAME hat via the hook's
+implicit derivation before `is_admin()` is ever called with a real session claim). The
+permanent keystone version of this (3 of the 8 rows — hat-matching, wrong-hat,
+hatless) lives in `315_act_stage3_hat_condition.sql`'s `is_admin()` block, using the
+SAME synthetic-multi-role construction so the diff-scoped door sweep has a real path
+to exercise.
+
+### 4. TRIPWIRE — the no-op argument's own load-bearing assumption, made falsifiable
+
+`315_act_stage3_hat_condition.sql`, first assertion, BEFORE `test_helpers.bootstrap()`
+(which truncates `memberships`/`profiles` and would hide real seed data — the Stage 1
+buildnotes finding on `bootstrap()`'s own truncate-cascade): `count(*) from memberships
+m join profiles p on p.id = m.principal_id where p.is_admin = true` must be `0`. If a
+future `seed.sql` change, migration, or (pre-pilot only) direct prod data ever gives a
+platform_admin a real membership row, this goes RED on the next `db reset` +
+`test:db` — the guard an argument resting on "today's data has zero of these" needs.
+
+### 5. The 3-arg `has_role` BLIND — dropped, not kept and not keystoned
+
+Coordinator's ruling: this is in scope for Stage 3 even though its text was never
+modified, because Stage 3 changed what the 4-arg `has_role` MEANS without changing the
+3-arg wrapper's text — the 3-arg form is a pure delegation
+(`app.has_role(p_scope_type, p_scope_id, p_role, auth.uid())`), always a caller check,
+now inheriting the hat condition transitively. Instructed: keystone it with a real
+call path, or prove it unreachable and drop it — an allowlist is explicitly wrong here
+(CLAUDE.md §6 permits allowlisting only an unreachable backstop, and a keystone would
+need a real caller, so "unreachable" and "allowlist-worthy" are not the same claim).
+
+Reachability checked on four independent surfaces, all zero:
+- Comment-stripped, balanced-paren sweep of the same 928-function corpus: 0 calls to
+  `has_role(...)` at exactly 3 arguments. All 21 real `has_role` calls in the corpus
+  use the 4-arg form (via the `is_*_of`/`is_*_of_for` wrapper family the codebase
+  actually adopted).
+- `pg_policies` (all schemas): 0 policies reference `has_role` at ANY arity — every
+  policy goes through an `is_*` wrapper, never the predicate directly.
+- `supabase/seed.sql`, `supabase/demo/**`: 0 references.
+- `src/**` (TypeScript): 0 `.rpc()`/query-builder references (3 grep hits are
+  documentation prose citing the predicate by name in a comment; `app` is not exposed
+  to PostgREST regardless, so no client call could reach it even if one existed).
+
+Its own origin migration (`20260720000100_has_role_predicate_family.sql` — read for
+historical narrative only, never as truth, per the binding catalog rule) names it "3-
+arg convenience overload... for policy context" — a convenience the codebase never
+adopted. Dropped in `20260918002300_act_stage3_drop_unreachable_has_role_3arg.sql`
+(`DROP FUNCTION`, not neutralized/guarded) — this removes the BLIND finding at its
+root instead of guarding a door nothing opens. The 4-arg `has_role` — the one every
+real caller uses, and the one the existing revert-twin keystone directly exercises —
+is untouched.
+
+### 6. Two pgTAP fixture regressions found by the D11 migration, both fixed
+
+- `150_referrals.sql` R2 ("an admin (`is_admin` claim) can create a requested-action")
+  died `HC0A3`: its `admin` fixture already held a `pqs_member`@hosp_b membership from
+  an earlier, unrelated fixture section (lines 46-48) — multi-role, so the bare
+  `claims_for(admin, true)` (no explicit hat) could no longer auto-derive one under
+  the new D11-gated `is_admin()`. Fixed: added the explicit `'platform_admin'` third
+  argument.
+- `141_event_triage.sql` crashed ("Bad plan: 44 tests but ran 4") — a REGRESSION from
+  this session's OWN earlier blanket fix (all `admin` claims_for calls in the file set
+  to `'pqs_member'`). Two calls (lines 70, 190) create/update a sentinel criterion with
+  `hospital_id = null` (global vocab curation); `can_curate_pqs_vocab(null)` routes
+  through the `is_admin()` branch, not the `pqs_member`/`is_pqs_operator_of` branch —
+  under D11-gated `is_admin()`, a `pqs_member`-hatted caller correctly fails a
+  platform-scoped check. Fixed by correcting exactly those 2 of 15 `admin` claims_for
+  sites back to `'platform_admin'`, after confirming (by inspecting all 15) the other
+  13 are genuinely hospital-scoped and correctly stay `pqs_member`.
+
+### 7. A pre-existing door-audit harness gap, found and fixed while diff-sweeping `is_admin()`
+
+The diff-scoped sweep (`CASES="is_admin"`) first returned `ERROR run-shape!=baseline`
+(Files matched, Tests=5647 vs baseline 5650) — not BLIND, not COVERED. Per §7.15 this
+is a harness bug to fix, not a result to accept. Root cause, found in the runlog (not
+assumed from the summary line — "ERROR|run-shape!=baseline ≠ unswept, read the
+runlog"): `supabase/tests/176_nsp_per_org_b_support.sql:373` asserted
+`(select slug from commissions where organization_id = org_a)` as a bare scalar
+subquery. `is_admin()`'s "positive" neutralization forces it `TRUE` for EVERY caller
+(not just admins) — widening `commissions_select_member_or_admin`'s `is_admin()` OR-
+arm to admit a plain non-admin persona (`chefe.ccih`) into a second commission row.
+Postgres raised "more than one row returned by a subquery used as an expression" as a
+hard runtime error, aborting the file 3 tests early (`Bad plan: 33 planned, 30 ran`) —
+not a pgTAP assertion failure, a crash the harness correctly refuses to auto-classify.
+Fixed by making that one assertion crash-proof —
+`string_agg(slug, ',' order by slug)` in place of the bare scalar subquery — same
+assertion intent (still fails cleanly, `'ccih,farmacia' != 'ccih'`, on a widened
+result), just no longer traps. Re-swept clean: `COVERED`, held (asserted-through) by
+30 files.
+
+This ERROR predates ACT entirely — `docs/reviews/authz-door-audit-findings.md` already
+carried `app.is_admin() | ERROR | run-shape!=baseline (Files=156 Tests=4785)` from a
+prior full sweep, long before Stage 3 touched the function. D11's diff-scoped
+requirement is what finally forced a resolution; the row is hand-merged from ERROR to
+COVERED (findings-file convention: restore-from-HEAD, reapply as the sole hand-edited
+region, same as the two prior FUP-AUTHZ-4/MIN precedents).
+
+### 8. `assumeRoleFormAction` — the cross-team contract gap, resolved additively
+
+`npm run typecheck` red on `src/components/shell/user-menu.tsx` (frontend's own,
+concurrently in-progress, uncommitted file — outside this turn's touchable scope) was
+NOT something to fix by editing that file. `assumeRole(role, landingPath):
+Promise<AssumeRoleState>` is load-bearing for `RolePickerForm`/`RoleSwitchHint` (both
+already wired through `useActionState`, need the returned `{ok, error}`) — its
+signature could not change. Added `assumeRoleFormAction(role, landingPath):
+Promise<void>` to `src/lib/role-selection/actions.ts` instead: a thin, additive
+wrapper (`await assumeRole(...)`, discarding the resolved state — `redirect()`'s throw
+still propagates through the `await` unmodified) matching `<form action>`'s own
+`(formData) => void | Promise<void>` contract, for callers that bind it directly
+rather than driving it through `useActionState`. `assumeRole` itself is byte-unchanged.
+Frontend's own buildnotes entry (Stage 3 — frontend half, §4) confirms they arrived at
+the identical fix independently before this landed, then switched `user-menu.tsx` to
+the posted wrapper once available — convergent, not coordinated in real time.
+
+### 9. `ARM=census` — confirmed still not the arm that grew (D11 included)
+
+Same finding as the earlier Stage 3 backend-half report (§12 above), now re-confirmed
+with `is_admin()` in the diff: `active_role()` returns `text`, not `boolean`, so it is
+outside the census's counted boolean-gate population by construction — adding a text-
+typed helper, or gating an EXISTING boolean predicate on it (as D11 does to
+`is_admin()`), does not change the census's `live authz gates` count. The real
+coverage for the hat lives in the revert-twin/D11 keystones and the diff-scoped
+predicate-arm sweep, not in `ARM=census`.
+
+### 10. Gate — full Phase Gate step 1, re-run from a genuine fresh reset
+
+`supabase db reset --local` (340 registered == 340 files) → `npm run test:db` twice
+(fresh, then no-reset): both `Files=176, Tests=5650, Result: PASS`. `npm run
+gen:types`: `src/lib/types/database.ts` byte-unchanged (both `is_admin()` and the
+dropped 3-arg `has_role` live in the `app` schema, never exposed to PostgREST;
+`assume_role`'s signature unchanged). `npm run lint`: clean (eslint 0/0 +
+`lint:css-vars` + `lint:memberships-door`). `npm run typecheck`: clean (0 errors,
+after §8's `assumeRoleFormAction` landed and frontend switched to it). `ARM=census`:
+461 verdicts ≥ 450 live gates, holds. `ARM=floor`: 80 never-called doors, all
+allowlisted, holds. Diff-scoped door sweep, `CASES="is_admin"`: `COVERED`, `BLIND: 0`,
+`ERROR: 0`. Findings file restored to HEAD + hand-merged (§7) as the sole edit, not
+left as the script's own truncated partial-run output.
