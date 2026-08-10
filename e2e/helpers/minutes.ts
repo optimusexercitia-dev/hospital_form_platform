@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
-import type { Page } from "@playwright/test";
+import { request as playwrightRequest, type Page } from "@playwright/test";
 
 import type { CallbackPayload, MeetingMinutesResult } from "@/lib/audio-jobs/types";
 import { signCallbackBody } from "@/lib/audio-jobs/hmac";
@@ -522,6 +522,15 @@ export function buildErrorCallback(jobId: string): CallbackPayload {
  *
  * Signs the EXACT string sent as the body (byte-exact — hmac.ts's own load-bearing
  * property #2), never a re-serialization of `payload`.
+ *
+ * ⚠ Posts from a FRESH, COOKIE-LESS request context, deliberately — never `page.request`,
+ * which shares the browser's cookie jar. The real caller is the `minute_generator`
+ * service: a machine with no session, whose only credential is the HMAC. Signing from an
+ * authenticated context tests a caller that does not exist in production, and that is
+ * exactly how a P0 shipped: the route read its feature flag through the session client,
+ * every spec's callback arrived carrying a logged-in user's cookies and passed, and the
+ * first real delivery resolved as `anon` — where `get_feature_flags` has no EXECUTE — so
+ * it was silently 200-dropped. The absence of cookies here IS the test.
  */
 export async function postSignedCallback(
   page: Page,
@@ -532,18 +541,25 @@ export async function postSignedCallback(
   const timestamp = opts.timestamp ?? Math.floor(Date.now() / 1000).toString();
   const signature = opts.signature ?? signCallbackBody(rawBody, timestamp, opts.secret ?? CALLBACK_SECRET);
 
-  const resp = await page.request.post("/api/webhooks/audio-jobs", {
-    headers: { "Content-Type": "application/json", "x-signature": signature, "x-timestamp": timestamp },
-    data: rawBody,
-  });
-  const text = await resp.text();
-  let body: unknown;
+  // `page` is still the parameter because every call site has one and it carries the
+  // origin under test; only its cookies are left behind.
+  const ctx = await playwrightRequest.newContext({ baseURL: new URL(page.url()).origin });
   try {
-    body = JSON.parse(text);
-  } catch {
-    body = text;
+    const resp = await ctx.post("/api/webhooks/audio-jobs", {
+      headers: { "Content-Type": "application/json", "x-signature": signature, "x-timestamp": timestamp },
+      data: rawBody,
+    });
+    const text = await resp.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+    return { status: resp.status(), body };
+  } finally {
+    await ctx.dispose();
   }
-  return { status: resp.status(), body };
 }
 
 // ---------------------------------------------------------------------------

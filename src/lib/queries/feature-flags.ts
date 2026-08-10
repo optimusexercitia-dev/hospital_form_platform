@@ -353,22 +353,59 @@ export async function audioMinutesEnabled(): Promise<boolean> {
 }
 
 /**
+ * All feature flags read through the SERVICE-ROLE client — the reader for server
+ * surfaces that run with **NO SESSION**: the public `/verificar` pages (ADR 0104
+ * D10) and the machine-called audio-jobs webhook (ADR 0099 D10).
+ *
+ * `public.get_feature_flags()` has EXECUTE for `authenticated` and `service_role`
+ * only (catalog-verified: `postgres=X | service_role=X | authenticated=X`), so on a
+ * session-less request the cookie-client path in {@link getFeatureFlags} resolves as
+ * `anon`, the RPC errors, and every flag safe-defaults to OFF. Granting `anon`
+ * EXECUTE was refused as widening an unauthenticated surface for a convenience read
+ * (lead ruling, 2026-08-07); this is the sanctioned path instead.
+ *
+ * ⚠ Returns **`null` when the flags could not be READ**, which callers must never
+ * conflate with "the flag is off". That distinction is the whole point of this
+ * function: safe-defaulting to OFF is right for a RENDER (hide the surface, no harm
+ * done) and destructive for a WEBHOOK (a permanently dropped delivery, and the job it
+ * carried is unrecoverable). `/verificar` folds `null` into "closed"; the webhook
+ * answers 503 so the service retries.
+ */
+export const getFeatureFlagsServerOnly = cache(
+  async (): Promise<Record<string, boolean> | null> => {
+    try {
+      const admin = createAdminClient()
+      const { data, error } = await admin.rpc('get_feature_flags')
+      if (error || !data || typeof data !== 'object') return null
+      return data as Record<string, boolean>
+    } catch {
+      // A missing SUPABASE_SERVICE_ROLE_KEY throws inside the client factory. Still
+      // "could not read", not "off".
+      return null
+    }
+  },
+)
+
+/**
+ * Whether a single flag is ON, read WITHOUT a session — see
+ * {@link getFeatureFlagsServerOnly} for when to reach for this instead of
+ * {@link featureEnabled}, and why `null` (unreadable) is not `false` (off).
+ */
+export async function featureEnabledServerOnly(key: FeatureFlagKey): Promise<boolean | null> {
+  const flags = await getFeatureFlagsServerOnly()
+  return flags === null ? null : flags[key] === true
+}
+
+/**
  * PDF·P1 (ADR 0104): the `document_printing` flag, readable WITHOUT a session —
  * for the PUBLIC `/verificar` pages, which are unauthenticated by design (D10)
  * and `notFound()` when the module is off.
  *
- * Deliberately NOT `featureEnabled('document_printing')`: that path calls the
- * `get_feature_flags()` RPC through the cookie client, and `get_feature_flags`
- * has NO anon EXECUTE (catalog-verified 2026-08-07) — granting it one would
- * widen an unauthenticated surface for a convenience read (lead ruling,
- * 2026-08-07). Instead the flag rides the same server-only service-role path
- * the verification lookup already uses. Authenticated screens keep using
+ * Deliberately NOT `featureEnabled('document_printing')` — see
+ * {@link getFeatureFlagsServerOnly}. Authenticated screens keep using
  * `featureEnabled('document_printing')` as usual.
  */
 export async function documentPrintingEnabled(): Promise<boolean> {
-  const admin = createAdminClient()
-  const { data, error } = await admin.rpc('get_feature_flags')
-  if (error) return false // fail closed: no flags, no public surface
-  const flags = (data ?? {}) as Record<string, boolean>
-  return flags['document_printing'] === true
+  // Fail closed: unreadable flags must not open a public surface.
+  return (await featureEnabledServerOnly('document_printing')) === true
 }

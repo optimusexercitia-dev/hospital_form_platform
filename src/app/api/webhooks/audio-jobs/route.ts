@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { verifyCallbackSignature } from '@/lib/audio-jobs/hmac'
 import { parseAudioJobMetadata } from '@/lib/audio-jobs/metadata'
 import type { CallbackPayload } from '@/lib/audio-jobs/types'
-import { featureEnabled } from '@/lib/queries/feature-flags'
+import { featureEnabledServerOnly } from '@/lib/queries/feature-flags'
 import { handleMeetingMinutesCallback } from '@/lib/minutes-jobs/webhook'
 
 /**
@@ -23,6 +23,11 @@ import { handleMeetingMinutesCallback } from '@/lib/minutes-jobs/webhook'
  *     unknown job id, a flag that is off, and a re-delivery for an already-terminal job.
  *     Each of those is permanent: retrying cannot change the outcome, and answering 4xx
  *     would earn a retry storm from a service that is not at fault.
+ *   - **503** — a TRANSIENT inability to decide, today only "the feature flags could not
+ *     be read at all". The service SHOULD retry, because the next attempt may well
+ *     succeed. This arm exists because the alternative — folding an unreadable flag into
+ *     "off" and answering 200 — silently and permanently discards a delivery whose job is
+ *     then unrecoverable (see the flag gate below).
  *   - **500** — never deliberately. A 500 is a bug in this handler.
  *
  * `dispatch on metadata.job_type` is what makes this ONE endpoint for every future audio
@@ -40,6 +45,11 @@ function unauthorized() {
 /** A 200 that carries WHY we did nothing, for the server log and the E2E fixtures. */
 function accepted(note: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ ok: true, note, ...extra }, { status: 200 })
+}
+
+/** "I could not decide — ask again." The service's tenacity retry acts on this. */
+function retryLater(note: string) {
+  return NextResponse.json({ ok: false, note }, { status: 503 })
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -77,7 +87,25 @@ export async function POST(request: Request): Promise<Response> {
 
   // The flag gate lives AFTER signature + parse so a flag-off deployment still logs which
   // job was dropped. The service is not at fault, so 200 — never a retry.
-  if (!(await featureEnabled('audio_minutes'))) {
+  //
+  // ⚠ `featureEnabledServerOnly`, NOT `featureEnabled`. This caller is a MACHINE with no
+  // cookie, so the ordinary reader's cookie client resolves as `anon` — where
+  // `get_feature_flags` has no EXECUTE. It errored, safe-defaulted every flag to OFF, and
+  // this route 200-dropped every real callback in production while the E2E suite stayed
+  // green, because `page.request` posts with the browser's session attached. A flag read
+  // on an unauthenticated surface must not go through the session client.
+  const audioMinutesOn = await featureEnabledServerOnly('audio_minutes')
+  if (audioMinutesOn === null) {
+    // Unreadable ≠ off. Dropping here would be permanent, and the callback is the ONLY
+    // carrier of the minutes + transcript: reconciliation polls status alone and will not
+    // reconstruct them, so a 200 here loses the job for good.
+    console.error(
+      '[audio-jobs] could not read feature flags; asking the service to retry',
+      metadata.platform_job_id,
+    )
+    return retryLater('flag read unavailable')
+  }
+  if (!audioMinutesOn) {
     console.warn('[audio-jobs] audio_minutes is OFF; dropping callback', metadata.platform_job_id)
     return accepted('feature disabled')
   }

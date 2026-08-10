@@ -14,13 +14,19 @@ const SECRET = 'route-test-secret'
 const JOB_ID = '11111111-2222-3333-4444-555555555555'
 
 const handleMeetingMinutesCallback = vi.fn()
-const featureEnabled = vi.fn()
+const featureEnabledServerOnly = vi.fn()
 
 vi.mock('@/lib/minutes-jobs/webhook', () => ({
   handleMeetingMinutesCallback: (...args: unknown[]) => handleMeetingMinutesCallback(...args),
 }))
+// ⚠ The route must read flags through the SESSION-LESS reader: its caller is a machine
+// with no cookie, and `get_feature_flags` has no anon EXECUTE. Mocking `featureEnabled`
+// here (as this file used to) is what let the production bug through — the mock made the
+// session-dependent read look like it worked. Naming the server-only reader is therefore
+// part of the assertion: if the route reverts to `featureEnabled`, the real one runs, the
+// admin client is never stubbed, and these tests fail rather than passing vacuously.
 vi.mock('@/lib/queries/feature-flags', () => ({
-  featureEnabled: (...args: unknown[]) => featureEnabled(...args),
+  featureEnabledServerOnly: (...args: unknown[]) => featureEnabledServerOnly(...args),
 }))
 
 function body(overrides: Record<string, unknown> = {}): string {
@@ -57,8 +63,8 @@ async function POST(request: Request) {
 beforeEach(() => {
   vi.resetModules()
   handleMeetingMinutesCallback.mockReset()
-  featureEnabled.mockReset()
-  featureEnabled.mockResolvedValue(true)
+  featureEnabledServerOnly.mockReset()
+  featureEnabledServerOnly.mockResolvedValue(true)
   handleMeetingMinutesCallback.mockResolvedValue({ handled: true, updated: true, note: 'done' })
   process.env.MINUTES_CALLBACK_HMAC_SECRET = SECRET
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -152,7 +158,7 @@ describe('200 — permanent conditions must never earn a retry', () => {
   })
 
   it('drops the callback when the flag is OFF — the service is not at fault', async () => {
-    featureEnabled.mockResolvedValue(false)
+    featureEnabledServerOnly.mockResolvedValue(false)
     const raw = body()
     const res = await POST(post(raw, signedHeaders(raw)))
     expect(res.status).toBe(200)
@@ -161,8 +167,34 @@ describe('200 — permanent conditions must never earn a retry', () => {
   })
 
   it('checks the flag only AFTER the signature — an unsigned probe is still 401', async () => {
-    featureEnabled.mockResolvedValue(false)
+    featureEnabledServerOnly.mockResolvedValue(false)
     expect((await POST(post(body()))).status).toBe(401)
+  })
+})
+
+describe('503 — an UNREADABLE flag is not an OFF flag', () => {
+  // The production incident this guards: the route read the flag through the session
+  // client, the machine caller had no cookie, the read errored, it safe-defaulted to OFF,
+  // and every real callback was 200-dropped. 200 is unrecoverable here — the callback is
+  // the only carrier of the minutes and transcript, and reconciliation polls status only.
+  it('asks the service to retry when the flags cannot be read', async () => {
+    featureEnabledServerOnly.mockResolvedValue(null)
+    const raw = body()
+    const res = await POST(post(raw, signedHeaders(raw)))
+    expect(res.status).toBe(503)
+    expect(handleMeetingMinutesCallback).not.toHaveBeenCalled()
+  })
+
+  it('does NOT answer 200 for an unreadable flag — a 200 stops the retry forever', async () => {
+    featureEnabledServerOnly.mockResolvedValue(null)
+    const raw = body()
+    expect((await POST(post(raw, signedHeaders(raw)))).status).not.toBe(200)
+  })
+
+  it('still refuses an unsigned request before it ever reads a flag', async () => {
+    featureEnabledServerOnly.mockResolvedValue(null)
+    expect((await POST(post(body()))).status).toBe(401)
+    expect(featureEnabledServerOnly).not.toHaveBeenCalled()
   })
 })
 
