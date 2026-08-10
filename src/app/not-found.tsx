@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
  * exists) is never softened, only ever appended to.
  */
 export default async function NotFound() {
-  const { options, grants } = await getRoleSwitchOptions();
+  const { options } = await getRoleSwitchOptions();
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 px-6 py-24 text-center">
@@ -50,7 +50,7 @@ export default async function NotFound() {
       <Button asChild size="lg">
         <Link href="/">Voltar para o início</Link>
       </Button>
-      <RoleSwitchHint options={options} grants={grants} />
+      <RoleSwitchHint options={options} />
     </main>
   );
 }

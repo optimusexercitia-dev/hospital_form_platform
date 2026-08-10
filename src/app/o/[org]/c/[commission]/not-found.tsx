@@ -17,7 +17,7 @@ import { RoleSwitchHint } from "@/components/role/role-switch-hint";
  * params), so the recovery link points at `/` rather than the commission root.
  */
 export default async function CommissionNotFound() {
-  const { options, grants } = await getRoleSwitchOptions();
+  const { options } = await getRoleSwitchOptions();
 
   return (
     <section className="animate-rise-in mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
@@ -34,7 +34,7 @@ export default async function CommissionNotFound() {
       >
         Voltar ao início
       </Link>
-      <RoleSwitchHint options={options} grants={grants} />
+      <RoleSwitchHint options={options} />
     </section>
   );
 }

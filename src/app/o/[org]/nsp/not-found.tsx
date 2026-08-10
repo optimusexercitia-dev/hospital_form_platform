@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
  * recovery link points at `/` rather than the console root.
  */
 export default async function NspNotFound() {
-  const { options, grants } = await getRoleSwitchOptions();
+  const { options } = await getRoleSwitchOptions();
 
   return (
     <div className="animate-rise-in mx-auto flex max-w-xl flex-col items-center justify-center gap-5 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-20 text-center">
@@ -40,7 +40,7 @@ export default async function NspNotFound() {
       <Button asChild size="lg">
         <Link href="/">Voltar para o início</Link>
       </Button>
-      <RoleSwitchHint options={options} grants={grants} />
+      <RoleSwitchHint options={options} />
     </div>
   );
 }

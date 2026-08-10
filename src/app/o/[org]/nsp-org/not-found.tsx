@@ -18,7 +18,7 @@ import { RoleSwitchHint } from "@/components/role/role-switch-hint";
  * already-entered console calling `notFound()` itself.
  */
 export default async function OrgNspAdminNotFound() {
-  const { options, grants } = await getRoleSwitchOptions();
+  const { options } = await getRoleSwitchOptions();
 
   return (
     <section className="animate-rise-in mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
@@ -36,7 +36,7 @@ export default async function OrgNspAdminNotFound() {
       >
         Voltar ao início
       </Link>
-      <RoleSwitchHint options={options} grants={grants} />
+      <RoleSwitchHint options={options} />
     </section>
   );
 }

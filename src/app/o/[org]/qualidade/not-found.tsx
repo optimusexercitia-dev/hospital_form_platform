@@ -22,7 +22,7 @@ import { RoleSwitchHint } from "@/components/role/role-switch-hint";
  * has a place to fire, just not the primary one the design note assumed.
  */
 export default async function QualityConsoleNotFound() {
-  const { options, grants } = await getRoleSwitchOptions();
+  const { options } = await getRoleSwitchOptions();
 
   return (
     <section className="animate-rise-in mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
@@ -40,7 +40,7 @@ export default async function QualityConsoleNotFound() {
       >
         Voltar ao início
       </Link>
-      <RoleSwitchHint options={options} grants={grants} />
+      <RoleSwitchHint options={options} />
     </section>
   );
 }
