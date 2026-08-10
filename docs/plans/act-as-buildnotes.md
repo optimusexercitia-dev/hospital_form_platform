@@ -1647,3 +1647,256 @@ after §8's `assumeRoleFormAction` landed and frontend switched to it). `ARM=cen
 allowlisted, holds. Diff-scoped door sweep, `CASES="is_admin"`: `COVERED`, `BLIND: 0`,
 `ERROR: 0`. Findings file restored to HEAD + hand-merged (§7) as the sole edit, not
 left as the script's own truncated partial-run output.
+
+## P0 — BUG-ACT-HATBLIND-001: `session_context()`'s consumers were never audited (backend, 2026-08-10)
+
+Coordinator escalation, blocking Stage 3: `tester` live-reproduced (twice, fresh
+sessions, JWT decoded) `dualhat.a@` wearing `quality_reviewer` rendering the FULL
+`/o/rede-a/manage` org-admin console, and the converse wearing `org_admin` on
+`/o/rede-a/qualidade`. Root cause: `partitionGrants` (`src/lib/queries/session-grants.ts`)
+derived every `SessionContext` field — `memberships`, `orgAdminOf`, `hospitalAdminOf`,
+`technicalDirectionOf`, `nspOrgAdminOf`, `qualityReviewerOf`, `nspOperatorOf` — from the
+DESIGNED-hat-blind `session_context()` RPC grants with no active-role filter. The plan
+correctly ruled `session_context` hat-blind by design (the picker/D9 hint need the
+union); what neither the plan nor the coordinator's Stage 3 brief said was "and audit
+its consumers." RLS itself was never the gap (`GET /rest/v1/commissions` correctly
+returned 0 rows hatless) — this was an application-guard fail-open.
+
+### 1. The central fix — one seam, not 88 call sites
+
+`src/lib/queries/session.ts`, `getSessionContext()`: `activeRole` is now derived
+BEFORE the partition (moved up from its old spot near the `return`), and the grants
+passed to `partitionGrants` are filtered to `g.role === activeRole` first
+(`hatFilteredGrants`). No active hat → every derived list is empty (D5: a hatless
+session is a stranger to every hat-aware door) — the SAME rule `needsRoleSelection`
+already encodes for the picker redirect that runs before any of these branches, and a
+hatless single-role-type session cannot reach here at all (D11's implicit derivation).
+
+Why this is sufficient for the FULL consumer surface, verified by tracing every
+distinct access-decision shape found in `src/app/**` (read-only — the coordinator's
+constraint), not assumed:
+
+- Every `layout.tsx` under `src/app/o/[org]/**` (`manage`, `qualidade`, `nsp-org`,
+  `direcao-tecnica`, `documentos-pendentes`, `c/[commission]`) gates on
+  `context.{memberships,orgAdminOf,hospitalAdminOf,technicalDirectionOf,
+  nspOrgAdminOf,qualityReviewerOf}` — all now hat-filtered at the single source.
+  `admin/layout.tsx` and `conta/layout.tsx` gate on `context.isAdmin` / `requireUser()`
+  only (see §3 below for `isAdmin`).
+- `src/app/page.tsx`'s OWN landing-precedence branch chain reads the identical fields,
+  in the identical order — meaning the picker flow ITSELF was silently broken before
+  this fix: a `quality_reviewer`-hatted `dualhat.a@` landing on `/` after the picker
+  would have been redirected to `/o/rede-a/manage` by the (previously hat-blind)
+  `orgAdminOf.length === 1` branch, never reaching the quality console the picker just
+  sent them to pick. One fix, two bugs (the tester's two direct-navigation repros AND
+  this un-reported landing-redirect variant) — never independently confirmed live (the
+  browser tool's compositing was unavailable this session, §6), but the code path is
+  unambiguous and covered by the unit-test evidence in §2.
+- `isCommissionAdmin` (`src/lib/auth/access.ts`) reads `ctx.orgAdminOf` /
+  `ctx.hospitalAdminOf` directly — a PURE function over the same fields, not a
+  separate door. It becomes correct automatically; no edit needed (§4).
+- `getTechnicalDirectionAccessByOrg` reads `context.technicalDirectionOf` directly, no
+  DB round trip (deliberately, per its own doc comment) — 100% covered (§5).
+- `src/lib/{admin,platform,users,org,cases,forms,meetings,interviews,responses,
+  case-*}/actions.ts` (~23 files) — every one reads `context.isAdmin`, a field this
+  fix did NOT originally touch (see §3: fixed separately, same session).
+
+`getRawGrants()` stays the single, explicitly hat-blind path. Enumerated below (§2).
+
+### 2. `getRawGrants()` consumer enumeration — by the property, not a remembered list
+
+Swept `grep -rn "getRawGrants"` across `src/` (13 real call sites, 10 more prose/doc
+references) and, separately, every `.tsx` component receiving a `grants` prop for
+`.some/.find/.filter/.map` USAGE (not just the prop's existence) to catch a
+display-only prop silently repurposed as a gate:
+
+- `src/app/(auth)/selecionar-perfil/page.tsx` — the picker itself. Correct by
+  construction.
+- `src/components/role/get-role-switch-options.ts`, `role-switch-hint.tsx` — the D9
+  "other hats held" hint.
+- Ten `layout.tsx` files (`admin`, `conta`, `qualidade`, `nsp-org`, `nsp`,
+  `direcao-tecnica`, `documentos-pendentes`, `manage`, `c/[commission]`) — READ
+  individually, all ten: `grants` is fetched via `Promise.all` alongside the REAL gate
+  (`context.*` or a dedicated `getXAccessByOrg` resolver) and threaded ONLY into a
+  `<UserMenu grants={grants} />` / `<QualityViewerShell grants={grants} />` /
+  `<AppSidebar grants={grants} />` prop — never read, never branched on, in the
+  layout's own gate logic. `src/components/shell/nsp-hospital-switcher.tsx`'s
+  `grants` prop is a DIFFERENT shape (`getNspAccessByOrg`'s `hospitals`, not
+  `SessionGrant[]`) for the ALREADY-entered console's hospital-scope switcher — not
+  this door.
+
+The set is exactly {picker, D9 hint} for `SessionGrant[]`-shaped `getRawGrants()`
+output; every other consumer is confirmed display-only by reading its actual usage,
+not its import list.
+
+### 3. `context.isAdmin` — the SAME class, found auditing its own ~23 consumers
+
+`isAdmin` (`session.ts`) was `claims.is_admin === true` — the raw JWT entitlement
+claim, untouched by the central fix above (it is set outside `partitionGrants`
+entirely). Auditing its consumers (grep `\.isAdmin\b` across `src/`, 23 files) found
+the SAME bug shape repeated ~20 times: `if (context.isAdmin) return true` as the
+FIRST arm of an authorization function, before any role-scoped check. Two of the 23
+(`src/lib/admin/actions.ts`, `src/lib/users/actions.ts`) say explicitly, in their own
+pre-existing SECURITY comments, that their mutation runs on the SERVICE-ROLE client
+— RLS bypassed entirely, so `context.isAdmin` is THE authority, not a UI convenience.
+For those two, a hat-blind `isAdmin` would have reproduced BUG-ACT-HATBLIND-001 with
+**no RLS backstop at all** — worse than the tester's original finding, where
+`app.is_admin()`'s own D11 hat gate still denied the read one layer down.
+
+This was NOT in the coordinator's named scope (session_context()'s consumers,
+`isCommissionAdmin`, `getTechnicalDirectionAccessByOrg`) — `isAdmin` is a sibling
+field on the SAME `SessionContext` object, found while tracing "audit its consumers"
+one level further than the brief's own three examples. Fixed in the same
+`session.ts` edit: `isAdmin = claims.is_admin === true && activeRole ===
+'platform_admin'` — identical shape to `app.is_admin()`'s own D11 condition. Provably
+a no-op today by the SAME argument D11 used: zero platform_admins hold any
+membership (`315_act_stage3_hat_condition.sql`'s TRIPWIRE already covers this — the
+tripwire's predicate is exactly what makes `isAdmin` and `activeRole ===
+'platform_admin'` unable to diverge yet). Verified NOT to break the ~20 consumers:
+`npm run test` (81 files / 1194 tests) passes unchanged — every one of those test
+files mocks `getSessionContext()`'s return value directly (`{isAdmin: true, ...}`),
+never exercising the real derivation, so none was coupled to the OLD, hat-blind
+shape in the first place.
+
+### 4. `isCommissionAdmin`'s RLS-backstop comment — verified against the catalog, not accepted
+
+Its own comment: "RLS is the security boundary... these are for UI gating and nav
+only... A false negative here can never grant access the DB denies, and a false
+positive here is caught at every data door by RLS." Traced live:
+`isCommissionAdmin` → (once fixed, automatically) `ctx.orgAdminOf`/`ctx.hospitalAdminOf`
+mirrors `app.is_tenancy_admin_of(commission)` → `app.is_tenancy_admin_of_for(commission,
+auth.uid())` → `app.has_role('organization', org_id, 'org_admin', auth.uid()) OR
+app.has_role('hospital', hosp_id, 'hospital_admin', auth.uid())`. Both `has_role`
+calls are CALLER checks (`p_user_id = auth.uid()`), so Stage 3's caller-only hat
+condition applies unconditionally — `is_tenancy_admin_of` was ALREADY hat-gated at
+the DB layer before this session's fix, independent of it. The comment's claim holds:
+even a stale TS mirror could never have granted a real write or read RLS denies.
+
+### 5. `getTechnicalDirectionAccessByOrg` — confirmed covered, not assumed
+
+Reads `context.technicalDirectionOf.filter(t => t.organization.slug === orgSlug)`
+directly — no database round trip at all (deliberate, per its own doc comment: a
+Diretor Técnico's only standing is a hospital-tier membership, so the org ref
+already returned by `session_context()` is authoritative). 100% covered by the
+central fix; no seed persona currently makes this live-testable (per the coordinator's
+own note), but the code path admits no other possibility — there is nothing else it
+could read.
+
+### 6. A SEPARATE hat-blind door, found auditing session/access-resolver RPCs, not in the brief
+
+Swept every `.rpc(...)` call in `src/lib/queries/session.ts`, `src/lib/queries/pqs.ts`,
+`src/lib/pqs/org-admin.ts` (the full session/access-resolver surface) against the live
+catalog for whether each delegates through `has_role`/`has_role_any` (hat-gated since
+Stage 3) or queries `public.memberships` directly (bypassing the hat entirely). Every
+sibling PQS/NSP predicate checked out clean: `is_pqs_member_of_for`,
+`is_nsp_coordinator_of_for`, `is_pqs_operator_of_for`, `is_pqs_operator_in_org_for`,
+`is_nsp_org_admin_of_for` all delegate through `has_role` (confirmed live — this is
+also what makes `nsp-org/layout.tsx`'s SECOND check, `isNspOrgAdmin`, safe despite its
+FIRST check reading the until-now-hat-blind `context.nspOrgAdminOf`, per the
+coordinator's item 1).
+
+One outlier: `public.list_my_nsp_hospitals()` — the `/o/[org]/nsp` console's SOLE
+entry gate (`getNspAccessByOrg` → `listMyNspHospitals` →
+`hospitals.length === 0 -> notFound()`). Its body queried `public.memberships`
+directly (a UNION of `pqs_member`/`nsp_coordinator`), no hat check anywhere, and — un-
+like `nsp-org` — NO second defense-in-depth check backstops `nsp/layout.tsx`'s sole
+gate. This predates the `has_role`-family refactor and was never folded into it.
+
+**Keystone (red-first, per role discipline).** Added to
+`315_act_stage3_hat_condition.sql`: `k` gains `hosp_b`; `sa_x` (already multi-role:
+`staff_admin`@`comm_x`, `org_admin`@`org_b`) gets a THIRD role,
+`pqs_member`@`hosp_b` — the only fixture able to distinguish "sees `hosp_b` because
+`pqs_member` is the active hat" from "sees `hosp_b` regardless of hat." Run against
+the UNFIXED function: test 15 (matching hat) passed, test 16 (⭐ distinguishing case
+— `sa_x` wearing `org_admin`, a hat he also genuinely holds, must NOT see the
+`pqs_member` grant) FAILED — confirmed RED, non-vacuous.
+
+**Fix**: `supabase/migrations/20260918002400_act_p0_hat_blind_nsp_hospitals.sql` —
+`CREATE OR REPLACE`, adds `and m.role is not distinct from app.active_role()` to
+both UNION arms (a pure caller self-query, no `p_user_id` param, so — unlike
+`has_role` — there is no third-party call shape to preserve; the filter applies
+unconditionally). Re-ran the keystone: 16/16 GREEN.
+
+**Semantics, confirmed with the coordinator rather than assumed**: wearing the
+`pqs_member` hat means this function reports ONLY `pqs_member` hospitals, not any
+`nsp_coordinator` hospitals held under a DIFFERENT hat — the exact "wearing `staff`
+means `memberships` lists only `staff` commissions" rule, generalized. A caller
+holding both roles at the SAME hospital still needs the matching hat active to see
+it.
+
+**Scope boundary of this sweep, stated explicitly**: checked every RPC the
+session/access-RESOLVER layer calls (console ENTRY gates). Did NOT exhaustively audit
+every CONTENT-listing RPC reachable from an already-entered console (`list_pqs_members`,
+`list_org_eligible_users`, the `nsp_org_*_rollup` family, `pqs_inbox`) — those are a
+different, larger surface ("escalation within a legitimately-entered area," the
+coordinator's own lower-severity category for item 2) and were out of the "principal
+enters an area their hat does not authorize" frame this P0 targets. `listMyNspHospitals`'s
+OTHER consumer, `src/components/indicators/capa-operator-gate.ts`
+(`isPqsOperatorOfIndicatorHospital`), is explicitly documented DISPLAY-ONLY (backstopped
+by `open_capa_plan`'s own RPC gate, not independently re-verified here) — narrowing its
+result to the active hat only makes an affordance disappear under the wrong hat, which
+is the correct direction, not a regression.
+
+### 7. Why `ARM=census` did not grow (again) — `list_my_nsp_hospitals` returns `jsonb`
+
+Same structural reason as `active_role()` (text) and D11's `is_admin()` diff (already
+a boolean, so no NEW gate appeared in the census either): `list_my_nsp_hospitals`
+returns `jsonb`, not `boolean`, so it was never in the census's counted population and
+isn't a candidate for the door-audit script's PREDICATE ARM (which neutralizes a
+boolean-returning function to `select true` — not a shape that applies to a
+`jsonb`-returning aggregate). Its coverage is the pgTAP keystone in §6, mirroring how
+`assume_role` (also non-boolean) was covered by its own keystone rather than the
+door-audit tool. `ARM=census` held at 461 verdicts / 450 live gates, unchanged.
+
+### 8. Live browser verification — attempted, environment-limited, not claimed
+
+Attempted to reproduce the tester's exact live repro (log in as `dualhat.a@test.local`,
+switch hats, hit `/manage` and `/qualidade` directly) as an independent check beyond
+code/catalog reading. The browser tool's frame compositing was unavailable this
+session (`screenshot` consistently returned "the Browser pane is not displayed, so
+the page is not compositing frames" regardless of viewport resize or a fresh preview
+server); form values filled correctly (confirmed via `document.querySelector(...).value`)
+but the login form's submit click produced no network request, and a raw
+`form.requestSubmit()` triggered the app's generic error boundary rather than a real
+sign-in. Two dev-server restarts + one full `db reset` did not change this. This is a
+tooling limitation of this session's environment, not evidence about the fix — and
+per the coordinator's own division of labor, end-to-end confirmation is exactly what
+`tester`'s `e2e/act-role-assumption.spec.ts` (deliberately left RED, untouched here)
+is for. Not claiming a live repro that did not happen; the evidence this report relies
+on instead is the pgTAP keystones (§6, red-then-green), the unit-test suite (§3, 81
+files / 1194 tests unchanged and passing against the real `partitionGrants` + real
+`page.tsx` for every catalog role via `session-grants.test.ts`), and direct reading of
+every access-decision call site against the live catalog.
+
+### 9. A shared-local-stack hazard, hit twice this pass, both transient
+
+Mid-gate, a plain second `test:db` run (no reset between) showed 3 failures across
+`171_cross_org_isolation.sql` and `176_nsp_per_org_b_support.sql`, both
+commission-count assertions reporting MORE rows than expected. `public.commissions`
+had 10 rows against a ~6-row seeded baseline — the extras were E2E-fixture-shaped
+slugs (`comissao-detail-<ms-timestamp>`, `teclado-<ms-timestamp>`, timestamps
+resolving to "now") — `tester`'s concurrently-running `actAs` E2E sweep against this
+SAME local stack (CLAUDE.md's own documented hazard: "an E2E-mutated DB yields
+spurious commission-count reds that are not defects"). A tight fresh-reset +
+back-to-back `test:db` pair came back clean both times. Separately, one `ARM=floor`
+run reported `create_event_type(...)` uncalled (unrelated to anything touched this
+session); an immediate re-run was clean. Both treated as the shared-stack hazard, not
+a defect — recorded here rather than silently re-run past without comment.
+
+### 10. Gate — full Phase Gate step 1
+
+`supabase db reset --local` (341 registered == 341 files) → `npm run test:db` twice,
+tight back-to-back after the reset: both `Files=176, Tests=5652, Result: PASS`
+(+2 over the prior 5650 — the two new keystone assertions in §6). `npm run gen:types`:
+byte-unchanged (`list_my_nsp_hospitals` lives in `public` but its RETURN shape,
+`jsonb`, and signature are unchanged — only the body). `npm run lint`: clean.
+`npm run typecheck`: clean (0 errors). `ARM=census`: 461 verdicts ≥ 450 live gates,
+holds (unchanged — §7). `ARM=floor`: clean on the tight re-run (§9). No diff-scoped
+door sweep needed this pass — nothing newly touched is a `prosecdef` BOOLEAN gate or
+an RLS policy (§7); `list_my_nsp_hospitals`'s own coverage is the keystone in §6.
+
+### Commits
+
+- `src/lib/queries/session.ts` — the central hat-filter fix + the `isAdmin` hat gate.
+- `supabase/migrations/20260918002400_act_p0_hat_blind_nsp_hospitals.sql` —
+  `list_my_nsp_hospitals()` hat gate.
+- `supabase/tests/315_act_stage3_hat_condition.sql` — the new keystone (§6).
