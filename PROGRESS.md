@@ -414,9 +414,32 @@ every branch now asserts unconditionally.
 
 **Bounded vacuous-branch check, `phase22-referrals.spec.ts` ONLY, per the coordinator's explicit
 request (2026-08-10, `tester`) — do not sweep the repo; report even a null result.** Read every
-conditional in the file (not just around Flow 5a). Confirmed vacuous-pass-CAPABLE (a real branch
-where zero `expect()` calls execute), none fixed this round — not requested, and each is its own
-test, not the union-gate shape this program is ruling on:
+conditional in the file (not just around Flow 5a). Findings filed below as their own durable
+entry, not left as a chat-only note. Checked and confirmed NOT vacuous (both branches, or an
+unconditional fallback, always assert) — recorded so this reads as a real audit, not a
+cherry-picked one: Flow 1c/2c (`if/else`, each arm asserts a shape of "no access"); Flow 5b
+(inner `if (resp.ok())` is optional, but an unconditional audit-row-count check always runs after
+it); Flow 7c (an unconditional `not.toBeNull()` precedes the only conditional, so the branch is
+unreachable-false by construction); Flow 8b (either arm — `sendBtn` visible or not — contains at
+least one unconditional `toBeFocused()` before any further nested, optional checks).
+
+🟡 **BUG-VACUOUS-ASSERT-1 — OPEN, pre-existing, unrelated to ACT (`tester`, found 2026-08-10 via
+a coordinator-requested bounded check of ONE file — see above). Filed, NOT fixed: every "small"
+fix attempted in this program turned into an investigation; these four are each their own test,
+not the union-gate shape ADR 0106 is ruling on, and fixing test logic without the file owner's
+review is exactly the boundary a tester holds.**
+
+**The general shape, which is what makes this actionable later, not just these four instances:**
+a conditional whose branches do not all assert is a test that reports confidence it never earned.
+`if (cond) { assert } ` with no `else`, or an `else` whose own assertion is itself optional, lets
+the test go GREEN having checked nothing — indistinguishable in the report from a test that
+verified the real thing. This is not the "vacuous pass" this program already fixed twice
+(Flow 5a's old `else { /* nothing to assert */ }`, and the tester's own near-miss — a tautological
+`else { expect(revealBtnCount).toBe(0) }`, true by the very condition selecting the branch); it is
+the SAME defect class, general enough that it will recur anywhere a conditional exists without a
+matching unconditional or exhaustive-branch assertion.
+
+**Four confirmed instances, `phase22-referrals.spec.ts`, none fixed:**
 - **Flow 4c** (`response_expected=false` referral) — `if (!draftResp.ok()) { return }` exits the
   whole test with **zero** assertions if that fires; even past it, a second guard `if (refId) {
   …only assertion here… }` means a truthy-`ok()`-but-falsy-`refId` response also asserts nothing.
@@ -428,18 +451,32 @@ test, not the union-gate shape this program is ruling on:
   assert }`. The `else` always asserts, but if `resp.ok()` is true AND RLS returns zero rows
   (rather than an explicit error), the `if` branch asserts nothing and the `else` never runs —
   same silent-pass shape as Flow 5c, gated one level deeper.
-- **Flow 8c** (keyboard-only, reply form) — two independent, un-elsed `if (isVisible) { assert
-  }` blocks (reveal button, back link) with **no unconditional assertion anywhere in the test**.
-  If neither element is visible when the page loads, the test — whose own title claims to verify
-  keyboard accessibility — passes having asserted nothing at all.
+- **Flow 8c, called out specifically — keyboard-only, reply form.** Two independent, un-elsed
+  `if (isVisible) { assert }` blocks (reveal button, back link), **no unconditional assertion
+  anywhere in the test**. If neither element is visible when the page loads, the test passes
+  having asserted nothing at all. This one is not just another instance: **its own title claims
+  to verify keyboard accessibility** — a house requirement (CLAUDE.md §8: "every form input
+  accessible... the tester includes at least one keyboard-only flow per phase") — so a green here
+  actively asserts a compliance property that, in the all-elements-absent case, was never checked.
+  A misleading vacuous pass on an accessibility test is worse than one on a data assertion: it is
+  the exact artifact the house rule exists to prevent, reporting satisfied when it is silent.
 
-Checked and confirmed NOT vacuous (both branches, or an unconditional fallback, always assert) —
-recorded so this reads as a real audit, not a cherry-picked one: Flow 1c/2c (`if/else`, each arm
-asserts a shape of "no access"); Flow 5b (inner `if (resp.ok())` is optional, but an unconditional
-audit-row-count check always runs after it); Flow 7c (an unconditional `not.toBeNull()` precedes
-the only conditional, so the branch is unreachable-false by construction); Flow 8b (either arm —
-`sendBtn` visible or not — contains at least one unconditional `toBeFocused()` before any further
-nested, optional checks).
+**Why this is worth a dedicated pass, not opportunistic per-file fixes (recorded per the
+coordinator's instruction):** this shape is invisible to every gate in the project — lint doesn't
+flag it, typecheck doesn't either (both branches are valid TypeScript), and a passing Playwright
+run reports exactly the same GREEN whether the meaningful branch ran or not. It surfaced here only
+because ADR 0106 made one specific branch (the `staff`-hat entry into this exact commission-scoped
+route) permanent for the first time — before that, no run had ever forced `if (revealBtn.isVisible)`
+down the non-vacuous path for this persona. The other four instances were not caused by any
+structural change; they have presumably been silently skipping their meaningful branch, or
+silently taking it, for as long as they've existed — nobody knows which, because nothing recorded
+which branch ran. **Candidate follow-up, not undertaken here:** a repo-wide vacuous-pass audit —
+grep every `if` inside a `test()` body for a branch with no `expect()`/`await expect()` call
+reachable from it, by AST or by careful regex, and check whether an unconditional assertion
+elsewhere in the same test would still catch a regression if that branch's logic silently broke.
+That is real, standalone work, and belongs in its own pass. **This bounded check covered exactly
+ONE file** (`phase22-referrals.spec.ts`, per explicit scope) out of `e2e/`'s full spec count —
+**the four found here are a lower bound on the shape's prevalence, not a count of it.**
 
 **Also found, same re-run, FIXED this round (authorised):** `phase15-indicators.spec.ts` AC-8a
 and AC-8b both pinned `getByRole('heading', { name: /encontramos esta página|Erro 404/i })` —
@@ -489,17 +526,48 @@ TRUE under its own hat, plus an explicit proof of the specific thing that's genu
   where the underlying "an entitled reader sees the PHI" fact stays covered elsewhere (chefe.ccih,
   Flow 1b) — this WAS the only test in the file exercising the `referral_patient.read`
   AUDIT-WRITE mechanism itself (row appears on reveal, PHI-free metadata, source-commission
-  attribution — Rule 11), and that mechanism is not re-proven by this rewrite for ANY persona,
-  because the original test's only actor was a QPS-operator-only identity. It could be preserved
-  via an already-entitled, non-hat-conflicted actor (chefe.ccih/chefe.farm — both staff_admin,
-  already proven live to pass this same gate via Flow 1b's result_md visibility; not a widening).
-  **Deliberately not added** — "same shape as Flow 3d" was the instruction, and a third
-  persona/track goes beyond that literal shape; flagged here for an explicit call rather than
-  silently added or silently dropped.
+  attribution — Rule 11), and that mechanism was not re-proven by the first rewrite for ANY
+  persona, because the original test's only actor was a QPS-operator-only identity. First round:
+  flagged rather than added, since "same shape as Flow 3d" was the instruction and a third
+  persona/track went beyond that literal shape.
+- **RESTORED 2026-08-10, coordinator's explicit call, same session: "your flag was right and the
+  answer is yes... losing a PHI-audit proof as collateral from ACT is a genuine regression in the
+  platform's compliance posture, not tidy-up."** Added a Part A block ahead of the union-gate
+  rewrite, using `chefe.ccih` (staff_admin CCIH, the source coordinator) exactly as flagged —
+  already proven live (Flow 1b) to pass the identical `can_read_referral_phi` gate; always could
+  reach this route and reveal PHI, pre- and post-ACT alike, no hat ever involved for her; NOT a
+  widening. Asserts the MECHANISM, not the journey: PHI visible on screen (a real positive
+  control — see below), a `referral_patient.read` row appears, its metadata carries no PHI, and
+  `commission_id` is the source commission.
+- **Non-vacuousness, established four ways, not just asserted green (per the coordinator's
+  explicit "say how"):**
+  1. **A REAL, unplanned failure caught it before this was even finished.** The first draft used
+     `revealBtn.isVisible({ timeout: 5_000 })` to gate the click — Playwright's `isVisible()` does
+     NOT auto-wait (confirmed from the docs and from the failure itself: the error-context
+     snapshot showed the button still unclicked, "Exibir identificação," 10+ seconds after
+     navigation), so the check raced the panel's render and skipped the click. The test FAILED
+     for exactly this reason on the first real run — not manufactured, an actual defect in the
+     tester's own draft, caught by the assertion doing its job. Fixed with a genuine
+     `locator.waitFor({ state: 'visible' })` before the plain `isVisible()` check.
+  2. **Positive control on the PHI-visibility assertion itself**: `expect(getByText(PHI_NAME))
+     .toBeVisible()` is not conditional on anything — if the reveal mechanism silently broke, this
+     is what would catch it, and finding #1 above is direct proof it does.
+  3. **Live inspection of the actual audit row, not just its shape**: `select metadata,
+     commission_id from audit_log where action='referral_patient.read' order by occurred_at desc
+     limit 1` → `metadata = {"acting_as": "staff_admin"}`, `commission_id = COMM_A`. Real,
+     non-empty, non-trivial content — rules out the "assertion is vacuously true because the field
+     is always empty" failure mode for the metadata check.
+  4. **Deliberate mutation, isolated one at a time, each confirmed RED for the right reason, then
+     reverted**: (a) `toBeGreaterThan` → `toBe` (claims no new row) — RED, `Expected: 1, Received:
+     2`; (b) `not.toContain(PHI_NAME)` → `toContain(PHI_NAME)` (claims PHI IS in metadata) — RED,
+     the error printed the REAL metadata (`{"acting_as":"staff_admin"}`) failing to contain it;
+     (c) `commission_id` expected value flipped `COMM_A` → `COMM_B` — RED, `Expected: …b1,
+     Received: …a1`. All three reverted; final state re-verified green
+     (`git diff` shows zero `TEMP MUTATION` markers remaining).
 - **Both re-verified green** after rewrite (`npx playwright test ... -g "AC-5b|AC-6"` and
-  `-g "Flow 3d"`, chromium, `--workers=1`); **Flow 5a re-verified green** standalone AND as part
-  of a full-file run on a fresh `db reset` (`phase22-referrals.spec.ts` 40/40,
-  `phase15-indicators.spec.ts` 12/12).
+  `-g "Flow 3d"`, chromium, `--workers=1`); **Flow 5a re-verified green** standalone, after each
+  mutation revert, AND as part of a full-file run on a fresh `db reset`
+  (`phase22-referrals.spec.ts` 40/40).
 - **Tester's view on "assert absence" as the shape:** right for all three. It's not just the
   least-bad option — it's a STRICTLY STRONGER test than the one it replaces: the original only
   ever proved "a hatless admin@/pqsdual.a can do X", conflating two gates that happened to both be

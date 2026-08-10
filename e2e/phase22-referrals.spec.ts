@@ -818,7 +818,7 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
 //     → permission denied (42501).
 // ---------------------------------------------------------------------------
 
-test('Flow 5a: a plain CCIH staff member cannot reveal ENC-0001 patient identifiers — no PHI on page, no audit row fires; a PQS operator cannot reach the page at all', async ({
+test('Flow 5a: referral_patient.read audit-write mechanism (entitled reader) + a plain staff member cannot reveal PHI + a PQS operator cannot reach the page at all', async ({
   page,
   request,
 }) => {
@@ -829,8 +829,8 @@ test('Flow 5a: a plain CCIH staff member cannot reveal ENC-0001 patient identifi
   // explicitly to this test from the Flow 3d/AC-5b ruling (this test was
   // flagged, not rewritten, in the tester's first union-tests close-out —
   // "a third, structurally-identical case... not yet PO-reviewed"; the PO
-  // has now reviewed it and extended the ruling here). Same two-gate shape,
-  // same predicate as Flow 3d: `get_referral_patient` is gated by
+  // reviewed it and extended the ruling). Same two-gate shape, same
+  // predicate as Flow 3d: `get_referral_patient` is gated by
   // `can_read_referral_phi` (`is_pqs_operator_of_for(...) OR
   // is_staff_admin_of_for(...) OR <target-side arms>`, verified live during
   // the Flow 3d rewrite) — the identical gate that withholds `result_md`
@@ -844,19 +844,61 @@ test('Flow 5a: a plain CCIH staff member cannot reveal ENC-0001 patient identifi
   // does both; pre-cutover her one hatless session carried both arms at
   // once, so this test never had to choose.
   //
-  // ⚠ Unlike Flow 3d — where the underlying "an entitled reader sees the
-  // PHI" fact stays covered elsewhere (chefe.ccih already sees `result_md`
-  // in Flow 1b) — this WAS the only test in this file exercising the
-  // `referral_patient.read` AUDIT-WRITE mechanism itself (a row appears on
-  // reveal, its metadata carries no identifiers, it is attributed to the
-  // source commission — Rule 11). The original test's only actor was a
-  // QPS-operator-only identity, so that mechanism is not re-proven by this
-  // rewrite for ANY persona. It could be preserved via an already-entitled,
-  // non-hat-conflicted actor (chefe.ccih / chefe.farm — both staff_admin,
-  // already proven to pass this same gate; not a widening) — deliberately
-  // NOT added here without explicit direction, since "same shape as Flow
-  // 3d" was the instruction and introducing a third persona/track goes
-  // beyond that shape. Flagged in PROGRESS.md Bug Log for an explicit call.
+  // ⛔ RESTORED 2026-08-10, coordinator's explicit call: the union-gate
+  // rewrite below (the ONLY thing this test asserted for one round) left
+  // Rule 11 + Rule 12's PHI-audit claim — a `referral_patient` read emits a
+  // row, its metadata carries NO PHI, attributed to the source commission —
+  // with no proof anywhere in this file, because the original test's only
+  // actor was a QPS-operator-only identity whose journey is now gone. Losing
+  // that as ACT collateral is a real regression in compliance posture
+  // (LGPD/ANVISA/CFM), not tidy-up. Restored via `chefe.ccih` — staff_admin
+  // CCIH, the source coordinator — exactly as flagged: already proven live
+  // (Flow 1b's `result_md` visibility) to pass the identical
+  // `can_read_referral_phi` gate; ALWAYS could reach this route and reveal
+  // PHI, pre- and post-ACT alike, no hat ever involved for her. NOT a
+  // widening — asserting the MECHANISM (row/metadata/attribution), not the
+  // QPS-specific journey that's genuinely gone.
+  await signInAs(page, 'chefe.ccih@test.local')
+
+  const beforeEntitled = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await expect(
+    page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+  ).toHaveCount(0)
+
+  // `.isVisible()` does NOT auto-wait (Playwright docs: it does not wait for the
+  // element to become visible, unlike a normal action) — an earlier version of
+  // this block raced the panel's render and silently skipped the click. `waitFor`
+  // is the real wait; the `isVisible()` after it is a plain, now-accurate check.
+  const entitledRevealBtn = page.getByRole('button', { name: /exibir identificação/i })
+    .or(page.getByRole('button', { name: /Exibir dados/i }))
+    .or(page.getByRole('button', { name: /Dados do paciente/i }))
+  await entitledRevealBtn.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
+  if (await entitledRevealBtn.first().isVisible()) {
+    await entitledRevealBtn.first().click()
+    await page.waitForTimeout(1_000)
+  }
+  // Whether the panel is lazy (button-gated) or auto-reveals for an entitled
+  // reader, PHI must now be on screen — a REAL positive control: if the
+  // reveal mechanism were broken (button present but non-functional, or
+  // auto-reveal silently not firing), THIS assertion is what would catch it,
+  // and it is not conditional on anything above.
+  await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(new RegExp(PHI_MRN))).toBeVisible()
+
+  // The mechanism itself: a row appears, its metadata carries NO PHI, and it
+  // is attributed to the source commission.
+  const afterEntitled = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+  expect(afterEntitled.length).toBeGreaterThan(beforeEntitled.length)
+  const latestEntitled = afterEntitled[0]
+  const metaEntitled = JSON.stringify(latestEntitled.metadata)
+  expect(metaEntitled).not.toContain(PHI_NAME)
+  expect(metaEntitled).not.toContain(PHI_MRN)
+  expect(latestEntitled.commission_id).toBe(COMM_A)
+
+  // ---- The union-gate rewrite (PO-ruled 2026-08-10): the specific QPS-
+  // operator-only journey is gone, asserted rather than left silent. ----
   await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
 
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
