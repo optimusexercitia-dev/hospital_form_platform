@@ -97,6 +97,44 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | **S3** — THE ATOM (the only red window) | backend + frontend + tester | 🟡 **backend + frontend DONE** 2026-08-10, tester not started | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester still needs: flip the Stage 1 seams, picker/switch/D9 specs, full `e2e:prod`. |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted |
 
+**S3 — the hat-blindness sweep (THREE separate classes, none in the plan):**
+The atom surfaced hat-blindness in three independent layers. Stage 2 normalised only the
+**boolean** gates, so everything else stayed hat-blind by omission:
+1. **Application guards** (`BUG-ACT-GUARD-HATBLIND-1`, P0, tester-found, live-reproduced twice) —
+   `partitionGrants()` derived every role list from the *designed* hat-blind `session_context`,
+   with zero `activeRole` reference; 88 call sites across 29 files read them as access decisions.
+   Fixed **centrally** in `getSessionContext()` (`535e4e2`), not guard-by-guard — a 29-file patch
+   sweep would have missed one. `getRawGrants()` remains the single **named** hat-blind accessor;
+   its consumer set is proven to be exactly {picker, D9 hint}.
+   ⚠ Same fix closed an **unreported** variant: `page.tsx`'s landing chain read the same fields, so
+   picking `quality_reviewer` bounced you to `/manage` — the picker was fighting itself.
+2. **The TS admin entitlement** — `context.isAdmin` read the raw JWT claim, bypassing D11 entirely.
+   ~23 consumers of the `if (context.isAdmin) return true` shape, **two of which run on the
+   service-role client — no RLS backstop at all.** Now mirrors `app.is_admin()`'s own condition.
+3. **Non-boolean DEFINER doors** (`7320b87`) — the population Stage 2 scoped out. Lead sweep found
+   **31**; classified by the §2 caller-vs-third-party property: **6 caller-gating** (5 real defects
+   + 1 defensive), **24 third-party, correctly left hat-blind** (roster enumerations — one user's
+   hat must never change what the system concludes about *another*), 1 already-ruled
+   (`session_context`). **No mixed-shape function.** Each of the 5 carries a **red-first** keystone
+   (`316_act_p0_caller_gate_sweep.sql`) confirmed RED against the unfixed catalog.
+   Fixed: `commission_overview` · `list_org_people` (hospital_admin arm) · `quality_board_summary`
+   (42501 entry gate) · `capa_kpis` (nsp_coordinator arm) · `pqs_inbox`.
+**Residuals backend flagged, closed by the lead from the catalog:** no view or matview in
+`app`/`public` reads `memberships` (0), and only 3 functions read `request.jwt.claims` directly
+(`active_role`, `is_admin`, `assume_role`) — all hat-aware by construction. The sweep criterion
+(direct `memberships` reference) was therefore sufficient, not merely convenient.
+⚠ **Standing-sweep candidate** (backend's suggestion, endorsed, NOT actioned): `capa_kpis` had a
+safe arm and a raw arm side by side, so this population accreted from different authors over time.
+"Raw `memberships … principal_id = auth.uid()` with no adjacent hat condition" belongs in the
+ADR 0079 standing sweep, not as a one-off — same lesson that ADR's own history teaches.
+
+**Lead correction:** I cited `open_capa_plan` to backend as an evidenced caller-gating defect,
+reading the tester's AC-5b note as an over-permission. **It is the opposite** — the test expected
+authorization to SUCCEED and it failed, i.e. a hatless token being correctly *denied* (D5 working).
+Backend caught the misreading instead of building on it, could construct no red-then-green proof,
+and said so rather than claiming a vacuous keystone. It hardened the function anyway as
+defence-in-depth — recorded as a **non-regression change, not a security fix**.
+
 **S3 lead notes — rulings and finds during the build:**
 - **D11's `is_admin()` clause was MISSING from the plan** (backend flagged it; ADR 0106 D11 requires it —
   "`is_admin()` gains the same active-role condition"). **PO ruled 2026-08-10: implement in S3, not S4.**
