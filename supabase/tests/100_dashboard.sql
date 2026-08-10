@@ -278,7 +278,11 @@ update public.commissions set hospital_id = '00000000-0000-0000-0000-0000000000b
 insert into public.memberships (organization_id, principal_id, role) values
   ('00000000-0000-0000-0000-0000000000aa', (select admin from k), 'org_admin');
 
-select test_helpers.claims_for((select admin from k), true);
+-- ACT (ADR 0106) P0: this insert makes `admin` MULTI-role (platform_admin +
+-- org_admin@org-dash), so the bare claims_for(admin, true) below can no longer
+-- auto-derive a single hat -- the test needs the org_admin hat active to reach
+-- commission_overview()'s (now hat-gated, P0 fix) org_admin arm.
+select test_helpers.claims_for((select admin from k), true, 'org_admin');
 set local role authenticated;
 select is(
   (select submitted_count from public.commission_overview() where commission_id = (select comm_x from k)),
