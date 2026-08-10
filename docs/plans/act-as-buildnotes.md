@@ -1900,3 +1900,203 @@ an RLS policy (§7); `list_my_nsp_hospitals`'s own coverage is the keystone in �
 - `supabase/migrations/20260918002400_act_p0_hat_blind_nsp_hospitals.sql` —
   `list_my_nsp_hospitals()` hat gate.
 - `supabase/tests/315_act_stage3_hat_condition.sql` — the new keystone (§6).
+
+## P0 follow-up — the 31-function catalog sweep (backend, 2026-08-10)
+
+Coordinator's own catalog sweep (any return type, comment-stripped, `memberships`
+referenced with NO `has_role`/`active_role` anywhere in the body) over ALL of
+`app`+`public` found 31 functions beyond `list_my_nsp_hospitals` and `open_capa_plan`
+(the latter already evidenced as a real defect via the tester's `phase15-indicators`
+AC-5b finding). Root cause named precisely: Stage 2 normalized only the BOOLEAN
+gates (the `has_role`/`is_*_of` family); every non-boolean `SECURITY DEFINER` door
+that reads `memberships` directly was scoped out, and post-cutover they are
+hat-blind by omission, not by design.
+
+### 1. Method — classify by READING, not by name
+
+Task: for each of the 31, does the raw `memberships` read authorize the CALLER, or
+does it enumerate/validate OTHER principals? Coordinator's explicit warning: seven
+names (`commission_overview`, `capa_kpis`, `quality_board_summary`, `pqs_inbox`,
+`conclude_meeting`, `save_section_answers`, `commission_staff_admin_of_case`) plus
+the `compute_due_*` family were named as ones NOT to guess in either direction.
+Fetched every one of the 31 function bodies from the live catalog
+(`pg_get_functiondef`) and read each one; where a body's own authorization ran
+through an `is_*_of`/`is_*_of_for` WRAPPER rather than a raw read, that wrapper's own
+definition was independently fetched and traced down to confirm it genuinely
+delegates through `has_role` (not assumed from its name/suffix convention) —
+`is_org_admin_of`, `is_tenancy_admin_of`, `is_staff_admin_of(_for)`,
+`is_quality_reviewer_of_for`, `is_pqs_member_of_any`, `is_pqs_operator_of(_for)`,
+`is_nsp_org_admin_of(_for)`, `is_nsp_coordinator_of_for`, `is_pqs_member_of_for` were
+all fetched and confirmed. Also confirmed live: the three `_impl` functions
+(`grant_role_impl`/`revoke_role_impl`/`end_affiliation_impl`) receive their `p_actor`
+parameter as `(select auth.uid())` from their public wrappers (`grant_role`,
+`revoke_role`, `end_affiliation`) — so their `_for`-family authorization checks
+really do bind to the caller for the normal entry point, and are deliberately NOT
+bound to the caller for the separate `_for`-suffixed service variants
+(`grant_role_for` etc.), matching `has_role`'s own third-party-stays-blind design.
+
+### 2. The full 31-row classification
+
+| # | function | verdict | why |
+|---|---|---|---|
+| 1 | `app.commission_staff_admin_of_case` | THIRD-PARTY | returns the case's commission's staff_admin uuid (a lookup for OTHER callers, e.g. routing) — no `auth.uid()` anywhere |
+| 2 | `app.compute_due_charter_notifications` | THIRD-PARTY | cron/batch — enumerates staff_admins of every overdue commission as notification RECIPIENTS |
+| 3 | `app.compute_due_document_review_notifications` | THIRD-PARTY | cron/batch — same recipient-enumeration shape |
+| 4 | `app.eligible_voters` | THIRD-PARTY | enumerates the FULL eligible-voter set for a case (roster), no `auth.uid()` |
+| 5 | `app.end_affiliation_impl` | THIRD-PARTY / not a gate | authz is `is_org_admin_of_for`/`is_hospital_admin_of_for` (already hat-gated, `p_actor=auth.uid()` at the real entry point); the raw read checks the TARGET `p_user`'s remaining active roles (a business-rule blocker check) |
+| 6 | `app.grant_role_impl` | THIRD-PARTY / not a gate | every authz arm is an already-hat-gated `_for` wrapper; raw reads are the TARGET's existing office (technical_director) + the atomic-replace lookup |
+| 7 | `app.guard_reference_coherent` | THIRD-PARTY | trigger — validates a REFERENCED other person belongs to the org; not caller authz at all |
+| 8 | `app.revoke_role_impl` | THIRD-PARTY / not a gate | same shape as `grant_role_impl`; raw reads are the anti-lockout population COUNT + the final DELETE |
+| 9 | `app.trg_audit_memberships` | N/A | pure audit trigger on NEW/OLD; no additional `SELECT FROM memberships` at all — the grep matched the `v_row public.memberships` variable DECLARATION, not a query |
+| 10 | `public.appoint_administrativo` | THIRD-PARTY / not a gate | authz is `is_staff_admin_of`/`is_tenancy_admin_of` (hat-gated); raw read validates the TARGET already holds `staff` |
+| 11 | `public.appoint_technical_director` | THIRD-PARTY / not a gate | delegates authz entirely to `grant_role_impl`/`revoke_role_impl` (`v_actor := auth.uid()`); raw read finds the current INCUMBENT (business logic) |
+| 12 | `public.assign_member_title` | THIRD-PARTY / not a gate | raw read resolves the TARGET member row's commission; authz is `is_staff_admin_of`/`is_tenancy_admin_of` (hat-gated) |
+| 13 | **`public.capa_kpis`** | **CALLER — FIXED** | `v_hospitals`/`v_any` read `memberships WHERE principal_id=auth.uid()` directly for BOTH the pqs_member and nsp_coordinator arms (the pqs_member half of `v_any` already routed through the hat-gated `is_pqs_member_of_any` — only the nsp_coordinator arms were raw) |
+| 14 | **`public.commission_overview`** | **CALLER — FIXED** | `WHERE organization_id IN (SELECT... WHERE principal_id=auth.uid() AND role='org_admin')` — raw, no wrapper at all |
+| 15 | `public.compute_due_notifications` | THIRD-PARTY | cron/batch — enumerates staff_admin signers across ALL commissions with pending signoffs |
+| 16 | `public.conclude_meeting` | THIRD-PARTY / not a gate | authz is `is_staff_admin_of` (hat-gated); raw read is `count(*)` of ALL commission members for the QUORUM denominator — population data, not identity |
+| 17 | `public.list_addable_commission_members` | THIRD-PARTY | authz is `is_staff_admin_of`/`is_tenancy_admin_of` (hat-gated); raw read excludes CANDIDATES already holding a membership (roster) |
+| 18 | `public.list_approver_candidates` | THIRD-PARTY | authz via 4 already-safe checks incl. `is_admin()` (hat-gated since D11); raw reads label CANDIDATE users' roles (roster) |
+| 19 | `public.list_hospital_eligible_users_for_pqs` | THIRD-PARTY | authz is `is_nsp_org_admin_of`/`is_nsp_coordinator_of` (hat-gated); raw read is the eligible-candidate roster |
+| 20 | `public.list_org_eligible_users` | THIRD-PARTY | same shape as #19, org-scoped |
+| 21 | **`public.list_org_people`** | **CALLER — FIXED** | "THE GATE" 's SECOND OR-arm (`hospital_admin`) is a raw `memberships WHERE principal_id=v_uid` read — the FIRST arm (`is_org_admin_of`) was already hat-gated |
+| 22 | `public.list_pqs_members` | THIRD-PARTY | authz is `is_nsp_org_admin_of`/`is_nsp_coordinator_of` (hat-gated); raw read IS the roster being listed |
+| 23 | `public.nsp_org_roster` | THIRD-PARTY | authz is `is_nsp_org_admin_of` (hat-gated); raw reads are the per-hospital coordinator/member roster |
+| 24 | **`public.open_capa_plan`** | **CALLER — fixed, defense-in-depth (see §3)** | raw pqs_member/nsp_coordinator union for hospital auto-inference, BUT immediately re-filtered by the already-hat-gated `where app.is_pqs_operator_of(h)` before any decision — not independently exploitable in any call shape tested |
+| 25 | **`public.pqs_inbox`** | **CALLER — FIXED** | `WHERE rc.hospital_id IN (raw pqs_member/nsp_coordinator union on auth.uid())` — no wrapper, directly gates the patient-safety-event inbox scope |
+| 26 | **`public.quality_board_summary`** | **CALLER — FIXED** | top entry gate is a raw `memberships WHERE principal_id=v_uid AND role='quality_reviewer'` read; the ROW-level filter below it (`is_quality_reviewer_of_for`) was already hat-gated |
+| 27 | `public.reference_candidates` | THIRD-PARTY | caller authz is implicit via RLS on `responses` (unrelated to `memberships`); the one membership read enumerates CANDIDATE users for the reference picker (roster) |
+| 28 | `public.save_section_answers` | THIRD-PARTY | no caller-membership gate in the body at all (RLS-implicit via `responses`/`form_sections`); the one membership read enumerates staff_admins as sign-off-request notification RECIPIENTS |
+| 29 | `public.seed_expected_meeting_attendees` | THIRD-PARTY | authz is `assert_meeting_staff_admin` → `is_staff_admin_of` (hat-gated); raw read auto-enrolls ALL commission members (roster) |
+| 30 | `public.seed_selected_meeting_attendees` | THIRD-PARTY | same shape as #29, filtered to `p_user_ids` — still enumerating OTHER specified people |
+| 31 | `public.session_context` | ALREADY RULED | designed hat-blind door (ADR 0106 D9) — the picker/D9 hint need the full union; not revisited |
+
+**Split: 6 CALLER-gating (5 real defects + 1 defense-in-depth), 24 THIRD-PARTY/not-a-
+gate, 1 already-ruled. 6 + 24 + 1 = 31.** No MIXED function (a caller gate AND a
+third-party enumeration coexisting in one body) was found among the 31 — every one
+of the 31 turned out to be cleanly one shape or the other, on a careful read. This
+directly answers the coordinator's specific concern ("a function whose parts do not
+sum — a body that both gates and enumerates but gets filed under one label — is the
+failure this repo keeps recording").
+
+### 3. `open_capa_plan` — fixed, but with an honest vacuity finding, not a guessed keystone
+
+Read closely, the coordinator-cited raw union (for auto-inferring the hospital when
+neither the source nor `p_hospital_id` resolves one) feeds directly into
+`WHERE app.is_pqs_operator_of(h)` — already hat-gated via `has_role` — BEFORE
+`v_op_hospitals`' `array_length(...) = 1` decision is made. Every call shape tried
+(wrong hat, hatless, single-hat, dual-hat) produced the IDENTICAL denial whether or
+not the union arms themselves also carried the hat condition — because the adjacent
+filter already does the real narrowing. Per this repo's own standing rule (a
+keystone green on first run is vacuous), no red-then-green pgTAP proof was
+constructible against this specific block. Fixed anyway (`CREATE OR REPLACE`, same
+textual pattern as `capa_kpis`/`pqs_inbox`) for consistency and as defense-in-depth
+against a future refactor dropping the adjacent filter — recorded as a
+non-regression change, not a security fix.
+
+This does NOT match what "already evidenced as a real defect, not a hypothesis" led
+this session to expect, and the coordinator's own AC-5b framing ("a hatless token
+FAILING an OR-gate that either hat alone would pass") reads, on a literal parse, as
+a FALSE-NEGATIVE (wrongly denying a legitimate caller) rather than a false-positive
+security leak — the opposite direction from the other 5 fixes in this pass. Flagged
+for reconciliation rather than guessed: either AC-5b exercises a different code path
+this sweep's method didn't reach, or it is a functional/UX regression (D5's
+intentional "hatless is a stranger" now correctly denying a multi-role hatless
+caller who used to get in on raw entitlement) rather than a security hole. Both are
+plausible; only the tester's own AC-5b assertion can settle which.
+
+### 4. Keystones — red-first, per function, `supabase/tests/316_act_p0_caller_gate_sweep.sql`
+
+One synthetic FIVE-role principal (`sa_x`, extending bootstrap's `staff_admin@comm_x`
+with `org_admin@org_b`, `nsp_coordinator@hosp_b`, `hospital_admin@hosp_b`,
+`quality_reviewer@hosp_b`) — the same "one multi-hat fixture, test each hat's own
+reach in isolation" shape used throughout ACT Stage 3. Each of the 5 real defects
+got a matching-hat / distinguishing-hat pair (10 assertions), plus `open_capa_plan`'s
+non-regression pair (2 assertions) = 12 total.
+
+Confirmed RED against the unfixed functions (verbatim failures, before the
+migration): `commission_overview` (test 2), `list_org_people` (test 4),
+`quality_board_summary` (test 6, "caught: no exception, wanted: 42501"),
+`capa_kpis` (test 8, "have: 1 want: 0"), `pqs_inbox` (test 10, "have: 1 want: 0").
+`open_capa_plan`'s pair (11/12) passed even pre-fix, confirming §3's vacuity finding
+empirically, not just by code reading. After `20260918002500_act_p0_caller_gate_sweep.sql`:
+12/12 GREEN.
+
+### 5. Catalog property diff
+
+All 6: `prosecdef = t` (SECURITY DEFINER preserved), `provolatile` unchanged
+(`s`/stable for `capa_kpis`/`commission_overview`/`pqs_inbox`/`quality_board_summary`,
+`v`/volatile for `list_org_people`/`open_capa_plan` — matching each function's
+ORIGINAL declaration, not normalized), identical ACL
+(`postgres=X, authenticated=X, service_role=X`) and owner (`postgres`) on every one.
+Signatures byte-identical to the pre-fix catalog dump. `CREATE OR REPLACE` only, no
+parameter renames.
+
+### 6. Two more test-fixture regressions, same class as the earlier two this session
+
+Fresh-reset `test:db` reproducibly (not the shared-stack flake) failed
+`100_dashboard.sql` test 12 and `199_perf_sweep_wave2.sql` tests 11–14 — both traced
+to the SAME root cause as the `150_referrals.sql`/`141_event_triage.sql` fixes
+earlier this session: each file gives `admin` (bootstrap's pure platform_admin) an
+EXTRA membership mid-file (`org_admin@org-dash` in 100; `pqs_member@hosp_b` in 199)
+to exercise the org-scoped/hospital-scoped path of `commission_overview`/`pqs_inbox`
+— making `admin` multi-role, so the bare `claims_for(admin, true)` immediately after
+can no longer auto-derive a single hat (2 live roles, not 1) under the now-hat-gated
+functions. Fixed by adding the explicit third argument (`'org_admin'`,
+`'pqs_member'` respectively) at each call site. Swept all 28 pgTAP files with a bare
+`claims_for(..., true)` call for the same shape; the full-suite run itself is the
+audit (any other file with the same latent issue would have shown as a red on this
+same pass) — none of the other 26 tripped it.
+
+### 7. Gate
+
+`supabase db reset --local` (342 registered == 342 files) → `npm run test:db` twice,
+tight back-to-back: both `Files=177, Tests=5664, Result: PASS`. `npm run gen:types`:
+byte-unchanged. `npm run lint`: clean. `npm run typecheck`: clean. `ARM=census`: 461
+verdicts ≥ 450 live gates, unchanged (none of the 6 fixed functions return boolean,
+so none enters the census's counted population — same reasoning as
+`list_my_nsp_hospitals`/`active_role()`). `ARM=floor`: clean. No diff-scoped door
+sweep needed — nothing newly touched this pass is a boolean `prosecdef` gate or an
+RLS policy; each fix's own coverage is its red-then-green keystone in §4.
+
+### 8. Is the split complete, or does the population need re-bounding?
+
+The 31-function population, as the coordinator's own sweep criterion defined it
+(comment-stripped `memberships` reference, no `has_role`/`active_role` token
+anywhere in the body), is fully classified — every row landed in exactly one of
+CALLER / THIRD-PARTY / already-ruled, with the axis applied by reading each body,
+not guessed from its name (§1's seven-name warning list all came back correctly
+verified, in both directions the coordinator was worried about — `pqs_inbox`
+genuinely a caller gate, `conclude_meeting` genuinely third-party/business,
+`save_section_answers` genuinely third-party). No MIXED function surfaced.
+
+Two observations on whether the SWEEP CRITERION itself needs widening, not
+answered by "yes/no" alone:
+
+- The coordinator's own criterion is direct-`memberships`-reference based. It would
+  MISS a caller-gating defect built on a VIEW rather than the base table, or one
+  reconstructed from `request.jwt.claims`/`auth.jwt()` directly instead of a table
+  read. Neither was found in this sweep's own path, but neither was specifically
+  searched for either — worth a follow-up sweep with a broader predicate if this
+  program continues past this pass.
+- `capa_kpis`'s own body shows both shapes side by side — one arm (`is_pqs_member_of_any`)
+  already routed through the safe primitive, the sibling arm (raw `nsp_coordinator`
+  check) did not — suggesting the 31-function population was assembled at DIFFERENT
+  times by DIFFERENT authors with different awareness of the safe pattern, not as
+  one coherent batch. This is a case for making the "grep for raw
+  `memberships … principal_id = auth.uid()`-shaped reads with no adjacent hat
+  condition" check a STANDING sweep (mirroring the ADR 0079 door-audit's own
+  "standing, not once" lesson) rather than a one-time pass — flagged as a suggested
+  follow-up, not undertaken here (out of this task's stated scope).
+
+Given the above, my answer: the classification of these 31 is complete; I would not
+re-bound THIS population without a new, wider sweep criterion, which is a separate
+decision for the coordinator to make, not one to expand into silently.
+
+### Commits (this section)
+
+- `supabase/migrations/20260918002500_act_p0_caller_gate_sweep.sql` — the 6 fixes.
+- `supabase/tests/316_act_p0_caller_gate_sweep.sql` — the new keystone file.
+- `supabase/tests/100_dashboard.sql`, `supabase/tests/199_perf_sweep_wave2.sql` — the
+  two fixture regressions (§6).
+- This section of `docs/plans/act-as-buildnotes.md`.
