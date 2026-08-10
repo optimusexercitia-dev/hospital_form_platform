@@ -15,7 +15,7 @@
 -- alternate admitting path (authz-handoff §7.1 shape 6).
 
 begin;
-select plan(16);
+select plan(22);
 
 -- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
 --    hat condition being safe to ship as a no-op today is "0 platform_admins
@@ -110,6 +110,60 @@ select is(
 select ok(
   (select count(*)::int from public.audit_log where action = 'active_role.assumed') > 0,
   'assume_role: the switch itself is audited (active_role.assumed, D8)');
+
+-- ── ACT P0 (audit-scope ruling): assume_role's audit_write call stamps the
+--    ASSUMED ROLE'S OWN scope (Architecture Rule 11), not the platform-tier
+--    bucket — checked across all three scope tiers + the platform_admin
+--    no-tenant carve-out, on the SAME fixtures already built above. Rationale
+--    (not re-litigated here): an assumption of "org_admin of org_b" is an
+--    event ABOUT org_b; leaving it unscoped both breaks tenancy-scoped audit
+--    completeness and pollutes the platform-tier bucket with routine noise.
+select is(
+  (select organization_id from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid)),
+  (select org_b from k),
+  'assume_role audit (org-tier): scoped to org_b (the assumed org_admin''s own org), not the platform bucket');
+select ok(
+  (select hospital_id is null and commission_id is null from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid)),
+  'assume_role audit (org-tier): hospital_id/commission_id stay NULL for an org-tier hat');
+
+-- staff_admin@comm_x (bootstrap) — the COMMISSION-tier case, a different scope
+-- shape than the org-tier one just checked (proves the fix isn't org-only).
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select sa_x from k), 'role', 'authenticated',
+    'session_id', gen_random_uuid())::text, true);
+set local role authenticated;
+select lives_ok(
+  $$ select public.assume_role('staff_admin'::public.platform_role) $$,
+  'assume_role: sa_x (a real staff_admin) can assume the staff_admin hat');
+create temp table sid2 on commit drop as
+  select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;
+reset role;
+select is(
+  (select commission_id from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid2)),
+  (select comm_x from k),
+  'assume_role audit (commission-tier): scoped to comm_x (the assumed staff_admin''s own commission)');
+
+-- admin — still a PURE platform_admin at THIS point in the file (the multi-role
+-- insert for the is_admin() D11 keystone below runs LATER) — the PLATFORM
+-- carve-out: no tenant, so NULL stays correct here, verified explicitly rather
+-- than assumed as "whatever the default happens to be".
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select admin from k), 'role', 'authenticated',
+    'session_id', gen_random_uuid())::text, true);
+set local role authenticated;
+select lives_ok(
+  $$ select public.assume_role('platform_admin'::public.platform_role) $$,
+  'assume_role: admin (a real platform_admin) can assume the platform_admin hat');
+create temp table sid3 on commit drop as
+  select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;
+reset role;
+select ok(
+  (select organization_id is null and hospital_id is null and commission_id is null
+   from public.audit_log where action = 'active_role.assumed' and entity_id = (select v from sid3)),
+  'assume_role audit (platform tier): platform_admin genuinely has no tenant — all three scope columns correctly stay NULL');
 
 -- THE REVERT-TWIN: temporarily neutralize has_role to the pre-Stage-3 shape
 -- (the caller-only condition removed) and prove the SAME hatless-caller case
