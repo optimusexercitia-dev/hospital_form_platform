@@ -47,6 +47,11 @@
 #   ARM=policy  bash p0-authz-invariant.sh     # ARM 1 only
 #   ARM=floor   bash p0-authz-invariant.sh     # ARM 2 only  (~1 min)
 #   ARM=census  bash p0-authz-invariant.sh     # ARM 3 only  (~2 s)
+#   ARM=hat     bash p0-authz-invariant.sh     # ARM 4 only  (~10 s) — ACT hat-blindness:
+#                                               # caller-bound raw memberships reads with no
+#                                               # active-role condition (ADR 0106 S4; the
+#                                               # sweep self-tests its own detector every
+#                                               # run). Delegates to act-hat-blind-sweep.sh.
 #   FROMFINDINGS=1 ARM=policy bash ...          # ARM 1 fast: compare the COMMITTED
 #                                               # findings md to the allowlist, NO sweep
 #                                               # (a light CI check; the full sweep is
@@ -291,12 +296,26 @@ run_arm_census () {
   fi
 }
 
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 4 — ACT HAT-BLINDNESS (ADR 0106 Stage 4). A caller-bound raw memberships
+# read with no adjacent active-role condition is D5's fail-open wearing a green
+# check; the census cannot see it (active_role() returns text, and hat-blindness
+# is not keystone coverage). The sweep proves its own detector on every run
+# (planted blind/covered/class-4 specimens + a neutralized-anchor flip) and
+# compares findings against act-hat-blind-allowlist.txt in BOTH directions
+# (new finding AND ghost entry each fail).
+# ════════════════════════════════════════════════════════════════════════════════
+run_arm_hat () {
+  bash "$HERE/act-hat-blind-sweep.sh" || RC=1
+}
+
 case "$ARM" in
   policy) run_arm_policy ;;
   floor)  run_arm_floor ;;
   census) run_arm_census ;;
-  all)    run_arm_policy; echo; run_arm_floor; echo; run_arm_census ;;
-  *) echo "unknown ARM=$ARM (use policy|floor|census|all)"; exit 2 ;;
+  hat)    run_arm_hat ;;
+  all)    run_arm_policy; echo; run_arm_floor; echo; run_arm_census; echo; run_arm_hat ;;
+  *) echo "unknown ARM=$ARM (use policy|floor|census|hat|all)"; exit 2 ;;
 esac
 
 echo

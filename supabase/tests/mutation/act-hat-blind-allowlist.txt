@@ -1,0 +1,87 @@
+# act-hat-blind-allowlist.txt — DESIGNED hat-blind doors (ACT / ADR 0106 Stage 4).
+# One gate per line, keyed EXACTLY as act-hat-blind-sweep.sh emits it:
+#   * function : fn: <schema>.<name>(<identity args>)
+#   * policy   : policy: <schema>.<table>.<polname> (<CMD>)
+#
+# CONTRACT (enforced by supabase/tests/mutation/act-hat-blind-sweep.sh; wired as
+# ARM=hat of p0-authz-invariant.sh):
+#   the sweep's findings — caller-bound raw public.memberships reads with no
+#   adjacent active-role condition — must EQUAL this file. A finding not listed
+#   here is a NEW hat-blind gate (exit 1). A line here with no live finding is a
+#   GHOST (exit 1): a rename orphans a name-keyed verdict, so the entry must be
+#   re-keyed or deleted, never left to rot.
+#
+# ⚠ THIS IS A DIFFERENT DIMENSION FROM authz-blind-allowlist.txt. That file's
+# contract is keystone coverage ("we swept it and no keystone noticed"). These
+# entries are DESIGNED behaviour: doors that must see the caller's FULL grant
+# list to do their job. They are not debt and are not to be burned down — each
+# entry instead states WHAT WOULD MAKE IT WRONG, and the entry must be removed
+# (and the door fixed) the day that condition arrives. Overloading the 0079
+# allowlist with these would let a designed exemption silence a genuine
+# coverage regression later — the exact merge Amendment 3 forbids for the
+# unswept backlog.
+#
+# ── The class exemption the sweep CANNOT key (recorded here so it is not
+#    silence): service_role paths (ADR 0106 D11). ─────────────────────────────
+# A service_role request carries no auth.uid(), so the caller-only condition
+# `p_user_id is distinct from auth.uid() or ...` never arms — hat-blind BY
+# CONSTRUCTION, and deliberately so: webhooks, the audio-minutes callback, the
+# PDF renderer and scheduled jobs act as THE SYSTEM; there is no person to wear
+# a hat. The concrete representative in this sweep's population is
+# public.custom_access_token_hook(jsonb): it reads memberships for the user
+# being MINTED (event-bound, not auth.uid()-bound — the minting door cannot
+# consult the hat it exists to create), so it is correctly NOT a finding and
+# must not be keyed here (a key the sweep can never emit is a permanent ghost).
+# WRONG THE DAY: a service-role entry point starts deriving PER-USER
+# authorization decisions from raw memberships on behalf of an interactive
+# session (impersonation); that path must then thread the session's hat
+# explicitly and gains a keyed entry or a fix. Recorded in ADR 0106 D11
+# precisely so a later "fix the inconsistency" does not take down every webhook.
+#
+# ── App-layer twin, out of this sweep's domain ────────────────────────────────
+# getRawGrants() (src/lib/queries/session.ts) is session_context()'s TS twin —
+# same design, same rule ("fix the CONSUMERS, not it"). A SQL sweep cannot see
+# it; it is pinned by app-layer review + the getSessionContext() central filter.
+
+# ── Entries ───────────────────────────────────────────────────────────────────
+
+# public.session_context() — THE picker/D9 door (ADR 0106 D2/D9). It must
+# report every role TYPE the caller holds, regardless of the active hat: a
+# hat-scoped read could never show the OTHER hats there are to switch to, and
+# D9's "your Committee Member hat has broader access here" hint is built from
+# exactly this list. Reveals only the caller's OWN grants — the information the
+# caller just chose a hat from. Its consumers were audited instead (that audit
+# found and fixed BUG-ACT-HATBLIND-001, list_my_nsp_hospitals).
+# WRONG THE DAY: session_context() output is used as an ACCESS DECISION rather
+# than an option list — any consumer treating grants[] as "may do" (the way
+# pre-ACT partitionGrants() did) reopens class 1 of the four hat-blindness
+# classes, and the door must then split option-list from decision surfaces.
+fn: public.session_context()
+
+# public.assume_role(p_role platform_role) — the hat-ACQUISITION door (ADR 0106
+# D2/D12). It validates "does the caller genuinely hold p_role?" against live
+# memberships; consulting the CURRENT hat here would make switching to any
+# other held role impossible (you could only ever re-assume the hat you wear).
+# Its read is scoped to the single role being assumed, the switch is audited
+# (active_role.assumed, D8) and the result is server-minted (D12) — the
+# validation IS the D2 "entries derived from live grants" rule.
+# WRONG THE DAY: assume_role starts returning or acting on grant data beyond
+# validating the requested role (e.g. listing roles — that is session_context's
+# job), or stops writing the audit row: then its full-list read is no longer
+# the minimal acquisition check this entry reasons from.
+fn: public.assume_role(p_role platform_role)
+
+# public.memberships.memberships_select (SELECT), self arm — the caller reads
+# their OWN membership rows under every hat. Same D9 information boundary as
+# session_context: your own grant list is precisely what the picker just showed
+# you; suppressing the un-worn hats' rows would break "which roles do I hold"
+# surfaces while protecting nothing (the other arms of this policy — admin /
+# member / tenancy visibility of OTHER people's rows — all delegate to is_*
+# predicates that ride has_role and therefore the hat). Found by this sweep's
+# first run (2026-08-10), ruled same-class as session_context, subject to
+# lead/QA veto like every S4 ruling.
+# WRONG THE DAY: any RLS policy or DEFINER door derives a CAPABILITY from "the
+# caller can see this memberships row" (row-visibility-as-authorization); the
+# self arm must then be hat-scoped and the surfaces that list held roles moved
+# behind session_context().
+policy: public.memberships.memberships_select (SELECT)
