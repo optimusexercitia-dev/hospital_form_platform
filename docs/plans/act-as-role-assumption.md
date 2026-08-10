@@ -138,6 +138,36 @@ Gate: full Phase Gate step 1 incl. `ARM=census` + `ARM=floor` + **diff-scoped do
 over exactly these 8** (list from the migration diff); fresh-reset pgTAP; e2e:prod green.
 
 ### Stage 3 — THE ATOM (the only red window)
+
+> **AMENDED 2026-08-10 during the build (lead ruling) — SCOPE ADDITION: the picker must
+> actually be reachable.** The Frontend paragraph below says the picker is "a new first
+> step in the `page.tsx` chain". Measured at build time, **`page.tsx` is not on the login
+> path at all.** `signIn()` in `src/lib/auth/actions.ts` computes
+> `resolveLanding()` (l.96–141) and calls `redirect(target)` (l.217–220), going **straight**
+> to the landing area — `/` is never rendered. A picker built only into `page.tsx` would be
+> a correct door nothing can reach.
+>
+> Proof it bites this very program: `resolveLanding` returns `/o/<org>/manage` for an
+> `org_admin` of exactly one org (l.122), so **`dualhat.a@test.local` — the plan's own
+> dual-hat persona — would never see the picker on the normal login path.**
+>
+> Compounding: `resolveLanding` is a *duplicate* precedence chain whose own doc comment
+> claims it "Mirrors the root-landing precedence in `src/app/page.tsx`" — a stale-by-design
+> assertion — and it inspects only `is_admin`, `org_admin` and commission memberships,
+> i.e. **4 of the 11 roles**. A second bypass sits beside it: an explicit `?redirect=` param
+> (`explicitTarget`, l.157–160) skips `resolveLanding` entirely, so a deep link lands a
+> hatless principal directly in a gated area — where, post-cutover, D5 makes them a stranger.
+>
+> **Stage 3 must therefore sweep by the PROPERTY — every site that computes a
+> post-authentication destination — not by filename**, and must not treat `page.tsx` as the
+> chain. Known members: `resolveLanding`/`signIn` (`src/lib/auth/actions.ts`), the
+> `page.tsx` chain, the `?redirect=` deep-link path, and the middleware session/gating
+> helper in `src/lib/supabase/` (verify, do not assume). Each must be classified as
+> picker-routed or reasoned-exempt, and the enumeration published to
+> `act-as-buildnotes.md`. Ownership: `src/lib/**` is **backend's**, so this is a backend
+> task with a frontend dependency, not a frontend task. Full analysis:
+> `docs/design/act-role-picker.md` Open Question 1.
+
 One merge. **Backend:**
 - `app.active_role_selections` (`session_id` pk, `user_id`, `role public.platform_role`,
   `chosen_at`) — ⚠ see the Stage 0 amendment: the TABLE stays in `app` (unexposed), only
