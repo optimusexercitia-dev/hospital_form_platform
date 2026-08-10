@@ -165,6 +165,11 @@ used a name-prefix boundary and missed three doors (corrected table below). Dire
 the reviewer's, recorded now precisely so the build does not decide them silently — open to
 PO reversal like anything else here.*
 
+*Ratified by the PO on 2026-08-09 in the planning interview — decision P1 of
+[the implementation plan](../plans/act-as-role-assumption.md), which also closes the
+sequencing (before pilot), hat lifetime (auth-session-bound), flag posture (none — the
+migration is the cutover), D9 v1 scope, and program shape (Stages 0–4).*
+
 ### D12 — The hat lives in the JWT, not in a client-supplied setting
 The browser talks to PostgREST directly, so "travels per request as a session setting" hides
 a fork the first draft never chose. If the client *supplies* the value per request, "one at
