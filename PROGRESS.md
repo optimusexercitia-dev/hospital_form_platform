@@ -92,7 +92,7 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | Stage | Owner | Status | Record |
 | --- | --- | --- | --- |
 | **S0** — the role enum | backend | ✅ 2026-08-09 · `8acebed` (+ placement fix) | `20260918000000`; **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11 break-glass hat / audit stamp). pgTAP 5636 PASS · ARM=census + ARM=floor HOLD |
-| **S1** — harness first | backend + tester | ✅ 2026-08-09/10 both halves done | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` `set_config` sweep, bounded by the **property** not by filename · additive `dualhat.a@` persona · tester's `loginFresh`/`cachedSignIn` `actAs` seam + seed-sensitivity sweep (7 candidate specs, 125/125 real + 1 known skip, 0 regressions — Test Run Summary below) |
+| **S1** — harness first | backend + tester | 🟡 both halves BUILT (`f87bfe6`·`d7e4ae5`·`d2bbc7a`); **gate not closed — full-suite e2e:prod running (lead)** | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` sweep bounded by the **property** not by filename: 166 sites = 140 resets + 1 canonical + **21 routed** + 4 structurally unreachable (`test_helpers` is minted by `00_setup.sql`, so `seed.sql`/demo can never reach it) · additive `dualhat.a@` persona · `loginFresh`/`cachedSignIn` `actAs` seam · seed-sensitivity sweep (7 candidate specs, 125 pass + 1 known skip, 0 regressions). ⚠ **S1 is not signed off until the full suite is green** — the scoped 126 is not the plan's "full suites green" |
 | **S2** — behaviour-preserving normalisation | backend | ⬜ not started | the **8** direct `memberships` readers re-based onto `has_role`/`has_role_any`, no semantic change; `CREATE OR REPLACE` only |
 | **S3** — THE ATOM (the only red window) | backend + frontend + tester | ⬜ not started | `active_role_selections` + `assume_role` + hook claim + the §2 caller-only binding + raw-policy sweep; picker/indicator/D9 hint; revert-twin keystone |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted |
@@ -105,8 +105,27 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
   a stale-assertion generator. A bare enum TYPE in `public` is not a relation — no endpoint, no RLS
   surface — and `public.audio_job_status` is the existing precedent. Schema placement was never one of
   the PO-locked P1–P6 decisions.
+- **S1 scope reversal — the 20 `224_memberships_collapse.sql` sites ARE routed** (lead, 2026-08-09,
+  overriding a "disproportionate for a harness-only stage" deferral). That file is the program's
+  epicentre, not its periphery: its own header calls it *"the lock"*, §5 asserts
+  `grant_role → wrapper true` and §7 is a 27-wrapper truth table — all resolving through `has_role`,
+  the exact function S3 amends. Those sites hand-mint the JWT with `jsonb_build_object`, so they
+  **bypass `custom_access_token_hook`** and the implicit single-role derive (which happens at
+  token-mint) can never rescue them: at S3 `active_role()` returns null and every wrapper-true
+  assertion flips red *inside* the one red window. Routing with `p_active_role => null` is inert today
+  and makes S3 a one-argument flip per site.
+- **S3 obligation — `accessToken` (the raw-JWT E2E helper) has NO seam, and the reason matters.**
+  It performs a genuine password grant, so unlike the pgTAP sites it passes **through** the hook.
+  That inverts the exposure: single-role personas get an implicitly-derived hat and keep working;
+  a **multi-role** persona opens a new session with no selection row ⇒ no claim ⇒ **stranger**. Safe
+  today only by construction (`dualhat.a@` is the sole multi-role principal and no spec uses it yet).
+  ⚠ A raw grant has its **own `session_id`** and cannot inherit a hat chosen in a browser context —
+  one seam does not cover both. Full obligation + why it is also S3's best "hatless ⇒ stranger"
+  probe: [act-as-buildnotes.md](docs/plans/act-as-buildnotes.md) (Stage 1 tester-half section).
 - **Migration window:** `20260918000000`+ (above the highest registered `20260917000400`). S2 owns
   `20260918001000`+, S3 `20260918002000`+ — a shared local stack is in play.
+- ⚠ **S2 must not start while a full e2e:prod gate is running** — authoring a migration FILE mid-gate
+  applies on the next batch and has voided a run here while still exiting 0.
 - `.next/types` was never generated in this fresh worktree, so the first `npm run typecheck` failed on
   an untouched route file. `npm run build` once populates it. **Not a defect** — do not chase it.
 

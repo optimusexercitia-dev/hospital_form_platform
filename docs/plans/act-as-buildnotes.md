@@ -420,3 +420,53 @@ Conclusion, now verified against the real mechanism rather than a guess: **`seed
 changes cannot perturb any pgTAP assertion that runs after a `bootstrap()` call**, which is
 effectively the whole suite. E2E (Playwright), which DOES read `seed.sql` directly, is the
 tester's surface and out of scope for this session (explicitly not run here).
+
+---
+
+## Stage 1 — tester half (2026-08-09) + a lead ruling on `accessToken`
+
+Seam landed in `e2e/helpers/auth.ts` (`d2bbc7a`): `loginFresh` gains `_actAs?: string`
+(inert, `_`-prefixed per CLAUDE.md §8) and `cachedSignIn` gains `actAs?: string`, threaded
+through **and** folded into the session-cache key.
+
+**The cache-key partitioning is accepted deliberately, not overlooked.** It is more than a
+pure pass-through, and that is correct: once Stage 3 makes the active hat part of what a
+login *produces*, the same persona signed in under two hats is two different sessions, and
+a cache keyed on email alone would hand a test the wrong hat's cookies — a failure that
+would present as a flaky authorization bug, not as a cache bug. No caller passes `actAs`
+today, so the key collapses to plain `email` and behaviour is byte-identical.
+
+### Stage 3 carry-forward obligation — `accessToken` (the raw-JWT helper)
+
+`accessToken` in the same module was deliberately left without a seam. **The reason
+recorded by the tester ("out of the plan's stated scope") is not the load-bearing one, and
+the real mechanism inverts the risk — so it is restated here rather than inherited.**
+
+`accessToken` performs a **genuine password grant** against GoTrue
+(`POST /auth/v1/token?grant_type=password`). It therefore passes **through**
+`custom_access_token_hook`, unlike the pgTAP `set_config` sites which fabricate the claims
+payload directly and bypass the hook entirely (§2). Consequences Stage 3 must not
+re-derive:
+
+1. **Single-role personas are safe by design.** The hook's implicit-derive path (D11
+   break-glass: no selection row + exactly one live role type ⇒ derive) mints a valid
+   `active_role` claim on every grant. Nothing to seam.
+2. **Multi-role personas are strangers.** A fresh password grant opens a **new session**
+   with no `active_role_selections` row, and D5 says no row + multi-role ⇒ **no claim**.
+   Every RLS probe issued with that token will resolve as a stranger.
+3. **Today this is safe by construction, not by design** — the only principal holding two
+   role *types* is `dualhat.a@test.local`, which is brand new and consumed by no spec yet.
+   That property expires the moment Stage 3's picker specs start using it.
+
+**The obligation:** before Stage 3 declares green, enumerate the `accessToken` call sites
+(by the property — callers of the helper, not by filename) and, for each, determine whether
+its persona holds more than one role type. Any that does needs either an `assume_role` call
+against that token's own session before the probe, or an explicit `active_role` — and the
+choice must be recorded. ⚠ Note the asymmetry with `cachedSignIn`: a browser session can be
+sent through the picker UI, but a raw grant has **its own `session_id`** and cannot inherit
+a hat chosen in a browser context. Do not assume one seam covers both.
+
+Corollary worth keeping: because `accessToken` is the only E2E path that exercises the
+**real** hook, it is also the natural instrument for Stage 3's "stale/hatless session sees
+stranger-level nothing" keystone — a liability and the best available probe are the same
+mechanism here.
