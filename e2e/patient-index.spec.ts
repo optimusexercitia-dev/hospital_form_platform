@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 23 — Patient Identity & Cross-Committee Linkage (`patient_index`)
@@ -110,13 +110,11 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
 }
 
 /** Obtain a JWT for a persona (RLS evaluated under it). */
-async function getToken(req: APIRequestContext, email: string): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password: 'Test1234!' },
-  })
-  expect(resp.ok(), `getToken(${email}) failed: ${resp.status()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getToken(req: APIRequestContext, email: string, actAs?: string): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, undefined, actAs)
 }
 
 /** PostgREST GET under a bearer token. */
@@ -480,7 +478,7 @@ test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched au
 
   // Run the search via the RPC directly (same path the server action calls).
   // p_hospital_id is REQUIRED now (hospital-scoped, fail-closed) — admin@ is a central-a PQS member.
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: TEST_MRN,
     p_hospital_id: HOSP_CENTRAL_A,
@@ -520,7 +518,7 @@ test('AC-4b: zero-match search emits NO audit row', async ({
   // p_hospital_id supplied + caller is a PQS member, so an empty result here is a TRUE
   // zero-match (not a fail-closed empty from a missing hospital) — the audit-suppression
   // assertion below is therefore meaningful.
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: NONEXISTENT_MRN,
     p_hospital_id: HOSP_CENTRAL_A,
@@ -747,7 +745,7 @@ test('AC-7: flag OFF → /o/rede-a/nsp/pacientes → 404, search RPC denies/empt
     // RPC: search_patient_xref must deny or return empty when flag is OFF
     // (assert_patient_index_enabled() fires before the hospital check; p_hospital_id is
     // supplied so the empty/raise is unambiguously flag-driven, not hospital-gated.)
-    const adminToken = await getToken(request, 'admin@test.local')
+    const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
     const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
       p_mrn: TEST_MRN,
       p_hospital_id: HOSP_CENTRAL_A,
@@ -820,7 +818,10 @@ test('AC-8b: direct SELECT on patient_xref as authenticated → 0 rows (RLS REVO
 }) => {
   // Direct REST GET on patient_xref under any persona JWT must return 0 rows
   // because the table has REVOKE SELECT from authenticated (RLS Rule 1 + Rule 12)
-  const adminToken = await getToken(request, 'admin@test.local')
+  // — a bare GRANT-level denial, hat-independent by mechanism (no RLS policy
+  // even runs). 'pqs_member' threaded here only for consistency with the
+  // file's other 3 sites, not because it's load-bearing for this assertion.
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const resp = await request.get(
     `${SUPABASE_URL}/rest/v1/patient_xref?select=id,module,entity_id&limit=5`,
     {

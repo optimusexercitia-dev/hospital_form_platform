@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 14d — CAPA Workspace (Plano de Ação Corretiva e Preventiva)
@@ -83,13 +83,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): ADMIN_EMAIL/admin@test.local (org_admin +
+  // pqs_member, 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 async function restGet<T>(
@@ -161,7 +160,7 @@ test('C1: CAPA workspace page loads with seeded plan content', async ({ page }) 
 test('C2: open_capa_plan with source=event creates a new CAPA plan', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // EV-0002 is a stand-alone event (reported → acknowledged after triage tests may have
   // flipped it to 'closed'). We open a CAPA from it regardless of status (the FK is optional).
@@ -191,7 +190,7 @@ test('C2: open_capa_plan with source=event creates a new CAPA plan', async ({
 test('C3: add_capa_action creates an action with strength=forte linked to a root cause', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Get the seeded root cause id
   const rootCauses = await restGet<{ id: string; text: string }>(
@@ -230,7 +229,7 @@ test('C3: add_capa_action creates an action with strength=forte linked to a root
 // ---------------------------------------------------------------------------
 
 test('C4: add_capa_action_task and mark task done', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const addResp = await rpc(request, 'add_capa_action_task', adminToken, {
     p_action_id: CAPA_ACT_ID,
@@ -260,7 +259,7 @@ test('C4: add_capa_action_task and mark task done', async ({ request }) => {
 test('C5: add_capa_action_evidence (link) attached to seeded action', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const resp = await rpc(request, 'add_capa_action_evidence', adminToken, {
     p_action_id: CAPA_ACT_ID,
@@ -279,7 +278,7 @@ test('C5: add_capa_action_evidence (link) attached to seeded action', async ({
 // ---------------------------------------------------------------------------
 
 test('C6: add_capa_measure and record a result', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const measureResp = await rpc(request, 'add_capa_measure', adminToken, {
     p_capa_id: CAPA_ID,
@@ -311,7 +310,7 @@ test('C6: add_capa_measure and record a result', async ({ request }) => {
 test('C7: record_capa_effectiveness with eficaz transitions plan to em_verificacao', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // The seeded plan is em_execucao with a 'parcial' effectiveness.
   // Upsert to 'eficaz' to test the em_execucao→em_verificacao transition on a fresh plan.
@@ -366,7 +365,7 @@ test('C7: record_capa_effectiveness with eficaz transitions plan to em_verificac
 test('C8: close_capa_plan transitions to concluido with lessons-learned', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Open a fresh plan and bring it to a closeable state
   const openResp = await rpc(request, 'open_capa_plan', adminToken, {
@@ -422,7 +421,7 @@ test('C8: close_capa_plan transitions to concluido with lessons-learned', async 
 test('C9: close_capa_plan with an open action raises HC051 (pt-BR message)', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Use the seeded CAPA-0001 which has an em_andamento action (not settled)
   // First record effectiveness so HC051 is the first gate hit
@@ -449,7 +448,7 @@ test('C9: close_capa_plan with an open action raises HC051 (pt-BR message)', asy
 test('C10: close_capa_plan with no effectiveness raises HC052 (pt-BR message)', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Open a fresh plan + add + complete an action (no effectiveness recorded)
   const openResp = await rpc(request, 'open_capa_plan', adminToken, {
@@ -485,7 +484,7 @@ test('C10: close_capa_plan with no effectiveness raises HC052 (pt-BR message)', 
 test('C11: reopen_capa_plan revokes effectiveness; plan returns to em_execucao', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Build a fresh plan → close it → reopen
   const openResp = await rpc(request, 'open_capa_plan', adminToken, {
@@ -531,7 +530,7 @@ test('C11: reopen_capa_plan revokes effectiveness; plan returns to em_execucao',
 // ---------------------------------------------------------------------------
 
 test('C12: adding action to a concluded plan raises HC049', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Build + close a fresh plan
   const openResp = await rpc(request, 'open_capa_plan', adminToken, {
@@ -588,7 +587,7 @@ test('C13: assignee (staff1.ccih) can advance their action via advance_capa_acti
   expect(action.status).toBe('completed')
 
   // Return to em_andamento so other tests are not affected
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const rollbackResp = await rpc(request, 'advance_capa_action', adminToken, {
     p_action_id: CAPA_ACT_ID,
     p_status: 'in_progress',
@@ -652,7 +651,7 @@ test('C16: capa.opened audit row exists for CAPA-0001 (Phase-13 assertion)', asy
 test('C16b: capa.action_advanced audit row written when action status changes', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Advance the action and verify an audit row appears for the CAPA plan entity
   // (the trigger fires on capa_action changes, entity = capa_plan.id or action.id

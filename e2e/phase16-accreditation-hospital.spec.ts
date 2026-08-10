@@ -71,8 +71,12 @@ const NOTE_MARKER = 'NAOVAZARP163SEGREDOTESTE'
 let frameworkId: string
 let standardId: string
 
-async function signInAs(page: Page, email: string) {
-  await cachedSignIn(page, email, 'Test1234!')
+async function signInAs(page: Page, email: string, actAs?: string) {
+  // ACT (ADR 0106) — optional 2nd/3rd param, additive: threads to
+  // cachedSignIn's own actAs seam for ORGADMIN_B (org_admin + staff_admin, 2
+  // role types), which otherwise lands on /selecionar-perfil
+  // (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, 'Test1234!', actAs)
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -225,7 +229,7 @@ test('AC-3 clearing the responsible commission reverts to pior_caso / nao_confor
 test('AC-4 orgadmin.b (a different org) sees zero — 404 at the route, [] from the RPC directly', async ({
   page,
 }) => {
-  await signInAs(page, ORGADMIN_B)
+  await signInAs(page, ORGADMIN_B, 'org_admin')
   await page.goto(hospitalSurfaceUrl())
   // Not `resp.status()` — this route streams behind `o/[org]/manage/loading.tsx`,
   // so the HTTP status commits to 200 before the async `notFound()` resolves
@@ -235,7 +239,7 @@ test('AC-4 orgadmin.b (a different org) sees zero — 404 at the route, [] from 
     timeout: 15_000,
   })
 
-  const token = await getToken(page, ORGADMIN_B)
+  const token = await getToken(page, ORGADMIN_B, undefined, 'org_admin')
   const probe = await hospitalReadinessRpc(page, token, HOSPITAL_CENTRAL_A, frameworkId)
   expect(probe.ok, `hospital_readiness as orgadmin.b: ${probe.text}`).toBeTruthy()
   expect(probe.json).toEqual([])

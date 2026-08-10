@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 import { getDraftTemplateVersion } from './helpers/process-templates'
 
 /**
@@ -83,13 +83,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 /** A PostgREST GET under a given bearer token (persona JWT or service key). */
@@ -318,7 +317,7 @@ test('AC-1b: add a member → exactly one membership.granted row (role in metada
   // ISOLATION (P13-006): actor = admin@test.local (global — adding more commissions
   // to a global-admin account is safe; admin has no single-commission landing assertion).
   // The MEMBER being added is also a FRESH throwaway user — never a seeded persona.
-  const admin = await getOwnerToken(request, 'admin@test.local')
+  const admin = await getOwnerToken(request, 'admin@test.local', undefined, 'org_admin')
   const probeMember = await makeProbeUser(request, 'ac1b-member')
 
   const before = await auditRowsFor(request, 'membership.granted', ADMIN_ID)
@@ -829,7 +828,7 @@ test('AC-3a: staff_admin A audit RLS — zero commission-B rows readable; no B e
 test('AC-3b: admin audit RLS — reads ALL rows incl. commission-B (JWT)', async ({
   request,
 }) => {
-  const admin = await getOwnerToken(request, 'admin@test.local')
+  const admin = await getOwnerToken(request, 'admin@test.local', undefined, 'org_admin')
 
   const all = await restGet<{ commission_id: string | null }>(
     request,
@@ -889,9 +888,12 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
 
   // The route guard returns the friendly in-shell 404 (mirrors the dashboard),
   // not the audit content.
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1 (same class): ACT Stage 3 added a
+  // c/[commission]/not-found.tsx sibling that can catch this route with
+  // DIFFERENT copy ("Página não encontrada") than either alternative this
+  // regex already covered. All 3 known boundary copies share the pt-BR
+  // "não encontr-" stem; matching on that survives which one renders.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).not.toBeVisible()
@@ -935,6 +937,23 @@ test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commiss
   expect(total).toBeGreaterThanOrEqual(83)
 })
 
+// ⛔ ACT (ADR 0106) finding, reported not fixed (2026-08-10, found verifying
+// the BUG-ACT-RAWGRANT-HATLESS-1 fix, unrelated persona/mechanism — this
+// test uses platform@, which none of that work touches). This test's premise
+// — "the platform-tier chain (org+commission both NULL) is empty" — is no
+// longer reliably true. `assume_role`'s own audit action, `active_role.assumed`
+// (D8), writes with BOTH organization_id and commission_id NULL (verified
+// live: `select action, organization_id, commission_id, count(*) from
+// audit_log where action='active_role.assumed' group by 1,2,3` → 1 row, both
+// null). Any earlier picker/switch use in the SAME database — the ACT specs
+// themselves, or any of the ~35 spec files across the codebase whose sign-in
+// now threads `actAs` post-BUG-ACT-PICKER-SEED-1 — populates this bucket,
+// which this test asserts stays at zero. On a genuinely fresh reset with no
+// prior assume_role calls, the test still passes; it is fragile to run
+// ORDER/history within that reset, which was not previously true. Whether
+// `active_role.assumed` belongs in this "platform-tier" bucket at all, or
+// needs its own tier, is a cross-cutting audit-log design question outside
+// this session's scope to decide unilaterally — filed, not fixed.
 test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
   page,
 }) => {

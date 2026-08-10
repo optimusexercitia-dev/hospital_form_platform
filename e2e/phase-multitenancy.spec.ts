@@ -92,32 +92,20 @@ test.describe('MT-1/2: New routes and root landing per persona', () => {
     await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
-  test('staff1.qual.b@test.local lands on /c picker (now multi-commission in rede-b)', async ({ page }) => {
-    // NSP-per-org re-homed staff1.qual.b as the Farmácia B coordinator (staff_admin)
-    // in addition to its Qualidade B staff role (seed §10, for the intra-rede-b
-    // referral) — so it is now a MULTI-commission user (both in rede-b, no org_admin
-    // role) and lands on the /c picker, exactly like multi@ below. Pre-NSP-per-org it
-    // was single-commission and deep-landed on /o/rede-b/c/qualidade.
-    //
-    // ⛔ ACT (ADR 0106), reported not fixed (BUG-ACT-PICKER-SEED-1 follow-up,
-    // 2026-08-10): this expectation is now STRUCTURALLY obsolete, not just
-    // missing an actAs pick. staff1.qual.b@ holds `staff` (Qualidade B) AND
-    // `staff_admin` (Farmácia B) — 2 DISTINCT role types — so she now hits the
-    // /selecionar-perfil picker FIRST (D2), before page.tsx's old "count ALL
-    // memberships across every role type" → /c logic ever runs. Whichever role
-    // she then picks maps to EXACTLY ONE commission
-    // (role-catalog.ts:landingRouteForRole), so she lands directly on that
-    // commission — never on /c. No actAs choice makes this assertion true
-    // anymore; the reachable-only-via-/c destination this test asserts does
-    // not exist for this persona post-cutover. Left RED and unmodified — not
-    // the tester's call to soften or silently reroute. `actAs` IS threaded
-    // here (picking one of her two real hats, arbitrarily 'staff_admin') so
-    // the failure shows the CONCRETE wrong-but-real destination instead of a
-    // generic "no actAs given" throw — the informative version of this red.
-    await signInAs(page, 'staff1.qual.b@test.local', undefined, 'staff_admin')
-    await expect(page).toHaveURL(`${BASE}/c`)
-  })
-
+  // ACT (ADR 0106), BUG-ACT-PICKER-SEED-1 follow-up (2026-08-10): a
+  // 'staff1.qual.b@test.local lands on /c picker' test used to live here,
+  // asserting a MULTI-COMMISSION user reaches the grouped /c picker. Post-
+  // cutover that assertion is structurally false for her SPECIFICALLY — she
+  // holds 2 DISTINCT role types (staff + staff_admin), so she now hits
+  // /selecionar-perfil first (D2), and whichever role she picks maps to
+  // exactly one commission, never /c. The test's OWN comment already named
+  // the coverage as redundant ("lands on the /c picker, exactly like multi@
+  // below") — deleted rather than re-based, because the intent it was
+  // protecting (a multi-commission, SINGLE-role-type principal reaches the
+  // grouped picker) is fully and validly covered by 'multi@test.local
+  // (staff of both CCIH + Farmácia, same org) lands on /c picker' directly
+  // below, for whom it is actually true post-cutover, and by
+  // e2e/act-role-assumption.spec.ts's own D2 negative spec.
   test('admin@test.local (re-homed as org_admin rede-a) lands on /o/rede-a/manage', async ({ page }) => {
     // admin@test.local is now an org_admin of rede-a (not is_admin); it should
     // land on the org manage area, not /admin.

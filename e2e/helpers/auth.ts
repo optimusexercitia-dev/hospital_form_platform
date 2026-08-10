@@ -27,7 +27,7 @@
  * SELF-HEALING: after injecting cookies we navigate and check we did not land on /login;
  * if we did, we fall back to a real login. A stale cache costs one login, never a failure.
  */
-import type { Cookie, Page } from '@playwright/test'
+import type { APIRequestContext, Cookie, Page } from '@playwright/test'
 
 export const DEFAULT_PASSWORD = 'Test1234!'
 
@@ -148,27 +148,94 @@ export async function cachedSignIn(
 /** Back-compat alias — the name 67 spec files already use. */
 export const signInAs = cachedSignIn
 
+/** Either fixture shape callers already pass around this codebase — a `Page`
+ * (its `.request` is used) or a bare `APIRequestContext` (the `request`/`req`
+ * fixture, used directly). Normalizing here is what lets ~20 pre-existing
+ * local `getOwnerToken`/`getToken`-style helpers delegate without each first
+ * having to standardize on one fixture shape. */
+type TokenTarget = Page | APIRequestContext
+function requestOf(target: TokenTarget): APIRequestContext {
+  return 'request' in target ? target.request : target
+}
+
+const tokenMemo = new Map<string, string>()
+
 /**
  * Direct password grant for RLS probes that need a raw JWT rather than a browser
- * session. Cached per persona for the same reason as above.
+ * session. Cached per (persona, hat) for the same reason `cachedSignIn` partitions
+ * its own cache.
+ *
+ * @param actAs — ACT (ADR 0106) seam, BUG-ACT-RAWGRANT-HATLESS-1 fix (2026-08-10).
+ *   A raw grant opens its OWN session with no `active_role_selections` row, so a
+ *   multi-role-TYPE persona comes back HATLESS (D5) — and, unlike a browser session
+ *   reached via `cachedSignIn`, it cannot inherit a hat chosen elsewhere: it has its
+ *   own `session_id`, and picking a hat in a browser context writes a selection row
+ *   keyed to THAT session, not this one. Confirmed live before this fix existed:
+ *   `phase15-indicators.spec.ts` AC-5b's raw grant for `admin@test.local` (org_admin +
+ *   pqs_member) failed `open_capa_plan` — `is_tenancy_admin_of OR is_pqs_operator_of`
+ *   both evaluate false against a null `active_role()`, even though either alone would
+ *   pass hatted. When `actAs` is given, this calls `assume_role` against THIS grant's
+ *   own session (never a cached one), then refreshes to mint a token carrying the new
+ *   `active_role` claim, and returns THAT token — never the pre-assume one. Left
+ *   `undefined`, behaviour is byte-identical to before (a single-role persona's
+ *   implicit D11 derive already produces a hatted token with no picker/assume_role
+ *   involved; nothing here changes for any of the ~38 files that only ever pass a
+ *   single-role persona to a raw grant).
  */
-const tokenMemo = new Map<string, string>()
 export async function accessToken(
-  page: Page,
+  target: TokenTarget,
   email: string,
   password: string = DEFAULT_PASSWORD,
+  actAs?: string,
 ): Promise<string> {
-  const hit = tokenMemo.get(email)
+  const cacheKey = actAs ? `${email}::${actAs}` : email
+  const hit = tokenMemo.get(cacheKey)
   if (hit) return hit
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) throw new Error('NEXT_PUBLIC_SUPABASE_URL/ANON_KEY missing from env')
-  const resp = await page.request.post(`${url}/auth/v1/token?grant_type=password`, {
+  const req = requestOf(target)
+
+  const grantResp = await req.post(`${url}/auth/v1/token?grant_type=password`, {
     headers: { apikey: key, 'Content-Type': 'application/json' },
     data: { email, password },
   })
-  if (!resp.ok()) throw new Error(`token for ${email}: ${resp.status()} ${await resp.text()}`)
-  const token = ((await resp.json()) as { access_token: string }).access_token
-  tokenMemo.set(email, token)
+  if (!grantResp.ok()) {
+    throw new Error(`token for ${email}: ${grantResp.status()} ${await grantResp.text()}`)
+  }
+  const grant = (await grantResp.json()) as { access_token: string; refresh_token: string }
+  let token = grant.access_token
+
+  if (actAs) {
+    const assumeResp = await req.post(`${url}/rest/v1/rpc/assume_role`, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_role: actAs },
+    })
+    if (!assumeResp.ok()) {
+      throw new Error(
+        `assume_role(${actAs}) for ${email}: ${assumeResp.status()} ${await assumeResp.text()}`,
+      )
+    }
+    // assume_role only writes the selection row — the token already in hand was
+    // minted before that write. A refresh re-mints it through
+    // custom_access_token_hook, exactly as the app's own assumeRole action does.
+    const refreshResp = await req.post(`${url}/auth/v1/token?grant_type=refresh_token`, {
+      headers: { apikey: key, 'Content-Type': 'application/json' },
+      data: { refresh_token: grant.refresh_token },
+    })
+    if (!refreshResp.ok()) {
+      throw new Error(
+        `refresh after assume_role(${actAs}) for ${email}: ${refreshResp.status()} ${await refreshResp.text()}`,
+      )
+    }
+    token = ((await refreshResp.json()) as { access_token: string }).access_token
+  }
+
+  tokenMemo.set(cacheKey, token)
   return token
 }

@@ -334,49 +334,98 @@ before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🔴 **BUG-ACT-RAWGRANT-HATLESS-1 — OPEN (`tester`, found threading `actAs` through the
-BUG-ACT-PICKER-SEED-1 follow-up, 2026-08-10; live-reproduced).** The cookie/picker mechanism
-(`cachedSignIn`/`loginFresh`) is not the only pre-existing sign-in surface affected by the false
-"only dualhat.a@ is multi-role" premise. ~20 spec files each define their OWN file-local
-`getOwnerToken`/`getToken`-style raw password-grant helper (pre-`accessToken()`-consolidation
-pattern; the lead's earlier "accessToken has zero call sites outside the helper, nothing for you
-there" check covered only the literal name `accessToken`, not this parallel, differently-named
-pattern — swept by the property via `grep -l grant_type=password`). A raw grant for one of the 4
-affected personas (excluding dualhat.a@, already tester-owned) mints a HATLESS token (no
-`active_role` claim, D5) unless the call site separately assumes a role — **confirmed live**:
-`phase15-indicators.spec.ts` AC-5b's `getOwnerToken(page, 'admin@test.local')` call → `POST
-rest/v1/rpc/open_capa_plan` → `open_capa_plan still authorizes the PQS operator: expect(false)
-.toBeTruthy()` — the RPC's own OR-gate (`is_tenancy_admin_of OR is_pqs_operator_of`) denies
-BOTH arms when hatless, even though either alone would legitimately pass. **Files combining a raw
-grant with one of the 4 personas** (grep-derived, not exhaustively triaged — same file may use
-BOTH the cookie and raw-grant surfaces): admin@ → case-patient, mem-memberships-collapse,
-notifications, patient-index, perf-sweep-wave2, phase10-meetings, phase13-audit,
-phase14a-safety-events, phase14b-triage, phase14c-rca, phase14d-capa, phase15-indicators,
-phase22-referrals, phase7-cases, phase8-dashboard, phi-remediation (16); orgadmin.b@ →
-charters-cadence, phase15-indicators (2); pqsdual.a@ → perf-sweep-wave2, phase22-referrals (2);
-staff1.qual.b@ → charters-cadence, ff3-validations, notifications, phase22-referrals (4).
-**Disposition, matching the coordinator's own ruling on the cookie surface:** each call site needs
-the SAME union-vs-single-hat judgment `actAs` threading used — but the FIX SHAPE differs (no
-picker involved; either call `assume_role` against that raw session before probing, or extend
-each local helper to accept/pass an explicit hat, per the Stage 1 buildnotes' own carry-forward
-obligation for `accessToken`). **Not fixed this session** — out of the originally-authorized
-scope (cookie/picker threading), substantially larger than that scope, and the coordinator has
-not yet ruled on it. Reported via SendMessage same-session; recommend a dedicated follow-up.
+⬛ **BUG-ACT-RAWGRANT-HATLESS-1 — RESOLVED same-session 2026-08-10 (`tester`, coordinator-
+authorized follow-up).** Re-bounded by the property, not the name, per the coordinator's own
+correction of their earlier "accessToken has zero callers, nothing for you" check (which was
+itself name-bounded — the exact mistake this repo has logged before): **58 files** in `e2e/`
+perform a raw password grant (`grep -l grant_type=password`); of those, **22** (not the
+coordinator's provisional 20, not the tester's own first-pass 20 either — see below) intersect one
+of the 6 multi-role personas, once traced past every layer of indirection:
+- **19** by literal string (matches the coordinator's 20 minus the tester's own new file):
+  `case-patient`, `charters-cadence`, `ff3-validations`, `helpers/accreditation.ts`,
+  `mem-memberships-collapse`, `notifications`, `patient-index`, `perf-sweep-wave2`,
+  `phase10-meetings`, `phase13-audit`, `phase14a-safety-events`, `phase14b-triage`,
+  `phase14c-rca`, `phase14d-capa`, `phase15-indicators`, `phase22-referrals`, `phase7-cases`,
+  `phase8-dashboard`, `phi-remediation`.
+- **+3 found only by tracing transitive imports / dynamic queries**, invisible to any name or
+  literal-string sweep: `phase16-accreditation-clone.spec.ts` + `phase16-accreditation-hospital
+  .spec.ts` (both import `getToken`/`ORGADMIN_B`/`STAFF1_QUAL_B` from the SHARED
+  `helpers/accreditation.ts` — the risky VALUE lives in a different file than the risky CALL);
+  `ethics-e2-procedure.spec.ts` (a `computeEligibleVoters()` roster query resolves CCIH's real
+  `memberships`, which includes pqsdual.a@ as a genuine `staff` row — the persona arrives via a
+  DB round-trip, not a constant at all).
+- Of the 19 literal-string files, **4 turned out to be false positives on re-verification**
+  (`case-patient`, `phase10-meetings`, `phase7-cases`, `phase8-dashboard` — the persona name
+  appears only in a header-comment persona list; every actual `getOwnerToken`/`getToken` call
+  in each file uses an unrelated single-role persona, confirmed by enumerating every call site,
+  not just grepping the risky string). **1 more (`perf-sweep-wave2`) had its helper converted for
+  consistency but had no actually-risky call site** (only ever calls with `chefe.ccih@`).
+- **Self-correction recorded, not hidden:** the tester's own FIRST pass over this list missed
+  `phase14c-rca.spec.ts` and `phase14d-capa.spec.ts` (13 raw-grant sites each, 26 total) — both
+  appeared in the same `grep` output as every other hit, but the tester's initial read concluded
+  "comment-only" without checking their ACTUAL `getOwnerToken(request, ADMIN_EMAIL)` call sites,
+  the same class of gap the coordinator's own correction was about, one layer further in. Caught
+  by a maximally-thorough final sweep (per-file, not globally-deduplicated) before declaring done.
 
-🟡 **BUG-ACT-NOTFOUND-COPY-1 — OPEN, LOW SEVERITY (`tester`, found verifying the seed-persona
-`actAs` threading, 2026-08-10).** `user-registration.spec.ts` "a foreign org_admin (rede-b)
-cannot open a rede-a user detail page" asserts `getByText('Erro 404')` — the GLOBAL not-found
-page's eyebrow — but ACT Stage 3 added a NEW `manage/not-found.tsx` sibling boundary (frontend
-half, design-note §5.4 correction), which now catches a PAGE-level `notFound()` (the cross-org
-user-detail lookup) inside an already-entered `/o/rede-b/manage` shell, rendering DIFFERENT copy
-("Página não encontrada", no "Erro 404" text — plus the D9 hint, correctly excluding her active
-hat). **Security is intact**: she is correctly denied, zero data leaks (verified live —
-`ativo.registro@test.local` / `Ativo Registrado` both absent), the OTHER 3 assertions in this
-test would pass. Only the ONE `getByText('Erro 404')` line is checking stale, pre-Stage-3 copy.
-Not caused by the tester's `actAs` threading (org_admin is the correct, verified hat here — the
-shell renders correctly for her org); a side effect of Stage 3 frontend's new sibling boundary on
-a pre-existing, unrelated test. Out of the tester's session scope to fix (not one of the
-originally-threaded files); flagged for a follow-up spec correction.
+**Fix, as specified:** built the hatted `accessToken(target, email, password?, actAs?)` in
+`e2e/helpers/auth.ts` (grant → `assume_role` against THAT grant's own session → refresh → return
+the hatted token; cache partitioned by `email::actAs`, mirroring `cachedSignIn`; accepts either a
+`Page` or a bare `APIRequestContext` so every local helper's existing call shape works
+unchanged). Smoke-tested directly before converting any consumer (hatless → `active_role:
+undefined`; hatted → correct claim; cache/partition both verified). All ~13 local
+`getOwnerToken`/`getToken`/`ownerToken`-style helpers across the 22 files now delegate to it
+(none needed to stay independent — delegation was possible everywhere). `actAs` threaded per
+call site under the SAME union-vs-single-hat test used for the cookie surface — verified live
+per file after threading (not assumed), which caught 3 real misclassifications before they
+shipped: `phase22-referrals.spec.ts` Flow 4c needed `org_admin` (a coordinator-equivalent
+stand-in), not `pqs_member`; the `nsp-per-hospital.spec.ts` AC-7 dispose tests and
+`phase22-referrals.spec.ts` Flow 3d/5a needed `staff` for ROUTE ENTRY (a commission-scoped URL —
+`is_pqs_operator_of` admits the bare `commissions` RLS row but not the referral-hub page itself,
+confirmed by a live 404 under `pqs_member`); `ethics-e2-procedure.spec.ts`'s dynamic voter loop
+needed each voter's OWN role from `computeEligibleVoters()` (extended to carry it through) rather
+than one blanket hat, since the roster mixes `staff` and `staff_admin` CCIH members.
+
+**Findings — reported, not papered over, matching the coordinator's own instruction on this
+exact shape:**
+- `phase15-indicators.spec.ts` AC-5b (already filed) — no hat threaded; left RED with the
+  finding documented in-line.
+- **NEW: `phase22-referrals.spec.ts` Flow 3d** — same shape as AC-5b, found live while verifying
+  the Flow 3d fix (the page rendered "Sem resultado registrado" instead of a text-match failure,
+  which is what led to catching this as real rather than a flake). Verified from the live catalog:
+  `can_read_referral_phi`'s gate is `is_pqs_operator_of_for(...) OR is_staff_admin_of_for(...) OR
+  <target-side arms>` — pqsdual.a@ is a plain CCIH `staff` (not `staff_admin`), so ENTRY needs
+  `staff` but the PHI-bearing reply-result content needs `pqs_member`; no single hat satisfies
+  both post-cutover. Left RED, documented in-line. Flow 5a (the sibling "PHI panel reveal" test)
+  does NOT share this shape — verified live, passes cleanly with `pqs_member` alone.
+- **NEW: `phase13-audit.spec.ts` AC-3f-platform** — found verifying an UNRELATED site in the same
+  file (uses `platform@`, never touched by this work). `assume_role`'s own audit action
+  (`active_role.assumed`, D8) writes with BOTH `organization_id` AND `commission_id` NULL
+  (verified live — 14 rows already, from this session's own ACT spec runs), landing in exactly
+  the "platform-tier chain" bucket this pre-existing test asserts is always empty. Any earlier
+  picker/switch use in the same database — now routine, since ~35 files' sign-ins thread `actAs`
+  — populates it. A fresh reset with no prior `assume_role` calls still passes; whether
+  `active_role.assumed` belongs in this bucket at all is a cross-cutting audit-log design
+  question, filed not decided unilaterally.
+
+**Also found and fixed en route (same bug class, blocking verification of the above, not a new
+class):** two MORE instances of `BUG-ACT-NOTFOUND-COPY-1` (below), in `ethics-e2-procedure.spec.ts`
+(`assertRouteDenied`, cascading via `test.describe.configure({mode:'serial'})` — blocked FLOW-7,
+the test actually exercising the pqsdual.a@ dynamic-role fix, until corrected) and
+`phase13-audit.spec.ts` AC-3e. Both fixed with the same `/não encontr/i` pattern.
+
+⬛ **BUG-ACT-NOTFOUND-COPY-1 — RESOLVED same-session 2026-08-10 (`tester`).** Originally found in
+`user-registration.spec.ts` "a foreign org_admin (rede-b) cannot open a rede-a user detail page":
+asserted `getByText('Erro 404')` — the GLOBAL not-found page's eyebrow — but ACT Stage 3 added a
+NEW `manage/not-found.tsx` sibling boundary (frontend half, design-note §5.4 correction), which
+catches a PAGE-level `notFound()` (the cross-org user-detail lookup) inside an already-entered
+`/o/rede-b/manage` shell, rendering DIFFERENT copy ("Página não encontrada", no "Erro 404" text).
+**Security was always intact** — denial + zero data leak, verified live; only the copy assertion
+was stale. **Fixed in 4 places** (2 in `user-registration.spec.ts` including a SECOND, previously
+unreported `getByText('Erro 404')` in the SAME file at "a plain staff/staff_admin cannot reach the
+org user directory"; `ethics-e2-procedure.spec.ts`'s shared `assertRouteDenied` helper;
+`phase13-audit.spec.ts` AC-3e) by matching `/não encontr/i` — the shared pt-BR stem across every
+known boundary's copy — instead of pinning one boundary's exact string, so a future boundary
+addition does not red this again. All 4 re-verified green.
 
 ⬛ **BUG-ACT-GUARD-HATBLIND-1 — RESOLVED same-session 2026-08-10 (`backend`, fix landed while
 `tester` was mid-investigation on the seed-persona threading follow-up; re-verified by `tester`
@@ -709,7 +758,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 > Older rows (MIN · AFF · MEM · PCI/TV and everything before) rotated **2026-08-07** at the QO·A
 > Record → [test-run-archive.md](docs/progress/test-run-archive.md).
 
-| 2026-08-10 | **ACT · TESTER · Stage 3 specs + seed-persona threading follow-up** — new `e2e/act-role-assumption.spec.ts` (9 tests, the picker/switch/D9/D5/keyboard acceptance surface) + `actAs` threading across 12 pre-existing files after BUG-ACT-PICKER-SEED-1. **NOT a full-suite run** (out of scope per task brief — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN** (chromium, `--workers=1`, fresh `db reset` + clean server restart) — 8/9 on first write, "the switch" red on a genuine live-reproduced defect (BUG-ACT-GUARD-HATBLIND-1, filed P0, fixed same-session by `backend`, re-verified green). **Threaded files spot-verified, not exhaustively**: `phase-multitenancy.spec.ts` full file 29/30 (the 1 red is the PREDICTED structural finding — staff1.qual.b lands on `/o/rede-b/c/farmacia-b`, not `/c`, exactly as the left-in comment states) · `phase15-indicators.spec.ts` AC-5b UI half passes, RPC half fails on a SEPARATE, newly-filed issue (BUG-ACT-RAWGRANT-HATLESS-1) · `nsp-per-hospital.spec.ts` AC-7 dispose tests caught a real misclassification live (`pqs_member` 404s a commission-scoped referral route; corrected to `staff`) · a 7-file batch (qob-org-admin-content-wall, technical-direction-referrals, phase17-documents, phase2-auth-shell, phase3-admin-members, phase13-audit, user-registration) ran 95/115, with the ~20 reds triaged: 1 genuine new finding (BUG-ACT-NOTFOUND-COPY-1, low severity, no leak), the rest re-run isolated and traced to personas/mechanisms this session never touched (`orgadmin.a@`, a raw `docker exec` fixture deadlock) — pre-existing/environmental, not regressions from this work. lint 0/0 (`eslint` + `lint:css-vars`) · `tsc --noEmit` clean, both re-run after every edit batch. ⛔ **Two bugs found and reported beyond the assigned task, both live-reproduced, not inferred:** BUG-ACT-PICKER-SEED-1 (the buildnotes' "only dualhat.a@ is multi-role" premise was false — 5 more seed personas affected, ~35 pre-existing files across 2 mechanisms) and BUG-ACT-GUARD-HATBLIND-1 (P0 — a hat-blind area-guard let an inactive hat's access survive into a different area; RESOLVED same-session). Full detail, all 4 bug rows: PROGRESS.md Bug Log. |
+| 2026-08-10 | **ACT · TESTER · Stage 3 specs + BOTH seed-persona threading follow-ups (cookie + raw-grant), coordinator-directed close-out** — `e2e/act-role-assumption.spec.ts` (9 tests) + `actAs`/hatted-`accessToken` threading across **22** raw-grant files and **15** cookie-based files (37 file-touches total, several needing both) + `phase-multitenancy.spec.ts` decision (deleted, redundant) + `BUG-ACT-NOTFOUND-COPY-1` fixed in 4 places. **NOT a full-suite run** (out of scope — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN**, re-verified on a SECOND fresh reset after backend's own concurrent migrations landed (`…002400`, `…002500`). **Every touched file individually re-verified live** (not sampled) on the final fresh reset: `phase-multitenancy.spec.ts` 29/30 (1 deliberate red → now DELETED, see below) · `phase14a-safety-events` 15/16 (1 unrelated pre-existing keyboard-focus flake, matches the documented `.focus()`-not-auto-waiting class) · `phase14b-triage` 13/13 · `phase14c-rca` 17/17 · `phase14d-capa` 19/19 · `ethics-e2-procedure` 20/20 (incl. FLOW-7, the dynamic-role-per-voter fix) · `phase16-accreditation-clone` 4/4 · `phase16-accreditation-hospital` 6/6 · `phase13-audit` 26/27 (1 genuine NEW finding, not a regression — see Bug Log) · plus `mem-memberships-collapse`, `patient-index` (7/7 across its 4 sites), `phi-remediation`, `charters-cadence` (3/3), `ff3-validations` all green. lint 0/0 across `e2e/` · `tsc --noEmit` clean — both re-run after every edit batch, final time on the clean-reset tree. **`phase-multitenancy.spec.ts` decision (coordinator's item 2): DELETED**, not re-based — its own comment already named the coverage redundant ("lands on the /c picker, exactly like multi@ below"); the intent (multi-commission + single-role-type → grouped `/c` picker) is fully covered by the adjacent `multi@` test in the same file (now verified true for her post-cutover) and by this file's own D2 negative spec. **Raw-grant denominator, re-derived by property per the coordinator's instruction: 58 files perform a raw grant; 22 intersect a multi-role persona** (19 by literal string, +3 only reachable by tracing transitive imports/dynamic queries — full breakdown in the Bug Log). Caught and self-corrected one real gap in the tester's own first pass (`phase14c-rca`/`phase14d-capa`, 26 sites, initially miscategorized "comment-only") before declaring done. ⛔ **Three bugs found and reported beyond the originally-assigned 7 specs, all live-reproduced against the real catalog/DB, not inferred:** BUG-ACT-PICKER-SEED-1 and BUG-ACT-GUARD-HATBLIND-1 (P0, RESOLVED same-session by backend) from the first pass; BUG-ACT-RAWGRANT-HATLESS-1 (RESOLVED this session) plus 2 genuinely NEW findings surfaced while verifying it (`phase22-referrals.spec.ts` Flow 3d — same OR-gate-conflation shape as AC-5b; `phase13-audit.spec.ts` AC-3f-platform — `assume_role`'s own audit rows now populate a bucket a pre-existing test assumed was permanently empty) — both left RED with the finding documented in-line, not forced. Full detail, all bug rows: PROGRESS.md Bug Log.
 
 | 2026-08-09 | **BACKSTOP · LEAD · wave-5 gate (referral disposal backstop + stale messages)** — 1 migration `20260917000400`, **334 registered == 334 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5636 / PASS** (+2 ruling guards) · **RED-PROOF:** re-cutting the restored arm reds **exactly `295` 7.7 (behavioural) + `314` 8.6 (catalog)** and nothing else; restore **byte-identical** · E2E **91/91** (`phase22-referrals` 40, `nsp-per-hospital` 51, `qob-org-admin-content-wall`), 0 did-not-run · lint 0/0 · tsc · vitest **1194**. ⛔ **This PARTIALLY REVERSES `20260917000000` the same day, deliberately.** BUG-QOB-004 was ruled CUT on D5; examining the sibling `dispose_event_phi` afterwards surfaced two facts that were not in front of the PO: **a hospital can have ZERO NSP operators** (`Hospital Unico C`), so NSP-only disposal strands an **LGPD Art. 18** erasure obligation that belongs to the *controlador*; and this platform **already rules the other way for the identical shape** — ADR 0104 D11 keeps the tenancy arm on `revoke_printed_document` because revocation *reveals no content*. Disposal discloses nothing; it destroys. Restored on the two DISPOSAL doors only — **drafting stays cut, the UI wall stays** — and guarded by `314` 8.6/8.7 so a future "finish the disposal wall" sweep reds instead of silently reopening the gap. ⚠ **Three stale pt-BR messages fixed, one per direction:** `dispose_case_phi` **promised** an org-admin arm QO·B removed; `revoke_printed_document` **hid** the tenancy arm it carries. The class — *every arm that moved left its sentence behind* — is invisible to every gate here, because no test reads prose. ⚠ **The gate's first run was RED (UNRUN):** both batches' `db reset` failed with a **502 from the stack gateway** mid-restart, 91 tests never ran. Recorded remedy applied (`supabase stop` → `start` → reset → **verify a real token POST returns 200**, which it did) and the gate re-run clean. |
 | 2026-08-09 | **CADENCE · LEAD · wave-4 gate (registry cadence overview)** — 1 migration `20260917000300`, **333 registered == 333 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5634 / PASS** (+10: `261` §CAD) · **RED-PROOF:** neutralizing the door's tenancy filter to `where true` reds **exactly tests 33–34** (CAD-4 cross-org, CAD-5 plain member) and nothing else — the positive arms stay green, as they must; restore **byte-identical** · `ARM=census` + `ARM=floor` **HOLD** · E2E **21/21** (`quality-oversight`, incl. 3 new CAD tests), 0 did-not-run · lint 0/0 · tsc · vitest **1194** · **UI verified live in the browser**, not just built: all four Rede-A committees render the badge and the statuses match the DB probe exactly (Farmácia `em_dia`, the other three `sem_regimento`). ⛔ **A REAL DEFECT I INTRODUCED AND CAUGHT:** the extracted helper was first declared **IMMUTABLE** while reading `now()` — the planner may fold such a call to a constant or cache it across rows, so it would have been wrong intermittently and only under load. Fixed to `STABLE` **and pinned by the migration's own postcondition** (`provolatile = 's'`), because every test passes under either marking until the planner decides to fold. ⚠ **A boundary test that looked like a bug and was not:** `now() - interval '1 month'` walks back a CALENDAR month (31 days in a 31-day month) while `interval '1 month'` COMPARES as 30 days, so the "exactly one period old" probe landed `em_atraso`. The door's semantics are unchanged from the original; the test was wrong. Re-pinned on `semanal` (exactly 7 days both ways) and the month behaviour documented executably as CAD-8b rather than left as a surprise. ⚠ **The census/sweep domain gap fired again:** the new door is set-returning, so `ARM=census` demands a verdict while the door-audit's boolean-only predicate arm **cannot produce one** (swept 0 cases). Verdict recorded as COVERED on the **hand-run mutation evidence**, per the AFF precedent — never cite the census as coverage. Durable fix stays FUP-AFF-1. |

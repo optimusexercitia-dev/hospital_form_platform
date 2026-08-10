@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { cachedSignIn } from './helpers/auth'
+import { cachedSignIn, accessToken } from './helpers/auth'
 import { purgeFormsByTag } from './helpers/purge-forms'
 
 /**
@@ -104,13 +104,16 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
 }
 
 /** A real JWT so RLS and every DEFINER gate see the persona's identity. */
-async function getToken(page: Page, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await page.request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok(), `token for ${email}: ${await resp.text()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getToken(
+  page: Page,
+  email: string,
+  password = 'Test1234!',
+  actAs?: string,
+): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): STAFF_B/staff1.qual.b@test.local (staff +
+  // staff_admin, 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(page, email, password, actAs)
 }
 
 /** Call an RPC under a persona's JWT — the canonical server path. */
@@ -2413,7 +2416,9 @@ test('FF3-18 an outsider gets no validation errors for a foreign response, and n
   ).toBeGreaterThan(0)
 
   // The outsider: a member of a different ORGANISATION entirely.
-  const outsiderToken = await getToken(page, STAFF_B)
+  // ACT (ADR 0106): either of her 2 real hats denies identically here (a
+  // foreign-org negative control) — 'staff_admin' picked arbitrarily.
+  const outsiderToken = await getToken(page, STAFF_B, undefined, 'staff_admin')
   // PROVE THE TOKEN IS LIVE first. Without this the boundary assertion below is
   // vacuous by construction — a dead or malformed token yields the same "no rows"
   // as a working authorization gate, and the test would pass with the gate

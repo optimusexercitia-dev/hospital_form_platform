@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Ethics E2 — Procedure (ADR 0073; build plan docs/phases/ethics-e2-procedure.md
@@ -134,10 +134,22 @@ async function signOut(page: Page) {
   await page.waitForURL(/\/login/)
 }
 
-/** Assert the route hits the notFound() boundary — no content leaks. */
+/**
+ * Assert the route hits a notFound() boundary — no content leaks.
+ *
+ * BUG-ACT-NOTFOUND-COPY-1 (same class, this file): ACT Stage 3 added a
+ * manage/not-found.tsx sibling boundary that catches a route's own
+ * page-level notFound() with DIFFERENT copy ("Página não encontrada") than
+ * the global boundary ("Não encontramos esta página."). Both share the
+ * pt-BR "não encontr-" stem; matching on that is the security assertion
+ * (denial + no leak) that survives which boundary renders, not one pinned
+ * copy — found live: this exact helper 404'd correctly but with the OTHER
+ * boundary's text, cascading test.describe.configure({mode:'serial'})
+ * failures through the rest of the file.
+ */
 async function assertRouteDenied(page: Page, url: string) {
   await page.goto(url)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 }
 
 /** `datetime-local` input value (local wall clock) N days from now. */
@@ -262,13 +274,15 @@ async function getOwnerToken(
   request: APIRequestContext,
   email: string,
   password = PW,
+  actAs?: string,
 ): Promise<string> {
-  const resp = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1). Found via a DYNAMIC path, not a fixed
+  // persona: `computeEligibleVoters()` below queries CCIH's real roster,
+  // which includes pqsdual.a@test.local (staff + pqs_member, 2 role types)
+  // as a genuine CCIH `staff` member — she otherwise comes back with no
+  // active_role claim when this loop reaches her.
+  return accessToken(request, email, password, actAs)
 }
 
 async function callRpc(
@@ -311,13 +325,23 @@ async function auditRowsFor(action: string, entityId: string): Promise<AuditRow[
  * hardcoded guess), guaranteeing 100% turnout regardless of the exact quorum
  * threshold `issue_decision` enforces (HC0J8).
  */
-async function computeEligibleVoters(): Promise<{ userId: string; email: string }[]> {
+async function computeEligibleVoters(): Promise<
+  { userId: string; email: string; role: string }[]
+> {
   const memberships = await dbQuery<{ principal_id: string; role: string }>('memberships', {
     commission_id: `eq.${COMMISSION_A}`,
   })
-  const memberIds = memberships
-    .filter((m) => m.role === 'staff' || m.role === 'staff_admin')
-    .map((m) => m.principal_id)
+  // ACT (ADR 0106): carry each voter's OWN commission role through — it
+  // doubles as the `actAs` hat the vote-casting loop below needs. A
+  // blanket 'staff' (or 'staff_admin') would be wrong for whichever half
+  // of this roster doesn't hold that exact role; this membership row IS
+  // the source of truth for which one each voter actually holds.
+  const roleByPrincipal = new Map(
+    memberships
+      .filter((m) => m.role === 'staff' || m.role === 'staff_admin')
+      .map((m) => [m.principal_id, m.role] as const),
+  )
+  const memberIds = [...roleByPrincipal.keys()]
   const profiles = await dbQuery<{
     id: string
     email: string
@@ -333,7 +357,7 @@ async function computeEligibleVoters(): Promise<{ userId: string; email: string 
   return profiles
     .filter((p) => p.is_active && !excluded.has(p.id))
     .filter((p) => !p.suspended_until || new Date(p.suspended_until).getTime() < now)
-    .map((p) => ({ userId: p.id, email: p.email }))
+    .map((p) => ({ userId: p.id, email: p.email, role: roleByPrincipal.get(p.id)! }))
 }
 
 /** Parse "X de Y membro(s) apto(s) votaram" → [X, Y]. */
@@ -955,7 +979,7 @@ test('FLOW-7 cast votes: chefe votes via KEYBOARD-ONLY (the required keyboard fl
   const others = eligible.filter((v) => v.userId !== UID_CHEFE)
   let rpcApprovals = 0
   for (const voter of others) {
-    const token = await getOwnerToken(request, voter.email)
+    const token = await getOwnerToken(request, voter.email, undefined, voter.role)
     const resp = await callRpc(request, 'cast_case_vote', token, {
       p_decision_id: decisionId,
       p_vote: 'approve',

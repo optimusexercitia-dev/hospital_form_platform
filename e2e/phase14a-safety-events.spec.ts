@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 14a — Patient-Safety Event Intake & Hand-off (NSP Foundation)
@@ -99,13 +99,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 /** PostgREST GET under a bearer token (persona JWT or service key). */
@@ -245,7 +244,7 @@ test('AC-2a: admin acknowledges EV-0002 → status becomes acknowledged', async 
   request,
 }) => {
   // EV-0002 is seeded as `reported`; admin = PQS member
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   // Verify initial state
   const before = await restGet<{ status: string }>(
@@ -308,7 +307,7 @@ test('AC-2c: foreign commission (Farmácia) sees 0 events via RLS', async ({
 test('AC-3: custody transfer gives new holder access; reporting commission keeps access', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
   const chefeCcihToken = await getOwnerToken(request, 'chefe.ccih@test.local')
 
   // Pre-condition: EV-1 is currently with NSP (`pqs`). CCIH is reporting commission.

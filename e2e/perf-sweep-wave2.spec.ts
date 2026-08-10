@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep) — acceptance specs.
@@ -93,15 +93,13 @@ async function getOwnerToken(
   ctx: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await ctx.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  if (!resp.ok()) {
-    throw new Error(`getOwnerToken(${email}) failed: ${resp.status()} ${await resp.text()}`)
-  }
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1). This file's own raw-grant call sites only
+  // ever use chefe.ccih@test.local (single-role, unaffected); converted for
+  // consistency with the house pattern, not because a site here needs it.
+  return accessToken(ctx, email, password, actAs)
 }
 
 /** Call a PostgREST RPC as a real authenticated user (owner JWT, RLS/DEFINER

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 22 — Inter-Committee Case Referrals (`case_referrals`)
@@ -175,13 +175,12 @@ async function signInAs(page: Page, email: string, password = 'Test1234!', actAs
 }
 
 /** Obtain a JWT for a persona (RLS evaluated under it). */
-async function getToken(req: APIRequestContext, email: string): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password: 'Test1234!' },
-  })
-  expect(resp.ok(), `getToken(${email}) failed: ${resp.status()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getToken(req: APIRequestContext, email: string, actAs?: string): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member)
+  // and staff1.qual.b@test.local (staff + staff_admin) otherwise come back
+  // with no active_role claim.
+  return accessToken(req, email, undefined, actAs)
 }
 
 /** PostgREST GET under a bearer token. */
@@ -611,7 +610,7 @@ test("Flow 2d: B user cannot read A's source case_referral source data directly 
 test('Flow 3a: QPS admin can read A\'s source case (get_case_detail returns non-null)', async ({
   request,
 }) => {
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const resp = await rpc(request, 'get_case_detail', adminToken, {
     p_case_id: CASE_A_ID,
   })
@@ -640,7 +639,7 @@ test('Flow 3b: QPS member can read ENC-0001 detail via the per-org QPS referral 
 test('Flow 3c: QPS admin can read B\'s linked case via get_case_detail', async ({
   request,
 }) => {
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const resp = await rpc(request, 'get_case_detail', adminToken, {
     p_case_id: CASE_B_ID,
   })
@@ -667,7 +666,23 @@ test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on d
 
   // Reply is visible
   await expect(page.getByText(/Procede/i).first()).toBeVisible()
-  // Reply result MD
+
+  // ⛔ ACT (ADR 0106), BUG-ACT-RAWGRANT-HATLESS-1 follow-up finding, reported
+  // not fixed (2026-08-10): the reply RESULT text (referral_reply.result_md
+  // — PHI-bearing free text per ARCHITECTURE.md Rule 12) is DELIBERATELY
+  // withheld here, not a text-matching flake. Verified live from the
+  // catalog: `can_read_referral_phi`'s gate is `is_pqs_operator_of_for(...)
+  // OR is_staff_admin_of_for(...) OR <target-side arms>` — pqsdual.a is a
+  // plain CCIH `staff` (not `staff_admin`), so neither the entry hat
+  // ('staff', required above just to reach this commission-scoped route at
+  // all) nor any OTHER single hat satisfies both the ENTRY gate and this
+  // PHI-content gate simultaneously: 'staff' passes entry but fails PHI
+  // ('is_staff_admin_of_for' does not admit a plain staff row); 'pqs_member'
+  // would satisfy PHI but 404s on entry (confirmed live, same mechanism as
+  // the nsp-per-hospital.spec.ts AC-7 dispose tests). Pre-cutover, her one
+  // hatless session carried both arms at once, so this test never had to
+  // choose — the same structural shape as phase15-indicators.spec.ts's
+  // AC-5b. No actAs choice makes the assertion below pass. Left RED.
   await expect(page.getByText(/conciliação medicamentosa procede/i)).toBeVisible()
 })
 
@@ -727,7 +742,9 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   // then send it, and verify close_case is not blocked.
   // (We use the admin token to bypass the source-coordinator constraint for this test,
   //  as chefe.ccih is CCIH coordinator — same result.)
-  const adminToken = await getToken(request, 'admin@test.local')
+  // ACT (ADR 0106): org_admin — she stands in for a coordinator's tenancy-
+  // admin-equivalent authority here, not her PQS-operator standing.
+  const adminToken = await getToken(request, 'admin@test.local', 'org_admin')
 
   // p_referral_type_id is required by the RPC; use the service key to pick a valid type id
   const typesResp = await restGet<{ id: string; key: string }>(
@@ -1403,7 +1420,9 @@ test('R1-6: posting a message on a referral your commission is not party to is r
 }) => {
   // staff1.qual.b is a rede-b (a different ORG entirely) persona — not a member
   // of CCIH or Farmácia, not QPS of rede-a, not the r1ReferralId analyst.
-  const foreignToken = await getToken(request, 'staff1.qual.b@test.local')
+  // ACT (ADR 0106): either of her 2 real hats denies identically here (a
+  // foreign-org negative control) — 'staff_admin' picked arbitrarily.
+  const foreignToken = await getToken(request, 'staff1.qual.b@test.local', 'staff_admin')
 
   const resp = await rpc(request, 'post_referral_message', foreignToken, {
     p_referral_id: r1ReferralId,

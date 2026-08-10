@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 15 — Quality Indicators (Indicadores de Qualidade)
@@ -93,16 +93,17 @@ async function signInAs(page: Page, email: string, password = 'Test1234!', actAs
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS evaluated under it). */
-async function getOwnerToken(page: Page, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await page.request.post(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-      data: { email, password },
-    },
-  )
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getOwnerToken(
+  page: Page,
+  email: string,
+  password = 'Test1234!',
+  actAs?: string,
+): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1). Left `actAs` UNTHREADED at AC-5b's own
+  // call site deliberately — see that test's own comment: it is the
+  // confirmed OR-gate finding, not a site to paper over with a hat.
+  return accessToken(page, email, password, actAs)
 }
 
 /** Service-role REST query (DB-truth assertions only — never mutates data under test). */
@@ -476,6 +477,23 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
   // loop closure. Its SQL gate is `is_tenancy_admin_of(source_commission)
   // OR is_pqs_operator_of(hospital)`, neither arm touched by the QO·B
   // migrations (M1–M6 never mention CAPA doors).
+  //
+  // ⛔ ACT (ADR 0106), BUG-ACT-RAWGRANT-HATLESS-1 finding, reported not
+  // fixed (2026-08-10): this call is DELIBERATELY left hatless. Threading
+  // EITHER hat would misrepresent what this test proves. This test's own
+  // UI half (lines above) required 'org_admin' to pass canConfigureCommission
+  // (a tenancy-admin gate); this RPC half is titled "PQS operator opens a
+  // CAPA" and its comment above frames the claim as the PQS-OPERATOR arm
+  // specifically — but that arm is `is_pqs_operator_of`, which 'org_admin'
+  // does NOT satisfy. Pre-cutover, one hatless admin@ session carried the
+  // UNION of both arms simultaneously (this is exactly the class of test
+  // BUG-ACT-PICKER-SEED-1 was found investigating), so both halves passed
+  // together without the test ever having to choose. Post-cutover, no
+  // single hat serves both halves: 'org_admin' would pass the UI, fail the
+  // RPC (confirmed live — see PROGRESS.md); 'pqs_member' would fail the UI
+  // before ever reaching this line. This is a genuine structural
+  // incompatibility in the test's own construction, not a missing actAs
+  // pick — filed, not silently forced. Left RED.
   const adminTok = await getOwnerToken(page, 'admin@test.local')
   const openResp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
     headers: {
@@ -542,7 +560,11 @@ test('AC-6: loop closure — a CAPA measure can cite the indicator (capa_measure
   const id = await indicatorIdByCode(page, 'IND-0002')
 
   // Open a plan as the operator (idempotent enough — asserts on the resulting row).
-  const adminTok = await getOwnerToken(page, 'admin@test.local')
+  // ACT (ADR 0106): 'pqs_member' — unlike AC-5b, this test has no earlier
+  // UI-navigation half needing a different hat (indicatorIdByCode above
+  // reads via the service role, not this page's own session), so the
+  // operator arm alone is unambiguous here.
+  const adminTok = await getOwnerToken(page, 'admin@test.local', undefined, 'pqs_member')
   await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,

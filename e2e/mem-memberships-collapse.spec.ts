@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * MEM (S1) — Single `memberships` Collapse.
@@ -63,13 +63,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 /** Service-role read — used to assert SEED state survived a test's own cleanup. */
@@ -393,10 +392,14 @@ test('AC-5: a grant shows up on the audit page as "Função concedida" / entity 
   page,
   request,
 }) => {
-  const admin = await getOwnerToken(request, 'admin@test.local')
+  // ACT (ADR 0106): org_admin, not the comment's old "is_admin() authority on
+  // any scope" (stale — multi-tenancy re-homed admin@ off platform_admin;
+  // she is org_admin of rede-a, which is what admits her as a tenancy admin
+  // over CCIH's org below).
+  const admin = await getOwnerToken(request, 'admin@test.local', undefined, 'org_admin')
   const probe = await makeProbeUser(request, 'ac5-audit')
 
-  // Grant through the door (admin has is_admin() authority on any scope).
+  // Grant through the door (a tenancy admin of the target scope's org).
   const grantResp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/grant_role`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
