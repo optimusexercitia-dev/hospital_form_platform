@@ -104,7 +104,7 @@ select ok(has_table_privilege('authenticated', 'public.memberships', 'SELECT'),
 -- §2: a direct write as a real org_admin / nsp_org_admin is rejected (42501)
 -- ============================================================================
 -- The C-3a vector: org_admin self-inserting an nsp_coordinator row directly.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   format($$ insert into public.memberships (organization_id, principal_id, role, hospital_id)
@@ -122,7 +122,7 @@ reset role;
 
 -- The C-3b vector: nsp_org_admin self-enrolling into the PHI roster directly
 -- (a pqs_member-role row on the same collapsed memberships table).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_org_admin');
 set local role authenticated;
 select throws_ok(
   format($$ insert into public.memberships (organization_id, hospital_id, principal_id, role)
@@ -136,7 +136,7 @@ reset role;
 -- §3: every appointment RPC denies self-grant (42501, app._deny_self_grant)
 -- ============================================================================
 -- assign_org_admin: sa_x (org_admin) cannot grant itself.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   format($$ select public.assign_org_admin(%L::uuid, %L::uuid) $$,
@@ -157,7 +157,7 @@ select throws_ok(
   '3.3: assign_nsp_org_admin rejects self-grant (42501)');
 reset role;
 -- assign_nsp_coordinator: sa_y (nsp_org_admin) cannot appoint itself.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_org_admin');
 set local role authenticated;
 select throws_ok(
   format($$ select public.assign_nsp_coordinator(%L::uuid, %L::uuid) $$,
@@ -176,7 +176,7 @@ reset role;
 -- §4: revoke_org_admin anti-lockout (HC0G1, re-homed from HC081 by the MEM collapse)
 -- ============================================================================
 -- sa_x is currently the ONLY org_admin of org_b -> cannot be removed.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   format($$ select public.revoke_org_admin(%L::uuid, %L::uuid) $$,
@@ -186,7 +186,7 @@ select throws_ok(
 reset role;
 
 -- Appoint a SECOND org_admin (sa_y), then the first may be removed.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   format($$ select public.assign_org_admin(%L::uuid, %L::uuid) $$,
@@ -198,7 +198,7 @@ select lives_ok(
   '4.3: revoke_org_admin of a NON-holder is a clean no-op (not last-of-kind)');
 reset role;
 -- sa_y is now an org_admin too; sa_x (not last anymore) can be revoked.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   format($$ select public.revoke_org_admin(%L::uuid, %L::uuid) $$,
@@ -223,7 +223,7 @@ create temp table ac on commit drop as
 grant select on ac to authenticated;
 
 -- (5a) assign_nsp_coordinator by the nsp_org_admin (sa_y) -> row appears.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_org_admin');
 set local role authenticated;
 select lives_ok(
   format($$ select public.assign_nsp_coordinator(%L::uuid, %L::uuid) $$,
@@ -237,7 +237,7 @@ select ok(
 -- (5b) add_pqs_member by the coordinator (st_x) -> enrollment + PHI read resolves.
 -- add_pqs_member now RETURNS VOID (the shim over grant_role) — assert enrollment via
 -- app.has_role instead of reading a returned row (O-5).
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
@@ -252,7 +252,7 @@ select ok(
   '5.4: sa_x PHI read now resolves (is_pqs_member_of_for = true after enrollment)');
 
 -- (5c) remove_pqs_member -> gone.
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ select public.remove_pqs_member(%L::uuid, %L::uuid) $$,
@@ -313,7 +313,7 @@ select is(
 -- (6e) tamper-evidence intact: the org chain (org_admin grants) and the hospital
 --      chain (coordinator + pqs grants) both still verify. Read as sa_x (org_admin
 --      of org_b -> passes both the org-tier and hospital-tier authz).
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select ok(
   (select ok from public.verify_audit_chain(null, (select org_b from k))),

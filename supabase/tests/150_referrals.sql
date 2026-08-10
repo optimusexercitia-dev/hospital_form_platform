@@ -358,12 +358,16 @@ select is(
   (select count(*) from public.audit_log where action = 'referral_patient.read') - (select before from pr2),
   1::bigint, 'an entitled PHI read writes exactly one referral_patient.read row');
 
--- The referral_patient.updated mutation-audit row carries NO identifier (metadata = {}).
+-- The referral_patient.updated mutation-audit row carries NO identifier.
+-- ACT Stage 3 (ADR 0106 D8): audit_write now always stamps metadata.acting_as
+-- from the writer's active hat (staff_admin, per this section's actor) — the
+-- assertion is updated to the new expected shape, not weakened; NO identifier
+-- (PHI) key is added, which is what this test actually guards.
 select is(
   (select metadata from public.audit_log
    where action = 'referral_patient.updated' and entity_id = (select id from r1)
    order by occurred_at desc limit 1),
-  '{}'::jsonb, 'referral_patient.updated audit metadata carries NO identifier');
+  '{"acting_as": "staff_admin"}'::jsonb, 'referral_patient.updated audit metadata carries NO identifier (only the D8 acting_as stamp)');
 
 -- =========================================================================
 -- can_read_case QPS term: QPS reads the referral-touched source (A) AND target (B)

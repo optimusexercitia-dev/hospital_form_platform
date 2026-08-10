@@ -67,7 +67,7 @@ select throws_ok(
 reset role;
 
 -- Admin (PQS today) creates a CUSTOM designated criterion (for the config-path test).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table crit on commit drop as
   select id from public.create_sentinel_criterion('custom_designated', 'Categoria designada personalizada', null);
@@ -92,7 +92,7 @@ reset role;
 grant select on ev to authenticated;
 
 -- Acknowledge all three (NSP).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.acknowledge_event((select sentinel_ev from ev));
 select public.acknowledge_event((select near_ev from ev));
@@ -102,7 +102,7 @@ reset role;
 -- ===========================================================================
 -- Fixed reach / harm CHECK enums reject invalid values (defensive HC046 in the RPC).
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.save_triage((select near_ev from ev), true, null, 'bogus_reach', null, null, null, null, '{}') $$,
@@ -126,7 +126,7 @@ reset role;
 -- ===========================================================================
 -- Cross-field rule #1: non-harmful reach (near_miss) -> harm 'none', natural_course null.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.save_triage((select near_ev from ev), true, null, 'near_miss', 'severe', true, null, null, '{}');
 reset role;
@@ -141,7 +141,7 @@ select is((select sentinel_determination from public.event_triage where event_id
 -- Cross-field rule #2: sentinel reach FLOORS harm to 'severe' when below the tier,
 -- but KEEPS a higher set value (permanent/death).
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- below the tier (moderate) -> floored to severe
 select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'moderate', false, null, null, '{}');
@@ -149,7 +149,7 @@ reset role;
 select is((select harm_severity from public.event_triage where event_id = (select sentinel_ev from ev)),
   'severe', 'sentinel reach floors harm to severe when below the tier');
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- already higher (death) -> kept
 select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
@@ -175,7 +175,7 @@ select is(app.compute_sentinel_determination('no_harm', 'none', null, true), tru
 -- Sentinel determination — DESIGNATED-CATEGORY path: a flagged criterion auto-qualifies
 -- even with a below-tier harm. Use an ADVERSE/mild worksheet + a custom designated flag.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.save_triage((select near_ev from ev), true, null, 'adverse', 'mild', false, null, null,
   array[(select id from crit)]::uuid[]);
@@ -187,7 +187,7 @@ select is(
   1, 'the flagged designated criterion is recorded');
 
 -- The flag SNAPSHOTS the label — survives a later vocab rename (viewable-forever).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.update_sentinel_criterion((select id from crit), 'Rótulo renomeado', null);
 reset role;
@@ -199,7 +199,7 @@ select is(
 -- ===========================================================================
 -- HC046: confirm_triage on a sentinel event with a non-rca pathway is rejected.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- set a deliberately-wrong pathway on the sentinel worksheet
 select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'death', false, 'peer_review', null, '{}');
@@ -212,7 +212,7 @@ reset role;
 -- confirm_triage (sentinel): forces rca, freezes the worksheet, mints the RCA shell
 -- with a 45-day due date.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- clear the bad pathway, then confirm
 select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
@@ -237,7 +237,7 @@ select is(
 -- event_triage column in the body — BUG-14B-001). Assert the RPC's OWN return values
 -- for the confirmed sentinel event, which the E2E T1 path cannot reach.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table disp on commit drop as
   select * from public.triage_disposition((select sentinel_ev from ev));
@@ -259,7 +259,7 @@ select is((select rca_due_date from disp), current_date + 45,
 -- Freeze: a confirmed worksheet rejects edits (HC045) — both via save_triage and a
 -- direct UPDATE (the guard fires regardless of role; run as table owner).
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.save_triage((select sentinel_ev from ev), true, null, 'adverse', 'mild', false, null, null, '{}') $$,
@@ -272,7 +272,7 @@ select throws_ok(
 -- ===========================================================================
 -- reopen_triage: triaged -> acknowledged; unfreezes; emits an audit row.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.reopen_triage((select sentinel_ev from ev));
 reset role;
@@ -288,7 +288,7 @@ select is(
 -- ===========================================================================
 -- Non-PSE path: confirm records the closure reason + routes the event to 'closed'.
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.save_triage((select nonpse_ev from ev), false, 'nonclinical', null, null, null, null, null, '{}');
 select public.confirm_triage((select nonpse_ev from ev));
@@ -327,7 +327,7 @@ select throws_ok(
   '42501', null, 'a non-PQS, non-coordinator user cannot set the RCA due-window (42501)');
 reset role;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_pqs_rca_due_window(%L::uuid, 0) $$, (select (v->>'hosp_b')::uuid from ctx)),

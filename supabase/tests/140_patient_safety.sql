@@ -135,7 +135,7 @@ select is(
 reset role;
 
 -- admin (PQS today): reads e1.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select is(
   (select count(*)::int from public.patient_safety_event where id = (select id from e1)),
@@ -154,7 +154,7 @@ select throws_ok(
 reset role;
 
 -- The NSP (admin) acknowledges.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.acknowledge_event((select id from e1));
 reset role;
@@ -167,7 +167,7 @@ select isnt((select acknowledged_at from public.patient_safety_event where id = 
 -- State machine (HC043): an out-of-order transition is rejected. Acknowledging an
 -- already-acknowledged event fails.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.acknowledge_event((select id from e1)) $$,
@@ -187,7 +187,7 @@ select throws_ok(
 -- Custody transfer: NSP -> comm_x. The new holder (comm_x) gains custodian access,
 -- the reporting committee keeps provenance, a foreign committee still sees nothing.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.transfer_event_custody((select id from e1), 'commission', (select comm_x from k), 'Devolvido à comissão');
 reset role;
@@ -263,7 +263,7 @@ select is(
 -- OUT columns (pg_get_function_identity_arguments + the return-type record): no
 -- identifier name appears. (A RETURNS TABLE fn is not in information_schema.columns,
 -- so we inspect pg_proc.proargnames — which lists the OUT/TABLE column names.)
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select ok(
   not exists (
@@ -314,12 +314,15 @@ select ok(
            or metadata::text ilike '%Fulano%' or metadata::text ilike '%MRN-12345%')
   ),
   'audit metadata carries NO PHI / description_md / title (Rule 11/12)');
--- The event_patient.updated row exists and its metadata is empty (identifier-free).
+-- The event_patient.updated row exists and its metadata carries no identifier.
+-- ACT Stage 3 (ADR 0106 D8): audit_write now always stamps metadata.acting_as
+-- from the writer's active hat (staff_admin, per this section's actor) —
+-- assertion updated to the new expected shape; still NO identifier (PHI).
 select is(
   (select metadata::text from public.audit_log
    where action = 'event_patient.updated' and entity_id = (select id from e1)
    order by seq desc limit 1),
-  '{}', 'event_patient.updated audit row carries empty (identifier-free) metadata');
+  '{"acting_as": "staff_admin"}', 'event_patient.updated audit row carries no identifier (only the D8 acting_as stamp)');
 
 -- =========================================================================
 -- QA fix M1: public.pqs_department has an explicit SELECT policy (Architecture

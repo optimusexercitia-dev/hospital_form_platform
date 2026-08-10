@@ -75,14 +75,14 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
 -- ---------------------------------------------------------------------------
 -- ---- 1) CAPA event hooks: add_capa_action -> capa/assigned ----
 -- ---------------------------------------------------------------------------
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table capa1 on commit drop as
   select (public.open_capa_plan('manual', 'corretiva', null, (select hosp_b from k))).id as capa_id;
 reset role;
 grant select on capa1 to authenticated;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table act1 on commit drop as
   select (public.add_capa_action(
@@ -124,7 +124,7 @@ grant select on st_x_notif1 to authenticated;
 -- ---------------------------------------------------------------------------
 -- ---- 2) update_capa_action -> capa/assigned on reassignment ----
 -- ---------------------------------------------------------------------------
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.update_capa_action(
   (select action_id from act1), 'Ação Teste 1', null, (select st_x2 from k), current_date - 1
@@ -146,7 +146,7 @@ select is(
 -- capa2..capa5 built directly as admin (authenticated) so add_capa_action's
 -- own assignment enqueue fires too (already covered by check #1) — reuse the
 -- same flow for each control fixture.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table capa2 on commit drop as
   select (public.add_capa_action(
@@ -250,7 +250,7 @@ set local role authenticated;
 select public.set_notification_preferences('capa', false);
 reset role;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table capa6 on commit drop as
   select (public.add_capa_action(

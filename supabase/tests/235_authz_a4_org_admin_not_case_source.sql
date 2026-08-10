@@ -71,7 +71,7 @@ values ('00000000-0000-0000-0000-0000000a4001', (select comm_x from k), 95001, (
         'explicit_grants_only', true);
 
 -- PHI through the real coordinator door.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 set local role authenticated;
 select public.set_participant_patient('00000000-0000-0000-0000-0000000a4001', null, 'Paciente A4', 'MRN-A4-001');
 select public.set_participant_patient('00000000-0000-0000-0000-0000000a4002', null, 'Paciente A4 Etica', 'MRN-A4-002');
@@ -183,7 +183,7 @@ select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select st_y
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select st_y from k)), false,
   'K1 ⭐: …and not the commission_default case either — content, not just the ethics shape');
 
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 -- ⚠ TITLE CORRECTED (Gate-2 wave). This assertion previously claimed the org_admin
 -- "no longer reads the explicit_grants_only case" — but it only proves the BASE
@@ -221,7 +221,7 @@ reset role;
 -- K2 — the org_admin reads ZERO interview case material (A22 is WRONG that action_items
 -- was the single missed place; the interview family carried the org arm too).
 -- ===========================================================================
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select is((select count(*)::int from public.case_interview_subjects
            where interview_id = '00000000-0000-0000-0000-0000000a4060'), 0,
@@ -236,7 +236,7 @@ reset role;
 -- POSITIVE TWIN — `committee` items STILL readable — IS the review: deleting the arm
 -- outright (trap 2) would strike commission governance.
 -- ===========================================================================
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000a4051'), 0,
   'K3 ⭐ ROWS: the org_admin reads ZERO case_restricted action items (A11''s own example string)');
@@ -256,14 +256,14 @@ reset role;
 -- `attachments` store, where product case documents actually live post-F2 and where the
 -- coordinator legitimately reads via `can_read_attachment` → `can_read_case`.)
 -- ===========================================================================
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select is((select count(*)::int from storage.objects
            where bucket_id = 'case-documents'
              and name = (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 0,
   'K4 ⭐ ROWS: the org_admin reads ZERO case-document BYTES — D4·2 is NOT "fixed for free" at the storage layer, and A4 fixes it');
 reset role;
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 set local role authenticated;
 select is((select count(*)::int from storage.objects
            where bucket_id = 'attachments'
@@ -299,7 +299,7 @@ select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a4001', (sel
 -- ===========================================================================
 -- K7 — the grant door STILL works (keystone 23) and cannot grant itself (A18 bound).
 -- ===========================================================================
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   $$ select public.grant_case_access('00000000-0000-0000-0000-0000000a4001',
@@ -383,7 +383,7 @@ select is(app.is_case_respondent('00000000-0000-0000-0000-0000000a4001', (select
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select sa_x from k)), false,
   'K1·DENY PRE ⭐⭐: …so app.can_read_case is FALSE — _case_caps'' STEP-4 hard deny beats the STEP-5 coordinator arm (ADR 0072 D2)');
 
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 set local role authenticated;
 select is((select count(*)::int from public.cases where id = '00000000-0000-0000-0000-0000000a4001'), 0,
   'K1·DENY (BASE TABLE twin): …and the base table denies him his own respondent case');

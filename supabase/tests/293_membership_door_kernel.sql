@@ -281,7 +281,7 @@ select is(
 -- =============================================================================
 -- The ACL in §1 is the mechanism; this is the behaviour. A signed-in user calling
 -- grant_role_for must fail at the privilege check (42501), never reach the kernel.
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   format($$select public.grant_role_for(%L, 'commission', %L, 'staff_admin', %L)$$,

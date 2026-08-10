@@ -57,7 +57,7 @@ select has_function('app', 'can_curate_pqs_vocab', array['uuid'], '1.4: app.can_
 -- ============================================================================
 -- §2: a hospital operator CAN curate its OWN hospital's vocab.
 -- ============================================================================
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 create temp table made on commit drop as
   select id from public.create_event_type('own_type', 'Tipo Próprio', null, (select hosp_b from k));
@@ -73,7 +73,7 @@ select is(
 -- ============================================================================
 -- §3: a hospital operator CANNOT curate ANOTHER hospital's vocab.
 -- ============================================================================
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 select throws_ok(
   format($$ select public.create_event_type('foreign_type','X',null,%L::uuid) $$, (select hosp2 from t)),
@@ -84,7 +84,7 @@ reset role;
 -- ============================================================================
 -- §4: a hospital operator CANNOT curate GLOBAL vocab (admin-only).
 -- ============================================================================
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 select throws_ok(
   $$ select public.create_event_type('global_type','X',null,null) $$,
@@ -154,7 +154,7 @@ insert into public.pqs_sentinel_criteria (id, key, label, position, hospital_id)
   ((select c_hb from crit), 'sc_b', 'B', 2000, (select hosp_b from k)),
   ((select c_h2 from crit), 'sc_t', 'T', 2000, (select hosp2 from t));
 
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'nsp_coordinator');
 set local role authenticated;
 create temp table _st on commit drop as select public.save_triage(
   (select id from ev), true, null, 'adverse', 'moderate', false, 'rca', 'notas',

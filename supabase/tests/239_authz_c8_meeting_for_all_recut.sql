@@ -116,11 +116,24 @@ select is((select count(*)::int from public.meeting_attendees
 select is((select count(*)::int from public.meeting_cases
            where meeting_id='00000000-0000-0000-0000-00000000c830'), 0,
   'K18 ⭐ ROWS: ZERO meeting_cases');
--- K18b — NO-REGRESSION: scheduling is a WRITE capability and it is preserved.
-select lives_ok(
+-- K18b — ACT Stage 3 (ADR 0106 D13) supersedes this test's original assertion,
+-- not a regression it caused. member_can now requires app.is_member_of(commission_id)
+-- — the caller must be ACTING AS staff/staff_admin OF THAT COMMISSION — and this
+-- fixture's whole point (per the file header) is a delegate who holds NO
+-- membership row at comm_x at all ("the product's appoint_administrativo requires
+-- a staff membership, so a non-member delegate is not product-reachable"). She can
+-- never satisfy is_member_of(comm_x) under ANY hat, because there is no commission-
+-- tier row to wear as a hat. D13's own text: "a delegated capability is a grant you
+-- hold, not a relationship you are in... under this ADR as first written it fails
+-- OPEN — delegated capabilities keep working under every hat" — exactly the write
+-- capability this test used to assert survives. The fix closes it: a non-member
+-- delegate now loses the WRITE arm too, not just the C8 read side-door. Not
+-- silently edited to green — this is D13's own arm working as specified.
+select throws_ok(
   $$ insert into public.meetings (commission_id, meeting_number, title, scheduled_start)
      values ((select comm_x from k), 9899, 'Delegada agenda', now()) $$,
-  'K18b: the delegate can STILL schedule (INSERT) a meeting — C8 removed her READ, not her write capability');
+  '42501', null,
+  'K18b (ACT D13): a non-member delegate can NO LONGER schedule (INSERT) a meeting — member_can now requires acting as staff/staff_admin of comm_x, which she can never hold');
 reset role;
 select set_config('request.jwt.claims', '', true);
 

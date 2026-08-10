@@ -86,7 +86,7 @@ select ok(not app.can_write_capa((select capa_2 from c), (select op_b from k)),
 -- (can_write_capa = false) makes the row INVISIBLE for update -> 0 rows affected, no
 -- error (RLS denies an UPDATE by invisibility, not by raising). Assert the row is
 -- UNCHANGED (the cross-hospital write did not land).
-select test_helpers.claims_for((select op_b from k), false);
+select test_helpers.claims_for((select op_b from k), false, 'nsp_coordinator');
 set local role authenticated;
 update public.capa_plan set lessons_learned_md = 'FORGED' where id = (select capa_2 from c);
 reset role;
@@ -95,7 +95,7 @@ select ok(
   '2.2: a hosp_b operator UPDATE of a hosp2 manual CAPA lands 0 rows (denied by RLS invisibility)');
 -- Inserting a capa_action under the hosp2 CAPA as op_b -> RLS with-check RAISES (an
 -- INSERT always evaluates WITH CHECK; no USING-invisibility escape).
-select test_helpers.claims_for((select op_b from k), false);
+select test_helpers.claims_for((select op_b from k), false, 'nsp_coordinator');
 set local role authenticated;
 select throws_ok(
   format($$ insert into public.capa_action (capa_id, title, position, status)
@@ -110,7 +110,7 @@ reset role;
 -- ============================================================================
 select ok(app.can_write_capa((select capa_2 from c), (select op_2 from k)),
   '3.1: can_write_capa(hosp2 CAPA, hosp2 operator) = true');
-select test_helpers.claims_for((select op_2 from k), false);
+select test_helpers.claims_for((select op_2 from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ update public.capa_plan set lessons_learned_md = 'ok' where id = %L::uuid $$,
@@ -164,7 +164,7 @@ select is(
 -- ============================================================================
 -- op_2 operates exactly hosp2 -> a manual open_capa_plan with no p_hospital_id
 -- auto-derives hosp2.
-select test_helpers.claims_for((select op_2 from k), false);
+select test_helpers.claims_for((select op_2 from k), false, 'nsp_coordinator');
 set local role authenticated;
 create temp table opened on commit drop as
   select (public.open_capa_plan('manual', 'corretiva', null, null)).hospital_id as h;

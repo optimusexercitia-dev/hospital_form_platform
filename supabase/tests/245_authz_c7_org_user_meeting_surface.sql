@@ -57,7 +57,7 @@ select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), fa
   'PRE ⭐: …and NOT a member — his cells measure the ORG arm C7 removes');
 
 -- K17 — the Organization User reads ZERO of the meeting record + cannot conclude.
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select is((select count(*)::int from public.meetings where id='00000000-0000-0000-0000-00000000c7a0'), 0,
   'K17 ⭐ ROWS: the org_admin reads ZERO meetings');

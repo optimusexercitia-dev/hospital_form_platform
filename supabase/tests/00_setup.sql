@@ -341,6 +341,33 @@ $$;
 -- always idempotent (unlike the 2-arg -> 3-arg transition, where the
 -- argument list itself changes identity) — the DROP above still handles
 -- that one-time transition, and OR REPLACE now handles every run after.
+-- ACT Stage 3 addition: when p_active_role is NOT given, auto-derive it by
+-- MIRRORING public.custom_access_token_hook's own D11 break-glass logic
+-- (exactly one live role type -> that role; 0 or 2+ -> no claim at all) —
+-- instead of requiring every one of ~1949 claims_for call sites across the
+-- suite to pass p_active_role explicitly. A pgTAP fixture principal is
+-- overwhelmingly single-role (synthetic, minimally-provisioned per file) —
+-- exactly the population D11's implicit derivation exists for; this makes
+-- the harness's default behaviour match production's default behaviour for
+-- that population, rather than diverging from it. A genuinely multi-role
+-- fixture principal still gets NO claim here (same as a real multi-role
+-- hatless caller, D5) and needs an EXPLICIT p_active_role at its own call
+-- site to exercise a specific hat.
+--
+-- SECURITY DEFINER — a deliberate property change from the INVOKER shape Stage
+-- 1/2 verified and preserved (found live: several files call `set local role
+-- authenticated` BEFORE their first `claims_for`, e.g.
+-- 201_documents_redesign.sql:47-48 — at that point `request.jwt.claims` is
+-- still unset/stale, so the auto-derivation query below, run as `authenticated`
+-- under `memberships`'s own RLS policy, saw ZERO rows for a principal who
+-- genuinely holds exactly one live role, minted NO claim, and every
+-- has_role-gated call in the test then failed closed). DEFINER makes this
+-- internal lookup see the TRUE membership state regardless of which PG role
+-- is active when it's called — exactly the sanctioned SECURITY DEFINER use
+-- (bypassing RLS on an internal lookup, `test_helpers` is never exposed to
+-- PostgREST, and the function still only acts on the p_user it's given, no
+-- caller-supplied SQL). `search_path` pinned per the same house convention as
+-- every other DEFINER function in this codebase.
 create or replace function test_helpers.claims_for(
   p_user uuid,
   p_is_admin boolean default false,
@@ -348,13 +375,32 @@ create or replace function test_helpers.claims_for(
 )
 returns void
 language plpgsql
+security definer
+set search_path to 'public', 'pg_catalog'
 as $$
 declare
   v_claims jsonb;
+  v_role text := p_active_role;
+  v_live_roles text[];
 begin
+  if v_role is null then
+    select array_agg(distinct role) into v_live_roles
+    from (
+      select 'platform_admin'::text as role where p_is_admin
+      union all
+      select distinct m.role from public.memberships m
+      where m.principal_id = p_user
+        and (m.expires_at is null or m.expires_at > now())
+    ) t;
+
+    if coalesce(array_length(v_live_roles, 1), 0) = 1 then
+      v_role := v_live_roles[1];
+    end if;
+  end if;
+
   v_claims := jsonb_build_object('sub', p_user, 'role', 'authenticated', 'is_admin', p_is_admin);
-  if p_active_role is not null then
-    v_claims := v_claims || jsonb_build_object('active_role', p_active_role);
+  if v_role is not null then
+    v_claims := v_claims || jsonb_build_object('active_role', v_role);
   end if;
   perform set_config('request.jwt.claims', v_claims::text, true);
 end;

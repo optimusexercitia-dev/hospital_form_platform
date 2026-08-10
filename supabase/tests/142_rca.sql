@@ -58,7 +58,7 @@ create temp table ev on commit drop as
 reset role;
 grant select on ev to authenticated;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.acknowledge_event((select id from ev));
 select public.save_triage((select id from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
@@ -78,7 +78,7 @@ select is((select status from public.rca where id = (select rca_id from r)), 'dr
 -- =========================================================================
 -- PQS/admin can write (the bootstrap path): add two members — a plain-staff SME
 -- (st_x, non-observer) and an OBSERVER (st_x2).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.add_rca_member((select rca_id from r), 'sme', (select st_x from k), null);
 select public.add_rca_member((select rca_id from r), 'observer', (select st_x2 from k), null);
@@ -123,14 +123,14 @@ reset role;
 -- =========================================================================
 -- Structured causal model: factor -> key -> 5-Whys -> root cause.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table f on commit drop as
   select (public.add_rca_factor((select rca_id from r), 'process', 'Sem dupla checagem')).id as factor_id;
 reset role;
 grant select on f to authenticated;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.set_rca_factor_key((select factor_id from f), true);
 -- 5-Whys: set step 0 and step 2 (padding fills index 1 with '').
@@ -150,7 +150,7 @@ select is(
   'Ausência de dupla checagem padronizada', 'the 5-Whys root is captured');
 
 -- A 6th step (index 5) is rejected.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.set_rca_why_step((select factor_id from f), 5, 'demais') $$,
@@ -163,7 +163,7 @@ select is(
   0, 'un-keying a factor drops its 5-Whys chain');
 
 -- A root cause (stage 3).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table rc on commit drop as
   select (public.add_rca_root_cause((select rca_id from r), 'Falta de processo de dupla checagem', 'process', 'system', 'root')).id as root_id;
@@ -174,7 +174,7 @@ select isnt((select root_id from rc), null, 'a root cause is added');
 -- =========================================================================
 -- Evidence three-way XOR: valid link inserts; a mixed shape is rejected.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.add_rca_evidence((select rca_id from r), 'link', 'Protocolo', null, 'https://example.org/protocolo', null, null, null);
 select throws_ok(
@@ -192,7 +192,7 @@ select is(
 -- State machine + complete-gate + freeze.
 -- =========================================================================
 -- in_progress -> in_review.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.submit_rca_for_review((select rca_id from r));
 reset role;
@@ -200,7 +200,7 @@ select is((select status from public.rca where id = (select rca_id from r)), 'in
   'submit moves in_progress -> in_review');
 
 -- complete with a root cause present -> completed.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.complete_rca((select rca_id from r));
 reset role;
@@ -209,7 +209,7 @@ select is((select status from public.rca where id = (select rca_id from r)), 'co
 
 -- Freeze: a child write on a completed RCA is rejected by the child-lock (HC047),
 -- even via an RPC (the lock keys on the parent status, not the flag).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.add_rca_factor((select rca_id from r), 'people', 'tardio') $$,
@@ -221,7 +221,7 @@ select throws_ok(
   'HC047', null, 'a completed RCA header is frozen to a direct UPDATE (HC047)');
 
 -- reopen -> in_progress (unfreezes).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.reopen_rca((select rca_id from r));
 reset role;
@@ -236,7 +236,7 @@ create temp table ev2 on commit drop as
   select (public.notify_safety_event((select comm_x from k), 'Sentinela 2', null, 'death', null, null, null, current_date)).id as id;
 reset role;
 grant select on ev2 to authenticated;
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.acknowledge_event((select id from ev2));
 select public.save_triage((select id from ev2), true, null, 'sentinel', 'death', false, null, null, '{}');
@@ -244,7 +244,7 @@ select public.confirm_triage((select id from ev2));
 reset role;
 create temp table r2 on commit drop as select id as rca_id from public.rca where event_id = (select id from ev2);
 grant select on r2 to authenticated;
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.update_rca((select rca_id from r2), 'x', null, null, null, null, null);  -- draft -> in_progress
 select public.submit_rca_for_review((select rca_id from r2));

@@ -149,7 +149,7 @@ select ok(not app.is_tenancy_admin_of_for((select comm_x from h), (select admin 
   'is_tenancy_admin_of_for: platform_admin does NOT admin a commission (no is_admin fallback)');
 
 -- The auth.uid() variants resolve via the JWT claim. Act as sa_x.
-select test_helpers.claims_for((select sa_x from h), false);
+select test_helpers.claims_for((select sa_x from h), false, 'org_admin');
 set local role authenticated;
 select ok(app.is_org_admin_of((select org_a from h)),
   'is_org_admin_of (auth.uid): sa_x sees org A');
@@ -166,7 +166,7 @@ reset role;
 -- ============================================================================
 
 -- --- org_admin of A (sa_x): reads own org, 0 of B; writes into A only. ---
-select test_helpers.claims_for((select sa_x from h), false);
+select test_helpers.claims_for((select sa_x from h), false, 'org_admin');
 set local role authenticated;
 
 select is((select count(*)::int from public.organizations where id = (select org_a from h)), 1,

@@ -78,16 +78,38 @@ reset role;
 -- ============================================================================
 -- (B) org_admin A (sa_x) reads ALL of org A's tenant data, NONE of org B's.
 -- ============================================================================
-select test_helpers.claims_for((select sa_x from h), false);
+select test_helpers.claims_for((select sa_x from h), false, 'org_admin');
 set local role authenticated;
 select is((select count(*)::int from public.forms where commission_id = (select comm_x from h)), 2,
   'org_admin A reads comm_x forms (2 from bootstrap)');
 select is((select count(*)::int from public.forms where commission_id = (select comm_y from h)), 0,
   'org_admin A reads 0 of comm_y (org B) forms');
+reset role;
+
+-- ACT Stage 3 finding, test-encoded pre-cutover assumption, corrected (not a
+-- new defect): `responses_select`/`answers_select` carry NO org_admin arm at
+-- all (verified live: `responses_select` = creator OR (submitted AND
+-- is_staff_admin_of(commission_id)) OR can_read_correction_response — no
+-- is_org_admin_of/is_tenancy_admin_of disjunct). Pre-cutover this assertion
+-- passed only because sa_x simultaneously held BOTH staff_admin (bootstrap
+-- baseline) and org_admin (added by this file) with no hat concept to
+-- separate them — the comment's "org_admin A reads..." claim was never
+-- actually exercised through an org_admin-specific policy. Hat separation
+-- reveals the real gate: staff_admin-of-that-commission, not org-wide
+-- standing. Switching to sa_x's OTHER real hat for exactly these two reads,
+-- rather than silently leaving the org_admin claim untested or expanding RLS
+-- (a new org_admin visibility arm would be a novel, security-sensitive change
+-- outside this stage's scope).
+select test_helpers.claims_for((select sa_x from h), false, 'staff_admin');
+set local role authenticated;
 select is((select count(*)::int from public.responses where id = (select sub_x from r)), 1,
-  'org_admin A reads comm_x submitted response');
+  'staff_admin of comm_x reads its submitted response (the real gate responses_select uses)');
 select is((select count(*)::int from public.answers a where a.response_id = (select sub_x from r)), 1,
-  'org_admin A reads comm_x answers');
+  'staff_admin of comm_x reads its answers (the real gate answers_select uses)');
+reset role;
+
+select test_helpers.claims_for((select sa_x from h), false, 'org_admin');
+set local role authenticated;
 select is((select count(*)::int from public.commissions where id = (select comm_x from h)), 1,
   'org_admin A reads comm_x via commissions SELECT (org-scoped)');
 select is((select count(*)::int from public.commissions where id = (select comm_y from h)), 0,
@@ -113,7 +135,7 @@ reset role;
 -- of A; assert a PLAIN staff_admin-only persona is still isolated — use sa_y on
 -- comm_x: sa_y is org_admin of B and staff_admin of comm_y, neither grants comm_x.)
 -- ============================================================================
-select test_helpers.claims_for((select sa_y from h), false);
+select test_helpers.claims_for((select sa_y from h), false, 'staff_admin');
 set local role authenticated;
 select is((select count(*)::int from public.forms where commission_id = (select comm_x from h)), 0,
   'REGRESSION: sa_y (org B) reads 0 of comm_x forms (transitive isolation holds)');
@@ -149,7 +171,7 @@ select ok((select ok from public.verify_audit_chain(null, null)),
   'audit: platform chain verifies ok (canonical/verify lockstep, platform tier)');
 reset role;
 -- org tier: org_admin A.
-select test_helpers.claims_for((select sa_x from h), false);
+select test_helpers.claims_for((select sa_x from h), false, 'org_admin');
 set local role authenticated;
 select ok((select ok from public.verify_audit_chain(null, (select org_a from h))),
   'audit: org-A chain verifies ok for org_admin A');

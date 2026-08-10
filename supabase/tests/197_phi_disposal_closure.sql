@@ -214,7 +214,7 @@ insert into public.rca_factors (id, rca_id, category, text, position)
 insert into public.rca_why_chains (id, rca_id, factor_id, steps, root_text)
   values ((select why from ev), (select rca from ev), (select factor from ev), '[]'::jsonb, 'PORQUE-RAIZ-PHI');
 
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'pqs_member');
 set local role authenticated;
 select public.dispose_event_phi((select event from ev), 'entered_in_error');
 reset role;
@@ -267,7 +267,7 @@ select ok(
 
 -- A PHI reader: sa_x is staff_admin of comm_x (source coordinator) -> can_read_referral_phi.
 -- It sees the real path + decline_note.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 set local role authenticated;
 create temp table phi_read on commit drop as
   select public.get_referral_detail((select ref from rf)) as j;
