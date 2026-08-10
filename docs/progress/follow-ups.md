@@ -113,10 +113,33 @@ as undecided, with the measurement already done so whoever rules next does not r
    ⚠ The charter row is far smaller than its name suggests: `meeting_frequency` +
    `controlled_document_id` + bookkeeping. It is cadence config plus a POINTER; the regimento
    itself lives in the documents module.
-5. 🟡 **Dual-hat (quality_reviewer + tenancy admin) precedence: UNRULED.** *Measured:* the seed
-   holds exactly 3 `quality_reviewer` principals (`quality.a`, `quality.a2`, `quality.b`) and
-   **none holds a tenancy-admin role** — genuinely latent, unfalsifiable either way today. The PO
-   declined to set a default in the abstract. Rule it when such a principal becomes real.
+5. 🟡 **Dual-hat (quality_reviewer + tenancy admin) precedence: SUPERSEDED 2026-08-09 — the
+   question is being replaced by an explicit "act as" role picker (ADR in progress).**
+
+   ⛔ **The previously recorded ruling was FALSE and stated the OPPOSITE of what ships.** It read
+   *"dual-hat keeps reviewer-shell precedence"*; it was never implemented and never checked
+   against the routing chain. **Measured 2026-08-09** in `src/app/page.tsx`, an ordered redirect
+   chain: `orgAdminOf` branches at **line 64**, `qualityReviewerOf` at **line 152** — so a
+   dual-role principal lands on the **tenancy admin area**. Tenancy wins, not the reviewer.
+
+   The reviewer branch sits last for an unrelated reason its own comment gives: it was added to
+   fix the *dead-end* class (a hospital-scoped role with no landing route → "Você ainda não tem
+   acesso"; ADR 0101 records **five** instances). It was never an expression of precedence.
+
+   **Consequence measured, not inferred:** a bare tenancy admin holding the reviewer seat lands on
+   `/o/<org>/manage`, sees **no link** to the console (the "Escritório da Qualidade" entry is
+   gated `showsMemberItems && isQualityReviewer`, i.e. the COMMITTEE-MEMBER sidebar only; the
+   org-manage shell has none), yet **can** reach `/o/<org>/qualidade` by URL — its guard admits
+   anyone genuinely holding the seat. So the capability is orphaned behind a URL, the BUG-QOB-004
+   shape again.
+
+   **RESOLVED as a design, 2026-08-09: ADR [0106](../decisions/0106-act-as-role-assumption.md)
+   — "act as" role assumption.** Precedence is replaced by explicit, *binding* role assumption:
+   strict (the active role is the ONLY role), reads AND writes, fail-closed, fresh each session,
+   audit-stamped. Ten decisions taken in a PO design interview; three went against the author's
+   recommendation and are marked ⚑ in the ADR. **Design accepted, NOT YET BUILT.**
+   ⚠ Enforcement lands in ONE function (`app.has_role`, after normalising 7 strays onto it);
+   the bulk of the work is the TEST HARNESS, since fail-closed reds every unwired path at once.
 
 **The separately-tracked items:**
 - ⬛ **FUP-QOB-1** — J1c structural pin **RATIFIED** as the standing guard (own entry above).
