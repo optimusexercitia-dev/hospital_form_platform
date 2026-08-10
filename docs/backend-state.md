@@ -170,13 +170,59 @@ cannot see `f((select auth.uid()))`, this repo's house style), and build call-gr
 `name[[:space:]]*\(` — a bare substring lets the *column* `is_admin` match the *function*
 `app.is_admin` and manufacture a false "already covered" edge.
 
+### D14 arm classification (S4, 2026-08-10 — re-derive from `pg_proc`, never this table)
+
+`app._case_caps` audited arm-by-arm from the live catalog. Every bit-contributing arm
+classified; STEP 1–3 (null-uid / `is_active` / unknown-case) are **preconditions**, not
+arms — they contribute no bits and are deliberately hat-independent (`is_active` is D3's
+outer status gate).
+
+| Arm | Bits | Class | Enforcement point |
+|---|---|---|---|
+| S1 coordinator | 1\|2\|4\|8\|32\|64 | **role** | `is_staff_admin_of_for` → `has_role('commission','staff_admin')` |
+| S2 tenancy admin | 64 | **role** | `is_tenancy_admin_of_for` → `has_role('organization','org_admin')` OR `has_role('hospital','hospital_admin')` |
+| S5 member default | 2 (¬`explicit_grants_only`) | **role** | `is_member_of_for` → `has_role_any('commission')` |
+| S6 NSP referral | 4\|2 (flag + referral exists) | **role** | `is_pqs_operator_of_for` → `has_role('hospital','nsp_coordinator'\|'pqs_member')` |
+| S7 quality reviewer | 4\|1 (oversight-visible, ¬eg) | **role** | `is_quality_reviewer_of_for` → `has_role('hospital','quality_reviewer')` |
+| S3 manual grant | per-column (lattice on read) | **relationship** (D6) | `case_access_grants` row, `principal_id = p_uid`, active + unexpired |
+| S4 assignment | 4\|2 | **relationship** (D6) | `case_phases`/`case_narratives.assigned_to = p_uid` |
+| STEP-4 denies | ⇒ 0 | **relationship** (D6) | `is_case_respondent` / `is_recused_from_case` |
+
+No hybrid and no unclassified arm. The role arms obey the hat only because `has_role`/
+`has_role_any` carry the caller-only condition **and** the evaluated principal is the
+caller: a third-party evaluation (`p_uid <> auth.uid()`) consults full grants **by
+design** (the one third-party binding into this graph is `file_correction_request`'s
+corrector check). Keystone: **`319`** (divergence proof + in-file mutation twins on both
+enforcement bodies + hatless D5×D6 pin + third-party disarm + recusal zeros).
+⚠ Noted for the record: the plan/task ruling classes per-case **ACL rows** as
+relationship-derived (D6-immune, hat-independent incl. hatless) although D13's
+grant-vs-relationship language could read otherwise — 319's A13 pins the as-built
+semantics so any re-ruling must consciously red it.
+
+### Standing hat-blind sweep (S4) — `ARM=hat`
+
+`supabase/tests/mutation/act-hat-blind-sweep.sh` (wired as **ARM=hat** of
+`p0-authz-invariant.sh`, in `ARM=all`; ~10 s): flags **caller-bound raw `memberships`
+reads with no adjacent active-role condition** — Amendment 6 method (balanced-paren arg
+extraction, `name(` edges, transitive caller-boundness), chunk-level adjacency where
+delegation into `has_role*` counts as evidence, anchored by an explicit check that both
+delegates still carry the condition. **Self-tests its own detector every run** (planted
+blind/covered/class-4 specimens + neutralized-anchor flip) and fails on ghosts as well
+as new findings. Findings ≡ `act-hat-blind-allowlist.txt` — a **separate artifact** from
+the 0079 BLIND allowlist (designed behaviour, not coverage debt): `session_context()`,
+`assume_role`, and the `memberships_select` self arm (sweep-found, same D9 class);
+`service_role`/`custom_access_token_hook` is a class exemption in the header, unkeyable
+by construction. ADR 0107.
+
 ### Verification estate (re-derive; do not trust this text)
 
 pgTAP keystones **`315`** (revert-twin, also closes `assume_role`'s ARM=floor gap) · **`316`**
 (the 5 caller-gating doors, red-first) · **`317`** (CAPA audit scope) · **`318`** (the class-4
-siblings; red-first on 5 ⭐ assertions incl. `grant_role` succeeding under the wrong hat).
-Suite at close: **179 files / 5690 tests**. `ARM=census` 450 live gates / 461 verdicts ·
-`ARM=floor` 80 never-called doors, all allowlisted.
+siblings; red-first on 5 ⭐ assertions incl. `grant_role` succeeding under the wrong hat) ·
+**`319`** (S4 — D14 arm divergence, mutation twins in-file).
+Suite at S3 close: **179 files / 5690 tests** (+`319`: 180 files / 5707). `ARM=census` 450
+live gates / 461 verdicts · `ARM=floor` 80 never-called doors, all allowlisted · `ARM=hat`
+3 findings, all reasoned-allowlisted.
 
 ### Known-open at hand-off
 
@@ -187,9 +233,9 @@ Art. 18 referral-erasure path has **no UI route**; every principal `dispose_refe
 authorizes is 404'd by the page hosting the affordance, and everyone who reaches that page is
 refused by the door — **the two sets are disjoint** · `FUP-ACT-CAPA-ASSIGN` (`profiles` RLS has
 no PQS-operator arm, so operators see ~only themselves in the CAPA assignee picker).
-**S4 not started:** D14 `_case_caps` arm-by-arm · the two designed hat-blind allowlist entries ·
-the now-dead `navScope="member-and-configuration"` branch · the endorsed standing-sweep candidate
-(raw `memberships … principal_id = auth.uid()` with no adjacent hat condition).
+**S4 backend items DONE 2026-08-10** (D14 table + `319` + `ARM=hat` sweep + reasoned
+allowlist — see the S4 sections below); frontend's `navScope` branch and the lead/qa
+record step remain S4-open.
 
 ## QO·B — org_admin / hospital_admin CONTENT WALL (2026-08-08; ADR 0100 **D12** + PO rulings **Q1–Q9**; migrations `20260915000000`–`…000500`; **NO flag — subtractive by design**)
 
