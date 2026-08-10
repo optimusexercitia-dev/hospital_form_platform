@@ -97,10 +97,25 @@ door sweep** over the changed gates 2 COVERED / 0 BLIND · lint 0/0 · tsc · Vi
 `docs/backend-state.md` (ACT). Method lesson → [authz-handoff.md §7.17](docs/progress/authz-handoff.md)
 + ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 6.
 
-⚠ **S4 NOT started** (D14 `_case_caps` arm-by-arm audit · the two DESIGNED hat-blind allowlist
-entries · the now-dead `navScope="member-and-configuration"` branch in the commission layout · the
-endorsed standing-sweep candidate "raw `memberships … principal_id = auth.uid()` with no adjacent
-hat condition"). Still-open items live in the Bug Log / Follow-ups below, **not** in the archive.
+### 🟡 S4 — D14 arm audit + record · **IN PROGRESS** (started 2026-08-10, branch `feat/act-as-stage-4` off `main` `5204f1e`)
+
+Scope is the plan's [Stage 4](docs/plans/act-as-role-assumption.md) (line 222) plus the three r1/r2
+MINORs carried here. Still-open program items live in the Bug Log / Follow-ups below, **not** in
+the archive.
+
+| # | Task | Owner | Status |
+| --- | --- | --- | --- |
+| S4-1 | **D14** — `app._case_caps` audited arm-by-arm **FROM THE CATALOG**; each arm tagged role-derived (hat-bound) or relationship-derived (D6-immune); no arm unclassified | backend | 🔄 |
+| S4-2 | pgTAP keystone `319` — divergence proof: same user + same case + two hats ⇒ role arms differ, ACL/respondent/recusal arms identical. ⚠ **must carry vacuity controls** (identical-at-zero is the `BUG-VACUOUS-ASSERT-1` shape) | backend | 🔄 |
+| S4-3 | The two **DESIGNED** hat-blind doors (`session_context`, `service_role` paths) recorded as **reasoned** allowlist entries — incl. resolving which artifact is their correct home (0079's BLIND allowlist is a *different* dimension) | backend | 🔄 |
+| S4-4 | The endorsed **standing sweep** — raw `memberships … principal_id = auth.uid()` with no adjacent hat condition — made **executable and gate-wired**, with proof-of-sensitivity ("standing in prose alone" is the ADR 0079 failure) | backend | 🔄 |
+| S4-5 | QA **MINOR-1** — the now-dead `navScope="member-and-configuration"` branch (`…/c/[commission]/layout.tsx:307-309` + `app-sidebar.tsx:80,90`): cannot silently re-light + a test that reds if mutual exclusion breaks | frontend | 🔄 |
+| S4-6 | **Record** — ADR 0106 ratification + P1–P6 · `docs/backend-state.md` § ACT · PROGRESS.md rows · QA review covering stages 3+4 | lead / qa | ⬜ |
+
+⛔ **Unchanged by S4 — the two deploy debts remain open** (neither is S4 scope): remote `db push` of
+the ACT migration set, and **ENABLING `custom_access_token_hook` on Supabase Cloud** (`db push` does
+NOT cover it — without it the remote mints no `active_role` claim and every multi-role principal
+becomes a stranger). See item 1b of *Remaining pre-pilot work*.
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
 Full record (task table M-B1…M-Q1, lead notes, gate detail, the BLOCKER→Package-A narrative)
@@ -176,7 +191,9 @@ sessions see stranger-level nothing until they sign in again, acceptable only be
 pre-pilot. ⚠ **Two things this item still owes the pilot, neither covered by `git push`/`db push`:**
 (a) the auth hook must be **ENABLED on Supabase Cloud** (`config.toml`'s `[auth.hook
 .custom_access_token]` is local-only config — without it the remote mints no `active_role` claim and
-**every multi-role principal becomes a stranger**); (b) **S4 is not started** (see the pointer row).
+**every multi-role principal becomes a stranger**); (b) **S4 is IN PROGRESS** (started 2026-08-10 —
+task table in the ACT block above). Note (a) is **not** discharged by S4: it is a Cloud console
+action the PO owns, and no amount of S4 work moves it.
 
 **2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing *after* 1b.** Two halves,
 both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:
