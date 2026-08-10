@@ -177,10 +177,14 @@ test.describe('X-5: patient index is org-scoped', () => {
   }) => {
     await signInAs(page, 'pqs.a@test.local')
     await page.goto('/o/rede-a/nsp/pacientes')
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem. This is
+    // a tolerant probe, not the load-bearing check — the real security
+    // property (no rede-b PHI leak) is the `not.toContain` assertions below,
+    // regardless of which branch here matches.
     await expect(
       page
         .getByRole('heading', { name: /pacientes entre comissões/i })
-        .or(page.getByRole('heading', { name: /não encontramos esta página/i }))
+        .or(page.getByText(/não encontr/i))
         .first(),
     ).toBeVisible({ timeout: 10_000 })
 

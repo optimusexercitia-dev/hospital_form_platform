@@ -305,10 +305,16 @@ test('AC-0 flag harness: OFF renders 404 on the route, ON renders real content',
   await signInAs(page, HOSPITALADMIN_A1)
   const hospitalUrl = `/o/${ORG_A}/manage/acreditacao`
 
+  // BUG-ACT-NOTFOUND-COPY-1: this ORG-tier route hits src/app/o/[org]/manage/
+  // not-found.tsx (a DIFFERENT ACT ADR 0106 sibling boundary than the
+  // commission-tier one — its own body text is "...não tem acesso à
+  // administração desta organização", not the commission wording) — verified
+  // live via this exact test's own error-context snapshot before widening.
+  // /não encontr/i is the shared pt-BR stem across old and both new boundaries.
   setFeatureFlag('accreditation', false)
   expect(readFeatureFlag('accreditation'), 'flag did not actually flip to false').toBe(false)
   await page.goto(hospitalUrl)
-  await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toBeVisible({
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({
     timeout: 15_000,
   })
   await expect(page.getByRole('heading', { level: 1, name: 'Acreditação' })).toHaveCount(0)
@@ -319,7 +325,7 @@ test('AC-0 flag harness: OFF renders 404 on the route, ON renders real content',
   await expect(page.getByRole('heading', { level: 1, name: 'Acreditação' })).toBeVisible({
     timeout: 15_000,
   })
-  await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toHaveCount(0)
+  await expect(page.getByText(/não encontr/i)).toHaveCount(0)
 })
 
 // ===========================================================================
@@ -491,7 +497,10 @@ test('AC-2 staff1.ccih (plain staff) gets 404 on the whole route, and a forced a
   // Not `resp.status()` — see AC-0's comment (this route streams behind
   // `loading.tsx`, so the HTTP status commits to 200 before `notFound()`
   // resolves; the DOM is the only place the 404 is observable).
-  await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toBeVisible({
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — this route (commission-tier
+  // manage/acreditacao) hits the commission not-found boundary, verified
+  // live across the QO·B CUT_ROUTES sample (incl. this exact route).
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({
     timeout: 15_000,
   })
 

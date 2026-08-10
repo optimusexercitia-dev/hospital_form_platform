@@ -218,7 +218,10 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     await signInAs(page, 'staff1.ccih@test.local')
     const deniedResp = await page.goto(meetingHref(meetingId))
     expect(deniedResp?.status()).toBe(200)
-    await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toBeVisible()
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — this
+    // meeting-detail route hits the commission not-found boundary (ACT ADR
+    // 0106's sibling), verified live across the QO·B CUT_ROUTES sample.
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible()
     expect(/<meta[^>]+robots[^>]+noindex/i.test((await deniedResp?.text()) ?? '')).toBe(true)
     await expect(page.getByRole('button', { name: 'Emitir documento' })).toHaveCount(0)
     await expect(page.getByText('Documentos emitidos')).toHaveCount(0)

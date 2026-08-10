@@ -801,7 +801,11 @@ test.describe('P4 — feature-flag cache + open-cases badge', () => {
     await expect(page.getByRole('heading', { name: /reuniões/i })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(page.getByRole('heading', { name: /não encontramos esta página/i })).toHaveCount(0)
+    // BUG-ACT-NOTFOUND-COPY-1: not a denial test (chefe.ccih is genuinely
+    // entitled) — widened to /não encontr/i so this negative guard also
+    // catches a regression via the NEW commission not-found boundary, not
+    // just the old global one.
+    await expect(page.getByText(/não encontr/i)).toHaveCount(0)
   })
 
   test('P4-b: sidebar "Casos N" badge equals the true open-case count and matches the board', async ({

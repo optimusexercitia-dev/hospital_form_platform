@@ -345,7 +345,10 @@ test('AC-2 boundary: staff4 (no attribution, no grant) gets notFound() at case r
   // (the shell layout renders; not-found content is server-rendered into the slot).
   // Assert on page CONTENT — the boundary text is visible and case data is absent.
   await page.goto(`${BASE}/casos/${CASE_ID}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — casos/[id] hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), same shared file as the
+  // QO·B CUT_ROUTES sample already verified live.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   // Caso 0001 content must NOT be present (no data leak).
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
   await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
@@ -482,7 +485,10 @@ test('AC-3c revoke: coordinator revokes multi via the roster X button; multi get
   // Now multi should be denied (not-found boundary — content-based check, see AC-2 note).
   await signInAs(page, 'multi@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — casos/[id] hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), same shared file as the
+  // QO·B CUT_ROUTES sample already verified live.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
 
   // Meus Casos: Caso 0001 specifically must NOT appear for multi after revoke.
@@ -672,7 +678,10 @@ test('AC-3f expired grant: past-dated grant shows "Expirada" and denies case rea
   // expiry filter drops the grant from can_read_case. No data leak.
   await signInAs(page, 'staff4.ccih@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — casos/[id] hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), same shared file as the
+  // QO·B CUT_ROUTES sample already verified live.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
   await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
 
@@ -1400,7 +1409,10 @@ test('SB-5: no case_access flag-OFF path exists — the flag row is gone; case r
   // never by a feature-flag kill-switch.
   await signInAs(page, 'staff4.ccih@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — casos/[id] hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), same shared file as the
+  // QO·B CUT_ROUTES sample already verified live.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await signOut(page)
 })
 

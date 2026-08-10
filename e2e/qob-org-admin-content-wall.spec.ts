@@ -131,7 +131,16 @@ if (!SUPABASE_SERVICE_KEY) {
 }
 
 const FARMACIA = 'farmacia'
-const NOT_FOUND_HEADING = 'Não encontramos esta página.'
+// BUG-ACT-NOTFOUND-COPY-1: a RegExp stem, not the pinned old global string. The
+// commission-scoped not-found boundary (src/app/o/[org]/c/[commission]/not-found.tsx,
+// ACT ADR 0106's new sibling) reads "Página não encontrada", not the global's
+// "Não encontramos esta página." — same pt-BR stem, different exact copy.
+// Denial verified independently of copy before this widening: for orgadmin.a on
+// EVERY one of CUT_ROUTES (live diagnostic run, all 14), the page rendered this
+// exact boundary's OWN distinctive body text ("...você não tem acesso a esta
+// comissão.") and its "Voltar ao início" recovery link — signals unique to the
+// real denial boundary, not generic 404-shaped text — never the old copy.
+const NOT_FOUND_HEADING = /não encontr/i
 
 /** Service-role REST query (DB-truth lookups only — never mutates data under test). */
 async function serviceQuery<T>(page: Page, path: string): Promise<T[]> {

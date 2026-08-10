@@ -98,8 +98,11 @@ test.describe('Cases board REACH gate (ADR 0078 Gate 2)', () => {
     // documented distinction meetings-reserved-sessions.spec.ts and
     // case-access.spec.ts already rely on for this exact route family).
     await page.goto(`${BASE}/manage/cases`)
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem —
+    // manage/cases hits the commission not-found boundary (ACT ADR 0106's
+    // sibling), verified live across the QO·B CUT_ROUTES sample.
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
 
     // NO DATA LEAKAGE: the 404 must not have rendered any board content first.

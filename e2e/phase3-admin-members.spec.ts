@@ -433,8 +433,11 @@ test.describe('AC3 — Role and commission boundary security', () => {
 
     // Next.js dev: notFound() in the layout (farmacia is inaccessible to chefe.ccih)
     // renders the pt-BR not-found boundary. Wait for the 404 content to stream in.
-    await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — this
+    // manage/members route hits the commission not-found boundary (ACT ADR
+    // 0106's sibling; "Erro 404" is not part of its copy), verified live
+    // across the QO·B CUT_ROUTES sample.
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
     // Must not leak the Farmácia commission name or member emails.
     await expect(page.getByText('staff1.farm@test.local')).not.toBeVisible()
@@ -452,8 +455,9 @@ test.describe('AC3 — Role and commission boundary security', () => {
 
     // The manage/members page calls notFound() for plain staff inside the
     // commission layout. Wait for the 404 content to render in the page.
-    await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem (see the AC3
+    // farmacia test above for the full mechanism note).
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
     // No member management UI should be visible.
     await expect(page.getByText('Membros da comissão')).not.toBeVisible()
     await expect(page.getByText('Adicionar membro')).not.toBeVisible()
@@ -473,9 +477,15 @@ test.describe('AC3 — Role and commission boundary security', () => {
     // The RENDERED page is what matters for the security boundary: the browser
     // must show the 404 page, not admin commission data.
     await page.goto('/admin')
-    // The 404 page renders "Erro 404" and "Não encontramos esta página."
+    // The 404 page renders "Erro 404" and "Não encontramos esta página." — the
+    // GLOBAL boundary (src/app/not-found.tsx): /admin has no area-specific
+    // not-found.tsx of its own (unlike manage/nsp-org/c/[commission]), so this
+    // exact copy still applies. BUG-ACT-NOTFOUND-COPY-1: widened to
+    // /não encontr/i anyway (currently passing, lower-risk per the
+    // coordinator's classification) — defensive against this boundary
+    // migrating later the way the others already have.
     await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible()
     // The platform admin UI must NOT be rendered.
     await expect(page.getByText('Organizações')).not.toBeVisible()
   })
@@ -512,9 +522,9 @@ test.describe('AC3 — Role and commission boundary security', () => {
     await page.goto('/o/rede-a/c/ccih/manage/members')
 
     // chefe.farm is NOT a member of ccih, so the commission layout calls notFound().
-    // Wait for the 404 boundary to render.
-    await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
+    // Wait for the 404 boundary to render. BUG-ACT-NOTFOUND-COPY-1: /não encontr/i,
+    // the shared stem (see the AC3 farmacia test above for the full mechanism note).
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
     // Must not reveal any ccih commission member data.
     await expect(page.getByText('staff1.ccih@test.local')).not.toBeVisible()

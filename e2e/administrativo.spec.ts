@@ -498,12 +498,18 @@ test('NEG-1 boundary: Administrativo is rejected on conclude/cancel/set-outcome/
   await signInAs(page, 'staff2.ccih@test.local')
 
   await page.goto(`${BASE}/manage/members`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
+  // verified live across the QO·B CUT_ROUTES sample.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   // The coordinator case DETAIL route (/manage/cases/[id]) 404s them — they use the
   // staff route. Caso 0001 is readable by staff2 on the staff route but not here.
   await page.goto(`${BASE}/manage/cases/${CASE_0001}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
+  // verified live across the QO·B CUT_ROUTES sample.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   // On the STAFF case route staff2 CAN read Caso 0001 but sees NO conclude/cancel/outcome.
   await page.goto(`${BASE}/casos/${CASE_0001}`)
@@ -541,15 +547,24 @@ test('NEG-2 plain staff: staff1 sees no Administrativo affordances anywhere', as
 
   // Cases board — 404 (no create_cases).
   await page.goto(`${BASE}/manage/cases`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
+  // verified live across the QO·B CUT_ROUTES sample.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   // Signoff queue — 404 (no view_signoffs).
   await page.goto(`${BASE}/manage/assinaturas`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
+  // verified live across the QO·B CUT_ROUTES sample.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   // Members manager — 404 (not a coordinator).
   await page.goto(`${BASE}/manage/members`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every manage/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling),
+  // verified live across the QO·B CUT_ROUTES sample.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   await signOut(page)
 })

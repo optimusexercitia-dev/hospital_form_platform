@@ -863,8 +863,11 @@ test('Flow 5a: referral_patient.read audit-write mechanism (entitled reader) + a
   const beforeEntitled = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  // BUG-ACT-NOTFOUND-COPY-1: widened to /não encontr/i so this reachability
+  // guard also catches a regression via the NEW commission not-found
+  // boundary, not just the old global one.
   await expect(
-    page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+    page.getByText(/não encontr/i),
   ).toHaveCount(0)
 
   // `.isVisible()` does NOT auto-wait (Playwright docs: it does not wait for the
@@ -904,8 +907,11 @@ test('Flow 5a: referral_patient.read audit-write mechanism (entitled reader) + a
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  // BUG-ACT-NOTFOUND-COPY-1: widened to /não encontr/i so this reachability
+  // guard also catches a regression via the NEW commission not-found
+  // boundary, not just the old global one.
   await expect(
-    page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+    page.getByText(/não encontr/i),
   ).toHaveCount(0)
 
   // The conditional below is diagnostic only, never the proof: whichever way

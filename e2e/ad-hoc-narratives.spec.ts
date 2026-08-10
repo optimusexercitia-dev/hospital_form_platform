@@ -395,8 +395,11 @@ test('AC-4: plain staff cannot reach the coordinator affordance (case detail not
   // staff1 is a phase assignee on Caso 0001, but the coordinator case-DETAIL header
   // (which hosts "Adicionar narrativa") is staff_admin-only → notFound() for staff.
   await page.goto(`${BASE}/manage/cases/d0000000-0000-0000-0000-0000000000c1`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — manage/cases/** hits the
+  // commission not-found boundary (ACT ADR 0106's sibling), verified live
+  // across the QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   // The coordinator affordance is absent — no data leak of the lifecycle actions.
@@ -405,8 +408,11 @@ test('AC-4: plain staff cannot reach the coordinator affordance (case detail not
 
   // And the manage cases board itself is notFound for a non-coordinator (belt+braces).
   await page.goto(`${BASE}/manage/cases`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — manage/cases/** hits the
+  // commission not-found boundary (ACT ADR 0106's sibling), verified live
+  // across the QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('button', { name: /Adicionar narrativa/i })).toHaveCount(0)
 })

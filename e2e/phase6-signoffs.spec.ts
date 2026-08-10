@@ -427,8 +427,12 @@ test('AC4 — submitted response exposes no re-sign affordance (sign-offs immuta
   // Direct navigation to the review-and-sign screen for the submitted response
   // yields the not-found boundary (no signable item) — no mutation path exposed.
   await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/assinaturas route in this file hits the commission not-found
+  // boundary (ACT ADR 0106's sibling), verified live across the QO·B
+  // CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
   // No re-sign affordance anywhere.
   await expect(
@@ -613,14 +617,22 @@ test('Security: staff cannot reach the sign-off queue or review-and-sign screen 
 
   // The queue route → not-found boundary for a plain staff member.
   await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/assinaturas route in this file hits the commission not-found
+  // boundary (ACT ADR 0106's sibling), verified live across the QO·B
+  // CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   // The review-and-sign route for the seeded response → not-found, no answers.
   await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/assinaturas route in this file hits the commission not-found
+  // boundary (ACT ADR 0106's sibling), verified live across the QO·B
+  // CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
   // No respondent answers / sign affordance leak through.
   await expect(page.getByRole('button', { name: /Assinar seção/i })).toHaveCount(0)
@@ -639,12 +651,20 @@ test('Security: foreign-commission staff_admin cannot reach another commission q
   await signInAs(page, 'chefe.ccih@test.local')
 
   await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/assinaturas route in this file hits the commission not-found
+  // boundary (ACT ADR 0106's sibling), verified live across the QO·B
+  // CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/assinaturas route in this file hits the commission not-found
+  // boundary (ACT ADR 0106's sibling), verified live across the QO·B
+  // CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 })

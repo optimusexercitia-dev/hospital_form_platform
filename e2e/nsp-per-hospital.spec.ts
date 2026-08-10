@@ -103,8 +103,17 @@ async function selectOptionByText(
  * AND the protected affordance (`absentText`) is NOT rendered.
  */
 async function expectAccessDenied(page: Page, absentText: string): Promise<void> {
+  // BUG-ACT-NOTFOUND-COPY-1: widened to the shared /não encontr/i pt-BR stem —
+  // callers of this helper hit BOTH the org-tier manage boundary ("Página não
+  // encontrada" / "...não tem acesso à administração desta organização",
+  // verified live) and a layout-level real-404 route (see the second call
+  // site in this file, which checks `.status()` directly instead). NOT fixed
+  // here, flagged separately: `bodyText()` below is a single un-retried
+  // `textContent()` read with no wait for the streamed notFound() body to
+  // resolve — a different, pre-existing reliability defect in this helper,
+  // not this bug.
   const body = await bodyText(page)
-  expect(body).toContain('Não encontramos esta página')
+  expect(body).toMatch(/não encontr/i)
   expect(body).not.toContain(absentText)
 }
 

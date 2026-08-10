@@ -608,10 +608,12 @@ test('S7: a plain staff user gets notFound on the manage cases board (no process
   await signInAs(page, 'staff1.ccih@test.local')
 
   // Next.js notFound() renders the not-found UI (HTTP 200, server-rendered), so
-  // assert on the not-found heading, not the status code.
+  // assert on the not-found heading, not the status code. BUG-ACT-NOTFOUND-COPY-1:
+  // /não encontr/i — manage/cases hits the commission not-found boundary (ACT
+  // ADR 0106's sibling), verified live across the QO·B CUT_ROUTES sample.
   await page.goto('/o/rede-a/c/ccih/manage/cases')
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   // The coordinator board chrome (and the "Novo caso" create button) is never

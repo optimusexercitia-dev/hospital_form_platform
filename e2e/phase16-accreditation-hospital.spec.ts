@@ -235,7 +235,12 @@ test('AC-4 orgadmin.b (a different org) sees zero — 404 at the route, [] from 
   // so the HTTP status commits to 200 before the async `notFound()` resolves
   // (see phase16-accreditation-core.spec.ts AC-0's comment for the full
   // mechanism, verified live there). The DOM is the only reliable signal.
-  await expect(page.getByRole('heading', { name: 'Não encontramos esta página.' })).toBeVisible({
+  // BUG-ACT-NOTFOUND-COPY-1: currently passing with the OLD global copy (this
+  // cross-org denial fires at a higher layout level than the flag-off case in
+  // phase16-accreditation-core.spec.ts AC-0, which hits the new org-tier
+  // boundary on the SAME route) — lower risk per the coordinator's
+  // classification; widened to /não encontr/i defensively anyway.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({
     timeout: 15_000,
   })
 

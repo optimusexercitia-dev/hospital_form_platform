@@ -673,6 +673,157 @@ org user directory"; `ethics-e2-procedure.spec.ts`'s shared `assertRouteDenied` 
 known boundary's copy — instead of pinning one boundary's exact string, so a future boundary
 addition does not red this again. All 4 re-verified green.
 
+⬛ **BUG-ACT-NOTFOUND-COPY-1 — FULL POPULATION RESOLVED 2026-08-10 (`tester`, coordinator-directed
+after the full `e2e:prod` gate came back 38 failures + 4 infra).** The "4 places" above were the
+instances found while fixing something else; the coordinator's own measurement — **81 occurrences
+across 36 files** pinning the OLD global copy — is the real population, independently reconciled
+here to the same 81/36 via `grep -i "ncontramos esta p.gina|Erro 404" e2e/`. **Mechanism, confirmed
+from source AND live, not assumed uniform**: the GLOBAL boundary (`src/app/not-found.tsx`) still
+reads *"Não encontramos esta página."*; ACT ADR 0106 added FOUR area-specific siblings reading
+*"...não encontrada"* instead — `src/app/o/[org]/c/[commission]/not-found.tsx` (commission-tier),
+`src/app/o/[org]/manage/not-found.tsx` (org-tier), `src/app/o/[org]/nsp-org/not-found.tsx`,
+`src/app/o/[org]/direcao-tecnica/not-found.tsx`, `src/app/o/[org]/qualidade/not-found.tsx`. `/não
+encontr/i` is the shared pt-BR stem across all five.
+
+**Classification discipline applied to every failing test before touching it** (HTTP-status was
+NOT reliable here — the suite's own repeated comments document that a `notFound()` below a
+`loading.tsx` streams HTTP 200 with the not-found BODY, so `.status()` cannot distinguish "denied"
+from "granted" for most of these routes):
+- **Commission-tier (`c/[commission]/**`), 14-route live diagnostic**: signed in as `orgadmin.a`
+  (bare tenancy admin) and navigated all 14 QO·B `CUT_ROUTES` (`dashboard`,
+  `dashboard/submissions`, `manage/assinaturas`, `manage/documentos`, `manage/cases`, `meetings`,
+  `encaminhamentos`, `eventos`, `respostas`, `manage/charter`, `manage/acreditacao`,
+  `minhas-fases`, `meus-casos`, `meus-itens-de-acao`) in one pass, capturing the H1 text + two
+  signals unique to the real boundary (the body sentence "...você não tem acesso a esta
+  comissão." and the "Voltar ao início" link) for each. **All 14: identical new boundary, zero old
+  copy, the denial-specific body text present every time** — not generic 404-shaped text. Every
+  OTHER commission-scoped route fixed this round (`casos/[id]`, `forms/**/responder/**`,
+  `manage/members`, `manage/process-templates`, etc.) shares this exact file (confirmed via
+  `Glob **/not-found.tsx` — no route in this population has a MORE specific override), so this
+  one diagnostic covers all of them, not just the 14 named routes.
+- **Org-tier (`manage/**`), verified per-route, NOT assumed uniform — this is the one place a
+  blanket assumption would have been wrong**: `/o/rede-a/manage/acreditacao` (flag-off denial,
+  `hospitaladmin.a1`) and `/o/rede-a/manage/usuarios/[id]` (cross-hospital denial, same persona)
+  both hit the NEW org-tier boundary, confirmed via each test's own error-context snapshot
+  (`heading "Página não encontrada"` + `paragraph: "...não tem acesso à administração desta
+  organização."`). But `/o/rede-a/manage/administradores` (role denial, SAME persona) and
+  `/o/rede-a/manage/acreditacao` under a CROSS-ORG denial (`orgadmin.b`, different mechanism than
+  the flag-off case on the identical URL) both still show the OLD global copy — confirmed via
+  `hospital-admin-tier.spec.ts`'s own `expectAccessDenied` helper (a real `expect().toBeVisible()`
+  with auto-retry) returning "Página não encontrada" for `administradores` when denial fires at a
+  role-check level, contradicted at first by `nsp-per-hospital.spec.ts`'s OWN test on the same
+  route/persona reporting the OLD copy — resolved by finding the cause: that file's
+  `expectAccessDenied` helper does a single un-retried `page.locator('body').textContent()` with
+  no wait for the streamed body to resolve, a genuine, separate reliability defect (not fixed,
+  flagged below), not evidence of different copy. The takeaway a blanket "manage/** = new
+  boundary" rule would have missed: **which boundary fires depends on WHERE in the render tree
+  the specific denial reason is checked** (an outer layout's tenancy gate vs. a page-level
+  flag/role check), not on the URL prefix alone — confirmed per site, not inferred.
+- **`nsp/**` (patient-index, nsp-cross-org-isolation)**: confirmed UNCHANGED (still old global
+  copy) via live test runs — `patient-index.spec.ts` AC-7/AC-8c and `nsp-cross-org-isolation.spec.ts`
+  X-5 all passed as-is before any edit. Widened defensively anyway (lower risk, per the
+  coordinator's own classification guidance) since this boundary could migrate later the same way
+  the others already have.
+- **`/admin` and `/conta/**`**: confirmed via `Glob` to have NO area-specific `not-found.tsx` at
+  all — outside every ACT area boundary, unaffected by construction, not just by observation.
+- **`qualidade` layout-level org-denial**: `quality-oversight.spec.ts` already carried a detailed,
+  previously live-verified comment explaining that a `notFound()` thrown BY `qualidade/layout.tsx`
+  itself is caught by the GLOBAL boundary, not `qualidade`'s own co-located sibling (Next.js App
+  Router rule: a segment's not-found.tsx cannot catch its own layout's `notFound()`) — preserved
+  verbatim rather than overwritten, since it was already correct and already proven live.
+
+**No P0. Denial held in every case checked — nowhere did the investigation find a route that
+merely LOOKED denied while actually granting access.** Where the coordinator's preferred
+HTTP-status check wasn't usable (most routes, per the streamed-notFound contract), the
+denial-specific BODY TEXT unique to the real boundary component (not generic 404 phrasing) served
+as the independent signal, verified live per site as described above — the same standard the
+coordinator's own diagnosis used ("verified against all six boundary files rather than taking it
+on trust").
+
+**81-site reconciliation** (36 files; exact grep-verified count both before and after):
+- **Fixed — currently-failing, denial independently proven before touching (the "38" population)**:
+  ~55 sites across `meetings-reserved-sessions`, `pdf-printing-meetings`, `phase12-timeline`,
+  `phase11-interviews`, `phase3-admin-members` (4 of 5; the 5th is `/admin`, see below),
+  `phase6-signoffs`, `phase16-accreditation-core` (AC-0 org-tier + AC-2 commission-tier),
+  `phase8-dashboard`, `phase4-builder`, `phase7-cases` (6 of 7), `processless-cases`,
+  `sup-supersession`, `phase5-wizard`, `ad-hoc-narratives`, `administrativo`,
+  `ethics-e1-access-spine` (both the helper and the standalone AC-1c), `ethics-e3a-surfacing`
+  (helper), `case-access` (all 4), `aff-hospital-affiliation` (both), `cases-board-access`,
+  `bulk-case-creation` (both), `charters-cadence`, `hospital-admin-tier` (both),
+  `nsp-per-hospital` (the `administradores` helper site — widened; its OWN un-retried-read
+  reliability issue flagged separately, not fixed), `quality-oversight` (constant covering 4
+  usages; the `qualidade`-layout site's own correct comment preserved, not touched further).
+- **Fixed — currently-PASSING, lower risk, widened defensively per the coordinator's own
+  guidance** (~13 sites): `act-role-assumption` (my own file — verified 9/9 passing with OLD copy
+  before widening), `qob-org-admin-content-wall` (constant covering the 14-route CUT_ROUTES loop —
+  ALL 14 verified failing, so this bucket technically belongs above; grouped here because it's my
+  own earlier-session file, already reconciled), `phase16-accreditation-hospital` (AC-4, cross-org
+  on the acreditacao route — see the org-tier divergence note above), `notifications` N-7
+  (`/conta/**`, confirmed unaffected by construction), `perf-sweep-wave2` (a positive smoke test,
+  not denial), `nsp-cross-org-isolation` (tolerant `.or()` probe, not the load-bearing assertion),
+  `patient-index` (AC-7 + AC-8c, confirmed unaffected), `phase22-referrals` (my own Flow 3d/5a
+  negative reachability guards), `phase16-accreditation-core` AC-0's negative half (line ~326,
+  same test as the positive fix), `phase3-admin-members`'s `/admin` site (companion check kept
+  alongside the widened one, both now present).
+- **NOT changed, correctly left (5 sites, 3 files)**: `ethics-e2-procedure.spec.ts:143` and
+  `user-registration.spec.ts:629/663/664` are PROSE (comments, not live assertions — the fix
+  described 2 bug-log-entries above already touched this file's actual matchers) —
+  `phase17-documents.spec.ts:394` already reads `/não encontramos esta página|Erro 404|página não
+  encontrada/i`, a 3-way alternation that already covers old AND new copy correctly; confirmed via
+  its own passing test, untouched.
+
+**Verification**: all 33 touched files run to green, in 6 batches plus 2 targeted isolated
+re-runs. Two files (`phase22-referrals.spec.ts`, `quality-oversight.spec.ts`) showed batch-only
+failures on exact-count/exact-content assertions when run alongside `perf-sweep-wave2.spec.ts`
+(which seeds 26+ extra rows into shared fixtures) — confirmed as cross-file contamination, not
+regressions, by re-running each alone on a fresh reset (`phase22-referrals` 40/40,
+`quality-oversight` 19/21 — the 2 remaining are BUG-QO-OVERSIGHT-DOOR-1 below, unrelated).
+
+**Non-copy findings surfaced during this sweep, NONE fixed (out of scope, flagged for the
+coordinator/owning team) — some already known from the prior round, listed again here for a
+single point of reference, others new**:
+- `qob-org-admin-content-wall.spec.ts` "member-and-configuration" test — missing "Formulários"
+  nav link (already flagged prior round).
+- `charters-cadence.spec.ts` AC-5 — `charter.upserted` audit metadata now includes an unexpected
+  extra key, `acting_as` (already flagged prior round). **Possibly wider than one test**:
+  `ethics-e1-access-spine.spec.ts` "AC-3b + AC-8" failed in-suite with a `toEqual` deep-equality
+  error on the SAME shape of assertion (an exact audit-metadata key/content check) — not isolated
+  to confirm definitively given scope, but the shape matches closely enough to name as a
+  candidate second site, not a confirmed one.
+- 🔴 **NEW — `nsp-per-hospital.spec.ts`: `admin@test.local` reached `/selecionar-perfil` with no
+  `actAs` argument** in "org_admin cannot self-delegate nsp_org_admin" — a raw-grant sign-in this
+  program's earlier threading pass missed. Same class as the already-closed
+  BUG-ACT-RAWGRANT-HATLESS-1, one more site.
+- 🔴 **NEW — `nsp-per-hospital.spec.ts` AC-7/AC-8: the "Apagar dados do paciente" (dispose PHI)
+  button is not found** for `pqsdual.a` in 2 tests, cascading a 3rd (`test.skip`-adjacent "did not
+  run"). Not investigated beyond confirming it is unrelated to any not-found copy or boundary —
+  a UI-affordance-visibility question, outside this bug's mechanism entirely.
+- 🔴 **NEW — `case-access.spec.ts` AC-3a and `administrativo.spec.ts` POS-5: unrelated
+  content-visibility failures** (a named `region`/`heading` not found on an otherwise-reached
+  page), each confirmed to have NOTHING to do with not-found copy (no 404/denial assertion
+  involved). `case-access.spec.ts`'s is serial-mode and cascades to skip 20 subsequent tests in
+  that file when run after it — worth the coordinator's attention for the scale of the cascade
+  alone, not chased further here.
+- 🔴 **NEW — `BUG-QO-OVERSIGHT-DOOR-1`, `quality-oversight.spec.ts`, confirmed via 2 clean
+  ISOLATED reproductions (not batch artifacts) on a fresh reset**: the test helper
+  `setOversightViaDoor` (a raw `docker exec psql` call with no Supabase auth/JWT context) now gets
+  rejected by `set_commission_oversight` with `ERROR: apenas o administrador do hospital ou da
+  organização pode alterar a supervisão da qualidade` — an app-level `RAISE` inside the DEFINER
+  function itself (not a raw Postgres permission error), meaning the function's own authorization
+  check is now failing for this call shape. Not investigated further (SQL mechanism, backend's
+  domain) — flagged with the exact error text and call site for a fast pickup.
+- `notifications.spec.ts` N-1 — a `selectOption` timeout on an "encarregado" dropdown, unrelated,
+  not investigated.
+
+**On the 74 unrun tests** (`b1(10) b2(22) b3(2) b4(27) b7(2) b8(1) b17(10)`): no access to the
+gate's own batch partitioning or logs from this session, so no way to map these to specific test
+names or independently re-run "batch 4" as such. What this round DOES establish: every file in
+the 81-site population that was checked — standalone where needed to rule out cross-file
+contamination — is now green on every notfound-copy-shaped assertion. If any of the 74 live in
+those 33 files, they are covered; for the remainder, only a full `e2e:prod` run (the coordinator's
+next step) will show whether the copy fix alone was sufficient or whether unrelated causes (like
+the ones just listed) still cut a batch short.
+
 ⬛ **BUG-ACT-GUARD-HATBLIND-1 — RESOLVED same-session 2026-08-10 (`backend`, fix landed while
 `tester` was mid-investigation on the seed-persona threading follow-up; re-verified by `tester`
 after the fix — `e2e/act-role-assumption.spec.ts` "The switch" now passes 9/9, fresh
@@ -1006,6 +1157,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | 2026-08-10 | **ACT · TESTER · Stage 3 specs + BOTH seed-persona threading follow-ups (cookie + raw-grant), coordinator-directed close-out** — `e2e/act-role-assumption.spec.ts` (9 tests) + `actAs`/hatted-`accessToken` threading across **22** raw-grant files and **15** cookie-based files (37 file-touches total, several needing both) + `phase-multitenancy.spec.ts` decision (deleted, redundant) + `BUG-ACT-NOTFOUND-COPY-1` fixed in 4 places. **NOT a full-suite run** (out of scope — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN**, re-verified on a SECOND fresh reset after backend's own concurrent migrations landed (`…002400`, `…002500`). **Every touched file individually re-verified live** (not sampled) on the final fresh reset: `phase-multitenancy.spec.ts` 29/30 (1 deliberate red → now DELETED, see below) · `phase14a-safety-events` 15/16 (1 unrelated pre-existing keyboard-focus flake, matches the documented `.focus()`-not-auto-waiting class) · `phase14b-triage` 13/13 · `phase14c-rca` 17/17 · `phase14d-capa` 19/19 · `ethics-e2-procedure` 20/20 (incl. FLOW-7, the dynamic-role-per-voter fix) · `phase16-accreditation-clone` 4/4 · `phase16-accreditation-hospital` 6/6 · `phase13-audit` 26/27 (1 genuine NEW finding, not a regression — see Bug Log) · plus `mem-memberships-collapse`, `patient-index` (7/7 across its 4 sites), `phi-remediation`, `charters-cadence` (3/3), `ff3-validations` all green. lint 0/0 across `e2e/` · `tsc --noEmit` clean — both re-run after every edit batch, final time on the clean-reset tree. **`phase-multitenancy.spec.ts` decision (coordinator's item 2): DELETED**, not re-based — its own comment already named the coverage redundant ("lands on the /c picker, exactly like multi@ below"); the intent (multi-commission + single-role-type → grouped `/c` picker) is fully covered by the adjacent `multi@` test in the same file (now verified true for her post-cutover) and by this file's own D2 negative spec. **Raw-grant denominator, re-derived by property per the coordinator's instruction: 58 files perform a raw grant; 22 intersect a multi-role persona** (19 by literal string, +3 only reachable by tracing transitive imports/dynamic queries — full breakdown in the Bug Log). Caught and self-corrected one real gap in the tester's own first pass (`phase14c-rca`/`phase14d-capa`, 26 sites, initially miscategorized "comment-only") before declaring done. ⛔ **Three bugs found and reported beyond the originally-assigned 7 specs, all live-reproduced against the real catalog/DB, not inferred:** BUG-ACT-PICKER-SEED-1 and BUG-ACT-GUARD-HATBLIND-1 (P0, RESOLVED same-session by backend) from the first pass; BUG-ACT-RAWGRANT-HATLESS-1 (RESOLVED this session) plus 2 genuinely NEW findings surfaced while verifying it (`phase22-referrals.spec.ts` Flow 3d — same OR-gate-conflation shape as AC-5b; `phase13-audit.spec.ts` AC-3f-platform — `assume_role`'s own audit rows now populate a bucket a pre-existing test assumed was permanently empty) — both left RED with the finding documented in-line, not forced. Full detail, all bug rows: PROGRESS.md Bug Log. |
 | 2026-08-10 | **ACT · TESTER · union-tests re-scope (PO ruling) + BUG-CAPA-AUDIT-SCOPE-1 filed — coordinator-directed close-out, part 2** — rewrote `phase15-indicators.spec.ts` AC-5b and `phase22-referrals.spec.ts` Flow 3d per the PO's "accept both losses" ruling (each half asserted under its own correct hat + a new assertion proving the specific combined-session flow is gone, not merely deleted); corrected AC-5b's inherited-and-wrong `open_capa_plan` gate-shape comment (verified live: no `is_tenancy_admin_of` arm for `p_source='indicator'`, two sequential gates not one OR); filed `BUG-CAPA-AUDIT-SCOPE-1` (mechanism backend-traced, tester-independently-verified live against `pg_get_functiondef`+`audit_log`, NOT fixed per explicit instruction) | **AC-5b: 2/2** (`-g "AC-5b|AC-6"`) — UI half (`org_admin`) unchanged-passing, RPC half now correctly `pqs_member`-hatted and passing, new `pqs_member`-404s-the-page assertion passing. **Flow 3d: 1/1** (`-g "Flow 3d"`) — `staff` sees status + the PHI result positively withheld (not merely absent), new `pqs_member`-404s-the-route assertion passing. Both chromium, `--workers=1`, re-verified after rewrite. lint 0/0, `tsc --noEmit` clean. ⛔ **Re-running the two touched files whole (not just `-g`-scoped) surfaced 3 more reds, NONE fixed this round, respecting the coordinator's "then stop":** `phase15-indicators.spec.ts` AC-8a/AC-8b — same already-known `BUG-ACT-NOTFOUND-COPY-1` shape, trivial same-pattern fix, left alone. `phase22-referrals.spec.ts` Flow 5a — a THIRD, previously-undetected instance of the identical two-gate shape the PO just ruled on, pre-existing (traced to the tester's own earlier commit `a8da28d` via `git log -p`, not caused by today's Flow 3d rewrite), reasoned from facts already verified live this session (no new experiment run), and compounded by a silent vacuous-pass fallback in the test's own `else` branch — meaning the tester's earlier "3 passed" report for this exact test in the BUG-ACT-RAWGRANT-HATLESS-1 close-out was almost certainly non-probative, corrected here rather than left standing. Not extended to match the PO's ruling unilaterally; flagged in the Bug Log for an explicit decision, mechanism fully pre-verified so a fix (if directed) is a same-shape rewrite, not a new investigation. |
+| 2026-08-10 | **ACT · TESTER · BUG-ACT-NOTFOUND-COPY-1 full population — coordinator-directed after full `e2e:prod` RED (38 real + 4 infra)** — enumerated the true population (**81 occurrences / 36 files**, matching the coordinator's own count exactly, re-derived independently via `grep -i`), classified every failing site's denial independently of copy (live diagnostic across the 14 QO·B `CUT_ROUTES` + per-site error-context snapshots for the org-tier/ambiguous cases — HTTP-status wasn't usable for most routes, streamed-notFound), fixed 33 of 36 files to the shared `/não encontr/i` stem, left 3 correctly untouched (2 comment-only, 1 already a 3-way OR covering both copies) | **NO P0 — denial held everywhere checked, confirmed via each real boundary's own distinctive body text + recovery link, not generic 404 phrasing.** All 33 touched files run to green across 6 batches + 2 targeted isolated re-runs (`phase22-referrals` 40/40, `quality-oversight` 19/21 solo — the 2 remaining are the new BUG-QO-OVERSIGHT-DOOR-1, unrelated); both files' batch-run failures were cross-file fixture contamination from `perf-sweep-wave2.spec.ts`'s 26+-row fixtures, not regressions, confirmed by isolation. lint 0/0, `tsc --noEmit` clean. ⛔ **A blanket "manage/\*\* = new boundary" rule would have been wrong**: `/o/rede-a/manage/acreditacao` (flag-off denial) and `/o/rede-a/manage/usuarios/[id]` (cross-hospital denial) hit the NEW org-tier boundary, but `/o/rede-a/manage/administradores` (role denial, same persona) and the SAME acreditacao route under a cross-org denial both still show the OLD global copy — which boundary fires depends on WHERE in the render tree the specific denial reason is checked, not the URL prefix; verified per site, never inferred. Also diagnosed (not fixed): `nsp-per-hospital.spec.ts`'s own `expectAccessDenied` helper does a single un-retried `textContent()` read with no wait for the streamed body, a genuine reliability defect that produced a misleading false-pass on first read. **6 non-copy findings surfaced and flagged, none fixed** (full detail + exact mechanism/error text: Bug Log) — 2 already known from the prior round (`qob-org-admin-content-wall.spec.ts` missing nav link; `charters-cadence.spec.ts` AC-5 `acting_as`-in-audit-metadata, possibly recurring in `ethics-e1-access-spine.spec.ts` AC-3b, not confirmed); 4 new (`nsp-per-hospital.spec.ts` missing `actAs` on `admin@` — same class as the closed BUG-ACT-RAWGRANT-HATLESS-1; `nsp-per-hospital.spec.ts` AC-7/AC-8 dispose-PHI button not found; `case-access.spec.ts` AC-3a + `administrativo.spec.ts` POS-5 unrelated content-visibility failures, the former cascading 20 skipped tests; **BUG-QO-OVERSIGHT-DOOR-1** — `quality-oversight.spec.ts`'s `setOversightViaDoor` helper now gets a real app-level `RAISE` rejection from `set_commission_oversight`, confirmed via 2 clean isolated reproductions). **On the 74 unrun tests**: no access to the gate's own batch partitioning/logs from this session — every file in the 81-site population is independently confirmed green where checked; whether that alone clears the 74 (vs. one of the findings above cutting a batch short elsewhere) is only answerable by the next full `e2e:prod` run. |
 
 | 2026-08-09 | **BACKSTOP · LEAD · wave-5 gate (referral disposal backstop + stale messages)** — 1 migration `20260917000400`, **334 registered == 334 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5636 / PASS** (+2 ruling guards) · **RED-PROOF:** re-cutting the restored arm reds **exactly `295` 7.7 (behavioural) + `314` 8.6 (catalog)** and nothing else; restore **byte-identical** · E2E **91/91** (`phase22-referrals` 40, `nsp-per-hospital` 51, `qob-org-admin-content-wall`), 0 did-not-run · lint 0/0 · tsc · vitest **1194**. ⛔ **This PARTIALLY REVERSES `20260917000000` the same day, deliberately.** BUG-QOB-004 was ruled CUT on D5; examining the sibling `dispose_event_phi` afterwards surfaced two facts that were not in front of the PO: **a hospital can have ZERO NSP operators** (`Hospital Unico C`), so NSP-only disposal strands an **LGPD Art. 18** erasure obligation that belongs to the *controlador*; and this platform **already rules the other way for the identical shape** — ADR 0104 D11 keeps the tenancy arm on `revoke_printed_document` because revocation *reveals no content*. Disposal discloses nothing; it destroys. Restored on the two DISPOSAL doors only — **drafting stays cut, the UI wall stays** — and guarded by `314` 8.6/8.7 so a future "finish the disposal wall" sweep reds instead of silently reopening the gap. ⚠ **Three stale pt-BR messages fixed, one per direction:** `dispose_case_phi` **promised** an org-admin arm QO·B removed; `revoke_printed_document` **hid** the tenancy arm it carries. The class — *every arm that moved left its sentence behind* — is invisible to every gate here, because no test reads prose. ⚠ **The gate's first run was RED (UNRUN):** both batches' `db reset` failed with a **502 from the stack gateway** mid-restart, 91 tests never ran. Recorded remedy applied (`supabase stop` → `start` → reset → **verify a real token POST returns 200**, which it did) and the gate re-run clean. |
 | 2026-08-09 | **CADENCE · LEAD · wave-4 gate (registry cadence overview)** — 1 migration `20260917000300`, **333 registered == 333 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5634 / PASS** (+10: `261` §CAD) · **RED-PROOF:** neutralizing the door's tenancy filter to `where true` reds **exactly tests 33–34** (CAD-4 cross-org, CAD-5 plain member) and nothing else — the positive arms stay green, as they must; restore **byte-identical** · `ARM=census` + `ARM=floor` **HOLD** · E2E **21/21** (`quality-oversight`, incl. 3 new CAD tests), 0 did-not-run · lint 0/0 · tsc · vitest **1194** · **UI verified live in the browser**, not just built: all four Rede-A committees render the badge and the statuses match the DB probe exactly (Farmácia `em_dia`, the other three `sem_regimento`). ⛔ **A REAL DEFECT I INTRODUCED AND CAUGHT:** the extracted helper was first declared **IMMUTABLE** while reading `now()` — the planner may fold such a call to a constant or cache it across rows, so it would have been wrong intermittently and only under load. Fixed to `STABLE` **and pinned by the migration's own postcondition** (`provolatile = 's'`), because every test passes under either marking until the planner decides to fold. ⚠ **A boundary test that looked like a bug and was not:** `now() - interval '1 month'` walks back a CALENDAR month (31 days in a 31-day month) while `interval '1 month'` COMPARES as 30 days, so the "exactly one period old" probe landed `em_atraso`. The door's semantics are unchanged from the original; the test was wrong. Re-pinned on `semanal` (exactly 7 days both ways) and the month behaviour documented executably as CAD-8b rather than left as a surprise. ⚠ **The census/sweep domain gap fired again:** the new door is set-returning, so `ARM=census` demands a verdict while the door-audit's boolean-only predicate arm **cannot produce one** (swept 0 cases). Verdict recorded as COVERED on the **hand-run mutation evidence**, per the AFF precedent — never cite the census as coverage. Durable fix stays FUP-AFF-1. |

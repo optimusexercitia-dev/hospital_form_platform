@@ -63,7 +63,13 @@ function decodeJwtClaims(token: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
 }
 
-const NOT_FOUND_HEADING = 'Não encontramos esta página.'
+// BUG-ACT-NOTFOUND-COPY-1: a RegExp stem, not the pinned old global string —
+// Stage 3 added area boundaries with different wording ("...não encontrada")
+// that share only this pt-BR stem. Verified passing (all 3 call sites) against
+// the OLD global copy before this widening, so denial already held here; this
+// change is defensive against the boundary shifting again, not a fix for a
+// currently-failing assertion.
+const NOT_FOUND_HEADING = /não encontr/i
 
 test.describe('ACT — role assumption (ADR 0106)', () => {
   test.describe('Picker — positive (D2): dualhat.a@ holds two role types', () => {

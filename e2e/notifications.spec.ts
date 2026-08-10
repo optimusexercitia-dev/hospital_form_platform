@@ -719,8 +719,12 @@ test('N-7: flag OFF — no bell renders anywhere, /conta/notificacoes 404s; rest
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('button', { name: /notificações/i })).not.toBeVisible()
 
+    // BUG-ACT-NOTFOUND-COPY-1: /conta/** is outside every ACT ADR 0106 area
+    // boundary (org/commission/nsp-org/direcao-tecnica/qualidade), so this
+    // still hits the unaffected GLOBAL boundary — lower risk per the
+    // coordinator's classification; widened to /não encontr/i defensively.
     await page.goto('/conta/notificacoes')
-    await expect(page.getByRole('heading', { name: /erro 404|não encontramos esta página/i })).toBeVisible({
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({
       timeout: 10_000,
     })
   } finally {

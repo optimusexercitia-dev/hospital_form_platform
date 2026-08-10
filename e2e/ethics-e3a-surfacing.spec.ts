@@ -142,10 +142,14 @@ async function signOutFromCurrentPage(page: Page) {
   await page.waitForURL(/\/login/)
 }
 
-/** Assert the route hits the notFound() boundary — no data leaks. */
+/** Assert the route hits the notFound() boundary — no data leaks.
+ * BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every caller route (casos/[id],
+ * dashboard/ethics) hits the commission not-found boundary (ACT ADR 0106's
+ * sibling), same shared file as the QO·B CUT_ROUTES sample already verified
+ * live. */
 async function assertRouteDenied(page: Page, url: string) {
   await page.goto(url)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 }
 
 /** Tab through the page (bounded) until `predicate` matches the focused element. */

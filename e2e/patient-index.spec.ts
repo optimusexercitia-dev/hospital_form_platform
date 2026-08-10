@@ -726,8 +726,13 @@ test('AC-7: flag OFF → /o/rede-a/nsp/pacientes → 404, search RPC denies/empt
     // Flag OFF → the page notFound()s into the NSP not-found boundary. Wait for that
     // 404 content to render (a positive readiness — you cannot deterministically
     // "wait for absence") before the is404 probe / redirect check below.
+    // BUG-ACT-NOTFOUND-COPY-1: currently passing with the OLD global copy
+    // (this exact route's own not-found boundary, src/app/o/[org]/nsp/not-found.tsx,
+    // is unaffected by ACT ADR 0106's sibling migrations — confirmed live) —
+    // lower risk per the coordinator's classification; widened to
+    // /não encontr/i defensively anyway.
     await expect(
-      page.getByRole('heading', { name: /não encontramos esta página/i }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 12_000 })
 
     // The page should show 404 content (Next.js notFound → this page returns notFound())
@@ -854,9 +859,11 @@ test('AC-8c: non-PQS staff_admin (chefe.farm) cannot see QPS patient search page
 
   // chefe.farm is non-PQS → the NSP layout notFound()s into the global 404. Wait for
   // that 404 to render so the "search heading absent" check below is a real negative,
-  // not a vacuous read of an unrendered page.
+  // not a vacuous read of an unrendered page. BUG-ACT-NOTFOUND-COPY-1:
+  // /não encontr/i, the shared stem (see AC-7 above for the live-verified
+  // "this route's boundary is unaffected" note).
   await expect(
-    page.getByRole('heading', { name: /não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 12_000 })
 
   // Must NOT render the patient search UI

@@ -123,10 +123,13 @@ async function signOut(page: Page) {
   await page.waitForURL(/\/login/)
 }
 
-/** Assert the case route hits the notFound() boundary — no case content leaks. */
+/** Assert the case route hits the notFound() boundary — no case content leaks.
+ * BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — casos/[id] hits the commission
+ * not-found boundary (ACT ADR 0106's sibling), same shared file as the QO·B
+ * CUT_ROUTES sample already verified live. */
 async function assertCaseDenied(page: Page, caseId: string, label: string) {
   await page.goto(`${BASE}/casos/${caseId}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(label)).toHaveCount(0)
 }
 
@@ -365,7 +368,8 @@ test('AC-1c commission_default cross-check: staff4 is STILL denied Caso 0001 (un
   // unchanged now that case_participants/case_types are ON (AC-7).
   await signInAs(page, 'staff4.ccih@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID_COMMISSION_DEFAULT}`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem (see assertCaseDenied above).
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await signOut(page)
 })
 

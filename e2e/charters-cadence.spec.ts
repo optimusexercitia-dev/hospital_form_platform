@@ -458,9 +458,12 @@ test('AC-3 — a foreign-commission (Rede B) user gets no cadence read and no ro
   expect(bodyText).not.toMatch(/em_dia|em_atraso|sem_reunioes|sem_regimento/)
 
   // UI-level: the meetings route 404s — no content leaks through the shell.
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — /meetings hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. this exact route).
   await signInAs(page, FOREIGN_EMAIL, undefined, 'staff_admin')
   await page.goto(`/o/${ORG_A}/c/${FARM_SLUG}/meetings`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
