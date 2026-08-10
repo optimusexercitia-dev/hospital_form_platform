@@ -202,62 +202,106 @@ No regression on any axis; the overload trap did not materialize.
 ### 2. The `request.jwt.claims` sweep — bounded by the property, not the filename
 
 Swept `grep -rn "set_config('request\.jwt\.claims'" supabase/` (166 hits before this
-session's edits). Classified every hit by what it actually does, not by which file it's in:
+session's edits). Classified every hit by what it actually does, not by which file it's in.
+
+**Correction (lead ruling, 2026-08-09):** the initial cut of this sweep left
+`tests/224_memberships_collapse.sql`'s 20 sites deliberately unrouted, reasoning
+"disproportionate for a harness-only stage." The lead reversed that call: `224` is not
+peripheral — it is the memberships-collapse **lock** suite, its §5/§7 assertions
+(`grant_role → wrapper true`, the 27-wrapper truth table) resolve entirely through
+`has_role`, the exact function Stage 3 amends with the caller-only hat condition, and
+these sites hand-mint the JWT payload, bypassing `custom_access_token_hook` entirely —
+so the implicit single-role break-glass derive (which happens at token-mint time,
+inside the hook) can never rescue them. At Stage 3, `active_role()` would return null
+for all 20, the caller-side conjunct `p_role = app.active_role()` goes NULL, and every
+wrapper-true assertion in this file flips red — inside Stage 3's own red window, which
+D10 exists to keep small and real. Routing now (still `p_active_role => null` by
+default, so no claim is minted and the suite stays green) means Stage 3 flips one
+argument per site instead of rewriting raw SQL under time pressure. **All 20 sites are
+now routed** — see below. The independently-reproduced census (140 clears + 25
+constructions, of which the 26th accounting entry is `130_audit`'s already-routed site)
+confirmed the underlying count was right; only the disposition of `224` changed.
 
 | Category | Count | Disposition |
 | --- | --- | --- |
-| Clears (`'', true` or `null, true`) — construct no claim, nothing to route | 140 | Left as-is; "route through claims_for" doesn't apply to a call that asserts no identity at all. Full file:line list below. |
+| Clears (`'', true` or `null, true`) — construct no claim, nothing to route | 140 | Left as-is; "route through claims_for" doesn't apply to a call that asserts no identity at all. |
 | The canonical function itself (`test_helpers.claims_for`'s own `set_config` call) | 1 | N/A — this is the routing destination, not a site to route. |
-| Inline claim-**construction** sites (`json_build_object`/`jsonb_build_object` with `sub`/`role`) | 25 → 24 after routing | 1 routed (`130_audit.sql:121`); 24 deliberately left, each reasoned below. |
+| Inline claim-**construction** sites (`json_build_object`/`jsonb_build_object` with `sub`/`role`) | 25 | **21 routed** (1 `130_audit.sql` + 20 `224_memberships_collapse.sql`); **4 left, structurally unreachable** (not a scope call — `test_helpers` genuinely does not exist in their execution context). |
 
-**Reconciliation:** 166 sites found = 140 clear (N/A) + 1 canonical (N/A) + 1 routed +
-24 deliberately left = 166. ✓.
+**Reconciliation:** 166 sites found = 140 clear (N/A) + 1 canonical (N/A) + 21 routed +
+4 unreachable = 166. ✓.
 
-**Routed (1):** `supabase/tests/130_audit.sql:121` — was
-`set_config('request.jwt.claims', jsonb_build_object('sub', …, 'role','authenticated','is_admin', false)::text, true)`,
-functionally identical to `test_helpers.claims_for((select st_x from k), false)` (same
-file already calls `claims_for` two lines earlier at line 110, confirming `test_helpers`
-is reachable there). Rewritten to call `claims_for` directly, so this site already carries
-the `p_active_role` slot for Stage 3.
+**Routed (21):**
+- `supabase/tests/130_audit.sql:121` — was
+  `set_config('request.jwt.claims', jsonb_build_object('sub', …, 'role','authenticated','is_admin', false)::text, true)`,
+  functionally identical to `test_helpers.claims_for((select st_x from k), false)` (same
+  file already calls `claims_for` two lines earlier at line 110, confirming `test_helpers`
+  is reachable there).
+- `supabase/tests/224_memberships_collapse.sql` — 20 sites (original lines 90, 99, 113,
+  125, 137, 153, 187, 199, 217, 226, 237, 248, 262, 327, 331, 340, 344, 353, 357, 445),
+  all `set_config('request.jwt.claims', json_build_object('sub', (select <principal> from
+  k), 'role','authenticated')::text, true)`, collapsing into exactly 6 byte-identical
+  patterns by principal (`sa_x`×10, `st_x`×3, `sa_y`×2, `st_y`×2, `admin`×2, `st_x2`×1 —
+  verified by `grep -c` before editing, summing to 20), each rewritten to
+  `test_helpers.claims_for((select <principal> from k))`. A single explanatory comment
+  was added near the top of the file rather than repeating the rationale at all 20 call
+  sites (kept the diff to +33/−40 instead of ballooning it with 20 repeated 4-line
+  comment blocks).
 
-**Deliberately left (24), each with its reason:**
+**Payload-diff verification (item required by the lead — "prove the routing is faithful,
+not just green").** Ran both sides for the same UUID directly against the live catalog:
 
-- `supabase/seed.sql:2067,2552,2840` (3 sites) — **structurally unreachable via
-  `claims_for`.** `seed.sql` runs during `supabase db reset`, before the `test_helpers`
-  schema exists (that schema is created only by `supabase/tests/00_setup.sql`, which is
-  not a migration and is never applied by `db reset`). "Add the claim slot" is the only
-  applicable half of the Stage-1 instruction, and doing so now would require deciding
-  *which* role each impersonated seed-time RPC call (`grant_role`, `submit_response`,
-  indicator recording) is "wearing" — a decision entangled with Stage 3's own design (what
-  `has_role` requires for a raw, hook-bypassing `set_config`, since seed.sql never goes
-  through `custom_access_token_hook`). Recorded as a **known Stage-3 dependency**: once
-  Stage 3 adds the active-role condition to `has_role`, these 3 seed.sql call sites will
-  need an explicit `active_role` key or `db reset`'s own seed step breaks under D5
-  fail-closed. Stage 3's task list should pick this up explicitly — flagging it now rather
-  than silently deferring it.
-- `supabase/demo/seed-revisao-prontuario.sql:1027` (1 site) — same structural reason
-  (not a migration, not part of `db reset`'s E2E seed — CLAUDE.md: "own tenant, NOT the
-  E2E seed"), plus it's explicitly out of the pgTAP/E2E test-harness contract this Stage
-  is hardening.
-- `supabase/tests/224_memberships_collapse.sql` (20 sites, lines 90, 99, 113, 125, 137,
-  153, 187, 199, 217, 226, 237, 248, 262, 327, 331, 340, 344, 353, 357, 445) — reachable
-  via `claims_for` in principle (this is a pgTAP file), but **deliberately left**: this
-  file table-tests `grant_role`/`revoke_role` RBAC edges with tight positive/negative
-  assertions across ~20 distinct principals; converting 20 call sites in one pass has real
-  regression risk for **zero present behavioural benefit** (`active_role` is not consumed
-  by anything until Stage 3 exists). This file is exactly the kind of `has_role`/
-  `grant_role` surface Stage 3's own mandated sweep already covers ("a sweep of every
-  4-arg / `_for` call site" + "diff-scoped door sweep over every touched gate") — it will
-  be touched there, under review, when the change is load-bearing. Named here so Stage 3
-  doesn't have to rediscover it.
+```
+raw:         json_build_object('sub', '1111…'::uuid, 'role','authenticated')::text
+             → {"sub" : "1111…", "role" : "authenticated"}
+claims_for:  test_helpers.claims_for('1111…'::uuid); current_setting('request.jwt.claims', true)
+             → {"sub": "1111…", "role": "authenticated", "is_admin": false}
+```
 
-**Plan-vs-substrate finding:** the plan (§3) cites `130_audit` and `180_user_registration`
-as examples of inline-construction sites. `180_user_registration.sql` has **three**
-`set_config('request.jwt.claims', …)` occurrences (lines 222, 248, 257) and **all three are
-clears** (`'', true`) — zero construction sites. The plan's own example is wrong on the
-substrate, a smaller instance of this project's recurring "verify against the live
-artifact, not the prose" lesson. Not acted on further (there's nothing to route in that
-file), but flagging it because the plan cites it as a to-do site.
+Field-by-field: `sub` — identical. `role` — identical. `is_admin` — **added** by
+`claims_for` (raw omitted the key entirely; `claims_for` always sets it, default
+`false`). This is the one and only difference (the surrounding whitespace-around-colon
+is a `json_build_object` vs `jsonb_build_object`-cast formatting artifact, immaterial to
+any `->>'key'` read).
+
+**Verified inert**, not just assumed: `app.is_admin()` (fetched live via
+`pg_get_functiondef`) is:
+```sql
+v_claim := nullif(current_setting('request.jwt.claims', true), '');
+if v_claim is not null and (v_claim::jsonb ->> 'is_admin') = 'true' then
+  return true;
+end if;
+return exists (select 1 from public.profiles where id = auth.uid() and is_admin = true);
+```
+For the raw payload, `->>'is_admin'` on a missing key returns SQL `NULL`; `NULL = 'true'`
+evaluates to `NULL` (not `TRUE`), so the `if` is skipped. For `claims_for`'s payload,
+`->>'is_admin'` returns the text `'false'`; `'false' = 'true'` evaluates to `FALSE`, so
+the `if` is *also* skipped. Both payloads fall through to the identical `profiles.is_admin`
+check, with identical inputs (`auth.uid()`, which the `sub` field — unchanged — controls).
+Also confirmed, live catalog: `app.is_admin()` is the **only** function in `app`/`public`
+whose body references both `is_admin` and `jwt.claims` (`select … from pg_proc … where
+prosrc like '%is_admin%' and prosrc like '%jwt.claims%'` → 0 rows besides `is_admin()`
+itself) — so no other predicate in this file's call graph can read the `is_admin` claim
+key any differently. **No behavioural difference; nothing to stop and report.**
+
+**Left, structurally unreachable (4) — confirmed, not just plausible:**
+- `supabase/seed.sql:2067,2552,2840` (3 sites) and
+  `supabase/demo/seed-revisao-prontuario.sql:1027` (1 site) — `test_helpers` is created
+  by `supabase/tests/00_setup.sql`, i.e. minted by the pgTAP harness, not by any
+  migration. `seed.sql` runs during `supabase db reset`, entirely before any pgTAP file
+  ever executes, so `test_helpers.claims_for` genuinely does not exist in that execution
+  context — not a scope judgement call, a fact about what schema is present when. Kept
+  as raw `set_config` calls. **Stage 3 carry-forward obligation** (below) replaces the
+  earlier one-line "known dependency" note per the lead's instruction to write it as a
+  reasoned obligation, not a TODO.
+
+**Plan-vs-substrate finding (unchanged):** the plan (§3) cites `130_audit` and
+`180_user_registration` as examples of inline-construction sites. `180_user_registration.sql`
+has **three** `set_config('request.jwt.claims', …)` occurrences (lines 222, 248, 257) and
+**all three are clears** (`'', true`) — zero construction sites. The plan's own example is
+wrong on the substrate, a smaller instance of this project's recurring "verify against the
+live artifact, not the prose" lesson. Not acted on further (there's nothing to route in
+that file), but flagging it because the plan cites it as a to-do site.
 
 Full `file:line` inventory (all 166 pre-session hits) — reproducible via
 `grep -rn "set_config('request\.jwt\.claims'" supabase/`; the 25 constructing sites
@@ -266,6 +310,57 @@ Full `file:line` inventory (all 166 pre-session hits) — reproducible via
 Not pasted in full here (140 clear-site lines add no information beyond "clear, not
 applicable") — the two grep recipes above regenerate the exact same list on demand, which
 is the more durable record.
+
+### 2b. Stage 3 carry-forward obligation — the 4 unreachable `seed.sql`/demo-seed sites
+
+Written as an obligation with its reasoning, per the lead's instruction, not as a
+one-line TODO (an unexplained TODO is the shape that goes stale in this repo).
+
+**What these sites do today:** `supabase/seed.sql:2067,2552,2840` each impersonate
+`chefe.ccih@test.local` (org-a's CCIH `staff_admin`, the `v_chefe` local variable) by
+hand-minting `{"sub": v_chefe, "role": "authenticated"}` via `set_config`, immediately
+before calling a superuser-invoked RPC (recording an indicator measurement; a
+controlled-document RPC gated by `app.in_controlled_docs_rpc`) so that the RPC's
+`created_by`/`granted_by`-style attribution columns and any `audit_write` call resolve
+`auth.uid()` to the intended persona rather than `NULL`. `supabase/demo/seed-revisao-prontuario.sql:1027`
+does the analogous thing for its own demo tenant's persona (`v_e1`).
+
+**Why `claims_for` can never reach them:** `test_helpers` is a pgTAP-harness schema
+(`supabase/tests/00_setup.sql`, not a migration); `seed.sql` and the demo seed run
+during `supabase db reset` / a direct `psql -f` apply, respectively — both entirely
+outside any pgTAP session. There is no future version of "route through `claims_for`"
+that applies here; the fix, if any, has to be a change to what these sites themselves
+mint.
+
+**The obligation, precisely:** once Stage 3 adds the caller-only active-role condition
+to `has_role` (plan §2: `… AND (p_user_id is distinct from auth.uid() OR p_role =
+app.active_role())`), any RPC these 4 sites call whose authorization path resolves
+through `has_role` for the impersonated principal will see `app.active_role()` return
+NULL (no `active_role` key in a payload that was never touched) — under D5 (fail
+closed), that principal now holds no active role, and `has_role` denies. Stage 3 must
+therefore, for each of these 4 sites:
+1. **Determine whether the RPC/insert path it precedes actually calls `has_role`** (or
+   `has_role_any`/`is_member_of`, which route through it) **at all**, versus being a bare
+   superuser `insert`/`update` that only reads `auth.uid()` for a `created_by`/`granted_by`
+   column with no membership predicate in the path. If the latter, no `active_role` key
+   is needed — `auth.uid()` alone resolves via `sub`, unaffected by Stage 3.
+2. **Verify no trigger fired by these insert paths calls a membership predicate.**
+   `seed.sql`'s indicator-measurement and controlled-document inserts run triggers
+   (`audit_write` at minimum); Stage 3 must check each trigger body from the catalog
+   (`pg_trigger` → `pg_proc`, never assumed from the migration text) for any call into
+   `has_role`/`has_role_any`/`is_member_of` — if one exists, that trigger will start
+   failing closed under these sites' claim-less payloads.
+3. **If either check finds a `has_role`-family call in the path,** add an explicit
+   `'active_role', '<role>'` key to the 4 `jsonb_build_object` calls (the seed already
+   knows `chefe.ccih` is CCIH's `staff_admin` and the demo persona's role, so the value
+   is not a fresh decision — restating it as a claim key is mechanical), or these 4
+   `db reset` seed steps break under D5 the moment Stage 3 lands, independent of any
+   product code — a broken `db reset` is a broken local-dev/CI floor for every
+   subsequent teammate, not a cosmetic gap.
+4. **If neither check finds one,** record that explicitly (with the catalog query used)
+   rather than leaving the question open — the absence of a `has_role` call in the path
+   is itself the thing that makes "no `active_role` needed" a verified conclusion instead
+   of an assumption.
 
 ### 3. Dual-hat seed persona — `dualhat.a@test.local`
 
