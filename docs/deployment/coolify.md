@@ -194,12 +194,34 @@ list in [`.env.production.example`](../../.env.production.example).
 | `SUPABASE_SERVICE_ROLE_KEY` | *(Dashboard → Settings → API → service_role)* | **No** | Server-only secret. Bypasses RLS. Never a build var. |
 | `AUTH_EMAIL_VERIFICATION` | `off` | No | Flip to `on` only after SMTP works (Step 2). |
 | `RESEND_API_KEY` | *(blank)* | No | Only if a server route sends mail directly; Cloud auth mail uses Dashboard SMTP. |
+| `MINUTES_SERVICE_URL` | `https://minutes.yourdomain.com` *(no trailing slash)* | No | MIN · audio → ata. Base URL of the deployed `minute_generator`. |
+| `MINUTES_SERVICE_API_KEY` | *(= the service's `API_KEY`)* | No | Server-only. Mint a NEW production value — never the local smoke pair. |
+| `MINUTES_CALLBACK_HMAC_SECRET` | *(= the service's `CALLBACK_HMAC_SECRET`)* | No | Server-only. A mismatch makes every callback a silent 401 and the job dies at the 24 h TTL. |
+| `MINUTES_CALLBACK_BASE_URL` | *(unset)* | No | Leave unset in normal production; set only behind a Host-rewriting proxy (runbook §3). |
+| `PDF_RENDERER_URL` | `http://<coolify-service-name>:3000` | No | PDF·P1 · Gotenberg sidecar, on the app's internal network — never a public domain. Container port is always 3000. |
+| `PDF_VERIFICATION_BASE_URL` | `https://app.yourdomain.com` *(no trailing slash)* | No | Printed inside every QR. **Configured, never derived** — a spoofable `Host` must not reach paper. |
 
 > **Why "Build Variable" matters:** `NEXT_PUBLIC_*` values are compiled into the
 > JS at `next build`. Coolify passes build variables as `--build-arg`, which the
 > Dockerfile consumes (`ARG NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY`). If you
 > forget the toggle, the browser bundle ships with empty Supabase config and the
 > app can't reach the backend even though the server env is set.
+
+> **The `MINUTES_*` block is inert until you activate MIN.** All four are gated by
+> the `audio_minutes` feature flag, which ships **OFF** — with the flag off they may
+> be absent and nothing breaks. They also need the `minute_generator` service
+> deployed as its **own Coolify resource** (a Docker Compose build pack, not this
+> application). Deploy order, the pre-enable gates, callback reachability and key
+> rotation: [`audio-minutes-runbook.md`](./audio-minutes-runbook.md).
+
+> **The `PDF_*` pair is inert until you activate PDF·P1.** Both are gated by the
+> `document_printing` feature flag, which ships **OFF**. The Gotenberg sidecar is
+> its own Coolify resource — type *Docker Image*, pinned
+> **`gotenberg/gotenberg:8.24.0`** (never `latest`, never `8`) — with **no public
+> domain and no HTTPS route**: from P3 onward the HTML it receives IS the PHI, so it
+> must be reachable only on the app's internal Docker network. Sidecar setup,
+> resource caps (~1 GB / ~1 CPU, so a render OOM kills the renderer and not the web
+> app) and the pin-upgrade protocol: [`pdf-renderer.md`](./pdf-renderer.md).
 
 ---
 
