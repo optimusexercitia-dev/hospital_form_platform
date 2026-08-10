@@ -10543,6 +10543,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assume_role: {
+        Args: { p_role: Database["public"]["Enums"]["platform_role"] }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       bulk_create_cases: {
         Args: {
