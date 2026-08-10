@@ -438,10 +438,21 @@ test.describe.serial(
       })
     })
 
-    test('orgadmin.a now gets member items AND the KEEP allowlist ("member-and-configuration")', async ({
+    // ACT ADR 0106 (D5/D12) RE-SCOPE — the original test here asserted the UNION
+    // nav ("member-and-configuration": member items PLUS the KEEP allowlist) in a
+    // single hatless session. Under strict role assumption that union is
+    // STRUCTURALLY unreachable: the staff hat filters out the tenancy-admin
+    // grants (isTenancyAdmin=false) and the org_admin hat filters out the
+    // membership (role=null) — no single hat satisfies both conditions at once,
+    // so `navScope="member-and-configuration"` is now a dead branch in
+    // layout.tsx (recorded in PROGRESS.md as an ACT follow-up, not deleted
+    // here). The two tests below prove each hat's nav individually AND — by each
+    // asserting the ABSENCE of the other scope's items — that the combined nav
+    // is genuinely gone, the same shape the PO ruled for AC-5b/Flow 3d/5a.
+    test('under the staff hat: member nav only — the KEEP allowlist does NOT ride along', async ({
       page,
     }) => {
-      await cachedSignIn(page, 'orgadmin.a@test.local')
+      await cachedSignIn(page, 'orgadmin.a@test.local', undefined, 'staff')
       await page.goto(`/o/${ORG}/c/${FARMACIA}`)
 
       const nav = page.getByRole('navigation', { name: /navegação da comissão/i })
@@ -450,22 +461,47 @@ test.describe.serial(
       // MEMBER items a plain `staff` role always gets...
       await expect(nav.getByRole('link', { name: 'Formulários' })).toBeVisible()
       await expect(nav.getByRole('link', { name: 'Minhas respostas' })).toBeVisible()
-      // ...PLUS the KEEP configuration items — theirs from `configuration: true`
-      // alone, since a `staff` role's OWN `roles` array never includes these.
-      await expect(nav.getByRole('link', { name: 'Construtor' })).toBeVisible()
-      await expect(nav.getByRole('link', { name: 'Gerenciar' })).toBeVisible()
-      await expect(nav.getByRole('link', { name: 'Configurações' })).toBeVisible()
+      // ...and NO KEEP configuration item — the org_admin grant is inactive
+      // under this hat, and a `staff` role's OWN `roles` array never has these.
+      await expect(nav.getByText('Configuração da comissão')).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Construtor' })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Gerenciar' })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Configurações' })).toHaveCount(0)
 
-      // Still no genuinely coordinator-only, non-KEEP item — their role is
-      // `staff`, not `staff_admin`, and no `configuration` mark ever admits these.
+      // Coordinator-only items stay absent under any reading — role is `staff`.
       await expect(nav.getByRole('link', { name: /^Casos(\s|$)/ })).toHaveCount(0)
       await expect(nav.getByRole('link', { name: 'Painel' })).toHaveCount(0)
 
-      // A held membership means `role !== null` — the commission root now shows
-      // the MEMBER overview, never the configuration landing.
+      // A held (active-hat) membership means `role !== null` — the commission
+      // root shows the MEMBER overview, never the configuration landing.
       await expect(
         page.getByText(/você administra a estrutura desta comissão/i),
       ).toHaveCount(0)
+    })
+
+    test('under the org_admin hat: configuration nav only — the membership does NOT ride along', async ({
+      page,
+    }) => {
+      await cachedSignIn(page, 'orgadmin.a@test.local', undefined, 'org_admin')
+      await page.goto(`/o/${ORG}/c/${FARMACIA}`)
+
+      const nav = page.getByRole('navigation', { name: /navegação da comissão/i })
+      await expect(nav).toBeVisible({ timeout: 10_000 })
+
+      // The bare-tenancy-admin KEEP allowlist...
+      await expect(nav.getByText('Configuração da comissão')).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Construtor' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Gerenciar' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Configurações' })).toBeVisible()
+      // ...and NO member content item — the staff membership is inactive under
+      // this hat, so the union nav the pre-ACT test pinned is provably gone.
+      await expect(nav.getByRole('link', { name: 'Formulários' })).toHaveCount(0)
+      await expect(nav.getByRole('link', { name: 'Minhas respostas' })).toHaveCount(0)
+
+      // The commission root is the configuration landing for a bare tenancy admin.
+      await expect(
+        page.getByText(/você administra a estrutura desta comissão/i),
+      ).toBeVisible()
     })
   },
 )

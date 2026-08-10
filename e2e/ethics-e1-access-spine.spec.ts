@@ -450,9 +450,12 @@ test('AC-3b + AC-8 dynamic recusal: record_recusal immediately revokes read + wr
   const newRow = after[after.length - 1]
   expect(newRow.entity_type).toBe('case')
   expect(newRow.commission_id).toBe(COMMISSION_A)
-  // PHI-free (Rule 11): metadata carries only user_id + source — never the free-text reason.
+  // PHI-free (Rule 11): metadata carries only user_id + source — never the free-text
+  // reason. `acting_as` is ACT ADR 0106 D8: audit_write stamps the caller's active
+  // hat (a role label, not PHI) into every row's metadata.
   const metaKeys = Object.keys(newRow.metadata).sort()
-  expect(metaKeys).toEqual(['source', 'user_id'])
+  expect(metaKeys).toEqual(['acting_as', 'source', 'user_id'])
+  expect(newRow.metadata.acting_as).toBe('staff_admin')
   expect(JSON.stringify(newRow.metadata)).not.toContain('Conflito de interesse identificado')
 
   // --- multi loses read THE MOMENT the recusal is live ---

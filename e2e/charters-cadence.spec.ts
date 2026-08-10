@@ -548,8 +548,15 @@ test('AC-5 — the charter save(s) in AC-4 emit charter.upserted audit rows, PHI
   expect(latest.entity_type).toBe('commission')
   expect(latest.entity_id).toBe(FARM_COMM)
   // PHI-free (Rule 12): config-level metadata only — frequency + whether a
-  // regimento is linked, nothing else (no names, no free text).
-  expect(Object.keys(latest.metadata).sort()).toEqual(['has_regimento', 'meeting_frequency'])
+  // regimento is linked, nothing else (no names, no free text). `acting_as` is
+  // ACT ADR 0106 D8: audit_write stamps the caller's active hat (a role label,
+  // not PHI) into every row's metadata.
+  expect(Object.keys(latest.metadata).sort()).toEqual([
+    'acting_as',
+    'has_regimento',
+    'meeting_frequency',
+  ])
+  expect(latest.metadata.acting_as).toBe('staff_admin')
   expect(latest.metadata.has_regimento).toBe(true)
   // AC-4's LAST save was the restore-to-mensal.
   expect(latest.metadata.meeting_frequency).toBe('mensal')

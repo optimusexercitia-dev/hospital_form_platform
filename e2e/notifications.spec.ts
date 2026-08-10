@@ -221,7 +221,7 @@ function setNotificationsFlag(enabled: boolean): void {
 // N-1 — Event-driven enqueue (real UI) + isolation (same-org + cross-org)
 // ---------------------------------------------------------------------------
 
-test('N-1: assigning a CAPA action via the real UI notifies the assignee only (same-org + cross-org isolation)', async ({
+test('N-1: assigning a CAPA action notifies the assignee only (same-org + cross-org isolation)', async ({
   page,
   request,
   browser,
@@ -232,25 +232,39 @@ test('N-1: assigning a CAPA action via the real UI notifies the assignee only (s
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N1-evento')
 
-  // Drive the REAL UI enqueue path: admin@test.local (org_admin + PQS operator of
-  // central-a) opens the CAPA workspace and uses "Adicionar ação" to assign to
-  // staff2.ccih (a plain, non-PQS CCIH staff member).
+  // ACT ADR 0106 (D5) RE-SCOPE — pre-ACT this drove the dropdown pick as a
+  // hatless admin@ (org_admin + pqs_member union): the encarregado <select> is
+  // fed by `listAssignableUsers()` (a plain RLS `profiles` read), and the
+  // profiles policy has NO PQS-operator arm (catalog-verified: self / org_admin
+  // / tenancy-admin / co-member / hospital_admin only) — so the wide roster only
+  // ever existed through the org_admin arm of the union. Under the pqs_member
+  // hat the dropdown no longer offers staff2.ccih (asserted below as the
+  // composition-gone proof; FUP-ACT-CAPA-ASSIGN in PROGRESS.md tracks giving
+  // operators a real assignee-roster door). The enqueue MECHANISM under test —
+  // assignment → assignee-only notification — is driven at the same door the
+  // dialog submits to (`addCapaAction`, the N-3 vehicle), which accepts an
+  // assignee id the caller cannot read.
   await signInAs(page, ADMIN_EMAIL, undefined, 'pqs_member')
   await page.goto(`/o/rede-a/nsp/capa/${planId}`)
   await page.getByRole('button', { name: /adicionar ação/i }).click()
 
   const dialog = page.getByRole('dialog', { name: /nova ação corretiva/i })
   await expect(dialog).toBeVisible({ timeout: 10_000 })
-  await dialog.getByLabel(/título da ação/i).fill(title)
-  await dialog.getByLabel(/encarregado/i).selectOption(STAFF2_CCIH_ID)
-  await dialog.getByRole('button', { name: /^adicionar ação$/i }).click()
+  // The dialog itself renders for the operator hat (the affordance survives)...
+  await expect(dialog.getByLabel(/encarregado/i)).toBeVisible()
+  // ...but the union-only roster entry is gone — an operator who shares no
+  // commission with staff2.ccih cannot see her profile, hence no option.
+  await expect(
+    dialog.getByLabel(/encarregado/i).locator(`option[value="${STAFF2_CCIH_ID}"]`),
+  ).toHaveCount(0)
+  await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible({ timeout: 10_000 })
 
-  // Resolve the newly created action id (service-role read).
-  const [action] = await restGet<{ id: string }>(
-    request,
-    `capa_action?capa_id=eq.${planId}&title=eq.${encodeURIComponent(title)}&select=id`,
-  )
+  // The assignment itself, at the door the dialog submits to.
+  const action = await addCapaAction(request, adminToken, planId, {
+    title,
+    assigneeUserId: STAFF2_CCIH_ID,
+  })
   expect(action, 'the action must have been created').toBeTruthy()
   const dedupKey = `capa:${action.id}:assigned`
 

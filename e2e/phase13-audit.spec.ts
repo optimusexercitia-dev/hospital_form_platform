@@ -439,8 +439,10 @@ test('AC-1c: submit a response → exactly one response.submitted row; metadata 
   })
   const metaText = JSON.stringify(row.metadata)
   expect(metaText).not.toMatch(/dispensador|turno|Manhã|Sim/i)
-  // The status diff is the WHOLE metadata payload (no answer keys leaked).
-  expect(Object.keys(row.metadata)).toEqual(['status'])
+  // The status diff is the WHOLE metadata payload (no answer keys leaked), plus
+  // `acting_as` — ACT ADR 0106 D8: audit_write stamps the caller's active hat
+  // (a role label, not an answer key) into every row's metadata.
+  expect(Object.keys(row.metadata).sort()).toEqual(['acting_as', 'status'])
 })
 
 test('AC-1d: sign a section → exactly one signoff.recorded row (actor=probe staff_admin, entity=signoff)', async ({

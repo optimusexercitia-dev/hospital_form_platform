@@ -261,7 +261,7 @@ function setOversightViaDoor(
       input: `
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"${HOSPITALADMIN_A1_UID}","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"${HOSPITALADMIN_A1_UID}","role":"authenticated","active_role":"hospital_admin"}', true);
 select public.set_commission_oversight('${COMMISSION_ID[slug]}', '${value}');
 commit;
 `,
