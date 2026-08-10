@@ -15,7 +15,7 @@
 --
 --  1. **Surface text is not the property.** A regex census over `is_hospital_admin_of`
 --     returned three hits and ONE IN THREE WAS A FALSE POSITIVE:
---     `list_approver_candidates` reaches org_admin through `is_commission_admin_of`,
+--     `list_approver_candidates` reaches org_admin through `is_tenancy_admin_of`,
 --     whose `_for` variant resolves `has_role('organization', …, 'org_admin', …)` — a
 --     spelling that contains neither `is_org_admin_of` nor anything a surface match
 --     would catch. So the classifier resolves helper transitivity to a FIXPOINT, and
@@ -55,7 +55,7 @@ create function public.__grid_probe_ok(p uuid) returns boolean
 -- The `list_approver_candidates` shape: an org arm reachable ONLY through a helper.
 create function public.__grid_probe_transitive(p uuid) returns boolean
   language sql stable security definer set search_path to 'app','public','pg_catalog'
-  as $$ select app.is_hospital_admin_of(p) or app.is_commission_admin_of(p) $$;
+  as $$ select app.is_hospital_admin_of(p) or app.is_tenancy_admin_of(p) $$;
 
 -- ---------------------------------------------------------------------------
 -- THE CLASSIFIER.
@@ -71,7 +71,7 @@ fn as (
   where n.nspname in ('app', 'public')
 ),
 -- An org_admin arm, in EITHER spelling: the named helper family, or the inlined
--- has_role('organization', …, 'org_admin', …) that is_commission_admin_of_for uses.
+-- has_role('organization', …, 'org_admin', …) that is_tenancy_admin_of_for uses.
 direct as (
   select proname from fn
   where src ~ 'is_org_admin_of'
@@ -158,7 +158,7 @@ select is(
 
 select is(
   (select admits_org_admin from grid where name = '__grid_probe_transitive'), true,
-  '2.3 HELPER TRANSITIVITY: an org arm reachable ONLY through is_commission_admin_of is resolved, not missed');
+  '2.3 HELPER TRANSITIVITY: an org arm reachable ONLY through is_tenancy_admin_of is resolved, not missed');
 
 select ok(
   (select admits_org_admin from grid where name = 'list_approver_candidates'),

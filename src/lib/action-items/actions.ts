@@ -18,7 +18,7 @@ import { featureEnabled } from '@/lib/queries/feature-flags'
  * item instead — ADR 0057), but it is not indicator-specific.
  *
  * Routed through `create_committee_action_item` (`p_source_type='manual'`), whose
- * authority is `is_staff_admin_of OR is_commission_admin_of` of the commission
+ * authority is `is_staff_admin_of OR is_tenancy_admin_of` of the commission
  * (verified live), and which emits an `action_item.created` audit row. Gated on
  * the hub's own **`action_items`** flag (NOT `cases_extras`). No schema change —
  * the table + RPC already exist.
@@ -113,7 +113,7 @@ export async function createManualActionItem(
   }
 
   // No client-side authority pre-check: the RPC's `is_staff_admin_of OR
-  // is_commission_admin_of` gate is the SOLE authority (a commission_admin who is
+  // is_tenancy_admin_of` gate is the SOLE authority (a commission_admin who is
   // an org_admin/hospital_admin but not a direct staff_admin member is valid and a
   // membership-only pre-check would wrongly reject them). A 42501 maps to the
   // friendly `forbidden` message (same discipline as the case-source create).

@@ -13,7 +13,7 @@ import {
   partitionGrants,
   type SessionGrant,
 } from '@/lib/queries/session-grants'
-// The TS mirror of `is_commission_admin_of` (ADR 0051): org_admin-of-org OR
+// The TS mirror of `is_tenancy_admin_of` (ADR 0051): org_admin-of-org OR
 // hospital_admin-of-hospital. access.ts imports ONLY types from this module, so
 // this value import is not a runtime cycle (the back-edge is type-only, erased).
 import { isCommissionAdmin } from '@/lib/auth/access'
@@ -397,7 +397,7 @@ export interface CommissionAccess {
   /**
    * ADR 0100 D12 (BUG-QOB-003) — the caller administers this commission's TENANCY
    * (org_admin of its org OR hospital_admin of its hospital; the TS mirror of
-   * `app.is_commission_admin_of`). A FLAG, never a member role — QO·B walled the
+   * `app.is_tenancy_admin_of`). A FLAG, never a member role — QO·B walled the
    * tenancy admins off committee CONTENT, so mapping them to `'staff_admin'`
    * (the pre-QO·B behaviour) rendered write affordances the DB refuses.
    * What this flag still confers (PO rulings Q1–Q9, the KEEP set): form
@@ -469,7 +469,7 @@ async function getCommissionAccessByOrgUncached(
   // `sem permissão`. Tenancy-admin standing is now the distinct `isTenancyAdmin`
   // flag below — the same treatment `isQualityViewer` got in Phase A (a FLAG,
   // never a member role). Both tenancy tiers ride ONE predicate (Q4: the same
-  // wall), mirroring `app.is_commission_admin_of` — BUG-HAT-002's hospital_admin
+  // wall), mirroring `app.is_tenancy_admin_of` — BUG-HAT-002's hospital_admin
   // mirror is preserved by the shared flag, not by the coercion.
   const memberRole =
     context.memberships.find((m) => m.commission.id === commission.id)?.role ??
@@ -574,7 +574,7 @@ export function canInCommission(
  *
  * `true` for the commission's own membership coordinator AND for a tenancy admin
  * (org_admin/hospital_admin — `isTenancyAdmin`), mirroring the DB, where every
- * KEEP policy/door still reads `is_staff_admin_of OR is_commission_admin_of`.
+ * KEEP policy/door still reads `is_staff_admin_of OR is_tenancy_admin_of`.
  *
  * ⛔ NEVER gate a CONTENT affordance on this helper — content (responses,
  * dashboards' row-level doors, documents, measurements, cases, sign-offs) is

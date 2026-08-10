@@ -167,7 +167,7 @@ values ('attachments',
 -- ⭐ PRE-FLIGHT — the org_admin is REAL and holds ONLY the org arm on comm_x.
 -- Without this, every "reads zero" below could be a nobody reading zero (§7.1·3).
 -- ===========================================================================
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), true,
   'PRE ⭐: st_y IS a live org_admin of comm_x — his zeros below are a REMOVED arm, not a missing one');
 select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …and is NOT a member of comm_x — no member arm confounds the measurement');
@@ -289,7 +289,7 @@ select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a4002', (se
 -- removed at D8/N1, so PHI does NOT survive here — but that removal is orthogonal to A4
 -- (S6 content, the point of this keystone, is untouched by both A4 and N1).
 -- ===========================================================================
-select is(app.is_commission_admin_of_for((select comm_x from k), (select u_nsp from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select u_nsp from k)), true,
   'K6 PRE ⭐: u_nsp IS an org_admin (so his surviving reach is NOT the org arm — that would confound the point)');
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select u_nsp from k)), true,
   'K6 ⭐ POSITIVE: content SURVIVES on the referral-touched case — A4 removed the org arm, the NSP arm (S6) is untouched');

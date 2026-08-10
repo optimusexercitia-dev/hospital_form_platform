@@ -1,7 +1,7 @@
 -- Hospital-admin tier dropped-symbol catalog sweep (ADR 0051; migration
 -- 20260709000200). PERMANENT GUARD for the swap: A2 DROPPED
 -- app.is_org_admin_of_commission[_for] and rebound every commission-scoped caller
--- to app.is_commission_admin_of[_for]. A CREATE OR REPLACE that copied a STALE
+-- to app.is_tenancy_admin_of[_for]. A CREATE OR REPLACE that copied a STALE
 -- base could leave an OFF-INVENTORY caller referencing the dropped symbol — it
 -- would then ERROR at call time (the ADR 0042 M2 class). This asserts the LIVE
 -- catalog (function bodies + RLS policy expressions) has ZERO references to the
@@ -10,7 +10,7 @@
 -- The regex \m(is_org_admin_of_commission)\( matches the bare/_for dropped names
 -- (both start with is_org_admin_of_commission) while is_org_admin_of( — the
 -- org-level surface that STAYS — does NOT match (the char after ...of is '(',
--- not 'c'). is_commission_admin_of[_for]( — the rebound name — also does not
+-- not 'c'). is_tenancy_admin_of[_for]( — the rebound name — also does not
 -- match. The two `commissions` policies keep is_org_admin_of(organization_id)
 -- (the Q5 documented exception) which correctly does NOT trip this sweep.
 begin;
@@ -50,8 +50,8 @@ select is(
 select ok(
   (select count(*)::int from pg_proc
    where pronamespace in ('app'::regnamespace, 'public'::regnamespace)
-     and prosrc ~ '\mis_commission_admin_of\(') >= 10,
-  'SWEEP CALIBRATION: the rebound is_commission_admin_of is present in >=10 bodies (swap landed)');
+     and prosrc ~ '\mis_tenancy_admin_of\(') >= 10,
+  'SWEEP CALIBRATION: the rebound is_tenancy_admin_of is present in >=10 bodies (swap landed)');
 
 select * from finish();
 rollback;

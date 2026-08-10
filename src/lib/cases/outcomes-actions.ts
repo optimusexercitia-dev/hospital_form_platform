@@ -112,7 +112,7 @@ async function authorizeCommission(commissionId: string): Promise<boolean> {
  * setProcessOutcomes): ADR 0100 D12 KEEP configuration (PO rulings Q7 + Q2), so
  * this routes the `canConfigureCommissionById` seam (membership staff_admin OR
  * tenancy admin) — mirroring the DB, where `case_outcomes_staff_admin_write` and
- * the CRUD probes still read `is_staff_admin_of OR is_commission_admin_of`.
+ * the CRUD probes still read `is_staff_admin_of OR is_tenancy_admin_of`.
  * The platform-admin arm is pre-existing and out of scope (recorded follow-up).
  */
 async function authorizeCommissionConfig(commissionId: string): Promise<boolean> {

@@ -173,7 +173,7 @@ create or replace function public.can_dispose_referral_phi(p_referral_id uuid)
 returns boolean language sql stable security definer set search_path = app, public, pg_catalog as $z$
   select app.is_admin() or exists (
     select 1 from public.case_referral r where r.id = p_referral_id
-      and ( app.is_commission_admin_of(r.source_commission_id)
+      and ( app.is_tenancy_admin_of(r.source_commission_id)
          or app.is_pqs_operator_of(app.hospital_of_commission(r.source_commission_id))
          or app.is_pqs_operator_of(app.hospital_of_commission(r.target_commission_id))));
 $z$;

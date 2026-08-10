@@ -63,7 +63,7 @@ reset role;
 select test_helpers.claims_for((select ha1 from p), false);
 set local role authenticated;
 select ok((select ok from public.verify_audit_chain((select comm_ccih from p))),
-  'VERIFY: commission chain intact as hospital_admin (is_commission_admin_of authz)');
+  'VERIFY: commission chain intact as hospital_admin (is_tenancy_admin_of authz)');
 select ok((select ok from public.verify_audit_chain(null, null, (select hosp_central_a from p))),
   'VERIFY: hospital chain intact as hospital_admin of that hospital');
 reset role;
@@ -136,7 +136,7 @@ select is(
   0, 'RLS PROOF: ha1 reads ZERO of the SIBLING hospital-tier audit rows');
 select ok(
   (select count(*)::int from public.audit_log where commission_id = (select comm_ccih from p)) >= 1,
-  'RLS: ha1 reads its hospital''s COMMISSION-tier audit rows (via is_commission_admin_of)');
+  'RLS: ha1 reads its hospital''s COMMISSION-tier audit rows (via is_tenancy_admin_of)');
 reset role;
 
 select * from finish();

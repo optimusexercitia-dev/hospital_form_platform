@@ -49,7 +49,7 @@ insert into public.memberships (organization_id, principal_id, role)
   select org_b, sa_y, 'org_admin' from h;
 
 -- Re-home the bootstrap commissions under the hospitals so the derive trigger
--- fills organization_id and is_commission_admin_of has data.
+-- fills organization_id and is_tenancy_admin_of has data.
 update public.commissions set hospital_id = (select hosp_a from h) where id = (select comm_x from h);
 update public.commissions set hospital_id = (select hosp_b from h) where id = (select comm_y from h);
 
@@ -136,17 +136,17 @@ select ok(not app.is_org_admin_of_for((select org_a from h), (select admin from 
 select ok(not app.is_org_admin_of_for((select org_a from h), (select st_x from h)),
   'is_org_admin_of_for: a plain staff member is NOT an org_admin');
 
--- is_commission_admin_of / _for: comm_x is under org A (sa_x), comm_y under B (sa_y).
-select ok(app.is_commission_admin_of_for((select comm_x from h), (select sa_x from h)),
-  'is_commission_admin_of_for: sa_x admins comm_x (under org A)');
-select ok(not app.is_commission_admin_of_for((select comm_y from h), (select sa_x from h)),
-  'is_commission_admin_of_for: sa_x does NOT admin comm_y (under org B)');
-select ok(app.is_commission_admin_of_for((select comm_y from h), (select sa_y from h)),
-  'is_commission_admin_of_for: sa_y admins comm_y (under org B)');
-select ok(not app.is_commission_admin_of_for((select comm_x from h), (select sa_y from h)),
-  'is_commission_admin_of_for: sa_y does NOT admin comm_x (under org A)');
-select ok(not app.is_commission_admin_of_for((select comm_x from h), (select admin from h)),
-  'is_commission_admin_of_for: platform_admin does NOT admin a commission (no is_admin fallback)');
+-- is_tenancy_admin_of / _for: comm_x is under org A (sa_x), comm_y under B (sa_y).
+select ok(app.is_tenancy_admin_of_for((select comm_x from h), (select sa_x from h)),
+  'is_tenancy_admin_of_for: sa_x admins comm_x (under org A)');
+select ok(not app.is_tenancy_admin_of_for((select comm_y from h), (select sa_x from h)),
+  'is_tenancy_admin_of_for: sa_x does NOT admin comm_y (under org B)');
+select ok(app.is_tenancy_admin_of_for((select comm_y from h), (select sa_y from h)),
+  'is_tenancy_admin_of_for: sa_y admins comm_y (under org B)');
+select ok(not app.is_tenancy_admin_of_for((select comm_x from h), (select sa_y from h)),
+  'is_tenancy_admin_of_for: sa_y does NOT admin comm_x (under org A)');
+select ok(not app.is_tenancy_admin_of_for((select comm_x from h), (select admin from h)),
+  'is_tenancy_admin_of_for: platform_admin does NOT admin a commission (no is_admin fallback)');
 
 -- The auth.uid() variants resolve via the JWT claim. Act as sa_x.
 select test_helpers.claims_for((select sa_x from h), false);
@@ -155,10 +155,10 @@ select ok(app.is_org_admin_of((select org_a from h)),
   'is_org_admin_of (auth.uid): sa_x sees org A');
 select ok(not app.is_org_admin_of((select org_b from h)),
   'is_org_admin_of (auth.uid): sa_x does NOT see org B');
-select ok(app.is_commission_admin_of((select comm_x from h)),
-  'is_commission_admin_of (auth.uid): sa_x admins comm_x');
-select ok(not app.is_commission_admin_of((select comm_y from h)),
-  'is_commission_admin_of (auth.uid): sa_x does NOT admin comm_y');
+select ok(app.is_tenancy_admin_of((select comm_x from h)),
+  'is_tenancy_admin_of (auth.uid): sa_x admins comm_x');
+select ok(not app.is_tenancy_admin_of((select comm_y from h)),
+  'is_tenancy_admin_of (auth.uid): sa_x does NOT admin comm_y');
 reset role;
 
 -- ============================================================================

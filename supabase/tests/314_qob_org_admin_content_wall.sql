@@ -10,10 +10,10 @@
 -- by a "coordinator" twin (229 M1·4) whose principal was actually an org_admin, and by
 -- a `sa_y` named for a role it does not hold.
 --
--- ⚠ THE NAMING TRAP, pinned by 0.3: app.is_commission_admin_of is NOT the commission's
+-- ⚠ THE NAMING TRAP, pinned by 0.3: app.is_tenancy_admin_of is NOT the commission's
 -- own admin. It is the TENANCY admin (org_admin OR hospital_admin) and it returns
 -- FALSE for staff_admin. Every policy in the estate reads
--- `is_staff_admin_of(...) OR is_commission_admin_of(...)`, which is why removing the
+-- `is_staff_admin_of(...) OR is_tenancy_admin_of(...)`, which is why removing the
 -- second disjunct subtracts exactly the tenancy roles and leaves the committee alone.
 --
 -- ⭐ EVERY NEGATIVE IS TWINNED. A zero here must never be able to mean "the fixture is
@@ -31,7 +31,7 @@
 -- =============================================================================
 
 begin;
-select plan(111);
+select plan(120);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -178,12 +178,12 @@ select f.case1, k.comm_x, k.org_b, 990314, 'Caso QO·B', k.sa_x from f, k;
 -- =============================================================================
 -- §0 — THE PERSONAS ARE REAL (every denial below rests on these three)
 -- =============================================================================
-select is(app.is_commission_admin_of_for((select comm_x from k), (select oa_b from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select oa_b from k)), true,
   '0.1 PRECONDITION ⭐: oa_b IS the tenancy admin of comm_x — without this every §1–§4 zero is vacuous');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select ha_b from ha)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select ha_b from ha)), true,
   '0.2 PRECONDITION ⭐: ha_b too (Q4 — hospital_admin gets the SAME wall)');
-select is(app.is_commission_admin_of_for((select comm_x from k), (select sa_x from k)), false,
-  '0.3 ⭐ THE NAMING TRAP: is_commission_admin_of is FALSE for the commission''s own staff_admin — it is the TENANCY admin, which is why the cut leaves the committee untouched');
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select sa_x from k)), false,
+  '0.3 ⭐ THE NAMING TRAP: is_tenancy_admin_of is FALSE for the commission''s own staff_admin — it is the TENANCY admin, which is why the cut leaves the committee untouched');
 
 -- =============================================================================
 -- §1 — RESPONSE PLANE (M1). Includes the BUG-QOB-001 destructive-delete keystone.
@@ -348,7 +348,7 @@ select is(
       and tablename in ('responses','answers','answer_selected_options','answer_references',
                         'answer_matrix_cells','answer_risk_matrix','response_group_instances',
                         'controlled_documents','controlled_document_versions','indicator_measurements')
-      and coalesce(qual,'')||' '||coalesce(with_check,'') ~ '\yis_commission_admin_of\y'),
+      and coalesce(qual,'')||' '||coalesce(with_check,'') ~ '\yis_tenancy_admin_of\y'),
   0,
   '5.1 ⭐ CATALOG: not one policy on the ratified CUT tables carries the tenancy arm — this is what covers answer_matrix_cells / answer_references / answer_risk_matrix / response_group_instances, which hold ZERO rows in a clean seed and are invisible to the A/B matrix');
 select cmp_ok(
@@ -365,7 +365,7 @@ select is(
     where p.pronamespace='app'::regnamespace
       and p.proname in ('can_read_document_of_version','can_read_document_object','can_view_printed_document')
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ '\yis_commission_admin_of(_for)?\y'),
+          ~ '\yis_tenancy_admin_of(_for)?\y'),
   0,
   '5.3 ⭐ CATALOG (A4 K2): none of the three document/print WRAPPERS routes the tenancy admin either — the half a policy-only sweep cannot see');
 
@@ -373,7 +373,7 @@ select is(
   (select count(*)::int from pg_proc p
     where p.pronamespace='public'::regnamespace and p.prokind='f'
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g') ~ 'assert_not_case_excluded'
-      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g') ~ '\yis_commission_admin_of\y'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g') ~ '\yis_tenancy_admin_of\y'
       and p.proname <> all (array['grant_case_access','revoke_case_access','list_case_access',
                                   'set_case_visibility','set_case_confidentiality'])),
   0,
@@ -385,7 +385,7 @@ select is(
       and p.proname = any(array['grant_case_access','revoke_case_access','list_case_access',
                                 'set_case_visibility','set_case_confidentiality'])
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ '\yis_commission_admin_of\y'),
+          ~ '\yis_tenancy_admin_of\y'),
   5,
   '5.5 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified KEEP doors must STILL admit the tenancy admin. grant_case_access is safe because self-escalation is independently blocked — org_admin is not a commission member — not because nobody checked');
 
@@ -444,9 +444,39 @@ select is(
   (select count(*)::int from pg_proc p
     where p.pronamespace='public'::regnamespace and p.proname='revoke_printed_document'
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ 'is_commission_admin_of'),
+          ~ 'is_tenancy_admin_of'),
   1,
   '8.5 ⭐ RULING GUARD: revoke_printed_document KEEPS its tenancy arm — ADR 0104 D11 rules revocation a GOVERNANCE act that reveals no content. A "finish the printed-doc wall" sweep must red HERE rather than silently reverse a ruling it never read');
+
+-- ⭐ 8.6/8.7 — THE SAME GUARD, for the disposal family (PO ruling 2026-08-09, FUP-QOB-3).
+-- `dispose_event_phi` and `dispose_referral_phi` KEEP a tenancy arm alongside the NSP arm.
+-- The reasoning is 8.5's, applied consistently: disposal DISCLOSES NOTHING — it destroys —
+-- so it is a governance act, not a content read. Two facts decided it:
+--   · a hospital can have ZERO NSP operators (`Hospital Unico C` in the seed), and
+--     NSP-only disposal would leave such a hospital unable to honour an LGPD Art. 18
+--     erasure request — an obligation that sits with the ORGANIZATION (the *controlador*);
+--   · this platform already keeps the tenancy arm on the identically-shaped
+--     `revoke_printed_document`.
+-- ⚠ These exist because BUG-QOB-004 cut the referral arm on 2026-08-09 and the ruling was
+-- revisited the SAME DAY once those facts surfaced. Without a guard, the next "finish the
+-- disposal wall" sweep re-cuts it by symmetry and re-opens the compliance gap silently.
+-- The comment/whitespace stripping mirrors 8.5's: `prosrc` includes comments, and the
+-- headers of both doors DISCUSS the arms.
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace
+      and p.proname in ('dispose_event_phi', 'dispose_referral_phi', 'can_dispose_referral_phi')
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_tenancy_admin_of'),
+  3,
+  '8.6 ⭐ RULING GUARD (FUP-QOB-3): all THREE referral/event disposal doors KEEP a tenancy arm — disposal reveals no content (8.5''s reasoning) and an unstaffed-NSP hospital would otherwise have nobody able to honour an erasure request');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.pronamespace='public'::regnamespace and p.proname='create_referral_draft'
+      and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
+          ~ 'is_tenancy_admin_of'),
+  0,
+  '8.7 ⭐ SCOPE GUARD for 8.6: DRAFTING a referral stays CUT. The backstop is disposal-only — without this, "restore the referral arm" reads as restoring the whole pre-QOB-004 reach');
 
 -- =============================================================================
 -- §9 — RESPONSE-PLANE DOORS, the BEHAVIOURAL half M5 shipped without (self-audit
@@ -865,13 +895,13 @@ select is(
     where p.pronamespace='public'::regnamespace and p.prokind='f'
       and p.proname in ('get_case_detail','list_my_cases')
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ 'is_commission_admin_of'),
+          ~ 'is_tenancy_admin_of'),
   0,
   '11.32 ⭐ CATALOG (MINOR-1): get_case_detail + list_my_cases no longer NAME the tenancy admin — the masked tokens are stripped, so a future outer-predicate widening cannot silently arm them');
 select is(
   (select count(*)::int from pg_policies
     where schemaname='public' and tablename='case_events'
-      and coalesce(qual,'')||' '||coalesce(with_check,'') ~ 'is_commission_admin_of'),
+      and coalesce(qual,'')||' '||coalesce(with_check,'') ~ 'is_tenancy_admin_of'),
   0,
   '11.33 ⭐ CATALOG (MINOR-1): not one case_events policy still carries the masked tenancy arm');
 select is(
@@ -886,7 +916,7 @@ select is(
         'lift_recusal','create_interview','schedule_ethics_hearing','get_case_detail','list_my_cases',
         'case_viewer_capabilities','case_tag_report','dispose_case_phi','add_case_participant','bulk_create_cases'])
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ 'is_commission_admin_of'),
+          ~ 'is_tenancy_admin_of'),
   0,
   '11.34 ⭐ CATALOG (BLOCKER-1 CORRESPONDENCE): every one of the 29 ratified §4.4 CUT-side doors is armless — the population is the LIST, checked item by item, not M4''s proxy');
 select is(
@@ -895,10 +925,109 @@ select is(
       and p.proname = any(array['grant_case_access','revoke_case_access','list_case_access',
                                 'set_case_visibility','set_case_confidentiality'])
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
-          ~ 'is_commission_admin_of'),
+          ~ 'is_tenancy_admin_of'),
   5,
   '11.35 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified case-access/classification KEEP doors still admit the tenancy admin — M7 cut the list MINUS these, not the whole plane');
 
+-- =============================================================================
+-- §12 — Q2 KEEP: the process-template DEFINER doors (`20260917000100`).
+--
+-- Q2 puts `process_template_*` on the KEEP side — a template is a CONTAINER the admin
+-- shapes. All 16 process_template POLICIES already carried the tenancy arm, but two
+-- SECURITY DEFINER doors gated on `is_staff_admin_of` alone, and a DEFINER's gate
+-- REPLACES RLS. Measured before the fix: a bare tenancy admin could write both target
+-- columns by direct DML through the FOR ALL write policy while both doors answered
+-- 42501 — so the doors were refusing an authorization that was already live, which is
+-- why closing the gap is not a widening.
+--
+-- ⚠ TWO doors, not one. The follow-up named only `set_template_case_type`;
+-- `set_template_collects_patient` is the identical shape on the identical table and was
+-- found by sweeping the plane BY PROPERTY. Both are pinned here so a future "finish the
+-- template wall" sweep cannot silently reverse the ruling on either.
+-- =============================================================================
+-- Flag explicitly, never by inheritance: set_template_collects_patient calls
+-- assert_case_patient_enabled() FIRST, so a flag-off fixture would make 12.3 raise
+-- check_violation and report a PASS-shaped skip of the authority it means to test.
+update app.feature_flags set enabled = true where key = 'case_patient';
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table tq2 on commit drop as
+  select (public.create_process_template((select comm_x from k), 'QOB Q2 Template', null)).id as tid,
+         null::uuid as vid;
+update tq2 set vid = app.draft_version_of_template(tid);
+grant select on tq2 to authenticated;
+reset role;
+
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.1 ⭐ KEEP DOOR (Q2): the tenancy admin declares a template''s case type — it shapes the container. Pre-20260917000100 this answered 42501 while the same principal could write the column by direct DML');
+select lives_ok(
+  $$ select public.set_template_collects_patient((select vid from tq2), true) $$,
+  '12.2 ⭐ KEEP DOOR (Q2) — THE TWIN THE FOLLOW-UP DID NOT NAME: same shape, same table, same defect. Fixing only its sibling would have left the plane half-consistent');
+reset role;
+
+select test_helpers.claims_for((select ha_b from ha), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.3 ⭐ Q4 SAME WALL: hospital_admin reaches it too — walling or opening only org_admin leaves a documented bypass');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '12.4 NO-REGRESSION TWIN ⭐: the coordinator STILL reaches it. Without this, 12.1/12.3 would also pass if the edit had broken the door open for everyone');
+reset role;
+
+-- ⭐ THE OVER-GRANT TWIN. A no-regression claim passes BY CONSTRUCTION when an arm is
+-- widened; only a negative can show the widening stopped where it was meant to.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_template_case_type((select vid from tq2), null) $$,
+  '42501', null,
+  '12.5 ⭐⭐ OVER-GRANT TWIN: a PLAIN MEMBER of the very same commission is still REFUSED — the Q2 arm admits the tenancy tier, it did not become a blanket allow');
+reset role;
+
+-- ⭐ THE CONTROL ON THE OTHER SIDE OF THE D12 LINE. create_case_from_template lives on
+-- the same plane and must NOT have inherited the arm: it creates a CASE, which is
+-- content. This is the behavioural half of the migration's catalog postcondition.
+--
+-- ⚠ TWO fixture traps here, both hit while writing this and both recorded so the next
+-- author does not re-learn them:
+--   (a) the first argument is a TEMPLATE id, not a version id — passing `vid` makes the
+--       door raise `no_data_found` at step 1 (template unknown), which LOOKS like the
+--       denial being asserted and measures nothing;
+--   (b) the not-permitted branch deliberately raises `no_data_found` (P0002), NOT 42501,
+--       so an unauthorized caller cannot use the error to probe template existence.
+--       Asserting 42501 here fails for a reason that has nothing to do with authority.
+--   (c) pass the 5-char SQLSTATE, never the condition NAME: throws_ok treats a second
+--       argument that is not exactly 5 characters as the expected MESSAGE, so
+--       'no_data_found' silently became a message comparison against pt-BR text and
+--       red-flagged a door that was behaving correctly.
+-- Because tq2 is DRAFT-ONLY, an AUTHORIZED caller stops one gate later at
+-- `check_violation` ("apenas processos publicados") — which is what makes 12.6
+-- non-vacuous: the two principals are separated by WHICH gate stops them, not by
+-- whether something raised.
+select test_helpers.claims_for((select oa_b from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_case_from_template((select tid from tq2), 'QOB Q2 CASO', null, null) $$,
+  'P0002', null,
+  '12.6 ⭐ D12 LINE CONTROL: the SAME tenancy admin that just configured the template is stopped AT AUTHORITY when creating a case FROM it — shaping the container is KEEP, filling it is CUT');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_case_from_template((select tid from tq2), 'QOB Q2 CASO', null, null) $$,
+  '23514', null,
+  '12.7 ⭐ NON-VACUITY TWIN for 12.6: the coordinator passes authority and reaches the LATER published-version gate — so 12.6 measures the authority arm, not a template that nobody can use');
+reset role;
 
 select * from finish();
 rollback;

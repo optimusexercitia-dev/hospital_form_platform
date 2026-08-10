@@ -35,7 +35,7 @@ export const metadata: Metadata = {
  * A bare `platform_admin` holding no role here resolves to `null` and is 404'd.
  *
  * The backing dashboard reads are SECURITY DEFINER, gated on
- * `is_staff_admin_of(cid) OR is_commission_admin_of(cid)` — the SAME pair, so the
+ * `is_staff_admin_of(cid) OR is_tenancy_admin_of(cid)` — the SAME pair, so the
  * route guard and the RPC gate admit the same people. They did not always: five of
  * the nine `dashboard_*` functions used to gate on `is_staff_admin_of OR is_admin()`,
  * which BOTH admitted a bare platform_admin over PostgREST AND returned empty sets

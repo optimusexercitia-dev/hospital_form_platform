@@ -56,10 +56,10 @@ begin
     d := pg_get_functiondef('app.grant_role_impl(uuid,text,uuid,text,uuid,uuid,timestamptz)'::regprocedure);
     d := app._mut_w3_sub(d,
       'if not (app.is_admin_for(p_actor)
-              or app.is_commission_admin_of_for(p_scope_id, p_actor)) then',
+              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then',
       'if not (app.is_admin_for(p_actor)
               or app.is_staff_admin_of_for(p_scope_id, p_actor)
-              or app.is_commission_admin_of_for(p_scope_id, p_actor)) then');
+              or app.is_tenancy_admin_of_for(p_scope_id, p_actor)) then');
     execute d;
 
   elsif p_what = 'remove_self_grant_check' then

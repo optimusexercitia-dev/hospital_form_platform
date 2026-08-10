@@ -101,7 +101,7 @@ select is(app.can_view_printed_document('form_response', (select resp_prog from 
   't6 dispatch: creator sees his own in_progress draft (RASCUNHO prints are legal, D7)');
 -- QO·B (ADR 0100 D12) INVERTED, 2026-08-08. This asserted the OPPOSITE until the
 -- org_admin content wall landed: it mirrored responses_admin_all, which QO·B M1
--- DELETED, and M2 removed the matching is_commission_admin_of_for arm from
+-- DELETED, and M2 removed the matching is_tenancy_admin_of_for arm from
 -- can_view_printed_document's form_response leg. The mirror moved with the mirrored.
 -- Discriminating power is NOT lost: t3 (creator) and t4 (staff_admin on a submitted
 -- response) remain live positives, so a broken helper still reds this file.

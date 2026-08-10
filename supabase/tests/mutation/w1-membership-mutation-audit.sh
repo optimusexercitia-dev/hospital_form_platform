@@ -90,7 +90,7 @@ begin
     d := pg_get_functiondef('public.grant_role(text,uuid,text,uuid,uuid)'::regprocedure);
     d := app._mut_w1_sub(d,
       'if v_existing_role = ''staff_admin''
-         and not (app.is_admin() or app.is_commission_admin_of(p_scope_id)) then',
+         and not (app.is_admin() or app.is_tenancy_admin_of(p_scope_id)) then',
       'if false then');
     execute d;
 

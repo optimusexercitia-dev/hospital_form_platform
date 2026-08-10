@@ -16,7 +16,7 @@ import type {
  * Quality-indicator server actions (Phase 15; Architecture Rules 9, 10, 11).
  *
  * Every write routes through a SECURITY DEFINER RPC. Indicator authoring is
- * `is_staff_admin_of OR is_commission_admin_of` (the post-ADR-0051 combined
+ * `is_staff_admin_of OR is_tenancy_admin_of` (the post-ADR-0051 combined
  * predicate), enforced in the RPC — the sole authority (no client pre-check).
  * Measurement writes are AUDITED (Rule 11) — corrections are contemporaneous +
  * attributable.

@@ -29,7 +29,19 @@ anonymous visitors — a trivial availability lever on the public `/verificar` s
 its "shown verbatim" code comment is false. Fix: per-credential granularity (keep the global
 cap as a backstop) + correct the comment. The RPC stays service_role-only; this is app-layer.
 
-### 🟡 FUP-QOB-1 — `created_by = auth.uid()` in `response_group_instances_write_own_draft` is no longer independently observable; PROVISIONAL structural pin landed (backend 2026-08-09; needs PO ratification)
+### ⬛ FUP-QOB-1 — RESOLVED 2026-08-09: the J1c structural pin is RATIFIED as the standing guard (PO)
+
+**PO ruling 2026-08-09:** ratify J1c as it stands. Rationale accepted as recorded below — the
+behavioural surface did not weaken, it **collapsed**: post-M1 there is no reader-non-writer
+principal left to probe with, and the two alternatives are worse (an invented pgTAP persona
+measures the invented grant rather than the live policy; retiring J1b+J1c together leaves the
+`created_by` term with no guard at all). The pin's own honestly-stated limit — a structural
+assertion is weaker than a behavioural one — stands as a **known** limitation rather than an
+open question. J1b stays annotated-not-deleted per the A2 precedent. No further action.
+
+<details><summary>Original entry (2026-08-09, pre-ruling) — the collapse, the guard, and its limit</summary>
+
+### `created_by = auth.uid()` in `response_group_instances_write_own_draft` is no longer independently observable; PROVISIONAL structural pin landed (backend 2026-08-09; needs PO ratification)
 
 - **The collapse (filed 2026-08-08, QO·B):** M1's wall removed `is_commission_admin_of` —
   the only reader-non-writer persona — from the response plane. Post-M1 the readers of an
@@ -54,44 +66,175 @@ cap as a backstop) + correct the comment. The RPC stays service_role-only; this 
   grant, not the live surface).
 - **PO question:** ratify the pin as the standing guard, or direct an alternative
   (invented pgTAP persona / accept the read≡write coincidence as the stronger pinned
-  property and retire J1b+J1c together).
+  property and retire J1b+J1c together). → **RATIFIED as-is, 2026-08-09.**
 
-### 🔴 FUP-QOB-2 — the QO·B PO ratification package (registered 2026-08-09 at phase close; PO: "will be approached in a future session")
+</details>
 
-QO·B closed QA-APPROVED (r2) + human-approved with a set of **lead rulings made in-phase** —
-each precedent- or catalog-backed, none PO-ratified yet. This entry is the single registry;
-full context in the [phase record](quality-office-oversight-phase-b.md) and the 2026-08-09
-Decisions-log row in PROGRESS.md.
+### 🟡 FUP-QOB-2 — the QO·B PO ratification package — **DISCHARGED 2026-08-09 except ruling ⑤** (latent, no principal exists to affect)
 
-**The five lead rulings (ratify or reverse):**
-1. **BUG-QOB-003 fix shape** — tenancy admin = a session FLAG (`isTenancyAdmin`), never a
-   coerced role; content routes 404 (cases-board precedent); KEEP surfaces gate through
-   `canConfigureCommission`.
-2. **`manage/audit/**` + its CSV export = KEEP** (`audit_log` is on the ratified §4.5 list).
-3. **`manage/charter` = NOT KEEP** — `upsert_commission_charter` is staff_admin-only by
-   explicit design (HC0K0); the charter plane never carried a tenancy arm.
-4. **`manage/acreditacao/**` stays membership-gated** — no accreditation-plane policy carries
-   a tenancy arm; pre-QO·B "access" was the coercion rendering an empty shell.
-5. **Dual-hat (quality_reviewer + tenancy admin) keeps reviewer-shell precedence** — latent
-   (no persona holds both); needs a deliberate precedence ruling if such a principal ever
-   becomes real.
+Registered at phase close, worked 2026-08-09 with the PO ruling item by item (the PO declined a
+block ratification and asked to be walked through each with its evidence — so every verdict below
+was taken against a **live-catalog** measurement, not against the doc's own claim). Full context:
+[phase record](quality-office-oversight-phase-b.md) + the 2026-08-09 Decisions rows in PROGRESS.md.
 
-**Plus the items with their own tracked entries, listed here for one-stop pickup:**
-- **FUP-QOB-1** — ratify the J1c structural pin (or direct an alternative guard).
-- **BUG-QOB-004** (Bug Log) — referrals were never classified by D12: rule
-  KEEP-and-surface (give `encaminhamentos/**` the `canConfigureCommission`-style treatment)
-  or CUT-the-arms (`create_referral_draft`/`dispose_referral_phi` lose
-  `is_commission_admin_of` in their own M-wave).
-- **`setTemplateCaseType`** — sits on the Q2 (KEEP) surface but its DB door
-  (`set_template_case_type`, ADR 0088) is staff_admin-only; making it follow Q2 is a DB
-  change, PO's call.
-- **The `is_commission_admin_of` → `is_tenancy_admin_of` rename wave** — PO-approved
-  2026-08-08, deliberately deferred until after QO·B; now unblocked.
+**RATIFIED (3 of 5):**
+1. ⬛ **BUG-QOB-003 fix shape** — tenancy admin = a session FLAG (`isTenancyAdmin`), never a
+   coerced role; content routes 404; KEEP surfaces gate through `canConfigureCommission`.
+   *Evidence weighed:* `session.ts:412` carries the flag distinct from `role`; `:584` is the whole
+   seam (`role === 'staff_admin' || isTenancyAdmin`); ~20 KEEP routes consume it, only 3 files read
+   the raw flag. **Decisive:** the alternative — coercion — is the direct cause of BUG-QOB-004, and
+   it makes every `role`-based gate silently wrong one route at a time.
+2. ⬛ **`manage/audit/**` + its CSV export = KEEP.** *Evidence:* the live `audit_log_select` qual
+   carries `app.is_commission_admin_of(commission_id)` verbatim beside org/hospital-scoped arms —
+   the DB already grants it, so the UI is being made to agree, not widened. Agrees with the noun
+   rule (platform_admin **may** administer audit).
+4. ⬛ **`manage/acreditacao/**` stays membership-gated.** *Evidence:* all four accreditation-plane
+   policies measured (`accreditation_frameworks_select`, `accreditation_standards_select`,
+   `evidence_links_select`, `standard_assessments_select`) — **tenancy arm = false on every one.**
+   Pre-QO·B "access" was the coercion rendering an empty shell. Reversing would be a WIDENING.
+
+**LEFT OPEN BY DELIBERATE PO CHOICE (2 of 5)** — these are *not* pending review, they are recorded
+as undecided, with the measurement already done so whoever rules next does not re-derive it:
+3. ⬛ **`manage/charter` — RULED 2026-08-09: NOT KEEP ratified, and the underlying need served a
+   different way.** The page stays coordinator-only. The oversight question it raised —
+   *"which committees are behind on meetings?"* — is answered instead by a **read-only cadence
+   column on `/o/[org]/manage/comissoes`**, the registry tenancy admins already own.
+   *Measured before ruling:* `upsert_commission_charter` is `prosecdef`, sole arm
+   `is_staff_admin_of`, raises HC0K0 with an explicit *"not org/hospital admin"* comment;
+   `commission_charters_select` = `app.is_member_of(...)`; and `authenticated` holds **SELECT
+   only** on the table, so every write must pass that one door. **No tenancy arm exists on the
+   plane at either layer** — unlike the Q2 template case, where RLS already admitted the
+   principal and only the doors refused. Granting the page would therefore have been a **genuine
+   widening at both layers**, and worse, it would hand out **WRITE** to satisfy a **READ** need:
+   the page is fundamentally an edit form for ONE committee, so it could not answer the actual
+   question without visiting each committee in turn. It would also dangle a broken affordance —
+   the linked regimento is a `controlled_documents` row, and documents are CUT (re-verified
+   2026-08-09), so "Ver documento" would 404 for the very principal being granted access.
+   ⚠ The charter row is far smaller than its name suggests: `meeting_frequency` +
+   `controlled_document_id` + bookkeeping. It is cadence config plus a POINTER; the regimento
+   itself lives in the documents module.
+5. 🟡 **Dual-hat (quality_reviewer + tenancy admin) precedence: SUPERSEDED 2026-08-09 — the
+   question is being replaced by an explicit "act as" role picker (ADR in progress).**
+
+   ⛔ **The previously recorded ruling was FALSE and stated the OPPOSITE of what ships.** It read
+   *"dual-hat keeps reviewer-shell precedence"*; it was never implemented and never checked
+   against the routing chain. **Measured 2026-08-09** in `src/app/page.tsx`, an ordered redirect
+   chain: `orgAdminOf` branches at **line 64**, `qualityReviewerOf` at **line 152** — so a
+   dual-role principal lands on the **tenancy admin area**. Tenancy wins, not the reviewer.
+
+   The reviewer branch sits last for an unrelated reason its own comment gives: it was added to
+   fix the *dead-end* class (a hospital-scoped role with no landing route → "Você ainda não tem
+   acesso"; ADR 0101 records **five** instances). It was never an expression of precedence.
+
+   **Consequence measured, not inferred:** a bare tenancy admin holding the reviewer seat lands on
+   `/o/<org>/manage`, sees **no link** to the console (the "Escritório da Qualidade" entry is
+   gated `showsMemberItems && isQualityReviewer`, i.e. the COMMITTEE-MEMBER sidebar only; the
+   org-manage shell has none), yet **can** reach `/o/<org>/qualidade` by URL — its guard admits
+   anyone genuinely holding the seat. So the capability is orphaned behind a URL, the BUG-QOB-004
+   shape again.
+
+   **RESOLVED as a design, 2026-08-09: ADR [0106](../decisions/0106-act-as-role-assumption.md)
+   — "act as" role assumption.** Precedence is replaced by explicit, *binding* role assumption:
+   strict (the active role is the ONLY role), reads AND writes, fail-closed, fresh each session,
+   audit-stamped. Ten decisions taken in a PO design interview; three went against the author's
+   recommendation and are marked ⚑ in the ADR. **Design accepted, NOT YET BUILT.**
+   ⚠ Enforcement lands in ONE function (`app.has_role`, after normalising 7 strays onto it);
+   the bulk of the work is the TEST HARNESS, since fail-closed reds every unwired path at once.
+
+**The separately-tracked items:**
+- ⬛ **FUP-QOB-1** — J1c structural pin **RATIFIED** as the standing guard (own entry above).
+- ⬛ **BUG-QOB-004** — **RULED CUT-the-arms** (PO 2026-08-09), following the ratified D5 precedent
+  verbatim. Executed as `20260917000000`; see the Bug Log entry for the closure record.
+- ⬛ **`setTemplateCaseType`** — **DONE 2026-08-09** (`20260917000100`, ADR 0088 Amendment 1).
+  Both `set_template_case_type` **and `set_template_collects_patient`** gained the tenancy arm;
+  the second was never named in this list and was found by sweeping the plane by property.
+  ⚠ Recorded because it changes how the item should have been framed: this was **not a
+  widening**. Measured on a bare tenancy admin — direct `UPDATE` through RLS **wrote the row**
+  while both doors answered 42501, because all 16 `process_template*` policies already carry the
+  arm and a DEFINER's gate *replaces* RLS. The doors were refusing what the boundary already
+  granted. `create_case_from_template` deliberately keeps staff_admin-only (content, not
+  container).
+- ⬛ **The `is_commission_admin_of` → `is_tenancy_admin_of` rename** — **DONE 2026-08-09**
+  (`20260917000200`, ADR [0105](../decisions/0105-rename-is-tenancy-admin-of.md)). No shim;
+  historical docs deliberately not rewritten (PO). ⚠ **The mechanism was the opposite of the
+  D11 prior:** `pg_policy` stores a parsed tree referencing the function by **OID**, so all 54
+  policies followed the rename with **zero edits**; only `pg_proc.prosrc` (plain text) had to be
+  rewritten, 75 bodies. D11's "rewrote pg_proc, never pg_policy" was an **enum** re-key, where
+  labels are string literals — same-shaped task, different substrate. Measured, not assumed.
 - *(Same family, pre-existing, recorded by backend during B.11: the `context.isAdmin`
   platform-admin arms on content action pre-checks — a noun-rule sweep candidate at the TS
   layer; DB re-gates, no leak.)*
 
-Owner: **PO + lead** (rulings), then backend/frontend per ruling.
+Owner: **PO** for items 3 + 5 (no deadline, nothing blocked); lead/backend for the scheduled waves.
+
+### ⬛ FUP-QOB-3 — RESOLVED 2026-08-09: `dispose_event_phi` KEEPS its tenancy arm, and referral disposal gets the same backstop BACK (PO)
+
+**PO ruling 2026-08-09.** The finding was framed as "event is the odd one out" — investigating it
+inverted that: **event was the one that got it right**, and the same-day BUG-QOB-004 cut had gone
+one step too far on the referral plane.
+
+**Two facts decided it, neither available when BUG-QOB-004 was ruled:**
+1. **A hospital can have ZERO NSP operators.** Measured: `Hospital Unico C` has none, and NSP
+   staffing is a separate onboarding step. NSP-only disposal leaves such a hospital unable to
+   honour an **LGPD Art. 18 erasure request** — an obligation that sits with the ORGANIZATION
+   (the *controlador*), not with a clinical nurse.
+2. **This platform already rules the other way for acts of this shape.** ADR 0104 D11 keeps the
+   tenancy arm on `revoke_printed_document` because revocation is a **governance act that reveals
+   no content** — guarded by pgTAP `314` 8.5. Disposal is identical in shape: it discloses
+   nothing, it destroys. D5's "zero PHI bits must not destroy Rule 12 data" guards against
+   destroying what you cannot verify; that is a real concern, and it is the same one D11 already
+   weighed and answered.
+
+**Executed (`20260917000400`):** the tenancy arm is restored on `dispose_referral_phi` +
+`can_dispose_referral_phi`. **`create_referral_draft` stays CUT** and the **UI wall stays** — the
+backstop is disposal-only. ⚠ For a BARE tenancy admin the capability is therefore reachable only
+out-of-band; that is deliberate and recorded, unlike BUG-QOB-004's accidental orphan. A tenancy
+admin who is also a committee member reaches it normally.
+
+**Guarded so it cannot be re-cut by symmetry:** `314` **8.6** (all three disposal doors keep the
+arm) + **8.7** (drafting stays cut) + `295` **§7.7** flipped to assert the backstop behaviourally.
+Red-proven: re-cutting the arm reds both 7.7 and 8.6 and nothing else.
+
+**Also fixed in the same wave — three stale pt-BR messages, one per direction:**
+`dispose_referral_phi` (fixed in `…000000`, re-fixed here), `dispose_case_phi` (**promised** an
+org-admin arm QO·B had removed) and `revoke_printed_document` (**hid** the tenancy arm it carries).
+⚠ The class: *every* time an arm moved, its sentence stayed. Invisible to every gate in the repo —
+no test reads prose — and user-facing in both harmful directions.
+
+Found by the **sibling-coherence check** run immediately after `20260917000000` landed — i.e. by
+asking "what do this door's siblings look like now", not by anything in the ruling's own scope.
+Measured live (`pg_get_functiondef`), all six disposal doors:
+
+| Door | tenancy arm | PHI module (Rule 12) |
+| ---- | ----------- | -------------------- |
+| `dispose_case_phi` | ✗ cut (D5) | case |
+| `dispose_referral_phi` / `can_dispose_referral_phi` | ✗ cut 2026-08-09 | referral |
+| `dispose_attachment_phi` | ✗ none | — |
+| **`dispose_event_phi`** | ✅ **LIVE** | **patient-safety / NSP** |
+| `dispose_meeting_minutes` | ✅ live | not a PHI module |
+
+**The finding:** D5's ratified reasoning — *"a principal with zero PHI bits does not destroy Rule 12
+data"* — is what put `dispose_case_phi` on the CUT side, and it is what the PO applied verbatim to
+the referral plane on 2026-08-09. It applies to `dispose_event_phi` **identically**: patient-safety
+is PHI module 1, and a bare tenancy admin holds no PHI bits there either. So of the three Rule-12
+modules, two now deny the tenancy tier its disposal arm and one still grants it — a split produced
+by the order the rulings happened in, not by any decision about NSP.
+
+**Corroborating tell:** `dispose_event_phi` still carries the pt-BR message *"apenas um administrador
+da organização ou o NSP pode descartar dados do paciente"* — the exact sentence
+`dispose_referral_phi` had to shed in the same wave because the cut made it false. It is currently
+still TRUE for `dispose_event_phi`, which is the point: the two doors were written as a pair and have
+now diverged.
+
+⚠ **Deliberately NOT acted on.** It is outside the BUG-QOB-004 ruling, and cutting a live capability
+unasked is the standing trap in the other direction — *conferring or removing a capability requires
+enumerating its consumers*. `dispose_meeting_minutes` is a separate question and probably a genuine
+KEEP (meeting minutes are a governance artifact, not one of the three PHI modules) — do not sweep it
+in reflexively with the NSP call.
+
+**To close:** a PO ruling on `dispose_event_phi` only — CUT (D5 consistency across all three PHI
+modules) or KEEP-with-a-recorded-reason (NSP disposal is genuinely a tenancy-tier duty). Whichever
+way, the pt-BR message must end up matching the arms. Owner: **PO**, then backend.
 
 ### ▶ FUP-MIN-CUTOVER — audio-minutes pre-enable gates (feature merged, flag OFF)
 

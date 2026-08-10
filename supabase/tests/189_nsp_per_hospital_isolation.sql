@@ -346,7 +346,7 @@ select is((select phi_disposed_at is null from public.case_referral
 -- denies EVERYONE also denies platform_admin, so the negative above passes BY
 -- CONSTRUCTION unless the surviving population is proven to still dispose.
 -- Population enumerated from the catalog (not assumed): nspcoord.b · orgadmin.b ·
--- pqs.b — i.e. is_commission_admin_of(source) OR is_pqs_operator_of(source|target).
+-- pqs.b — i.e. is_tenancy_admin_of(source) OR is_pqs_operator_of(source|target).
 select is(public.can_dispose_referral_phi((select ref_b from personas)), false,
   'M2 twin PRE: (as postgres/no claims) the predicate is not simply always-true');
 select test_helpers.claims_for((select pqs_b from personas), false);

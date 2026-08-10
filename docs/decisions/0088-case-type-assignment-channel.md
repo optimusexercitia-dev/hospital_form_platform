@@ -86,3 +86,45 @@ platform-default terminology bundle.
   caller reached it. A guarded branch with no caller is indistinguishable from a working
   feature under branch-level review — the check that catches it is "who calls this?", not
   "does this work?".
+
+---
+
+## Amendment 1 — the template-configuration doors gain the tenancy arm (2026-08-09)
+
+**Supersedes this ADR's "staff_admin-only" property for `set_template_case_type`** (and its
+twin `set_template_collects_patient`). PO-approved 2026-08-09 as part of discharging the
+QO·B ratification package; ADR [0100](./0100-quality-office-oversight.md) D12 Q2 is the
+governing classification.
+
+**Why it changed.** Q2 of the ratified Q1–Q9 list puts `process_template_*` on the KEEP
+side — a template is a *container* the admin shapes, and "the admin shapes the containers,
+never reads what goes in them". This ADR's staff_admin-only gate predates that
+classification and quietly contradicted it.
+
+**Why it is not a widening — measured, not argued.** On a bare tenancy admin (`org_admin`,
+zero commission memberships), under `set local role authenticated`:
+
+| probe | result |
+| ----- | ------ |
+| direct `UPDATE` on `process_template_versions` through RLS | **1 row written**, read back |
+| `set_template_case_type(…)` | 42501 |
+| `set_template_collects_patient(…)` | 42501 |
+
+All 16 `process_template*` policies already carry the tenancy arm (SELECT *and* the
+`FOR ALL` write pair), and `authenticated` holds column-level `UPDATE` on both target
+columns. RLS — the security boundary (Rule 1) — already admitted this principal; only the
+two SECURITY DEFINER doors refused, because **a DEFINER's gate replaces RLS** and these two
+drifted from the plane they belong to. `20260917000100` makes the doors agree with the
+authorization that was already live.
+
+**What deliberately did NOT change.** `create_case_from_template` keeps its staff_admin-only
+gate: it creates a **case**, which is content, not a container — the D12 line runs between
+shaping a template and filling one. Pinned behaviourally (`314` §12.6/12.7, where the
+tenancy admin stops at authority `P0002` while the coordinator reaches the later
+published-version gate `23514`) and structurally (the migration's postcondition names it on
+the negative side).
+
+**Scope note worth keeping.** The follow-up that authorized this named only
+`set_template_case_type`. `set_template_collects_patient` was found by sweeping the plane by
+**property**, not by acting on the remembered name — same shape, same table, same defect.
+Fixing one and leaving its twin would have been the repo's recurring enumeration failure.

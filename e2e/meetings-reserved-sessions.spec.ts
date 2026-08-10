@@ -43,7 +43,7 @@ import { getPublishedTemplateVersion } from './helpers/process-templates'
  *                           case involvement; the "no deliberation reach"
  *                           viewer for the tiering assertions.
  *   orgadmin.a@test.local   org_admin of Rede A. Resolves a commission
- *                           "staff_admin" role via `is_commission_admin_of`
+ *                           "staff_admin" role via `is_tenancy_admin_of`
  *                           (session.ts `memberRole ?? (isCommAdmin ? …)`)
  *                           WITHOUT holding a CCIH membership row — the exact
  *                           "commission-admin without membership" shape C7

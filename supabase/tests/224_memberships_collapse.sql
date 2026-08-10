@@ -170,7 +170,7 @@ insert into public.memberships (commission_id, principal_id, role)
 -- "the LAST org_admin", so it must CONTROL how many exist; until T3.5 it merely
 -- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
 -- bootstrap (FUP-PCITV-1 row 6 — without one, the ORG disjunct of
--- `is_commission_admin_of` was unexercised by six isolation keystones). One fixture
+-- `is_tenancy_admin_of` was unexercised by six isolation keystones). One fixture
 -- cannot satisfy both specs, so the spec that OWNS the count normalizes it here.
 -- ⚠ Runs BEFORE the role switch below: a DELETE as `authenticated` is refused and
 -- aborts the file — which is how the first placement of this block was caught.
@@ -310,10 +310,10 @@ select ok(not app.is_staff_admin_of_for((select comm_x from k), (select st_x fro
   '7.1: is_staff_admin_of false for a plain staff');
 select ok(app.is_staff_admin_of_for((select comm_x from k), (select sa_x from k)),
   '7.2: is_staff_admin_of true for the staff_admin');
-select ok(app.is_commission_admin_of_for((select comm_x from k), (select sa_x from k)),
-  '7.3: is_commission_admin_of true for the org_admin of the commission org');
-select ok(not app.is_commission_admin_of_for((select comm_x from k), (select st_x from k)),
-  '7.4: is_commission_admin_of false for a plain staff');
+select ok(app.is_tenancy_admin_of_for((select comm_x from k), (select sa_x from k)),
+  '7.3: is_tenancy_admin_of true for the org_admin of the commission org');
+select ok(not app.is_tenancy_admin_of_for((select comm_x from k), (select st_x from k)),
+  '7.4: is_tenancy_admin_of false for a plain staff');
 select ok(app.is_pqs_operator_of_for((select hosp_b from k), (select st_x from k)),
   '7.5: is_pqs_operator_of true for a coordinator with no member row');
 select ok(app.is_pqs_operator_of_for((select hosp_b from k), (select st_x2 from k)),

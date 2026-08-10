@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * ⚠ WHY THIS SURVIVED, and therefore what this file has to assert. The mirror was
  * STRICTER than its doors: a hospital admin passed the read gate (the candidate picker
  * is org-scoped — ADR 0097 finding 1), passed every write door
- * (`is_commission_admin_of` carries a `hospital_admin` leg), and was refused only by the
+ * (`is_tenancy_admin_of` carries a `hospital_admin` leg), and was refused only by the
  * TypeScript pre-check. A mirror that is too strict fails CLOSED, and a refusal always
  * looks like the system working — no test, no policy sweep and no error log distinguishes
  * "correctly denied" from "denied by a drifted mirror".
@@ -152,7 +152,7 @@ describe('BUG-AFF-1 — a hospital_admin can seat staff at THEIR OWN hospital', 
   })
 
   it('DENY: a suspended/deactivated hospital_admin is refused (is_active parity)', async () => {
-    // `is_commission_admin_of_for` folds `app.is_active`, but getSessionContext reports
+    // `is_tenancy_admin_of_for` folds `app.is_active`, but getSessionContext reports
     // `isInactive` separately and does NOT empty the grant lists — so the mirror had to
     // check it explicitly. Second instance of the same drift, found while fixing the first.
     session = { ...hospitalAdminOfCentralA, isInactive: true }

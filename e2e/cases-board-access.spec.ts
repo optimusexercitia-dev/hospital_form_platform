@@ -10,7 +10,7 @@ import { cachedSignIn } from "./helpers/auth"
  * board now filters every row through `app.can_read_case` with no
  * short-circuit. A principal whose ONLY standing in the commission is
  * ADMINISTRATION — an org_admin/hospital_admin, whom `getCommissionAccessByOrg`
- * resolves to the coordinator `staff_admin` role via `is_commission_admin_of`
+ * resolves to the coordinator `staff_admin` role via `is_tenancy_admin_of`
  * WITHOUT a membership row — now gets exactly zero rows back from that RPC.
  * An empty board reads as "this commission has no cases"; the fix 404s that
  * principal instead, mirroring the meetings route's C7 gate.
@@ -35,7 +35,7 @@ import { cachedSignIn } from "./helpers/auth"
  *
  * Personas (password Test1234!):
  *   orgadmin.a@test.local   org_admin of Rede A. Resolves a commission
- *                           "staff_admin" role via `is_commission_admin_of`
+ *                           "staff_admin" role via `is_tenancy_admin_of`
  *                           WITHOUT holding a CCIH membership row — the exact
  *                           "administration, not case standing" shape this
  *                           fix targets. Has `create_cases` (passes the FIRST

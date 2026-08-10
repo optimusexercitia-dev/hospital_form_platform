@@ -7,7 +7,7 @@ import type {
 /**
  * Pure client/server access helpers over {@link SessionContext} for the
  * hospital-admin tier (ADR 0051). These MIRROR — never replace — the DB
- * predicates (`app.is_commission_admin_of` / `app.is_hospital_admin_of`): RLS is
+ * predicates (`app.is_tenancy_admin_of` / `app.is_hospital_admin_of`): RLS is
  * the security boundary (Architecture Rule 1); these are for UI gating and nav
  * only (which links light up, which hospital the switcher defaults to). A false
  * negative here can never grant access the DB denies, and a false positive here
@@ -20,7 +20,7 @@ import type {
 
 /**
  * Whether the caller is an ADMIN of the given commission — the TS mirror of
- * `app.is_commission_admin_of(commission)` = `org_admin` of the commission's org
+ * `app.is_tenancy_admin_of(commission)` = `org_admin` of the commission's org
  * OR `hospital_admin` of the commission's hospital (ADR 0051 Decision 3). The
  * commission is identified by its denormalized `organizationId` + `hospitalId`
  * (both NOT NULL on `commissions`). NOTE: platform admins are NOT treated as

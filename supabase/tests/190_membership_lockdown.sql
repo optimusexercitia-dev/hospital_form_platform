@@ -55,7 +55,7 @@ grant select on k to authenticated;
 -- "the LAST org_admin", so it must CONTROL how many exist — and until T3.5 it merely
 -- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
 -- bootstrap (FUP-PCITV-1 row 6: without one, the ORG disjunct of
--- `is_commission_admin_of` was unexercised by six isolation keystones), and the
+-- `is_tenancy_admin_of` was unexercised by six isolation keystones), and the
 -- anti-lockout assertions went red — correctly. One fixture cannot satisfy both specs,
 -- so the spec that OWNS the count normalizes it HERE, before building its own, instead
 -- of depending on a fixture it does not control. Rolled back with the transaction.

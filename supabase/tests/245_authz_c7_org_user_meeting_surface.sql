@@ -51,7 +51,7 @@ values ('00000000-0000-0000-0000-00000000c7d2', (select comm_x from k), 'manual'
         '00000000-0000-0000-0000-00000000c7e0', 'assignees_only', (select sa_x from k));
 
 -- PRE-FLIGHT ------------------------------------------------------------------
-select is(app.is_commission_admin_of_for((select comm_x from k), (select st_y from k)), true,
+select is(app.is_tenancy_admin_of_for((select comm_x from k), (select st_y from k)), true,
   'PRE ⭐: st_y is an Organization admin over the commission');
 select is(app.is_member_of_for((select comm_x from k), (select st_y from k)), false,
   'PRE ⭐: …and NOT a member — his cells measure the ORG arm C7 removes');
@@ -78,7 +78,7 @@ select throws_ok(
 -- Everything above asserts zero on the BASE TABLES — the path the product does
 -- NOT use. This file was GREEN over a live P0 for exactly that reason: all three
 -- RPCs are `prosecdef = t`, so RLS NEVER RUNS, and they re-added
--- `or app.is_commission_admin_of(v_comm)` underneath the policy fix. The product
+-- `or app.is_tenancy_admin_of(v_comm)` underneath the policy fix. The product
 -- reads through these doors (`src/lib/queries/meetings.ts`), and they are
 -- PostgREST-reachable at /rest/v1/rpc/… — only a Next.js 404 stood in the way,
 -- which is Architecture Rule 1 (never rely on UI hiding).

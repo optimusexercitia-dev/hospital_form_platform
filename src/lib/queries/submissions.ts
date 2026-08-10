@@ -488,7 +488,7 @@ export async function getSubmissionDetail(
         // `!inner`: an orphaned response (its form deleted) resolves to no row
         // here → clean null → friendly 404, never a null-embed crash.
         'form_versions!inner(form_id, version_number, forms!inner(title)), ' +
-        // SUP: the commission's org/hospital ids, to mirror is_commission_admin_of.
+        // SUP: the commission's org/hospital ids, to mirror is_tenancy_admin_of.
         'commissions:commission_id!inner(organization_id, hospital_id)',
     )
     .eq('id', responseId)
@@ -649,7 +649,7 @@ export async function getSubmissionDetail(
     const session = await getSessionContext()
     if (session) {
       // Mirrors the RPC's authority gate EXACTLY: is_staff_admin_of ONLY.
-      // ⛔ QO·B M5 (ADR 0100 D12) CUT the is_commission_admin_of arm from
+      // ⛔ QO·B M5 (ADR 0100 D12) CUT the is_tenancy_admin_of arm from
       // `supersede_response` — response correction is committee CONTENT, walled
       // off from the tenancy admins. The former `isCommissionAdmin(...)` arm
       // here was this mirror gone stale: it rendered "Corrigir" to an org_admin

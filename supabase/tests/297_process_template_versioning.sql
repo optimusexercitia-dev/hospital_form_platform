@@ -400,9 +400,9 @@ reset role;
 -- vocabulary: the guards pass, and 42501 can only have come from the policy.
 --
 -- ⚠ SCOPE, stated rather than left implicit. Each predicate is a disjunction —
--- `is_member_of` / `is_staff_admin_of` OR `is_commission_admin_of`. These
+-- `is_member_of` / `is_staff_admin_of` OR `is_tenancy_admin_of`. These
 -- keystones drive the FIRST disjunct in both directions. The
--- `is_commission_admin_of` disjunct needs an org_admin persona that
+-- `is_tenancy_admin_of` disjunct needs an org_admin persona that
 -- `test_helpers.bootstrap()` does not build (it homes BOTH commissions under one
 -- org and mints only commission-scoped memberships), so it is not exercised here.
 -- That does not leave the sweep finding open — the sweep opens the WHOLE policy,

@@ -251,11 +251,11 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
   })
 
   // BUG-AFF-1 — FIXED, `8155be2` (`authorizeStaffOps` now mirrors
-  // `is_commission_admin_of`'s hospital leg, same as its sibling `authorizeForCommission`).
+  // `is_tenancy_admin_of`'s hospital leg, same as its sibling `authorizeForCommission`).
   // ⚠ The fix was a MIRROR-DRIFT CORRECTION, not a capability widening: every door
   // `authorizeStaffOps` fronts (`grant_role`/`grant_role_impl`'s commission-tier arms,
   // `appoint_administrativo`, `grant_member_capability`, …) already resolved
-  // `is_commission_admin_of[_for]`, which has always admitted a hospital_admin of the
+  // `is_tenancy_admin_of[_for]`, which has always admitted a hospital_admin of the
   // commission's hospital — the TS pre-check was simply STRICTER than every door behind
   // it, and failed closed, which is why nothing caught it. `hospital_admin` gained
   // NOTHING new here; the record row above must not be misread as a security change.

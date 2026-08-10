@@ -146,8 +146,13 @@ function revalidateTemplates() {
  * template RPCs are INVOKER with no in-body identity probe (RLS is the entire
  * boundary). Pre-QO·B this guard was membership-only, silently converting the
  * ratified KEEP into a CUT at the action layer (the BUG-QOB-003 class).
- * ⚠ `setTemplateCaseType` deliberately carries NO pre-check here — its DB door
- * (`set_template_case_type`, ADR 0088) is staff_admin-only by design.
+ * ⚠ `setTemplateCaseType` / `setTemplateCollectsPatient` carry no pre-check here and no
+ * longer need one: `20260917000100` gave both DB doors the tenancy arm, closing the Q2
+ * gap the PO approved 2026-08-09. That was NOT a widening — a bare tenancy admin could
+ * already write both columns by direct DML (the `process_template_versions` FOR ALL write
+ * policy carries the arm, and `authenticated` holds column UPDATE on each), so the doors
+ * were refusing what RLS already granted. `create_case_from_template` deliberately keeps
+ * the staff_admin-only gate: it creates a CASE, which is content, not a container.
  * The platform-admin arm is pre-existing and out of scope (recorded follow-up).
  */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
@@ -250,8 +255,9 @@ function mapVersionError(
  *
  * `null` clears the declaration (back to untyped — today's default behaviour).
  * Existing cases are NOT retro-fitted; they keep the posture snapshotted at creation.
- * The `set_template_case_type` DEFINER is the authority (staff_admin, non-archived,
- * same-org type); the trigger re-checks org consistency on any write path.
+ * The `set_template_case_type` DEFINER is the authority (staff_admin OR tenancy admin of
+ * the owning commission since `20260917000100` — Q2 KEEP; draft-only; same-org type); the
+ * trigger re-checks org consistency on any write path.
  */
 export async function setTemplateCaseType(
   templateVersionId: string,

@@ -2,9 +2,12 @@ import Link from "next/link";
 import { ArrowUpRight, Hospital } from "lucide-react";
 
 import type { OrgCommissionDetail } from "@/lib/queries/org";
+import type { CommissionCadenceRow } from "@/lib/charters/types";
 import { orgHref } from "@/lib/routing";
 import { initials } from "@/components/org/format";
 import { CommissionOversightToggle } from "@/components/org/commission-oversight-toggle";
+import { CadenceStatusBadge } from "@/components/charters/cadence-status-badge";
+import { CADENCE_STATUS_LABELS } from "@/components/charters/labels";
 
 /**
  * Vertical stack of full-width commission cards for the org-admin area
@@ -17,10 +20,20 @@ import { CommissionOversightToggle } from "@/components/org/commission-oversight
 export function OrgCommissionList({
   org,
   commissions,
+  cadence = {},
 }: {
   /** The org slug, for building the detail hrefs. */
   org: string;
   commissions: OrgCommissionDetail[];
+  /**
+   * Meeting cadence per commission id, from `getCommissionCadenceOverview()`
+   * (PO ruling 2026-08-09, charter ③). READ-ONLY oversight: the tenancy admin learns
+   * that a committee is behind, never what it was meant to be discussing.
+   *
+   * Defaults to `{}` so a missing entry — flag off, or a commission this caller does
+   * not administer — simply renders no badge rather than an error or an empty chip.
+   */
+  cadence?: Record<string, CommissionCadenceRow>;
 }) {
   if (commissions.length === 0) {
     return (
@@ -89,6 +102,20 @@ export function OrgCommissionList({
             </div>
 
             <div className="flex shrink-0 items-center gap-4 sm:ml-auto">
+              {/* Meeting cadence — READ-ONLY. The accessible name carries both the
+                  subject and the commission, because "Em atraso" alone is ambiguous
+                  when fourteen cards each show a chip. Absent entry → no chip. */}
+              {cadence[commission.id] ? (
+                <span
+                  aria-label={`Cadência de reuniões de ${commission.name}: ${CADENCE_STATUS_LABELS[cadence[commission.id]!.status]}`}
+                  role="status"
+                >
+                  <CadenceStatusBadge
+                    status={cadence[commission.id]!.status}
+                    className="px-2.5 py-0.5 text-xs"
+                  />
+                </span>
+              ) : null}
               <div className="flex items-center gap-2.5 text-sm text-muted-foreground tabular-nums">
                 <span>
                   {commission.memberCount}{" "}

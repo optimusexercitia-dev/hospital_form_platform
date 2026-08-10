@@ -976,7 +976,7 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
   }) => {
     // ⛔ QO·B, 2026-08-09 — swapped from admin@test.local, and corrected a stale
     // claim in the process. `can_dispose_referral_phi` (catalog-verified) has NO
-    // `is_admin` arm at all — its authority is `is_commission_admin_of(source) OR
+    // `is_admin` arm at all — its authority is `is_tenancy_admin_of(source) OR
     // is_pqs_operator_of(source_hospital) OR is_pqs_operator_of(target_hospital)`,
     // none of it an "ADR-documented platform erasure exception"; only
     // platform@test.local carries a real `is_admin` flag, and it is not this door's

@@ -7,6 +7,8 @@ import {
   listHospitalsForOrg,
   listManagedCommissionsDetailed,
 } from "@/lib/queries/org";
+import { chartersEnabled } from "@/lib/queries/feature-flags";
+import { getCommissionCadenceOverview } from "@/lib/queries/charters";
 import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
 import { OrgCommissionList } from "@/components/org/org-commission-list";
 import { CreateCommissionDialog } from "@/components/org/create-commission-dialog";
@@ -71,10 +73,17 @@ export default async function OrgCommissionsPage({
     ? (sp.hospital ?? null)
     : (sp.hospital ?? hospitals[0]?.id ?? null);
 
-  const commissions = await listManagedCommissionsDetailed(
-    organization.id,
-    selectedHospitalId,
-  );
+  // Cadence overview (PO ruling 2026-08-09, charter ③): the tenancy admin gets the
+  // accreditation answer — "which of my committees are behind on meetings?" — HERE,
+  // read-only, instead of being let into the coordinator's charter editor. ONE RPC for
+  // the whole list; it derives its own row set from `is_tenancy_admin_of`, so a
+  // commission this caller does not administer simply has no entry and renders no badge.
+  // Flag-gated: with `charters` off the map is empty and the column disappears cleanly.
+  const [commissions, cadence] = await Promise.all([
+    listManagedCommissionsDetailed(organization.id, selectedHospitalId),
+    (async () =>
+      (await chartersEnabled()) ? getCommissionCadenceOverview() : {})(),
+  ]);
 
   return (
     <div className="flex flex-col gap-10">
@@ -113,7 +122,11 @@ export default async function OrgCommissionsPage({
             ? "Todas as comissões"
             : "Comissões do hospital"}
         </h2>
-        <OrgCommissionList org={org} commissions={commissions} />
+        <OrgCommissionList
+          org={org}
+          commissions={commissions}
+          cadence={cadence}
+        />
       </section>
     </div>
   );

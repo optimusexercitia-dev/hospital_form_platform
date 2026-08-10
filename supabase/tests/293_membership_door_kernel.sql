@@ -78,7 +78,7 @@ select ok(
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname='public' and p.proname in ('grant_role','revoke_role')
-      and p.prosrc ~ 'is_staff_admin_of|is_commission_admin_of|is_org_admin_of'),
+      and p.prosrc ~ 'is_staff_admin_of|is_tenancy_admin_of|is_org_admin_of'),
   0,
   '1.7 ...and hold NO authority predicate of their own (one place to change an arm)');
 
@@ -224,7 +224,7 @@ select is(
 -- "the LAST org_admin", so it must CONTROL how many exist — and until T3.5 it merely
 -- inherited "the bootstrap creates none". T3.5 added an org_admin to the shared
 -- bootstrap (FUP-PCITV-1 row 6: without one, the ORG disjunct of
--- `is_commission_admin_of` was unexercised by six isolation keystones), and these
+-- `is_tenancy_admin_of` was unexercised by six isolation keystones), and these
 -- assertions went red — correctly. One fixture cannot satisfy both specs, so the spec
 -- that OWNS the count normalizes it here, explicitly, instead of depending on a
 -- fixture it does not control. Rolled back with the transaction like everything else.
