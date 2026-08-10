@@ -239,9 +239,35 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   }
 
   const userId = claims.sub
+
+  // ACT (ADR 0106 D12) — the verified claim, same source app.active_role() reads.
+  // Computed early: both `isAdmin` below and the grant partition further down
+  // depend on it.
+  const activeRole =
+    typeof claims.active_role === 'string' ? claims.active_role : null
+
   // `is_admin` strictly from the verified claim (ADR 0002 / 0009) — fails closed
   // (treated as non-admin) if the access-token hook is ever absent.
-  const isAdmin = claims.is_admin === true
+  //
+  // ACT (ADR 0106 D11) P0 follow-up: ALSO requires the platform_admin hat to
+  // be ACTIVE — the identical condition `app.is_admin()` gained at the DB
+  // layer (migration `20260918002200`). Found auditing THIS field's ~23 TS
+  // consumers (`src/lib/{admin,platform,users,org,cases,forms,meetings,
+  // interviews,responses,case-*}/actions.ts`) while investigating
+  // BUG-ACT-HATBLIND-001: nearly every one uses the same
+  // `if (context.isAdmin) return true` short-circuit shape BEFORE a
+  // role-scoped check, and at least two (`src/lib/admin/actions.ts`,
+  // `src/lib/users/actions.ts`) run their mutation on the SERVICE-ROLE
+  // client, which bypasses RLS entirely — both say so explicitly in their own
+  // SECURITY comments. For those, this TS field is the ONLY authority; a
+  // hat-blind `isAdmin` here would have reproduced the exact same fail-open
+  // class with NO RLS backstop underneath at all (worse than the tester's
+  // original finding, where `app.is_admin()`'s own D11 gate still denied the
+  // read one layer down). Provably a no-op today by the SAME argument as
+  // `is_admin()`'s: zero platform_admins hold any membership
+  // (`315_act_stage3_hat_condition.sql`'s TRIPWIRE), so `claims.is_admin`
+  // and `activeRole === 'platform_admin'` can never actually diverge yet.
+  const isAdmin = claims.is_admin === true && activeRole === 'platform_admin'
 
   // ADR 0094 W2/T2.2 — ONE RLS-scoped round trip (PostgREST verifies the JWT
   // locally; no GoTrue call). `public.session_context()` replaces the former five
@@ -277,6 +303,39 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   const grants: SessionGrant[] = ctx?.grants ?? []
 
+  // ⛔ P0 FIX (BUG-ACT-HATBLIND-001, found live by `tester` — a dual-hat
+  // `quality_reviewer` reached the full `/manage` org-admin console, and vice
+  // versa). `session_context()` is a DESIGNED hat-blind door (ADR 0106 D9: the
+  // picker and the "other hats held" hint both need the caller's FULL grant
+  // union, unfiltered) — but that hat-blindness was never meant to propagate
+  // past it. Every downstream consumer of the derived lists below is an ACCESS
+  // DECISION, not a display list: `orgAdminOf`/`hospitalAdminOf` gate `/manage`
+  // and (via `isCommissionAdmin`, `src/lib/auth/access.ts`) the commission
+  // area's tenancy-admin escalation; `technicalDirectionOf` gates
+  // `/direcao-tecnica`; `nspOrgAdminOf` gates `/nsp-org`'s primary check;
+  // `qualityReviewerOf` gates `/qualidade` and the commission area's reviewer
+  // branch; `memberships` gates the commission area's member branch. Every one
+  // of them, PLUS `src/app/page.tsx`'s own landing-precedence branch chain
+  // (same fields), reads `getSessionContext()`'s output, never the raw grants —
+  // so filtering ONCE, HERE, to rows matching the caller's ACTIVE hat is the
+  // single seam that makes all of them correct at once, without editing any of
+  // their call sites.
+  //
+  // No active hat -> every derived list is empty (D5: a hatless session is a
+  // stranger to every hat-aware door). This is intentionally the SAME rule
+  // `needsRoleSelection` (below) already encodes for the picker redirect in
+  // `page.tsx`, which runs BEFORE any of these lists are consulted for a
+  // genuinely hatless multi-role session; a hatless SINGLE-role-type session
+  // cannot reach here with empty lists at all — D11's implicit derivation means
+  // the hook already minted a claim for it.
+  //
+  // The raw, UNFILTERED `grants` stays reachable via `getRawGrants()` (below) —
+  // the single, explicitly-named hat-blind path, used ONLY by the picker
+  // (`/selecionar-perfil`) and the D9 "other hats held" hint
+  // (`src/components/role/*`). Enumerated: `docs/plans/act-as-buildnotes.md`.
+  const hatFilteredGrants: SessionGrant[] =
+    activeRole === null ? [] : grants.filter((g) => g.role === activeRole)
+
   // ⭐ FUP-QO-2 — the ROLE PARTITION, now in `./session-grants`. It is the FIRST of
   // two seams a new role must cross before its holder lands anywhere (the second is
   // `src/app/page.tsx`'s branch chain), and it has been missed three times: a role
@@ -292,7 +351,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     nspOrgAdminOf,
     qualityReviewerOf,
     nspOperatorOf,
-  } = partitionGrants(grants)
+  } = partitionGrants(hatFilteredGrants)
 
   // Derived account status (BE-6). When the profile row is missing (an anomaly —
   // the JWT already authenticated the user), default to `active`: RLS is the real
@@ -311,9 +370,6 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   // a valid session on an anomalous read. The real column defaults false anyway.
   const mustChangePassword = profile?.must_change_password ?? false
 
-  // ACT (ADR 0106 D12) — the verified claim, same source app.active_role() reads.
-  const activeRole =
-    typeof claims.active_role === 'string' ? claims.active_role : null
   // D2: collapse the hat-blind grants to distinct role TYPES — the picker's own
   // unit — using the SAME `grants` read every field above already partitions,
   // no second query. `needsRoleSelection` is true only for a hatless session
