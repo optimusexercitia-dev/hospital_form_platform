@@ -15,7 +15,7 @@
 -- alternate admitting path (authz-handoff §7.1 shape 6).
 
 begin;
-select plan(14);
+select plan(16);
 
 -- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
 --    hat condition being safe to ship as a no-op today is "0 platform_admins
@@ -41,7 +41,8 @@ create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
 create temp table k on commit drop as
   select (v->>'sa_x')::uuid as sa_x, (v->>'comm_x')::uuid as comm_x,
-         (v->>'org_b')::uuid as org_b, (v->>'admin')::uuid as admin from ctx;
+         (v->>'org_b')::uuid as org_b, (v->>'admin')::uuid as admin,
+         (v->>'hosp_b')::uuid as hosp_b from ctx;
 grant select on k to authenticated;
 
 -- Make sa_x genuinely multi-role (staff_admin@comm_x from bootstrap + org_admin@org_b
@@ -230,6 +231,39 @@ select ok(
     'authentication_method', 'password'
   )) -> 'claims' ->> 'active_role') = 'platform_admin',
   'break-glass ⭐: restored to a PURE platform_admin (no memberships) -> the hook derives active_role=platform_admin implicitly, no UI/picker involved (D11)');
+
+-- ── list_my_nsp_hospitals() P0 keystone (BUG-ACT-HATBLIND-001 follow-up) ───
+-- Found auditing session_context()'s consumers per the coordinator's P0
+-- follow-up: this DEFINER RPC is the `/o/[org]/nsp` console's SOLE entry
+-- gate (via getNspAccessByOrg -> listMyNspHospitals), and — unlike every
+-- sibling PQS/NSP predicate (is_pqs_member_of_for, is_nsp_coordinator_of_for,
+-- is_pqs_operator_*, all confirmed via the live catalog to delegate through
+-- has_role, hence already hat-gated by Stage 3) — its body queried
+-- public.memberships DIRECTLY, with no has_role/hat check anywhere. sa_x is
+-- already multi-role (staff_admin@comm_x, org_admin@org_b); giving it a
+-- THIRD role (pqs_member@hosp_b) makes it the fixture able to distinguish
+-- "sees hosp_b because pqs_member is the active hat" from "sees hosp_b
+-- regardless of hat" — exactly the shape used for is_admin() above.
+insert into public.memberships (organization_id, hospital_id, principal_id, role)
+values ((select org_b from k), (select hosp_b from k), (select sa_x from k), 'pqs_member');
+
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select sa_x from k), 'active_role', 'pqs_member')::text, true);
+set local role authenticated;
+select ok(
+  exists (select 1 from jsonb_array_elements(public.list_my_nsp_hospitals()) g
+           where (g->>'hospitalId')::uuid = (select hosp_b from k)),
+  'list_my_nsp_hospitals() D12: pqs_member-hatted sa_x sees hosp_b (matching hat)');
+reset role;
+
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select sa_x from k), 'active_role', 'org_admin')::text, true);
+set local role authenticated;
+select ok(
+  not exists (select 1 from jsonb_array_elements(public.list_my_nsp_hospitals()) g
+               where (g->>'hospitalId')::uuid = (select hosp_b from k)),
+  'list_my_nsp_hospitals() D12 ⭐ THE DISTINGUISHING CASE: sa_x wearing a DIFFERENT hat (org_admin, which he also genuinely holds) does NOT see hosp_b''s pqs_member grant — the /nsp console entry gate must not leak on the un-worn hat');
+reset role;
 
 select * from finish();
 rollback;
