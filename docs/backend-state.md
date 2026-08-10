@@ -20,6 +20,38 @@
 > they record what was decided when it was called that. When reading anything dated
 > before 2026-08-09, read the old name as this one. ADR
 > [0105](./decisions/0105-rename-is-tenancy-admin-of.md).
+>
+> 🔧 **Surface changes 2026-08-09 (QO·B follow-up waves, `20260917000000`–`…000400`; 334
+> registered == 334 files).** Read this before touching disposal, template config, or cadence:
+>
+> - **Referral disposal arms moved TWICE in one day.** `20260917000000` CUT the tenancy arm
+>   from `dispose_referral_phi` / `can_dispose_referral_phi` / `create_referral_draft`;
+>   `20260917000400` **RESTORED it on the two DISPOSAL doors only** (FUP-QOB-3 — disposal
+>   reveals no content, and a hospital with **zero NSP operators** would otherwise be unable to
+>   honour an LGPD Art. 18 erasure request). **`create_referral_draft` stays CUT.** Guarded:
+>   pgTAP `314` **8.6** (all three disposal doors keep the arm) + **8.7** (drafting does not) +
+>   `295` §7.7. ⚠ A "finish the disposal wall" sweep MUST red there rather than re-cut.
+> - **`dispose_event_phi` is UNCHANGED and keeps BOTH arms** (tenancy + NSP) — a deliberate
+>   PO KEEP, same reasoning as ADR 0104 D11's `revoke_printed_document`. Do not "harmonise" it.
+> - **Q2 template config gained the tenancy arm**: `set_template_case_type` **and**
+>   `set_template_collects_patient` (`20260917000100`, ADR 0088 Amendment 1). Not a widening —
+>   all 16 `process_template*` policies already carried it and a bare tenancy admin could write
+>   both columns by direct DML; only the DEFINER doors refused. **`create_case_from_template`
+>   deliberately does NOT have it** — creating a case is content, not a container.
+> - **New cadence surface** (`20260917000300`): `app.cadence_status_of(text, timestamptz)` is
+>   the SINGLE home of the em_dia/em_atraso/sem_reunioes/sem_regimento rule — ⚠ **STABLE, not
+>   IMMUTABLE** (it reads `now()`; the postcondition asserts `provolatile='s'`). Both
+>   `meeting_cadence_status` (member-scoped, one commission) and the new
+>   `commission_cadence_overview()` (tenancy-scoped, many) call it, so they cannot drift.
+>   ⚠ The overview takes **NO argument by design** — it derives its row set from
+>   `is_tenancy_admin_of`, so a caller cannot ask about a commission it does not administer.
+>   ⚠ `mensal` means **30 days**, not a calendar month (`interval '1 month'` compares as 30);
+>   pinned by `261` CAD-8b.
+> - **Three pt-BR authority messages corrected** so every disposal/revocation door's sentence
+>   matches its arms: `dispose_case_phi` no longer promises a removed org-admin arm,
+>   `revoke_printed_document` no longer hides the tenancy arm it carries. ⚠ **The class:** every
+>   arm that moved had left its message behind. No gate here reads prose — move the sentence in
+>   the same edit as the arm.
 > Last updated: **2026-08-09 — QO·B COMPLETE (org_admin/hospital_admin CONTENT WALL; ADR 0100 D12 +
 > PO rulings Q1–Q9; migrations `20260915000000`–`…000500` **+ `20260916000000` (M7)**; NO flag —
 > subtractive by design; **329 files = 329 registered** on a fresh reset; QA APPROVED r2). See the
