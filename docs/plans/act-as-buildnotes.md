@@ -868,3 +868,379 @@ Fresh `supabase db reset --local` -> registered migrations **336 == 336** files
     downstream file also broke" when both happen in the same run.
 
 **No push, no merge to `main`** (standing rule) — everything above is local-only.
+
+---
+
+## Stage 3 — THE ATOM (backend half, 2026-08-10)
+
+Plan: `docs/plans/act-as-role-assumption.md` §4 Stage 3. Migrations:
+`20260918002000_act_stage3_active_role_infrastructure.sql`,
+`20260918002100_act_stage3_raw_policy_sweep.sql`. New pgTAP file:
+`supabase/tests/315_act_stage3_hat_condition.sql`.
+
+### 1. DB layer — what landed
+
+`app.active_role_selections` (session_id PK, RLS self-select only, no
+INSERT/UPDATE/DELETE policy — every write goes through the RPC) ·
+`public.assume_role(p_role)` (DEFINER, in `public` — `app.*` would 404 over
+PostgREST; validates against LIVE memberships or `is_admin()` for
+`platform_admin`; named `ON CONFLICT (session_id)`; audits
+`active_role.assumed`) · `app.active_role()` (reads the JWT claim, `text` not
+`platform_role` — matches `has_role`'s existing `p_role text` param with zero
+new casting surface) · `has_role`/`has_role_any` gain the §2 caller-only
+condition · `member_can` gains the D13 condition via `is_member_of` (reuse,
+not a second `active_role()` read) · `session_context` re-diffed, comment
+augmented (no-op confirmation) · `custom_access_token_hook` extended (D11
+break-glass + D5 fail-closed) · `audit_write` generalises `metadata.acting_as`
+(D8).
+
+### 2. Two catalog findings, both fixed before the pgTAP pass
+
+**A. NULL-propagation fail-open (found running a manual sanity check, before
+any pgTAP was written).** The plan's literal §2 text —
+`... OR p_role = app.active_role())` — uses a plain `=` against
+`app.active_role()`, which is NULL for any hatless caller. `TRUE AND NULL` is
+NULL, not FALSE, and `IF NOT has_role(...) THEN raise ...` treats a NULL
+condition as false-ish — the guard silently did not fire. Confirmed live: a
+hatless `chefe.ccih@`-equivalent principal made `has_role(...)` return NULL,
+and a `do $$ if not has_role(...) then raise exception ... end if; $$` block
+did not raise. Exactly the fail-OPEN shape D5 exists to reject, on the
+enforcement point D5 is written for. Fixed with `IS NOT DISTINCT FROM`
+(Postgres's NULL-safe equality — always TRUE or FALSE) in both `has_role` and
+`has_role_any`; verified all 4 truth-table cells (caller+hat / caller+no-hat /
+caller+wrong-hat / third-party) unchanged in outcome, guaranteed non-null.
+Matches the house pattern already in `app.is_active`
+(`coalesce(..., false)` for the identical reason).
+
+**B. `test_helpers.claims_for`'s RLS-filtered auto-derivation (found via a
+genuine SQL ERROR, not a wanted/have mismatch).** Documented in item 4 below.
+
+### 3. Auto-derivation — the lever that made ~1949 call sites tractable
+
+D10's own text predicts "large parts of both suites go red at once" until
+every hat-consuming call site is updated. Rather than hand-editing ~1949
+`claims_for(...)` call sites, `test_helpers.claims_for` was extended to
+**auto-derive** `p_active_role` when not explicitly given, by mirroring
+`custom_access_token_hook`'s own D11 break-glass logic live against
+`public.memberships` (exactly one live role type -> that role; 0 or 2+ -> no
+claim). A pgTAP fixture principal is overwhelmingly single-role (synthetic,
+minimally-provisioned per file) — exactly D11's target population — so this
+made the harness's default match production's default, rather than diverging
+from it, and reduced the red surface from **657 failures across all 175
+files** to a small, individually-triaged set.
+
+### 4. `claims_for` needed `SECURITY DEFINER` (a second finding, found live)
+
+Several files call `set local role authenticated` **before** their first
+`claims_for` (e.g. `201_documents_redesign.sql:47-48`). At that point
+`request.jwt.claims` is still unset/stale, so the auto-derivation query,
+run as `authenticated` under `memberships`'s own RLS policy, saw **zero**
+rows for a principal who genuinely holds exactly one live role — minted no
+claim, and every has_role-gated call in that fixture then failed closed with
+a hard SQL error (not a `wanted X got Y` — an aborted file). Fixed: `claims_for`
+is now `SECURITY DEFINER` (a deliberate property change from the INVOKER
+shape Stage 1/2 verified — `test_helpers` is never exposed to PostgREST, and
+the function still only acts on the `p_user` it's given, the sanctioned
+"bypass RLS on an internal lookup" use). `search_path` pinned per house
+convention.
+
+### 5. pgTAP red triage — the remaining ~60 genuine cases, resolved
+
+After auto-derivation + the DEFINER fix, the remaining reds fell into four
+classes, each triaged and closed — **final state: `Files=176, Tests=5644,
+Result: PASS`, verified twice (fresh reset, then immediately again with no
+reset, per the claims_for-idempotency lesson from Stage 2)**:
+
+- **Multi-role fixture principals needing an explicit `p_active_role`** (the
+  large majority) — a file grants a bootstrap persona (`sa_x`/`sa_y`/`st_x`/
+  `st_y`/`admin`) an ADDITIONAL role on top of its bootstrap baseline (e.g.
+  `170_multitenancy_hierarchy.sql`'s `sa_x` becomes `org_admin` on top of its
+  bootstrap `staff_admin`), making the auto-derivation correctly yield no hat
+  (genuinely multi-role) — each such `claims_for` call needed the SPECIFIC
+  role the section is testing, read from the section's own comment/label
+  ("the coordinator" -> `staff_admin`, "the org_admin" -> `org_admin`, "the
+  PQS operator"/"the coordinator (NSP)" -> `pqs_member`/`nsp_coordinator`).
+  Fixed across `170`, `145`, `190`, `172`, `224`, `195`, `196`, `226`, `238`,
+  `241`, `242`, `243`, `245`, `294`, `295`, `238`, `229`, `235`, `292`, `293`,
+  `110`, `197` (file:line inventory in the commit diff — not repeated here,
+  the pattern is uniform: read the section's own label, set that hat).
+  One MIS-SET during this pass and self-corrected on re-triage:
+  `235_authz_a4_org_admin_not_case_source.sql` line 386 — a "K1·DENY /
+  NO-OVER-REACH twin" pair is explicitly about **"the coordinator"** (not the
+  same file's separate `org_admin` scenarios); setting `org_admin` there
+  passed the DENY half by accident (org_admin has zero case visibility under
+  A4 regardless of exclusion) but broke the NO-OVER-REACH half (which needs
+  the coordinator's real board visibility to prove the deny is scoped, not a
+  lockout) — corrected to `staff_admin`, re-verified both halves.
+- **`audit_write`'s new `metadata.acting_as` breaking an exact-equality
+  assertion** (D8's own expected consequence) — 3 tests
+  (`150_referrals.sql`, `151_case_patient.sql` x2, `140_patient_safety.sql`)
+  asserted `metadata = '{}'` or a fixed partial shape for a
+  "carries no identifier/PHI" guarantee; updated to the new expected shape
+  (`{"acting_as": "staff_admin"}` etc.) — the PHI-free guarantee itself is
+  unchanged and still asserted.
+- **D13's own intended fix, not a regression** —
+  `239_authz_c8_meeting_for_all_recut.sql` "K18b" asserted a genuinely
+  **non-member** `administrativo` delegate could still WRITE (schedule a
+  meeting) after her READ side-door was closed by a prior program (C8). D13's
+  own text: "under this ADR as first written it fails OPEN — delegated
+  capabilities keep working under every hat." `member_can` now requires
+  `is_member_of(commission_id)`, which a genuinely non-member delegate can
+  never satisfy under any hat. The test's assertion was flipped from
+  `lives_ok` to `throws_ok('42501')`, with an explanatory comment — **not
+  silently edited to green**: this is D13's own arm behaving exactly as
+  specified, closing a fail-open gap the ADR names explicitly.
+- **A test-encoded pre-cutover assumption revealing a real, pre-existing RLS
+  gap** — `172_phaseb_rls_rewrite.sql` §(B) labeled two response/answer reads
+  "org_admin A reads...", but `responses_select`/`answers_select` carry **no**
+  org_admin arm at all (verified live: creator OR
+  (submitted AND `is_staff_admin_of`) OR `can_read_correction_response` — no
+  `is_org_admin_of`/`is_tenancy_admin_of` disjunct). Pre-cutover this passed
+  only because the fixture persona (`sa_x`) held BOTH `staff_admin` and
+  `org_admin` simultaneously with no hat concept to separate them. Fixed by
+  switching to `sa_x`'s `staff_admin` hat for exactly those two reads, with a
+  comment naming the finding — the org_admin-visibility question itself is
+  out of Stage 3's scope to resolve (a new RLS arm would be a novel,
+  security-sensitive change).
+
+### 6. The revert-twin keystone (`315_act_stage3_hat_condition.sql`)
+
+Table: `public.meeting_minutes_jobs` — verified live to carry **exactly one**
+policy, `meeting_minutes_jobs_select = app.is_staff_admin_of(...)`, no
+is_admin()/other-door OR'd sibling (authz-handoff §7.1 shape 6 — a permissive
+sibling would fake both directions). Proof, all live:
+
+1. Baseline, no hat: `SELECT count(*) ... = 0` (denied).
+2. Baseline, matching `staff_admin` hat: `= 1` (admitted).
+3. **`has_role`'s caller-only condition is temporarily removed** (captured via
+   `pg_get_functiondef` first, restored byte-for-byte after) — the SAME
+   hatless-caller case from (1) now reads `= 1` (wrongly admitted) — proves
+   the detector can detect the exact over-grant it exists to prevent.
+4. Restore verified byte-identical against the pre-mutation capture.
+
+Also closes the `ARM=floor` gap `assume_role` opened (a door that exists but
+is never CALLED by any keystone is floor-blind by construction): the same
+file drives `assume_role` end-to-end — a real grant (`lives_ok`), a real
+denial for a role not held (`throws_ok 42501`), the selection row landing
+with the chosen role (verified as postgres — the table has no `authenticated`
+SELECT grant by design, a test-only verification query), and the
+`active_role.assumed` audit row.
+
+### 7. Two catalog-driven corrections to the plan's own literal text
+
+- **The audit action name.** The plan/ADR's own prose names the action
+  `role_assumed` (no dot). `audit_log`'s `audit_log_action_shape` CHECK
+  requires a dotted `noun.verb` name (every existing action follows this —
+  `membership.granted`, `case.created`, ...). Renamed to `active_role.assumed`
+  at write time — recorded here as the fix, not silently substituted without
+  a trace.
+- **`has_role_any`'s reimplementation shape.** The plan's literal text says
+  "reimplemented as `has_role(scope, scope_id, app.active_role(), p_user_id)`
+  for caller checks." Implemented instead as an integrated AND-clause of
+  identical shape to `has_role`'s own (`... AND (p_user_id IS DISTINCT FROM
+  auth.uid() OR m.role IS NOT DISTINCT FROM app.active_role())`) rather than a
+  literal delegating call — provably equivalent for both cases (caller check:
+  the OR's role-match arm collapses "any role" to exactly the active-role row,
+  byte-identical to `has_role`'s own predicate; third-party check: the OR's
+  left arm is true, unchanged from the original any-role body) and avoids a
+  redundant double `is_active`-style check `has_role` would otherwise need to
+  reproduce internally.
+
+### 8. Raw-policy sweep (§B10) — swept `pg_policies`, ALL schemas
+
+3 policies matched a direct `memberships` read: `hospital_affiliations_select`,
+`profiles_admin_select`, `profiles_select_self_or_admin` — 6 EXISTS-arm
+occurrences of the `memberships` table total. **5 of 6 are TARGET-side reads
+only** (scan `memberships` to find which org/hospital the ROW BEING READ's
+subject belongs to — never the caller's own row — then delegate the actual
+authorization decision to an `app.*` door checking the caller:
+`is_org_admin_of`/`is_tenancy_admin_of`/`is_hospital_admin_of`). "What roles
+another user holds is not a function of MY hat" — these need no change,
+recorded as reasoned, named exceptions:
+- `hospital_affiliations_select`'s co-membership arm
+- `profiles_admin_select`'s two arms (both)
+- `profiles_select_self_or_admin`'s tenancy-admin arm
+
+**The 6th arm — `profiles_select_self_or_admin`'s co-member arm — is THE
+KNOWN INSTANCE the plan names.** It read the CALLER's own membership row
+directly (`me.principal_id = auth.uid()`), any role, no hat-awareness. Fixed
+per §2 and QA r2's explicit carry-forward (the caller side routes LITERALLY
+through `app.is_member_of`, not a looser predicate): `ALTER POLICY` (not
+DROP+CREATE — preserves command/roles/permissiveness by construction), caller
+side now `app.is_member_of(them.commission_id)`, target side unchanged
+(`them.principal_id = profiles.id`, any role).
+
+### 9. Post-authentication destination sweep (§B11) — swept by the PROPERTY
+
+Four known members (plan's Stage 3 amendment), each verified live and
+classified:
+
+| Site | Classification | Disposition |
+| --- | --- | --- |
+| `resolveLanding`/`signIn` (`src/lib/auth/actions.ts`) | Picker-routed | `resolveLanding` **deleted**, not patched (see below) |
+| `src/app/page.tsx` chain | Picker-routed | Backend dependency posted (`SessionContext.needsRoleSelection`); the one-line `page.tsx` early-redirect is frontend's, per file ownership |
+| `?redirect=` deep-link (`explicitTarget`) | Picker-routed | Folded into `signIn`'s own fix — preserved as `/selecionar-perfil?redirect=<target>` |
+| Middleware (`src/proxy.ts` + `src/lib/supabase/middleware.ts`) | **Reasoned-exempt, verified not assumed** | `updateSession` only refreshes the session and returns `claims \| null`; `proxy.ts` gates on `claims` being non-null only — no role computation anywhere in this chain |
+
+**`resolveLanding` deleted, not patched — the decision the plan's Open
+Question 1 asked for.** It was a second, independent, hand-rolled partition
+of the SAME role→landing computation `page.tsx` (via `getSessionContext()`)
+already owns — checking only 4 of 11 `platform_role` values and falling
+through to `/` for the rest (safe pre-cutover; NOT safe once a picker gate
+exists, since falling through to `/` is exactly how the picker gets reached —
+`resolveLanding` never fell through for `org_admin`/1-commission cases, the
+MOST common sign-in shapes). Patching a second copy to also check for a hat
+would perpetuate exactly the "one seam updated, the other not" defect ADR
+0101 exists to close, one level up. Deleting it and taking `page.tsx`'s one
+extra hop is the correctness-over-micro-optimization trade D10's own framing
+prefers — flagged plainly: this reintroduces one extra round trip on every
+sign-in (previously optimized away for a load-time race condition), a real,
+deliberate regression, recorded as a candidate follow-up (a shared
+role→route resolver) rather than a Stage 3 blocker.
+
+`getSessionContext()` gains `activeRole: string | null` (read from the
+verified claim) and `needsRoleSelection: boolean` (true only when hatless AND
+the hat-blind grants span >1 distinct role type — D2). **Correction to the
+design note's own premise**: `docs/design/act-role-picker.md` §3.2 assumed
+`getSessionContext()` becomes hat-scoped post-Stage-3 and therefore unusable
+for the picker's pre-hat data source. Verified false: `session_context()`
+reads `memberships` directly (SECURITY DEFINER, `auth.uid()` only, no
+`has_role`/`has_role_any` call) — it is, and remains, fully hat-blind by
+design (D9's own requirement). `getSessionContext()`'s TS wrapper calls this
+SAME RPC and was never touched. The picker's raw-grants need is served by a
+new thin query, `getRawGrants()` (`src/lib/queries/session.ts`), plus a pure
+transform `getSelectableRoles()` (`src/lib/queries/session-grants.ts`,
+sibling to the existing `partitionGrants`) — no new backend round trip beyond
+what `session_context()` already provides.
+
+### 10. Typed signatures posted for frontend
+
+```ts
+// src/lib/queries/session.ts
+export interface SessionContext {
+  // ...unchanged fields...
+  activeRole: string | null
+  needsRoleSelection: boolean
+}
+export async function getRawGrants(): Promise<SessionGrant[]>
+
+// src/lib/queries/session-grants.ts
+export interface SelectableRoleOption { role: string; count: number }
+export function getSelectableRoles(grants: SessionGrant[]): SelectableRoleOption[]
+
+// src/lib/role-selection/actions.ts
+export interface AssumeRoleState { ok: boolean; error?: string }
+export async function assumeRole(
+  role: Database['public']['Enums']['platform_role'],
+  landingPath: string,
+): Promise<AssumeRoleState>  // redirects on success; returns {ok:false,error} on failure
+```
+
+`page.tsx`'s needed change (frontend, one line, per the destination sweep):
+after the `isInactive`/`mustChangePassword` gates, before the `isAdmin`
+branch — `if (context.needsRoleSelection) redirect('/selecionar-perfil')`.
+
+### 11. Scope gap flagged, not silently expanded or dropped
+
+ADR 0106 D11's prose says `is_admin()` "gains the same active-role condition."
+That change is **NOT** in this migration — absent from both the plan's own §4
+Stage 3 task list and this session's task brief, and its blast radius is a
+different order of magnitude: `is_admin()` gates a large fraction of the RLS
+surface, AND `getSessionContext()`'s TypeScript layer independently reads
+`claims.is_admin` directly with no `active_role` consultation at all — fixing
+only the SQL side would leave the client-visible `isAdmin` flag stale.
+Recorded as an open gap between the ADR's stated intent and the concrete task
+list, for an explicit decision.
+
+### 12b. Gate — full Phase Gate step 1
+
+Fresh `supabase db reset --local` → registered migrations **338 == 338**
+files. `npm run test:db` **run 1** (fresh): `Files=176, Tests=5644, Result:
+PASS`. `npm run test:db` **run 2** (same reset, no reset in between):
+`Files=176, Tests=5644, Result: PASS` — identical, Stage 2's idempotency fix
+holds under Stage 3's own load. `npm run gen:types` — `database.ts` diff:
++4 lines (the `platform_role`-typed `assume_role` RPC + the
+`active_role_selections`/enum entries; no other schema surface changed).
+`npm run lint` — clean (0/0). `npm run typecheck` — clean.
+
+`ARM=census` — **HOLDS**: 451/461, unchanged from the Stage 0/1/2 baseline
+(§12 below explains why `active_role()` does not enter this population).
+`ARM=floor` — **HOLDS**: 80, unchanged (the keystone in `315` closes the gap
+`assume_role` would otherwise have opened).
+
+**Diff-scoped door sweep**, case list derived mechanically from both
+migrations' diff (`grep -ohiE "create (or replace )?function ..."` +
+`profiles_select_self_or_admin` added by name for the `ALTER POLICY`, which
+the grep recipe's own scope is "CREATE POLICY" and does not catch — added
+explicitly, not silently omitted). Preflight: `baseline OK: Result: PASS,
+Files=176, Tests=5644`.
+
+| Function/policy | Verdict |
+| --- | --- |
+| `app.has_role` (4-arg, the one this stage amends) | **ERROR** (run-shape ≠ baseline) — see below |
+| `app.has_role_any` | **ERROR** (run-shape ≠ baseline) — see below |
+| `public.profiles_select_self_or_admin` (the raw-policy sweep fix) | **COVERED** |
+| `app.has_role` (3-arg) | **BLIND** — see the named finding below |
+| `active_role`, `assume_role`, `audit_write`, `custom_access_token_hook`, `member_can`, `session_context` | not swept by this tool's PRED arm at all — see below |
+
+**`ERROR` is not a pass — already covered by the revert-twin keystone**
+(§6 above), which is exactly what ADR 0079 prescribes for a gate this central:
+"`app.has_role` alone leaves 259 tests unexecuted... For the membership
+primitives ARM 1 can therefore never be the evidence; the per-workstream
+targeted mutation audits are." `315`'s own hand-run mutation (remove the
+condition, observe the SAME hatless-caller case flip from denied to admitted,
+restore byte-identical) is that targeted audit for exactly this function.
+
+**BLIND finding, named plainly, not fixed in this stage: `app.has_role`
+(3-arg).** This is the OTHER overload — `has_role(p_scope_type, p_scope_id,
+p_role)`, which delegates to the 4-arg via `(select auth.uid())` and was
+**not modified** by this migration (the 4-arg body changed; the 3-arg
+wrapper's `select app.has_role(p_scope_type, p_scope_id, p_role, (select
+auth.uid()));` is byte-identical to before). It appears in this sweep only
+because the CASES-derivation recipe strips argument lists (`sed 's/^.*\.//'`)
+— a name match, not a signature match — so a migration that changes ONE
+overload of a multi-overload function pulls its untouched sibling into the
+diff-scoped population too. Checked live: no function in `app`/`public` calls
+this 3-arg overload directly (a `prosrc` regex sweep for a 3-argument
+`has_role(...)` call found zero rows) — it is not `authenticated`-reachable
+via PostgREST either (unexposed `app` schema), so it does not enter
+`ARM=floor`'s population, and `ARM=census`'s unchanged 451/461 total means it
+already carries SOME committed verdict predating this stage. Not
+allowlisted, not keystoned, in this session — reported as a genuine, named
+open item for the lead/QA to disposition (keystone it, allowlist it with a
+stated reason, or confirm it is dead code), since I neither introduced this
+gap nor have the standing to unilaterally allowlist a `has_role`-family
+overload.
+
+**`active_role`/`assume_role`/`audit_write`/`custom_access_token_hook`/
+`member_can`/`session_context` — not in this tool's PRED population.** The
+tool's own documented PRED scope is "`is_/can_/has_` boolean gates... plus
+named exceptions" (`p0-authz-door-audit.sh` header). `active_role` returns
+`text`; `assume_role`/`audit_write` return `void`;
+`custom_access_token_hook`/`session_context` return `jsonb` — none are
+boolean gates by the tool's own definition. `member_can` **is** boolean but
+does not match the `is_/can_/has_` **prefix** pattern (it is suffixed, not
+prefixed) and is not in the tool's hardcoded exception list (unlike
+`attachment_confidentiality_ok`/`referral_target_analyst`) — the exact
+"an enumeration's boundary must be the property, not a syntax" shape this
+repo has hit before, this time in the SWEEP TOOL's own enumeration rather
+than a hand-written one. Not something fixable inside this migration.
+`member_can`'s D13 condition is, however, independently exercised: the full
+`205_administrativo.sql` suite (the file that drives `member_can` through
+real delegated-capability flows) passes green under the new condition as
+part of the full `Files=176, Tests=5644, PASS` run — real coverage, just not
+visible to this particular tool's own PRED matcher.
+
+`docs/reviews/authz-door-audit-findings.md` restored via `git checkout --`
+immediately after (confirmed clean via `git status`).
+
+### 12. `ARM=census` did not grow — explained, not assumed
+
+`ARM=census` (451 live gates / 461 verdicts) is **unchanged from the Stage
+0/1/2 baseline**. `app.active_role()` — the new gate the plan's own gate
+section names as the one `ARM=census` should newly see — returns `text`, not
+`boolean`; the census's live-gate population is `prorettype = boolean` (the
+same boundary Stage 2's derivation used). A new `text`-returning helper does
+not enter that population by construction, so its absence from the delta is
+consistent, not a miss — flagged because the plan's own text predicted a
+visible change that the catalog does not show.
