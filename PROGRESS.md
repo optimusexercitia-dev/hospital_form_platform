@@ -80,6 +80,36 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md)) · **IN PROGRESS**
+
+Branch `feat/act-as-role-assumption` (worktree, based on `main` @ `7b7a99c`). Plan
+[act-as-role-assumption.md](docs/plans/act-as-role-assumption.md) — **QA APPROVED r2**
+([review](docs/reviews/act-as-plan-review.md)); PO-locked P1–P6: **before pilot**, hat bound to the
+auth session, **NO feature flag** (the migration IS the cutover — do not re-propose one), D9 v1 =
+choke-point guards + indicator. Build notes + sweep inventories accumulate in
+[act-as-buildnotes.md](docs/plans/act-as-buildnotes.md). ⛔ Local-only: no `git push`, no `db push`.
+
+| Stage | Owner | Status | Record |
+| --- | --- | --- | --- |
+| **S0** — the role enum | backend | ✅ 2026-08-09 · `8acebed` (+ placement fix) | `20260918000000`; **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11 break-glass hat / audit stamp). pgTAP 5636 PASS · ARM=census + ARM=floor HOLD |
+| **S1** — harness first | backend + tester | 🟡 backend half running | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` `set_config` sweep, bounded by the **property** not by filename · additive `dualhat.a@` persona · tester's `loginFresh` `actAs` seam |
+| **S2** — behaviour-preserving normalisation | backend | ⬜ not started | the **8** direct `memberships` readers re-based onto `has_role`/`has_role_any`, no semantic change; `CREATE OR REPLACE` only |
+| **S3** — THE ATOM (the only red window) | backend + frontend + tester | ⬜ not started | `active_role_selections` + `assume_role` + hook claim + the §2 caller-only binding + raw-policy sweep; picker/indicator/D9 hint; revert-twin keystone |
+| **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted |
+
+**Lead notes / decisions taken during the build:**
+- **S0 placement — the enum lands in `public`, not `app`** (lead ruling 2026-08-09, on a real S0
+  finding). `config.toml` exposes `["public","graphql_public"]`, so an `app`-schema enum is invisible
+  to `gen:types` — which silently breaks the plan's "the picker (via generated types)". Exposing `app`
+  was rejected outright (it would put every `app` DEFINER door on PostgREST); a hand-kept TS mirror is
+  a stale-assertion generator. A bare enum TYPE in `public` is not a relation — no endpoint, no RLS
+  surface — and `public.audio_job_status` is the existing precedent. Schema placement was never one of
+  the PO-locked P1–P6 decisions.
+- **Migration window:** `20260918000000`+ (above the highest registered `20260917000400`). S2 owns
+  `20260918001000`+, S3 `20260918002000`+ — a shared local stack is in play.
+- `.next/types` was never generated in this fresh worktree, so the first `npm run typecheck` failed on
+  an untouched route file. `npm run build` once populates it. **Not a defect** — do not chase it.
+
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
 Full record (task table M-B1…M-Q1, lead notes, gate detail, the BLOCKER→Package-A narrative)
@@ -132,7 +162,14 @@ Status table above is the index. What is actually left:
 **1. ✅ AFF — COMPLETE and PO-APPROVED 2026-08-06**, no longer gates the pilot deploy. Row in the
 *Recently completed* table above.
 
-**2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing.** Two halves,
+**1b. 🟡 ACT — "act as" strict role assumption (ADR [0106](docs/decisions/0106-act-as-role-assumption.md))
+— IN PROGRESS, and it sits in FRONT of item 2.** PO decision 2026-08-09: **before the pilot**. D10's
+big-bang justification depends on that ordering — **if the pilot moves first, D10 must be
+re-litigated.** Stage table + lead notes in *Current Phase Tasks* above. Note the cutover is
+**unflagged by decision** (P4) and forces re-login: stale pre-cutover sessions see stranger-level
+nothing until they sign in again, which is acceptable only because it lands pre-pilot.
+
+**2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing *after* 1b.** Two halves,
 both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:
 - **`git push origin main`** — ⚠ **NOT done.** Live `git fetch` 2026-08-08: local `main` `970fc68`,
   `origin/main` `9373ce8` (three commits ahead — the P2 merge + FUP-PDF-1 + this rotation). *This row
@@ -382,6 +419,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
+| 2026-08-09 | **ACT S0 — the role enum lands in `public.platform_role`, not `app.platform_role`** (LEAD, on a measured Stage-0 finding; schema placement was never one of the PO-locked P1–P6). `supabase/config.toml` exposes `["public","graphql_public"]`, so an `app`-schema enum is **invisible to `gen:types`** — silently voiding the plan's "the picker (via generated types)". Rejected alternatives, named so a later sweep does not "fix the inconsistency": **exposing `app`** would put all ~281 `app` DEFINER doors on PostgREST (an attack-surface change, not a typing fix); a **hand-kept TS mirror** is exactly the stale-assertion shape this repo keeps getting burned by. A bare enum TYPE in `public` is **not a relation** — no endpoint, no RLS surface — and `public.audio_job_status` is the standing precedent that a `public` enum emits a proper literal union. **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11: not a `memberships` value, it lives in `profiles.is_admin`, but must be representable for the break-glass hat, the selections row and the `metadata.acting_as` stamp). | [0106](docs/decisions/0106-act-as-role-assumption.md) · [plan](docs/plans/act-as-role-assumption.md) |
 | 2026-08-09 | **`is_commission_admin_of` → `is_tenancy_admin_of` RENAMED (PO; no shim; historical docs NOT rewritten).** The predicate resolves org_admin/hospital_admin and is FALSE for `staff_admin`, so the name asserted the opposite of its meaning — the repo's standing stale-claim hazard spelled in an identifier. **PO rulings:** ① **no backward-compatible shim** — anything missed fails loudly at migration time rather than resolving quietly (this codebase's recurring failure is a stale name that keeps working); ② **living docs only** — `backend-state.md` updated + carries the mapping note, while ADRs/reviews/plans/progress keep the old name because they record what was decided when it was called that, the same reason migrations are immutable here. ⚠ **Mechanism finding, measured not assumed:** `pg_policy` stores a PARSED tree referencing the function by **OID**, so **all 54 policies followed with zero edits**; only `pg_proc.prosrc` (text) needed rewriting (75 bodies). **The D11 lesson does NOT transfer** — that was an *enum* re-key where labels are string literals inside predicates, so policies did *not* follow. Same-shaped task, opposite substrate. | ADR [0105](docs/decisions/0105-rename-is-tenancy-admin-of.md) |
 | 2026-08-09 | **QO·B PO RATIFICATION SESSION — the FUP-QOB-2 package worked item by item.** The PO declined a block ratification and asked to be walked through each ruling with its evidence, so every verdict below was taken against a **live-catalog measurement**, not the doc's own claim. **RATIFIED:** ① fix shape (tenancy admin = session FLAG, never a coerced role — decisive point: coercion is the direct cause of BUG-QOB-004 and makes every `role`-based gate silently wrong one route at a time) · ② `manage/audit/**` + CSV = KEEP (`audit_log_select` carries the tenancy arm verbatim — the UI is being made to agree, not widened) · ④ `manage/acreditacao/**` membership-gated (all four accreditation-plane policies measured, tenancy arm = **false** on every one; reversing would be a WIDENING) · **FUP-QOB-1's J1c pin** as the standing guard (the behavioural surface *collapsed*, so a structural pin is the strongest thing that still exists; the alternatives measure an invented grant or leave no guard at all). **LEFT OPEN BY CHOICE, not pending:** ③ `manage/charter` (status quo NOT-KEEP stands; the live argument FOR keeping it is that a charter defines the committee's scope = a *container* under D12 — but KEEP would be a widening, not a restoration) · ⑤ dual-hat precedence (measured: 3 `quality_reviewer` principals exist, **none** holds a tenancy role — unfalsifiable today; the PO declined to set a default in the abstract). **RULED:** BUG-QOB-004 = **CUT-the-arms**; `setTemplateCaseType` Q2-consistency **approved**; the `is_tenancy_admin_of` rename **re-confirmed** and sequenced LAST so it sweeps a settled catalog once (measured blast radius **77 functions + 54 policies + 318 files**). | [FUP-QOB-2](docs/progress/follow-ups.md) · [0100](docs/decisions/0100-quality-office-oversight.md) D12 |
 | 2026-08-09 | **QO·B BUG-QOB-003 presentation rulings (LEAD, catalog/precedent-backed — PO ratification listed for step 4).** *(→ ①②④ RATIFIED, ③⑥ left open, ⑦ approved as its own wave — see the ratification row above.)* ① Fix shape = **flag + KEEP-scoped UI** (Phase A's quality_reviewer flag-not-role precedent + the cases-board 404 precedent; options (a)+(b) of the bug record). ② **`manage/audit/**` + its CSV export = KEEP** (`audit_log` is on the ratified §4.5 KEEP list). ③ **`manage/charter` = NOT KEEP** — catalog: `upsert_commission_charter` is staff_admin-only by explicit design (HC0K0), the charter plane never carried a tenancy arm. ④ **`manage/acreditacao/**` stays membership-gated** — catalog: no accreditation-plane policy carries a tenancy arm (`evidence_links`/`standard_assessments`/commission-owned frameworks are all `is_member_of`); pre-fix visibility was the coercion showing an empty shell, not access. ⑤ **staff-member-who-is-also-tenancy-admin gets configuration nav** (nav mirrors the `canConfigureCommission` seam). ⑥ **Dual-hat quality_reviewer+tenancy-admin keeps reviewer-shell precedence** — latent (no persona holds both), recorded for the PO rather than re-ruled mid-phase. ⑦ `setTemplateCaseType` NOT routed to the config seam — its DB door is staff_admin-only (ADR 0088); Q2-consistency would be a DB wave, PO's call. | [BUG-QOB-003](#bug-log) · B.11/B.12 |

@@ -304,14 +304,41 @@ $$;
 -- The test itself issues `set local role authenticated` / `reset role` around
 -- the assertion — role switching is done with bare SQL because a non-superuser
 -- role cannot SET ROLE back to postgres from inside a function.
-create or replace function test_helpers.claims_for(p_user uuid, p_is_admin boolean default false)
+--
+-- ACT Stage 1 (ADR 0106 D12): gains p_active_role, the JWT claim Stage 3's
+-- app.active_role() will read. NULL (the default) mints NO active_role key at
+-- all — not a JSON null, an absent key — so every existing 2-arg call site
+-- produces byte-identical claims to before, and the whole suite stays
+-- vacuously green pre-cutover (plan §4 Stage 1).
+--
+-- ⚠ CREATE OR REPLACE cannot add a parameter to an existing function — the
+-- argument list is part of its identity, so that would mint a SECOND
+-- `claims_for(uuid, boolean)` overload beside this one and any existing 2-arg
+-- call site becomes "function is not unique". DROP the old signature first so
+-- exactly one `claims_for` overload exists. Verified property-preserving
+-- against the pre-change pg_proc row (owner postgres, prosecdef=f/INVOKER,
+-- volatile, plpgsql): none of those are set explicitly below, so none can
+-- regress by omission, and the schema-level
+-- `grant execute on all functions in schema test_helpers to authenticated`
+-- a few lines down re-applies the ACL on every 00_setup.sql run regardless.
+drop function if exists test_helpers.claims_for(uuid, boolean);
+
+create function test_helpers.claims_for(
+  p_user uuid,
+  p_is_admin boolean default false,
+  p_active_role text default null
+)
 returns void
 language plpgsql
 as $$
+declare
+  v_claims jsonb;
 begin
-  perform set_config('request.jwt.claims',
-    jsonb_build_object('sub', p_user, 'role', 'authenticated', 'is_admin', p_is_admin)::text,
-    true);
+  v_claims := jsonb_build_object('sub', p_user, 'role', 'authenticated', 'is_admin', p_is_admin);
+  if p_active_role is not null then
+    v_claims := v_claims || jsonb_build_object('active_role', p_active_role);
+  end if;
+  perform set_config('request.jwt.claims', v_claims::text, true);
 end;
 $$;
 

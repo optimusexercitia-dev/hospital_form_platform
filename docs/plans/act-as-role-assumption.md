@@ -80,7 +80,18 @@ keystone proving a third-party check is hat-independent. ⚠ Sweep by the proper
 ## 4. Stages
 
 ### Stage 0 — the role enum (FUP-AFF-4, scoped)
-**Owner: backend.** Introduce `app.platform_role` enum carrying the full role list
+
+> **AMENDED 2026-08-09 during the build (lead ruling, PROGRESS.md Decisions).** The enum is
+> **`public.platform_role`**, NOT `app.platform_role` as originally written below. Measured at
+> build time: `supabase/config.toml` exposes `["public","graphql_public"]`, so an `app`-schema
+> enum never reaches `gen:types` — which silently voids this plan's own "the picker (via
+> generated types)". Exposing `app` was rejected (it would put every `app` DEFINER door on
+> PostgREST); a hand-kept TS mirror was rejected (stale-assertion shape). A bare enum TYPE in
+> `public` is not a relation — no endpoint, no RLS surface — and `public.audio_job_status` is
+> the precedent. **Stage 3 must reference `public.platform_role`.** Everything else in this
+> stage stands as written.
+
+**Owner: backend.** Introduce a `platform_role` enum carrying the full role list
 (source: `memberships_role_check`, derived from the catalog, **plus `'platform_admin'`** —
 QA r1 BLOCKER: it is not a `memberships` value because it lives in `profiles.is_admin`, yet
 D11 requires it representable for the implicit break-glass hat, the selections table, and
@@ -128,8 +139,9 @@ over exactly these 8** (list from the migration diff); fresh-reset pgTAP; e2e:pr
 
 ### Stage 3 — THE ATOM (the only red window)
 One merge. **Backend:**
-- `app.active_role_selections` (`session_id` pk, `user_id`, `role app.platform_role`,
-  `chosen_at`) — written ONLY via DEFINER RPC `assume_role(p_role)` which validates
+- `app.active_role_selections` (`session_id` pk, `user_id`, `role public.platform_role`,
+  `chosen_at`) — ⚠ see the Stage 0 amendment: the TABLE stays in `app` (unexposed), only
+  the TYPE moved to `public` — written ONLY via DEFINER RPC `assume_role(p_role)` which validates
   against live memberships, upserts by session, audits `role_assumed`. ⚠ Name the
   ON CONFLICT target explicitly (the untargeted-`do nothing` lesson).
 - Extend `custom_access_token_hook`: selection row by `session_id` → claim

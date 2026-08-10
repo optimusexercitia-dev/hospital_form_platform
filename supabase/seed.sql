@@ -35,6 +35,12 @@
 --   quality.b@test.local      quality_reviewer of Hospital Central B (Rede B) — the
 --                             cross-org isolation fixture (reaches NOTHING in Rede A;
 --                             Rede B's committees all stay 'excluded' = empty board)
+--   dualhat.a@test.local      ACT (ADR 0106) Stage 1 fixture — org_admin of Rede A
+--                             (org-tier) PLUS quality_reviewer of Hospital Central A
+--                             (hospital-tier): two role TYPES, the D2 positive case
+--                             the picker must offer. ADDITIVE — multi@test.local stays
+--                             the D2 negative (two commissions, ONE role type ⇒ no
+--                             picker); do not conflate the two fixtures.
 
 set search_path = public, extensions;
 
@@ -217,7 +223,11 @@ declare
     --   quality.b  -> reviewer of central-b  (Rede B = cross-org; all-excluded board)
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f3', 'email', 'quality.a@test.local',          'name', 'Revisora Qualidade A',  'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f4', 'email', 'quality.a2@test.local',         'name', 'Revisor Qualidade A2',  'org', '0c000000-0000-0000-0000-00000000000a'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f5', 'email', 'quality.b@test.local',          'name', 'Revisora Qualidade B',  'org', '0c000000-0000-0000-0000-00000000000b')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f5', 'email', 'quality.b@test.local',          'name', 'Revisora Qualidade B',  'org', '0c000000-0000-0000-0000-00000000000b'),
+    -- ACT (ADR 0106) Stage 1 — the dual-hat fixture (plan §4 Stage 1 item 3). See
+    -- the memberships block below (near the quality_reviewer rows) for the two
+    -- role grants. ADDITIVE ONLY: a brand-new persona, not a change to any above.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000f6', 'email', 'dualhat.a@test.local',          'name', 'Administradora Dupla A','org', '0c000000-0000-0000-0000-00000000000a')
   );
   u jsonb;
 begin
@@ -342,6 +352,16 @@ insert into public.memberships (organization_id, hospital_id, principal_id, role
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f3', 'quality_reviewer'),
   ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000f4', 'quality_reviewer'),
   ('0c000000-0000-0000-0000-00000000000b', '05000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000f5', 'quality_reviewer');
+
+-- ACT (ADR 0106) Stage 1 — dualhat.a@test.local's TWO role-type grants: org_admin
+-- (org-tier, Rede A) and quality_reviewer (hospital-tier, Hospital Central A — the
+-- same hospital as quality.a@test.local, so its behaviour is directly comparable).
+-- This is the picker's D2 POSITIVE case (two role TYPES ⇒ picker offered); a new
+-- persona, not a role added to an existing one — multi@test.local (D2 negative:
+-- two commissions, one role type ⇒ no picker) is untouched.
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
+  ('0c000000-0000-0000-0000-00000000000a', null, '00000000-0000-0000-0000-0000000000f6', 'org_admin'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000f6', 'quality_reviewer');
 
 -- Oversight classification fixture: see the DO block AFTER the commissions insert
 -- below (it must run once CCIH exists — an earlier UPDATE is a silent 0-row no-op).
