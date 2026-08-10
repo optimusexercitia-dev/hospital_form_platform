@@ -66,7 +66,7 @@ insert into public.memberships (principal_id, organization_id, hospital_id, role
 values ((select st_x from k), (select org_b from k), (select hosp_b from k), 'hospital_admin')
 on conflict do nothing;
 
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'staff_admin');
 set local role authenticated;
 
 select is(
@@ -148,7 +148,7 @@ reset role;
 update public.memberships set expires_at = now() + interval '30 days'
  where principal_id = (select st_x from k) and commission_id = (select comm_x from k);
 
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'staff_admin');
 set local role authenticated;
 select is(
   (select count(*)::int from jsonb_array_elements(public.session_context()->'grants') g

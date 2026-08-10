@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * PHI/HIPAA-Readiness Remediation — E2E acceptance tests
@@ -88,16 +88,11 @@ async function signInAs(page: Page, email: string) {
 }
 
 /** Obtain a real JWT for a persona (RLS evaluated under that identity). */
-async function getToken(req: APIRequestContext, email: string): Promise<string> {
-  const resp = await req.post(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-      data: { email, password: 'Test1234!' },
-    },
-  )
-  expect(resp.ok(), `getToken(${email}) failed: ${resp.status()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getToken(req: APIRequestContext, email: string, actAs?: string): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, undefined, actAs)
 }
 
 /** Service-role REST GET. */
@@ -236,9 +231,12 @@ test('REM-3: opening EV-0001 detail emits event_patient.read audit row with no P
 test('REM-4: direct REST read of event_patient is denied — returns 403/42501', async ({
   request,
 }) => {
-  // REVOKE from authenticated role means PostgREST returns 403.
+  // REVOKE from authenticated role means PostgREST returns 403 — a bare
+  // GRANT-level denial, hat-independent by mechanism (no RLS policy even
+  // runs). 'pqs_member' threaded for consistency/diagnostics only, not
+  // because it's load-bearing for this assertion.
   // Use select=* to avoid a 400 (unknown column) masking the real denial.
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
 
   const resp = await userGet(
     request,

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 14c — RCA Workspace (Análise de Causa Raiz)
@@ -84,13 +84,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): ADMIN_EMAIL/admin@test.local (org_admin +
+  // pqs_member, 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 async function restGet<T>(
@@ -139,7 +138,7 @@ async function auditRowsFor(
 
 test('R1: RCA workspace page loads for a sentinel-triaged event', async ({ page, request }) => {
   // First ensure the what_md has known content (R12 may have overwritten it in a prior run)
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const setResp = await rpc(request, 'update_rca', adminToken, {
     p_rca_id: RCA_ID,
     p_what_md: 'Compressa cirúrgica retida — conteúdo restablecido pelo spec R1',
@@ -168,7 +167,7 @@ test('R1: RCA workspace page loads for a sentinel-triaged event', async ({ page,
 test('R2: add_rca_member — add a Facilitator (admin) and an external SME', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Check if admin is already a member (idempotency guard for multi-run scenarios)
   const existingMembers = await restGet<{ user_id: string | null; role: string }>(
@@ -222,7 +221,7 @@ test('R2: add_rca_member — add a Facilitator (admin) and an external SME', asy
 test('R3: update_rca writes problem statement and bumps status to in_progress', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const resp = await rpc(request, 'update_rca', adminToken, {
     p_rca_id: RCA_ID,
@@ -244,7 +243,7 @@ test('R3: update_rca writes problem statement and bumps status to in_progress', 
 // ---------------------------------------------------------------------------
 
 test('R4: add_rca_factor + set_rca_factor_key', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Add a new factor (people category)
   const addResp = await rpc(request, 'add_rca_factor', adminToken, {
@@ -285,7 +284,7 @@ test('R4: add_rca_factor + set_rca_factor_key', async ({ request }) => {
 test('R5: set_rca_why_step and set_rca_why_root on seeded key factor', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const FACTOR_ID = 'fac00000-0000-0000-0000-0000000000a1'  // seeded key factor
 
   // Add a new why step (index 3 — after the seeded 3 steps)
@@ -314,7 +313,7 @@ test('R5: set_rca_why_step and set_rca_why_root on seeded key factor', async ({
 // ---------------------------------------------------------------------------
 
 test('R6: add_rca_root_cause adds a classified root cause', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // If the RCA is completed (from R10 in a prior run), reopen it so we can write
   const rcaRows = await restGet<{ status: string }>(
@@ -367,7 +366,7 @@ test('R6: add_rca_root_cause adds a classified root cause', async ({ request }) 
 // ---------------------------------------------------------------------------
 
 test('R7: add_rca_timeline_entry adds a chronological entry', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const occurred = new Date()
   occurred.setDate(occurred.getDate() - 7)
@@ -388,7 +387,7 @@ test('R7: add_rca_timeline_entry adds a chronological entry', async ({ request }
 // ---------------------------------------------------------------------------
 
 test('R8: add_rca_evidence with citation type (interview target)', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Find an existing interview in the seeded data to cite
   const interviews = await restGet<{ id: string; title: string }>(
@@ -436,7 +435,7 @@ test('R8: add_rca_evidence with citation type (interview target)', async ({ requ
 test('R9: submit_rca_for_review transitions in_progress → in_review', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Ensure RCA is in_progress
   const rows = await restGet<{ status: string }>(
@@ -467,7 +466,7 @@ test('R9: submit_rca_for_review transitions in_progress → in_review', async ({
 test('R10: complete_rca freezes the RCA; rejects if no root cause exists', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // First: ensure we are in_review state (submit if needed)
   const rows = await restGet<{ status: string }>(
@@ -510,7 +509,7 @@ test('R10: complete_rca freezes the RCA; rejects if no root cause exists', async
 test('R11: reopen_rca transitions completed → in_progress and writes audit row', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Ensure the RCA is completed (R10 should have done this)
   const rows = await restGet<{ status: string }>(
@@ -562,7 +561,7 @@ test('R12: assigned plain-staff SME can write the RCA (update_rca succeeds)', as
 // ---------------------------------------------------------------------------
 
 test('R13: observer member gets HC048 on any write', async ({ request }) => {
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // Add chefe.farm as an observer on the RCA
   const FARM_ID = '00000000-0000-0000-0000-000000000005'
@@ -621,7 +620,7 @@ test('R15: nsp-evidence bucket rejects DELETE from admin (immutable bucket)', as
 }) => {
   // The bucket is configured as immutable (no UPDATE/DELETE policies).
   // We attempt a DELETE on a non-existent object and expect a non-204 response.
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   const resp = await request.delete(
     `${SUPABASE_URL}/storage/v1/object/nsp-evidence/fake-object-immutability-test`,

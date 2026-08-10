@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { requireUser } from "@/lib/queries/session";
+import { getRawGrants, requireUser } from "@/lib/queries/session";
 import { notificationsEnabled } from "@/lib/queries/feature-flags";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -23,9 +23,10 @@ export default async function AccountLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [context, notificationsOn] = await Promise.all([
+  const [context, notificationsOn, grants] = await Promise.all([
     requireUser(),
     notificationsEnabled(),
+    getRawGrants(),
   ]);
 
   return (
@@ -43,7 +44,12 @@ export default async function AccountLayout({
           <span className="text-sm font-semibold tracking-tight">Minha conta</span>
           <div className="ml-auto flex items-center gap-3">
             <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
+            <UserMenu
+              fullName={context.fullName}
+              email={context.email}
+              activeRole={context.activeRole}
+              grants={grants}
+            />
           </div>
         </div>
         {/* Secondary nav between the two personal surfaces — only while the

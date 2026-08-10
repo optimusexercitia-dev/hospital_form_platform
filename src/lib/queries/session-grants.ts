@@ -210,3 +210,39 @@ export function partitionGrants(grants: SessionGrant[]): SessionRoleLists {
     nspOperatorOf,
   }
 }
+
+/**
+ * ACT Stage 3 (ADR 0106) — one row per distinct role TYPE the caller holds
+ * (D2: "Silva picks 'quality reviewer', not 'quality reviewer — Hospital
+ * Central A'"), for the `/selecionar-perfil` picker's option list and the D9
+ * hint's "other hats held" set.
+ *
+ * PURE, no I/O: consumes the SAME hat-blind `SessionGrant[]` `session_context()`
+ * already returns (D9: "constructed purely from their own memberships") — no
+ * new backend round trip. `platform_admin` never appears here: it is not a
+ * `memberships` row (D11), and per D11/D7 a platform_admin account's hat is
+ * always derived implicitly with no UI in the path.
+ *
+ * Deliberately does NOT resolve a landing route per option — the design note's
+ * §1 role→route table lives with the picker's own frontend code (`src/app/**`
+ * ownership), which already has `page.tsx`'s doc comment as its source; this
+ * function's job ends at "which role types, how many scope instances each."
+ */
+export interface SelectableRoleOption {
+  role: string
+  /** Count of distinct scope instances (orgs/hospitals/commissions) this role
+   * type spans — the picker's own affordance for "name it" vs "pick after". */
+  count: number
+}
+
+export function getSelectableRoles(
+  grants: SessionGrant[],
+): SelectableRoleOption[] {
+  const counts = new Map<string, number>()
+  for (const g of grants) {
+    counts.set(g.role, (counts.get(g.role) ?? 0) + 1)
+  }
+  return Array.from(counts, ([role, count]) => ({ role, count })).sort(
+    (a, b) => a.role.localeCompare(b.role),
+  )
+}

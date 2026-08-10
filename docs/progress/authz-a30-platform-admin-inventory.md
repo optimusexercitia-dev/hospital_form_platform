@@ -74,7 +74,7 @@ I closed every spelling rather than filtering one arm name (M1's lesson):
 | Spelling | Result |
 | --- | --- |
 | `app.is_admin()` calls | 17 functions (comments stripped) + 22 policies |
-| `app.is_admin_for()` calls | **0 real callers — the function is dead code** (its only mention is a comment in `create_referral_draft` saying `…626000 correctly dropped is_admin_for`) |
+| `app.is_admin_for()` calls | ⛔ **CORRECTED 2026-08-10 — this row is FALSE and the way it was false is the lesson.** ~~0 real callers — the function is dead code~~. It has **2 real callers**, `app.grant_role_impl` and `app.revoke_role_impl`, and both receive `p_actor` from `public.grant_role`/`revoke_role`, which bind it to `(select auth.uid())` — so it is not merely live, it is **the caller gate on the membership-grant door**. It was hat-blind until `20260918002800` (ACT Stage 3 QA BLOCKER-1: a platform_admin in any other hat could seat an `org_admin`/`hospital_admin`). At least the `hospital_admin` arm was added later, by ADR 0097 D17 (2026-08-06), so this row may well have been true when written and **went stale silently** — which is exactly why a load-bearing claim must name its measurement date or be re-derived, never quoted forward. Method note: the sweep that produced "0 callers" matched on a bare name substring, and a `(select auth.uid())`-wrapped argument defeats regex call-argument extraction. Both traps are written up as `docs/progress/authz-handoff.md` §7.17. |
 | Raw JWT claim read directly | **`app.is_admin` is the ONLY reader** of `request.jwt.claims` → the claim cannot be reached around the helper |
 | `profiles.is_admin` column read directly | 6 functions; 5 are non-arms (definitions/insert/CHECK/negative filter), **1 is a real arm the `is_admin()` text filter MISSES** → `guard_profile_privileged_columns` |
 | `is_platform_admin*` / `superuser*` | do not exist |
@@ -378,4 +378,4 @@ rollback;
 4. **Bucket D:** is `participants.display_name` guaranteed pseudonymous, or must it be constrained?
 5. **Class-2 (3 sites):** does platform support legitimately need cross-tenant professional records?
    → **product decision.** Reads are audited; this is not a safety necessity.
-6. **Dead code:** `app.is_admin_for` has zero real callers — drop it? (housekeeping, not a finding)
+6. ~~**Dead code:** `app.is_admin_for` has zero real callers — drop it? (housekeeping, not a finding)~~ ⛔ **WITHDRAWN 2026-08-10 — false, and dangerously so.** It has 2 real callers and is the **caller gate on the membership-grant door**; dropping it would have removed a live authorization check. See the corrected row above and `authz-handoff.md` §7.17.

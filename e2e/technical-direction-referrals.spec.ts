@@ -69,7 +69,11 @@ function sql(query: string): string {
 function ensureSentDtReferral(subject: string): void {
   const claims =
     `select set_config('request.jwt.claims', jsonb_build_object(` +
-    `'sub','${CHEFE_CCIH}','role','authenticated','is_admin',false)::text, false); ` +
+    `'sub','${CHEFE_CCIH}','role','authenticated','is_admin',false,` +
+    // ACT ADR 0106 (D5): hand-minted claims bypass the token hook, so the implicit
+    // single-role hat derive never runs — the hat claim must be minted explicitly
+    // or every hat-gated door (send_referral's coordinator check) denies.
+    `'active_role','staff_admin')::text, false); ` +
     `set role authenticated;`
   sql(
     `${claims} ` +
@@ -218,7 +222,7 @@ test('DT-5: a coordinator of another hospital cannot open the DT inbox', async (
 }) => {
   // chefe.farm coordinates a commission of the SAME hospital but holds no technical
   // direction; staff1.qual.b is another org entirely. Both must be refused the route.
-  await cachedSignIn(page, 'staff1.qual.b@test.local')
+  await cachedSignIn(page, 'staff1.qual.b@test.local', undefined, 'staff_admin')
   await page.goto(`/o/${ORG}/direcao-tecnica`)
   await expect(
     page.getByRole('heading', { name: 'Encaminhamentos à direção técnica' }),

@@ -905,8 +905,12 @@ test('Security: foreign in_progress response URL is 404 with no form data leakag
   await page.goto(staff1WizardUrl)
 
   // The commission's not-found boundary must render — no form data visible.
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem (ACT ADR
+  // 0106's commission-tier sibling boundary; no more-specific not-found.tsx
+  // exists under forms/**, so it shares the same file as the QO·B
+  // CUT_ROUTES sample already verified live).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
   await expect(
     page.getByText(/dispensador de álcool/i),

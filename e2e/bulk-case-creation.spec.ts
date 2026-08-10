@@ -313,13 +313,19 @@ test.describe('AC1 — access gate', () => {
     await signInAs(page, STAFF1_CCIH)
 
     await page.goto(BOARD_URL)
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — both
+    // routes hit the commission not-found boundary (ACT ADR 0106's sibling),
+    // verified live across the QO·B CUT_ROUTES sample (incl. manage/cases).
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
 
     await page.goto(WIZARD_URL)
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — both
+    // routes hit the commission not-found boundary (ACT ADR 0106's sibling),
+    // verified live across the QO·B CUT_ROUTES sample (incl. manage/cases).
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
 
     // No data leakage: neither the wizard's own content nor either eligible

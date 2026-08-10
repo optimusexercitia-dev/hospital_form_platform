@@ -155,7 +155,7 @@ reset role;
 select set_config('request.jwt.claims', '', true);
 
 -- GRANTEE with deliberation: substance visible.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'staff');
 set local role authenticated;
 select is((select discussion_notes from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2b41'), 'NOTAS_DELIB',

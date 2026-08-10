@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import type { CommissionRole, Membership } from "@/lib/queries/session";
+import type { SessionGrant } from "@/lib/queries/session-grants";
 import { cn } from "@/lib/utils";
 import { nspHref, orgHref, qualidadeHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
@@ -390,6 +391,8 @@ export function AppSidebar({
   isPqsMember = false,
   isQualityReviewer = false,
   navScope = "member",
+  activeRole = null,
+  grants = [],
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
   org: string;
@@ -482,6 +485,12 @@ export function AppSidebar({
    * Defaults to `"member"` — today's behaviour. See {@link SidebarNavScope}.
    */
   navScope?: SidebarNavScope;
+  /** ACT (ADR 0106 D12) — the caller's active hat, for `UserMenu`'s indicator
+   * caption + "Trocar papel" exclusion. */
+  activeRole?: string | null;
+  /** The caller's hat-blind grants (`getRawGrants()`), for `UserMenu`'s
+   * "Trocar papel" switch. */
+  grants?: SessionGrant[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -868,7 +877,13 @@ export function AppSidebar({
         <div className="flex items-center gap-2 border-t border-sidebar-border p-3">
           {notificationBell}
           <div className="min-w-0 flex-1">
-            <UserMenu fullName={fullName} email={email} roleLabel={roleLabel} />
+            <UserMenu
+              fullName={fullName}
+              email={email}
+              roleLabel={roleLabel}
+              activeRole={activeRole}
+              grants={grants}
+            />
           </div>
         </div>
       </aside>

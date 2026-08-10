@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg, getNspAccessByOrg } from "@/lib/queries/session";
+import {
+  getCommissionAccessByOrg,
+  getNspAccessByOrg,
+  getRawGrants,
+} from "@/lib/queries/session";
 import {
   casesExtrasEnabled,
   countOpenCasesForBoard,
@@ -89,7 +93,13 @@ export default async function CommissionLayout({
   params: Promise<{ org: string; commission: string }>;
 }) {
   const { org, commission } = await params;
-  const access = await getCommissionAccessByOrg(org, commission);
+  // ACT (ADR 0106) — `grants` feeds `UserMenu`'s "Trocar papel" switch across
+  // all three branches below (hat-blind by design, D9); fetched once here
+  // rather than per-branch.
+  const [access, grants] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    getRawGrants(),
+  ]);
 
   if (
     !access ||
@@ -116,6 +126,8 @@ export default async function CommissionLayout({
         commissionName={access.commission.name}
         fullName={access.context.fullName}
         email={access.context.email}
+        activeRole={access.context.activeRole}
+        grants={grants}
       >
         {children}
       </QualityViewerShell>
@@ -153,6 +165,8 @@ export default async function CommissionLayout({
           qualityIndicatorsEnabled={configIndicatorsOn}
           auditEnabled={configAuditOn}
           notificationBell={<NotificationBell />}
+          activeRole={access.context.activeRole}
+          grants={grants}
         />
         <main className="min-w-0 flex-1">
           <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">
@@ -320,6 +334,8 @@ export default async function CommissionLayout({
           (q) => q.organization.id === access.organization.id,
         )}
         notificationBell={<NotificationBell />}
+        activeRole={access.context.activeRole}
+        grants={grants}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

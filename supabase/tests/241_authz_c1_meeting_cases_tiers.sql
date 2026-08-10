@@ -120,7 +120,7 @@ reset role;
 select set_config('request.jwt.claims', '', true);
 
 -- GRANTEE on the sub-group case: summary visible (grant confers deliberation).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'staff');
 set local role authenticated;
 select is((select summary from public.get_meeting_cases('00000000-0000-0000-0000-0000000c1a30')
            where case_id='00000000-0000-0000-0000-0000000c1e92'), 'RESUMO_EG',

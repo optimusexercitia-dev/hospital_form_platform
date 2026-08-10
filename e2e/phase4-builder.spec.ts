@@ -92,9 +92,10 @@ test('staff cannot reach the builder (no builder UI on the list or a form URL)',
   await signInAs(page, 'staff1.ccih@test.local')
   const nav = page.getByRole('navigation', { name: 'Navegação da comissão' })
 
-  const notFound = page.getByRole('heading', {
-    name: /Não encontramos esta página/,
-  })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — this
+  // manage/forms route hits the commission not-found boundary (ACT ADR
+  // 0106's sibling), verified live across the QO·B CUT_ROUTES sample.
+  const notFound = page.getByText(/não encontr/i).first()
 
   await page.goto('/o/rede-a/c/ccih/manage/forms')
   await expect(nav).toBeVisible()

@@ -358,12 +358,16 @@ select is(
   (select count(*) from public.audit_log where action = 'referral_patient.read') - (select before from pr2),
   1::bigint, 'an entitled PHI read writes exactly one referral_patient.read row');
 
--- The referral_patient.updated mutation-audit row carries NO identifier (metadata = {}).
+-- The referral_patient.updated mutation-audit row carries NO identifier.
+-- ACT Stage 3 (ADR 0106 D8): audit_write now always stamps metadata.acting_as
+-- from the writer's active hat (staff_admin, per this section's actor) — the
+-- assertion is updated to the new expected shape, not weakened; NO identifier
+-- (PHI) key is added, which is what this test actually guards.
 select is(
   (select metadata from public.audit_log
    where action = 'referral_patient.updated' and entity_id = (select id from r1)
    order by occurred_at desc limit 1),
-  '{}'::jsonb, 'referral_patient.updated audit metadata carries NO identifier');
+  '{"acting_as": "staff_admin"}'::jsonb, 'referral_patient.updated audit metadata carries NO identifier (only the D8 acting_as stamp)');
 
 -- =========================================================================
 -- can_read_case QPS term: QPS reads the referral-touched source (A) AND target (B)
@@ -778,7 +782,7 @@ select throws_ok(
   $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,
   'HC0A3', null, 'R2: a non-admin cannot create a requested-action (HC0A3)');
 reset role;
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select lives_ok(
   $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,

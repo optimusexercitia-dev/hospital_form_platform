@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 22 — Inter-Committee Case Referrals (`case_referrals`)
@@ -165,20 +165,22 @@ async function setReferralsFlag(req: APIRequestContext, enabled: boolean) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for pqsdual.a@test.local (pqs_member + staff — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a JWT for a persona (RLS evaluated under it). */
-async function getToken(req: APIRequestContext, email: string): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password: 'Test1234!' },
-  })
-  expect(resp.ok(), `getToken(${email}) failed: ${resp.status()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getToken(req: APIRequestContext, email: string, actAs?: string): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member)
+  // and staff1.qual.b@test.local (staff + staff_admin) otherwise come back
+  // with no active_role claim.
+  return accessToken(req, email, undefined, actAs)
 }
 
 /** PostgREST GET under a bearer token. */
@@ -608,7 +610,7 @@ test("Flow 2d: B user cannot read A's source case_referral source data directly 
 test('Flow 3a: QPS admin can read A\'s source case (get_case_detail returns non-null)', async ({
   request,
 }) => {
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const resp = await rpc(request, 'get_case_detail', adminToken, {
     p_case_id: CASE_A_ID,
   })
@@ -637,7 +639,7 @@ test('Flow 3b: QPS member can read ENC-0001 detail via the per-org QPS referral 
 test('Flow 3c: QPS admin can read B\'s linked case via get_case_detail', async ({
   request,
 }) => {
-  const adminToken = await getToken(request, 'admin@test.local')
+  const adminToken = await getToken(request, 'admin@test.local', 'pqs_member')
   const resp = await rpc(request, 'get_case_detail', adminToken, {
     p_case_id: CASE_B_ID,
   })
@@ -647,21 +649,61 @@ test('Flow 3c: QPS admin can read B\'s linked case via get_case_detail', async (
   expect(body).not.toBeNull()
 })
 
-test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on detail page', async ({
+test('Flow 3d: a plain CCIH staff member sees ENC-0001 status but not its PHI-bearing result; a PQS operator cannot reach the page at all', async ({
   page,
 }) => {
   // ⛔ QO·B, 2026-08-09: swapped from admin@test.local, which used to resolve to
   // staff_admin on /o/rede-a/c/* via the now-removed coercion (BUG-QOB-003) and
   // is a bare tenancy admin today (404s on encaminhamentos/** — see the file
   // header). pqsdual.a is a REAL CCIH member (opens the hub on that arm alone)
-  // who is also PQS-enrolled, which is what "QPS admin" means for this flow.
-  await signInAs(page, 'pqsdual.a@test.local')
+  // who is also PQS-enrolled.
+  //
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10 (was
+  // BUG-ACT-RAWGRANT-HATLESS-1's "left RED" note; superseded by this
+  // rewrite, not a re-open). This test's ORIGINAL title/claim — "QPS admin
+  // sees ENC-0001 reply + delivered result" as ONE integrated, single-
+  // session journey — is now impossible, not merely untested. The hub URL
+  // is commission-scoped (/o/rede-a/c/ccih/...): `staff` is what admits her
+  // to the commission area at all (`is_pqs_operator_of` admits the bare
+  // `commissions` RLS row but not this page — confirmed live, same
+  // mechanism as the nsp-per-hospital.spec.ts AC-7 dispose tests). But the
+  // reply RESULT (`referral_reply.result_md` — PHI-bearing free text per
+  // ARCHITECTURE.md Rule 12) is gated by `can_read_referral_phi`
+  // (`is_pqs_operator_of_for(...) OR is_staff_admin_of_for(...) OR
+  // <target-side arms>`, verified live) — pqsdual.a is a plain CCIH
+  // `staff`, not `staff_admin`, so `staff` passes ENTRY but fails PHI; no
+  // single hat does both. Pre-cutover, her one hatless session carried both
+  // arms at once (the same shape as phase15-indicators.spec.ts AC-5b), so
+  // this test never had to choose.
+  //
+  // Per the PO: the NSP surface (/o/[org]/nsp/encaminhamentos,
+  // pqs_member-reachable) deliberately has NO deep link into this
+  // commission-scoped PHI detail page — a pure PQS operator may not be a
+  // member of either side's commission, so routing them here isn't a safe
+  // target. The product is PHI-free at that surface ON PURPOSE, not by
+  // this gap. Rewritten below to assert each half under its OWN correct
+  // hat, plus the specific thing that's now gone.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
-  // Reply is visible
+  // The non-PHI status is visible to a plain commission member...
   await expect(page.getByText(/Procede/i).first()).toBeVisible()
-  // Reply result MD
-  await expect(page.getByText(/conciliação medicamentosa procede/i)).toBeVisible()
+  // ...but the PHI-bearing result is correctly WITHHELD, not merely absent
+  // by accident — verified live: the page renders this exact fallback
+  // rather than the real result text, matching the platform's D4 doctrine
+  // (absence must stay indistinguishable from non-existence) rather than a
+  // distinct "hidden for you" signal that would itself leak that PHI exists.
+  await expect(page.getByText(/Sem resultado registrado\./i)).toBeVisible()
+  await expect(page.getByText(/conciliação medicamentosa procede/i)).toHaveCount(0)
+
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even pqsdual.a's own — cannot reach this
+  // commission-scoped page AT ALL, so the "same session sees the status AND
+  // the PHI result" journey this Flow originally exercised is structurally
+  // impossible now, not merely untested.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -720,7 +762,9 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   // then send it, and verify close_case is not blocked.
   // (We use the admin token to bypass the source-coordinator constraint for this test,
   //  as chefe.ccih is CCIH coordinator — same result.)
-  const adminToken = await getToken(request, 'admin@test.local')
+  // ACT (ADR 0106): org_admin — she stands in for a coordinator's tenancy-
+  // admin-equivalent authority here, not her PQS-operator standing.
+  const adminToken = await getToken(request, 'admin@test.local', 'org_admin')
 
   // p_referral_type_id is required by the RPC; use the service key to pick a valid type id
   const typesResp = await restGet<{ id: string; key: string }>(
@@ -774,69 +818,140 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
 //     → permission denied (42501).
 // ---------------------------------------------------------------------------
 
-test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, no identifiers in metadata', async ({
+test('Flow 5a: referral_patient.read audit-write mechanism (entitled reader) + a plain staff member cannot reveal PHI + a PQS operator cannot reach the page at all', async ({
   page,
   request,
 }) => {
   // ⛔ QO·B, 2026-08-09: swapped from admin@test.local — see Flow 3d's comment
-  // and the file header for why it no longer reaches this route. Also tightens
-  // a real gap the old version had: admin@'s reveal-button probe was wrapped in
-  // an `if (isVisible) … else { if (html.includes(PHI_NAME)) … }` with NO ELSE
-  // branch assertion, so once admin@ started 404ing this test went silently
-  // VACUOUS (green while proving nothing — the exact "a test that cannot fail"
-  // trap e2e/qob-org-admin-content-wall.spec.ts's own header warns against).
-  await signInAs(page, 'pqsdual.a@test.local')
+  // and the file header for why it no longer reaches this route.
+  //
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10, EXTENDED
+  // explicitly to this test from the Flow 3d/AC-5b ruling (this test was
+  // flagged, not rewritten, in the tester's first union-tests close-out —
+  // "a third, structurally-identical case... not yet PO-reviewed"; the PO
+  // reviewed it and extended the ruling). Same two-gate shape, same
+  // predicate as Flow 3d: `get_referral_patient` is gated by
+  // `can_read_referral_phi` (`is_pqs_operator_of_for(...) OR
+  // is_staff_admin_of_for(...) OR <target-side arms>`, verified live during
+  // the Flow 3d rewrite) — the identical gate that withholds `result_md`
+  // there withholds the patient panel here. `staff` admits pqsdual.a to this
+  // commission-scoped route but she is plain CCIH `staff`, not
+  // `staff_admin` — fails PHI. `pqs_member` would satisfy PHI but 404s this
+  // exact route: the gate lives on the ACTIVE HAT, not the specific user, so
+  // Flow 3d's live proof (same route, same persona, `pqs_member` hat → 404)
+  // transfers directly — not re-run here as its own experiment, per the
+  // coordinator's "same-shape edit, not a new investigation." No single hat
+  // does both; pre-cutover her one hatless session carried both arms at
+  // once, so this test never had to choose.
+  //
+  // ⛔ RESTORED 2026-08-10, coordinator's explicit call: the union-gate
+  // rewrite below (the ONLY thing this test asserted for one round) left
+  // Rule 11 + Rule 12's PHI-audit claim — a `referral_patient` read emits a
+  // row, its metadata carries NO PHI, attributed to the source commission —
+  // with no proof anywhere in this file, because the original test's only
+  // actor was a QPS-operator-only identity whose journey is now gone. Losing
+  // that as ACT collateral is a real regression in compliance posture
+  // (LGPD/ANVISA/CFM), not tidy-up. Restored via `chefe.ccih` — staff_admin
+  // CCIH, the source coordinator — exactly as flagged: already proven live
+  // (Flow 1b's `result_md` visibility) to pass the identical
+  // `can_read_referral_phi` gate; ALWAYS could reach this route and reveal
+  // PHI, pre- and post-ACT alike, no hat ever involved for her. NOT a
+  // widening — asserting the MECHANISM (row/metadata/attribution), not the
+  // QPS-specific journey that's genuinely gone.
+  await signInAs(page, 'chefe.ccih@test.local')
 
-  // Capture audit count BEFORE the reveal
+  const beforeEntitled = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  // BUG-ACT-NOTFOUND-COPY-1: widened to /não encontr/i so this reachability
+  // guard also catches a regression via the NEW commission not-found
+  // boundary, not just the old global one.
+  await expect(
+    page.getByText(/não encontr/i),
+  ).toHaveCount(0)
+
+  // `.isVisible()` does NOT auto-wait (Playwright docs: it does not wait for the
+  // element to become visible, unlike a normal action) — an earlier version of
+  // this block raced the panel's render and silently skipped the click. `waitFor`
+  // is the real wait; the `isVisible()` after it is a plain, now-accurate check.
+  const entitledRevealBtn = page.getByRole('button', { name: /exibir identificação/i })
+    .or(page.getByRole('button', { name: /Exibir dados/i }))
+    .or(page.getByRole('button', { name: /Dados do paciente/i }))
+  await entitledRevealBtn.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
+  if (await entitledRevealBtn.first().isVisible()) {
+    await entitledRevealBtn.first().click()
+    await page.waitForTimeout(1_000)
+  }
+  // Whether the panel is lazy (button-gated) or auto-reveals for an entitled
+  // reader, PHI must now be on screen — a REAL positive control: if the
+  // reveal mechanism were broken (button present but non-functional, or
+  // auto-reveal silently not firing), THIS assertion is what would catch it,
+  // and it is not conditional on anything above.
+  await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(new RegExp(PHI_MRN))).toBeVisible()
+
+  // The mechanism itself: a row appears, its metadata carries NO PHI, and it
+  // is attributed to the source commission.
+  const afterEntitled = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+  expect(afterEntitled.length).toBeGreaterThan(beforeEntitled.length)
+  const latestEntitled = afterEntitled[0]
+  const metaEntitled = JSON.stringify(latestEntitled.metadata)
+  expect(metaEntitled).not.toContain(PHI_NAME)
+  expect(metaEntitled).not.toContain(PHI_MRN)
+  expect(latestEntitled.commission_id).toBe(COMM_A)
+
+  // ---- The union-gate rewrite (PO-ruled 2026-08-10): the specific QPS-
+  // operator-only journey is gone, asserted rather than left silent. ----
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
+
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-  // Assert reach explicitly, so a future regression here fails loudly instead of
-  // silently falling through the "PHI doesn't appear, nothing to assert" branch
-  // below.
+  // BUG-ACT-NOTFOUND-COPY-1: widened to /não encontr/i so this reachability
+  // guard also catches a regression via the NEW commission not-found
+  // boundary, not just the old global one.
   await expect(
-    page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+    page.getByText(/não encontr/i),
   ).toHaveCount(0)
 
-  // Click the reveal button (lazy: fires the audited `get_referral_patient` door)
+  // The conditional below is diagnostic only, never the proof: whichever way
+  // it goes, the UNCONDITIONAL block after it (not gated on either branch) is
+  // what actually asserts non-disclosure. That avoids the tautology a bare
+  // "else { expect(revealBtnCount).toBe(0) }" would be here (true by the very
+  // condition that selects the branch) — which would itself be a detector
+  // that cannot detect, the same defect class this rewrite exists to remove.
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
     .or(page.getByRole('button', { name: /Exibir dados/i }))
     .or(page.getByRole('button', { name: /Dados do paciente/i }))
+  const revealBtnCount = await revealBtn.count()
 
-  if (await revealBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await revealBtn.click()
-    await page.waitForTimeout(1_000) // allow the server action to complete
-
-    // Verify PHI appears on screen
-    await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(new RegExp(PHI_MRN))).toBeVisible()
-
-    // Check audit row was written
-    const after = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
-    expect(after.length).toBeGreaterThan(before.length)
-
-    // The audit metadata must NOT contain any PHI identifiers
-    const latest = after[0]
-    const meta = JSON.stringify(latest.metadata)
-    expect(meta).not.toContain(PHI_NAME)
-    expect(meta).not.toContain(PHI_MRN)
-    // The audit row must be attributed to the source commission
-    expect(latest.commission_id).toBe(COMM_A)
-  } else {
-    // PHI panel may be collapsed or auto-reveals for QPS — check that PHI renders
-    // and that an audit row was emitted on page load
-    const html = await page.content()
-    if (html.includes(PHI_NAME)) {
-      // Auto-reveal path: audit must have fired
-      const after = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
-      expect(after.length).toBeGreaterThan(before.length)
-      const latest = after[0]
-      const meta = JSON.stringify(latest.metadata)
-      expect(meta).not.toContain(PHI_NAME)
-      expect(meta).not.toContain(PHI_MRN)
-    }
-    // If PHI doesn't appear at all, the lazy door works correctly — nothing to assert
+  if (revealBtnCount > 0) {
+    // The control renders, but a non-entitled click must not disclose PHI or audit one.
+    await revealBtn.first().click()
+    await page.waitForTimeout(1_000)
+    await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toHaveCount(0)
+    await expect(page.getByText(new RegExp(PHI_MRN))).toHaveCount(0)
   }
+  // else: the control is not even offered to a non-entitled reader — the
+  // stronger shape, and already fully proven by revealBtnCount === 0 without
+  // needing to re-assert it.
+
+  // Regardless of which branch above ran: no PHI text anywhere on the page,
+  // and no audit row fires — the PHI door never opened for this hat.
+  const html = await page.content()
+  expect(html).not.toContain(PHI_NAME)
+  expect(html).not.toContain(PHI_MRN)
+  const afterStaffHat = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+  expect(afterStaffHat.length).toBe(before.length)
+
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even pqsdual.a's own — cannot reach this
+  // commission-scoped page AT ALL, so the "same session reveals the PHI
+  // panel AND it gets correctly audited" journey this Flow originally
+  // exercised is structurally impossible now, not merely untested.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 test('Flow 5b: plain A member calling get_referral_patient → null + NO audit row written', async ({
@@ -1394,7 +1509,9 @@ test('R1-6: posting a message on a referral your commission is not party to is r
 }) => {
   // staff1.qual.b is a rede-b (a different ORG entirely) persona — not a member
   // of CCIH or Farmácia, not QPS of rede-a, not the r1ReferralId analyst.
-  const foreignToken = await getToken(request, 'staff1.qual.b@test.local')
+  // ACT (ADR 0106): either of her 2 real hats denies identically here (a
+  // foreign-org negative control) — 'staff_admin' picked arbitrarily.
+  const foreignToken = await getToken(request, 'staff1.qual.b@test.local', 'staff_admin')
 
   const resp = await rpc(request, 'post_referral_message', foreignToken, {
     p_referral_id: r1ReferralId,

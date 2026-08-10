@@ -24,6 +24,19 @@
 --   §10 shape CHECK rejects illegal shapes.
 --   §11 grant idempotency (on conflict do nothing).
 --   §12 case_access untouched by the collapse.
+--
+-- ACT Stage 1 (ADR 0106; lead ruling 2026-08-09): every inline
+-- `set_config('request.jwt.claims', json_build_object(...))` call below is routed
+-- through `test_helpers.claims_for(<principal>)` — this file is Stage 3's caller-only
+-- hat condition landing on `has_role`, so its 27-wrapper truth table and grant/revoke
+-- assertions must carry the `p_active_role` slot rather than being rewritten inside
+-- Stage 3's own red window. `claims_for` mints `p_active_role => null` by default
+-- (no claim), so this is behaviour-preserving today. It also always sets an
+-- `is_admin` key (default false) the raw payload below omitted — verified inert:
+-- `app.is_admin()` reads `(claims->>'is_admin') = 'true'`, so an absent key (NULL)
+-- and an explicit `'false'` both evaluate to non-true and fall through identically
+-- to the `profiles.is_admin` check (docs/plans/act-as-buildnotes.md has the full
+-- diff + the catalog-verified `is_admin()` body).
 
 begin;
 select plan(65);   -- ADR 0078 Stage B: +1 (case_access_grants successor assertion)
@@ -87,8 +100,7 @@ select is(
 -- §2 · Direct write as a seeded role is rejected (2b: staff_admin path too)
 -- ============================================================================
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k));
 select throws_ok($$
   insert into public.memberships (commission_id, principal_id, role)
   values ((select comm_x from k), (select st_y from k), 'staff') $$,
@@ -96,8 +108,7 @@ select throws_ok($$
 reset role;
 
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k));
 -- sa_x is a staff_admin of comm_x (the newly-locked commission path, readiness 2b).
 select throws_ok($$
   insert into public.memberships (commission_id, principal_id, role)
@@ -110,8 +121,7 @@ select throws_ok($$
 reset role;
 
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_y from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_y from k));
 select throws_ok($$
   insert into public.memberships (organization_id, hospital_id, principal_id, role)
   values ((select org_b from k), (select hosp_b from k), (select sa_y from k), 'pqs_member') $$,
@@ -122,8 +132,7 @@ reset role;
 -- §3 · Self-grant (42501) + staff self-escalation stays 42501 (D3)
 -- ============================================================================
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k));
 select throws_ok($$ select public.grant_role('organization',
   (select org_b from k), 'org_admin', (select sa_x from k)) $$,
   '42501', null, '3.1: grant_role rejects self-grant (42501)');
@@ -134,8 +143,7 @@ reset role;
 
 -- A plain staff CANNOT escalate itself (or anyone) to staff_admin (stays 42501, D3).
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_x from k));
 select throws_ok($$ select public.grant_role('commission',
   (select comm_x from k), 'staff_admin', (select st_x2 from k)) $$,
   '42501', null, '3.3: plain staff cannot grant staff_admin (self-escalation blocked, 42501)');
@@ -150,8 +158,7 @@ insert into public.memberships (commission_id, principal_id, role)
 delete from public.memberships
   where commission_id=(select comm_y from k) and principal_id=(select st_y from k) and role='staff';
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_y from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_y from k));
 select throws_ok($$ select public.grant_role('commission',
   (select comm_y from k), 'staff_admin', (select sa_y from k)) $$,
   '42501', null, '3.4: a plain staff_admin cannot grant staff_admin (role-pin, 42501)');
@@ -184,8 +191,7 @@ delete from public.memberships
 -- via self path anyway; revoke a DIFFERENT last-admin. Set up: grant a 2nd org_admin,
 -- then revoke sa_x (non-last, succeeds), then revoke the survivor (last, HC0G1).
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 
 select lives_ok($$ select public.grant_role('organization',
   (select org_b from k), 'org_admin', (select st_y from k)) $$,
@@ -196,8 +202,7 @@ select lives_ok($$ select public.revoke_role('organization',
 reset role;
 -- st_y is now the last org_admin of org_b; st_y revoking itself... use its session.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_y from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 select throws_ok($$ select public.revoke_role('organization',
   (select org_b from k), 'org_admin', (select st_y from k)) $$,
   'HC0G1', null, '4.3: revoking the LAST org_admin rejected (HC0G1)');
@@ -214,8 +219,7 @@ delete from public.memberships
 -- ============================================================================
 -- (a) commission staff: sa_x (org_admin OR staff_admin) grants st_y as staff of comm_x.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select lives_ok($$ select public.grant_role('commission',
   (select comm_x from k), 'staff', (select st_y from k)) $$,
   '5.1: grant_role staff succeeds');
@@ -223,8 +227,7 @@ reset role;
 select ok(app.is_member_of_for((select comm_x from k), (select st_y from k)),
   '5.2: is_member_of true after staff grant');
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select lives_ok($$ select public.revoke_role('commission',
   (select comm_x from k), 'staff', (select st_y from k)) $$,
   '5.3: revoke_role staff succeeds');
@@ -234,8 +237,7 @@ select ok(not app.is_member_of_for((select comm_x from k), (select st_y from k))
 
 -- (b) hospital nsp_coordinator: sa_y (nsp_org_admin) grants + revokes st_y as coordinator.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_y from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_org_admin');
 select lives_ok($$ select public.grant_role('hospital',
   (select hosp_b from k), 'nsp_coordinator', (select st_y from k)) $$,
   '5.5: grant_role nsp_coordinator succeeds');
@@ -245,8 +247,7 @@ select ok(app.is_nsp_coordinator_of_for((select hosp_b from k), (select st_y fro
 
 -- (c) hospital pqs_member: st_x (coordinator) grants st_x2 as pqs_member.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_x from k), false, 'nsp_coordinator');
 select lives_ok($$ select public.grant_role('hospital',
   (select hosp_b from k), 'pqs_member', (select st_x2 from k)) $$,
   '5.7: coordinator grant_role pqs_member succeeds');
@@ -259,8 +260,7 @@ select ok(app.is_pqs_member_of_for((select hosp_b from k), (select st_x2 from k)
 
 -- (d) organization tier: sa_x (org_admin) grants st_x2 as nsp_org_admin.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select lives_ok($$ select public.grant_role('organization',
   (select org_b from k), 'nsp_org_admin', (select st_x2 from k)) $$,
   '5.10: grant_role nsp_org_admin succeeds');
@@ -308,8 +308,17 @@ select is(
 -- (all revoked / never granted the tested role).
 select ok(not app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)),
   '7.1: is_staff_admin_of false for a plain staff');
+-- ACT Stage 3: `is_staff_admin_of_for(comm_x, sa_x)` is a CALLER check when the
+-- active session IS sa_x (§2's caller-only binding), so it now requires the
+-- active hat to match 'staff_admin' — the session left over from §5.10 is
+-- still sa_x/'org_admin' (a stale but correctly-scoped leftover from L263;
+-- fine for 7.1/7.4-7.6, which target a DIFFERENT principal than the caller
+-- and are therefore third-party checks, hat-independent). Switch explicitly
+-- for 7.2, then back to 'org_admin' for 7.3, which needs that arm.
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 select ok(app.is_staff_admin_of_for((select comm_x from k), (select sa_x from k)),
   '7.2: is_staff_admin_of true for the staff_admin');
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select ok(app.is_tenancy_admin_of_for((select comm_x from k), (select sa_x from k)),
   '7.3: is_tenancy_admin_of true for the org_admin of the commission org');
 select ok(not app.is_tenancy_admin_of_for((select comm_x from k), (select st_x from k)),
@@ -324,12 +333,10 @@ select ok(app.is_pqs_operator_of_for((select hosp_b from k), (select st_x2 from 
 -- nsp_org_admin) of the org. st_x2 was granted nsp_org_admin of org_b in §5.10; st_x is
 -- only a hospital-tier operator of hosp_b (no org-tier admin grant).
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_x2 from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_x2 from k), false, 'nsp_org_admin');
 select ok(app.is_org_level_admin_within((select org_b from k)),
   '7.7a: is_org_level_admin_within TRUE for an nsp_org_admin of the org');
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select st_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select st_x from k));
 select ok(not app.is_org_level_admin_within((select org_b from k)),
   '7.7b: is_org_level_admin_within FALSE for a hospital-only operator (no org-tier admin grant)');
 reset role;
@@ -337,12 +344,10 @@ reset role;
 -- is_hospital_member_of: member of ANY commission in the hospital. sa_x is a staff_admin
 -- of comm_x (under hosp_b); the platform admin holds no commission membership.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 select ok(app.is_hospital_member_of((select hosp_b from k)),
   '7.8a: is_hospital_member_of TRUE for a commission member of the hospital');
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select admin from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select admin from k));
 select ok(not app.is_hospital_member_of((select hosp_b from k)),
   '7.8b: is_hospital_member_of FALSE for a non-member (platform admin)');
 reset role;
@@ -350,12 +355,10 @@ reset role;
 -- is_org_member: any commission membership within the org. sa_x is a member of comm_x in
 -- org_b; the platform admin holds none.
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
 select ok(app.is_org_member((select org_b from k)),
   '7.9a: is_org_member TRUE for a commission member of the org');
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select admin from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select admin from k));
 select ok(not app.is_org_member((select org_b from k)),
   '7.9b: is_org_member FALSE for a non-member (platform admin)');
 reset role;
@@ -442,8 +445,7 @@ delete from public.memberships where commission_id=(select comm_x from k)
 --    back and the row is unchanged. `306` §4 owns the expiry behaviour itself.
 -- ============================================================================
 set local role authenticated;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select sa_x from k), 'role','authenticated')::text, true);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select lives_ok($$ select public.grant_role('commission',
   (select comm_x from k), 'staff', (select st_y from k)) $$, '11.1: grant staff (setup)');
 select lives_ok($$ select public.grant_role('commission',

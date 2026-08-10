@@ -624,15 +624,22 @@ test.describe('Deliverable 3: Org-User meetings hiding (C7)', () => {
     // reason. Asserting `.status()` here would be asserting a value this specific
     // notFound() call site cannot reliably produce, not a security property.
     await page.goto(`${BASE}/meetings`)
+    // BUG-ACT-NOTFOUND-COPY-1: denial verified independently of copy — this
+    // commission-scoped route hits src/app/o/[org]/c/[commission]/not-found.tsx
+    // (ACT ADR 0106's sibling boundary), confirmed live across all 14
+    // QO·B CUT_ROUTES (incl. this exact "meetings" route) with its own
+    // distinctive body text ("...você não tem acesso a esta comissão.") and
+    // "Voltar ao início" link — not generic 404-shaped text. /não encontr/i
+    // is the shared pt-BR stem across old and new boundary copy.
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
     const listBody = (await page.locator('body').textContent()) ?? ''
     expect(listBody).not.toContain(SEEDED_MEETING_TITLE)
 
     await page.goto(`${BASE}/meetings/${SEEDED_MEETING_ID}`)
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
     const detailBody = (await page.locator('body').textContent()) ?? ''
     expect(detailBody).not.toContain(SEEDED_MEETING_TITLE)

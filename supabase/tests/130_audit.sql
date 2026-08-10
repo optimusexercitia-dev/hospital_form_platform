@@ -118,8 +118,10 @@ grant select on r1 to authenticated;
 do $$
 declare v_rid uuid := (select rid from r1);
 begin
-  perform set_config('request.jwt.claims',
-    jsonb_build_object('sub', (select st_x from k), 'role','authenticated','is_admin', false)::text, true);
+  -- ACT Stage 1 sweep: routed through test_helpers.claims_for (was a raw inline
+  -- set_config identical to claims_for(st_x, false)) so this call site already
+  -- has the p_active_role slot available for Stage 3.
+  perform test_helpers.claims_for((select st_x from k), false);
   perform public.save_section_answers(
     v_rid, (select sec_u from k),
     '{}'::jsonb, null, null,

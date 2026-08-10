@@ -229,7 +229,9 @@ test('AC-3 editing the global pack directly fails — HC0QD — on upsert_standa
 // ===========================================================================
 
 test('AC-4 a user from another org cannot see the clone via a direct RLS read', async ({ page }) => {
-  const token = await getToken(page, STAFF1_QUAL_B)
+  // ACT (ADR 0106): either of her 2 real hats denies identically here (a
+  // foreign-org negative control) — 'staff_admin' picked arbitrarily.
+  const token = await getToken(page, STAFF1_QUAL_B, undefined, 'staff_admin')
 
   const frameworks = await selectAs<{ id: string }>(
     page,

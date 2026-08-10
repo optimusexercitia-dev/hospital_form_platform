@@ -900,13 +900,16 @@ test('IV2-9b — participant write grant: non-interviewer staff CANNOT write (UI
 test('IV2-10 — security: foreign-commission user gets 404, no data leakage', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
 
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — both
+  // routes below hit the commission not-found boundary (ACT ADR 0106's
+  // sibling; "Erro 404" is not part of its copy), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await goToInterview(page, SEEDED_INTERVIEW_ID)
-  await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: /Não encontramos esta página/i })).toBeVisible({ timeout: 5_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(/Entrevista sobre o Caso 0001/i)).not.toBeVisible()
 
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
-  await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 15_000 })
 
   const farmToken = await getOwnerToken(page, 'chefe.farm@test.local')
   const resp = await page.request.get(

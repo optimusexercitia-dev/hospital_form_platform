@@ -151,7 +151,7 @@ reset role;
 -- four dashboard functions admitted them — so an org_admin saw Totais and Texto
 -- livre but took an empty Exportar/Distribuições. A live access gap nobody filed.
 -- ==========================================================================
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 -- ⛔ INVERTED BY QO·B M5 (20260915000400). This asserted that an org_admin NOW reads the
 -- submitted row — the unification that made all nine doors uniform. ADR 0100 D12 splits

@@ -95,7 +95,7 @@ select throws_ok(
 reset role;
 
 -- The coordinator (sa_y) CAN enroll a user.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
@@ -114,7 +114,7 @@ select ok(
 -- coalesce(excluded.expires_at, memberships.expires_at)`. It is idempotent HERE because
 -- add_pqs_member takes no expiry argument, so coalesce(null, existing) writes the
 -- existing value back. This comment said `on conflict do nothing` until 2026-08-07.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
@@ -136,7 +136,7 @@ select throws_ok(
 reset role;
 
 -- Coordinator removes sa_x (enrolled in §C).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select lives_ok(
   format($$ select public.remove_pqs_member(%L::uuid, %L::uuid) $$,
@@ -169,7 +169,7 @@ select throws_ok(
 reset role;
 
 -- Coordinator can list; must contain admin (still enrolled from §A).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 create temp table members_list on commit drop as
   select public.list_pqs_members((select hosp_b from k)) as j;
@@ -197,7 +197,7 @@ select throws_ok(
 reset role;
 
 -- Range validation: 0 and >365 are rejected (HC046).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select throws_ok(
   format($$ select public.set_pqs_rca_due_window(%L::uuid, 0) $$, (select hosp_b from k)),
@@ -433,7 +433,7 @@ reset role;
 
 -- The COORDINATOR arm is a SEPARATE union branch with its own filters. A fix applied
 -- to one arm only passes I1-I4 and reds here.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select is(
   jsonb_array_length(public.list_my_nsp_hospitals()), 1,
@@ -443,7 +443,7 @@ reset role;
 update public.memberships set expires_at = now() - interval '1 hour'
  where principal_id = (select sa_y from k) and role = 'nsp_coordinator';
 
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'nsp_coordinator');
 set local role authenticated;
 select is(
   jsonb_array_length(public.list_my_nsp_hospitals()), 0,

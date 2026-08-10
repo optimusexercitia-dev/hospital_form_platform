@@ -186,7 +186,7 @@ select throws_ok(
 reset role;
 
 -- B6: the org_admin (NOT a member) is the deadlock exit — may grant to a member.
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   $$select public.grant_case_access('00000000-0000-0000-0000-0000000b1001', (select st_x2 from k), 'read')$$,

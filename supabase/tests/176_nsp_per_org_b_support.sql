@@ -367,8 +367,16 @@ select is(
   (select count(*)::int from public.commissions where organization_id = (select org_a from personas)),
   1,
   'D3 NEGATIVE: a plain non-PQS member (chefe.ccih) STILL reads only its OWN commission (1, not the org''s 2) — broadening adds no reach');
+-- string_agg (not a bare scalar subquery) so a widened result FAILS this
+-- assertion cleanly instead of crashing the whole file with "more than one
+-- row returned by a subquery used as an expression" (found running the ACT
+-- Stage 3 D11 diff-scoped door sweep on app.is_admin() — its "positive"
+-- neutralization forces is_admin() TRUE for every caller including
+-- chefe.ccih, which widens this exact policy arm; the crash aborted 3 later
+-- tests in this file, an ERROR the door-audit harness cannot itself resolve
+-- to COVERED/BLIND per §7.15 — this hardening is what let the case complete).
 select is(
-  (select slug from public.commissions where organization_id = (select org_a from personas)),
+  (select string_agg(slug, ',' order by slug) from public.commissions where organization_id = (select org_a from personas)),
   'ccih',
   'D3 NEGATIVE: …and that one commission is CCIH (its own), not Farmácia');
 select is(

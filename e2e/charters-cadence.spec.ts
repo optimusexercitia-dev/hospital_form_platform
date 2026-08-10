@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Committee Charters & Meeting Cadence (S4·CH, Phase 21; ADR 0080; build plan
@@ -174,13 +174,13 @@ async function getOwnerToken(
   request: APIRequestContext,
   email: string,
   password = PW,
+  actAs?: string,
 ): Promise<string> {
-  const resp = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): FOREIGN_EMAIL/staff1.qual.b@test.local
+  // (staff + staff_admin, 2 role types) otherwise comes back with no
+  // active_role claim.
+  return accessToken(request, email, password, actAs)
 }
 
 async function callRpc(
@@ -203,10 +203,14 @@ async function callRpc(
 // UI helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, pw = PW) {
+async function signInAs(page: Page, email: string, pw = PW, actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, pw)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for QUALB_SA_EMAIL/orgadmin.b@ and FARMB_SA_EMAIL·FOREIGN_EMAIL/
+  // staff1.qual.b@ (each 2 role types), which otherwise land on
+  // /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, pw, actAs)
 }
 
 /** pt-BR long date — byte-for-byte the same formatting as
@@ -383,7 +387,7 @@ test('AC-1a — cadence indicator: Farmácia (em_dia) shows "Em dia"', async ({ 
 })
 
 test('AC-1b — cadence indicator: Farmácia B (em_atraso) shows "Reunião em atraso"', async ({ page }) => {
-  await signInAs(page, FARMB_SA_EMAIL)
+  await signInAs(page, FARMB_SA_EMAIL, undefined, 'staff_admin')
   await page.goto(`/o/${ORG_B}/c/${FARMB_SLUG}/meetings`)
   await expect(page.getByRole('heading', { name: /reuniões/i }).first()).toBeVisible({ timeout: 10_000 })
 
@@ -394,7 +398,7 @@ test('AC-1b — cadence indicator: Farmácia B (em_atraso) shows "Reunião em at
 test('AC-1c — cadence indicator: Qualidade e Segurança (sem_reunioes) shows "Sem reuniões registradas"', async ({
   page,
 }) => {
-  await signInAs(page, QUALB_SA_EMAIL)
+  await signInAs(page, QUALB_SA_EMAIL, undefined, 'staff_admin')
   await page.goto(`/o/${ORG_B}/c/${QUALB_SLUG}/meetings`)
   await expect(page.getByRole('heading', { name: /reuniões/i }).first()).toBeVisible({ timeout: 10_000 })
 
@@ -445,7 +449,7 @@ test('AC-3 — a foreign-commission (Rede B) user gets no cadence read and no ro
   // RPC-level: FOREIGN_EMAIL is a Rede B user with zero membership anywhere
   // in Rede A — meeting_cadence_status must refuse HC0K2, not silently
   // return some default status.
-  const token = await getOwnerToken(request, FOREIGN_EMAIL)
+  const token = await getOwnerToken(request, FOREIGN_EMAIL, undefined, 'staff_admin')
   const resp = await callRpc(request, 'meeting_cadence_status', token, { p_commission: FARM_COMM })
   expect(resp.ok()).toBeFalsy()
   const body = (await resp.json()) as { code?: string; message?: string }
@@ -454,9 +458,12 @@ test('AC-3 — a foreign-commission (Rede B) user gets no cadence read and no ro
   expect(bodyText).not.toMatch(/em_dia|em_atraso|sem_reunioes|sem_regimento/)
 
   // UI-level: the meetings route 404s — no content leaks through the shell.
-  await signInAs(page, FOREIGN_EMAIL)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — /meetings hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. this exact route).
+  await signInAs(page, FOREIGN_EMAIL, undefined, 'staff_admin')
   await page.goto(`/o/${ORG_A}/c/${FARM_SLUG}/meetings`)
-  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -541,8 +548,15 @@ test('AC-5 — the charter save(s) in AC-4 emit charter.upserted audit rows, PHI
   expect(latest.entity_type).toBe('commission')
   expect(latest.entity_id).toBe(FARM_COMM)
   // PHI-free (Rule 12): config-level metadata only — frequency + whether a
-  // regimento is linked, nothing else (no names, no free text).
-  expect(Object.keys(latest.metadata).sort()).toEqual(['has_regimento', 'meeting_frequency'])
+  // regimento is linked, nothing else (no names, no free text). `acting_as` is
+  // ACT ADR 0106 D8: audit_write stamps the caller's active hat (a role label,
+  // not PHI) into every row's metadata.
+  expect(Object.keys(latest.metadata).sort()).toEqual([
+    'acting_as',
+    'has_regimento',
+    'meeting_frequency',
+  ])
+  expect(latest.metadata.acting_as).toBe('staff_admin')
   expect(latest.metadata.has_regimento).toBe(true)
   // AC-4's LAST save was the restore-to-mensal.
   expect(latest.metadata.meeting_frequency).toBe('mensal')

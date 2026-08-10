@@ -35,6 +35,41 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > Amendment 1, hazard 1; Amendment 3 — a brand-new gate is in no BLIND set, so it clears
 > `ARM=policy` vacuously and only `ARM=census` catches it).
 
+> ⚠ **HAND-MERGED, 2026-08-10 (ACT Stage 3, ADR 0106 D11).** `app.is_admin()`'s row moves
+> from **ERROR** to **COVERED**, merged by hand from a **diff-scoped** re-sweep
+> (`CASES="is_admin"`, baseline Files=176, Tests=5650, Result: PASS) after fixing the harness
+> gap that produced the stale ERROR: `supabase/tests/176_nsp_per_org_b_support.sql`'s D3
+> NEGATIVE assertion read `(select slug from commissions where …)` as a bare scalar
+> subquery, which is_admin()'s "positive" (force-TRUE-for-every-caller) neutralization
+> widens to >1 row for a plain non-admin persona (chefe.ccih) via
+> `commissions_select_member_or_admin`'s `is_admin()` OR-arm — Postgres raises "more than
+> one row returned by a subquery used as an expression" as a hard runtime error, not a
+> pgTAP assertion failure, aborting the file 3 tests early (Bad plan: 33 planned, 30 ran)
+> and mismatching the run's Files/Tests shape against baseline, which the harness correctly
+> refuses to auto-classify (§7.15) — recorded ERROR instead of a false COVERED/BLIND. Fixed
+> by making that one assertion crash-proof (`string_agg(slug, ',' order by slug)`, which
+> still fails cleanly on a widened result, just no longer traps) — a test-robustness fix,
+> not a weakened assertion. This ERROR predates ACT entirely (present in this file since at
+> least the 2026-08-0x baseline at Files=156/Tests=4785); ACT's diff-scoped requirement on
+> `is_admin()` (D11 added its active-role condition) is what finally forced a resolution.
+> Held by (COVERED across 30 files — the widened neutralization is asserted-through
+> broadly, not by one narrow keystone):
+> `130_audit.sql`, `141_event_triage.sql`, `150_referrals.sql`,
+> `170_multitenancy_hierarchy.sql`, `171_cross_org_isolation.sql`,
+> `172_phaseb_rls_rewrite.sql`, `176_nsp_per_org_b_support.sql`, `177_processless_cases.sql`,
+> `180_user_registration.sql`, `184_hospital_admin_isolation.sql`, `186_member_titles.sql`,
+> `188_hospital_user_mgmt.sql`, `191_grant_hardening.sql`, `195_pqs_vocab_dual_scope.sql`,
+> `200_controlled_documents.sql`, `201_hospital_departments.sql`, `205_administrativo.sql`,
+> `207_case_participants_e0.sql`, `228_ethics_e1.sql`, `251_authz_p0_isolation.sql`,
+> `252_authz_p0_isolation.sql`, `253_ethics_e2_intake.sql`, `257_ethics_e2_retention.sql`,
+> `280_accreditation_framework_crud.sql`, `290_authz_never_called_door_floor.sql`,
+> `298_authz_p0_isolation.sql`, `302_affiliation_doors.sql`, `310_quality_board_door.sql`,
+> `311_oversight_readonly_perimeter.sql`, `315_act_stage3_hat_condition.sql`, `40_rls.sql`,
+> `45_email_denorm.sql`.
+>
+> This row is the ONLY hand-edited region this pass; nothing else was reordered. The next
+> FULL sweep regenerates this file and re-derives it from scratch.
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
@@ -195,7 +230,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | app.has_role(p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4537) |
 | app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4771) |
 | app.is_active(p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4769) |
-| app.is_admin() | predicate | positive | ERROR | run-shape!=baseline (Files=156 Tests=4785) |
+| app.is_admin() | predicate | positive | COVERED | 130_audit.sql,141_event_triage.sql,150_referrals.sql,170_multitenancy_hierarchy.sql,171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,176_nsp_per_org_b_support.sql,177_processless_cases.sql,180_user_registration.sql,184_hospital_admin_isolation.sql,186_member_titles.sql,188_hospital_user_mgmt.sql,191_grant_hardening.sql,195_pqs_vocab_dual_scope.sql,200_controlled_documents.sql,201_hospital_departments.sql,205_administrativo.sql,207_case_participants_e0.sql,228_ethics_e1.sql,251_authz_p0_isolation.sql,252_authz_p0_isolation.sql,253_ethics_e2_intake.sql,257_ethics_e2_retention.sql,280_accreditation_framework_crud.sql,290_authz_never_called_door_floor.sql,298_authz_p0_isolation.sql,302_affiliation_doors.sql,310_quality_board_door.sql,311_oversight_readonly_perimeter.sql,315_act_stage3_hat_condition.sql,40_rls.sql,45_email_denorm.sql |
 | app.is_admin_for(p_user_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,224_memberships_collapse.sql,291_membership_invariants.sql,293_membership_door_kernel.sql |
 | app.is_case_excluded(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 188_case_custom_fields.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql,264_correction_requests.sql,265_reopen_void_narrative.sql |
 | app.is_case_respondent(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,254_ethics_e2_votes.sql,256_ethics_e2_hearings.sql,266_ethics_e3a_surfacing.sql,269_ethics_e3a_dashboard.sql |

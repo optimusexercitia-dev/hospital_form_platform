@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { getSessionContext } from "@/lib/queries/session";
+import { getRawGrants, getSessionContext } from "@/lib/queries/session";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { accreditationEnabled, qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -60,10 +60,13 @@ export default async function OrgManageLayout({
   // now-deleted `OrgManageNav` (Documentos is nav-hidden only, the route
   // self-gates on `controlledDocsEnabled()`; "Coordenação do NSP" is retired
   // from the nav, ADR 0052, and patientSafety isn't a sidebar item).
-  const [auditOn, qualityIndicatorsOn, accreditationOn] = await Promise.all([
+  // ACT (ADR 0106) — `grants` feeds `UserMenu`'s "Trocar papel" switch
+  // (hat-blind by design, D9).
+  const [auditOn, qualityIndicatorsOn, accreditationOn, grants] = await Promise.all([
     auditTrailEnabled(),
     qualityIndicatorsEnabled(),
     accreditationEnabled(),
+    getRawGrants(),
   ]);
 
   return (
@@ -78,6 +81,8 @@ export default async function OrgManageLayout({
         qualityIndicatorsEnabled={qualityIndicatorsOn}
         accreditationEnabled={accreditationOn}
         notificationBell={<NotificationBell />}
+        activeRole={context.activeRole}
+        grants={grants}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

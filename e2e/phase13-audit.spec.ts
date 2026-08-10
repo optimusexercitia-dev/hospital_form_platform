@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 import { getDraftTemplateVersion } from './helpers/process-templates'
 
 /**
@@ -69,10 +69,13 @@ const STAFF1_CCIH_ID = '00000000-0000-0000-0000-000000000003'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for admin@test.local (org_admin + pqs_member — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS evaluated under it). */
@@ -80,13 +83,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 /** A PostgREST GET under a given bearer token (persona JWT or service key). */
@@ -315,7 +317,7 @@ test('AC-1b: add a member → exactly one membership.granted row (role in metada
   // ISOLATION (P13-006): actor = admin@test.local (global — adding more commissions
   // to a global-admin account is safe; admin has no single-commission landing assertion).
   // The MEMBER being added is also a FRESH throwaway user — never a seeded persona.
-  const admin = await getOwnerToken(request, 'admin@test.local')
+  const admin = await getOwnerToken(request, 'admin@test.local', undefined, 'org_admin')
   const probeMember = await makeProbeUser(request, 'ac1b-member')
 
   const before = await auditRowsFor(request, 'membership.granted', ADMIN_ID)
@@ -437,8 +439,10 @@ test('AC-1c: submit a response → exactly one response.submitted row; metadata 
   })
   const metaText = JSON.stringify(row.metadata)
   expect(metaText).not.toMatch(/dispensador|turno|Manhã|Sim/i)
-  // The status diff is the WHOLE metadata payload (no answer keys leaked).
-  expect(Object.keys(row.metadata)).toEqual(['status'])
+  // The status diff is the WHOLE metadata payload (no answer keys leaked), plus
+  // `acting_as` — ACT ADR 0106 D8: audit_write stamps the caller's active hat
+  // (a role label, not an answer key) into every row's metadata.
+  expect(Object.keys(row.metadata).sort()).toEqual(['acting_as', 'status'])
 })
 
 test('AC-1d: sign a section → exactly one signoff.recorded row (actor=probe staff_admin, entity=signoff)', async ({
@@ -826,7 +830,7 @@ test('AC-3a: staff_admin A audit RLS — zero commission-B rows readable; no B e
 test('AC-3b: admin audit RLS — reads ALL rows incl. commission-B (JWT)', async ({
   request,
 }) => {
-  const admin = await getOwnerToken(request, 'admin@test.local')
+  const admin = await getOwnerToken(request, 'admin@test.local', undefined, 'org_admin')
 
   const all = await restGet<{ commission_id: string | null }>(
     request,
@@ -886,9 +890,12 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
 
   // The route guard returns the friendly in-shell 404 (mirrors the dashboard),
   // not the audit content.
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1 (same class): ACT Stage 3 added a
+  // c/[commission]/not-found.tsx sibling that can catch this route with
+  // DIFFERENT copy ("Página não encontrada") than either alternative this
+  // regex already covered. All 3 known boundary copies share the pt-BR
+  // "não encontr-" stem; matching on that survives which one renders.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).not.toBeVisible()
@@ -902,7 +909,7 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
 test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commission feed incl. Farmácia rows', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'admin@test.local', undefined, 'org_admin')
   await page.goto('/o/rede-a/manage/audit')
 
   await expect(
@@ -932,6 +939,47 @@ test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commiss
   expect(total).toBeGreaterThanOrEqual(83)
 })
 
+// ⛔ This test's premise — "the platform-tier chain (org+commission both
+// NULL) is empty" — is unreliable in any suite run with enough history
+// behind it. One of two known sources is now fixed; one remains open.
+//   1. BUG-ACT-AUDIT-PLATFORM-TIER-1 (ACT, ADR 0106) — RESOLVED by `backend`
+//      (migration 20260918002600): `assume_role` now resolves the real
+//      tenant of the role being assumed from `memberships` and stamps THAT,
+//      instead of always writing organization_id/commission_id NULL. Only
+//      `p_role = 'platform_admin'` still stamps all-null, correctly (no
+//      tenant to stamp). Re-verified live: after a fresh reset + running
+//      `phase22-referrals.spec.ts` (40/40) + `phase15-indicators.spec.ts`
+//      (12/12) — both exercise multiple hat-switches — zero
+//      `active_role.assumed` rows land in the platform-null bucket.
+//   2. BUG-CAPA-AUDIT-SCOPE-1 (pre-existing, unrelated to ACT — found by
+//      `backend` tracing this test's own failure) — STILL OPEN.
+//      `trg_audit_capa_plan` resolves scope ONLY via
+//      `event_of_capa(new.id) → commission_of_event` (verified live from
+//      `pg_get_functiondef`), which is NULL for every
+//      `manual`/`meeting`/`indicator`/`audit_finding`-sourced CAPA — even
+//      though `capa_plan.hospital_id` is a real, populated column on the
+//      SAME row the trigger never reads. Confirmed live from TWO
+//      independent specs, not just one: `phase14d-capa.spec.ts` (5
+//      manual-source opens) AND `phase15-indicators.spec.ts` AC-5b
+//      (`p_source: 'indicator'`, no `phase14d-capa` involved) each reproduce
+//      it alone — `select action, organization_id, commission_id,
+//      hospital_id, count(*) from audit_log where action='capa.opened'
+//      group by 1,2,3,4` shows rows with ALL THREE null alongside
+//      properly-scoped event-sourced rows in both cases.
+// ORDERING NOTE: Stage 2's full `e2e:prod` ran GREEN with mechanism #2
+// already present — it is not new. `e2e:prod` resets the DB PER BATCH, so
+// this can only red AC-3f-platform when a non-event-sourced-CAPA-opening
+// spec lands in the SAME BATCH as this one; batch composition shifts
+// whenever specs are added/deleted/rewritten (as this program just did to
+// both specs named above). This is a LATENT pre-existing defect newly
+// EXPOSED by batch reshuffling — it was never truly passing, and ACT did
+// not introduce it; ACT's own (now-fixed) mechanism #1 was a second,
+// temporary way to trip the same already-fragile assertion, not the source
+// of the fragility. A genuinely fresh reset with no prior assume_role call
+// and no manual/meeting/indicator/audit_finding CAPA open still passes.
+// Whether this assertion is itself too broad to survive ANY realistic suite
+// ordering — rather than being a property of mechanism #2 alone — is a fair
+// question the tester flags but does not resolve unilaterally.
 test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
   page,
 }) => {

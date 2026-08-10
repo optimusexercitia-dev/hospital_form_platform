@@ -238,11 +238,14 @@ select is(
 -- The case_patient.updated mutation-audit row carries NO identifier (metadata={}),
 -- keyed on the CASE (entity_id = case_id, continuity with the C-4 dispatch).
 -- =========================================================================
+-- ACT Stage 3 (ADR 0106 D8): audit_write now always stamps metadata.acting_as
+-- from the writer's active hat — assertion updated to the new expected shape;
+-- NO identifier (PHI) key is added, which is what this test actually guards.
 select is(
   (select metadata from public.audit_log
    where action = 'case_patient.updated' and entity_id = (select case_x from cs)
    order by occurred_at desc limit 1),
-  '{}'::jsonb, 'case_patient.updated audit metadata carries NO identifier');
+  '{"acting_as": "staff_admin"}'::jsonb, 'case_patient.updated audit metadata carries NO identifier (only the D8 acting_as stamp)');
 
 -- =========================================================================
 -- dispose_case_phi: a non-coordinator is rejected (42501).
@@ -339,12 +342,14 @@ select ok(
   (select phi_disposed_at is not null from public.cases where id = (select case_x from cs)),
   'dispose_case_phi stamps phi_disposed_at');
 
+-- ACT Stage 3 (ADR 0106 D8): + metadata.acting_as (the disposer's active hat,
+-- staff_admin per this section's own comment) — still no PHI in the payload.
 select is(
   (select metadata from public.audit_log
    where action = 'case_patient.disposed' and entity_id = (select case_x from cs)
    order by occurred_at desc limit 1),
-  jsonb_build_object('reason', 'subject_request'),
-  'case_patient.disposed audit metadata carries the reason enum only (no PHI)');
+  jsonb_build_object('reason', 'subject_request', 'acting_as', 'staff_admin'),
+  'case_patient.disposed audit metadata carries the reason enum + D8 acting_as stamp only (no PHI)');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

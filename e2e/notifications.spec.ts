@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext, type Browser } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * S1·N — Notifications (Phase 20; ADR 0076; build plan: docs/plans/notifications-s1.md §3).
@@ -94,17 +94,20 @@ const STAFF4_CCIH_ID = '00000000-0000-0000-0000-00000000000a'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for ADMIN_EMAIL/admin@test.local (org_admin + pqs_member, 2 role
+  // types), which otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** New isolated browser context + page, signed in as `email`. Caller closes the context. */
-async function newSignedInPage(browser: Browser, email: string): Promise<Page> {
+async function newSignedInPage(browser: Browser, email: string, actAs?: string): Promise<Page> {
   const context = await browser.newContext({ reducedMotion: 'reduce' })
   const page = await context.newPage()
-  await signInAs(page, email)
+  await signInAs(page, email, undefined, actAs)
   return page
 }
 
@@ -122,13 +125,18 @@ async function openBell(page: Page): Promise<void> {
   await page.keyboard.press('Enter')
 }
 
-async function getOwnerToken(req: APIRequestContext, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getOwnerToken(
+  req: APIRequestContext,
+  email: string,
+  password = 'Test1234!',
+  actAs?: string,
+): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): ADMIN_EMAIL/admin@test.local (org_admin +
+  // pqs_member, 2 role types) otherwise comes back with no active_role
+  // claim, and open_capa_plan's OR-gate (is_tenancy_admin_of OR
+  // is_pqs_operator_of) denies a hatless caller on BOTH arms.
+  return accessToken(req, email, password, actAs)
 }
 
 async function restGet<T>(req: APIRequestContext, path: string, bearer = SUPABASE_SERVICE_KEY): Promise<T[]> {
@@ -213,36 +221,50 @@ function setNotificationsFlag(enabled: boolean): void {
 // N-1 — Event-driven enqueue (real UI) + isolation (same-org + cross-org)
 // ---------------------------------------------------------------------------
 
-test('N-1: assigning a CAPA action via the real UI notifies the assignee only (same-org + cross-org isolation)', async ({
+test('N-1: assigning a CAPA action notifies the assignee only (same-org + cross-org isolation)', async ({
   page,
   request,
   browser,
 }) => {
   test.setTimeout(90_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N1-evento')
 
-  // Drive the REAL UI enqueue path: admin@test.local (org_admin + PQS operator of
-  // central-a) opens the CAPA workspace and uses "Adicionar ação" to assign to
-  // staff2.ccih (a plain, non-PQS CCIH staff member).
-  await signInAs(page, ADMIN_EMAIL)
+  // ACT ADR 0106 (D5) RE-SCOPE — pre-ACT this drove the dropdown pick as a
+  // hatless admin@ (org_admin + pqs_member union): the encarregado <select> is
+  // fed by `listAssignableUsers()` (a plain RLS `profiles` read), and the
+  // profiles policy has NO PQS-operator arm (catalog-verified: self / org_admin
+  // / tenancy-admin / co-member / hospital_admin only) — so the wide roster only
+  // ever existed through the org_admin arm of the union. Under the pqs_member
+  // hat the dropdown no longer offers staff2.ccih (asserted below as the
+  // composition-gone proof; FUP-ACT-CAPA-ASSIGN in PROGRESS.md tracks giving
+  // operators a real assignee-roster door). The enqueue MECHANISM under test —
+  // assignment → assignee-only notification — is driven at the same door the
+  // dialog submits to (`addCapaAction`, the N-3 vehicle), which accepts an
+  // assignee id the caller cannot read.
+  await signInAs(page, ADMIN_EMAIL, undefined, 'pqs_member')
   await page.goto(`/o/rede-a/nsp/capa/${planId}`)
   await page.getByRole('button', { name: /adicionar ação/i }).click()
 
   const dialog = page.getByRole('dialog', { name: /nova ação corretiva/i })
   await expect(dialog).toBeVisible({ timeout: 10_000 })
-  await dialog.getByLabel(/título da ação/i).fill(title)
-  await dialog.getByLabel(/encarregado/i).selectOption(STAFF2_CCIH_ID)
-  await dialog.getByRole('button', { name: /^adicionar ação$/i }).click()
+  // The dialog itself renders for the operator hat (the affordance survives)...
+  await expect(dialog.getByLabel(/encarregado/i)).toBeVisible()
+  // ...but the union-only roster entry is gone — an operator who shares no
+  // commission with staff2.ccih cannot see her profile, hence no option.
+  await expect(
+    dialog.getByLabel(/encarregado/i).locator(`option[value="${STAFF2_CCIH_ID}"]`),
+  ).toHaveCount(0)
+  await page.keyboard.press('Escape')
   await expect(dialog).not.toBeVisible({ timeout: 10_000 })
 
-  // Resolve the newly created action id (service-role read).
-  const [action] = await restGet<{ id: string }>(
-    request,
-    `capa_action?capa_id=eq.${planId}&title=eq.${encodeURIComponent(title)}&select=id`,
-  )
+  // The assignment itself, at the door the dialog submits to.
+  const action = await addCapaAction(request, adminToken, planId, {
+    title,
+    assigneeUserId: STAFF2_CCIH_ID,
+  })
   expect(action, 'the action must have been created').toBeTruthy()
   const dedupKey = `capa:${action.id}:assigned`
 
@@ -322,7 +344,7 @@ test('N-1b: a non-PQS CAPA assignee can list and advance their action via /conta
 }) => {
   test.setTimeout(60_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N1b-avancar')
   const action = await addCapaAction(request, adminToken, planId, {
@@ -383,7 +405,7 @@ test('N-2: compute_due_notifications enqueues overdue+still_open once; a second 
 }) => {
   test.setTimeout(60_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N2-atrasada')
   const action = await addCapaAction(request, adminToken, planId, {
@@ -443,7 +465,7 @@ test('N-3: disabling CAPA reminders suppresses the scan reminder but NOT a new a
   }
   await expect(capaSwitch).toHaveAttribute('aria-checked', 'false')
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
   // A fresh overdue action assigned to staff1.farm — the reminder scan must
   // suppress it (surface=capa, reminders_enabled=false).
@@ -494,7 +516,7 @@ test('N-4: completing the CAPA action stamps resolved_at on its unresolved remin
 }) => {
   test.setTimeout(60_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N4-resolver')
   const action = await addCapaAction(request, adminToken, planId, {
@@ -569,7 +591,7 @@ test('N-5: per-item mark-read clears one from the badge; mark-all clears the res
 }) => {
   test.setTimeout(60_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const titleA = uniqueTitle('N5-item-A')
   const titleB = uniqueTitle('N5-item-B')
@@ -640,7 +662,7 @@ test('N-6: keyboard-only — Tab to bell, Enter opens center, operate it, Escape
 }) => {
   test.setTimeout(60_000)
 
-  const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
+  const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
   const planId = await openFreshCapaPlan(request, adminToken)
   const title = uniqueTitle('N6-teclado')
   await addCapaAction(request, adminToken, planId, {
@@ -711,8 +733,12 @@ test('N-7: flag OFF — no bell renders anywhere, /conta/notificacoes 404s; rest
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('button', { name: /notificações/i })).not.toBeVisible()
 
+    // BUG-ACT-NOTFOUND-COPY-1: /conta/** is outside every ACT ADR 0106 area
+    // boundary (org/commission/nsp-org/direcao-tecnica/qualidade), so this
+    // still hits the unaffected GLOBAL boundary — lower risk per the
+    // coordinator's classification; widened to /não encontr/i defensively.
     await page.goto('/conta/notificacoes')
-    await expect(page.getByRole('heading', { name: /erro 404|não encontramos esta página/i })).toBeVisible({
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({
       timeout: 10_000,
     })
   } finally {

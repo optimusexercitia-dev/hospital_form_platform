@@ -167,6 +167,13 @@ function contextHolding(role: string): SessionContext {
     status: 'active',
     isInactive: false,
     mustChangePassword: false,
+    // ACT (ADR 0106): this landing-precedence test drives page.tsx's branches
+    // directly with a full grant set already assumed — activeRole/needsRoleSelection
+    // are irrelevant to what it's testing (the picker gate is a separate, earlier
+    // check page.tsx performs before reaching these branches), so a fixed
+    // single-role-equivalent shape is fine here.
+    activeRole: role,
+    needsRoleSelection: false,
     ...partitionGrants([maximalGrantFor(role)]),
   }
 }

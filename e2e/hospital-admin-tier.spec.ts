@@ -110,10 +110,17 @@ async function signInAs(
  * `/o/[org]/manage` (or `/c/[commission]`) layout has begun streaming yields an
  * HTTP **200** carrying the not-found body — the framework can no longer set the
  * status line. The SECURITY boundary is identical in both cases: the user sees
- * "Não encontramos esta página." and the protected surface is absent (proven per
- * call site below). So we assert the boundary OUTCOME, not the raw status code,
+ * the not-found UI and the protected surface is absent (proven per call site
+ * below). So we assert the boundary OUTCOME, not the raw status code,
  * for the page-level `notFound()` routes — asserting only `=== 404` would flag a
  * framework status-code quirk as an app bug even though no data leaks.
+ *
+ * BUG-ACT-NOTFOUND-COPY-1: the exact copy is no longer singular. The GLOBAL
+ * boundary (src/app/not-found.tsx) still reads "Não encontramos esta página.",
+ * but ACT ADR 0106 added area-specific siblings (org-tier manage, commission-
+ * tier c/[commission], nsp-org, direcao-tecnica, qualidade) reading "...não
+ * encontrada" instead — verified live per call site, not assumed uniform.
+ * /não encontr/i is the shared pt-BR stem across all of them.
  */
 async function expectAccessDenied(
   page: import('@playwright/test').Page,
@@ -122,7 +129,7 @@ async function expectAccessDenied(
 ) {
   await page.goto(path, { waitUntil: 'networkidle' })
   await expect(
-    page.getByText(/Não encontramos esta página/i).first(),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 10_000 })
   if (leakageLocator) {
     await expect(leakageLocator).not.toBeVisible()
@@ -202,8 +209,11 @@ test.describe('HA-1: hospital_admin authority + cross-hospital/cross-org isolati
     // Content-based, not status-code-based: a route below a `loading.tsx`
     // streams 200 before its own `notFound()` resolves (the platform's pinned
     // streamed-notFound contract) — assert the rendered not-found UI.
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — /dashboard hits the commission
+    // not-found boundary (ACT ADR 0106's sibling), verified live across the
+    // QO·B CUT_ROUTES sample.
     await expect(
-      page.getByRole('heading', { name: 'Não encontramos esta página.' }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
   })
 

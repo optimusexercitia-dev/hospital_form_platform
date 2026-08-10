@@ -349,7 +349,11 @@ test.describe('AFF-1: the Dr. John path end to end — search by CPF, vincular, 
 
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto(ETICA_MEMBERS_URL)
-    await expect(page.getByText(/Não encontramos esta página|Erro 404/i).first()).toBeVisible({
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — this commission-tier manage/members
+    // route hits the commission not-found boundary (ACT ADR 0106's sibling;
+    // "Erro 404" is not part of its copy), verified live across the QO·B
+    // CUT_ROUTES sample.
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({
       timeout: 10_000,
     })
     // No leakage: neither the picker nor any member/candidate name ever renders.
@@ -478,8 +482,12 @@ test.describe('AFF-3: the negative — a hospital admin cannot see a person affi
 
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto(`/o/rede-a/manage/usuarios/${secondaryOnlyUserId}`)
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — this ORG-tier manage/usuarios
+    // route hits src/app/o/[org]/manage/not-found.tsx (ACT ADR 0106's org-tier
+    // sibling boundary; "Erro 404" is not part of its copy), verified live via
+    // this exact test's own error-context snapshot before widening.
     await expect(
-      page.getByText(/Não encontramos esta página|Erro 404/i).first(),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText(secondaryOnlyName)).not.toBeVisible()
     await expect(page.getByText(secondaryOnlyEmail)).not.toBeVisible()

@@ -734,9 +734,12 @@ test('Security — foreign-commission user gets 404 on case timeline, no data le
   // Attempt to access CCIH Caso 0001 timeline directly
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE1_ID}/timeline`)
 
-  // The commission layout guard fires (chefe.farm is not a member of CCIH)
-  await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: /Não encontramos esta página/i })).toBeVisible({ timeout: 5_000 })
+  // The commission layout guard fires (chefe.farm is not a member of CCIH).
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — this
+  // manage/cases/** route hits the commission not-found boundary (ACT ADR
+  // 0106's sibling; "Erro 404" is not part of its copy), verified live
+  // across the QO·B CUT_ROUTES sample (incl. manage/cases).
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 15_000 })
 
   // Specifically: case data (case number, timeline events) must NOT appear
   await expect(page.getByText(/Caso 0001/i)).not.toBeVisible()

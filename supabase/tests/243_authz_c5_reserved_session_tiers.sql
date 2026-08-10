@@ -131,7 +131,7 @@ reset role;
 select set_config('request.jwt.claims', '', true);
 
 -- RESPONDENT on item A — propriety hidden (number + withdrawals).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'staff');
 set local role authenticated;
 select is((select process_number from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5a0') where id='00000000-0000-0000-0000-00000000c5aa'), null,
   'PROPRIETY ⭐: the respondent reads NULL process number (he must not read his own)');

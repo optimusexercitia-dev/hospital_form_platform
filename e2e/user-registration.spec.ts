@@ -60,10 +60,14 @@ async function signInAs(
   page: import('@playwright/test').Page,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for orgadmin.b@test.local (org_admin + staff_admin — 2 role types),
+  // which otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /**
@@ -618,7 +622,15 @@ test.describe('Security boundary — role restrictions', () => {
     expect(response.status()).toBe(404)
 
     await page.goto('/o/rede-a/manage/usuarios')
-    await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
+    // BUG-ACT-NOTFOUND-COPY-1: assert denial + no leak, not a specific
+    // boundary's copy — ACT Stage 3 added a manage/not-found.tsx sibling
+    // that catches a narrower page-level case with DIFFERENT text
+    // ("Página não encontrada") than the global boundary this test hits
+    // ("Erro 404" / "Não encontramos esta página."). Both share the pt-BR
+    // "não encontr-" stem (house convention across every not-found copy in
+    // this codebase); matching on that survives which boundary fires,
+    // including a future one, rather than pinning one exact string.
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('Novato Pendente')).not.toBeVisible()
     await expect(page.getByText('Ativo Registrado')).not.toBeVisible()
   })
@@ -643,10 +655,16 @@ test.describe('Security boundary — role restrictions', () => {
     // phase3-admin-members), so the RENDERED page is the authoritative security
     // assertion — assert the pt-BR 404 boundary and NO leakage of the rede-a
     // user's identity, rather than the raw request status.
-    await signInAs(page, 'orgadmin.b@test.local')
+    await signInAs(page, 'orgadmin.b@test.local', undefined, 'org_admin')
     await page.goto(`/o/rede-b/manage/usuarios/${userId}`)
-    await expect(page.getByText('Erro 404')).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
+    // BUG-ACT-NOTFOUND-COPY-1 (fixed): this is a PAGE-level notFound() inside
+    // an already-entered /o/rede-b/manage shell (she is genuinely org_admin
+    // of rede-b), so ACT Stage 3's manage/not-found.tsx sibling boundary
+    // catches it — "Página não encontrada", not the global "Erro 404" /
+    // "Não encontramos esta página." this test used to pin. Both share the
+    // pt-BR "não encontr-" stem; matching on that is the security assertion
+    // that survives which boundary renders (denial + no leak), not the copy.
+    await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('ativo.registro@test.local')).not.toBeVisible()
     await expect(page.getByText('Ativo Registrado')).not.toBeVisible()
   })

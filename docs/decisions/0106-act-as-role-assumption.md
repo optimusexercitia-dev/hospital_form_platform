@@ -165,6 +165,11 @@ used a name-prefix boundary and missed three doors (corrected table below). Dire
 the reviewer's, recorded now precisely so the build does not decide them silently — open to
 PO reversal like anything else here.*
 
+*Ratified by the PO on 2026-08-09 in the planning interview — decision P1 of
+[the implementation plan](../plans/act-as-role-assumption.md), which also closes the
+sequencing (before pilot), hat lifetime (auth-session-bound), flag posture (none — the
+migration is the cutover), D9 v1 scope, and program shape (Stages 0–4).*
+
 ### D12 — The hat lives in the JWT, not in a client-supplied setting
 The browser talks to PostgREST directly, so "travels per request as a session setting" hides
 a fork the first draft never chose. If the client *supplies* the value per request, "one at
@@ -211,10 +216,16 @@ additions assert the two classes behave differently under a hat switch.
 > **Corrected 2026-08-09, same day.** The first census enumerated "the 47 `app.is_*`
 > primitives" — a NAME-PREFIX boundary, the mistake this project has already paid for once
 > (*"an enumeration's boundary must be the property, not a syntax"*). The property is
-> *boolean gate*: `prorettype = boolean` in schema `app` returns **80** functions. The first
-> table's buckets also overlapped (they summed to 62 against a 47 census). The table below is
-> disjoint and was read from `pg_proc` on the live catalog, per the §5 rule — re-derive it
-> from the catalog at build time, never from this text.
+> *boolean gate*: `prorettype = boolean` in schema `app` returns **127** functions (47 `is_*`
+> + 80 others). The first table's buckets also overlapped (they summed to 62 against a 47
+> census). The table below is disjoint and was read from `pg_proc` on the live catalog, per
+> the §5 rule — re-derive it from the catalog at build time, never from this text.
+>
+> ⚠ **Second correction, plan-QA r1 (same day):** this note first said 80 total / 33 outside —
+> the author's own query output for the *outside-prefix* population, re-published as the
+> total. Two miscounts in one paragraph about counting is the strongest argument this ADR
+> contains for the re-derive rule; the QA sweep of the missing 47 found a real door
+> (`can_manage_professional`, below).
 
 The 47 `is_*` primitives, disjointly:
 
@@ -230,19 +241,26 @@ The 7 direct readers, as of this census: `is_entitled_document_approver`,
 `is_hospital_member_of`, `is_org_level_admin_within`, `is_org_member`, `is_pqs_member_of_any`,
 `is_pqs_operator_in_org_for`, `is_quality_reviewer_in_org`.
 
-The **33** boolean gates outside the `is_*` prefix are mostly the `can_*` layer (delegates to
+The **80** boolean gates outside the `is_*` prefix are mostly the `can_*` layer (delegates to
 `is_*` primitives, inherits for free) and identity-free evaluators (`eval_*`, `validate_*`,
-`feature_enabled`) — plus three doors the first census missed entirely:
+`feature_enabled`) — plus **four** doors the first census missed entirely:
 
 - ⚠ **`app.has_role_any`** — a SIBLING of the choke point: it reads `memberships` directly,
-  matching scope with **any** role, and `is_member_of` / `is_member_of_for` (and
-  `public.session_context`) are built on it. Under D3 there is no such thing as "a member in
-  any role" — the caller holds exactly one at a time. It is **reimplemented as
-  `has_role(scope_type, scope_id, <the active role>, user_id)`**, so the enforcement body
-  stays ONE function and "member of X" means *the active role resides in X*. Left alone,
-  every door built on `is_member_of` ignores the hat and suppression leaks broadly. (Found
-  the way the repo's own lesson predicts: a `\yhas_role\y` sweep counts `has_role_any`
-  callers as covered.)
+  matching scope with **any** role, and `is_member_of` / `is_member_of_for` are built on it.
+  (`public.session_context` is **not** — an earlier caller list included it via a
+  comment-only regex hit, the recorded `prosrc`-matches-comments trap; its body re-implements
+  the filter inline, which is precisely its designed hat-blind D9 exemption.) Under D3 there
+  is no such thing as "a member in any role" — the caller holds exactly one at a time. It is
+  **reimplemented as `has_role(scope_type, scope_id, <the active role>, user_id)`**, so the
+  enforcement body stays ONE function and "member of X" means *the active role resides in X*.
+  Left alone, every door built on `is_member_of` ignores the hat and suppression leaks
+  broadly. (Found the way the repo's own lesson predicts: a `\yhas_role\y` sweep counts
+  `has_role_any` callers as covered.)
+- ⚠ **`app.can_manage_professional`** — an **8th direct `memberships` reader** (plan-QA r1):
+  its third arm tests `m.role = 'staff_admin'` raw, beside two arms that delegate. DEFINER,
+  gating 10 professional-identity / ethics-vocabulary write RPCs (Class-2 data, ADR
+  0064/0065). Exactly the D13 fail-open shape on a second door; joins the normalisation
+  list, which is therefore **eight** readers, not seven.
 - **`app.member_can`** — the administrativo door; ruled in D13.
 - **`app._case_caps` / `has_case_capability`** — the case bitmask; ruled in D14.
 
@@ -255,8 +273,10 @@ app.has_role(scope_type, scope_id, role, user_id)
 ```
 
 The active role reaches SQL as a session setting **derived from the JWT** (D12), read with
-`current_setting` — a pattern ~30 `app` functions already use. Validation is against live
-memberships, so a user can never assume a role they do not hold.
+`current_setting` — the pattern `is_admin` already uses for `request.jwt.claims` (plan-QA
+r1: the other ~32 `current_setting` users read RPC-context guard GUCs, not JWT claims — one
+prior instance, not thirty). Validation is against live memberships, so a user can never
+assume a role they do not hold.
 
 **Forgery is not the threat model.** The user is *allowed* to choose any hat they genuinely
 hold; the constraint is that they get exactly **one at a time**, enforced at the boundary and

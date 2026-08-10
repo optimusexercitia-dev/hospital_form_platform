@@ -328,7 +328,7 @@ select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000f0001', (sel
 -- both respondents, sa_x is the recused party), which is precisely why M1 reached
 -- for the org arm. Post-M7 that arm is gone, so the recusal is cleared DIRECTLY as
 -- fixture teardown below (not through the door) to restore sa_x for the M1·4 block.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.lift_recusal('00000000-0000-0000-0000-0000000f0401', 'analisado') $$,
@@ -397,7 +397,7 @@ reset role;
 -- ===========================================================================
 
 -- (a) ORG-WIDE DISSOLUTION — the org_admin, under real RLS, re-keys the role.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   $$ update public.case_participant_roles set key = 'former_respondent'
@@ -421,7 +421,7 @@ select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000f0001', (sel
 -- FOR ALL policy — which means the audit can ONLY come from a trigger.
 create temp table audit_before on commit drop as
   select count(*)::int as n from public.audit_log;
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   $$ update public.case_participant_roles set display_name = 'Testemunha ocular'
@@ -433,7 +433,7 @@ select cmp_ok((select count(*)::int from public.audit_log), '>', (select n from 
 
 -- (d) OVER-REACH TWIN — the A18 staffing/config surface must survive. An
 -- org_admin still CREATES roles. Keystone 23 fails if the negatives over-reach.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   $$ insert into public.case_participant_roles
@@ -785,7 +785,7 @@ select is((select confidentiality_level from public.cases
   'M1·4 FIFTH DOOR ⭐: …and the classification SURVIVES him (today: he wrote legal_privileged)');
 
 -- POSITIVE TWIN: a clean coordinator still reclassifies.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   $$ select public.set_case_confidentiality('00000000-0000-0000-0000-0000000f0001', 'ethics_investigation') $$,
@@ -795,7 +795,7 @@ select is((select confidentiality_level from public.cases
            where id = '00000000-0000-0000-0000-0000000f0001'), 'ethics_investigation',
   'M1·4 FIFTH DOOR POSITIVE TWIN: …and it took effect');
 -- …and HC0E5 still guards an INVALID level (the precondition survives the gate).
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.set_case_confidentiality('00000000-0000-0000-0000-0000000f0001', 'bogus') $$,

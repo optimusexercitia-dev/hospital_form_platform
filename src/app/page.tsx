@@ -57,6 +57,17 @@ export default async function Home() {
     redirect("/conta-inativa");
   }
 
+  // ACT (ADR 0106) — a multi-role principal with no active hat yet must pick
+  // one before any of the precedence branches below run (D5: a hatless
+  // multi-role session is a stranger to every hat-aware door; the branches
+  // below stay hat-BLIND reads, so letting them run first would silently pick
+  // one hat's landing route without ever minting the claim). Placed here per
+  // the Stage 3 destination sweep (`docs/plans/act-as-buildnotes.md` §9) —
+  // after the account-status gates, before `isAdmin`.
+  if (context.needsRoleSelection) {
+    redirect("/selecionar-perfil");
+  }
+
   if (context.isAdmin) {
     redirect("/admin");
   }

@@ -52,10 +52,14 @@ async function signInAs(
   page: import('@playwright/test').Page,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for personas with 2 role types (admin@, orgadmin.b@, staff1.qual.b@),
+  // which otherwise land on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +78,7 @@ test.describe('MT-1/2: New routes and root landing per persona', () => {
   })
 
   test('orgadmin.b@test.local lands on /o/rede-b/manage', async ({ page }) => {
-    await signInAs(page, 'orgadmin.b@test.local')
+    await signInAs(page, 'orgadmin.b@test.local', undefined, 'org_admin')
     await expect(page).toHaveURL(`${BASE}/o/rede-b/manage`)
   })
 
@@ -88,20 +92,24 @@ test.describe('MT-1/2: New routes and root landing per persona', () => {
     await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
-  test('staff1.qual.b@test.local lands on /c picker (now multi-commission in rede-b)', async ({ page }) => {
-    // NSP-per-org re-homed staff1.qual.b as the Farmácia B coordinator (staff_admin)
-    // in addition to its Qualidade B staff role (seed §10, for the intra-rede-b
-    // referral) — so it is now a MULTI-commission user (both in rede-b, no org_admin
-    // role) and lands on the /c picker, exactly like multi@ below. Pre-NSP-per-org it
-    // was single-commission and deep-landed on /o/rede-b/c/qualidade.
-    await signInAs(page, 'staff1.qual.b@test.local')
-    await expect(page).toHaveURL(`${BASE}/c`)
-  })
-
+  // ACT (ADR 0106), BUG-ACT-PICKER-SEED-1 follow-up (2026-08-10): a
+  // 'staff1.qual.b@test.local lands on /c picker' test used to live here,
+  // asserting a MULTI-COMMISSION user reaches the grouped /c picker. Post-
+  // cutover that assertion is structurally false for her SPECIFICALLY — she
+  // holds 2 DISTINCT role types (staff + staff_admin), so she now hits
+  // /selecionar-perfil first (D2), and whichever role she picks maps to
+  // exactly one commission, never /c. The test's OWN comment already named
+  // the coverage as redundant ("lands on the /c picker, exactly like multi@
+  // below") — deleted rather than re-based, because the intent it was
+  // protecting (a multi-commission, SINGLE-role-type principal reaches the
+  // grouped picker) is fully and validly covered by 'multi@test.local
+  // (staff of both CCIH + Farmácia, same org) lands on /c picker' directly
+  // below, for whom it is actually true post-cutover, and by
+  // e2e/act-role-assumption.spec.ts's own D2 negative spec.
   test('admin@test.local (re-homed as org_admin rede-a) lands on /o/rede-a/manage', async ({ page }) => {
     // admin@test.local is now an org_admin of rede-a (not is_admin); it should
     // land on the org manage area, not /admin.
-    await signInAs(page, 'admin@test.local')
+    await signInAs(page, 'admin@test.local', undefined, 'org_admin')
     await expect(page).toHaveURL(`${BASE}/o/rede-a/manage`)
   })
 
@@ -238,13 +246,13 @@ test.describe('MT-7/8: Cross-org isolation — 404 with no data leakage', () => 
   })
 
   test('MT-7: orgadmin.b gets 404 on /o/rede-a/manage (foreign org)', async ({ page }) => {
-    await signInAs(page, 'orgadmin.b@test.local')
+    await signInAs(page, 'orgadmin.b@test.local', undefined, 'org_admin')
     const res = await page.request.get('/o/rede-a/manage')
     expect(res.status()).toBe(404)
   })
 
   test('MT-8: rede-b staff1.qual.b gets 404 on /o/rede-a/c/ccih (foreign commission)', async ({ page }) => {
-    await signInAs(page, 'staff1.qual.b@test.local')
+    await signInAs(page, 'staff1.qual.b@test.local', undefined, 'staff_admin')
     const res = await page.request.get('/o/rede-a/c/ccih')
     expect(res.status()).toBe(404)
     // Check rendered view for data leakage (not raw HTML which includes URL slug
@@ -255,7 +263,7 @@ test.describe('MT-7/8: Cross-org isolation — 404 with no data leakage', () => 
   })
 
   test('MT-8: rede-b staff1.qual.b gets 404 on /o/rede-a/c/farmacia (foreign commission)', async ({ page }) => {
-    await signInAs(page, 'staff1.qual.b@test.local')
+    await signInAs(page, 'staff1.qual.b@test.local', undefined, 'staff_admin')
     const res = await page.request.get('/o/rede-a/c/farmacia')
     expect(res.status()).toBe(404)
   })

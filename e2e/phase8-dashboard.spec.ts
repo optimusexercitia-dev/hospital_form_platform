@@ -421,7 +421,11 @@ test('AC-6: Staff cannot access dashboard — gets friendly 404', async ({ page 
 
   // The page must render the friendly in-shell 404 (not-found.tsx), not the
   // dashboard content. The shell renders; the content area shows "404".
-  await expect(page.getByRole('heading', { name: /encontramos esta página|Erro 404/i })).toBeVisible({
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every dashboard/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling;
+  // "Erro 404" is not part of its copy), verified live across the QO·B
+  // CUT_ROUTES sample (incl. dashboard and dashboard/submissions).
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({
     timeout: 10_000,
   })
 
@@ -576,7 +580,11 @@ test('AC-8b: staff_admin cannot access a foreign-commission response detail via 
   // Vector 1: non-existent UUID → 404.
   const BOGUS_ID = '00000000-dead-beef-0000-000000000000'
   await page.goto(`/o/rede-a/c/farmacia/dashboard/submissions/${BOGUS_ID}`)
-  await expect(page.getByRole('heading', { name: /encontramos esta página|Erro 404/i })).toBeVisible({
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — every dashboard/** route in this
+  // file hits the commission not-found boundary (ACT ADR 0106's sibling;
+  // "Erro 404" is not part of its copy), verified live across the QO·B
+  // CUT_ROUTES sample (incl. dashboard and dashboard/submissions).
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({
     timeout: 10_000,
   })
 
@@ -590,8 +598,9 @@ test('AC-8b: staff_admin cannot access a foreign-commission response detail via 
   if (ccihSubmissions.length > 0) {
     const ccihId = ccihSubmissions[0].id
     await page.goto(`/o/rede-a/c/farmacia/dashboard/submissions/${ccihId}`)
+    // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem.
     await expect(
-      page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
+      page.getByText(/não encontr/i).first(),
     ).toBeVisible({ timeout: 10_000 })
     // No CCIH data in DOM.
     const body = await page.locator('body').textContent()
@@ -740,9 +749,10 @@ test('AC-10b: foreign commission response_id → friendly 404 with no data leaka
   const foreignId = farmSubmissions[0].id
 
   // Attempt access via CCIH's URL namespace — the page must return 404.
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem.
   await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${foreignId}`)
   await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 10_000 })
 
   // Ensure no Farm data leaked into the DOM.

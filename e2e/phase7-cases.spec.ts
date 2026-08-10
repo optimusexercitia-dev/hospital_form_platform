@@ -1083,22 +1083,34 @@ test('AC-Security/Staff: plain staff cannot reach coordinator board or builder (
 
   // The coordinator cases board is staff_admin-gated.
   await page.goto('/o/rede-a/c/ccih/manage/cases')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
   // No case data leaks through the 404.
   await expect(page.getByText(/Caso 0001/i)).toHaveCount(0)
 
   // The coordinator case detail is also staff_admin-gated.
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   // The template builder list is coordinator-only.
   await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 })
 
@@ -1111,18 +1123,30 @@ test('AC-Security/ForeignAdmin: foreign-commission staff_admin cannot reach CCIH
   await signInAs(page, 'chefe.farm@test.local')
 
   await page.goto('/o/rede-a/c/ccih/manage/cases')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 
   await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared pt-BR stem — every
+  // manage/cases and manage/process-templates route here hits the commission
+  // not-found boundary (ACT ADR 0106's sibling), verified live across the
+  // QO·B CUT_ROUTES sample (incl. manage/cases).
   await expect(
-    page.getByRole('heading', { name: /Não encontramos esta página/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 15_000 })
 })
 
@@ -1199,8 +1223,12 @@ test("AC-AssigneeScoping: meus-casos shows only the signed-in user's ativa phase
   await expect
     .poll(
       async () => {
+        // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, the shared stem — this is a
+        // tolerant probe (not the load-bearing check, see the HC022 rejection
+        // above), widened for consistency.
         const hasNotFound = await page
-          .getByRole('heading', { name: /Não encontramos esta página/i })
+          .getByText(/não encontr/i)
+          .first()
           .isVisible()
           .catch(() => false)
         // Fallback: if the page renders (not 404), the wizard back-link is present.

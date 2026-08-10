@@ -294,7 +294,7 @@ reset role;
 
 -- sa_x (physician) replaces st_x as titular, through the wrapper, as a legitimate
 -- appointer. Both events must land, or neither.
-select test_helpers.claims_for((select sa_y from k), false);
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   format($$select public.appoint_technical_director(%L, %L)$$,

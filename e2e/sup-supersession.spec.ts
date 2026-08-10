@@ -274,8 +274,11 @@ test('SUP-3: non-admin staff sees no "Corrigir envio" affordance (route is staff
   // staff1.ccih is a plain `staff` member — the submissions detail route is
   // staff_admin-gated (SubmissionDetailPage: `access.role !== 'staff_admin'`
   // → notFound()). Friendly in-shell 404, no data, no control.
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i — dashboard/submissions/** hits
+  // the commission not-found boundary (ACT ADR 0106's sibling; "Erro 404" is
+  // not part of its copy), verified live across the QO·B CUT_ROUTES sample.
   await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
+    page.getByText(/não encontr/i).first(),
   ).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('button', { name: /corrigir envio/i })).not.toBeVisible()
   const body = await page.locator('body').textContent()

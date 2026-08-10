@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { getRoleSwitchOptions } from "@/components/role/get-role-switch-options";
+import { RoleSwitchHint } from "@/components/role/role-switch-hint";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -12,13 +14,19 @@ import { Button } from "@/components/ui/button";
  *
  * An UNKNOWN org OR a caller who is neither a PQS member nor the coordinator of
  * the org is a different case: the NSP `layout.tsx` itself calls `notFound()`,
- * handled one level up by the global `app/not-found.tsx` (no shell, leaks nothing
- * about which organizations exist).
+ * handled by the GLOBAL `app/not-found.tsx` (verified live — a layout's own
+ * `notFound()` is never caught by its own segment's `not-found.tsx`, ACT ADR
+ * 0106 build finding; not "one level up" as originally written here, since
+ * neither `[org]` nor `o` has a `layout.tsx` of its own to anchor an
+ * intermediate boundary). The global boundary now carries the same D9 hint
+ * below, gated to authenticated callers only.
  *
  * Cannot read the route's `org` (not-found boundaries receive no params), so the
  * recovery link points at `/` rather than the console root.
  */
-export default function NspNotFound() {
+export default async function NspNotFound() {
+  const { options } = await getRoleSwitchOptions();
+
   return (
     <div className="animate-rise-in mx-auto flex max-w-xl flex-col items-center justify-center gap-5 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-20 text-center">
       <p className="text-sm font-medium tracking-[0.2em] text-primary uppercase">
@@ -32,6 +40,7 @@ export default function NspNotFound() {
       <Button asChild size="lg">
         <Link href="/">Voltar para o início</Link>
       </Button>
+      <RoleSwitchHint options={options} />
     </div>
   );
 }

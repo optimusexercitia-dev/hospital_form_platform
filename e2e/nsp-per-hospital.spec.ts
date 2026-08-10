@@ -1,5 +1,5 @@
-import { test, expect, type Page, type Locator } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { test, expect, type Page } from '@playwright/test'
+import { accessToken, cachedSignIn } from "./helpers/auth"
 
 /**
  * NSP-per-hospital (Phase B, ADR 0052) — the UI enforcement of the per-HOSPITAL
@@ -60,10 +60,13 @@ const MRN_REF_XHOSP = 'PRT-A2-0002' // cross-hospital referral PHI
 const PATIENT_NAME_REF_XHOSP = 'Paciente Entre-Hospitais A'
 const REF_XHOSP_ID = 'efa00000-0000-0000-0000-0000000000a4'
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for the multi-role-type personas this file signs in (pqsdual.a@ —
+  // pqs_member + staff), which otherwise land on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** The full rendered <body> text — the PHI-leak canary for a page. */
@@ -76,21 +79,8 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/**
- * Select a <select>'s option by its VISIBLE-TEXT regex (Playwright's
- * `selectOption({ label })` requires an exact string, not a RegExp). Resolves the
- * matching option's `value` and selects it.
- */
-async function selectOptionByText(
-  select: Locator,
-  textRe: RegExp,
-): Promise<void> {
-  const option = select.locator('option', { hasText: textRe })
-  await expect(option.first()).toHaveCount(1)
-  const value = await option.first().getAttribute('value')
-  expect(value).toBeTruthy()
-  await select.selectOption(value!)
-}
+// (selectOptionByText removed — its only consumers were the pre-ACT dispose-dialog
+// flows; the dialog is structurally unreachable post-ADR-0106, see AC-7/AC-8.)
 
 /**
  * Assert a page is ACCESS-DENIED by OUTCOME, not raw HTTP status. In this Next.js
@@ -100,8 +90,17 @@ async function selectOptionByText(
  * AND the protected affordance (`absentText`) is NOT rendered.
  */
 async function expectAccessDenied(page: Page, absentText: string): Promise<void> {
+  // BUG-ACT-NOTFOUND-COPY-1: widened to the shared /não encontr/i pt-BR stem —
+  // callers of this helper hit BOTH the org-tier manage boundary ("Página não
+  // encontrada" / "...não tem acesso à administração desta organização",
+  // verified live) and a layout-level real-404 route (see the second call
+  // site in this file, which checks `.status()` directly instead). NOT fixed
+  // here, flagged separately: `bodyText()` below is a single un-retried
+  // `textContent()` read with no wait for the streamed notFound() body to
+  // resolve — a different, pre-existing reliability defect in this helper,
+  // not this bug.
   const body = await bodyText(page)
-  expect(body).toContain('Não encontramos esta página')
+  expect(body).toMatch(/não encontr/i)
   expect(body).not.toContain(absentText)
 }
 
@@ -236,7 +235,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('the switcher renders for a 2-grant operator and lists BOTH hospitals', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     const res = await page.goto('/o/rede-a/nsp')
     expect(res?.status()).toBe(200)
     await expect(
@@ -266,7 +265,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
     // PHI detail) via `?hospital=`. The config page shows the per-hospital RCA window
     // (central-a=45d, secundario-a=20d — distinct by seed) + the hospital name (rendered
     // when the operator serves >1 hospital), so a switch is observable there.
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     await page.goto('/o/rede-a/nsp/configuracoes')
     await expect(
       page.getByText('Configuração do hospital Hospital Central A').first(),
@@ -296,7 +295,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('a `?hospital=` deep link resolves the hospital-scoped surface to the addressed hospital', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     // Deep-link the CONFIG surface straight to secundario-a — a hospital this operator
     // DOES operate, so (unlike the tampered single-grant case) it resolves to it.
     await page.goto(
@@ -322,7 +321,7 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
   test('the 2-grant operator can open EACH hospital-scoped event and read its PHI (both grants live)', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
     // central-a event PHI (server-rendered on the event detail).
     await page.goto(`/o/rede-a/nsp/${EV_CENTRAL_A}`)
     // Event-detail PHI renders server-side; wait for the MRN itself (web-first,
@@ -564,9 +563,10 @@ test.describe('AC-3: three-tier appointment chain', () => {
   test('org_admin cannot self-delegate nsp_org_admin (server-rejected)', async ({
     page,
   }) => {
-    await signInAs(page, 'admin@test.local')
-    // admin@ is the platform admin; org-a's org_admin is orgadmin.a. Use the real
-    // org_admin persona to prove the no-self-delegation rule.
+    // Vestigial admin@ sign-in removed (ACT S3): admin@ is multi-role-type
+    // (org_admin + pqs_member) so a hatless sign-in lands on /selecionar-perfil,
+    // and the session was immediately replaced by the orgadmin.a sign-in below
+    // anyway — the real org_admin persona proving the no-self-delegation rule.
     await signInAs(page, 'orgadmin.a@test.local')
     const res = await page.goto('/o/rede-a/manage/administradores')
     expect(res?.status()).toBe(200)
@@ -935,109 +935,97 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     ).toBeVisible()
   })
 
-  // The PQS-OPERATOR arm of the dispose gate, via the source-endpoint UI (previously
-  // not seed-navigable). `pqsdual.a@` is a CCIH member (reaches the detail) AND a
-  // dual-hospital NSP operator (enrolled in central-a + secundario-a rosters) — so
-  // `canDisposeReferralPhi` returns true and it SEES the control. Read-only: it opens
-  // the dialog but Escapes without erasing (admin@ does the actual erase below), so the
-  // happy-path assertions stay deterministic.
-  test('PQS operator who is a commission member (pqsdual.a) SEES the dispose control (source-endpoint UI)', async ({
+  // ACT ADR 0106 (D5) RE-SCOPE — pre-ACT this test proved the OPERATOR arm via a
+  // hatless union session (CCIH member for the route + NSP operator for the
+  // control). Under strict role assumption no single hat satisfies both: the
+  // `staff` hat reaches the route but deactivates the operator arm
+  // (`is_pqs_operator_of` is hat-gated), and the `pqs_member` hat holds the arm
+  // but 404s on this commission-scoped route. Same rewrite shape the PO ruled
+  // for AC-5b / Flow 3d / Flow 5a: prove each hat individually, plus prove the
+  // composition is genuinely gone. The dispose MECHANISM itself is proven at
+  // the RPC door in the next test. ⚠ Capability loss recorded as
+  // FUP-ACT-DISPOSE-UI (PROGRESS.md): NO persona can now reach the dispose
+  // AFFORDANCE in the UI at all — tenancy admins + operators 404 on the route
+  // (QO·B content wall), members lack every arm of the dispose gate.
+  test('the dispose affordance is structurally unreachable: the staff hat sees no control; the pqs_member hat cannot reach the route', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    // staff hat: the route IS reachable (CCIH member) — the control is ABSENT
+    // (operator arm inactive under this hat). Unconditional assertions only.
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
     const res = await page.goto(REF_DETAIL_URL)
     expect(res?.status()).toBe(200)
     await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
-
-    // The operator arm of canDisposeReferralPhi → the control is present + usable.
-    const trigger = page
-      .getByRole('button', { name: /apagar dados do paciente/i })
-      .first()
-    await expect(trigger).toBeVisible()
-    await trigger.click()
-    const dialog = page.getByRole('alertdialog')
-    await expect(dialog).toBeVisible()
-    // Arm it to prove it's fully usable, then Escape WITHOUT submitting (leave the
-    // erase to admin@ below so ordering stays deterministic).
-    await selectOptionByText(
-      dialog.getByLabel(/motivo da exclusão/i),
-      /solicitação do titular/i,
-    )
-    await dialog.getByLabel(/digite .*para confirmar/i).fill('APAGAR')
-    await expect(
-      dialog.getByRole('button', { name: /apagar definitivamente/i }),
-    ).toBeEnabled()
-    await page.keyboard.press('Escape')
-    await expect(dialog).toBeHidden({ timeout: 10_000 })
-  })
-
-  test('entitled caller (pqsdual.a) disposes ENC-0004 PHI: APAGAR → success; PHI gone, ENC code remains', async ({
-    page,
-  }) => {
-    // ⛔ QO·B, 2026-08-09 — swapped from admin@test.local, and corrected a stale
-    // claim in the process. `can_dispose_referral_phi` (catalog-verified) has NO
-    // `is_admin` arm at all — its authority is `is_tenancy_admin_of(source) OR
-    // is_pqs_operator_of(source_hospital) OR is_pqs_operator_of(target_hospital)`,
-    // none of it an "ADR-documented platform erasure exception"; only
-    // platform@test.local carries a real `is_admin` flag, and it is not this door's
-    // caller. admin@ authorized via the FIRST (tenancy-admin) arm, which QO·B never
-    // touched — but it is a bare CCIH tenancy admin with no membership row, so
-    // BUG-QOB-003's role-coercion removal now 404s it on this whole route before
-    // the DB gate is ever reached (see the WALL test in
-    // e2e/qob-org-admin-content-wall.spec.ts and this file's own AC-7 test above,
-    // "PQS operator who is a commission member (pqsdual.a) SEES the dispose
-    // control", which pins that reach). pqsdual.a authorizes via the SECOND arm
-    // (PQS operator of central-a AND secundario-a — this referral's two endpoints)
-    // and, being a real CCIH member, reaches the route regardless of the wall — so
-    // it proves the disposal end to end without relying on retired behavior.
-    await signInAs(page, 'pqsdual.a@test.local')
-    await page.goto(REF_DETAIL_URL)
-
-    const trigger = page
-      .getByRole('button', { name: /apagar dados do paciente/i })
-      .first()
-    await expect(trigger).toBeVisible()
-    await trigger.click()
-
-    const dialog = page.getByRole('alertdialog')
-    await expect(dialog).toBeVisible()
-
-    // Pick a reason category (constrained select — no free text).
-    await selectOptionByText(
-      dialog.getByLabel(/motivo da exclusão/i),
-      /solicitação do titular/i,
-    )
-
-    // The destructive submit stays DISABLED until APAGAR is typed.
-    const submit = dialog.getByRole('button', {
-      name: /apagar definitivamente/i,
-    })
-    await expect(submit).toBeDisabled()
-
-    await dialog.getByLabel(/digite .*para confirmar/i).fill('APAGAR')
-    await expect(submit).toBeEnabled()
-    await submit.click()
-
-    // Success: the dialog closes (no error banner). The action nulls the PHI graph
-    // and router.refresh()es.
-    await expect(dialog).toBeHidden({ timeout: 15_000 })
-    // `router.refresh()` re-renders server-side after disposal; wait (web-first) for
-    // the now-ineligible dispose control to disappear, proving the refresh applied,
-    // before reading the post-disposal body.
     await expect(
       page.getByRole('button', { name: /apagar dados do paciente/i }),
-    ).toHaveCount(0, { timeout: 15_000 })
+    ).toHaveCount(0)
 
-    // After disposal: the referral record (ENC code + subject) REMAINS...
+    // pqs_member hat: the operator arm is active but the commission-scoped
+    // route itself is gone (no membership arm admits her) — the union journey
+    // no longer composes.
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
+    await page.goto(REF_DETAIL_URL)
+    await expect(
+      page.getByRole('heading', { name: /não encontr/i }),
+    ).toBeVisible({ timeout: 10_000 })
+  })
+
+  // ACT ADR 0106 RE-SCOPE — the pre-ACT version drove the dispose DIALOG as a
+  // hatless pqsdual.a (union session); that UI journey is structurally gone
+  // (previous test). The disposal capability itself is NOT gone: the RPC door's
+  // operator arm is satisfied by a hatted `pqs_member` session, so the
+  // mechanism — PHI graph erased, referral record kept, Rule 11 audit row with
+  // a hat stamp and no PHI — is proven end-to-end at the door, then the
+  // post-disposal page is verified through the UI under the `staff` hat.
+  // (History for the persona choice: QO·B 2026-08-09 swapped this test from
+  // admin@ — `dispose_referral_phi` has NO is_admin arm; its authority is
+  // `is_tenancy_admin_of(source) OR is_pqs_operator_of(source_hospital) OR
+  // is_pqs_operator_of(target_hospital)`, catalog-verified. pqsdual.a holds the
+  // operator arm for BOTH endpoint hospitals.)
+  test('the dispose MECHANISM survives at the door: a hatted pqs_member disposes ENC-0004 via the RPC; PHI gone, ENC record remains, audit row emitted', async ({
+    page,
+    request,
+  }) => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+    const token = await accessToken(request, 'pqsdual.a@test.local', undefined, 'pqs_member')
+
+    const resp = await request.post(`${url}/rest/v1/rpc/dispose_referral_phi`, {
+      headers: {
+        apikey: anon,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_referral_id: REF_XHOSP_ID, p_reason: 'subject_request' },
+    })
+    const disposeBody = await resp.text()
+    expect(resp.ok(), `dispose_referral_phi: ${resp.status()} ${disposeBody}`).toBeTruthy()
+
+    // Rule 11: the disposal emitted its audit row, hat stamped, metadata PHI-free.
+    const service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+    const auditResp = await request.get(
+      `${url}/rest/v1/audit_log?action=eq.referral_patient.disposed&entity_id=eq.${REF_XHOSP_ID}&select=metadata&order=occurred_at.desc&limit=1`,
+      { headers: { apikey: service, Authorization: `Bearer ${service}` } },
+    )
+    const auditRows = (await auditResp.json()) as Array<{ metadata: Record<string, unknown> }>
+    expect(auditRows.length).toBe(1)
+    expect(auditRows[0].metadata.acting_as).toBe('pqs_member')
+    const metaText = JSON.stringify(auditRows[0].metadata)
+    expect(metaText).not.toContain(MRN_REF_XHOSP)
+    expect(metaText).not.toContain(PATIENT_NAME_REF_XHOSP)
+
+    // UI verification (staff hat): the referral RECORD (ENC code) remains, but
+    // the PHI graph is gone — including the subject, which the RPC REDACTS to
+    // '[PHI removido]' (catalog-verified; the pre-ACT assertion that the subject
+    // "remains" was stale against the current function body).
+    await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
+    await page.goto(REF_DETAIL_URL)
+    await expect(page.getByText(REF_XHOSP_CODE).first()).toBeVisible()
     const afterBody = await bodyText(page)
-    expect(afterBody).toContain(REF_XHOSP_SUBJECT)
     expect(afterBody).toContain(REF_XHOSP_CODE)
-
-    // ...but the isolated patient PHI is GONE: the dispose control disappears
-    // (hasPatient=false) and no MRN/name is anywhere on the page.
-    const finalBody = await bodyText(page)
-    expect(finalBody).not.toContain(MRN_REF_XHOSP)
-    expect(finalBody).not.toContain(PATIENT_NAME_REF_XHOSP)
+    expect(afterBody).not.toContain(REF_XHOSP_SUBJECT)
+    expect(afterBody).not.toContain(MRN_REF_XHOSP)
+    expect(afterBody).not.toContain(PATIENT_NAME_REF_XHOSP)
     await expect(
       page.getByRole('button', { name: /apagar dados do paciente/i }),
     ).toHaveCount(0)
@@ -1046,54 +1034,42 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
 
 // ===========================================================================
 // AC-8 — Keyboard-only flow (per-phase requirement).
-//   Drive the dispose dialog entirely by keyboard on a DIFFERENT referral so it
-//   does not depend on AC-7's mutation ordering: open, tab through, and confirm the
-//   dialog arms only when APAGAR is typed — WITHOUT submitting (no mutation).
-//   Uses ENC-0001 (concluida, has PHI), source = CCIH (central-a). Driven as
-//   `pqsdual.a@` — a CCIH member (reaches the detail) AND a central-a NSP operator
-//   (so `canDisposeReferralPhi` shows the control), post-BUG-NPH-002-fix.
+//   ACT ADR 0106 RE-SCOPE: the dispose dialog this flow used to drive is now
+//   structurally unreachable for EVERY persona (see AC-7's unreachability test +
+//   FUP-ACT-DISPOSE-UI in PROGRESS.md) — there is no dispose affordance left to
+//   keyboard-drive until the PO relocates it. To keep this phase's keyboard-only
+//   proof REAL (not vacuous), the flow now drives the OTHER audited PHI
+//   affordance on the same surface entirely by keyboard: the identity reveal
+//   ("Exibir identificação"), as chefe.ccih — staff_admin of the source
+//   commission, whose `can_read_referral_phi` arm is hat-compatible (proven live
+//   in phase22-referrals Flow 1b) — on ENC-0001 (has PHI; untouched by AC-7's
+//   ENC-0004 disposal). The dispose-dialog keyboard flow returns with
+//   FUP-ACT-DISPOSE-UI.
 // ===========================================================================
-test.describe('AC-8: keyboard-only flow through the dispose dialog', () => {
+test.describe('AC-8: keyboard-only flow through the PHI reveal', () => {
   const ENC1_ID = 'efa00000-0000-0000-0000-0000000000a1' // ENC-0001, has_patient, source CCIH
+  const ENC1_PATIENT_NAME = 'Paciente de Demonstração'
 
-  test('pqsdual.a opens + arms the dispose dialog by keyboard (no submit)', async ({
+  test('chefe.ccih reveals the patient identity by keyboard only', async ({
     page,
   }) => {
-    await signInAs(page, 'pqsdual.a@test.local')
+    await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
-    const trigger = page
-      .getByRole('button', { name: /apagar dados do paciente/i })
+    const reveal = page
+      .getByRole('button', { name: /exibir identificação/i })
       .first()
-    await expect(trigger).toBeVisible()
-
-    // Open by keyboard: focus the trigger, activate with Enter.
-    await trigger.focus()
-    await expect(trigger).toBeFocused()
+    // `.focus()` does not auto-wait (house memory: it races RSC streaming and
+    // no-ops silently) — wait for visibility FIRST, then focus.
+    await reveal.waitFor({ state: 'visible', timeout: 10_000 })
+    await reveal.focus()
+    await expect(reveal).toBeFocused()
     await page.keyboard.press('Enter')
 
-    const dialog = page.getByRole('alertdialog')
-    await expect(dialog).toBeVisible()
-
-    // Choose a reason with the keyboard (focus the select, pick an option).
-    const reason = dialog.getByLabel(/motivo da exclusão/i)
-    await reason.focus()
-    await selectOptionByText(reason, /registro duplicado/i)
-
-    // Type the confirmation phrase via the keyboard into the focused input.
-    const confirmInput = dialog.getByLabel(/digite .*para confirmar/i)
-    await confirmInput.focus()
-    await page.keyboard.type('APAGAR')
-
-    // The destructive submit is now ARMED (enabled) — but we do NOT press it (this is
-    // the keyboard-reachability proof, not a second mutation).
-    const submit = dialog.getByRole('button', {
-      name: /apagar definitivamente/i,
+    // The revealed identity renders — a real positive control (the same
+    // assertion shape that caught Flow 5a's isVisible race live).
+    await expect(page.getByText(ENC1_PATIENT_NAME).first()).toBeVisible({
+      timeout: 10_000,
     })
-    await expect(submit).toBeEnabled()
-
-    // Cancel by keyboard (Escape) — the dialog closes, no PHI erased.
-    await page.keyboard.press('Escape')
-    await expect(dialog).toBeHidden({ timeout: 10_000 })
   })
 })

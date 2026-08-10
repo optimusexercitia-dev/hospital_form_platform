@@ -98,7 +98,14 @@ const CASE_2_COMPLETED = 'd0000000-0000-0000-0000-0000000000c2' // "Óbito UTI l
 const LOCKED_CASE = 'ca000000-0000-0000-0000-0000000000e1' // case_number 6, explicit_grants_only
 const FARMACIA_CASE = 'dba00000-0000-0000-0000-0000000000b1' // case_number 1
 
-const NOT_FOUND_GLOBAL = 'Não encontramos esta página.'
+// BUG-ACT-NOTFOUND-COPY-1: a RegExp stem, not the pinned old global string —
+// ACT ADR 0106 added area-specific not-found siblings with different exact
+// copy ("...não encontrada"). Denial verified per call site before widening:
+// casos/[id] routes (commission-tier) confirmed live against the QO·B
+// CUT_ROUTES sample; the qualidade-layout org-denial call site (line ~634)
+// keeps its own detailed live-proven comment explaining why THAT one still
+// hits the true global boundary by Next.js App Router design, unaffected.
+const NOT_FOUND_GLOBAL = /não encontr/i
 const CCIH_SWITCH_NAME =
   'Supervisão da qualidade — Comissão de Controle de Infecção Hospitalar'
 const FARMACIA_SWITCH_NAME =
@@ -254,7 +261,7 @@ function setOversightViaDoor(
       input: `
 begin;
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"${HOSPITALADMIN_A1_UID}","role":"authenticated"}', true);
+select set_config('request.jwt.claims', '{"sub":"${HOSPITALADMIN_A1_UID}","role":"authenticated","active_role":"hospital_admin"}', true);
 select public.set_commission_oversight('${COMMISSION_ID[slug]}', '${value}');
 commit;
 `,

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 14b — Triage & Disposition (Triagem NSP)
@@ -85,13 +85,12 @@ async function getOwnerToken(
   req: APIRequestContext,
   email: string,
   password = 'Test1234!',
+  actAs?: string,
 ): Promise<string> {
-  const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): admin@test.local (org_admin + pqs_member,
+  // 2 role types) otherwise comes back with no active_role claim.
+  return accessToken(req, email, password, actAs)
 }
 
 async function restGet<T>(
@@ -200,7 +199,7 @@ test('T2: frozen triage worksheet (EV-0003, triaged) rejects save_triage with HC
   request,
 }) => {
   // EV-0003 is seeded as 'triaged' — the worksheet is FROZEN.
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   const resp = await rpc(request, 'save_triage', adminToken, {
     p_event_id: EV3_ID,
@@ -224,7 +223,7 @@ test('T2: frozen triage worksheet (EV-0003, triaged) rejects save_triage with HC
 test('T3: reopen_triage unfreezes EV-0003 and writes triage.reopened audit row', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   // Capture audit count before
   const before = await auditRowsFor(request, 'triage.reopened', EV3_ID)
@@ -257,7 +256,7 @@ test('T3: reopen_triage unfreezes EV-0003 and writes triage.reopened audit row',
 test('T4: create_sentinel_criterion + flag on save_triage → sentinel_determination=true', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
   // WS-3b D7 (dual-scope PQS vocab): a GLOBAL criterion (hospital_id NULL) is now
   // is_admin()-only via app.can_curate_pqs_vocab — admin@ is rede-a's org_admin and
   // a PQS member, but NOT a platform super-admin, so it can no longer create global
@@ -309,7 +308,7 @@ test('T4: create_sentinel_criterion + flag on save_triage → sentinel_determina
 test('T5: non-PSE triage routes event to closed with closure reason', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   // Check EV-0002's current state — it may be 'reported', 'acknowledged', or 'closed'
   // from a prior test run. If it's already closed, we verify the triage row directly.
@@ -370,7 +369,7 @@ test('T5: non-PSE triage routes event to closed with closure reason', async ({
 test('T6a: save_triage with reach=near_miss auto-sets harm_severity=none', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   // Re-acknowledge EV-0001 (T4 may have saved a triage on it; reset to acknowledged).
   // EV-0001 is 'acknowledged' in seed; T4 ran save_triage (not confirm) so it stays
@@ -391,7 +390,7 @@ test('T6a: save_triage with reach=near_miss auto-sets harm_severity=none', async
 test('T6b: save_triage with reach=sentinel floors harm to severe if harm is mild', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   const saveResp = await rpc(request, 'save_triage', adminToken, {
     p_event_id: EV1_ID,
@@ -409,7 +408,7 @@ test('T6b: save_triage with reach=sentinel floors harm to severe if harm is mild
 test('T6c: save_triage with reach=sentinel keeps harm=death (higher than floor)', async ({
   request,
 }) => {
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   const saveResp = await rpc(request, 'save_triage', adminToken, {
     p_event_id: EV1_ID,
@@ -462,7 +461,7 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
   request,
 }) => {
   // admin@ is enrolled in rede-a's PQS roster → may set rede-a's RCA window.
-  const adminToken = await getOwnerToken(request, 'admin@test.local')
+  const adminToken = await getOwnerToken(request, 'admin@test.local', undefined, 'pqs_member')
 
   // Change the RCA due-window to 30 days. NSP-per-hospital: the RPC is now (p_hospital_id, p_days).
   const setResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, {

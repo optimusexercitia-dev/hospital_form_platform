@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { accessToken } from './auth'
 
 /**
  * Shared fixtures/helpers for the Phase 16 (Standards Crosswalk & Readiness/
@@ -219,13 +220,20 @@ export function setFeatureFlag(flagKey: string, enabled: boolean, maxAttempts = 
 // are cheap and every accreditation spec needs several distinct personas.
 // ---------------------------------------------------------------------------
 
-export async function getToken(page: Page, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await page.request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-    data: { email, password },
-  })
-  expect(resp.ok(), `token for ${email}: ${await resp.text()}`).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+export async function getToken(
+  page: Page,
+  email: string,
+  password = 'Test1234!',
+  actAs?: string,
+): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1): ORGADMIN_B (org_admin + staff_admin) and
+  // STAFF1_QUAL_B (staff + staff_admin) otherwise come back with no
+  // active_role claim. Every OTHER persona this file's 5 phase16 consumers
+  // pass here (CHEFE_CCIH, CHEFE_FARM, STAFF1_CCIH, STAFF2_CCIH,
+  // HOSPITALADMIN_A1, PLATFORM, ORGADMIN_A) is single-role-type and
+  // unaffected — `actAs` left undefined is byte-identical to before.
+  return accessToken(page, email, password, actAs)
 }
 
 // ---------------------------------------------------------------------------

@@ -56,7 +56,7 @@ create temp table ev on commit drop as
 reset role;
 grant select on ev to authenticated;
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.acknowledge_event((select id from ev));
 select public.save_triage((select id from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
@@ -67,7 +67,7 @@ create temp table r on commit drop as select id as rca_id from public.rca where 
 grant select on r to authenticated;
 
 -- Build a root cause + complete the RCA.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.update_rca((select rca_id from r), 'x', null, null, null, null, null);
 create temp table root on commit drop as
@@ -80,7 +80,7 @@ grant select on root to authenticated;
 -- =========================================================================
 -- open_capa_plan: rca-sourced, event-sourced, manual all work; code minted.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 create temp table c on commit drop as
   select (public.open_capa_plan('rca', 'corretiva', (select rca_id from r))).id as capa_id;
@@ -93,7 +93,7 @@ select ok(
 select is((select status from public.capa_plan where id = (select capa_id from c)), 'open',
   'a new plan starts open');
 
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- event-sourced + manual both work.
 select isnt((public.open_capa_plan('event', 'preventiva', (select id from ev))).id, null,
@@ -130,7 +130,7 @@ select is(
 -- =========================================================================
 -- Add an action assigned to a plain-staff member; assignee-or-PQS advance gate.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.update_capa_plan((select capa_id from c), 'corretiva');  -- open -> in_execution
 create temp table a on commit drop as
@@ -170,7 +170,7 @@ reset role;
 -- =========================================================================
 -- Conclude-gate: close blocked by an unsettled action (HC051).
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- record effectiveness first (so HC052 is satisfied and we isolate HC051).
 select public.record_capa_effectiveness((select capa_id from c), 'eficaz', 'método');
@@ -180,7 +180,7 @@ select throws_ok(
 reset role;
 
 -- Settle the action, then close succeeds.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.complete_capa_action((select action_id from a));
 select public.close_capa_plan((select capa_id from c), 'Lições aprendidas registradas.');
@@ -191,7 +191,7 @@ select is((select status from public.capa_plan where id = (select capa_id from c
 -- =========================================================================
 -- Child-lock: a terminal plan rejects child writes (HC049), even via RPC.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.add_capa_action((select capa_id from c), 'tardia', null, null, null, 'forte', null, null) $$,
@@ -204,7 +204,7 @@ reset role;
 select is(
   (select count(*)::int from public.capa_effectiveness where capa_id = (select capa_id from c)),
   1, 'a closed plan has its effectiveness row');
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.reopen_capa_plan((select capa_id from c));
 reset role;
@@ -215,7 +215,7 @@ select is(
   0, 'reopen REVOKES the effectiveness verdict (must re-verify before re-closing)');
 
 -- Re-closing now fails on HC052 (effectiveness revoked).
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.close_capa_plan((select capa_id from c), 'x') $$,
@@ -228,7 +228,7 @@ reset role;
 -- =========================================================================
 -- The event has TWO plans (the rca-sourced `c` + the event-sourced one from earlier).
 -- Cancel all plans of the event, then verify the event auto-closed via the predicate.
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- settle + close `c` properly again (re-record effectiveness, actions already concluded).
 select public.record_capa_effectiveness((select capa_id from c), 'eficaz', 'm');
@@ -255,7 +255,7 @@ select is(app.event_capa_fully_settled((select id from ev)), true,
 -- =========================================================================
 -- cancel HC053 on a terminal plan.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select throws_ok(
   $$ select public.cancel_capa_plan((select capa_id from c)) $$,
@@ -426,7 +426,7 @@ select is(
   'M3 GUARD: …and overdue_actions is UNCHANGED (the overdue subquery is org-scoped too)');
 
 -- (M3b) the 2nd-org PQS member (st_y) DOES see the org_other plan + overdue action.
-select test_helpers.claims_for((select st_y from k), false);
+select test_helpers.claims_for((select st_y from k), false, 'pqs_member');
 set local role authenticated;
 create temp table kpi_other on commit drop as
   select open_count, overdue_actions from public.capa_kpis();

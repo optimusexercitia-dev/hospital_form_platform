@@ -597,7 +597,7 @@ test('AC-10: hospital_admin sees the cross-commission register; a foreign-hospit
   const ccihTable = page.locator('table').filter({ has: doc0002Row })
   await expect(ccihTable.locator('tr').filter({ hasText: 'DOC-0001' })).toBeVisible()
 
-  await signInAs(page, 'orgadmin.b@test.local')
+  await signInAs(page, 'orgadmin.b@test.local', undefined, 'org_admin')
   const resp = await page.goto('/o/rede-a/manage/documentos')
   expect([403, 404]).toContain(resp?.status() ?? 0)
 })

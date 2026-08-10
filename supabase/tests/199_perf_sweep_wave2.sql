@@ -167,7 +167,11 @@ update public.patient_safety_event set reported_at = timestamptz '2026-01-01 10:
 update public.patient_safety_event set reported_at = timestamptz '2026-01-02 10:00:00+00' where id = (select e2 from ev);
 update public.patient_safety_event set reported_at = timestamptz '2026-01-03 10:00:00+00' where id = (select e3 from ev);
 
-select test_helpers.claims_for((select admin from k), true);
+-- ACT (ADR 0106) P0: the earlier pqs_member@hosp_b enrollment (line ~149-151) makes
+-- `admin` MULTI-role (platform_admin + pqs_member), so the bare claims_for(admin, true)
+-- below can no longer auto-derive a single hat -- pqs_inbox() (now hat-gated, P0 fix)
+-- needs the pqs_member hat active to see hosp_b's events.
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 
 -- Page 1, limit 2: newest two (e3, e2) in that order.

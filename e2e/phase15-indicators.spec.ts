@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cachedSignIn } from "./helpers/auth"
+import { cachedSignIn, accessToken } from "./helpers/auth"
 
 /**
  * Phase 15 — Quality Indicators (Indicadores de Qualidade)
@@ -83,23 +83,27 @@ const CENTRAL_A_HOSPITAL_ID = '05000000-0000-0000-0000-00000000000a'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Page, email: string, password = 'Test1234!') {
+async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
-  await cachedSignIn(page, email, password)
+  // ACT (ADR 0106) — optional 4th param, additive: threads to cachedSignIn's own
+  // actAs seam for admin@test.local (org_admin + pqs_member — 2 role types), which
+  // otherwise lands on /selecionar-perfil (BUG-ACT-PICKER-SEED-1).
+  await cachedSignIn(page, email, password, actAs)
 }
 
 /** Obtain a real JWT for a persona (owner token, RLS evaluated under it). */
-async function getOwnerToken(page: Page, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await page.request.post(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-      data: { email, password },
-    },
-  )
-  expect(resp.ok()).toBeTruthy()
-  return ((await resp.json()) as { access_token: string }).access_token
+async function getOwnerToken(
+  page: Page,
+  email: string,
+  password = 'Test1234!',
+  actAs?: string,
+): Promise<string> {
+  // ACT (ADR 0106) — delegates to the shared, hat-aware accessToken
+  // (BUG-ACT-RAWGRANT-HATLESS-1). Left `actAs` UNTHREADED at AC-5b's own
+  // call site deliberately — see that test's own comment: it is the
+  // confirmed OR-gate finding, not a site to paper over with a hat.
+  return accessToken(page, email, password, actAs)
 }
 
 /** Service-role REST query (DB-truth assertions only — never mutates data under test). */
@@ -455,7 +459,9 @@ test('AC-5a: non-operator staff_admin sees only the action-item fallback (no CAP
 // ---------------------------------------------------------------------------
 
 test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hospital, readable by commission members', async ({ page }) => {
-  await signInAs(page, 'admin@test.local')
+  // canConfigureCommission admits a tenancy admin (the test's own comment
+  // below) — org_admin is the hat that makes that arm hold.
+  await signInAs(page, 'admin@test.local', undefined, 'org_admin')
   const id = await indicatorIdByCode(page, 'IND-0002')
   await page.goto(indicatorHref(id))
 
@@ -466,21 +472,64 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
   await expect(page.getByRole('region', { name: /plano de ação/i })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Medições', level: 2 })).toBeVisible()
 
-  // The operator-tier AUTHORIZATION itself is unaffected by QO·B — proven
-  // through the real door `open_capa_plan`, exactly as AC-6 below does for
-  // loop closure. Its SQL gate is `is_tenancy_admin_of(source_commission)
-  // OR is_pqs_operator_of(hospital)`, neither arm touched by the QO·B
-  // migrations (M1–M6 never mention CAPA doors).
-  const adminTok = await getOwnerToken(page, 'admin@test.local')
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10 (was
+  // BUG-ACT-RAWGRANT-HATLESS-1's "left RED" note; superseded by this
+  // rewrite, not a re-open). **The earlier comment describing this RPC's
+  // gate as `is_tenancy_admin_of(source_commission) OR is_pqs_operator_of
+  // (hospital)` was WRONG — inherited from the pre-ACT QO·B rewrite and
+  // never independently re-verified until now.** Read live from
+  // `pg_get_functiondef(open_capa_plan)`: for `p_source = 'indicator'`,
+  // `v_hospital` resolves unconditionally from the indicator's commission,
+  // so the function's ENTIRE membership-fallback branch (the only place
+  // any tenancy-admin-shaped check could live) never executes; the sole
+  // authorization check reached is `app.is_pqs_operator_of(v_hospital)`.
+  // There never was a tenancy-admin arm for this source type — confirmed
+  // independently by AC-6 below, which opens an identical
+  // `p_source: 'indicator'` plan with `pqs_member` alone and has never
+  // needed anything else.
+  //
+  // So this was never one gate with two arms; it is TWO SEPARATE,
+  // SEQUENTIAL gates that used to be satisfiable by one hatless session's
+  // full membership set and no longer are: PAGE ENTRY (`canConfigureCommission`
+  // — staff_admin/tenancy-admin, 'org_admin' above) and the RPC itself
+  // (`is_pqs_operator_of` alone — 'pqs_member' here). Confirmed live that a
+  // real `pqs_member` hat gets 404'd on this exact page (canConfigureCommission
+  // has no PQS arm), so the single-session "I am looking at this page and
+  // click a button right here to open the CAPA" journey is genuinely,
+  // structurally gone — no actAs choice restores it, and none should.
+  //
+  // What is NOT gone: the operator-tier authorization + data contract
+  // itself (plan creation, hospital_id derivation, the commission-member
+  // read arm below) — a genuine PQS operator, via their OWN session, still
+  // opens CAPAs from indicators exactly as before. That is what this call
+  // proves now: a SEPARATE, independently-hatted raw grant for admin@,
+  // decoupled from the UI session above (they were already two different
+  // credential acquisitions in this test, cookie vs. raw JWT — only the
+  // HAT was missing) — not a simulation of clicking a button on the page
+  // just rendered.
+  const pqsTok = await getOwnerToken(page, 'admin@test.local', undefined, 'pqs_member')
   const openResp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${adminTok}`,
+      Authorization: `Bearer ${pqsTok}`,
       'Content-Type': 'application/json',
     },
     data: { p_source: 'indicator', p_classification: 'corretiva', p_source_id: id },
   })
   expect(openResp.ok(), 'open_capa_plan still authorizes the PQS operator').toBeTruthy()
+
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even admin@'s own — cannot reach the page
+  // above AT ALL. canConfigureCommission (staff_admin OR tenancy-admin) has
+  // no PQS-operator arm, so the "same session views the page AND opens the
+  // CAPA from it" flow this AC originally exercised is structurally
+  // impossible now, not merely untested.
+  await signInAs(page, 'admin@test.local', undefined, 'pqs_member')
+  await page.goto(indicatorHref(id))
+  // /não encontr/i, not one pinned boundary's copy — BUG-ACT-NOTFOUND-COPY-1:
+  // which of the not-found boundaries actually renders here is not this
+  // test's claim; ALL of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   await expect
     .poll(
@@ -537,7 +586,11 @@ test('AC-6: loop closure — a CAPA measure can cite the indicator (capa_measure
   const id = await indicatorIdByCode(page, 'IND-0002')
 
   // Open a plan as the operator (idempotent enough — asserts on the resulting row).
-  const adminTok = await getOwnerToken(page, 'admin@test.local')
+  // ACT (ADR 0106): 'pqs_member' — unlike AC-5b, this test has no earlier
+  // UI-navigation half needing a different hat (indicatorIdByCode above
+  // reads via the service role, not this page's own session), so the
+  // operator arm alone is unambiguous here.
+  const adminTok = await getOwnerToken(page, 'admin@test.local', undefined, 'pqs_member')
   await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -702,9 +755,10 @@ test('AC-8a: plain staff cannot edit indicators (RPC rejects; area 404)', async 
   // UI: the coordinator indicator area 404s for plain staff.
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/indicadores')
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, not one pinned boundary's copy —
+  // which of the not-found boundaries renders here is not this test's claim;
+  // all of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -727,9 +781,10 @@ test('AC-8b: foreign-commission user cannot read commission A indicators', async
   // UI: accessing CCIH's indicator detail through the Farmácia URL namespace 404s.
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/manage/indicadores/${id}`)
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, not one pinned boundary's copy —
+  // which of the not-found boundaries renders here is not this test's claim;
+  // all of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   // No CCIH indicator content leaked.
   const body = await page.locator('body').textContent()
   expect(body).not.toMatch(/Adesão à higienização das mãos/i)

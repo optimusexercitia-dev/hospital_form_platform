@@ -10543,6 +10543,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assume_role: {
+        Args: { p_role: Database["public"]["Enums"]["platform_role"] }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       bulk_create_cases: {
         Args: {
@@ -17020,6 +17024,18 @@ export type Database = {
         | "failed"
         | "cancelled"
         | "applied"
+      platform_role:
+        | "org_admin"
+        | "nsp_org_admin"
+        | "hospital_admin"
+        | "nsp_coordinator"
+        | "staff_admin"
+        | "staff"
+        | "pqs_member"
+        | "technical_director"
+        | "technical_director_deputy"
+        | "quality_reviewer"
+        | "platform_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -17157,6 +17173,19 @@ export const Constants = {
         "failed",
         "cancelled",
         "applied",
+      ],
+      platform_role: [
+        "org_admin",
+        "nsp_org_admin",
+        "hospital_admin",
+        "nsp_coordinator",
+        "staff_admin",
+        "staff",
+        "pqs_member",
+        "technical_director",
+        "technical_director_deputy",
+        "quality_reviewer",
+        "platform_admin",
       ],
     },
   },

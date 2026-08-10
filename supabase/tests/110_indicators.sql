@@ -347,7 +347,7 @@ insert into public.memberships (organization_id, principal_id, role, hospital_id
 select (select org_id from k), (select st_x2 from k), 'hospital_admin', (select hosp_id from k)
 on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 
-select test_helpers.claims_for((select st_x2 from k), false);
+select test_helpers.claims_for((select st_x2 from k), false, 'hospital_admin');
 set local role authenticated;
 select ok(
   (select total from public.hospital_indicator_rollup((select hosp_id from k))
@@ -406,7 +406,7 @@ select throws_ok(
 reset role;
 
 -- PQS operator opens it; hospital_id derived from the indicator's commission.
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select st_x from k), false, 'pqs_member');
 set local role authenticated;
 create temp table _capa on commit drop as
   select (public.open_capa_plan('indicator','corretiva', (select id from _pct))).id as id;

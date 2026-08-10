@@ -626,7 +626,7 @@ reset role;
 -- So the assertion flips rather than being deleted: it still measures the tenancy tier on
 -- this door, and it still fails loudly if someone re-cuts by symmetry. The DRAFTING cut is
 -- untouched and guarded separately (`314` 8.7).
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select ok(
   public.can_dispose_referral_phi((select id from r1)),
@@ -667,7 +667,7 @@ select ok(
 
 -- The atomic replacement door (T4.3) is what a real handover uses. sa_x was made an
 -- org_admin of this org before §7.6, which is exactly the authority the DT arm wants.
-select test_helpers.claims_for((select sa_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 set local role authenticated;
 select public.appoint_technical_director((select hosp_b from k), (select successor from hand));
 reset role;
