@@ -1,7 +1,35 @@
 # ADR 0106 — "Act as": role assumption as a binding constraint
 
-- **Status:** Accepted (design; 2026-08-09) — **not yet built**; corrected same day after a
-  live-catalog re-census (enforcement table rewritten; D12–D14 added)
+- **Status:** Accepted and **BUILT** — design 2026-08-09 (corrected same day after a
+  live-catalog re-census: enforcement table rewritten, D12–D14 added); **ratified by the PO
+  2026-08-09** (P1–P6 below); **stages S0–S3 built, QA-APPROVED (r2) and human-approved
+  2026-08-10**, merged to `main` (`ff0e76a`). **S4** (D14 arm audit + this record) in progress.
+  ⛔ **Not yet live on the remote** — see "Cutover debts" below.
+
+## Ratification (PO, 2026-08-09)
+
+Recorded here because the plan file is a build artifact and this ADR is the durable one.
+
+| # | Question | Ruling |
+| --- | --- | --- |
+| **P1** | D12–D14 (JWT transport · administrativo rides the committee hat · case-bitmask arm classification) | **Ratified as written.** |
+| **P2** | Sequencing vs pilot | **Before pilot.** D10's big-bang justification depends on this ordering — **if the pilot moves first, D10 must be re-litigated.** |
+| **P3** | Hat lifetime | **Bound to the auth session** (one hat per sign-in; no app-level TTL). True daily freshness is a session-length policy (auth inactivity timebox — a Supabase Pro knob), not an act-as mechanism. |
+| **P4** | Feature flag | **NONE — the migration IS the cutover.** A deliberate deviation from house convention: a flag's off position is the exact fail-open mode D5 rejects, and enforcement + picker are one atom (enforcement without picker locks multi-role users out). Recorded so a future "why is this unflagged?" does not re-add one. |
+| **P5** | D9 scope at cutover | **Choke-point guards + indicator dropdown.** The area-entry guards render the switch hint; the indicator dropdown is the always-available escape. Row-level absences inside a page are deliberately NOT hinted — there, absence must stay indistinguishable from non-existence (D4). Measured at build: **6 guards, not ~5**, and only 2 of the 6 had a route-scoped `not-found.tsx` to mount the hint in. |
+| **P6** | Program shape | **Staged program, Stages 0–4.** Stage 3 is the only red-suite window. |
+
+### Cutover debts (neither is discharged by merging)
+
+1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…002800`).
+2. **`custom_access_token_hook` must be ENABLED on Supabase Cloud.** `db push` does **not**
+   cover it — locally it is `config.toml`'s `[auth.hook.custom_access_token]`. Without it the
+   remote mints no `active_role` claim, and under D5 **every multi-role principal becomes a
+   stranger**: total lockout, not degradation. This is the highest-risk item in the program.
+
+Because P4 makes the cutover unflagged, it also **forces re-login** — stale pre-cutover sessions
+see stranger-level nothing until they sign in again. Acceptable only because it lands pre-pilot
+(P2).
 - **Scope:** supersedes FUP-QOB-2 ruling ⑤ (dual-hat precedence), which was recorded FALSE
 - **Relates to:** ADR [0100](./0100-quality-office-oversight.md) D1/D12 (quality office,
   duty separation) · ADR [0101](./0101-role-landing-guard.md) (the landing chain) ·
@@ -308,7 +336,9 @@ recorded in the trail.
 
 ## Not decided here
 
-- Where the hat indicator sits (design-system decision, against a real screen).
-- Whether a reviewer may review a committee in which she is a respondent (a separate control
-  — see D6).
-- Sequencing against the pilot.
+- ~~Where the hat indicator sits~~ — **decided at build (S3)**, against a real screen as this
+  entry required: `src/components/shell/user-menu.tsx`, the one component common to every
+  choke-point shell, which already carried a `roleLabel` slot.
+- ~~Sequencing against the pilot~~ — **decided by P2**: before the pilot.
+- **Still open:** whether a reviewer may review a committee in which she is a respondent. A
+  separate control (see D6) — deliberately out of this program's scope, not an oversight.
