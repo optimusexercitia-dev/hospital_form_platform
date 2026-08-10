@@ -782,7 +782,7 @@ select throws_ok(
   $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,
   'HC0A3', null, 'R2: a non-admin cannot create a requested-action (HC0A3)');
 reset role;
-select test_helpers.claims_for((select admin from k), true);
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select lives_ok(
   $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,

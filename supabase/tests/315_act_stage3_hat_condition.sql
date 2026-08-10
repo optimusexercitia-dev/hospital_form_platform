@@ -15,7 +15,25 @@
 -- alternate admitting path (authz-handoff §7.1 shape 6).
 
 begin;
-select plan(8);
+select plan(14);
+
+-- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
+--    hat condition being safe to ship as a no-op today is "0 platform_admins
+--    hold any membership" — an argument that rests on DATA, not on schema.
+--    This assertion checks the REAL, PERSISTED seed data directly (run
+--    BEFORE test_helpers.bootstrap() below truncates it — every later pgTAP
+--    file that calls bootstrap() cannot see seed.sql's rows, per the Stage 1
+--    buildnotes finding on bootstrap()'s own truncate-cascade). If a future
+--    seed.sql change (or a migration, or — pre-pilot only — direct prod
+--    data) ever gives a platform_admin a real membership row, this specific
+--    assertion goes RED on the next `db reset` + `test:db`, which is exactly
+--    the guard an argument resting on "today's data has zero of these" needs.
+select is(
+  (select count(*)::int from public.memberships m
+     join public.profiles p on p.id = m.principal_id
+   where p.is_admin = true),
+  0,
+  'TRIPWIRE (D11): no platform_admin holds any membership row (seed.sql, pre-bootstrap)');
 
 update app.feature_flags set enabled = true where key = 'meetings';
 
@@ -23,7 +41,7 @@ create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
 create temp table k on commit drop as
   select (v->>'sa_x')::uuid as sa_x, (v->>'comm_x')::uuid as comm_x,
-         (v->>'org_b')::uuid as org_b from ctx;
+         (v->>'org_b')::uuid as org_b, (v->>'admin')::uuid as admin from ctx;
 grant select on k to authenticated;
 
 -- Make sa_x genuinely multi-role (staff_admin@comm_x from bootstrap + org_admin@org_b
@@ -152,6 +170,66 @@ select is(
      and pg_get_function_identity_arguments(p.oid) = 'p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid'),
   (select current_setting('act.original_has_role', true)),
   'RESTORE: has_role is byte-identical to its pre-mutation definition');
+
+-- ── app.is_admin() D11 keystone ─────────────────────────────────────────
+-- Makes the fixture's `admin` (bootstrap's platform_admin, is_admin=true,
+-- no memberships) ALSO hold a real membership — the ONLY condition that can
+-- distinguish D11's hat-gated is_admin() from the pre-D11 body (0
+-- platform_admins hold one in real seed, per the TRIPWIRE above). Full
+-- before/after matrix (8 cases incl. this construction) run manually against
+-- the live catalog and recorded in docs/plans/act-as-buildnotes.md; this is
+-- the PERMANENT keystone so the diff-scoped door sweep has a real path to
+-- exercise (a single-role platform_admin, which is all any OTHER existing
+-- pgTAP file constructs, can never distinguish the two implementations).
+insert into public.memberships (organization_id, principal_id, role)
+values ((select org_b from k), (select admin from k), 'org_admin');
+
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select admin from k), 'is_admin', true, 'active_role', 'platform_admin')::text, true);
+set local role authenticated;
+select ok(
+  app.is_admin(),
+  'is_admin() D11: multi-role admin WITH the platform_admin hat active -> TRUE');
+reset role;
+
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select admin from k), 'is_admin', true, 'active_role', 'org_admin')::text, true);
+set local role authenticated;
+select ok(
+  not app.is_admin(),
+  'is_admin() D11 ⭐ THE DISTINGUISHING CASE: multi-role admin acting under a DIFFERENT hat (org_admin) -> FALSE, not the pre-D11 TRUE');
+reset role;
+
+select set_config('request.jwt.claims',
+  jsonb_build_object('sub', (select admin from k), 'is_admin', true)::text, true);
+set local role authenticated;
+select ok(
+  not app.is_admin(),
+  'is_admin() D11: multi-role admin with NO active hat -> FALSE (fail closed, D5)');
+reset role;
+
+-- BREAK-GLASS: a PURE (single-role) platform_admin never needs the picker —
+-- the hook derives the hat implicitly, with no UI in the path (D11's own
+-- explicit protection). Verified against the REAL custom_access_token_hook,
+-- not a simulated claim, so a future change to the hook's own derivation
+-- logic cannot silently break this.
+select ok(
+  (public.custom_access_token_hook(jsonb_build_object(
+    'user_id', (select admin from k),
+    'claims', jsonb_build_object('sub', (select admin from k), 'session_id', gen_random_uuid()),
+    'authentication_method', 'password'
+  )) -> 'claims' ->> 'active_role') is null,
+  'break-glass CONTROL: this exact multi-role admin now needs a real picker choice — hook mints NO claim (proves the hook genuinely re-evaluates live state, not a stale assumption)');
+
+delete from public.memberships where principal_id = (select admin from k) and role = 'org_admin' and organization_id = (select org_b from k);
+
+select ok(
+  (public.custom_access_token_hook(jsonb_build_object(
+    'user_id', (select admin from k),
+    'claims', jsonb_build_object('sub', (select admin from k), 'session_id', gen_random_uuid()),
+    'authentication_method', 'password'
+  )) -> 'claims' ->> 'active_role') = 'platform_admin',
+  'break-glass ⭐: restored to a PURE platform_admin (no memberships) -> the hook derives active_role=platform_admin implicitly, no UI/picker involved (D11)');
 
 select * from finish();
 rollback;

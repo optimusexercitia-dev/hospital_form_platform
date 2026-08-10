@@ -67,7 +67,7 @@ select throws_ok(
 reset role;
 
 -- Admin (PQS today) creates a CUSTOM designated criterion (for the config-path test).
-select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 create temp table crit on commit drop as
   select id from public.create_sentinel_criterion('custom_designated', 'Categoria designada personalizada', null);
@@ -187,7 +187,7 @@ select is(
   1, 'the flagged designated criterion is recorded');
 
 -- The flag SNAPSHOTS the label — survives a later vocab rename (viewable-forever).
-select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
 set local role authenticated;
 select public.update_sentinel_criterion((select id from crit), 'Rótulo renomeado', null);
 reset role;
