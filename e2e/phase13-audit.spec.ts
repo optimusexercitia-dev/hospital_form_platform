@@ -937,23 +937,34 @@ test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commiss
   expect(total).toBeGreaterThanOrEqual(83)
 })
 
-// ⛔ ACT (ADR 0106) finding, reported not fixed (2026-08-10, found verifying
-// the BUG-ACT-RAWGRANT-HATLESS-1 fix, unrelated persona/mechanism — this
-// test uses platform@, which none of that work touches). This test's premise
-// — "the platform-tier chain (org+commission both NULL) is empty" — is no
-// longer reliably true. `assume_role`'s own audit action, `active_role.assumed`
-// (D8), writes with BOTH organization_id and commission_id NULL (verified
-// live: `select action, organization_id, commission_id, count(*) from
-// audit_log where action='active_role.assumed' group by 1,2,3` → 1 row, both
-// null). Any earlier picker/switch use in the SAME database — the ACT specs
-// themselves, or any of the ~35 spec files across the codebase whose sign-in
-// now threads `actAs` post-BUG-ACT-PICKER-SEED-1 — populates this bucket,
-// which this test asserts stays at zero. On a genuinely fresh reset with no
-// prior assume_role calls, the test still passes; it is fragile to run
-// ORDER/history within that reset, which was not previously true. Whether
-// `active_role.assumed` belongs in this "platform-tier" bucket at all, or
-// needs its own tier, is a cross-cutting audit-log design question outside
-// this session's scope to decide unilaterally — filed, not fixed.
+// ⛔ Two INDEPENDENT, confirmed sources make this test's premise — "the
+// platform-tier chain (org+commission both NULL) is empty" — unreliable in
+// any suite run with enough history behind it. Neither is fixed here; both
+// are filed (PROGRESS.md Bug Log) rather than papered over in-line.
+//   1. BUG-ACT-AUDIT-PLATFORM-TIER-1 (ACT, ADR 0106) — `assume_role`'s own
+//      audit action, `active_role.assumed` (D8), writes with BOTH
+//      organization_id and commission_id NULL (verified live). Any earlier
+//      picker/switch use in the SAME database — now routine, since ~35
+//      spec files' sign-ins thread `actAs` post-BUG-ACT-PICKER-SEED-1 —
+//      populates this bucket.
+//   2. BUG-CAPA-AUDIT-SCOPE-1 (pre-existing, unrelated to ACT — found by
+//      `backend` tracing this test's own failure) — `trg_audit_capa_plan`
+//      resolves scope ONLY via `event_of_capa(new.id) → commission_of_event`
+//      (verified live from `pg_get_functiondef`), which is NULL for every
+//      `manual`/`meeting`/`indicator`/`audit_finding`-sourced CAPA — even
+//      though `capa_plan.hospital_id` is a real, populated column on the
+//      SAME row the trigger never reads. `phase14d-capa.spec.ts` opens 5
+//      manual-source plans; confirmed live in this exact database:
+//      `select action, organization_id, commission_id, hospital_id,
+//      count(*) from audit_log where action='capa.opened' group by 1,2,3,4`
+//      → 2 rows with ALL THREE null, alongside 1 properly-scoped row.
+// A genuinely fresh reset with neither an assume_role call nor a
+// manual/meeting/indicator/audit_finding CAPA open still passes; in a full
+// `e2e:prod` run (one reset, many specs, CAPA before audit) either
+// mechanism alone reproduces the same shape. Whether this assertion is
+// itself too broad to survive ANY realistic suite ordering — rather than
+// being a property of either individual bug — is a fair question the
+// tester flags but does not resolve unilaterally.
 test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
   page,
 }) => {

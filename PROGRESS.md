@@ -385,33 +385,133 @@ confirmed by a live 404 under `pqs_member`); `ethics-e2-procedure.spec.ts`'s dyn
 needed each voter's OWN role from `computeEligibleVoters()` (extended to carry it through) rather
 than one blanket hat, since the roster mixes `staff` and `staff_admin` CCIH members.
 
-**Findings — reported, not papered over, matching the coordinator's own instruction on this
-exact shape:**
-- `phase15-indicators.spec.ts` AC-5b (already filed) — no hat threaded; left RED with the
-  finding documented in-line.
-- **NEW: `phase22-referrals.spec.ts` Flow 3d** — same shape as AC-5b, found live while verifying
-  the Flow 3d fix (the page rendered "Sem resultado registrado" instead of a text-match failure,
-  which is what led to catching this as real rather than a flake). Verified from the live catalog:
-  `can_read_referral_phi`'s gate is `is_pqs_operator_of_for(...) OR is_staff_admin_of_for(...) OR
-  <target-side arms>` — pqsdual.a@ is a plain CCIH `staff` (not `staff_admin`), so ENTRY needs
-  `staff` but the PHI-bearing reply-result content needs `pqs_member`; no single hat satisfies
-  both post-cutover. Left RED, documented in-line. Flow 5a (the sibling "PHI panel reveal" test)
-  does NOT share this shape — verified live, passes cleanly with `pqs_member` alone.
-- **NEW: `phase13-audit.spec.ts` AC-3f-platform** — found verifying an UNRELATED site in the same
-  file (uses `platform@`, never touched by this work). `assume_role`'s own audit action
-  (`active_role.assumed`, D8) writes with BOTH `organization_id` AND `commission_id` NULL
-  (verified live — 14 rows already, from this session's own ACT spec runs), landing in exactly
-  the "platform-tier chain" bucket this pre-existing test asserts is always empty. Any earlier
-  picker/switch use in the same database — now routine, since ~35 files' sign-ins thread `actAs`
-  — populates it. A fresh reset with no prior `assume_role` calls still passes; whether
-  `active_role.assumed` belongs in this bucket at all is a cross-cutting audit-log design
-  question, filed not decided unilaterally.
+**Findings from raw-grant verification — both since RE-SCOPED per PO ruling 2026-08-10 (see
+"ACT — union tests re-scoped" below), no longer left red:**
+- `phase15-indicators.spec.ts` AC-5b and `phase22-referrals.spec.ts` Flow 3d, both originally
+  filed here as accepted "union" losses, were rewritten (not deleted) once the PO ruled on them —
+  each half now passes under its own correct hat, PLUS an explicit new assertion proving the
+  specific combined-single-session flow is genuinely gone. Detail in the ACT union-tests entry
+  below; both green as of this commit.
 
 **Also found and fixed en route (same bug class, blocking verification of the above, not a new
 class):** two MORE instances of `BUG-ACT-NOTFOUND-COPY-1` (below), in `ethics-e2-procedure.spec.ts`
 (`assertRouteDenied`, cascading via `test.describe.configure({mode:'serial'})` — blocked FLOW-7,
 the test actually exercising the pqsdual.a@ dynamic-role fix, until corrected) and
+
+🔴 **NEW, found re-running the touched specs after the union-tests rewrite (2026-08-10) —
+`phase22-referrals.spec.ts` Flow 5a is a THIRD, previously-undetected instance of the exact
+shape the PO just ruled on for AC-5b/Flow 3d, not something today's Flow 3d rewrite caused.**
+Its own `signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')` is unchanged from the
+tester's EARLIER commit (`a8da28d`) — confirmed via `git log -p`, nothing in this session's
+Flow 3d work touched this line. Re-running the full file surfaced it because THIS is the first
+time 'staff' (the correct ENTRY hat) has ever let the test's `if (revealBtn.isVisible)` branch
+be entered non-vacuously. Same mechanism as Flow 3d, reasoned from facts already independently
+verified live this session (no new experiment needed): `can_read_referral_phi` admits her only
+via `is_pqs_operator_of_for` (needs `pqs_member`) or `is_staff_admin_of_for` (she's plain
+`staff`, not `staff_admin`, at CCIH — does not qualify); `pqs_member` 404s on this exact
+commission-scoped route (proven by this session's own Flow 3d rewrite). So 'staff' reaches the
+page but can never reveal PHI; 'pqs_member' would satisfy the PHI gate but never reaches the
+page. No single hat does both — the identical incompatibility, not yet PO-reviewed for this
+specific test. **Compounding, and worth flagging on its own:** the test's `else` branch ends
+"if PHI doesn't appear at all, the lazy door works correctly — nothing to assert" — a SILENT
+vacuous-pass fallback for exactly the case that's now structurally permanent. The tester's own
+earlier "3 passed" report for this test (in the BUG-ACT-RAWGRANT-HATLESS-1 close-out) almost
+certainly reported a vacuous pass, not a real one — correcting that claim here rather than
+letting it stand uncorrected. **Not rewritten** — the coordinator's instruction was to rewrite
+the two NAMED tests and then stop; this is a third, structurally-identical case the tester found
+only while re-verifying, and extending the PO's ruling to a test they have not seen felt like
+exactly the kind of unilateral step the "then stop" boundary was meant to prevent. Flagged for
+an explicit decision, with the mechanism fully pre-verified so a fix (if directed) is a
+same-shape rewrite, not a new investigation.
+
+**Also found, same re-run, NOT fixed (respecting "then stop" — same already-understood bug
+class, flagged not resolved):** `phase15-indicators.spec.ts` AC-8a and AC-8b both pin
+`getByRole('heading', { name: /encontramos esta página|Erro 404/i })` — the SAME
+`BUG-ACT-NOTFOUND-COPY-1` shape (a boundary-copy alternation that doesn't include "Página não
+encontrada"), now failing for the same reason as the 4 already-fixed instances. Trivial to fix
+with the established `/não encontr/i` pattern if wanted; left alone this round.
 `phase13-audit.spec.ts` AC-3e. Both fixed with the same `/não encontr/i` pattern.
+
+⬛ **ACT — union tests re-scoped, PO ruling accepted 2026-08-10 (`tester`, backend traced both
+mechanisms, PO ruled "accept both losses").** `phase15-indicators.spec.ts` AC-5b and
+`phase22-referrals.spec.ts` Flow 3d rewritten in place, not deleted — each asserts what is now
+TRUE under its own hat, plus an explicit proof of the specific thing that's genuinely gone.
+- **AC-5b — the inherited mechanism comment was WRONG, corrected as part of the rewrite.** The
+  pre-ACT comment (never independently re-verified until now) described `open_capa_plan`'s gate
+  as `is_tenancy_admin_of(source_commission) OR is_pqs_operator_of(hospital)`. Read live from
+  `pg_get_functiondef`: for `p_source = 'indicator'`, `v_hospital` resolves unconditionally from
+  the indicator's own commission, so the function's only membership-fallback branch (the sole
+  place any tenancy-admin check could live) never executes — the ONLY authorization check is
+  `app.is_pqs_operator_of(v_hospital)`. There never was a two-armed OR; it is TWO SEPARATE
+  SEQUENTIAL gates (PAGE ENTRY = `canConfigureCommission`, staff_admin/tenancy-admin; the RPC
+  itself = `is_pqs_operator_of` alone) that a hatless session used to satisfy together and no
+  session can anymore. Rewrite: UI half stays `org_admin` (unchanged, already passing); RPC half
+  now correctly hatted `pqs_member` (an independent raw-grant session — it was ALREADY a separate
+  credential from the UI's cookie session, only the hat was missing, so nothing about the
+  operator-tier authorization/data-contract proof was actually lost); NEW assertion added —
+  `pqs_member` gets 404'd on the indicator page itself, proving the single-session "view this page
+  and click a button here" journey is structurally gone. All three pieces green.
+- **Flow 3d — same two-gates shape** (`staff` for commission entry, `pqs_member` for
+  `can_read_referral_phi`, verified live: `is_pqs_operator_of_for(...) OR is_staff_admin_of_for(...)
+  OR <target arms>` — pqsdual.a@ is plain `staff`, not `staff_admin`, at CCIH). Rewrite: `staff`
+  half now asserts the PHI result is POSITIVELY withheld ("Sem resultado registrado", the real
+  result text confirmed absent) rather than expecting it visible; NEW assertion — `pqs_member`
+  gets 404'd on the same commission-scoped route, proving the combined flow is gone. Per the PO's
+  own reasoning (the NSP surface is deliberately PHI-free / has no deep link here, by design, not
+  by this gap) — not independently re-tested here (would expand scope beyond the two named tests;
+  flagged as a candidate follow-up if that NSP-surface behavior itself ever needs its own spec).
+- **Both re-verified green** after rewrite (`npx playwright test ... -g "AC-5b|AC-6"` and
+  `-g "Flow 3d"`, chromium, `--workers=1`).
+- **Tester's view on "assert absence" as the shape:** right for both. It's not just the least-bad
+  option — it's a STRICTLY STRONGER test than the one it replaces: the original only ever proved
+  "a hatless admin@ can do X", conflating two gates that happened to both be reachable by
+  coincidence of one persona's total membership set. The rewrite proves each gate individually
+  AND proves they no longer compose, which is the actual ADR 0106 claim (D5) — the old test never
+  asserted that composition was even meaningful, let alone gone.
+
+⬛ **BUG-ACT-AUDIT-PLATFORM-TIER-1 — OPEN (`tester`, found verifying an unrelated site in
+`phase13-audit.spec.ts`, 2026-08-10).** `phase13-audit.spec.ts` AC-3f-platform (`platform@`,
+untouched by any ACT work) asserts the audit_log "platform-tier chain" (organization_id AND
+commission_id both NULL) is permanently empty. `assume_role`'s own audit action,
+`active_role.assumed` (D8), writes with BOTH null (verified live: `select action,
+organization_id, commission_id, count(*) from audit_log where action='active_role.assumed'
+group by 1,2,3` → 1 row, both null). Any earlier picker/switch use in the same database — now
+routine, since ~35 spec files' sign-ins thread `actAs` post-BUG-ACT-PICKER-SEED-1 — populates
+this bucket. A fresh reset with no prior `assume_role` call still passes the test; it is fragile
+to run order/history within that reset, which was not previously true. **Not fixed** — whether
+`active_role.assumed` belongs in this bucket at all, or needs its own tier, is a cross-cutting
+audit-log design question outside a tester's authority to decide unilaterally. See also
+BUG-CAPA-AUDIT-SCOPE-1 below — a second, independent, pre-existing (non-ACT) mechanism that
+violates the SAME assertion for a different reason, found by `backend` tracing this same test.
+
+🟡 **BUG-CAPA-AUDIT-SCOPE-1 — OPEN, pre-existing, NOT caused by ACT (`backend` traced the
+mechanism; `tester` independently verified against the live catalog + confirmed live in this
+database, 2026-08-10; filed per the coordinator's explicit instruction — not fixed).**
+`app.trg_audit_capa_plan` (verified live via `pg_get_functiondef`) resolves audit scope ONLY via
+`v_comm := case when v_event is not null then app.commission_of_event(v_event) else null end` —
+i.e., only `source='event'` CAPAs ever get a commission. For `manual`/`meeting`/`indicator`/
+`audit_finding`-sourced CAPAs, `v_event` is null, so `v_comm` is null, and `audit_write(...,
+p_commission => null, ...)` is called with NO `p_organization`/`p_hospital` override either —
+landing the row in `audit_write`'s own documented "platform chain (all NULL)" bucket (verified
+live from `audit_write`'s `pg_get_functiondef`), even though `capa_plan.hospital_id` is a REAL,
+POPULATED column on the very same row (`open_capa_plan` always sets it, for every source type)
+that the trigger simply never reads. **Confirmed live in this database**:
+`phase14d-capa.spec.ts` opens 5 manual-source plans (`p_source: 'manual'` at 5 call sites); `select
+action, organization_id, commission_id, hospital_id, count(*) from audit_log where
+action='capa.opened' group by 1,2,3,4` → 2 rows with ALL THREE null, alongside 1 correctly-scoped
+row from an event-sourced open. **Predicted, not yet observed in a full run:** in `npm run
+e2e:prod` (one reset, many specs, `phase14d-capa` ordered before `phase13-audit`), this
+reproduces the exact "platform bucket not empty" shape `AC-3f-platform` asserts against —
+**for a reason entirely unrelated to ACT.** **Not fixed** (explicit instruction — pre-existing,
+outside this program, not a tester call). **Tester's view, since asked:** yes,
+`AC-3f-platform`'s assertion looks too broad to survive ANY realistically-complete suite
+ordering — it is now confirmed vulnerable to two INDEPENDENT mechanisms (this one, pre-existing;
+BUG-ACT-AUDIT-PLATFORM-TIER-1, ACT-caused), which suggests the assertion's premise ("nothing
+ever lands here") was already fragile before ACT touched anything, not a property either
+individual bug introduced. Whether the fix is "make CAPA triggers fall back to
+`new.hospital_id`", "give platform_admin-only actions their own audit tier", or "loosen this one
+assertion to something like `count <= <known-pollution-sources>`" is a design call, not
+adjudicated here.
 
 ⬛ **BUG-ACT-NOTFOUND-COPY-1 — RESOLVED same-session 2026-08-10 (`tester`).** Originally found in
 `user-registration.spec.ts` "a foreign org_admin (rede-b) cannot open a rede-a user detail page":
@@ -758,7 +858,8 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 > Older rows (MIN · AFF · MEM · PCI/TV and everything before) rotated **2026-08-07** at the QO·A
 > Record → [test-run-archive.md](docs/progress/test-run-archive.md).
 
-| 2026-08-10 | **ACT · TESTER · Stage 3 specs + BOTH seed-persona threading follow-ups (cookie + raw-grant), coordinator-directed close-out** — `e2e/act-role-assumption.spec.ts` (9 tests) + `actAs`/hatted-`accessToken` threading across **22** raw-grant files and **15** cookie-based files (37 file-touches total, several needing both) + `phase-multitenancy.spec.ts` decision (deleted, redundant) + `BUG-ACT-NOTFOUND-COPY-1` fixed in 4 places. **NOT a full-suite run** (out of scope — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN**, re-verified on a SECOND fresh reset after backend's own concurrent migrations landed (`…002400`, `…002500`). **Every touched file individually re-verified live** (not sampled) on the final fresh reset: `phase-multitenancy.spec.ts` 29/30 (1 deliberate red → now DELETED, see below) · `phase14a-safety-events` 15/16 (1 unrelated pre-existing keyboard-focus flake, matches the documented `.focus()`-not-auto-waiting class) · `phase14b-triage` 13/13 · `phase14c-rca` 17/17 · `phase14d-capa` 19/19 · `ethics-e2-procedure` 20/20 (incl. FLOW-7, the dynamic-role-per-voter fix) · `phase16-accreditation-clone` 4/4 · `phase16-accreditation-hospital` 6/6 · `phase13-audit` 26/27 (1 genuine NEW finding, not a regression — see Bug Log) · plus `mem-memberships-collapse`, `patient-index` (7/7 across its 4 sites), `phi-remediation`, `charters-cadence` (3/3), `ff3-validations` all green. lint 0/0 across `e2e/` · `tsc --noEmit` clean — both re-run after every edit batch, final time on the clean-reset tree. **`phase-multitenancy.spec.ts` decision (coordinator's item 2): DELETED**, not re-based — its own comment already named the coverage redundant ("lands on the /c picker, exactly like multi@ below"); the intent (multi-commission + single-role-type → grouped `/c` picker) is fully covered by the adjacent `multi@` test in the same file (now verified true for her post-cutover) and by this file's own D2 negative spec. **Raw-grant denominator, re-derived by property per the coordinator's instruction: 58 files perform a raw grant; 22 intersect a multi-role persona** (19 by literal string, +3 only reachable by tracing transitive imports/dynamic queries — full breakdown in the Bug Log). Caught and self-corrected one real gap in the tester's own first pass (`phase14c-rca`/`phase14d-capa`, 26 sites, initially miscategorized "comment-only") before declaring done. ⛔ **Three bugs found and reported beyond the originally-assigned 7 specs, all live-reproduced against the real catalog/DB, not inferred:** BUG-ACT-PICKER-SEED-1 and BUG-ACT-GUARD-HATBLIND-1 (P0, RESOLVED same-session by backend) from the first pass; BUG-ACT-RAWGRANT-HATLESS-1 (RESOLVED this session) plus 2 genuinely NEW findings surfaced while verifying it (`phase22-referrals.spec.ts` Flow 3d — same OR-gate-conflation shape as AC-5b; `phase13-audit.spec.ts` AC-3f-platform — `assume_role`'s own audit rows now populate a bucket a pre-existing test assumed was permanently empty) — both left RED with the finding documented in-line, not forced. Full detail, all bug rows: PROGRESS.md Bug Log.
+| 2026-08-10 | **ACT · TESTER · Stage 3 specs + BOTH seed-persona threading follow-ups (cookie + raw-grant), coordinator-directed close-out** — `e2e/act-role-assumption.spec.ts` (9 tests) + `actAs`/hatted-`accessToken` threading across **22** raw-grant files and **15** cookie-based files (37 file-touches total, several needing both) + `phase-multitenancy.spec.ts` decision (deleted, redundant) + `BUG-ACT-NOTFOUND-COPY-1` fixed in 4 places. **NOT a full-suite run** (out of scope — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN**, re-verified on a SECOND fresh reset after backend's own concurrent migrations landed (`…002400`, `…002500`). **Every touched file individually re-verified live** (not sampled) on the final fresh reset: `phase-multitenancy.spec.ts` 29/30 (1 deliberate red → now DELETED, see below) · `phase14a-safety-events` 15/16 (1 unrelated pre-existing keyboard-focus flake, matches the documented `.focus()`-not-auto-waiting class) · `phase14b-triage` 13/13 · `phase14c-rca` 17/17 · `phase14d-capa` 19/19 · `ethics-e2-procedure` 20/20 (incl. FLOW-7, the dynamic-role-per-voter fix) · `phase16-accreditation-clone` 4/4 · `phase16-accreditation-hospital` 6/6 · `phase13-audit` 26/27 (1 genuine NEW finding, not a regression — see Bug Log) · plus `mem-memberships-collapse`, `patient-index` (7/7 across its 4 sites), `phi-remediation`, `charters-cadence` (3/3), `ff3-validations` all green. lint 0/0 across `e2e/` · `tsc --noEmit` clean — both re-run after every edit batch, final time on the clean-reset tree. **`phase-multitenancy.spec.ts` decision (coordinator's item 2): DELETED**, not re-based — its own comment already named the coverage redundant ("lands on the /c picker, exactly like multi@ below"); the intent (multi-commission + single-role-type → grouped `/c` picker) is fully covered by the adjacent `multi@` test in the same file (now verified true for her post-cutover) and by this file's own D2 negative spec. **Raw-grant denominator, re-derived by property per the coordinator's instruction: 58 files perform a raw grant; 22 intersect a multi-role persona** (19 by literal string, +3 only reachable by tracing transitive imports/dynamic queries — full breakdown in the Bug Log). Caught and self-corrected one real gap in the tester's own first pass (`phase14c-rca`/`phase14d-capa`, 26 sites, initially miscategorized "comment-only") before declaring done. ⛔ **Three bugs found and reported beyond the originally-assigned 7 specs, all live-reproduced against the real catalog/DB, not inferred:** BUG-ACT-PICKER-SEED-1 and BUG-ACT-GUARD-HATBLIND-1 (P0, RESOLVED same-session by backend) from the first pass; BUG-ACT-RAWGRANT-HATLESS-1 (RESOLVED this session) plus 2 genuinely NEW findings surfaced while verifying it (`phase22-referrals.spec.ts` Flow 3d — same OR-gate-conflation shape as AC-5b; `phase13-audit.spec.ts` AC-3f-platform — `assume_role`'s own audit rows now populate a bucket a pre-existing test assumed was permanently empty) — both left RED with the finding documented in-line, not forced. Full detail, all bug rows: PROGRESS.md Bug Log. |
+| 2026-08-10 | **ACT · TESTER · union-tests re-scope (PO ruling) + BUG-CAPA-AUDIT-SCOPE-1 filed — coordinator-directed close-out, part 2** — rewrote `phase15-indicators.spec.ts` AC-5b and `phase22-referrals.spec.ts` Flow 3d per the PO's "accept both losses" ruling (each half asserted under its own correct hat + a new assertion proving the specific combined-session flow is gone, not merely deleted); corrected AC-5b's inherited-and-wrong `open_capa_plan` gate-shape comment (verified live: no `is_tenancy_admin_of` arm for `p_source='indicator'`, two sequential gates not one OR); filed `BUG-CAPA-AUDIT-SCOPE-1` (mechanism backend-traced, tester-independently-verified live against `pg_get_functiondef`+`audit_log`, NOT fixed per explicit instruction) | **AC-5b: 2/2** (`-g "AC-5b|AC-6"`) — UI half (`org_admin`) unchanged-passing, RPC half now correctly `pqs_member`-hatted and passing, new `pqs_member`-404s-the-page assertion passing. **Flow 3d: 1/1** (`-g "Flow 3d"`) — `staff` sees status + the PHI result positively withheld (not merely absent), new `pqs_member`-404s-the-route assertion passing. Both chromium, `--workers=1`, re-verified after rewrite. lint 0/0, `tsc --noEmit` clean. ⛔ **Re-running the two touched files whole (not just `-g`-scoped) surfaced 3 more reds, NONE fixed this round, respecting the coordinator's "then stop":** `phase15-indicators.spec.ts` AC-8a/AC-8b — same already-known `BUG-ACT-NOTFOUND-COPY-1` shape, trivial same-pattern fix, left alone. `phase22-referrals.spec.ts` Flow 5a — a THIRD, previously-undetected instance of the identical two-gate shape the PO just ruled on, pre-existing (traced to the tester's own earlier commit `a8da28d` via `git log -p`, not caused by today's Flow 3d rewrite), reasoned from facts already verified live this session (no new experiment run), and compounded by a silent vacuous-pass fallback in the test's own `else` branch — meaning the tester's earlier "3 passed" report for this exact test in the BUG-ACT-RAWGRANT-HATLESS-1 close-out was almost certainly non-probative, corrected here rather than left standing. Not extended to match the PO's ruling unilaterally; flagged in the Bug Log for an explicit decision, mechanism fully pre-verified so a fix (if directed) is a same-shape rewrite, not a new investigation. |
 
 | 2026-08-09 | **BACKSTOP · LEAD · wave-5 gate (referral disposal backstop + stale messages)** — 1 migration `20260917000400`, **334 registered == 334 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5636 / PASS** (+2 ruling guards) · **RED-PROOF:** re-cutting the restored arm reds **exactly `295` 7.7 (behavioural) + `314` 8.6 (catalog)** and nothing else; restore **byte-identical** · E2E **91/91** (`phase22-referrals` 40, `nsp-per-hospital` 51, `qob-org-admin-content-wall`), 0 did-not-run · lint 0/0 · tsc · vitest **1194**. ⛔ **This PARTIALLY REVERSES `20260917000000` the same day, deliberately.** BUG-QOB-004 was ruled CUT on D5; examining the sibling `dispose_event_phi` afterwards surfaced two facts that were not in front of the PO: **a hospital can have ZERO NSP operators** (`Hospital Unico C`), so NSP-only disposal strands an **LGPD Art. 18** erasure obligation that belongs to the *controlador*; and this platform **already rules the other way for the identical shape** — ADR 0104 D11 keeps the tenancy arm on `revoke_printed_document` because revocation *reveals no content*. Disposal discloses nothing; it destroys. Restored on the two DISPOSAL doors only — **drafting stays cut, the UI wall stays** — and guarded by `314` 8.6/8.7 so a future "finish the disposal wall" sweep reds instead of silently reopening the gap. ⚠ **Three stale pt-BR messages fixed, one per direction:** `dispose_case_phi` **promised** an org-admin arm QO·B removed; `revoke_printed_document` **hid** the tenancy arm it carries. The class — *every arm that moved left its sentence behind* — is invisible to every gate here, because no test reads prose. ⚠ **The gate's first run was RED (UNRUN):** both batches' `db reset` failed with a **502 from the stack gateway** mid-restart, 91 tests never ran. Recorded remedy applied (`supabase stop` → `start` → reset → **verify a real token POST returns 200**, which it did) and the gate re-run clean. |
 | 2026-08-09 | **CADENCE · LEAD · wave-4 gate (registry cadence overview)** — 1 migration `20260917000300`, **333 registered == 333 files** on a fresh reset | **ALL GREEN.** pgTAP **175 files / 5634 / PASS** (+10: `261` §CAD) · **RED-PROOF:** neutralizing the door's tenancy filter to `where true` reds **exactly tests 33–34** (CAD-4 cross-org, CAD-5 plain member) and nothing else — the positive arms stay green, as they must; restore **byte-identical** · `ARM=census` + `ARM=floor` **HOLD** · E2E **21/21** (`quality-oversight`, incl. 3 new CAD tests), 0 did-not-run · lint 0/0 · tsc · vitest **1194** · **UI verified live in the browser**, not just built: all four Rede-A committees render the badge and the statuses match the DB probe exactly (Farmácia `em_dia`, the other three `sem_regimento`). ⛔ **A REAL DEFECT I INTRODUCED AND CAUGHT:** the extracted helper was first declared **IMMUTABLE** while reading `now()` — the planner may fold such a call to a constant or cache it across rows, so it would have been wrong intermittently and only under load. Fixed to `STABLE` **and pinned by the migration's own postcondition** (`provolatile = 's'`), because every test passes under either marking until the planner decides to fold. ⚠ **A boundary test that looked like a bug and was not:** `now() - interval '1 month'` walks back a CALENDAR month (31 days in a 31-day month) while `interval '1 month'` COMPARES as 30 days, so the "exactly one period old" probe landed `em_atraso`. The door's semantics are unchanged from the original; the test was wrong. Re-pinned on `semanal` (exactly 7 days both ways) and the month behaviour documented executably as CAD-8b rather than left as a surprise. ⚠ **The census/sweep domain gap fired again:** the new door is set-returning, so `ARM=census` demands a verdict while the door-audit's boolean-only predicate arm **cannot produce one** (swept 0 cases). Verdict recorded as COVERED on the **hand-run mutation evidence**, per the AFF precedent — never cite the census as coverage. Durable fix stays FUP-AFF-1. |

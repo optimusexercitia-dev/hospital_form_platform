@@ -472,38 +472,64 @@ test('AC-5b: PQS operator opens a CAPA — plan carries indicator + derived hosp
   await expect(page.getByRole('region', { name: /plano de ação/i })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Medições', level: 2 })).toBeVisible()
 
-  // The operator-tier AUTHORIZATION itself is unaffected by QO·B — proven
-  // through the real door `open_capa_plan`, exactly as AC-6 below does for
-  // loop closure. Its SQL gate is `is_tenancy_admin_of(source_commission)
-  // OR is_pqs_operator_of(hospital)`, neither arm touched by the QO·B
-  // migrations (M1–M6 never mention CAPA doors).
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10 (was
+  // BUG-ACT-RAWGRANT-HATLESS-1's "left RED" note; superseded by this
+  // rewrite, not a re-open). **The earlier comment describing this RPC's
+  // gate as `is_tenancy_admin_of(source_commission) OR is_pqs_operator_of
+  // (hospital)` was WRONG — inherited from the pre-ACT QO·B rewrite and
+  // never independently re-verified until now.** Read live from
+  // `pg_get_functiondef(open_capa_plan)`: for `p_source = 'indicator'`,
+  // `v_hospital` resolves unconditionally from the indicator's commission,
+  // so the function's ENTIRE membership-fallback branch (the only place
+  // any tenancy-admin-shaped check could live) never executes; the sole
+  // authorization check reached is `app.is_pqs_operator_of(v_hospital)`.
+  // There never was a tenancy-admin arm for this source type — confirmed
+  // independently by AC-6 below, which opens an identical
+  // `p_source: 'indicator'` plan with `pqs_member` alone and has never
+  // needed anything else.
   //
-  // ⛔ ACT (ADR 0106), BUG-ACT-RAWGRANT-HATLESS-1 finding, reported not
-  // fixed (2026-08-10): this call is DELIBERATELY left hatless. Threading
-  // EITHER hat would misrepresent what this test proves. This test's own
-  // UI half (lines above) required 'org_admin' to pass canConfigureCommission
-  // (a tenancy-admin gate); this RPC half is titled "PQS operator opens a
-  // CAPA" and its comment above frames the claim as the PQS-OPERATOR arm
-  // specifically — but that arm is `is_pqs_operator_of`, which 'org_admin'
-  // does NOT satisfy. Pre-cutover, one hatless admin@ session carried the
-  // UNION of both arms simultaneously (this is exactly the class of test
-  // BUG-ACT-PICKER-SEED-1 was found investigating), so both halves passed
-  // together without the test ever having to choose. Post-cutover, no
-  // single hat serves both halves: 'org_admin' would pass the UI, fail the
-  // RPC (confirmed live — see PROGRESS.md); 'pqs_member' would fail the UI
-  // before ever reaching this line. This is a genuine structural
-  // incompatibility in the test's own construction, not a missing actAs
-  // pick — filed, not silently forced. Left RED.
-  const adminTok = await getOwnerToken(page, 'admin@test.local')
+  // So this was never one gate with two arms; it is TWO SEPARATE,
+  // SEQUENTIAL gates that used to be satisfiable by one hatless session's
+  // full membership set and no longer are: PAGE ENTRY (`canConfigureCommission`
+  // — staff_admin/tenancy-admin, 'org_admin' above) and the RPC itself
+  // (`is_pqs_operator_of` alone — 'pqs_member' here). Confirmed live that a
+  // real `pqs_member` hat gets 404'd on this exact page (canConfigureCommission
+  // has no PQS arm), so the single-session "I am looking at this page and
+  // click a button right here to open the CAPA" journey is genuinely,
+  // structurally gone — no actAs choice restores it, and none should.
+  //
+  // What is NOT gone: the operator-tier authorization + data contract
+  // itself (plan creation, hospital_id derivation, the commission-member
+  // read arm below) — a genuine PQS operator, via their OWN session, still
+  // opens CAPAs from indicators exactly as before. That is what this call
+  // proves now: a SEPARATE, independently-hatted raw grant for admin@,
+  // decoupled from the UI session above (they were already two different
+  // credential acquisitions in this test, cookie vs. raw JWT — only the
+  // HAT was missing) — not a simulation of clicking a button on the page
+  // just rendered.
+  const pqsTok = await getOwnerToken(page, 'admin@test.local', undefined, 'pqs_member')
   const openResp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/open_capa_plan`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${adminTok}`,
+      Authorization: `Bearer ${pqsTok}`,
       'Content-Type': 'application/json',
     },
     data: { p_source: 'indicator', p_classification: 'corretiva', p_source_id: id },
   })
   expect(openResp.ok(), 'open_capa_plan still authorizes the PQS operator').toBeTruthy()
+
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even admin@'s own — cannot reach the page
+  // above AT ALL. canConfigureCommission (staff_admin OR tenancy-admin) has
+  // no PQS-operator arm, so the "same session views the page AND opens the
+  // CAPA from it" flow this AC originally exercised is structurally
+  // impossible now, not merely untested.
+  await signInAs(page, 'admin@test.local', undefined, 'pqs_member')
+  await page.goto(indicatorHref(id))
+  // /não encontr/i, not one pinned boundary's copy — BUG-ACT-NOTFOUND-COPY-1:
+  // which of the not-found boundaries actually renders here is not this
+  // test's claim; ALL of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 
   await expect
     .poll(

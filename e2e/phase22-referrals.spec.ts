@@ -649,41 +649,61 @@ test('Flow 3c: QPS admin can read B\'s linked case via get_case_detail', async (
   expect(body).not.toBeNull()
 })
 
-test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on detail page', async ({
+test('Flow 3d: a plain CCIH staff member sees ENC-0001 status but not its PHI-bearing result; a PQS operator cannot reach the page at all', async ({
   page,
 }) => {
   // ⛔ QO·B, 2026-08-09: swapped from admin@test.local, which used to resolve to
   // staff_admin on /o/rede-a/c/* via the now-removed coercion (BUG-QOB-003) and
   // is a bare tenancy admin today (404s on encaminhamentos/** — see the file
   // header). pqsdual.a is a REAL CCIH member (opens the hub on that arm alone)
-  // who is also PQS-enrolled, which is what "QPS admin" means for this flow.
-  // ACT (ADR 0106): the hub URL is commission-scoped (/o/rede-a/c/ccih/...) —
-  // her `staff` hat is what admits her to the commission area at all (the
-  // comment above's "opens the hub on that arm alone" IS the staff arm);
-  // pqs_member is hospital-tier and does not itself open a commission route.
+  // who is also PQS-enrolled.
+  //
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10 (was
+  // BUG-ACT-RAWGRANT-HATLESS-1's "left RED" note; superseded by this
+  // rewrite, not a re-open). This test's ORIGINAL title/claim — "QPS admin
+  // sees ENC-0001 reply + delivered result" as ONE integrated, single-
+  // session journey — is now impossible, not merely untested. The hub URL
+  // is commission-scoped (/o/rede-a/c/ccih/...): `staff` is what admits her
+  // to the commission area at all (`is_pqs_operator_of` admits the bare
+  // `commissions` RLS row but not this page — confirmed live, same
+  // mechanism as the nsp-per-hospital.spec.ts AC-7 dispose tests). But the
+  // reply RESULT (`referral_reply.result_md` — PHI-bearing free text per
+  // ARCHITECTURE.md Rule 12) is gated by `can_read_referral_phi`
+  // (`is_pqs_operator_of_for(...) OR is_staff_admin_of_for(...) OR
+  // <target-side arms>`, verified live) — pqsdual.a is a plain CCIH
+  // `staff`, not `staff_admin`, so `staff` passes ENTRY but fails PHI; no
+  // single hat does both. Pre-cutover, her one hatless session carried both
+  // arms at once (the same shape as phase15-indicators.spec.ts AC-5b), so
+  // this test never had to choose.
+  //
+  // Per the PO: the NSP surface (/o/[org]/nsp/encaminhamentos,
+  // pqs_member-reachable) deliberately has NO deep link into this
+  // commission-scoped PHI detail page — a pure PQS operator may not be a
+  // member of either side's commission, so routing them here isn't a safe
+  // target. The product is PHI-free at that surface ON PURPOSE, not by
+  // this gap. Rewritten below to assert each half under its OWN correct
+  // hat, plus the specific thing that's now gone.
   await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
 
-  // Reply is visible
+  // The non-PHI status is visible to a plain commission member...
   await expect(page.getByText(/Procede/i).first()).toBeVisible()
+  // ...but the PHI-bearing result is correctly WITHHELD, not merely absent
+  // by accident — verified live: the page renders this exact fallback
+  // rather than the real result text, matching the platform's D4 doctrine
+  // (absence must stay indistinguishable from non-existence) rather than a
+  // distinct "hidden for you" signal that would itself leak that PHI exists.
+  await expect(page.getByText(/Sem resultado registrado\./i)).toBeVisible()
+  await expect(page.getByText(/conciliação medicamentosa procede/i)).toHaveCount(0)
 
-  // ⛔ ACT (ADR 0106), BUG-ACT-RAWGRANT-HATLESS-1 follow-up finding, reported
-  // not fixed (2026-08-10): the reply RESULT text (referral_reply.result_md
-  // — PHI-bearing free text per ARCHITECTURE.md Rule 12) is DELIBERATELY
-  // withheld here, not a text-matching flake. Verified live from the
-  // catalog: `can_read_referral_phi`'s gate is `is_pqs_operator_of_for(...)
-  // OR is_staff_admin_of_for(...) OR <target-side arms>` — pqsdual.a is a
-  // plain CCIH `staff` (not `staff_admin`), so neither the entry hat
-  // ('staff', required above just to reach this commission-scoped route at
-  // all) nor any OTHER single hat satisfies both the ENTRY gate and this
-  // PHI-content gate simultaneously: 'staff' passes entry but fails PHI
-  // ('is_staff_admin_of_for' does not admit a plain staff row); 'pqs_member'
-  // would satisfy PHI but 404s on entry (confirmed live, same mechanism as
-  // the nsp-per-hospital.spec.ts AC-7 dispose tests). Pre-cutover, her one
-  // hatless session carried both arms at once, so this test never had to
-  // choose — the same structural shape as phase15-indicators.spec.ts's
-  // AC-5b. No actAs choice makes the assertion below pass. Left RED.
-  await expect(page.getByText(/conciliação medicamentosa procede/i)).toBeVisible()
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even pqsdual.a's own — cannot reach this
+  // commission-scoped page AT ALL, so the "same session sees the status AND
+  // the PHI result" journey this Flow originally exercised is structurally
+  // impossible now, not merely untested.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
