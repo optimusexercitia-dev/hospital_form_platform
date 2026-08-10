@@ -194,6 +194,26 @@ export interface SessionContext {
    * shell has no way to route the operator (FUP-QO-2 instances four and five).
    */
   nspOperatorOf: NspOperatorMembership[]
+  /**
+   * ACT (ADR 0106 D12) — the caller's active hat, read from the SAME verified
+   * `active_role` JWT claim `app.active_role()` reads server-side (minted by
+   * `custom_access_token_hook`; a `public.platform_role` value, or `null` for
+   * a hatless multi-role session, D5). `null` for every pre-cutover-shaped
+   * session too, by construction — the claim is simply absent.
+   */
+  activeRole: string | null
+  /**
+   * ACT (ADR 0106 D5/D7) — true when this session has NO active hat AND the
+   * caller's hat-blind grants (the SAME `memberships` union `grants` already
+   * used to fill the fields above) span more than one distinct role TYPE
+   * (D2: the unit is the role type, not the membership row). The picker gate
+   * (`src/app/page.tsx`, per the Stage 3 destination-sweep design note) reads
+   * this to redirect to `/selecionar-perfil` before any of the role-precedence
+   * branches below run. A single-role hatless session (D11 break-glass covers
+   * everyone with exactly one type) is never true here — the hook already gave
+   * it a claim, so `activeRole` above is non-null and this is false.
+   */
+  needsRoleSelection: boolean
 }
 
 /**
@@ -291,10 +311,24 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   // a valid session on an anomalous read. The real column defaults false anyway.
   const mustChangePassword = profile?.must_change_password ?? false
 
+  // ACT (ADR 0106 D12) — the verified claim, same source app.active_role() reads.
+  const activeRole =
+    typeof claims.active_role === 'string' ? claims.active_role : null
+  // D2: collapse the hat-blind grants to distinct role TYPES — the picker's own
+  // unit — using the SAME `grants` read every field above already partitions,
+  // no second query. `needsRoleSelection` is true only for a hatless session
+  // whose grants span more than one type (D11's implicit single-role derive
+  // means a hatless single-type session cannot occur: the hook already gave it
+  // a claim).
+  const distinctRoleTypes = new Set(grants.map((g) => g.role))
+  const needsRoleSelection = activeRole === null && distinctRoleTypes.size > 1
+
   return {
     userId,
     email: typeof claims.email === 'string' ? claims.email : '',
     fullName: profile?.full_name ?? null,
+    activeRole,
+    needsRoleSelection,
     isAdmin,
     status,
     isInactive,
@@ -308,6 +342,26 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     nspOperatorOf,
   }
 })
+
+/**
+ * ACT Stage 3 (ADR 0106 D9/§1) — the caller's raw, hat-blind grant list, for
+ * the `/selecionar-perfil` picker's option cards (via
+ * `getSelectableRoles(rawGrants)`, `src/lib/queries/session-grants.ts`) and
+ * the D9 hint's "other hats held" set. Deliberately NOT `cache()`-wrapped like
+ * `getSessionContext` — the picker is a one-shot interstitial render, not a
+ * value read repeatedly across a render tree, and caching would make it
+ * fetch-once-per-request identically to a plain call here regardless.
+ *
+ * Returns `[]` when unauthenticated (mirrors `getSessionContext`'s `null`
+ * shape at the boundary the RPC itself enforces via RLS — an anonymous caller
+ * has no `auth.uid()` to resolve grants for).
+ */
+export async function getRawGrants(): Promise<SessionGrant[]> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('session_context')
+  const ctx = data as { grants: SessionGrant[] } | null
+  return ctx?.grants ?? []
+}
 
 /**
  * Returns the session context, redirecting to `/login` when unauthenticated, to

@@ -1,13 +1,10 @@
 'use server'
 
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { commissionHref, orgHref } from '@/lib/routing'
-import type { Database } from '@/lib/types/database'
 import { deriveUserStatus } from '@/lib/users/types'
 
 /**
@@ -76,68 +73,51 @@ async function appOrigin(): Promise<string> {
 }
 
 /**
- * Resolves the post-login landing path for the just-authenticated user, using
- * the SAME authenticated client that `signInWithPassword` returned — no extra
- * `getUser()`/GoTrue round trip. Mirrors the root `/` Server Component's
- * landing logic (kept as the canonical landing for direct hits) so that signing
- * in redirects STRAIGHT to the destination instead of bouncing through `/`.
- * That removes one session-revalidating hop from the post-login critical path,
- * which under load is where the cookie set by this action races the immediately
- * following navigation (a missed cookie there bounces the user back to /login).
+ * ACT Stage 3 (ADR 0106) — the post-authentication destination sweep, backend
+ * half. `resolveLanding` is DELETED, not patched.
  *
- * Mirrors the root-landing precedence in `src/app/page.tsx` (multi-tenancy):
- *   platform_admin                 → /admin
- *   org_admin of exactly one org   → /o/<org>/manage
- *   org_admin of more than one org → /o            (org picker)
- *   exactly one commission         → /o/<org>/c/<commission>
- *   more than one commission       → /c            (grouped picker)
- *   none and not admin             → /             (root "sem acesso" screen)
+ * Why deletion, not a patch (a decision this stage had to make, recorded per
+ * the plan's own Open Question 1 — `docs/design/act-role-picker.md` §2/§7 Q1):
+ * `resolveLanding` was a SECOND, independent, hand-rolled implementation of the
+ * role→landing partition that `src/app/page.tsx` (via `getSessionContext()` /
+ * `session-grants.ts`) already owns correctly and completely — it only ever
+ * checked 4 of the 11 `platform_role` values (platform_admin, org_admin,
+ * commission membership by count) and fell through to `/` for everything else,
+ * which is exactly the "one seam updated, the other not" defect class ADR 0101
+ * exists to close, one level up, and it would have let a real fraction of
+ * multi-role sign-ins (anyone whose FIRST-checked role here is org_admin or a
+ * commission membership — including the plan's own `dualhat.a@test.local`
+ * persona) skip the picker entirely on the most common path into the app.
+ * Patching a second copy of the partition to also check for a hat would
+ * perpetuate the duplicate; deleting it and taking page.tsx's one extra hop
+ * (previously optimized away for a session-revalidation race under load) is
+ * the correctness-over-micro-optimization trade D10's own "big bang, not
+ * shadow mode... pre-pilot" framing prefers. Flagged plainly: this DOES
+ * reintroduce one extra request-response round trip on every sign-in
+ * (single-role included), a real, deliberate regression from the removed
+ * fast path — recorded as a candidate follow-up (a shared role→route resolver
+ * both `signIn` and `page.tsx` could call) once the picker's shape settles,
+ * not a Stage 3 blocker.
+ *
+ * `signIn` now checks only: does the freshly-minted session carry an
+ * `active_role` claim? Minted implicitly by `custom_access_token_hook` for a
+ * single-role-type principal (D11 break-glass) or absent for a hatless
+ * multi-role principal (D5) — this is decided ONCE, at token-mint time, inside
+ * the hook; nothing here re-derives it. No claim → the picker, preserving any
+ * `?redirect=` target as its own `redirect` param so the chosen hat can honor
+ * it afterward. A claim → one hop through `/`, which now performs the ONLY
+ * role→landing computation in the app (chain A in the design note).
  */
-async function resolveLanding(
-  supabase: SupabaseClient<Database>,
-  userId: string,
-): Promise<string> {
-  const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
-    supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle(),
-    supabase
-      .from('memberships')
-      .select('commission:commissions(slug, organization:organizations(slug))')
-      .eq('principal_id', userId)
-      .not('commission_id', 'is', null),
-    supabase
-      .from('memberships')
-      .select('organization:organizations(slug)')
-      .eq('principal_id', userId)
-      .eq('role', 'org_admin'),
-  ])
+const ACTIVE_ROLE_CLAIM_KEY = 'active_role'
 
-  if (profileResult.data?.is_admin) {
-    return '/admin'
-  }
+/** Route backend posts for frontend to build the picker screen against (PO
+ * decision, 2026-08-10 — do not rename). */
+const ROLE_PICKER_PATH = '/selecionar-perfil'
 
-  // org_admin precedence: a customer super-user lands on their org manage area.
-  const orgSlugs = (orgAdminResult.data ?? [])
-    .map((row) => row.organization?.slug)
-    .filter((slug): slug is string => Boolean(slug))
-  if (orgSlugs.length === 1) return orgHref(orgSlugs[0], 'manage')
-  if (orgSlugs.length > 1) return '/o'
-
-  // Commission memberships, now org-nested.
-  const memberships = (membershipResult.data ?? [])
-    .map((row) => ({
-      slug: row.commission?.slug,
-      orgSlug: row.commission?.organization?.slug,
-    }))
-    .filter(
-      (m): m is { slug: string; orgSlug: string } =>
-        Boolean(m.slug) && Boolean(m.orgSlug),
-    )
-
-  if (memberships.length === 1) {
-    return commissionHref(memberships[0].orgSlug, memberships[0].slug)
-  }
-  if (memberships.length > 1) return '/c'
-  return '/'
+function buildPickerRedirect(explicitTarget: string | null): string {
+  return explicitTarget
+    ? `${ROLE_PICKER_PATH}?redirect=${encodeURIComponent(explicitTarget)}`
+    : ROLE_PICKER_PATH
 }
 
 /**
@@ -212,12 +192,28 @@ export async function signIn(
     }
   }
 
-  // Resolve the landing on the authenticated client we already hold (no extra
-  // GoTrue round trip) UNLESS the caller passed an explicit safe redirect.
-  const target = explicitTarget ?? (await resolveLanding(supabase, data.user.id))
+  // ACT Stage 3 (ADR 0106 D5/D11/D12): the JUST-MINTED session either carries
+  // an active_role claim (single-role-type principal, derived implicitly by
+  // custom_access_token_hook at sign-in) or does not (multi-role, no picker
+  // selection exists yet for this brand-new session — every sign-in mints a
+  // fresh session_id, so there can never be a prior selection to inherit).
+  // getClaims() does the SAME local JWT verification the middleware/session
+  // helpers use elsewhere (ADR 0009) — no extra GoTrue round trip.
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const hasActiveRole = Boolean(
+    (claimsData?.claims as Record<string, unknown> | undefined)?.[
+      ACTIVE_ROLE_CLAIM_KEY
+    ],
+  )
 
-  // redirect() throws NEXT_REDIRECT — must be outside any try/catch.
-  redirect(target)
+  if (!hasActiveRole) {
+    redirect(buildPickerRedirect(explicitTarget))
+  }
+
+  // A hat exists (implicit single-role derivation) — an explicit target still
+  // short-circuits; otherwise take the one hop through `/`, the app's single
+  // remaining role→landing computation (see the comment above).
+  redirect(explicitTarget ?? '/')
 }
 
 /** Clears the session and returns to the login page. */
