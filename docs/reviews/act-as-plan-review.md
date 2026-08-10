@@ -383,3 +383,146 @@ mapping isn't re-derived ad hoc mid-build.
 None of these require re-litigating a PO decision (P1–P6, D1–D14 all stand); they
 are completeness and accuracy corrections to the plan and its ADR before Stage 0
 starts.
+
+---
+
+## Round 2 — re-review of the `d80d4a3` fixes
+
+**Reviewed:** `git diff 1bdf016 d80d4a3 -- docs/decisions/0106-act-as-role-assumption.md
+docs/plans/act-as-role-assumption.md`. Docs-only commit — confirmed
+`git diff 1bdf016 d80d4a3 --stat -- supabase/` is empty, and the live catalog
+(`docker exec supabase_db_azkbbhskturikxpgmafq`) is unchanged from r1: **334**
+migrations registered = **334** files, **127** boolean gates in `app` unchanged, the
+`can_manage_professional` caller count independently re-counted at **10**. This is
+expected and correct for a pre-build plan review — nothing has been built yet, so
+"addressed" here means the plan/ADR text is now accurate and scopes the right work,
+not that the code exists. All 9 findings verified against the actual diff (not the
+coordinator's summary of it) plus a fresh catalog check where the fix claims a
+number.
+
+### Finding 1 (BLOCKER, `can_manage_professional`) — ✅ CLOSED
+
+ADR gains an eighth bullet under "the enforcement point," naming
+`can_manage_professional` explicitly, its raw `m.role = 'staff_admin'` arm, its
+DEFINER status, and "10 professional-identity/ethics-vocabulary write RPCs" —
+**re-counted independently: 10, confirmed**. Plan Stage 2's reader list now reads
+8, names it, and — the part that actually closes the root cause, not just the
+symptom — **re-specifies the sweep boundary as the property** ("comment-stripped
+direct `memberships` read with no `has_role*` call, over ALL ~127 boolean gates in
+`app`/`public`, never by the `is_*` prefix") rather than adding one more name to a
+hand list. That is the fix Finding 3 asked for, applied to Finding 1's own
+discovery — the two are now mutually reinforcing instead of the second merely
+patching the first's symptom.
+
+### Finding 2 (BLOCKER, `platform_admin` enum gap) — ✅ CLOSED
+
+Stage 0 now reads "enum = `memberships_role_check` values, **plus
+`'platform_admin'`**" with the D11/break-glass/audit-stamp consequence spelled out
+in the same sentence ("adding it here is the decision, so Stage 3 doesn't
+re-derive it silently") — closes exactly the risk flagged (an undocumented
+mid-build special case). `memberships_role_check`'s 10 values remain unchanged in
+the live catalog (no schema touched), so the addendum is still necessary and now
+present.
+
+### Finding 3 (MAJOR, 127-vs-80 census) — ✅ CLOSED
+
+ADR blockquote now states 127 total (47 + 80), the "33" is corrected to "80" in
+the outside-prefix bullet, and — notably — a **second-correction provenance note**
+is added admitting the first fix attempt would itself have been a silent
+re-assertion of the wrong number without it: *"this note first said 80 total / 33
+outside — the author's own query output for the outside-prefix population,
+re-published as the total. Two miscounts in one paragraph about counting is the
+strongest argument this ADR contains for the re-derive rule."* That is the correct
+reflex — naming a correction's own correction rather than quietly overwriting it —
+and it is precisely what `docs/progress/authz-handoff.md` §7's "counting is not the
+method" lesson asks for. Re-confirmed against the live catalog this round:
+`select count(*) ... prorettype='bool'::regtype` in `app` = **127**, unchanged.
+
+### Finding 4 (MAJOR, `session_context`/`has_role_any`) — ✅ CLOSED
+
+ADR's `has_role_any` bullet now lists only `is_member_of`/`is_member_of_for` as
+callers and explicitly names the mechanism of the original error ("an earlier
+caller list included it via a comment-only regex hit, the recorded
+`prosrc`-matches-comments trap"). Plan §1's derived ruling is reworded from an
+action ("rewired OFF `has_role_any`") to a **no-op confirmation** ("comment its
+inline query as the D9 exemption, re-diff its 'verbatim from `has_role_any`'
+comment against the post-cutover `has_role_any` body, and allowlist it") — this
+resolves my concern exactly: it adds a re-diff step so the comment's claim gets
+checked against the *actual* post-cutover body instead of being trusted a second
+time. Stage 3's task-list bullet ("`session_context` rewired per the §1
+exemption") is unchanged text but now correctly resolves through the corrected §1,
+so there is no residual contradiction between the two sections.
+
+### Finding 5 (MAJOR, `profiles_select_self_or_admin` co-member arm) — ✅ CLOSED
+
+Stage 3 gains an explicit "raw-policy sweep" bullet: sweep `pg_policies` across all
+schemas for direct `memberships` predicates bypassing `app.*`, names this policy as
+the known instance, and specifies a fix that is the right shape — split the EXISTS
+by side: the **caller** (`me`) becomes hat-aware (routes through `is_member_of`,
+so a suppressed-hat membership no longer counts), the **target** (`them`) stays
+any-role, with the reasoning given ("what roles another user holds is not a
+function of MY hat") — which is the correct application of D3/D4 (strictness binds
+*my* capability, not facts about someone else's memberships). Sibling arms found by
+the sweep are required to either join the migration or become named, reasoned
+exceptions — closing the "silently absent from every stage's checklist" gap I
+flagged. This is a plan-level commitment, not yet code (nothing in `supabase/`
+changed), which is the correct scope for a plan review.
+
+### Finding 6 (MINOR, "~30 functions" precedent) — ✅ CLOSED
+
+ADR corrected to "the pattern `is_admin` already uses for `request.jwt.claims`
+(plan-QA r1: the other ~32 `current_setting` users read RPC-context guard GUCs,
+not JWT claims — one prior instance, not thirty)." Matches my count exactly (33
+`current_setting` users total, 1 for JWT claims, 32 for `in_*_rpc`-style guard
+GUCs — re-confirmed unchanged this round since no SQL was touched).
+
+### Finding 7 (MAJOR, Stage 0/1 gates missing ARM=census/floor) — ✅ CLOSED
+
+Both stages now name `ARM=census` + `ARM=floor` explicitly, with the reasoning
+tied to the actual lesson ("expected trivially green — named anyway, per 0079
+Amendment 1: an unnamed standing gate is the one nobody runs"). This is exactly
+the "name the arm, not the script, and name it even when it's cheap" discipline
+CLAUDE.md §6 step 5 and ADR 0079 Amendment 1 ask for.
+
+### Finding 8 (INFO, permissive-sibling keystone guard) — ✅ CLOSED
+
+Stage 3's gate section gains: "The keystone must assert through a table reached
+ONLY via `has_role` — no OR'd permissive sibling grant (authz-handoff §7.1 shape
+6: a permissive sibling fakes both directions)." Directly incorporates the
+suggested guard with its citation.
+
+### Finding 9 (INFO, landing-route table) — ✅ CLOSED
+
+Stage 3's frontend bullet now carries "the explicit role→landing-route table
+lifted from `page.tsx`'s own doc comment — all 10 membership roles +
+`platform_admin` — so the mapping is not re-derived ad hoc mid-build." Matches the
+suggestion exactly, including the `platform_admin` addition consistent with
+Finding 2's fix.
+
+### Residual observations (non-blocking)
+
+- All fixes are **text-level**, correctly so — no code exists yet for this
+  program (`git diff --stat -- supabase/ src/` between `1bdf016` and `d80d4a3` is
+  empty, confirmed). This round could not and did not re-run any pgTAP/RLS
+  behavioural check, because there is no behaviour yet to check; it verified that
+  the *plan* now accurately reflects the live catalog and correctly scopes the
+  work each finding named. The load-bearing verification — that Stage 2's
+  8-reader keystone, Stage 3's raw-policy fix, and the `platform_admin` enum
+  actually land as specified — is Stage 2/3's own QA review, not this one.
+- One thing to watch, not a finding: Finding 5's fix describes routing the
+  caller side through `is_member_of`, which after Stage 3 is itself reimplemented
+  as `has_role(scope_type, scope_id, active_role(), user_id)` (ADR §"the
+  enforcement point"). The policy predicate will need an explicit `scope_id` per
+  row (`them.commission_id`), which the plan's phrasing doesn't spell out
+  character-for-character — reasonable to leave to Stage 3's implementation, but
+  worth the Stage 3 reviewer confirming the final predicate actually calls
+  `is_member_of(them.commission_id, auth.uid())` (or equivalent) rather than a
+  looser approximation.
+
+### Verdict: ✅ **APPROVED (pre-build, r2)**
+
+All 9 r1 findings, including both BLOCKERs, are genuinely and accurately addressed
+in `d80d4a3` — verified against the actual diff text and, where the fix asserted a
+number, against a fresh live-catalog query (unchanged since r1, as expected for a
+docs-only commit). No PO decision was re-litigated; nothing in the fix contradicts
+D1–D14 or P1–P6. The plan is sound to begin Stage 0 against.
