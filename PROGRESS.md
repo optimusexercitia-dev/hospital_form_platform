@@ -398,39 +398,54 @@ class):** two MORE instances of `BUG-ACT-NOTFOUND-COPY-1` (below), in `ethics-e2
 (`assertRouteDenied`, cascading via `test.describe.configure({mode:'serial'})` — blocked FLOW-7,
 the test actually exercising the pqsdual.a@ dynamic-role fix, until corrected) and
 
-🔴 **NEW, found re-running the touched specs after the union-tests rewrite (2026-08-10) —
-`phase22-referrals.spec.ts` Flow 5a is a THIRD, previously-undetected instance of the exact
-shape the PO just ruled on for AC-5b/Flow 3d, not something today's Flow 3d rewrite caused.**
-Its own `signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')` is unchanged from the
-tester's EARLIER commit (`a8da28d`) — confirmed via `git log -p`, nothing in this session's
-Flow 3d work touched this line. Re-running the full file surfaced it because THIS is the first
-time 'staff' (the correct ENTRY hat) has ever let the test's `if (revealBtn.isVisible)` branch
-be entered non-vacuously. Same mechanism as Flow 3d, reasoned from facts already independently
-verified live this session (no new experiment needed): `can_read_referral_phi` admits her only
-via `is_pqs_operator_of_for` (needs `pqs_member`) or `is_staff_admin_of_for` (she's plain
-`staff`, not `staff_admin`, at CCIH — does not qualify); `pqs_member` 404s on this exact
-commission-scoped route (proven by this session's own Flow 3d rewrite). So 'staff' reaches the
-page but can never reveal PHI; 'pqs_member' would satisfy the PHI gate but never reaches the
-page. No single hat does both — the identical incompatibility, not yet PO-reviewed for this
-specific test. **Compounding, and worth flagging on its own:** the test's `else` branch ends
+⬛ **RESOLVED via rewrite 2026-08-10 (`tester`) — `phase22-referrals.spec.ts` Flow 5a was a
+THIRD instance of the exact shape the PO ruled on for AC-5b/Flow 3d,** found re-running the
+touched specs after that first rewrite, not caused by it: its `signInAs(page,
+'pqsdual.a@test.local', undefined, 'staff')` is unchanged from the tester's EARLIER commit
+(`a8da28d`) — confirmed via `git log -p`. First flagged (not rewritten) respecting that round's
+"then stop" boundary, since the PO had not reviewed this specific test. **The PO has since
+reviewed it and extended the ruling; rewritten this round.** Detail in the ACT union-tests entry
+below. **Compounding finding, now corrected in the rewrite:** the test's old `else` branch ended
 "if PHI doesn't appear at all, the lazy door works correctly — nothing to assert" — a SILENT
-vacuous-pass fallback for exactly the case that's now structurally permanent. The tester's own
-earlier "3 passed" report for this test (in the BUG-ACT-RAWGRANT-HATLESS-1 close-out) almost
-certainly reported a vacuous pass, not a real one — correcting that claim here rather than
-letting it stand uncorrected. **Not rewritten** — the coordinator's instruction was to rewrite
-the two NAMED tests and then stop; this is a third, structurally-identical case the tester found
-only while re-verifying, and extending the PO's ruling to a test they have not seen felt like
-exactly the kind of unilateral step the "then stop" boundary was meant to prevent. Flagged for
-an explicit decision, with the mechanism fully pre-verified so a fix (if directed) is a
-same-shape rewrite, not a new investigation.
+vacuous-pass fallback for exactly the case that's now structurally permanent, meaning the
+tester's earlier "3 passed" report for this test (BUG-ACT-RAWGRANT-HATLESS-1 close-out) almost
+certainly reported a vacuous pass, not a real one. That fallback does not survive the rewrite —
+every branch now asserts unconditionally.
 
-**Also found, same re-run, NOT fixed (respecting "then stop" — same already-understood bug
-class, flagged not resolved):** `phase15-indicators.spec.ts` AC-8a and AC-8b both pin
-`getByRole('heading', { name: /encontramos esta página|Erro 404/i })` — the SAME
-`BUG-ACT-NOTFOUND-COPY-1` shape (a boundary-copy alternation that doesn't include "Página não
-encontrada"), now failing for the same reason as the 4 already-fixed instances. Trivial to fix
-with the established `/não encontr/i` pattern if wanted; left alone this round.
-`phase13-audit.spec.ts` AC-3e. Both fixed with the same `/não encontr/i` pattern.
+**Bounded vacuous-branch check, `phase22-referrals.spec.ts` ONLY, per the coordinator's explicit
+request (2026-08-10, `tester`) — do not sweep the repo; report even a null result.** Read every
+conditional in the file (not just around Flow 5a). Confirmed vacuous-pass-CAPABLE (a real branch
+where zero `expect()` calls execute), none fixed this round — not requested, and each is its own
+test, not the union-gate shape this program is ruling on:
+- **Flow 4c** (`response_expected=false` referral) — `if (!draftResp.ok()) { return }` exits the
+  whole test with **zero** assertions if that fires; even past it, a second guard `if (refId) {
+  …only assertion here… }` means a truthy-`ok()`-but-falsy-`refId` response also asserts nothing.
+  Two independent silent-pass exits in one test.
+- **Flow 5c** (plain B member, PHI bodies null) — the ENTIRE test body is `if (resp.ok()) { if
+  (body !== null) { asserts } }`; if `resp.ok()` is false OR `body === null`, the test completes
+  with zero assertions. No unconditional fallback anywhere in the test.
+- **Flow 5d** (direct SELECT denial) — `if (resp.ok()) { if (rows.length > 0) { assert } } else {
+  assert }`. The `else` always asserts, but if `resp.ok()` is true AND RLS returns zero rows
+  (rather than an explicit error), the `if` branch asserts nothing and the `else` never runs —
+  same silent-pass shape as Flow 5c, gated one level deeper.
+- **Flow 8c** (keyboard-only, reply form) — two independent, un-elsed `if (isVisible) { assert
+  }` blocks (reveal button, back link) with **no unconditional assertion anywhere in the test**.
+  If neither element is visible when the page loads, the test — whose own title claims to verify
+  keyboard accessibility — passes having asserted nothing at all.
+
+Checked and confirmed NOT vacuous (both branches, or an unconditional fallback, always assert) —
+recorded so this reads as a real audit, not a cherry-picked one: Flow 1c/2c (`if/else`, each arm
+asserts a shape of "no access"); Flow 5b (inner `if (resp.ok())` is optional, but an unconditional
+audit-row-count check always runs after it); Flow 7c (an unconditional `not.toBeNull()` precedes
+the only conditional, so the branch is unreachable-false by construction); Flow 8b (either arm —
+`sendBtn` visible or not — contains at least one unconditional `toBeFocused()` before any further
+nested, optional checks).
+
+**Also found, same re-run, FIXED this round (authorised):** `phase15-indicators.spec.ts` AC-8a
+and AC-8b both pinned `getByRole('heading', { name: /encontramos esta página|Erro 404/i })` —
+the SAME `BUG-ACT-NOTFOUND-COPY-1` shape (a boundary-copy alternation that doesn't include
+"Página não encontrada"). Fixed with the established `/não encontr/i` pattern, matching the 5
+already-fixed instances (incl. `phase13-audit.spec.ts` AC-3e).
 
 ⬛ **ACT — union tests re-scoped, PO ruling accepted 2026-08-10 (`tester`, backend traced both
 mechanisms, PO ruled "accept both losses").** `phase15-indicators.spec.ts` AC-5b and
@@ -460,29 +475,56 @@ TRUE under its own hat, plus an explicit proof of the specific thing that's genu
   own reasoning (the NSP surface is deliberately PHI-free / has no deep link here, by design, not
   by this gap) — not independently re-tested here (would expand scope beyond the two named tests;
   flagged as a candidate follow-up if that NSP-surface behavior itself ever needs its own spec).
+- **Flow 5a — EXTENDED to this test 2026-08-10, same session, after the PO reviewed it.** Same
+  predicate as Flow 3d (`get_referral_patient` is gated by the identical `can_read_referral_phi`
+  that withholds `result_md`), same incompatibility (`staff` passes entry/fails PHI, `pqs_member`
+  passes PHI/404s entry — the 404 proof reused directly from Flow 3d's own live run, per the
+  coordinator's "same-shape edit, not a new investigation," not re-verified as a fresh
+  experiment). Rewrite: `staff` half now asserts the reveal control discloses nothing and no
+  `referral_patient.read` audit row fires, with NO silent-fallback branch (see the bounded
+  vacuous-branch check above — the tautology risk in the naive "else { expect(count).toBe(0) }"
+  shape was caught and removed before landing: that assertion is true by the very condition that
+  selects the branch, so the real proof was moved to an unconditional block that runs regardless
+  of which way the conditional goes); `pqs_member` 404s the same route. **Unlike Flow 3d** —
+  where the underlying "an entitled reader sees the PHI" fact stays covered elsewhere (chefe.ccih,
+  Flow 1b) — this WAS the only test in the file exercising the `referral_patient.read`
+  AUDIT-WRITE mechanism itself (row appears on reveal, PHI-free metadata, source-commission
+  attribution — Rule 11), and that mechanism is not re-proven by this rewrite for ANY persona,
+  because the original test's only actor was a QPS-operator-only identity. It could be preserved
+  via an already-entitled, non-hat-conflicted actor (chefe.ccih/chefe.farm — both staff_admin,
+  already proven live to pass this same gate via Flow 1b's result_md visibility; not a widening).
+  **Deliberately not added** — "same shape as Flow 3d" was the instruction, and a third
+  persona/track goes beyond that literal shape; flagged here for an explicit call rather than
+  silently added or silently dropped.
 - **Both re-verified green** after rewrite (`npx playwright test ... -g "AC-5b|AC-6"` and
-  `-g "Flow 3d"`, chromium, `--workers=1`).
-- **Tester's view on "assert absence" as the shape:** right for both. It's not just the least-bad
-  option — it's a STRICTLY STRONGER test than the one it replaces: the original only ever proved
-  "a hatless admin@ can do X", conflating two gates that happened to both be reachable by
-  coincidence of one persona's total membership set. The rewrite proves each gate individually
-  AND proves they no longer compose, which is the actual ADR 0106 claim (D5) — the old test never
-  asserted that composition was even meaningful, let alone gone.
+  `-g "Flow 3d"`, chromium, `--workers=1`); **Flow 5a re-verified green** standalone AND as part
+  of a full-file run on a fresh `db reset` (`phase22-referrals.spec.ts` 40/40,
+  `phase15-indicators.spec.ts` 12/12).
+- **Tester's view on "assert absence" as the shape:** right for all three. It's not just the
+  least-bad option — it's a STRICTLY STRONGER test than the one it replaces: the original only
+  ever proved "a hatless admin@/pqsdual.a can do X", conflating two gates that happened to both be
+  reachable by coincidence of one persona's total membership set. The rewrite proves each gate
+  individually AND proves they no longer compose, which is the actual ADR 0106 claim (D5) — the
+  old test never asserted that composition was even meaningful, let alone gone.
 
-⬛ **BUG-ACT-AUDIT-PLATFORM-TIER-1 — OPEN (`tester`, found verifying an unrelated site in
-`phase13-audit.spec.ts`, 2026-08-10).** `phase13-audit.spec.ts` AC-3f-platform (`platform@`,
-untouched by any ACT work) asserts the audit_log "platform-tier chain" (organization_id AND
-commission_id both NULL) is permanently empty. `assume_role`'s own audit action,
-`active_role.assumed` (D8), writes with BOTH null (verified live: `select action,
-organization_id, commission_id, count(*) from audit_log where action='active_role.assumed'
-group by 1,2,3` → 1 row, both null). Any earlier picker/switch use in the same database — now
-routine, since ~35 spec files' sign-ins thread `actAs` post-BUG-ACT-PICKER-SEED-1 — populates
-this bucket. A fresh reset with no prior `assume_role` call still passes the test; it is fragile
-to run order/history within that reset, which was not previously true. **Not fixed** — whether
-`active_role.assumed` belongs in this bucket at all, or needs its own tier, is a cross-cutting
-audit-log design question outside a tester's authority to decide unilaterally. See also
-BUG-CAPA-AUDIT-SCOPE-1 below — a second, independent, pre-existing (non-ACT) mechanism that
-violates the SAME assertion for a different reason, found by `backend` tracing this same test.
+⬛ **BUG-ACT-AUDIT-PLATFORM-TIER-1 — RESOLVED by `backend` (migration
+`20260918002600_act_assume_role_audit_scope.sql`), re-verified by `tester` 2026-08-10.**
+Originally: `phase13-audit.spec.ts` AC-3f-platform (`platform@`, untouched by any ACT work)
+asserts the audit_log "platform-tier chain" (organization_id AND commission_id both NULL) is
+permanently empty; `assume_role`'s own audit action, `active_role.assumed`, wrote with BOTH null
+unconditionally, so any earlier picker/switch use in the same database populated the bucket.
+**Fix, re-verified live via `pg_get_functiondef(assume_role)` on the current migration head:**
+`assume_role` now looks up the actual `memberships` row backing the role being assumed (`select
+organization_id, hospital_id, commission_id from memberships where principal_id = v_uid and role
+= p_role::text …`) and passes THAT tenant into `audit_write`, instead of always passing null.
+Only `p_role = 'platform_admin'` still stamps all-null — an explicit, commented, correct
+carve-out ("No tenant to stamp — the ruling's own carve-out"), since a platform_admin genuinely
+has no tenant. **Confirmed empirically, not just by reading the function**: ran
+`phase22-referrals.spec.ts` (40/40) + `phase15-indicators.spec.ts` (12/12) on a fresh reset — both
+exercise multiple `assume_role` hat-switches — then queried `audit_log` directly: **zero**
+`active_role.assumed` rows with org+commission both null; every row carries the real tenant of
+the assumed role. See BUG-CAPA-AUDIT-SCOPE-1 below — the second, independent, pre-existing
+mechanism that pollutes the same bucket remains open; this one's resolution does not close that.
 
 🟡 **BUG-CAPA-AUDIT-SCOPE-1 — OPEN, pre-existing, NOT caused by ACT (`backend` traced the
 mechanism; `tester` independently verified against the live catalog + confirmed live in this
@@ -499,19 +541,55 @@ that the trigger simply never reads. **Confirmed live in this database**:
 `phase14d-capa.spec.ts` opens 5 manual-source plans (`p_source: 'manual'` at 5 call sites); `select
 action, organization_id, commission_id, hospital_id, count(*) from audit_log where
 action='capa.opened' group by 1,2,3,4` → 2 rows with ALL THREE null, alongside 1 correctly-scoped
-row from an event-sourced open. **Predicted, not yet observed in a full run:** in `npm run
-e2e:prod` (one reset, many specs, `phase14d-capa` ordered before `phase13-audit`), this
-reproduces the exact "platform bucket not empty" shape `AC-3f-platform` asserts against —
-**for a reason entirely unrelated to ACT.** **Not fixed** (explicit instruction — pre-existing,
-outside this program, not a tester call). **Tester's view, since asked:** yes,
-`AC-3f-platform`'s assertion looks too broad to survive ANY realistically-complete suite
-ordering — it is now confirmed vulnerable to two INDEPENDENT mechanisms (this one, pre-existing;
-BUG-ACT-AUDIT-PLATFORM-TIER-1, ACT-caused), which suggests the assertion's premise ("nothing
-ever lands here") was already fragile before ACT touched anything, not a property either
-individual bug introduced. Whether the fix is "make CAPA triggers fall back to
-`new.hospital_id`", "give platform_admin-only actions their own audit tier", or "loosen this one
-assertion to something like `count <= <known-pollution-sources>`" is a design call, not
-adjudicated here.
+row from an event-sourced open. **Second independent confirmation, found incidentally this round
+(2026-08-10, `tester`) re-running the touched specs on a fresh reset**: `phase15-indicators.spec.ts`
+AC-5b — an ACT-touched file, `p_source: 'indicator'` — reproduces the IDENTICAL mechanism on its
+own, with no `phase14d-capa` involved at all: after `phase22-referrals.spec.ts` (40/40) +
+`phase15-indicators.spec.ts` (12/12) on a clean reset, `select action, count(*) from audit_log
+where organization_id is null and commission_id is null group by 1` → exactly `capa.opened: 2`,
+zero of any other action (confirming BUG-ACT-AUDIT-PLATFORM-TIER-1's fix above is holding, and
+isolating this as the sole remaining source). So the mechanism is not specific to
+`phase14d-capa.spec.ts`'s manual-source opens — ANY non-event-sourced `open_capa_plan` call
+(manual, meeting, indicator, or audit_finding) lands in the platform-null bucket, regardless of
+which spec file makes the call.
+
+**Ordering mechanism, added 2026-08-10 per the coordinator's explicit instruction (not
+adjudicated by the tester — recording the mechanism only):** Stage 2's full `e2e:prod` ran GREEN
+with this exact CAPA mechanism already present in the codebase — it is not new. `e2e:prod`
+resets the DB **per batch**, so the pollution can only red `phase13-audit`'s AC-3f-platform when
+a non-event-sourced-CAPA-opening spec (`phase14d-capa`, or — now confirmed — `phase15-indicators`
+itself) lands in the **same batch** as `phase13-audit`. Batch composition is not stable across
+runs of this program: specs have been added, deleted, and rewritten (this exact round rewrote
+`phase15-indicators.spec.ts` and `phase22-referrals.spec.ts`), which shifts how `e2e:prod`'s
+batching divides the suite. **So this is a latent, pre-existing defect newly EXPOSED by batch
+reshuffling — it was never truly passing (the mechanism was always there, waiting for the right
+batch composition to land two specific specs together), and ACT did not introduce it.** A defect
+whose visibility depends on batch packing will come and go across runs with no code change in
+between, and reads exactly like flake — which is the worst possible failure mode for an audit
+assertion specifically, since "audit_log has a hole sometimes, depending on what else happened to
+run first" is precisely the kind of gap Rule 11 exists to catch, not hide behind a flaky-looking
+red that gets re-run away.
+
+**Not fixed** (explicit instruction — pre-existing, outside this program, not a tester call).
+**Tester's view, since asked (updated 2026-08-10 now that BUG-ACT-AUDIT-PLATFORM-TIER-1 is
+resolved):** yes, `AC-3f-platform`'s assertion still looks too broad to survive a realistically-
+complete suite ordering — on its own, independent of ACT entirely, this one mechanism is now
+confirmed reachable from at least two different specs (`phase14d-capa`, `phase15-indicators`),
+and the ordering analysis above shows its visibility is a batch-packing accident, not a stable
+property of the suite. The premise ("nothing ever lands here") was already fragile before ACT
+touched anything; ACT's own now-fixed contribution (BUG-ACT-AUDIT-PLATFORM-TIER-1) was a second,
+temporary, ADDITIONAL way to trip the same fragile assertion, not the source of the fragility.
+Whether the fix is "make CAPA triggers fall back to `new.hospital_id`", "give platform_admin-only
+/ non-event-sourced actions their own audit tier", or "loosen this one assertion to something
+like `count <= <known-pollution-sources>`" is a design call, not adjudicated here.
+
+**End-to-end reproduction directly OBSERVED, not merely predicted (2026-08-10, `tester`):** with
+the DB in the exact state left by `phase15-indicators.spec.ts`'s own run (2 null-tier
+`capa.opened` rows from AC-5b, no reset in between), ran
+`npx playwright test e2e/phase13-audit.spec.ts -g "AC-3f-platform"` standalone — **RED**,
+`getByText(/Nenhum registro de auditoria ainda\./i)` times out because the empty state no longer
+renders. This is the exact "platform bucket not empty" failure shape predicted above, reproduced
+live rather than inferred from the row counts alone.
 
 ⬛ **BUG-ACT-NOTFOUND-COPY-1 — RESOLVED same-session 2026-08-10 (`tester`).** Originally found in
 `user-registration.spec.ts` "a foreign org_admin (rede-b) cannot open a rede-a user detail page":

@@ -755,9 +755,10 @@ test('AC-8a: plain staff cannot edit indicators (RPC rejects; area 404)', async 
   // UI: the coordinator indicator area 404s for plain staff.
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/indicadores')
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, not one pinned boundary's copy —
+  // which of the not-found boundaries renders here is not this test's claim;
+  // all of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
@@ -780,9 +781,10 @@ test('AC-8b: foreign-commission user cannot read commission A indicators', async
   // UI: accessing CCIH's indicator detail through the Farmácia URL namespace 404s.
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/manage/indicadores/${id}`)
-  await expect(
-    page.getByRole('heading', { name: /encontramos esta página|Erro 404/i }),
-  ).toBeVisible({ timeout: 10_000 })
+  // BUG-ACT-NOTFOUND-COPY-1: /não encontr/i, not one pinned boundary's copy —
+  // which of the not-found boundaries renders here is not this test's claim;
+  // all of them share this pt-BR stem.
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
   // No CCIH indicator content leaked.
   const body = await page.locator('body').textContent()
   expect(body).not.toMatch(/Adesão à higienização das mãos/i)

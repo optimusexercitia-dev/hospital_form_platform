@@ -937,34 +937,47 @@ test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commiss
   expect(total).toBeGreaterThanOrEqual(83)
 })
 
-// ⛔ Two INDEPENDENT, confirmed sources make this test's premise — "the
-// platform-tier chain (org+commission both NULL) is empty" — unreliable in
-// any suite run with enough history behind it. Neither is fixed here; both
-// are filed (PROGRESS.md Bug Log) rather than papered over in-line.
-//   1. BUG-ACT-AUDIT-PLATFORM-TIER-1 (ACT, ADR 0106) — `assume_role`'s own
-//      audit action, `active_role.assumed` (D8), writes with BOTH
-//      organization_id and commission_id NULL (verified live). Any earlier
-//      picker/switch use in the SAME database — now routine, since ~35
-//      spec files' sign-ins thread `actAs` post-BUG-ACT-PICKER-SEED-1 —
-//      populates this bucket.
+// ⛔ This test's premise — "the platform-tier chain (org+commission both
+// NULL) is empty" — is unreliable in any suite run with enough history
+// behind it. One of two known sources is now fixed; one remains open.
+//   1. BUG-ACT-AUDIT-PLATFORM-TIER-1 (ACT, ADR 0106) — RESOLVED by `backend`
+//      (migration 20260918002600): `assume_role` now resolves the real
+//      tenant of the role being assumed from `memberships` and stamps THAT,
+//      instead of always writing organization_id/commission_id NULL. Only
+//      `p_role = 'platform_admin'` still stamps all-null, correctly (no
+//      tenant to stamp). Re-verified live: after a fresh reset + running
+//      `phase22-referrals.spec.ts` (40/40) + `phase15-indicators.spec.ts`
+//      (12/12) — both exercise multiple hat-switches — zero
+//      `active_role.assumed` rows land in the platform-null bucket.
 //   2. BUG-CAPA-AUDIT-SCOPE-1 (pre-existing, unrelated to ACT — found by
-//      `backend` tracing this test's own failure) — `trg_audit_capa_plan`
-//      resolves scope ONLY via `event_of_capa(new.id) → commission_of_event`
-//      (verified live from `pg_get_functiondef`), which is NULL for every
+//      `backend` tracing this test's own failure) — STILL OPEN.
+//      `trg_audit_capa_plan` resolves scope ONLY via
+//      `event_of_capa(new.id) → commission_of_event` (verified live from
+//      `pg_get_functiondef`), which is NULL for every
 //      `manual`/`meeting`/`indicator`/`audit_finding`-sourced CAPA — even
 //      though `capa_plan.hospital_id` is a real, populated column on the
-//      SAME row the trigger never reads. `phase14d-capa.spec.ts` opens 5
-//      manual-source plans; confirmed live in this exact database:
-//      `select action, organization_id, commission_id, hospital_id,
-//      count(*) from audit_log where action='capa.opened' group by 1,2,3,4`
-//      → 2 rows with ALL THREE null, alongside 1 properly-scoped row.
-// A genuinely fresh reset with neither an assume_role call nor a
-// manual/meeting/indicator/audit_finding CAPA open still passes; in a full
-// `e2e:prod` run (one reset, many specs, CAPA before audit) either
-// mechanism alone reproduces the same shape. Whether this assertion is
-// itself too broad to survive ANY realistic suite ordering — rather than
-// being a property of either individual bug — is a fair question the
-// tester flags but does not resolve unilaterally.
+//      SAME row the trigger never reads. Confirmed live from TWO
+//      independent specs, not just one: `phase14d-capa.spec.ts` (5
+//      manual-source opens) AND `phase15-indicators.spec.ts` AC-5b
+//      (`p_source: 'indicator'`, no `phase14d-capa` involved) each reproduce
+//      it alone — `select action, organization_id, commission_id,
+//      hospital_id, count(*) from audit_log where action='capa.opened'
+//      group by 1,2,3,4` shows rows with ALL THREE null alongside
+//      properly-scoped event-sourced rows in both cases.
+// ORDERING NOTE: Stage 2's full `e2e:prod` ran GREEN with mechanism #2
+// already present — it is not new. `e2e:prod` resets the DB PER BATCH, so
+// this can only red AC-3f-platform when a non-event-sourced-CAPA-opening
+// spec lands in the SAME BATCH as this one; batch composition shifts
+// whenever specs are added/deleted/rewritten (as this program just did to
+// both specs named above). This is a LATENT pre-existing defect newly
+// EXPOSED by batch reshuffling — it was never truly passing, and ACT did
+// not introduce it; ACT's own (now-fixed) mechanism #1 was a second,
+// temporary way to trip the same already-fragile assertion, not the source
+// of the fragility. A genuinely fresh reset with no prior assume_role call
+// and no manual/meeting/indicator/audit_finding CAPA open still passes.
+// Whether this assertion is itself too broad to survive ANY realistic suite
+// ordering — rather than being a property of mechanism #2 alone — is a fair
+// question the tester flags but does not resolve unilaterally.
 test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
   page,
 }) => {

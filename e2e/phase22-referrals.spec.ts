@@ -818,71 +818,92 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
 //     → permission denied (42501).
 // ---------------------------------------------------------------------------
 
-test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, no identifiers in metadata', async ({
+test('Flow 5a: a plain CCIH staff member cannot reveal ENC-0001 patient identifiers — no PHI on page, no audit row fires; a PQS operator cannot reach the page at all', async ({
   page,
   request,
 }) => {
   // ⛔ QO·B, 2026-08-09: swapped from admin@test.local — see Flow 3d's comment
-  // and the file header for why it no longer reaches this route. Also tightens
-  // a real gap the old version had: admin@'s reveal-button probe was wrapped in
-  // an `if (isVisible) … else { if (html.includes(PHI_NAME)) … }` with NO ELSE
-  // branch assertion, so once admin@ started 404ing this test went silently
-  // VACUOUS (green while proving nothing — the exact "a test that cannot fail"
-  // trap e2e/qob-org-admin-content-wall.spec.ts's own header warns against).
-  // ACT (ADR 0106): same commission-scoped-hub reasoning as Flow 3d above —
-  // `staff` is what admits her to /o/rede-a/c/ccih/... at all.
+  // and the file header for why it no longer reaches this route.
+  //
+  // ⛔ ACT (ADR 0106) — accepted consequence, PO-ruled 2026-08-10, EXTENDED
+  // explicitly to this test from the Flow 3d/AC-5b ruling (this test was
+  // flagged, not rewritten, in the tester's first union-tests close-out —
+  // "a third, structurally-identical case... not yet PO-reviewed"; the PO
+  // has now reviewed it and extended the ruling here). Same two-gate shape,
+  // same predicate as Flow 3d: `get_referral_patient` is gated by
+  // `can_read_referral_phi` (`is_pqs_operator_of_for(...) OR
+  // is_staff_admin_of_for(...) OR <target-side arms>`, verified live during
+  // the Flow 3d rewrite) — the identical gate that withholds `result_md`
+  // there withholds the patient panel here. `staff` admits pqsdual.a to this
+  // commission-scoped route but she is plain CCIH `staff`, not
+  // `staff_admin` — fails PHI. `pqs_member` would satisfy PHI but 404s this
+  // exact route: the gate lives on the ACTIVE HAT, not the specific user, so
+  // Flow 3d's live proof (same route, same persona, `pqs_member` hat → 404)
+  // transfers directly — not re-run here as its own experiment, per the
+  // coordinator's "same-shape edit, not a new investigation." No single hat
+  // does both; pre-cutover her one hatless session carried both arms at
+  // once, so this test never had to choose.
+  //
+  // ⚠ Unlike Flow 3d — where the underlying "an entitled reader sees the
+  // PHI" fact stays covered elsewhere (chefe.ccih already sees `result_md`
+  // in Flow 1b) — this WAS the only test in this file exercising the
+  // `referral_patient.read` AUDIT-WRITE mechanism itself (a row appears on
+  // reveal, its metadata carries no identifiers, it is attributed to the
+  // source commission — Rule 11). The original test's only actor was a
+  // QPS-operator-only identity, so that mechanism is not re-proven by this
+  // rewrite for ANY persona. It could be preserved via an already-entitled,
+  // non-hat-conflicted actor (chefe.ccih / chefe.farm — both staff_admin,
+  // already proven to pass this same gate; not a widening) — deliberately
+  // NOT added here without explicit direction, since "same shape as Flow
+  // 3d" was the instruction and introducing a third persona/track goes
+  // beyond that shape. Flagged in PROGRESS.md Bug Log for an explicit call.
   await signInAs(page, 'pqsdual.a@test.local', undefined, 'staff')
 
-  // Capture audit count BEFORE the reveal
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-  // Assert reach explicitly, so a future regression here fails loudly instead of
-  // silently falling through the "PHI doesn't appear, nothing to assert" branch
-  // below.
   await expect(
     page.getByRole('heading', { name: 'Não encontramos esta página.' }),
   ).toHaveCount(0)
 
-  // Click the reveal button (lazy: fires the audited `get_referral_patient` door)
+  // The conditional below is diagnostic only, never the proof: whichever way
+  // it goes, the UNCONDITIONAL block after it (not gated on either branch) is
+  // what actually asserts non-disclosure. That avoids the tautology a bare
+  // "else { expect(revealBtnCount).toBe(0) }" would be here (true by the very
+  // condition that selects the branch) — which would itself be a detector
+  // that cannot detect, the same defect class this rewrite exists to remove.
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
     .or(page.getByRole('button', { name: /Exibir dados/i }))
     .or(page.getByRole('button', { name: /Dados do paciente/i }))
+  const revealBtnCount = await revealBtn.count()
 
-  if (await revealBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await revealBtn.click()
-    await page.waitForTimeout(1_000) // allow the server action to complete
-
-    // Verify PHI appears on screen
-    await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText(new RegExp(PHI_MRN))).toBeVisible()
-
-    // Check audit row was written
-    const after = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
-    expect(after.length).toBeGreaterThan(before.length)
-
-    // The audit metadata must NOT contain any PHI identifiers
-    const latest = after[0]
-    const meta = JSON.stringify(latest.metadata)
-    expect(meta).not.toContain(PHI_NAME)
-    expect(meta).not.toContain(PHI_MRN)
-    // The audit row must be attributed to the source commission
-    expect(latest.commission_id).toBe(COMM_A)
-  } else {
-    // PHI panel may be collapsed or auto-reveals for QPS — check that PHI renders
-    // and that an audit row was emitted on page load
-    const html = await page.content()
-    if (html.includes(PHI_NAME)) {
-      // Auto-reveal path: audit must have fired
-      const after = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
-      expect(after.length).toBeGreaterThan(before.length)
-      const latest = after[0]
-      const meta = JSON.stringify(latest.metadata)
-      expect(meta).not.toContain(PHI_NAME)
-      expect(meta).not.toContain(PHI_MRN)
-    }
-    // If PHI doesn't appear at all, the lazy door works correctly — nothing to assert
+  if (revealBtnCount > 0) {
+    // The control renders, but a non-entitled click must not disclose PHI or audit one.
+    await revealBtn.first().click()
+    await page.waitForTimeout(1_000)
+    await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toHaveCount(0)
+    await expect(page.getByText(new RegExp(PHI_MRN))).toHaveCount(0)
   }
+  // else: the control is not even offered to a non-entitled reader — the
+  // stronger shape, and already fully proven by revealBtnCount === 0 without
+  // needing to re-assert it.
+
+  // Regardless of which branch above ran: no PHI text anywhere on the page,
+  // and no audit row fires — the PHI door never opened for this hat.
+  const html = await page.content()
+  expect(html).not.toContain(PHI_NAME)
+  expect(html).not.toContain(PHI_MRN)
+  const afterStaffHat = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
+  expect(afterStaffHat.length).toBe(before.length)
+
+  // The specific thing that's gone, asserted rather than left silent: a
+  // 'pqs_member'-hatted session — even pqsdual.a's own — cannot reach this
+  // commission-scoped page AT ALL, so the "same session reveals the PHI
+  // panel AND it gets correctly audited" journey this Flow originally
+  // exercised is structurally impossible now, not merely untested.
+  await signInAs(page, 'pqsdual.a@test.local', undefined, 'pqs_member')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await expect(page.getByText(/não encontr/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 test('Flow 5b: plain A member calling get_referral_patient → null + NO audit row written', async ({
