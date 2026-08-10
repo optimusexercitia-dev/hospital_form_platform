@@ -49,25 +49,27 @@ const onLoginPage = (page: Page): boolean => {
 /**
  * A real UI login. The only path that spends a GoTrue password grant.
  *
- * @param _actAs — ACT (ADR 0106) Stage 1 harness seam (plan §4 Stage 1: "loginFresh
- *   … gains an actAs seam — a no-op until the picker exists, flipped in ONE place at
- *   Stage 3"). `_` -prefixed on purpose (house convention for an intentionally-unused
- *   binding, CLAUDE.md §8) — this is NOT dead code to clean up. Once Stage 3 ships the
- *   post-login role picker (multi-role principals land there before their final
- *   destination), this function is the ONE place that drives it: after the
- *   `waitForURL` below, branch on whether the picker rendered and, if so, select the
- *   role matching this parameter (dropping the leading underscore at that point).
- *   Every other function in this module funnels through here, so no other call site
- *   needs to change when that lands. Left untyped against the generated
- *   `Database['public']['Enums']['platform_role']` union deliberately — Stage 3 picks
- *   the type once something actually consumes the value; coupling it now would be a
- *   second thing Stage 3 has to touch.
+ * @param actAs — ACT (ADR 0106) Stage 1 harness seam, FLIPPED LIVE in Stage 3 (plan
+ *   §4 Stage 3: "flip the Stage 1 seams … loginFresh's body, after the existing
+ *   waitForURL: branch on whether the picker rendered and select the matching
+ *   role"). This is the ONE place in `e2e/` that drives `/selecionar-perfil` —
+ *   every other function in this module funnels through here, so no other call
+ *   site needed to change. A multi-role principal with no active hat lands on the
+ *   picker after `signIn` (D2/D5); everyone else (single-role, or already hatted)
+ *   proceeds straight to their landing route and this block is a no-op. Selecting
+ *   by clicking the VISIBLE `<label for="role-option-{role}">` (not the sr-only
+ *   radio input directly) — real, actionable, no visibility edge case. Left
+ *   untyped against `Database['public']['Enums']['platform_role']` deliberately —
+ *   callers pass the raw string value the radio's own `value` attribute carries
+ *   (`role-catalog.ts`'s `option.role`), and typing it here would require this
+ *   test-harness module to import an app-owned generated type it otherwise has no
+ *   reason to depend on.
  */
 export async function loginFresh(
   page: Page,
   email: string,
   password: string = DEFAULT_PASSWORD,
-  _actAs?: string,
+  actAs?: string,
 ): Promise<void> {
   await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.getByLabel(/e-mail/i).waitFor({ state: 'visible', timeout: 30_000 })
@@ -75,7 +77,24 @@ export async function loginFresh(
   await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
-  // Stage 3 inserts the picker-interaction block here (see the `_actAs` doc above).
+
+  if (new URL(page.url()).pathname.startsWith('/selecionar-perfil')) {
+    if (!actAs) {
+      // Fail loudly and close to the cause: a multi-role principal reached the
+      // picker but the caller never said which hat to choose. Left unhandled,
+      // this would otherwise strand the page on /selecionar-perfil and surface
+      // as a confusing timeout/URL mismatch far downstream instead.
+      throw new Error(
+        `loginFresh(${email}): landed on /selecionar-perfil with no actAs argument — ` +
+          'a multi-role principal must say which hat to assume.',
+      )
+    }
+    await page.locator(`label[for="role-option-${actAs}"]`).click()
+    await page.getByRole('button', { name: /continuar/i }).click()
+    await page.waitForURL((url) => !url.pathname.startsWith('/selecionar-perfil'), {
+      timeout: 20_000,
+    })
+  }
 }
 
 /**
@@ -86,17 +105,15 @@ export async function loginFresh(
  * here, so that contract must not weaken — specs rely on being "somewhere authenticated"
  * when this resolves.
  *
- * @param actAs — ACT (ADR 0106) Stage 1 harness seam (plan §4 Stage 1: "…and any
- *   storage-state reuse path in the same module — gains an actAs seam"). This IS the
- *   storage-state reuse path the plan means. Still UI-wise a no-op today (threaded
- *   straight through to `loginFresh`'s own no-op parameter, see its doc), but the
- *   cache key is partitioned by it starting now, deliberately: once Stage 3 makes the
- *   active hat part of what a login produces, the SAME persona signed in under two
- *   different hats is two different sessions, and a cache keyed on email alone would
- *   silently hand back the wrong hat's cookies to a test that asked for the other one.
- *   No existing call site passes `actAs`, so `cacheKey` collapses to plain `email` and
- *   today's behavior is byte-identical — this is why Stage 3 does not need to revisit
- *   the caching logic itself, only `loginFresh`'s body.
+ * @param actAs — ACT (ADR 0106) harness seam, LIVE as of Stage 3 (plan §4 Stage 1: "…and
+ *   any storage-state reuse path in the same module — gains an actAs seam"; §4 Stage 3:
+ *   "flip the Stage 1 seams"). This IS the storage-state reuse path the plan means —
+ *   threaded straight through to `loginFresh`'s own (now live) picker-driving branch.
+ *   The cache key was partitioned by it from Stage 1 onward, deliberately ahead of this
+ *   moment: the SAME persona signed in under two different hats is two different
+ *   sessions, and a cache keyed on email alone would silently hand back the wrong hat's
+ *   cookies to a test that asked for the other one. A call site that omits `actAs` for a
+ *   multi-role persona gets `loginFresh`'s thrown error, not a silently wrong session.
  */
 export async function cachedSignIn(
   page: Page,
