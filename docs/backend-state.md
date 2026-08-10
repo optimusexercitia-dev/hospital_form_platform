@@ -98,8 +98,12 @@ picker — the token hook derives its lone hat implicitly.
 
 ⚠ **REMOTE CUTOVER NEEDS A STEP `db push` DOES NOT COVER:** `custom_access_token_hook` must be
 **ENABLED on Supabase Cloud** (locally it is `config.toml` `[auth.hook.custom_access_token]`).
-Without it the remote mints **no `active_role` claim**, and every multi-role principal is a
-stranger — a total-lockout shape, not a degradation.
+Without it the remote mints **no `active_role` claim** — and the blast radius is **EVERY user,
+not just multi-role ones**, because the implicit single-role derive lives INSIDE the hook. Probed
+live on a single-role persona (`chefe.ccih`, staff_admin only) with the claim absent:
+`active_role()` = NULL → `has_role(staff_admin, self)` = **false** → `commissions` visible = **0**.
+Total lockout, not a degradation. *(This paragraph said "every multi-role principal" until
+2026-08-10; that understated it — corrected after measuring rather than reasoning.)*
 
 ### New surface
 

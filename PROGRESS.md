@@ -176,7 +176,7 @@ sessions see stranger-level nothing until they sign in again, acceptable only be
 pre-pilot. ⚠ **Two things this item still owes the pilot, neither covered by `git push`/`db push`:**
 (a) the auth hook must be **ENABLED on Supabase Cloud** (`config.toml`'s `[auth.hook
 .custom_access_token]` is local-only config — without it the remote mints no `active_role` claim and
-**every multi-role principal becomes a stranger**); (b) **S4 is not started** (see the pointer row).
+**EVERY user becomes a stranger — not just multi-role ones** (the implicit single-role derive lives inside the hook; probed live: a single-role staff_admin sees 0 commissions)); (b) **S4 is not started** (see the pointer row).
 
 **2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing *after* 1b.** Two halves,
 both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:
