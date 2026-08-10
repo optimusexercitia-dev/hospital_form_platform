@@ -97,6 +97,37 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | **S3** — THE ATOM (the only red window) | backend + frontend + tester | 🟡 **backend + frontend DONE** 2026-08-10, tester not started | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester still needs: flip the Stage 1 seams, picker/switch/D9 specs, full `e2e:prod`. |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted |
 
+**S3 lead notes — rulings and finds during the build:**
+- **D11's `is_admin()` clause was MISSING from the plan** (backend flagged it; ADR 0106 D11 requires it —
+  "`is_admin()` gains the same active-role condition"). **PO ruled 2026-08-10: implement in S3, not S4.**
+  Sized first: 26 RLS policies + 17 functions + ~30 TS sites, but **provably a no-op today** (0
+  platform_admins hold a membership ⇒ all single-role ⇒ hat derived implicitly). Proof required a
+  **synthetic multi-role platform_admin** — the only fixture that can distinguish the two
+  implementations; without it the no-op claim is vacuous. A **tripwire** now reds if any
+  platform_admin ever gains a membership, because the whole argument rests on that set being empty.
+- ⚠ **`assume_role` had a chicken-and-egg bug, caught before shipping:** its `platform_admin` branch
+  called `is_admin()` to test eligibility to *acquire* the hat — circular once `is_admin()` requires the
+  hat already active. Proven live, fixed against raw `profiles.is_admin`. **This is the break-glass
+  path the ADR explicitly protects** ("must never depend on the picker").
+- **The 3-arg `has_role` came back BLIND and was DROPPED, not keystoned.** It was a pure delegation to
+  the 4-arg, so S3 changed *what it meant* without changing its text — the recurring shape here. Zero
+  callers proven across four surfaces (928-function corpus · `pg_policies` all schemas · seed/demo ·
+  TypeScript), so it was unreachable rather than unguarded. `ARM=census` live gates 451→450 confirms.
+- **Plan correction:** `ARM=census` did **not** grow for `active_role()` — census counts **boolean**
+  gates and `active_role()` returns `text`. The plan predicted census would be the arm that sees it.
+  Real coverage for the hat is the **revert-twin keystone**, not census.
+- **`BUG-ACT-NULLHAT-1`:** the plan's own literal `p_role = app.active_role()` is NULL for a hatless
+  caller, so `IF NOT has_role(…)` never fired — **the prescribed fix was a fail-open**. Fixed with
+  `IS NOT DISTINCT FROM`. It cannot reintroduce a both-NULL hole: a NULL `p_role` can never satisfy
+  `m.role = p_role` in the membership test that runs ahead of the hat condition.
+- ⚠ **Where a D9 hint actually renders:** a guard's `notFound()` thrown in `layout.tsx` is caught by an
+  **ancestor** boundary, **never** by a `not-found.tsx` sibling in its own directory — here the
+  **global `src/app/not-found.tsx`**, as neither `[org]/` nor `o/` has an intervening layout. Disproved
+  the design note's assumption three ways incl. on a real `next build`. The 6 area boundaries are kept
+  for the narrower page-level case.
+- **Keyboard-only is the tester's proof, not frontend's** — the frontend engineer could not drive
+  trusted keyboard events (browser pane not compositing) and said so rather than claiming it.
+
 **Lead notes / decisions taken during the build:**
 - **S0 placement — the enum lands in `public`, not `app`** (lead ruling 2026-08-09, on a real S0
   finding). `config.toml` exposes `["public","graphql_public"]`, so an `app`-schema enum is invisible
