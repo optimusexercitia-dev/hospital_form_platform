@@ -1,6 +1,7 @@
 # ADR 0106 — "Act as": role assumption as a binding constraint
 
-- **Status:** Accepted (design; 2026-08-09) — **not yet built**
+- **Status:** Accepted (design; 2026-08-09) — **not yet built**; corrected same day after a
+  live-catalog re-census (enforcement table rewritten; D12–D14 added)
 - **Scope:** supersedes FUP-QOB-2 ruling ⑤ (dual-hat precedence), which was recorded FALSE
 - **Relates to:** ADR [0100](./0100-quality-office-oversight.md) D1/D12 (quality office,
   duty separation) · ADR [0101](./0101-role-landing-guard.md) (the landing chain) ·
@@ -38,8 +39,9 @@ Replace precedence with **explicit role assumption**. A user with more than one 
 which role they are **acting as**, and that choice **binds what the session may do** — it is
 not a view preference.
 
-The ten decisions below were taken in a design interview with the PO on 2026-08-09. Three
-went against the author's recommendation and are marked ⚑.
+Decisions D1–D11 were taken in a design interview with the PO on 2026-08-09. Three went
+against the author's recommendation and are marked ⚑. D12–D14 were added the same day by
+the catalog re-census (provenance note above them).
 
 ### D1 — The driver is governance and audit, not convenience
 The purpose is to **evidence separation of duties**: "this case was reviewed by someone
@@ -155,25 +157,106 @@ large parts of both suites go red at once. This is expected, bounded and visible
   its reason **precisely so a later "fix the inconsistency" does not take down every
   webhook.**
 
+---
+
+*The three decisions below were **not** part of the PO design interview. They were forced by
+re-censusing the enforcement point against the live catalog the same day: the first census
+used a name-prefix boundary and missed three doors (corrected table below). Directions are
+the reviewer's, recorded now precisely so the build does not decide them silently — open to
+PO reversal like anything else here.*
+
+### D12 — The hat lives in the JWT, not in a client-supplied setting
+The browser talks to PostgREST directly, so "travels per request as a session setting" hides
+a fork the first draft never chose. If the client *supplies* the value per request, "one at
+a time" holds only per-REQUEST: a user can interleave hats across requests seconds apart,
+D1's separation evidence dissolves into a per-action label, and D8's "switching is audited"
+becomes noise because every request is a potential switch.
+
+The active role is therefore a **JWT claim** — minted server-side at sign-in (implicitly for
+single-role users, per D7) and re-minted on switch. Switching = a token refresh = one real,
+auditable event; exclusivity is per-SESSION. SQL still reads the value via `current_setting`
+(`request.jwt.claims`) — the mechanics the first draft assumed — but the value is
+server-minted, never client-authored. Forgery stays a non-issue either way (validation is
+against live memberships); what the claim buys is *stickiness*. D11's break-glass composes:
+a single-role account's claim is derived with no UI in the path.
+
+### D13 — administrativo capabilities ride the committee hat
+`member_can` (ADR 0061) resolves via `auth.uid()` against
+`commission_administrativo_capabilities` — it consults neither `has_role` nor the hat.
+⚠ Measured consequence: under this ADR as first written it fails **OPEN** — delegated
+capabilities keep working under every hat and look completely normal. That is verbatim the
+failure mode D5 was written to reject, found in the design's own blind spot.
+
+A delegated capability is a **grant you hold, not a relationship you are in** — you are
+appointed to it and can be removed, whereas D6's immunes are about you as an object.
+`member_can` therefore gains the same active-role condition: the capability is live only
+while the caller is acting as the committee role the delegation decorates (`staff` /
+`staff_admin` of that commission).
+
+### D14 — the case bitmask is classified arm by arm
+`app._case_caps` (the ADR 0078 resolver) mixes, inside ONE bitmask, arms derived from roles
+(via `is_member_of`, `is_commission_admin_of`, …) and arms derived from per-case
+relationships (ACL rows, respondent, recusal). No single rule can cover it, and D6's four
+named functions do not reach it.
+
+Every arm is tagged at source: **role-derived → obeys the hat** (free once `has_role` /
+`has_role_any` are constrained — note the role arms reach `memberships` via `has_role_any`
+today, so before that normalisation **zero** of the bitmask would be hat-constrained), or
+**relationship-derived → D6-immune**. No arm may be left unclassified: the build's review
+traces each arm to the enforcement point or to a D6 relationship, and the phase's pgTAP
+additions assert the two classes behave differently under a hat switch.
+
 ## The enforcement point (measured, not assumed)
 
-| How the 47 `app.is_*` primitives resolve identity | Count | Consequence |
-| --- | --- | --- |
-| via `app.has_role` | 15 | the enforcement point |
-| read `memberships` directly | 7 | **must be normalised onto `has_role` first** |
-| delegate to another primitive | 27 | inherit the constraint for free |
-| neither (validators / relationships / platform-admin) | 13 | 7 irrelevant · 4 immune (D6) · 2 handled by D11 |
+> **Corrected 2026-08-09, same day.** The first census enumerated "the 47 `app.is_*`
+> primitives" — a NAME-PREFIX boundary, the mistake this project has already paid for once
+> (*"an enumeration's boundary must be the property, not a syntax"*). The property is
+> *boolean gate*: `prorettype = boolean` in schema `app` returns **80** functions. The first
+> table's buckets also overlapped (they summed to 62 against a 47 census). The table below is
+> disjoint and was read from `pg_proc` on the live catalog, per the §5 rule — re-derive it
+> from the catalog at build time, never from this text.
 
-So the constraint lands in **one function**:
+The 47 `is_*` primitives, disjointly:
+
+| How the primitive resolves identity | Count | Consequence |
+| --- | --- | --- |
+| via `app.has_role` | 12 | the enforcement point |
+| via `app.has_role_any` | 2 | `is_member_of` / `is_member_of_for` — the sibling door, see below |
+| read `memberships` directly | 7 | **must be normalised onto `has_role` first** |
+| delegate to another primitive | 14 | inherit whatever their *target* does — free only once the target is constrained (11 authz + 3 validators) |
+| neither | 12 | 6 identity-free (validators, `is_active`, `is_client_role`) · 4 immune (D6) · 2 handled by D11 |
+
+The 7 direct readers, as of this census: `is_entitled_document_approver`,
+`is_hospital_member_of`, `is_org_level_admin_within`, `is_org_member`, `is_pqs_member_of_any`,
+`is_pqs_operator_in_org_for`, `is_quality_reviewer_in_org`.
+
+The **33** boolean gates outside the `is_*` prefix are mostly the `can_*` layer (delegates to
+`is_*` primitives, inherits for free) and identity-free evaluators (`eval_*`, `validate_*`,
+`feature_enabled`) — plus three doors the first census missed entirely:
+
+- ⚠ **`app.has_role_any`** — a SIBLING of the choke point: it reads `memberships` directly,
+  matching scope with **any** role, and `is_member_of` / `is_member_of_for` (and
+  `public.session_context`) are built on it. Under D3 there is no such thing as "a member in
+  any role" — the caller holds exactly one at a time. It is **reimplemented as
+  `has_role(scope_type, scope_id, <the active role>, user_id)`**, so the enforcement body
+  stays ONE function and "member of X" means *the active role resides in X*. Left alone,
+  every door built on `is_member_of` ignores the hat and suppression leaks broadly. (Found
+  the way the repo's own lesson predicts: a `\yhas_role\y` sweep counts `has_role_any`
+  callers as covered.)
+- **`app.member_can`** — the administrativo door; ruled in D13.
+- **`app._case_caps` / `has_case_capability`** — the case bitmask; ruled in D14.
+
+`app.has_role` itself is two overloads; the 3-arg delegates to the 4-arg, so the constraint
+still lands in **one body**:
 
 ```
 app.has_role(scope_type, scope_id, role, user_id)
   → existing membership test  AND  role = <the active role>
 ```
 
-The active role travels per request as a session setting — a pattern already used by **40**
-functions (`current_setting`). Validation is against live memberships, so a user can never
-assume a role they do not hold.
+The active role reaches SQL as a session setting **derived from the JWT** (D12), read with
+`current_setting` — a pattern ~30 `app` functions already use. Validation is against live
+memberships, so a user can never assume a role they do not hold.
 
 **Forgery is not the threat model.** The user is *allowed* to choose any hat they genuinely
 hold; the constraint is that they get exactly **one at a time**, enforced at the boundary and
@@ -190,7 +273,18 @@ recorded in the trail.
 - ⚠ **Adoption is the real risk, not correctness.** If switching is slow or the indicator is
   weak, users will pick the widest hat and never switch, and the audit trail will attest to a
   separation that is not being practised. D7 and D9 exist for this; they should be treated as
-  load-bearing, not polish.
+  load-bearing, not polish. The persona who pays most is also the commonest multi-role shape
+  in the target hospitals: a nurse who is `staff_admin` of one commission and `staff` of two
+  others must switch hats to move between her **own** committees, for near-zero
+  separation-of-duties return — D9's one-click switch is what makes D3's uniform rule
+  liveable for her, not for the rarer coordinator-plus-org-admin case D3 names.
+- The re-census widens D10's harness scope, boundedly: `has_role_any`, `member_can` and the
+  `_case_caps` role arms are now inside the constraint, so their suites red loudly under D5
+  too — same class of breakage, same visibility.
+- `member_can` failing open (D13) is the D5-rejected failure mode caught **at design time,
+  in this ADR's own first draft** — a working demonstration that the prefix-bounded census
+  was not a paperwork defect. The `ARM=census` gate would have surfaced both missed doors
+  later as never-asked gates; the correction merely moves that discovery before the build.
 
 ## Not decided here
 
