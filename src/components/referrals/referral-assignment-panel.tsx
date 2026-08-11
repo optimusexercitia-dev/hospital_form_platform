@@ -111,9 +111,9 @@ export function ReferralAssignmentPanel({
   return (
     <section
       aria-labelledby="referral-assignments-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <UserRound
             aria-hidden="true"
@@ -121,7 +121,7 @@ export function ReferralAssignmentPanel({
           />
           <h2
             id="referral-assignments-heading"
-            className="text-base font-semibold"
+            className="text-sm font-semibold"
           >
             Responsáveis
           </h2>
@@ -143,17 +143,17 @@ export function ReferralAssignmentPanel({
       </div>
 
       {ordered.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground text-pretty">
+        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground text-pretty">
           Nenhum responsável atribuído a este encaminhamento.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul className="flex flex-col gap-2">
           {ordered.map((a) => {
             const mine = a.commissionId === myCommissionId && canManage;
             return (
               <li
                 key={a.id}
-                className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-3"
+                className="flex flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/20 p-2.5"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-foreground">

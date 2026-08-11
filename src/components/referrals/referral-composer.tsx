@@ -116,8 +116,7 @@ export function ReferralComposer({
   // renders can retire the previously-selected mode).
   const mode = modes.find((m) => m.key === modeKey) ?? modes[0];
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function send() {
     setError(null);
     setFieldError(null);
     if (!body.trim()) {
@@ -136,15 +135,33 @@ export function ReferralComposer({
     });
   }
 
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    send();
+  }
+
+  /**
+   * Ctrl/Cmd+Enter sends (RDR D8) — the messenger idiom. `metaKey` covers macOS,
+   * `ctrlKey` the rest; plain Enter still inserts a newline, so a multi-paragraph
+   * clarification is never truncated by a stray keystroke. The submit BUTTON stays
+   * the primary, discoverable path — the shortcut is an accelerator, not the only
+   * way through (the keyboard path must not depend on knowing it).
+   */
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey)) return;
+    e.preventDefault();
+    if (!isPending) send();
+  }
+
   const Icon = mode.icon;
 
   return (
     <form
       onSubmit={submit}
-      className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4"
+      className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/20 p-3.5"
       noValidate
     >
-      <h3 className="text-sm font-semibold">Nova mensagem</h3>
+      <h3 className="sr-only">Nova mensagem</h3>
 
       {error && <FormBanner tone="error">{error}</FormBanner>}
 
@@ -162,13 +179,13 @@ export function ReferralComposer({
                   aria-pressed={selected}
                   onClick={() => setModeKey(m.key)}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none " +
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none " +
                     (selected
                       ? "border-primary bg-accent text-accent-foreground"
                       : "border-border text-muted-foreground hover:text-foreground")
                   }
                 >
-                  <MIcon aria-hidden="true" className="size-4" />
+                  <MIcon aria-hidden="true" className="size-3.5" />
                   {m.label}
                 </button>
               );
@@ -178,15 +195,18 @@ export function ReferralComposer({
       )}
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium">Mensagem</span>
+        <span className="sr-only">Mensagem</span>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          rows={4}
+          onKeyDown={onKeyDown}
+          rows={2}
           className={FIELD_CLASS}
           placeholder={mode.placeholder}
           aria-invalid={fieldError ? true : undefined}
-          aria-describedby={fieldError ? "referral-composer-error" : undefined}
+          aria-describedby={`referral-composer-hint${
+            fieldError ? " referral-composer-error" : ""
+          }`}
         />
         {fieldError && (
           <span
@@ -199,12 +219,15 @@ export function ReferralComposer({
         )}
       </label>
 
-      <p className="text-xs text-muted-foreground text-pretty">
-        Nunca inclua dados de paciente que não sejam estritamente necessários.
-      </p>
-
-      <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={isPending}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p
+          id="referral-composer-hint"
+          className="text-xs text-muted-foreground text-pretty"
+        >
+          Ctrl+Enter envia. Nunca inclua dados de paciente que não sejam
+          estritamente necessários.
+        </p>
+        <Button type="submit" size="sm" disabled={isPending}>
           <Icon aria-hidden="true" />
           {isPending ? "Enviando…" : mode.label}
         </Button>

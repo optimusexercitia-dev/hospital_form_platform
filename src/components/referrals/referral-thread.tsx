@@ -3,20 +3,23 @@ import { MessagesSquare } from "lucide-react";
 import type {
   ReferralMessage,
   ReferralReadReceipt,
+  ReferralThreadEvent,
 } from "@/lib/referrals/types";
 import { ReferralThreadItem } from "./referral-thread-item";
+import { ReferralThreadEventRow } from "./referral-thread-event";
 
 /**
- * The inter-committee dialogue thread (RV2 R1 — ADR 0037 Amendment 1). Renders the
- * ordered {@link ReferralMessage} list a referral accumulates while the two
- * committees clarify before B concludes: each message shows the sender committee,
- * its {@link ReferralMessageTypeChip}, a timestamp, and the body.
+ * The inter-committee dialogue thread (RV2 R1 — ADR 0037 Amendment 1), redesigned
+ * by RDR D7 as a MESSENGER timeline: each message is a bubble aligned by committee
+ * (the viewer's own side on the right, the other side on the left), and the
+ * SYNTHESIZED lifecycle {@link ReferralThreadEvent}s are interleaved between them as
+ * centred system rows, so "what happened" and "what was said" read as one story.
  *
  * **PHI posture (plan §2.2 / Rule 12).** The message `body` is PHI-bearing and
  * arrives ONLY through the audited detail door; it is `null` for a metadata-only
  * reader. When `body === null` this renders a muted **"Conteúdo restrito"**
- * placeholder — NEVER the body, and never a body preview anywhere else (the hub /
- * inbox / dashboard show only counts + `last_message_at` metadata).
+ * placeholder — NEVER the body. The events are derived from fields the same door
+ * already returned, so they can disclose nothing extra.
  *
  * Server-Component shell (no client hooks) — the `composer` slot (a client island)
  * is passed in by the page, gated on the viewer's side + status. The optional
@@ -24,18 +27,25 @@ import { ReferralThreadItem } from "./referral-thread-item";
  */
 export function ReferralThread({
   messages,
+  events,
   readReceipts,
   viewerUserId,
+  viewerCommissionId,
   canRedact,
   waitingOnLabel,
   composer,
 }: {
   messages: ReferralMessage[];
+  /** RDR D7: derived system rows (`synthesizeThreadEvents`), interleaved by time. */
+  events: ReferralThreadEvent[];
   /** RV2 R5: PHI-free read/ack receipts across all messages (grouped per message
    * here for the per-message indicators). */
   readReceipts: ReferralReadReceipt[];
   /** The viewing user's id (for the "have I read/acked?" receipt checks). */
   viewerUserId: string | null;
+  /** The viewer's own committee side — decides which bubbles align right; `null`
+   * for a neither-side reader (QPS), whose bubbles then all read as incoming. */
+  viewerCommissionId: string | null;
   /** RV2 R5: whether the viewer may redact a message (a coordinator of either side). */
   canRedact: boolean;
   /** Waiting-on indicator text while `awaiting_information`; `null` otherwise. */
@@ -43,10 +53,6 @@ export function ReferralThread({
   /** The gated write affordance (a client island), or `null` for read-only viewers. */
   composer?: React.ReactNode;
 }) {
-  const ordered = [...messages].sort(
-    (a, b) => a.sequenceNumber - b.sequenceNumber,
-  );
-
   // Group receipts by message id for the per-message indicators.
   const receiptsByMessage = new Map<string, ReferralReadReceipt[]>();
   for (const rc of readReceipts) {
@@ -54,6 +60,8 @@ export function ReferralThread({
     if (list) list.push(rc);
     else receiptsByMessage.set(rc.messageId, [rc]);
   }
+
+  const rows = interleave(messages, events);
 
   return (
     <section
@@ -70,7 +78,7 @@ export function ReferralThread({
         </span>
       </div>
 
-      {waitingOnLabel && (
+      {waitingOnLabel ? (
         <p
           role="status"
           className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning"
@@ -78,28 +86,82 @@ export function ReferralThread({
           <MessagesSquare aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <span>{waitingOnLabel}</span>
         </p>
-      )}
+      ) : null}
 
-      {ordered.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
           Ainda não há mensagens neste encaminhamento.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {ordered.map((m, i) => (
-            <ReferralThreadItem
-              key={m.id}
-              message={m}
-              receipts={receiptsByMessage.get(m.id) ?? []}
-              viewerUserId={viewerUserId}
-              canRedact={canRedact}
-              index={i}
-            />
-          ))}
+          {rows.map((row, i) =>
+            row.kind === "message" ? (
+              <ReferralThreadItem
+                key={`m-${row.message.id}`}
+                message={row.message}
+                receipts={receiptsByMessage.get(row.message.id) ?? []}
+                viewerUserId={viewerUserId}
+                mine={
+                  viewerCommissionId != null &&
+                  row.message.senderCommissionId === viewerCommissionId
+                }
+                canRedact={canRedact}
+                index={i}
+              />
+            ) : (
+              <ReferralThreadEventRow
+                key={`e-${row.event.id}`}
+                event={row.event}
+                index={i}
+              />
+            ),
+          )}
         </ul>
       )}
 
       {composer}
     </section>
   );
+}
+
+type ThreadRow =
+  | { kind: "message"; message: ReferralMessage; at: number; ord: number }
+  | { kind: "event"; event: ReferralThreadEvent; at: number; ord: number };
+
+/** ISO → epoch ms; an unparseable stamp sorts last rather than throwing. */
+function timeKey(iso: string): number {
+  const parsed = Date.parse(iso);
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
+/**
+ * Merge messages and synthesized events into ONE time-ordered timeline.
+ *
+ * Sorting is `(timestamp, ord)`. `ord` keeps ties deterministic across renders
+ * instead of leaning on sort stability: an event that shares a timestamp with a
+ * message (e.g. the `sent` event and the first message) sorts BEFORE it, because a
+ * lifecycle transition is what makes the message possible. Messages keep their
+ * server-assigned `sequenceNumber` ordering among themselves.
+ */
+function interleave(
+  messages: ReferralMessage[],
+  events: ReferralThreadEvent[],
+): ThreadRow[] {
+  const rows: ThreadRow[] = [
+    ...events.map<ThreadRow>((event) => ({
+      kind: "event",
+      event,
+      at: timeKey(event.at),
+      ord: event.seq,
+    })),
+    ...messages.map<ThreadRow>((message) => ({
+      kind: "message",
+      message,
+      at: timeKey(message.createdAt),
+      // Offset past every event `seq` so a tie always resolves event-then-message.
+      ord: 1_000_000 + message.sequenceNumber,
+    })),
+  ];
+
+  return rows.sort((a, b) => (a.at === b.at ? a.ord - b.ord : a.at - b.at));
 }
