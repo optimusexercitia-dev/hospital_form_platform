@@ -182,7 +182,7 @@ export async function listCaseParticipantRolesForAdmin(
   if (!organizationId || !UUID_RE.test(organizationId)) return []
 
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_participant_roles')
     .select(
       'id, key, display_name, allowed_participant_types, is_primary_subject_candidate, is_active, case_type_id',
@@ -190,6 +190,10 @@ export async function listCaseParticipantRolesForAdmin(
     .eq('organization_id', organizationId)
     .order('is_active', { ascending: false })
     .order('display_name')
+
+  // ⚠ THROW. Swallowed, a failed read renders as "this org has no roles", which reads
+  // as a clean empty state and invites an admin to re-create roles that already exist.
+  if (error) throw error
 
   return (data ?? []).map((r) => ({
     id: r.id,

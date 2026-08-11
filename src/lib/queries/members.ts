@@ -237,7 +237,7 @@ export async function listLinkableOrgUsers(
 ): Promise<AddableUser[]> {
   const supabase = await createClient()
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('id, full_name, email')
     .eq('home_organization_id', organizationId)
@@ -245,6 +245,14 @@ export async function listLinkableOrgUsers(
     .eq('is_admin', false)
     .order('full_name', { ascending: true, nullsFirst: false })
     .limit(500)
+
+  // ⚠ THROW. This feeds the "possui conta" picker, so a swallowed error renders as
+  // an empty user list — indistinguishable from "this professional has no account",
+  // which walks the coordinator straight to `não possui conta` and makes the case
+  // exclusion vacuously satisfied (ADR 0108 D6). `profiles` is on COLUMN-LIST grants,
+  // so a future column added to the select without its own GRANT fails 42501 here —
+  // exactly the error that must not be silent.
+  if (error) throw error
 
   return (data ?? []).map((row) => ({
     userId: row.id,

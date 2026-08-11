@@ -1355,11 +1355,25 @@ async function getCaseDetailUncached(
     { id: string; fullName: string; linkState: ProfessionalLinkState }
   >()
   if (professionalParticipantIds.length > 0) {
-    const { data: profRows } = await supabase
+    const { data: profRows, error: profError } = await supabase
       .from('professional_participants')
       .select('participant_id, professional_profiles ( id, full_name, link_state )')
       .in('participant_id', professionalParticipantIds)
       .returns<ProfessionalParticipantRow[]>()
+    // ⚠ THROW. This read FAILS INVISIBLY when swallowed: `profRows` is null,
+    // `?? []` yields an empty map, and every professional participant then renders
+    // with `prof = null` — the roster silently falls back to the mint-time
+    // `display_name` snapshot instead of the live name, `professionalProfileId`
+    // goes missing, and `linkState` comes back undefined, so `showResolveLinkage`
+    // is false and the "Resolver vínculo" affordance DISAPPEARS. No error, no log,
+    // no visible failure — just deleted functionality.
+    //
+    // This is also the one invoker-rights path where a future grant mistake would
+    // fail this way: suite 321's set_eq pins projection ≡ granted set for the
+    // DEFINER door `get_case_professional`, but nothing pins THIS select. Adding a
+    // column here without granting it would 42501 — and, swallowed, would have
+    // removed a feature in silence instead.
+    if (profError) throw profError
     for (const row of profRows ?? []) {
       if (!row.professional_profiles) continue
       professionalByParticipant.set(row.participant_id, {
