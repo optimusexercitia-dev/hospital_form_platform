@@ -40,7 +40,7 @@
 -- =============================================================================
 
 begin;
-select plan(59);
+select plan(75);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -249,14 +249,127 @@ reset role;
 -- Reported to the lead as an ADR-0108-D5 gap; the proposed fix (a column-list
 -- SELECT grant excluding `cpf`, mirroring `profiles`) is a security change outside
 -- this track's approved plan and is deliberately NOT made here.
+-- ⚠⚠ K3d — P0-1. THE DISCLOSURE ADR 0108 D5's ARGUMENT DID NOT ENUMERATE.
+--
+-- D5 promised the arm "discloses no case linkage (`professional_participants` carries
+-- no `case_id`)". True, and irrelevant: the disclosure travels through columns on
+-- `professional_profiles` itself. `app.trg_pin_respondent_retention` is the ONLY writer
+-- of `retention_pinned_at` / `retention_pin_reason`, fires solely on
+-- `case_decisions → 'issued'`, solely for a seated `respondent_doctor`, and writes the
+-- literal `'ethics_decision_issued'`. So `retention_pin_reason` IS a case linkage:
+-- named doctor + role + stage. It sat inside a TABLE-WIDE `authenticated` SELECT grant.
+--
+-- sa_y is QA's positive-control persona: staff_admin of a SIBLING commission, an org
+-- manager (so the D5 arm admits her to the row) with NO ethics membership and NO case
+-- access. The values are planted directly rather than driven through `issue_decision`
+-- on purpose: the privilege check is on the COLUMN and is independent of which writer
+-- put the value there, and planting keeps this keystone from depending on the whole
+-- decision pipeline. The trigger being the real writer is asserted separately, below.
+update public.professional_profiles
+   set cpf = '11144477735',
+       retention_pinned_at = now(),
+       retention_pin_reason = 'ethics_decision_issued'
+ where id = '00000000-0000-0000-0000-0000000e4201';
+
+-- PRE: the values are really there. Without this the denials below could be passing on
+-- NULL columns and asserting nothing.
+select is((select retention_pin_reason from public.professional_profiles
+           where id = '00000000-0000-0000-0000-0000000e4201'), 'ethics_decision_issued',
+  'K3d PRE: the case-linked retention reason is actually set on the row');
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select retention_pin_reason from public.professional_profiles
+      where id = '00000000-0000-0000-0000-0000000e4201' $$,
+  '42501', null,
+  'K3d ⭐ P0-1: an org manager outside the case CANNOT read retention_pin_reason — '
+  'the ethics-proceeding linkage D5 claimed not to disclose');
+select throws_ok(
+  $$ select retention_pinned_at from public.professional_profiles
+      where id = '00000000-0000-0000-0000-0000000e4201' $$,
+  '42501', null,
+  'K3d P0-1: …nor retention_pinned_at');
+select throws_ok(
+  $$ select cpf from public.professional_profiles
+      where id = '00000000-0000-0000-0000-0000000e4201' $$,
+  '42501', null,
+  'K3d P0-1: …nor cpf (the national ID — FUP-ETH-CPF-1, closed)');
+select throws_ok(
+  $$ select user_id from public.professional_profiles
+      where id = '00000000-0000-0000-0000-0000000e4201' $$,
+  '42501', null,
+  'K3d P0-1: …nor user_id (the auth-account correlation)');
+select throws_ok(
+  $$ select redacted_by from public.professional_profiles
+      where id = '00000000-0000-0000-0000-0000000e4201' $$,
+  '42501', null,
+  'K3d P0-1: …nor redacted_by (who performed an LGPD erasure)');
+
+-- ⭐ THE OVER-REVOCATION TWIN. A grant fix that quietly broke the picker would still
+-- pass every denial above — this is the arm that makes the fix falsifiable in the
+-- other direction, and it is why D5's actual purpose survives.
+select is((select license_number from public.professional_profiles
+           where id = '00000000-0000-0000-0000-0000000e4201'), 'CRM-11111',
+  'K3d ⭐ OVER-REVOCATION TWIN: the D5 disambiguation columns are STILL readable — '
+  'the fix removed the leak, not the feature');
+select is((select count(*)::int from public.professional_profiles
+           where id = '00000000-0000-0000-0000-0000000e4201'
+             and redacted_at is null), 1,
+  'K3d: …and `redacted_at` is still FILTERABLE — searchParticipants filters on it, and '
+  'PostgREST filtering needs SELECT on the filtered column (revoking it 42501s the picker)');
+reset role;
+
+-- The DEFINER half. `get_case_professional` is prosecdef, so the column grant above
+-- does NOT constrain it; it returned `to_jsonb(<whole row>)`. A grant-only fix would
+-- read as correct and still leak through this door (the FUP-PDF-3 shape).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table gcp on commit drop as
+  select public.get_case_professional((select pid from mint_a)) as j;
+reset role;
+grant select on gcp to authenticated;
+
+select is((select j->>'full_name' from gcp), 'Dr. Alfa',
+  'K3d PRE: get_case_professional still returns the identity it is for');
+select ok((select j from gcp) ? 'cpf' is false,
+  'K3d ⭐ P0-1 DEFINER HALF: the audited door no longer emits `cpf`');
+select ok((select j from gcp) ? 'retention_pin_reason' is false,
+  'K3d ⭐ P0-1 DEFINER HALF: …nor `retention_pin_reason`');
+select ok((select j from gcp) ? 'retention_pinned_at' is false,
+  'K3d P0-1 DEFINER HALF: …nor `retention_pinned_at`');
+select ok((select j from gcp) ? 'user_id' is false,
+  'K3d P0-1 DEFINER HALF: …nor `user_id`');
+select ok((select j from gcp) ? 'redacted_by' is false,
+  'K3d P0-1 DEFINER HALF: …nor `redacted_by`');
+
+-- The two surfaces must stay in step. A future column granted but not projected (or
+-- projected but not granted) is a divergence, and this is what catches it.
+select set_eq(
+  $$ select jsonb_object_keys(j) from gcp $$,
+  $$ select column_name::text from information_schema.column_privileges
+      where table_schema='public' and table_name='professional_profiles'
+        and grantee='authenticated' and privilege_type='SELECT' $$,
+  'K3d ⭐: the DEFINER door''s projection is EXACTLY the granted column set — add a '
+  'column to one and this reds until you add it to the other');
+
+-- The trigger claim the P0 rests on, pinned from the catalog rather than from prose.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('public','app')
+      and p.prosrc ~* 'retention_pin_reason\s*=\s*''ethics_decision_issued'''), 1,
+  'K3d: exactly ONE writer stamps `ethics_decision_issued` — the claim that the column '
+  'IS a case linkage depends on that, so it is asserted, not assumed');
+
 select is(
   (select count(*)::int from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'app')
       and p.prosrc ~* 'update\s+public\.professional_profiles'
-      and p.prosrc ~* '\mcpf\M\s*='), 0,
-  'K3c ⭐ CONTAINMENT: NO function writes professional_profiles.cpf — which is the '
-  'only reason the D5 arm''s unstated CPF exposure is latent rather than live');
+      and p.prosrc ~* '\mcpf\M\s*='), 1,
+  'K3c (amended): exactly ONE function writes professional_profiles.cpf — '
+  '`redact_professional_profile`, which NULLs it. It previously wrote none and left the '
+  'national ID in place through an LGPD erasure; the count moved 0 → 1 deliberately.');
 
 -- ===========================================================================
 -- KEYSTONE 4 — idempotency. The registry identity is 1:1 with the profile and

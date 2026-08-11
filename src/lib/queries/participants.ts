@@ -138,7 +138,7 @@ export async function searchParticipants(
 
   // ── Professional lane: profiles first (see the module header on why). ──────
   if (types.includes('professional')) {
-    const { data: profiles } = await supabase
+    const { data: profiles, error } = await supabase
       .from('professional_profiles')
       .select(
         'id, full_name, professional_type, license_number, license_region, specialty, link_state',
@@ -149,16 +149,29 @@ export async function searchParticipants(
       .order('full_name')
       .limit(20)
 
+    // ⚠ THROW, never swallow. A discarded error returned `[]`, which the picker
+    // renders identically to "no such professional" — and the coordinator's next
+    // step from there is `não possui conta`, an audited human assertion that makes
+    // the case exclusion VACUOUSLY SATISFIED (ADR 0108 D6). A failed search that
+    // looks like an empty search silently disarms the impedimento. The caller
+    // (`searchParticipantCandidates`) turns this into `ok: false`, so the UI can say
+    // "a busca falhou" — a different sentence from "não encontrado".
+    if (error) throw error
+
     const profileIds = (profiles ?? []).map((p) => p.id)
     const mintedByProfile = new Map<string, string>()
     if (profileIds.length > 0) {
       // Single-FK embed (`professional_participants → professional_profiles`) —
       // deliberately NOT an embed off `participants`, whose only FK here is the
       // COMPOSITE `(participant_id, participant_type)` one (PGRST201 shape).
-      const { data: links } = await supabase
+      const { data: links, error: linkError } = await supabase
         .from('professional_participants')
         .select('participant_id, professional_profile_id')
         .in('professional_profile_id', profileIds)
+      // Swallowing this would silently null every `participantId`, sending an
+      // already-minted professional back down the create-new path and duplicating
+      // the profile.
+      if (linkError) throw linkError
       for (const l of links ?? []) {
         mintedByProfile.set(l.professional_profile_id, l.participant_id)
       }
@@ -182,7 +195,7 @@ export async function searchParticipants(
   // ── External lane: the registry itself, org-scoped by `participants_select`. ─
   const externalTypes = types.filter((t) => t !== 'professional')
   if (externalTypes.length > 0) {
-    const { data: rows } = await supabase
+    const { data: rows, error: externalError } = await supabase
       .from('participants')
       .select('id, display_name, participant_type')
       .eq('organization_id', organizationId)
@@ -190,6 +203,12 @@ export async function searchParticipants(
       .ilike('display_name', pattern)
       .order('display_name')
       .limit(20)
+
+    // Same reasoning as the professional lane: on the external lane a failed search
+    // that renders as "no results" pushes the coordinator into create-always, which
+    // duplicates a person already in the registry. ADR 0108 D8 accepts duplicates
+    // from HUMAN CHOICE — not from a swallowed error.
+    if (externalError) throw externalError
 
     for (const r of rows ?? []) {
       results.push({
@@ -237,7 +256,10 @@ export async function listCaseParticipantRoles(
     q = q.is('case_type_id', null)
   }
 
-  const { data } = await q.order('display_name')
+  const { data, error } = await q.order('display_name')
+  // An empty role list disables the whole add-participant flow; it must not be
+  // indistinguishable from a failed read.
+  if (error) throw error
   return (data ?? []).map((r) => ({
     id: r.id,
     key: r.key,

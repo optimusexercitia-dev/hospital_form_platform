@@ -156,14 +156,52 @@ linkage machinery).
    can read** — so an unseated professional shows as a bare name, and two "João Silva" are
    indistinguishable at the moment a coordinator seats a respondent on a disciplinary case.
 
-   **The exposure argument, stated so it can be checked:** `participants_select` is already
-   `is_org_member(organization_id)`, so every professional's **name and existence in the
-   registry are org-readable by design**. This arm adds `license_number` / `specialty` /
-   `professional_type` to people who may already seat professionals — it does **not** add the
-   existence fact, and it discloses no case linkage (`professional_participants` carries no
-   `case_id`). It is a widening nonetheless, and is keystoned as one: the pgTAP proof must be
-   shown able to fail by reverting the arm and requiring RED, because a no-regression test
-   passes a widening by construction.
+   > ⛔ **AMENDED 2026-08-11 — the original exposure argument was FALSE, and the PO ratified
+   > this widening against it.** The paragraph below is kept verbatim, struck through, because
+   > the failure mode matters more than the conclusion: it was checkable, it was checked by the
+   > wrong instrument (it reasoned about `professional_participants` and never enumerated
+   > `professional_profiles`' own columns), and it passed review. QA found it (ETH·E4 P0-1);
+   > migration `20260919000600` closes it. The corrected argument follows.
+   >
+   > ~~The exposure argument, stated so it can be checked: `participants_select` is already
+   > `is_org_member(organization_id)`, so every professional's name and existence in the
+   > registry are org-readable by design. This arm adds `license_number` / `specialty` /
+   > `professional_type` to people who may already seat professionals — it does not add the
+   > existence fact, and it discloses no case linkage (`professional_participants` carries no
+   > `case_id`).~~
+
+   **The corrected exposure argument, enumerated from the catalog rather than reasoned from
+   one table.** The claim "no case linkage" was true of `professional_participants` and
+   irrelevant: `authenticated` held a **table-wide** SELECT grant on `professional_profiles`,
+   so the arm exposed **all 17 of its columns** — including two that *are* a case linkage.
+   `app.trg_pin_respondent_retention` is the only writer of `retention_pinned_at` /
+   `retention_pin_reason`; it fires solely on `case_decisions → 'issued'`, solely for a seated
+   `respondent_doctor`, writing the literal `'ethics_decision_issued'`. Of a **named doctor**
+   that states: respondent in an ethics proceeding that reached an issued decision — role,
+   stage, and outcome-existence, the three facts *sigilo do processo ético* protects. It also
+   exposed `cpf` (national ID), `user_id` and `redacted_by`. Measured live: a `staff_admin` of
+   an unrelated commission, with no ethics membership and no case access, read the whole row.
+
+   **ETH·E4 opens both halves** — before this phase nothing could seat a `respondent_doctor`
+   through the product, so the trigger could not fire — which is why it is this phase's to
+   close and not a pre-existing condition to inherit.
+
+   **What the arm discloses after `20260919000600`,** which is now the checkable claim:
+   `full_name`, `professional_type`, `license_number`, `license_region`, `specialty`,
+   `affiliation_status`, `link_state`, `redacted_at`, and the keys/timestamps — and nothing
+   else. `cpf`, `retention_pinned_at`, `retention_pin_reason`, `user_id` and `redacted_by` are
+   revoked from `authenticated` via a **column-list grant**, and the SECURITY DEFINER door
+   `get_case_professional` — which grants cannot constrain — projects an **explicit column
+   list** instead of `to_jsonb(<whole row>)`. Both halves were required: with the grant fix
+   alone in place, the DEFINER door still returned every revoked column (measured).
+
+   **Method note, binding for future exposure arguments.** An argument of this kind must be
+   written by **enumerating the columns of every table the predicate admits**, from
+   `information_schema.column_privileges`, not by reasoning about which table carries a
+   foreign key. It is a widening, and is keystoned as one — the pgTAP proof must be shown able
+   to fail by reverting the arm and requiring RED, because a no-regression test passes a
+   widening by construction. Suite 321 K3d now carries that proof for the disclosure itself,
+   in both halves.
 
    Two adjacent exposures are named here so they are accepted deliberately, not by omission:
    - **The mint-time inference (new with E4).** A professional's registry row is created only

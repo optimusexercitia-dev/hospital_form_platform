@@ -141,7 +141,12 @@ function mapVocabularyError(
     case 'HC0F3':
       return error.message || MESSAGES.keyImmutable
     default:
-      return error.message || MESSAGES.generic
+      // ⚠ NEVER `error.message` here. The cases above pass the message through only
+      // because those are OUR pt-BR strings, raised by our own doors. An UNKNOWN code
+      // is by definition a raw Postgres/PostgREST error, and forwarding it leaks
+      // schema internals into the UI in English — CLAUDE.md §8, and the exact
+      // violation this module's own header claims to follow.
+      return MESSAGES.generic
   }
 }
 

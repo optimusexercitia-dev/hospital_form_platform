@@ -64,7 +64,25 @@ const read = (f) => {
 }
 
 const isClient = (f) => /^\s*["']use client["']/m.test(read(f).slice(0, 400))
-const isServerOnly = (f) => /^\s*import\s+["']server-only["']/m.test(read(f))
+
+/**
+ * RULE 3 — a server module is defined by the MODULE SET it pulls, not by one literal.
+ *
+ * The first version keyed only on `import 'server-only'`. That is the marker, not the
+ * property: 47 modules in `src/` import `@/lib/supabase/server` WITHOUT the literal
+ * (`queries/members.ts` among them). Transitivity happened to cover them — the chain
+ * reaches `supabase/server.ts`, which does carry the literal — but that made the gate
+ * depend on ONE file keeping ONE line. Anything that pulls `next/headers` or the server
+ * Supabase factory is server-bound and cannot be in a client graph, so key on that.
+ */
+const SERVER_MODULE_RE =
+  /from\s*["'](?:@\/lib\/supabase\/server|next\/headers)["']/
+const isServerOnly = (f) => {
+  const src = read(f)
+  return (
+    /^\s*import\s+["']server-only["']/m.test(src) || SERVER_MODULE_RE.test(stripComments(src))
+  )
+}
 /** RULE 1 — see the header. Removing this restores ~360 false findings. */
 const isUseServer = (f) => /^\s*["']use server["']/m.test(read(f).slice(0, 400))
 /** RULE 2 — see the header. Removing this makes the gate match its own documentation. */
@@ -82,10 +100,21 @@ function clauseIsTypeOnly(typeKeyword, clause) {
   return false
 }
 
+/**
+ * RULE 4 — `export … from` is a VALUE EDGE too.
+ *
+ * A re-export creates exactly the same bundling edge as an import, and this project's
+ * own guidance says so out loud ("do NOT re-export it from the server-only module — a
+ * re-export still drags `server-only` into the client graph"). The first version of
+ * this gate matched only `import … from`, so it was blind to the one workaround the
+ * guidance explicitly warns against — it could not have caught the "helpful" fix.
+ * `export type { … } from` is erased and is skipped by the same clause rule.
+ */
 function valueImports(f) {
   const src = stripComments(read(f))
   const out = []
-  const re = /import\s+(type\s+)?([\s\S]*?)\s+from\s*["']([^"']+)["']/g
+  const re =
+    /\b(?:import|export)\s+(type\s+)?([\s\S]*?)\s+from\s*["']([^"']+)["']/g
   let m
   while ((m = re.exec(src))) {
     const clause = m[2]
@@ -127,9 +156,9 @@ function chainToServerOnly(f, seen = new Set()) {
 }
 
 // ── SELF-TEST. A gate whose own erasure rule is wrong is worse than no gate. ────────
-const probe = (clause) => {
-  const m = /import\s+(type\s+)?([\s\S]*?)\s+from\s*["']([^"']+)["']/.exec(
-    `import ${clause} from "@/x"`,
+const probe = (clause, kw = 'import') => {
+  const m = /\b(?:import|export)\s+(type\s+)?([\s\S]*?)\s+from\s*["']([^"']+)["']/.exec(
+    `${kw} ${clause} from "@/x"`,
   )
   return clauseIsTypeOnly(m[1], m[2])
 }
@@ -140,6 +169,12 @@ const selfTests = [
   ['{ Foo, type Bar }', false, 'one value specifier makes the whole clause a value import'],
   ['Foo', false, 'a default import is a VALUE import'],
 ]
+// RULE 4 arms — the re-export edge the first version was blind to.
+const reexportTests = [
+  ['{ FOO }', false, 'export { X } from is a VALUE edge'],
+  ['type { Foo }', true, 'export type { X } from is erased'],
+  ['*', false, 'export * from is a VALUE edge'],
+]
 const stripTests = [
   ['// import { X } from "@/lib/queries/y"\nconst a = 1', false, 'a commented import is not an import'],
   ['/* import { X } from "@/a" */\nconst a = 1', false, 'a block-commented import is not an import'],
@@ -149,12 +184,16 @@ for (const [clause, want, label] of selfTests) {
   if (probe(clause) === want) ok++
   else console.error(`  self-test FAILED: ${label}`)
 }
+for (const [clause, want, label] of reexportTests) {
+  if (probe(clause, 'export') === want) ok++
+  else console.error(`  self-test FAILED: ${label}`)
+}
 for (const [src, want, label] of stripTests) {
   const found = /import\s+(type\s+)?([\s\S]*?)\s+from\s*["']([^"']+)["']/.test(stripComments(src))
   if (found === want) ok++
   else console.error(`  self-test FAILED: ${label}`)
 }
-const TOTAL = selfTests.length + stripTests.length
+const TOTAL = selfTests.length + reexportTests.length + stripTests.length
 console.log(`self-test: ${ok}/${TOTAL} ${ok === TOTAL ? 'OK' : 'FAILED'}`)
 if (ok !== TOTAL) {
   console.error('client/server import gate: detector is not trustworthy — refusing to run.')

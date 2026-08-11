@@ -106,7 +106,10 @@ set_capa_action_task_done(p_task_id uuid, p_is_done boolean)
 set_indicator_target(p_id uuid, p_target_value numeric, p_target_comparator text, p_lower_warn numeric, p_upper_warn numeric)
 set_interview_interviewer_participant(p_interviewer_id uuid, p_participant_id uuid)
 set_interview_subject_participant(p_subject_id uuid, p_participant_id uuid)
-set_primary_subject(p_case_participant_id uuid)
+# ETH·E4: `set_primary_subject` REMOVED from this allowlist — it now has callers.
+# pgTAP 321 exercises it (K2 denial, K6a move, K6b HC0F0) and `setPrimarySubject`
+# in src/lib/participants/actions.ts is its product caller. An allowlist entry for a
+# door that IS called suppresses the floor arm's only question about it.
 set_template_collects_patient(p_template_id uuid, p_collects boolean)
 soft_delete_attachment(p_id uuid)
 unassign_case_tag(p_case_id uuid, p_tag_id uuid)
