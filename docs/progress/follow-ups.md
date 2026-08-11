@@ -6,6 +6,54 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟡 FUP-ETH-A11Y-1 — the ETH·E4 dialogs: error text is never `aria-describedby`-wired, and the typeahead announces neither loading nor result count (QA m3 + m4; owner: frontend + tester)
+
+**m3 — `aria-describedby` never reaches the error id.** `useFieldIds`
+(`src/components/ui/field.tsx:103-133`) already emits `descriptionId`, `errorId` and a
+composed `aria-describedby`, but every ETH·E4 call site passes only `.controlProps.id` and
+hand-sets `aria-invalid`: `add-participant-dialog.tsx` (2 sites) and
+`case-participant-role-manager.tsx` (2 sites, one of which wires `descriptionId` but never
+`errorId`). `FieldError` carries `role="alert"`, so the message **is** announced when it
+first appears — the gap is that a user who tabs **back** to the invalid field hears the label
+and nothing else. CLAUDE.md §8 requires accessible inputs.
+Fix shape: pass `hasError`/`hasDescription` into `useFieldIds`, spread `controlProps` instead
+of picking `.id`, and put `id={errorId}` on `FieldError` / `id={descriptionId}` on
+`FieldDescription` (neither auto-wires — both are plain `<p>` pass-throughs).
+
+**m4 — the typeahead popup has no live region.** `add-participant-dialog.tsx:391-407`:
+*"Buscando…"*, the empty hint and the result list are plain nodes **outside** the listbox
+that `aria-controls` points at, with no `aria-live`/`role="status"`. Only the error path is
+announced (it has `role="alert"`). Keyboard operation and the rest of the ARIA structure are
+complete and correct.
+
+⚠ **Why this was filed rather than fixed inside ETH·E4 (lead, 2026-08-11).** m4 cannot be
+closed without either (a) new visually-hidden text, which risks duplicating the existing
+visible strings — `"Nenhum resultado. Você pode cadastrar um novo."` and `"Buscando…"` — into
+a second `getByText` match and redding the suite on strict mode, or (b) folding the count into
+the listbox's `aria-label`, which is the exact string `pickFromTypeahead` scopes on (QA r2
+confirmed the app really does set it). **Either route needs a coordinated spec change, which
+is tester-owned**, so doing it as a lead edit at the tail of the gate would have put churn
+into the locators this phase had just finished stabilizing. m3 is attribute-only and safe on
+its own, but it belongs with m4 as one a11y pass. Both are QA-rated MINOR and non-blocking.
+
+### 🟡 FUP-E2E-SERVER-DEAD-1 — the prod-standalone server dies under load in ~3 of 17 batches, and `BATCH_TESTS=22` is the known rescue (owner: unassigned)
+
+Filed from the ETH·E4 handoff §3, where it was called out but never given an id. In one
+`e2e:prod` run, batches **5, 16 and 17 all hit `server_dead=1`**; 5 and 17 recovered on the
+automatic `INFRA_RETRY`, **16's retry died too**, leaving 69 tests with no verdict and turning
+a run with **zero assertion failures** into a RED gate. The rate is drifting: 1 of 17 earlier
+the same day, 3 of 17 by evening.
+
+Known-good workaround, used successfully **twice** on two different dead groups: re-run the
+group alone at `BATCH_TESTS=22` (smaller batches ⇒ more frequent server restarts). The
+Flexible-Forms group (`ff1`–`ff5` + `flagged-aggregate-result`) stresses it regardless of
+batching — its own sub-batches hit `server_dead` and recovered.
+
+**This is an infrastructure characteristic, not a product defect** — no assertion has ever
+failed in one of these batches. It is filed because it costs a full gate re-run each time it
+bites, and because "infra is not a pass": a batch that never produced a verdict must not be
+read as green.
+
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
