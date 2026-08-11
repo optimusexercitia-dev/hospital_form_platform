@@ -435,11 +435,21 @@ async function seatProfessionalCreateInline(
   await dialog.getByRole('radio', { name: 'Profissional' }).check()
   await dialog.getByRole('button', { name: 'Cadastrar novo profissional' }).click()
   await dialog.getByLabel('Nome completo').fill(opts.fullName)
+  // Role selected BEFORE the linkage choice, deliberately (QA MAJOR finding):
+  // canSubmit requires hasParticipantSelection AND roleId !== "" AND linkageOk.
+  // Asserting disabled/enabled around the linkage steps only isolates
+  // linkageOk specifically if every OTHER precondition is already satisfied
+  // first — otherwise "disabled" is equally explained by roleId === "" alone,
+  // and the assertion passes even with the D6 guard deleted entirely from
+  // canSubmit (proved live — see the commit that landed this reorder for the
+  // RED output with linkageOk removed from the app source, then reverted).
+  await dialog.getByLabel('Papel').selectOption({ label: opts.roleLabel })
 
   const submit = dialog.getByRole('button', { name: 'Adicionar', exact: true })
   if (opts.assertLinkageGating) {
-    // ADR 0108 D6: `no_account` must never be reachable by accepting a default —
-    // submit stays disabled until the linkage radiogroup itself has a selection.
+    // Name + role are now satisfied and linkState is still null, so linkageOk
+    // is the ONLY remaining false term — "disabled" here is actually about
+    // the un-defaulted linkage choice, not an artifact of an earlier field.
     await expect(submit).toBeDisabled()
   }
 
@@ -458,14 +468,14 @@ async function seatProfessionalCreateInline(
   } else {
     await dialog.getByRole('radio', { name: 'Não possui conta', exact: true }).check()
     if (opts.assertLinkageGating) {
-      // Choosing the radio alone is not enough — the audited consequence
-      // confirmation is a SEPARATE required step.
+      // Name + role are STILL satisfied here — choosing the radio alone isn't
+      // enough, and this isolates the missing consequence-confirmation
+      // checkbox specifically, not a bundled "nothing is filled in yet" state.
       await expect(submit).toBeDisabled()
     }
     await dialog.getByRole('checkbox', { name: NO_ACCOUNT_CONSEQUENCE_TEXT }).check()
   }
 
-  await dialog.getByLabel('Papel').selectOption({ label: opts.roleLabel })
   if (opts.involvementNote) {
     await dialog.getByLabel('Resumo do envolvimento').fill(opts.involvementNote)
   }
