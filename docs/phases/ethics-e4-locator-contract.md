@@ -90,7 +90,7 @@ asserts the rail card's heading and empty state.
 | Typeahead | `combobox`/textbox | `Buscar profissional` |
 | Switch to create | `button` | `Cadastrar novo profissional` |
 | Full name | textbox | `Nome completo` |
-| Professional type | select | `Tipo profissional` |
+| Professional type | **textbox (free text)** | `Tipo profissional` |
 | License | textbox | `CRM` |
 | License region | textbox | `UF do registro` |
 | Specialty | textbox | `Especialidade` |
