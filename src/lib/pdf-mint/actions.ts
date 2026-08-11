@@ -86,20 +86,45 @@ const GENERIC_MINT_ERROR =
   'Não foi possível emitir o documento. Tente novamente.'
 const FLAG_OFF_ERROR = 'A emissão de documentos em PDF não está disponível.'
 
-/** SQLSTATEs whose pt-BR `raise` message is OURS and safe to surface verbatim
- * (the M2 doors). Anything else gets the generic text — raw Postgres errors
- * never reach the UI (CLAUDE.md §8). */
-const SURFACEABLE_CODES = new Set([
-  '42501',
-  '23514',
-  'P0002',
-  'HC0D1',
-  'HC0D2',
-  'HC0D3',
-  'HC0D5',
-])
+/** SQLSTATEs whose message is OURS BY CONSTRUCTION and safe to surface verbatim.
+ *
+ * Only the custom `HC*` class qualifies. A code is surfaceable when NOTHING BUT
+ * our own `raise` can produce it — not merely when our doors happen to raise it
+ * today, because the message we would be forwarding is written by whoever raised
+ * it, and Postgres writes in English (CLAUDE.md §8: raw Postgres errors never
+ * reach the UI).
+ *
+ * Three entries were removed here (FUP-PDF-2), each verified against the LIVE
+ * catalog rather than migration text:
+ *  - `P0002` — DEAD. No PDF door raises it (`no_data_found` was designed out in
+ *    `20260913000400`); it could only ever have forwarded Postgres's own text.
+ *  - `23514` — never raised by any door either. `check_violation` comes from
+ *    Postgres alone, and its message NAMES THE CONSTRAINT in English. QA walked
+ *    every CHECK and found no reachable path today, so this was latent — but
+ *    there is no house message behind this code at all, so it can only leak.
+ *  - `42501` — the genuine hazard, and the reason this is a mapping and not just
+ *    a shorter list. Both doors DO raise it with pt-BR text, but `42501` is also
+ *    Postgres's own `insufficient_privilege` for an RLS/grant denial ("permission
+ *    denied for table printed_documents"). Sharing one code between our text and
+ *    Postgres's means the code cannot certify the message. So each call site now
+ *    supplies its OWN pt-BR authorization message and the DB's text is discarded
+ *    — the distinction between "cannot mint" and "cannot revoke" is preserved by
+ *    the CALLER, which knows which door it opened, instead of by trusting a
+ *    string that Postgres may have written.
+ */
+const SURFACEABLE_CODES = new Set(['HC0D1', 'HC0D2', 'HC0D3', 'HC0D5'])
 
-function mapDoorError(error: { code?: string; message?: string }): string {
+/** House pt-BR text for the doors' own `42501` raises, per door. */
+const UNAUTHORIZED_MINT_ERROR =
+  'Sem autorização para emitir um documento deste registro.'
+const UNAUTHORIZED_REVOKE_ERROR =
+  'Apenas a coordenação da comissão ou um administrador da organização pode anular um documento emitido.'
+
+function mapDoorError(
+  error: { code?: string; message?: string },
+  unauthorizedError: string,
+): string {
+  if (error.code === '42501') return unauthorizedError
   if (error.code && SURFACEABLE_CODES.has(error.code) && error.message) {
     return error.message
   }
@@ -259,7 +284,7 @@ export async function mintPrintedDocument(
       // Short-code collision: full-loop retry with fresh credentials.
       continue
     }
-    return { ok: false, error: mapDoorError(rpcError ?? {}) }
+    return { ok: false, error: mapDoorError(rpcError ?? {}, UNAUTHORIZED_MINT_ERROR) }
   }
   return { ok: false, error: GENERIC_MINT_ERROR }
 }
@@ -285,7 +310,7 @@ export async function revokePrintedDocument(
     p_reason: input.reason,
   })
   if (error) {
-    return { ok: false, error: mapDoorError(error) }
+    return { ok: false, error: mapDoorError(error, UNAUTHORIZED_REVOKE_ERROR) }
   }
   return { ok: true }
 }
