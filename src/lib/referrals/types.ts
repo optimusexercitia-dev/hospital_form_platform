@@ -156,6 +156,15 @@ export type ReferralCaseRelationship =
   | 'escalated_case'
   | 'duplicate_case'
 
+/**
+ * RDR (ADR 0109): the minimal lifecycle of a "Registro interno"
+ * (`referral_internal_notes.status`, DB CHECK-enforced; default `open`). Mirrors
+ * the case-narrative model minus the correction/revision flow: conclusion is
+ * ONE-WAY and freezes the note — there is no reopen RPC, and redaction stays the
+ * only post-conclusion correction (plan D10).
+ */
+export type ReferralNoteStatus = 'open' | 'concluded'
+
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the stored slug → label
 // ---------------------------------------------------------------------------
@@ -299,6 +308,18 @@ export const REFERRAL_CASE_RELATIONSHIP_LABELS: Record<
   follow_up_case: 'Caso de acompanhamento',
   escalated_case: 'Caso escalado',
   duplicate_case: 'Caso duplicado',
+}
+
+/** pt-BR labels for the internal-registro status pill (RDR; ADR 0109). */
+export const REFERRAL_NOTE_STATUS_LABELS: Record<ReferralNoteStatus, string> = {
+  open: 'Aberto',
+  concluded: 'Concluído',
+}
+
+/** Registro status → design-token name (Rule 10); the UI maps it to a pill variant. */
+export const REFERRAL_NOTE_STATUS_TOKENS: Record<ReferralNoteStatus, string> = {
+  open: 'warning',
+  concluded: 'success',
 }
 
 /** The set of statuses that do NOT block source-case conclusion (Decision 5; RV2
@@ -592,8 +613,13 @@ export interface ReferralMessage {
  * and is readable ONLY by a member of THAT side — source members never read a
  * target-owned note and vice-versa, and QPS reads NEITHER (K-R5-1, enforced by
  * `app.can_read_referral_internal_note` + column-REVOKED `body`). Loaded ONLY via the
- * audited {@link listReferralInternalNotes} door. {@link body} is PHI-bearing; once
+ * audited {@link listReferralInternalNotes} door. {@link bodyMd} is PHI-bearing; once
  * redacted it renders `'[redigido]'` (the real body stays, append-only + audited).
+ *
+ * RDR (ADR 0109) promoted the note to a "Registro interno": it gains a title, a
+ * per-commission type vocabulary snapshot, an assignee and a one-way
+ * `open → concluded` lifecycle, and its body column was renamed `body` → `body_md`
+ * (so the door's returned JSON key moved with it).
  */
 export interface ReferralInternalNote {
   id: string
@@ -602,9 +628,25 @@ export interface ReferralInternalNote {
   committeeId: string
   authorUserId: string | null
   authorName: string | null
-  /** PHI-bearing note text; `'[redigido]'` once redacted. */
-  body: string
+  /** Optional short heading; `null` for an untitled (or legacy) registro. */
+  title: string | null
+  /** The picked `referral_note_types` row; `null` = untyped/legacy. */
+  noteTypeId: string | null
+  /** The type's label SNAPSHOTTED at pick time — stable across later vocabulary
+   * edits (mirrors `case_narratives.type_label`); `null` when untyped. */
+  typeLabel: string | null
+  /** PHI-bearing note text (sanitized Markdown — Rule 7); `'[redigido]'` once redacted. */
+  bodyMd: string
+  /** The member responsible for this registro; `null` when unassigned. */
+  assignedTo: string | null
+  assignedToName: string | null
+  /** One-way lifecycle; `concluded` freezes the registro (no reopen — D10). */
+  status: ReferralNoteStatus
+  concludedAt: string | null
+  concludedById: string | null
+  concludedByName: string | null
   createdAt: string
+  updatedAt: string
   /** When a coordinator redacted this note (append-only); `null` if not redacted. */
   redactedAt: string | null
   redactedById: string | null
@@ -612,6 +654,188 @@ export interface ReferralInternalNote {
   /** PHI-free governance reason for the redaction; `null` if not redacted. */
   redactedReason: string | null
 }
+
+/**
+ * One entry of a commission's registro-type vocabulary (`referral_note_types`),
+ * RDR / ADR 0109. PHI-FREE. Mirrors `case_narrative_types`, and — like it — is
+ * written by DIRECT RLS-gated table writes rather than through DEFINER RPCs
+ * (amendment A6); only the reorder is an RPC. Archive-only (no delete), because a
+ * registro that snapshotted the label must keep rendering.
+ */
+export interface ReferralNoteType {
+  id: string
+  commissionId: string
+  label: string
+  description: string | null
+  /** 1-based ordering within the commission (unique per commission, DEFERRABLE). */
+  position: number
+  /** Archived types stay readable but disappear from the picker. */
+  archived: boolean
+}
+
+/**
+ * "Who can read the case linked to this referral" — the payload of the audited
+ * `get_referral_case_access_summary` door (ADR 0109 D3/D4). PHI-FREE: full names
+ * only, never a reason, an expiry or a patient identifier.
+ *
+ * The case is SIDE-DERIVED from the `commissionId` the caller names (source →
+ * `source_case_id`, target → `target_case_id`), never caller-chosen; the whole
+ * summary is `null` when that side has no linked case yet.
+ *
+ * Group membership is decided by calling `app.has_case_capability(…,
+ * 'read_case_content')` per candidate — so the roster is *definitionally* "the
+ * people for whom `can_read_case` is true", grouped and de-duped into the highest
+ * group in the order below. FIVE groups, not three (amendment A7): plain members
+ * and org_admins confer other capability bits and therefore never appear.
+ */
+export interface ReferralCaseAccessSummary {
+  /** The side-derived case this summary describes. */
+  caseId: string
+  /** Whether THIS viewer may open the case right now (their hat, ADR 0106 — a
+   * person in the roster who is not currently wearing the role still appears
+   * there while their own `canRead` reads false). */
+  canRead: boolean
+  /** S1 — staff_admins of the case's own commission. */
+  coordinators: string[]
+  /** S3 — live per-case grants (`case_access_grants`). */
+  grantees: string[]
+  /** S4 — phase + narrative assignees. */
+  assignees: string[]
+  /** S6 — patient-safety (PQS/NSP) operators of the case's hospital. */
+  patientSafety: string[]
+  /** S7 — quality reviewers of the case's hospital. */
+  quality: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Synthesized thread events (RDR plan D7) — derived, never stored
+// ---------------------------------------------------------------------------
+
+/**
+ * The discriminator of a synthesized system event on the Diálogo timeline (plan
+ * D7). These rows are DERIVED from {@link ReferralDetail} fields the platform
+ * already stores — there is no `referral_events` table and this phase adds none.
+ */
+export type ReferralThreadEventKind =
+  | 'sent'
+  | 'received'
+  | 'decided_accepted'
+  | 'decided_declined'
+  | 'assignment'
+  | 'case_linked'
+  | 'resolution'
+  | 'concluded'
+  | 'withdrawn'
+
+/** Fields every synthesized event carries. */
+interface ReferralThreadEventBase {
+  /** Stable, derivation-deterministic key (e.g. `sent`, `assignment:<id>`) — safe
+   * as a React key and as an E2E anchor; NOT a database id. */
+  id: string
+  /** ISO timestamp the event is placed at. Exact for every kind except
+   * `case_linked`, which is APPROXIMATE — see {@link ReferralCaseLinkedEvent}. */
+  at: string
+  /** Emission index within one synthesis run. Sorting is `(at, seq)`, so events
+   * sharing a timestamp keep a fixed, reproducible order across runs instead of
+   * depending on `Array.prototype.sort` stability. */
+  seq: number
+}
+
+/** A pointed the referral at its destination (`sent_at`). */
+export interface ReferralSentEvent extends ReferralThreadEventBase {
+  kind: 'sent'
+  /** The destination's display name (a composed Diretor Técnico name on a
+   * `technical_director` referral, where `targetCommissionId` is null). */
+  targetName: string | null
+}
+
+/** B acknowledged delivery (`received_at`). */
+export interface ReferralReceivedEvent extends ReferralThreadEventBase {
+  kind: 'received'
+  targetName: string | null
+}
+
+/** B accepted (`decided_at` with a non-`rejected` status). */
+export interface ReferralAcceptedEvent extends ReferralThreadEventBase {
+  kind: 'decided_accepted'
+}
+
+/** B declined (`decided_at` + `status === 'rejected'`). PHI-free reason only —
+ * the free-text `decline_note` is column-REVOKED and never reaches this module. */
+export interface ReferralDeclinedEvent extends ReferralThreadEventBase {
+  kind: 'decided_declined'
+  reasonCode: ReferralDeclineReasonCode | null
+  /** Pre-resolved pt-BR label for {@link reasonCode}; `null` when unset. */
+  reasonLabel: string | null
+}
+
+/** Someone was made responsible on one side (`referral_assignments.assignedAt`). */
+export interface ReferralAssignmentEvent extends ReferralThreadEventBase {
+  kind: 'assignment'
+  assignmentId: string
+  assigneeName: string | null
+  commissionId: string
+  /** Which side the assignment sits on; `unknown` when the commission matches
+   * neither (a DT referral leaves `targetCommissionId` null, so a match against
+   * it can never be asserted). */
+  side: 'source' | 'target' | 'unknown'
+  role: ReferralAssignmentRole
+  status: ReferralAssignmentStatus
+}
+
+/**
+ * B linked one of its own cases to the referral (`target_case_id`).
+ *
+ * ⚠ APPROXIMATE TIMESTAMP. `case_referral` stores no `target_case_linked_at`, and
+ * this phase deliberately does NOT invent one. The event is anchored at the latest
+ * milestone the link provably FOLLOWS — `decidedAt ?? receivedAt ?? sentAt ??
+ * createdAt` — so it can never sort before the referral existed, but it may sort
+ * earlier than the link truly happened. {@link approximate} is always `true` so the
+ * UI can render it as "em algum momento após …" rather than as a precise moment.
+ */
+export interface ReferralCaseLinkedEvent extends ReferralThreadEventBase {
+  kind: 'case_linked'
+  caseId: string
+  caseNumber: number | null
+  /** Always `true` — the anchor is derived, not stored. */
+  approximate: true
+}
+
+/** A source-side resolution cycle was recorded (`referral_resolutions.resolvedAt`). */
+export interface ReferralResolutionEvent extends ReferralThreadEventBase {
+  kind: 'resolution'
+  resolutionId: string
+  resolutionNumber: number
+  resolvedByName: string | null
+  followUpRequired: boolean
+}
+
+/** The referral reached its terminal conclusion (`concluded_at`). */
+export interface ReferralConcludedEvent extends ReferralThreadEventBase {
+  kind: 'concluded'
+}
+
+/** A withdrew the referral (`withdrawn_at`). */
+export interface ReferralWithdrawnEvent extends ReferralThreadEventBase {
+  kind: 'withdrawn'
+}
+
+/**
+ * One synthesized system row interleaved into the Diálogo thread (plan D7).
+ * Produced ONLY by `synthesizeThreadEvents` in `@/lib/referrals/thread-events`,
+ * from fields the audited detail door already returned — so an event can never
+ * disclose more than its reader already holds.
+ */
+export type ReferralThreadEvent =
+  | ReferralSentEvent
+  | ReferralReceivedEvent
+  | ReferralAcceptedEvent
+  | ReferralDeclinedEvent
+  | ReferralAssignmentEvent
+  | ReferralCaseLinkedEvent
+  | ReferralResolutionEvent
+  | ReferralConcludedEvent
+  | ReferralWithdrawnEvent
 
 /**
  * One read receipt (`referral_read_receipts`) for a (message, user) pair, RV2 R5.
@@ -1121,8 +1345,42 @@ export interface CreateReferralInternalNoteInput {
   referralId: string
   /** The OWNING committee side (referral source OR target); the actor must be a member. */
   committeeId: string
-  /** PHI-bearing note text (required, non-blank). */
-  body: string
+  /** PHI-bearing note text (required, non-blank; sanitized Markdown — Rule 7). */
+  bodyMd: string
+  /** Optional short heading; blank/`null` stores NULL. */
+  title?: string | null
+  /** Optional `referral_note_types` pick; the RPC rejects a type from ANOTHER
+   * commission or an archived one (HC0A9) and snapshots its label. */
+  noteTypeId?: string | null
+  /** Optional responsible member; must be an ACTIVE member of `committeeId` (HC0A9). */
+  assignedTo?: string | null
+}
+
+/**
+ * Edit an OPEN registro in place (RDR; ADR 0109). The actor must be the author,
+ * the assignee, or a coordinator of the note's OWN side (42501 otherwise, checked
+ * FIRST); a concluded or redacted registro refuses with HC0A9.
+ *
+ * Both `title` and `noteTypeId` are CLEARING fields: a blank/`null` title stores
+ * NULL, and a `null` `noteTypeId` clears BOTH the pointer and the `typeLabel`
+ * snapshot. Send the current value to keep it.
+ */
+export interface UpdateReferralInternalNoteInput {
+  noteId: string
+  /** New heading; blank/`null` clears it. */
+  title: string | null
+  /** New PHI-bearing body (required, non-blank). */
+  bodyMd: string
+  /** New type pick; `null` makes the registro untyped. */
+  noteTypeId: string | null
+}
+
+/** A create/update definition for one entry of the registro-type vocabulary
+ * (`referral_note_types`). Written by DIRECT RLS-gated table writes (amendment
+ * A6): the `referral_note_types_staff_admin_write` policy is the authority. */
+export interface ReferralNoteTypeInput {
+  label: string
+  description: string | null
 }
 
 /** Redact a private internal note (RV2 R5 — append-only). The actor must be a

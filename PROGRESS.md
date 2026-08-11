@@ -109,6 +109,10 @@ lead owns the Phase Status table.
 | 1d | Fresh `db reset` → `gen:types` → `test:db` | backend | ✅ green |
 | 1e | pgTAP `322` (72) + `150`/`298` updates + `p0b` BATCH 5 | backend | ✅ green |
 | — | Phase 1 gate: `ARM=census` · `ARM=hat` · `ARM=floor` · diff-scoped door sweep | backend | ✅ all hold |
+| 2a | `types.ts` — `ReferralInternalNote` extended (`body`→`bodyMd` + 9 fields), `ReferralNoteType`, `ReferralCaseAccessSummary` (**5 groups**), the `ReferralThreadEvent` union + input shapes | backend | ✅ 2026-08-11 |
+| 2b | `thread-events.ts` — pure `synthesizeThreadEvents` + 11 Vitest units (tie-break mutation-proven red) | backend | ✅ 2026-08-11 |
+| 2c | `queries/referrals.ts` — order-preserving notes mapper, `listReferralNoteTypes`, `getReferralCaseAccessSummary` | backend | ✅ 2026-08-11 |
+| 2d | `actions.ts` — registro lifecycle (4 RPCs) + vocabulary CRUD (3 direct RLS writes + 1 RPC), pt-BR errors | backend | ✅ 2026-08-11 |
 
 **Phase 1 gate record (name the ARM, not the script — CLAUDE.md §6 step 5).**
 `ARM=census` HOLDS (454 live gates / 465 verdicts) — it flagged all 4 new gates as unswept before
@@ -151,6 +155,41 @@ the door's pt-BR message.
 table row type, so the rename changes their returned JSON key `body` → `body_md`; the
 `list_referral_internal_notes` element key changes too, and its order is now open-first /
 `created_at` DESC within group.
+
+**Phase 2 done — the contract `frontend` builds against (2026-08-11).** Every shape below was
+verified by CALLING the live doors as a seeded persona inside a rolled-back transaction, not by
+reading migration text or trusting `tsc`. `npm run lint` green (0/0); `npm run test` green
+(83 files / 1229 tests).
+
+- Queries: `listReferralInternalNotes(referralId)` (**order-preserving — never re-sort**),
+  `listReferralNoteTypes(commissionId, includeArchived = false)`,
+  `getReferralCaseAccessSummary(referralId, commissionId) → ReferralCaseAccessSummary | null`.
+- Actions: `createReferralInternalNote` · `updateReferralInternalNote` · `assignReferralNote` ·
+  `unassignReferralNote` · `concludeReferralNote` · `createReferralNoteType` ·
+  `updateReferralNoteType` · `archiveReferralNoteType` · `reorderReferralNoteTypes`.
+- Pure: `synthesizeThreadEvents(detail) → ReferralThreadEvent[]` in `@/lib/referrals/thread-events`.
+
+⛔ **`npm run typecheck` is RED on two lines `backend` does not own** —
+`src/components/referrals/referral-internal-notes-panel.tsx:78` (`body:` → `bodyMd:`) and `:143`
+(`note.body` → `note.bodyMd`). The `body`→`bodyMd` contract rename lands there; the Phase-1 handoff
+predicted *one* new error and there are three. Phase 3 rewrites this panel anyway. (`RouteContext`
+in `src/app/api/documents/[id]/route.ts:22` stays pre-existing and untouched.)
+
+**Three places the plan/handoff were wrong on substrate** (all corrected in code, none blocking):
+`ReferralAssignment` has **`assignedAt`**, not `createdAt`; `ReferralResolution` has **`resolvedAt`**,
+not `createdAt`; and **`saveNarrativeBody` sanitizes nothing** — Rule 7 is enforced at RENDER time by
+`@/components/forms/markdown/markdown-renderer` (react-markdown + `rehype-sanitize`, no `rehype-raw`),
+so "reuse the sanitizer it uses" resolves to "store verbatim and render through that component". A
+second write-time sanitizer would have been new divergent behaviour, not reuse.
+
+⚠ **Archive-only is an app convention, not a DB guarantee.** `authenticated` holds table-level
+DELETE on `referral_note_types` and the write policy is `FOR ALL`, so a coordinator could delete a
+type; the FK is `ON DELETE SET NULL` (the registro silently goes untyped, keeping its `type_label`
+snapshot). The LIVE `case_narrative_types` carries the **identical** grant, so this is a faithful
+mirror rather than new drift — but it is platform-wide, not absent. Method note:
+`information_schema.column_privileges` **cannot** show DELETE (not a column-level privilege), so an
+absence there proves nothing — `table_privileges` is the view that answers it. I asserted the wrong
+thing from the wrong view first and caught it only by re-querying.
 
 ### ⬛ Recently completed — rotated 2026-08-10; detail in `docs/progress/`
 

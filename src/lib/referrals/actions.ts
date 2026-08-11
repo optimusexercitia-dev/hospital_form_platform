@@ -3,12 +3,20 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
-import { REFERRAL_MESSAGES, mapReferralError } from '@/lib/referrals/messages'
+import {
+  PG_UNIQUE_VIOLATION,
+  REFERRAL_MESSAGES,
+  mapReferralError,
+} from '@/lib/referrals/messages'
 import {
   getCaseSafetyEventPatientPrefill,
   getReferralPatient,
+  referralsEnabled,
 } from '@/lib/queries/referrals'
+import { canConfigureCommissionById } from '@/lib/queries/session'
 import type { CaseSafetyPrefill } from '@/lib/queries/referrals'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/types/database'
 import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
   AddReplyAttachmentInput,
@@ -28,6 +36,7 @@ import type {
   RedactReferralMessageInput,
   RedactReferralNoteInput,
   ReferralActionState,
+  ReferralNoteTypeInput,
   ReferralPatient,
   ReopenReferralInput,
   RequestReferralInfoInput,
@@ -36,6 +45,7 @@ import type {
   SetReferralPatientInput,
   UpdateReferralAssignmentInput,
   UpdateReferralInput,
+  UpdateReferralInternalNoteInput,
   UpdateRequestedActionInput,
 } from '@/lib/referrals/types'
 
@@ -58,6 +68,30 @@ const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 // values — 'layout' invalidates the layout AND every page beneath it (incl. the
 // referral dashboard), so one call refreshes the QPS view. RLS-scoped → no leak.
 const NSP_PATH = '/o/[org]/nsp'
+
+/**
+ * Resolve a registro type's commission through the RLS-scoped client, for the
+ * clean pt-BR forbidden that precedes a direct table write (RDR; ADR 0109).
+ *
+ * A read failure is LOGGED and returned as `null` rather than folded into a bare
+ * "not found": a broken select (dropped column, renamed table) would otherwise
+ * masquerade as a friendly message forever — the BUG-TV-001 disguise.
+ */
+async function commissionOfNoteType(
+  supabase: SupabaseClient<Database>,
+  noteTypeId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('referral_note_types')
+    .select('commission_id')
+    .eq('id', noteTypeId)
+    .maybeSingle()
+  if (error) {
+    console.error('[referrals] commissionOfNoteType failed', error)
+    return null
+  }
+  return data?.commission_id ?? null
+}
 
 /** Revalidate the hub + referral detail + case detail + the per-org QPS dashboard
  * after a referral mutation (the referral may surface on any of them). */
@@ -674,30 +708,363 @@ export async function unlinkReferralCase(
 // ---------------------------------------------------------------------------
 
 /**
- * Create a private internal note on ONE committee side (RV2 R5). The actor must be a
- * member of `committeeId` (the referral's source OR target) — the RPC raises 42501
- * for any other actor (incl. QPS of neither side), and HC0A9 for a blank body. The
- * note is readable ONLY by members of `committeeId` (the K-R5-1 security keystone).
+ * Create a private internal note — a "Registro interno" (RV2 R5, promoted by RDR /
+ * ADR 0109) — on ONE committee side. The actor must be a member of `committeeId`
+ * (the referral's source OR target); the RPC raises 42501 for any other actor
+ * (incl. QPS of neither side), and HC0A9 for a blank body, a type belonging to
+ * another commission, an archived type, or a non-member assignee. The note is
+ * readable ONLY by members of `committeeId` (the K-R5-1 security keystone).
+ *
+ * Rule 7 — the Markdown body is stored VERBATIM (`btrim`ed by the RPC), exactly as
+ * `saveNarrativeBody` stores `case_narratives.body_md`. There is no write-time
+ * sanitizer to reuse: the platform enforces Rule 7 at RENDER time in the single
+ * sanitizing renderer `@/components/forms/markdown/markdown-renderer` (react-markdown
+ * with `rehype-sanitize` and NO `rehype-raw`, so raw HTML is inert text). Adding a
+ * second, write-time sanitizer here would diverge from every other Markdown body in
+ * the platform and would silently mangle stored content; the binding requirement is
+ * that the UI render this field through that renderer and never through
+ * `dangerouslySetInnerHTML`.
  */
 export async function createReferralInternalNote(
   input: CreateReferralInternalNoteInput,
 ): Promise<ReferralActionState> {
   if (!input.referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
   if (!input.committeeId) return { ok: false, error: REFERRAL_MESSAGES.missingCommission }
-  if (!input.body || !input.body.trim()) {
-    return { ok: false, fieldErrors: { body: REFERRAL_MESSAGES.noteBodyRequired } }
+  if (!input.bodyMd || !input.bodyMd.trim()) {
+    return { ok: false, fieldErrors: { bodyMd: REFERRAL_MESSAGES.noteBodyRequired } }
   }
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('create_referral_internal_note', {
     p_referral_id: input.referralId,
     p_committee_id: input.committeeId,
-    p_body: input.body,
+    p_body_md: input.bodyMd,
+    // Each of these carries `DEFAULT NULL` in SQL, so `undefined` (dropped from the
+    // JSON body) is a genuine "not set" — not a PGRST202.
+    p_title: input.title?.trim() || undefined,
+    p_note_type_id: input.noteTypeId ?? undefined,
+    p_assigned_to: input.assignedTo ?? undefined,
   })
   if (error) return { ok: false, error: mapReferralError(error) }
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.noteCreated }
+}
+
+/**
+ * Edit an OPEN registro in place (RDR; ADR 0109). Authority is the RPC's
+ * `app.can_edit_referral_internal_note` — author OR assignee OR a coordinator of
+ * the note's OWN side (42501, raised FIRST) — so there is deliberately NO
+ * staff_admin pre-check here: a plain `staff` author must pass. A concluded or
+ * redacted registro refuses with HC0A9.
+ *
+ * Both `title` and `noteTypeId` CLEAR when empty: a blank title is stored as NULL
+ * (the RPC `nullif(btrim(...))`s it), and omitting the type id clears BOTH the
+ * pointer and the `type_label` snapshot. Send the current values to keep them.
+ */
+export async function updateReferralInternalNote(
+  input: UpdateReferralInternalNoteInput,
+): Promise<ReferralActionState> {
+  if (!input.noteId) return { ok: false, error: REFERRAL_MESSAGES.missingNote }
+  if (!input.bodyMd || !input.bodyMd.trim()) {
+    return { ok: false, fieldErrors: { bodyMd: REFERRAL_MESSAGES.noteBodyRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_referral_internal_note', {
+    p_note_id: input.noteId,
+    // `p_title` carries NO SQL default (it precedes a defaultless parameter), so it
+    // must always be sent. The empty string is the CLEAR signal — the RPC nullifs a
+    // blank title — which avoids widening the generated `string` arg type to null.
+    p_title: input.title?.trim() ?? '',
+    p_body_md: input.bodyMd,
+    p_note_type_id: input.noteTypeId ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteUpdated }
+}
+
+/**
+ * Set the member responsible for an OPEN registro (RDR; ADR 0109). COORDINATOR of
+ * the note's own side only (`app.can_manage_referral_internal_note` → 42501); the
+ * assignee must be an ACTIVE member of that same side and the registro must still
+ * be open (HC0A9). Assignment grants NO extra read — the K-R5-1 side gate is
+ * unchanged.
+ */
+export async function assignReferralNote(
+  noteId: string,
+  userId: string,
+): Promise<ReferralActionState> {
+  if (!noteId) return { ok: false, error: REFERRAL_MESSAGES.missingNote }
+  if (!userId) {
+    return { ok: false, fieldErrors: { userId: REFERRAL_MESSAGES.assigneeRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('assign_referral_internal_note', {
+    p_note_id: noteId,
+    p_user_id: userId,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteAssigned }
+}
+
+/** Clear an OPEN registro's assignee (RDR; ADR 0109). Coordinator of the note's own
+ * side only (42501); a concluded registro refuses with HC0A9. */
+export async function unassignReferralNote(
+  noteId: string,
+): Promise<ReferralActionState> {
+  if (!noteId) return { ok: false, error: REFERRAL_MESSAGES.missingNote }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('unassign_referral_internal_note', {
+    p_note_id: noteId,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteUnassigned }
+}
+
+/**
+ * Conclude a registro (`open → concluded`; RDR / ADR 0109 + plan D10). Author OR
+ * assignee OR a coordinator of the note's own side (42501). ONE-WAY: conclusion
+ * freezes the registro and there is NO reopen RPC — redaction remains the only
+ * post-conclusion correction (the LGPD escape hatch). A second conclude raises
+ * HC0A9.
+ */
+export async function concludeReferralNote(
+  noteId: string,
+): Promise<ReferralActionState> {
+  if (!noteId) return { ok: false, error: REFERRAL_MESSAGES.missingNote }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('conclude_referral_internal_note', {
+    p_note_id: noteId,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteConcluded }
+}
+
+// ---------------------------------------------------------------------------
+// Registro-type vocabulary (RDR; ADR 0109 / plan amendment A6)
+// ---------------------------------------------------------------------------
+//
+// ⚠ These are DIRECT, RLS-GATED TABLE WRITES — not RPCs. `referral_note_types`
+// mirrors the LIVE `case_narrative_types`, which carries a `FOR ALL` write policy
+// (`is_staff_admin_of(commission_id) OR is_tenancy_admin_of(commission_id)`) rather
+// than DEFINER CRUD doors; A6 dropped the planned create/update/archive RPCs
+// accordingly. RLS is therefore the security boundary here (Rule 1), and only the
+// reorder is an RPC — itself SECURITY INVOKER (ADR 0109 D2).
+//
+// Two consequences the RPC path would have hidden:
+//   - The flag is not asserted for us (no `assert_referrals_enabled` in the path),
+//     so each action gates on `referralsEnabled()` — mirroring `narrativesEnabled()`
+//     in `@/lib/case-narratives/actions`.
+//   - An UPDATE that RLS filters out matches ZERO rows and returns NO error. Every
+//     update below therefore `.select()`s and treats an empty result as a refusal,
+//     instead of reporting a success that never happened.
+
+/**
+ * Add a type to a commission's registro vocabulary, appended at the end of the
+ * order. Coordinator (or tenancy admin) of that commission; `unique(commission_id,
+ * label)` → already-exists.
+ *
+ * `position` is computed here as `max + 1` because A6 removed the DEFINER RPC that
+ * would have computed it server-side and the column has no default. Two coordinators
+ * creating a type in the same commission at the same instant can therefore collide on
+ * `unique(commission_id, position)`; that surfaces as the pt-BR duplicate message and
+ * the retry succeeds. Acceptable for a per-commission settings dialog — flagged
+ * rather than papered over.
+ */
+export async function createReferralNoteType(
+  commissionId: string,
+  input: ReferralNoteTypeInput,
+): Promise<ReferralActionState> {
+  if (!commissionId) return { ok: false, error: REFERRAL_MESSAGES.missingCommission }
+  const label = input.label?.trim() ?? ''
+  if (!label) {
+    return {
+      ok: false,
+      fieldErrors: { label: REFERRAL_MESSAGES.noteTypeLabelRequired },
+    }
+  }
+  if (!(await referralsEnabled())) {
+    return { ok: false, error: REFERRAL_MESSAGES.unavailable }
+  }
+  if (!(await canConfigureCommissionById(commissionId))) {
+    return { ok: false, error: REFERRAL_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { data: last, error: readError } = await supabase
+    .from('referral_note_types')
+    .select('position')
+    .eq('commission_id', commissionId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (readError) {
+    // Never fold a QUERY failure into a friendly "not found" — that disguise is
+    // what let BUG-TV-001 survive a full green bar.
+    console.error('[referrals] createReferralNoteType position read failed', readError)
+    return { ok: false, error: REFERRAL_MESSAGES.generic }
+  }
+
+  const { error } = await supabase.from('referral_note_types').insert({
+    commission_id: commissionId,
+    label,
+    description: input.description?.trim() || null,
+    position: (last?.position ?? 0) + 1,
+  })
+  if (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return {
+        ok: false,
+        fieldErrors: { label: REFERRAL_MESSAGES.noteTypeLabelTaken },
+      }
+    }
+    return { ok: false, error: mapReferralError(error) }
+  }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteTypeCreated }
+}
+
+/**
+ * Rename / re-describe a registro type. Edits propagate to the picker but NOT to
+ * existing registros — they snapshot `type_label` at pick time (mirroring
+ * `case_narratives`). Coordinator (or tenancy admin) of the type's commission.
+ */
+export async function updateReferralNoteType(
+  noteTypeId: string,
+  input: ReferralNoteTypeInput,
+): Promise<ReferralActionState> {
+  if (!noteTypeId) return { ok: false, error: REFERRAL_MESSAGES.missingNoteType }
+  const label = input.label?.trim() ?? ''
+  if (!label) {
+    return {
+      ok: false,
+      fieldErrors: { label: REFERRAL_MESSAGES.noteTypeLabelRequired },
+    }
+  }
+  if (!(await referralsEnabled())) {
+    return { ok: false, error: REFERRAL_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfNoteType(supabase, noteTypeId)
+  if (!commissionId) return { ok: false, error: REFERRAL_MESSAGES.missingNoteType }
+  if (!(await canConfigureCommissionById(commissionId))) {
+    return { ok: false, error: REFERRAL_MESSAGES.forbidden }
+  }
+
+  const { data, error } = await supabase
+    .from('referral_note_types')
+    .update({
+      label,
+      description: input.description?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', noteTypeId)
+    .select('id')
+  if (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return {
+        ok: false,
+        fieldErrors: { label: REFERRAL_MESSAGES.noteTypeLabelTaken },
+      }
+    }
+    return { ok: false, error: mapReferralError(error) }
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: REFERRAL_MESSAGES.noteTypeWriteBlocked }
+  }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteTypeUpdated }
+}
+
+/**
+ * Archive (retire) a registro type: hidden from the picker, but registros that
+ * reference it keep rendering (they hold the `type_label` snapshot).
+ *
+ * Archive-only is an APPLICATION convention here, not a DB guarantee — verified,
+ * not assumed: `authenticated` does hold table-level DELETE on
+ * `referral_note_types` and the write policy is `FOR ALL`, so a coordinator could
+ * delete a type through any other client, and the FK is `ON DELETE SET NULL` (the
+ * registro would silently go untyped while keeping its label snapshot). The LIVE
+ * `case_narrative_types` sibling carries the identical grant, so this mirrors it
+ * faithfully rather than introducing drift. (`information_schema.column_privileges`
+ * cannot show DELETE at all — it is not a column-level privilege — so an absence
+ * there proves nothing; `table_privileges` is the view that answers this.)
+ */
+export async function archiveReferralNoteType(
+  noteTypeId: string,
+): Promise<ReferralActionState> {
+  if (!noteTypeId) return { ok: false, error: REFERRAL_MESSAGES.missingNoteType }
+  if (!(await referralsEnabled())) {
+    return { ok: false, error: REFERRAL_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfNoteType(supabase, noteTypeId)
+  if (!commissionId) return { ok: false, error: REFERRAL_MESSAGES.missingNoteType }
+  if (!(await canConfigureCommissionById(commissionId))) {
+    return { ok: false, error: REFERRAL_MESSAGES.forbidden }
+  }
+
+  const { data, error } = await supabase
+    .from('referral_note_types')
+    .update({ archived: true, updated_at: new Date().toISOString() })
+    .eq('id', noteTypeId)
+    .select('id')
+  if (error) return { ok: false, error: mapReferralError(error) }
+  if (!data || data.length === 0) {
+    return { ok: false, error: REFERRAL_MESSAGES.noteTypeWriteBlocked }
+  }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteTypeArchived }
+}
+
+/**
+ * Reorder a commission's registro vocabulary. `orderedIds` is the full set of
+ * NON-archived ids in their new order.
+ *
+ * The ONE RPC in this group — and it is SECURITY INVOKER (ADR 0109 D2; the plan's
+ * A6 assumed DEFINER and the catalog said otherwise), so RLS remains the boundary
+ * and the RPC's inline raise only turns a silently-zero-row UPDATE into a pt-BR
+ * 42501. Note the parameter name is `p_ordered_ids`.
+ */
+export async function reorderReferralNoteTypes(
+  commissionId: string,
+  orderedIds: string[],
+): Promise<ReferralActionState> {
+  if (!commissionId) return { ok: false, error: REFERRAL_MESSAGES.missingCommission }
+  if (orderedIds.length === 0) return { ok: true }
+  if (!(await referralsEnabled())) {
+    return { ok: false, error: REFERRAL_MESSAGES.unavailable }
+  }
+  if (!(await canConfigureCommissionById(commissionId))) {
+    return { ok: false, error: REFERRAL_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('reorder_referral_note_types', {
+    p_commission_id: commissionId,
+    p_ordered_ids: orderedIds,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteTypesReordered }
 }
 
 /**
