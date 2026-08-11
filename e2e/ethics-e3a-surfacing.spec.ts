@@ -296,16 +296,25 @@ const SANCTION_B_LABEL = 'Censura (E3a Dash)'
 test.beforeAll(async ({ request }) => {
   // --- EVT case: drives the real E2 procedure RPCs so the auto-derived
   // `case_events` are genuine (not synthetic inserts). ---
+  const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
   EVT_CASE_ID = await createEthicsCase(request, '[E3a] Caso de eventos automáticos')
   await dbInsert('ethics_case_details', { case_id: EVT_CASE_ID, complaint_channel: 'internal' })
   await grantRead(EVT_CASE_ID, UID_STAFF2)
-  await dbInsert('case_participants', {
-    case_id: EVT_CASE_ID,
-    participant_id: PARTICIPANT_RESPONDENT,
-    role_id: ROLE_RESPONDENT,
-    is_primary_subject: true,
-    added_by: UID_CHEFE,
+  // ETH·E4 (ADR 0108 / FUP-ETH-1 acceptance criterion): seat the seeded
+  // respondent through the REAL `add_case_participant` RPC — this file's
+  // original raw `dbInsert('case_participants', …)` here was the finding ADR
+  // 0108 opened against ("a spec that must bypass the product to reach a
+  // shipped panel"). The participant is already minted in the registry
+  // (seed's "Dra. Denunciada" — PARTICIPANT_RESPONDENT), so no
+  // `ensure_professional_participant` call is needed here; that NEW door is
+  // exercised by ethics-e4-participants.spec.ts's PROF-CREATE instead.
+  const respAddResp = await callRpc(request, 'add_case_participant', chefeToken, {
+    p_case_id: EVT_CASE_ID,
+    p_participant_id: PARTICIPANT_RESPONDENT,
+    p_role_id: ROLE_RESPONDENT,
+    p_is_primary_subject: true,
   })
+  expect(respAddResp.ok(), `add_case_participant: ${await respAddResp.text()}`).toBeTruthy()
   await grantRead(EVT_CASE_ID, UID_STAFF1)
   await dbInsert('case_recusals', {
     case_id: EVT_CASE_ID,
@@ -315,7 +324,6 @@ test.beforeAll(async ({ request }) => {
     recused_by: UID_CHEFE,
   })
 
-  const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
   const admissResp = await callRpc(request, 'decide_admissibility', chefeToken, {
     p_case_id: EVT_CASE_ID,
     p_status: 'admissible',
@@ -611,13 +619,18 @@ test('DASH-SETUP create the 3 throwaway dashboard cases (fixture, mirrors 269_et
   await grantRead(DASH_CASE_A, UID_STAFF4_RESPONDENT)
   await grantRead(DASH_CASE_B, UID_STAFF2)
   await grantRead(DASH_CASE_B, UID_STAFF4_RESPONDENT)
-  await dbInsert('case_participants', {
-    case_id: DASH_CASE_B,
-    participant_id: PARTICIPANT_RESPONDENT,
-    role_id: ROLE_RESPONDENT,
-    is_primary_subject: true,
-    added_by: UID_CHEFE,
+  // ETH·E4 (ADR 0108 / FUP-ETH-1 acceptance criterion): the real
+  // `add_case_participant` RPC, not a raw `dbInsert('case_participants', …)`.
+  // PARTICIPANT_RESPONDENT is already minted in the registry (seed's "Dra.
+  // Denunciada"), so no `ensure_professional_participant` call is needed.
+  const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
+  const dashBAddResp = await callRpc(request, 'add_case_participant', chefeToken, {
+    p_case_id: DASH_CASE_B,
+    p_participant_id: PARTICIPANT_RESPONDENT,
+    p_role_id: ROLE_RESPONDENT,
+    p_is_primary_subject: true,
   })
+  expect(dashBAddResp.ok(), `add_case_participant: ${await dashBAddResp.text()}`).toBeTruthy()
   await grantRead(DASH_CASE_C, UID_STAFF4_RESPONDENT)
   await dbInsert('case_recusals', {
     case_id: DASH_CASE_C,
@@ -657,8 +670,12 @@ let DASH_CASE_D: string // respondent-excluded (chefe is the respondent_doctor h
 let DASH_CASE_E: string // recusal-excluded (chefe is recused here)
 let DASH_CASE_F: string // ordinary — control, readable normally
 
-const CHEFE_PROFESSIONAL_PROFILE_ID = '00000000-0000-0000-0000-00000e3a6e01'
-const CHEFE_PARTICIPANT_ID = '00000000-0000-0000-0000-00000e3a6e02'
+// ETH·E4: no longer fixed ids — `create_professional_profile` mints a
+// server-generated id (see DASH-EXCLUDE-SETUP below), so these are CAPTURED at
+// runtime instead of dictated. `let`, not `const`, for exactly that reason;
+// nothing else in this file references them.
+let CHEFE_PROFESSIONAL_PROFILE_ID: string
+let CHEFE_PARTICIPANT_ID: string
 
 test('DASH-EXCLUDE-SETUP: chefe becomes respondent on D, recused on E; F is an ordinary control case', async ({
   request,
@@ -672,39 +689,51 @@ test('DASH-EXCLUDE-SETUP: chefe becomes respondent on D, recused on E; F is an o
     { case_id: DASH_CASE_F, admissibility_status: 'pending', complaint_channel: 'internal' },
   ])
 
-  // Bind chefe (the CCIH coordinator) to a professional_profiles row so they can
-  // be attributed as a case respondent — idempotent (fixed ids) since a re-run
-  // without a reset would otherwise collide on the unique profile/participant id.
+  const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
+
+  // Bind chefe (the CCIH coordinator) to a professional_profiles row so they
+  // can be attributed as a case respondent — through the REAL doors (ETH·E4 /
+  // ADR 0108 / FUP-ETH-1 acceptance criterion): no more raw `dbInsert` into
+  // `professional_profiles` / `participants` / `professional_participants`.
+  // Idempotent across re-runs WITHOUT a DB reset by NATURAL KEY
+  // (organization_id + user_id) rather than a fixed id:
+  // `create_professional_profile` mints a server-generated id, so a fixed id
+  // is no longer available to key an existence check on.
   const existingProfile = await dbQuery<{ id: string }>('professional_profiles', {
-    id: `eq.${CHEFE_PROFESSIONAL_PROFILE_ID}`,
+    organization_id: `eq.${ORG_A}`,
+    user_id: `eq.${UID_CHEFE}`,
   })
-  if (existingProfile.length === 0) {
-    await dbInsert('professional_profiles', {
-      id: CHEFE_PROFESSIONAL_PROFILE_ID,
-      organization_id: ORG_A,
-      user_id: UID_CHEFE,
-      full_name: 'Chefe CCIH (fixture E3a dashboard)',
+  if (existingProfile.length > 0) {
+    CHEFE_PROFESSIONAL_PROFILE_ID = existingProfile[0].id
+  } else {
+    const createResp = await callRpc(request, 'create_professional_profile', chefeToken, {
+      p_org: ORG_A,
+      p_full_name: 'Chefe CCIH (fixture E3a dashboard)',
+      p_user_id: UID_CHEFE,
     })
-    await dbInsert('participants', {
-      id: CHEFE_PARTICIPANT_ID,
-      organization_id: ORG_A,
-      participant_type: 'professional',
-      sensitivity_class: 'professional_identity',
-      display_name: 'Chefe CCIH (fixture E3a dashboard)',
-      created_by: UID_CHEFE,
-    })
-    await dbInsert('professional_participants', {
-      participant_id: CHEFE_PARTICIPANT_ID,
-      professional_profile_id: CHEFE_PROFESSIONAL_PROFILE_ID,
-    })
+    expect(createResp.ok(), `create_professional_profile: ${await createResp.text()}`).toBeTruthy()
+    CHEFE_PROFESSIONAL_PROFILE_ID = (await createResp.json()) as string
   }
-  await dbInsert('case_participants', {
-    case_id: DASH_CASE_D,
-    participant_id: CHEFE_PARTICIPANT_ID,
-    role_id: ROLE_RESPONDENT,
-    is_primary_subject: true,
-    added_by: UID_CHEFE,
+
+  // `ensure_professional_participant` is itself get-or-create (the ADR 0108 D1
+  // unique index on professional_profile_id) — safe to call every run
+  // regardless of whether the profile above was just-minted or reused. This is
+  // the door the task explicitly asked to check: it now owns the
+  // participants/professional_participants pairing, so the old direct inserts
+  // into both are gone, not just the case_participants one.
+  const mintResp = await callRpc(request, 'ensure_professional_participant', chefeToken, {
+    p_profile_id: CHEFE_PROFESSIONAL_PROFILE_ID,
   })
+  expect(mintResp.ok(), `ensure_professional_participant: ${await mintResp.text()}`).toBeTruthy()
+  CHEFE_PARTICIPANT_ID = (await mintResp.json()) as string
+
+  const dashDAddResp = await callRpc(request, 'add_case_participant', chefeToken, {
+    p_case_id: DASH_CASE_D,
+    p_participant_id: CHEFE_PARTICIPANT_ID,
+    p_role_id: ROLE_RESPONDENT,
+    p_is_primary_subject: true,
+  })
+  expect(dashDAddResp.ok(), `add_case_participant: ${await dashDAddResp.text()}`).toBeTruthy()
   await dbInsert('case_recusals', {
     case_id: DASH_CASE_E,
     user_id: UID_CHEFE,
