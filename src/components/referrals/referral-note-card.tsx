@@ -215,12 +215,18 @@ export function ReferralNoteCard({
 
       {editing ? (
         <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-xs font-medium text-muted-foreground">
-              Título{" "}
-              <span className="font-normal">(opcional)</span>
-            </span>
+          {/* Explicit `htmlFor`/`id` association: a `<label>` WRAPPING a `<select>`
+              absorbs every option's text into its own text content and corrupts the
+              computed accessible name. */}
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label
+              htmlFor={`referral-note-title-${note.id}`}
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Título <span className="font-normal">(opcional)</span>
+            </label>
             <input
+              id={`referral-note-title-${note.id}`}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -228,13 +234,17 @@ export function ReferralNoteCard({
               disabled={isPending}
               placeholder="Ex.: Alinhamento com a farmácia"
             />
-          </label>
+          </div>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-xs font-medium text-muted-foreground">
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label
+              htmlFor={`referral-note-type-${note.id}`}
+              className="text-xs font-medium text-muted-foreground"
+            >
               Tipo
-            </span>
+            </label>
             <NativeSelect
+              id={`referral-note-type-${note.id}`}
               value={noteTypeId}
               onChange={(e) => setNoteTypeId(e.target.value)}
               disabled={isPending}
@@ -247,7 +257,7 @@ export function ReferralNoteCard({
                 </option>
               ))}
             </NativeSelect>
-          </label>
+          </div>
 
           {/* `SectionTextEditor` owns the textarea, so its label points at it by id
               rather than wrapping it. */}

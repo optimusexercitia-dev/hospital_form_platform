@@ -209,12 +209,21 @@ export function ReferralInternalNotesPanel({
 
           {error ? <FormBanner tone="error">{error}</FormBanner> : null}
 
+          {/* Labels associate EXPLICITLY (`htmlFor`/`id`) rather than wrapping the
+              control: a `<label>` that wraps a `<select>` folds every option's text
+              into its own text content, which pollutes the computed accessible name
+              ("Tipo Sem tipo Análise interna …") and makes the field unaddressable
+              by its visible label. */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium text-muted-foreground">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                htmlFor="referral-new-note-title"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Título <span className="font-normal">(opcional)</span>
-              </span>
+              </label>
               <input
+                id="referral-new-note-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -222,13 +231,17 @@ export function ReferralInternalNotesPanel({
                 placeholder="Ex.: Alinhamento com a farmácia"
                 disabled={isPending}
               />
-            </label>
+            </div>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium text-muted-foreground">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                htmlFor="referral-new-note-type"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Tipo
-              </span>
+              </label>
               <NativeSelect
+                id="referral-new-note-type"
                 value={noteTypeId}
                 onChange={(e) => setNoteTypeId(e.target.value)}
                 disabled={isPending || noteTypes.length === 0}
@@ -241,15 +254,19 @@ export function ReferralInternalNotesPanel({
                   </option>
                 ))}
               </NativeSelect>
-            </label>
+            </div>
           </div>
 
           {canManage && members.length > 0 ? (
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-xs font-medium text-muted-foreground">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label
+                htmlFor="referral-new-note-assignee"
+                className="text-xs font-medium text-muted-foreground"
+              >
                 Responsável <span className="font-normal">(opcional)</span>
-              </span>
+              </label>
               <NativeSelect
+                id="referral-new-note-assignee"
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 disabled={isPending}
@@ -262,7 +279,7 @@ export function ReferralInternalNotesPanel({
                   </option>
                 ))}
               </NativeSelect>
-            </label>
+            </div>
           ) : null}
 
           <div className="flex flex-col gap-1.5">
