@@ -172,7 +172,7 @@ choke-point guards + indicator. Build notes + sweep inventories accumulate in
 | **S0** — the role enum | backend | ✅ 2026-08-09 · `8acebed` (+ placement fix) | `20260918000000`; **11 labels = the 10 `memberships_role_check` values + `platform_admin`** (D11 break-glass hat / audit stamp). pgTAP 5636 PASS · ARM=census + ARM=floor HOLD |
 | **S1** — harness first | backend + tester | ✅ 2026-08-10 · `f87bfe6`·`d7e4ae5`·`d2bbc7a` · **gate CLOSED: e2e:prod 1049 pass + 1 known flaky + 5 pre-existing skips = 1055/1055, 0 failures** (batches 1–17 all present, no `reset FAILED`, 2 infra reruns accounted). ⚠ The gate's own "COVERAGE 1050 of 1055" line excludes skips from its numerator — it is NOT 5 unrun tests; reconcile per-batch before ever reading it as a gap | `claims_for` gains `p_active_role` (null ⇒ no claim, suites stay vacuously green) · `request.jwt.claims` sweep bounded by the **property** not by filename: 166 sites = 140 resets + 1 canonical + **21 routed** + 4 structurally unreachable (`test_helpers` is minted by `00_setup.sql`, so `seed.sql`/demo can never reach it) · additive `dualhat.a@` persona · `loginFresh`/`cachedSignIn` `actAs` seam · seed-sensitivity sweep (7 candidate specs, 125 pass + 1 known skip, 0 regressions). ⚠ **S1 is not signed off until the full suite is green** — the scoped 126 is not the plan's "full suites green" |
 | **S2** — behaviour-preserving normalisation | backend | ✅ 2026-08-10 · `c7b3fb6`+`7972441` · **gate CLOSED: e2e:prod 1050 pass + 5 skips = 1055/1055, 0 failures, 0 flaky** (batch 4's 15 reds correctly classified INFRA — `server_dead=1, conn_errors=29` — and green on rerun) | 8 direct `memberships` readers re-based onto `has_role`/`has_role_any`, `CREATE OR REPLACE` only. The "8" was **re-derived from the catalog** (149 boolean gates, comment-stripped `prosrc`) and *happened* to reconcile with the census — a stronger claim than using it. Proof is a **61-case equivalence matrix** (TRUE/FALSE/cross-tenant/null-scope + a synthetic expired-membership fixture), captured before and after: **0/61 deltas, byte-identical**. Lead re-verified post-migration from the catalog: the `DIRECT-ONLY` bucket now holds exactly `has_role`+`has_role_any` themselves. pgTAP 5636 PASS **twice, second run without a reset** · ARM=census + ARM=floor HOLD · diff-scoped sweep 7 COVERED / 0 BLIND / 1 ERROR closed by a hand-run dual-direction mutation proof. Found + fixed BUG-ACT-CLAIMSFOR-1; opened BUG-ACT-EXPIRY-1 + BUG-ACT-ACL-1 (Bug Log) |
-| **S3** — THE ATOM (the only red window) | backend + frontend + tester + lead audit | ✅ **GATE GREEN 2026-08-10** · `81a72d1` · full `e2e:prod` 996p+0f+2 baseline-flaky, + the transiently-unrun batch 8 re-run **61/61** (zero assertion failures across all 1064 collected; 5 pre-existing skips) · pgTAP fresh-reset **178/5679 PASS** · ARM=census 450/461 HOLD · ARM=floor 80 HOLD · lint 0/0 · tsc · Vitest 1194 — see the close-out box above for the two first-gate causes (the D9-hint RSC grant-serialization leak, fixed; the gotenberg sidecar down, environmental). **QA review + human approval PENDING.** | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester half: seams flipped + picker/switch/D9 specs (9/9) + the threading/close-out rows below; the full-gate close is the lead-audit evidence in the status cell + box above. |
+| **S3** — THE ATOM (the only red window) | backend + frontend + tester + lead audit | ✅ **GATE GREEN 2026-08-10** · `81a72d1` · full `e2e:prod` 996p+0f+2 baseline-flaky, + the transiently-unrun batch 8 re-run **61/61** (zero assertion failures across all 1064 collected; 5 pre-existing skips) · pgTAP fresh-reset **178/5679 PASS** · ARM=census 450/461 HOLD · ARM=floor 80 HOLD · lint 0/0 · tsc · Vitest 1194 — see the close-out box above for the two first-gate causes (the D9-hint RSC grant serialization, fixed — ~~"leak"~~ **corrected 2026-08-10 per S3 QA MINOR-2 + S4 QA MINOR-1: the word overstates it.** The serialized grants are the **caller's own**, and the same exposure is untouched at far greater scale in four other client components; the fix was right, the label was not; the gotenberg sidecar down, environmental). **QA review + human approval PENDING.** | DB layer landed: `active_role_selections` + `assume_role` (in `public`, not `app` — PostgREST) + hook claim (D11/D5) + `has_role`/`has_role_any` caller-only condition (fixed a live NULL-propagation fail-open the plan's literal text carried — `IS NOT DISTINCT FROM`, not `=`) + `member_can` D13 + `audit_write` D8 + raw-policy sweep (`profiles_select_self_or_admin` co-member arm, 5 sibling arms reasoned-exempt) + the post-auth destination sweep (**`resolveLanding` DELETED**, not patched — was a second hand-rolled partition covering only 4/11 roles; `getSessionContext` gains `activeRole`/`needsRoleSelection` for `page.tsx`'s one-line dependency) + the revert-twin keystone (`315`, also closes the `assume_role` ARM=floor gap). pgTAP: **Files=176, Tests=5644, PASS ×2** (fresh + no-reset) — reached only after triaging ~60 genuine reds down from 657 (auto-derivation in `claims_for` + a `SECURITY DEFINER` fix + per-file hat triage; full account in buildnotes). `ARM=census` (451/461, unchanged — `active_role()` returns `text`, not in the boolean-gate population) + `ARM=floor` (80, HOLD) + diff-scoped sweep over the 8 changed functions + the 1 policy — verdicts in buildnotes. **Picker route = `/selecionar-perfil` (PO, 2026-08-10).** **Frontend `feat(act): stage 3 UI` (commit below):** picker page + form, `UserMenu` hat indicator + "Trocar papel" (threaded to all 9 render sites), D9 hint (`RoleSwitchHint`), `page.tsx`'s one-line gate, new `direcao-tecnica` shell. ⚠ **Live-verified finding that overrides the design note's §5.4 mounting plan**: a choke-point guard's own `notFound()` (thrown inside its `layout.tsx`) is caught by the GLOBAL `src/app/not-found.tsx`, never a same-segment sibling `not-found.tsx` — confirmed on a real production standalone build, not just dev. The 6 area-specific `not-found.tsx` files (2 pre-existing + 4 new) only catch a narrower within-shell page-level `notFound()`; the D9 hint's PRIMARY mount is now the global boundary (session-gated, no cost for an anonymous 404). Full derivation + the live persona walkthroughs (`dualhat.a@`/`chefe.ccih@`/`multi@`): `docs/plans/act-as-buildnotes.md` Stage 3 — frontend half. Tester half: seams flipped + picker/switch/D9 specs (9/9) + the threading/close-out rows below; the full-gate close is the lead-audit evidence in the status cell + box above. |
 | **S4** — D14 arm audit + record | backend + qa | ⬜ not started | `_case_caps` arm-by-arm from the catalog; the two DESIGNED hat-blind doors allowlisted. ⚠ Also carry in: the **endorsed standing-sweep candidate** — "raw `memberships … principal_id = auth.uid()` with no adjacent hat condition" belongs in the ADR 0079 door audit, because `capa_kpis` was found with a safe arm and a raw arm side by side, i.e. this population accreted from different authors over time and a one-off sweep will not hold |
 
 **⏸ S3 — what was found AFTER the stage was declared "built" (the reason it is still open).**
@@ -1028,4 +1028,77 @@ all three `Files=175, Tests=5636, Result: PASS`; re-confirmed as part of the Sta
 (run 1 fresh + run 2 no-reset, both PASS, identical counts) and a 4th time by the
 diff-scoped sweep's own preflight succeeding. Full mechanism + reproduction:
 [act-as-buildnotes.md](../plans/act-as-buildnotes.md) Stage 2 §6.
+
+---
+
+# S4 — D14 arm audit + record — ✅ COMPLETE
+
+**Rotated out of PROGRESS.md at the Phase Gate step-5 Record, 2026-08-10**, after S4 passed all
+five gate steps. Branch `feat/act-as-stage-4` off `main` `5204f1e`.
+
+**Gate:** pgTAP **180 files / 5707 tests** PASS (fresh reset) · `e2e:prod` **GATE GREEN** — 1057
+passed / 0 failed / 0 did-not-run / 17 of 17 batches; 5 INFRA re-runs all green on retry;
+coverage 1059 of 1064 reconciles **exactly** to 5 deliberately-skipped tests (`TOTAL_SEEN`
+excludes skips by construction — it is NOT 5 unrun tests) · `ARM=census` 450/461 HOLD ·
+`ARM=floor` 80 HOLD · **`ARM=hat`** 3 findings ≡ allowlist, self-test **6/6** · lint 0/0 · tsc ·
+Vitest **1218**. **Diff-scoped 0079 door sweep NOT owed** — S4 shipped zero migrations, zero RLS
+changes, zero `prosecdef` changes (confirmed from the diff by QA, not asserted).
+
+**QA:** [act-as-stage-4-review.md](../reviews/act-as-stage-4-review.md) — **APPROVED (r1)**,
+0 BLOCKER / 0 MAJOR / 6 MINOR / 3 INFO. Human-approved 2026-08-10.
+
+## Scope as delivered
+
+Plan [Stage 4](../plans/act-as-role-assumption.md) (line 222) plus the S3 r1/r2 MINORs, stated
+exactly (S4 QA MINOR-1 — a scope claim that outruns what shipped is decoration): **S3 MINOR-1**
+→ task S4-5; **S3 MINOR-2** (the "grant-serialization leak" overstatement) → record corrected in
+this file; **S3 MINOR-3** → folded into `FUP-ACT-DISPOSE-UI`, not S4's to close.
+
+| # | Task | Owner | Outcome |
+| --- | --- | --- | --- |
+| S4-1 | **D14** — `_case_caps` audited arm-by-arm FROM THE CATALOG | backend | 5 role arms (S1/S2/S5/S6/S7 → `has_role`/`has_role_any`) + 3 relationship (S3 grant / S4 assignment / STEP-4 denies); STEPs 1–3 are preconditions, not arms; **no hybrid, no arm unclassified**. QA re-derived completeness **mechanically** — 11 `v_caps := v_caps` sites in `prosrc`, partitioning exactly as the 8 arms: a PROPERTY, not a list. Table → `docs/backend-state.md` § ACT |
+| S4-2 | pgTAP keystone `319` | backend | `ad387eb` — 17/17. Exact masks 111/64 → 127/94; bit-16 pre-grant negative control; **in-file mutation twins** on `has_role` (collapses to 111) and `has_role_any` (64→66) with byte-identical restores; hatless D5×D6 = 30; third-party disarm = 127; recusal zeros. Every value probe-measured before writing. QA neutralized both twins and observed them go red |
+| S4-3 | The DESIGNED hat-blind doors → reasoned allowlist | backend | `d368f9f` — NEW artifact `act-hat-blind-allowlist.txt`, deliberately NOT the 0079 BLIND file (designed behaviour vs coverage debt — ADR 0107 D1). Sweep found **four**, not the plan's two: `session_context`, `assume_role`, `memberships_select` self arm, + `service_role` as a header class-note (unkeyable by construction, so a keyed entry would be a permanent ghost). All four upheld by lead + QA. Each entry carries a "wrong the day" invalidation condition; the lead added the **whole-object-vs-one-arm** clause to `memberships_select` and (per QA MINOR-5) to `session_context` |
+| S4-4 | The endorsed **standing sweep**, executable + gate-wired | backend | `d368f9f` + `edde762` — `act-hat-blind-sweep.sh` wired as **`ARM=hat`** of `p0-authz-invariant.sh` (~10 s, in `ARM=all`). Amendment-6 method: balanced-paren argument extraction, `name(` edges with identifier-boundary guards, transitive caller-boundness to fixpoint. **Self-tests 6 specimens EVERY run**; ST5/ST6 (blind + covered cross-table POLICY pair) added closing QA MINOR-2 — the policy `else` branch previously had three live specimens, *all negatives*, so a branch returning `false` always would have looked identical. Ghost and new-finding directions both mutation-proven. **CLAUDE.md §6 names `ARM=hat`** (human-approved) |
+| S4-5 | QA MINOR-1 — the dead `navScope` branch | frontend | `7429919` — arm REMOVED (fails **closed**: a widened principal drops to the narrower `"member"`) and the `SidebarNavScope` union member deleted, so re-lighting is a deliberate type-level act. Tripwire `nav-scope-exclusivity.test.ts` drives the **real** derivation over the role vocabulary read from `memberships_role_check` at test time; proven red against **both** seams (the `getSessionContext` hat filter, 10 red; `partitionGrants` bucket disjointness, 2 red) plus a falsifiability control. Removal chosen over a runtime `throw`: a throw in a Server Component layout 500s real users *after* a widening ships |
+| S4-6 | **Record** | lead / qa | ADR 0106 gains the PO ratification (P1–P6), built status, the two cutover debts, the **D5 correction** and the **D6 six-member enumeration**; ADR **0107** created; QA review filed; CLAUDE.md §6 `ARM=hat`; this rotation |
+
+## What S4 corrected in the record (both were load-bearing)
+
+1. **The auth-hook blast radius — EVERY user, not just multi-role.** Both PROGRESS.md and ADR
+   0106 said a missing Cloud hook would strand "every multi-role principal". **That understates
+   it.** D11's implicit single-role derive lives **inside** `custom_access_token_hook`'s `else`
+   branch, so with no hook *nobody* gets an `active_role` claim; `app.active_role()` returns NULL
+   and `has_role`'s caller-bound `p_role is not distinct from app.active_role()` is false for
+   every non-null role — fail **closed**, for everyone. Measured on a single-role persona with
+   the claim absent: `active_role()` NULL, `has_role(staff_admin, self)` false, commissions
+   visible **0**. Deploy sequencing risk moves from "some users degraded" to "the application is
+   down". *(Found by backend; verified independently from the hook body + the `has_role` catalog
+   definition. The lead's own ADR text carried the same understatement and was missed by a
+   single-line grep because the claim wraps across two lines.)*
+2. **ADR 0106 D5's headline was literally false as built** (QA MINOR-4). It read *"no active role
+   means no role at all — the request sees what a stranger sees."* A stranger resolves
+   `_case_caps` = **0**; a hatless grantee resolves **30**. It now states the invariant the build
+   actually enforces: **no active role means no ROLE-derived reach; per-object relationships (D6)
+   are unaffected, including in the hatless state.** D6's enumeration likewise grew from four
+   predicates to **six** with the *property* stated (QA MINOR-3), so the list is no longer the
+   boundary — the same failure class as *"an enumeration's boundary must be the property"*.
+
+## The A13 ruling (PO, 2026-08-10)
+
+**KEEP THE AS-BUILT BEHAVIOUR.** A hatless multi-role principal retains **read-only** per-case
+relationship reach — mask **30** = `read_case_deliberation | read_case_content |
+read_standard_phi | read_restricted_phi`, including the Rule-12 PHI bit. **No write bit
+survives** (32 `write_case_content`, 64 `manage_case_access` both absent), so no mutation can
+ever be recorded with an empty `acting_as`. `is_active` and recusal still zero everything in the
+hatless state (A15–A17). Rationale: an ACL grant names a **person**, so no principled hat could
+own it; the only implementable alternative is "requires *some* hat", which is friction rather
+than a security property. Minimum-necessary is served by the grant's shape, not the hat — the
+PHI bit is *narrower* than the S1 role arm that confers the identical bit.
+
+**Pinned by keystone `319` A13 — a future re-ruling must consciously turn it red.** Open
+consequence, deliberately not built (it needs a migration, and it dies if the ruling ever
+reverses): **`FUP-ACT-HATLESS-AUDIT`** — `audit_write` adds `acting_as` only when
+`active_role()` is non-null, so the KEY is *absent*, conflating hatless / pre-ACT /
+service-role. Rule 11 is met (the row records *that* and *who*); this is legibility.
 

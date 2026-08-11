@@ -1,7 +1,47 @@
 # ADR 0106 — "Act as": role assumption as a binding constraint
 
-- **Status:** Accepted (design; 2026-08-09) — **not yet built**; corrected same day after a
-  live-catalog re-census (enforcement table rewritten; D12–D14 added)
+- **Status:** Accepted and **BUILT** — design 2026-08-09 (corrected same day after a
+  live-catalog re-census: enforcement table rewritten, D12–D14 added); **ratified by the PO
+  2026-08-09** (P1–P6 below); **stages S0–S3 built, QA-APPROVED (r2) and human-approved
+  2026-08-10**, merged to `main` (`ff0e76a`). **S4** (D14 arm audit + this record) in progress.
+  ⛔ **Not yet live on the remote** — see "Cutover debts" below.
+
+## Ratification (PO, 2026-08-09)
+
+Recorded here because the plan file is a build artifact and this ADR is the durable one.
+
+| # | Question | Ruling |
+| --- | --- | --- |
+| **P1** | D12–D14 (JWT transport · administrativo rides the committee hat · case-bitmask arm classification) | **Ratified as written.** |
+| **P2** | Sequencing vs pilot | **Before pilot.** D10's big-bang justification depends on this ordering — **if the pilot moves first, D10 must be re-litigated.** |
+| **P3** | Hat lifetime | **Bound to the auth session** (one hat per sign-in; no app-level TTL). True daily freshness is a session-length policy (auth inactivity timebox — a Supabase Pro knob), not an act-as mechanism. |
+| **P4** | Feature flag | **NONE — the migration IS the cutover.** A deliberate deviation from house convention: a flag's off position is the exact fail-open mode D5 rejects, and enforcement + picker are one atom (enforcement without picker locks multi-role users out). Recorded so a future "why is this unflagged?" does not re-add one. |
+| **P5** | D9 scope at cutover | **Choke-point guards + indicator dropdown.** The area-entry guards render the switch hint; the indicator dropdown is the always-available escape. Row-level absences inside a page are deliberately NOT hinted — there, absence must stay indistinguishable from non-existence (D4). Measured at build: **6 guards, not ~5**, and only 2 of the 6 had a route-scoped `not-found.tsx` to mount the hint in. |
+| **P6** | Program shape | **Staged program, Stages 0–4.** Stage 3 is the only red-suite window. |
+
+### Cutover debts (neither is discharged by merging)
+
+1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…002800`).
+2. **`custom_access_token_hook` must be ENABLED on Supabase Cloud.** `db push` does **not**
+   cover it — locally it is `config.toml`'s `[auth.hook.custom_access_token]`. Without it the
+   remote mints no `active_role` claim and, under D5, **EVERY user is a stranger — not just
+   multi-role ones**: the app is unusable until the hook is on. This is the highest-risk item
+   in the program.
+
+   ⚠ **The blast radius is easy to understate, and this record did** (corrected 2026-08-10,
+   S4). The tempting reading is "only multi-role principals are affected, since single-role
+   users have nothing to choose." It is wrong: **D11's implicit single-role derive lives
+   INSIDE the hook** (the `else` branch — exactly one live role type ⇒ derive). No hook means
+   that branch never runs either, so *nobody* gets a claim. `app.active_role()` then returns
+   NULL, and `has_role`'s caller-bound condition — `p_role is not distinct from
+   app.active_role()` — is false for every non-null role, so it fails **closed** for everyone.
+   Measured on a single-role persona with the claim absent: `active_role()` NULL,
+   `has_role(staff_admin, self)` false, commissions visible **0**. This moves deploy
+   sequencing from "some users degraded" to "the application is down".
+
+Because P4 makes the cutover unflagged, it also **forces re-login** — stale pre-cutover sessions
+see stranger-level nothing until they sign in again. Acceptable only because it lands pre-pilot
+(P2).
 - **Scope:** supersedes FUP-QOB-2 ruling ⑤ (dual-hat precedence), which was recorded FALSE
 - **Relates to:** ADR [0100](./0100-quality-office-oversight.md) D1/D12 (quality office,
   duty separation) · ADR [0101](./0101-role-landing-guard.md) (the landing chain) ·
@@ -82,7 +122,31 @@ weaker boundary beside the one already trusted, which is the "UI hiding is not s
 trap.
 
 ### D5 — Fail CLOSED
-No active role means **no role at all** — the request sees what a stranger sees.
+No active role means **no ROLE-derived reach**. Per-object relationships (D6) are
+unaffected, including in the hatless state.
+
+> ⚠ **Corrected 2026-08-10 (S4, QA MINOR-4).** This sentence read *"no role at all — the
+> request sees what a stranger sees."* **As built that is literally false, and it
+> manufactured half the tension §D14/A13 is asked to resolve.** Measured: a stranger
+> resolves `app._case_caps` = **0**; a hatless principal holding a per-case ACL grant
+> resolves **30** (`read_case_deliberation|read_case_content|read_standard_phi|
+> read_restricted_phi` — read-only; both write bits, 32 `write_case_content` and 64
+> `manage_case_access`, are absent). Keystone `319` A13 pins it. The security content of
+> D5 is fully delivered — **all five role-derived arms read 0** — but the reach is not a
+> stranger's, and the record must say what is true. Reviewed and **upheld as-built** by QA
+> S4 §3: an ACL grant names a *person*, so no principled hat could own it; the only
+> implementable alternative is "requires *some* hat", which is friction, not a security
+> property.
+>
+> ✅ **PO RULING, 2026-08-10 (S4 gate step 4): KEEP THE AS-BUILT BEHAVIOUR.** A hatless
+> multi-role principal retains **read-only** per-case relationship reach — `_case_caps` = 30
+> — including the Rule-12 `read_standard_phi` bit; **no write bit survives** (32
+> `write_case_content` and 64 `manage_case_access` are both absent), so no mutation can ever
+> be recorded with an empty `acting_as`. `is_active` and recusal still zero everything in
+> the hatless state (`319` A15–A17). **This ruling is pinned by keystone `319` A13** — a
+> future re-ruling must consciously turn it red, which is the point. Consequence left open
+> on purpose: `FUP-ACT-HATLESS-AUDIT` (the audit row omits the `acting_as` KEY, so absence
+> conflates hatless / pre-ACT / service-role — legibility, not a Rule 11 violation).
 
 The rejected alternative fails *open*, and its failure mode is specific and nasty: every path
 that forgets to set a hat **silently reverts to today's behaviour and looks completely
@@ -90,8 +154,24 @@ normal**, while the audit records a hat that constrained nothing. That is the ex
 ADR 0079 exists for — "a gate that isn't exercised is a live leak wearing a green check".
 
 ### D6 — "Act as" governs roles you HOLD, not relationships you are IN
-Per-object relationships are **immune** to hat changes: `is_case_respondent`,
-`is_recused_from_case`, `is_document_approver_of`, `is_document_version_approver`.
+Per-object relationships are **immune** to hat changes.
+
+**The class is a PROPERTY, not this list: you are the OBJECT of a per-object relationship,
+not the holder of a grant.** Enumerated members, as built — **six**, not the four this
+decision first named (extended 2026-08-10, S4, QA MINOR-3):
+
+1. `is_case_respondent`
+2. `is_recused_from_case`
+3. `is_document_approver_of`
+4. `is_document_version_approver`
+5. the `_case_caps` **S3 arm** — a `case_access_grants` row keyed `principal_id`
+6. the `_case_caps` **S4 arm** — `case_phases`/`case_narratives.assigned_to`
+
+> ⚠ Members 5–6 come from D14's classification and were **absent from this list** until S4.
+> That is *"an enumeration's boundary must be the property, not a list"* in its
+> documentation form: a reader re-deriving the class from the old four would get a
+> different answer than keystone `319` pins. If a seventh member appears, it joins here
+> **and** the property above decides it — the list never does.
 
 You do not "act as a respondent" — a case does not stop being about you because you switched
 context. Two of these are **protective** (recusal keeps you *out* of something; if a hat
@@ -308,7 +388,9 @@ recorded in the trail.
 
 ## Not decided here
 
-- Where the hat indicator sits (design-system decision, against a real screen).
-- Whether a reviewer may review a committee in which she is a respondent (a separate control
-  — see D6).
-- Sequencing against the pilot.
+- ~~Where the hat indicator sits~~ — **decided at build (S3)**, against a real screen as this
+  entry required: `src/components/shell/user-menu.tsx`, the one component common to every
+  choke-point shell, which already carried a `roleLabel` slot.
+- ~~Sequencing against the pilot~~ — **decided by P2**: before the pilot.
+- **Still open:** whether a reviewer may review a committee in which she is a respondent. A
+  separate control (see D6) — deliberately out of this program's scope, not an oversight.

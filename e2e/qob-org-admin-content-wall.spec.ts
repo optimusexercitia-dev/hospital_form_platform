@@ -113,13 +113,27 @@ test.describe('QO·B — org_admin/hospital_admin content wall', () => {
 
 /**
  * QO·B UI half — BUG-QOB-003 (commit 1dfc3fb). The wall spec above pins the
- * DB/RLS boundary; these pin what the browser actually renders for the three
- * shapes `navScope` distinguishes: a BARE tenancy admin (`"configuration"`), a
- * real member who is ALSO a tenancy admin (`"member-and-configuration"`), and
- * an unaffected member/coordinator (`"member"`). Route inventory + nav shape
- * verified against src/app/o/[org]/c/[commission]/layout.tsx +
+ * DB/RLS boundary; these pin what the browser actually renders for the two
+ * shapes `navScope` distinguishes today: a BARE tenancy admin
+ * (`"configuration"`) and an unaffected member/coordinator (`"member"`).
+ * Route inventory + nav shape verified against
+ * src/app/o/[org]/c/[commission]/layout.tsx +
  * src/components/shell/app-sidebar.tsx (commit 1dfc3fb's own NAV_GROUPS +
  * `configuration: true` allowlist), not re-derived by hand.
+ *
+ * ⚠ A third shape existed pre-ACT: a real member who was ALSO a tenancy admin
+ * got the union `"member-and-configuration"` (member items PLUS the KEEP
+ * allowlist). ACT (ADR 0106) made that union structurally unreachable — a
+ * session wears exactly one hat, and `partitionGrants` routes membership
+ * roles and tenancy-admin roles into disjoint buckets — and S4 DELETED the
+ * branch that selected it, plus the `SidebarNavScope` union member that named
+ * it (commit 7429919, closing QA MINOR-1 of
+ * docs/reviews/act-as-stage-3-review.md; ADR 0106 D14). `SidebarNavScope` is
+ * now `"member" | "configuration"` only, and
+ * src/components/shell/nav-scope-exclusivity.test.ts (Vitest) guards the
+ * exclusion that keeps the third shape gone. The describe block below,
+ * titled for the deleted case, still earns its keep post-deletion — see its
+ * own header comment.
  */
 
 const SUPABASE_URL = 'http://127.0.0.1:54321'
@@ -373,7 +387,7 @@ test.describe('QO·B UI — keyboard-only: reaching a KEEP surface without a mou
 })
 
 test.describe.serial(
-  'QO·B UI — the member-and-configuration nav case (manufactured via the real member-add door)',
+  'QO·B UI — the member-and-configuration nav case, proven unreachable per hat (scope DELETED in ACT S4 / commit 7429919; manufactured via the real member-add door)',
   () => {
     // No seed persona holds BOTH a bare `staff` membership AND tenancy-admin
     // standing in the SAME commission. `orgadmin.b`/"Qualidade B" comes close
@@ -443,12 +457,22 @@ test.describe.serial(
     // single hatless session. Under strict role assumption that union is
     // STRUCTURALLY unreachable: the staff hat filters out the tenancy-admin
     // grants (isTenancyAdmin=false) and the org_admin hat filters out the
-    // membership (role=null) — no single hat satisfies both conditions at once,
-    // so `navScope="member-and-configuration"` is now a dead branch in
-    // layout.tsx (recorded in PROGRESS.md as an ACT follow-up, not deleted
-    // here). The two tests below prove each hat's nav individually AND — by each
-    // asserting the ABSENCE of the other scope's items — that the combined nav
-    // is genuinely gone, the same shape the PO ruled for AC-5b/Flow 3d/5a.
+    // membership (role=null) — no single hat satisfies both conditions at once.
+    // `navScope="member-and-configuration"` was a dead branch in layout.tsx for
+    // exactly this reason, and ACT S4 has since DELETED it — along with the
+    // `SidebarNavScope` union member that named it — rather than leaving it
+    // dead (commit 7429919, closing QA MINOR-1 of
+    // docs/reviews/act-as-stage-3-review.md; ADR 0106 D14). The removal's own
+    // regression guard lives in
+    // src/components/shell/nav-scope-exclusivity.test.ts (Vitest), driven off
+    // the live `memberships_role_check` vocabulary — outside this file's
+    // concern, but the reason a widening would be caught before it ever
+    // reached a browser. The two tests below still earn their keep
+    // post-deletion: no E2E can assert a branch that no longer exists, so
+    // they instead prove each hat's nav individually AND — by each asserting
+    // the ABSENCE of the other scope's items — that the combined nav this
+    // describe block is named for genuinely cannot occur, the same shape the
+    // PO ruled for AC-5b/Flow 3d/5a.
     test('under the staff hat: member nav only — the KEEP allowlist does NOT ride along', async ({
       page,
     }) => {
