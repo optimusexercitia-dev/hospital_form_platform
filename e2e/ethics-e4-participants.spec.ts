@@ -753,6 +753,12 @@ test('CHANGE-ROLE change a participant\'s role', async ({ page }) => {
     timeout: 10_000,
   })
   await changeParticipantRole(page, 'Perito Sem Conta (E4)', 'Relator', 'Testemunha')
+  // Both halves, explicitly at the call site (not just inside the helper):
+  // the new role arrived AND the old one is gone — an absence-only check
+  // passes on a no-op-to-something-else or a broken role display.
+  await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Testemunha')).toBeVisible({
+    timeout: 10_000,
+  })
   await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator')).toHaveCount(0)
 
   await signOut(page)
