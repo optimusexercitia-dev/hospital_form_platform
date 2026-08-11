@@ -379,7 +379,10 @@ async function seatProfessionalCreateInline(
   }
 
   if (opts.linkage === 'possui_conta') {
-    await dialog.getByRole('radio', { name: 'Possui conta' }).check()
+    // 'Possui conta' is a substring of 'Não possui conta' — both radios are in
+    // the SAME group at the SAME time, so the default substring match resolves
+    // to 2 elements (confirmed live by the gate run). exact:true throughout.
+    await dialog.getByRole('radio', { name: 'Possui conta', exact: true }).check()
     await pickFromTypeahead(
       page,
       dialog,
@@ -388,7 +391,7 @@ async function seatProfessionalCreateInline(
       opts.platformUserName ?? '',
     )
   } else {
-    await dialog.getByRole('radio', { name: 'Não possui conta' }).check()
+    await dialog.getByRole('radio', { name: 'Não possui conta', exact: true }).check()
     if (opts.assertLinkageGating) {
       // Choosing the radio alone is not enough — the audited consequence
       // confirmation is a SEPARATE required step.
@@ -414,9 +417,13 @@ async function seatExternalCreate(
 ) {
   const dialog = await openAddParticipantDialog(page)
   await dialog.getByRole('radio', { name: 'Pessoa externa ou órgão' }).check()
-  await dialog.getByRole('button', { name: 'Cadastrar novo' }).click()
-  await dialog.getByLabel('Tipo').selectOption({ label: opts.typeLabel })
-  await dialog.getByLabel('Nome').fill(opts.displayName)
+  // exact:true — 'Cadastrar novo' / 'Tipo' / 'Nome' are each a substring of
+  // the professional lane's 'Cadastrar novo profissional' / 'Tipo
+  // profissional' / 'Nome completo'; the lanes are mutually exclusive at
+  // runtime, but exact:true removes the dependency on that assumption.
+  await dialog.getByRole('button', { name: 'Cadastrar novo', exact: true }).click()
+  await dialog.getByLabel('Tipo', { exact: true }).selectOption({ label: opts.typeLabel })
+  await dialog.getByLabel('Nome', { exact: true }).fill(opts.displayName)
   await dialog.getByLabel('Papel').selectOption({ label: opts.roleLabel })
   if (opts.involvementNote) {
     await dialog.getByLabel('Resumo do envolvimento').fill(opts.involvementNote)
@@ -464,12 +471,27 @@ async function changeParticipantRole(
   const row = rosterRow(page, participantName)
   await row.getByRole('button', { name: 'Alterar papel' }).click()
 
-  const menu = page.getByRole('menu')
+  // Scoped by the lead-confirmed menu label ("Definir papel") rather than left
+  // as a bare `getByRole('menu')` — cheap extra insurance against any other
+  // menu that could ever be open at the same point in a future test.
+  const menu = page.getByRole('menu', { name: 'Definir papel' })
   await expect(menu).toBeVisible({ timeout: 10_000 })
+  // NOT exact:true here, deliberately: the 7 seeded role labels (Médico
+  // denunciado / Denunciante / Testemunha / Relator / Representante legal /
+  // Órgão regulador externo / Paciente afetado) have no substring relationship
+  // with EACH OTHER — checked pairwise — so there is no collision among the
+  // options this menu can show. Forcing exact:true would risk a FALSE
+  // NEGATIVE instead: the disabled "current role" menuitem may carry
+  // decorative text (a "(atual)" suffix or similar) that an exact match would
+  // then fail to find, and that shape isn't specified either way.
   await expect(menu.getByRole('menuitem', { name: currentRoleLabel })).toBeDisabled()
   await menu.getByRole('menuitem', { name: newRoleLabel }).click()
 
-  await expect(row.getByText(newRoleLabel)).toBeVisible({ timeout: 10_000 })
+  // exact:true — role-display text on the row is exactly the shape that broke
+  // elsewhere in this file when a participant's own NAME happened to contain
+  // the role text (EXT-CREATE, KBD-1); a future caller of this shared helper
+  // could hit the same thing.
+  await expect(row.getByText(newRoleLabel, { exact: true })).toBeVisible({ timeout: 10_000 })
 }
 
 /**
@@ -504,7 +526,9 @@ async function resolveLinkageViaRoster(
   const dialog = page.getByRole('dialog', { name: 'Resolver vínculo' })
   await expect(dialog).toBeVisible({ timeout: 10_000 })
 
-  await dialog.getByRole('radio', { name: 'Possui conta' }).check()
+  // Same collision as the add-dialog's linkage radiogroup (this dialog reuses
+  // it verbatim, per the contract) — 'Possui conta' ⊂ 'Não possui conta'.
+  await dialog.getByRole('radio', { name: 'Possui conta', exact: true }).check()
   await pickFromTypeahead(
     page,
     dialog,
@@ -602,7 +626,9 @@ test('PROF-PICK seat a professional respondent via the pick-existing typeahead',
   })
 
   await expect(rosterRow(page, SEEDED_PROF_NAME)).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, SEEDED_PROF_NAME).getByText('Médico denunciado')).toBeVisible()
+  await expect(
+    rosterRow(page, SEEDED_PROF_NAME).getByText('Médico denunciado', { exact: true }),
+  ).toBeVisible()
 
   await signOut(page)
 })
@@ -623,7 +649,9 @@ test('PROF-CREATE seat a professional respondent via create-inline (possui conta
   })
 
   await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, fullName).getByText('Médico denunciado')).toBeVisible()
+  await expect(
+    rosterRow(page, fullName).getByText('Médico denunciado', { exact: true }),
+  ).toBeVisible()
 
   await signOut(page)
 })
@@ -647,7 +675,9 @@ test('LINKAGE-UX submit stays disabled until the linkage radiogroup is chosen; n
   })
 
   await expect(rosterRow(page, 'Perito Sem Conta (E4)')).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator')).toBeVisible()
+  await expect(
+    rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator', { exact: true }),
+  ).toBeVisible()
 
   await signOut(page)
 })
@@ -676,7 +706,13 @@ test('EXT-CREATE seat an external denunciante via create — proves create_exter
   })
 
   await expect(rosterRow(page, EXTERNAL_NAME)).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, EXTERNAL_NAME).getByText('Denunciante')).toBeVisible()
+  // exact:true — found in my own sweep, not the lead's list: EXTERNAL_NAME
+  // ("João Denunciante Externo (E4)") itself CONTAINS "Denunciante" as a
+  // substring — an unscoped match resolves to 2 elements within this same
+  // row (the name text AND the role text), a strict-mode violation.
+  await expect(
+    rosterRow(page, EXTERNAL_NAME).getByText('Denunciante', { exact: true }),
+  ).toBeVisible()
 
   const rows = await dbQuery<{ id: string }>('participants', {
     organization_id: `eq.${ORG_A}`,
@@ -708,7 +744,9 @@ test('EXT-REUSE seat the SAME external denunciante again via reuse-first search 
     roleLabel: 'Testemunha',
   })
 
-  await expect(rosterRow(page, EXTERNAL_NAME).getByText('Testemunha')).toBeVisible({ timeout: 10_000 })
+  await expect(
+    rosterRow(page, EXTERNAL_NAME).getByText('Testemunha', { exact: true }),
+  ).toBeVisible({ timeout: 10_000 })
 
   // The strongest proof of reuse: TWO case_participants rows now point at the
   // SAME participant_id captured in EXT-CREATE — not a second, duplicate
@@ -749,17 +787,22 @@ test('CHANGE-ROLE change a participant\'s role', async ({ page }) => {
   await gotoCase(page)
 
   // Reuses LINKAGE-UX's "Perito Sem Conta (E4)" (currently "Relator").
-  await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator')).toBeVisible({
-    timeout: 10_000,
-  })
+  // exact:true throughout this test, defensively (no proven collision in
+  // today's role vocabulary, but role-display text is exactly the shape that
+  // just broke elsewhere in this file — cheap insurance).
+  await expect(
+    rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator', { exact: true }),
+  ).toBeVisible({ timeout: 10_000 })
   await changeParticipantRole(page, 'Perito Sem Conta (E4)', 'Relator', 'Testemunha')
   // Both halves, explicitly at the call site (not just inside the helper):
   // the new role arrived AND the old one is gone — an absence-only check
   // passes on a no-op-to-something-else or a broken role display.
-  await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Testemunha')).toBeVisible({
-    timeout: 10_000,
-  })
-  await expect(rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator')).toHaveCount(0)
+  await expect(
+    rosterRow(page, 'Perito Sem Conta (E4)').getByText('Testemunha', { exact: true }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    rosterRow(page, 'Perito Sem Conta (E4)').getByText('Relator', { exact: true }),
+  ).toHaveCount(0)
 
   await signOut(page)
 })
@@ -775,7 +818,13 @@ test('PRIMARY-SET set the first primary subject', async ({ page }) => {
   await signInAs(page, CHEFE)
   await gotoCase(page)
 
-  await expect(rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal')).toHaveCount(0)
+  // exact:true — 'Sujeito principal' is a substring of the row's own
+  // 'Definir como sujeito principal' button, which IS present on a non-primary
+  // row; the unscoped substring match would find that button and fail this
+  // count(0) check even though no badge exists yet.
+  await expect(
+    rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
+  ).toHaveCount(0)
   await setPrimarySubject(page, SEEDED_PROF_NAME)
 
   await signOut(page)
@@ -787,18 +836,24 @@ test('PRIMARY-MOVE promote a different respondent to primary subject — must su
   await signInAs(page, CHEFE)
   await gotoCase(page)
 
-  await expect(rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal')).toBeVisible({
-    timeout: 10_000,
-  })
+  // exact:true throughout this test — see PRIMARY-SET's comment; the row's own
+  // 'Definir como sujeito principal' button is a substring superset of the
+  // badge text and is present/absent in complementary states to the badge, so
+  // an unscoped match silently checks the wrong element in both directions.
+  await expect(
+    rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
+  ).toBeVisible({ timeout: 10_000 })
 
   await setPrimarySubject(page, 'Dr. Novo Respondente (E4)')
 
   // Moved, not duplicated: the new primary carries the badge, the old one does
   // NOT, and the HC0E7 pt-BR error text is nowhere on the page.
   await expect(
-    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal'),
+    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal', { exact: true }),
   ).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal')).toHaveCount(0)
+  await expect(
+    rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
+  ).toHaveCount(0)
   await expect(page.getByText(/já existe sujeito principal/i)).toHaveCount(0)
 
   await signOut(page)
@@ -810,9 +865,10 @@ test('PRIMARY-MOVE-CANCEL declining the confirmation leaves the incumbent primar
   await signInAs(page, CHEFE)
   await gotoCase(page)
 
-  // Incumbent from PRIMARY-MOVE: "Dr. Novo Respondente (E4)".
+  // Incumbent from PRIMARY-MOVE: "Dr. Novo Respondente (E4)". exact:true — see
+  // PRIMARY-SET's comment on the button/badge substring collision.
   await expect(
-    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal'),
+    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal', { exact: true }),
   ).toBeVisible({ timeout: 10_000 })
 
   await rosterRow(page, SEEDED_PROF_NAME)
@@ -825,10 +881,15 @@ test('PRIMARY-MOVE-CANCEL declining the confirmation leaves the incumbent primar
 
   // Nothing changed: the incumbent keeps the badge, the declined candidate does
   // not — this is the assertion that makes the guard real, not decorative.
+  // exact:true both — the declined candidate's row still shows its own
+  // 'Definir como sujeito principal' button (she was never promoted), which
+  // the unscoped substring match would find and wrongly report as count 1.
   await expect(
-    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal'),
+    rosterRow(page, 'Dr. Novo Respondente (E4)').getByText('Sujeito principal', { exact: true }),
   ).toBeVisible()
-  await expect(rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal')).toHaveCount(0)
+  await expect(
+    rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
+  ).toHaveCount(0)
 
   await signOut(page)
 })
@@ -899,15 +960,22 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
   }
   await expect(radioExterna).toBeChecked()
 
-  const createButton = dialog.getByRole('button', { name: 'Cadastrar novo' })
+  // exact:true on 'Cadastrar novo' / 'Tipo' / 'Nome': each is a substring of
+  // the PROFESSIONAL lane's equivalent ('Cadastrar novo profissional' /
+  // 'Tipo profissional' / 'Nome completo'). The two lanes are mutually
+  // exclusive by the radiogroup selection above, so this is very likely
+  // scope-safe already (the other lane's fields shouldn't be mounted) — but
+  // that rests on an unverified assumption about conditional rendering, and
+  // exact:true removes the dependency on it entirely for free.
+  const createButton = dialog.getByRole('button', { name: 'Cadastrar novo', exact: true })
   await tabTo(page, createButton)
   await page.keyboard.press('Enter')
 
-  const typeSelect = dialog.getByLabel('Tipo')
+  const typeSelect = dialog.getByLabel('Tipo', { exact: true })
   await tabTo(page, typeSelect)
   await arrowSelectNative(page, typeSelect, 'Pessoa externa')
 
-  const nameField = dialog.getByLabel('Nome')
+  const nameField = dialog.getByLabel('Nome', { exact: true })
   await tabTo(page, nameField)
   await page.keyboard.type('Testemunha Teclado (E4)')
 
@@ -921,7 +989,13 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
   await expect(dialog).toHaveCount(0, { timeout: 10_000 })
 
   await expect(rosterRow(page, 'Testemunha Teclado (E4)')).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, 'Testemunha Teclado (E4)').getByText('Testemunha')).toBeVisible()
+  // exact:true — found in my own sweep: the participant's own NAME
+  // ("Testemunha Teclado (E4)") contains "Testemunha" as a substring, the
+  // exact same shape as EXT-CREATE's "Denunciante" collision, just self-
+  // inflicted by this test's own naming choice rather than a coincidence.
+  await expect(
+    rosterRow(page, 'Testemunha Teclado (E4)').getByText('Testemunha', { exact: true }),
+  ).toBeVisible()
 
   await signOut(page)
 })
