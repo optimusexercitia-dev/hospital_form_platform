@@ -1,5 +1,10 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
+
+import { createClient } from '@/lib/supabase/server'
+import { searchParticipants } from '@/lib/queries/participants'
+import type { ParticipantSearchResult } from '@/lib/queries/participants'
 import type { ParticipantType } from '@/lib/queries/cases'
 
 /**
@@ -14,10 +19,18 @@ import type { ParticipantType } from '@/lib/queries/cases'
  * `case_participants` / `case_types` flag, and authorizes coordinator-only — a plain
  * reader calling one gets `42501` / `HC0E4`.
  *
- * CONTRACT-FIRST STUB (BE-1): signatures + input shapes are the frozen contract the
- * E2/E3 ethics UI binds to. Bodies land in BE-5 (participant/professional writers).
- * All user-facing strings will be pt-BR (Rule 10); raw Postgres errors never reach the
- * UI (CLAUDE.md §8). Reads live in `src/lib/queries/cases.ts` (Rule 9).
+ * The BE-1 signatures below are the FROZEN contract the E2/E3/E4 ethics UI binds to;
+ * ETH·E4 implements the bodies without changing any of them. All user-facing strings
+ * are pt-BR (Rule 10); raw Postgres errors never reach the UI (CLAUDE.md §8). Reads
+ * live in `src/lib/queries/cases.ts` and `src/lib/queries/participants.ts` (Rule 9).
+ *
+ * ETH·E4 adds two exports, both additive:
+ *   - `createExternalParticipant` — the external/institutional mint lane (ADR 0108 D8).
+ *   - `searchParticipantCandidates` — the typeahead transport for the client dialog,
+ *     mirroring `searchReferenceCandidates` in `src/lib/responses/actions.ts`. A
+ *     NAMED action from a `'use server'` module, deliberately: passing a server
+ *     function down as a prop to a Client Component is the shape that produced
+ *     BUG-QI-001 twice.
  */
 
 // ---------------------------------------------------------------------------
@@ -58,8 +71,22 @@ export interface CreateProfessionalProfileState extends ActionState {
 
 /** Fields accepted when linking a participant to a case in a role (ADR 0072 D6). */
 export interface CaseParticipantInput {
-  /** `participants.id` — the registry identity to link. */
-  participantId: string
+  /**
+   * `participants.id` — the registry identity to link. Required UNLESS
+   * `professionalProfileId` is given (ETH·E4), in which case the registry identity
+   * is resolved from the profile.
+   */
+  participantId?: string
+  /**
+   * ETH·E4 (ADR 0108 D1): `professional_profiles.id` for the professional lane.
+   *
+   * A professional profile has NO `participants` row until it is first seated, so
+   * the picker can only ever hand back a profile id for an unseated professional.
+   * When this is set, the action calls `ensure_professional_participant` to
+   * get-or-create the registry identity and seats THAT — which is why the two
+   * lanes share one action instead of two.
+   */
+  professionalProfileId?: string | null
   /** `case_participant_roles.id` — the role to assign (type/role mismatch → `HC0E3`). */
   roleId: string
   /** Mark as the case's primary subject (≤1 live per case; `HC0E7`). Defaults false. */
@@ -94,39 +121,179 @@ export type ProfessionalProfilePatch = Partial<
 >
 
 // ---------------------------------------------------------------------------
-// Not-implemented stub helper (BE-1). References every arg so the frozen param
-// names stay lint-clean; BE-5 replaces each body with the real RPC call.
+// pt-BR error mapping (locator contract §6). RAW POSTGRES ERRORS NEVER REACH THE
+// UI (CLAUDE.md §8) — every RPC below funnels through `mapParticipantError`.
+//
+// Each RPC raises its own pt-BR message, which is more specific than the generic
+// constant, so the message is preferred and the constant is the fallback for the
+// case where PostgREST hands back an empty message.
 // ---------------------------------------------------------------------------
 
-function notImplemented(fn: string, ..._args: unknown[]): never {
-  throw new Error(`${fn} not implemented (ETH·E1 BE-5 — contract stub)`)
+const MESSAGES = {
+  generic: 'Não foi possível concluir a operação. Tente novamente.',
+  forbidden: 'Você não tem permissão para esta ação.',
+  roleTypeMismatch: 'Papel inválido para o tipo de participante.',
+  primaryExists: 'Já existe um sujeito principal ativo neste caso.',
+  linkageUnresolved:
+    'Resolva o vínculo de conta deste profissional antes de indicá-lo como denunciado.',
+  caseExcluded: 'Você está impedido neste caso e não pode exercer a coordenação sobre ele.',
+  linkageFrozen:
+    'O vínculo deste profissional está congelado enquanto ele for denunciado em um caso ativo.',
+  notFound: 'Registro não encontrado.',
+  missingParticipant: 'Selecione um participante.',
+  missingRole: 'Selecione um papel.',
+  missingProfile: 'Profissional não informado.',
+  missingOrg: 'Organização não informada.',
+  nameRequired: 'Informe o nome.',
+  linkedNeedsUser: 'Selecione o usuário da plataforma para vincular este profissional.',
+  unlinkedTakesNoUser:
+    'Um profissional sem conta na plataforma não pode ser vinculado a um usuário.',
+} as const
+
+/** SQLSTATEs the participant/professional doors raise (ADR 0072 D6 · 0078 M1 · 0108). */
+const HC_ROLE_TYPE_MISMATCH = 'HC0E3'
+const HC_NOT_COORDINATOR = 'HC0E4'
+const HC_PRIMARY_EXISTS = 'HC0E7'
+const HC_LINKAGE_UNRESOLVED = 'HC0F0'
+const HC_CASE_EXCLUDED = 'HC0F1'
+const HC_LINKAGE_FROZEN = 'HC0F2'
+const PG_INSUFFICIENT_PRIVILEGE = '42501'
+const PG_CHECK_VIOLATION = '23514'
+const PG_NO_DATA_FOUND = 'P0002'
+
+function mapParticipantError(
+  error: { code?: string; message?: string } | null,
+): string {
+  if (!error) return MESSAGES.generic
+  switch (error.code) {
+    case HC_ROLE_TYPE_MISMATCH:
+      return error.message || MESSAGES.roleTypeMismatch
+    case HC_NOT_COORDINATOR:
+      return error.message || MESSAGES.forbidden
+    case HC_PRIMARY_EXISTS:
+      return error.message || MESSAGES.primaryExists
+    case HC_LINKAGE_UNRESOLVED:
+      return error.message || MESSAGES.linkageUnresolved
+    case HC_CASE_EXCLUDED:
+      return error.message || MESSAGES.caseExcluded
+    case HC_LINKAGE_FROZEN:
+      return error.message || MESSAGES.linkageFrozen
+    case PG_INSUFFICIENT_PRIVILEGE:
+      // The RPC's own text can name the missing capability; a bare 42501 from the
+      // GRANT layer carries a Postgres-shaped message, so prefer the constant only
+      // when the message looks like one.
+      return MESSAGES.forbidden
+    case PG_NO_DATA_FOUND:
+      return error.message || MESSAGES.notFound
+    case PG_CHECK_VIOLATION:
+      return error.message || MESSAGES.generic
+    default:
+      return MESSAGES.generic
+  }
+}
+
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+
+function revalidateCases() {
+  revalidatePath(CASES_LIST_PATH, 'page')
+  revalidatePath(CASE_PATH, 'page')
 }
 
 // ---------------------------------------------------------------------------
 // Participant write authority (D6) — DEFINER RPCs, coordinator-gated
 // ---------------------------------------------------------------------------
 
-/** Link a participant to a case in a role (`add_case_participant`). Returns the new
- * `case_participants.id`. Coordinator-gated; `HC0E3` on a type/role mismatch. */
+/**
+ * Link a participant to a case in a role (`add_case_participant`). Returns the new
+ * `case_participants.id`. Coordinator-gated; `HC0E3` on a type/role mismatch.
+ *
+ * ETH·E4: when handed `professionalProfileId` it first calls
+ * `ensure_professional_participant` to get-or-create the registry identity — the
+ * professional lane's only path, since an unseated professional has no
+ * `participants` row for the picker to return.
+ */
 export async function addCaseParticipant(
   caseId: string,
   input: CaseParticipantInput,
 ): Promise<AddParticipantState> {
-  return notImplemented('addCaseParticipant', caseId, input)
+  if (!caseId) return { ok: false, error: MESSAGES.notFound }
+  if (!input.roleId) {
+    return { ok: false, error: MESSAGES.missingRole, fieldErrors: { roleId: MESSAGES.missingRole } }
+  }
+  if (!input.participantId && !input.professionalProfileId) {
+    return {
+      ok: false,
+      error: MESSAGES.missingParticipant,
+      fieldErrors: { participantId: MESSAGES.missingParticipant },
+    }
+  }
+
+  const supabase = await createClient()
+
+  let participantId = input.participantId ?? ''
+  if (input.professionalProfileId) {
+    const { data: minted, error: mintError } = await supabase.rpc(
+      'ensure_professional_participant',
+      { p_profile_id: input.professionalProfileId },
+    )
+    if (mintError) return { ok: false, error: mapParticipantError(mintError) }
+    if (!minted) return { ok: false, error: MESSAGES.generic }
+    participantId = minted
+  }
+
+  const { data, error } = await supabase.rpc('add_case_participant', {
+    p_case_id: caseId,
+    p_participant_id: participantId,
+    p_role_id: input.roleId,
+    p_is_primary_subject: input.isPrimarySubject ?? false,
+    // The generated arg type is `string | undefined`; the RPC applies
+    // `nullif(btrim(...), '')`, so an omitted summary lands as SQL NULL anyway.
+    p_involvement_summary: input.involvementSummary ?? undefined,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true, caseParticipantId: data ?? undefined }
 }
 
 /** Soft-remove a case participant (`remove_case_participant`; sets `removed_at`). */
 export async function removeCaseParticipant(
   caseParticipantId: string,
 ): Promise<ActionState> {
-  return notImplemented('removeCaseParticipant', caseParticipantId)
+  if (!caseParticipantId) return { ok: false, error: MESSAGES.notFound }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('remove_case_participant', {
+    p_case_participant_id: caseParticipantId,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true }
 }
 
-/** Flip a participant to the case's primary subject (`set_primary_subject`; `HC0E7`). */
+/**
+ * Designate a participant as the case's primary subject (`set_primary_subject`).
+ *
+ * ETH·E4 (ADR 0108 D2) made this door MOVE the designation off any incumbent, so
+ * `HC0E7` is no longer the normal outcome of re-designating — it survives only as
+ * the partial-unique backstop. `HC0F0` is now reachable here too: a promotion is a
+ * respondent designation, and an unresolved linkage is refused.
+ */
 export async function setPrimarySubject(
   caseParticipantId: string,
 ): Promise<ActionState> {
-  return notImplemented('setPrimarySubject', caseParticipantId)
+  if (!caseParticipantId) return { ok: false, error: MESSAGES.notFound }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_primary_subject', {
+    p_case_participant_id: caseParticipantId,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true }
 }
 
 /** Change a participant's role (`set_case_participant_role`; `HC0E3` on mismatch). */
@@ -134,7 +301,81 @@ export async function setCaseParticipantRole(
   caseParticipantId: string,
   roleId: string,
 ): Promise<ActionState> {
-  return notImplemented('setCaseParticipantRole', caseParticipantId, roleId)
+  if (!caseParticipantId) return { ok: false, error: MESSAGES.notFound }
+  if (!roleId) {
+    return { ok: false, error: MESSAGES.missingRole, fieldErrors: { roleId: MESSAGES.missingRole } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_case_participant_role', {
+    p_case_participant_id: caseParticipantId,
+    p_role_id: roleId,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true }
+}
+
+// ---------------------------------------------------------------------------
+// Registry mint lanes (ETH·E4 · ADR 0108 D1 / D8)
+// ---------------------------------------------------------------------------
+
+/**
+ * Mint a non-sensitive EXTERNAL participant (`create_external_participant`).
+ * Returns the new `participants.id`.
+ *
+ * CREATE-ALWAYS by design (ADR 0108 D8): an external person has no natural key,
+ * and deduplicating on display name would silently merge two distinct same-named
+ * people. The dialog searches existing external participants first — reuse is a
+ * human choice, not an inferred one.
+ */
+export async function createExternalParticipant(
+  organizationId: string,
+  participantType: string,
+  displayName: string,
+): Promise<ActionState & { participantId?: string }> {
+  if (!organizationId) return { ok: false, error: MESSAGES.missingOrg }
+  const name = displayName?.trim() ?? ''
+  if (!name) {
+    return {
+      ok: false,
+      error: MESSAGES.nameRequired,
+      fieldErrors: { displayName: MESSAGES.nameRequired },
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_external_participant', {
+    p_org: organizationId,
+    p_type: participantType,
+    p_display_name: name,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true, participantId: data ?? undefined }
+}
+
+/**
+ * Typeahead transport for the add-participant dialog's client island.
+ *
+ * A thin wrapper over the RLS-scoped `searchParticipants` query (Rule 9 keeps the
+ * data access there, not here). Never throws at the UI: a failed search returns an
+ * empty candidate list plus a pt-BR message.
+ */
+export async function searchParticipantCandidates(
+  organizationId: string,
+  query: string,
+  participantTypes: ParticipantType[],
+): Promise<ActionState & { candidates: ParticipantSearchResult[] }> {
+  if (!organizationId) return { ok: false, error: MESSAGES.missingOrg, candidates: [] }
+  try {
+    const candidates = await searchParticipants(organizationId, query, participantTypes)
+    return { ok: true, candidates }
+  } catch {
+    return { ok: false, error: MESSAGES.generic, candidates: [] }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +386,31 @@ export async function setCaseParticipantRole(
 export async function createProfessionalProfile(
   input: ProfessionalProfileInput,
 ): Promise<CreateProfessionalProfileState> {
-  return notImplemented('createProfessionalProfile', input)
+  if (!input.organizationId) return { ok: false, error: MESSAGES.missingOrg }
+  const fullName = input.fullName?.trim() ?? ''
+  if (!fullName) {
+    return {
+      ok: false,
+      error: MESSAGES.nameRequired,
+      fieldErrors: { fullName: MESSAGES.nameRequired },
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_professional_profile', {
+    p_org: input.organizationId,
+    p_full_name: fullName,
+    p_professional_type: input.professionalType ?? undefined,
+    p_license_number: input.licenseNumber ?? undefined,
+    p_license_region: input.licenseRegion ?? undefined,
+    p_specialty: input.specialty ?? undefined,
+    p_affiliation_status: input.affiliationStatus ?? undefined,
+    p_user_id: input.userId ?? undefined,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true, profileId: data ?? undefined }
 }
 
 /** Correct a professional profile (`update_professional_profile`; audited
@@ -155,7 +420,26 @@ export async function updateProfessionalProfile(
   profileId: string,
   patch: ProfessionalProfilePatch,
 ): Promise<ActionState> {
-  return notImplemented('updateProfessionalProfile', profileId, patch)
+  if (!profileId) return { ok: false, error: MESSAGES.missingProfile }
+
+  const supabase = await createClient()
+  // `update_professional_profile` has NO `p_user_id` parameter by design (ADR 0078
+  // M1·1 / A31·5): the linkage plane is `setProfessionalLinkState`'s alone, so a
+  // routine LGPD Art. 18 correction can never move a case exclusion. `patch.userId`
+  // is therefore deliberately NOT forwarded here.
+  const { error } = await supabase.rpc('update_professional_profile', {
+    p_profile_id: profileId,
+    p_full_name: patch.fullName?.trim() || undefined,
+    p_professional_type: patch.professionalType ?? undefined,
+    p_license_number: patch.licenseNumber ?? undefined,
+    p_license_region: patch.licenseRegion ?? undefined,
+    p_specialty: patch.specialty ?? undefined,
+    p_affiliation_status: patch.affiliationStatus ?? undefined,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true }
 }
 
 /**
@@ -184,7 +468,32 @@ export async function setProfessionalLinkState(
   linkState: ProfessionalLinkState,
   userId?: string,
 ): Promise<ActionState> {
-  return notImplemented('setProfessionalLinkState', profileId, linkState, userId)
+  if (!profileId) return { ok: false, error: MESSAGES.missingProfile }
+
+  // Mirror the two schema CHECKs client-side so the user gets a field-level pt-BR
+  // message instead of a 23514 the mapper can only render generically:
+  //   (link_state = 'linked') = (user_id is not null)
+  if (linkState === 'linked' && !userId) {
+    return {
+      ok: false,
+      error: MESSAGES.linkedNeedsUser,
+      fieldErrors: { userId: MESSAGES.linkedNeedsUser },
+    }
+  }
+  if (linkState !== 'linked' && userId) {
+    return { ok: false, error: MESSAGES.unlinkedTakesNoUser }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_professional_link_state', {
+    p_profile_id: profileId,
+    p_link_state: linkState,
+    p_user_id: userId ?? undefined,
+  })
+  if (error) return { ok: false, error: mapParticipantError(error) }
+
+  revalidateCases()
+  return { ok: true }
 }
 
 // Re-export the union type the participant forms bind to, so a form importing an

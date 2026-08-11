@@ -11650,6 +11650,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_external_participant: {
+        Args: { p_display_name: string; p_org: string; p_type: string }
+        Returns: string
+      }
       create_form: {
         Args: {
           p_commission_id: string
@@ -12406,6 +12410,10 @@ export type Database = {
           p_hospital: string
           p_user: string
         }
+        Returns: string
+      }
+      ensure_professional_participant: {
+        Args: { p_profile_id: string }
         Returns: string
       }
       evidence_candidates: {

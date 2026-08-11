@@ -19,7 +19,13 @@ import type {
 } from '@/lib/queries/process-templates'
 import type { CaseTypeTerminology } from '@/lib/cases/terminology'
 import { getCaseTypeTerminology } from '@/lib/queries/case-types'
+// Type-only (erased at compile), so the actions ⇄ queries pair below is NOT a
+// runtime cycle. `ProfessionalLinkState` is declared once, in the frozen BE-1
+// contract module, and re-exported here so a consumer of `CaseParticipant` gets
+// the enum from the same import.
+import type { ProfessionalLinkState } from '@/lib/participants/actions'
 
+export type { ProfessionalLinkState } from '@/lib/participants/actions'
 export type { CaseTypeTerminology } from '@/lib/cases/terminology'
 export { getCaseTypeTerminology } from '@/lib/queries/case-types'
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
@@ -603,6 +609,36 @@ export interface CaseParticipant {
   isPrimarySubject: boolean
   /** Optional free-text involvement note; `null` if unset. */
   involvementSummary: string | null
+  /**
+   * ETH·E4 (ADR 0108 D3) — `professional_profiles.id` for a professional
+   * participant whose profile the CALLER CAN READ; `null` otherwise (a
+   * non-professional participant, or a profile outside
+   * `app.can_read_professional_profile`). The roster's "Resolver vínculo" dialog
+   * targets this id.
+   */
+  professionalProfileId: string | null
+  /**
+   * ETH·E4 (ADR 0108 D3) — the LIVE `professional_profiles.full_name`, or `null`
+   * when the profile is not a professional's / not readable.
+   *
+   * `displayName` above is a MINT-TIME SNAPSHOT taken by
+   * `ensure_professional_participant`; `update_professional_profile` can move the
+   * profile name afterwards and no sync was added (that would modify a second
+   * shipped door for a cosmetic property). Render `professionalFullName ??
+   * displayName`: readers who can see the profile always get the current name, and
+   * the snapshot only ever surfaces to callers who could not read the profile.
+   */
+  professionalFullName: string | null
+  /**
+   * ETH·E4 — the professional's platform-account linkage (ADR 0078 M1·1), or
+   * `null` when not a professional / not readable. `unknown` is what the roster's
+   * "Resolver vínculo" affordance keys off; an unknown-linkage professional cannot
+   * be seated OR promoted as `respondent_doctor` (`HC0F0`).
+   *
+   * Not-readable collapses to `null`, so the affordance FAILS CLOSED: a caller who
+   * cannot read the profile is not nudged to fix it.
+   */
+  linkState: ProfessionalLinkState | null
 }
 
 /**
@@ -956,6 +992,22 @@ interface CaseParticipantRow {
   case_participant_roles: { id: string; key: string; display_name: string } | null
 }
 
+/**
+ * ETH·E4 — the professional-identity enrichment row. Read through
+ * `professional_participants_select`, whose USING clause is
+ * `app.can_read_professional_profile(professional_profile_id, auth.uid())`, so an
+ * unreadable profile simply does not come back and the enrichment collapses to
+ * `null` (fail-closed).
+ */
+interface ProfessionalParticipantRow {
+  participant_id: string
+  professional_profiles: {
+    id: string
+    full_name: string
+    link_state: string
+  } | null
+}
+
 /** The board CAP (WS-6 P3). The cases board is a kanban (column-per-status), which
  * a flat keyset cursor cannot page without emptying columns — so it is CAPPED to
  * the most-recent-N cases (by case_number desc) and returned as a single
@@ -1288,18 +1340,54 @@ async function getCaseDetailUncached(
     .eq('case_id', caseId)
     .is('removed_at', null)
     .returns<CaseParticipantRow[]>()
-  const participants: CaseParticipant[] = (partRows ?? []).map((r) => ({
-    id: r.id,
-    participantId: r.participant_id,
-    participantType: (r.participants?.participant_type ??
-      'other') as ParticipantType,
-    displayName: r.participants?.display_name ?? '',
-    roleId: r.case_participant_roles?.id ?? '',
-    roleKey: r.case_participant_roles?.key ?? '',
-    roleLabel: r.case_participant_roles?.display_name ?? '',
-    isPrimarySubject: r.is_primary_subject,
-    involvementSummary: r.involvement_summary,
-  }))
+
+  // ETH·E4 (ADR 0108 D3) — resolve the LIVE professional identity for the roster.
+  // A SEPARATE query, not an embed off `case_participants`: `participants`' only FK
+  // from `professional_participants` is the COMPOSITE
+  // `(participant_id, participant_type)` one, and an un-hinted embed across it is
+  // the PGRST201 shape. `professional_participants → professional_profiles` has
+  // exactly one FK, so THIS embed is unambiguous.
+  const professionalParticipantIds = (partRows ?? [])
+    .filter((r) => r.participants?.participant_type === 'professional')
+    .map((r) => r.participant_id)
+  const professionalByParticipant = new Map<
+    string,
+    { id: string; fullName: string; linkState: ProfessionalLinkState }
+  >()
+  if (professionalParticipantIds.length > 0) {
+    const { data: profRows } = await supabase
+      .from('professional_participants')
+      .select('participant_id, professional_profiles ( id, full_name, link_state )')
+      .in('participant_id', professionalParticipantIds)
+      .returns<ProfessionalParticipantRow[]>()
+    for (const row of profRows ?? []) {
+      if (!row.professional_profiles) continue
+      professionalByParticipant.set(row.participant_id, {
+        id: row.professional_profiles.id,
+        fullName: row.professional_profiles.full_name,
+        linkState: row.professional_profiles.link_state as ProfessionalLinkState,
+      })
+    }
+  }
+
+  const participants: CaseParticipant[] = (partRows ?? []).map((r) => {
+    const prof = professionalByParticipant.get(r.participant_id) ?? null
+    return {
+      id: r.id,
+      participantId: r.participant_id,
+      participantType: (r.participants?.participant_type ??
+        'other') as ParticipantType,
+      displayName: r.participants?.display_name ?? '',
+      roleId: r.case_participant_roles?.id ?? '',
+      roleKey: r.case_participant_roles?.key ?? '',
+      roleLabel: r.case_participant_roles?.display_name ?? '',
+      isPrimarySubject: r.is_primary_subject,
+      involvementSummary: r.involvement_summary,
+      professionalProfileId: prof?.id ?? null,
+      professionalFullName: prof?.fullName ?? null,
+      linkState: prof?.linkState ?? null,
+    }
+  })
 
   // The CURRENT viewer's live recusal + own conflict declaration (ADR 0072 D4 · E1).
   // The `case_recusals` self-arm surfaces a recused viewer's own row even though the
