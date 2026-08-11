@@ -333,12 +333,30 @@ async function openAddParticipantDialog(page: Page): Promise<Locator> {
  *  portal their listbox to <body>, outside the dialog's own DOM subtree (the
  *  same reason ff5-references.spec.ts's `pickReference` takes a `within` that
  *  isn't always the narrowest container). */
+/**
+ * `optionName` is a plain string, deliberately never wrapped in `new
+ * RegExp(...)` by a caller — every candidate here is a known fixture NAME,
+ * and several carry literal `(` `)` (e.g. "João Denunciante Externo (E4)")
+ * that `new RegExp(name)` would compile as a capture group instead of
+ * literal characters, requiring the impossible text "...Externo E4" and
+ * timing out the `.click()` forever. Same trap this codebase has already
+ * hit and documented twice (ethics-e1-access-spine.spec.ts AC-9;
+ * ethics-e3a-surfacing.spec.ts's `cellCount`) — both landed on the same
+ * fix: a plain string, left as Playwright's default SUBSTRING match (not
+ * `exact: true`). Substring is deliberate, not an oversight: a typeahead
+ * option MAY render more than the bare name (e.g. a professional's CRM
+ * alongside it, per ADR 0108 D5's own disambiguation argument), and a
+ * substring match finds it either way; `exact: true` would only work if the
+ * option's full text is provably nothing but the name, which isn't known
+ * here. `.first()` remains the existing safety net against an unexpected
+ * multi-match.
+ */
 async function pickFromTypeahead(
   page: Page,
   dialog: Locator,
   fieldLabel: string,
   query: string,
-  optionName: string | RegExp,
+  optionName: string,
 ) {
   const input = dialog.getByRole('combobox', { name: fieldLabel })
   await input.click()
@@ -354,7 +372,7 @@ async function submitAddDialog(dialog: Locator) {
 /** Professional lane, pick-existing sub-flow. */
 async function seatProfessionalExisting(
   page: Page,
-  opts: { searchTerm: string; candidateName: string | RegExp; roleLabel: string; involvementNote?: string },
+  opts: { searchTerm: string; candidateName: string; roleLabel: string; involvementNote?: string },
 ) {
   const dialog = await openAddParticipantDialog(page)
   await dialog.getByRole('radio', { name: 'Profissional' }).check()
@@ -376,7 +394,7 @@ async function seatProfessionalCreateInline(
     roleLabel: string
     linkage: 'possui_conta' | 'nao_possui_conta'
     platformUserSearch?: string
-    platformUserName?: string | RegExp
+    platformUserName?: string
     involvementNote?: string
     /** Assert the un-defaulted-choice disabled/enabled states along the way
      *  (LINKAGE-UX wants this; the other seating tests don't need to re-prove it). */
@@ -451,7 +469,7 @@ async function seatExternalCreate(
 /** External lane, reuse-first-search sub-flow (ADR 0108 D8). */
 async function seatExternalReuse(
   page: Page,
-  opts: { searchTerm: string; candidateName: string | RegExp; roleLabel: string },
+  opts: { searchTerm: string; candidateName: string; roleLabel: string },
 ) {
   const dialog = await openAddParticipantDialog(page)
   await dialog.getByRole('radio', { name: 'Pessoa externa ou órgão' }).check()
@@ -535,7 +553,7 @@ async function setPrimarySubject(page: Page, participantName: string | RegExp) {
 async function resolveLinkageViaRoster(
   page: Page,
   participantName: string | RegExp,
-  opts: { platformUserSearch: string; platformUserName: string | RegExp },
+  opts: { platformUserSearch: string; platformUserName: string },
 ) {
   const row = rosterRow(page, participantName)
   await row.getByRole('button', { name: 'Resolver vínculo' }).click()
@@ -637,7 +655,7 @@ test('PROF-PICK seat a professional respondent via the pick-existing typeahead',
 
   await seatProfessionalExisting(page, {
     searchTerm: SEEDED_PROF_SEARCH,
-    candidateName: new RegExp(SEEDED_PROF_NAME),
+    candidateName: SEEDED_PROF_NAME,
     roleLabel: 'Médico denunciado',
     involvementNote: '[E2E] respondente principal (ETH-E4 PROF-PICK).',
   })
@@ -662,7 +680,7 @@ test('PROF-CREATE seat a professional respondent via create-inline (possui conta
     roleLabel: 'Médico denunciado',
     linkage: 'possui_conta',
     platformUserSearch: STAFF3_SEARCH,
-    platformUserName: new RegExp(STAFF3_SEARCH),
+    platformUserName: STAFF3_SEARCH,
   })
 
   await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })
@@ -762,7 +780,7 @@ test('EXT-REUSE seat the SAME external denunciante again via reuse-first search 
 
   await seatExternalReuse(page, {
     searchTerm: 'João Denunciante',
-    candidateName: new RegExp(EXTERNAL_NAME),
+    candidateName: EXTERNAL_NAME,
     roleLabel: 'Testemunha',
   })
 
@@ -947,7 +965,7 @@ test('UNKNOWN-RESOLVE seat an unknown-linkage professional (non-respondent role)
 
   await seatProfessionalExisting(page, {
     searchTerm: 'Vínculo Pendente',
-    candidateName: new RegExp(fullName),
+    candidateName: fullName,
     roleLabel: 'Testemunha',
   })
   await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })
@@ -955,7 +973,7 @@ test('UNKNOWN-RESOLVE seat an unknown-linkage professional (non-respondent role)
 
   await resolveLinkageViaRoster(page, fullName, {
     platformUserSearch: STAFF2_SEARCH,
-    platformUserName: new RegExp(STAFF2_SEARCH),
+    platformUserName: STAFF2_SEARCH,
   })
 
   await expect(rosterRow(page, fullName).getByRole('button', { name: 'Resolver vínculo' })).toHaveCount(0, {
