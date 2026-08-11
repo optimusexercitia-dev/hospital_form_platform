@@ -8553,39 +8553,73 @@ export type Database = {
       }
       referral_internal_notes: {
         Row: {
+          assigned_to: string | null
           author_user_id: string | null
-          body: string
+          body_md: string
           committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
           created_at: string
           id: string
+          note_type_id: string | null
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
+          assigned_to?: string | null
           author_user_id?: string | null
-          body: string
+          body_md: string
           committee_id: string
+          concluded_at?: string | null
+          concluded_by?: string | null
           created_at?: string
           id?: string
+          note_type_id?: string | null
           redacted_at?: string | null
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id: string
+          status?: string
+          title?: string | null
+          type_label?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
+          assigned_to?: string | null
           author_user_id?: string | null
-          body?: string
+          body_md?: string
           committee_id?: string
+          concluded_at?: string | null
+          concluded_by?: string | null
           created_at?: string
           id?: string
+          note_type_id?: string | null
           redacted_at?: string | null
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id?: string
+          status?: string
+          title?: string | null
+          type_label?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "referral_internal_notes_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "referral_internal_notes_author_user_id_fkey"
             columns: ["author_user_id"]
@@ -8601,6 +8635,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "referral_internal_notes_concluded_by_fkey"
+            columns: ["concluded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_internal_notes_note_type_id_fkey"
+            columns: ["note_type_id"]
+            isOneToOne: false
+            referencedRelation: "referral_note_types"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "referral_internal_notes_redacted_by_fkey"
             columns: ["redacted_by"]
             isOneToOne: false
@@ -8612,6 +8660,13 @@ export type Database = {
             columns: ["referral_id"]
             isOneToOne: false
             referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_internal_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -8675,6 +8730,47 @@ export type Database = {
             columns: ["sender_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_note_types: {
+        Row: {
+          archived: boolean
+          commission_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          commission_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          commission_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_note_types_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
             referencedColumns: ["id"]
           },
         ]
@@ -10515,6 +10611,35 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
+      assign_referral_internal_note: {
+        Args: { p_note_id: string; p_user_id: string }
+        Returns: {
+          assigned_to: string | null
+          author_user_id: string | null
+          body_md: string
+          committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          id: string
+          note_type_id: string | null
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_referral_reviewer: {
         Args: {
           p_assignee_user_id: string
@@ -11222,6 +11347,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      conclude_referral_internal_note: {
+        Args: { p_note_id: string }
+        Returns: {
+          assigned_to: string | null
+          author_user_id: string | null
+          body_md: string
+          committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          id: string
+          note_type_id: string | null
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -12006,17 +12160,33 @@ export type Database = {
         }
       }
       create_referral_internal_note: {
-        Args: { p_body: string; p_committee_id: string; p_referral_id: string }
+        Args: {
+          p_assigned_to?: string
+          p_body_md: string
+          p_committee_id: string
+          p_note_type_id?: string
+          p_referral_id: string
+          p_title?: string
+        }
         Returns: {
+          assigned_to: string | null
           author_user_id: string | null
-          body: string
+          body_md: string
           committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
           created_at: string
           id: string
+          note_type_id: string | null
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
         }
         SetofOptions: {
           from: "*"
@@ -12522,6 +12692,10 @@ export type Database = {
       get_referral_attachment_path: {
         Args: { p_attachment_id: string }
         Returns: string
+      }
+      get_referral_case_access_summary: {
+        Args: { p_commission_id: string; p_referral_id: string }
+        Returns: Json
       }
       get_referral_detail: { Args: { p_referral_id: string }; Returns: Json }
       get_referral_patient: { Args: { p_referral_id: string }; Returns: Json }
@@ -13807,15 +13981,24 @@ export type Database = {
       redact_referral_note: {
         Args: { p_note_id: string; p_reason: string }
         Returns: {
+          assigned_to: string | null
           author_user_id: string | null
-          body: string
+          body_md: string
           committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
           created_at: string
           id: string
+          note_type_id: string | null
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
         }
         SetofOptions: {
           from: "*"
@@ -14255,6 +14438,10 @@ export type Database = {
       }
       reorder_rca_timeline: {
         Args: { p_ordered_ids: string[]; p_rca_id: string }
+        Returns: undefined
+      }
+      reorder_referral_note_types: {
+        Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_section: {
@@ -15690,6 +15877,35 @@ export type Database = {
         Returns: undefined
       }
       unassign_narrative: { Args: { p_narrative: string }; Returns: undefined }
+      unassign_referral_internal_note: {
+        Args: { p_note_id: string }
+        Returns: {
+          assigned_to: string | null
+          author_user_id: string | null
+          body_md: string
+          committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          id: string
+          note_type_id: string | null
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       unlink_evidence: { Args: { p_link: string }; Returns: undefined }
       unlink_meeting_case: {
         Args: { p_case_link_id: string }
@@ -16727,6 +16943,40 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_referral_internal_note: {
+        Args: {
+          p_body_md: string
+          p_note_id: string
+          p_note_type_id?: string
+          p_title: string
+        }
+        Returns: {
+          assigned_to: string | null
+          author_user_id: string | null
+          body_md: string
+          committee_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          id: string
+          note_type_id: string | null
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          status: string
+          title: string | null
+          type_label: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
           isOneToOne: true
           isSetofReturn: false
         }
