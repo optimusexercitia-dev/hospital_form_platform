@@ -79,8 +79,29 @@ External type option labels (the five non-sensitive types):
 
 ## 3. Resolve-linkage dialog — `resolve-linkage-dialog.tsx` (frontend)
 
-Dialog accessible name `Resolver vínculo`; reuses the **same** radiogroup, user picker
-and confirmation-checkbox strings as §2a.
+Dialog accessible name `Resolver vínculo` (same string as the roster row button, §1);
+reuses the **same** radiogroup, user picker and confirmation-checkbox strings as §2a.
+
+| Element | Role | Accessible name (exact) |
+| --- | --- | --- |
+| Submit | `button` | `Registrar vínculo com conta` |
+| Cancel | `button` | `Cancelar` |
+
+**Why not `Salvar`, and why not bare `Registrar vínculo`** (pinned 2026-08-11 after the
+tester flagged the gap):
+- The codebase's convention for an **audited assertion** is `Registrar <object>` —
+  `Registrar voto`, `Registrar impedimento`, `Registrar resultado`. `Salvar` appears
+  nowhere as a submit label and would understate what ADR 0108 D6 makes this: an audited
+  human assertion whose `no_account` branch makes the case exclusion vacuously satisfied.
+  It must not read as a casual save.
+- **`Registrar vínculo` is already taken** —
+  `src/components/users/affiliations-panel.tsx:434,499` uses it for *hospital affiliation*
+  (ADR 0097), an unrelated sense of "vínculo". An exact-string reuse is an E2E locator
+  collision hazard in a repo that has been bitten by exactly that.
+- `…com conta` disambiguates against the affiliation sense and matches the §2a radiogroup
+  label `Vínculo com conta na plataforma`.
+
+⚠ Not `Adicionar` — this dialog adds nothing; it resolves the state of an existing profile.
 
 ## 4. Seeded role labels (already in `seed.sql` — do NOT re-invent)
 
