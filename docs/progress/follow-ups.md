@@ -420,36 +420,6 @@ Fixed by blanking comments length-preservingly (self-test 4/4); the count moved 
 which is why ~207 is quoted as heuristic rather than audited. Script in `backend`'s
 scratchpad. Owner: unassigned — needs a triage decision before anyone starts.
 
-### 🔴 FUP-ETH-CPF-1 — the D5 widening also exposes `professional_profiles.cpf` (2026-08-11, backend)
-
-Found by `backend` during the ETH·E4 build, measuring rather than reasoning. **Does not block
-ETH·E4** — the exposure is latent — but ADR [0108](../decisions/0108-eth-e4-participant-seating.md)
-D5's "exposure argument, stated so it can be checked" **enumerates `license_number` / `specialty` /
-`professional_type` and does not name `cpf`.** The PO ratified the widening against an incomplete
-description of what it discloses. That is the finding.
-
-**The substrate, catalog-verified:** `authenticated` holds a **table-wide** SELECT on
-`professional_profiles` — all 17 columns, **no column-list grant**, unlike `profiles` and
-`case_referral`, which both restrict by column. `get_case_professional` returns
-`to_jsonb(<whole row>)`. So any caller whose RLS row-read succeeds gets every column, and D5
-widened *which rows* succeed to every org manager.
-
-**Measured live:** a `staff_admin` of a sibling commission with **no case access** read the
-professional's `full_name` **and** `cpf`.
-
-**Why it is latent, not live:** no door writes the column — neither `create_professional_profile`
-nor `update_professional_profile` has a CPF parameter, so the column is always NULL in practice.
-pgTAP suite **321 K3c** now pins that writer-absence, with the detector **proven able to fire**
-against a planted writer (a detector that finds nothing must be shown able to find something).
-
-**Second-order:** `redact_professional_profile` does **not** scrub `cpf` either, so the redaction
-path would not save it if the column were ever populated.
-
-**Proposed fix** — a column-list SELECT grant excluding `cpf`, mirroring `profiles`. Deliberately
-**not** made inside ETH·E4: it touches a shipped grant on a Class-2 table and is a PO/lead call,
-not a build-time one. Related: the `profiles` column-list-grant trap (every new column needs its
-own GRANT or reads 42501) and FUP-FF5-1's "sem CPF" affordance above.
-
 ### 🔴 FUP-AFF-1 — the authz census is BLIND to write-path doors (2026-08-06, lead)
 
 Recorded as ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 5**.
@@ -547,68 +517,6 @@ BUG-TV-001, because that site names no dropped column — it names a relation th
 
 ⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
 `case_phase_offered_results` rename.
-
-### 🔴 FUP-ETH-1 — NOTHING can seat a professional: "Médico denunciado" is an unfillable panel (2026-08-05)
-
-ETH·E3a shipped the primary-subject rail card ([`case-primary-subject-panel.tsx`](../../src/components/cases/case-primary-subject-panel.tsx),
-rendered by [`case-detail-view.tsx:352`](../../src/components/cases/case-detail-view.tsx:352) when
-`case_types.primary_subject_kind ∈ {professional, entity}`). With `ethics` + `case_participants` +
-`case_types` all flag-ON, **an Ethics case in production will show that panel in its empty state
-forever** — no product path fills it. Found by the PO asking how a professional gets included; the
-answer is that they cannot. Verified against the **live catalog** (`pg_proc` / `pg_policies` / grants /
-`pg_trigger`), not migration text.
-
-Seating a respondent needs four rows. **Two have doors; two have none:**
-
-| Row | Door | |
-| --- | ---- | - |
-| `professional_profiles` | `create_professional_profile` (DEFINER) | ✅ |
-| `participants` (`participant_type='professional'`) | — | ❌ **no writer exists** |
-| `professional_participants` (the link) | — | ❌ **no writer exists** |
-| `case_participants` | `add_case_participant` (DEFINER) | ✅ |
-
-**This is a hole in the substrate, not just missing UI.** A `pg_proc` sweep for `insert into
-participants` returns **exactly one** function — `set_participant_patient`, the patient lane;
-`create_professional_profile` writes `professional_profiles` **only** (no `participants` row, no
-trigger creating one — `professional_profiles` carries one trigger, `guard_professional_linkage`,
-unrelated); nothing anywhere INSERTs `professional_participants` outside [`seed.sql:2592`](../../supabase/seed.sql:2592).
-All four tables are **SELECT-only** for `authenticated` (no INSERT grant, no INSERT policy), so there
-is no direct-DML fallback. `add_case_participant` therefore demands a `participants.id` that no door
-can mint for a professional.
-
-⚠ **The TS layer is still the BE-1 contract stub, and its docblock says otherwise.**
-[`src/lib/participants/actions.ts`](../../src/lib/participants/actions.ts) — all 7 actions
-(`addCaseParticipant`, `removeCaseParticipant`, `setPrimarySubject`, `setCaseParticipantRole`,
-`createProfessionalProfile`, `updateProfessionalProfile`, `setProfessionalLinkState`) call
-`notImplemented()`. The file says *"Bodies land in BE-5"*; **BE-5 (`9180a27`) shipped the SQL RPCs +
-regenerated `database.ts` and never touched it** — the file has two commits ever, both stub-authoring.
-The E1 review's ✅ on D6 is about the RPCs, and is correct at that scope. **Zero callers** of any of
-the 7 exist in `src/` or `e2e/`; there is no `src/components/participants/`. The panel's own docblock
-is honest (*"the full participants roster … not built here"*), as is [`queries/cases.ts:450`](../../src/lib/queries/cases.ts:450)
-(`[]` until BE-7). Sequencing debt, not a regression — but **`grep` for the RPC name says "built" and
-the product says "unreachable"**, which is the §7 "text is not truth" shape.
-
-**Corroboration that no path exists:** [`ethics-e3a-surfacing.spec.ts`](../../e2e/ethics-e3a-surfacing.spec.ts:298)
-seats every respondent with raw `dbInsert('case_participants', …)` — three sites. A spec that must
-bypass the product to reach a shipped panel is the tell.
-
-**To close (backend-owned; contract-first):** ① a DEFINER door minting `participants` +
-`professional_participants` for a professional, mirroring `set_participant_patient` (⚠ it must preserve
-the surrogate-label property ADR 0091 §O pins) · ② fill the 7 action bodies, reads via `src/lib/queries/`
-(Rule 9) · ③ a roster surface on the case detail page (add / remove / set-role / set-primary) · ④ **the
-link-state flow, or ③ dead-ends**: `app.assert_respondent_linkage_resolved` rejects an `unknown`-linkage
-profile from `respondent_doctor` with `HC0F0`, and `setProfessionalLinkState` — the only remedy — is
-one of the stubs.
-
-**Two adjacent seed-only gaps, same shape** (both plausibly in scope): `case_participant_roles` has an
-admin-write RLS policy but **no RPC and no UI** — the 7 roles, incl. `respondent_doctor` → "Médico
-denunciado", exist only because `seed.sql` wrote them; `case_type_terminology` has **no writer at all**,
-so the 5 label slots cannot be edited in-app on any tenant.
-
-▶ **Feeds FUP-FF5-2.** That row asks for an assertion pinning the `participants` writer set by count
-*and* name. Today's catalog answers **one** (`set_participant_patient`) against ADR 0091's prose claim of
-*"exactly two functions"* — so the assertion should be written from the catalog, and the discrepancy
-resolved as part of writing it, **not** from the ADR's number.
 
 ### ⬛ Resolved — rotated 2026-08-06 → [follow-ups-archive.md](./follow-ups-archive.md)
 

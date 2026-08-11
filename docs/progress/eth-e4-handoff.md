@@ -1,5 +1,16 @@
 # ETH·E4 — session handoff (2026-08-11)
 
+> ⬛ **SUPERSEDED 2026-08-11 — the phase is COMPLETE.** This was a mid-phase resume document;
+> its "PAUSED / resume from here" framing is **historical, not live**. The durable record is
+> **[eth-e4-participant-seating.md](./eth-e4-participant-seating.md)**; the backend surface is
+> [backend-state.md § ETH·E4](../backend-state.md).
+>
+> Every open item below was discharged: **§3's 7 unproven specs all ran GREEN** (140 passed ·
+> 0 failed · 0 did-not-run), **§7's checklist is done**, and **QA r3 APPROVED**. Kept unedited
+> because §6's traps are the useful part and rewriting them would lose the record of what it
+> cost to learn them. ⚠ **§7 item 6 is still LIVE**: the remote duplicate check on
+> `professional_participants.professional_profile_id` before any `db push`.
+
 **Branch:** `worktree-ethics-committee-completion` (worktree `.claude/worktrees/ethics-committee-completion`), ~30 commits ahead of `main` @ `9fbc69d`. **Nothing merged, nothing pushed.**
 
 **Phase Gate state:** step 1 ✅ · step 2 ⚠ **RED (UNRUN only, zero assertion failures)** · step 3 QA **r2 CHANGES REQUESTED → all 3 blockers fixed, r3 not yet run** · step 4 not reached.
