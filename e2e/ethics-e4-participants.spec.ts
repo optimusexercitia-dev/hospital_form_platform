@@ -1060,6 +1060,24 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
   }
   await expect(radioExterna).toBeChecked()
 
+  // Prove symptom 2 of BUG-ETHE4-FOCUS-1 is gone too, not just symptom 1: Tab
+  // to the search field (auto-opens its popup via onFocus) and press Escape —
+  // the empty suggestion list should close WITHOUT resetting the dialog's
+  // lane selection or moving focus to the professional lane's search field
+  // (the observed regression: Escape jumped focus to #prof-search and the
+  // lane radio flipped back to "Profissional"). Kept even though the lead's
+  // reading of add-participant-dialog.tsx:242 suggests symptom 2 may be
+  // downstream of symptom 1 (once focus correctly reaches the field so `open`
+  // is genuinely true, the existing Escape handler looks already correct) —
+  // that is a hypothesis to verify against the running app, not a settled
+  // fact, and this assertion pins the intended behavior as a regression
+  // guard either way. Recovers into the rest of the flow normally afterward.
+  const extSearch = dialog.getByRole('combobox', { name: 'Buscar participante externo' })
+  await tabTo(page, extSearch)
+  await page.keyboard.press('Escape')
+  await expect(radioExterna).toBeChecked()
+  await expect(extSearch).toBeFocused()
+
   // exact:true on 'Cadastrar novo' / 'Tipo' / 'Nome': each is a substring of
   // the PROFESSIONAL lane's equivalent ('Cadastrar novo profissional' /
   // 'Tipo profissional' / 'Nome completo'). The two lanes are mutually
