@@ -474,6 +474,18 @@ async function seatProfessionalCreateInline(
     // the SAME group at the SAME time, so the default substring match resolves
     // to 2 elements (confirmed live by the gate run). exact:true throughout.
     await dialog.getByRole('radio', { name: 'Possui conta', exact: true }).check()
+    if (opts.assertLinkageGating) {
+      // The MIRROR of the `no_account` arm's assertion below, and it was missing
+      // (QA r2, MAJOR-3 residual). `linkageOk` has TWO satisfying disjuncts:
+      //   (linkState === 'linked' && Boolean(linkUserId)) || (no_account && confirmed)
+      // Without this line the suite gated only the second one, so deleting
+      // `Boolean(linkUserId)` from the app's `linkageOk` left every test GREEN —
+      // the half that guarantees a "possui conta" professional is actually
+      // resolved to a platform account was unpinned. Name + role are already
+      // satisfied and the radio is already checked, so the ONLY term that can
+      // still be false here is `Boolean(linkUserId)`.
+      await expect(submit).toBeDisabled()
+    }
     await pickFromTypeahead(
       page,
       dialog,
@@ -1169,12 +1181,22 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
 
   const typeSelect = dialog.getByLabel('Tipo', { exact: true })
   await tabTo(page, typeSelect)
-  // QA m7: a no-op in practice — extType's own React state already defaults
-  // to 'external_person' ("Pessoa externa"), so arrowSelectNative's current-
-  // value check is expected to match immediately, zero ArrowDown presses.
-  // Kept (not asserted away) because the guard makes it correct either way,
-  // and a future change to that default would still be handled correctly
-  // here rather than silently assuming the old one.
+  // QA m6(e)/m7: `arrowSelectNative(…, 'Pessoa externa')` ALONE proves nothing
+  // here. `extType` defaults to 'external_person', the FIRST option, so the
+  // helper's current-value check matches at iteration 0 and presses ZERO keys —
+  // KBD-1's whole point (this select is keyboard-operable) went unexercised, and
+  // the call passes identically on a select that ignores the keyboard entirely.
+  //
+  // Move OFF the default, assert the move actually happened, then come back. The
+  // round trip exercises the keyboard path in both directions while leaving the
+  // flow seating the same type the rest of the test expects — which matters,
+  // because `department`/`institution`/`other` have no seeded role and would fail
+  // later at role selection rather than here (ADR 0108 open item 3).
+  const defaultExtType = await typeSelect.inputValue()
+  await page.keyboard.press('ArrowDown')
+  await expect(typeSelect).not.toHaveValue(defaultExtType)
+  await page.keyboard.press('ArrowUp')
+  await expect(typeSelect).toHaveValue(defaultExtType)
   await arrowSelectNative(page, typeSelect, 'Pessoa externa')
 
   const nameField = dialog.getByLabel('Nome', { exact: true })

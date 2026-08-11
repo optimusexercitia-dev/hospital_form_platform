@@ -127,6 +127,26 @@ export type ProfessionalProfilePatch = Partial<
 // Each RPC raises its own pt-BR message, which is more specific than the generic
 // constant, so the message is preferred and the constant is the fallback for the
 // case where PostgREST hands back an empty message.
+//
+// ⚠ WHICH ARMS MAY PREFER `error.message` IS A MEASURED PROPERTY, NOT A STYLE
+// CHOICE — and it was re-derived FROM THE CATALOG (`pg_proc.prosrc`), because QA
+// r2 filed the opposite conclusion from a premise the catalog contradicts. The
+// rule is: prefer `error.message` only where the SQLSTATE cannot also be raised
+// by the ENGINE, because every engine message is English and CLAUDE.md §8 forbids
+// raw Postgres text in the UI.
+//
+//   HC* (custom SQLSTATEs) — SAFE to prefer. A custom code cannot originate in the
+//     engine; only our own `raise … using errcode` produces it. Always pt-BR.
+//   P0002            — SAFE to prefer. Six doors raise it deliberately in pt-BR
+//     (`set_primary_subject`, `set_case_participant_role` ×2,
+//     `update_professional_profile`, `set_professional_link_state`,
+//     `ensure_professional_participant`, `create_external_participant`) with text
+//     strictly better than `notFound` ("papel inválido", "organização não
+//     informada"). The engine raises P0002 only via `SELECT … INTO STRICT`, of
+//     which `public`/`app` contain ZERO occurrences.
+//   42501 and 23514  — NOT safe. MIXED: our doors raise them in pt-BR *and* the
+//     engine raises them in English on the very same code, so the message alone
+//     cannot tell them apart. Both therefore return the constant. See below.
 // ---------------------------------------------------------------------------
 
 const MESSAGES = {
@@ -178,15 +198,30 @@ function mapParticipantError(
       return error.message || MESSAGES.caseExcluded
     case HC_LINKAGE_FROZEN:
       return error.message || MESSAGES.linkageFrozen
-    case PG_INSUFFICIENT_PRIVILEGE:
-      // The RPC's own text can name the missing capability; a bare 42501 from the
-      // GRANT layer carries a Postgres-shaped message, so prefer the constant only
-      // when the message looks like one.
-      return MESSAGES.forbidden
     case PG_NO_DATA_FOUND:
+      // SAFE — see the header: deliberately raised in pt-BR by six doors, and
+      // unreachable from the engine (no `INTO STRICT` in `public`/`app`).
       return error.message || MESSAGES.notFound
+    case PG_INSUFFICIENT_PRIVILEGE:
+      // MIXED, so the constant ALWAYS. Three doors raise 42501 in pt-BR
+      // ("apenas a coordenação … pode registrar profissionais"), but the engine
+      // raises it too — measured: `new row violates row-level security policy for
+      // table "organizations"`, plus `permission denied for …` from the GRANT
+      // layer. Preferring the message would leak that English into the UI.
+      // (The previous comment here described a "prefer the constant only when the
+      // message looks like one" test that the code never implemented.)
+      return MESSAGES.forbidden
     case PG_CHECK_VIOLATION:
-      return error.message || MESSAGES.generic
+      // MIXED, so the constant ALWAYS — this arm was the one real §8 leak.
+      // `create_professional_profile` / `create_external_participant` raise 23514
+      // in pt-BR, but a genuine CHECK violation on any table they write yields
+      // the engine's English `new row for relation "…" violates check constraint
+      // "…"` (measured). Nothing user-visible is lost: the two pt-BR raises are
+      // "informe o nome …" / "tipo … inválido", which `createProfessionalProfile`
+      // and `createExternalParticipant` already reject BEFORE the RPC with
+      // `MESSAGES.nameRequired` + a `fieldErrors` entry, so the door's raise is a
+      // defence-in-depth backstop a user does not reach.
+      return MESSAGES.generic
     default:
       return MESSAGES.generic
   }

@@ -63,7 +63,23 @@ const read = (f) => {
   return cache.get(f)
 }
 
-const isClient = (f) => /^\s*["']use client["']/m.test(read(f).slice(0, 400))
+/**
+ * RULE 5 — the directive is matched over the WHOLE file, not a prefix window.
+ *
+ * This read `.slice(0, 400)`. `isClient` decides the SCAN SET (`clients` below),
+ * so a miss is FAIL-OPEN: the module is silently never scanned and a real
+ * violation ships wearing a green check — exactly the BUG-FBE-005 class this gate
+ * exists to catch. This repo's convention is a long explanatory file header, so
+ * 400 bytes is a budget the code style is actively spending. Measured at the time
+ * of the change: 0 client modules and 1 `use server` module already sat beyond it
+ * (`src/app/(public)/verificar/page.tsx`), i.e. the window was one long header
+ * away from going blind rather than blind today.
+ *
+ * Widening cannot produce a false negative: over-inclusion only means a module
+ * gets scanned that need not be. A stray `"use client"` in a nested string would
+ * add a module to the scan set, never remove one.
+ */
+const isClient = (f) => /^\s*["']use client["']/m.test(read(f))
 
 /**
  * RULE 3 — a server module is defined by the MODULE SET it pulls, not by one literal.
