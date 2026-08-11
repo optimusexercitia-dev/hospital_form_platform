@@ -47,6 +47,24 @@ Verified against the **live catalog** (`pg_proc` incl. `prosecdef`, `pg_policies
 | A8 | Table name confirmed **`case_access_grants`** (`source` ∈ `manual_grant, nsp_investigation, referral, break_glass`; `list_case_access` filters `source='manual_grant'` and is coordinator-gated — hence the new RPC is still required). |
 | A9 | **Direction bug re-verified post-merge.** Only `encaminhamentos/[referralId]/page.tsx:111` needs the fix; `direcao-tecnica/[referralId]/page.tsx:85` also omits the arg but never consumes `detail.direction` (its "direction" hits are prose about *technical direction*). Signature confirmed at `src/lib/queries/referrals.ts:637`. |
 
+### ✅ A12 — D3's case-card control is TWO states, not one button (PO decision, 2026-08-11)
+
+**D3 is amended.** It read: one button "Abrir registro do caso" that navigates when the viewer can
+read the case and "otherwise … opens a dialog listing who has access". Phase 3 deviated and the PO
+ratified the deviation: a button that promises to open the case and instead opens a roster is a
+dark pattern, and the two states are genuinely different actions.
+
+**Binding contract (what shipped, browser-verified):**
+- `summary.canRead === true` → a **link** labelled **"Abrir registro do caso"** →
+  `commissionHref(org, commission, 'casos', caseId)`.
+- otherwise → muted text **"Você não tem acesso a este caso."** + an outline button
+  **"Quem tem acesso?"** which opens the five-group access dialog (A7).
+- Receiving side with no linked case → unchanged empty state pointing at "Vincular caso" in Ações.
+
+Card headings also differ by side (the source committee is not "reviewing" its own case):
+**"Caso de origem"** (source) / **"Caso em análise"** (target). Phase 4 specs must be written
+against THIS contract, not D3's original wording.
+
 ### 🔴 A11 — Rule 7 is enforced at RENDER time, not write time (binding constraint on Phase 3)
 
 Phase 2 discovered that the plan's instruction to "reuse the exact sanitizer `saveNarrativeBody`
