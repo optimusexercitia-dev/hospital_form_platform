@@ -170,15 +170,33 @@ not *"text the redesign deleted"*.
 
 ⚠ **Two PRE-EXISTING fragilities observed while running — neither caused by RDR, both relevant to
 triaging the full gate:**
-1. `technical-direction-referrals.spec.ts` has **no `case_referrals` flag lifecycle of its own**
-   and depends on ambient state. Run straight after any referral spec's `afterAll` (which sets the
-   flag OFF) DT-1 fails at "Encaminhar caso"; with the flag ON it is 5/5. Batch order decides it.
+1. ✅ **FIXED 2026-08-11 (gate-blocking; the lead's full `e2e:prod` hit it in batch 17).**
+   `technical-direction-referrals.spec.ts` had **no `case_referrals` flag lifecycle of its own** and
+   depended on ambient state. The new `referral-registros.spec.ts` ran before it in batch 17 and
+   forced the flag OFF in `afterAll`; DT-1 then failed at "Encaminhar caso" and, because that file
+   is `mode: 'serial'`, the other **four tests never ran** — 4 did-not-run, which proves nothing
+   while reading like silence. The fragility was pre-existing but the new spec is what triggered
+   it, so it was ours. **Both halves fixed, at the property level rather than the instance:**
+   - *Teardown must restore, never force.* `case_referrals` is GLOBAL, the gate batches many specs
+     onto one server, and the seed default (ON) does not reappear between specs of a batch. All
+     three force-OFF teardowns now **read the flag in `beforeAll` and restore that exact value** —
+     `referral-registros`, **and the two pre-existing offenders** `phase22-referrals` /
+     `phase22-referrals-governance`. This matches what `case-patient.spec.ts` and
+     `patient-index.spec.ts` already did; `perf-sweep-wave2.spec.ts` even carried a comment naming
+     `phase22-referrals` as the cause, so the hazard was known and worked around locally but never
+     fixed at source.
+   - *Every spec owns its precondition.* `technical-direction-referrals.spec.ts` now asserts
+     `case_referrals` ON in its own `beforeAll` (reading the value back, so a silent no-op cannot
+     masquerade as a precondition) and restores what it found. This is the half that **survives
+     someone adding another referral spec later** — the teardown fix alone would be re-armed by the
+     next one.
 2. `perf-sweep-wave2.spec.ts` creates **26 CCIH referrals and never deletes them**. The commission
    hub paginates at 25 by recency, so afterwards the seeded ENC-0001 is off page 1 and
    `phase22-referrals.spec.ts` **Flow 1a** fails — reading as a hub regression when it is fixture
    debt. Reproduced here at 45 CCIH-sourced referrals; green again on a fresh reset. The new
    `referral-registros.spec.ts` therefore **purges its own 4 referrals by subject prefix** in
-   `afterAll` and asserts ENC-0001/ENC-0002 survive that delete.
+   `afterAll` and asserts ENC-0001/ENC-0002 survive that delete. **Still open** — it is not in
+   RDR's scope to change that spec's fixture strategy, and `RESET=1` masks it batch-to-batch.
 
 ⚠ **The A9 direction fix has NO observable surface left to regress against.** After D1 dropped the
 direction chip, nothing on the detail page renders `detail.direction` — verified by tracing every
@@ -373,6 +391,36 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+⛔ **BUG-MIN-E2E-1 — `meeting-audio-minutes.spec.ts` test 1 fails reproducibly on this branch's
+environment, stranding 9 did-not-run.** Found 2026-08-11 by `tester` while clearing the RDR·4
+gate's did-not-run counts. **Severity: major (a whole feature's E2E is unproven). NOT RDR — filed
+so the 9 are not mistaken for silence.** Owner: unassigned.
+
+**Failure:** `e2e/meeting-audio-minutes.spec.ts:264` — after `page.unroute(uploadUrlPattern)`,
+`await expect(uploadDialog).not.toBeVisible({timeout: 30_000})` never satisfies; the dialog stays
+open, so `submitMinutesJob` is not succeeding. The file is `mode: 'serial'` and this is test 1, so
+its 9 siblings never run. **This exactly accounts for batch 7's 9 did-not-run in the lead's full
+gate — same file, same line, same count.**
+
+**Classified, not guessed — four measurements:** (a) **reproduces in ISOLATION** on a fresh reset
+against the prod standalone build (`RESET=1 REBUILD=0 SPECS="meeting-audio-minutes.spec.ts"` →
+`0 passed · 1 failed · 9 did-not-run`, GATE RED), so it is **not** batch-order or
+cross-spec contamination; (b) **not in RDR's blast radius** — `git log main..HEAD --name-only`
+matches no meetings/minutes path, and the spec file itself is unchanged since `d4a8d09`;
+(c) it was **10/10 GREEN in a different worktree at 08:37 the same day**
+(`/tmp/e2e-prod-gate/batch-7-rerun.log`), so the spec is not universally broken; (d) **storage is
+healthy and is not the cause** — the container log shows `sign_upload_url` 200 → `upload_signed`
+200 → `sign` 200 → then `delete_many` 200, i.e. the upload succeeds and the object is removed
+again, the signature of the app's own failure-cleanup path running after the job submission fails.
+
+**Ruled out:** missing/renamed env provisioning in this worktree's Phase-3 `.env.local` — the
+hypothesis the spec's own header invites. Both this worktree and the main checkout carry the same
+**four** `MINUTES_*` keys with identical names (`_SERVICE_URL`, `_SERVICE_API_KEY`,
+`_CALLBACK_HMAC_SECRET`, `_CALLBACK_BASE_URL`). Values were deliberately **not** compared. A stale
+value (e.g. a `MINUTES_SERVICE_URL` pointing at a service now down) remains the most likely
+remaining cause and is the first thing to check — it is a config/app question, not a spec one, so
+`tester` stopped here rather than edit application code.
 
 ⛔ **BUG-RDR-001 — a controlled `Dialog` does NOT restore focus to its trigger on close; focus
 drops to `<body>`.** Phase RDR·4 (`tester`, 2026-08-11). **Severity: major (accessibility),
@@ -580,6 +628,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-11 | **RDR·4 · TESTER · batch-order fix for the gate-blocking `case_referrals` teardown, verified in BOTH orders** (`RESET=1 REBUILD=0`, prod standalone, reusing the lead's 18:24 build — the change is spec-only). Ordered as the lead's batch 17 ran it | **BOTH GATE GREEN, 0 did-not-run in each.** ① `SPECS="technical-direction-referrals.spec.ts"` → `5 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 1 batches` · accounted 5/5. ② `SPECS="referral-registros.spec.ts technical-direction-referrals.spec.ts"` (the failing order) → `21 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 1 batches` · accounted 21/21 — **DT-2…DT-5, the batch-17 four that never ran, now run and pass.** ③ Regression check that the source-level fix did not disturb the two pre-existing files it touched: `SPECS="phase22-referrals phase22-referrals-governance referral-registros technical-direction-referrals"` → `90 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 2 batches` · accounted 90/90. (Each run's 16th test is KB-3, the intentional `test.fail()` pinning BUG-RDR-001; the gate counts it as passed.) `npm run typecheck` 0 errors · `npm run lint` 0/0. ⚠ Run ② tripped the gate's own PREFLIGHT — "auth token grant FAILING; /health reports 200" — and it **auto-recovered** by cycling the stack (the documented `supabase_vector`/kong 502 class), which is why the gate does not trust `/health`. ⛔ **Batch 7's 9 did-not-run are NOT this and are NOT RDR** — traced to `meeting-audio-minutes.spec.ts` test 1, which reproduces **in isolation** on a fresh reset (`0 passed · 1 failed · 9 did-not-run`, GATE RED) and is filed as **BUG-MIN-E2E-1**; this branch touches no meetings/minutes file and the same spec was 10/10 green in another worktree at 08:37. ⚠ Method note: `/tmp/e2e-prod-gate/` is shared across worktrees and never cleaned — its `*-rerun.log` files were 08:37–12:50 from a DIFFERENT worktree and show green; every log cited here was timestamp-checked against its own run before being read as evidence |
 | 2026-08-11 | **RDR·4 · TESTER · locator sweep + new redesign specs, targeted runs only.** **NOT a full-suite run** — `npm run e2e:prod` is the lead's step, explicitly out of scope. Dev server, chromium, `--workers=1`, measured on a **fresh `supabase db reset --local`** (an earlier red was traced to fixture debt, see below). Files changed: `e2e/phase22-referrals.spec.ts` (6 sites), `e2e/phase22-referrals-governance.spec.ts` (18 sites), new `e2e/referral-registros.spec.ts` (16 tests) | **GREEN — 85/85 on the combined ordered run of the three referral specs** (`referral-registros` 16 · `phase22-referrals-governance` 29 · `phase22-referrals` 40; the 16th is KB-3, an intentional `test.fail()` pinning BUG-RDR-001). Plus, individually: `technical-direction-referrals` **5/5 unmodified**, `patient-index -g "AC-3"` **1/1**, `nsp-per-hospital -g "AC-6\|AC-7"` **6/6 + 1 pre-existing deliberate skip**. `npm run typecheck` 0 errors · `npm run lint` 0/0 (incl. `lint:vacuous`: 176 spec files, 0 findings). **One new bug filed — BUG-RDR-001** (dialog focus not restored on close; measured pre-existing + platform-wide, pinned by KB-3). ⚠ **Two reds during the loop were NOT regressions and are worth pre-triaging for the full gate:** (a) `phase22-referrals` Flow 1a went red at 45 CCIH-sourced referrals because `perf-sweep-wave2.spec.ts` leaks 26 and the hub paginates at 25 by recency — green on a fresh reset; the new spec purges its own 4 by subject prefix and asserts ENC-0001/0002 survive. (b) `technical-direction-referrals` DT-1 fails whenever it runs after any referral spec's `afterAll` turns `case_referrals` OFF — it owns no flag lifecycle; 5/5 with the flag on. **Sweep denominator, re-derived by PROPERTY not by the survey's string list:** the survey swept *text the redesign deleted* and could not see two other classes — (1) DOM shape (`thread.locator('li')` now matches synthesized event rows; fixed via `li[data-thread-row="message"]`), and (2) **text the redesign ADDED**: the 9 `describe()` arms of `referral-thread-event.tsx` quote panel-owned strings, so `getByText('Resolução 1')` and `locator('li').filter({hasText:'Revisor(a) principal'})` became 2-match strict violations at 7 sites. Fixed by scoping to the owning `region`, never by `.first()` |
 | 2026-08-11 | **ETH·E4 · LEAD · final gate after the r3 audit** — the 7 specs batch 16 never verdicted, + both ethics specs, + the 2 heaviest `getCaseDetail` consumers (`case-access`, `phase7-cases`), `RESET=1 BATCH_TESTS=22` | **GATE GREEN — 140 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 7 batches · accounted 140/141** (1 legitimate skip). Integrity checked BEFORE trusting the number: batches **1–7 no gaps** · **one** `reset FAILED` (b5) which **RECOVERED** and still reported 21/21 · denominator reconciles. **This clears r2’s unproven set** — the 4 case-detail-heavy specs that never ran are green, so `45e68c5`’s "throw instead of degrade silently" change is proven, not assumed. Two earlier ETH·E4 gate rows (the GREEN 1068/0 run @ `7e55f01` and the RED-on-UNRUN-only run @ `2efa691`) rotated → [test-run-archive.md](docs/progress/test-run-archive.md) |
 | 2026-08-11 | **LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — the prod-standalone full-suite run for the branch closing BUG-ACT-EXPIRY-1 / BUG-ACT-ACL-1 / BUG-VACUOUS-ASSERT-1 / FUP-VACUOUS-AUDIT-1. 17 batches, fresh build + fresh server + fresh DB per batch. | **GREEN after triage. 1055 passed · 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 17 batches.** ✅ **COVERAGE IS COMPLETE — the summary's "accounted for 1058 of 1064" is NOT a hole:** 1055+1+2 = 1058 accounted, and the 6 skipped make up the difference exactly (batches 1r/2/4/8/15/17). Checked per the standing traps *before* trusting the number: **no `reset FAILED`**, **no batch-number gaps** (1–17 all present), denominator reconciled against `spec-counts.txt`. **The 1 failure — `phase7-cases.spec.ts` AC-HappyPath (batch 15) — is a NON-REPRODUCING FLAKE, not a regression.** Evidence, in order: (a) its two attempts failed at **different** lines — attempt 1 at L752 (`Concluído` badge), retry #1 at L564 (`Fase 2 recomendada`), and the retry failing EARLIER is the signature of attempt 1's own partial run having mutated the shared case, so the retry is not independent evidence; (b) `phase7-cases.spec.ts` alone on a fresh DB → **15/15**; (c) batch 15's **exact spec list in its original order** on a fresh DB → **67 passed / 2 skipped / 0 failed** (same 69 denominator); (d) re-run through the gate itself against the **prod standalone build** (`SPECS=… REBUILD=0`) → **GATE GREEN, 67/69**. Not in the blast radius either: the branch touches none of batch 15's four specs, and its only behavioural change (`can_manage_professional` expiry) gates 10 professional-identity/ethics-vocab write RPCs — `close_case` is not among them (catalog-derived). **Batch 1's first attempt (12 failed) was infra** — `ERR_CONNECTION_REFUSED`, the server not yet up; the gate auto-classified and re-ran it → 64 passed, 1 flaky. **The 2 flaky:** `act-role-assumption.spec.ts:157` (the hat switch) and `phase2-auth-shell.spec.ts:268` (logout redirect), both green on retry #1. Far below the documented ~18–27 flaky baseline. ⚠ The gate output also makes **FUP-VACUOUS-COVERAGE-1** visible: `phi-remediation` REM-8/REM-9 render as `-` (skipped) in every batch — they never run. |

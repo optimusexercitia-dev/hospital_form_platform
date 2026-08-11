@@ -327,7 +327,22 @@ function pastIso(daysAgo: number): string {
 // Suite-level flag lifecycle
 // ---------------------------------------------------------------------------
 
+/**
+ * What `case_referrals` held BEFORE this file ran, so teardown puts back what it found
+ * instead of forcing OFF.
+ *
+ * ⚠ The flag is GLOBAL and the prod gate batches many specs onto one server; the seed
+ * default (ON) does not reappear between specs of the same batch. A force-OFF teardown
+ * therefore changes the world for every later file in the batch — the mechanism that
+ * cost `technical-direction-referrals.spec.ts` DT-1 plus 4 did-not-run in batch 17.
+ * Read through the psql door this file already owns (`app.feature_flags` is not
+ * PostgREST-exposed, and `set_referrals_feature_flag` does not exist in the catalog).
+ */
+let referralsFlagBefore = true
+
 test.beforeAll(async ({ request }) => {
+  referralsFlagBefore =
+    sql(`select enabled from app.feature_flags where key = 'case_referrals';`) === 't'
   try {
     await setReferralsFlag(request, true)
   } catch {
@@ -342,11 +357,11 @@ test.beforeAll(async ({ request }) => {
 
 test.afterAll(async ({ request }) => {
   try {
-    await setReferralsFlag(request, false)
+    await setReferralsFlag(request, referralsFlagBefore)
   } catch {
     const { execSync } = await import('child_process')
     execSync(
-      'npx supabase db query --local "UPDATE app.feature_flags SET enabled = false WHERE key = \'case_referrals\'"',
+      `npx supabase db query --local "UPDATE app.feature_flags SET enabled = ${referralsFlagBefore} WHERE key = 'case_referrals'"`,
       { cwd: process.cwd(), stdio: 'pipe' },
     )
   }

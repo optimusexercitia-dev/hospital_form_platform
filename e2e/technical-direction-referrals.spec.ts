@@ -103,8 +103,52 @@ function purge(): void {
   )
 }
 
-test.beforeAll(() => purge())
-test.afterAll(() => purge())
+/**
+ * `case_referrals` is a GLOBAL flag, and this file OWNS ITS PRECONDITION.
+ *
+ * ⚠ It did not, and that cost a gate. Every route this spec drives — the case page's
+ * "Encaminhar caso" wizard, `/o/{org}/direcao-tecnica`, the DT referral detail — is
+ * behind the flag. The prod gate batches many specs onto ONE server, the seed default
+ * (ON) does not reappear between specs of the same batch, and the referral specs that
+ * share a batch flip the flag in their own `afterAll`. Batch 17 ran
+ * `referral-registros` (which forced it OFF) before this file: DT-1 could not find
+ * "Encaminhar caso", and because the file is `mode: 'serial'` the other FOUR tests
+ * never ran at all — 4 did-not-run, which proves nothing while reading like silence.
+ *
+ * Depending on batch order is not a fixable property of other people's teardowns:
+ * the next referral spec anyone adds re-arms it. So this file asserts its own
+ * precondition, and restores whatever it found (the same discipline
+ * `case-patient.spec.ts` / `patient-index.spec.ts` already follow).
+ *
+ * `set_referrals_feature_flag` does NOT exist in the live catalog — every spec that
+ * posts to it 404s and falls through to a CLI/psql path. This uses the psql door this
+ * file already owns, and READS BACK the value, so a silent no-op cannot masquerade as
+ * a precondition.
+ */
+let referralsFlagBefore: boolean
+
+function readReferralsFlag(): boolean {
+  return sql(`select enabled from app.feature_flags where key = 'case_referrals';`) === 't'
+}
+
+function setReferralsFlag(enabled: boolean): void {
+  sql(`update app.feature_flags set enabled = ${enabled} where key = 'case_referrals';`)
+  expect(
+    sql(`select enabled from app.feature_flags where key = 'case_referrals';`),
+    'case_referrals flag did not take the requested value',
+  ).toBe(enabled ? 't' : 'f')
+}
+
+test.beforeAll(() => {
+  referralsFlagBefore = readReferralsFlag()
+  setReferralsFlag(true)
+  purge()
+})
+
+test.afterAll(() => {
+  purge()
+  setReferralsFlag(referralsFlagBefore)
+})
 
 test.describe.configure({ mode: 'serial' })
 

@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn, accessToken } from "./helpers/auth"
 
@@ -161,6 +162,37 @@ async function setReferralsFlag(req: APIRequestContext, enabled: boolean) {
   }
 }
 
+/**
+ * What `case_referrals` held BEFORE this file ran, so `afterAll` can put back what it
+ * found instead of forcing OFF.
+ *
+ * ⚠ Forcing OFF is a real gate hazard, not untidiness: the flag is GLOBAL, the prod
+ * gate batches many specs onto one server, and the seed default (ON) does not reappear
+ * between specs of the same batch — so this file's teardown silently changes the world
+ * for every later file in its batch. `perf-sweep-wave2.spec.ts` already carries a
+ * defensive re-enable naming THIS file as the cause; `technical-direction-referrals`
+ * had no such defence and lost DT-1 plus 4 did-not-run to the same mechanism (batch 17).
+ * `case-patient.spec.ts` / `patient-index.spec.ts` already restore-what-they-found.
+ *
+ * Read through the psql door the sibling referral specs already use — `app.feature_flags`
+ * is not PostgREST-exposed, and `set_referrals_feature_flag` does not exist in the live
+ * catalog (every caller 404s and falls through).
+ */
+const DB_CONTAINER = 'supabase_db_azkbbhskturikxpgmafq'
+
+function readReferralsFlag(): boolean {
+  const out = execSync(
+    `docker exec ${DB_CONTAINER} psql -U postgres -d postgres -tA -c ` +
+      `"select enabled from app.feature_flags where key = 'case_referrals';"`,
+    { encoding: 'utf8' },
+  )
+    .toString()
+    .trim()
+  return out === 't'
+}
+
+let referralsFlagBefore = true
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -254,12 +286,12 @@ test.beforeAll(async ({ request }) => {
   // Enable the case_referrals flag for the whole suite. If the helper RPC
   // doesn't exist we catch the error and use the supabase CLI as a fallback
   // (local-only; safe per the gate constraint).
+  referralsFlagBefore = readReferralsFlag()
   try {
     await setReferralsFlag(request, true)
   } catch {
     // The RPC shim doesn't exist — use supabase db query (local only)
     // This is a no-op if the flag is already on (idempotent UPDATE).
-    const { execSync } = await import('child_process')
     execSync(
       'npx supabase db query --local "UPDATE app.feature_flags SET enabled = true WHERE key = \'case_referrals\'"',
       { cwd: process.cwd(), stdio: 'pipe' },
@@ -343,12 +375,12 @@ test.beforeAll(async ({ request }) => {
 })
 
 test.afterAll(async ({ request }) => {
+  // RESTORE what this file found — never force OFF. See `readReferralsFlag`.
   try {
-    await setReferralsFlag(request, false)
+    await setReferralsFlag(request, referralsFlagBefore)
   } catch {
-    const { execSync } = await import('child_process')
     execSync(
-      'npx supabase db query --local "UPDATE app.feature_flags SET enabled = false WHERE key = \'case_referrals\'"',
+      `npx supabase db query --local "UPDATE app.feature_flags SET enabled = ${referralsFlagBefore} WHERE key = 'case_referrals'"`,
       { cwd: process.cwd(), stdio: 'pipe' },
     )
   }

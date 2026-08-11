@@ -128,6 +128,11 @@ async function restGet<T>(req: APIRequestContext, path: string, bearer: string):
   return Array.isArray(data) ? (data as T[]) : []
 }
 
+/** The stored `case_referrals` value, so teardown can put back what it found. */
+function readReferralsFlag(): boolean {
+  return sql(`select enabled from app.feature_flags where key = 'case_referrals';`) === 't'
+}
+
 /**
  * Flip the `case_referrals` feature flag, then READ IT BACK.
  *
@@ -279,6 +284,8 @@ let evtReferralId: string // full lifecycle + one message — EVT-1
 let dtReferralId: string // technical-direction target — DET-4
 let requestedAction: { id: string; label: string }
 let replyOutcomeId: string
+/** What `case_referrals` held BEFORE this file ran — restored verbatim in afterAll. */
+let referralsFlagBefore: boolean
 
 /**
  * ⚠ Fixture subjects must NOT contain "registros internos": the subject renders as
@@ -294,6 +301,7 @@ const REG_BODY = `Corpo **markdown** do registro (${RUN_TAG}).`
 const REG_BODY_EDITED = `Corpo revisado pela responsável (${RUN_TAG}).`
 
 test.beforeAll(async ({ request }) => {
+  referralsFlagBefore = readReferralsFlag()
   setReferralsFlag(true)
   await new Promise((r) => setTimeout(r, 500))
 
@@ -421,7 +429,16 @@ test.afterAll(() => {
     'the RDR cleanup must not touch the seeded ENC-0001/ENC-0002 fixtures',
   ).toBe('2')
 
-  setReferralsFlag(false)
+  // RESTORE the flag to what this file FOUND — never force it OFF.
+  //
+  // ⚠ This is the teardown half of a real gate failure, not hygiene. `case_referrals`
+  // is GLOBAL shared state, the prod gate batches many referral specs onto one server,
+  // and the seed default (ON) does not reappear between specs of the same batch. An
+  // afterAll that forces OFF silently changes the world for every later file in the
+  // batch: it took out `technical-direction-referrals.spec.ts` DT-1 in batch 17 and
+  // cost 4 did-not-run. `case-patient.spec.ts` and `patient-index.spec.ts` already
+  // restore-what-they-found; this now matches them.
+  setReferralsFlag(referralsFlagBefore)
 })
 
 // ===========================================================================
