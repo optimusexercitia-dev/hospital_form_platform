@@ -647,7 +647,13 @@ interface ReferralDetailJson {
  */
 export async function getReferralDetail(
   referralId: string,
-  viewerCommissionId: string | null = null,
+  // REQUIRED ON PURPOSE — no default. This parameter carried `= null` until the A9
+  // fix, and that default is exactly how the bug shipped: omitting the argument
+  // silently resolved `direction` to 'outgoing' for every reader. After D1 dropped
+  // the direction chip nothing renders `direction` on the detail page, so no E2E
+  // assertion can catch a regression here — the compiler is the only guard left.
+  // Callers with no viewing commission (the QPS drill-down) pass `null` explicitly.
+  viewerCommissionId: string | null,
 ): Promise<ReferralDetail | null> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_referral_detail', {

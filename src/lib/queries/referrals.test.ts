@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * Pins the A9 `direction` computation in {@link getReferralDetail}.
  *
  * WHY THIS FILE EXISTS. The referral detail page called
- * `getReferralDetail(referralId)` without a `viewerCommissionId`, so `direction`
+ * `getReferralDetail(referralId)` without a `viewerCommissionId` — a call shape now
+ * rejected by the compiler, the parameter having been made required — so `direction`
  * always resolved `'outgoing'` and the receiving committee's header read "saída".
  * The fix threads `access.commission.id` through. But plan D1 then removed the
  * direction chip, so **nothing on the detail page renders `detail.direction` any
@@ -135,11 +136,14 @@ describe('getReferralDetail — the A9 direction computation', () => {
     expect(detail?.direction).toBe('outgoing')
   })
 
-  it('defaults to outgoing when viewerCommissionId is omitted entirely', async () => {
-    // The literal call shape of the pre-A9 page (`getReferralDetail(referralId)`).
-    // Pins that the parameter is OPTIONAL with a null default, so the QPS and
-    // hub callers keep compiling — the fix is at the call site, not here.
-    const detail = await getReferralDetail('ref-1')
+  it('resolves outgoing when the caller has no viewing commission (explicit null)', async () => {
+    // The pre-A9 call shape `getReferralDetail(referralId)` is now a COMPILE ERROR:
+    // the parameter was made required precisely because omitting it is how the bug
+    // shipped, and after D1 removed the direction chip no runtime assertion can
+    // catch a regression. A caller with genuinely no viewing commission (the QPS
+    // drill-down, the direção-técnica page) states `null` deliberately instead.
+    // Verified at the time of writing: exactly two production call sites exist.
+    const detail = await getReferralDetail('ref-1', null)
     expect(detail?.direction).toBe('outgoing')
   })
 

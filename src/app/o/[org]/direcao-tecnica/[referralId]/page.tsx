@@ -83,7 +83,11 @@ export default async function TechnicalDirectionReferralPage({
     notFound();
   }
 
-  const detail = await getReferralDetail(referralId);
+  // `null` is correct and deliberate here, not an omission: a técnica-direção referral
+  // has no target COMMISSION to align a viewer against, and this page never renders
+  // `detail.direction`. Passed explicitly because the parameter is required — see the
+  // A9 note on `getReferralDetail`.
+  const detail = await getReferralDetail(referralId, null);
   if (!detail) {
     notFound();
   }
