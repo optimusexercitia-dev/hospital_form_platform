@@ -18,7 +18,7 @@ import {
   phaseResultsEnabled,
 } from "@/lib/queries/phase-results";
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
-import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseParticipantRoles } from "@/lib/queries/participants";
 import { featureEnabled } from "@/lib/queries/feature-flags";
@@ -129,7 +129,11 @@ export default async function StaffCaseDetailPage({
             access.organization.id,
             detail.case.caseTypeId,
           ),
-          listAddableMembers(access.commission.id),
+          // ⚠ NOT `listAddableMembers` — that RPC excludes people already in this
+          // commission, i.e. exactly the members most likely to be the respondent.
+          // The dead end pushed coordinators to `no_account`, which makes the case
+          // exclusion vacuously satisfied (ADR 0108 D6). Org-scoped, RLS-scoped.
+          listLinkableOrgUsers(access.organization.id),
         ])
       : [[], []];
 

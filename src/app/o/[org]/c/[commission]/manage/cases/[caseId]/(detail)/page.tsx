@@ -16,7 +16,7 @@ import {
   phaseResultsEnabled,
 } from "@/lib/queries/phase-results";
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
-import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
@@ -104,7 +104,10 @@ export default async function CaseDetailPage({
           access.organization.id,
           detail.case.caseTypeId,
         ),
-        listAddableMembers(access.commission.id),
+        // ⚠ NOT `listAddableMembers` — see the sibling staff route: that RPC
+        // excludes people already in this commission, i.e. the likeliest
+        // respondents (ADR 0108 D6 / the `no_account` dead end).
+        listLinkableOrgUsers(access.organization.id),
       ])
     : [[], []];
 
