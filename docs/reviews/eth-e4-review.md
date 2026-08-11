@@ -909,3 +909,181 @@ are not blocking; fix or file, either is fine, but do not carry them as closed.
 ---
 
 **VERDICT (r2): CHANGES REQUESTED — narrow (3 blocking items, all small; P0-1 closed)**
+
+---
+
+# Round 3 — audit + re-review (2026-08-11, lead)
+
+- **Reviewed at:** `22c3166` (r2 was `120318a`; the three r2 fixes plus this round's four)
+- **r2 verdict:** CHANGES REQUESTED — narrow (B-1 / B-2 / B-3)
+
+# VERDICT (r3): **APPROVED**
+
+All three r2 blockers verify closed **at the source, not from the commit messages**. Four
+further items were found and fixed, one of which **reverses an r2 finding** — acting on
+MAJOR-1 as written would have been a regression. Everything r2 left open is either closed or
+filed with an id; nothing is carried as closed that is not.
+
+## The r2 blockers — verified independently
+
+| | Verdict | How |
+| --- | --- | --- |
+| **B-1** | **CLOSED** | `profSearchError`/`extSearchError` state added; both `else` arms set it and clear stale results (`:657-667`, `:700-708`). The load-bearing half is the render: `showList` / `showError` / `showEmpty` (`:293-295`) are **three-way exclusive on `error`**, so the "Nenhum resultado. Você pode cadastrar um novo." copy is now unreachable on a failed search. `aria-invalid` is set too. I checked the render, not the doc comment claiming it. |
+| **B-2** | **CLOSED** | The professional lane now carries an identity-keyed memo (`mintedProfessionalId` + `mintedProfessionalIdentity`, `:812-846`). `setMintedProfessionalId` commits **before** the step-2/step-3 calls that can fail, so both r2 sub-cases are covered: the CRM-blank duplicate mint and the CRM-entered 23505 permanent dead end. |
+| **B-3** | **CLOSED** | `cases.ts:1354-1364` destructures `partError` and throws. |
+
+## ⚠ r2's MAJOR-1 was WRONG, and the prescribed fix would have been a regression
+
+r2 signed MAJOR-1 off as PARTIAL with the reasoning: *"No door on this platform raises
+`P0002` deliberately (zero `pg_proc` hits), so that arm is engine English 100% of the time."*
+
+**The catalog says the opposite.** Six doors raise `P0002` deliberately, in pt-BR, several
+with text strictly better than the generic constant:
+
+```
+set_primary_subject              'participante não encontrado'
+set_case_participant_role        'participante não encontrado' · 'papel inválido'
+update_professional_profile      'profissional não encontrado'
+set_professional_link_state      'profissional não encontrado'
+ensure_professional_participant  'profissional não encontrado'
+create_external_participant      'organização não informada'
+```
+
+Dropping `error.message` there — the r2 remedy — would have replaced *"papel inválido"* with
+*"Registro não encontrado."* The engine reaches `P0002` only through `SELECT … INTO STRICT`,
+of which `public`/`app` hold **zero**. The arm is correct as written; the measured reason is
+now recorded in the file so this does not get re-filed a third time.
+
+**The real §8 leak was the arm r2 bundled with it.** `23514` is genuinely **MIXED**: our doors
+raise it in pt-BR *and* the engine raises it in English on the same SQLSTATE. Measured live
+rather than assumed:
+
+```
+23514  new row for relation "t_chk" violates check constraint "t_chk_a_check"
+42501  new row violates row-level security policy for table "organizations"
+```
+
+So `23514` now always returns the constant. **Nothing user-visible is lost:** both pt-BR
+raises are *"informe o nome …"* / *"tipo … inválido"*, and `createProfessionalProfile` /
+`createExternalParticipant` already reject those **before** the RPC with `MESSAGES.nameRequired`
+plus a `fieldErrors` entry — the door's raise is a defence-in-depth backstop a user does not
+reach. No spec or unit test asserts any of the three strings (swept).
+
+`42501` was already returning the constant, which is right — but its comment described a
+*"prefer the constant only when the message looks like one"* test the code never implemented.
+Comment now matches code. **The general rule, stated once:** prefer `error.message` only where
+the SQLSTATE cannot also originate in the engine — i.e. custom `HC*` codes and `P0002`.
+`src/lib/vocabulary/actions.ts` already followed exactly this; the two mappers now agree.
+
+## The other three findings
+
+- **Gate fail-open (r2 MINOR, MAJOR-4 residual).** `check-client-server-imports.mjs` read the
+  `"use client"` directive from only the first **400 bytes**, and `isClient` decides the SCAN
+  SET — so a miss is **fail-open**: the module is never scanned and a BUG-FBE-005 violation
+  ships green. Now whole-file. **Measured before changing**, because a first count is not a
+  finding: an *unanchored* grep says 16 modules are beyond the window; **anchored, the real
+  answer is 0** (all 16 were comment mentions). One `use server` module was genuinely beyond
+  it. So: latent, not live — and the gate still reports the **same 472 client modules**, which
+  is the evidence that 0 were blind. Self-test 10/10, 0 findings.
+- **Two vacuous E2E assertions (m6(e)/m7 and the MAJOR-3 residual), and one of my own.**
+  KBD-1's `arrowSelectNative(…, 'Pessoa externa')` pressed **zero** keys (`extType` defaults to
+  the first option), so it passed identically on a select that ignores the keyboard; it now
+  moves off the default, asserts the move, and returns — deliberately leaving the seated type
+  alone, since the other external types have no seeded role (open item 3) and would fail later
+  at role selection. The `possui_conta` arm gained the `toBeDisabled()` gate its
+  `nao_possui_conta` twin already had. ⚠ **My first version of that fix was itself dead:**
+  `assertLinkageGating` had exactly one caller and it took the *other* arm, so the guard I
+  added was a branch no test executed. Caught by sweeping the spec for options no caller
+  passes (0 remaining, both spec files). **PROF-CREATE now passes it.**
+- **m1 and m10.** `listCaseParticipantRolesForAdmin` moved to `src/lib/queries/participants.ts`
+  (Architecture Rule 9) — not cosmetic: every export of a `'use server'` module is a callable
+  Server-Action endpoint, and this one alone in that file never called `authorizeOrg` (RLS
+  `is_org_member` bounded it, so nothing leaked). `revalidateCases` now also revalidates the
+  staff `casos/[caseId]` route, which mounts the same roster.
+
+## Falsifiability — the new assertion was PROVEN able to fail
+
+A gate assertion that has never been seen to fail is a claim, not a test. Neutralized
+`Boolean(linkUserId)` out of `linkageOk`, rebuilt, re-ran:
+
+```
+Error: expect(locator).toBeDisabled() failed
+1 failed  [chromium] › ethics-e4-participants.spec.ts:765:5 › PROF-CREATE …
+GATE RED — 1 real failure(s).      (exit 1)
+```
+
+Reverted; tree clean, no residue. Before this change, deleting that conjunct left the suite
+**green**. KBD-1's keyboard step is self-proving: `not.toHaveValue(default)` after `ArrowDown`
+passing **is** the proof that the native select responds to the keyboard, which the old call
+never established.
+
+## The unproven set — cleared
+
+r2 could not close the gate because 69 tests in batch 16 never produced a verdict, and the
+handoff flagged that the specs most likely to exercise `45e68c5`'s new throw behaviour were
+exactly the ones that never ran. **All 7 are now green**, run together with the two ETH·E4
+specs and the two heaviest `getCaseDetail` consumers:
+
+```
+GATE SUMMARY: 140 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 7 batches
+COVERAGE: accounted for 140 of 141 collected tests          GATE GREEN (exit 0)
+```
+
+Integrity checked **before** trusting the number, per the standing traps: batches **1–7 with
+no gaps**; **one** `reset FAILED` (batch 5) which **RECOVERED** and still reported 21/21
+accounted; denominator reconciles exactly (140 passed + 1 skipped = 141 collected); **zero**
+`did-not-run`, `infra`, or `server_dead`.
+
+The throw change was also de-risked structurally: all three embeds `getCaseDetail` now throws
+on carry **exactly one FK** each (`case_participants→participants`,
+`case_participants→case_participant_roles`, `professional_participants→professional_profiles`),
+so the PGRST201 shape cannot arise there.
+
+## P0-1 — re-verified from the catalog, independently of r2
+
+```
+table-level SELECT for authenticated : ABSENT (correct)
+granted = 12 of 17 · projected = 12 · projection == granted?  YES — set_eq holds
+REVOKED : cpf, redacted_by, retention_pin_reason, retention_pinned_at, user_id
+```
+
+⚠ One scare worth recording, because it is this repo's most-repeated failure mode: a regex
+over `prosrc` reported `to_jsonb(v_profile)` **PRESENT**, which would have meant the DEFINER
+half of the P0 fix had been lost. It is in a **comment** explaining why it is deliberately not
+used — occurrences **outside comments: 0**. Same class as the unanchored `"use client"` grep
+above. *Strip comments before asserting on function text.*
+
+## Other gates, re-run at r3
+
+`supabase db reset --local` (353 registered = 353 files) → pgTAP **Files=182, Tests=5794,
+PASS** · vitest **1218/1218** · `npm run build` exit 0 · lint **0/0** (incl. `lint:css-vars`,
+`lint:memberships-door`, `lint:client-server-imports` 0 findings, `lint:vacuous` 174 spec
+files / 0 findings) · typecheck clean · `ARM=census` **HOLDS** (450 gates / 461 verdicts) ·
+`ARM=hat` **HOLDS** (3 reasoned allowlists) · `ARM=floor` **HOLDS** (79 never-called, all
+allowlisted). The three write doors are in the standing write-path harness with **COVERED**
+verdicts and named keystones, and the stale `set_primary_subject` never-called allowlist entry
+is removed with a note.
+
+⚠ **Process note.** I started `p0-authz-writepath-audit.sh` with **no `ARM`**, which begins the
+**full ~5 h periodic sweep** that CLAUDE.md §6 step 1 explicitly excludes from a phase gate. It
+was stopped. A `git add -A` had meanwhile captured its findings file mid-rewrite (73 → 40
+lines), and the dying process flushed once more after that; both were restored byte-identical
+to the last complete version (`494d8f4`) and committed as a revert. **No gate result depends on
+that run** — the phase-relevant arm was verified by QA and is pinned in the standing harness,
+and every E2E batch does a full `db reset`, which rebuilds all function bodies from migrations.
+
+## Left open deliberately — filed, not closed
+
+| Item | Disposition |
+| --- | --- |
+| **m3 + m4** (a11y: `aria-describedby` never wired to error ids; typeahead announces neither loading nor result count) | **FUP-ETH-A11Y-1.** m3 is attribute-only and safe alone, but m4 has exactly two routes and **both collide with the specs**: new visually-hidden text would duplicate `"Nenhum resultado…"`/`"Buscando…"` into a second `getByText` match (strict-mode red), and folding the count into the listbox `aria-label` changes the exact string `pickFromTypeahead` scopes on. That needs a coordinated **tester-owned** spec change, so it is one a11y pass — not a lead edit at the tail of a gate. |
+| **m5** (`department`/`institution`/`other` are mintable but have no seeded role) | **PO decision** (seed a generic role, or filter the type list). Catalog-confirmed: those three resolve to **(NO SEEDED ROLE)**. Severity is lower than r1 implied — the UI **names** the state: Papel is disabled with *"Nenhum papel cadastrado aceita este tipo de participante."* A visible limit, not a silent dead end. |
+| **m2** (Class-2 audit posture after D5) | **PO** — wants one ratifying ADR line, as r2 said. Not an agent's call. |
+| **MAJOR-2(b)** (picker scope limit) | r2 made it non-blocking **conditional on B-1 landing**. B-1 has landed, so the condition is met. |
+| **m8** (`evidence-picker.tsx` — structurally identical focus/Escape hole) | Outside ETH·E4; r2 agreed it is a follow-up. |
+| **m9** (rail vs roster name divergence) | A consequence of D7, not a D3 violation. |
+| **m11** | Both `!` guarded — no action. |
+| E2E `server_dead` infra characteristic | **FUP-E2E-SERVER-DEAD-1** — called out in the handoff, never given an id until now. |
+
+**VERDICT (r3): APPROVED** — pending Phase Gate step 4 (human approval). Nothing merged,
+nothing pushed.
