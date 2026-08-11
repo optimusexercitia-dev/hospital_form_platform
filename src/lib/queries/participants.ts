@@ -93,14 +93,13 @@ export interface CaseParticipantRoleOption {
   caseTypeId: string | null
 }
 
-/** The five non-sensitive registry types the external lane may mint (ADR 0108 D8). */
-export const EXTERNAL_PARTICIPANT_TYPES: readonly ParticipantType[] = [
-  'external_person',
-  'department',
-  'institution',
-  'regulatory_body',
-  'other',
-] as const
+// ⚠ `EXTERNAL_PARTICIPANT_TYPES` deliberately does NOT live here, and must not be
+// re-exported from here either — a re-export still drags this module (and with it
+// `@/lib/supabase/server`) into any client graph that touches it. It is a RUNTIME
+// const consumed by the add-participant dialog, which is a Client Component, so its
+// home is the client-safe `@/lib/forms/reference-constants` alongside
+// `PARTICIPANT_TYPES` / `PARTICIPANT_TYPE_LABELS`. This module is `server-only`;
+// everything it exports beyond that is a TYPE, which erases.
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

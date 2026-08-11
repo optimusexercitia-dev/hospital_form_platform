@@ -9,7 +9,9 @@ import type {
   CaseParticipantRoleOption,
   ParticipantSearchResult,
 } from "@/lib/queries/participants";
-import { EXTERNAL_PARTICIPANT_TYPES } from "@/lib/queries/participants";
+// Client-safe by construction — @/lib/queries/participants is `server-only`, so a
+// VALUE import from it here aborts `next build` (BUG-FBE-005). Types above erase.
+import { EXTERNAL_PARTICIPANT_TYPES } from "@/lib/forms/reference-constants";
 import type { AddableUser } from "@/lib/queries/members";
 import type { ProfessionalLinkState } from "@/lib/participants/actions";
 import {
