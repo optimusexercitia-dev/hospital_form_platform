@@ -6,6 +6,65 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟡 FUP-F2-BUCKETS — the F2 legacy-bucket retirement was deferred in writing, four times, and tracked nowhere (2026-08-11; owner: backend)
+
+F2 consolidated case / meeting / interview attachments into `public.attachments` + the two
+tier buckets, and **every writer is rewired** (`meetings/actions.ts:984`,
+`interviews/actions.ts:771`, `cases/documents-actions.ts` all go through `bucketForTier`).
+The legacy buckets were deliberately left standing to keep the atomic fold-in minimal — a
+sound call, recorded in
+[f2-attachments-migration-contract.md](../design/f2-attachments-migration-contract.md) §D:326
+("retire in a later cleanup migration, post-gate"), repeated in
+[phase-14e](../phases/phase-14e-attachment-phi-classification.md):167 and in the
+`20260717000300_attachments_foldin.sql` header:20. **The cleanup migration was never
+written, and the deferral never became a task** — it lives in two planning docs, one
+migration comment, and a retrospective, and in no tracker. Verified 2026-08-11: `grep` over
+PROGRESS.md for *legacy bucket / retire / cleanup migration / the three bucket names* → **0
+hits**; `f2-attachments.md` § *Open risks / deferred* lists four items, none of them this.
+
+**Live catalog state (2026-08-11, local) — the three are in three different states, and only
+the middle one is the finding:**
+
+| Bucket | Policies | State |
+| --- | --- | --- |
+| `referral-attachments` | `can_manage_referral_target` INSERT · `can_read_referral_phi` SELECT | **NOT legacy** — live referral PHI plane (Phase 22), never in F2's scope. Leave it. |
+| `meeting-attachments` | `meeting_attachments_insert_staff_admin` · `meeting_attachments_select_member` (**both live**) | **No writer in the product, two working doors.** Reads gate on bare `is_member_of(seg[1])` — the coarse rule F2 replaced. |
+| `interview-attachments` | **none** | Already sealed: its member SELECT was a confirmed PHI exposure ([authz-a0-inventory-review](../reviews/authz-a0-inventory-review.md) §2.1) and was dropped; `236` §③b pins EXCLUDED-member-reads-0, and `u1-mutation-audit.sh` re-creates it as the injected leak. |
+
+⚠ **`meeting-attachments` is named in the two planning docs and NOWHERE else.** The §7.12
+exclusion-perimeter analysis ([authz-handoff.md](./authz-handoff.md):572) measured
+reachability for `case-documents` + `interview-attachments` and drove the interview drop; it
+never covered the meeting bucket, most likely because it was scoped to *case* PHI surfaces
+and a meeting attachment is not a case artifact. The attention that closed two of three
+skipped the third — **a per-surface sweep is not a sweep**, the recorded rule again.
+
+**A second, separable question — do NOT fold it into the policy drop.** The fold-in is
+explicitly *pure DDL, no data migration* ("on a fresh `db reset` all these tables are EMPTY"),
+then `drop table … meeting_attachments cascade`. Against a **data-bearing** database that
+drops the metadata rows while their blobs stay in the legacy bucket, still reachable through
+that live member SELECT. F2 is local-only (remote `db push` deferred to pilot cutover) and
+there are no live users pre-launch, so this is very likely a non-issue — but that is an
+**assumption about remote state which nothing verifies**, and it is the
+backfill-guard shape: passes a 0-row local reset, behaves differently against real data.
+**Measure remote object counts before dropping anything** (§7.12's own rule: reachability
+measured, never inferred).
+
+Proposed scope, in order:
+1. **Measure** — `storage.objects` counts per legacy bucket on the linked remote. Record the
+   numbers here; a non-zero `meeting-attachments` turns item 3 into a data decision.
+2. **Drop the two `meeting_attachments_*` storage policies** (the actual open door).
+3. **Delete the three legacy buckets** — `case-documents` only after confirming the referral
+   snapshot reader is off it (that reader is the *separate* open item in
+   [f2-attachments.md](./f2-attachments.md) § *Open risks*: `getReferralDocumentUrl` still
+   signs from it).
+4. **Pin it** — a pgTAP assertion that **no** policy exists on `bucket_id in
+   ('meeting-attachments','interview-attachments','case-documents')`, derived from
+   `pg_policies` rather than transcribed, so the retirement cannot silently regress. Without
+   this, step 2 is a change no gate can see — the same prose-only failure that produced this
+   entry.
+5. **Close [authz-capability-inventory.md](./authz-capability-inventory.md):358 open question
+   #3** ("`interview-attachments` + `case-documents` — in scope, or Stage E?") as answered.
+
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
