@@ -137,6 +137,16 @@ unaffected, including in the hatless state.
 > S4 §3: an ACL grant names a *person*, so no principled hat could own it; the only
 > implementable alternative is "requires *some* hat", which is friction, not a security
 > property.
+>
+> ✅ **PO RULING, 2026-08-10 (S4 gate step 4): KEEP THE AS-BUILT BEHAVIOUR.** A hatless
+> multi-role principal retains **read-only** per-case relationship reach — `_case_caps` = 30
+> — including the Rule-12 `read_standard_phi` bit; **no write bit survives** (32
+> `write_case_content` and 64 `manage_case_access` are both absent), so no mutation can ever
+> be recorded with an empty `acting_as`. `is_active` and recusal still zero everything in
+> the hatless state (`319` A15–A17). **This ruling is pinned by keystone `319` A13** — a
+> future re-ruling must consciously turn it red, which is the point. Consequence left open
+> on purpose: `FUP-ACT-HATLESS-AUDIT` (the audit row omits the `acting_as` KEY, so absence
+> conflates hatless / pre-ACT / service-role — legibility, not a Rule 11 violation).
 
 The rejected alternative fails *open*, and its failure mode is specific and nasty: every path
 that forgets to set a hat **silently reverts to today's behaviour and looks completely

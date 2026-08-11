@@ -97,31 +97,38 @@ door sweep** over the changed gates 2 COVERED / 0 BLIND · lint 0/0 · tsc · Vi
 `docs/backend-state.md` (ACT). Method lesson → [authz-handoff.md §7.17](docs/progress/authz-handoff.md)
 + ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 6.
 
-### 🟡 S4 — D14 arm audit + record · **IN PROGRESS** (started 2026-08-10, branch `feat/act-as-stage-4` off `main` `5204f1e`)
+### ⬛ S4 — D14 arm audit + record · **COMPLETE 2026-08-10** · QA **APPROVED (r1)** · **human-approved**
 
-Scope is the plan's [Stage 4](docs/plans/act-as-role-assumption.md) (line 222) plus the S3 r1/r2
-MINORs carried here — **stated exactly** (S4 QA MINOR-1: the earlier "three MINORs" line had one
-task row, and a scope claim that outruns what shipped is decoration): **S3 MINOR-1** → task S4-5
-below; **S3 MINOR-2** (the "grant-serialization leak" overstatement) → record corrected in the
-archive 2026-08-10; **S3 MINOR-3** → folded into `FUP-ACT-DISPOSE-UI`, **not S4's to close**.
-Still-open program items live in the Bug Log / Follow-ups below, **not** in the archive.
+D14 closed: `app._case_caps` classified arm-by-arm **from the catalog** — 5 role-derived, 3
+relationship-derived, no hybrid, no arm unclassified (QA re-derived completeness *mechanically*
+from `prosrc`, a property rather than a list) — pinned by keystone `319` (17/17; its mutation
+twins independently neutralized by QA and observed red). The hat-blind sweep is now **standing**:
+**`ARM=hat`** of `p0-authz-invariant.sh`, self-testing **6** specimens every run, named in
+CLAUDE.md §6 (human-approved). Four DESIGNED hat-blind doors reasoned-allowlisted in a **new**
+artifact — deliberately not 0079's BLIND file, which is a different dimension (ADR 0107 D1). Dead
+`navScope="member-and-configuration"` arm removed + tripwire proven red against both seams.
+**Gate:** pgTAP **180 files / 5707 tests** · `e2e:prod` **GREEN** (1057 passed / 0 failed / 0
+did-not-run / 17 of 17 batches) · `ARM=census` 450/461 · `ARM=floor` 80 · `ARM=hat` 3 ≡ allowlist
+· lint 0/0 · tsc · Vitest **1218**. Diff-scoped 0079 sweep **not owed** — zero migrations,
+confirmed from the diff.
 
-| # | Task | Owner | Status |
-| --- | --- | --- | --- |
-| S4-1 | **D14** — `app._case_caps` audited arm-by-arm **FROM THE CATALOG**; each arm tagged role-derived (hat-bound) or relationship-derived (D6-immune); no arm unclassified | backend | ✅ 2026-08-10 — 5 role arms (S1/S2/S5/S6/S7, all → `has_role`/`has_role_any`) + 3 relationship (S3 grant / S4 assignment / STEP-4 denies); STEPs 1–3 are preconditions, not arms; **no hybrid**. Table: `docs/backend-state.md` § ACT · D13-vs-ACL tension recorded in ADR 0107 |
-| S4-2 | pgTAP keystone `319` — divergence proof: same user + same case + two hats ⇒ role arms differ, ACL/respondent/recusal arms identical. ⚠ **must carry vacuity controls** (identical-at-zero is the `BUG-VACUOUS-ASSERT-1` shape) | backend | ✅ 2026-08-10 `ad387eb` — 17/17; exact masks 111/64→127/94, bit-16 pre-grant negative control, **in-file mutation twins** on `has_role` (collapse to 111) + `has_role_any` (64→66) with byte-restores; hatless D5×D6 = 30 pinned; third-party disarm + recusal zeros. All values probe-measured before writing |
-| S4-3 | The two **DESIGNED** hat-blind doors (`session_context`, `service_role` paths) recorded as **reasoned** allowlist entries — incl. resolving which artifact is their correct home (0079's BLIND allowlist is a *different* dimension) | backend | ✅ 2026-08-10 `d368f9f` — NEW artifact `act-hat-blind-allowlist.txt` (different dimension: designed behaviour, not coverage debt; ADR 0107). Entries carry "wrong the day" conditions. ⚠ Sweep found TWO more designed doors beyond the plan's two: `assume_role` + `memberships_select` self arm — allowlisted with reasoning, **flagged for lead/QA veto**; `service_role` is a header class-note (unkeyable by construction) |
-| S4-4 | The endorsed **standing sweep** — raw `memberships … principal_id = auth.uid()` with no adjacent hat condition — made **executable and gate-wired**, with proof-of-sensitivity ("standing in prose alone" is the ADR 0079 failure) | backend | ✅ 2026-08-10 `d368f9f` — `act-hat-blind-sweep.sh`, wired as **`ARM=hat`** of `p0-authz-invariant.sh` (+`ARM=all`, ~10 s). Am.-6 method (balanced-paren args, `name(` edges, transitive); **self-tests 6 specimens EVERY run** + anchor check on `has_role*` — ST5/ST6 (blind/covered cross-table POLICY pair) added 2026-08-10 closing **S4 QA MINOR-2**, each direction proven red by neutralizing its half of the policy else-branch; ghost AND new-finding directions both mutation-proven red. 3 findings ≡ allowlist. CLAUDE.md §6 wording is the lead's edit (proposed in ADR 0107) |
-| S4-5 | QA **MINOR-1** — the now-dead `navScope="member-and-configuration"` branch (`…/c/[commission]/layout.tsx:307-309` + `app-sidebar.tsx:80,90`): cannot silently re-light + a test that reds if mutual exclusion breaks | frontend | ✅ 2026-08-10 `7429919` — **arm REMOVED** (fails closed: a widened principal drops to the narrower `"member"`) + union member deleted, so re-lighting is a deliberate type-level act; tripwire `nav-scope-exclusivity.test.ts` drives the REAL derivation over the role vocabulary read from `memberships_role_check` at test time. Proven red against **both** seams independently — the `getSessionContext` hat filter (10 red) and `partitionGrants` bucket disjointness (2 red) — plus a falsifiability control. Vitest 1197→1218. Chose removal over a runtime `throw`: a throw in a Server Component layout would 500 real users *after* a widening shipped |
-| S4-6 | **Record** — ADR 0106 ratification + P1–P6 · `docs/backend-state.md` § ACT · PROGRESS.md rows · QA review covering stages 3+4 | lead / qa | ⬜ |
+**Full detail rotated → [act-as-role-assumption.md](docs/progress/act-as-role-assumption.md)
+§ S4** · review → [act-as-stage-4-review.md](docs/reviews/act-as-stage-4-review.md) · new ADR
+[0107](docs/decisions/0107-act-s4-hat-blind-sweep-and-allowlist.md).
 
-⛔ **Unchanged by S4 — the two deploy debts remain open** (neither is S4 scope): remote `db push` of
-the ACT migration set, and **ENABLING `custom_access_token_hook` on Supabase Cloud** (`db push` does
-NOT cover it — without it the remote mints no `active_role` claim and **EVERY user is a stranger,
-not just multi-role ones**: D11's implicit single-role derive lives INSIDE the hook, so no hook means
-no claim for anyone, and `has_role`'s `is not distinct from` condition then fails closed for all.
-Measured: `active_role()` NULL, `has_role(staff_admin, self)` false, commissions visible 0). See
-item 1b of *Remaining pre-pilot work*.
+✅ **PO ruling A13 (2026-08-10) — hatless keeps READ-ONLY relationship reach** (mask 30, incl. the
+Rule-12 `read_standard_phi` bit; **no write bit survives**, so no mutation can carry an empty
+`acting_as`). Pinned by `319` A13: a re-ruling must consciously red it. Full rationale + the
+corrected D5/D6 text → ADR [0106](docs/decisions/0106-act-as-role-assumption.md) D5/D6. Open
+consequence: `FUP-ACT-HATLESS-AUDIT` (legibility, not a Rule 11 violation).
+
+⛔ **Unchanged by S4 — the two deploy debts remain open** (neither was ever S4 scope): remote
+`db push` of the ACT migration set, and **ENABLING `custom_access_token_hook` on Supabase Cloud**
+(`db push` does NOT cover it — without it the remote mints no `active_role` claim and **EVERY
+user is a stranger, not just multi-role ones**: D11's implicit single-role derive lives INSIDE
+the hook, so no hook means no claim for anyone, and `has_role`'s `is not distinct from` condition
+then fails closed for all. Measured: `active_role()` NULL, `has_role(staff_admin, self)` false,
+commissions visible 0). See item 1b of *Remaining pre-pilot work*.
 ### ⬛ PDF·P2 — PDF printing: Meetings (ata) · **COMPLETE 2026-08-08** · QA **APPROVED (r2)**
 
 Full record (task table M-B1…M-Q1, lead notes, gate detail, the BLOCKER→Package-A narrative)
@@ -197,9 +204,10 @@ sessions see stranger-level nothing until they sign in again, acceptable only be
 pre-pilot. ⚠ **Two things this item still owes the pilot, neither covered by `git push`/`db push`:**
 (a) the auth hook must be **ENABLED on Supabase Cloud** (`config.toml`'s `[auth.hook
 .custom_access_token]` is local-only config — without it the remote mints no `active_role` claim and
-**EVERY user becomes a stranger — not just multi-role ones** (the implicit single-role derive lives inside the hook; probed live: a single-role staff_admin sees 0 commissions)); (b) **S4 is IN PROGRESS** (started 2026-08-10 —
-task table in the ACT block above). Note (a) is **not** discharged by S4: it is a Cloud console
-action the PO owns, and no amount of S4 work moves it.
+**EVERY user becomes a stranger — not just multi-role ones** (the implicit single-role derive lives inside the hook; probed live: a single-role staff_admin sees 0 commissions)); (b) **S4 is ✅ COMPLETE 2026-08-10** — QA APPROVED (r1), human-approved, merged.
+⚠ (a) was **never** S4's to discharge and no code work moves it: it is a Cloud console action the
+PO owns. **With S4 closed it is now the last thing standing between `main` and a working remote
+cutover** — and its failure mode is total, not partial.
 
 **2. 🔴 The pilot deploy itself — user-gated, NOT started. This is the next thing *after* 1b.** Two halves,
 both now **behind** `main`, per the PO's 2026-08-08 hold on PDF·P2:

@@ -27,11 +27,14 @@
 4. **Delegation counts as hat evidence only because the anchors are checked.** `has_role` /
    `has_role_any` must themselves carry the caller-only condition or the sweep fails outright
    — otherwise every delegating door would still show "evidence" while the estate went blind.
-5. **D14 classification tension, recorded not resolved:** the ruling classes per-case ACL
-   rows (`case_access_grants`) as relationship-derived/D6-immune — hat-independent including
-   the hatless state — although D13's "a grant you hold, not a relationship you are in" could
-   read otherwise. Keystone `319` A13 pins the as-built semantics (hatless ⇒ role arms 0,
-   relationship arms intact); any re-ruling must consciously red it.
+5. **D14 classification tension — RESOLVED by PO ruling 2026-08-10** (was "recorded, not
+   resolved"). The ruling classes per-case ACL rows (`case_access_grants`) as
+   relationship-derived/D6-immune — hat-independent including the hatless state — although
+   D13's "a grant you hold, not a relationship you are in" could read otherwise. **The PO
+   ruled KEEP AS-BUILT** at the S4 gate: an ACL grant names a *person*, so no principled hat
+   could own it, and the surviving reach is **read-only** (mask 30; both write bits absent).
+   Keystone `319` A13 pins it; any re-ruling must consciously red it. Full ruling + the
+   measured bit decode: ADR 0106 D5. Open consequence: `FUP-ACT-HATLESS-AUDIT`.
 
 ## Consequences
 
