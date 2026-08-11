@@ -16,7 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
-import { LinkageResolutionFieldset } from "@/components/cases/add-participant-dialog";
+import {
+  LinkageResolutionFieldset,
+  suppressEscapeWhilePopupOpen,
+} from "@/components/cases/add-participant-dialog";
 
 /**
  * Remediation for a professional profile already sitting at platform-account
@@ -95,7 +98,11 @@ export function ResolveLinkageDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg" aria-label="Resolver vínculo">
+      <DialogContent
+        className="sm:max-w-lg"
+        aria-label="Resolver vínculo"
+        onEscapeKeyDown={suppressEscapeWhilePopupOpen}
+      >
         <DialogHeader>
           <DialogTitle>Resolver vínculo</DialogTitle>
           <DialogDescription>

@@ -171,6 +171,37 @@ export function LinkageResolutionFieldset({
 }
 
 /**
+ * BUG-ETHE4-FOCUS-1 fix (root cause, not a call-site patch). Radix's
+ * `DismissableLayer` (behind `Dialog.Content`) listens for Escape on
+ * `document` in the CAPTURE phase (`@radix-ui/react-use-escape-keydown`) —
+ * BEFORE a nested `<input>`'s own bubble-phase `onKeyDown` ever runs. A child
+ * widget's `event.stopPropagation()` is therefore always too late to stop the
+ * Dialog from dismissing; the only lever Radix offers is `event.preventDefault()`
+ * inside the Dialog's own `onEscapeKeyDown` prop (which `DismissableLayer`
+ * checks via `!event.defaultPrevented` before calling `onDismiss`).
+ *
+ * Wire this to `<DialogContent onEscapeKeyDown={suppressEscapeWhilePopupOpen}>`.
+ * It reads `aria-expanded` off `event.target` — the SAME state
+ * {@link TypeaheadField} already keeps in sync via its `open` state, so this
+ * needs no extra ref/prop plumbing to know whether a nested combobox popup is
+ * open. When it IS: `preventDefault()` keeps the Dialog open; the event still
+ * continues to bubble (this does not call `stopPropagation`), so
+ * `TypeaheadField`'s own bubble-phase handler still runs afterward and closes
+ * just the popup. When the popup is NOT open, this is a no-op and Escape does
+ * whatever the Dialog primitive normally does (closes it) — never a silent
+ * in-place state reset while staying open.
+ */
+export function suppressEscapeWhilePopupOpen(event: KeyboardEvent) {
+  const target = event.target as HTMLElement | null;
+  if (
+    target?.getAttribute("role") === "combobox" &&
+    target.getAttribute("aria-expanded") === "true"
+  ) {
+    event.preventDefault();
+  }
+}
+
+/**
  * A minimal accessible typeahead: combobox input + a listbox of options.
  * Generic over the item type so it serves both the async participant search
  * (§2a/§2b "Buscar profissional" / "Buscar participante externo") and the
@@ -282,7 +313,7 @@ function TypeaheadField<T>({
               setActiveIndex(-1);
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
+            onBlur={() => setTimeout(() => setOpen(false), 0)}
             onKeyDown={handleKeyDown}
             className={cn(
               "h-10 w-full rounded-lg border border-input bg-card py-2 pr-9 pl-9 text-sm shadow-xs",
@@ -740,7 +771,11 @@ export function AddParticipantDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-xl" aria-label="Adicionar participante">
+      <DialogContent
+        className="sm:max-w-xl"
+        aria-label="Adicionar participante"
+        onEscapeKeyDown={suppressEscapeWhilePopupOpen}
+      >
         <DialogHeader>
           <DialogTitle>Adicionar participante</DialogTitle>
           <DialogDescription>
