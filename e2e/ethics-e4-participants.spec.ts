@@ -152,6 +152,12 @@ const ETHICS_TYPE_ID = 'ce000000-0000-0000-0000-0000000000e1'
 const CHEFE = 'chefe.ccih@test.local'
 const STAFF2_SEARCH = 'Enfermeira CCIH Dois' // staff2.ccih — UNKNOWN-RESOLVE's platform-user target
 const STAFF3_SEARCH = 'Técnico CCIH Três' // staff3.ccih — PROF-CREATE's platform-user target
+// UIDs for the SAME two personas, needed to assert WHICH platform user actually got
+// linked (QA m6): the roster never displays a linked account's identity, so nothing
+// downstream of the typeahead pick would catch a wrong-candidate link without a
+// direct DB check against these.
+const UID_STAFF2 = '00000000-0000-0000-0000-000000000004'
+const UID_STAFF3 = '00000000-0000-0000-0000-000000000009'
 
 /** The seeded ETH·E1 professional profile "Dra. Denunciada" — PROF-PICK's target. */
 const SEEDED_PROF_PROFILE_ID = 'fb000000-0000-0000-0000-0000000000e1'
@@ -357,12 +363,6 @@ async function openAddParticipantDialog(page: Page): Promise<Locator> {
   return dialog
 }
 
-/** Search a typeahead (§2a "Buscar profissional" / §2b "Buscar participante
- *  externo" / "Usuário da plataforma") and click the matching option. Options
- *  are looked up PAGE-WIDE, not dialog-scoped: Radix-style popovers commonly
- *  portal their listbox to <body>, outside the dialog's own DOM subtree (the
- *  same reason ff5-references.spec.ts's `pickReference` takes a `within` that
- *  isn't always the narrowest container). */
 /**
  * `optionName` is a plain string, deliberately never wrapped in `new
  * RegExp(...)` by a caller — every candidate here is a known fixture NAME,
@@ -378,8 +378,23 @@ async function openAddParticipantDialog(page: Page): Promise<Locator> {
  * alongside it, per ADR 0108 D5's own disambiguation argument), and a
  * substring match finds it either way; `exact: true` would only work if the
  * option's full text is provably nothing but the name, which isn't known
- * here. `.first()` remains the existing safety net against an unexpected
- * multi-match.
+ * here. `.first()` remains a safety net, not the correctness mechanism —
+ * see the listbox scope below for that.
+ *
+ * QA m6: an earlier version of this helper looked up the option PAGE-WIDE,
+ * on the theory that Radix-style popovers commonly portal their listbox to
+ * `<body>` (true of `reference-picker.tsx`, the pattern this was copied
+ * from, per ff5-references.spec.ts's own `pickReference`) — a theory never
+ * checked against THIS component. Read live: `TypeaheadField` in
+ * add-participant-dialog.tsx renders its listbox INLINE, an absolutely-
+ * positioned sibling `<div>` in the same wrapper as the input, not a
+ * Portal. A page-wide (or even dialog-wide) `getByRole('option')` can
+ * therefore ALSO match a native `<select><option>` elsewhere in the SAME
+ * dialog (Papel, Tipo) — those structurally carry role `option` too — and
+ * `.first()` would silently click whichever comes first in DOM order.
+ * Scoped to THIS field's own listbox instead, via the `aria-label="Opções
+ * para {label}"` TypeaheadField sets on it — the precise boundary, not a
+ * guess at portal-vs-inline.
  */
 async function pickFromTypeahead(
   page: Page,
@@ -391,7 +406,8 @@ async function pickFromTypeahead(
   const input = dialog.getByRole('combobox', { name: fieldLabel })
   await input.click()
   await input.fill(query)
-  await page.getByRole('option', { name: optionName }).first().click()
+  const listbox = dialog.getByRole('listbox', { name: `Opções para ${fieldLabel}` })
+  await listbox.getByRole('option', { name: optionName }).first().click()
 }
 
 async function submitAddDialog(dialog: Locator) {
@@ -579,17 +595,37 @@ async function changeParticipantRole(
  * CONTRACT GAP 3 (see file header) — confirmed shape: an incumbent primary
  * triggers `alertdialog` "Alterar o sujeito principal?" (confirm "Alterar
  * sujeito principal", cancel "Cancelar"); with no incumbent it fires directly.
- * This helper always CONFIRMS when the dialog appears — PRIMARY-SET exercises
- * the no-dialog arm, PRIMARY-MOVE the confirm arm, PRIMARY-MOVE-CANCEL (which
- * does NOT use this helper) the decline arm.
+ *
+ * QA m6: this used to probe with `alert.isVisible().catch(() => false)` and
+ * silently skip the confirm branch on a false. Two independent problems in
+ * one line — `.isVisible()` is a single, non-auto-waiting, point-in-time
+ * check (races the AlertDialog's async Radix mount: the click resolves
+ * before React's resulting re-render necessarily completes, a live flake
+ * source), and `.catch(() => false)` swallows whatever that check throws.
+ * Together: a `false` reading skips the WHOLE confirm branch with no
+ * assertion ever firing about it, so PRIMARY-MOVE's own proof that the
+ * dialog appears rested entirely on timing luck — it was only a real proof
+ * of "the alertdialog exists" because PRIMARY-MOVE-CANCEL, a DIFFERENT
+ * test, happens to also assert it with a proper `toBeVisible()`.
+ *
+ * `expectConfirmation` replaces the probe with the caller's own knowledge
+ * (PRIMARY-SET: no incumbent; PRIMARY-MOVE: incumbent exists) — both arms
+ * now assert with real auto-waiting, and there is no silent branch.
  */
-async function setPrimarySubject(page: Page, participantName: string | RegExp) {
+async function setPrimarySubject(
+  page: Page,
+  participantName: string | RegExp,
+  expectConfirmation: boolean,
+): Promise<void> {
   const row = rosterRow(page, participantName)
   await row.getByRole('button', { name: 'Definir como sujeito principal' }).click()
 
   const alert = page.getByRole('alertdialog', { name: 'Alterar o sujeito principal?' })
-  if (await alert.isVisible().catch(() => false)) {
+  if (expectConfirmation) {
+    await expect(alert).toBeVisible({ timeout: 10_000 })
     await alert.getByRole('button', { name: 'Alterar sujeito principal', exact: true }).click()
+    await expect(alert).toHaveCount(0, { timeout: 10_000 })
+  } else {
     await expect(alert).toHaveCount(0, { timeout: 10_000 })
   }
 
@@ -733,6 +769,18 @@ test('PROF-CREATE seat a professional respondent via create-inline (possui conta
   await expect(
     rosterRow(page, fullName).getByText('Médico denunciado', { exact: true }),
   ).toBeVisible()
+
+  // QA m6: assert WHICH platform account got linked, not just "some account
+  // did" — the roster shows no linked-user identity, so a picker landing on
+  // the wrong candidate would leave every UI-level check above passing. This
+  // is the exact feature D5's read-widening exists for (telling two same-
+  // named professionals apart at the moment of seating).
+  const linkedProfile = await dbQuery<{ user_id: string | null }>('professional_profiles', {
+    organization_id: `eq.${ORG_A}`,
+    full_name: `eq.${fullName}`,
+    order: 'created_at.desc',
+  })
+  expect(linkedProfile[0]?.user_id).toBe(UID_STAFF3)
 
   await signOut(page)
 })
@@ -923,7 +971,7 @@ test('PRIMARY-SET set the first primary subject', async ({ page }) => {
   await expect(
     rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
   ).toHaveCount(0)
-  await setPrimarySubject(page, SEEDED_PROF_NAME)
+  await setPrimarySubject(page, SEEDED_PROF_NAME, false)
 
   await signOut(page)
 })
@@ -942,7 +990,7 @@ test('PRIMARY-MOVE promote a different respondent to primary subject — must su
     rosterRow(page, SEEDED_PROF_NAME).getByText('Sujeito principal', { exact: true }),
   ).toBeVisible({ timeout: 10_000 })
 
-  await setPrimarySubject(page, 'Dr. Novo Respondente (E4)')
+  await setPrimarySubject(page, 'Dr. Novo Respondente (E4)', true)
 
   // Moved, not duplicated: the new primary carries the badge, the old one does
   // NOT, and the HC0E7 pt-BR error text is nowhere on the page.
@@ -1039,9 +1087,29 @@ test('UNKNOWN-RESOLVE seat a resolved professional, revert their linkage to unkn
     platformUserName: STAFF2_SEARCH,
   })
 
+  // QA m6: this toHaveCount(0) alone passes just as well if the whole ROW
+  // vanished as it does if only the button did — the "row existed before
+  // the resolve action" anchor a few lines up only covers the BEFORE state,
+  // not what the action itself might have broken. Re-verify the row (and
+  // the resolved name on it) explicitly, not re-derived from an earlier
+  // check that predates the resolve.
+  await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })
   await expect(rosterRow(page, fullName).getByRole('button', { name: 'Resolver vínculo' })).toHaveCount(0, {
     timeout: 10_000,
   })
+
+  // QA m6: nothing above asserts WHICH platform account got linked — the
+  // roster never displays a linked user's identity, so a picker that linked
+  // the wrong person (or a strict-mode-avoiding `.first()` landing on an
+  // unintended candidate) would leave every check above passing. This is
+  // the feature D5's read-widening exists FOR (telling two same-named
+  // professionals apart at the moment of seating); asserting only "someone
+  // got linked" doesn't exercise it. Query the DB directly since the UI has
+  // no surface for this fact.
+  const resolvedProfile = await dbQuery<{ user_id: string | null }>('professional_profiles', {
+    id: `eq.${profileId}`,
+  })
+  expect(resolvedProfile[0]?.user_id).toBe(UID_STAFF2)
 
   await signOut(page)
 })
@@ -1101,6 +1169,12 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
 
   const typeSelect = dialog.getByLabel('Tipo', { exact: true })
   await tabTo(page, typeSelect)
+  // QA m7: a no-op in practice — extType's own React state already defaults
+  // to 'external_person' ("Pessoa externa"), so arrowSelectNative's current-
+  // value check is expected to match immediately, zero ArrowDown presses.
+  // Kept (not asserted away) because the guard makes it correct either way,
+  // and a future change to that default would still be handled correctly
+  // here rather than silently assuming the old one.
   await arrowSelectNative(page, typeSelect, 'Pessoa externa')
 
   const nameField = dialog.getByLabel('Nome', { exact: true })
