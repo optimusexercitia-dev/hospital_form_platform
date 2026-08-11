@@ -6,7 +6,7 @@ import { getSessionContext } from "@/lib/queries/session";
 import { getCaseTypeTerminology, listCaseTypes } from "@/lib/queries/case-types";
 import { caseTypesEnabled } from "@/lib/queries/feature-flags";
 import { CaseTypeManager } from "@/components/org/case-type-manager";
-import { listCaseParticipantRolesForAdmin } from "@/lib/vocabulary/actions";
+import { listCaseParticipantRolesForAdmin } from "@/lib/queries/participants";
 import type { CaseTypeTerminology } from "@/lib/cases/terminology";
 
 export const metadata: Metadata = {

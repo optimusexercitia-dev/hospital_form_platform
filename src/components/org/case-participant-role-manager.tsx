@@ -14,9 +14,11 @@ import {
   createCaseParticipantRole,
   setCaseParticipantRoleActive,
   updateCaseParticipantRole,
-  type CaseParticipantRoleAdminRow,
   type CaseParticipantRoleInput,
 } from "@/lib/vocabulary/actions";
+// Type-only, therefore fully erased at compile time — a client module may not
+// pull a VALUE from a `server-only` module (`lint:client-server-imports`).
+import type { CaseParticipantRoleAdminRow } from "@/lib/queries/participants";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

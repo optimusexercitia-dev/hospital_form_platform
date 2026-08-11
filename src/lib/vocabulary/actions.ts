@@ -79,8 +79,6 @@ const MESSAGES = {
 } as const
 
 const KEY_RE = /^[a-z][a-z0-9_]*$/
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** A create/update input for one `case_participant_roles` row. */
 export interface CaseParticipantRoleInput {
@@ -95,16 +93,10 @@ export interface CaseParticipantRoleInput {
   caseTypeId?: string | null
 }
 
-/** One row of the admin-side role list (unlike the picker's, this includes inactive). */
-export interface CaseParticipantRoleAdminRow {
-  id: string
-  key: string
-  displayName: string
-  allowedParticipantTypes: ParticipantType[]
-  isPrimarySubjectCandidate: boolean
-  isActive: boolean
-  caseTypeId: string | null
-}
+// `CaseParticipantRoleAdminRow` and its read `listCaseParticipantRolesForAdmin`
+// moved to `src/lib/queries/participants.ts` (QA m1 — Architecture Rule 9; a pure
+// read does not belong in a `'use server'` module, where every export is also a
+// callable Server-Action endpoint).
 
 /** One overridable terminology slot for a case type. */
 export interface CaseTypeTerminologyInput {
@@ -167,44 +159,6 @@ function validateRole(input: CaseParticipantRoleInput): Record<string, string> |
 // ---------------------------------------------------------------------------
 // `case_participant_roles`
 // ---------------------------------------------------------------------------
-
-/**
- * The ADMIN-side role list: active AND inactive, so a deactivated role stays
- * visible and reactivatable.
- *
- * Deliberately NOT the same read as `listCaseParticipantRoles` in
- * `src/lib/queries/participants.ts`, which is `is_active`-only and case-type-scoped
- * because it feeds the `Papel` SELECT. Two consumers, two questions.
- */
-export async function listCaseParticipantRolesForAdmin(
-  organizationId: string,
-): Promise<CaseParticipantRoleAdminRow[]> {
-  if (!organizationId || !UUID_RE.test(organizationId)) return []
-
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('case_participant_roles')
-    .select(
-      'id, key, display_name, allowed_participant_types, is_primary_subject_candidate, is_active, case_type_id',
-    )
-    .eq('organization_id', organizationId)
-    .order('is_active', { ascending: false })
-    .order('display_name')
-
-  // ⚠ THROW. Swallowed, a failed read renders as "this org has no roles", which reads
-  // as a clean empty state and invites an admin to re-create roles that already exist.
-  if (error) throw error
-
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    key: r.key,
-    displayName: r.display_name,
-    allowedParticipantTypes: (r.allowed_participant_types ?? []) as ParticipantType[],
-    isPrimarySubjectCandidate: r.is_primary_subject_candidate,
-    isActive: r.is_active,
-    caseTypeId: r.case_type_id,
-  }))
-}
 
 export async function createCaseParticipantRole(
   organizationId: string,

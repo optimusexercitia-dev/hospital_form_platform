@@ -775,6 +775,13 @@ test('PROF-CREATE seat a professional respondent via create-inline (possui conta
     linkage: 'possui_conta',
     platformUserSearch: STAFF3_SEARCH,
     platformUserName: STAFF3_SEARCH,
+    // The ONLY caller that reaches the `possui_conta` gating assertion. Without
+    // it that branch is a guard no test executes — LINKAGE-UX is the sole other
+    // `assertLinkageGating` caller and it takes the `nao_possui_conta` arm, so
+    // `linkageOk`'s `Boolean(linkUserId)` disjunct would stay unpinned however
+    // carefully the assertion itself were written. This flow is create-inline,
+    // so `needsLinkage` is true and the assertion is about linkage alone.
+    assertLinkageGating: true,
   })
 
   await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })

@@ -228,6 +228,62 @@ export async function searchParticipants(
   return results
 }
 
+/** One row of the admin-side role list (unlike the picker's, this includes inactive). */
+export interface CaseParticipantRoleAdminRow {
+  id: string
+  key: string
+  displayName: string
+  allowedParticipantTypes: ParticipantType[]
+  isPrimarySubjectCandidate: boolean
+  isActive: boolean
+  caseTypeId: string | null
+}
+
+/**
+ * The ADMIN-side role list: active AND inactive, so a deactivated role stays
+ * visible and reactivatable.
+ *
+ * Deliberately NOT the same read as {@link listCaseParticipantRoles} below, which
+ * is `is_active`-only and case-type-scoped because it feeds the `Papel` SELECT.
+ * Two consumers, two questions.
+ *
+ * Lives HERE, not in `src/lib/vocabulary/actions.ts` where it was written (QA m1):
+ * it is a pure read, so Architecture Rule 9 puts it in `queries/`. The move is not
+ * cosmetic — an exported async function in a `'use server'` module is published as
+ * a callable Server-Action endpoint, and this one (alone among that file's exports)
+ * never called `authorizeOrg`. It was bounded by RLS `is_org_member` so nothing
+ * leaked across tenants, but it was reachable surface that had no reason to exist.
+ */
+export async function listCaseParticipantRolesForAdmin(
+  organizationId: string,
+): Promise<CaseParticipantRoleAdminRow[]> {
+  if (!organizationId || !UUID_RE.test(organizationId)) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('case_participant_roles')
+    .select(
+      'id, key, display_name, allowed_participant_types, is_primary_subject_candidate, is_active, case_type_id',
+    )
+    .eq('organization_id', organizationId)
+    .order('is_active', { ascending: false })
+    .order('display_name')
+
+  // ⚠ THROW. Swallowed, a failed read renders as "this org has no roles", which reads
+  // as a clean empty state and invites an admin to re-create roles that already exist.
+  if (error) throw error
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    key: r.key,
+    displayName: r.display_name,
+    allowedParticipantTypes: (r.allowed_participant_types ?? []) as ParticipantType[],
+    isPrimarySubjectCandidate: r.is_primary_subject_candidate,
+    isActive: r.is_active,
+    caseTypeId: r.case_type_id,
+  }))
+}
+
 /**
  * The active role vocabulary for a case: the org-wide roles plus the ones scoped
  * to this case's type. `case_participant_roles` is org-readable

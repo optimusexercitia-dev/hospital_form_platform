@@ -229,10 +229,16 @@ function mapParticipantError(
 
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+// QA m10 — the ETH·E4 roster is mounted on BOTH case-detail routes. Revalidating
+// only the `manage` one left the staff `casos` route serving a stale roster to
+// every OTHER viewer (the acting user is masked by their own `router.refresh()`,
+// which is why this survived manual testing).
+const STAFF_CASE_PATH = '/o/[org]/c/[commission]/casos/[caseId]'
 
 function revalidateCases() {
   revalidatePath(CASES_LIST_PATH, 'page')
   revalidatePath(CASE_PATH, 'page')
+  revalidatePath(STAFF_CASE_PATH, 'page')
 }
 
 // ---------------------------------------------------------------------------

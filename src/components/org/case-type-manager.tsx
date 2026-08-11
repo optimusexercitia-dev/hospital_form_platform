@@ -45,7 +45,7 @@ import {
   DEFAULT_CASE_TERMINOLOGY,
   type CaseTypeTerminology,
 } from "@/lib/cases/terminology";
-import type { CaseParticipantRoleAdminRow } from "@/lib/vocabulary/actions";
+import type { CaseParticipantRoleAdminRow } from "@/lib/queries/participants";
 import { CaseTypeTerminologyDialog } from "@/components/org/case-type-terminology-dialog";
 import { CaseParticipantRoleManager } from "@/components/org/case-participant-role-manager";
 
