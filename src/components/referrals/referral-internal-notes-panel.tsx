@@ -75,7 +75,7 @@ export function ReferralInternalNotesPanel({
       const result = await createReferralInternalNote({
         referralId,
         committeeId: committeeId as string,
-        body: body.trim(),
+        bodyMd: body.trim(),
       });
       if (!result.ok) {
         if (result.fieldErrors?.body) setFieldError(result.fieldErrors.body);
@@ -140,7 +140,7 @@ export function ReferralInternalNotesPanel({
                   </p>
                 ) : (
                   <p className="text-sm whitespace-pre-wrap text-foreground text-pretty">
-                    {n.body}
+                    {n.bodyMd}
                   </p>
                 )}
                 {canRedact && !redacted && (
