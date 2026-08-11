@@ -166,11 +166,25 @@ functions calling an `app` `prosecdef = t` function, and require a keystone per 
 when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 
 **3. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
-stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. ⚠ **Verify the premise
-before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug, fixed by the
-`next` 16.3.0-preview.5 bump already in `package.json`, so the remaining platform-wide instances
-(`useSatelliteAction`, `useCaseAction`, `useMeetingAction`) may already be discharged. Scope →
+stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. Scope →
 [ai-satellites.md](docs/progress/ai-satellites.md).
+
+⚠ **Verify the premise before scheduling it — the root cause is upstream and is already fixed.**
+BUG-AIF-001 was a Next.js App-Router bug (`loading.tsx` Suspense boundary + a deferred
+`router.refresh()`; issues #86151/#86055, fix PR #95391), closed by the version bump. `package.json`
+now declares **`next: 16.3.0` stable** and `npm ls next` is clean — so the symptom is probably
+already discharged and this may be a *verification* job, not a refactor. ⚠ Also re-check the
+**drift** failure mode first: this bug once "regressed" purely because `node_modules/next` had
+silently fallen back to 16.2.9 while `package.json` read the fixed version — `npm ls next` is the
+one-second check.
+
+⚠ **The population is 13 hooks, not the 3 this item used to name** (measured 2026-08-10; it listed
+`useSatelliteAction`/`useCaseAction`/`useMeetingAction` — the three someone happened to be looking
+at when filing). **Every** `use-*-action*` hook defers `router.refresh()` inside `startTransition`:
+satellite · case · meeting · minutes · narrative · result · interview · template · builder · title ·
+department · safety · ethics. Derive the set (`find src -name "use-*-action*"`), never re-list it —
+the property is "defers `router.refresh()` inside a transition", and an enumeration whose boundary
+is *the hooks I had open* is the same failure as item 2's and BUG-AUTHZ-002's.
 
 ---
 
