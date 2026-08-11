@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import { caseTypesEnabled } from '@/lib/queries/feature-flags'
+import { getSessionContext } from '@/lib/queries/session'
 import type { ParticipantType } from '@/lib/queries/cases'
 import type { ProfessionalLinkState } from '@/lib/participants/actions'
 
@@ -325,4 +327,35 @@ export async function listCaseParticipantRoles(
     isPrimarySubjectCandidate: r.is_primary_subject_candidate,
     caseTypeId: r.case_type_id,
   }))
+}
+
+/**
+ * The href of the org's participant-role vocabulary admin for THIS viewer, or
+ * `null` when they cannot reach it. Feeds the add-participant dialog's "no role
+ * accepts this type" empty state (PO ruling 2026-08-11).
+ *
+ * ⚠ It returns `null` far more often than "not an admin" suggests, and that is the
+ * point: `/o/[org]/manage/tipos-de-caso` calls `notFound()` on **two** independent
+ * gates — org_admin of this org (a hospital_admin does NOT reach it, ADR 0051 D1)
+ * **and** the `case_types` flag — so both are re-evaluated here. Mirroring only one
+ * ships a link that 404s. If that page's gates change, this function changes with
+ * them; it is the only place in the case surfaces that predicts them.
+ *
+ * Deliberately NOT a capability check on `case_participant_roles` itself: the write
+ * policy would admit a caller the *page* still refuses.
+ */
+export async function getParticipantRoleVocabularyHref(
+  orgSlug: string,
+): Promise<string | null> {
+  if (!orgSlug) return null
+  const [context, caseTypesOn] = await Promise.all([
+    getSessionContext(),
+    caseTypesEnabled(),
+  ])
+  if (!caseTypesOn) return null
+  const isOrgAdminHere = (context?.orgAdminOf ?? []).some(
+    (o) => o.organization.slug === orgSlug,
+  )
+  if (!isOrgAdminHere) return null
+  return `/o/${encodeURIComponent(orgSlug)}/manage/tipos-de-caso`
 }

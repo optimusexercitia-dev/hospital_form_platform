@@ -30,7 +30,10 @@ import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
 import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
-import { listCaseParticipantRoles } from "@/lib/queries/participants";
+import {
+  getParticipantRoleVocabularyHref,
+  listCaseParticipantRoles,
+} from "@/lib/queries/participants";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -98,7 +101,8 @@ export default async function CaseDetailPage({
   ]);
 
   // ETH·E4 (ADR 0108) — same org-scoped roster surfaces as the staff route.
-  const [participantRoles, participantPlatformUsers] = caseParticipantsOn
+  const [participantRoles, participantPlatformUsers, roleVocabularyHref] =
+    caseParticipantsOn
     ? await Promise.all([
         listCaseParticipantRoles(
           access.organization.id,
@@ -108,8 +112,11 @@ export default async function CaseDetailPage({
         // excludes people already in this commission, i.e. the likeliest
         // respondents (ADR 0108 D6 / the `no_account` dead end).
         listLinkableOrgUsers(access.organization.id),
+        // The remedy link for the "no role accepts this type" empty state —
+        // `null` unless this viewer can open the vocabulary admin.
+        getParticipantRoleVocabularyHref(org),
       ])
-    : [[], []];
+    : [[], [], null];
 
   // The commission's outcome vocabulary — for the process-less offered-outcome
   // editor (processless_cases). Only needed when this case is process-less AND the
@@ -201,6 +208,7 @@ export default async function CaseDetailPage({
       organizationId={access.organization.id}
       participantRoles={participantRoles}
       participantPlatformUsers={participantPlatformUsers}
+      participantRoleVocabularyHref={roleVocabularyHref}
     />
   );
 }

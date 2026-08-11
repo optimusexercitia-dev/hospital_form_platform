@@ -151,6 +151,7 @@ export function CaseDetailView({
   organizationId,
   participantRoles = [],
   participantPlatformUsers = [],
+  participantRoleVocabularyHref = null,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -301,6 +302,15 @@ export function CaseDetailView({
   participantRoles?: CaseParticipantRoleOption[];
   /** The org roster for the roster panel's "possui conta" platform-user pick. */
   participantPlatformUsers?: AddableUser[];
+  /**
+   * Org vocabulary-admin href for the add-participant dialog's "no role accepts
+   * this type" empty state, or `null` when this viewer cannot reach it.
+   *
+   * Computed by the HOST, not here: `/o/[org]/manage/tipos-de-caso` `notFound()`s
+   * unless the viewer is org_admin of this org AND the `case_types` flag is on, and
+   * this component knows neither. Pass-through to `CaseParticipantsPanel`.
+   */
+  participantRoleVocabularyHref?: string | null;
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
@@ -623,6 +633,7 @@ export function CaseDetailView({
                   participants={detail.participants}
                   roles={participantRoles}
                   platformUsers={participantPlatformUsers}
+                  roleVocabularyHref={participantRoleVocabularyHref}
                   canManageLifecycle={caps.canManageLifecycle}
                 />
               </div>

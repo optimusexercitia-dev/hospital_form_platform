@@ -281,6 +281,7 @@ export function CaseParticipantsPanel({
   participants,
   roles,
   platformUsers,
+  roleVocabularyHref = null,
   canManageLifecycle,
 }: {
   caseId: string;
@@ -290,6 +291,12 @@ export function CaseParticipantsPanel({
   roles: CaseParticipantRoleOption[];
   /** The org roster for the "possui conta" platform-user pick. */
   platformUsers: AddableUser[];
+  /**
+   * Org vocabulary-admin href for the add dialog's "no role accepts this type"
+   * empty state, or `null` when this viewer cannot reach it. Pass-through only —
+   * see `AddParticipantDialog` for the gating contract.
+   */
+  roleVocabularyHref?: string | null;
   canManageLifecycle: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -346,6 +353,7 @@ export function CaseParticipantsPanel({
           organizationId={organizationId}
           roles={roles}
           platformUsers={platformUsers}
+          roleVocabularyHref={roleVocabularyHref}
           open={addOpen}
           onOpenChange={setAddOpen}
         />

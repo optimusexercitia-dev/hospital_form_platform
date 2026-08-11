@@ -203,6 +203,24 @@ linkage machinery).
    widening by construction. Suite 321 K3d now carries that proof for the disclosure itself,
    in both halves.
 
+   **The Class-2 audit posture this arm forces — PO-RATIFIED 2026-08-11.** Rule 12 calls
+   Class-2 "case-scoped RLS + audited reads", which after D5 is true only of the *door*: the
+   `professional_profile.read` audit row is emitted by the `prosecdef`
+   `get_case_professional`, while the org-manager arm is reached exclusively by
+   **invoker-rights reads that emit nothing** — `searchParticipants`
+   (`src/lib/queries/participants.ts`, reading `full_name`, `professional_type`,
+   `license_number`, `license_region`, `specialty`, `link_state` org-wide) and the roster's
+   live-name read in `src/lib/queries/cases.ts`. That is **accepted as the posture, not
+   a gap**: these are directory reads of metadata already org-readable by design, and
+   auditing them would mean reversing D4 (candidate search is invoker-rights, never a
+   DEFINER door) and writing an `audit_log` row per typeahead keystroke. What the ratification
+   *does* fix is the standing invariant: the **door's** audit must not regress, and it is
+   pinned by pgTAP `207` K4 — *"exactly one `professional_profile.read` audit row for the
+   entitled reader"*. ARCHITECTURE.md Rule 12's Class-2 bullet is amended to say
+   "audited reads **on the case-scoped door**" rather than implying the whole class.
+   If the PO's read of sigilo later tightens, the seam is the same one D5 already names:
+   `participants_select` and this predicate's manager arm, revisited together.
+
    Two adjacent exposures are named here so they are accepted deliberately, not by omission:
    - **The mint-time inference (new with E4).** A professional's registry row is created only
      at seating time, so post-E4 mere presence in the org-readable `participants` table

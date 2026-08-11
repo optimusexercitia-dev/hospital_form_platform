@@ -20,7 +20,10 @@ import {
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
 import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
-import { listCaseParticipantRoles } from "@/lib/queries/participants";
+import {
+  getParticipantRoleVocabularyHref,
+  listCaseParticipantRoles,
+} from "@/lib/queries/participants";
 import { featureEnabled } from "@/lib/queries/feature-flags";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
@@ -122,7 +125,7 @@ export default async function StaffCaseDetailPage({
   // off or for the oversight reader (D7: roster affordances are member content,
   // not the read-only office view). `organizationId` and `caseTypeId` come
   // from data already loaded above (`access`, `detail`) — no extra case read.
-  const [participantRoles, participantPlatformUsers] =
+  const [participantRoles, participantPlatformUsers, roleVocabularyHref] =
     caseParticipantsOn && !isOversight
       ? await Promise.all([
           listCaseParticipantRoles(
@@ -134,8 +137,12 @@ export default async function StaffCaseDetailPage({
           // The dead end pushed coordinators to `no_account`, which makes the case
           // exclusion vacuously satisfied (ADR 0108 D6). Org-scoped, RLS-scoped.
           listLinkableOrgUsers(access.organization.id),
+          // The remedy link for the dialog's "no role accepts this type" empty
+          // state — `null` unless this viewer can actually open the vocabulary
+          // admin (PO ruling 2026-08-11; both gates re-checked in the helper).
+          getParticipantRoleVocabularyHref(org),
         ])
-      : [[], []];
+      : [[], [], null];
 
   // Post-conclusion result correction (phase-results feature; task #10) is
   // staff_admin-only — a plain staff/collaborator/read-grantee at this shared staff
@@ -261,6 +268,7 @@ export default async function StaffCaseDetailPage({
       organizationId={access.organization.id}
       participantRoles={participantRoles}
       participantPlatformUsers={participantPlatformUsers}
+      participantRoleVocabularyHref={roleVocabularyHref}
     />
   );
 }

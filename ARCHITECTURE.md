@@ -436,6 +436,19 @@ may extend the schema but never contradict it. Cross-references elsewhere to
         Case-scoped RLS + **audited reads** (`professional_profile.read`, PHI-free
         metadata) — but **no** isolated single door, **no** reveal-on-demand.
         Lives in `professional_profiles`.
+        ⚠ **"Audited reads" is a property of the case-scoped DEFINER door
+        (`get_case_professional`), not of every read of the class** — and since
+        ETH·E4/ADR 0108 D5 that is a *narrower* statement than it looks. D5 added an
+        org-manager arm to `app.can_read_professional_profile`, so an org admin /
+        staff_admin reads the registry **org-wide, through RLS, invoker-rights, with no
+        audit row** — deliberately (ADR 0108 D4: candidate search is never a DEFINER
+        door). Live invoker paths: the picker in `src/lib/queries/participants.ts`
+        (`searchParticipants`) and the roster live-name read in
+        `src/lib/queries/cases.ts`. **PO-ratified 2026-08-11**: this is a directory
+        read of org-readable professional metadata and stays unaudited; what must never
+        regress is the *door's* audit, pinned by pgTAP `207` K4 ("exactly one
+        `professional_profile.read` audit row for the entitled reader"). Widening the
+        audited surface would mean reversing D4 — a decision, not a fix.
         **Erasure posture (settled in ETH·E1, ADR 0072 §7; PO-signed 2026-07-14):**
         professional-identity erasure is **retention-pinned** when the profile is a
         respondent in a **decided** case (CFM-1821/2007, 20-yr floor);

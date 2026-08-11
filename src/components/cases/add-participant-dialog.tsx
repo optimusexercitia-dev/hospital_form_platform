@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Search, UserPlus } from "lucide-react";
 
@@ -491,6 +492,7 @@ export function AddParticipantDialog({
   organizationId,
   roles,
   platformUsers,
+  roleVocabularyHref = null,
   open,
   onOpenChange,
 }: {
@@ -500,6 +502,23 @@ export function AddParticipantDialog({
   roles: CaseParticipantRoleOption[];
   /** The org roster for the "possui conta" platform-user pick. */
   platformUsers: AddableUser[];
+  /**
+   * Href of the org vocabulary admin, or `null` when this viewer cannot reach it.
+   *
+   * Only the "no role accepts this type" empty state uses it. The host must pass
+   * `null` unless BOTH gates on `/o/[org]/manage/tipos-de-caso` hold — org_admin of
+   * THIS org and the `case_types` flag — because that page `notFound()`s on either,
+   * and a dead link here is worse than the plain sentence it replaces.
+   *
+   * ⚠ The dead end this addresses is real and not seeded away: `department`,
+   * `institution` and `other` are mintable by `create_external_participant` but no
+   * seeded role accepts them, and `case_participants.role_id` is NOT NULL. Beyond the
+   * local fixture the gap is wider still — the ethics role bundle lives only in
+   * `supabase/seed.sql`, so a production org authors its whole vocabulary there.
+   * PO-ratified 2026-08-11: name the remedy, do not filter the type list (the five
+   * labels are fixed by the ETH·E4 locator contract §2b) and do not seed roles.
+   */
+  roleVocabularyHref?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -1309,7 +1328,24 @@ export function AddParticipantDialog({
             </NativeSelect>
             {chosenType && availableRoles.length === 0 && (
               <FieldDescription>
-                Nenhum papel cadastrado aceita este tipo de participante.
+                Nenhum papel cadastrado aceita este tipo de participante.{" "}
+                {roleVocabularyHref ? (
+                  <>
+                    Cadastre um papel para este tipo em{" "}
+                    <Link
+                      href={roleVocabularyHref}
+                      className="font-medium text-primary underline underline-offset-4"
+                    >
+                      Tipos de caso
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    A administração da organização pode cadastrar um papel para
+                    este tipo em Tipos de caso.
+                  </>
+                )}
               </FieldDescription>
             )}
             <FieldError>{fieldErrors.roleId}</FieldError>

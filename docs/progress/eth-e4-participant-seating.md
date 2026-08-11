@@ -115,10 +115,31 @@ is amended with the false clause struck through **verbatim** and the reason reco
 - **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches;
   `BATCH_TESTS=22` is the known rescue. Infra, never an assertion failure.
 - **FUP-SILENT-READ-1** — the pre-existing residue (all 3 ETH·E4-authored instances fixed).
-- **PO, unratified:** the Class-2 audit posture after D5 (wants one ADR line); and
-  `department`/`institution`/`other`, mintable but with **no seeded role** — the UI names the state
-  ("Nenhum papel cadastrado aceita este tipo de participante"), so it is a seeding choice, not a
-  defect.
+- ✅ **PO — BOTH RATIFIED 2026-08-11.**
+  1. **Class-2 audit posture after D5: ratified as-is; the wording was the defect.** "Audited reads"
+     is a property of the **case-scoped DEFINER door** `get_case_professional`, not of the class.
+     D5's org-manager arm is reached only by **invoker-rights reads that emit nothing** —
+     `searchParticipants` (`src/lib/queries/participants.ts`) and the roster live-name read in
+     `src/lib/queries/cases.ts` — and that is accepted: they are directory reads of metadata already
+     org-readable by design, and auditing them means reversing D4 plus an `audit_log` row per
+     typeahead keystroke. The non-regression invariant is the **door's** audit, already pinned by
+     pgTAP **`207` K4** (*"exactly one `professional_profile.read` audit row for the entitled
+     reader"*) — no new keystone needed, and cite K4, never "Class-2 reads are audited".
+     Recorded: ADR 0108 D5 + ARCHITECTURE.md Rule 12's Class-2 bullet.
+  2. **`department`/`institution`/`other`: keep all five types mintable; make the empty state name
+     the remedy.** Not seeded (a seed row fixes the local fixture and *nothing* in production) and
+     not filtered (the five labels are fixed by locator contract §2b, and filtering would empty the
+     list entirely for a fresh org). The dialog's "Nenhum papel cadastrado aceita este tipo de
+     participante." now continues with the remedy, linked to `/o/[org]/manage/tipos-de-caso` when —
+     and only when — the viewer can open it (`getParticipantRoleVocabularyHref` re-checks **both**
+     of that page's `notFound()` gates: org_admin of this org **and** the `case_types` flag).
+
+  ⚠ **Found while ratifying (2), and bigger than (2):** the ethics role bundle exists **only in
+  `supabase/seed.sql`**. No migration bootstraps `case_participant_roles` for a new org — the sole
+  role-insert anywhere is the lazy `affected_patient` mint inside the patient path. A production org
+  therefore starts with **zero** roles and *every* participant type is a dead end until an org admin
+  authors the vocabulary in T5. Tracked as **FUP-ETH-ROLES-1**; the three role-less types are one
+  visible instance of it, not the shape of it.
 - **MAJOR-2(b)** — the picker scope limit. r2 made it non-blocking **conditional on B-1 landing**;
   B-1 landed. Closing it fully needs a `profiles_select_self_or_admin` widening — a security decision
   deliberately escalated rather than taken by an agent. Two cheap items to attach: the `no_account`
