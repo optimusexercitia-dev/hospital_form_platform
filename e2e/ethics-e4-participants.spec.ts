@@ -299,8 +299,25 @@ function participantsPanel(page: Page): Locator {
   return page.getByRole('region', { name: 'Participantes' })
 }
 
-function rosterRow(page: Page, participantName: string | RegExp): Locator {
-  return participantsPanel(page).locator('li').filter({ hasText: participantName })
+/**
+ * The roster row(s) for `participantName`. The panel renders ONE <li> PER
+ * (participant, role) SEATING, not one per unique participant —
+ * case-participants-panel.tsx:327 keys its map on `p.id`, and `p.id` is the
+ * `case_participants` row id (what `removeCaseParticipant`/`setPrimarySubject`
+ * take), confirmed against the landed source. A participant seated under two
+ * different roles (two separate `add_case_participant` calls — NOT a role
+ * *change*, which updates the existing row via `set_case_participant_role`
+ * and stays one row) therefore has TWO <li>s that both match on name alone.
+ *
+ * Pass `roleLabel` to disambiguate to the one row carrying both — a second
+ * `.filter({ hasText })`, not `.first()`/`.last()`, which would silently
+ * assert against whichever row happens to sort first and rot the moment
+ * ordering changes. Omit `roleLabel` only where the participant is known to
+ * have exactly one seating at that point in the file's serial sequence.
+ */
+function rosterRow(page: Page, participantName: string | RegExp, roleLabel?: string): Locator {
+  const byName = participantsPanel(page).locator('li').filter({ hasText: participantName })
+  return roleLabel ? byName.filter({ hasText: roleLabel }) : byName
 }
 
 async function openAddParticipantDialog(page: Page): Promise<Locator> {
@@ -705,13 +722,18 @@ test('EXT-CREATE seat an external denunciante via create — proves create_exter
     roleLabel: 'Denunciante',
   })
 
-  await expect(rosterRow(page, EXTERNAL_NAME)).toBeVisible({ timeout: 10_000 })
+  // Scoped to the 'Denunciante' row explicitly, not just by name: this is his
+  // FIRST seating (safe unscoped at this exact point — EXT-REUSE's second
+  // seating hasn't happened yet), but scoping by (name, role) here too keeps
+  // this test correct even if a future edit reorders things, and states
+  // precisely which seating is being checked.
+  await expect(rosterRow(page, EXTERNAL_NAME, 'Denunciante')).toBeVisible({ timeout: 10_000 })
   // exact:true — found in my own sweep, not the lead's list: EXTERNAL_NAME
   // ("João Denunciante Externo (E4)") itself CONTAINS "Denunciante" as a
   // substring — an unscoped match resolves to 2 elements within this same
   // row (the name text AND the role text), a strict-mode violation.
   await expect(
-    rosterRow(page, EXTERNAL_NAME).getByText('Denunciante', { exact: true }),
+    rosterRow(page, EXTERNAL_NAME, 'Denunciante').getByText('Denunciante', { exact: true }),
   ).toBeVisible()
 
   const rows = await dbQuery<{ id: string }>('participants', {
@@ -744,8 +766,15 @@ test('EXT-REUSE seat the SAME external denunciante again via reuse-first search 
     roleLabel: 'Testemunha',
   })
 
+  // rosterRow scoped to (EXTERNAL_NAME, 'Testemunha') — after this seating he
+  // has TWO <li> rows (one per case_participants row: the EXT-CREATE
+  // 'Denunciante' seating and this new 'Testemunha' one), confirmed against
+  // case-participants-panel.tsx:327 (keyed on the case_participants id, not a
+  // deduplicated participant id). Name-only would resolve to 2 elements here
+  // — a strict-mode violation on the outer rosterRow(...) locator itself, not
+  // just on the chained getByText.
   await expect(
-    rosterRow(page, EXTERNAL_NAME).getByText('Testemunha', { exact: true }),
+    rosterRow(page, EXTERNAL_NAME, 'Testemunha').getByText('Testemunha', { exact: true }),
   ).toBeVisible({ timeout: 10_000 })
 
   // The strongest proof of reuse: TWO case_participants rows now point at the
