@@ -214,6 +214,7 @@ function TypeaheadField<T>({
   placeholder,
   items,
   loading = false,
+  error = null,
   query,
   onQueryChange,
   onPick,
@@ -230,13 +231,23 @@ function TypeaheadField<T>({
   /** Only the async (server-searched) fields pass this; the client-filtered
    *  platform-user picker has nothing to wait on. */
   loading?: boolean;
+  /**
+   * MAJOR-2(a) (QA r2) — a FAILED search, distinct from a search that
+   * genuinely found nothing. Only the async (server-searched) fields pass
+   * this. When set, it takes priority over `emptyHint`: "Nenhum resultado.
+   * Você pode cadastrar um novo." is the wrong thing to tell a coordinator
+   * whose search never actually ran — it invites minting a duplicate (or, on
+   * the professional lane, reaching for "não possui conta", which makes the
+   * case exclusion vacuously satisfied).
+   */
+  error?: string | null;
   query: string;
   onQueryChange: (value: string) => void;
   onPick: (item: T) => void;
   getKey: (item: T) => string;
   getLabel: (item: T) => string;
   renderOption?: (item: T) => React.ReactNode;
-  /** Copy shown under the list when it is open and empty. */
+  /** Copy shown under the list when it is open, empty, AND not erroring. */
   emptyHint?: string;
   disabled?: boolean;
 }) {
@@ -279,8 +290,9 @@ function TypeaheadField<T>({
     }
   }
 
-  const showList = open && !loading && items.length > 0;
-  const showEmpty = open && !loading && items.length === 0;
+  const showList = open && !loading && !error && items.length > 0;
+  const showError = open && !loading && Boolean(error);
+  const showEmpty = open && !loading && !error && items.length === 0;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -304,6 +316,7 @@ function TypeaheadField<T>({
             aria-activedescendant={
               open && activeIndex >= 0 ? optionId(activeIndex) : undefined
             }
+            aria-invalid={error ? true : undefined}
             disabled={disabled}
             placeholder={placeholder}
             value={query}
@@ -379,6 +392,13 @@ function TypeaheadField<T>({
               <p className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
                 <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin" />
                 Buscando…
+              </p>
+            ) : showError ? (
+              <p
+                role="alert"
+                className="px-3 py-3 text-sm font-medium text-destructive text-pretty"
+              >
+                {error}
               </p>
             ) : showEmpty && emptyHint ? (
               <p className="px-3 py-3 text-sm text-muted-foreground text-pretty">
@@ -496,13 +516,49 @@ export function AddParticipantDialog({
   const [profQuery, setProfQuery] = useState("");
   const [profResults, setProfResults] = useState<ParticipantSearchResult[]>([]);
   const [profSearching, setProfSearching] = useState(false);
+  // MAJOR-2(a) (QA r2): a FAILED search is not "no results" — the empty-state
+  // copy ("Nenhum resultado. Você pode cadastrar um novo.") is exactly the
+  // sentence that walks a coordinator to minting a duplicate, or — on the
+  // professional lane — to "não possui conta", which makes the case exclusion
+  // vacuously satisfied. This must read as an error, distinctly.
+  const [profSearchError, setProfSearchError] = useState<string | null>(null);
   const [selectedProf, setSelectedProf] = useState<ParticipantSearchResult | null>(null);
   const [profDraft, setProfDraft] = useState(EMPTY_PROF_DRAFT);
+  /**
+   * MAJOR-6 (QA r2 correction) — the professional lane's own mint-then-fail
+   * memo. The 7900f51 commit note claiming this lane was "immune because its
+   * mint is get-or-create" was WRONG: `ensure_professional_participant` (the
+   * REGISTRY link) is get-or-create, but `createProfessionalProfile` — the
+   * call this create-inline form actually makes — is a bare `insert …
+   * returning id`, no `on conflict`, no lookup (verified against `pg_proc`).
+   * A mint that succeeds followed by a failure in the linkage step or
+   * `addCaseParticipant` therefore discards `profileId` exactly like the
+   * external lane did, and retrying `submit()` mints a second profile —
+   * silently when CRM is blank, or dead-ending on a `23505` when one is
+   * entered. Same fix, same shape as `mintedExternalId` below: retain the id
+   * and the (fullName, professionalType, licenseNumber, licenseRegion,
+   * specialty) it was minted for — `userId`/linkage is deliberately EXCLUDED
+   * from the identity, since picking a different platform account for the
+   * SAME named profile is a linkage correction, not a different person.
+   */
+  const [mintedProfessionalId, setMintedProfessionalId] = useState<
+    string | null
+  >(null);
+  const [mintedProfessionalIdentity, setMintedProfessionalIdentity] =
+    useState<{
+      fullName: string;
+      professionalType: string | null;
+      licenseNumber: string | null;
+      licenseRegion: string | null;
+      specialty: string | null;
+    } | null>(null);
 
   // External lane
   const [extQuery, setExtQuery] = useState("");
   const [extResults, setExtResults] = useState<ParticipantSearchResult[]>([]);
   const [extSearching, setExtSearching] = useState(false);
+  // MAJOR-2(a) — same distinction as `profSearchError`.
+  const [extSearchError, setExtSearchError] = useState<string | null>(null);
   const [selectedExt, setSelectedExt] = useState<ParticipantSearchResult | null>(null);
   const [extType, setExtType] = useState<ParticipantType>("external_person");
   const [extName, setExtName] = useState("");
@@ -519,6 +575,11 @@ export function AddParticipantDialog({
   // `seat_external` door duplicating `add_case_participant`'s authorization/
   // audit/`HC0F0` logic — exactly what ADR 0108 D1 rejected — so the retry
   // state belongs here, not in a new RPC.
+  //
+  // The professional lane needed the SAME fix — see `mintedProfessionalId`
+  // below (`profDraft`). It is NOT covered by this one: `createExternalParticipant`
+  // and `createProfessionalProfile` are two different doors with two different
+  // memos, kept next to the state each one guards.
   const [mintedExternalId, setMintedExternalId] = useState<string | null>(null);
   const [mintedExternalIdentity, setMintedExternalIdentity] = useState<{
     type: ParticipantType;
@@ -553,10 +614,14 @@ export function AddParticipantDialog({
     setExtMode("search");
     setProfQuery("");
     setProfResults([]);
+    setProfSearchError(null);
     setSelectedProf(null);
     setProfDraft(EMPTY_PROF_DRAFT);
+    setMintedProfessionalId(null);
+    setMintedProfessionalIdentity(null);
     setExtQuery("");
     setExtResults([]);
+    setExtSearchError(null);
     setSelectedExt(null);
     setExtType("external_person");
     setExtName("");
@@ -586,7 +651,20 @@ export function AddParticipantDialog({
       ]);
       if (seq !== searchSeq.current) return;
       setProfSearching(false);
-      if (res.ok) setProfResults(res.candidates);
+      if (res.ok) {
+        setProfSearchError(null);
+        setProfResults(res.candidates);
+      } else {
+        // MAJOR-2(a): a failed search must never fall through to the
+        // "Nenhum resultado" empty state — that copy explicitly invites
+        // creating a new profile, which is exactly wrong when the search
+        // itself couldn't run. Drop any stale results so they can't be
+        // mistaken for a completed, empty search.
+        setProfSearchError(
+          res.error ?? "Não foi possível buscar profissionais. Tente novamente.",
+        );
+        setProfResults([]);
+      }
     },
     [organizationId],
   );
@@ -616,7 +694,18 @@ export function AddParticipantDialog({
       );
       if (seq !== searchSeq.current) return;
       setExtSearching(false);
-      if (res.ok) setExtResults(res.candidates);
+      if (res.ok) {
+        setExtSearchError(null);
+        setExtResults(res.candidates);
+      } else {
+        // MAJOR-2(a) — same reasoning as the professional lane above: a
+        // failed search must not present as "Nenhum resultado. Você pode
+        // cadastrar um novo." and invite a duplicate mint.
+        setExtSearchError(
+          res.error ?? "Não foi possível buscar participantes. Tente novamente.",
+        );
+        setExtResults([]);
+      }
     },
     [organizationId],
   );
@@ -638,8 +727,12 @@ export function AddParticipantDialog({
   const visibleProfResults = profQuery.trim().length >= 2 ? profResults : [];
   const profSearchVisible =
     profQuery.trim().length >= 2 && profSearching;
+  const visibleProfSearchError =
+    profQuery.trim().length >= 2 ? profSearchError : null;
   const visibleExtResults = extQuery.trim().length >= 2 ? extResults : [];
   const extSearchVisible = extQuery.trim().length >= 2 && extSearching;
+  const visibleExtSearchError =
+    extQuery.trim().length >= 2 ? extSearchError : null;
 
   /**
    * The single place `open` transitions to `false` funnels through here — the
@@ -709,23 +802,48 @@ export function AddParticipantDialog({
 
         if (lane === "professional") {
           if (profMode === "create") {
-            const created = await createProfessionalProfile({
-              organizationId,
+            const identity = {
               fullName: profDraft.fullName.trim(),
               professionalType: profDraft.professionalType || null,
               licenseNumber: profDraft.licenseNumber.trim() || null,
               licenseRegion: profDraft.licenseRegion.trim() || null,
               specialty: profDraft.specialty.trim() || null,
-              userId: linkState === "linked" ? linkUserId : null,
-            });
-            if (!created.ok || !created.profileId) {
-              setError(
-                created.error ?? "Não foi possível cadastrar o profissional.",
-              );
-              setFieldErrors(created.fieldErrors ?? {});
-              return;
+            };
+            const alreadyMinted =
+              mintedProfessionalId !== null &&
+              mintedProfessionalIdentity !== null &&
+              mintedProfessionalIdentity.fullName === identity.fullName &&
+              mintedProfessionalIdentity.professionalType ===
+                identity.professionalType &&
+              mintedProfessionalIdentity.licenseNumber ===
+                identity.licenseNumber &&
+              mintedProfessionalIdentity.licenseRegion ===
+                identity.licenseRegion &&
+              mintedProfessionalIdentity.specialty === identity.specialty;
+
+            if (alreadyMinted) {
+              // MAJOR-6 (professional lane): same pending creation as the
+              // last attempt — reuse the profile already minted rather than
+              // calling createProfessionalProfile again, which would insert
+              // a second row for the same person.
+              professionalProfileId = mintedProfessionalId;
+            } else {
+              const created = await createProfessionalProfile({
+                organizationId,
+                ...identity,
+                userId: linkState === "linked" ? linkUserId : null,
+              });
+              if (!created.ok || !created.profileId) {
+                setError(
+                  created.error ?? "Não foi possível cadastrar o profissional.",
+                );
+                setFieldErrors(created.fieldErrors ?? {});
+                return;
+              }
+              professionalProfileId = created.profileId;
+              setMintedProfessionalId(created.profileId);
+              setMintedProfessionalIdentity(identity);
             }
-            professionalProfileId = created.profileId;
           } else if (selectedProf) {
             professionalProfileId =
               selectedProf.professionalProfileId ?? undefined;
@@ -879,6 +997,7 @@ export function AddParticipantDialog({
                   placeholder="Nome ou CRM…"
                   items={visibleProfResults}
                   loading={profSearchVisible}
+                  error={visibleProfSearchError}
                   query={profQuery}
                   onQueryChange={(v) => {
                     setProfQuery(v);
@@ -1058,6 +1177,7 @@ export function AddParticipantDialog({
                 placeholder="Nome…"
                 items={visibleExtResults}
                 loading={extSearchVisible}
+                error={visibleExtSearchError}
                 query={extQuery}
                 onQueryChange={(v) => {
                   setExtQuery(v);
