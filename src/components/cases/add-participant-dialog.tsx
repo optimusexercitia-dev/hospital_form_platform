@@ -60,24 +60,6 @@ const EXTERNAL_TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Common Brazilian healthcare professional categories for the "Tipo
- * profissional" select. `professional_profiles.professional_type` is a free
- * text column (no DB-side vocabulary) — this list is a UI convenience; the
- * value posted is whatever the coordinator picks (or "outro" for anything not
- * listed).
- */
-const PROFESSIONAL_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "medico", label: "Médico" },
-  { value: "enfermeiro", label: "Enfermeiro" },
-  { value: "farmaceutico", label: "Farmacêutico" },
-  { value: "fisioterapeuta", label: "Fisioterapeuta" },
-  { value: "psicologo", label: "Psicólogo" },
-  { value: "assistente_social", label: "Assistente social" },
-  { value: "nutricionista", label: "Nutricionista" },
-  { value: "outro", label: "Outro" },
-];
-
-/**
  * The linkage-choice fieldset (ADR 0108 D6): shared byte-for-byte between the
  * "cadastrar novo profissional" form here and `resolve-linkage-dialog.tsx`, so
  * the two surfaces can never drift on the audited confirmation string.
@@ -915,24 +897,18 @@ export function AddParticipantDialog({
                     <FieldLabel htmlFor={typeField.controlProps.id}>
                       Tipo profissional
                     </FieldLabel>
-                    <NativeSelect
+                    <Input
                       id={typeField.controlProps.id}
                       value={profDraft.professionalType}
                       disabled={isPending}
+                      placeholder="Ex.: Médico, Técnico de enfermagem…"
                       onChange={(e) =>
                         setProfDraft({
                           ...profDraft,
                           professionalType: e.target.value,
                         })
                       }
-                    >
-                      <option value="">Selecione…</option>
-                      {PROFESSIONAL_TYPE_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
+                    />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor={licenseField.controlProps.id}>
