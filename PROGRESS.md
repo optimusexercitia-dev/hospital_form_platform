@@ -159,10 +159,11 @@ entirely on an `if not exists (…)`. FF-3's `get_response_validation_errors` is
 existence probe reds **0 assertions across six files**, while a commission-Y staff then reads
 commission-X rule messages **and item labels** (proven live; keystone `§O` added, mutation-proven).
 **It is a pattern, not an accident** — it is the natural way to front an `app.` DEFINER helper, and
-**130 of 281 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`**, so the wrapper is the whole boundary
-each time. Proposed scope: enumerate `public` `prosecdef = f` functions calling an `app` `prosecdef = t`
-function, and require a keystone per wrapper that reds when its guard is removed. Relates to
-ARCHITECTURE.md Rule 1.
+**173 of 328 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`** (catalog-measured 2026-08-10;
+was 130 of 281 when filed — the population **grows**, so re-measure rather than citing this line),
+so the wrapper is the whole boundary each time. Proposed scope: enumerate `public` `prosecdef = f`
+functions calling an `app` `prosecdef = t` function, and require a keystone per wrapper that reds
+when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 
 **3. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
 stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. ⚠ **Verify the premise
