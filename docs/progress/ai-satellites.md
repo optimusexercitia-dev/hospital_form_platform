@@ -86,11 +86,34 @@ migration text; regenerate from the live definition.
 
 ## Pre-pilot follow-ups (PO-directed, NOT this phase)
 
-- **FUP-AI-1 / BUG-AIF-001 → PRE-PILOT** (PO call 2026-07-14): satellite panels surface the
-  platform-wide `router.refresh()`-in-`startTransition` deferred-flush stall as a whole-section
-  control freeze until reload (data always persists). `useSatelliteAction` mirrors the incumbent
-  `useCaseAction`/`useMeetingAction` verbatim — platform-wide, not AI-introduced. Scheduled as its
-  own workstream **before pilot** under the pre-pilot release.
+- **FUP-AI-1 / BUG-AIF-001 → ⬛ CLOSED 2026-08-10 (PO), never built — the root cause was upstream and
+  is fixed.** *(Original scope, PO call 2026-07-14: satellite panels surface the platform-wide
+  `router.refresh()`-in-`startTransition` deferred-flush stall as a whole-section control freeze
+  until reload — data always persists. `useSatelliteAction` mirrors the incumbent
+  `useCaseAction`/`useMeetingAction` verbatim: platform-wide, not AI-introduced. Scheduled as its own
+  pre-pilot workstream.)*
+
+  **Why it closed without a refactor — three independent pieces, in increasing breadth:**
+  1. **The defect was never ours.** BUG-AIF-001 was a Next.js App-Router bug — a route's
+     `loading.tsx` Suspense boundary plus a server action's deferred `router.refresh()`, so a
+     discarded action advanced the router action queue against stale state and the refresh never
+     flushed (`vercel/next.js` #86151/#86055, fix PR #95391). Fixed upstream; `package.json` is on
+     **`next: 16.3.0` stable**, `npm ls next` clean.
+  2. **Full `e2e:prod` gate on 16.3.0 stable (2026-08-08): ZERO assertion failures**, 991 passed,
+     coverage complete across 17 batches — far broader than any single hook's surface.
+  3. **The canonical deterministic repro, re-run 2026-08-10** on a prod-standalone build with a fresh
+     `db reset` (`SPECS=e2e/meetings-reserved-sessions.spec.ts`, the spec that produced the original
+     hangs): **GATE GREEN, 8/8, 17.9s**; the mutation-driving tests ran **2.0s / 1.8s / 1.2s** against
+     **21–31 s hangs** when the bug was live.
+
+  ⚠ **What is NOT claimed:** the code pattern still exists in **all 13** `use-*-action*` hooks
+  (derive with `find src -name "use-*-action*"` — the property is "defers `router.refresh()` inside a
+  transition"; the old 3-hook list was an enumeration bounded by whoever filed it). Nothing was
+  refactored. The close rests on the failure mode being gone from the toolchain, **not** on each hook
+  being individually exercised — so a future Next regression in this area reopens it platform-wide.
+  ⚠ **First move on any recurrence: `npm ls next`.** This bug's only "regression" was
+  `node_modules/next` silently falling back to 16.2.9 while `package.json` declared the fixed
+  version — the code was right and the install was wrong, and it cost a full diagnostic session.
 - **§9.5 (post-pilot, logged):** project `visibility_scope` onto the read-side `MeetingActionItem`
   type so the meeting edit form shows the true stored scope vs the RPC-computed default (display
   nicety; FE-2 is safe by construction — edit submits scope only on explicit change).
