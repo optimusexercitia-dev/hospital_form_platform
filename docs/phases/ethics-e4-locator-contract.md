@@ -27,6 +27,46 @@ wrong or unbuildable, message the lead — do **not** silently pick another.
 The row exposes the participant name and role as text. Name rendering follows ADR 0108
 D3: live `professional_profiles.full_name` when readable, else `participants.display_name`.
 
+### 1a. What each row action actually opens (pinned 2026-08-11 — the tester hit this)
+
+**`Alterar papel` is a DROPDOWN MENU, not a dialog and not an inline select.** Trigger is
+the `Alterar papel` button; the menu carries a `Definir papel` label, a separator, and one
+item per allowed role (the current role's item is disabled). Selecting an item fires the
+action directly — **there is no submit button**. Playwright shape:
+
+```ts
+await row.getByRole('button', { name: 'Alterar papel' }).click()
+await page.getByRole('menuitem', { name: 'Testemunha' }).click()
+```
+
+**`Remover` opens an AlertDialog** — the house pattern for a destructive row action,
+proven in `e2e/phase3-admin-members.spec.ts` and already used in this very directory by
+`case-corrections-panel.tsx`. Strings, matching that pattern exactly:
+
+| Element | Role | Accessible name (exact) |
+| --- | --- | --- |
+| Trigger | `button` | `Remover` |
+| Confirm dialog | `alertdialog` | `Remover participante?` |
+| Confirm | `button` | `Remover` |
+| Cancel | `button` | `Cancelar` |
+
+**`Definir como sujeito principal` confirms ONLY when it will demote an incumbent.**
+ADR 0108 D2 changed this door from *impossible* (a second primary raised `HC0E7`) to
+*silently succeeds and demotes the current primary*. On a disciplinary case the primary
+subject is the accused — reassigning who the case is **about** must not be a single
+unconfirmed click. When no primary is set yet there is nothing to demote: fire directly,
+no dialog.
+
+| Element | Role | Accessible name (exact) |
+| --- | --- | --- |
+| Trigger | `button` | `Definir como sujeito principal` |
+| Confirm dialog (only when an incumbent exists) | `alertdialog` | `Alterar o sujeito principal?` |
+| Confirm | `button` | `Alterar sujeito principal` |
+| Cancel | `button` | `Cancelar` |
+
+The dialog body **names the participant being demoted**, so the consequence is legible
+rather than implied.
+
 ⚠ `CasePrimarySubjectPanel` (rail) and `CasePatientPanel` are **NOT touched** — E3a E2E
 asserts the rail card's heading and empty state.
 
