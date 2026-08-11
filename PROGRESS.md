@@ -242,6 +242,50 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🔴 **BUG-ETHE4-FOCUS-1 — OPEN 2026-08-11. Add-participant dialog: keyboard focus gets trapped
+after the typeahead search field, and Escape silently resets the whole form.** Phase ETH·E4
+(`tester`, found live during the dev-server fix loop `frontend-engineer` handed the stack for —
+not from static review). Owner: `frontend` (`src/components/cases/add-participant-dialog.tsx`,
+likely the shared `TypeaheadField`'s auto-open-on-focus popup interacting with the Dialog's own
+focus trap; unconfirmed whether it's app code or a Radix Dialog/FocusScope interaction, but the
+symptom is user-visible either way and the fix is frontend's either way).
+
+**Repro (keyboard-only, chromium, local dev server):** sign in `chefe.ccih@test.local` → open a
+case → Tab to "Adicionar participante", Enter → Tab into the "Tipo de participante" radiogroup,
+ArrowDown to select "Pessoa externa ou órgão" (confirmed checked) → Tab once more (lands on the
+"Buscar participante externo" search input, which auto-opens its (empty) suggestion popup via
+`onFocus`) → continue pressing Tab.
+
+**Expected:** focus moves sequentially through the remaining dialog controls — "Cadastrar novo",
+then (once in create mode) Tipo / Nome / Papel / Resumo do envolvimento / Cancelar / Adicionar —
+same as every other dialog in this codebase.
+
+**Actual, two distinct symptoms, both reproduced twice on a fresh `db reset`:**
+1. **Plain Tab, no Escape:** focus cycles through exactly THREE elements forever — the search
+   input (`#ext-search`) → the dialog's own container (`role="dialog"`, which should not normally
+   be a tab stop) → a radio input → back to the search input. "Cadastrar novo" and everything
+   after it is **never reached** — confirmed via a temporary `document.activeElement` dump over
+   10 Tab presses, not inferred from the timeout alone.
+2. **Tab then Escape (a natural instinct to dismiss an empty suggestion list):** focus jumps to
+   `#prof-search` — the **professional** lane's search field — and the subsequent Tab sequence
+   shows the Papel `<select>` now listing only professional-allowed roles and the "Profissional"
+   radio checked. **The Escape key resets the entire form's lane selection (and by implication
+   the rest of `resetAll()`'s state) back to its defaults**, without the dialog closing and
+   without the user asking for that. The second run's test then hit the outer 30s timeout mid-
+   diagnostic and Playwright force-closed the page (`Target page, context or browser has been
+   closed`) — the state churn is severe enough to blow the budget even instrumented.
+
+**Violates:** CLAUDE.md §8 ("Every form input accessible: labels, keyboard navigation, visible
+focus") and this phase's own acceptance criterion for a keyboard-only flow
+(`docs/phases/ethics-e4-participant-seating.md` §5.2's E2E bullet). Test:
+`e2e/ethics-e4-participants.spec.ts` KBD-1 — left failing (not weakened, not skipped) because the
+failure is the accurate signal; do not edit the spec to route around this.
+
+**Not confirmed, flagged as a hypothesis for whoever fixes it:** `TypeaheadField` is shared by
+"Buscar profissional", "Buscar participante externo", and "Usuário da plataforma" — the
+professional lane's own typeahead was never keyboard-navigated in this suite (`PROF-PICK`/
+`PROF-CREATE` drive it by mouse), so whether it shares this defect is untested, not ruled out.
+
 ✅ **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1 — ALL THREE RESOLVED 2026-08-10.**
 Branch `worktree-fix-vacuous-assert-act-expiry-acl`; migrations `20260918003000` +
 `20260918003100`; new keystone `320` (10 assertions, RED-first); keystone `318` PART 2 amended.

@@ -96,8 +96,10 @@ import { cachedSignIn } from "./helpers/auth"
  *   PRIMARY-MOVE-CANCEL   decline the confirmation — the incumbent must stay
  *                   primary (the assertion that makes the guard real, not
  *                   decorative — the lead's explicit ask)
- *   UNKNOWN-RESOLVE resolve a legacy `unknown` linkage via the roster's
- *                   "Resolver vínculo" affordance
+ *   UNKNOWN-RESOLVE seat resolved, revert to `unknown` via RPC (the add
+ *                   dialog resolves an `unknown` pick inline — no product
+ *                   path seats someone WHILE unknown, confirmed live), then
+ *                   resolve via the roster's "Resolver vínculo" affordance
  *   KBD-1           keyboard-only (CLAUDE.md §8) — seat an external witness
  *                   using only Tab/Arrow/Enter/typing, no mouse
  *
@@ -259,20 +261,20 @@ async function createEthicsCase(request: APIRequestContext, label: string): Prom
 }
 
 /**
- * Mint a professional profile with NO platform-account linkage (`link_state`
- * stays at its column default 'unknown' — the migration's insert-time derive
- * trigger only flips it to 'linked' when `p_user_id` is provided) and mint its
- * registry pairing, both via the REAL doors — the same PostgREST-reachability
- * proof this file's UI-driven tests carry, just used as fixture plumbing. There
- * is no product path to reach `unknown` deliberately (ADR 0108 D6: the add
- * dialog's linkage choice is required, un-defaulted, and offers only `linked`/
- * `no_account`) — `unknown` is legacy-shaped by design, so minting it this way
- * IS the realistic scenario, not a shortcut around one.
+ * Mint a professional profile + registry pairing via the real doors, RESOLVED
+ * to `no_account` (not `unknown`) — found live, not assumed: the add dialog's
+ * `needsLinkage` (add-participant-dialog.tsx) triggers the inline linkage
+ * fieldset the moment an `unknown`-linkage candidate is PICKED from search,
+ * for ANY target role — not only `respondent_doctor`, which is all the
+ * backend's `assert_respondent_linkage_resolved` gates. There is therefore no
+ * product path to seat someone WHILE their linkage is `unknown` (confirmed
+ * live: the original version of this fixture tried exactly that and the
+ * "Adicionar" submit button never left `disabled`, 30s timeout). `no_account`,
+ * not `linked`, so this needs no real unused platform-user persona — every
+ * seeded/fixture user is already someone else's linkage target elsewhere in
+ * this file.
  */
-async function mintUnknownLinkageProfessional(
-  request: APIRequestContext,
-  fullName: string,
-): Promise<string> {
+async function mintSeatableProfessional(request: APIRequestContext, fullName: string): Promise<string> {
   const token = await getOwnerToken(request, CHEFE)
   const createResp = await callRpc(request, 'create_professional_profile', token, {
     p_org: ORG_A,
@@ -286,7 +288,35 @@ async function mintUnknownLinkageProfessional(
     p_profile_id: profileId,
   })
   expect(mintResp.ok(), `ensure_professional_participant: ${await mintResp.text()}`).toBeTruthy()
+
+  const resolveResp = await callRpc(request, 'set_professional_link_state', token, {
+    p_profile_id: profileId,
+    p_link_state: 'no_account',
+  })
+  expect(resolveResp.ok(), `set_professional_link_state(no_account): ${await resolveResp.text()}`).toBeTruthy()
+
   return profileId
+}
+
+/**
+ * Revert an ALREADY-SEATED professional's linkage back to `unknown` via the
+ * real RPC — `set_professional_link_state` accepts `unknown` as a genuine
+ * target state, not just a column default (checked against the migration:
+ * `p_link_state not in ('linked', 'no_account', 'unknown')` is the only
+ * rejection). This is the mechanism ADR 0108 actually names for how a seated
+ * professional ends up needing "Resolver vínculo": "a profile can be flipped
+ * back to unknown by set_professional_link_state after seating" — a legacy/
+ * reverted profile, not a freshly-unresolved one. No UI reaches this
+ * transition, so it is exercised directly, mirroring the shape of
+ * `mintSeatableProfessional` above.
+ */
+async function revertLinkToUnknown(request: APIRequestContext, profileId: string): Promise<void> {
+  const token = await getOwnerToken(request, CHEFE)
+  const resp = await callRpc(request, 'set_professional_link_state', token, {
+    p_profile_id: profileId,
+    p_link_state: 'unknown',
+  })
+  expect(resp.ok(), `set_professional_link_state(unknown): ${await resp.text()}`).toBeTruthy()
 }
 
 // ---------------------------------------------------------------------------
@@ -506,10 +536,16 @@ async function changeParticipantRole(
   const row = rosterRow(page, participantName)
   await row.getByRole('button', { name: 'Alterar papel' }).click()
 
-  // Scoped by the lead-confirmed menu label ("Definir papel") rather than left
-  // as a bare `getByRole('menu')` — cheap extra insurance against any other
-  // menu that could ever be open at the same point in a future test.
-  const menu = page.getByRole('menu', { name: 'Definir papel' })
+  // Unscoped by name, deliberately: Radix's DropdownMenuContent sets no
+  // aria-label/aria-labelledby of its own, so its accessible name is
+  // inherited from its TRIGGER ("Alterar papel") — "Definir papel" is only
+  // DropdownMenuLabel's VISUAL heading inside the menu, not the menu's
+  // accessible name (confirmed live: scoping by it found nothing). Not
+  // substituting `{ name: 'Alterar papel' }` either — that would work today,
+  // but ties the assertion to a UI library's internal labelling convention,
+  // the same shape that breaks silently on a version bump. Only one menu can
+  // be open at a time, so an unscoped `getByRole('menu')` is unambiguous.
+  const menu = page.getByRole('menu')
   await expect(menu).toBeVisible({ timeout: 10_000 })
   // NOT exact:true here, deliberately: the 7 seeded role labels (Médico
   // denunciado / Denunciante / Testemunha / Relator / Representante legal /
@@ -952,18 +988,17 @@ test('PRIMARY-MOVE-CANCEL declining the confirmation leaves the incumbent primar
 // FUP-ETH-1 stays a dead end).
 // ===========================================================================
 
-test('UNKNOWN-RESOLVE seat an unknown-linkage professional (non-respondent role), then resolve via the roster', async ({
+test('UNKNOWN-RESOLVE seat a resolved professional, revert their linkage to unknown, then resolve via the roster', async ({
   page,
   request,
 }) => {
   const fullName = 'Dr. Vínculo Pendente (E4)'
-  // `assert_respondent_linkage_resolved` only gates the `respondent_doctor`
-  // role (verified against the migration that defines it — "only the
-  // respondent role is load-bearing for the deny") — so an `unknown`-linkage
-  // professional CAN be seated in any other role. Seating as "Testemunha" here
-  // is what gets them onto the roster with the "Resolver vínculo" affordance
-  // showing at all.
-  await mintUnknownLinkageProfessional(request, fullName)
+  // Found live, not assumed (see mintSeatableProfessional's own comment): the
+  // add dialog resolves an `unknown` pick's linkage INLINE regardless of
+  // target role, so there is no product path to seat someone WHILE unknown.
+  // The realistic order is the reverse — seat resolved, then the profile is
+  // later reverted to `unknown` (a real RPC transition, not a shortcut).
+  const profileId = await mintSeatableProfessional(request, fullName)
 
   await signInAs(page, CHEFE)
   await gotoCase(page)
@@ -974,7 +1009,20 @@ test('UNKNOWN-RESOLVE seat an unknown-linkage professional (non-respondent role)
     roleLabel: 'Testemunha',
   })
   await expect(rosterRow(page, fullName)).toBeVisible({ timeout: 10_000 })
-  await expect(rosterRow(page, fullName).getByRole('button', { name: 'Resolver vínculo' })).toBeVisible()
+  // Not yet unknown (seated `no_account`) — the affordance must NOT show yet;
+  // this is the before-half of the state-transition proof, not just a
+  // rendering check.
+  await expect(rosterRow(page, fullName).getByRole('button', { name: 'Resolver vínculo' })).toHaveCount(0)
+
+  await revertLinkToUnknown(request, profileId)
+  // The revert happened out-of-band (a direct RPC, not a UI action) — reload
+  // to force the server component to refetch and reflect the new linkState.
+  await page.reload()
+  await expect(participantsPanel(page)).toBeVisible({ timeout: 10_000 })
+
+  await expect(rosterRow(page, fullName).getByRole('button', { name: 'Resolver vínculo' })).toBeVisible({
+    timeout: 10_000,
+  })
 
   await resolveLinkageViaRoster(page, fullName, {
     platformUserSearch: STAFF2_SEARCH,
