@@ -1,5 +1,6 @@
 import { StatCount } from "@/components/admin/stat-count";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import type { CaseActionItemKpis } from "@/lib/queries/case-action-items";
 import type { CaseKpis, OutcomeBreakdown } from "./case-derive";
 import { CaseStatusBadge } from "./case-status-badge";
@@ -204,7 +205,7 @@ export function CasesKpiStrip({
       value: actionItems.open,
       sub:
         actionItems.overdue > 0
-          ? `${actionItems.overdue} atrasado${actionItems.overdue === 1 ? "" : "s"}`
+          ? `${actionItems.overdue} ${plural(actionItems.overdue, "atrasado", "atrasados")}`
           : "Nenhum atrasado",
       tone: actionItems.overdue > 0 ? "danger" : "plain",
     });

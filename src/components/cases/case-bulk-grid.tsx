@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ClipboardPaste, Plus, ShieldAlert, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import type { CustomFieldValueDraft } from "@/components/cases/custom-field-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -602,8 +603,9 @@ function PasteMappingPanel({
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold">Mapear colunas coladas</h3>
         <p className="text-sm text-muted-foreground text-pretty">
-          {matrix.length} linha{matrix.length === 1 ? "" : "s"} · {sourceColCount}{" "}
-          coluna{sourceColCount === 1 ? "" : "s"} coladas. Indique de qual coluna
+          {matrix.length} {plural(matrix.length, "linha", "linhas")} ·{" "}
+          {sourceColCount} {plural(sourceColCount, "coluna", "colunas")} coladas.
+          Indique de qual coluna
           colada (ou de um valor fixo) cada campo do caso deve ser preenchido.
         </p>
       </div>

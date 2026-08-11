@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { getReadinessEvidence, getReadinessReport, listStandards } from "@/lib/queries/accreditation";
-import { getStandardAssessmentDetail } from "@/lib/accreditation/actions";
+import {
+  getReadinessEvidence,
+  getReadinessReport,
+  getStandardAssessmentDetail,
+  listStandards,
+} from "@/lib/queries/accreditation";
 import { StandardPanel } from "@/components/accreditation/standard-panel";
 
 export const metadata: Metadata = {

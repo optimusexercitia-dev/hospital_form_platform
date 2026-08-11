@@ -119,6 +119,27 @@ reload_pgrst() {  # PostgREST schema cache goes stale after a reset -> PGRST205/
   docker exec -i "supabase_db_$REF" psql -U postgres -d postgres \
     -c "NOTIFY pgrst, 'reload schema';" >/dev/null 2>&1 || true
 }
+# `reload_pgrst` only NOTIFIES — the rebuild is ASYNCHRONOUS and it does not wait.
+# Starting a batch inside that window is the PGRST002 race (FUP-QO-9): PostgREST is up
+# and ANSWERING, so nothing in the run looks like a connection error; the tests just see
+# a 503 body and fail as assertions. Probe the REST root and treat the code/message in
+# the BODY as the readiness signal. Fails CLOSED: an empty body (curl failed) = not ready.
+pgrst_ok() {
+  local body
+  body="$(curl -s -m 5 "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/" \
+       -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" 2>/dev/null)"
+  [ -n "$body" ] && ! printf '%s' "$body" | grep -qE "PGRST002|Could not query the database for the schema cache"
+}
+# The `gotenberg-pdf` sidecar is OUTSIDE the Supabase stack and carries NO restart
+# policy, so any Docker restart kills it silently and every PDF spec reds as an
+# assertion failure (FUP-GATE-RESET-FLAKE: 8 such reds in one gate, diagnosed only
+# after the run). Detection only — the restart policy itself is an infra change and
+# stays the PO's call. Vacuously true when PDF_RENDERER_URL is unset, because minting
+# is then expected to fail cleanly in pt-BR and the specs account for it.
+renderer_ok() {
+  [ -z "${PDF_RENDERER_URL:-}" ] && return 0
+  [ "$(curl -s -o /dev/null -w '%{http_code}' -m 3 "${PDF_RENDERER_URL%/}/health" 2>/dev/null)" = "200" ]
+}
 # Cheap fix first. If kong started BEFORE auth it may hold auth's dead container IP.
 # This is only a CLASSIFIER for an already-failing probe, NEVER a detector on its own:
 # kong legitimately outlives auth after every `db reset` (measured — kong 4 days vs auth
@@ -133,7 +154,10 @@ recover_stack() {
   echo "[$(LOG_TS)]   cycling the whole stack (supabase stop/start + reset)"
   npx supabase stop >/dev/null 2>&1 || true
   npx supabase start >/dev/null 2>&1 || true
-  supabase db reset --local >/dev/null 2>&1 || true
+  # Keep this reset's output too (FUP-GATE-RESET-FLAKE): when recovery itself is what
+  # fails, the discarded stderr was the only record of why.
+  supabase db reset --local >"$GATE_LOGDIR/reset-recover.log" 2>&1 \
+    || echo "[$(LOG_TS)]   recovery reset FAILED (log: $GATE_LOGDIR/reset-recover.log)"
   BASE_ANALYTICS="$(restarts analytics)"
   reload_pgrst
   token_ok
@@ -144,6 +168,14 @@ preflight() {
   local label="$1" i looping
   reload_pgrst
   for i in $(seq 1 15); do token_ok && break; sleep 2; done
+  # Wait for the schema cache too, re-NOTIFYing each round (the first NOTIFY can land
+  # before the DB finishes accepting connections, in which case it is simply lost).
+  # NOT fatal: a blip here is recoverable — the batch classifier now recognises PGRST002
+  # and re-runs the batch — and aborting a 40-minute gate on a cache rebuild would be a
+  # worse failure than proceeding with a warning.
+  for i in $(seq 1 15); do pgrst_ok && break; reload_pgrst; sleep 2; done
+  pgrst_ok || echo "[$(LOG_TS)] PREFLIGHT($label): WARNING — PostgREST schema cache still not ready; expect PGRST002 (batch will be retried as INFRA)"
+  renderer_ok || echo "[$(LOG_TS)] PREFLIGHT($label): WARNING — PDF renderer unreachable at ${PDF_RENDERER_URL:-unset} — the pdf specs WILL fail, as ENVIRONMENT not defects (8 such reds in one gate, cause unidentified for a full run). The sidecar carries no restart policy, so any Docker restart kills it silently: \`docker start gotenberg-pdf\`"
   looping=$(( $(restarts analytics) - BASE_ANALYTICS ))
 
   if token_ok && [ "$looping" -le 2 ]; then return 0; fi
@@ -308,6 +340,16 @@ conn_errors() {
   grep -cE "ERR_CONNECTION_REFUSED|ERR_EMPTY_RESPONSE|ERR_CONNECTION_RESET|ECONNREFUSED" "$1" 2>/dev/null || true
 }
 
+# PGRST002 = PostgREST could not build its schema cache — the DB was not ready when
+# the batch started (a race right after `db reset`). It is INFRA, not a defect, but it
+# is NOT a connection error: the server answers, it just answers wrong, so `conn_errors`
+# above returns 0 and the batch was never auto-retried (FUP-QO-9). Both shapes are
+# matched because only one of them appears depending on which layer surfaces it: the
+# bare SQLSTATE-like code, and PostgREST's own English message.
+pgrst_unready() {
+  grep -cE "PGRST002|Could not query the database for the schema cache" "$1" 2>/dev/null || true
+}
+
 # A batch that never ran must still be COUNTED — as unrun, on BOTH sides of the
 # coverage line (BUG-GATE-001). The reset/server failure paths below `continue 2`
 # straight past the tally block at the end of the loop, so `exp` was never added to
@@ -343,7 +385,24 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
     echo "[$(LOG_TS)] BATCH $BATCH_NO$( [ "$attempt" -gt 1 ] && echo ' · INFRA RE-RUN' ) (fresh server$( [ "$RESET" = 1 ] && echo ' + fresh DB' )): ${BATCH[*]##*/}"
     echo "=================================================================="
     if [ "$RESET" = "1" ]; then
-      supabase db reset --local >/dev/null 2>&1 || { echo "reset FAILED"; abort_batch reset; continue 2; }
+      # FUP-GATE-RESET-FLAKE: this used to be `>/dev/null 2>&1`, so when the reset
+      # failed transiently the CAUSE was unrecoverable from the logs — two consecutive
+      # full gates each lost a whole batch (61 and 56 tests) with nothing to diagnose.
+      # Keep the output. The retry is ONE attempt and is logged loudly on BOTH sides:
+      # a silent retry would mask the very transient we are trying to characterise, so
+      # attempt 1's stderr is always printed even when attempt 2 succeeds.
+      RESETLOG="$GATE_LOGDIR/reset-batch-$BATCH_NO.log"
+      if ! supabase db reset --local >"$RESETLOG" 2>&1; then
+        echo "[$(LOG_TS)] batch $BATCH_NO -> reset FAILED (attempt 1) — output follows (log: $RESETLOG)"
+        tail -25 "$RESETLOG"
+        echo "[$(LOG_TS)] batch $BATCH_NO -> retrying reset once"
+        if ! supabase db reset --local >"${RESETLOG%.log}-retry.log" 2>&1; then
+          echo "[$(LOG_TS)] batch $BATCH_NO -> reset FAILED (attempt 2) — output follows"
+          tail -25 "${RESETLOG%.log}-retry.log"
+          abort_batch reset; continue 2
+        fi
+        echo "[$(LOG_TS)] batch $BATCH_NO -> reset RECOVERED on retry (attempt 1's output above is the transient — diagnose it)"
+      fi
     fi
     # NEVER "WARN … proceeding" (the old behaviour): a degraded stack yields batches of
     # net::ERR_CONNECTION_REFUSED that then need hand-triage against a folklore baseline
@@ -381,11 +440,22 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
     # a failure.
     srv_dead=0; kill -0 "$SERVER_PID" 2>/dev/null || srv_dead=1
     conn=$(conn_errors "$BLOG"); conn=${conn:-0}
+    pgrst=$(pgrst_unready "$BLOG"); pgrst=${pgrst:-0}
+    parsed=$(( p + f + fl + sk ))
     infra=0
     if [ "$f" -gt 0 ] && { [ "$srv_dead" = "1" ] || [ "$conn" -ge "$f" ]; }; then infra=1; fi
+    # FUP-QO-9(a): a schema-cache race fails ASSERTIONS (the page renders an error), so
+    # `conn >= f` never fires for it. Same floor logic, different signature.
+    if [ "$f" -gt 0 ] && [ "$pgrst" -ge "$f" ]; then infra=1; fi
+    # FUP-QO-9(b): a batch that crashed WITHOUT producing a summary (exit 127, a dead
+    # toolchain, a segfault) parsed nothing at all, so `f` is 0 and every classifier
+    # above is vacuous. It was still RED — `exit$pw_rc`, `no-summary` and `count` all
+    # catch it below, so this was never a false green — but it was never auto-RETRIED
+    # either, which is what actually costs a batch. Retry it; the redness is unaffected.
+    if [ "$parsed" = "0" ] && [ "$pw_rc" != "0" ]; then infra=1; fi
 
     if [ "$infra" = "1" ]; then
-      echo "[$(LOG_TS)] batch $BATCH_NO -> ${f} failures classified INFRA, not defects (server_dead=${srv_dead}, conn_errors=${conn})"
+      echo "[$(LOG_TS)] batch $BATCH_NO -> $( [ "$parsed" = "0" ] && echo "CRASHED with no summary (exit ${pw_rc}), ${exp} test(s) unrun" || echo "${f} failures" ) classified INFRA, not defects (server_dead=${srv_dead}, conn_errors=${conn}, pgrst_unready=${pgrst})"
       if [ "$INFRA_RETRY" = "1" ] && [ "$attempt" -lt 2 ]; then
         INFRA_RERUNS=$(( INFRA_RERUNS + 1 ))
         echo "[$(LOG_TS)] re-running batch $BATCH_NO on a fresh server (INFRA_RETRY=1)"
@@ -409,7 +479,13 @@ for BATCH_SPECS in "${BATCHES[@]}"; do
   if [ "$infra" = "1" ]; then
     # Still RED after the re-run — but labelled, because nothing was PROVEN for these
     # tests. "Not a regression" is not the same claim as "passed".
-    reasons="$reasons,infra-unproven($f)"
+    # A zero-summary crash reports the UNRUN count, not `0 failed` — "infra-unproven(0)"
+    # would read as "nothing wrong here" for a batch where nothing ran at all.
+    if [ "$parsed" = "0" ]; then
+      reasons="$reasons,infra-crash(exit$pw_rc; $exp unrun)"
+    else
+      reasons="$reasons,infra-unproven($f)"
+    fi
   else
     [ "$f"  != "0" ] && reasons="$reasons,failed"
   fi

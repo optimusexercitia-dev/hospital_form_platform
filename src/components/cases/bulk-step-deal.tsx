@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
 import { tallyByMember } from "@/lib/cases/distribute";
+import { plural } from "@/lib/text";
 import { resolveLabel, type BulkGridRow } from "@/lib/cases/bulk-grid-model";
 import {
   memberName,
@@ -121,7 +122,7 @@ export function BulkStepDeal({
                   {memberName(member)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {count} caso{count === 1 ? "" : "s"}
+                  {count} {plural(count, "caso", "casos")}
                 </span>
               </span>
               <span className="font-mono text-lg tabular-nums text-primary">

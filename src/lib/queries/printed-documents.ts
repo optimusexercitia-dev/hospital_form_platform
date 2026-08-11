@@ -142,6 +142,19 @@ export async function listPrintedDocuments(
  * closed by construction. In-memory sliding windows: per credential (blunt
  * brute-force of one code) and global per process (scrape).
  * `verification_lookups` in the DB is the durable record, not the limiter.
+ *
+ * ⚠ KNOWN LIMIT — the global arm is an AVAILABILITY LEVER, still open
+ * (FUP-PDF-4). Both windows live in module-level process memory, so:
+ *  - they are per-PROCESS, not shared: N app instances mean N× every budget;
+ *  - the 60/min global cap is exhaustible by ONE visitor using many distinct
+ *    credentials (12 codes × 5 each), which then throttles EVERY anonymous
+ *    visitor on the public `/verificar` surface until the window slides.
+ * The per-credential arm does not address this — it bounds brute-forcing one
+ * code, a different attack. Closing it needs per-CLIENT granularity, which
+ * needs a trusted client identity (`x-forwarded-for` is only as trustworthy as
+ * the proxy in front of it — a Coolify deploy decision, ADR 0059) plus shared
+ * cross-process state. That is a deliberate open item, not an oversight: both
+ * halves are decisions, and neither is guessable from here.
  */
 const WINDOW_MS = 60_000
 const PER_CREDENTIAL_LIMIT = 5
@@ -149,7 +162,17 @@ const GLOBAL_LIMIT = 60
 const perCredentialHits = new Map<string, number[]>()
 let globalHits: number[] = []
 
-/** pt-BR message thrown when the limiter refuses (the page shows it verbatim). */
+/**
+ * pt-BR message thrown when the limiter refuses.
+ *
+ * ⚠ It is NOT rendered. The comment here used to claim "the page shows it
+ * verbatim" (QA P1 MINOR-3, corrected 2026-08-10): `/verificar/[token]/page.tsx`
+ * wraps the lookup in a `catch` that logs and returns `{ state: "unavailable" }`,
+ * so a throttled visitor sees the generic unavailable state and this string
+ * reaches only the server log. Left in place deliberately — it is the thrown
+ * Error's identity, asserted by `printed-documents.test.ts` — but do not treat it
+ * as user-facing copy until a caller actually surfaces it.
+ */
 export const VERIFICATION_RATE_LIMIT_MESSAGE =
   'Muitas consultas de verificação. Aguarde um minuto e tente novamente.'
 

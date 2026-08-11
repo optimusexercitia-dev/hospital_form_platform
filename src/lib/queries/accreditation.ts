@@ -313,21 +313,107 @@ export async function getEvidenceCandidates(
   kind: ArtifactKind,
   query: string,
 ): Promise<EvidenceCandidate[]> {
+  return (await findEvidenceCandidates(commissionId, kind, query)).candidates
+}
+
+/**
+ * The same read, but REPORTING the door's error instead of swallowing it.
+ *
+ * Two callers want opposite things from a failure and both are right:
+ * `getEvidenceCandidates` above renders a list, where `[]` is the correct
+ * degradation; the `searchEvidenceCandidates` server action renders a picker
+ * with an error banner, and collapsing a failure into "no results" there would
+ * tell the user their search succeeded and found nothing. So the primitive
+ * returns both halves and each caller decides — rather than the action reaching
+ * past the query layer to the RPC, which is what it did until FUP-P16-2
+ * (Architecture Rule 9).
+ *
+ * The error is returned RAW, not mapped: pt-BR mapping is the action layer's
+ * job (`mapAccreditationError`), and this module has no business owning
+ * user-facing copy.
+ */
+export async function findEvidenceCandidates(
+  commissionId: string,
+  kind: ArtifactKind,
+  query: string,
+): Promise<{
+  candidates: EvidenceCandidate[]
+  error: { code?: string; message?: string } | null
+}> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .rpc('evidence_candidates', {
       p_commission: commissionId,
       p_kind: kind,
-      p_query: query || undefined,
+      p_query: query.trim() || undefined,
     })
     .returns<EvidenceCandidateRow[]>()
 
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    kind,
-    label: r.label,
-    subtitle: r.sublabel,
-  }))
+  if (error) return { candidates: [], error }
+
+  return {
+    candidates: (data ?? []).map((r) => ({
+      id: r.id,
+      kind,
+      label: r.label,
+      subtitle: r.sublabel,
+    })),
+    error: null,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single standard assessment detail (the edit form's prefill)
+// ---------------------------------------------------------------------------
+
+/** A single standard's assessment detail, for the edit form's prefill. */
+export interface StandardAssessmentDetail {
+  status: AssessmentStatus
+  noteMd: string | null
+  assessedAt: string
+  assessedByName: string | null
+}
+
+/**
+ * Read one commission's current assessment for one standard — the prefill
+ * BUG-P16-001's root-cause half needed. Routes to `get_standard_assessment`
+ * (backend's `3ece65f`, landed mid-Wave-3), a member-scoped read
+ * DELIBERATELY separate from `getReadinessReport`/`getReadinessEvidence`
+ * (D8 — those carry no `note` field by design; this door does, and is
+ * commission-scoped only, never reachable from the hospital tier). Returns
+ * `null` when there is no assessment yet (never assessed) OR the caller is
+ * out of scope — the door returns zero rows either way, and the two are
+ * handled identically here (an empty textarea), matching
+ * `ReadinessRow.assessmentStatus: null`'s existing "never assessed" meaning.
+ *
+ * Lived in `@/lib/accreditation/actions` until FUP-P16-2 (Rule 9) — it is a
+ * READ, and its only caller is a Server Component that can call this directly.
+ */
+export async function getStandardAssessmentDetail(
+  commissionId: string,
+  standardId: string,
+): Promise<StandardAssessmentDetail | null> {
+  if (!commissionId || !standardId) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_standard_assessment', {
+    p_commission: commissionId,
+    p_standard: standardId,
+  })
+
+  if (error || !data || data.length === 0) return null
+
+  const row = data[0]
+  return {
+    status: row.status as AssessmentStatus,
+    // The generated Args/Returns type marks these non-null, but the RPC's
+    // own SQL is a nullable column (`note_md`) and a LEFT JOIN
+    // (`assessed_by_name`) — defend against both actually being null at
+    // runtime regardless of what the generator asserts.
+    noteMd: row.note_md ?? null,
+    assessedAt: row.assessed_at,
+    assessedByName: row.assessed_by_name ?? null,
+  }
 }
 
 // ---------------------------------------------------------------------------

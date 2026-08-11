@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, FolderOpen, Layers } from "lucide-react";
 
 import { commissionHref } from "@/lib/routing";
+import { plural } from "@/lib/text";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   listCasesBoard,
@@ -189,8 +190,8 @@ export default async function CasesBoardPage({
           className="animate-rise-in flex items-center gap-2 rounded-xl border border-success/30 bg-success/12 px-4 py-3 text-sm font-medium text-success"
         >
           <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
-          {createdCount} caso{createdCount === 1 ? "" : "s"} criado
-          {createdCount === 1 ? "" : "s"} com sucesso.
+          {createdCount} {plural(createdCount, "caso", "casos")}{" "}
+          {plural(createdCount, "criado", "criados")} com sucesso.
         </p>
       )}
 

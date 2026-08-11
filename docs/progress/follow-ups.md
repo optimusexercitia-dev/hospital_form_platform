@@ -33,14 +33,6 @@ hatless principals must lose relationship-derived reach, this class of row stops
 the follow-up dies with it. Do not implement it ahead of that ruling. Needs a migration —
 deliberately out of S4, which shipped none.
 
-### 🟡 FUP-PDF-2 — SQLSTATE allowlist can surface English Postgres text (QA P1 MINOR-1; owner: backend)
-
-`SURFACEABLE_CODES` in `src/lib/pdf-mint/actions.ts` allowlists generic codes
-(`42501`/`23514`) whose raw Postgres message text — including constraint names — could reach
-the pt-BR UI; QA walked all CHECKs and found **no live path today** (latent). Sweep together
-with the now-DEAD `'P0002'` entry at `actions.ts:95` (no PDF door raises P0002 since
-`20260913000400`) — map the generic codes to house pt-BR messages instead of surfacing.
-
 ### 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; owner: backend)
 
 Both doors return the full row type, so a **direct PostgREST caller** receives
@@ -49,150 +41,32 @@ column-list GRANT. Needs a return-shape decision (narrowed composite / explicit 
 list on the RETURNS). Context: `storage_path` is derivable from granted columns anyway
 (defense-in-depth, not a secret — recorded Note C); **the token is the real widening**.
 
-### 🟡 FUP-PDF-4 — verification rate limiter is global + in-process (QA P1 MINOR-3; owner: backend)
+### 🟡 FUP-PDF-4 — verification rate limiter: comment FIXED, availability lever still OPEN and re-scoped (QA P1 MINOR-3; owner: backend)
 
-`lookupPrintedDocumentVerification`'s limiter is one **global** 60/min counter shared by all
-anonymous visitors — a trivial availability lever on the public `/verificar` surface — and
-its "shown verbatim" code comment is false. Fix: per-credential granularity (keep the global
-cap as a backstop) + correct the comment. The RPC stays service_role-only; this is app-layer.
+⛔ **The filed premise was wrong in a way that mattered, corrected 2026-08-11 against the code.**
+The entry said the limiter is *"one **global** 60/min counter"* and prescribed *"per-credential
+granularity (keep the global cap as a backstop)"* — **that is already exactly what ships, and
+has since the original commit `e1daba9`**: `PER_CREDENTIAL_LIMIT = 5` over a `perCredentialHits`
+map, plus the global 60 backstop. Anyone executing the prescription literally would have written
+a no-op and closed the item. The lesson is the standing one: **a prescription in a follow-up is a
+claim about the code and ages like one** — re-measure before implementing, not after.
 
-### ⬛ FUP-QOB-1 — RESOLVED 2026-08-09: the J1c structural pin is RATIFIED as the standing guard (PO)
+**DONE:** the false *"the page shows it verbatim"* comment is corrected. Confirmed against
+`src/app/(public)/verificar/[token]/page.tsx:84-90`, which catches **every** error, logs it, and
+returns `{ state: "unavailable" }` — so `VERIFICATION_RATE_LIMIT_MESSAGE` is never rendered and
+reaches only the server log. (The comment-asserting-an-untruth family, invisible to every gate.)
 
-**PO ruling 2026-08-09:** ratify J1c as it stands. Rationale accepted as recorded below — the
-behavioural surface did not weaken, it **collapsed**: post-M1 there is no reader-non-writer
-principal left to probe with, and the two alternatives are worse (an invented pgTAP persona
-measures the invented grant rather than the live policy; retiring J1b+J1c together leaves the
-`created_by` term with no guard at all). The pin's own honestly-stated limit — a structural
-assertion is weaker than a behavioural one — stands as a **known** limitation rather than an
-open question. J1b stays annotated-not-deleted per the A2 precedent. No further action.
+**STILL OPEN — the availability lever, correctly described:** the per-credential arm bounds
+brute-forcing ONE code; it does nothing about the actual DoS. One visitor cycling ~12 distinct
+credentials × 5 each exhausts the **global** 60/min budget and throttles *every* anonymous
+visitor on the public `/verificar` surface. Both windows are also module-level process memory, so
+they are per-PROCESS — N app instances mean N× every budget.
 
-<details><summary>Original entry (2026-08-09, pre-ruling) — the collapse, the guard, and its limit</summary>
-
-### `created_by = auth.uid()` in `response_group_instances_write_own_draft` is no longer independently observable; PROVISIONAL structural pin landed (backend 2026-08-09; needs PO ratification)
-
-- **The collapse (filed 2026-08-08, QO·B):** M1's wall removed `is_commission_admin_of` —
-  the only reader-non-writer persona — from the response plane. Post-M1 the readers of an
-  in-progress response's instances are exactly {creator, targeted respondent}, and **both
-  are writers**; `staff_admin` on a *submitted* response is stopped first by the
-  immutability trigger (23514 — proves immutability, not the qual). `270` §J's J1b
-  reader-non-writer keystone is therefore VACUOUS (annotated in-file, kept per the A2
-  annotate-never-delete precedent). No replacement persona exists without inventing one.
-- **Interim guard (backend 2026-08-09, PROVISIONAL pending PO):** `270` §J **J1c** — an
-  executable CATALOG pin asserting the policy still exists (FOR ALL, to `authenticated`,
-  on `response_group_instances`) AND still carries `created_by = auth.uid()` in **both**
-  its USING and WITH CHECK halves. **Red-proven** by the b1 mutation audit's
-  `fup_qob1_drop_created_by` case: deleting the term reds J1c **while J1b stays green**
-  (observed live: `ok 40 — J1b` / `not ok 41 — J1c`) — the vacuity claim demonstrated in
-  the same run. The policy-disappears direction fails closed (the count), no mutation
-  needed.
-- **Honestly stated limit:** this is a STRUCTURAL pin, and QO·B's own lesson is that a
-  structural assertion cannot substitute for a behavioural one. It is accepted here
-  because the behavioural surface **collapsed** — there is no principal to probe with.
-  During implementation the behavioural alternatives were re-checked and none exists
-  without inventing a persona (a bespoke in-test SELECT grant would test the invented
-  grant, not the live surface).
-- **PO question:** ratify the pin as the standing guard, or direct an alternative
-  (invented pgTAP persona / accept the read≡write coincidence as the stronger pinned
-  property and retire J1b+J1c together). → **RATIFIED as-is, 2026-08-09.**
-
-</details>
-
-### 🟡 FUP-QOB-2 — the QO·B PO ratification package — **DISCHARGED 2026-08-09 except ruling ⑤** (latent, no principal exists to affect)
-
-Registered at phase close, worked 2026-08-09 with the PO ruling item by item (the PO declined a
-block ratification and asked to be walked through each with its evidence — so every verdict below
-was taken against a **live-catalog** measurement, not against the doc's own claim). Full context:
-[phase record](quality-office-oversight-phase-b.md) + the 2026-08-09 Decisions rows in PROGRESS.md.
-
-**RATIFIED (3 of 5):**
-1. ⬛ **BUG-QOB-003 fix shape** — tenancy admin = a session FLAG (`isTenancyAdmin`), never a
-   coerced role; content routes 404; KEEP surfaces gate through `canConfigureCommission`.
-   *Evidence weighed:* `session.ts:412` carries the flag distinct from `role`; `:584` is the whole
-   seam (`role === 'staff_admin' || isTenancyAdmin`); ~20 KEEP routes consume it, only 3 files read
-   the raw flag. **Decisive:** the alternative — coercion — is the direct cause of BUG-QOB-004, and
-   it makes every `role`-based gate silently wrong one route at a time.
-2. ⬛ **`manage/audit/**` + its CSV export = KEEP.** *Evidence:* the live `audit_log_select` qual
-   carries `app.is_commission_admin_of(commission_id)` verbatim beside org/hospital-scoped arms —
-   the DB already grants it, so the UI is being made to agree, not widened. Agrees with the noun
-   rule (platform_admin **may** administer audit).
-4. ⬛ **`manage/acreditacao/**` stays membership-gated.** *Evidence:* all four accreditation-plane
-   policies measured (`accreditation_frameworks_select`, `accreditation_standards_select`,
-   `evidence_links_select`, `standard_assessments_select`) — **tenancy arm = false on every one.**
-   Pre-QO·B "access" was the coercion rendering an empty shell. Reversing would be a WIDENING.
-
-**LEFT OPEN BY DELIBERATE PO CHOICE (2 of 5)** — these are *not* pending review, they are recorded
-as undecided, with the measurement already done so whoever rules next does not re-derive it:
-3. ⬛ **`manage/charter` — RULED 2026-08-09: NOT KEEP ratified, and the underlying need served a
-   different way.** The page stays coordinator-only. The oversight question it raised —
-   *"which committees are behind on meetings?"* — is answered instead by a **read-only cadence
-   column on `/o/[org]/manage/comissoes`**, the registry tenancy admins already own.
-   *Measured before ruling:* `upsert_commission_charter` is `prosecdef`, sole arm
-   `is_staff_admin_of`, raises HC0K0 with an explicit *"not org/hospital admin"* comment;
-   `commission_charters_select` = `app.is_member_of(...)`; and `authenticated` holds **SELECT
-   only** on the table, so every write must pass that one door. **No tenancy arm exists on the
-   plane at either layer** — unlike the Q2 template case, where RLS already admitted the
-   principal and only the doors refused. Granting the page would therefore have been a **genuine
-   widening at both layers**, and worse, it would hand out **WRITE** to satisfy a **READ** need:
-   the page is fundamentally an edit form for ONE committee, so it could not answer the actual
-   question without visiting each committee in turn. It would also dangle a broken affordance —
-   the linked regimento is a `controlled_documents` row, and documents are CUT (re-verified
-   2026-08-09), so "Ver documento" would 404 for the very principal being granted access.
-   ⚠ The charter row is far smaller than its name suggests: `meeting_frequency` +
-   `controlled_document_id` + bookkeeping. It is cadence config plus a POINTER; the regimento
-   itself lives in the documents module.
-5. 🟡 **Dual-hat (quality_reviewer + tenancy admin) precedence: SUPERSEDED 2026-08-09 — the
-   question is being replaced by an explicit "act as" role picker (ADR in progress).**
-
-   ⛔ **The previously recorded ruling was FALSE and stated the OPPOSITE of what ships.** It read
-   *"dual-hat keeps reviewer-shell precedence"*; it was never implemented and never checked
-   against the routing chain. **Measured 2026-08-09** in `src/app/page.tsx`, an ordered redirect
-   chain: `orgAdminOf` branches at **line 64**, `qualityReviewerOf` at **line 152** — so a
-   dual-role principal lands on the **tenancy admin area**. Tenancy wins, not the reviewer.
-
-   The reviewer branch sits last for an unrelated reason its own comment gives: it was added to
-   fix the *dead-end* class (a hospital-scoped role with no landing route → "Você ainda não tem
-   acesso"; ADR 0101 records **five** instances). It was never an expression of precedence.
-
-   **Consequence measured, not inferred:** a bare tenancy admin holding the reviewer seat lands on
-   `/o/<org>/manage`, sees **no link** to the console (the "Escritório da Qualidade" entry is
-   gated `showsMemberItems && isQualityReviewer`, i.e. the COMMITTEE-MEMBER sidebar only; the
-   org-manage shell has none), yet **can** reach `/o/<org>/qualidade` by URL — its guard admits
-   anyone genuinely holding the seat. So the capability is orphaned behind a URL, the BUG-QOB-004
-   shape again.
-
-   **RESOLVED as a design, 2026-08-09: ADR [0106](../decisions/0106-act-as-role-assumption.md)
-   — "act as" role assumption.** Precedence is replaced by explicit, *binding* role assumption:
-   strict (the active role is the ONLY role), reads AND writes, fail-closed, fresh each session,
-   audit-stamped. Ten decisions taken in a PO design interview; three went against the author's
-   recommendation and are marked ⚑ in the ADR. **Design accepted, NOT YET BUILT.**
-   ⚠ Enforcement lands in ONE function (`app.has_role`, after normalising 7 strays onto it);
-   the bulk of the work is the TEST HARNESS, since fail-closed reds every unwired path at once.
-
-**The separately-tracked items:**
-- ⬛ **FUP-QOB-1** — J1c structural pin **RATIFIED** as the standing guard (own entry above).
-- ⬛ **BUG-QOB-004** — **RULED CUT-the-arms** (PO 2026-08-09), following the ratified D5 precedent
-  verbatim. Executed as `20260917000000`; see the Bug Log entry for the closure record.
-- ⬛ **`setTemplateCaseType`** — **DONE 2026-08-09** (`20260917000100`, ADR 0088 Amendment 1).
-  Both `set_template_case_type` **and `set_template_collects_patient`** gained the tenancy arm;
-  the second was never named in this list and was found by sweeping the plane by property.
-  ⚠ Recorded because it changes how the item should have been framed: this was **not a
-  widening**. Measured on a bare tenancy admin — direct `UPDATE` through RLS **wrote the row**
-  while both doors answered 42501, because all 16 `process_template*` policies already carry the
-  arm and a DEFINER's gate *replaces* RLS. The doors were refusing what the boundary already
-  granted. `create_case_from_template` deliberately keeps staff_admin-only (content, not
-  container).
-- ⬛ **The `is_commission_admin_of` → `is_tenancy_admin_of` rename** — **DONE 2026-08-09**
-  (`20260917000200`, ADR [0105](../decisions/0105-rename-is-tenancy-admin-of.md)). No shim;
-  historical docs deliberately not rewritten (PO). ⚠ **The mechanism was the opposite of the
-  D11 prior:** `pg_policy` stores a parsed tree referencing the function by **OID**, so all 54
-  policies followed the rename with **zero edits**; only `pg_proc.prosrc` (plain text) had to be
-  rewritten, 75 bodies. D11's "rewrote pg_proc, never pg_policy" was an **enum** re-key, where
-  labels are string literals — same-shaped task, different substrate. Measured, not assumed.
-- *(Same family, pre-existing, recorded by backend during B.11: the `context.isAdmin`
-  platform-admin arms on content action pre-checks — a noun-rule sweep candidate at the TS
-  layer; DB re-gates, no leak.)*
-
-Owner: **PO** for items 3 + 5 (no deadline, nothing blocked); lead/backend for the scheduled waves.
+⚠ **Deliberately not fixed in the FUP quick batch, because neither half is guessable:** closing
+it needs per-**client** granularity (which needs a *trusted* client identity — `x-forwarded-for`
+is only as trustworthy as the proxy in front of it, a Coolify deploy decision, ADR 0059) **plus**
+shared cross-process state. Both are decisions, not code. The limitation is now recorded in the
+module docblock so the next reader does not re-derive it. The RPC stays service_role-only.
 
 ### ⬛ FUP-QOB-3 — RESOLVED 2026-08-09: `dispose_event_phi` KEEPS its tenancy arm, and referral disposal gets the same backstop BACK (PO)
 
@@ -359,19 +233,6 @@ scratchpad (not committed — out-of-band per the task's own instruction), `over
 
 </details>
 
-### 🟡 FUP-QO-9 — the e2e:prod gate's infra classifier misses two PGRST002 shapes (2026-08-07, tester→lead; owner: backend / `scripts/e2e-prod-gate.sh`)
-
-Found during the QO·FUP F6 gate run (2026-08-07, GATE RED 924/5/5/12). A **PGRST002
-schema-cache-not-ready race right after `db reset`** hit batches 3 (self-healed), 12 and 17
-(each failed + cascaded 6 did-not-run); batch 4 crashed outright at 42 s / exit 127 / **0 tests**.
-Two classifier gaps, neither a product defect: (a) PGRST002 ("Could not query the database for
-the schema cache") is not recognized as INFRA, so those batches are not auto-retried; (b) the
-infra check requires `failed>0`, so a zero-test crash slips past both the auto-retry and the
-connection-error counter — an unrun batch that only the denominator check catches. Fix shape:
-teach the classifier both signatures (and/or have the reset path wait for PostgREST schema-cache
-readiness before starting a batch). The lead relayed the diagnosis; tester deliberately did not
-edit the script (not its file).
-
 ### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
 
 Raised by `backend` at AFF close-out, and it is the **class** behind QA's N2. `302` §1's ACL
@@ -491,9 +352,25 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 lives in the repo at **`scripts/extract-embeds.mjs`** + **`scripts/probe-embeds.mjs`** (moved out of
 a session scratchpad that was about to be deleted — the earlier revision of this line pointed at a
 path that would not have existed, which reads as "saved" when it is not). It found BUG-TV-001 *and*
-BUG-RCA-001 mechanically across 284+ call sites. **Still needs a `package.json` entry point** — it
-cannot join `npm run lint` because it requires a live local Supabase, and `probe-embeds.mjs` refuses
-any non-local URL by design.
+BUG-RCA-001 mechanically across 284+ call sites. It still cannot join `npm run lint`, because it
+requires a live local Supabase and `probe-embeds.mjs` refuses any non-local URL by design.
+
+⬛ **Entry point DONE 2026-08-11: `npm run sweep:embeds`** (extract → probe, both against `.`, via a
+gitignored `.embed-sweep/` scratch dir; `extract-embeds.mjs` now creates that dir rather than
+requiring the caller to). Run against the live local stack to confirm it works end-to-end.
+
+**Its baseline is a NAMED list, not a count** — deliberately, per the FUP-E2E-1 lesson that a
+count-shaped baseline is a hiding place:
+- **311** select sites resolved, **0** unresolved · **248** distinct (relation, select) pairs probed.
+- **246 × `42501`** = genuine PASS. The sweep probes with the **anon** key, which holds zero table
+  grants, and its own built-in CONTROLS (C1/C2/C3) prove each run that 42501 does **not** mask embed
+  or column errors — a good tool: it re-earns that claim rather than asserting it.
+- **2 × `PGRST205`**, both `get_meeting_agenda_items` (`minutes-jobs/context.ts:119`,
+  `minutes-jobs/queries.ts:193`) — **extractor false positives, NOT defects.** Both sites are
+  `.rpc(name, args).select(...)` chains; the AST extractor reads the RPC name as a relation and
+  probes `GET /rest/v1/<rpc>`, which is not a table. ⚠ Whoever next touches the sweep: this is the
+  known baseline — do not chase it, and do not "fix" it by suppressing PGRST205, which is the code
+  that would report a genuinely missing relation.
 
 The generalisation that justifies keeping it: **ADR 0096 A1.5's grep sweep could not have caught
 BUG-TV-001, because that site names no dropped column — it names a relation that is no longer
@@ -571,35 +448,24 @@ FUP-MEM-1 (indicator doors: not a defect) · FUP-MEM-2 (`assignOrgAdmin` door) �
 FUP-A11Y-1 (`useFieldIds` → `useId()`) · FUP-AUTHZ-3 (45 row-returning DEFINER doors swept) ·
 FUP-AUTHZ-4 (BLIND allowlist pruned). Full resolution bodies in the archive.
 
-### 🟡 FUP-P16-4 — 10 files carry the pluralization pattern that shipped two bugs (latent, safe today)
+### ⬛ Resolved — rotated 2026-08-11 (the FUP quick batch) → [follow-ups-archive.md](./follow-ups-archive.md)
 
-Found 2026-08-04 while closing QA's INFO. Outside `src/components/accreditation/**`, ten files still
-build plurals by suffix concatenation (`? "" : "s"`): `manage/cases/page.tsx`, `bulk-step-deal.tsx`,
-`bulk-step-members.tsx`, `case-bulk-grid.tsx`, `create-wizard.tsx`, `checklist-section.tsx`,
-`notification-bell-client.tsx`, `cases-kpi-strip.tsx`, `triage-queue.tsx`,
-`orphan-warning-dialog.tsx`.
+FUP-QO-9 (PGRST002 + zero-summary-crash classification; preflight now WAITS for the schema
+cache) · FUP-GATE-RESET-FLAKE (reset stderr captured + retried once, loudly; `renderer_ok`
+names a dead `gotenberg-pdf`) · FUP-PDF-2 (allowlist narrowed to the `HC*` class) · FUP-P16-4
+(12 `+ "s"` sites → `plural()`, helper moved to `src/lib/text.ts`) · FUP-P16-2 (both
+accreditation reads through `queries/`) · FUP-QOB-2 (fully discharged — ⑤ closed when ACT
+shipped). Merged `97acfd6`. Full bodies in the archive.
 
-**Every word each one pluralizes was checked individually and all are regular pt-BR** (concluído,
-linha, coluna, selecionado, caso, lida, atrasado, novo) — a bare `s` is correct for all of them, so
-**there is no live defect**. Left untouched deliberately: Phase 16 was at its gate, and the risk is
-structural, not present.
+**Rotated in the same pass, but NOT part of the batch:** FUP-QOB-1 (the `270` §J J1c catalog
+pin, RATIFIED by the PO 2026-08-09) — a separate, earlier closure that had simply never been
+rotated out of either file.
 
-⚠ **The risk is the shape, not today's words.** This is exactly how `padrãoes` and `em atençãos`
-shipped — the pattern was correct until someone added a word ending in `-ão`. Migrating these to
-`plural(count, one, many)` (`src/components/accreditation/format.ts`) removes the trap rather than
-relying on every future author noticing it. An ESLint rule banning `+ "s"` was **considered and
-rejected** for now: it false-positives heavily against ordinary string concatenation and would need
-real tuning — shipping it half-tuned for an INFO-level item would be worse than the JSDoc steering
-the helper already carries.
-
-### 🟡 FUP-P16-2 — two accreditation reads live in `actions.ts`, not `queries/` (Rule 9)
-
-`getStandardAssessmentDetail` and `searchEvidenceCandidates` are **reads** in
-`src/lib/accreditation/actions.ts`. This is debt from **BUG-P16-002**, not a design choice:
-`src/lib/queries/accreditation.ts` was still throwing `not implemented` when frontend needed them,
-and frontend correctly refused to edit a backend-owned file. Now that the query layer is real,
-route both through `src/lib/queries/` per **Architecture Rule 9**. Backend owns the move; frontend
-must not do it unilaterally.
+⚠ **The one thing worth carrying forward rather than archiving:** three of those six were
+measurably WRONG about the code, each phrased as an instruction someone would have executed
+(FUP-PDF-4's prescribed fix already shipped; FUP-QO-9(b)'s "false green" was caught by three
+existing checks; FUP-PDF-2's `23514` is raised by no door at all). **A prescription in a
+follow-up is a claim about the code and ages like one — re-measure before implementing.**
 
 ### 🔴 FUP-FF5-1 — patient-lane sublabel is degenerate on the READ path (**PO DEFERRED 2026-07-28**)
 
