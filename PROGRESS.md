@@ -91,9 +91,47 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-**No phase is in flight.** ACT (S0–S4) and PDF·P2 closed and rotated 2026-08-10; the head of the
-table below is the last completed work, and what is actually left before the pilot is
-§ *Remaining pre-pilot work*.
+**ETH·E4 is in flight** (branch `worktree-ethics-committee-completion`). ACT (S0–S4) and PDF·P2
+closed and rotated 2026-08-10; what is left before the pilot is § *Remaining pre-pilot work*.
+
+#### ETH·E4 · backend — ✅ build complete (2026-08-11), gate step 1 GREEN
+
+Commits `1738a5b` (substrate + data layer) · `1855833` (pgTAP + vocabulary layer).
+
+- **5 migrations**, window `20260919…`: `ensure_professional_participant` + the 1:1 unique index
+  (targeted `on conflict`, orphan-deleting race arm) · `create_external_participant` (create-always)
+  · `set_primary_subject` **`create or replace`** — MOVE semantics + linkage re-run ·
+  `can_read_professional_profile` **`create or replace`** — the D5 org-manager arm ·
+  `case_type_terminology` audit trigger (see the §4 finding below).
+- **Data layer**: `queries/participants.ts` (invoker-rights search, never a DEFINER search door) ·
+  all 7 frozen BE-1 action bodies + `createExternalParticipant` + `searchParticipantCandidates` ·
+  `CaseParticipant` gains `professionalProfileId`/`professionalFullName`/`linkState` ·
+  `lib/vocabulary/actions.ts` (T5 write layer).
+- **Gate step 1 on a fresh reset**: lint 0/0 (incl. css-vars, memberships-door, vacuous 174/0) ·
+  typecheck clean · vitest **1218/1218** · pgTAP **5778/5778 across 182 files** (228/229/314 green).
+- **Authz, by ARM name**: `ARM=hat` HOLDS (3 reasoned-allowlisted) · `ARM=floor` HOLDS (79
+  never-called, all allowlisted; the three new doors measured **called** — 4/2/1 in
+  `pg_stat_user_functions`) · `ARM=census` HOLDS but is **NOT coverage here** — per **FUP-AFF-1 /
+  ADR 0079 Amendment 5** its domain excludes scalar/void-returning write doors, and all three of
+  ETH·E4's are `uuid`/`void`. Verified rather than assumed: none of the three appears in the
+  census LIVE set. · **Diff-scoped door sweep** (gates derived from the migration diff) over
+  `can_read_professional_profile` + `professional_profiles_select` + `professional_participants_select`
+  → **0 BLIND, 0 ERROR, all COVERED**. The three write doors are outside that harness too, so each
+  had its gate neutralized by hand: suite 321 **FAILs** with any one opened and PASSes restored.
+- **Property diff, from the catalog, for both `create or replace`d doors**: `prosecdef`, `proconfig`,
+  `proacl` (incl. entry order), `provolatile`, `proleakproof`, language, result type, args and owner
+  all **IDENTICAL** before vs after.
+- **Red-first, both observed RED before the migrations existed**: promoting a second participant
+  raised `HC0E7` (set-only door); promoting an `unknown`-linkage respondent succeeded silently.
+  Falsifiability re-proven after the fact: reverting the D5 disjunct reds K3a; stripping the
+  linkage assert reds K6b.
+
+**Open for the lead / QA** — 3 findings where the catalog contradicts a written premise:
+① ADR 0108 D5's exposure argument omits `professional_profiles.cpf` (→ FUP-ETH-CPF-1).
+② ADR 0108 D2's rationale for the linkage re-run is false on the substrate — `trg_guard_professional_linkage`
+freezes exactly the flip it describes, so delta 2 is a **backstop**, not a live-hole fix (recorded in
+suite 321; the freeze is now pinned).
+③ Plan §4's "frontend-only — no substrate work" was true for authorization, false for auditability.
 
 ### ⬛ Recently completed — rotated 2026-08-10; detail in `docs/progress/`
 
@@ -386,6 +424,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🔴 **FUP-AFF-1** — the authz census is BLIND to write-path doors (ADR 0079 Amendment 5; AFF gate records must cite `302`'s keystones, not `ARM=census`) — backend/harness
 - 🔴 **FUP-PCITV-1** — PCI + TV: what QA APPROVED over, ranked — **5 open** (`TRUNCATE` revoke residue · audit-mesh 2/7 arms · unexercised org-admin disjunct · resolver/GUC semantics · 10 bare `for select` policies); the embed-sweep entry point closed 2026-08-11 (`npm run sweep:embeds`, named baseline in the body) — unassigned
 - 🔵 **FUP-ETH-1** — NOTHING can seat a professional: "Médico denunciado" is an unfillable panel (`participants`-lane writers missing, 7 stub actions, no roster UI) — **IN PROGRESS as phase ETH·E4** ([ADR 0108](docs/decisions/0108-eth-e4-participant-seating.md)); scope grew to the external lane too (4 of 7 seeded roles were unfillable)
+- 🔴 **FUP-ETH-CPF-1** — ETH·E4's D5 read-gate widening also exposes **`professional_profiles.cpf`** (a national ID) to every org manager, which ADR 0108 D5's "exposure argument, stated so it can be checked" does not name: `authenticated` holds a **table-wide** SELECT (all 17 columns, catalog-verified — no column-list grant here, unlike `profiles`/`case_referral`), and `get_case_professional` returns `to_jsonb(<whole row>)`. Measured live: a staff_admin of a sibling commission with no case access read `full_name` **and** `cpf`. **Latent, not live** — no door writes the column (`create`/`update_professional_profile` have no CPF param), which suite 321 K3c now pins with a detector proven able to fire. Second-order: `redact_professional_profile` does **not** scrub `cpf` either. Proposed fix = a column-list SELECT grant excluding `cpf`, mirroring `profiles`; deliberately NOT made inside ETH·E4 — PO/lead decision, then backend
 - 🔴 **FUP-FF5-1** — patient-lane sublabel is degenerate on the READ path (PO DEFERRED 2026-07-28; resolve before the lane reaches a real committee) — backend
 - 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; the token is the real widening) — backend
 - 🟡 **FUP-PDF-4** — `/verificar` rate limiter: comment fixed 2026-08-11, **availability lever still open and RE-SCOPED** — ⛔ the filed premise was wrong (per-credential limiting already shipped in `e1daba9`; the prescribed fix is a no-op). The real gap is the exhaustible **global** arm + per-process state; needs a trusted client identity + shared store, i.e. decisions, not code — backend
