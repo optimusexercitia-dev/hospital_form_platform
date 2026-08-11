@@ -215,6 +215,28 @@ positive arm was genuinely unproven (fixed by `322` 4.20/4.21). Diff-scoped `ARM
 4 gates derived from the migration: **0 BLIND, 0 ERROR, 4 COVERED**; verdicts merged into
 `docs/reviews/authz-door-audit-findings.md` after restoring it (Amendment 1 hazard 1).
 
+**FULL `e2e:prod` GATE — lead-run, 2026-08-11 (run 2, after fixes).**
+`1074 passed · 1 failed · 0 infra · 2 flaky · 9 did-not-run · 17 batches`; coverage 1086/1092.
+The **only** failing batch is b7 = **BUG-MIN-E2E-1** (`meeting-audio-minutes` test 1 stalls and
+strands its 9 serial siblings) — pre-existing, outside this branch (`git log main..HEAD` touches no
+meetings path), and green in another worktree the same morning. **Referral batch 17: 62 passed,
+0 failed, 0 did-not-run.**
+
+Run 1 was `1060 passed · 11 failed · 13 did-not-run`. All 11 triaged, none a product regression:
+8 × PDF (the gotenberg sidecar was down — the gate's own preflight predicted them; re-run green
+after `docker start gotenberg-pdf`), 1 × `administrativo` (10/10 green in isolation), 1 ×
+`meeting-audio-minutes` (BUG-MIN-E2E-1), and 1 × `technical-direction-referrals` DT-1 — a **real
+test-isolation defect introduced by this phase**, root-caused and fixed (`4adb987`).
+
+⚠ **Two traps that nearly turned this red gate into a reported green — record them.**
+1. `npm run e2e:prod | tail -N` returns **tail's** exit status, not the script's. Run 1 reported
+   exit 0 while the script itself printed `GATE RED`. Never pipe the gate.
+2. **`/tmp/e2e-prod-gate/` is shared across worktrees and is never cleaned.** During run-1 triage it
+   held `batch-{1,7,8}-rerun.log` showing comfortable passes — timestamped 08:37–12:50, hours
+   before the 18:25 run, and one referencing `worktrees\ethics-committee-completion`. Reading them
+   as "my failures re-ran green" would have been a false green off another branch's log.
+   **Timestamp-check every gate log before citing it.**
+
 **LEAD RE-VERIFIED, independently (2026-08-11)** — not relayed from the teammate's report. On my
 own fresh `supabase db reset --local`: `npm run test:db` → `Files=183, Tests=5870, Result: PASS`;
 `ARM=census` HOLDS (454/465); `ARM=hat` HOLDS (self-test 6/6); `ARM=floor` HOLDS (79 never-called
