@@ -129,6 +129,56 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
   await cachedSignIn(page, email, password)
 }
 
+/**
+ * The rail "Detalhes" card (RDR D1) — where every referral FACT the minimal header
+ * shed now lives: De / Para / Ação solicitada / Status / Prioridade / Prazo de
+ * resposta / Criado / Enviado / Recebido / Decidido / Concluído + the decline-reason
+ * row. `<section aria-labelledby>` → role `region`, accessible name "Detalhes".
+ *
+ * ⚠ SCOPE, always. "Prazo de resposta" exists in THREE independent places on this
+ * app (this card, `referral-actions.tsx`'s "Definir/Alterar prazo" DialogTitle — on
+ * this same page — and the send wizard's field label), and "Motivo da recusa" in
+ * two (this card + the decline dialog's select label). An unscoped `getByText` for
+ * either is a strict-mode violation waiting for the moment a dialog is open.
+ */
+function detailsCard(page: Page) {
+  return page.getByRole('region', { name: 'Detalhes' })
+}
+
+/**
+ * One label/value ROW of the Detalhes card, addressed by its label.
+ *
+ * The card renders `dt` (label) and `dd` (value) as SEPARATE elements — deliberately,
+ * so a value can be asserted without dragging its label along. That also means the
+ * pre-RDR `getByText(/Motivo da recusa:\s*Informações insuficientes/i)` shape (label
+ * and value matched inside ONE element's flattened text, with a literal colon) can
+ * never work again: assert the label and the value as two expectations, or scope to
+ * this row and assert its combined text.
+ */
+function detailsRow(page: Page, label: string) {
+  return detailsCard(page)
+    .locator('div')
+    .filter({ has: page.getByText(label, { exact: true }) })
+}
+
+/**
+ * A detail-page landmark panel, by accessible name. Each is a
+ * `<section aria-labelledby>` → role `region`.
+ *
+ * ⚠ RDR D7 made page-level `li` / text queries genuinely unsafe on this page. The
+ * Diálogo now renders SYNTHESIZED lifecycle rows — also `<li>`s — whose pt-BR
+ * sentences quote the very strings the side panels show: an `assignment` row reads
+ * "{name} designado como Revisor(a) principal", and a `resolution` row reads
+ * "Resolução 1 registrada por {name}". So `page.locator('li').filter({ hasText:
+ * 'Revisor(a) principal' })` and `page.getByText('Resolução 1')` each match TWO
+ * elements now. Scoping to the owning panel keeps those assertions about the panel
+ * they were written for — never `.first()`, which would silently let a timeline row
+ * satisfy a panel assertion.
+ */
+function panel(page: Page, name: string) {
+  return page.getByRole('region', { name })
+}
+
 async function getToken(req: APIRequestContext, email: string): Promise<string> {
   const resp = await req.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
@@ -548,11 +598,29 @@ test('R2-1: send wizard sets priority / requested-action / response_due_at; revi
   await link.click()
   await page.waitForURL(/\/encaminhamentos\/[0-9a-f-]+$/, { timeout: 10_000 })
 
-  await expect(page.locator('span').filter({ hasText: /^Urgente$/ }).first()).toBeVisible()
-  await expect(page.getByText(r2RequestedAction.label).first()).toBeVisible()
-  await expect(page.getByText(/Prazo de resposta:/i)).toBeVisible()
-  // Future due date — must NOT be flagged overdue.
+  // RDR D1 + A10: the header `dl` is gone; priority, requested action and the SLA
+  // deadline are rows of the rail "Detalhes" card. Card-scoped, label and value as
+  // separate expectations (the card has no "Label: value" prose any more).
+  const details = detailsCard(page)
+  await expect(details).toBeVisible({ timeout: 10_000 })
+
+  await expect(details.getByText('Prioridade', { exact: true })).toBeVisible()
+  await expect(detailsRow(page, 'Prioridade')).toContainText('Urgente')
+
+  // A10 — the requested action kept a home in the card after the header chip tail
+  // was deleted (the survey's §5.1 homeless assertion).
+  await expect(details.getByText('Ação solicitada', { exact: true })).toBeVisible()
+  await expect(detailsRow(page, 'Ação solicitada')).toContainText(r2RequestedAction.label)
+
+  // The deadline row exists at all ONLY when `responseDueAt` persisted, so the label
+  // is itself the round-trip proof; the value must be a real pt-BR date.
+  await expect(details.getByText('Prazo de resposta', { exact: true })).toBeVisible()
+  await expect(detailsRow(page, 'Prazo de resposta')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
+
+  // Future due date — must NOT be flagged overdue: no chip anywhere, and no
+  // "· vencido" suffix on the card's own deadline value.
   await expect(page.locator('span').filter({ hasText: /^Prazo vencido$/ })).toHaveCount(0)
+  await expect(details.getByText(/·\s*vencido/)).toHaveCount(0)
 })
 
 test('R2-2: hub (both source and target) shows priority, requested-action and due date', async ({
@@ -592,10 +660,16 @@ test('R2-3: a past response_due_at on an in-flight referral renders the OVERDUE 
   await expect(row.getByText(/vencido/).last()).toBeVisible()
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r2OverdueReferralId}`)
+  // The overdue CHIP now rides in the Detalhes card's Status row (the header carries
+  // Status + Type only after RDR D1).
   await expect(page.locator('span').filter({ hasText: /^Prazo vencido$/ }).first()).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText(/Prazo de resposta:.*vencido/i)).toBeVisible()
+  // …and the card's DEADLINE VALUE carries the "· vencido" destructive suffix. Both
+  // strings contain "vencido", so this is anchored on the "·" separator, which only
+  // the value has — a bare /vencido/ inside the card strict-mode-violates on 2.
+  await expect(detailsCard(page).getByText(/·\s*vencido/)).toBeVisible()
+  await expect(detailsRow(page, 'Prazo de resposta')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
 })
 
 test('R2-4: isReferralOverdue mirror — a terminal (withdrawn) referral with a past due date is NEVER overdue', async ({
@@ -632,14 +706,19 @@ test('R2-5: decline sets a PHI-free reason — visible to a non-PHI metadata rea
   await expect(page.locator('span').filter({ hasText: /^Recusada$/ }).first()).toBeVisible({
     timeout: 10_000,
   })
-  await expect(page.getByText(/Motivo da recusa:\s*Informações insuficientes/i)).toBeVisible()
+  // RDR D1: the standalone decline banner is gone — the PHI-free structured reason is
+  // now a destructive-toned row of the Detalhes card, label and value in separate
+  // elements (so the old single-regex "Motivo da recusa: <value>" shape is retired).
+  await expect(detailsCard(page).getByText('Motivo da recusa', { exact: true })).toBeVisible()
+  await expect(detailsRow(page, 'Motivo da recusa')).toContainText('Informações insuficientes')
 
   // A plain, non-PHI-entitled source-side member: metadata-tier reader.
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r2DeclineReferralId}`)
-  await expect(page.getByText(/Motivo da recusa:\s*Informações insuficientes/i)).toBeVisible({
+  await expect(detailsCard(page).getByText('Motivo da recusa', { exact: true })).toBeVisible({
     timeout: 10_000,
   })
+  await expect(detailsRow(page, 'Motivo da recusa')).toContainText('Informações insuficientes')
   const html = await page.content()
   expect(html).not.toContain('Nota PHI confidencial')
 })
@@ -660,7 +739,14 @@ test('R2-6: either coordinator sets/updates the SLA deadline via "Definir prazo"
   await dialog.getByRole('button', { name: /salvar prazo/i }).click()
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
-  await expect(page.getByText(/Prazo de resposta:/i)).toBeVisible({ timeout: 10_000 })
+  // The persisted deadline lands in the Detalhes card. Scoped deliberately: the SLA
+  // dialog this test just closed has the SAME title ("Prazo de resposta"), so an
+  // unscoped text query here only works by virtue of the dialog having unmounted —
+  // a sequencing accident, not a guarantee (survey §4).
+  await expect(detailsCard(page).getByText('Prazo de resposta', { exact: true })).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(detailsRow(page, 'Prazo de resposta')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
   await expect(page.getByRole('button', { name: /alterar prazo/i })).toBeVisible()
 })
 
@@ -737,9 +823,14 @@ test('R3-4: source "Resolver" → status "resolved"; resolution history renders 
     timeout: 15_000,
   })
   await expect(page.getByRole('heading', { name: 'Histórico de resolução' })).toBeVisible()
-  await expect(page.getByText('Resolução 1')).toBeVisible()
-  await expect(page.getByText('Resumo do primeiro ciclo de resolução (R3-4).')).toBeVisible()
-  await expect(page.getByText('Requer acompanhamento').first()).toBeVisible()
+  // Panel-scoped: the Diálogo's synthesized `resolution` row also says "Resolução 1"
+  // ("Resolução 1 registrada por Chefe CCIH — com acompanhamento"), so the unscoped
+  // query strict-mode-violates on 2 matches. The claim under test is the HISTORY
+  // card's row, so it is asserted there.
+  const history = panel(page, 'Histórico de resolução')
+  await expect(history.getByText('Resolução 1')).toBeVisible()
+  await expect(history.getByText('Resumo do primeiro ciclo de resolução (R3-4).')).toBeVisible()
+  await expect(history.getByText('Requer acompanhamento')).toBeVisible()
 })
 
 test('R3-5: close_case now SUCCEEDS on the gate fixture once its referral is resolved (resolved releases)', async ({
@@ -813,9 +904,12 @@ test('R3-7: append-only — a second resolve cycle appends "Resolução 2" while
   await dialog.getByRole('button', { name: /^Resolver$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
-  await expect(page.getByText('Resolução 2')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('Resolução 1')).toBeVisible()
-  await expect(page.getByText('Resumo do segundo ciclo (R3-7).')).toBeVisible()
+  // Panel-scoped for the same reason as R3-4: each resolution now ALSO renders a
+  // "Resolução N registrada por …" row in the Diálogo timeline (RDR D7).
+  const history = panel(page, 'Histórico de resolução')
+  await expect(history.getByText('Resolução 2')).toBeVisible({ timeout: 15_000 })
+  await expect(history.getByText('Resolução 1')).toBeVisible()
+  await expect(history.getByText('Resumo do segundo ciclo (R3-7).')).toBeVisible()
 })
 
 test('R3-8: "Encaminhar adiante" creates a child referral carrying parent lineage', async ({
@@ -895,7 +989,10 @@ test('R4-2: coordinator assigns a reviewer; the row shows role/status/due', asyn
   await dialog.getByRole('button', { name: /^Atribuir$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
-  const row = page.locator('li').filter({ hasText: 'Revisor(a) principal' })
+  // Panel-scoped (RDR D7): the Diálogo now renders an `assignment` system row —
+  // itself an `<li>` — reading "Enfermeiro CCIH Um designado como Revisor(a)
+  // principal", so a page-level `li` filter matches TWO elements.
+  const row = panel(page, 'Responsáveis').locator('li').filter({ hasText: 'Revisor(a) principal' })
   await expect(row).toBeVisible({ timeout: 10_000 })
   await expect(row.getByText('Pendente')).toBeVisible()
 })
@@ -915,7 +1012,8 @@ test('R4-4: coordinator edits the assignment — role/status/due update', async 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r4ReferralId}`)
 
-  const row = page.locator('li').filter({ hasText: 'Revisor(a) principal' })
+  const assignments = panel(page, 'Responsáveis')
+  const row = assignments.locator('li').filter({ hasText: 'Revisor(a) principal' })
   await row.getByRole('button', { name: /^editar$/i }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -923,7 +1021,7 @@ test('R4-4: coordinator edits the assignment — role/status/due update', async 
   await dialog.getByRole('button', { name: /^Salvar$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
-  const updatedRow = page.locator('li').filter({ hasText: 'Revisor(a) principal' })
+  const updatedRow = assignments.locator('li').filter({ hasText: 'Revisor(a) principal' })
   await expect(updatedRow.getByText('Em andamento')).toBeVisible({ timeout: 10_000 })
 })
 
@@ -933,10 +1031,11 @@ test('R4-5: coordinator cancels the assignment — status "Cancelada", controls 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r4ReferralId}`)
 
-  const row = page.locator('li').filter({ hasText: 'Revisor(a) principal' })
+  const assignments = panel(page, 'Responsáveis')
+  const row = assignments.locator('li').filter({ hasText: 'Revisor(a) principal' })
   await row.getByRole('button', { name: /^cancelar$/i }).click()
 
-  const cancelledRow = page.locator('li').filter({ hasText: 'Revisor(a) principal' })
+  const cancelledRow = assignments.locator('li').filter({ hasText: 'Revisor(a) principal' })
   await expect(cancelledRow.getByText('Cancelada')).toBeVisible({ timeout: 10_000 })
   await expect(cancelledRow.getByRole('button', { name: /^editar$/i })).toHaveCount(0)
   await expect(cancelledRow.getByRole('button', { name: /^cancelar$/i })).toHaveCount(0)
@@ -962,20 +1061,26 @@ test('R4-6: coordinator relates a typed case link; it renders with number + rela
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
   await expect(page.getByRole('heading', { name: 'Casos relacionados' })).toBeVisible()
-  await expect(page.getByText('Caso de acompanhamento')).toBeVisible({ timeout: 10_000 })
+  // Panel-scoped like the R4 assignment rows: the typed-link label belongs to this
+  // panel, and page-level text queries on this page now compete with the Diálogo's
+  // synthesized rows (RDR D7).
+  await expect(
+    panel(page, 'Casos relacionados').getByText('Caso de acompanhamento'),
+  ).toBeVisible({ timeout: 10_000 })
 })
 
 test('R4-7: coordinator removes the related-case link', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r4ReferralId}`)
 
-  const linkRow = page.locator('li').filter({ hasText: 'Caso de acompanhamento' })
+  const relatedCases = panel(page, 'Casos relacionados')
+  const linkRow = relatedCases.locator('li').filter({ hasText: 'Caso de acompanhamento' })
   await expect(linkRow).toBeVisible({ timeout: 10_000 })
   await linkRow.getByRole('button', { name: /^remover$/i }).click()
 
-  await expect(page.locator('li').filter({ hasText: 'Caso de acompanhamento' })).toHaveCount(0, {
-    timeout: 10_000,
-  })
+  await expect(
+    relatedCases.locator('li').filter({ hasText: 'Caso de acompanhamento' }),
+  ).toHaveCount(0, { timeout: 10_000 })
 })
 
 test('R4-8: a related-case link grants NO case access — the other side still cannot read it', async ({
@@ -1045,17 +1150,31 @@ test('R5-1: a committee member creates a private internal note on their own side
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r5ReferralId}`)
 
-  await expect(page.getByRole('heading', { name: 'Notas internas' })).toBeVisible({ timeout: 10_000 })
+  // RDR D6 — the panel is renamed "Registros internos". KEEP the `getByRole('heading')`
+  // scope: the disclaimer paragraph directly below it ALSO opens with "Registros
+  // internos", so relaxing this to a bare getByText would keep passing while silently
+  // anchored on the wrong element — a false-positive-passing rewrite (survey §4).
+  await expect(page.getByRole('heading', { name: 'Registros internos' })).toBeVisible({
+    timeout: 10_000,
+  })
   await expect(page.getByText(/visíveis apenas à sua comissão/i)).toBeVisible()
 
-  await page.getByPlaceholder(/Escreva uma nota visível apenas à sua comissão/).fill(
-    'Nota interna da origem — só CCIH deve ver isto (R5-1).',
-  )
-  await page.getByRole('button', { name: /adicionar nota/i }).click()
+  // The always-on textarea is gone: the composer is a Markdown editor behind an
+  // "Adicionar registro" toggle, and it is not in the DOM until that button is clicked.
+  await page.getByRole('button', { name: 'Adicionar registro' }).click()
+  await page
+    .getByLabel('Registro', { exact: true })
+    .fill('Nota interna da origem — só CCIH deve ver isto (R5-1).')
+  await page.getByRole('button', { name: 'Registrar' }).click()
 
   await expect(page.getByText('Nota interna da origem — só CCIH deve ver isto (R5-1).')).toBeVisible({
     timeout: 15_000,
   })
+  // The registro renders with its lifecycle state, not as a bare paragraph.
+  const created = panel(page, 'Registros internos')
+    .locator('li')
+    .filter({ hasText: 'Nota interna da origem' })
+  await expect(created.getByText('Aberto')).toBeVisible()
 })
 
 test('R5-2: the OTHER committee never sees that note — creates its own instead (side-private, no leak)', async ({
@@ -1067,10 +1186,11 @@ test('R5-2: the OTHER committee never sees that note — creates its own instead
   const html = await page.content()
   expect(html).not.toContain('Nota interna da origem — só CCIH deve ver isto')
 
-  await page.getByPlaceholder(/Escreva uma nota visível apenas à sua comissão/).fill(
-    'Nota interna do destino — só Farmácia deve ver isto (R5-2).',
-  )
-  await page.getByRole('button', { name: /adicionar nota/i }).click()
+  await page.getByRole('button', { name: 'Adicionar registro' }).click()
+  await page
+    .getByLabel('Registro', { exact: true })
+    .fill('Nota interna do destino — só Farmácia deve ver isto (R5-2).')
+  await page.getByRole('button', { name: 'Registrar' }).click()
   await expect(page.getByText('Nota interna do destino — só Farmácia deve ver isto (R5-2).')).toBeVisible({
     timeout: 15_000,
   })
@@ -1088,7 +1208,9 @@ test('R5-3: a coordinator redacts their own note — renders [redigido], origina
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r5ReferralId}`)
 
-  const noteItem = page.locator('li').filter({ hasText: 'Nota interna da origem' })
+  const noteItem = panel(page, 'Registros internos')
+    .locator('li')
+    .filter({ hasText: 'Nota interna da origem' })
   await expect(noteItem).toBeVisible({ timeout: 10_000 })
   await noteItem.getByRole('button', { name: /^tarjar$/i }).click()
 
@@ -1128,7 +1250,11 @@ test('R5-4: a coordinator redacts a thread message — renders [redigido] to eve
     timeout: 15_000,
   })
 
-  const messageItem = thread.locator('li').filter({ hasText: 'Mensagem a ser tarjada em seguida' })
+  // `li[data-thread-row="message"]`, not a bare `li`: the Diálogo interleaves
+  // synthesized system rows, which are `li`s too (RDR D7).
+  const messageItem = thread
+    .locator('li[data-thread-row="message"]')
+    .filter({ hasText: 'Mensagem a ser tarjada em seguida' })
   await messageItem.getByRole('button', { name: /^tarjar$/i }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -1168,7 +1294,9 @@ test('R5-5: read receipts — a non-author reader auto-records "read"; "Confirma
   await page.waitForTimeout(1_000)
   await page.reload()
 
-  const messageItem = thread.locator('li').filter({ hasText: 'Mensagem para o teste de recibos' })
+  const messageItem = thread
+    .locator('li[data-thread-row="message"]')
+    .filter({ hasText: 'Mensagem para o teste de recibos' })
   await expect(messageItem.getByText(/1 leitura/)).toBeVisible({ timeout: 10_000 })
 
   await messageItem.getByRole('button', { name: /confirmar ciência/i }).click()
@@ -1176,28 +1304,35 @@ test('R5-5: read receipts — a non-author reader auto-records "read"; "Confirma
   await expect(messageItem.getByText(/1 ciente/)).toBeVisible()
 })
 
-test('R5-6: keyboard-only — compose and submit an internal note via Tab/Enter (no mouse)', async ({
+test('R5-6: keyboard-only — open the registro composer and submit via Tab/Enter (no mouse)', async ({
   page,
 }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r5ReferralId}`)
 
-  // BUG-P22-002: gate on the panel being rendered BEFORE focusing it. `.focus()` is
+  // BUG-P22-002: gate on the control being rendered BEFORE focusing it. `.focus()` is
   // not an auto-waiting action — it resolves the node and fires immediately, so racing
   // it against RSC streaming silently no-ops and only the follow-up `toBeFocused()`
   // reports (as "inactive", which reads like a focus-management defect rather than a
-  // timing one). The notes panel sits far down the detail page, after the related-cases
-  // panel, so it lands late in the streamed response.
+  // timing one). The registros panel sits far down the detail page, so it lands late
+  // in the streamed response.
   //
-  // This mirrors R1-9 in the sibling R1 file — the SAME keyboard-only flow against the
-  // message composer — which has always passed precisely because it awaits
-  // `expect(composer).toBeVisible()` first. The two tests are now the same shape.
+  // RDR D6 added a step this flow must now cross with the keyboard too: the composer
+  // is behind an "Adicionar registro" toggle and is absent from the DOM until it is
+  // activated. Reaching it by Enter on the focused button is part of the a11y claim,
+  // not setup — a toggle only openable by mouse would strand the whole panel.
+  const addBtn = page.getByRole('button', { name: 'Adicionar registro' })
+  await expect(addBtn).toBeVisible({ timeout: 10_000 })
+  await addBtn.focus()
+  await expect(addBtn).toBeFocused()
+  await page.keyboard.press('Enter')
+
   const notesForm = page.locator('form').filter({
-    has: page.getByPlaceholder(/Escreva uma nota visível apenas à sua comissão/),
+    has: page.getByLabel('Registro', { exact: true }),
   })
   await expect(notesForm).toBeVisible({ timeout: 10_000 })
 
-  const textarea = notesForm.locator('textarea')
+  const textarea = notesForm.getByLabel('Registro', { exact: true })
   await textarea.focus()
   await expect(textarea).toBeFocused()
   await page.keyboard.type('Nota interna registrada só com teclado (R5-6).')

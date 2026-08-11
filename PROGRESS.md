@@ -120,6 +120,11 @@ lead owns the Phase Status table.
 | 3d | Modified: "Registros internos" panel (heading **and** disclaimer), messenger `referral-thread`/`-thread-item`, compact composer (Ctrl/Cmd+Enter), compact `Responsáveis`/`Casos relacionados` | frontend | ✅ 2026-08-11 |
 | 3e | Gates: `npm run lint` 0/0 · `npm run typecheck` 0 errors · `npm run test` 1229/1229 | frontend | ✅ green |
 | 3f | Manual browser pass (source + target + plain-member personas), registro lifecycle end-to-end, A11 render path proven | frontend | ✅ 2026-08-11 |
+| 4a | Locator sweep — ONE pass over `phase22-referrals`, `phase22-referrals-governance` (+ the 5 other detail-page visitors verified needing none) | tester | ✅ 2026-08-11 |
+| 4b | New `e2e/referral-registros.spec.ts` — REG 1–6 · DET 1–4 · CASE 1–2 · EVT-1 · KB 1–3 (16 tests) | tester | ✅ 2026-08-11 |
+| 4c | Targeted green: `referral-registros` 16/16 · `phase22-referrals-governance` 29/29 · `phase22-referrals` 40/40 · `technical-direction-referrals` 5/5 (unmodified) · `patient-index -g AC-3` 1/1 · `nsp-per-hospital -g "AC-6\|AC-7"` 6/6 | tester | ✅ 2026-08-11 |
+| 4d | `npm run typecheck` 0 errors · `npm run lint` 0/0 (incl. `lint:vacuous`, 176 spec files / 0 findings) | tester | ✅ green |
+| — | **FULL `npm run e2e:prod` gate** — lead's step, NOT run by the tester | lead | ⏳ pending |
 
 **Phase 3 (UI) — frontend notes.** A11 holds: the ONLY display path for
 `ReferralInternalNote.bodyMd` is `referral-note-card.tsx` → `MarkdownRenderer`; proven live by
@@ -144,6 +149,43 @@ label/heading TEXT and these are structural or placeholder-based:
 5. `:1053` `getByRole('heading', { name: 'Notas internas' })` → `'Registros internos'`. Keep the
    `getByRole('heading', …)` scope — a bare `getByText` would silently anchor on the disclaimer
    (survey §4).
+
+**Phase 4 (E2E) — tester notes (2026-08-11).** All 5 breaks above confirmed and fixed. Beyond
+them, a **sixth break class the survey and Phase 3 both missed**, found only by running: the D7
+event rows do not merely *add* `li`s — their pt-BR sentences **quote the strings the side panels
+own**, so page-level queries that were unambiguous for a year now match two elements.
+`getByText('Resolução 1')` also matches "Resolução 1 registrada por Chefe CCIH" (R3-4, R3-7), and
+`page.locator('li').filter({ hasText: 'Revisor(a) principal' })` also matches "Enfermeiro CCIH Um
+designado como Revisor(a) principal" (R4-2, R4-4 ×2, R4-5 ×2). Seven sites, all fixed by scoping
+to the owning panel via a new `panel(page, name)` helper — **never `.first()`**, which would let a
+timeline row silently satisfy a panel assertion. Sweep property used: *"text an event row emits"*
+(the 9 `describe()` arms of `referral-thread-event.tsx` + `REFERRAL_ASSIGNMENT_ROLE_LABELS`),
+not *"text the redesign deleted"*.
+
+**Verified needing NO change** (each run, not reasoned): `technical-direction-referrals.spec.ts`
+(5/5 — the DT route renders neither the Detalhes nor the case card; its `ReferralThread` has no
+`li`-counting assertion), `patient-index.spec.ts` AC-3, `nsp-per-hospital.spec.ts` AC-6/AC-7,
+`case-patient.spec.ts` (comment only), `perf-sweep-wave2.spec.ts` (hub only),
+`qob-org-admin-content-wall.spec.ts`, `nsp-cross-org-isolation.spec.ts`.
+
+⚠ **Two PRE-EXISTING fragilities observed while running — neither caused by RDR, both relevant to
+triaging the full gate:**
+1. `technical-direction-referrals.spec.ts` has **no `case_referrals` flag lifecycle of its own**
+   and depends on ambient state. Run straight after any referral spec's `afterAll` (which sets the
+   flag OFF) DT-1 fails at "Encaminhar caso"; with the flag ON it is 5/5. Batch order decides it.
+2. `perf-sweep-wave2.spec.ts` creates **26 CCIH referrals and never deletes them**. The commission
+   hub paginates at 25 by recency, so afterwards the seeded ENC-0001 is off page 1 and
+   `phase22-referrals.spec.ts` **Flow 1a** fails — reading as a hub regression when it is fixture
+   debt. Reproduced here at 45 CCIH-sourced referrals; green again on a fresh reset. The new
+   `referral-registros.spec.ts` therefore **purges its own 4 referrals by subject prefix** in
+   `afterAll` and asserts ENC-0001/ENC-0002 survive that delete.
+
+⚠ **The A9 direction fix has NO observable surface left to regress against.** After D1 dropped the
+direction chip, nothing on the detail page renders `detail.direction` — verified by tracing every
+consumer (`encaminhamentos/page.tsx` hub only). DET-3 therefore tests **side derivation**
+(`myCommissionId` vs source/target → "Caso de origem" / "Caso em análise", plus the absolute
+De/Para), which is a different mechanism. Dropping `viewerCommissionId` again would **not** turn
+DET-3 red. Pinning A9 itself would need a unit test on `getReferralDetail`, not E2E.
 
 **Phase 1 gate record (name the ARM, not the script — CLAUDE.md §6 step 5).**
 `ARM=census` HOLDS (454 live gates / 465 verdicts) — it flagged all 4 new gates as unswept before
@@ -332,6 +374,37 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+⛔ **BUG-RDR-001 — a controlled `Dialog` does NOT restore focus to its trigger on close; focus
+drops to `<body>`.** Phase RDR·4 (`tester`, 2026-08-11). **Severity: major (accessibility),
+NOT phase-blocking — PRE-EXISTING and platform-wide, not an RDR regression.** Owner: unassigned
+(`frontend` when scheduled).
+
+**Repro (keyboard-only, chromium, local dev server, `case_referrals` ON):** sign in
+`staff2.farm@test.local` → `/o/rede-a/c/farmacia/encaminhamentos/efa00000-0000-0000-0000-0000000000a1`
+→ focus the "Quem tem acesso?" button in the "Caso em análise" card → `Enter` → dialog opens →
+`Escape`.
+**Expected:** focus returns to the "Quem tem acesso?" button (WCAG 2.4.3; CLAUDE.md §8 "keyboard
+navigation, visible focus").
+**Actual:** `document.activeElement.tagName === 'BODY'`. Measured directly via `page.evaluate`,
+not inferred from a failing matcher. The user is dumped at the top of the document and must
+re-traverse the page.
+
+**Scope — measured, not assumed.** The same probe against the **RDR-untouched, pre-existing**
+"Atribuir responsável" dialog (`referral-assignment-panel.tsx`, ENC-0002, `chefe.ccih`) gives
+`BODY` identically. Cause: `src/components/ui/dialog.tsx`'s doc comment claims "focus
+trapping/restoration … come for free", but Radix restores only to a `DialogPrimitive.Trigger`,
+and **20+ components across `src/components/`** drive `<Dialog open onOpenChange>` from their own
+`<Button onClick>` instead — so the restore half of that comment is false for all of them. (The
+trap half IS real and is asserted green by KB-2.) A textbook instance of the repo's own
+*"a comment is an assertion that goes stale silently"*.
+
+**Pinned executably, not just described:** `e2e/referral-registros.spec.ts` **KB-3** carries the
+assertion under `test.fail()`. It is expected to fail today; the suite goes **RED the moment it
+starts passing**, which is the signal to drop the marker and fold the assertion back into KB-2.
+Do not "fix" this by deleting KB-3 — that would leave the platform with no proof of focus
+restoration anywhere. Note the closed **BUG-ETHE4-FOCUS-1** was a *different* mechanism (a
+`onBlur`-race inside one dialog's own typeahead); this is the generic close path.
+
 ✅ **BUG-ETHE4-FOCUS-1 — FIXED 2026-08-11 (`8e5ebcd`), verified by KBD-1 on a prod build.
 Add-participant dialog: keyboard focus gets trapped after the typeahead search field, and Escape
 silently resets the whole form.** Phase ETH·E4 (`tester`, found live during the dev-server fix
@@ -507,6 +580,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-11 | **RDR·4 · TESTER · locator sweep + new redesign specs, targeted runs only.** **NOT a full-suite run** — `npm run e2e:prod` is the lead's step, explicitly out of scope. Dev server, chromium, `--workers=1`, measured on a **fresh `supabase db reset --local`** (an earlier red was traced to fixture debt, see below). Files changed: `e2e/phase22-referrals.spec.ts` (6 sites), `e2e/phase22-referrals-governance.spec.ts` (18 sites), new `e2e/referral-registros.spec.ts` (16 tests) | **GREEN — 85/85 on the combined ordered run of the three referral specs** (`referral-registros` 16 · `phase22-referrals-governance` 29 · `phase22-referrals` 40; the 16th is KB-3, an intentional `test.fail()` pinning BUG-RDR-001). Plus, individually: `technical-direction-referrals` **5/5 unmodified**, `patient-index -g "AC-3"` **1/1**, `nsp-per-hospital -g "AC-6\|AC-7"` **6/6 + 1 pre-existing deliberate skip**. `npm run typecheck` 0 errors · `npm run lint` 0/0 (incl. `lint:vacuous`: 176 spec files, 0 findings). **One new bug filed — BUG-RDR-001** (dialog focus not restored on close; measured pre-existing + platform-wide, pinned by KB-3). ⚠ **Two reds during the loop were NOT regressions and are worth pre-triaging for the full gate:** (a) `phase22-referrals` Flow 1a went red at 45 CCIH-sourced referrals because `perf-sweep-wave2.spec.ts` leaks 26 and the hub paginates at 25 by recency — green on a fresh reset; the new spec purges its own 4 by subject prefix and asserts ENC-0001/0002 survive. (b) `technical-direction-referrals` DT-1 fails whenever it runs after any referral spec's `afterAll` turns `case_referrals` OFF — it owns no flag lifecycle; 5/5 with the flag on. **Sweep denominator, re-derived by PROPERTY not by the survey's string list:** the survey swept *text the redesign deleted* and could not see two other classes — (1) DOM shape (`thread.locator('li')` now matches synthesized event rows; fixed via `li[data-thread-row="message"]`), and (2) **text the redesign ADDED**: the 9 `describe()` arms of `referral-thread-event.tsx` quote panel-owned strings, so `getByText('Resolução 1')` and `locator('li').filter({hasText:'Revisor(a) principal'})` became 2-match strict violations at 7 sites. Fixed by scoping to the owning `region`, never by `.first()` |
 | 2026-08-11 | **ETH·E4 · LEAD · final gate after the r3 audit** — the 7 specs batch 16 never verdicted, + both ethics specs, + the 2 heaviest `getCaseDetail` consumers (`case-access`, `phase7-cases`), `RESET=1 BATCH_TESTS=22` | **GATE GREEN — 140 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 7 batches · accounted 140/141** (1 legitimate skip). Integrity checked BEFORE trusting the number: batches **1–7 no gaps** · **one** `reset FAILED` (b5) which **RECOVERED** and still reported 21/21 · denominator reconciles. **This clears r2’s unproven set** — the 4 case-detail-heavy specs that never ran are green, so `45e68c5`’s "throw instead of degrade silently" change is proven, not assumed. Two earlier ETH·E4 gate rows (the GREEN 1068/0 run @ `7e55f01` and the RED-on-UNRUN-only run @ `2efa691`) rotated → [test-run-archive.md](docs/progress/test-run-archive.md) |
 | 2026-08-11 | **LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — the prod-standalone full-suite run for the branch closing BUG-ACT-EXPIRY-1 / BUG-ACT-ACL-1 / BUG-VACUOUS-ASSERT-1 / FUP-VACUOUS-AUDIT-1. 17 batches, fresh build + fresh server + fresh DB per batch. | **GREEN after triage. 1055 passed · 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 17 batches.** ✅ **COVERAGE IS COMPLETE — the summary's "accounted for 1058 of 1064" is NOT a hole:** 1055+1+2 = 1058 accounted, and the 6 skipped make up the difference exactly (batches 1r/2/4/8/15/17). Checked per the standing traps *before* trusting the number: **no `reset FAILED`**, **no batch-number gaps** (1–17 all present), denominator reconciled against `spec-counts.txt`. **The 1 failure — `phase7-cases.spec.ts` AC-HappyPath (batch 15) — is a NON-REPRODUCING FLAKE, not a regression.** Evidence, in order: (a) its two attempts failed at **different** lines — attempt 1 at L752 (`Concluído` badge), retry #1 at L564 (`Fase 2 recomendada`), and the retry failing EARLIER is the signature of attempt 1's own partial run having mutated the shared case, so the retry is not independent evidence; (b) `phase7-cases.spec.ts` alone on a fresh DB → **15/15**; (c) batch 15's **exact spec list in its original order** on a fresh DB → **67 passed / 2 skipped / 0 failed** (same 69 denominator); (d) re-run through the gate itself against the **prod standalone build** (`SPECS=… REBUILD=0`) → **GATE GREEN, 67/69**. Not in the blast radius either: the branch touches none of batch 15's four specs, and its only behavioural change (`can_manage_professional` expiry) gates 10 professional-identity/ethics-vocab write RPCs — `close_case` is not among them (catalog-derived). **Batch 1's first attempt (12 failed) was infra** — `ERR_CONNECTION_REFUSED`, the server not yet up; the gate auto-classified and re-ran it → 64 passed, 1 flaky. **The 2 flaky:** `act-role-assumption.spec.ts:157` (the hat switch) and `phase2-auth-shell.spec.ts:268` (logout redirect), both green on retry #1. Far below the documented ~18–27 flaky baseline. ⚠ The gate output also makes **FUP-VACUOUS-COVERAGE-1** visible: `phi-remediation` REM-8/REM-9 render as `-` (skipped) in every batch — they never run. |
 | 2026-08-10 | **ACT · TESTER · Stage 3 specs + BOTH seed-persona threading follow-ups (cookie + raw-grant), coordinator-directed close-out** — `e2e/act-role-assumption.spec.ts` (9 tests) + `actAs`/hatted-`accessToken` threading across **22** raw-grant files and **15** cookie-based files (37 file-touches total, several needing both) + `phase-multitenancy.spec.ts` decision (deleted, redundant) + `BUG-ACT-NOTFOUND-COPY-1` fixed in 4 places. **NOT a full-suite run** (out of scope — the lead runs `e2e:prod`) | **`act-role-assumption.spec.ts`: 9/9 GREEN**, re-verified on a SECOND fresh reset after backend's own concurrent migrations landed (`…002400`, `…002500`). **Every touched file individually re-verified live** (not sampled) on the final fresh reset: `phase-multitenancy.spec.ts` 29/30 (1 deliberate red → now DELETED, see below) · `phase14a-safety-events` 15/16 (1 unrelated pre-existing keyboard-focus flake, matches the documented `.focus()`-not-auto-waiting class) · `phase14b-triage` 13/13 · `phase14c-rca` 17/17 · `phase14d-capa` 19/19 · `ethics-e2-procedure` 20/20 (incl. FLOW-7, the dynamic-role-per-voter fix) · `phase16-accreditation-clone` 4/4 · `phase16-accreditation-hospital` 6/6 · `phase13-audit` 26/27 (1 genuine NEW finding, not a regression — see Bug Log) · plus `mem-memberships-collapse`, `patient-index` (7/7 across its 4 sites), `phi-remediation`, `charters-cadence` (3/3), `ff3-validations` all green. lint 0/0 across `e2e/` · `tsc --noEmit` clean — both re-run after every edit batch, final time on the clean-reset tree. **`phase-multitenancy.spec.ts` decision (coordinator's item 2): DELETED**, not re-based — its own comment already named the coverage redundant ("lands on the /c picker, exactly like multi@ below"); the intent (multi-commission + single-role-type → grouped `/c` picker) is fully covered by the adjacent `multi@` test in the same file (now verified true for her post-cutover) and by this file's own D2 negative spec. **Raw-grant denominator, re-derived by property per the coordinator's instruction: 58 files perform a raw grant; 22 intersect a multi-role persona** (19 by literal string, +3 only reachable by tracing transitive imports/dynamic queries — full breakdown in the Bug Log). Caught and self-corrected one real gap in the tester's own first pass (`phase14c-rca`/`phase14d-capa`, 26 sites, initially miscategorized "comment-only") before declaring done. ⛔ **Three bugs found and reported beyond the originally-assigned 7 specs, all live-reproduced against the real catalog/DB, not inferred:** BUG-ACT-PICKER-SEED-1 and BUG-ACT-GUARD-HATBLIND-1 (P0, RESOLVED same-session by backend) from the first pass; BUG-ACT-RAWGRANT-HATLESS-1 (RESOLVED this session) plus 2 genuinely NEW findings surfaced while verifying it (`phase22-referrals.spec.ts` Flow 3d — same OR-gate-conflation shape as AC-5b; `phase13-audit.spec.ts` AC-3f-platform — `assume_role`'s own audit rows now populate a bucket a pre-existing test assumed was permanently empty) — both left RED with the finding documented in-line, not forced. Full detail, all bug rows: PROGRESS.md Bug Log. |

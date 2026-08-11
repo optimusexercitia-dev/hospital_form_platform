@@ -165,6 +165,22 @@ async function setReferralsFlag(req: APIRequestContext, enabled: boolean) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * The MESSAGE bubbles inside a Diálogo region.
+ *
+ * ⚠ RDR D7 changed the DOM shape, not the text: the timeline now interleaves
+ * synthesized lifecycle rows (`sent`, `received`, `decided_accepted`, `assignment`,
+ * `case_linked`, `resolution`, `concluded`, `withdrawn`) with the messages, and BOTH
+ * are `<li>`s. A bare `thread.locator('li')` therefore no longer means "a message" —
+ * it counts system rows too, so every count/nth assertion built on it drifts by
+ * however many lifecycle events the fixture happens to have. `referral-thread-item.tsx`
+ * and `referral-thread-event.tsx` each stamp a stable `data-thread-row`
+ * ("message" / "event"); this helper is the single place that knows which is which.
+ */
+function threadMessages(thread: ReturnType<Page['getByRole']>) {
+  return thread.locator('li[data-thread-row="message"]')
+}
+
 async function signInAs(page: Page, email: string, password = 'Test1234!', actAs?: string) {
   // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
   // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
@@ -1377,7 +1393,12 @@ test('R1-1: source coordinator posts "Comentar" → the message renders in the t
 
   const thread = page.getByRole('region', { name: 'Diálogo' })
   await expect(thread).toBeVisible({ timeout: 10_000 })
-  await expect(thread.getByText('Ainda não há mensagens')).toBeVisible()
+  // RDR D7: the timeline now interleaves synthesized SYSTEM EVENT rows with the
+  // messages, so "no rows" is no longer the same claim as "no messages" — this
+  // referral was already sent/received/accepted, so its lifecycle events render and
+  // the panel's empty state ("Ainda não há mensagens neste encaminhamento.") is
+  // correctly absent. Assert the sharper thing instead: ZERO message bubbles.
+  await expect(threadMessages(thread)).toHaveCount(0)
 
   const composer = thread.locator('form')
   await expect(composer).toBeVisible()
@@ -1387,7 +1408,7 @@ test('R1-1: source coordinator posts "Comentar" → the message renders in the t
   await expect(
     thread.getByText('Primeira mensagem — comentário da origem (R1-1).'),
   ).toBeVisible({ timeout: 15_000 })
-  const firstMessage = thread.locator('li').first()
+  const firstMessage = threadMessages(thread).first()
   await expect(firstMessage).toContainText('#1')
   await expect(firstMessage).toContainText('Infecção Hospitalar') // sender = source (CCIH)
   await expect(firstMessage).toContainText('Comentário') // message-type chip label
@@ -1422,7 +1443,7 @@ test('R1-2: target coordinator "Solicitar informação" → awaiting_information
   await expect(
     thread.getByText('Precisamos do resultado do exame X antes de concluir (R1-2).'),
   ).toBeVisible()
-  const secondMessage = thread.locator('li').nth(1)
+  const secondMessage = threadMessages(thread).nth(1)
   await expect(secondMessage).toContainText('#2')
   await expect(secondMessage).toContainText('Solicitação de informação')
 })
@@ -1449,7 +1470,7 @@ test('R1-3: source coordinator "Responder" → back to em_analise + waiting-on(t
   await expect(thread.getByRole('status')).toHaveCount(0)
 
   await expect(thread.getByText('O exame X confirmou o resultado esperado (R1-3).')).toBeVisible()
-  const thirdMessage = thread.locator('li').nth(2)
+  const thirdMessage = threadMessages(thread).nth(2)
   await expect(thirdMessage).toContainText('#3')
   await expect(thirdMessage).toContainText('Resposta')
 })
@@ -1463,9 +1484,11 @@ test('R1-4a: metadata-only reader (plain target staff) sees "Conteúdo restrito"
   const thread = page.getByRole('region', { name: 'Diálogo' })
   await expect(thread).toBeVisible({ timeout: 10_000 })
   // 3 messages exist (R1-1/2/3); every body must be replaced by the placeholder.
-  await expect(thread.locator('li')).toHaveCount(3)
+  await expect(threadMessages(thread)).toHaveCount(3)
   await expect(thread.getByText('Conteúdo restrito').first()).toBeVisible()
-  await expect(thread.locator('li').filter({ hasText: 'Conteúdo restrito' })).toHaveCount(3)
+  await expect(
+    threadMessages(thread).filter({ hasText: 'Conteúdo restrito' }),
+  ).toHaveCount(3)
 
   // None of the real message texts leak into the page.
   const html = await page.content()
@@ -1638,7 +1661,7 @@ test('R1-7a: target ANALYST (case_access grant, NOT staff_admin) sees and USES t
   await expect(
     thread.getByText('Comentário do analista de destino (R1-7a).'),
   ).toBeVisible({ timeout: 15_000 })
-  const analystMessage = thread.locator('li').nth(3)
+  const analystMessage = threadMessages(thread).nth(3)
   await expect(analystMessage).toContainText('#4')
   await expect(analystMessage).toContainText('Farmácia e Terapêutica') // sender = target commission
 })
