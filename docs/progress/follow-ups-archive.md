@@ -1304,3 +1304,52 @@ as undecided, with the measurement already done so whoever rules next does not r
 
 Owner: **PO** for items 3 + 5 (no deadline, nothing blocked); lead/backend for the scheduled waves.
 
+
+---
+
+### Also rotated 2026-08-11 — FUP-QOB-1 (a separate, earlier closure)
+
+Not part of the quick batch: closed by PO ruling on **2026-08-09** and simply never rotated.
+Included here because it was fully resolved and still occupying both live files.
+
+### ⬛ FUP-QOB-1 — RESOLVED 2026-08-09: the J1c structural pin is RATIFIED as the standing guard (PO)
+
+**PO ruling 2026-08-09:** ratify J1c as it stands. Rationale accepted as recorded below — the
+behavioural surface did not weaken, it **collapsed**: post-M1 there is no reader-non-writer
+principal left to probe with, and the two alternatives are worse (an invented pgTAP persona
+measures the invented grant rather than the live policy; retiring J1b+J1c together leaves the
+`created_by` term with no guard at all). The pin's own honestly-stated limit — a structural
+assertion is weaker than a behavioural one — stands as a **known** limitation rather than an
+open question. J1b stays annotated-not-deleted per the A2 precedent. No further action.
+
+<details><summary>Original entry (2026-08-09, pre-ruling) — the collapse, the guard, and its limit</summary>
+
+### `created_by = auth.uid()` in `response_group_instances_write_own_draft` is no longer independently observable; PROVISIONAL structural pin landed (backend 2026-08-09; needs PO ratification)
+
+- **The collapse (filed 2026-08-08, QO·B):** M1's wall removed `is_commission_admin_of` —
+  the only reader-non-writer persona — from the response plane. Post-M1 the readers of an
+  in-progress response's instances are exactly {creator, targeted respondent}, and **both
+  are writers**; `staff_admin` on a *submitted* response is stopped first by the
+  immutability trigger (23514 — proves immutability, not the qual). `270` §J's J1b
+  reader-non-writer keystone is therefore VACUOUS (annotated in-file, kept per the A2
+  annotate-never-delete precedent). No replacement persona exists without inventing one.
+- **Interim guard (backend 2026-08-09, PROVISIONAL pending PO):** `270` §J **J1c** — an
+  executable CATALOG pin asserting the policy still exists (FOR ALL, to `authenticated`,
+  on `response_group_instances`) AND still carries `created_by = auth.uid()` in **both**
+  its USING and WITH CHECK halves. **Red-proven** by the b1 mutation audit's
+  `fup_qob1_drop_created_by` case: deleting the term reds J1c **while J1b stays green**
+  (observed live: `ok 40 — J1b` / `not ok 41 — J1c`) — the vacuity claim demonstrated in
+  the same run. The policy-disappears direction fails closed (the count), no mutation
+  needed.
+- **Honestly stated limit:** this is a STRUCTURAL pin, and QO·B's own lesson is that a
+  structural assertion cannot substitute for a behavioural one. It is accepted here
+  because the behavioural surface **collapsed** — there is no principal to probe with.
+  During implementation the behavioural alternatives were re-checked and none exists
+  without inventing a persona (a bespoke in-test SELECT grant would test the invented
+  grant, not the live surface).
+- **PO question:** ratify the pin as the standing guard, or direct an alternative
+  (invented pgTAP persona / accept the read≡write coincidence as the stronger pinned
+  property and retire J1b+J1c together). → **RATIFIED as-is, 2026-08-09.**
+
+</details>
+
