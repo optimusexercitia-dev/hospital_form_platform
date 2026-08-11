@@ -1376,3 +1376,90 @@ asserted against DB truth rather than a row count; the control was run — rever
 turns that spec RED. **Lesson:** RLS being the security boundary (Rule 1) does not make it the
 SEMANTIC filter — "who may read this row" and "whose page is this" are different questions, and
 a read policy with an admin arm silently answers the first.
+
+## Rotated 2026-08-10 — BUG-QOB-004 (+ its original tester report)
+
+> Moved out of the live Bug Log when that section was cut back to OPEN bugs only. Verbatim.
+> The residual product question this entry raised — whether `encaminhamentos/**` should get its own
+> KEEP treatment for a bare tenancy admin — did **not** close with the bug: it lives in
+> **FUP-QOB-2** (parked with the PO), and the sibling finding it spawned is **FUP-QOB-3**
+> (`dispose_event_phi` is now the only Rule-12 disposal door still granting a bare tenancy admin).
+
+⬛ **BUG-QOB-004 — RESOLVED 2026-08-09 (PO ruled CUT-the-arms; `20260917000000`).** The DB moved
+to meet the UI rather than the reverse: `is_commission_admin_of` is gone from
+`can_dispose_referral_phi`, `dispose_referral_phi` and `create_referral_draft`
+(`_for` variant), so the orphaned authorization no longer exists to be orphaned. Follows the
+ratified **D5** precedent verbatim (*"a principal with zero PHI bits does not destroy Rule 12
+data"* — the same reasoning that CUT `dispose_case_phi`). **Population derived from the live
+catalog by property, twice, not from this bug's remembered list of three:** the sweep returned 5
+functions and both extras were excluded for a *ratified* reason — `app._audit_access_authorized`
+(its tenancy arms are on AUDIT branches, ruling ② KEEP; its referral branches delegate to
+`can_read_referral_phi` with no tenancy arm) and `app._case_caps` (`v_orgadmin` confers
+`manage_case_access` ONLY — the case-ACCESS KEEP; its S6 referral branch gates on
+`is_pqs_operator_of_for`). **0 policies** on the 13 referral relations carried a tenancy arm, and
+no other tenancy helper reaches the plane, so the whole cut is function-side.
+⚠ **Real consequence, not a no-op:** neither disposal door ever carried a `staff_admin` arm, so
+referral-PHI disposal is now **NSP-exclusive** (PQS operator of source or target hospital). The
+pt-BR message moved with the arm — *"apenas um administrador da organização ou o NSP…"* was false
+the moment the arm went, and is now *"apenas o NSP pode descartar dados do paciente"*.
+`create_referral_draft`'s HC071 text needed no change: it already said "apenas a coordenação da
+comissão de origem", which the cut turns from an overstatement into the truth. Two stale TS
+docblocks fixed in the same wave ([`referrals/actions.ts`](src/lib/referrals/actions.ts),
+[`referral-dispose-dialog.tsx`](src/components/referrals/referral-dispose-dialog.tsx)) — both still
+asserted `is_admin() OR is_commission_admin_of(...)`, i.e. they were **already** stale by one wave
+(ADR 0078 A35 removed `is_admin()`) and would have been stale by two.
+**Gate:** fresh `db reset` 330=330 · pgTAP **175f/5617 PASS** · the re-anchored `295` §7.6 twin +
+new **7.7** keystone **RED-PROVEN** (restoring the arm reds test 50 and *only* test 50; 7.6 stayed
+green, proving the twin measures a different arm) · restore **byte-identical** (md5 match) ·
+`ARM=census` + `ARM=floor` **HOLD** · diff-scoped door sweep **COVERED, 0 BLIND / 0 ERROR**
+(findings file backed up and restored — the scoped run truncated it 393→36 lines, the known
+partial-sweep hazard) · lint 0/0 · tsc · vitest 1194 · `database.ts` content-unchanged.
+▶ **Spawned [FUP-QOB-3](docs/progress/follow-ups.md): `dispose_event_phi` is now the only Rule-12
+disposal door still granting a bare tenancy admin** — found by the sibling-coherence check, left
+untouched on purpose, needs its own ruling.
+
+<details><summary>Original report (2026-08-09, tester)</summary>
+
+🔴 **QO·B's UI half orphaned a DB-authorized referral capability for a bare
+tenancy admin; `encaminhamentos/**` was never part of the D12 classification.** Filed
+2026-08-09 (`tester`, writing the QO·B UI E2E extension). **Not a security defect** — nothing
+unauthorized became reachable; the opposite: an authorized capability became UNREACHABLE.
+**[CAT]** `docs/plans/quality-office-oversight-phase-b-inventory.md`'s §4 classification (the
+PO-ratified Q1–Q9 CUT/KEEP list) never mentions "referral" or "encaminhamento" anywhere —
+referrals were **out of scope** for the QO·B program. **[CAT]** confirmed live: `can_dispose_referral_phi`,
+`create_referral_draft`, and `dispose_referral_phi` still route `app.is_commission_admin_of`
+verbatim (`pg_get_functiondef`, unmodified by any `20260915*` QO·B migration) — the tenancy-admin
+disposal/draft capability is **fully intact at the DB layer**. **[MEAS]** but
+`src/app/o/[org]/c/[commission]/encaminhamentos/[referralId]/page.tsx:107`'s gate
+(`if (!access || access.role === null) notFound()`) **predates QO·B** — it was written when the
+session resolver coerced a tenancy admin to `role: 'staff_admin'`, so it always passed for them.
+BUG-QOB-003's coercion removal (backend, `4dd5cfa`) makes `access.role` genuinely `null` for a
+bare tenancy admin everywhere at once, including this route nobody re-examined during QO·B — so
+`admin@test.local` (org_admin of rede-a, zero CCIH membership) now 404s on every
+`encaminhamentos/**` route, unable to ever reach the "Apagar dados do paciente" button or the
+compose-draft affordance the DB still grants it. **Proven live, twice, on a fresh reset**:
+`e2e/phase22-referrals.spec.ts` "Flow 3d" (hub content) and `e2e/nsp-per-hospital.spec.ts` AC-7
+"entitled caller (admin) disposes ENC-0004 PHI" both reproduce the 404 for `admin@test.local`
+specifically (a genuine committee member on the SAME routes, e.g. `chefe.ccih`/`pqsdual.a`,
+reaches them fine — isolated by re-running each file fresh after ruling out an unrelated
+self-inflicted `case_referrals`-flag contamination artifact from an earlier scoped test run).
+**Blast radius, why this earned a bug rather than a silent spec-only fix:** `phase22-referrals.spec.ts`
+runs its whole file `mode: 'serial'`; Flow 3d's failure alone **skipped the remaining 29 tests** in
+that file (Flow 4a onward) when it broke — the single stale assertion was hiding nearly the whole
+file's coverage, a collateral-damage shape worth flagging on its own.
+**Disposition (tester):** did **not** rewrite the two affected tests to assert 404 — that would
+have silently canonized an unratified capability loss as intended behavior. Instead swapped both
+to `pqsdual.a@test.local` (a genuine CCIH `staff` member who is ALSO a central-a+secundario-a PQS
+operator — the same PQS-operator arm `can_dispose_referral_phi` grants, reached through a
+membership row the wall never touches), which restores full E2E proof of the underlying
+capability without depending on the now-retired coercion. Both files are green (40/40, 32/32) —
+see the Test Run Summary row below. **What is genuinely open:** whether `admin@`/`hospitaladmin.*`
+losing referral-hub reach is accepted as collateral (the capability lives on for anyone who is
+also a genuine committee member or PQS operator, which every real coordinator already is) or
+whether `encaminhamentos/**` should get its own `canConfigureCommission`-style KEEP treatment —
+**a PO ruling this program never asked for**, same class as the standing rule *"conferring a
+capability requires enumerating its consumers."* Owner: PO/backend.
+**Registered 2026-08-09 (phase close): ruling PARKED — see FUP-QOB-2. RULED the same day:
+CUT-the-arms; see the closure record above.**
+
+</details>

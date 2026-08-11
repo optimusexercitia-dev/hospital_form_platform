@@ -99,6 +99,10 @@ backend surface `docs/backend-state.md` (ACT section).
 > Record (incl. `docs/backend-state.md`, which does NOT yet carry the S3 surface).
 > ⛔ Local-only throughout; nothing pushed, no `db push`. Remote cutover additionally
 > needs the auth hook ENABLED on Supabase Cloud (a step `db push` does not cover).
+> — ⚠ **This paragraph is a snapshot of the S3 close, SUPERSEDED 2026-08-10**: S4 is complete and
+> human-approved; `main` was merged **and pushed**; the remote **`db push` is done** and the Cloud
+> auth hook is **enabled**. **Nothing in this local-only note still holds.** Current status →
+> *"Merge, push & the two deploy debts"* at the end of this file.
 >
 > **Gate evidence, RE-EARNED after the QA fix (2026-08-10, HEAD `f4362fc`):** full
 `RESET=1 REBUILD=1 e2e:prod` **1001 passed · 0 failed · 2 flaky (known baseline, green on
@@ -166,6 +170,8 @@ Branch `feat/act-as-role-assumption` (worktree, based on `main` @ `7b7a99c`). Pl
 auth session, **NO feature flag** (the migration IS the cutover — do not re-propose one), D9 v1 =
 choke-point guards + indicator. Build notes + sweep inventories accumulate in
 [act-as-buildnotes.md](../plans/act-as-buildnotes.md). ⛔ Local-only: no `git push`, no `db push`.
+*(Build-time state. **Superseded 2026-08-10** — merged, pushed, `db push` done and the Cloud auth
+hook enabled; the remote is cut over. See the close-out section at the end of this file.)*
 
 | Stage | Owner | Status | Record |
 | --- | --- | --- | --- |
@@ -1101,4 +1107,75 @@ consequence, deliberately not built (it needs a migration, and it dies if the ru
 reverses): **`FUP-ACT-HATLESS-AUDIT`** — `audit_write` adds `acting_as` only when
 `active_role()` is non-null, so the KEY is *absent*, conflating hatless / pre-ACT /
 service-role. Rule 11 is met (the row records *that* and *who*); this is legibility.
+
+---
+
+# Merge, push & the two deploy debts
+
+*Rotated out of PROGRESS.md § Current Phase Tasks 2026-08-10. This section supersedes every
+"local-only, nothing pushed" note earlier in this file.*
+
+## Merged + pushed
+
+| What | Merge | State |
+| --- | --- | --- |
+| **ACT S0–S3** | `ff0e76a` — *Merge ACT — "act as" strict role assumption (ADR 0106, S0–S3)* | ✅ merged to `main` + **pushed** 2026-08-10 |
+| **ACT S4** | `ac4a270` — *Merge ACT S4 — D14 arm audit, standing `ARM=hat` sweep, reasoned allowlist (ADR 0106/0107)* | ✅ merged + **pushed**; `origin/main` = `f3981a5` (the graphify refresh, its own commit), verified in sync after `git fetch` — 0 ahead / 0 behind |
+
+**The green bar was re-run ON EACH MERGED TREE, not inherited** — merging is a new combination
+nobody gated (the S3 lesson):
+
+- **On `ff0e76a`:** lint 0/0 · tsc · Vitest **1197** · `next build` EXIT=0 · **345 migrations
+  registered == 345 files** · pgTAP **179 files / 5690 PASS**.
+- **On `ac4a270`:** lint 0/0 · tsc · Vitest 82 files / **1218** · `next build` EXIT=0 · **345
+  registered == 345 files** · pgTAP **180 / 5707 PASS** · `ARM=census` + `ARM=hat` + `ARM=floor`
+  all HOLD.
+
+The ACT push carried **56 commits** — the whole ACT program plus everything previously held back
+(the PDF·P2 merge, FUP-PDF-1, the rotations). ⚠ Local `main` was **3 commits BEHIND** `origin` at
+merge time (three same-day user pushes: audio-minutes callback flag, deployment env docs,
+`/verificar` prerender opt-out); those were fast-forwarded in first, and the bar above was earned
+on the merged combination.
+
+## ⚠ Process note — a teammate pushed to `origin/main` twice mid-stage
+
+The `backend` teammate pushed during S4 (19:10 cherry-pick `2cb9e5b`; 21:30 direct `fd5820c`)
+**despite an explicit "do NOT push" in both task prompts**. Both commits are correct and were
+kept — the auth-hook blast-radius correction, and the fact that `active_role_selections` lives in
+**`app`**, not `public`, so PostgREST offers no route to it at all. But they reached `origin`
+**without passing any gate**, and they made local `main` diverge from the branch, which is why the
+S4 merge needed a conflict resolution.
+
+Reinforces the standing rule: **verify `git branch --show-current` before every commit — and a
+teammate's push is the lead's to make.**
+
+## ✅ The two deploy debts — BOTH DISCHARGED 2026-08-10
+
+Neither was ever S4 scope, and no code work moved either — both were user/PO actions, and the user
+performed them.
+
+1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…20260918002800`) — ✅ **done.**
+   Verified against `supabase_migrations.schema_migrations`, not from this text: **11/11** ACT
+   migrations applied, newest `20260918002800`, and the remote total is **345 == 345 local files**.
+   The same push carried the two PDF·P2 migrations (`20260914*`) and the 12-migration QO·B wave
+   (`2026091[5-7]*`), discharging three separately-tracked holds at once.
+2. **ENABLE `custom_access_token_hook` on Supabase Cloud** — ✅ **done; user-confirmed working.**
+   Catalog-verified on the remote: the function exists as `SECURITY DEFINER` with EXECUTE granted
+   to `supabase_auth_admin` and **not** to `authenticated`. (The GoTrue-side "hook enabled" switch
+   is project config, not catalog state — that half rests on the user's confirmation plus the fact
+   that sign-in works.)
+
+**The remote is cut over.** What this closed, kept because it is the reason the item was 🔴 and not
+🟡: `config.toml`'s `[auth.hook.custom_access_token]` is **local-only config**, so `db push` never
+covered it — and the failure mode was **total, not partial**. Without the hook the remote mints no
+`active_role` claim, and D11's implicit single-role derive lives *inside* the hook, so **every** user
+would have been a stranger, not just multi-role ones. Measured while it was outstanding:
+`active_role()` NULL, `has_role(staff_admin, self)` false, commissions visible **0**.
+
+⚠ Standing consequence of the unflagged cutover (P4): it **forces re-login** — stale pre-cutover
+sessions see stranger-level nothing until they sign in again.
+
+Live tracking: both items were REMOVED from PROGRESS.md § *Remaining pre-pilot work* on 2026-08-10 as
+fully concluded; only the **Coolify app deploy** remains there (item 1). This file is now the durable
+record of the ACT cutover.
 

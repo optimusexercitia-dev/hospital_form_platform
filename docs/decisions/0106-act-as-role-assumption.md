@@ -19,14 +19,21 @@ Recorded here because the plan file is a build artifact and this ADR is the dura
 | **P5** | D9 scope at cutover | **Choke-point guards + indicator dropdown.** The area-entry guards render the switch hint; the indicator dropdown is the always-available escape. Row-level absences inside a page are deliberately NOT hinted — there, absence must stay indistinguishable from non-existence (D4). Measured at build: **6 guards, not ~5**, and only 2 of the 6 had a route-scoped `not-found.tsx` to mount the hint in. |
 | **P6** | Program shape | **Staged program, Stages 0–4.** Stage 3 is the only red-suite window. |
 
-### Cutover debts (neither is discharged by merging)
+### Cutover debts (neither was discharged by merging) — ✅ BOTH DISCHARGED 2026-08-10
 
-1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…002800`).
-2. **`custom_access_token_hook` must be ENABLED on Supabase Cloud.** `db push` does **not**
-   cover it — locally it is `config.toml`'s `[auth.hook.custom_access_token]`. Without it the
-   remote mints no `active_role` claim and, under D5, **EVERY user is a stranger — not just
-   multi-role ones**: the app is unusable until the hook is on. This is the highest-risk item
-   in the program.
+> **Status: the remote is cut over.** Both items below were performed by the user on 2026-08-10 and
+> verified against the remote catalog (not from this text): 11/11 ACT migrations applied, remote
+> total 345 == 345 local files; `custom_access_token_hook` present as `SECURITY DEFINER` with
+> EXECUTE to `supabase_auth_admin` and not to `authenticated`; user-confirmed working. The text
+> below is kept as the durable record of **why** item 2 was the program's highest-risk step — the
+> blast-radius correction is the reusable lesson, not the status.
+
+1. **Remote `db push`** of the ACT migration set (`20260918000000`–`…002800`). — ✅ done 2026-08-10.
+2. **`custom_access_token_hook` must be ENABLED on Supabase Cloud.** — ✅ done 2026-08-10.
+   `db push` does **not** cover it — locally it is `config.toml`'s
+   `[auth.hook.custom_access_token]`. Without it the remote mints no `active_role` claim and,
+   under D5, **EVERY user is a stranger — not just multi-role ones**: the app is unusable until
+   the hook is on. This was the highest-risk item in the program.
 
    ⚠ **The blast radius is easy to understate, and this record did** (corrected 2026-08-10,
    S4). The tempting reading is "only multi-role principals are affected, since single-role

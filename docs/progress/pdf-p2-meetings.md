@@ -45,4 +45,29 @@ labeling) + A9 (formula gains "+ mint surface").
 
 ## Open at close → registered live in PROGRESS.md (Follow-ups + Bug Log)
 
-FUP-PDF-1..4 · BUG-PDF2-002 (spun off as a task chip) · P3 carry-forwards (helper bare-use hazard → `COMMENT ON FUNCTION`; P4 keystone repoint) · deploy prereqs (remote `db push` of `20260914000000`+`000100` NOT done per PO instruction · Gotenberg Coolify resource · flag `document_printing` OFF in prod).
+FUP-PDF-1..4 · BUG-PDF2-002 (spun off as a task chip) · P3 carry-forwards (helper bare-use hazard → `COMMENT ON FUNCTION`; P4 keystone repoint) · deploy prereqs (remote `db push` of `20260914000000`+`000100` NOT done per PO instruction · Gotenberg Coolify resource · flag `document_printing` OFF in prod). *(Deploy-prereq state as of the phase close — **superseded**; current per-item status in the next section.)*
+
+### PDF-program item status — updated 2026-08-10 (rotated out of PROGRESS.md § Current Phase Tasks)
+
+- `[x]` **FUP-PDF-1 — RESOLVED 2026-08-08.** The creator mint surface shipped: new respondent route
+  `…/c/[commission]/respostas/[responseId]`. Carried a pre-existing find with it, **BUG-RESP-001**,
+  fixed in the same wave. Entry archived → `follow-ups-archive.md`.
+- `[ ]` **FUP-PDF-2..4** — still OPEN; one-line index in PROGRESS.md § Follow-ups, bodies in
+  `follow-ups.md`. (P1 QA MINORs: SQLSTATE allowlist can surface English Postgres text · mint/revoke
+  `returns printed_documents` re-exposes withheld columns · verification rate limiter is global +
+  in-process.)
+- `[x]` **BUG-PDF2-002 — RESOLVED BY-DESIGN 2026-08-08.** Next's streamed-`notFound()` contract; no
+  app change, contract pinned in E2E. Full record → `bug-log-archive.md`. Session task chip withdrawn.
+- `[x]` **`git push origin main` — DONE 2026-08-10** (user-authorized). The P2 merge reached `origin`
+  inside the ACT push (`ff0e76a`); `origin/main` later `f3981a5`, verified in sync. The PO's
+  2026-08-08 local-only hold on the *git* half is discharged.
+- `[x]` **Remote `db push` of `20260914000000` + `20260914000100` — ✅ DONE 2026-08-10** (user, own
+  auth; the PO hold is lifted). Catalog-verified **2/2 applied**; local and remote now agree on the
+  meeting arm (345 == 345 overall).
+- `[ ]` **Gotenberg Coolify resource** — runbook [pdf-renderer.md](../deployment/pdf-renderer.md).
+  With the `db push` above landed, **this is now the only thing keeping flag `document_printing`
+  OFF in prod.**
+- **P3/P4 build carry-forwards (not user actions):** `can_read_full_meeting_content` is fail-open
+  **STANDALONE** — never reuse it without the `can_reach_meeting` conjunct; it becomes a
+  `COMMENT ON FUNCTION` in P3's first migration. P4 repoints the relocated fail-closed keystones
+  again (noted in-file in `312`/`313`).

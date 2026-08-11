@@ -5,7 +5,9 @@ BLOCKER remediated by M7 → r2 ✅ re-proved on the reviewer's own fixtures) ·
 2026-08-09** · ADR [0100](../decisions/0100-quality-office-oversight.md) **D12** · PO rulings
 **Q1–Q9** (2026-08-08) · [inventory + classification + findings](../plans/quality-office-oversight-phase-b-inventory.md)
 · [author self-audit](../reviews/phase-QO-B-self-audit.md) · branch `feat/quality-office-oversight`
-→ `main` (LOCAL-ONLY — no push, per standing PO hold; remote `db push` of `20260915000000`–`20260916000000` pending with the PO).
+→ `main`. *(At close this read "LOCAL-ONLY — no push, per standing PO hold; remote `db push` pending
+with the PO." **Both discharged 2026-08-10:** pushed to `origin`, and the remote `db push` applied all
+**12** `2026091[5-7]*` migrations — catalog-verified, remote total 345 == 345 local files.)*
 
 **⚠ Registered as OPEN at close (live in PROGRESS.md — Bug Log + Follow-ups FUP-QOB-1/FUP-QOB-2):**
 BUG-QOB-004 (referrals reach ruling) · FUP-QOB-1 (J1c provisional pin ratification) · the
