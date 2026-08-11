@@ -203,3 +203,50 @@ therefore don't break, see §2):
   (`phase22-referrals.spec.ts:451`/`535`, `perf-sweep-wave2.spec.ts:624`). Worth recording
   precisely because it's the one deletion in the ground truth that turned out to be
   E2E-inert — flagging it also prevents anyone from "fixing" a phantom failure here later.
+
+---
+
+## 5. Lead reconciliation — a second, independent sweep
+
+`phase22-referrals-governance.spec.ts` was swept **twice, independently** (this survey, and a
+separate agent that read all 1213 lines). The two passes disagreed. Both disagreements are
+recorded here rather than resolved by picking a winner, because the divergence is itself the
+finding: a single sweep of this file would have shipped an incomplete inventory either way.
+
+### 5.1 MISSED BY §3 — confirmed BREAKS, and a gap in the plan itself
+
+**`phase22-referrals-governance.spec.ts:552`** —
+`await expect(page.getByText(r2RequestedAction.label).first()).toBeVisible()`
+
+Verified by hand at the source: the assertion sits after
+`waitForURL(/\/encaminhamentos\/[0-9a-f-]+$/)`, so it is a **detail-page** assertion, and its
+target is the `ReferralRequestedActionChip` rendered in the header chip tail
+(`page.tsx:294–296`). D1 reduces the header to Status + Type chips only, so the chip is
+**deleted** — and the Details-card field list in the plan (§ "New components" →
+`referral-details-card.tsx`) has **no requested-action row**.
+
+This is therefore **not a locator fix**: the field has nowhere to go. It needs a product
+decision — add a "Ação solicitada" row to the Details card, or drop the field from the UI and
+retire the assertion. Tracked as an open question on the plan. The sibling hub-page assertion
+(R2-2, line ~558 onward) is unaffected; only the detail-page one is homeless.
+
+### 5.2 Classification disagreement — lines 553, 598, 663, 635, 640
+
+| Pass | Class | Reasoning |
+|---|---|---|
+| §3 (this survey) | **BREAKS** | The *text shape* changes: `getByText(/Prazo de resposta:/i)` needs a literal colon, and `getByText(/Motivo da recusa:\s*…/i)` needs label+value in **one** element. A `dt`/`dd` card row splits them apart and drops the colon. |
+| Second sweep | RE-SCOPED (safe) | The queries are page-wide unscoped, so *container* relocation cannot hurt them. |
+
+**The shape-based reading (§3) is the sharper one and should be treated as authoritative**:
+being unscoped protects a locator from a container move, but not from the label and value being
+split into two elements. The second sweep reasoned only about relocation and missed the split.
+Both agree these rows need attention; they disagree only on severity.
+
+⚠ Both classifications are **predictions** — `referral-details-card.tsx` does not exist on this
+branch yet. Re-verify all five rows against the real markup once Phase 3 lands, and prefer
+scoped replacements (`getByRole`/card-scoped) over unscoped text queries regardless of outcome.
+
+### 5.3 Corrected coverage counts
+
+BREAKS **7** (not 6) — the six in §3 plus line 552. All seven remain in
+`phase22-referrals-governance.spec.ts`.
