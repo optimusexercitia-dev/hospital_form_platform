@@ -150,13 +150,7 @@ the renderer. Decide before/with this deploy: stand Gotenberg up, or flip the fl
 pre-pilot, and it matches the deliberate 2026-07-12 pilot reset, but it must not recur once real
 users exist. Re-verify live before acting on this row — it has been stale in both directions before.
 
-**2. ⬛ ~~BUG-AUTHZ-002~~ — FIXED 2026-08-05** (`20260908000100`, held by
-`299_hospital_content_door_noun_rule.sql` 11/11); no longer gates the deploy. Full entry, including
-why the parity test this row prescribed had to be written differently (the property returns **four**
-doors; `verify_audit_chain` must NOT return zero rows) →
-[bug-log-archive.md](docs/progress/bug-log-archive.md).
-
-**3. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
+**2. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
 (QA M-2); **not an FF-3 defect and not a known leak** — PO decision on scheduling. The sweep floors
 `prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written
@@ -170,7 +164,7 @@ each time. Proposed scope: enumerate `public` `prosecdef = f` functions calling 
 function, and require a keystone per wrapper that reds when its guard is removed. Relates to
 ARCHITECTURE.md Rule 1.
 
-**4. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
+**3. BUG-AIF-001 / FUP-AI-1 — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush
 stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. ⚠ **Verify the premise
 before scheduling it:** BUG-AIF-001's own root cause was an upstream Next.js bug, fixed by the
 `next` 16.3.0-preview.5 bump already in `package.json`, so the remaining platform-wide instances
