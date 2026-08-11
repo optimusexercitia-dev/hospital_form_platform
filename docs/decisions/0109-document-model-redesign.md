@@ -105,6 +105,17 @@ which authorizes first, then signs short-TTL with the service-role client
 (the F-01 class dies structurally). Upload INSERT policies accept only paths
 reserved by `begin_document_upload`. Legacy buckets retire per plan DM5.
 
+*Authorization-model clarification.* This changes enforcement topology, not the
+policy model: document access still resolves through the existing domain
+predicates (case capability, recusal, memberships — ADR 0041/0078 untouched).
+Two explicit supersessions: (a) the prior lead decision that referral snapshot
+signing uses the cookie client with "RLS as the boundary" is **reversed** — all
+protected document bytes adopt the PHI pattern (audited DEFINER door +
+service-role signing, no SELECT policies); (b) Architecture Rule 1 gains a
+sharpened reading for document BYTES — RLS remains the boundary for metadata
+tables, DEFINER-door-only for bytes — to be written into ARCHITECTURE.md at DM5.
+Every new door enters the ADR 0079 census; `ARM=census` per phase.
+
 **D9 — Upload/scan lifecycle (fail-closed machine, interim acceptance).**
 `reserved → uploaded → verifying → scan_pending → clean → active`, with
 `abandoned/failed` reconcilable and `infected/rejected` terminal. Finalize derives
