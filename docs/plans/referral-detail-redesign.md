@@ -29,6 +29,24 @@ a calmer, messenger-style page with a fact rail. All decisions below were agreed
 | D9 | **Feature flag**: reuse `case_referrals`; no new flag (pre-pilot, in-place table extension; a second flag would force dual-mode rendering of one mutated table). |
 | D10 | **Redaction kept unchanged** on notes (open + concluded, side-coordinator gate). On concluded/frozen notes it is the only correction mechanism (LGPD escape hatch). No reopen RPC. |
 
+## ✅ Phase 0 — COMPLETE (2026-08-11). Binding amendments A1–A9
+
+Verified against the **live catalog** (`pg_proc` incl. `prosecdef`, `pg_policies`,
+`information_schema.column_privileges`) after merging `main` (ETH·E4) into this worktree.
+**Where these amendments conflict with the phase text below, the amendment wins.**
+
+| # | Amendment |
+|---|---|
+| A1 | **Migration is `supabase/migrations/20260919010000_referral_registros_case_access_summary.sql`.** The plan's `20260918010000` would sort *before* the merged ETH·E4 migrations (highest registered version is `20260919000600`, 353 registered = 353 files). |
+| A2 | **New pgTAP suite is `322_referral_registros.sql`** — 320 (`act_expiry_and_acl_hardening`) and 321 (`eth_e4_participant_seating`) are taken. |
+| A3 | **Live `create_referral_internal_note` is `(p_referral_id uuid, p_committee_id uuid, p_body text)` and `RETURNS referral_internal_notes`** (the table row type), not `returns uuid`. Keep `p_committee_id` as param 2 — the body gates on it (`p_committee_id in (source,target)` **and** `app.is_member_of_for(p_committee_id, auth.uid())`). Because it returns the row type, the `body`→`body_md` rename **changes the RPC's returned JSON key** — update the TS caller in lockstep. A param add/rename is a privilege reset: **re-issue the EXECUTE grant** and verify from the catalog. |
+| A4 | **`referral_internal_notes` is on COLUMN-LIST grants.** `body` is the *only* column with no `authenticated` SELECT — that IS the K-R5-1 REVOKE. Therefore **every new column needs its own explicit `GRANT SELECT (col) ON public.referral_internal_notes TO authenticated`** or direct reads fail 42501; `body_md` must receive **no** grant. Verify the full column-privilege matrix post-apply. |
+| A5 | **`list_referral_internal_notes` returns `jsonb`** (not `json`), currently ordered `created_at` ASC. Read audit uses `public.log_audit_access`; writes use `app.audit_write`. Flag assert is `app.assert_referrals_enabled()`. Error codes in use: `42501` authority, `HC0A9` domain, `no_data_found`. |
+| A6 | **PO DECISION — vocabulary writes mirror the live sibling, NOT the plan's §1c.** `case_narrative_types` uses **direct RLS-gated writes** (`case_narrative_types_staff_admin_write`, `FOR ALL`, `app.is_staff_admin_of(commission_id) OR app.is_tenancy_admin_of(commission_id)`) plus **one** DEFINER RPC for reorder. So `referral_note_types` gets: read policy `app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)`, a `FOR ALL` staff_admin write policy, table-level grants to `authenticated`, and **only** `reorder_referral_note_types` as a DEFINER RPC. **Drop** `create/update/archive_referral_note_type` RPCs — actions write the table directly. Net new prosecdef doors: **2** (`reorder_referral_note_types`, `get_referral_case_access_summary`) + the note-lifecycle doors in §1c. |
+| A7 | **PO DECISION — the access-summary roster gains two groups.** `app.can_read_case` is a thin projection of `app.has_case_capability(…,'read_case_content')` → `app._case_caps`. The arms that actually confer `read_case_content` are **S1** coordinator (`is_staff_admin_of_for`), **S3** `case_access_grants` (active, unexpired, `read_case_content` or `write_case_content`), **S4** assignee (`case_phases.assigned_to` ∪ `case_narratives.assigned_to`), **S6** PQS/NSP operator (`is_pqs_operator_of_for(hospital_of_commission(...))` on a referral-touched case, flag `case_referrals`), **S7** quality reviewer (`is_quality_reviewer_of_for(hospital…)` **and** `commissions.quality_oversight = 'visible'` **and** not `explicit_grants_only`). Hard denies applied **before** every positive arm: `is_case_respondent`, `is_recused_from_case`, and `app.is_active(uid)`. **S2 org_admin and S5 plain member do NOT confer `read_case_content`** — they must NOT appear. Dialog groups become five: Coordenadores / Acesso concedido / Atribuídos / **Segurança do paciente** (S6) / **Qualidade** (S7). De-dupe a person into the highest group in that order. |
+| A8 | Table name confirmed **`case_access_grants`** (`source` ∈ `manual_grant, nsp_investigation, referral, break_glass`; `list_case_access` filters `source='manual_grant'` and is coordinator-gated — hence the new RPC is still required). |
+| A9 | **Direction bug re-verified post-merge.** Only `encaminhamentos/[referralId]/page.tsx:111` needs the fix; `direcao-tecnica/[referralId]/page.tsx:85` also omits the arg but never consumes `detail.direction` (its "direction" hits are prose about *technical direction*). Signature confirmed at `src/lib/queries/referrals.ts:637`. |
+
 ### Live bug fixed as part of this work
 
 `page.tsx` line ~111 calls `getReferralDetail(referralId)` **without** `viewerCommissionId`
@@ -105,7 +123,8 @@ matters for any direction-dependent logic and the E2E regression spec.
 
 ## Phase 1 — Backend
 
-Single migration: `supabase/migrations/20260918010000_referral_registros_case_access_summary.sql`.
+Single migration: `supabase/migrations/20260919010000_referral_registros_case_access_summary.sql`
+(corrected by **A1** — the original `20260918010000` sorted before the merged ETH·E4 chain).
 
 ### 1a. New table `referral_note_types` (mirror `case_narrative_types`)
 
@@ -204,7 +223,7 @@ if flake demands).
   `295_technical_director_referrals.sql` and `298_authz_p0_isolation.sql` (reference old column
   `body`), extend `supabase/tests/mutation/p0b-isolation-mutation-audit.sh` coverage — extend,
   **never allowlist a reachable gate**.
-- New suite `supabase/tests/320_referral_registros.sql` (number after current max): K-R5-1
+- New suite `supabase/tests/322_referral_registros.sql` (**A2** — 320/321 are taken): K-R5-1
   preserved across new fields (target member cannot read source note title/type/assignee);
   lifecycle gates (non-author member denied update; assignee allowed; conclude freezes;
   coordinator-only assign; archived type rejected; cross-commission type rejected); vocabulary
