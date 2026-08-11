@@ -111,8 +111,26 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') like '%can_manage_professional%'),
-  10,
-  'door population: exactly 10 public RPCs gate on can_manage_professional (the Class-2 professional-identity / ethics-vocabulary write set)');
+  12,
+  'door population: exactly 12 public RPCs gate on can_manage_professional (the Class-2 professional-identity / ethics-vocabulary write set)');
+-- 10 → 12 (ETH·E4, ADR 0108 D1/D8). The list was RE-DERIVED FROM THE CATALOG, not
+-- guessed, and each new door was looked at rather than counted:
+--   + public.ensure_professional_participant — mints the participants +
+--     professional_participants pair for a professional profile. WANTS this gate:
+--     the population it names (platform admin, org admin, staff_admin of any
+--     commission in the org) is a superset of who may call add_case_participant,
+--     so the seating flow cannot dead-end on authorization.
+--   + public.create_external_participant — mints a non-sensitive external
+--     participant. WANTS this gate for the same reason: the predicate names the
+--     POPULATION (org managers), not the professional class, so reusing it for the
+--     external lane is not a widening of who may write.
+-- Full membership at the time of this edit: archive_case_assignment_role,
+-- archive_ethics_allegation_category, archive_ethics_sanction_type,
+-- create_case_assignment_role, create_ethics_allegation_category,
+-- create_ethics_sanction_type, create_external_participant,
+-- create_professional_profile, ensure_professional_participant,
+-- redact_professional_profile, set_professional_link_state,
+-- update_professional_profile.
 
 -- ── PART 2 — BUG-ACT-ACL-1, the EXECUTE ACL on the outlier sibling ──────────────
 --
