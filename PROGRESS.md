@@ -102,7 +102,7 @@ task table, findings and narrative. "Still open" points at the live sections fur
 | Work | Done | Record | Still open (none blocking, tracked below) |
 | --- | --- | --- | --- |
 | **ACT** — "act as" strict role assumption, **S0–S4** (hat bound to the auth session via the `active_role` JWT claim; **unflagged — the migration IS the cutover**; S4 = D14 arm audit + the standing `ARM=hat` sweep + the reasoned hat-blind allowlist) · QA APPROVED (S0–S3 r2 · S4 r1) · human-approved | 2026-08-10 | [act-as-role-assumption.md](docs/progress/act-as-role-assumption.md) (incl. § S4 and § *Merge, push & the two deploy debts*) · ADRs [0106](docs/decisions/0106-act-as-role-assumption.md)/[0107](docs/decisions/0107-act-s4-hat-blind-sweep-and-allowlist.md) · [review](docs/reviews/act-as-stage-4-review.md) · [authz-handoff §7.17](docs/progress/authz-handoff.md) · `docs/backend-state.md` (ACT) | ✅ **Both deploy debts DISCHARGED 2026-08-10** — remote `db push` done and `custom_access_token_hook` **enabled on Supabase Cloud** (user-confirmed working; catalog-verified). The remote is cut over. **FUP-ACT-DISPOSE-UI** = pilot-gate check, item **0** · FUP-ACT-CAPA-ASSIGN · FUP-ACT-HATLESS-AUDIT (the A13 consequence) — all in Follow-ups |
-| **PDF·P2** — PDF printing: Meetings (ata); the A7 full-sight conjunction + A8 presence-derived PHI labeling came out of QA's r1 BLOCKER → the PO "Package A" ruling · QA APPROVED (r2) | 2026-08-08 | [pdf-p2-meetings.md](docs/progress/pdf-p2-meetings.md) (its § *PDF-program item status* carries the per-item checklist) · ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) **A7/A8/A9** · [review](docs/reviews/phase-PDF-P2-review.md) | FUP-PDF-2..4 (Follow-ups) · `git push` **and** remote `db push` both ✅ done 2026-08-10 (catalogs match on the meeting arm) — the only thing still holding flag `document_printing` OFF is the **Gotenberg Coolify resource**: *Remaining pre-pilot work* item **1** (the Coolify app deploy). Scope question **HELD**: kind-sites = exactly 3, the A8 trio — a 4th = leak |
+| **PDF·P2** — PDF printing: Meetings (ata); the A7 full-sight conjunction + A8 presence-derived PHI labeling came out of QA's r1 BLOCKER → the PO "Package A" ruling · QA APPROVED (r2) | 2026-08-08 | [pdf-p2-meetings.md](docs/progress/pdf-p2-meetings.md) (its § *PDF-program item status* carries the per-item checklist) · ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) **A7/A8/A9** · [review](docs/reviews/phase-PDF-P2-review.md) | FUP-PDF-2..4 (Follow-ups) · `git push` **and** remote `db push` both ✅ done 2026-08-10 (catalogs match on the meeting arm) — **Gotenberg is up and `document_printing` is ON permanently** (PO 2026-08-10 — supersedes ADR 0104's ships-OFF clause). Scope question **HELD**: kind-sites = exactly 3, the A8 trio — a 4th = leak |
 | **QO·B** — Quality-office oversight, Phase B (content wall + UI coherence) · QA APPROVED (r2) | 2026-08-09 | [quality-office-oversight-phase-b.md](docs/progress/quality-office-oversight-phase-b.md) · ADR [0100](docs/decisions/0100-quality-office-oversight.md) D12 · [review](docs/reviews/phase-QO-B-review.md) | **BUG-QOB-004** (Bug Log) · **FUP-QOB-1 + FUP-QOB-2** (Follow-ups — the PO ratification package, parked for a future session) |
 | **PDF·P1** — PDF printing: Forms + full skeleton · QA APPROVED (r2) | 2026-08-08 | [pdf-p1-forms-skeleton.md](docs/progress/pdf-p1-forms-skeleton.md) · ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) A1–A6 | FUP-PDF-2..4 (Follow-ups); whole-program deploy prereqs + per-item push status → the **PDF·P2** row above and its record's § *PDF-program item status* |
 | **QO·FUP** — FUP-QO close-out (F1–F9) · QA APPROVED (r2) | 2026-08-07 | [qo-fup-close-out.md](docs/progress/qo-fup-close-out.md) · ADRs 0101/0102/0103 | FUP-QO-6 (accepted-provisional, LOW) · FUP-QO-9 |
@@ -141,14 +141,17 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 (`git push` + the remote database, 2026-08-10 — AFF, ACT, QO·B, PDF·P1/P2 all live; catalog-verified
 345 == 345, and the `custom_access_token_hook` is enabled, so the ACT cutover is real on the remote).
 Deploying the app is **when the ETH·E1 m2 flag flip reaches production**.
-⚠ **`document_printing` is currently `enabled = true` on the remote** (as is `audio_minutes`) — the
-2026-08-10 remote refresh applied `seed.sql`, which forces both ON (`seed.sql:2363`/`2373`), so the
-"ships OFF in prod" posture does **not** describe the live database. The **Gotenberg Coolify resource**
-([pdf-renderer.md](docs/deployment/pdf-renderer.md)) does not exist yet, so any mint attempt fails at
-the renderer. Decide before/with this deploy: stand Gotenberg up, or flip the flag back OFF.
-⚠ The same refresh reseeded the remote with the **36 `@test.local` personas** (0 real users) — fine
-pre-pilot, and it matches the deliberate 2026-07-12 pilot reset, but it must not recur once real
-users exist. Re-verify live before acting on this row — it has been stale in both directions before.
+✅ **PDF printing is no longer a blocker on this row.** The **Gotenberg Coolify resource is active
+and working** (PO, 2026-08-10; runbook [pdf-renderer.md](docs/deployment/pdf-renderer.md)), and
+**`document_printing` is ruled ON PERMANENTLY** — see the Decisions row. The flag reads
+`enabled = true` on the remote today, which now matches the intended posture instead of contradicting
+it. ⚠ ADR 0104's "ships **OFF**" clause is **superseded** for prod, and P3/P4 must not re-assert it.
+⚠ The 2026-08-10 remote refresh applied `seed.sql`, which reseeded the remote with the **36
+`@test.local` personas** (0 real users) — fine pre-pilot, and it matches the deliberate 2026-07-12
+pilot reset, but it must not recur once real users exist. *(That refresh is also what set both flags
+ON, `seed.sql:2363`/`2373`; for `document_printing` the ruling has since made that the correct
+state — `audio_minutes` is a separate question, still governed by FUP-MIN-CUTOVER.)*
+Re-verify live before acting on this row — it has been stale in both directions before.
 
 **2. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
@@ -369,6 +372,7 @@ fix breaks Rule 3 SQL↔TS evaluator parity).
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-10 | **`document_printing` is ON PERMANENTLY in production; the Gotenberg Coolify resource is active** (PO). **Supersedes ADR [0104](docs/decisions/0104-pdf-document-printing-module.md)'s "Flag: `document_printing`, ships **OFF**" clause** — the flag was a deploy-sequencing guard for the missing renderer sidecar, and the sidecar now exists, so the guard has no remaining job. P3/P4 must not re-assert the OFF posture. ⚠ Recorded on the PO's operational confirmation — the renderer is external infrastructure, not something the catalog can attest. | [0104](docs/decisions/0104-pdf-document-printing-module.md) · [runbook](docs/deployment/pdf-renderer.md) |
 | 2026-08-10 | **ACT S3 — classify a hat-blind gate by CALL-SITE BINDING, not signature shape.** A gate that *receives* a caller uid can still be caller-bound; the population must be derived as a property (transitive caller-boundness over the call graph), never read off signatures | ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 6 · [§7.17](docs/progress/authz-handoff.md) · [0106](docs/decisions/0106-act-as-role-assumption.md) |
 | 2026-08-09 | **ACT S0 — the role enum lands in `public.platform_role`, not `app`** (LEAD, measured) — `config.toml` exposes only `public`/`graphql_public`, so an `app` enum is invisible to `gen:types`; exposing `app` would put ~281 DEFINER doors on PostgREST. A bare enum TYPE is not a relation. 11 labels | [0106](docs/decisions/0106-act-as-role-assumption.md) · [plan](docs/plans/act-as-role-assumption.md) |
 | 2026-08-09 | **`is_commission_admin_of` → `is_tenancy_admin_of` RENAMED** (PO; no shim, living docs only) — the old name asserted the opposite of its meaning. ⚠ `pg_policy` stores the function by **OID**, so all 54 policies followed the rename with no policy edits | ADR [0105](docs/decisions/0105-rename-is-tenancy-admin-of.md) |

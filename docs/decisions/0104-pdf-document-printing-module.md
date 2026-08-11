@@ -244,6 +244,13 @@ stale silently.
   column, not a second table.
 - **Flag:** `document_printing`, ships **OFF**, platform-wide; kinds activate by
   registering a data provider (no flag proliferation).
+  > ⚠ **SUPERSEDED for production, 2026-08-10 (PO):** the flag is **ON PERMANENTLY**. It existed as a
+  > deploy-sequencing guard for the period when the Gotenberg renderer sidecar did not yet exist; the
+  > Coolify resource is now active and working, so the guard has no remaining job. The ships-OFF
+  > clause still describes the *original* rollout and is kept for that reason — **P3/P4 must not
+  > re-assert it**. Recorded on the PO's operational confirmation: the renderer is external
+  > infrastructure and cannot be attested from the catalog. Kind-by-kind activation via provider
+  > registration is **unchanged** — the flag is not the per-kind gate and never was.
 - **Retention:** minted PDFs are **never deleted** — they inherit the 20-year CFM
   posture of their sources; no admin delete surface exists in v1; no storage lifecycle
   rules.

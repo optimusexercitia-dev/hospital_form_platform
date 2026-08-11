@@ -64,9 +64,14 @@ FUP-PDF-1..4 · BUG-PDF2-002 (spun off as a task chip) · P3 carry-forwards (hel
 - `[x]` **Remote `db push` of `20260914000000` + `20260914000100` — ✅ DONE 2026-08-10** (user, own
   auth; the PO hold is lifted). Catalog-verified **2/2 applied**; local and remote now agree on the
   meeting arm (345 == 345 overall).
-- `[ ]` **Gotenberg Coolify resource** — runbook [pdf-renderer.md](../deployment/pdf-renderer.md).
-  With the `db push` above landed, **this is now the only thing keeping flag `document_printing`
-  OFF in prod.**
+- `[x]` **Gotenberg Coolify resource — ✅ ACTIVE AND WORKING 2026-08-10** (PO; runbook
+  [pdf-renderer.md](../deployment/pdf-renderer.md)). With this and the `db push` above both landed,
+  **flag `document_printing` is ruled ON PERMANENTLY in production** (PO, same day) — which
+  **supersedes ADR 0104's "ships OFF" clause** for prod. The flag was only ever a deploy-sequencing
+  guard for the missing renderer; the renderer exists now. **P3/P4 must not re-assert the OFF
+  posture.** ⚠ Recorded on the PO's operational confirmation — external infrastructure, not
+  catalog-attestable.
+  **⇒ Every deploy prerequisite this phase registered is now discharged.**
 - **P3/P4 build carry-forwards (not user actions):** `can_read_full_meeting_content` is fail-open
   **STANDALONE** — never reuse it without the `can_reach_meeting` conjunct; it becomes a
   `COMMENT ON FUNCTION` in P3's first migration. P4 repoints the relocated fail-closed keystones

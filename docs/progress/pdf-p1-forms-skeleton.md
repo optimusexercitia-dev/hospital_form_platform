@@ -6,7 +6,9 @@
 > QA **APPROVED (r2)** [review](../reviews/phase-PDF-P1-review.md). Built on worktree branch
 > `worktree-pdf-printing-p1`, started + substantially completed 2026-08-07, recorded 2026-08-08.
 > Migrations `20260913000000`–`20260913000400`. Flag `document_printing` ships **OFF**
-> (seed forces ON for local/E2E). Commits: `0d1dca8` (contracts) · `e453c8d`+`c81f37a`
+> (seed forces ON for local/E2E). *(Ships-OFF is the ORIGINAL rollout posture and is
+> **superseded for prod 2026-08-10** — PO ruled the flag **ON permanently** once the Gotenberg
+> resource went live; see this file's Deploy-prerequisites section.)* Commits: `0d1dca8` (contracts) · `e453c8d`+`c81f37a`
 > (migrations+pgTAP+census) · `56e5529` (F1/F2 UI) · `e1daba9` (renderer+pipeline+serving+docs) ·
 > QA fix wave `6da8e78` (ADR amendments) / `a33fb68` (labels) / `e53c6c9` (FIX-1..5) /
 > `93f307a`+`a545b0a` (backend-state sweeps) · review `7e9c8f6`+`476b550`.
@@ -47,7 +49,16 @@ build-time re-check caught it, per the §0 substrate rule.
 - `[ ]` **FUP-PDF-3 (QA MINOR-2)** — mint/revoke `returns printed_documents` re-opens the two withheld columns (`storage_path`, `verification_token`) to a direct PostgREST caller; needs a return-shape decision.
 - `[ ]` **FUP-PDF-4 (QA MINOR-3)** — verification rate limiter is a global in-process counter (availability lever on a public surface); per-credential granularity + fix its stale "shown verbatim" comment.
 
-## Deploy prerequisites (USER actions, both pending at close)
+## Deploy prerequisites (USER actions — both pending at close, ⬛ BOTH DISCHARGED 2026-08-10)
 
 1. Remote `supabase db push` of `20260913000000`–`20260913000400` (needs user authorization).
 2. Gotenberg Coolify resource per the runbook in `docs/deployment/pdf-renderer.md` (pinned 8.24.0, private network, caps). Flag `document_printing` stays OFF in prod until both are done.
+
+**⬛ Status 2026-08-10 — both discharged; this section is history.**
+1. **Remote `db push` ✅ done 2026-08-08** for the P1 batch (remote-catalog-verified), and the whole
+   catalog is now level: 345 remote == 345 local files.
+2. **Gotenberg Coolify resource ✅ ACTIVE AND WORKING 2026-08-10** (PO). With it live, the PO ruled
+   **`document_printing` ON PERMANENTLY** in prod — **superseding ADR 0104's ships-OFF clause**. The
+   flag was only ever a deploy-sequencing guard for the missing renderer. **P3/P4 must not
+   re-assert the OFF posture.** ⚠ Recorded on the PO's operational confirmation — external
+   infrastructure, not catalog-attestable.
