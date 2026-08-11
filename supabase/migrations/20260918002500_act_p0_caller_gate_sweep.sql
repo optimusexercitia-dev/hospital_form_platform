@@ -169,7 +169,15 @@ end;
 $function$;
 
 create or replace function public.quality_board_summary(p_organization_id uuid)
- returns table(commission_id uuid, commission_name text, commission_slug citext, hospital_id uuid, hospital_name text, total_cases integer, open_cases integer, locked_cases integer)
+ -- `extensions.citext` SCHEMA-QUALIFIED deliberately (see 20260911000600, which
+ -- created this function and carries the full note): CREATE FUNCTION resolves
+ -- parameter/return types against the SESSION search_path at creation time, not
+ -- against this function's own `set search_path` below. The local apply path has
+ -- `extensions` on its search_path, the remote `db push`/`db reset --linked` role
+ -- does NOT — a bare `citext` fails there with 42704 "type citext does not exist".
+ -- ⚠ `pg_get_functiondef()` re-emits it BARE (the emitting session sees the type
+ -- unqualified), so re-qualify by hand after every re-emission of this function.
+ returns table(commission_id uuid, commission_name text, commission_slug extensions.citext, hospital_id uuid, hospital_name text, total_cases integer, open_cases integer, locked_cases integer)
  language plpgsql
  stable security definer
  set search_path to 'app', 'public', 'pg_catalog'
