@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import { commissionHref } from "@/lib/routing";
 import type { ApproverCandidate } from "@/lib/queries/documents";
 import type { DocType } from "@/lib/documents/types";
@@ -891,7 +892,8 @@ function StepReviewers({
 
       <Field>
         <FieldLabel htmlFor="wizard-reviewers" id="wizard-reviewers">
-          Aprovadores ({approvers.length} selecionado{approvers.length === 1 ? "" : "s"})
+          Aprovadores ({approvers.length}{" "}
+          {plural(approvers.length, "selecionado", "selecionados")})
         </FieldLabel>
         <ReviewerPicker
           candidates={candidates}

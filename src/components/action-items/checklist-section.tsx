@@ -11,6 +11,7 @@ import {
   deleteActionItemChecklist,
 } from "@/lib/action-items/satellite-actions";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -61,7 +62,7 @@ export function ChecklistSection({
     <SatelliteSection icon={ListChecks} title="Checklist" count={total}>
       {total > 0 && (
         <p className="text-xs text-muted-foreground tabular-nums">
-          {doneCount}/{total} concluído{total === 1 ? "" : "s"}
+          {doneCount}/{total} {plural(total, "concluído", "concluídos")}
         </p>
       )}
 

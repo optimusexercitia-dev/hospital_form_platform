@@ -3,6 +3,7 @@
 import { Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
@@ -64,7 +65,8 @@ export function BulkStepMembers({
               <span className="font-mono tabular-nums text-foreground">
                 {selectedCount}
               </span>{" "}
-              de {members.length} selecionado{members.length === 1 ? "" : "s"}
+              de {members.length}{" "}
+              {plural(members.length, "selecionado", "selecionados")}
             </span>
             <div className="flex items-center gap-2">
               <Button

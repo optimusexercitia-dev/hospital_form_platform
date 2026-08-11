@@ -6,6 +6,7 @@ import { Inbox, RefreshCw } from "lucide-react";
 import type { PqsInboxItem } from "@/lib/safety/types";
 import type { EventStatus, SuspectedHarmLevel } from "@/lib/safety/types";
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import { formatDate, formatEventCode } from "../format";
 import { priorityDotClass, sourceChipClass } from "./triage-visuals";
 
@@ -183,7 +184,7 @@ export function TriageQueue({
         <h2 className="text-sm font-semibold">Entrada de eventos</h2>
         {counts.awaiting > 0 && (
           <span className="ml-auto inline-flex items-center rounded-full border border-warning/30 bg-warning/12 px-2 py-0.5 text-[0.7rem] font-medium text-warning tabular-nums">
-            {counts.awaiting} novo{counts.awaiting === 1 ? "" : "s"}
+            {counts.awaiting} {plural(counts.awaiting, "novo", "novos")}
           </span>
         )}
       </div>

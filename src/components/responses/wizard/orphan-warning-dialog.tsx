@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { plural } from "@/lib/text";
 import type { OrphanedSection } from "./use-wizard";
 
 /**
@@ -56,7 +57,7 @@ export function OrphanWarningDialog({
             <strong className="text-foreground">{names.join(", ")}</strong>{" "}
             {names.length === 1 ? "deixará" : "deixarão"} de ser{" "}
             {names.length === 1 ? "exibida" : "exibidas"} e as respostas já
-            preenchidas nela{names.length === 1 ? "" : "s"} serão removidas. Deseja
+            preenchidas {plural(names.length, "nela", "nelas")} serão removidas. Deseja
             continuar?
           </AlertDialogDescription>
         </AlertDialogHeader>

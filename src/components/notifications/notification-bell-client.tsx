@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Bell, BellOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { plural } from "@/lib/text";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -51,7 +52,7 @@ export function NotificationBellClient({
   const displayUnread = Math.max(0, unreadCount - readIds.size);
   const label =
     displayUnread > 0
-      ? `Notificações, ${displayUnread} não lida${displayUnread === 1 ? "" : "s"}`
+      ? `Notificações, ${displayUnread} não ${plural(displayUnread, "lida", "lidas")}`
       : "Notificações";
   const badgeText = displayUnread > 9 ? "9+" : String(displayUnread);
 
