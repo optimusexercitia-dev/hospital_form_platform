@@ -221,23 +221,37 @@ tests** on a fresh `db reset`, `phase22-referrals.spec.ts` **40/40**.
 > the broader `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep. Keystone `320` does add a uniformity
 > assertion over all 8 Stage-2 gates, so that subset is now pinned.
 
-🟡 **FUP-VACUOUS-AUDIT-1 — OPEN, inherited from BUG-VACUOUS-ASSERT-1 and deliberately not
-undertaken with it: the repo-wide vacuous-pass audit.** The fix above covered the ONE file the
-original bounded check covered (`phase22-referrals.spec.ts`) out of `e2e/`’s full spec count.
-**The general shape:** a conditional whose branches do not all assert is a test that reports
-confidence it never earned — `if (cond) { assert }` with no `else`, or an `else` whose own
-assertion is itself optional, goes GREEN having checked nothing, indistinguishable in the
-report from a test that verified the real thing. **This shape is invisible to every gate in
-the project**: lint doesn’t flag it, typecheck doesn’t either (both branches are valid
-TypeScript), and a passing Playwright run reports the same GREEN whether the meaningful branch
-ran or not. **The audit:** walk every `if` inside a `test()` body for a branch with no
-`expect()` reachable from it, by AST or careful regex, and check whether an unconditional
-assertion elsewhere in the same test would still catch a regression if that branch silently
-broke. ⭐ **Now evidence-backed, which it was not when filed:** fixing Flow 4c turned up a live
-spec defect the vacuous branch had hidden for the test’s entire life — it ran as an `org_admin`
-that `create_referral_draft` has always refused (HC071), so **every run took the silent
-`return` and asserted nothing**. The shape does not merely fail to catch defects; it conceals
-them. The four fixed instances are a lower bound on prevalence, not a count of it.
+🟡 **FUP-VACUOUS-AUDIT-1 — the repo-wide vacuous-pass audit. DETECTOR BUILT + SWEEP RUN
+2026-08-10; the 45 findings are NOT yet dispositioned.** Inherited from BUG-VACUOUS-ASSERT-1,
+whose fix covered the ONE file the original bounded check covered.
+**Report → [docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md)**
+· detector → `scripts/check-vacuous-assertions.mjs` (AST; `--self-test`, `--json`).
+
+**The checkable property**, chosen because "would a regression still be caught" is undecidable:
+*every test must carry at least ONE assertion that executes UNCONDITIONALLY.* Passing it does
+not make a test good; **failing** it proves the test can go GREEN having checked nothing.
+Invisible to every other gate — lint doesn’t flag it, `tsc` doesn’t either (both branches are
+valid TypeScript), and a green run cannot say which branch ran.
+
+**Result: 45 tests across 25 files** (2 with no assertion anywhere; 14 bail out through a
+conditional `return` — the Flow 4c shape). The single largest file is `phase14c-rca.spec.ts` (5).
+
+⭐ **The detector was validated in BOTH directions, and the negative half is the load-bearing
+part.** Positive control: against the pre-fix `phase22-referrals.spec.ts` it rediscovers all 4
+hand-found instances **plus 3 the manual check missed** (7 in one file). Negative control: the
+first run said **89**, and three detector defects then accounted for 34 of them — `.tsx` parsed
+as `ScriptKind.TS` (`createSourceFile` does **not** throw on a syntax error, it returns a
+best-effort tree — 18), `try`/`finally` treated as conditional (16), `for…of` over an array
+literal treated as conditional (10). **Roughly half the first report was the tool’s own fault**
+— the same lesson the audit teaches. A 25-fixture self-test now pins all three and the script
+refuses to report if it fails its own fixtures.
+
+⚠ **Not wired into `npm run lint`, deliberately** — 45 open findings would red the build on day
+one and a permanently-red gate is one people learn to ignore. Disposition first, then gate.
+⚠ **Fixing is NOT mechanical:** the one fix already done (Flow 4c) turned RED immediately,
+because it had been calling an RPC as an `org_admin` that `create_referral_draft` has always
+refused (HC071) — **every run took the silent `return` and asserted nothing**. The shape does
+not merely fail to catch defects, it conceals failing ones. Expect reds; each is a find.
 
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
