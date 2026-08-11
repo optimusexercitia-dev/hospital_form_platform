@@ -113,6 +113,37 @@ lead owns the Phase Status table.
 | 2b | `thread-events.ts` — pure `synthesizeThreadEvents` + 11 Vitest units (tie-break mutation-proven red) | backend | ✅ 2026-08-11 |
 | 2c | `queries/referrals.ts` — order-preserving notes mapper, `listReferralNoteTypes`, `getReferralCaseAccessSummary` | backend | ✅ 2026-08-11 |
 | 2d | `actions.ts` — registro lifecycle (4 RPCs) + vocabulary CRUD (3 direct RLS writes + 1 RPC), pt-BR errors | backend | ✅ 2026-08-11 |
+| 3.0 | Baseline: follow the `body`→`bodyMd` rename into the notes panel (tree was RED) | frontend | ✅ 2026-08-11 |
+| 3a | `page.tsx` — A9 direction-bug fix, minimal header, rail reorder, mobile interleaving + `loading.tsx` in lockstep | frontend | ✅ 2026-08-11 |
+| 3b | New: `referral-details-card` (incl. A10 "Ação solicitada"), `referral-case-card`, `referral-case-access-dialog` (5 groups, A7) | frontend | ✅ 2026-08-11 |
+| 3c | New: `referral-note-card`, `referral-note-type-manager`, `referral-thread-event` | frontend | ✅ 2026-08-11 |
+| 3d | Modified: "Registros internos" panel (heading **and** disclaimer), messenger `referral-thread`/`-thread-item`, compact composer (Ctrl/Cmd+Enter), compact `Responsáveis`/`Casos relacionados` | frontend | ✅ 2026-08-11 |
+| 3e | Gates: `npm run lint` 0/0 · `npm run typecheck` 0 errors · `npm run test` 1229/1229 | frontend | ✅ green |
+| 3f | Manual browser pass (source + target + plain-member personas), registro lifecycle end-to-end, A11 render path proven | frontend | ✅ 2026-08-11 |
+
+**Phase 3 (UI) — frontend notes.** A11 holds: the ONLY display path for
+`ReferralInternalNote.bodyMd` is `referral-note-card.tsx` → `MarkdownRenderer`; proven live by
+storing `Corpo **markdown** do registro. <script>alert(1)</script>` and observing a `<strong>`
+element with **no** `<script>` node in the card. `synthesizeThreadEvents` is now consumed by BOTH
+referral detail routes (the `direcao-tecnica` page passes `viewerCommissionId={null}` — a DT
+referral has no target commission to align bubbles against).
+
+⚠ **For the tester (Phase 4) — breaks the locator survey did NOT list**, because it swept for
+label/heading TEXT and these are structural or placeholder-based:
+1. `phase22-referrals.spec.ts:1466/1468` — `thread.locator('li')` no longer means "a message": the
+   Diálogo interleaves synthesized system rows, which are `li`s too. Both carry a stable
+   `data-thread-row` attribute (`"message"` / `"event"`); scope to
+   `li[data-thread-row="message"]`. `getByRole('region', { name: 'Diálogo' })` is unchanged.
+2. `phase22-referrals-governance.spec.ts:1051/1070` — `getByPlaceholder(/Escreva uma nota visível
+   apenas à sua comissão/)` is gone; the composer is a Markdown editor behind an **"Adicionar
+   registro"** toggle (it is not in the DOM until that button is clicked).
+3. Same spec — `getByRole('button', { name: /adicionar nota/i })` is now "Adicionar registro"
+   (open the composer) + "Registrar" (submit).
+4. `:1049`'s `getByText(/visíveis apenas à sua comissão/i)` **survives** — the disclaimer was
+   renamed to "Registros internos — visíveis apenas à sua comissão…", keeping that substring.
+5. `:1053` `getByRole('heading', { name: 'Notas internas' })` → `'Registros internos'`. Keep the
+   `getByRole('heading', …)` scope — a bare `getByText` would silently anchor on the disclaimer
+   (survey §4).
 
 **Phase 1 gate record (name the ARM, not the script — CLAUDE.md §6 step 5).**
 `ARM=census` HOLDS (454 live gates / 465 verdicts) — it flagged all 4 new gates as unswept before
