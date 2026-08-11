@@ -33,13 +33,30 @@ hatless principals must lose relationship-derived reach, this class of row stops
 the follow-up dies with it. Do not implement it ahead of that ruling. Needs a migration —
 deliberately out of S4, which shipped none.
 
-### 🟡 FUP-PDF-2 — SQLSTATE allowlist can surface English Postgres text (QA P1 MINOR-1; owner: backend)
+### ⬛ FUP-PDF-2 — RESOLVED 2026-08-11: the allowlist is now "ours BY CONSTRUCTION", not "ours today"
 
-`SURFACEABLE_CODES` in `src/lib/pdf-mint/actions.ts` allowlists generic codes
-(`42501`/`23514`) whose raw Postgres message text — including constraint names — could reach
-the pt-BR UI; QA walked all CHECKs and found **no live path today** (latent). Sweep together
-with the now-DEAD `'P0002'` entry at `actions.ts:95` (no PDF door raises P0002 since
-`20260913000400`) — map the generic codes to house pt-BR messages instead of surfacing.
+`SURFACEABLE_CODES` in `src/lib/pdf-mint/actions.ts` is now `{HC0D1, HC0D2, HC0D3, HC0D5}` —
+the custom `HC*` class only — and `mapDoorError` takes a per-call-site pt-BR authorization
+message. All three removals were verified against the **live catalog** (`pg_proc.prosrc` of
+all four PDF doors), not migration text:
+
+- **`P0002`** — dead, as filed. No PDF door raises it. Removed.
+- **`23514`** — ⚠ **filed as "generic", but it is worse than that: NO door raises it either.**
+  `check_violation` comes from Postgres alone and its message NAMES THE CONSTRAINT in English,
+  so this entry had no house message behind it and could *only* ever leak. QA's "no live path
+  today" (it walked every CHECK) is why it stayed latent.
+- **`42501`** — the real hazard, and the reason this became a MAPPING rather than a shorter
+  list. Both doors DO raise it with pt-BR text (`mint`: *"sem autorização para emitir…"*;
+  `revoke`: *"apenas a coordenação…"*), **and** it is Postgres's own `insufficient_privilege`
+  for an RLS/grant denial in English. A code shared between our text and Postgres's cannot
+  certify the message. Each call site now supplies its own pt-BR string and the DB's text is
+  discarded — the mint/revoke distinction is preserved by the CALLER, which knows which door
+  it opened.
+
+⚠ **The generalisable rule, which the original filing did not state:** a code is surfaceable
+when **nothing but our own `raise` can produce it**, not when our doors happen to raise it
+today. "Which codes do we raise?" is the wrong question; "which codes can only we raise?" is
+the right one. Only the custom `HC*` class passes it.
 
 ### 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; owner: backend)
 
@@ -49,12 +66,32 @@ column-list GRANT. Needs a return-shape decision (narrowed composite / explicit 
 list on the RETURNS). Context: `storage_path` is derivable from granted columns anyway
 (defense-in-depth, not a secret — recorded Note C); **the token is the real widening**.
 
-### 🟡 FUP-PDF-4 — verification rate limiter is global + in-process (QA P1 MINOR-3; owner: backend)
+### 🟡 FUP-PDF-4 — verification rate limiter: comment FIXED, availability lever still OPEN and re-scoped (QA P1 MINOR-3; owner: backend)
 
-`lookupPrintedDocumentVerification`'s limiter is one **global** 60/min counter shared by all
-anonymous visitors — a trivial availability lever on the public `/verificar` surface — and
-its "shown verbatim" code comment is false. Fix: per-credential granularity (keep the global
-cap as a backstop) + correct the comment. The RPC stays service_role-only; this is app-layer.
+⛔ **The filed premise was wrong in a way that mattered, corrected 2026-08-11 against the code.**
+The entry said the limiter is *"one **global** 60/min counter"* and prescribed *"per-credential
+granularity (keep the global cap as a backstop)"* — **that is already exactly what ships, and
+has since the original commit `e1daba9`**: `PER_CREDENTIAL_LIMIT = 5` over a `perCredentialHits`
+map, plus the global 60 backstop. Anyone executing the prescription literally would have written
+a no-op and closed the item. The lesson is the standing one: **a prescription in a follow-up is a
+claim about the code and ages like one** — re-measure before implementing, not after.
+
+**DONE:** the false *"the page shows it verbatim"* comment is corrected. Confirmed against
+`src/app/(public)/verificar/[token]/page.tsx:84-90`, which catches **every** error, logs it, and
+returns `{ state: "unavailable" }` — so `VERIFICATION_RATE_LIMIT_MESSAGE` is never rendered and
+reaches only the server log. (The comment-asserting-an-untruth family, invisible to every gate.)
+
+**STILL OPEN — the availability lever, correctly described:** the per-credential arm bounds
+brute-forcing ONE code; it does nothing about the actual DoS. One visitor cycling ~12 distinct
+credentials × 5 each exhausts the **global** 60/min budget and throttles *every* anonymous
+visitor on the public `/verificar` surface. Both windows are also module-level process memory, so
+they are per-PROCESS — N app instances mean N× every budget.
+
+⚠ **Deliberately not fixed in the FUP quick batch, because neither half is guessable:** closing
+it needs per-**client** granularity (which needs a *trusted* client identity — `x-forwarded-for`
+is only as trustworthy as the proxy in front of it, a Coolify deploy decision, ADR 0059) **plus**
+shared cross-process state. Both are decisions, not code. The limitation is now recorded in the
+module docblock so the next reader does not re-derive it. The RPC stays service_role-only.
 
 ### ⬛ FUP-QOB-1 — RESOLVED 2026-08-09: the J1c structural pin is RATIFIED as the standing guard (PO)
 
@@ -97,7 +134,7 @@ open question. J1b stays annotated-not-deleted per the A2 precedent. No further 
 
 </details>
 
-### 🟡 FUP-QOB-2 — the QO·B PO ratification package — **DISCHARGED 2026-08-09 except ruling ⑤** (latent, no principal exists to affect)
+### ⬛ FUP-QOB-2 — the QO·B PO ratification package — **FULLY DISCHARGED** (①②③④ 2026-08-09; ⑤ closed 2026-08-11 when ACT shipped)
 
 Registered at phase close, worked 2026-08-09 with the PO ruling item by item (the PO declined a
 block ratification and asked to be walked through each with its evidence — so every verdict below
@@ -164,9 +201,18 @@ as undecided, with the measurement already done so whoever rules next does not r
    — "act as" role assumption.** Precedence is replaced by explicit, *binding* role assumption:
    strict (the active role is the ONLY role), reads AND writes, fail-closed, fresh each session,
    audit-stamped. Ten decisions taken in a PO design interview; three went against the author's
-   recommendation and are marked ⚑ in the ADR. **Design accepted, NOT YET BUILT.**
+   recommendation and are marked ⚑ in the ADR.
    ⚠ Enforcement lands in ONE function (`app.has_role`, after normalising 7 strays onto it);
    the bulk of the work is the TEST HARNESS, since fail-closed reds every unwired path at once.
+
+   ⬛ **CLOSED 2026-08-11 — this item is STALE and was still reading "NOT YET BUILT" five days
+   after it shipped.** ACT **S0–S4** is complete, QA-APPROVED, human-approved, merged
+   (`ff0e76a` + `ac4a270` → `main`, pushed), and the remote is **cut over** (`db push` done,
+   `custom_access_token_hook` enabled on Supabase Cloud). See the ACT row in PROGRESS.md.
+   ⚠ Exactly the failure mode already recorded in the memory note *"merge status truth is git"*
+   (ADRs 0083/0084 claimed unmerged for 5 days): **a doc's own build-status prose ages silently
+   and nothing gates it** — verify against `git`/the live catalog, and update all three surfaces
+   (ADR, PROGRESS row, follow-up body) at Record.
 
 **The separately-tracked items:**
 - ⬛ **FUP-QOB-1** — J1c structural pin **RATIFIED** as the standing guard (own entry above).
@@ -359,18 +405,62 @@ scratchpad (not committed — out-of-band per the task's own instruction), `over
 
 </details>
 
-### 🟡 FUP-QO-9 — the e2e:prod gate's infra classifier misses two PGRST002 shapes (2026-08-07, tester→lead; owner: backend / `scripts/e2e-prod-gate.sh`)
+### ⬛ FUP-QO-9 — RESOLVED 2026-08-11: both classifier gaps closed, plus the race itself is now WAITED OUT
 
-Found during the QO·FUP F6 gate run (2026-08-07, GATE RED 924/5/5/12). A **PGRST002
+Original diagnosis (QO·FUP F6 gate run, 2026-08-07, GATE RED 924/5/5/12): a **PGRST002
 schema-cache-not-ready race right after `db reset`** hit batches 3 (self-healed), 12 and 17
 (each failed + cascaded 6 did-not-run); batch 4 crashed outright at 42 s / exit 127 / **0 tests**.
-Two classifier gaps, neither a product defect: (a) PGRST002 ("Could not query the database for
-the schema cache") is not recognized as INFRA, so those batches are not auto-retried; (b) the
-infra check requires `failed>0`, so a zero-test crash slips past both the auto-retry and the
-connection-error counter — an unrun batch that only the denominator check catches. Fix shape:
-teach the classifier both signatures (and/or have the reset path wait for PostgREST schema-cache
-readiness before starting a batch). The lead relayed the diagnosis; tester deliberately did not
-edit the script (not its file).
+
+**Fixed, all in `scripts/e2e-prod-gate.sh`:**
+1. **`pgrst_unready()`** — new detector matching **both** shapes (the bare `PGRST002` and
+   PostgREST's English *"Could not query the database for the schema cache"*), folded into the
+   INFRA classifier with the same `>= f` floor logic `conn_errors` uses. This is why the arm was
+   needed at all: a schema-cache race fails **assertions** (the page renders an error), so the
+   server is up and answering and `conn_errors` returns **0** — the existing detector was blind
+   by construction. Both patterns were verified against a real PGRST002 payload and against an
+   ordinary `ERR_CONNECTION_REFUSED` log (1 hit / 0 false positives).
+2. **Zero-summary crash** now classifies as INFRA (`parsed == 0 && pw_rc != 0`) and is therefore
+   auto-retried, and its reason string reports the **unrun count** (`infra-crash(exit127; 56 unrun)`)
+   rather than `infra-unproven(0)`, which read as "nothing wrong here".
+3. **`pgrst_ok()` + a preflight wait** — the root-cause half. `reload_pgrst` only *NOTIFIES*; the
+   rebuild is **asynchronous and was never waited on**, and starting a batch inside that window
+   is the race. Preflight now polls REST readiness (re-NOTIFYing each round, since the first
+   NOTIFY can be lost if it lands before the DB accepts connections). Non-fatal by design —
+   aborting a 40-minute gate on a cache rebuild would be worse than the warning + retry.
+
+⛔ **Premise correction, measured 2026-08-11.** Gap (b) as filed said a zero-test crash *"slips
+past ... an unrun batch that only the denominator check catches"*. **It was never a false green** —
+**three** independent checks red it (`exit$pw_rc` :416, `no-summary` :417, `count` :420). The real
+and narrower defect was that it was never **auto-retried**, which is what actually costs a batch.
+Worth keeping straight: the gate's redness guarantees were sound; only its recovery was missing.
+
+### ⬛ FUP-GATE-RESET-FLAKE — RESOLVED 2026-08-11 (the diagnosable half); the restart POLICY stays the PO's call
+
+Filed 2026-08-10: two consecutive full gates each lost a whole batch (run 2: batch 8 / 61 tests;
+run 3: batch 12 / 56 tests) to a transient mid-gate `supabase db reset`, each re-running fully
+green when scoped. Same file as FUP-QO-9, so the two were fixed together.
+
+**Fixed in `scripts/e2e-prod-gate.sh`:**
+1. **The reset's output is no longer discarded.** `:346` was `>/dev/null 2>&1`, which is why the
+   CAUSE was unrecoverable from the logs across two occurrences. Both the per-batch reset and
+   `recover_stack`'s reset now write to `$GATE_LOGDIR`.
+2. **One logged retry.** The reset is retried once before the batch is abandoned — but attempt 1's
+   stderr is **always printed even when attempt 2 succeeds**, precisely so the retry cannot mask
+   the transient it exists to survive. ⚠ This is the deliberate compromise on the entry's own
+   *"worth capturing before diagnosing"*: capture is preserved, and a 56-test batch is no longer
+   the price of one blip.
+3. **`renderer_ok()`** — preflight now probes `PDF_RENDERER_URL/health` and names the cause when
+   it is down. This is the `gotenberg-pdf` half: the sidecar sits **outside** the Supabase stack
+   and carries no restart policy, so any Docker restart silently kills it and every PDF spec reds
+   as an assertion failure (8 such reds in one gate, diagnosed only after the run). Vacuously
+   true when the var is unset. **Detection only** — `docker update --restart unless-stopped
+   gotenberg-pdf` is an infra change and stays the PO's call, exactly as originally recorded.
+   Fault-injected end-to-end against a dead port: the warning fires and the gate proceeds.
+
+▶ **Still open, unfixed by design:** the reporting hazard the entry flags — *"COVERAGE: accounted
+for 1059 of 1064"* scanning as 99% while an entire batch never ran. The loud `!! NEVER RAN` banner
+already works (it is how both were caught); the risk is a **reader** quoting the coverage line
+alone, which is a habit, not a script bug.
 
 ### 🟡 FUP-AFF-3 — pin door ACLs by DERIVING the door set, not by remembering it (2026-08-06)
 
@@ -491,9 +581,25 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 lives in the repo at **`scripts/extract-embeds.mjs`** + **`scripts/probe-embeds.mjs`** (moved out of
 a session scratchpad that was about to be deleted — the earlier revision of this line pointed at a
 path that would not have existed, which reads as "saved" when it is not). It found BUG-TV-001 *and*
-BUG-RCA-001 mechanically across 284+ call sites. **Still needs a `package.json` entry point** — it
-cannot join `npm run lint` because it requires a live local Supabase, and `probe-embeds.mjs` refuses
-any non-local URL by design.
+BUG-RCA-001 mechanically across 284+ call sites. It still cannot join `npm run lint`, because it
+requires a live local Supabase and `probe-embeds.mjs` refuses any non-local URL by design.
+
+⬛ **Entry point DONE 2026-08-11: `npm run sweep:embeds`** (extract → probe, both against `.`, via a
+gitignored `.embed-sweep/` scratch dir; `extract-embeds.mjs` now creates that dir rather than
+requiring the caller to). Run against the live local stack to confirm it works end-to-end.
+
+**Its baseline is a NAMED list, not a count** — deliberately, per the FUP-E2E-1 lesson that a
+count-shaped baseline is a hiding place:
+- **311** select sites resolved, **0** unresolved · **248** distinct (relation, select) pairs probed.
+- **246 × `42501`** = genuine PASS. The sweep probes with the **anon** key, which holds zero table
+  grants, and its own built-in CONTROLS (C1/C2/C3) prove each run that 42501 does **not** mask embed
+  or column errors — a good tool: it re-earns that claim rather than asserting it.
+- **2 × `PGRST205`**, both `get_meeting_agenda_items` (`minutes-jobs/context.ts:119`,
+  `minutes-jobs/queries.ts:193`) — **extractor false positives, NOT defects.** Both sites are
+  `.rpc(name, args).select(...)` chains; the AST extractor reads the RPC name as a relation and
+  probes `GET /rest/v1/<rpc>`, which is not a table. ⚠ Whoever next touches the sweep: this is the
+  known baseline — do not chase it, and do not "fix" it by suppressing PGRST205, which is the code
+  that would report a genuinely missing relation.
 
 The generalisation that justifies keeping it: **ADR 0096 A1.5's grep sweep could not have caught
 BUG-TV-001, because that site names no dropped column — it names a relation that is no longer
@@ -586,20 +692,49 @@ structural, not present.
 
 ⚠ **The risk is the shape, not today's words.** This is exactly how `padrãoes` and `em atençãos`
 shipped — the pattern was correct until someone added a word ending in `-ão`. Migrating these to
-`plural(count, one, many)` (`src/components/accreditation/format.ts`) removes the trap rather than
-relying on every future author noticing it. An ESLint rule banning `+ "s"` was **considered and
-rejected** for now: it false-positives heavily against ordinary string concatenation and would need
-real tuning — shipping it half-tuned for an INFO-level item would be worse than the JSDoc steering
-the helper already carries.
+`plural(count, one, many)` removes the trap rather than relying on every future author noticing
+it. An ESLint rule banning `+ "s"` was **considered and rejected** for now: it false-positives
+heavily against ordinary string concatenation and would need real tuning — shipping it half-tuned
+for an INFO-level item would be worse than the JSDoc steering the helper already carries.
 
-### 🟡 FUP-P16-2 — two accreditation reads live in `actions.ts`, not `queries/` (Rule 9)
+**⬛ RESOLVED 2026-08-11.** All **12 sites across the 10 files** migrated to `plural()`; zero
+`? "" : "s"` remain in `src/`. As filed, every word was regular, so there is **no behavioural
+change** — this removes the trap, it does not fix a bug.
 
-`getStandardAssessmentDetail` and `searchEvidenceCandidates` are **reads** in
-`src/lib/accreditation/actions.ts`. This is debt from **BUG-P16-002**, not a design choice:
+⚠ **One structural change the entry did not anticipate:** the helper was moved to a new
+**`src/lib/text.ts`** and re-exported from `src/components/accreditation/format.ts` (its four
+existing importers and `format.test.ts` are untouched). The entry proposed importing `plural`
+*from* the accreditation module — but the consumers are notifications, safety, documents, cases
+and the wizard, and making the notification bell depend on an accreditation module is the wrong
+edge. `src/lib/text.ts` is for pt-BR LANGUAGE primitives, deliberately distinct from the
+per-domain `format.ts` convention (which formats DOMAIN values: case numbers, dates, file sizes).
+The full rationale JSDoc travels with the definition, so it is now in front of every author who
+reaches for it rather than only accreditation's.
+
+### ⬛ FUP-P16-2 — RESOLVED 2026-08-11: both reads routed through `queries/` (Rule 9)
+
+`getStandardAssessmentDetail` and `searchEvidenceCandidates` were **reads** in
+`src/lib/accreditation/actions.ts` — debt from **BUG-P16-002**, not a design choice:
 `src/lib/queries/accreditation.ts` was still throwing `not implemented` when frontend needed them,
-and frontend correctly refused to edit a backend-owned file. Now that the query layer is real,
-route both through `src/lib/queries/` per **Architecture Rule 9**. Backend owns the move; frontend
-must not do it unilaterally.
+and frontend correctly refused to edit a backend-owned file.
+
+- **`getStandardAssessmentDetail`** — moved wholesale (with its `StandardAssessmentDetail`
+  interface) to `queries/accreditation.ts`; its single caller is a Server Component, which can
+  read the query layer directly, so **no action wrapper was needed or kept**.
+- **`searchEvidenceCandidates`** — **stays a server action** and must: its caller
+  `evidence-picker.tsx` is a Client Component. Only its *data access* moved.
+
+⚠ **The non-obvious part, worth recording because the naive move is a silent regression.** A
+sibling `getEvidenceCandidates` already existed in the query layer hitting the same RPC, so
+"delegate to it" looks like a one-line fix — but it **swallows errors and returns `[]`**, while
+the action maps them to pt-BR and the picker renders an error banner (`setSearchError`). Routing
+through it would have turned every failure into a silent *"no results found"* — telling the user
+their search succeeded. Resolved by adding **`findEvidenceCandidates`**, which returns candidates
+**and** the raw error; `getEvidenceCandidates` keeps swallowing (correct for a list), the action
+keeps mapping (correct for a picker). Error text stays in the action layer — the query module
+owns no user-facing copy.
+
+*Verified: `npm run lint` 0/0 (all three gates) · `tsc --noEmit` clean · Vitest 1218/1218.*
 
 ### 🔴 FUP-FF5-1 — patient-lane sublabel is degenerate on the READ path (**PO DEFERRED 2026-07-28**)
 
