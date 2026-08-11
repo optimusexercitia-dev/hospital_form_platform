@@ -8,19 +8,32 @@ policy check set to `true`), run the FULL pgTAP suite, read `Result:`.
 writer). **BLIND** = suite stayed `PASS` (no keystone exercises it — a work-list item).
 **ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result).
 
-Baseline: Files=182, Tests=5794, Result: PASS.
+Baseline: Files=156, Tests=4796, Result: PASS.
 Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
 `assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
+
+> ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100 D9; Amendment 5 scope-in).** The
+> `public.set_commission_oversight(uuid,text)` row below was merged by hand from a
+> **diff-scoped** run (`CASES="set_commission_oversight"`, baseline Files=171,
+> Tests=5297, Result: PASS) — a subset run OVERWRITES this report, so the verdict has
+> nowhere else to land (ADR 0079 Amendment 1 hazard 1). The guard entered the frozen
+> Arm-1 list (now 8) in the same change; its authority + raw-write guard are
+> additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
+> `guard_noop`).
 
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
 |---|---|---|---|---|
+| notification_preferences.notification_preferences_update_own (UPDATE) | policy | open->true | BLIND |  |
+| notifications.notifications_update_own (UPDATE) | policy | open->true | BLIND |  |
+| responses.responses_delete_own_draft (DELETE) | policy | open->true | BLIND |  |
 
 ## COVERED (asserted-through) + ERROR (harness bug) + SKIPPED (vacuous)
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql (QO·A hand-merge — see header note) |
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
 | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
 | app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |
@@ -28,13 +41,33 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 | app.assert_session_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
 | app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
 | app.assert_referral_target_acts(uuid,text[]) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
-| public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql |
-| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql |
-| public.create_external_participant(uuid,text,text) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql |
-| public.set_primary_subject(uuid) | guard | authz-open | COVERED | 314_qob_org_admin_content_wall.sql,321_eth_e4_participant_seating.sql |
 | capa_plan.capa_plan_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | capa_plan.capa_plan_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql |
 | case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
+| profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
+| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
+| rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
+| responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
