@@ -203,106 +203,41 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🟡 **BUG-VACUOUS-ASSERT-1 — OPEN, pre-existing, unrelated to ACT (`tester`, found 2026-08-10 via
-a coordinator-requested bounded check of ONE file — see above). Filed, NOT fixed: every "small"
-fix attempted in this program turned into an investigation; these four are each their own test,
-not the union-gate shape ADR 0106 is ruling on, and fixing test logic without the file owner's
-review is exactly the boundary a tester holds.**
+✅ **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1 — ALL THREE RESOLVED 2026-08-10.**
+Branch `worktree-fix-vacuous-assert-act-expiry-acl`; migrations `20260918003000` +
+`20260918003100`; new keystone `320` (10 assertions, RED-first); keystone `318` PART 2 amended.
+Full detail — including why `318`’s D5 twin had to be **re-anchored onto the LIVE arm** rather
+than left measuring a now-fixed defect — in
+[bug-log-archive.md](docs/progress/bug-log-archive.md). Verified: pgTAP **181 files / 5718
+tests** on a fresh `db reset`, `phase22-referrals.spec.ts` **40/40**.
 
-**The general shape, which is what makes this actionable later, not just these four instances:**
-a conditional whose branches do not all assert is a test that reports confidence it never earned.
-`if (cond) { assert } ` with no `else`, or an `else` whose own assertion is itself optional, lets
-the test go GREEN having checked nothing — indistinguishable in the report from a test that
-verified the real thing. This is not the "vacuous pass" this program already fixed twice
-(Flow 5a's old `else { /* nothing to assert */ }`, and the tester's own near-miss — a tautological
-`else { expect(revealBtnCount).toBe(0) }`, true by the very condition selecting the branch); it is
-the SAME defect class, general enough that it will recur anywhere a conditional exists without a
-matching unconditional or exhaustive-branch assertion.
+> ⚠ **BUG-ACT-EXPIRY-1 was NOT latent-only after all.** Its own keystone caught the expired
+> principal’s `create_case_assignment_role` call SUCCEEDING against the pre-fix catalog — it
+> inserted a real row into another org’s vocabulary. "Latent" described the *seed* (which
+> carries zero expired memberships), not the *door*.
 
-**Four confirmed instances, `phase22-referrals.spec.ts`, none fixed:**
-- **Flow 4c** (`response_expected=false` referral) — `if (!draftResp.ok()) { return }` exits the
-  whole test with **zero** assertions if that fires; even past it, a second guard `if (refId) {
-  …only assertion here… }` means a truthy-`ok()`-but-falsy-`refId` response also asserts nothing.
-  Two independent silent-pass exits in one test.
-- **Flow 5c** (plain B member, PHI bodies null) — the ENTIRE test body is `if (resp.ok()) { if
-  (body !== null) { asserts } }`; if `resp.ok()` is false OR `body === null`, the test completes
-  with zero assertions. No unconditional fallback anywhere in the test.
-- **Flow 5d** (direct SELECT denial) — `if (resp.ok()) { if (rows.length > 0) { assert } } else {
-  assert }`. The `else` always asserts, but if `resp.ok()` is true AND RLS returns zero rows
-  (rather than an explicit error), the `if` branch asserts nothing and the `else` never runs —
-  same silent-pass shape as Flow 5c, gated one level deeper.
-- **Flow 8c, called out specifically — keyboard-only, reply form.** Two independent, un-elsed
-  `if (isVisible) { assert }` blocks (reveal button, back link), **no unconditional assertion
-  anywhere in the test**. If neither element is visible when the page loads, the test passes
-  having asserted nothing at all. This one is not just another instance: **its own title claims
-  to verify keyboard accessibility** — a house requirement (CLAUDE.md §8: "every form input
-  accessible... the tester includes at least one keyboard-only flow per phase") — so a green here
-  actively asserts a compliance property that, in the all-elements-absent case, was never checked.
-  A misleading vacuous pass on an accessibility test is worse than one on a data assertion: it is
-  the exact artifact the house rule exists to prevent, reporting satisfied when it is silent.
+> ⚠ **BUG-ACT-ACL-1 closed ONE INSTANCE, not the population.** The standing
+> *AUDIT-INVOKER-WRAPPER* item under §"Remaining pre-pilot work" is untouched and still owns
+> the broader `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep. Keystone `320` does add a uniformity
+> assertion over all 8 Stage-2 gates, so that subset is now pinned.
 
-**Why this is worth a dedicated pass, not opportunistic per-file fixes (recorded per the
-coordinator's instruction):** this shape is invisible to every gate in the project — lint doesn't
-flag it, typecheck doesn't either (both branches are valid TypeScript), and a passing Playwright
-run reports exactly the same GREEN whether the meaningful branch ran or not. It surfaced here only
-because ADR 0106 made one specific branch (the `staff`-hat entry into this exact commission-scoped
-route) permanent for the first time — before that, no run had ever forced `if (revealBtn.isVisible)`
-down the non-vacuous path for this persona. The other four instances were not caused by any
-structural change; they have presumably been silently skipping their meaningful branch, or
-silently taking it, for as long as they've existed — nobody knows which, because nothing recorded
-which branch ran. **Candidate follow-up, not undertaken here:** a repo-wide vacuous-pass audit —
-grep every `if` inside a `test()` body for a branch with no `expect()`/`await expect()` call
-reachable from it, by AST or by careful regex, and check whether an unconditional assertion
-elsewhere in the same test would still catch a regression if that branch's logic silently broke.
-That is real, standalone work, and belongs in its own pass. **This bounded check covered exactly
-ONE file** (`phase22-referrals.spec.ts`, per explicit scope) out of `e2e/`'s full spec count —
-**the four found here are a lower bound on the shape's prevalence, not a count of it.**
-
-**Also found, same re-run, FIXED this round (authorised):** `phase15-indicators.spec.ts` AC-8a
-and AC-8b both pinned `getByRole('heading', { name: /encontramos esta página|Erro 404/i })` —
-the SAME `BUG-ACT-NOTFOUND-COPY-1` shape (a boundary-copy alternation that doesn't include
-"Página não encontrada"). Fixed with the established `/não encontr/i` pattern, matching the 5
-already-fixed instances (incl. `phase13-audit.spec.ts` AC-3e).
-
-> ⚠ **SCOPE NARROWED 2026-08-10 (QA Stage-3 review r2, MINOR-4(1)) — read this before
-> working the bug below; its original text now overstates the reach.** After
-> `20260918002800` gave the raw arm a caller-only hat condition, the quirk survives **only
-> in the cross-org shape**: a principal holding a LIVE `staff_admin` in one org (so the hook
-> derives that hat implicitly) **plus** an expired `staff_admin` in the org being asked
-> about. An **expired-ONLY** principal can never obtain the `staff_admin` hat at all —
-> `assume_role` validates live holding and `custom_access_token_hook` derives only from live
-> rows — so for them the arm is already permanently unreachable. That is this bug's own
-> tightening arriving early for its **main** population, achieved via the hat rather than via
-> expiry, and it narrows in the safe direction (QA: "not asking you to undo it"). Keystone
-> `318` assertion 10 pins the surviving cross-org shape against a state a real user can
-> actually occupy.
-
-🔴 **BUG-ACT-EXPIRY-1 — OPEN, LATENT (found by ACT Stage 2's equivalence matrix, 2026-08-10;
-deliberately NOT fixed there).** `app.can_manage_professional`'s raw `memberships` branch
-carries **no `expires_at` filter**, so a principal whose `staff_admin` membership has already
-expired still passes it — and it gates **10 professional-identity / ethics-vocab write RPCs**.
-Everywhere else the platform treats `expires_at` as live (`224_memberships_collapse.sql` §9
-pins the semantics: NULL never filters, a past date does). **Latent, not exploitable today:**
-`seed.sql` carries zero expired rows, which is why it took a synthetic fixture to observe at
-all — and why no existing test could have caught it. ⚠ **Stage 2 preserved the quirk on
-purpose** (a behaviour-preserving refactor must preserve flaws, or it is smuggling an authz
-change under a refactor) via an explicit compensating clause in
-`20260918001000`; do **not** read that clause as intended behaviour and do not "simplify" it
-without closing this bug first. **Disposition:** fix is a genuine *tightening* and therefore
-needs its own change with its own gate — not Stage 3 (the atom takes no unrelated payload).
-Candidate home: Stage 4 or a standalone follow-up. Lead to decide with the PO.
-
-🟡 **BUG-ACT-ACL-1 — OPEN, hardening gap (same origin, 2026-08-10).**
-`app.is_entitled_document_approver` has `proacl = NULL`, i.e. the Postgres default of
-`EXECUTE` to **PUBLIC** — wider than all 7 of its siblings, which carry an explicit grant.
-**Not a new regression** (Stage 2's `CREATE OR REPLACE` left it NULL→NULL, exactly as
-intended) and **not directly reachable**: `app` is not in `config.toml`'s exposed schemas, so
-PostgREST offers no route to it. It is one instance of a **known population** — see the
-standing *AUDIT-INVOKER-WRAPPER* item under §"Remaining pre-pilot work", which records that
-130 of 281 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`. **Disposition:** fold into
-that item rather than fixing piecemeal here; recorded so this specific instance is not
-re-discovered as though it were new. ⚠ Re-confirm the `proacl` reading from the catalog
-before acting — it was measured while a gate was mid-run.
+🟡 **FUP-VACUOUS-AUDIT-1 — OPEN, inherited from BUG-VACUOUS-ASSERT-1 and deliberately not
+undertaken with it: the repo-wide vacuous-pass audit.** The fix above covered the ONE file the
+original bounded check covered (`phase22-referrals.spec.ts`) out of `e2e/`’s full spec count.
+**The general shape:** a conditional whose branches do not all assert is a test that reports
+confidence it never earned — `if (cond) { assert }` with no `else`, or an `else` whose own
+assertion is itself optional, goes GREEN having checked nothing, indistinguishable in the
+report from a test that verified the real thing. **This shape is invisible to every gate in
+the project**: lint doesn’t flag it, typecheck doesn’t either (both branches are valid
+TypeScript), and a passing Playwright run reports the same GREEN whether the meaningful branch
+ran or not. **The audit:** walk every `if` inside a `test()` body for a branch with no
+`expect()` reachable from it, by AST or careful regex, and check whether an unconditional
+assertion elsewhere in the same test would still catch a regression if that branch silently
+broke. ⭐ **Now evidence-backed, which it was not when filed:** fixing Flow 4c turned up a live
+spec defect the vacuous branch had hidden for the test’s entire life — it ran as an `org_admin`
+that `create_referral_draft` has always refused (HC071), so **every run took the silent
+`return` and asserted nothing**. The shape does not merely fail to catch defects; it conceals
+them. The four fixed instances are a lower bound on prevalence, not a count of it.
 
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production

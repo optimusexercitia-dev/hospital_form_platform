@@ -14,7 +14,7 @@
 -- token hook derives its lone hat implicitly and the two implementations agree.
 
 begin;
-select plan(11);
+select plan(12);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -109,11 +109,14 @@ reset role;
 
 -- ── PART 2 — app.can_manage_professional (QA MAJOR-1) ───────────────────────────
 --
--- Its raw `memberships` arm is the EXPIRED-staff_admin compensating clause Stage 2
--- preserved on purpose (BUG-ACT-EXPIRY-1). ⚠ This keystone pins the HAT fix only:
--- an expired staff_admin still passes the arm when correctly hatted. If the expiry
--- quirk is ever closed, THIS assertion is expected to change with it — that is the
--- bug''s own change and its own gate, not a silent edit here.
+-- ⚠ UPDATED BY BUG-ACT-EXPIRY-1 (`20260918003000`), which is the change this block
+-- anticipated in writing: "If the expiry quirk is ever closed, THIS assertion is
+-- expected to change with it — that is the bug''s own change and its own gate, not a
+-- silent edit here." The expired-staff_admin compensating clause Stage 2 preserved is
+-- now GONE; `has_role` is the only membership path, so expiry is honoured. Assertion
+-- 10 below is therefore INVERTED from what it read at Stage 3 — the polarity flip IS
+-- the fix''s keystone, and it was confirmed RED against the pre-fix catalog.
+--
 -- ⭐ QA r2 MINOR-4(2): the fixture is the REACHABLE cross-org shape, not a synthetic
 -- one. sa_x keeps its LIVE staff_admin on comm_x (org_b) and additionally holds an
 -- EXPIRED staff_admin in a SECOND org. That principal has exactly one LIVE role type,
@@ -121,7 +124,9 @@ reset role;
 -- hand-minted claim, a state a real user can actually occupy. The previous version of
 -- this twin minted a staff_admin hat for an expired-ONLY principal, which `assume_role`
 -- and the hook both refuse to issue: it pinned the function's logic against a state
--- nobody can reach. This one pins the same claim against a reachable one.
+-- nobody can reach. This one pins the same claim against a reachable one — and it is
+-- the shape BUG-ACT-EXPIRY-1 had to close, because Stage 3''s hat condition had
+-- already made every OTHER expired shape unreachable on its own.
 create temp table o2 on commit drop as select gen_random_uuid() as org, gen_random_uuid() as hosp;
 grant select on o2 to authenticated;
 insert into public.organizations (id, name, slug)
@@ -147,41 +152,54 @@ select ok(
   'precondition: has_role() refuses the EXPIRED staff_admin row (so the raw arm is what the next assertions measure)');
 reset role;
 
--- POSITIVE TWIN, and it is load-bearing: with the hat implicitly derived from the
--- LIVE membership in the other org, the expired arm STILL fires here. This pins that
--- `20260918002800` changed ONLY the hat dimension and did NOT smuggle in the expiry
--- tightening BUG-ACT-EXPIRY-1 owns — it would red if someone "simplified" the
--- compensating clause away entirely.
--- ⚠ Scope note (QA r2 MINOR-4(1)): this cross-org shape is now the ONLY surviving
--- reach of the quirk. An expired-ONLY principal can never obtain the staff_admin hat
--- (`assume_role` validates live holding; the hook derives only from live rows), so
--- for them the arm is already permanently unreachable — BUG-ACT-EXPIRY-1's own
--- tightening arriving early for its main population, via the hat rather than via
--- expiry. BUG-ACT-EXPIRY-1's residual scope is narrower than its original text says.
+-- ⭐ DISTINGUISHING for BUG-ACT-EXPIRY-1 (`20260918003000`), and RED pre-fix: this
+-- is the exact assertion that read `ok(app.can_manage_professional(...))` at Stage 3.
+-- The hat is derived implicitly from the LIVE membership in the OTHER org, which is
+-- what made this the one surviving reach of the quirk — every other expired shape was
+-- already unreachable because an expired-ONLY principal can never obtain the
+-- staff_admin hat at all (`assume_role` validates live holding; the hook derives only
+-- from live rows). So the principal here is correctly hatted, genuinely holds
+-- staff_admin somewhere, and is asking about an org where its staff_admin has
+-- EXPIRED. Post-fix the only membership path is `has_role`, which filters expiry —
+-- hence FALSE.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select ok(
-  app.can_manage_professional((select org from o2), (select sa_x from k)),
-  'can_manage_professional: the EXPIRED-staff_admin arm STILL fires under an IMPLICITLY-DERIVED staff_admin hat (reachable cross-org shape; expiry semantics preserved — BUG-ACT-EXPIRY-1)');
+  not app.can_manage_professional((select org from o2), (select sa_x from k)),
+  'can_manage_professional ⭐ BUG-ACT-EXPIRY-1: an EXPIRED staff_admin is REFUSED even under a correctly-derived staff_admin hat (was TRUE pre-fix — the cross-org reach)');
+
+-- CONTROL, and it is load-bearing: without it the assertion above passes for free if
+-- anyone breaks the function closed (or deletes the membership arm outright), and a
+-- detector that cannot distinguish "correctly refused" from "refuses everything" is
+-- not a detector. Same principal, same hat, same session — only the org differs, and
+-- there sa_x's staff_admin is LIVE. This is the boundary the fix must NOT cross.
+select ok(
+  app.can_manage_professional((select org_b from k), (select sa_x from k)),
+  'can_manage_professional CONTROL: the LIVE staff_admin in the other org is still ADMITTED (proves the assertion above is not a broken-closed pass)');
 reset role;
 
--- ⭐ DISTINGUISHING: the same arm does NOT fire under a hat that is not
--- staff_admin. The second hat is hospital-scoped `quality_reviewer` (the shape
--- keystone 316 already uses) chosen deliberately: it feeds NONE of this
--- function's other arms — not `is_admin()`, not `is_org_admin_of(p_org)`, not
--- `has_role(commission, …, 'staff_admin')` — so the raw expired arm is the only
--- thing that could possibly answer true, and a green here cannot be a pass for
--- the wrong reason. Adding it also gives sa_x a SECOND live role type, so the hat
--- is now a genuine choice rather than an implicit derive — which is exactly the
--- population ADR 0106 exists for.
+-- ⭐ DISTINGUISHING for D5 (the hat dimension), RE-ANCHORED ONTO THE LIVE ARM.
+-- At Stage 3 this twin measured the EXPIRED arm under a non-staff_admin hat. That
+-- arm no longer exists, so keeping it there would have left a control anchored on a
+-- defect — true by construction once the defect was fixed, and unable to fail for the
+-- reason its own message claims. It now measures the LIVE arm instead, which is
+-- correct BY DESIGN and therefore a durable anchor: `has_role` carries the same
+-- caller-only hat condition internally, so the hat dimension is still genuinely
+-- under test.
+-- The second hat is hospital-scoped `quality_reviewer` (the shape keystone 316 uses)
+-- chosen deliberately: it feeds NONE of this function's arms — not `is_admin()`, not
+-- `is_org_admin_of(p_org)`, not `has_role(commission, …, 'staff_admin')` — so a green
+-- here cannot be a pass for the wrong reason. Adding it also gives sa_x a SECOND live
+-- role type, so the hat is now a genuine choice rather than an implicit derive —
+-- exactly the population ADR 0106 exists for.
 insert into public.memberships (organization_id, hospital_id, principal_id, role)
 values ((select org_b from k), (select hosp_b from k), (select sa_x from k), 'quality_reviewer');
 
 select test_helpers.claims_for((select sa_x from k), false, 'quality_reviewer');
 set local role authenticated;
 select ok(
-  not app.can_manage_professional((select org from o2), (select sa_x from k)),
-  'can_manage_professional D5 ⭐ DISTINGUISHING: the EXPIRED-staff_admin arm does NOT fire under the quality_reviewer hat (was TRUE pre-fix — 10 Class-2 write RPCs)');
+  not app.can_manage_professional((select org_b from k), (select sa_x from k)),
+  'can_manage_professional D5 ⭐ DISTINGUISHING: the LIVE staff_admin arm does NOT fire under the quality_reviewer hat (the same principal was ADMITTED one assertion ago under the staff_admin hat)');
 reset role;
 
 select * from finish();

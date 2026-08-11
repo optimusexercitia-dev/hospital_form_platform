@@ -125,7 +125,11 @@ Total lockout, not a degradation. *(This paragraph said "every multi-role princi
 - **`app.is_admin()`** (D11) — also requires the `platform_admin` hat. Provably a no-op while
   **0 platform_admins hold a membership**; a pgTAP **tripwire** reds if one ever does.
 - **`app.is_admin_for(uuid)`** + **`app.can_manage_professional`** (`20260918002800`, from the
-  Stage-3 QA BLOCKER) — same caller-only condition. ⛔ **`is_admin_for` is NOT a third-party
+  Stage-3 QA BLOCKER) — same caller-only condition. ⚠ **`can_manage_professional` no longer
+  carries that condition inline**: `20260918003000` (BUG-ACT-EXPIRY-1) removed the raw
+  `memberships` arm the condition was attached to, so the gate now inherits BOTH expiry and
+  the hat from `app.has_role`. Keystone `320` reds if a raw `memberships` read is
+  reintroduced. ⛔ **`is_admin_for` is NOT a third-party
   helper**, whatever its signature suggests: both callers (`grant_role_impl`/`revoke_role_impl`)
   receive `p_actor` from `public.grant_role`/`revoke_role`, which bind it to
   `(select auth.uid())` — it is **the caller gate on the membership-grant door**.
@@ -226,9 +230,26 @@ live gates / 461 verdicts · `ARM=floor` 80 never-called doors, all allowlisted 
 
 ### Known-open at hand-off
 
-`BUG-ACT-EXPIRY-1` (`can_manage_professional`'s expired arm — **scope now narrowed**: survives
-only cross-org, since an expired-ONLY principal can never obtain the hat) · `BUG-ACT-ACL-1`
-(folded into AUDIT-INVOKER-WRAPPER) · **`FUP-ACT-DISPOSE-UI` — a PILOT-GATE CHECK**: the LGPD
+> ✅ **`BUG-ACT-EXPIRY-1` and `BUG-ACT-ACL-1` are CLOSED 2026-08-10** — migrations
+> `20260918003000` + `20260918003100`, keystone **`320`** (10 assertions), suite now
+> **181 files / 5718 tests**. Both were RED-first against the pre-fix catalog.
+> - **EXPIRY**: `app.can_manage_professional` no longer reads `public.memberships`
+>   directly at all — the Stage-2 compensating clause is gone and `app.has_role` is
+>   the single membership path, so expiry AND the ACT caller-only hat condition are
+>   inherited rather than re-implemented. ⚠ Keystone **`318` PART 2 changed with it**:
+>   assertion 10 is INVERTED (an expired staff_admin is now REFUSED even when
+>   correctly hatted), and the D5 hat twin was **re-anchored onto the LIVE arm** —
+>   leaving it on the expired arm would have left a control anchored on a defect,
+>   true by construction once the defect was fixed. `320` adds the behavioural half:
+>   the refusal arriving at a real door (`create_case_assignment_role`), plus a
+>   live-admitted CONTROL so a broken-closed gate cannot pass.
+> - **ACL**: `app.is_entitled_document_approver` now carries
+>   `postgres/authenticated/service_role`, matching all 7 Stage-2 siblings.
+>   `320` asserts **uniformity across all 8**, so it also reds if any of them is ever
+>   rebuilt with DROP+CREATE (which silently loses the ACL). This closes **one
+>   instance**, NOT the standing **AUDIT-INVOKER-WRAPPER** population audit.
+
+**`FUP-ACT-DISPOSE-UI` — a PILOT-GATE CHECK**: the LGPD
 Art. 18 referral-erasure path has **no UI route**; every principal `dispose_referral_phi`
 authorizes is 404'd by the page hosting the affordance, and everyone who reaches that page is
 refused by the door — **the two sets are disjoint** · `FUP-ACT-CAPA-ASSIGN` (`profiles` RLS has

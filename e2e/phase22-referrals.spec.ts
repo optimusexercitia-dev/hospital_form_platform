@@ -760,11 +760,18 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
 }) => {
   // Create a `rascunho` referral with response_expected=false on CASE_A_ID,
   // then send it, and verify close_case is not blocked.
-  // (We use the admin token to bypass the source-coordinator constraint for this test,
-  //  as chefe.ccih is CCIH coordinator — same result.)
-  // ACT (ADR 0106): org_admin — she stands in for a coordinator's tenancy-
-  // admin-equivalent authority here, not her PQS-operator standing.
-  const adminToken = await getToken(request, 'admin@test.local', 'org_admin')
+  //
+  // ⚠ This used to run as `admin@test.local` acting as `org_admin`, on the stated
+  // theory that the admin token "bypasses the source-coordinator constraint". It does
+  // not, and never did: `create_referral_draft` gates on
+  // `app.is_staff_admin_of_for(source_commission, auth.uid())` and raises HC071 for
+  // everyone else, org_admin included — tenancy authority is not commission-content
+  // authority (the CLAUDE.md §1 noun rule). Every run of this test therefore got a 400
+  // and took the silent `return`, which is how it stayed green for its whole life
+  // while asserting nothing. Found by fixing BUG-VACUOUS-ASSERT-1, not by a red.
+  // CASE_A_ID lives in CCIH (COMM_A), so its coordinator is chefe.ccih — the same
+  // persona this test already used below to send the draft.
+  const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
 
   // p_referral_type_id is required by the RPC; use the service key to pick a valid type id
   const typesResp = await restGet<{ id: string; key: string }>(
@@ -774,35 +781,57 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   )
   const cienciaType = typesResp.find((t) => t.key === 'ciencia') ?? typesResp[0]
 
-  const draftResp = await rpc(request, 'create_referral_draft', adminToken, {
+  const draftResp = await rpc(request, 'create_referral_draft', chefeAToken, {
     p_source_case_id: CASE_A_ID,
     p_target_commission_id: COMM_B,
     p_referral_type_id: cienciaType?.id,
     p_subject: 'Ciência — spec Flow 4c',
     p_response_expected: false,
+    // Required to make the draft SENDABLE: `send_referral` refuses a draft with
+    // neither a description nor a shared item (check_violation). The old test never
+    // discovered this because it never got far enough to call send_referral — and
+    // when it did, the un-asserted result was discarded. Synthetic text, no PHI.
+    p_description_md: 'Encaminhamento de ciência gerado pelo teste Flow 4c.',
   })
+  // BUG-VACUOUS-ASSERT-1: this used to `return` here with ZERO assertions, on the
+  // theory that a concurrent concluida ENC-0001 on CASE_A_ID could legitimately block
+  // the draft. It cannot — `create_referral_draft` is not gated on sibling referral
+  // status (4a/4b exercise that gate, and only `close_case` raises HC076). So a
+  // failure here is a real failure and must be reported as one. The body is read only
+  // on the failure path so it stays available for the .json() below.
+  // This is the assertion that surfaced the wrong-persona bug above.
   if (!draftResp.ok()) {
-    // CASE_A_ID may have a concurrent ENC-0001 that is concluida — that's fine, not blocking
-    // Just assert close_case doesn't raise HC076 for this case (it's already been tested in 4a/4b)
-    return
+    expect(
+      draftResp.ok(),
+      `create_referral_draft failed: ${draftResp.status()} ${await draftResp.text()}`,
+    ).toBe(true)
   }
   const draftData = await draftResp.json() as { id: string }
   const refId = draftData?.id
+  // Second silent-pass exit, same bug: a truthy ok() with a falsy id used to skip the
+  // one real assertion in this test. Nothing below is conditional any more.
+  expect(refId, 'create_referral_draft returned 2xx but no referral id').toBeTruthy()
 
-  if (refId) {
-    // Send the draft
-    const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
-    await rpc(request, 'send_referral', chefeAToken, { p_referral_id: refId })
-
-    // Verify the referral's response_expected = false (won't block close)
-    const rows = await restGet<{ id: string; response_expected: boolean }>(
-      request,
-      `case_referral?id=eq.${refId}&select=id,response_expected`,
-      SUPABASE_SERVICE_KEY,
-    )
-    expect(rows[0]?.response_expected).toBe(false)
-    // The DB predicate confirms: response_expected=false referrals are excluded from HC076 gate
+  // Send the draft (same coordinator that created it). The failure message carries the
+  // response BODY, not just the status: this RPC has four distinct 400s (HC071, HC070,
+  // check_violation, P0002) and a bare status cannot tell them apart.
+  const sendResp = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: refId })
+  if (!sendResp.ok()) {
+    expect(
+      sendResp.ok(),
+      `send_referral failed: ${sendResp.status()} ${await sendResp.text()}`,
+    ).toBe(true)
   }
+
+  // Verify the referral's response_expected = false (won't block close)
+  const rows = await restGet<{ id: string; response_expected: boolean }>(
+    request,
+    `case_referral?id=eq.${refId}&select=id,response_expected`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(rows, 'the sent referral must be readable back by id').toHaveLength(1)
+  expect(rows[0]?.response_expected).toBe(false)
+  // The DB predicate confirms: response_expected=false referrals are excluded from HC076 gate
 })
 
 // ---------------------------------------------------------------------------
@@ -982,23 +1011,30 @@ test('Flow 5c: plain B member gets null for PHI bodies from get_referral_detail'
   const resp = await rpc(request, 'get_referral_detail', staff1BToken, {
     p_referral_id: ENC1_ID,
   })
-  // Plain staff of B can read METADATA but not the PHI bodies
-  if (resp.ok()) {
-    const body = await resp.json() as Record<string, unknown>
-    if (body !== null) {
-      // PHI bodies must be null for a metadata-only reader (not a coordinator)
-      const descriptionMd = body['description_md']
-      const resultMd = (body['reply'] as Record<string, unknown> | null)?.['result_md']
-      // Staff (not coordinator/QPS) gets null bodies per the tightened policy
-      // Note: plain staff of B IS a member of the target commission → can_read_referral = true,
-      // but can_read_referral_phi = false (not staff_admin, not QPS) → bodies are null
-      expect(descriptionMd).toBeNull()
-      // result_md may also be null for non-PHI readers
-      if (resultMd !== undefined) {
-        expect(resultMd).toBeNull()
-      }
-    }
-  }
+  // Plain staff of B can read METADATA but not the PHI bodies.
+  // BUG-VACUOUS-ASSERT-1: the entire body of this test used to sit inside
+  // `if (resp.ok()) { if (body !== null) { … } }`, so a non-ok response OR a null body
+  // completed the test with zero assertions — a GREEN indistinguishable from a real
+  // pass. Both conditions are now assertions. They are the right ones: plain staff of
+  // B IS a member of the target commission, so `can_read_referral` is true and
+  // `get_referral_detail` returns a row rather than raising no_data_found.
+  expect(resp.ok(), `get_referral_detail failed: ${resp.status()}`).toBe(true)
+  const body = await resp.json() as Record<string, unknown> | null
+  expect(body, 'a target-commission member must receive the metadata row').not.toBeNull()
+
+  // CONTROL: prove the reader actually got the row before reading anything into its
+  // null PHI fields. Without this, a response that was null across the board would
+  // satisfy every assertion below while proving nothing about PHI gating.
+  expect(body!['code'], 'the metadata tier must still carry PHI-free fields').toBe('ENC-0001')
+
+  // can_read_referral = true but can_read_referral_phi = false (not staff_admin, not
+  // QPS) → the PHI bodies are nulled out.
+  expect(body!['description_md']).toBeNull()
+  const resultMd = (body!['reply'] as Record<string, unknown> | null)?.['result_md']
+  // Absent (undefined) and explicitly null both satisfy "no PHI reached this reader";
+  // a string does not. Asserted unconditionally — the old `if (resultMd !== undefined)`
+  // guard let the absent case through without checking anything.
+  expect(resultMd ?? null).toBeNull()
 })
 
 test('Flow 5d: direct SELECT on description_md → permission denied (42501)', async ({
@@ -1015,18 +1051,38 @@ test('Flow 5d: direct SELECT on description_md → permission denied (42501)', a
       },
     },
   )
-  // The column-level REVOKE must cause a 42501 / 400 / permission error
-  // PostgREST returns 403 when a column-level grant is violated
-  if (resp.ok()) {
-    // If PostgREST allows the query but returns null for the column, that is also acceptable
-    const rows = await resp.json() as Record<string, unknown>[]
-    if (Array.isArray(rows) && rows.length > 0) {
-      expect(rows[0]['description_md']).toBeNull()
-    }
-  } else {
+  // The column-level REVOKE must cause a 42501 / 400 / permission error.
+  // PostgREST returns 403 when a column-level grant is violated.
+  //
+  // BUG-VACUOUS-ASSERT-1: the old shape was
+  //   if (ok) { if (rows.length > 0) { assert } } else { assert }
+  // — so an ok() response that RLS had filtered to zero rows hit neither assertion and
+  // the test passed having checked nothing. Zero rows is in fact a legitimate denial
+  // (invisibility rather than an explicit error), but it has to be SAID, not skipped.
+  //
+  // Every path now folds into one discriminant that is asserted unconditionally, so
+  // there is no branch left that can complete silently — and the outcome is named in
+  // the failure output, which is the other half of the defect: nothing used to record
+  // which branch had actually run.
+  let outcome: 'denied' | 'no-rows' | 'null-column' | 'LEAKED'
+  if (!resp.ok()) {
+    outcome = 'denied'
     // 403 or 400 means permission denied — correct
     expect([400, 403]).toContain(resp.status())
+  } else {
+    const rows = await resp.json() as Record<string, unknown>[]
+    expect(Array.isArray(rows), 'a 2xx from PostgREST must carry a row array').toBe(true)
+    if (rows.length === 0) {
+      outcome = 'no-rows'
+    } else {
+      outcome = rows.every((r) => r['description_md'] === null) ? 'null-column' : 'LEAKED'
+    }
   }
+  expect(
+    outcome,
+    'a plain source-commission member must never receive description_md content by direct SELECT',
+  ).not.toBe('LEAKED')
+  expect(['denied', 'no-rows', 'null-column']).toContain(outcome)
 })
 
 // ---------------------------------------------------------------------------
@@ -1204,25 +1260,53 @@ test('Flow 8c: keyboard-only — B-detail reply form labels and visible focus', 
   // Open ENC-0001 as target coordinator — it's concluida so the reply form is not
   // available; instead verify all interactive controls on the detail page are
   // keyboard-reachable (reply view, patient panel reveal button).
+  //
+  // BUG-VACUOUS-ASSERT-1, and this is the instance that mattered most. Both checks
+  // below used to be `if (await el.isVisible().catch(() => false)) { … }` with no
+  // else and no unconditional assertion anywhere in the test — so if neither control
+  // rendered, the test went GREEN having verified nothing, while its title claimed to
+  // have verified keyboard accessibility. That is the exact artifact the house rule
+  // (CLAUDE.md §8, one keyboard-only flow per phase) exists to prevent: a compliance
+  // property reported as satisfied when it was never checked.
+  //
+  // Both controls are now REQUIRED to be present. That is a real claim about this
+  // page, not a convenience: chefe.farm is the target coordinator, so
+  // `can_read_referral_phi` is true and the patient panel renders its reveal button
+  // (Flow 7c pins that entitlement independently), and the detail route always
+  // renders the breadcrumb back to the hub.
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
 
-  // Verify the patient panel reveal button is keyboard-reachable
+  // toBeVisible() BEFORE focus() on every control: focus() does NOT auto-wait, so
+  // calling it against a still-streaming RSC payload no-ops silently and the failure
+  // then reads like an accessibility defect when it is a timing bug.
+  const verified: string[] = []
+
+  // The patient panel reveal button must be keyboard-reachable.
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
     .or(page.getByRole('button', { name: /dados do paciente/i }))
     .or(page.getByRole('button', { name: /exibir dados/i }))
+  await expect(
+    revealBtn,
+    'the PHI reveal button must render for the target coordinator (an entitled reader)',
+  ).toBeVisible({ timeout: 10_000 })
+  await revealBtn.focus()
+  await expect(revealBtn).toBeFocused()
+  verified.push('reveal-button')
 
-  if (await revealBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await revealBtn.focus()
-    await expect(revealBtn).toBeFocused()
-  }
-
-  // All visible links on the page should be keyboard-navigable (visible focus)
+  // The breadcrumb/back link must be keyboard-navigable (visible focus).
   const backLink = page.getByRole('link', { name: /encaminhamentos/i }).first()
-  if (await backLink.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await backLink.focus()
-    await expect(backLink).toBeFocused()
-  }
+  await expect(backLink, 'the detail page must render a link back to the hub').toBeVisible({
+    timeout: 10_000,
+  })
+  await backLink.focus()
+  await expect(backLink).toBeFocused()
+  verified.push('back-link')
+
+  // Unconditional close-out: names exactly which controls this test actually proved
+  // keyboard-reachable, so a future edit that quietly drops one cannot leave the test
+  // green while its title still claims full coverage.
+  expect(verified).toEqual(['reveal-button', 'back-link'])
 })
 
 // ---------------------------------------------------------------------------

@@ -1463,3 +1463,126 @@ capability requires enumerating its consumers."* Owner: PO/backend.
 CUT-the-arms; see the closure record above.**
 
 </details>
+
+---
+
+## BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1 · BUG-VACUOUS-ASSERT-1 — RESOLVED 2026-08-10
+
+Rotated from PROGRESS.md at closure. All three were filed by the ACT program (ADR 0106/0107)
+and deliberately left open there: the two SQL ones because a behaviour-preserving refactor must
+preserve flaws or it is smuggling an authz change under a rename, and the test one because
+fixing test logic without the file owner's review is a boundary the tester holds.
+
+Branch: `worktree-fix-vacuous-assert-act-expiry-acl`. Migrations `20260918003000` +
+`20260918003100`; new keystone `supabase/tests/320_act_expiry_and_acl_hardening.sql`;
+keystone `318` PART 2 amended.
+
+### BUG-ACT-EXPIRY-1 — RESOLVED (migration `20260918003000`, keystones `318` + `320`)
+
+`app.can_manage_professional`'s raw `public.memberships` arm carried no `expires_at` filter, so
+an expired `staff_admin` still passed the gate on **10** Class-2 professional-identity /
+ethics-vocabulary write RPCs. **Fix:** the arm is gone entirely — `app.has_role` is now the only
+membership path, so expiry (`expires_at is null or expires_at > now()`) AND the ACT caller-only
+hat condition are both INHERITED rather than re-implemented.
+
+**RED-first, at the door and not just at the gate.** Keystone `320` was run against the pre-fix
+catalog first: the expired principal's `create_case_assignment_role` call returned **"caught: no
+exception"** — it succeeded and inserted a real row into another org's vocabulary. Post-fix it
+raises 42501. A live-staff_admin CONTROL in the same session, same hat, same RPC still succeeds,
+so the refusal is not a broken-closed pass.
+
+⚠ **Keystone `318` PART 2 changed with the fix, as its own comment had instructed.** Assertion 10
+is INVERTED (it read `ok(can_manage_professional(...))` at Stage 3 and now reads `ok(not ...)`).
+The D5 hat twin was **re-anchored onto the LIVE arm**: leaving it measuring the expired arm would
+have left a control anchored on a defect — true by construction once the defect was fixed, and
+unable to fail for the reason its own message claims. A CONTROL assertion was added between them
+so the pair cannot both pass against a function broken closed.
+
+### BUG-ACT-ACL-1 — RESOLVED (migration `20260918003100`, keystone `320`)
+
+`app.is_entitled_document_approver` carried `proacl = NULL` — not "no grants" but the Postgres
+default of EXECUTE **to PUBLIC** — where all 7 of its Stage-2 siblings carry
+`postgres/authenticated/service_role`. Re-confirmed from the catalog on a quiet stack before
+acting (the original reading was taken while a gate was mid-run). Not an ACT regression: Stage 2
+used `CREATE OR REPLACE`, which left NULL→NULL exactly as intended.
+
+**Fix:** the house idiom, `revoke all … from public` then `grant execute … to authenticated,
+service_role`. REVOKE-then-GRANT is load-bearing: with `proacl` NULL a bare GRANT would
+materialise the ACL with PUBLIC's default EXECUTE still in it and change nothing.
+
+Nothing legitimate lost access — the only in-database caller,
+`public.submit_document_for_approval`, is SECURITY DEFINER owned by `postgres`. `320` asserts the
+over-revoke twin (`authenticated`/`service_role` RETAIN execute) alongside the denial, and adds a
+**uniformity assertion across all 8** Stage-2 gates, so it also reds if any of them is ever
+rebuilt with DROP+CREATE — the documented failure mode in which a rebuild silently loses the ACL
+the original carried.
+
+⚠ This closed **one instance**, not the population. The standing **AUDIT-INVOKER-WRAPPER** item
+remains open.
+
+### BUG-VACUOUS-ASSERT-1 — RESOLVED for its 4 confirmed instances (`e2e/phase22-referrals.spec.ts`)
+
+A conditional whose branches do not all assert is a test that reports confidence it never earned.
+All four instances now assert on every path.
+
+**Flow 4c — this one was not merely vacuous, it was hiding a live spec defect.** The moment the
+`if (!draftResp.ok()) return` became an assertion, the test went red with
+`HC071 — apenas a coordenação da comissão de origem pode encaminhar o caso`. The test ran as
+`admin@test.local` acting as `org_admin`, on a comment's stated theory that the admin token
+"bypasses the source-coordinator constraint". It never did: `create_referral_draft` gates on
+`app.is_staff_admin_of_for(source_commission, auth.uid())` (catalog-verified), and tenancy
+authority is not commission-content authority — the CLAUDE.md §1 noun rule. **Every run of this
+test since it was written took the silent `return` and asserted nothing.** Fixed by using the
+real source-commission coordinator (`chefe.ccih`), plus `p_description_md` so the draft is
+actually sendable (`send_referral` refuses a draft with neither a description nor a shared item —
+a second gate the test had never reached). Failure messages now carry the response BODY, not just
+the status: this RPC has four distinct 400s and a bare status cannot tell them apart.
+
+**Flow 5c** — the entire body sat inside `if (resp.ok()) { if (body !== null) { … } }`. Both are
+now assertions, plus a CONTROL (`code === 'ENC-0001'`) proving the reader actually received the
+metadata row, so the null PHI fields mean something rather than being a null-everything response.
+The `if (resultMd !== undefined)` guard became an unconditional `expect(resultMd ?? null)`.
+
+**Flow 5d** — the `ok() && rows.length === 0` path hit neither branch. Zero rows IS a legitimate
+denial (invisibility rather than an explicit error), but it has to be said, not skipped. All
+paths now fold into one asserted discriminant (`denied` | `no-rows` | `null-column` | `LEAKED`),
+which also fixes the other half of the defect: nothing used to record which branch had run.
+
+**Flow 8c — the accessibility one, and the reason this bug was filed 🟡 rather than lower.** Two
+un-elsed `if (isVisible)` blocks with no unconditional assertion anywhere: if neither control
+rendered, the test passed while its title claimed to have verified keyboard accessibility — the
+exact artifact CLAUDE.md §8's one-keyboard-flow-per-phase rule exists to prevent. Both controls
+are now REQUIRED. **Proven able to fail by neutralization**: with the reveal-button locator
+swapped for a nonexistent name the test reds with a named message, where the same absent-element
+condition previously produced a silent green. `toBeVisible()` now precedes every `focus()` —
+`focus()` does not auto-wait and no-ops silently against a still-streaming RSC payload, which
+reads like an accessibility defect but is a timing bug.
+
+⚠ **Scope, unchanged:** this covered the ONE file the original bounded check covered. The
+repo-wide vacuous-pass audit the bug proposes is **still open** — see the follow-up in
+PROGRESS.md. The four fixed here remain a lower bound on the shape's prevalence, and Flow 4c is
+now direct evidence that the shape hides real defects rather than merely failing to catch them.
+
+**Verification:** `supabase db reset` → pgTAP **181 files / 5718 tests, all green**;
+`phase22-referrals.spec.ts` **40/40** on a fresh seed (the file runs `mode: 'serial'`, so the
+newly-created-and-sent referral in Flow 4c was confirmed not to disturb the 26 tests after it);
+ESLint clean.
+
+**Authz gates run at closure** (the changes touched a `prosecdef` boolean gate, so ADR 0079's
+diff-scoped sweep applies): `ARM=census` 450 live gates / 461 verdicts — **no unswept newcomer**,
+and `can_manage_professional`'s name-keyed verdict survived the body rewrite (a *rename* would
+have orphaned it; a body replace does not). `ARM=hat` holds, 3 findings all pre-existing and
+reasoned-allowlisted. **Diff-scoped `p0-authz-door-audit.sh` over exactly the two changed gates**
+(derived from the migration diff, on a fresh reset — the first attempt aborted on a non-green
+baseline, which is the documented E2E-leftover artifact, not a defect):
+- `app.can_manage_professional` → **COVERED**, failing files include the new `320` and the
+  amended `318`.
+- `app.is_entitled_document_approver` → **`ERROR` (harness), NOT unswept.** Per §6 an ERROR is
+  not a pass, so the runlog was read rather than the verdict taken at face value: neutralizing it
+  made `200_controlled_documents.sql` fail **14 of 24** and abort at 24 of a planned 51 — which is
+  exactly the 27-test shortfall behind `run-shape!=baseline` — plus a directly-named assertion
+  ("7.11: is_entitled_document_approver false for a non-member"). The suite noticed emphatically;
+  the harness simply cannot classify a run whose shape differs from baseline.
+
+The partial run overwrote `docs/reviews/authz-door-audit-findings.md` (a full-sweep record);
+restored from git per lead-playbook §4.

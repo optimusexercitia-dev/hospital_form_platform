@@ -10,10 +10,22 @@ every spawn's context.
 authorization, the LIVE CATALOG is the sole truth (`pg_proc` incl. `prosecdef`, `pg_policies`,
 `pg_trigger`, the ACLs). Where this text disagrees with the catalog, the catalog wins.
 
-**Still-OPEN items did NOT rotate** — they remain live in PROGRESS.md: `BUG-ACT-EXPIRY-1`
-(scope narrowed to the cross-org shape), `BUG-ACT-ACL-1`, `BUG-VACUOUS-ASSERT-1`, plus the
-follow-ups `FUP-ACT-DISPOSE-UI` (a **pilot-gate check** — "Remaining pre-pilot work" item 0),
+**Still-OPEN items did NOT rotate** — they remain live in PROGRESS.md: the follow-ups
+`FUP-ACT-DISPOSE-UI` (a **pilot-gate check** — "Remaining pre-pilot work" item 0),
 `FUP-ACT-CAPA-ASSIGN` and `FUP-GATE-RESET-FLAKE`.
+
+> ✅ **UPDATED 2026-08-10 — the three bugs this line used to list are CLOSED.**
+> `BUG-ACT-EXPIRY-1` (migration `20260918003000`), `BUG-ACT-ACL-1` (`20260918003100`) and
+> `BUG-VACUOUS-ASSERT-1` (its 4 confirmed instances) were fixed together on branch
+> `worktree-fix-vacuous-assert-act-expiry-acl`; keystone `320` is new and `318` PART 2 was
+> amended with the expiry fix, exactly as that block's own comment had instructed. Detail:
+> [bug-log-archive.md](./bug-log-archive.md). ⚠ Two things did NOT close with them:
+> `BUG-ACT-ACL-1` fixed **one instance** of the standing *AUDIT-INVOKER-WRAPPER* population,
+> and `BUG-VACUOUS-ASSERT-1`'s repo-wide audit continues as **`FUP-VACUOUS-AUDIT-1`** —
+> now evidence-backed, because fixing Flow 4c exposed a live spec defect the vacuous branch
+> had hidden for the test's entire life.
+> ⚠ **Text below this line predates the fix** and describes the quirks as live — including
+> §"S3 close" and the review-derived notes further down. The catalog wins, as stated above.
 
 **Durable pointers:** ADR [0106](../decisions/0106-act-as-role-assumption.md) ·
 plan [act-as-role-assumption.md](../plans/act-as-role-assumption.md) ·
