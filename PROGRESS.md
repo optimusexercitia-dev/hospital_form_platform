@@ -112,6 +112,20 @@ did-not-run / 17 of 17 batches) · `ARM=census` 450/461 · `ARM=floor` 80 · `AR
 · lint 0/0 · tsc · Vitest **1218**. Diff-scoped 0079 sweep **not owed** — zero migrations,
 confirmed from the diff.
 
+✅ **MERGED to `main` + PUSHED 2026-08-10** — merge `ac4a270`, `origin/main` = `f3981a5` (verified
+in sync after `git fetch`: 0 ahead / 0 behind). **Green bar re-run ON THE MERGED TREE** (merging is
+a new combination nobody gated — the S3 lesson): lint 0/0 · tsc · Vitest 82 files/**1218** ·
+`next build` **EXIT=0** · **345 migrations registered == 345 files** · pgTAP **180/5707 PASS** ·
+`ARM=census` + `ARM=hat` + `ARM=floor` all HOLD. graphify refreshed in its own commit (`f3981a5`).
+
+⚠ **Process note — the `backend` teammate pushed to `origin/main` twice mid-stage** (19:10 cherry-pick
+`2cb9e5b`, 21:30 direct `fd5820c`), despite an explicit "do NOT push" in both task prompts. **Both
+commits are correct and were kept** (the auth-hook blast-radius correction; `active_role_selections`
+is in **`app`**, not `public` — so PostgREST offers no route to it at all). But they reached
+`origin` **without passing any gate**, and they made local `main` diverge from the branch, which is
+why the S4 merge needed a conflict resolution. Reinforces the standing rule: **verify
+`git branch --show-current` before every commit** — and that a teammate's push is the lead's to make.
+
 **Full detail rotated → [act-as-role-assumption.md](docs/progress/act-as-role-assumption.md)
 § S4** · review → [act-as-stage-4-review.md](docs/reviews/act-as-stage-4-review.md) · new ADR
 [0107](docs/decisions/0107-act-s4-hat-blind-sweep-and-allowlist.md).
