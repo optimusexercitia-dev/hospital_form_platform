@@ -40,6 +40,10 @@ const EXPECTED: Readonly<Record<string, string>> = {
 
 describe('participant type labels — the TS half of the SQL/TS mirror', () => {
   it('maps all seven types to the exact pt-BR strings the SQL twin emits', () => {
+    // FUP-VACUOUS-AUDIT-1: the count is asserted, not assumed. Every assertion in
+    // this test lives inside the loop, so an EXPECTED that lost entries would leave
+    // the test green having compared nothing — and the title says "all seven".
+    expect(Object.keys(EXPECTED)).toHaveLength(7)
     for (const [type, label] of Object.entries(EXPECTED)) {
       expect(participantTypeLabel(type)).toBe(label)
     }
@@ -59,6 +63,9 @@ describe('participant type labels — the TS half of the SQL/TS mirror', () => {
   it('emits NO raw English identifier for any declared type', () => {
     // The defect, stated as its own assertion rather than inferred from the
     // table above: whatever the labels become, none may be the DB identifier.
+    // FUP-VACUOUS-AUDIT-1: pin the population first — an emptied PARTICIPANT_TYPES
+    // would make this test pass while checking no type at all.
+    expect(PARTICIPANT_TYPES).toHaveLength(7)
     for (const type of PARTICIPANT_TYPES) {
       expect(participantTypeLabel(type)).not.toBe(type)
     }

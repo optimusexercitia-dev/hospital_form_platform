@@ -198,6 +198,13 @@ describe("picker agrees with the shared outside-in predicate", () => {
       top2: null,
     };
 
+    // FUP-VACUOUS-AUDIT-1: count the forbidden pairs actually exercised. Every
+    // assertion below sits inside `if (!isConditionTargetInScope(...))`, so a
+    // predicate that turned permissive — or a `homeOf`/`cases` table that lost its
+    // out-of-scope rows — would leave this test green having checked nothing.
+    // The sibling test below guards the predicate, but it is a DIFFERENT test: it
+    // cannot stop THIS one reporting confidence it never earned.
+    let forbiddenPairsChecked = 0;
     for (const { viewerId, offered } of cases) {
       for (const [key, home] of Object.entries(homeOf)) {
         // A key may be absent for the ORDERING rule (not strictly earlier); we
@@ -205,9 +212,14 @@ describe("picker agrees with the shared outside-in predicate", () => {
         // never be offered.
         if (!isConditionTargetInScope(home, viewerId)) {
           expect(offered).not.toContain(key);
+          forbiddenPairsChecked += 1;
         }
       }
     }
+    expect(
+      forbiddenPairsChecked,
+      "no forbidden (home, viewer) pair was exercised — the loop asserted nothing",
+    ).toBeGreaterThan(0);
   });
 
   it("the predicate itself forbids outside-in and permits inside-out", () => {

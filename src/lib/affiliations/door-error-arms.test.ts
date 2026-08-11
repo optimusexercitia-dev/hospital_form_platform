@@ -202,6 +202,11 @@ describe('affiliation doors <-> toState error arms', () => {
     // A renamed or split migration would make the domain EMPTY, and an empty domain
     // satisfies the main assertion vacuously — reporting success precisely when it had
     // stopped looking.
+    // FUP-VACUOUS-AUDIT-1, and note what this is: the guard against an empty domain
+    // was ITSELF sweeping a constant that could empty. If DOOR_MIGRATIONS were ever
+    // emptied, this test would report "the migrations still exist" having looked at
+    // none of them — the exact failure it was written to prevent, one level up.
+    expect(DOOR_MIGRATIONS.length, 'DOOR_MIGRATIONS is empty — nothing was checked').toBeGreaterThan(0)
     const present = new Set(readdirSync(MIGRATIONS))
     for (const file of DOOR_MIGRATIONS) expect(present, file).toContain(file)
   })
@@ -238,7 +243,13 @@ describe('affiliation doors <-> toState error arms', () => {
     // An arm returning `MESSAGES.generic` is an arm in name only — it restores the exact
     // defect this file exists to prevent while looking like a fix.
     const actions = actionsSource()
-    for (const code of raisedCodes()) {
+    // FUP-VACUOUS-AUDIT-1: `raisedCodes()` is parsed from migration text, so a regex
+    // or path drift empties it silently and "every arm maps to a DISTINCT message"
+    // becomes true of zero arms. A sibling test pins the size, but a sibling cannot
+    // stop THIS test reporting a property it never checked.
+    const codes = raisedCodes()
+    expect(codes.size, 'no errcodes parsed — the regex or the files moved').toBeGreaterThan(3)
+    for (const code of codes) {
       const arm = new RegExp(`case\\s+'${code}'\\s*:[\\s\\S]{0,200}?return\\s*\\{[^}]*\\}`)
       const body = arm.exec(actions)?.[0] ?? ''
       expect(body, `${code} is mapped to the generic message`).not.toMatch(/MESSAGES\.generic/)

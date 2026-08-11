@@ -266,8 +266,17 @@ describe('computeReadinessRollups — empty / no-standards cases', () => {
 describe('freshness split is never collapsed (ADR 0093 D5)', () => {
   function assertNeverCollapsed(record: object): void {
     const keys = Object.keys(record)
-    const hasAnyEvidenceField = keys.some((k) => k.startsWith('evidence'))
-    if (!hasAnyEvidenceField) return
+    // FUP-VACUOUS-AUDIT-1 — this was `if (!hasAnyEvidenceField) return`, which
+    // exempted the WORST case: a record that dropped the freshness fields entirely
+    // is the most complete collapse there is, and the guard answered it by returning
+    // silently. All three call sites assert "carries the full four-way split", so
+    // the absence of evidence fields is a failure, never a reason to skip.
+    // It also made the caller at "every GapItem …" a test with no reachable
+    // assertion at all, since the helper is its only check.
+    expect(
+      keys.filter((k) => k.startsWith('evidence')),
+      'record carries NO evidence fields at all — the freshness split collapsed completely',
+    ).not.toHaveLength(0)
     // The four-way split must appear together — never a bare aggregate like
     // `evidenceCount` or `evidenceTotal` standing in for it.
     expect(keys).toEqual(

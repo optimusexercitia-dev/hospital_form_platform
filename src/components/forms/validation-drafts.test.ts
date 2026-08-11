@@ -246,6 +246,13 @@ describe("toRuleDrafts — read-back for editing", () => {
       }),
       rule({ ruleType: "unique_within_group", config: {} }),
     ];
+    // FUP-VACUOUS-AUDIT-1: the title says "every rule type", so assert exactly that
+    // rather than leaving it to whoever last edited the list. Every assertion in
+    // this test lives inside the loop, so a shortened `cases` would quietly narrow
+    // the round-trip coverage while the test kept reporting the same green — and a
+    // NEW rule type added to VALIDATION_RULE_TYPES would never be round-tripped at
+    // all. This reds on both.
+    expect([...cases.map((c) => c.ruleType)].sort()).toEqual([...VALIDATION_RULE_TYPES].sort());
     for (const r of cases) {
       const [d] = toRuleDrafts([r]);
       expect(d.ruleType).toBe(r.ruleType);
@@ -486,6 +493,10 @@ describe("client-unevaluated rule types (QA r2)", () => {
   });
 
   it("every other rule type IS client-evaluated", () => {
+    // FUP-VACUOUS-AUDIT-1: "every other" is the claim an empty set makes true for
+    // free. Pin that there IS an "other" — more than the one skipped type — so the
+    // loop cannot report this property having checked no rule at all.
+    expect(VALIDATION_RULE_TYPES.length).toBeGreaterThan(1);
     for (const t of VALIDATION_RULE_TYPES) {
       if (t === "regex") continue;
       expect(CLIENT_UNEVALUATED_RULE_TYPES).not.toContain(t);

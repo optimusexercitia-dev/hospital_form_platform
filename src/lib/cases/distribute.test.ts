@@ -30,6 +30,11 @@ describe("balancedDeal", () => {
   });
 
   it("assigns every case exactly once, only to selected members", () => {
+    // FUP-VACUOUS-AUDIT-1: a property test's whole content is its loop, so pin that
+    // the sweep actually ran the breadth it claims. Without this, narrowing any of
+    // the three ranges below (or zeroing the seed bound) silently shrinks coverage
+    // while the test reports the identical green.
+    let combinations = 0;
     for (let seed = 1; seed <= 40; seed += 1) {
       for (const caseCount of [1, 3, 7, 12, 50, 200]) {
         for (const memberCount of [1, 2, 3, 5]) {
@@ -44,12 +49,17 @@ describe("balancedDeal", () => {
           // Only selected members are used.
           const allowed = new Set<string>(members);
           expect(owners.every((o) => allowed.has(o))).toBe(true);
+          combinations += 1;
         }
       }
     }
+    expect(combinations, "the property sweep did not run").toBe(40 * 6 * 4);
   });
 
   it("keeps per-member workloads within 1 of each other (balanced)", () => {
+    // FUP-VACUOUS-AUDIT-1 — see the sibling above: pin the sweep's breadth so a
+    // narrowed range cannot shrink coverage behind an unchanged green.
+    let combinations = 0;
     for (let seed = 1; seed <= 40; seed += 1) {
       for (const caseCount of [1, 4, 7, 13, 50, 199, 200]) {
         for (const memberCount of [1, 2, 3, 4, 5]) {
@@ -67,9 +77,11 @@ describe("balancedDeal", () => {
           const floor = Math.floor(caseCount / memberCount);
           const remainder = caseCount % memberCount;
           expect(counts.filter((c) => c === floor + 1)).toHaveLength(remainder);
+          combinations += 1;
         }
       }
     }
+    expect(combinations, "the property sweep did not run").toBe(40 * 7 * 5);
   });
 
   it("re-shuffles to a different deal for different seeds (not degenerate)", () => {

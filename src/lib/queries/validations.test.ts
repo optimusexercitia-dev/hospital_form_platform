@@ -141,6 +141,10 @@ describe('isValidationRuleAllowed (TS mirror of app.validation_rule_allowed)', (
   })
 
   it('refuses containers, display items, matrices and references', () => {
+    // FUP-VACUOUS-AUDIT-1: the outer list is a literal, but the INNER loop sweeps
+    // the imported VALIDATION_RULE_TYPES — if that ever emptied, this "refuses
+    // everything" test would pass having refused nothing. Pin it.
+    expect(VALIDATION_RULE_TYPES.length).toBeGreaterThan(0)
     for (const t of [
       'group',
       'repeating_group',

@@ -85,6 +85,10 @@ describe('item-type sets — the builder allowlist mirrors the DB CHECK', () => 
   it('every answerable type is also creatable', () => {
     // Cross-tie: the two lists cannot drift apart in the one direction the
     // set-equality tests above would each individually tolerate.
+    // FUP-VACUOUS-AUDIT-1: an emptied ANSWERABLE_ITEM_TYPES would satisfy "every
+    // answerable type is creatable" vacuously — the strongest-sounding claim in
+    // this file is the one an empty set makes true. Pin the population first.
+    expect(ANSWERABLE_ITEM_TYPES.length).toBeGreaterThan(0)
     for (const type of ANSWERABLE_ITEM_TYPES) {
       expect(ALL_ITEM_TYPES).toContain(type)
     }

@@ -46,6 +46,9 @@ const ts = require('typescript')
 const TEST_FNS = new Set(['test', 'it'])
 // Modifiers that still produce a running test (`only`, `fails`) vs ones that don't.
 const RUNNING_MODIFIERS = new Set(['only', 'fails', 'concurrent', 'sequential'])
+// Wrappers whose callback ALWAYS runs and whose failure propagates out of the
+// wrapper — so an assertion inside one is guaranteed, not conditional.
+const RETRY_WRAPPERS = new Set(['waitFor', 'waitForElementToBeRemoved', 'act'])
 
 /** Is this call `expect(...)`, `expect.soft(...)`, or `expect.poll(...)`? */
 function isExpectCall(node) {
@@ -144,12 +147,7 @@ function assertsUnconditionally(node, helpers, seen) {
     // execute — the collection is right there and cannot be empty. A loop over a
     // computed collection is NOT (an empty result asserts nothing, which is the
     // shape being hunted), so only the literal form is admitted.
-    if (
-      ts.isForOfStatement(stmt) &&
-      ts.isArrayLiteralExpression(stmt.expression) &&
-      stmt.expression.elements.length > 0 &&
-      !stmt.expression.elements.some((e) => ts.isSpreadElement(e))
-    ) {
+    if (ts.isForOfStatement(stmt) && isNonEmptyArrayLiteral(stmt.expression)) {
       const body = ts.isBlock(stmt.statement) ? stmt.statement.statements : [stmt.statement]
       if (assertsUnconditionally(body, helpers, seen)) {
         found = true
@@ -165,6 +163,30 @@ function assertsUnconditionally(node, helpers, seen) {
   const list = Array.isArray(node) ? node : node.statements ? node.statements : [node]
   for (const stmt of list) visitStatement(stmt)
   return found
+}
+
+/**
+ * A non-empty array literal, seen through the wrappers that do not change it:
+ * `as const`, `satisfies T`, `<T>expr`, and parentheses. Without this unwrap the
+ * extremely common `for (const t of ['a','b'] as const)` reads as a computed
+ * collection and produces a false positive.
+ */
+function isNonEmptyArrayLiteral(expr) {
+  let e = expr
+  while (
+    ts.isAsExpression(e) ||
+    ts.isTypeAssertionExpression?.(e) ||
+    ts.isSatisfiesExpression?.(e) ||
+    ts.isParenthesizedExpression(e)
+  ) {
+    e = e.expression
+  }
+  return (
+    ts.isArrayLiteralExpression(e) &&
+    e.elements.length > 0 &&
+    // A spread could expand to nothing, so it cannot carry the guarantee.
+    !e.elements.some((el) => ts.isSpreadElement(el))
+  )
 }
 
 /** A `return` that exits the TEST (not a nested callback) anywhere inside `node`. */
@@ -194,6 +216,26 @@ function containsGuaranteedAssertion(node, helpers, seen) {
       found = true
       return
     }
+    // Testing-Library / Vitest retry wrappers: `waitFor(() => expect(…))`,
+    // `waitForElementToBeRemoved`, `act(() => …)`. The callback is always invoked and
+    // an assertion that never satisfies makes the WRAPPER throw, so an expect inside
+    // one is genuinely guaranteed — unlike a `.forEach` callback, which simply may
+    // not fire. Missing this flagged real, correctly-asserting tests.
+    if (
+      ts.isCallExpression(n) &&
+      ts.isIdentifier(n.expression) &&
+      RETRY_WRAPPERS.has(n.expression.text)
+    ) {
+      for (const arg of n.arguments) {
+        if (!ts.isArrowFunction(arg) && !ts.isFunctionExpression(arg)) continue
+        const b = arg.body
+        if (containsGuaranteedAssertion(ts.isBlock(b) ? b : ts.factory.createExpressionStatement(b), helpers, seen)) {
+          found = true
+          return
+        }
+      }
+    }
+
     const step = asTestStep(n)
     if (step) {
       // The step callback always runs.
@@ -337,6 +379,11 @@ const FIXTURES = [
   { flag: true, name: 'assert only in loop over computed collection', src: `test('a', async () => { for (const r of rows) { expect(r).toBeNull() } })` },
   { flag: false, name: 'loop over non-empty array literal', src: `test('a', async () => { for (const e of ['a','b']) { expect(e).toBeTruthy() } })` },
   { flag: true, name: 'loop over EMPTY array literal', src: `test('a', async () => { for (const e of []) { expect(e).toBeTruthy() } })` },
+  { flag: false, name: 'loop over array literal AS CONST', src: `test('a', async () => { for (const e of ['a','b'] as const) { expect(e).toBeTruthy() } })` },
+  { flag: true, name: 'loop over spread literal (may expand to nothing)', src: `test('a', async () => { for (const e of [...xs]) { expect(e).toBeTruthy() } })` },
+  { flag: false, name: 'assert inside awaited waitFor', src: `test('a', async () => { await waitFor(() => expect(fn).toHaveBeenCalled()) })` },
+  { flag: false, name: 'assert inside waitFor block body', src: `test('a', async () => { await waitFor(() => { expect(fn).toHaveBeenCalled() }) })` },
+  { flag: true, name: 'waitFor with NO assertion inside', src: `test('a', async () => { await waitFor(() => ready()) })` },
   { flag: true, name: 'assert in try WITH catch (swallowed)', src: `test('a', async () => { try { expect(1).toBe(1) } catch {} })` },
   // try/finally does NOT swallow — the cleanup idiom must stay clean.
   { flag: false, name: 'assert in try WITHOUT catch (finally cleanup)', src: `test('a', async () => { try { expect(1).toBe(1) } finally { cleanup() } })` },

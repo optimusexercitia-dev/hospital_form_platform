@@ -262,6 +262,16 @@ describe('FUP-QO-2 — every membership role resolves to a landing route', () =>
   })
 
   it('the KNOWN_UNROUTED ledger has no stale entries (a fixed role must be removed)', async () => {
+    // FUP-VACUOUS-AUDIT-1. Unlike most findings, an EMPTY ledger here is the GOAL
+    // state (every role routes), so having nothing to iterate is success rather than
+    // a defect — but it should be SAID, not left silent. The unconditional assertion
+    // is chosen to still earn its keep when the ledger is empty AND when it is not:
+    // an entry naming a role the catalog does not know is a typo that would sit here
+    // forever, exempting nothing and looking like diligence.
+    expect(
+      KNOWN_UNROUTED.filter((r) => !CATALOG_ROLES.includes(r)),
+      'KNOWN_UNROUTED names a role the catalog does not have',
+    ).toEqual([])
     for (const role of KNOWN_UNROUTED) {
       const outcome = await resolveLanding(role)
       expect(
