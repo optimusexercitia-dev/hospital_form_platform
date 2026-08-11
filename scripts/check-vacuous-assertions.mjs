@@ -143,6 +143,24 @@ function assertsUnconditionally(node, helpers, seen) {
       if (containsGuaranteedAssertion(stmt, helpers, seen)) found = true
       return
     }
+    // EXHAUSTIVE BRANCHING. `if (c) { assert } else { assert }` does guarantee an
+    // assertion — every path through it asserts. So does an `else if` chain that
+    // ends in a real `else`, by recursion. Only an `if` with no `else`, or one whose
+    // branches don't all assert, leaves a silent path. Missing this flagged real
+    // deny-tests that correctly assert both the 403 and the empty-result outcome.
+    if (ts.isIfStatement(stmt) && stmt.elseStatement) {
+      const branch = (s) => (ts.isBlock(s) ? s.statements : [s])
+      if (
+        assertsUnconditionally(branch(stmt.thenStatement), helpers, seen) &&
+        assertsUnconditionally(branch(stmt.elseStatement), helpers, seen)
+      ) {
+        found = true
+        return
+      }
+      if (containsTestExitingReturn(stmt)) guaranteed = false
+      return
+    }
+
     // `for (const x of [a, b, c])` over a NON-EMPTY ARRAY LITERAL is guaranteed to
     // execute — the collection is right there and cannot be empty. A loop over a
     // computed collection is NOT (an empty result asserts nothing, which is the
@@ -394,6 +412,12 @@ const FIXTURES = [
   { flag: true, name: 'assert behind &&', src: `test('a', async () => { x && expect(1).toBe(1) })` },
   { flag: true, name: 'assert in callback', src: `test('a', async () => { rows.forEach(r => expect(r).toBeNull()) })` },
   { flag: true, name: 'if/else where else lacks assert', src: `test('a', async () => { if (x) { expect(1).toBe(1) } else { log() } })` },
+  // Exhaustive branching genuinely guarantees an assertion.
+  { flag: false, name: 'if/else where BOTH branches assert', src: `test('a', async () => { if (x) { expect(1).toBe(1) } else { expect(2).toBe(2) } })` },
+  { flag: false, name: 'else-if chain ending in a real else', src: `test('a', async () => { if (x) { expect(1).toBe(1) } else if (y) { expect(2).toBe(2) } else { expect(3).toBe(3) } })` },
+  { flag: true, name: 'else-if chain with NO final else', src: `test('a', async () => { if (x) { expect(1).toBe(1) } else if (y) { expect(2).toBe(2) } })` },
+  // The Flow 5d shape: outer else asserts, but the then-branch nests a bare if.
+  { flag: true, name: 'if/else whose then-branch nests a bare if', src: `test('a', async () => { if (x) { if (y) { expect(1).toBe(1) } } else { expect(2).toBe(2) } })` },
   // --- must NOT be flagged ---
   { flag: false, name: 'plain unconditional', src: `test('a', async () => { expect(1).toBe(1) })` },
   { flag: false, name: 'awaited unconditional', src: `test('a', async () => { await expect(l).toBeVisible() })` },

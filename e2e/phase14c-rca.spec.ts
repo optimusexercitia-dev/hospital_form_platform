@@ -43,6 +43,14 @@ import { cachedSignIn, accessToken } from "./helpers/auth"
  *   chefe.farm@test.local  staff_admin, Farmácia (no access)  (00…005)
  */
 
+// R6/R9/R10/R11 walk ONE shared RCA row through its status machine, and their own
+// comments have always assumed sequential execution ("from R10 in a prior run",
+// "R10 should have done this"). With the project's `fullyParallel: true` that
+// ordering was never actually guaranteed — the tests coped by silently `return`ing
+// when the row wasn't in the state they wanted, which is exactly how they passed
+// while asserting nothing (FUP-VACUOUS-AUDIT-1). Declare the ordering they rely on.
+test.describe.configure({ mode: 'serial' })
+
 test.use({ viewport: { width: 1280, height: 900 } })
 
 test.beforeEach(async ({ page }) => {
@@ -130,6 +138,58 @@ async function auditRowsFor(
     `audit_log?action=eq.${encodeURIComponent(action)}&entity_id=eq.${entityId}&select=id,action,actor_id`,
     SUPABASE_SERVICE_KEY,
   )
+}
+
+async function rcaStatus(req: APIRequestContext): Promise<string> {
+  const rows = await restGet<{ status: string }>(
+    req,
+    `rca?id=eq.${RCA_ID}&select=status`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(rows, `RCA ${RCA_ID} not found — the seed did not apply`).toHaveLength(1)
+  return rows[0].status
+}
+
+/**
+ * FUP-VACUOUS-AUDIT-1 — ESTABLISH the precondition instead of hoping for it.
+ *
+ * R6/R9/R10/R11 share one RCA row and walk it through
+ * `in_progress → in_review → completed → (reopen) → in_progress`. Each of them used
+ * to READ the status and, if it wasn't what the test needed, `return` — so on any
+ * ordering but the happy one the test passed having asserted nothing, and nothing
+ * recorded that it had skipped. This drives the row to the wanted state and asserts
+ * every transition, so a broken transition reds here instead of silently disarming
+ * the test that depended on it.
+ *
+ * `in_review` cannot go back directly (only `completed → reopen` is a valid
+ * transition), so normalising from there goes forward through `complete` first.
+ */
+async function ensureRcaStatus(
+  req: APIRequestContext,
+  token: string,
+  target: 'in_progress' | 'in_review',
+): Promise<void> {
+  // Bounded: each hop advances the machine, and 4 covers the longest path
+  // (in_review → completed → in_progress → in_review).
+  for (let hop = 0; hop < 4; hop += 1) {
+    const status = await rcaStatus(req)
+    if (status === target) return
+
+    if (status === 'completed') {
+      const r = await rpc(req, 'reopen_rca', token, { p_rca_id: RCA_ID })
+      expect(r.ok(), `reopen_rca failed: ${r.status()} ${await r.text()}`).toBe(true)
+    } else if (status === 'in_review') {
+      // Forward, not back — see the note above.
+      const r = await rpc(req, 'complete_rca', token, { p_rca_id: RCA_ID })
+      expect(r.ok(), `complete_rca failed: ${r.status()} ${await r.text()}`).toBe(true)
+    } else if (status === 'in_progress') {
+      const r = await rpc(req, 'submit_rca_for_review', token, { p_rca_id: RCA_ID })
+      expect(r.ok(), `submit_rca_for_review failed: ${r.status()} ${await r.text()}`).toBe(true)
+    } else {
+      throw new Error(`unexpected RCA status "${status}"`)
+    }
+  }
+  expect(await rcaStatus(req), `could not drive the RCA to ${target}`).toBe(target)
 }
 
 // ---------------------------------------------------------------------------
@@ -315,24 +375,9 @@ test('R5: set_rca_why_step and set_rca_why_root on seeded key factor', async ({
 test('R6: add_rca_root_cause adds a classified root cause', async ({ request }) => {
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
-  // If the RCA is completed (from R10 in a prior run), reopen it so we can write
-  const rcaRows = await restGet<{ status: string }>(
-    request,
-    `rca?id=eq.${RCA_ID}&select=status`,
-    SUPABASE_SERVICE_KEY,
-  )
-  if (rcaRows[0]?.status === 'completed') {
-    const reopenResp = await rpc(request, 'reopen_rca', adminToken, { p_rca_id: RCA_ID })
-    expect(reopenResp.ok()).toBeTruthy()
-  } else if (rcaRows[0]?.status === 'in_review') {
-    // Also must be in_progress to add root causes
-    const reopenResp = await rpc(request, 'reopen_rca', adminToken, { p_rca_id: RCA_ID })
-    // in_review → reopen is not a valid transition (only completed → reopen); just proceed
-    if (!reopenResp.ok()) {
-      // skip adding root cause if we can't write
-      return
-    }
-  }
+  // Root causes can only be added while in_progress. This used to try a reopen and
+  // `return` silently if it failed — the whole test then asserted nothing.
+  await ensureRcaStatus(request, adminToken, 'in_progress')
 
   const resp = await rpc(request, 'add_rca_root_cause', adminToken, {
     p_rca_id: RCA_ID,
@@ -389,43 +434,49 @@ test('R7: add_rca_timeline_entry adds a chronological entry', async ({ request }
 test('R8: add_rca_evidence with citation type (interview target)', async ({ request }) => {
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
-  // Find an existing interview in the seeded data to cite
+  // Find an existing interview in the seeded data to cite.
+  // ⚠ The relation is `case_interviews`. This read `interviews`, which DOES NOT
+  // EXIST (catalog-verified — `interviews` is the feature-flag key, the table is
+  // `case_interviews`), so the probe always came back empty and this test always
+  // took the link fallback below. The CITATION arm its title names had therefore
+  // never executed once. Found by FUP-VACUOUS-AUDIT-1, not by a red — a wrong
+  // relation name in a REST probe is invisible when the only thing downstream of it
+  // is a fallback branch.
   const interviews = await restGet<{ id: string; title: string }>(
     request,
-    `interviews?select=id,title&limit=1`,
+    `case_interviews?select=id,title&limit=1`,
     SUPABASE_SERVICE_KEY,
   )
 
-  if (interviews.length === 0) {
-    // Fallback: add a link evidence if no interviews are seeded
-    const resp = await rpc(request, 'add_rca_evidence', adminToken, {
-      p_rca_id: RCA_ID,
-      p_kind: 'link',
-      p_title: 'Link de evidência spec E2E R8',
-      p_external_url: 'https://example.com/evidencia-r8',
-    })
-    expect(resp.ok()).toBeTruthy()
-    const ev = await resp.json() as { kind: string; title: string }
-    expect(ev.kind).toBe('link')
-    expect(ev.title).toMatch(/E2E R8/)
-  } else {
-    const interviewId = interviews[0].id
-    const resp = await rpc(request, 'add_rca_evidence', adminToken, {
-      p_rca_id: RCA_ID,
-      p_kind: 'citation',
-      p_title: 'Citação de entrevista — spec E2E R8',
-      p_citation_target: 'interview',
-      p_cited_entity_id: interviewId,
-      p_citation_label: 'Entrevista sobre protocolo cirúrgico',
-    })
-    expect(resp.ok()).toBeTruthy()
-    const ev = await resp.json() as {
-      kind: string; title: string; cited_interview_id: string; citation_label: string
-    }
-    expect(ev.kind).toBe('citation')
-    expect(ev.cited_interview_id).toBe(interviewId)
-    expect(ev.citation_label).toMatch(/protocolo cirúrgico/)
+  // FUP-VACUOUS-AUDIT-1: writing evidence requires an unfrozen RCA, so establish it
+  // rather than depending on whatever the previous test left behind.
+  await ensureRcaStatus(request, adminToken, 'in_progress')
+
+  // The link fallback that used to sit here is GONE, not repaired: it was the arm
+  // this test actually ran for its whole life, it tests a different RPC shape than
+  // the title claims, and keeping it would preserve the escape hatch that hid the
+  // wrong relation name. A missing interview is now a red with a legible reason.
+  expect(
+    interviews.length,
+    'no seeded interview to cite — the CITATION arm this test is named for cannot run',
+  ).toBeGreaterThan(0)
+
+  const interviewId = interviews[0].id
+  const resp = await rpc(request, 'add_rca_evidence', adminToken, {
+    p_rca_id: RCA_ID,
+    p_kind: 'citation',
+    p_title: 'Citação de entrevista — spec E2E R8',
+    p_citation_target: 'interview',
+    p_cited_entity_id: interviewId,
+    p_citation_label: 'Entrevista sobre protocolo cirúrgico',
+  })
+  expect(resp.ok(), `add_rca_evidence failed: ${resp.status()}`).toBe(true)
+  const ev = await resp.json() as {
+    kind: string; title: string; cited_interview_id: string; citation_label: string
   }
+  expect(ev.kind).toBe('citation')
+  expect(ev.cited_interview_id).toBe(interviewId)
+  expect(ev.citation_label).toMatch(/protocolo cirúrgico/)
 })
 
 // ---------------------------------------------------------------------------
@@ -437,18 +488,10 @@ test('R9: submit_rca_for_review transitions in_progress → in_review', async ({
 }) => {
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
-  // Ensure RCA is in_progress
-  const rows = await restGet<{ status: string }>(
-    request,
-    `rca?id=eq.${RCA_ID}&select=status`,
-    SUPABASE_SERVICE_KEY,
-  )
-  const currentStatus = rows[0]?.status
-  if (currentStatus !== 'in_progress') {
-    // Already in_review or completed from a prior test — skip the submit step
-    // (later tests exercise complete and reopen)
-    return
-  }
+  // The transition under test starts from in_progress. This used to `return` when
+  // the row was already in_review/completed, so on any ordering but the happy one
+  // the test verified nothing at all.
+  await ensureRcaStatus(request, adminToken, 'in_progress')
 
   const resp = await rpc(request, 'submit_rca_for_review', adminToken, {
     p_rca_id: RCA_ID,
@@ -468,21 +511,10 @@ test('R10: complete_rca freezes the RCA; rejects if no root cause exists', async
 }) => {
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
-  // First: ensure we are in_review state (submit if needed)
-  const rows = await restGet<{ status: string }>(
-    request,
-    `rca?id=eq.${RCA_ID}&select=status`,
-    SUPABASE_SERVICE_KEY,
-  )
-  const status = rows[0]?.status
-
-  if (status === 'in_progress') {
-    const submitResp = await rpc(request, 'submit_rca_for_review', adminToken, { p_rca_id: RCA_ID })
-    expect(submitResp.ok()).toBeTruthy()
-  } else if (status === 'completed') {
-    // Already completed (R11 may reopen; skip to verify frozen state)
-    return
-  }
+  // complete_rca runs from in_review. The `completed` case used to `return`, which
+  // skipped BOTH the completion assertions and the frozen-write check below — the
+  // freeze is the security-relevant half of this test.
+  await ensureRcaStatus(request, adminToken, 'in_review')
 
   // complete_rca from in_review; there are seeded + R6-added root causes → should succeed
   const completeResp = await rpc(request, 'complete_rca', adminToken, { p_rca_id: RCA_ID })
@@ -511,16 +543,16 @@ test('R11: reopen_rca transitions completed → in_progress and writes audit row
 }) => {
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
 
-  // Ensure the RCA is completed (R10 should have done this)
-  const rows = await restGet<{ status: string }>(
-    request,
-    `rca?id=eq.${RCA_ID}&select=status`,
-    SUPABASE_SERVICE_KEY,
-  )
-  if (rows[0]?.status !== 'completed') {
-    // State not as expected from prior test — skip
-    return
-  }
+  // reopen runs from completed. This used to `return` when "state not as expected
+  // from prior test" — i.e. precisely when R10 had failed to complete the RCA, so
+  // one broken test silently disarmed the next.
+  await ensureRcaStatus(request, adminToken, 'in_review')
+  const completeResp = await rpc(request, 'complete_rca', adminToken, { p_rca_id: RCA_ID })
+  expect(
+    completeResp.ok(),
+    `complete_rca failed while setting up reopen: ${completeResp.status()}`,
+  ).toBe(true)
+  expect(await rcaStatus(request)).toBe('completed')
 
   const before = await auditRowsFor(request, 'rca.reopened', RCA_ID)
 
