@@ -9,14 +9,14 @@ import {
   casesExtrasEnabled,
   listCaseCustomFieldValues,
 } from "@/lib/queries/cases";
-import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
+import { caseCustomFieldsEnabled, featureEnabled } from "@/lib/queries/feature-flags";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import {
   listPhaseResults,
   phaseResultsEnabled,
 } from "@/lib/queries/phase-results";
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
-import { listMembers } from "@/lib/queries/members";
+import { listMembers, listAddableMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
@@ -30,6 +30,7 @@ import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
 import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
+import { listCaseParticipantRoles } from "@/lib/queries/participants";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -81,6 +82,7 @@ export default async function CaseDetailPage({
     meetingsOn,
     actionItemsOn,
     caseCustomFieldsOn,
+    caseParticipantsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -92,7 +94,19 @@ export default async function CaseDetailPage({
     meetingsEnabled(),
     actionItemsEnabled(),
     caseCustomFieldsEnabled(),
+    featureEnabled("case_participants"),
   ]);
+
+  // ETH·E4 (ADR 0108) — same org-scoped roster surfaces as the staff route.
+  const [participantRoles, participantPlatformUsers] = caseParticipantsOn
+    ? await Promise.all([
+        listCaseParticipantRoles(
+          access.organization.id,
+          detail.case.caseTypeId,
+        ),
+        listAddableMembers(access.commission.id),
+      ])
+    : [[], []];
 
   // The commission's outcome vocabulary — for the process-less offered-outcome
   // editor (processless_cases). Only needed when this case is process-less AND the
@@ -180,6 +194,10 @@ export default async function CaseDetailPage({
       correctionsEnabled={correctionsData.enabled}
       corrections={correctionsData.requests}
       narrativeRevisions={correctionsData.narrativeRevisions}
+      caseParticipantsEnabled={caseParticipantsOn}
+      organizationId={access.organization.id}
+      participantRoles={participantRoles}
+      participantPlatformUsers={participantPlatformUsers}
     />
   );
 }
