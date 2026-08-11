@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { Tags } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { listCaseTypes } from "@/lib/queries/case-types";
+import { getCaseTypeTerminology, listCaseTypes } from "@/lib/queries/case-types";
 import { caseTypesEnabled } from "@/lib/queries/feature-flags";
 import { CaseTypeManager } from "@/components/org/case-type-manager";
+import { listCaseParticipantRolesForAdmin } from "@/lib/vocabulary/actions";
+import type { CaseTypeTerminology } from "@/lib/cases/terminology";
 
 export const metadata: Metadata = {
   title: "Tipos de caso",
@@ -50,6 +52,23 @@ export default async function OrgCaseTypesPage({
 
   const caseTypes = await listCaseTypes(organization.id, { activeOnly: false });
 
+  // ETH·E4 §4 — the org's participant-role vocabulary (active + inactive) and,
+  // for each case type, its RESOLVED terminology bundle (override rows merged
+  // over the platform default). Both feed `CaseTypeManager`'s new editors.
+  // `caseTypes` is a bounded, org-scoped list — fetching every type's
+  // terminology upfront (rather than per-dialog-open) keeps the manager a
+  // plain server-props component like the rest of this page.
+  const [participantRoles, terminologyEntries] = await Promise.all([
+    listCaseParticipantRolesForAdmin(organization.id),
+    Promise.all(
+      caseTypes.map(
+        async (t) => [t.id, await getCaseTypeTerminology(t.id)] as const,
+      ),
+    ),
+  ]);
+  const terminologyByCaseTypeId: Record<string, CaseTypeTerminology> =
+    Object.fromEntries(terminologyEntries);
+
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-2">
@@ -82,6 +101,8 @@ export default async function OrgCaseTypesPage({
         <CaseTypeManager
           organizationId={organization.id}
           caseTypes={caseTypes}
+          terminologyByCaseTypeId={terminologyByCaseTypeId}
+          participantRoles={participantRoles}
         />
       </section>
     </div>

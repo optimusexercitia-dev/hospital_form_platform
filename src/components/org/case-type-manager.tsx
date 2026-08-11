@@ -41,6 +41,13 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
+import {
+  DEFAULT_CASE_TERMINOLOGY,
+  type CaseTypeTerminology,
+} from "@/lib/cases/terminology";
+import type { CaseParticipantRoleAdminRow } from "@/lib/vocabulary/actions";
+import { CaseTypeTerminologyDialog } from "@/components/org/case-type-terminology-dialog";
+import { CaseParticipantRoleManager } from "@/components/org/case-participant-role-manager";
 
 /**
  * The org_admin's case-TYPE vocabulary surface (ADR 0064 Decision 4).
@@ -57,59 +64,115 @@ import {
 export function CaseTypeManager({
   organizationId,
   caseTypes,
+  terminologyByCaseTypeId,
+  participantRoles,
 }: {
   organizationId: string;
   /** ALL of the org's types, active and retired (the manager shows both). */
   caseTypes: CaseType[];
+  /**
+   * ETH·E4 §4 — each case type's RESOLVED terminology (`getCaseTypeTerminology`,
+   * fetched server-side per type), keyed by `caseType.id`. Feeds each row's
+   * "Terminologia" dialog. A type absent from this map (should not happen — the
+   * host fetches one entry per `caseTypes` row) falls back to the platform
+   * default bundle rather than a crash.
+   */
+  terminologyByCaseTypeId: Record<string, CaseTypeTerminology>;
+  /** ETH·E4 §4 — the org's full `case_participant_roles` vocabulary, active AND
+   *  inactive (the admin list, unlike the `Papel` picker's read). */
+  participantRoles: CaseParticipantRoleAdminRow[];
 }) {
   const active = caseTypes.filter((t) => t.isActive);
   const retired = caseTypes.filter((t) => !t.isActive);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Tags aria-hidden="true" className="size-4 text-muted-foreground" />
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Tipos ativos
-          </h3>
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Tags aria-hidden="true" className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium text-muted-foreground">
+              Tipos ativos
+            </h3>
+          </div>
+          <CaseTypeDialog mode="create" organizationId={organizationId} />
         </div>
-        <CaseTypeDialog mode="create" organizationId={organizationId} />
-      </div>
 
-      {active.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground text-pretty">
-          Nenhum tipo de caso cadastrado. Crie um para definir o vocabulário e o
-          nível de acesso padrão dos casos de um processo.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {active.map((t, i) => (
-            <CaseTypeRow key={t.id} caseType={t} index={i} />
-          ))}
-        </ul>
-      )}
-
-      {retired.length > 0 && (
-        <section aria-labelledby="retired-case-types" className="flex flex-col gap-3">
-          <h3
-            id="retired-case-types"
-            className="text-sm font-medium text-muted-foreground"
-          >
-            Tipos desativados
-          </h3>
+        {active.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground text-pretty">
+            Nenhum tipo de caso cadastrado. Crie um para definir o vocabulário e o
+            nível de acesso padrão dos casos de um processo.
+          </p>
+        ) : (
           <ul className="flex flex-col gap-3">
-            {retired.map((t, i) => (
-              <CaseTypeRow key={t.id} caseType={t} index={i} />
+            {active.map((t, i) => (
+              <CaseTypeRow
+                key={t.id}
+                caseType={t}
+                index={i}
+                terminology={terminologyByCaseTypeId[t.id]}
+              />
             ))}
           </ul>
-        </section>
-      )}
+        )}
+
+        {retired.length > 0 && (
+          <section aria-labelledby="retired-case-types" className="flex flex-col gap-3">
+            <h3
+              id="retired-case-types"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Tipos desativados
+            </h3>
+            <ul className="flex flex-col gap-3">
+              {retired.map((t, i) => (
+                <CaseTypeRow
+                  key={t.id}
+                  caseType={t}
+                  index={i}
+                  terminology={terminologyByCaseTypeId[t.id]}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+
+      <section
+        aria-labelledby="participant-roles-heading"
+        className="flex flex-col gap-5 border-t border-border pt-8"
+      >
+        <div className="flex flex-col gap-1.5">
+          <h2 id="participant-roles-heading" className="text-lg font-semibold">
+            Papéis de participante
+          </h2>
+          <p className="max-w-prose text-sm text-muted-foreground text-pretty">
+            Os papéis definem quem pode ser vinculado a um caso e em qual
+            função — ex.: &quot;Médico denunciado&quot;, &quot;Denunciante&quot;,
+            &quot;Testemunha&quot;. Cada caso oferece os papéis da organização
+            mais os do seu tipo.
+          </p>
+        </div>
+        <CaseParticipantRoleManager
+          organizationId={organizationId}
+          caseTypes={caseTypes}
+          roles={participantRoles}
+        />
+      </section>
     </div>
   );
 }
 
-function CaseTypeRow({ caseType, index }: { caseType: CaseType; index: number }) {
+function CaseTypeRow({
+  caseType,
+  index,
+  terminology,
+}: {
+  caseType: CaseType;
+  index: number;
+  /** This type's resolved terminology, for the "Terminologia" dialog. */
+  terminology: CaseTypeTerminology;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +250,13 @@ function CaseTypeRow({ caseType, index }: { caseType: CaseType; index: number })
       </div>
 
       <div className="flex shrink-0 gap-2">
+        <CaseTypeTerminologyDialog
+          organizationId={caseType.organizationId}
+          caseType={caseType}
+          terminology={
+            terminology ?? { ...DEFAULT_CASE_TERMINOLOGY, caseTypeId: caseType.id }
+          }
+        />
         <CaseTypeDialog
           mode="edit"
           organizationId={caseType.organizationId}
