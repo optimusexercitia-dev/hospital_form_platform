@@ -629,3 +629,283 @@ MINORs are not blocking. m5 and m8 are natural follow-ups rather than in-phase w
 ---
 
 **VERDICT: CHANGES REQUESTED**
+
+---
+---
+
+# Round 2 — re-review after remediation (2026-08-11)
+
+- **Reviewed at:** `120318a` (6 commits after r1's `11d87e3`)
+- **r1 verdict:** CHANGES REQUESTED (1 P0 / 6 MAJOR / 11 MINOR)
+
+# VERDICT (r2): **CHANGES REQUESTED** — narrow
+
+**The P0 is genuinely closed**, and closed better than I asked for: the lead caught that a
+column-list grant alone is bypassed by a `SECURITY DEFINER` door, and backend *measured* that
+requirement instead of arguing it. That was the right catch, and it was mine to have made — my r1
+remedy named `get_case_professional` as "must stop returning `to_jsonb(whole row)` regardless", but
+I filed it as a rider on the grant rather than as the co-equal half it is. Five of six MAJORs are
+closed or acceptably closed.
+
+This is **not** a re-litigation. Three specific things block, all small:
+
+1. **MAJOR-2(a) is NOT fixed** — the exact failure the finding named survives, verified by me at
+   the source line.
+2. **MAJOR-6's professional lane rests on a premise the catalog contradicts.**
+3. **A new finding of the FUP-SILENT-READ-1 class sits in the ETH·E4 roster read itself**, with a
+   larger blast radius than the one that was fixed.
+
+Everything else below is signed off, including both deliberately-open items.
+
+---
+
+## P0-1 — **CLOSED.** Verified four ways, and the divergence detector works in both directions
+
+From the live catalog, not the migration:
+
+- `professional_profiles` **has no table-level SELECT** for `authenticated`
+  (`relacl = {postgres=arwdDxtm/postgres, service_role=arwdDxtm/postgres}`). The grant is
+  column-list: **12 of 17** columns. Revoked set computed by differencing `pg_attribute` against
+  `information_schema.column_privileges`: **`cpf`, `redacted_by`, `retention_pin_reason`,
+  `retention_pinned_at`, `user_id`** — exactly the five claimed.
+- `get_case_professional` no longer returns `to_jsonb(v_profile)`; it returns an explicit
+  `jsonb_build_object` whose 12 keys are **set-identical** to the granted 12. I compared both sets
+  element-wise.
+- `redact_professional_profile` now sets `cpf = null`.
+- **No views** over `professional_profiles` (a non-`security_invoker` view would bypass both RLS
+  *and* the column grant — checked via `pg_depend`/`pg_rewrite`; there are none). Of the 12
+  functions that read the table, **only `get_case_professional` projects data**; the rest return
+  `void`/`uuid`/`boolean`/`trigger`. **No sibling arm was missed.**
+
+**Live re-probe of my r1 P0 scenario** — same persona (`chefe.farm@test.local`, `staff_admin` of
+Farmácia, Rede A, no ethics anything), same planted retention pin, ACT hat set, rolled back:
+
+| | r1 (pre-fix) | r2 (post-fix) |
+| --- | --- | --- |
+| `can_read_professional_profile` | true | true *(D5 intact — the feature survives)* |
+| `full_name`, `license_number` | read | **read** |
+| `retention_pin_reason` | **`ethics_decision_issued`** | **42501** |
+| `cpf` | read (NULL) | **42501** |
+| `user_id` | read | **42501** |
+| `get_case_professional` keys | whole row | **exactly the granted 12** |
+
+**Falsification — I ran four oracles against pgTAP 321 (all rolled back), not two:**
+
+| Oracle | Result |
+| --- | --- |
+| P1 · table-wide grant restored (the pre-fix state) | **6 RED** — tests 26-30 + 39 |
+| P2 · projection reverted to `to_jsonb(v_profile)` | **6 RED** — tests 34-39 |
+| **P3 · (mine) grant `cpf` back, projection unchanged** | **2 RED** — 28 + 39 |
+| **P4 · (mine) revoke a *projected* column (`specialty`)** | **1 RED** — 39 |
+
+P1 and P2 reproduce the lead's two reported REDs exactly. **P3 and P4 are the ones I care about:**
+they prove the `set_eq` keystone catches grant/projection divergence in **both** directions, which
+is the property that makes this fix durable rather than a point-in-time patch. Baseline 321:
+**75/75**. The over-revocation twin is present and real — the fix removed the leak, not the feature.
+
+I also confirmed the `ok(j ? 'cpf' is false)` idiom parses and is falsifiable
+(`'{"cpf":1}'::jsonb ? 'cpf' is false` returns `f`; absent returns `t`), rather than assuming the
+precedence.
+
+**Residual, recorded so it is not discovered later as a surprise:** the retention fact is still
+reachable through `audit_log` — `app.trg_pin_respondent_retention` emits
+`professional_profile.retention_pinned` with `commission_id = null` and the org id. Probed live:
+the **sibling-commission `staff_admin` sees 0 rows**; an **`org_admin` sees it**, because
+`audit_log_select`'s `(hospital_id IS NULL AND commission_id IS NULL AND is_org_admin_of(...))` arm
+admits them. That is the designed oversight posture for a population that could already read the
+whole org chain, so I rate it **INFO, not a finding** — but the P0 remediation is complete for
+staff_admins, not for org_admins, and the difference should be stated rather than implied.
+
+**ADR 0108 D5 amendment reviewed.** The false clause is struck through in place with the reason
+recorded ("checkable, checked with the wrong instrument, and passed review"). That is the right
+form — it preserves the error, which is what makes it useful.
+
+---
+
+## Blocking items
+
+### B-1 · MAJOR-2(a) is **NOT FIXED** — the error travels two hops further and is dropped at the third
+
+The claim relayed to me was "all four swallowed errors in `participants.ts` now throw." That is
+**true and is not the finding.** The finding was about what the coordinator sees.
+
+- Layer 1 OK — `src/lib/queries/participants.ts` throws at `:159`, `:174`, `:211`, `:262`.
+- Layer 2 OK — `src/lib/participants/actions.ts:373-378` catches and returns `{ ok: false, error }`.
+- Layer 3 **fails** — the dialog discards it. Verified by me at the source:
+
+```tsx
+src/components/cases/add-participant-dialog.tsx:589   if (res.ok) setProfResults(res.candidates);
+src/components/cases/add-participant-dialog.tsx:619   if (res.ok) setExtResults(res.candidates);
+```
+
+No `else`. `res.error` is never read; `setError` is never called. The rendered string is decided at
+`:912-916` and `:1072-1076`, which key **only** on `profQuery.trim().length >= 2`:
+
+> `"Nenhum resultado. Você pode cadastrar um novo."`
+
+That is verbatim the sentence r1 said must not appear on a failed search, and the next click is
+*Cadastrar novo profissional* then the linkage fieldset then **Não possui conta** — the exclusion
+vacuously satisfied. **Fix: an `else` that surfaces `res.error`, and an error-distinct empty state.**
+
+Genuinely fixed by a different mechanism, and worth crediting: `resolve-linkage-dialog.tsx` runs no
+server search — its roster is the `platformUsers` prop from `listLinkableOrgUsers`, which now
+throws (`members.ts:255`) and reaches a real route error boundary. That also covers the *add*
+dialog's `PlatformUserField`. Only the two typeaheads above remain blind.
+
+### B-2 · MAJOR-6's professional lane is uncovered, on a premise the catalog contradicts
+
+The external lane **is** fixed (`add-participant-dialog.tsx:522-526`, `:563-564`, `:749-778`) — the
+minted `participantId` is retained and reused, and the setters commit before the failing call.
+
+Commit `7900f51` justifies leaving the professional lane alone: *"The professional lane is immune
+(its mint is get-or-create)."* **I checked `pg_proc` directly. It is a bare INSERT:**
+
+```
+public.create_professional_profile -> insert into public.professional_profiles (...) returning id into v_id;
+```
+
+No lookup, no `on conflict`. `ensure_professional_participant` is the get-or-create door, but it
+mints the *`participants`* row from an **already-existing** profile — a different door doing a
+different job. `professionalProfileId` is a plain `let` re-declared per `submit()` (`:707`), so a
+failure at step 2 (`setProfessionalLinkState`, `:735`) or step 3 (`addCaseParticipant`, `:789`)
+discards it and the retry re-enters at `:712`:
+
+- **CRM blank** (permitted — only `fullName` is required): the retry mints a **duplicate
+  `professional_profiles` row**, fragmenting the prior-case history the 1:1 registry index exists
+  to keep whole.
+- **CRM entered**: `professional_profiles_license_uniq` raises 23505, which falls to the generic
+  message — a **permanent dead end**. The profile exists, the dialog holds no id for it, every
+  retry fails identically. Arguably worse than the duplicate.
+
+Backend was right to decline an atomic `seat_professional` door — ADR 0108 D1 rejects it on sound
+grounds. The fix is the same client-side memo already written for the external lane, extended to
+cover steps 1 and 2.
+
+### B-3 · NEW — `src/lib/queries/cases.ts:1333` silently empties the **entire ETH·E4 roster**
+
+Found while auditing the FUP-SILENT-READ-1 remediation. Twenty-five lines *above* the `profRows`
+read that was just fixed, in the same function, feeding the same UI:
+
+```ts
+const { data: partRows } = await supabase.from('case_participants')…   // no `error`
+```
+
+On failure `partRows` is null, so `participants` is `[]` (`:1387`) — **the case renders with an
+empty participant roster and no error at all.** Strictly larger blast radius than the bug that
+*was* fixed: a coordinator sees a case with no participants and re-seats people who are already
+seated.
+
+This is the roster ETH·E4 exists to build, so it is in scope for this phase rather than for
+FUP-SILENT-READ-1's residue. (`src/lib/queries/members.ts:183`, `listAddableMembers`, is the same
+shape but pre-dates E4 — that one belongs in the follow-up.)
+
+The sweep that produced FUP-SILENT-READ-1 was the right instinct and found real defects; it just
+stopped at the function that had already failed rather than at the read directly above it.
+
+---
+
+## Signed off in r2
+
+| Item | r2 verdict |
+| --- | --- |
+| **MAJOR-5** — write doors in the standing harness | **CONFIRMED, and done better than the siblings.** All three are in `GUARD_KEYS` with signature maps and neutralization cases (`p0-authz-writepath-audit.sh:120`, `:140-142`, `:348-375`). Uniquely among the eleven, they are **derived from `pg_get_functiondef` at runtime and assert the splice matched**, so a renamed gate aborts loudly instead of neutralizing nothing and reporting BLIND — the other ten pin transcribed bodies that go stale silently. The stale `set_primary_subject` never-called allowlist entry is removed with a note. |
+| **MAJOR-3** — D6 guard falsifiable | **CONFIRMED.** Papel is selected at spec `:462`, before both assertions; at `:469` and `:490` every other conjunct of `canSubmit` is satisfied, so only `linkageOk` can be the cause. *Residual (MINOR):* the `possui_conta` arm (`:472-483`) has no `toBeDisabled()` between checking the radio and picking the user, so `linkageOk`'s `Boolean(linkUserId)` half is still ungated — deleting it leaves the suite green. |
+| **MAJOR-4** — client/server gate | **CONFIRMED as claimed.** Ran it: self-test **10/10**, 472 client / **124** server modules, 0 findings. The set is derived (marker **OR** `@/lib/supabase/server` / `next/headers`), not listed; `src/lib/queries/members.ts` is now in it; `export * from` and `export { x as y } from` are value edges with type-only correctly erased. *Three constructible bypasses remain (MINOR):* `isClient` reads only the **first 400 bytes**, so a module header longer than that — this repo's convention — hides `"use client"` and the file is never scanned; dynamic `import()` / `require()` are not edges; `stripComments` is not string-literal-aware. The 400-byte window is the realistic one. |
+| **m6 (a)-(d)** | **CONFIRMED**, all four. The `isVisible().catch` probe is replaced by an explicit `expectConfirmation` parameter with both arms asserting; UNKNOWN-RESOLVE has a positive twin plus a DB identity assertion; `pickFromTypeahead` is scoped to the named listbox (and the app really does set that `aria-label`); PROF-CREATE and UNKNOWN-RESOLVE now assert **which** user was linked. |
+| **m6 (e) / m7** | **NOT FIXED** (MINOR). `arrowSelectNative` at spec `:1178` still presses zero keys — `extType` initialises to the label being selected, so the loop matches at iteration 0. Commit `b15ad85` is candid about this; the discrepancy is in the summary relayed to me, not in the work. KBD-1 still never proves the **Tipo** select is keyboard-operable. |
+| **MAJOR-1** | **PARTIAL** (MINOR). `vocabulary/actions.ts:143-149` default now returns `MESSAGES.generic` — that file is clean. `participants/actions.ts` was untouched: `:187` (`P0002`) and `:189` (`23514`) still prefer `error.message`. **No door on this platform raises `P0002` deliberately** (zero `pg_proc` hits), so that arm is engine English 100% of the time; the `23514` arm forwards `new row for relation "…" violates check constraint "…"` into both dialogs' error banners. Two lines. |
+| **Rule 8 / 10 / 11, ARMs, build** | Re-run by me post-fix: `ARM=census` **HOLDS** (450/461) · `ARM=hat` **HOLDS** (self-test 6/6, same 3 pre-existing allowlists) · `ARM=floor` **HOLDS** (79 never-called, all allowlisted). |
+
+### pgTAP count — verified independently, and the flakiness has a cause
+
+The lead asked me to re-verify counts rather than trust a summary. I did, and **reproduced the
+flake before eliminating it**:
+
+- On the DB as I found it (post-`e2e:prod`): `Files=182, Tests=5746`, **Result: FAIL** —
+  `252_authz_p0_isolation.sql` exited 3 with *"planned 48 tests but ran 0"*.
+- After `supabase db reset --local` (353 migrations registered = 353 files, max
+  `20260919000600`): **`Files=182, Tests=5794`, Result: PASS.**
+
+So the intermediate short counts are **not** mysterious: they are the documented E2E-mutated-DB
+class that CLAUDE.md §6 step 1 requires a fresh reset to avoid. Treat any pgTAP run that did not
+follow a reset as **void** rather than as flaky — the distinction matters, because "flaky" invites
+re-running until green while "void" tells you what to fix. **5794/5794 confirmed.**
+
+*(Disclosure: I ran `supabase db reset --local` on the shared local stack, and installed `pgtap` +
+`test_helpers` for the direct 321 runs. The tree is now on a clean reset.)*
+
+---
+
+## The two deliberately-open items — my judgements
+
+### 1 · MAJOR-2(b), the picker scope limit — **NOT a blocker**, conditional on B-1
+
+**Recommendation: documented pre-pilot follow-up, not a phase blocker.** I am revising my r1
+"close it pre-pilot" to "close it before pilot onboarding, tracked" — and the reason is a catalog
+check I should have run in r1 rather than reasoning from the failure mode.
+
+**The population where the scope limit bites is very nearly disjoint from the population where the
+automatic impedimento is load-bearing.** Verified:
+
+- The exclusion only protects against a respondent who **can read the case**. Case read resolves
+  through `app.has_case_capability(...,'read_case_content')`; there is **no `case_access` flag row
+  in `app.feature_flags` at all**, so the flag-OFF member branch governs — case read comes from
+  **commission membership**.
+- A respondent who is a member of the coordinator's commission is **visible in the picker**:
+  `profiles_select_self_or_admin` carries
+  `is_active(auth.uid()) AND EXISTS (memberships them WHERE them.commission_id IS NOT NULL AND
+  them.principal_id = profiles.id AND app.is_member_of(them.commission_id))`.
+
+So the coordinator who most needs the impedimento — investigating a fellow committee member — *is*
+the coordinator whose picker finds them. The surgeon from another commission, whom the picker
+misses, cannot read the case anyway. The residual intersection is a per-case `grant_case_access` to
+a non-co-member, which requires the coordinator to grant case access to the very person they just
+asserted has no platform account; `record_recusal` remains as the manual remedy.
+
+**The condition matters, though.** My r1 severity rested substantially on (a) *compounding* (b): a
+system that lies about the roster turns a bad human decision into an inevitable one. **(a) is not
+fixed (B-1).** So: (b) is not a blocker **once B-1 lands**. Until then the two together still are.
+
+Two cheap things I would attach to the follow-up rather than to the phase: the `no_account`
+confirmation copy should say the roster may not include everyone in the organization (it converts a
+silent incompleteness into a named one); and `listLinkableOrgUsers` anchors on
+`profiles.home_organization_id`, which ADR 0097 (AFF) made insufficient — hospital affiliation is a
+visibility input and this query does not consult it.
+
+Escalating the `profiles_select_self_or_admin` widening to the PO rather than letting `backend`
+take it was the right call.
+
+### 2 · m2, the unaudited widened read path — **not a blocker; the P0 fix materially shrank it**
+
+Honest update rather than a restatement: **the P0 remediation changed this calculus.** The
+unaudited invoker-rights path now reaches only the 12 granted columns — name, CRM, region,
+specialty, type, affiliation status, link state, timestamps. The facts that made m2 worth raising —
+the case linkage, the national ID, the auth-account correlation — are now either revoked outright
+or reachable only through `get_case_professional`, which **does** call `log_audit_access`.
+
+What remains unaudited is professional credential data that ADR 0091 D1 already characterises as
+"an already-org-readable name", org-scoped. That is a defensible reading of ADR 0065's
+"audited reads" for Class-2 — but it is a *reading*, and ADR 0064/0065 also says "case-scoped RLS",
+which after D5 is no longer true. **Stays MINOR.** What it needs is one line in ADR 0108 recording
+the decision explicitly, so the next phase inherits a ratified position instead of an assumption.
+PO escalation is appropriate; it should not hold the phase.
+
+---
+
+## What would clear r2
+
+1. **B-1** — an `else` at `add-participant-dialog.tsx:589` / `:619` that surfaces `res.error`, and
+   an empty state that distinguishes "no matches" from "the search failed". Two hops of the fix are
+   already built; only the last one is missing.
+2. **B-2** — extend the external lane's memo to the professional lane's steps 1 and 2. Correct the
+   `7900f51` commit rationale in the record: `create_professional_profile` is a bare INSERT.
+3. **B-3** — destructure and throw at `cases.ts:1333`.
+
+MINORs (MAJOR-1's two arms, m6(e), the `possui_conta` gate assertion, the gate's 400-byte window)
+are not blocking; fix or file, either is fine, but do not carry them as closed.
+
+**I would expect r3 to be a read of three diffs, not a re-audit.**
+
+---
+
+**VERDICT (r2): CHANGES REQUESTED — narrow (3 blocking items, all small; P0-1 closed)**
