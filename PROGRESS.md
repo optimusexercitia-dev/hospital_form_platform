@@ -120,6 +120,16 @@ positive arm was genuinely unproven (fixed by `322` 4.20/4.21). Diff-scoped `ARM
 4 gates derived from the migration: **0 BLIND, 0 ERROR, 4 COVERED**; verdicts merged into
 `docs/reviews/authz-door-audit-findings.md` after restoring it (Amendment 1 hazard 1).
 
+**LEAD RE-VERIFIED, independently (2026-08-11)** — not relayed from the teammate's report. On my
+own fresh `supabase db reset --local`: `npm run test:db` → `Files=183, Tests=5870, Result: PASS`;
+`ARM=census` HOLDS (454/465); `ARM=hat` HOLDS (self-test 6/6); `ARM=floor` HOLDS (79 never-called
+doors, all allowlisted). Also re-verified from the live catalog: `body_md` carries **no**
+`authenticated` grant while all 9 new columns do (K-R5-1 survived the rename); the NULL-hole fix
+(`is distinct from`) is present in `create_referral_internal_note`; `dispose_referral_phi` writes
+`body_md` (its remaining bare `body` is `referral_messages.body`, a different table);
+`reorder_referral_note_types` is `prosecdef=f`; and no 3-arg `create_referral_internal_note`
+overload survives the DROP+CREATE.
+
 ⚠ **The diff-scoped run swept 4 of the 5 cases it was given.** `app._audit_access_authorized`
 (whose dispatch arm this phase changed) matches neither arm: the predicate worklist is bounded by
 the name regex `^(is_|can_|has_|…)` at `p0-authz-door-audit.sh:176` and the name begins with `_`.
