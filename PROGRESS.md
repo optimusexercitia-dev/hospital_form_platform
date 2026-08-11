@@ -169,14 +169,31 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 stall.** PO-directed pre-pilot as its own workstream (2026-07-14), not started. Scope →
 [ai-satellites.md](docs/progress/ai-satellites.md).
 
-⚠ **Verify the premise before scheduling it — the root cause is upstream and is already fixed.**
-BUG-AIF-001 was a Next.js App-Router bug (`loading.tsx` Suspense boundary + a deferred
-`router.refresh()`; issues #86151/#86055, fix PR #95391), closed by the version bump. `package.json`
-now declares **`next: 16.3.0` stable** and `npm ls next` is clean — so the symptom is probably
-already discharged and this may be a *verification* job, not a refactor. ⚠ Also re-check the
-**drift** failure mode first: this bug once "regressed" purely because `node_modules/next` had
-silently fallen back to 16.2.9 while `package.json` read the fixed version — `npm ls next` is the
-one-second check.
+✅ **PREMISE TESTED 2026-08-10 — the stall does NOT reproduce. This is now a close-out decision, not
+a refactor.** BUG-AIF-001 was a Next.js App-Router bug (`loading.tsx` Suspense boundary + a deferred
+`router.refresh()`; issues #86151/#86055, fix PR #95391), closed upstream by the version bump.
+`package.json` declares **`next: 16.3.0` stable**, `npm ls next` clean (no drift).
+**Re-ran the documented deterministic repro** — `rm -rf .next && RESET=1 REBUILD=1
+SPECS=e2e/meetings-reserved-sessions.spec.ts npm run e2e:prod`, prod-standalone build, fresh
+`db reset`, the same command that produced the historical hangs:
+
+> **GATE GREEN — 8 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · accounted 8/8 · 17.9s.**
+> Mutation-driving tests: open reserved session + add case-linked item **2.0s** · add case-less item
+> with reader list **1.8s** · keyboard-only add **1.2s** — all inside the documented post-fix
+> **0.6–2.1s** band, versus the **21–31 s hangs** when the bug was live. Matches the 2026-07-17
+> post-fix reference (8/8, 17.4s) on 16.3.0-**preview**.5, now re-confirmed on 16.3.0 **stable**.
+> *(The `✘` in that spec's output is `BUG-STAGEC-READER`'s deliberate `test.fail()` pin — a RESOLVED
+> bug whose repro is kept failing-as-expected on purpose, so it flips to a hard failure if anyone
+> ever adds the coordinator bypass. Playwright counts it as passing. Not an AIF signal.)*
+
+⚠ **Scope of that evidence, stated honestly:** it is the *canonical* repro exercising the meeting
+mutation path — it is **not** per-hook proof across all 13. It shows the failure mode is gone on the
+current toolchain, not that every hook was individually exercised.
+⚠ **Whatever is decided, keep the drift check:** this bug's only "regression" was `node_modules/next`
+silently falling back to 16.2.9 while `package.json` read the fixed version. `npm ls next` is the
+one-second first move on any recurrence.
+**Close-out is the PO's call** (it was directed as its own PO-adjudicated pre-pilot unit), not the
+lead's to take unilaterally.
 
 ⚠ **The population is 13 hooks, not the 3 this item used to name** (measured 2026-08-10; it listed
 `useSatelliteAction`/`useCaseAction`/`useMeetingAction` — the three someone happened to be looking
