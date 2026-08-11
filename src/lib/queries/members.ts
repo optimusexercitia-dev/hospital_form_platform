@@ -192,6 +192,76 @@ export async function listAddableMembers(
 }
 
 /**
+ * The people a coordinator may LINK a professional profile to (ETH·E4, ADR 0108 D6
+ * "possui conta"). A SECOND, different roster from `listAddableMembers` above — not a
+ * redefinition of it. It reuses `AddableUser` because the row shape is identical.
+ *
+ * ⚠ WHY NOT `listAddableMembers`. That one is backed by
+ * `list_addable_commission_members`, which filters `not exists (… memberships where
+ * commission_id = p_commission_id …)` — org members who are **not already in this
+ * commission**. Exactly right for "add a new member", exactly wrong here: the people
+ * most likely to be seated as `respondent_doctor` on an ethics case ARE the
+ * commission's own members, and that filter removes precisely them.
+ *
+ * The consequence was governance, not cosmetics. A coordinator who cannot find the
+ * respondent under *possui conta* is pushed to **`não possui conta`** — which ADR 0108
+ * D6 defines as an audited human assertion that makes the case exclusion VACUOUSLY
+ * SATISFIED. The automatic impedimento would silently stop working, recorded as a
+ * deliberate assertion that was really a UI dead end.
+ *
+ * ⚠ WHY A PLAIN RLS READ AND NOT A NEW DOOR — and what it does NOT do. Verified from
+ * the catalog, then measured live: `profiles_select_self_or_admin` carries a
+ * CO-MEMBERSHIP arm — `app.is_active(auth.uid()) and exists (select 1 from memberships
+ * them where them.commission_id is not null and them.principal_id = profiles.id and
+ * app.is_member_of(them.commission_id))` — so a coordinator already reads the profiles
+ * of everyone sharing a commission with them. No widening, no new RPC, no migration.
+ *
+ * So this is NOT "every active user in the organization": for a staff_admin it is
+ * their OWN existing read perimeter, intersected with the org. An org_admin (or a
+ * hospital_admin, via the affiliation arms) does see the whole org, because their
+ * policy arms already say so. Making it literally org-wide for a plain staff_admin
+ * would require widening `profiles_select_self_or_admin`, which this deliberately
+ * does NOT do.
+ *
+ * The two AFF/ADR-0097 directory doors were evaluated first and neither fits: both
+ * gate on ORG ADMIN, so a commission coordinator gets nothing —
+ * `list_org_people` returns empty (`is_org_admin_of ∨ hospital_admin`, silent
+ * `return`), and `list_org_eligible_users` raises 42501
+ * (`is_org_admin_of ∨ is_nsp_org_admin_of`).
+ *
+ * `is_admin` is excluded: a platform_admin is not a tenant person and never belongs on
+ * a tenant roster (the noun rule, ADR 0078 A35) — mirroring `list_org_people`.
+ */
+export async function listLinkableOrgUsers(
+  organizationId: string,
+): Promise<AddableUser[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .eq('home_organization_id', organizationId)
+    .eq('is_active', true)
+    .eq('is_admin', false)
+    .order('full_name', { ascending: true, nullsFirst: false })
+    .limit(500)
+
+  // ⚠ THROW. This feeds the "possui conta" picker, so a swallowed error renders as
+  // an empty user list — indistinguishable from "this professional has no account",
+  // which walks the coordinator straight to `não possui conta` and makes the case
+  // exclusion vacuously satisfied (ADR 0108 D6). `profiles` is on COLUMN-LIST grants,
+  // so a future column added to the select without its own GRANT fails 42501 here —
+  // exactly the error that must not be silent.
+  if (error) throw error
+
+  return (data ?? []).map((row) => ({
+    userId: row.id,
+    fullName: row.full_name || null,
+    email: row.email,
+  }))
+}
+
+/**
  * Administrativo delegation (ADR 0061). The finite capability menu; the string
  * union mirrors the DB CHECK on `commission_administrativo_capabilities.capability`.
  * Keep in sync with the migration's CHECK list.

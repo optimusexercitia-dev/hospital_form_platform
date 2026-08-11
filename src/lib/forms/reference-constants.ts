@@ -116,6 +116,28 @@ export function participantTypeLabel(value: string | null | undefined): string |
 export const CASE_SCOPED_PARTICIPANT_TYPES: readonly ParticipantType[] = ['patient']
 
 /**
+ * ETH·E4 (ADR 0108 D8) — the five NON-SENSITIVE types `create_external_participant`
+ * will mint. `patient` and `professional` are excluded by construction: each carries
+ * its own `sensitivity_class` and its own door, and
+ * `participants_sensitivity_derives_type` backstops the split in the schema.
+ *
+ * ⚠ Lives HERE, not beside the query that consumes it. It was first written in
+ * `src/lib/queries/participants.ts` — a `server-only` module — and the
+ * add-participant dialog is a Client Component, so value-importing it there dragged
+ * `@/lib/supabase/server` into the browser graph and ABORTED `next build` while
+ * `tsc`, `eslint` and `vitest` all stayed green. That is BUG-FBE-005 for the second
+ * time on this project, and this module's header is the standing answer to it: one
+ * implementation, two specifiers.
+ */
+export const EXTERNAL_PARTICIPANT_TYPES: readonly ParticipantType[] = [
+  'external_person',
+  'department',
+  'institution',
+  'regulatory_body',
+  'other',
+]
+
+/**
  * One typeahead candidate for a reference item — and, with `kind` added, the
  * shape of a SAVED reference on the read side ({@link ReferenceAnswer} in
  * `src/lib/queries/responses.ts`).

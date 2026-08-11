@@ -19,7 +19,13 @@ import type {
 } from '@/lib/queries/process-templates'
 import type { CaseTypeTerminology } from '@/lib/cases/terminology'
 import { getCaseTypeTerminology } from '@/lib/queries/case-types'
+// Type-only (erased at compile), so the actions ⇄ queries pair below is NOT a
+// runtime cycle. `ProfessionalLinkState` is declared once, in the frozen BE-1
+// contract module, and re-exported here so a consumer of `CaseParticipant` gets
+// the enum from the same import.
+import type { ProfessionalLinkState } from '@/lib/participants/actions'
 
+export type { ProfessionalLinkState } from '@/lib/participants/actions'
 export type { CaseTypeTerminology } from '@/lib/cases/terminology'
 export { getCaseTypeTerminology } from '@/lib/queries/case-types'
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
@@ -603,6 +609,36 @@ export interface CaseParticipant {
   isPrimarySubject: boolean
   /** Optional free-text involvement note; `null` if unset. */
   involvementSummary: string | null
+  /**
+   * ETH·E4 (ADR 0108 D3) — `professional_profiles.id` for a professional
+   * participant whose profile the CALLER CAN READ; `null` otherwise (a
+   * non-professional participant, or a profile outside
+   * `app.can_read_professional_profile`). The roster's "Resolver vínculo" dialog
+   * targets this id.
+   */
+  professionalProfileId: string | null
+  /**
+   * ETH·E4 (ADR 0108 D3) — the LIVE `professional_profiles.full_name`, or `null`
+   * when the profile is not a professional's / not readable.
+   *
+   * `displayName` above is a MINT-TIME SNAPSHOT taken by
+   * `ensure_professional_participant`; `update_professional_profile` can move the
+   * profile name afterwards and no sync was added (that would modify a second
+   * shipped door for a cosmetic property). Render `professionalFullName ??
+   * displayName`: readers who can see the profile always get the current name, and
+   * the snapshot only ever surfaces to callers who could not read the profile.
+   */
+  professionalFullName: string | null
+  /**
+   * ETH·E4 — the professional's platform-account linkage (ADR 0078 M1·1), or
+   * `null` when not a professional / not readable. `unknown` is what the roster's
+   * "Resolver vínculo" affordance keys off; an unknown-linkage professional cannot
+   * be seated OR promoted as `respondent_doctor` (`HC0F0`).
+   *
+   * Not-readable collapses to `null`, so the affordance FAILS CLOSED: a caller who
+   * cannot read the profile is not nudged to fix it.
+   */
+  linkState: ProfessionalLinkState | null
 }
 
 /**
@@ -956,6 +992,22 @@ interface CaseParticipantRow {
   case_participant_roles: { id: string; key: string; display_name: string } | null
 }
 
+/**
+ * ETH·E4 — the professional-identity enrichment row. Read through
+ * `professional_participants_select`, whose USING clause is
+ * `app.can_read_professional_profile(professional_profile_id, auth.uid())`, so an
+ * unreadable profile simply does not come back and the enrichment collapses to
+ * `null` (fail-closed).
+ */
+interface ProfessionalParticipantRow {
+  participant_id: string
+  professional_profiles: {
+    id: string
+    full_name: string
+    link_state: string
+  } | null
+}
+
 /** The board CAP (WS-6 P3). The cases board is a kanban (column-per-status), which
  * a flat keyset cursor cannot page without emptying columns — so it is CAPPED to
  * the most-recent-N cases (by case_number desc) and returned as a single
@@ -1230,13 +1282,18 @@ async function getCaseDetailUncached(
   // allowed subset — the same direct-read pattern as `getCasePhaseForFill`. A row
   // the caller may not read simply defaults to "no result mode". D3: the allowed
   // subset is embedded from case_phase_allowed_results (was allowed_result_ids jsonb).
-  const { data: modeRows } = await supabase
+  // ⚠ THROW. The "a row the caller may not read defaults to no-result-mode" contract
+  // above is about RLS, which returns ZERO ROWS — not an error. A genuine error is a
+  // different event, and swallowed it silently disables the post-conclusion result
+  // correction picker.
+  const { data: modeRows, error: modeError } = await supabase
     .from('case_phases')
     .select(
       'id, emits_result, result_ruleset, case_phase_allowed_results ( result_id, position )',
     )
     .eq('case_id', caseId)
     .returns<CasePhaseModeRow[]>()
+  if (modeError) throw modeError
   const modeByPhaseId = new Map(
     (modeRows ?? []).map((r) => [r.id, r] as const),
   )
@@ -1254,31 +1311,47 @@ async function getCaseDetailUncached(
   // Also read `case_type_id` (ETH·E3a; O-1) + the type's `primary_subject_kind` via the
   // cases→case_types FK embed (unambiguous — the single FK). RLS-scoped; a type-less case
   // yields null → default terminology + a 'patient' subject kind (today's framing).
-  const { data: deptRow } = await supabase
+  // ⚠ THROW — the highest-consequence swallow in this function. `caseTypeId`,
+  // `primarySubjectKind` AND `terminology` all derive from this row, so on a
+  // swallowed error an Ethics case silently reverts to the PLATFORM DEFAULT
+  // vocabulary: "Caso" instead of the procedure's label, primary-subject kind back to
+  // `patient` instead of `professional`. The page renders fully and looks right.
+  // `.maybeSingle()` reports no-row as `data: null, error: null`, so throwing here
+  // cannot break the legitimate empty case.
+  const { data: deptRow, error: deptError } = await supabase
     .from('cases')
     .select(
       'department_id, department_other, visibility_policy, confidentiality_level, case_type_id, case_types ( primary_subject_kind )',
     )
     .eq('id', caseId)
     .maybeSingle()
+  if (deptError) throw deptError
   const caseTypeId: string | null = deptRow?.case_type_id ?? null
   const primarySubjectKind: PrimarySubjectKind =
     (deptRow?.case_types?.primary_subject_kind as PrimarySubjectKind | undefined) ?? 'patient'
   const terminology = await getCaseTypeTerminology(caseTypeId)
   let departmentName: string | null = deptRow?.department_other ?? null
   if (deptRow?.department_id) {
-    const { data: dept } = await supabase
+    // The documented "archived-away or unreadable → null name" fallback is about RLS
+    // and missing rows, both of which are `error: null` under `.maybeSingle()`. An
+    // actual error is not that case, so it surfaces rather than blanking the label.
+    const { data: dept, error: deptNameError } = await supabase
       .from('hospital_departments')
       .select('name')
       .eq('id', deptRow.department_id)
       .maybeSingle()
+    if (deptNameError) throw deptNameError
     departmentName = dept?.name ?? null
   }
 
   // The case's participants (ADR 0064 · E1), RLS-scoped via `case_participants`
   // (already `can_read_case`-gated). `[]` pre-m2 / when the case has none. The
   // registry `display_name` is a SURROGATE for a patient — never raw identity (Rule 12).
-  const { data: partRows } = await supabase
+  // ⚠ THROW (see the block comment on the professional embed below). Swallowed, a
+  // failure here renders the ENTIRE ETH·E4 roster empty — and an empty roster is a
+  // legitimate state, so nothing looks wrong. A coordinator then re-seats people who
+  // are already seated. Strictly larger blast radius than the embed below.
+  const { data: partRows, error: partError } = await supabase
     .from('case_participants')
     .select(
       'id, participant_id, is_primary_subject, involvement_summary, ' +
@@ -1288,18 +1361,69 @@ async function getCaseDetailUncached(
     .eq('case_id', caseId)
     .is('removed_at', null)
     .returns<CaseParticipantRow[]>()
-  const participants: CaseParticipant[] = (partRows ?? []).map((r) => ({
-    id: r.id,
-    participantId: r.participant_id,
-    participantType: (r.participants?.participant_type ??
-      'other') as ParticipantType,
-    displayName: r.participants?.display_name ?? '',
-    roleId: r.case_participant_roles?.id ?? '',
-    roleKey: r.case_participant_roles?.key ?? '',
-    roleLabel: r.case_participant_roles?.display_name ?? '',
-    isPrimarySubject: r.is_primary_subject,
-    involvementSummary: r.involvement_summary,
-  }))
+  if (partError) throw partError
+
+  // ETH·E4 (ADR 0108 D3) — resolve the LIVE professional identity for the roster.
+  // A SEPARATE query, not an embed off `case_participants`: `participants`' only FK
+  // from `professional_participants` is the COMPOSITE
+  // `(participant_id, participant_type)` one, and an un-hinted embed across it is
+  // the PGRST201 shape. `professional_participants → professional_profiles` has
+  // exactly one FK, so THIS embed is unambiguous.
+  const professionalParticipantIds = (partRows ?? [])
+    .filter((r) => r.participants?.participant_type === 'professional')
+    .map((r) => r.participant_id)
+  const professionalByParticipant = new Map<
+    string,
+    { id: string; fullName: string; linkState: ProfessionalLinkState }
+  >()
+  if (professionalParticipantIds.length > 0) {
+    const { data: profRows, error: profError } = await supabase
+      .from('professional_participants')
+      .select('participant_id, professional_profiles ( id, full_name, link_state )')
+      .in('participant_id', professionalParticipantIds)
+      .returns<ProfessionalParticipantRow[]>()
+    // ⚠ THROW. This read FAILS INVISIBLY when swallowed: `profRows` is null,
+    // `?? []` yields an empty map, and every professional participant then renders
+    // with `prof = null` — the roster silently falls back to the mint-time
+    // `display_name` snapshot instead of the live name, `professionalProfileId`
+    // goes missing, and `linkState` comes back undefined, so `showResolveLinkage`
+    // is false and the "Resolver vínculo" affordance DISAPPEARS. No error, no log,
+    // no visible failure — just deleted functionality.
+    //
+    // This is also the one invoker-rights path where a future grant mistake would
+    // fail this way: suite 321's set_eq pins projection ≡ granted set for the
+    // DEFINER door `get_case_professional`, but nothing pins THIS select. Adding a
+    // column here without granting it would 42501 — and, swallowed, would have
+    // removed a feature in silence instead.
+    if (profError) throw profError
+    for (const row of profRows ?? []) {
+      if (!row.professional_profiles) continue
+      professionalByParticipant.set(row.participant_id, {
+        id: row.professional_profiles.id,
+        fullName: row.professional_profiles.full_name,
+        linkState: row.professional_profiles.link_state as ProfessionalLinkState,
+      })
+    }
+  }
+
+  const participants: CaseParticipant[] = (partRows ?? []).map((r) => {
+    const prof = professionalByParticipant.get(r.participant_id) ?? null
+    return {
+      id: r.id,
+      participantId: r.participant_id,
+      participantType: (r.participants?.participant_type ??
+        'other') as ParticipantType,
+      displayName: r.participants?.display_name ?? '',
+      roleId: r.case_participant_roles?.id ?? '',
+      roleKey: r.case_participant_roles?.key ?? '',
+      roleLabel: r.case_participant_roles?.display_name ?? '',
+      isPrimarySubject: r.is_primary_subject,
+      involvementSummary: r.involvement_summary,
+      professionalProfileId: prof?.id ?? null,
+      professionalFullName: prof?.fullName ?? null,
+      linkState: prof?.linkState ?? null,
+    }
+  })
 
   // The CURRENT viewer's live recusal + own conflict declaration (ADR 0072 D4 · E1).
   // The `case_recusals` self-arm surfaces a recused viewer's own row even though the
@@ -1308,7 +1432,10 @@ async function getCaseDetailUncached(
   let myRecusal: CaseRecusal | null = null
   let myConflict: CaseConflictDeclaration | null = null
   if (viewerId) {
-    const { data: recRow } = await supabase
+    // ⚠ THROW. Swallowed, `myRecusal` stays null and the "você está impedido" banner
+    // never renders — a recused viewer is not told they are impeded, which is a
+    // governance-visible silence, not a cosmetic one.
+    const { data: recRow, error: recError } = await supabase
       .from('case_recusals')
       .select(
         'id, case_id, user_id, reason_md, source, conflict_declaration_id, recused_at, lifted_at',
@@ -1317,6 +1444,7 @@ async function getCaseDetailUncached(
       .eq('user_id', viewerId)
       .is('lifted_at', null)
       .maybeSingle()
+    if (recError) throw recError
     if (recRow) {
       myRecusal = {
         id: recRow.id,
@@ -1329,7 +1457,9 @@ async function getCaseDetailUncached(
         liftedAt: recRow.lifted_at,
       }
     }
-    const { data: coiRow } = await supabase
+    // ⚠ THROW. Swallowed, the viewer's own COI declaration vanishes and they are
+    // invited to declare a conflict they have already declared.
+    const { data: coiRow, error: coiError } = await supabase
       .from('case_conflict_declarations')
       .select(
         'id, case_id, declarant_id, conflict_type, description_md, status, declared_at, resolved_at',
@@ -1337,6 +1467,7 @@ async function getCaseDetailUncached(
       .eq('case_id', caseId)
       .eq('declarant_id', viewerId)
       .maybeSingle()
+    if (coiError) throw coiError
     if (coiRow) {
       myConflict = {
         id: coiRow.id,

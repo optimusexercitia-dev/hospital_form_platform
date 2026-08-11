@@ -22,7 +22,10 @@
 --      write grant + `_admin_write` policy adjudicate correctly.
 
 begin;
-select plan(30);
+-- 30 → 31: ETH·E4 (ADR 0108 D5) splits K4's single "foreign reader gets NULL" into
+-- the org-manager arm (now admitted, deliberately) + a plain-member arm (still
+-- denied). See the K4 block.
+select plan(31);
 
 update app.feature_flags set enabled = true where key = 'case_patient';
 update app.feature_flags set enabled = true where key = 'case_access';
@@ -38,7 +41,8 @@ create temp table k on commit drop as
          (v->>'sa_x')::uuid    as sa_x,     -- coordinator of X
          (v->>'st_x')::uuid    as st_x,     -- phase assignee (broad read)
          (v->>'st_x2')::uuid   as st_x2,    -- unrelated member of X
-         (v->>'sa_y')::uuid    as sa_y,     -- foreign coordinator (Y)
+         (v->>'sa_y')::uuid    as sa_y,     -- coordinator of Y — SAME ORG (see K4)
+         (v->>'st_y')::uuid    as st_y,     -- ETH·E4: plain member of Y, the truly foreign reader
          (v->>'comm_x')::uuid  as comm_x,
          (v->>'org_b')::uuid   as org_b,
          (v->>'form_u')::uuid  as form_u,
@@ -131,13 +135,38 @@ select is(
   (select count(*) from public.audit_log where action = 'professional_profile.read') - (select before from pa0),
   1::bigint, 'K4: exactly one professional_profile.read audit row for the entitled reader');
 
+-- ⚠ ETH·E4 (ADR 0108 D5) CONSCIOUSLY CHANGED THIS ASSERTION — it is not loosened.
+--
+-- This block used to assert that sa_y gets NULL, calling her "a foreign reader".
+-- She is not foreign: `test_helpers.bootstrap` homes comm_x AND comm_y under ONE
+-- org, so sa_y (staff_admin of comm_y) is an ORG MANAGER of the professional's org.
+-- ETH·E4 added an `app.can_manage_professional(<org>, p_uid)` disjunct to
+-- `app.can_read_professional_profile` — without it the seating picker cannot tell
+-- two same-named doctors apart at the moment a respondent is designated — so she
+-- now reads. That is the widening, and it is keystoned as one in suite 321 (K3a,
+-- proven able to fail by reverting the disjunct).
+--
+-- The keystone's PROTECTIVE INTENT is preserved by re-pointing it at st_y, a plain
+-- member of comm_y: same org, no management role, no case access. If the arm were
+-- ever widened from "org managers" to "org members", THAT assertion reds.
 select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+create temp table pr_org_manager on commit drop as
+  select public.get_case_professional((select prof_part from pt)) as j;
+reset role;
+grant select on pr_org_manager to authenticated;
+select is((select pr_org_manager.j->>'full_name' from pr_org_manager), 'Dr. Fulano de Tal',
+  'K4 (ETH·E4 D5): an ORG MANAGER outside the case now reads the professional identity');
+
+select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 create temp table pr_foreign on commit drop as
   select public.get_case_professional((select prof_part from pt)) as j;
 reset role;
 grant select on pr_foreign to authenticated;
-select ok((select j from pr_foreign) is null, 'K4: a foreign reader gets NULL professional identity (case-scoped)');
+select ok((select j from pr_foreign) is null,
+  'K4 ⭐: a plain org member with no case access STILL gets NULL — the D5 arm admits '
+  'managers, not the organization');
 
 -- =========================================================================
 -- K3 · N patients on one case: write two, both read in-scope, foreign → NULL.
