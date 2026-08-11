@@ -816,8 +816,13 @@ test('REMOVE seat a throwaway participant, then remove it', async ({ page }) => 
   await gotoCase(page)
 
   const name = 'Participante Removível (E4)'
+  // 'Pessoa externa' (external_person), not 'Outro' (other): the seeded
+  // Testemunha role's allowed_participant_types is {external_person,
+  // professional} — no seeded role accepts 'other'/'department'/
+  // 'institution', so that pairing leaves the Papel select with zero options
+  // and stuck disabled (confirmed live by the gate run — this exact fixture).
   await seatExternalCreate(page, {
-    typeLabel: 'Outro',
+    typeLabel: 'Pessoa externa',
     displayName: name,
     roleLabel: 'Testemunha',
   })
