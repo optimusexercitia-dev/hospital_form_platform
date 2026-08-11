@@ -96,6 +96,52 @@ record and the method lessons are in
 [eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md). What is left before
 the pilot is § *Remaining pre-pilot work*.
 
+### RDR — Referral detail redesign (worktree `worktree-referral-detail-redesign`)
+
+Plan: [referral-detail-redesign.md](docs/plans/referral-detail-redesign.md). Owned rows only; the
+lead owns the Phase Status table.
+
+| # | Task | Owner | Status |
+| --- | --- | --- | --- |
+| 1a | `referral_note_types` + RLS (mirrors the LIVE `case_narrative_types`) | backend | ✅ 2026-08-11 |
+| 1b | `referral_internal_notes` extended in place (`body`→`body_md`, title/type/assignee/lifecycle) + the A4 column-grant matrix | backend | ✅ 2026-08-11 |
+| 1c | Note-lifecycle doors, `reorder_referral_note_types`, `get_referral_case_access_summary`, audit-registry arm | backend | ✅ 2026-08-11 |
+| 1d | Fresh `db reset` → `gen:types` → `test:db` | backend | ✅ green |
+| 1e | pgTAP `322` (72) + `150`/`298` updates + `p0b` BATCH 5 | backend | ✅ green |
+| — | Phase 1 gate: `ARM=census` · `ARM=hat` · `ARM=floor` · diff-scoped door sweep | backend | ✅ all hold |
+
+**Phase 1 gate record (name the ARM, not the script — CLAUDE.md §6 step 5).**
+`ARM=census` HOLDS (454 live gates / 465 verdicts) — it flagged all 4 new gates as unswept before
+they were swept, which is the arm working. `ARM=hat` HOLDS (self-test 6/6; 3 pre-existing
+reasoned-allowlisted findings; the roster's raw `memberships` reads are third-party, not
+caller-bound). `ARM=floor` HOLDS — **it first FAILED and the failure was real**: every call to
+`assign_referral_internal_note` in `322` raised, so the door was recorded as never called and its
+positive arm was genuinely unproven (fixed by `322` 4.20/4.21). Diff-scoped `ARM=policy` over the
+4 gates derived from the migration: **0 BLIND, 0 ERROR, 4 COVERED**; verdicts merged into
+`docs/reviews/authz-door-audit-findings.md` after restoring it (Amendment 1 hazard 1).
+
+⚠ **The diff-scoped run swept 4 of the 5 cases it was given.** `app._audit_access_authorized`
+(whose dispatch arm this phase changed) matches neither arm: the predicate worklist is bounded by
+the name regex `^(is_|can_|has_|…)` at `p0-authz-door-audit.sh:176` and the name begins with `_`.
+Amendment 5a/6's "the boundary of an enumeration must be the property, not the syntax", at the
+harness level. Covered instead by a targeted mutation (red-proven). Do not cite that run as
+5-of-5 coverage.
+
+**Keystones, all mutation-proven red (`p0b` BATCH 5 + one targeted probe):** the door's own
+authority gate · `reorder_referral_note_types` · `update_referral_internal_note` · the restored
+NULL-hole defect · the audit-registry arm. **A fifth was found VACUOUS by its own mutation** —
+`322` 5.1/5.2 matched on SQLSTATE `42501` alone and stayed green when the door's gate was
+neutralized, because `log_audit_access` refuses the same caller with the same code. They now pin
+the door's pt-BR message.
+
+**Phase 2 handoff (TS).** `npm run typecheck` has exactly **one** new error —
+`src/lib/referrals/actions.ts:695` passes `p_body`, now `p_body_md`. (`RouteContext` in
+`src/app/api/documents/[id]/route.ts:22` is pre-existing — verified against the unmodified
+`database.ts`.) Both `create_referral_internal_note` **and `redact_referral_note`** return the
+table row type, so the rename changes their returned JSON key `body` → `body_md`; the
+`list_referral_internal_notes` element key changes too, and its order is now open-first /
+`created_at` DESC within group.
+
 ### ⬛ Recently completed — rotated 2026-08-10; detail in `docs/progress/`
 
 One line each. Gate numbers live in the **Phase Status** table above; the linked record carries the

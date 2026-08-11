@@ -1,0 +1,87 @@
+# ADR 0109 — Referral "Registros internos" + the case-access summary door
+
+- **Status:** Accepted (backend, Phase 1 of the referral detail redesign)
+- **Date:** 2026-08-11
+- **Plan:** [referral-detail-redesign.md](../plans/referral-detail-redesign.md) (amendments A1–A9)
+- **Migration:** `supabase/migrations/20260919010000_referral_registros_case_access_summary.sql`
+
+## Context
+
+The referral detail page's "Notas internas" becomes "Registros internos": the case-narratives
+model (title · type vocabulary · assignee · open→concluded lifecycle) applied to referral internal
+notes, plus a dialog that names who can read a linked case when the viewer cannot.
+
+## Decisions
+
+**D1 — Extend `referral_internal_notes` in place; do not rebuild it.** The K-R5-1 lattice (RLS +
+column-list grants + the audited single door) and its pgTAP coverage evolve rather than being
+re-keystoned from scratch. `body` → `body_md`; nine columns added, each with its own explicit
+`GRANT SELECT (col)`, because the table has **no** table-level `authenticated` ACL — the absence of
+a grant on the body column *is* the K-R5-2 hardening (plan A4).
+
+**D2 — The vocabulary mirrors the LIVE `case_narrative_types`, and the live sibling is
+`SECURITY INVOKER`.** Amendment A6 says `reorder_*` is the one DEFINER RPC. The catalog says
+`public.reorder_case_narrative_types` has `prosecdef = false`. The catalog wins:
+`reorder_referral_note_types` is INVOKER, so **RLS remains the security boundary** (Rule 1) and the
+inline raise only converts a silent zero-row update into a pt-BR `42501`. Consequence: this phase
+adds **one** new `prosecdef` boolean pair and **one** row/scalar door class, not two DEFINER doors.
+
+**D3 — The roster is derived by PARITY, not by re-implementing the arms.** The five arms of
+`app._case_caps` that confer `read_case_content` (S1 coordinator · S3 grant · S4 assignee · S6
+PQS/NSP · S7 quality reviewer) are used **only to enumerate candidates**; inclusion is then decided
+by calling `app.has_case_capability(case, uid, 'read_case_content')` — the resolver
+`app.can_read_case` itself projects. The returned roster is therefore *definitionally* "the people
+for whom `can_read_case` is true", grouped. The hard denies (respondent · recusal · `is_active`)
+and the S6/S7 side conditions come along inside the resolver, and the two arms that must not appear
+(S2 org_admin, S5 plain member) cannot appear because they confer other bits. Re-deriving the arms
+would have been the drift the plan warned about; this shape makes drift unrepresentable.
+
+**D4 — The case is side-derived, never caller-chosen.** `p_commission_id` names the side; the case
+comes from `source_case_id` / `target_case_id`. Authority is three conjuncts: the side is one of the
+referral's two, the caller is an active member of *that* side, and the caller can read the referral
+at all (which is what denies a target-side member while the referral is still a draft).
+
+**D5 — Named boolean gates instead of inline `if` conditions.** The note-lifecycle authority lives
+in `app.can_edit_referral_internal_note` / `app.can_manage_referral_internal_note` rather than
+inline in each door. Rationale is ADR 0079 Amendment 5: a scalar-returning DEFINER door is
+**invisible** to `ARM=census`, while a `prosecdef` boolean is in its LIVE domain. Naming the gate is
+what puts it inside the standing invariant's field of view. Neither carries a lifecycle term, so the
+`42501`-before-`HC0A9` ordering stays expressible.
+
+**D6 — A new read action needs BOTH halves of the audit registry.** `public.log_audit_access` is a
+closed allow-list *and* delegates to the `app._audit_access_authorized` dispatcher.
+`referral.case_access_summary_viewed` was added to both, the dispatch arm mirroring the door's own
+gate so the registry cannot be laxer than what it records. Both were regenerated from the live
+`pg_get_functiondef` behind an equality guard.
+
+## Two defects this phase closed
+
+**A NULL-hole in `create_referral_internal_note` (pre-existing, proven reachable).** The gate read
+`p_committee_id not in (source_commission_id, target_commission_id)`. On a `technical_director`
+referral `target_commission_id IS NULL`, so that expression is **NULL** (not TRUE) for every
+committee other than the source; `NULL or false` is NULL and plpgsql's `if` treats NULL as false, so
+the raise never fired. Verified against the live catalog before the fix: a member of a wholly
+uninvolved commission authored a note on a DT referral. The note is a write-only orphan (no side of
+`can_read_referral_internal_note` matches it), so this was unauthorized **write** and audit noise
+rather than a read leak. Closed with `is distinct from`. Notable because `link_referral_case`
+already carried an explicit refusal for the identical shape, commented "NULL-hole #3" — the class
+was known and one instance was missed.
+
+**A rename orphan.** Column privileges and CHECK constraints follow a rename by OID; **plpgsql
+function bodies do not** — they resolve column names at runtime. Sweeping `pg_proc` for every
+`app`/`public` body mentioning `referral_internal_notes` (13 functions) found exactly one writer of
+the renamed column: `public.dispose_referral_phi`, the LGPD Art. 18 erasure path. Unpatched, the
+rename would not have failed the migration — it would have failed **PHI disposal at runtime**.
+Repaired in the same migration from the live definition, and pinned by `322` §6.4–6.6.
+
+## Consequences
+
+- `create_referral_internal_note` **and** `redact_referral_note` return the table row type, so the
+  rename changes their returned JSON key `body` → `body_md`. `list_referral_internal_notes`'s
+  element key changes with it, and its order becomes open-first, `created_at` DESC within group.
+- A person who holds a role but is not currently wearing that hat (ADR 0106) still appears in the
+  roster, while their own `can_read` reflects the hat. That is deliberate: the roster answers "who
+  can you ask", `can_read` answers "what can I do right now".
+- `app._audit_access_authorized` cannot be swept by `p0-authz-door-audit.sh` — its worklist is
+  bounded by the name regex `^(is_|can_|has_|…)` and the name starts with `_`. It owes a targeted
+  mutation, which it has. See PROGRESS.md § RDR for the standing caveat.
