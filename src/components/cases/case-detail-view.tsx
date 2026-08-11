@@ -62,6 +62,9 @@ import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format"
 import { CasePrimarySubjectPanel } from "@/components/cases/case-primary-subject-panel";
 import { QualityViewerChip } from "@/components/quality/quality-viewer-chip";
 import type { MyCaseRole } from "@/lib/queries/cases";
+import { CaseParticipantsPanel } from "@/components/cases/case-participants-panel";
+import type { CaseParticipantRoleOption } from "@/lib/queries/participants";
+import type { AddableUser } from "@/lib/queries/members";
 
 /**
  * Everything the case-detail outbound-referrals card (Phase 22 — `case_referrals`)
@@ -144,6 +147,10 @@ export function CaseDetailView({
   narrativeRevisions = {},
   viewerKind = "member",
   backLabel = "Meus Casos",
+  caseParticipantsEnabled = false,
+  organizationId,
+  participantRoles = [],
+  participantPlatformUsers = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -277,6 +284,23 @@ export function CaseDetailView({
    * alone was not enough to avoid pointing them at a 404.
    */
   backLabel?: string;
+  /**
+   * Whether the `case_participants` flag is ON (ETH·E4 — ADR 0108). Gates the
+   * main-column roster panel; the rail's {@link CasePrimarySubjectPanel} is
+   * unaffected — D7 keeps that card exactly as E3a shipped it.
+   */
+  caseParticipantsEnabled?: boolean;
+  /**
+   * The case's owning organization — required by the roster panel's search /
+   * role-vocabulary / platform-user-pick surfaces (all org-scoped). Threaded
+   * from the host page (`access.commission.organization.id`); absent/`null`
+   * is treated as "panel not shown" alongside the flag.
+   */
+  organizationId?: string;
+  /** The case's active participant-role vocabulary (org-wide + this case type's own). */
+  participantRoles?: CaseParticipantRoleOption[];
+  /** The org roster for the roster panel's "possui conta" platform-user pick. */
+  participantPlatformUsers?: AddableUser[];
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
@@ -585,6 +609,24 @@ export function CaseDetailView({
                 original layout): a case-wide card of requests cluttered the page and
                 sat far from the content it described. Each request now lists at the
                 bottom of its own target's card, inside `CasePhaseList`. */}
+            {/* ETH·E4 (ADR 0108 D7) — the participants ROSTER is a main-column
+                surface, distinct from the read-only rail summary above
+                (CasePrimarySubjectPanel, untouched). Requires both the flag AND
+                a resolved organizationId (every roster surface is org-scoped);
+                a host that has not threaded organizationId simply omits the
+                panel, same as the flag being off. */}
+            {caseParticipantsEnabled && organizationId && (
+              <div data-rise className="order-2 lg:order-none">
+                <CaseParticipantsPanel
+                  caseId={c.id}
+                  organizationId={organizationId}
+                  participants={detail.participants}
+                  roles={participantRoles}
+                  platformUsers={participantPlatformUsers}
+                  canManageLifecycle={caps.canManageLifecycle}
+                />
+              </div>
+            )}
             <div data-rise className="order-2 lg:order-none">
               <CaseActionItemsPanel
                 caseId={c.id}

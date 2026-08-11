@@ -6,6 +6,112 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟡 FUP-ETH-A11Y-1 — the ETH·E4 dialogs: error text is never `aria-describedby`-wired, and the typeahead announces neither loading nor result count (QA m3 + m4; owner: frontend + tester)
+
+**m3 — `aria-describedby` never reaches the error id.** `useFieldIds`
+(`src/components/ui/field.tsx:103-133`) already emits `descriptionId`, `errorId` and a
+composed `aria-describedby`, but every ETH·E4 call site passes only `.controlProps.id` and
+hand-sets `aria-invalid`: `add-participant-dialog.tsx` (2 sites) and
+`case-participant-role-manager.tsx` (2 sites, one of which wires `descriptionId` but never
+`errorId`). `FieldError` carries `role="alert"`, so the message **is** announced when it
+first appears — the gap is that a user who tabs **back** to the invalid field hears the label
+and nothing else. CLAUDE.md §8 requires accessible inputs.
+Fix shape: pass `hasError`/`hasDescription` into `useFieldIds`, spread `controlProps` instead
+of picking `.id`, and put `id={errorId}` on `FieldError` / `id={descriptionId}` on
+`FieldDescription` (neither auto-wires — both are plain `<p>` pass-throughs).
+
+**m4 — the typeahead popup has no live region.** `add-participant-dialog.tsx:391-407`:
+*"Buscando…"*, the empty hint and the result list are plain nodes **outside** the listbox
+that `aria-controls` points at, with no `aria-live`/`role="status"`. Only the error path is
+announced (it has `role="alert"`). Keyboard operation and the rest of the ARIA structure are
+complete and correct.
+
+⚠ **Why this was filed rather than fixed inside ETH·E4 (lead, 2026-08-11).** m4 cannot be
+closed without either (a) new visually-hidden text, which risks duplicating the existing
+visible strings — `"Nenhum resultado. Você pode cadastrar um novo."` and `"Buscando…"` — into
+a second `getByText` match and redding the suite on strict mode, or (b) folding the count into
+the listbox's `aria-label`, which is the exact string `pickFromTypeahead` scopes on (QA r2
+confirmed the app really does set it). **Either route needs a coordinated spec change, which
+is tester-owned**, so doing it as a lead edit at the tail of the gate would have put churn
+into the locators this phase had just finished stabilizing. m3 is attribute-only and safe on
+its own, but it belongs with m4 as one a11y pass. Both are QA-rated MINOR and non-blocking.
+
+### 🟡 FUP-E2E-SERVER-DEAD-1 — the prod-standalone server dies under load in ~3 of 17 batches, and `BATCH_TESTS=22` is the known rescue (owner: unassigned)
+
+Filed from the ETH·E4 handoff §3, where it was called out but never given an id. In one
+`e2e:prod` run, batches **5, 16 and 17 all hit `server_dead=1`**; 5 and 17 recovered on the
+automatic `INFRA_RETRY`, **16's retry died too**, leaving 69 tests with no verdict and turning
+a run with **zero assertion failures** into a RED gate. The rate is drifting: 1 of 17 earlier
+the same day, 3 of 17 by evening.
+
+Known-good workaround, used successfully **twice** on two different dead groups: re-run the
+group alone at `BATCH_TESTS=22` (smaller batches ⇒ more frequent server restarts). The
+Flexible-Forms group (`ff1`–`ff5` + `flagged-aggregate-result`) stresses it regardless of
+batching — its own sub-batches hit `server_dead` and recovered.
+
+**This is an infrastructure characteristic, not a product defect** — no assertion has ever
+failed in one of these batches. It is filed because it costs a full gate re-run each time it
+bites, and because "infra is not a pass": a batch that never produced a verdict must not be
+read as green.
+### 🟡 FUP-F2-BUCKETS — the F2 legacy-bucket retirement was deferred in writing, four times, and tracked nowhere (2026-08-11; owner: backend)
+
+F2 consolidated case / meeting / interview attachments into `public.attachments` + the two
+tier buckets, and **every writer is rewired** (`meetings/actions.ts:984`,
+`interviews/actions.ts:771`, `cases/documents-actions.ts` all go through `bucketForTier`).
+The legacy buckets were deliberately left standing to keep the atomic fold-in minimal — a
+sound call, recorded in
+[f2-attachments-migration-contract.md](../design/f2-attachments-migration-contract.md) §D:326
+("retire in a later cleanup migration, post-gate"), repeated in
+[phase-14e](../phases/phase-14e-attachment-phi-classification.md):167 and in the
+`20260717000300_attachments_foldin.sql` header:20. **The cleanup migration was never
+written, and the deferral never became a task** — it lives in two planning docs, one
+migration comment, and a retrospective, and in no tracker. Verified 2026-08-11: `grep` over
+PROGRESS.md for *legacy bucket / retire / cleanup migration / the three bucket names* → **0
+hits**; `f2-attachments.md` § *Open risks / deferred* lists four items, none of them this.
+
+**Live catalog state (2026-08-11, local) — the three are in three different states, and only
+the middle one is the finding:**
+
+| Bucket | Policies | State |
+| --- | --- | --- |
+| `referral-attachments` | `can_manage_referral_target` INSERT · `can_read_referral_phi` SELECT | **NOT legacy** — live referral PHI plane (Phase 22), never in F2's scope. Leave it. |
+| `meeting-attachments` | `meeting_attachments_insert_staff_admin` · `meeting_attachments_select_member` (**both live**) | **No writer in the product, two working doors.** Reads gate on bare `is_member_of(seg[1])` — the coarse rule F2 replaced. |
+| `interview-attachments` | **none** | Already sealed: its member SELECT was a confirmed PHI exposure ([authz-a0-inventory-review](../reviews/authz-a0-inventory-review.md) §2.1) and was dropped; `236` §③b pins EXCLUDED-member-reads-0, and `u1-mutation-audit.sh` re-creates it as the injected leak. |
+
+⚠ **`meeting-attachments` is named in the two planning docs and NOWHERE else.** The §7.12
+exclusion-perimeter analysis ([authz-handoff.md](./authz-handoff.md):572) measured
+reachability for `case-documents` + `interview-attachments` and drove the interview drop; it
+never covered the meeting bucket, most likely because it was scoped to *case* PHI surfaces
+and a meeting attachment is not a case artifact. The attention that closed two of three
+skipped the third — **a per-surface sweep is not a sweep**, the recorded rule again.
+
+**A second, separable question — do NOT fold it into the policy drop.** The fold-in is
+explicitly *pure DDL, no data migration* ("on a fresh `db reset` all these tables are EMPTY"),
+then `drop table … meeting_attachments cascade`. Against a **data-bearing** database that
+drops the metadata rows while their blobs stay in the legacy bucket, still reachable through
+that live member SELECT. F2 is local-only (remote `db push` deferred to pilot cutover) and
+there are no live users pre-launch, so this is very likely a non-issue — but that is an
+**assumption about remote state which nothing verifies**, and it is the
+backfill-guard shape: passes a 0-row local reset, behaves differently against real data.
+**Measure remote object counts before dropping anything** (§7.12's own rule: reachability
+measured, never inferred).
+
+Proposed scope, in order:
+1. **Measure** — `storage.objects` counts per legacy bucket on the linked remote. Record the
+   numbers here; a non-zero `meeting-attachments` turns item 3 into a data decision.
+2. **Drop the two `meeting_attachments_*` storage policies** (the actual open door).
+3. **Delete the three legacy buckets** — `case-documents` only after confirming the referral
+   snapshot reader is off it (that reader is the *separate* open item in
+   [f2-attachments.md](./f2-attachments.md) § *Open risks*: `getReferralDocumentUrl` still
+   signs from it).
+4. **Pin it** — a pgTAP assertion that **no** policy exists on `bucket_id in
+   ('meeting-attachments','interview-attachments','case-documents')`, derived from
+   `pg_policies` rather than transcribed, so the retirement cannot silently regress. Without
+   this, step 2 is a change no gate can see — the same prose-only failure that produced this
+   entry.
+5. **Close [authz-capability-inventory.md](./authz-capability-inventory.md):358 open question
+   #3** ("`interview-attachments` + `case-documents` — in scope, or Stage E?") as answered.
+
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
@@ -281,6 +387,39 @@ the day the first customer has one foreign professional it becomes a real gap, a
 rather than a panicked schema change. Blocks nothing. Decide before the pilot onboards clinical staff,
 not after.
 
+### 🟡 FUP-SILENT-READ-1 — ~207 PostgREST reads never destructure `error` (2026-08-11, lead)
+
+Surfaced during ETH·E4 when `tester`, enumerating the blast radius of the
+`professional_profiles` column-list grant, noticed `getCaseDetail`'s professional embed
+(`src/lib/queries/cases.ts:1358`) never destructured `error`. On any failure `profRows` is
+null, `?? []` yields an empty map, and every professional participant renders with
+`prof = null` — the roster silently falls back to the mint-time `display_name` snapshot,
+`professionalProfileId` goes missing, and **`linkState` is undefined so the "Resolver
+vínculo" affordance simply vanishes.** No error, no log, no visible failure: a deleted
+feature that looks like an empty state.
+
+**Fixed in-phase, all three ETH·E4-authored instances** (`7e55f01`): that embed, plus
+`members.ts` `listLinkableOrgUsers` (an empty user list is indistinguishable from "no
+account" — walking the coordinator to `no_account`, which makes the case exclusion
+vacuously satisfied; the same class as QA's MAJOR-2, inside the very function written to
+close the previous instance of it) and `vocabulary/actions.ts`
+`listCaseParticipantRolesForAdmin`. ETH·E4-authored code is at zero.
+
+**The repo-wide residue is this follow-up.** A cheap sweep counts **~207 of 773**
+PostgREST destructures (~27%, ~40 modules — `rca.ts` 14, `capa.ts` 13, `referrals.ts` 10,
+`cases.ts` 10). ⚠ **That is NOT a count of 207 bugs** and must not be cited as one. It is
+pre-existing house style, and most instances are probably deliberate "return `null`/`[]`
+on failure" reads. The ones that matter are only those where **an empty result is
+semantically different from an error and the UI cannot tell them apart** — which is what
+made the three above real. Separating those needs per-call-site judgement, not a regex:
+the sweep is cheap, the triage is not.
+
+⚠ The sweep script had a real bug before its numbers were trusted — line numbers were
+computed on comment-**stripped** source, shifting every offset after the first comment.
+Fixed by blanking comments length-preservingly (self-test 4/4); the count moved 210 → 209,
+which is why ~207 is quoted as heuristic rather than audited. Script in `backend`'s
+scratchpad. Owner: unassigned — needs a triage decision before anyone starts.
+
 ### 🔴 FUP-AFF-1 — the authz census is BLIND to write-path doors (2026-08-06, lead)
 
 Recorded as ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 5**.
@@ -378,68 +517,6 @@ BUG-TV-001, because that site names no dropped column — it names a relation th
 
 ⚠ **Deferred by decision, not oversight** (ADR 0095 §3): `blocks[]` → join table; the
 `case_phase_offered_results` rename.
-
-### 🔴 FUP-ETH-1 — NOTHING can seat a professional: "Médico denunciado" is an unfillable panel (2026-08-05)
-
-ETH·E3a shipped the primary-subject rail card ([`case-primary-subject-panel.tsx`](../../src/components/cases/case-primary-subject-panel.tsx),
-rendered by [`case-detail-view.tsx:352`](../../src/components/cases/case-detail-view.tsx:352) when
-`case_types.primary_subject_kind ∈ {professional, entity}`). With `ethics` + `case_participants` +
-`case_types` all flag-ON, **an Ethics case in production will show that panel in its empty state
-forever** — no product path fills it. Found by the PO asking how a professional gets included; the
-answer is that they cannot. Verified against the **live catalog** (`pg_proc` / `pg_policies` / grants /
-`pg_trigger`), not migration text.
-
-Seating a respondent needs four rows. **Two have doors; two have none:**
-
-| Row | Door | |
-| --- | ---- | - |
-| `professional_profiles` | `create_professional_profile` (DEFINER) | ✅ |
-| `participants` (`participant_type='professional'`) | — | ❌ **no writer exists** |
-| `professional_participants` (the link) | — | ❌ **no writer exists** |
-| `case_participants` | `add_case_participant` (DEFINER) | ✅ |
-
-**This is a hole in the substrate, not just missing UI.** A `pg_proc` sweep for `insert into
-participants` returns **exactly one** function — `set_participant_patient`, the patient lane;
-`create_professional_profile` writes `professional_profiles` **only** (no `participants` row, no
-trigger creating one — `professional_profiles` carries one trigger, `guard_professional_linkage`,
-unrelated); nothing anywhere INSERTs `professional_participants` outside [`seed.sql:2592`](../../supabase/seed.sql:2592).
-All four tables are **SELECT-only** for `authenticated` (no INSERT grant, no INSERT policy), so there
-is no direct-DML fallback. `add_case_participant` therefore demands a `participants.id` that no door
-can mint for a professional.
-
-⚠ **The TS layer is still the BE-1 contract stub, and its docblock says otherwise.**
-[`src/lib/participants/actions.ts`](../../src/lib/participants/actions.ts) — all 7 actions
-(`addCaseParticipant`, `removeCaseParticipant`, `setPrimarySubject`, `setCaseParticipantRole`,
-`createProfessionalProfile`, `updateProfessionalProfile`, `setProfessionalLinkState`) call
-`notImplemented()`. The file says *"Bodies land in BE-5"*; **BE-5 (`9180a27`) shipped the SQL RPCs +
-regenerated `database.ts` and never touched it** — the file has two commits ever, both stub-authoring.
-The E1 review's ✅ on D6 is about the RPCs, and is correct at that scope. **Zero callers** of any of
-the 7 exist in `src/` or `e2e/`; there is no `src/components/participants/`. The panel's own docblock
-is honest (*"the full participants roster … not built here"*), as is [`queries/cases.ts:450`](../../src/lib/queries/cases.ts:450)
-(`[]` until BE-7). Sequencing debt, not a regression — but **`grep` for the RPC name says "built" and
-the product says "unreachable"**, which is the §7 "text is not truth" shape.
-
-**Corroboration that no path exists:** [`ethics-e3a-surfacing.spec.ts`](../../e2e/ethics-e3a-surfacing.spec.ts:298)
-seats every respondent with raw `dbInsert('case_participants', …)` — three sites. A spec that must
-bypass the product to reach a shipped panel is the tell.
-
-**To close (backend-owned; contract-first):** ① a DEFINER door minting `participants` +
-`professional_participants` for a professional, mirroring `set_participant_patient` (⚠ it must preserve
-the surrogate-label property ADR 0091 §O pins) · ② fill the 7 action bodies, reads via `src/lib/queries/`
-(Rule 9) · ③ a roster surface on the case detail page (add / remove / set-role / set-primary) · ④ **the
-link-state flow, or ③ dead-ends**: `app.assert_respondent_linkage_resolved` rejects an `unknown`-linkage
-profile from `respondent_doctor` with `HC0F0`, and `setProfessionalLinkState` — the only remedy — is
-one of the stubs.
-
-**Two adjacent seed-only gaps, same shape** (both plausibly in scope): `case_participant_roles` has an
-admin-write RLS policy but **no RPC and no UI** — the 7 roles, incl. `respondent_doctor` → "Médico
-denunciado", exist only because `seed.sql` wrote them; `case_type_terminology` has **no writer at all**,
-so the 5 label slots cannot be edited in-app on any tenant.
-
-▶ **Feeds FUP-FF5-2.** That row asks for an assertion pinning the `participants` writer set by count
-*and* name. Today's catalog answers **one** (`set_participant_patient`) against ADR 0091's prose claim of
-*"exactly two functions"* — so the assertion should be written from the catalog, and the discrepancy
-resolved as part of writing it, **not** from the ADR's number.
 
 ### ⬛ Resolved — rotated 2026-08-06 → [follow-ups-archive.md](./follow-ups-archive.md)
 

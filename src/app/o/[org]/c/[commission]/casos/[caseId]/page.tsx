@@ -18,8 +18,10 @@ import {
   phaseResultsEnabled,
 } from "@/lib/queries/phase-results";
 import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
-import { listMembers } from "@/lib/queries/members";
+import { listMembers, listLinkableOrgUsers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
+import { listCaseParticipantRoles } from "@/lib/queries/participants";
+import { featureEnabled } from "@/lib/queries/feature-flags";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
@@ -102,6 +104,7 @@ export default async function StaffCaseDetailPage({
     meetingsOn,
     actionItemsOn,
     caseCustomFieldsOn,
+    caseParticipantsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -111,7 +114,28 @@ export default async function StaffCaseDetailPage({
     meetingsEnabled(),
     actionItemsEnabled(),
     caseCustomFieldsEnabled(),
+    featureEnabled("case_participants"),
   ]);
+
+  // ETH·E4 (ADR 0108) — the participants roster's org-scoped surfaces (search,
+  // role vocabulary, platform-user pick). Skipped entirely while the flag is
+  // off or for the oversight reader (D7: roster affordances are member content,
+  // not the read-only office view). `organizationId` and `caseTypeId` come
+  // from data already loaded above (`access`, `detail`) — no extra case read.
+  const [participantRoles, participantPlatformUsers] =
+    caseParticipantsOn && !isOversight
+      ? await Promise.all([
+          listCaseParticipantRoles(
+            access.organization.id,
+            detail.case.caseTypeId,
+          ),
+          // ⚠ NOT `listAddableMembers` — that RPC excludes people already in this
+          // commission, i.e. exactly the members most likely to be the respondent.
+          // The dead end pushed coordinators to `no_account`, which makes the case
+          // exclusion vacuously satisfied (ADR 0108 D6). Org-scoped, RLS-scoped.
+          listLinkableOrgUsers(access.organization.id),
+        ])
+      : [[], []];
 
   // Post-conclusion result correction (phase-results feature; task #10) is
   // staff_admin-only — a plain staff/collaborator/read-grantee at this shared staff
@@ -233,6 +257,10 @@ export default async function StaffCaseDetailPage({
       correctionsEnabled={correctionsData.enabled && !isOversight}
       corrections={correctionsData.requests}
       narrativeRevisions={correctionsData.narrativeRevisions}
+      caseParticipantsEnabled={caseParticipantsOn && !isOversight}
+      organizationId={access.organization.id}
+      participantRoles={participantRoles}
+      participantPlatformUsers={participantPlatformUsers}
     />
   );
 }
