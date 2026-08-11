@@ -47,6 +47,24 @@ Verified against the **live catalog** (`pg_proc` incl. `prosecdef`, `pg_policies
 | A8 | Table name confirmed **`case_access_grants`** (`source` ∈ `manual_grant, nsp_investigation, referral, break_glass`; `list_case_access` filters `source='manual_grant'` and is coordinator-gated — hence the new RPC is still required). |
 | A9 | **Direction bug re-verified post-merge.** Only `encaminhamentos/[referralId]/page.tsx:111` needs the fix; `direcao-tecnica/[referralId]/page.tsx:85` also omits the arg but never consumes `detail.direction` (its "direction" hits are prose about *technical direction*). Signature confirmed at `src/lib/queries/referrals.ts:637`. |
 
+### 🔴 A11 — Rule 7 is enforced at RENDER time, not write time (binding constraint on Phase 3)
+
+Phase 2 discovered that the plan's instruction to "reuse the exact sanitizer `saveNarrativeBody`
+uses" **has no referent**: `saveNarrativeBody` passes `bodyMd` straight to the RPC
+(`src/lib/case-narratives/actions.ts:388` / `:869`) and sanitizes nothing — despite a doc comment
+at `:362` / `:844` reading "sanitized Markdown — Rule 7". Verified by hand. Registro bodies are
+therefore stored **verbatim**, faithfully mirroring the sibling.
+
+Rule 7 (stored-XSS) is satisfied **only at render**, by
+`src/components/forms/markdown/markdown-renderer.tsx` (react-markdown + `rehype-sanitize`, and
+crucially **no `rehype-raw`**).
+
+**Consequence — Phase 3 must obey this or it ships a stored-XSS hole:** every surface that
+displays `note.bodyMd` **must** render it through `MarkdownRenderer`. A plain `{note.bodyMd}`,
+a `dangerouslySetInnerHTML`, or any second markdown renderer breaks Rule 7. This is now the
+*only* thing standing between a pasted `<script>` and execution — there is no write-time net
+behind it. Treat it as a review checkpoint, not a style preference.
+
 ### ✅ A10 — requested action keeps a home (PO decision, 2026-08-11)
 
 Raised by the E2E locator survey: `ReferralRequestedActionChip` (`page.tsx:294–296`) renders
