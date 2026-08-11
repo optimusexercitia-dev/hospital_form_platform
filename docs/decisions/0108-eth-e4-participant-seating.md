@@ -238,11 +238,24 @@ linkage machinery).
   disjuncts include staff_admin of any commission in the org), so anyone who may seat may mint
   — in either lane.
 - **Two new DEFINER gates** (the two mint doors), **one modified shipped gate**
-  (`set_primary_subject`), and **one widened RLS predicate** — so **`ARM=census` is the
-  load-bearing authz gate for the new doors** (a brand-new gate is in no BLIND set, so
-  `ARM=policy` passes vacuously — ADR 0079 Amendment 3), while the modified door and the
-  widened predicate are exactly what the **diff-scoped door sweep** exists for; it runs over
-  all four.
+  (`set_primary_subject`), and **one widened RLS predicate**. The **diff-scoped door sweep**
+  covers the modified door and the widened predicate; it runs over all four.
+
+  > ⛔ **CORRECTED 2026-08-11, during the build, by the `backend` teammate.** This bullet
+  > originally read "**`ARM=census` is the load-bearing authz gate for the new doors**"
+  > (citing Amendment 3's vacuous-`ARM=policy` reasoning). **That is wrong, and it
+  > contradicted a standing open follow-up.** ADR 0079 **Amendment 5** + **FUP-AFF-1**
+  > already hold that `ARM=census`'s LIVE domain is `bool`-returning (or set-returning,
+  > `authenticated`-executable) DEFINER functions plus RLS policies — a **scalar- or
+  > void-returning door is in none of those sets.** All three E4 write doors return `uuid`
+  > or `void`, so `ARM=census` reports HOLDS **because the doors are invisible to it, not
+  > because they are accounted** — the very vacuity Amendment 3 exists to close, recurring
+  > in a shape Amendment 3's filter cannot express. FUP-AFF-1 carries this as a standing
+  > trap: *never cite `ARM=census` for write-path doors.*
+  >
+  > **What actually covers them** is the neutralization oracle, run by hand per door:
+  > open each gate, require suite 321 to FAIL, restore. Call-counting is insufficient.
+  > A gate record for this track must name that, never `ARM=census`.
 - `create_professional_profile` gains its first caller since it shipped.
 - **Not decided here:** whether professional identity eventually deserves its own org-level
   directory screen (D7 keeps it in the roster; a second consumer makes it its own track), and

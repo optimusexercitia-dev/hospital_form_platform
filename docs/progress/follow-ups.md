@@ -281,6 +281,36 @@ the day the first customer has one foreign professional it becomes a real gap, a
 rather than a panicked schema change. Blocks nothing. Decide before the pilot onboards clinical staff,
 not after.
 
+### 🔴 FUP-ETH-CPF-1 — the D5 widening also exposes `professional_profiles.cpf` (2026-08-11, backend)
+
+Found by `backend` during the ETH·E4 build, measuring rather than reasoning. **Does not block
+ETH·E4** — the exposure is latent — but ADR [0108](../decisions/0108-eth-e4-participant-seating.md)
+D5's "exposure argument, stated so it can be checked" **enumerates `license_number` / `specialty` /
+`professional_type` and does not name `cpf`.** The PO ratified the widening against an incomplete
+description of what it discloses. That is the finding.
+
+**The substrate, catalog-verified:** `authenticated` holds a **table-wide** SELECT on
+`professional_profiles` — all 17 columns, **no column-list grant**, unlike `profiles` and
+`case_referral`, which both restrict by column. `get_case_professional` returns
+`to_jsonb(<whole row>)`. So any caller whose RLS row-read succeeds gets every column, and D5
+widened *which rows* succeed to every org manager.
+
+**Measured live:** a `staff_admin` of a sibling commission with **no case access** read the
+professional's `full_name` **and** `cpf`.
+
+**Why it is latent, not live:** no door writes the column — neither `create_professional_profile`
+nor `update_professional_profile` has a CPF parameter, so the column is always NULL in practice.
+pgTAP suite **321 K3c** now pins that writer-absence, with the detector **proven able to fire**
+against a planted writer (a detector that finds nothing must be shown able to find something).
+
+**Second-order:** `redact_professional_profile` does **not** scrub `cpf` either, so the redaction
+path would not save it if the column were ever populated.
+
+**Proposed fix** — a column-list SELECT grant excluding `cpf`, mirroring `profiles`. Deliberately
+**not** made inside ETH·E4: it touches a shipped grant on a Class-2 table and is a PO/lead call,
+not a build-time one. Related: the `profiles` column-list-grant trap (every new column needs its
+own GRANT or reads 42501) and FUP-FF5-1's "sem CPF" affordance above.
+
 ### 🔴 FUP-AFF-1 — the authz census is BLIND to write-path doors (2026-08-06, lead)
 
 Recorded as ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 5**.

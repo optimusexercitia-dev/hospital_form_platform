@@ -246,10 +246,19 @@ cannot void their run.
 ## 7. Gate (CLAUDE.md §6, in order)
 
 1. **Build** — `npm run lint` · `npm run typecheck` · `npm run test` · `npm run test:db` on a
-   **fresh reset**. Then `ARM=census` — **the arm that catches the two gates this track adds**
-   (`ensure_professional_participant`, `create_external_participant`), since a brand-new gate
-   is in no BLIND set and `ARM=policy` passes vacuously (ADR 0079 Amendment 3) — plus
-   `ARM=hat` and `ARM=floor`. **Plus the diff-scoped door sweep over all four changed gates**
+   **fresh reset**. Then `ARM=census`, `ARM=hat` and `ARM=floor`.
+
+   > ⛔ **CORRECTED 2026-08-11 during the build.** This step originally called `ARM=census`
+   > "the arm that catches the two gates this track adds". **It does not.** Per ADR 0079
+   > **Amendment 5** and the standing **FUP-AFF-1** trap, the census's LIVE domain excludes
+   > scalar- and void-returning DEFINER doors — and all three E4 write doors return `uuid`
+   > or `void`. `ARM=census` HOLDS over them because they are **invisible to it**, not
+   > because they are accounted. Run it (it still covers the widened predicate), but
+   > **never cite it as coverage for the write doors** in the gate record.
+   >
+   > **Their real coverage is the neutralization oracle, by hand, per door:** open each
+   > gate, require suite 321 to FAIL, restore it, confirm PASS. That is what the record
+   > must name. **Plus the diff-scoped door sweep over all four changed gates**
    (the two new mints, the modified `set_primary_subject`, the widened
    `can_read_professional_profile`), derived from the migration diff, never by hand (ADR 0079
    Amendment 1). BLIND blocks the phase; `ERROR` is not a pass. **Plus the §1.3/§1.4
