@@ -506,6 +506,24 @@ export function AddParticipantDialog({
   const [selectedExt, setSelectedExt] = useState<ParticipantSearchResult | null>(null);
   const [extType, setExtType] = useState<ParticipantType>("external_person");
   const [extName, setExtName] = useState("");
+  // MAJOR-6 (QA): `createExternalParticipant` is create-always (ADR 0108 D8 —
+  // an external person has no natural key, so dedup-by-name would silently
+  // merge distinct people). If the mint succeeds but the subsequent
+  // `addCaseParticipant` fails, the `participants` row is already committed;
+  // retrying `submit()` must NOT mint a second one for the same pending
+  // creation. `mintedExternalId` retains the id across a retry;
+  // `mintedExternalIdentity` is the (type, name) it was minted FOR, so a
+  // genuinely different identity (the user edited Tipo or Nome) is correctly
+  // treated as a different person and mints afresh. Both clear via `resetAll`
+  // when the dialog closes. Fixing this server-side would need an atomic
+  // `seat_external` door duplicating `add_case_participant`'s authorization/
+  // audit/`HC0F0` logic — exactly what ADR 0108 D1 rejected — so the retry
+  // state belongs here, not in a new RPC.
+  const [mintedExternalId, setMintedExternalId] = useState<string | null>(null);
+  const [mintedExternalIdentity, setMintedExternalIdentity] = useState<{
+    type: ParticipantType;
+    name: string;
+  } | null>(null);
 
   // Linkage (D6) — shared by both professional paths that need it.
   const [linkState, setLinkState] = useState<"linked" | "no_account" | null>(null);
@@ -542,6 +560,8 @@ export function AddParticipantDialog({
     setSelectedExt(null);
     setExtType("external_person");
     setExtName("");
+    setMintedExternalId(null);
+    setMintedExternalIdentity(null);
     setLinkState(null);
     setLinkUserId(null);
     setLinkConfirmed(false);
@@ -726,19 +746,36 @@ export function AddParticipantDialog({
           }
         } else {
           if (extMode === "create") {
-            const created = await createExternalParticipant(
-              organizationId,
-              extType,
-              extName.trim(),
-            );
-            if (!created.ok || !created.participantId) {
-              setError(
-                created.error ?? "Não foi possível cadastrar o participante.",
+            const identity = { type: extType, name: extName.trim() };
+            const alreadyMinted =
+              mintedExternalId !== null &&
+              mintedExternalIdentity !== null &&
+              mintedExternalIdentity.type === identity.type &&
+              mintedExternalIdentity.name === identity.name;
+
+            if (alreadyMinted) {
+              // MAJOR-6: same pending creation as the last attempt (the
+              // subsequent addCaseParticipant failed) — reuse the id already
+              // minted rather than calling createExternalParticipant again,
+              // which would commit a second, duplicate `participants` row.
+              participantId = mintedExternalId;
+            } else {
+              const created = await createExternalParticipant(
+                organizationId,
+                identity.type,
+                identity.name,
               );
-              setFieldErrors(created.fieldErrors ?? {});
-              return;
+              if (!created.ok || !created.participantId) {
+                setError(
+                  created.error ?? "Não foi possível cadastrar o participante.",
+                );
+                setFieldErrors(created.fieldErrors ?? {});
+                return;
+              }
+              participantId = created.participantId;
+              setMintedExternalId(created.participantId);
+              setMintedExternalIdentity(identity);
             }
-            participantId = created.participantId;
           } else if (selectedExt) {
             participantId = selectedExt.participantId ?? undefined;
           }
