@@ -32,6 +32,14 @@ import { cachedSignIn } from "./helpers/auth"
  * open with an inline error on failure. Account for that in waits/assertions.
  */
 
+// AC2 states in its own body that "AC1b must have run first in this session", and
+// AC4e depends on a meeting an earlier test left `em_assinatura`. With the project's
+// `fullyParallel: true` that ordering was never guaranteed — both tests coped by
+// pushing an `info` annotation and returning, which reports the test as PASSED, not
+// skipped. That is a silent green with a note buried in the report, and it is what
+// FUP-VACUOUS-AUDIT-1 flagged. Declare the ordering these tests already rely on.
+test.describe.configure({ mode: 'serial' })
+
 test.use({ viewport: { width: 1280, height: 900 } })
 
 test.beforeEach(async ({ page }) => {
@@ -460,14 +468,15 @@ test('AC1b — seeded meeting: Concluir → em_assinatura, quorum snapshot popul
 test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assinada, Distribuir', async ({ page }) => {
   // Precondition: the seeded meeting is em_assinatura (AC1b must have run first in this session).
   // We verify the status and skip if the DB is not in the expected state.
+  // Asserted, not annotated-and-returned: with the file's serial mode declared above,
+  // AC1b always runs first and leaves the meeting `in_signature`. If it does not, AC2
+  // has nothing to sign and must say so — the old annotation reported this test as
+  // PASSED while the entire signing flow below went unexecuted.
   const rowBefore = await getMeetingRow(page, SEEDED_MEETING_ID)
-  if (rowBefore?.status !== 'in_signature') {
-    test.info().annotations.push({
-      type: 'info',
-      description: `Skipping AC2 sign flow — seeded meeting status is '${rowBefore?.status}', expected 'in_signature'. Run after AC1b.`,
-    })
-    return
-  }
+  expect(
+    rowBefore?.status,
+    'seeded meeting is not in_signature — AC1b (Concluir) did not run or did not take',
+  ).toBe('in_signature')
 
   // --- Sign as staff1.ccih ---
   await signInAs(page, 'staff1.ccih@test.local')
@@ -955,10 +964,14 @@ test('AC4e — Reabrir revokes signatures and unlocks editing', async ({ page })
     },
   )
   const meetings = (await meetingsResp.json()) as Array<{ id: string }>
-  if (meetings.length === 0) {
-    test.info().annotations.push({ type: 'info', description: 'No em_assinatura meeting for Reabrir test — skipping.' })
-    return
-  }
+  // Asserted, not annotated-and-returned. "Reabrir revokes signatures" is the whole
+  // point of this test; with no em_assinatura meeting it verified nothing while
+  // reporting PASSED. If this reds, the fixture chain ahead of it broke — that is
+  // information, not an inconvenience.
+  expect(
+    meetings.length,
+    'no em_assinatura meeting to reopen — the Reabrir flow was never exercised',
+  ).toBeGreaterThan(0)
 
   const reabrirMeetingId = meetings[0].id
 

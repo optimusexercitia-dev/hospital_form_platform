@@ -859,25 +859,35 @@ test.describe('AC-6: dual-hospital same-org referral — both endpoints read, cr
     const res = await page.goto(
       `/o/rede-a/c/seguranca-a2/encaminhamentos/${REF_XHOSP_ID}`,
     )
-    // The target commission slug may differ; fall back to asserting the DB-proven
-    // dual-read is not contradicted by any accessible surface. If 200, reveal PHI.
-    if (res?.status() === 200) {
-      const reveal = page.getByRole('button', { name: /exibir identificação/i })
-      if (await reveal.isVisible().catch(() => false)) {
-        await reveal.click()
-        await expect(page.getByText(MRN_REF_XHOSP)).toBeVisible({
-          timeout: 10_000,
-        })
-      }
-    } else {
-      test.info().annotations.push({
-        type: 'note',
-        description:
-          'seguranca-a2 target-commission referral route returned ' +
-          `${res?.status()} — target-endpoint UI reveal not seed-navigable for pqs.a2; ` +
-          'the dual-hospital READ is proven at the DB layer (pgTAP 189 §7). See NPH-note.',
-      })
+    // FUP-VACUOUS-AUDIT-1. This had TWO silent-pass paths, neither visible in the
+    // report: a non-200 pushed an `info` annotation — which reports the test as
+    // PASSED, not skipped — and a 200 with no reveal button asserted nothing at all.
+    // A test titled "reads the referral (dual-hospital READ)" could therefore go
+    // green on a 404.
+    //
+    // The route genuinely is NOT seed-navigable for pqs.a2 today (confirmed by
+    // running it), and the dual-hospital READ itself is proven at the DB layer by
+    // pgTAP 189 §7. So the honest outcome is a VISIBLE SKIP, not a green: a skipped
+    // test is reported as skipped and shows up in the run summary, where an
+    // annotation on a passing test does not. If the route ever becomes navigable the
+    // assertions below run, and they are strict — no more optional reveal.
+    if (res?.status() !== 200) {
+      test.skip(
+        true,
+        `seguranca-a2 target-commission referral route returned ${res?.status()} — ` +
+          'the UI reveal is not seed-navigable for pqs.a2; the dual-hospital READ is ' +
+          'proven at the DB layer (pgTAP 189 §7). See NPH-note.',
+      )
+      return
     }
+
+    const reveal = page.getByRole('button', { name: /exibir identificação/i })
+    await expect(
+      reveal,
+      'an entitled dual-hospital operator must be offered the PHI reveal control',
+    ).toBeVisible({ timeout: 10_000 })
+    await reveal.click()
+    await expect(page.getByText(MRN_REF_XHOSP)).toBeVisible({ timeout: 10_000 })
   })
 
   test('cross-org operator (pqs.b, rede-b) canNOT read the org-a cross-hospital referral', async ({

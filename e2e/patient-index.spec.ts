@@ -802,20 +802,32 @@ test('AC-8a: non-PQS admin (chefe.ccih) search_patient_xref → null/empty resul
     p_mrn: TEST_MRN,
     p_hospital_id: HOSP_CENTRAL_A,
   })
-  if (resp.ok()) {
-    const body = await resp.json() as { matchCount?: number; entries?: unknown[] } | null
-    // Non-PQS caller → the RPC returns null or an empty bundle
-    if (body === null) {
-      // Correct: non-PQS gets null
-    } else if (body && typeof body === 'object' && 'matchCount' in body) {
-      expect(body.matchCount).toBe(0)
-    }
-    // Either null or matchCount=0 is correct
-  } else {
+  // FUP-VACUOUS-AUDIT-1: the `if (body === null) { }` arm was a COMMENT, not an
+  // assertion, and a 200 returning an object WITHOUT `matchCount` fell through both
+  // arms — so this PHI-denial test could go green on a body it had never inspected.
+  // Every path now folds into one discriminant that is asserted unconditionally, and
+  // the outcome is named in the failure output so the report says which arm ran.
+  let outcome: 'raised' | 'null-body' | 'zero-matches' | 'LEAKED'
+  if (!resp.ok()) {
+    outcome = 'raised'
     // A non-200 is also acceptable (RPC may raise 23514 for non-PQS)
     const errStr = JSON.stringify(await resp.json())
     expect(errStr).toMatch(/23514|non.pqs|not.*member|unauthorized/i)
+  } else {
+    const body = await resp.json() as { matchCount?: number; entries?: unknown[] } | null
+    if (body === null) {
+      outcome = 'null-body'
+    } else if (typeof body === 'object' && body.matchCount === 0) {
+      outcome = 'zero-matches'
+    } else {
+      outcome = 'LEAKED'
+    }
   }
+  expect(
+    outcome,
+    'a non-PQS staff_admin must never receive patient cross-reference matches',
+  ).not.toBe('LEAKED')
+  expect(['raised', 'null-body', 'zero-matches']).toContain(outcome)
 })
 
 test('AC-8b: direct SELECT on patient_xref as authenticated → 0 rows (RLS REVOKE)', async ({

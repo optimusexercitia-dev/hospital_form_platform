@@ -49,6 +49,9 @@ const RUNNING_MODIFIERS = new Set(['only', 'fails', 'concurrent', 'sequential'])
 // Wrappers whose callback ALWAYS runs and whose failure propagates out of the
 // wrapper — so an assertion inside one is guaranteed, not conditional.
 const RETRY_WRAPPERS = new Set(['waitFor', 'waitForElementToBeRemoved', 'act'])
+// Per-file map of `const <name> = [ … ]` bindings, so a `for…of` over one of them
+// can be resolved back to its literal. Rebuilt by analyseSource for each file.
+let ARRAY_CONSTS = new Map()
 
 /** Is this call `expect(...)`, `expect.soft(...)`, or `expect.poll(...)`? */
 function isExpectCall(node) {
@@ -175,7 +178,15 @@ function assertsUnconditionally(node, helpers, seen) {
 
     // if / try / switch / loops / throw: not guaranteed, so they can never SUPPLY
     // the assertion — but they can REVOKE the guarantee for everything after them.
-    if (containsTestExitingReturn(stmt)) guaranteed = false
+    //
+    // ⚠ Only a SILENT exit revokes it. `if (c) { …asserts…; return }` is a guard
+    // clause whose early-exit path DOES assert, so it is the same shape as an
+    // exhaustive if/else and must not be penalised: the taken path asserts here, and
+    // the fall-through path still has the rest of the test to assert in. Revoking on
+    // any `return` at all flagged a pile of correctly-written guard clauses.
+    if (containsTestExitingReturn(stmt) && !exitPathAsserts(stmt, helpers, seen)) {
+      guaranteed = false
+    }
   }
 
   const list = Array.isArray(node) ? node : node.statements ? node.statements : [node]
@@ -199,12 +210,74 @@ function isNonEmptyArrayLiteral(expr) {
   ) {
     e = e.expression
   }
+  // `const cases = [...]` then `for (const c of cases)` is the same guarantee as an
+  // inline literal — the binding is a const in this file and its initialiser is right
+  // there. Resolving it removes a very common table-driven-test false positive.
+  if (ts.isIdentifier(e)) {
+    const decl = ARRAY_CONSTS.get(e.text)
+    if (!decl) return false
+    e = decl
+    while (ts.isAsExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression
+  }
   return (
     ts.isArrayLiteralExpression(e) &&
     e.elements.length > 0 &&
     // A spread could expand to nothing, so it cannot carry the guarantee.
     !e.elements.some((el) => ts.isSpreadElement(el))
   )
+}
+
+/**
+ * Does every early-exit path inside this statement assert before it returns?
+ *
+ * Used to tell a GUARD CLAUSE (`if (bad) { expect(...); return }`) from a SILENT
+ * BAIL (`if (bad) { return }`). Only the latter leaves a path through the test with
+ * no assertion on it. Conservative: anything it cannot see through counts as silent.
+ */
+function exitPathAsserts(stmt, helpers, seen) {
+  const branch = (s) => (s ? (ts.isBlock(s) ? s.statements : [s]) : [])
+  if (ts.isIfStatement(stmt)) {
+    // Check only the sub-branches that can actually return.
+    for (const s of [stmt.thenStatement, stmt.elseStatement]) {
+      if (!s) continue
+      if (!containsTestExitingReturn(s)) continue
+      // A branch that calls `test.skip()` / `test.fixme()` is not a silent exit:
+      // the runner reports the test as SKIPPED, which is visible and honest. Only a
+      // bare `return` produces a GREEN that claims a check that never happened.
+      if (callsTestSkip(s)) continue
+      if (!assertsUnconditionally(branch(s), helpers, seen)) return false
+    }
+    return true
+  }
+  if (ts.isTryStatement(stmt)) {
+    return assertsUnconditionally(stmt.tryBlock.statements, helpers, seen)
+  }
+  // Loops, switch, labelled statements: not modelled — treat as silent.
+  return false
+}
+
+/** `test.skip(...)` / `test.fixme(...)` anywhere in this statement (not in a nested fn). */
+function callsTestSkip(node) {
+  let found = false
+  const walk = (n) => {
+    if (found) return
+    if (
+      ts.isCallExpression(n) &&
+      ts.isPropertyAccessExpression(n.expression) &&
+      ts.isIdentifier(n.expression.expression) &&
+      TEST_FNS.has(n.expression.expression.text) &&
+      (n.expression.name.text === 'skip' || n.expression.name.text === 'fixme')
+    ) {
+      found = true
+      return
+    }
+    ts.forEachChild(n, (c) => {
+      if (ts.isArrowFunction(c) || ts.isFunctionExpression(c)) return
+      walk(c)
+    })
+  }
+  walk(node)
+  return found
 }
 
 /** A `return` that exits the TEST (not a nested callback) anywhere inside `node`. */
@@ -344,14 +417,22 @@ function analyseSource(fileName, text) {
     throw new Error(`${parseErrors.length} parse error(s), first: ${first}`)
   }
 
-  // Local helper functions (module scope) that may carry assertions.
+  // Local helper functions (module scope) that may carry assertions, and the
+  // array-literal consts a table-driven test loops over.
   const helpers = new Map()
+  ARRAY_CONSTS = new Map()
   const collect = (node) => {
     if (ts.isFunctionDeclaration(node) && node.name) helpers.set(node.name.text, node)
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       if (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) {
         helpers.set(node.name.text, node.initializer)
       }
+      let init = node.initializer
+      while (ts.isAsExpression(init) || ts.isParenthesizedExpression(init)) init = init.expression
+      // Last write wins is fine: a name bound twice to different literals in one file
+      // is rare, and treating the later one as authoritative is the conservative read
+      // only when it is EMPTY (which withholds the guarantee anyway).
+      if (ts.isArrayLiteralExpression(init)) ARRAY_CONSTS.set(node.name.text, init)
     }
     ts.forEachChild(node, collect)
   }
@@ -393,12 +474,23 @@ const FIXTURES = [
   { flag: true, name: 'if with no else', src: `test('a', async () => { if (x) { expect(1).toBe(1) } })` },
   { flag: true, name: 'nested ifs only', src: `test('a', async () => { if (x) { if (y) { expect(1).toBe(1) } } })` },
   { flag: true, name: 'early bare return', src: `test('a', async () => { if (!ok) { return } expect(1).toBe(1) })` },
+  // A guard clause that ASSERTS before returning covers its own exit path.
+  { flag: false, name: 'guard clause asserts then returns', src: `test('a', async () => { if (!ok) { expect(x).toBe(1); return } expect(1).toBe(1) })` },
+  { flag: true, name: 'guard asserts then returns, but fall-through does not', src: `test('a', async () => { if (!ok) { expect(x).toBe(1); return } if (y) { expect(1).toBe(1) } })` },
+  { flag: true, name: 'guard whose assertion is itself conditional', src: `test('a', async () => { if (!ok) { if (z) { expect(x).toBe(1) } return } expect(1).toBe(1) })` },
+  // A runtime skip is reported as SKIPPED, not green — honest, so not a finding.
+  { flag: false, name: 'conditional test.skip then return', src: `test('a', async () => { if (!rows.length) { test.skip(true, 'no fixture'); return } expect(1).toBe(1) })` },
+  { flag: true, name: 'bare return with no skip and no assert', src: `test('a', async () => { if (!rows.length) { return } expect(1).toBe(1) })` },
   { flag: true, name: 'no assertions at all', src: `test('a', async () => { await page.goto('/') })` },
   { flag: true, name: 'assert only in loop over computed collection', src: `test('a', async () => { for (const r of rows) { expect(r).toBeNull() } })` },
   { flag: false, name: 'loop over non-empty array literal', src: `test('a', async () => { for (const e of ['a','b']) { expect(e).toBeTruthy() } })` },
   { flag: true, name: 'loop over EMPTY array literal', src: `test('a', async () => { for (const e of []) { expect(e).toBeTruthy() } })` },
   { flag: false, name: 'loop over array literal AS CONST', src: `test('a', async () => { for (const e of ['a','b'] as const) { expect(e).toBeTruthy() } })` },
   { flag: true, name: 'loop over spread literal (may expand to nothing)', src: `test('a', async () => { for (const e of [...xs]) { expect(e).toBeTruthy() } })` },
+  // Table-driven tests: a const bound to an array literal is the same guarantee.
+  { flag: false, name: 'loop over const array literal', src: `const rows = ['a','b']; test('a', async () => { for (const r of rows) { expect(r).toBeTruthy() } })` },
+  { flag: true, name: 'loop over const EMPTY array literal', src: `const rows = []; test('a', async () => { for (const r of rows) { expect(r).toBeTruthy() } })` },
+  { flag: true, name: 'loop over a const that is not a literal', src: `const rows = build(); test('a', async () => { for (const r of rows) { expect(r).toBeTruthy() } })` },
   { flag: false, name: 'assert inside awaited waitFor', src: `test('a', async () => { await waitFor(() => expect(fn).toHaveBeenCalled()) })` },
   { flag: false, name: 'assert inside waitFor block body', src: `test('a', async () => { await waitFor(() => { expect(fn).toHaveBeenCalled() }) })` },
   { flag: true, name: 'waitFor with NO assertion inside', src: `test('a', async () => { await waitFor(() => ready()) })` },
@@ -491,6 +583,10 @@ function collectFiles(roots) {
 const argv = process.argv.slice(2)
 const wantJson = argv.includes('--json')
 const wantSelfTest = argv.includes('--self-test')
+// `--gate` exits non-zero on any finding. Wired into `npm run lint` once the count
+// reached zero, so it can only ever go back up deliberately. Reporting mode (no
+// flag) always exits 0, which is what you want while triaging a backlog.
+const wantGate = argv.includes('--gate')
 const paths = argv.filter((a) => !a.startsWith('--'))
 
 if (wantSelfTest) {
@@ -530,5 +626,17 @@ if (wantJson) {
     }
     console.log()
   }
+}
+
+if (wantGate) {
+  if (findings.length) {
+    console.error(
+      `\nvacuous-assertion gate: FAILED — ${findings.length} test(s) can pass having asserted nothing.\n` +
+        'Every test needs one assertion on an unconditional path. See\n' +
+        'docs/reviews/vacuous-assertion-audit.md for the property and the accepted shapes.',
+    )
+    process.exit(1)
+  }
+  console.log(`vacuous-assertion gate: OK (${files.length} spec files, 0 findings)`)
 }
 process.exitCode = 0

@@ -221,37 +221,58 @@ tests** on a fresh `db reset`, `phase22-referrals.spec.ts` **40/40**.
 > the broader `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep. Keystone `320` does add a uniformity
 > assertion over all 8 Stage-2 gates, so that subset is now pinned.
 
-🟡 **FUP-VACUOUS-AUDIT-1 — the repo-wide vacuous-pass audit. DETECTOR BUILT + SWEEP RUN
-2026-08-10; the 45 findings are NOT yet dispositioned.** Inherited from BUG-VACUOUS-ASSERT-1,
-whose fix covered the ONE file the original bounded check covered.
-**Report → [docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md)**
-· detector → `scripts/check-vacuous-assertions.mjs` (AST; `--self-test`, `--json`).
+✅ **FUP-VACUOUS-AUDIT-1 — CLOSED 2026-08-10. 89 raw → 33 real → 0, and it is now a STANDING
+GATE:** `npm run lint` runs `lint:vacuous`, which exits non-zero on any finding and names the
+offending test. Detector → `scripts/check-vacuous-assertions.mjs` (AST; `--self-test`, `--json`,
+`--gate`). Full record →
+[docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md).
 
 **The checkable property**, chosen because "would a regression still be caught" is undecidable:
 *every test must carry at least ONE assertion that executes UNCONDITIONALLY.* Passing it does
 not make a test good; **failing** it proves the test can go GREEN having checked nothing.
-Invisible to every other gate — lint doesn’t flag it, `tsc` doesn’t either (both branches are
+Invisible to every other gate — lint didn’t flag it, `tsc` doesn’t either (both branches are
 valid TypeScript), and a green run cannot say which branch ran.
 
-**Result: 45 tests across 25 files** (2 with no assertion anywhere; 14 bail out through a
-conditional `return` — the Flow 4c shape). The single largest file is `phase14c-rca.spec.ts` (5).
+⭐ **SIX REAL DEFECTS, none of which any gate had ever reported.** The shape does not merely
+fail to catch defects — it conceals *failing* ones:
+- **Flow 4c** ran as an `org_admin` that `create_referral_draft` has ALWAYS refused (HC071).
+  Every run since the test was written took the silent `return` and asserted nothing.
+- **`phase14c-rca` R8** probed the relation `interviews`, which **does not exist** — it is the
+  feature-flag KEY; the table is `case_interviews` (the same trap CLAUDE.md §1 flags for
+  `case_patient`). The citation arm named in its own title had **never executed once**.
+- **`phase14c-rca` R6/R9/R10/R11** each silently `return`ed when the shared RCA row wasn’t in
+  the wanted state — R11’s bail fired exactly when R10 had failed, so **one broken test
+  silently disarmed the next**.
+- **`hospital-admin-tier`** badge test matched the **sidebar nav link**, not a meeting row (a
+  row’s link text is the meeting NUMBER, not its title) — it clicked navigation and never
+  opened a meeting. That is why its badge assertion had to be "soft". Its cleanup test had no
+  assertion at all, so a failed cleanup left the next run’s fixture dirty, silently.
+- **`rollups.test.ts`** `assertNeverCollapsed` began `if (!hasAnyEvidenceField) return`,
+  exempting the most complete collapse there is — and was the ONLY check in one test.
+- **`door-error-arms.test.ts`** the test written BY NAME as the guard against an empty domain
+  was itself sweeping a constant that could empty.
 
-⭐ **The detector was validated in BOTH directions, and the negative half is the load-bearing
-part.** Positive control: against the pre-fix `phase22-referrals.spec.ts` it rediscovers all 4
-hand-found instances **plus 3 the manual check missed** (7 in one file). Negative control: the
-first run said **89**, and three detector defects then accounted for 34 of them — `.tsx` parsed
-as `ScriptKind.TS` (`createSourceFile` does **not** throw on a syntax error, it returns a
-best-effort tree — 18), `try`/`finally` treated as conditional (16), `for…of` over an array
-literal treated as conditional (10). **Roughly half the first report was the tool’s own fault**
-— the same lesson the audit teaches. A 25-fixture self-test now pins all three and the script
-refuses to report if it fails its own fixtures.
+⭐ **The detector was validated in BOTH directions, and the negative half is load-bearing.**
+Positive control: against the pre-fix `phase22-referrals.spec.ts` it reports exactly the 4
+hand-found instances. ⚠ **RETRACTED:** an interim claim that it found "3 more the manual check
+missed" was WRONG — those were the detector’s own false positives, and the tester’s count of 4
+was right. Negative control: the first run said **89**, and **seven** detector defects
+accounted for 56 of them — `.tsx` parsed as `ScriptKind.TS` (`createSourceFile` does NOT throw
+on a syntax error, it returns a best-effort tree — 18), `try`/`finally` (16), exhaustive
+`if`/`else` (12), `for…of` over an array literal incl. `as const` (10), assert-then-return
+guard clauses (5), conditional `test.skip()` (3), `await waitFor(() => expect(…))` (2).
+**Well over half the first report was the tool’s own fault** — the same lesson in the other
+direction: *a detector that finds A LOT needs proving as much as one that finds nothing.* A
+42-fixture self-test pins every fix, runs on every invocation, and the script refuses to report
+if it fails its own fixtures. The GATE was itself proven able to fail (vacuous probe → exit 1,
+offender named) before being wired in.
 
-⚠ **Not wired into `npm run lint`, deliberately** — 45 open findings would red the build on day
-one and a permanently-red gate is one people learn to ignore. Disposition first, then gate.
-⚠ **Fixing is NOT mechanical:** the one fix already done (Flow 4c) turned RED immediately,
-because it had been calling an RPC as an `org_admin` that `create_referral_draft` has always
-refused (HC071) — **every run took the silent `return` and asserted nothing**. The shape does
-not merely fail to catch defects, it conceals failing ones. Expect reds; each is a find.
+🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**
+`phi-remediation.spec.ts` REM-8 and REM-9 skip on every run — there is no seeded RCA for
+EV-0001, and the only CAPA has a NULL `source_event_id` (both catalog-verified). They are
+honest `test.skip()`s, not silent greens, so they are outside the vacuity property and the gate
+will never catch them. Closing them means new fixture work against `seed.sql`, which is a
+contract with ~900 tests — hence its own item rather than a drive-by.
 
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production

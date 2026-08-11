@@ -907,59 +907,70 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
     .or(page.getByRole('button', { name: /adicionar resultado/i }))
     .or(page.getByRole('button', { name: /criar resultado/i }))
 
-  if (await novoBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await novoBtn.focus()
-    await expect(novoBtn).toBeFocused({ timeout: 3_000 })
+  // FUP-VACUOUS-AUDIT-1. Both halves of this test were un-elsed `if (isVisible)`
+  // blocks with no unconditional assertion anywhere, closed by a comment that said
+  // the quiet part out loud: "skip silently — AC-K is a best-effort keyboard-access
+  // check, not a blocking assertion." A keyboard-access test that cannot fail is
+  // exactly what CLAUDE.md §8's one-keyboard-flow-per-phase rule exists to prevent:
+  // it reports the compliance property satisfied in the very case where nothing was
+  // checked. Both controls are now REQUIRED.
+  await expect(
+    novoBtn,
+    'the resultados settings page must render a "Novo resultado" control',
+  ).toBeVisible({ timeout: 10_000 })
+  await novoBtn.focus()
+  await expect(novoBtn).toBeFocused({ timeout: 3_000 })
 
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(800)
+  await page.keyboard.press('Enter')
 
-    const dialog = page.getByRole('dialog')
-    if (await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await page.keyboard.press('Tab')
-      const focused = await page.evaluate(() => {
-        const el = document.activeElement
-        return { tag: el?.tagName ?? '' }
-      })
-      expect(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON']).toContain(focused.tag.toUpperCase())
+  const dialog = page.getByRole('dialog')
+  await expect(dialog, 'Enter on the focused control must open its dialog').toBeVisible({
+    timeout: 8_000,
+  })
+  await page.keyboard.press('Tab')
+  const focused = await page.evaluate(() => {
+    const el = document.activeElement
+    return { tag: el?.tagName ?? '' }
+  })
+  expect(['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON']).toContain(focused.tag.toUpperCase())
 
-      await page.keyboard.press('Escape')
-      await expect(dialog).not.toBeVisible({ timeout: 5_000 })
-    }
-  }
-  // If the route does not exist yet, skip silently — AC-K is a best-effort
-  // keyboard-access check, not a blocking assertion.
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible({ timeout: 5_000 })
 
   // K-2: Case detail — "Corrigir resultado" keyboard activation
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
 
   const corrigirBtn = page.getByRole('button', { name: /corrigir resultado/i })
 
-  if (await corrigirBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await corrigirBtn.focus()
-    await expect(corrigirBtn).toBeFocused({ timeout: 3_000 })
+  // Required, not optional — AC-M1 below already asserts this same control
+  // unconditionally on another case, so its presence is a fact of the page, not a
+  // seed accident.
+  await expect(
+    corrigirBtn,
+    'the case detail page must render "Corrigir resultado"',
+  ).toBeVisible({ timeout: 10_000 })
+  await corrigirBtn.focus()
+  await expect(corrigirBtn).toBeFocused({ timeout: 3_000 })
 
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(800)
+  await page.keyboard.press('Enter')
 
-    const overrideDialog = page
-      .getByRole('dialog', { name: /corrigir resultado/i })
-      .or(page.getByRole('dialog').filter({ hasText: /corrigir resultado/i }))
+  const overrideDialog = page
+    .getByRole('dialog', { name: /corrigir resultado/i })
+    .or(page.getByRole('dialog').filter({ hasText: /corrigir resultado/i }))
 
-    await expect(overrideDialog).toBeVisible({ timeout: 8_000 })
+  await expect(overrideDialog).toBeVisible({ timeout: 8_000 })
 
-    await page.keyboard.press('Tab')
-    const focusedAfterTab = await page.evaluate(() => {
-      const el = document.activeElement
-      return { tag: el?.tagName ?? '' }
-    })
-    expect(['SELECT', 'TEXTAREA', 'INPUT', 'BUTTON']).toContain(
-      focusedAfterTab.tag.toUpperCase(),
-    )
+  await page.keyboard.press('Tab')
+  const focusedAfterTab = await page.evaluate(() => {
+    const el = document.activeElement
+    return { tag: el?.tagName ?? '' }
+  })
+  expect(['SELECT', 'TEXTAREA', 'INPUT', 'BUTTON']).toContain(
+    focusedAfterTab.tag.toUpperCase(),
+  )
 
-    await page.keyboard.press('Escape')
-    await expect(overrideDialog).not.toBeVisible({ timeout: 5_000 })
-  }
+  await page.keyboard.press('Escape')
+  await expect(overrideDialog).not.toBeVisible({ timeout: 5_000 })
 })
 
 // ---------------------------------------------------------------------------

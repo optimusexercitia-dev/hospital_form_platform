@@ -1,11 +1,14 @@
-# Vacuous-assertion audit — FUP-VACUOUS-AUDIT-1
+# Vacuous-assertion audit — FUP-VACUOUS-AUDIT-1 ✅ CLOSED
 
 > The repo-wide pass that **BUG-VACUOUS-ASSERT-1 explicitly deferred**: *"a repo-wide
 > vacuous-pass audit … That is real, standalone work, and belongs in its own pass."*
-> Run with `node scripts/check-vacuous-assertions.mjs` (`--json` for machine output,
-> `--self-test` for the fixtures alone).
+>
+> **Status: 89 raw → 33 real → 0 remaining.** Now a standing gate: `npm run lint`
+> includes `lint:vacuous`, which exits non-zero on any finding.
+> Report manually with `node scripts/check-vacuous-assertions.mjs`
+> (`--json` machine output · `--self-test` fixtures only · `--gate` build gate).
 
-## The property being checked
+## The property
 
     every test must carry at least ONE assertion that executes UNCONDITIONALLY.
 
@@ -15,104 +18,112 @@ real thing. That is the shape being hunted, and it is invisible to every other g
 ESLint does not flag it, `tsc` does not either (both branches are valid TypeScript), and a
 green Playwright/Vitest run cannot tell you which branch ran.
 
-An assertion counts as unconditional when it is reached without passing a conditional
-boundary **and** no conditional `return` precedes it. Deliberate exceptions, because these
-genuinely always assert: exhaustive `if`/`else` where **every** branch asserts (including
-`else if` chains ending in a real `else`), `await test.step(…)` bodies, `try`/`finally`
-without a `catch` (a `finally` cannot swallow the failure), `await waitFor(() => expect(…))`
-and friends (the callback always runs and its failure propagates), `for…of` over a non-empty
-array **literal** (including `as const`), and calls to local helpers that themselves assert
-unconditionally. A conditional `test.skip()` is **not** a bail-out: a skipped test is
-reported as skipped, which is honest — a silent `return` is not.
+### What counts as unconditional
 
-## How the detector was validated — read this before trusting a number
+Reached without passing a conditional boundary, **and** with no silent `return` before it.
+These genuinely always assert and are accepted:
+
+- exhaustive `if`/`else` where **every** branch asserts (incl. `else if` chains ending in a real `else`)
+- a guard clause that **asserts before returning** (`if (bad) { expect(...); return }`)
+- `await test.step(...)` bodies
+- `try`/`finally` with **no** `catch` (a `finally` cannot swallow the failure)
+- `await waitFor(() => expect(...))` and friends — the callback always runs and its failure propagates
+- `for…of` over a non-empty array **literal**, incl. `as const` and a `const` bound to one
+- calls to local helpers that themselves assert unconditionally (resolved transitively)
+- a conditional **`test.skip()`** — a skipped test is reported as skipped, which is honest
+
+Only a silent `return`, or assertions reachable solely through an un-elsed conditional,
+count as findings.
+
+## How the detector was validated — read this before trusting any number
 
 **Positive control.** Against the *pre-fix* `e2e/phase22-referrals.spec.ts` (git `a0e7e9f`)
-it reports exactly the four instances BUG-VACUOUS-ASSERT-1 found by hand — Flows 4c, 5c, 5d,
-8c — and nothing else. It agrees precisely with the hand classification.
+it reports exactly the four instances BUG-VACUOUS-ASSERT-1 found by hand — Flows 4c, 5c,
+5d, 8c — and nothing else.
 
-⚠ **An earlier revision of this document claimed the detector found "three more the manual
-check missed" (Flows 1c, 2c, 8b). That claim was WRONG and is retracted.** Those three were
-false positives from the detector not yet understanding exhaustive `if`/`else`. The tester's
-original count of four was correct.
+> ⚠ **Retraction.** An earlier revision of this document claimed the detector found "three
+> more the manual check missed" (Flows 1c, 2c, 8b). **That was wrong.** Those three were
+> false positives from the detector not yet understanding exhaustive `if`/`else`. The
+> tester's original count of four was correct.
 
-**Negative control — this is the load-bearing half.** The first run reported **89** findings.
-Hand-checking the flagged tests found **four** distinct detector defects, each a whole class
-of false positive:
+**Negative control — the load-bearing half.** The first run reported **89**. Hand-checking
+flagged tests found **seven** distinct detector defects, each a whole class of false positive:
 
-| defect | false positives | why |
+| defect | false positives | why it was wrong |
 | --- | --- | --- |
-| exhaustive `if`/`else` treated as conditional | 12 | `if (x) { assert } else { assert }` asserts on every path; this is the standard shape of a deny-test that accepts either a 403 or an empty result |
-| `.tsx` parsed as `ScriptKind.TS` | 18 | `createSourceFile` does **not** throw on a syntax error — it returns a best-effort tree, so every JSX test was silently analysed as garbage. The parse is now asserted (`parseDiagnostics`), not assumed. |
+| `.tsx` parsed as `ScriptKind.TS` | 18 | `createSourceFile` does **not** throw on a syntax error — it returns a best-effort tree, so every JSX test was silently analysed as garbage. The parse is now asserted via `parseDiagnostics`. |
 | `try`/`finally` treated as conditional | 16 | a `try` body runs unconditionally when no `catch` swallows the failure |
-| `for…of` over an array **literal** treated as conditional | 10 | a literal with ≥1 element cannot be empty; `as const` was also hiding the literal |
+| exhaustive `if`/`else` treated as conditional | 12 | asserts on every path; the standard shape of a deny-test accepting either a 403 or an empty result |
+| `for…of` over an array **literal** | 10 | a literal with ≥1 element cannot be empty; `as const` also hid the literal |
+| guard clause that asserts then returns | 5 | its exit path *does* assert; only a silent `return` leaves a bare path |
+| conditional `test.skip()` | 3 | reported as skipped, not green |
+| `await waitFor(() => expect(...))` | 2 | the callback always runs; failure propagates out of the wrapper |
 
-Plus `await waitFor(() => expect(…))`, which flagged correctly-asserting component tests.
+**Well over half the first report was the tool's own fault.** That is the same lesson the
+audit exists to teach, in the other direction: *a detector that finds a lot needs proving
+just as much as one that finds nothing.* The self-test pins every fix (**42 fixtures**, both
+polarities), runs on every invocation, and the script **refuses to report** if it fails its
+own fixtures. The gate itself was proven able to fail by introducing a vacuous probe test
+(exit 1, offender named) before being wired in.
 
-**89 → 33 after false-positive elimination.** Well over half the original report was the
-tool's own fault, which is the same lesson the audit exists to teach: *a detector that finds
-a lot needs proving just as much as one that finds nothing.* The self-test now pins every
-fix (34 fixtures, both polarities), runs on every invocation, and the script **refuses to
-report** if it fails its own fixtures.
+## What fixing these actually turned up
 
-## Status
-
-- **Unit tests: 16 findings → 0. CLOSED.** Full Vitest suite green (82 files, 1218 tests).
-- **E2E: 17 remaining** of the 29 that survived false-positive elimination.
-
-## What fixing these actually turns up
-
-Not cosmetics. Every file worked so far has produced a real defect:
+Not cosmetics. **Six real defects**, none of which any gate had ever reported:
 
 1. **`phase22-referrals.spec.ts` Flow 4c** — ran as an `org_admin` that
-   `create_referral_draft` has always refused (HC071). Every run since the test was written
-   took the silent `return` and asserted nothing.
+   `create_referral_draft` has always refused (HC071; tenancy authority is not
+   commission-content authority). **Every run since the test was written** took the silent
+   `return` and asserted nothing. A second gate (`send_referral` refuses a contentless
+   draft) had never been reached either.
 2. **`phase14c-rca.spec.ts` R8** — probed the relation `interviews`, which **does not
-   exist** (catalog-verified; `interviews` is the feature-flag key, the table is
-   `case_interviews`). The probe always came back empty, so the test always took its link
-   fallback and the CITATION arm named in its own title had never executed once.
+   exist**. Catalog-verified: `interviews` is the feature-flag key; the table is
+   `case_interviews` — the same flag-key-is-not-a-table trap CLAUDE.md §1 flags for
+   `case_patient`. The probe always returned empty, so the test always took its link
+   fallback and the CITATION arm named in its own title had **never executed once**.
 3. **`phase14c-rca.spec.ts` R6/R9/R10/R11** — four tests sharing one RCA row's status
-   machine, each silently `return`ing when the row wasn't in the state it wanted. R11's bail
-   fired precisely when R10 had failed to complete the RCA, so one broken test silently
-   disarmed the next. The file also relied on sequential ordering it never declared.
-4. **`rollups.test.ts`** — `assertNeverCollapsed` opened with
-   `if (!hasAnyEvidenceField) return`, exempting the most complete collapse there is.
-5. **`door-error-arms.test.ts`** — the test written BY NAME as the guard against an empty
-   domain was itself sweeping a constant that could empty.
+   machine, each silently `return`ing when the row wasn't in the state it wanted. R11's
+   bail fired precisely when R10 had failed to complete the RCA, so **one broken test
+   silently disarmed the next**. The file also relied on sequential ordering it never
+   declared.
+4. **`hospital-admin-tier.spec.ts`** — the badge test's locator
+   (`getByRole('link').filter({ hasText: /Reuni|.../ })`) matched the **sidebar "Reuniões"
+   nav link**, because a meeting row's link text is the meeting *number*, not its title.
+   The test clicked navigation and never opened a meeting detail page at all — which is
+   exactly why its badge assertion had to be "soft". Its cleanup test also had no
+   assertion, so a cleanup that failed left the next run's fixture dirty, silently.
+5. **`rollups.test.ts`** — `assertNeverCollapsed` opened with
+   `if (!hasAnyEvidenceField) return`, exempting the most complete collapse there is, and
+   was the *only* check in one test.
+6. **`door-error-arms.test.ts`** — the test written **by name** as the guard against an
+   empty domain was itself sweeping a constant that could empty.
 
-## Remaining E2E findings — 17 tests across 12 files
+Two further tests were found to **never run**: `phi-remediation.spec.ts` REM-8 and REM-9
+skip on every run (no seeded RCA for EV-0001; the only CAPA has a NULL `source_event_id`).
+These are honest skips, not silent greens, so they are outside this property — recorded
+under **FUP-VACUOUS-COVERAGE-1** rather than fixed here, since closing them means new
+fixture work against a shared seed.
 
-1 have **no assertion anywhere in the test body**; 10 bail out
-through a conditional `return` — the Flow 4c shape, which is the one that has produced a
-real defect every time so far.
+## The shapes the fixes took
 
-⚠ **Candidates, not confirmed defects.** The check is conservative about what it *admits* as
-unconditional, so a finding means "this test CAN pass having asserted nothing". One known-benign
-entry remains and should be dispositioned rather than fixed: a test whose title declares it a
-cleanup step (`hospital-admin-tier.spec.ts:567`).
+- **Cardinality pins** (most unit findings) — tests whose every assertion sits inside
+  `for (const x of SOME_CONSTANT)`, where an emptied constant makes claims like *"every
+  answerable type is also creatable"* true for free. Several titles name a count, so the
+  count is now asserted rather than described.
+- **Establish, don't hope** — replace `read state → bail if wrong` with a helper that
+  *drives* the state and asserts each transition (`ensureRcaStatus`).
+- **Outcome discriminants** — for deny-tests with several acceptable outcomes, fold every
+  path into one asserted value (`'denied' | 'no-rows' | 'null-column' | 'LEAKED'`), which
+  also records *which* path ran.
+- **Declare the ordering you rely on** — two files assumed sequential execution in their
+  comments while the project runs `fullyParallel: true`.
+- **Annotation → skip** — `test.info().annotations.push(...)` then `return` reports the test
+  as **PASSED**. Where the condition is a genuine environmental limit, `test.skip()` makes
+  it visible instead.
+- **One honest exception** — `session-grants`' `KNOWN_UNROUTED` is empty *by design* (the
+  goal state), so its assertion is one that still earns its keep when empty: a ledger entry
+  naming a role the catalog lacks.
 
-| file | line | shape | test |
-| --- | --- | --- | --- |
-| `e2e/case-access.spec.ts` | 1063 | all conditional · early-return | AC-7 PHI boundary: check if safety event linked to case; if so, read-grantee click-through is denied |
-| `e2e/case-narratives.spec.ts` | 699 | all conditional · early-return | AC-7: after conclusion — read-only; no Editar; empty narratives hidden |
-| `e2e/case-patient.spec.ts` | 410 | all conditional · early-return | AC-1a: builder toggle enables collects_patient on draft template |
-| `e2e/case-patient.spec.ts` | 946 | all conditional · early-return | AC-4: referral wizard pre-fills from case_patient (source=case) |
-| `e2e/case-patient.spec.ts` | 1041 | all conditional · early-return | AC-5: notify-NSP dialog pre-fills event_patient from case_patient |
-| `e2e/case-phase-result.spec.ts` | 897 | all conditional | AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" dialog |
-| `e2e/ff3-validations.spec.ts` | 1082 | all conditional | FF3-6 required_if with a unary operator saves and publishes on choice, number, date and time targets |
-| `e2e/hospital-admin-tier.spec.ts` | 531 | all conditional | title badge renders on the meeting attendee list once assigned |
-| `e2e/hospital-admin-tier.spec.ts` | 567 | **NO ASSERTIONS AT ALL** | cleanup: unassign the title from staff1.ccih (test hygiene) |
-| `e2e/member-action-items-overview.spec.ts` | 711 | all conditional | AC-11: cards link to the correct member destinations |
-| `e2e/nsp-per-hospital.spec.ts` | 853 | all conditional | target-hospital operator (pqs.a2, secundario-a) reads the referral (dual-hospital READ) |
-| `e2e/patient-index.spec.ts` | 794 | all conditional | AC-8a: non-PQS admin (chefe.ccih) search_patient_xref → null/empty result |
-| `e2e/phase10-meetings.spec.ts` | 460 | all conditional · early-return | AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assinada, Distribuir |
-| `e2e/phase10-meetings.spec.ts` | 949 | all conditional · early-return | AC4e — Reabrir revokes signatures and unlocks editing |
-| `e2e/phase14b-triage.spec.ts` | 308 | all conditional · early-return | T5: non-PSE triage routes event to closed with closure reason |
-| `e2e/phi-remediation.spec.ts` | 367 | all conditional · early-return | REM-8: opening RCA detail emits rca.viewed audit row |
-| `e2e/phi-remediation.spec.ts` | 411 | all conditional · early-return | REM-9: opening CAPA detail emits capa_plan.viewed audit row |
+## The gate
 
-## Not wired into `npm run lint`
-
-Deliberately, while findings remain open: a permanently-red gate is one people learn to
-ignore. Once the list is empty, adding `check-vacuous-assertions.mjs` to the lint chain
-makes the count monotonically non-increasing. That is a lead/PO call.
+`npm run lint` now runs `lint:vacuous` (`--gate`), which exits non-zero on any finding and
+names the offending test. Reporting mode (no flag) always exits 0, for triaging a backlog.

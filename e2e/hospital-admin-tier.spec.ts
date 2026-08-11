@@ -535,21 +535,43 @@ test.describe('HA-4: Committee titles — CRUD, assignment, badges, display-only
     // `/manage/meetings` was the settings route (now redirected); the meetings
     // list is at `/c/ccih/meetings`.
     await page.goto('/o/rede-a/c/ccih/meetings')
-    const meetingLink = page
-      .getByRole('link')
-      .filter({ hasText: /Reuni|Ordinária|Extraordinária/i })
-      .first()
-    if (await meetingLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await meetingLink.click()
-      // Attendee with the assigned title should show the "Secretário(a)" badge
-      // if "Enfermeiro CCIH Um" is an attendee of this meeting — soft assertion
-      // since attendee composition is seed-dependent; assert the page renders
-      // without error and, if present, the badge text appears.
-      const badge = page.getByText('Secretário(a)', { exact: true })
-      if (await badge.isVisible({ timeout: 3_000 }).catch(() => false)) {
-        await expect(badge).toBeVisible()
-      }
-    }
+    // ⚠ The row link's text is the meeting NUMBER (`formatMeetingNumber`), never the
+    // title — the title lives in a sibling cell. The old locator
+    // `getByRole('link').filter({ hasText: /Reuni|Ordinária|Extraordinária/i })`
+    // therefore matched the SIDEBAR "Reuniões" nav link, so this test clicked
+    // navigation and never opened a meeting detail page at all. That is why its badge
+    // assertion had to be "soft": the badge was never going to be there.
+    // Found by FUP-VACUOUS-AUDIT-1 — the nested `if (isVisible)` guards meant a
+    // locator pointing at entirely the wrong element still produced a green.
+    // Scope to the ROW carrying the seeded meeting's title, then click its link.
+    const meetingRow = page.locator('tr', { hasText: 'Reunião Ordinária' }).first()
+    await expect(
+      meetingRow,
+      'the seeded "Reunião Ordinária" row must be listed',
+    ).toBeVisible({ timeout: 10_000 })
+    const meetingLink = meetingRow.getByRole('link').first()
+    // FUP-VACUOUS-AUDIT-1: two nested un-elsed `if (isVisible)` blocks, the inner one
+    // closing with `expect(badge).toBeVisible()` — an assertion made TRUE BY THE VERY
+    // CONDITION that selected the branch, so it could not fail. With no meeting link,
+    // or no badge, the test passed having verified nothing at all, while its title
+    // claims the badge renders.
+    await expect(
+      meetingLink,
+      'the meetings list must render at least one meeting to open',
+    ).toBeVisible({ timeout: 10_000 })
+    await meetingLink.click()
+
+    // The attendee whose title was assigned earlier in this describe block. Assert
+    // they are actually on this meeting's attendee list BEFORE asserting the badge —
+    // otherwise a missing badge is indistinguishable from a missing attendee, which
+    // is what made the old assertion soft in the first place.
+    await expect(
+      page.getByText('Enfermeiro CCIH Um').first(),
+      'the titled attendee is not on this meeting — the badge claim cannot be tested',
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Secretário(a)', { exact: true }).first()).toBeVisible({
+      timeout: 5_000,
+    })
   })
 
   test('DISPLAY-ONLY: a titled plain staff (staff1.ccih, now Secretário(a)) still cannot reach the coordinator-gated members page', async ({ page }) => {
@@ -570,6 +592,24 @@ test.describe('HA-4: Committee titles — CRUD, assignment, badges, display-only
     const row = page.locator('li, tr', { hasText: 'Enfermeiro CCIH Um' }).first()
     const select = row.getByRole('combobox')
     await select.selectOption({ label: 'Sem título' })
+    // FUP-VACUOUS-AUDIT-1: this was the file's one test with NO assertion at all.
+    // A cleanup step is a legitimate thing to express as a test, but a cleanup that
+    // silently fails to clean up is worse than none — it leaves the next run's
+    // fixture wrong while reporting green. Assert the outcome, after a reload so the
+    // check reads PERSISTED state rather than the select's local value.
+    await page.reload()
+    const selectAfter = page
+      .locator('li, tr', { hasText: 'Enfermeiro CCIH Um' })
+      .first()
+      .getByRole('combobox')
+    await expect(selectAfter).toBeVisible({ timeout: 10_000 })
+    const selectedLabel = await selectAfter.evaluate(
+      (el) => (el as HTMLSelectElement).selectedOptions[0]?.textContent?.trim() ?? '',
+    )
+    expect(
+      selectedLabel,
+      'the title was not unassigned — the next run inherits a dirty fixture',
+    ).toBe('Sem título')
   })
 })
 

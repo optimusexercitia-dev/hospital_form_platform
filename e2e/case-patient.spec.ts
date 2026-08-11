@@ -422,13 +422,13 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
     .or(page.getByLabel(/identificação do paciente/i))
 
   if (!await toggle.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    // The toggle may be rendered as a button with descriptive text
-    const collecsTxt = page.getByText(/coleta identificação/i)
-      .or(page.getByText(/dados do paciente/i))
-    if (await collecsTxt.isVisible({ timeout: 4_000 }).catch(() => false)) {
-      // acceptable — toggle rendered as text-adjacent control
-      return
-    }
+    // FUP-VACUOUS-AUDIT-1: an escape hatch used to sit here — if any element merely
+    // MENTIONING "coleta identificação"/"dados do paciente" was on the page, the test
+    // returned with ZERO assertions on the theory that the toggle was "rendered as a
+    // text-adjacent control". Matching descriptive prose is not evidence that a
+    // control exists, let alone that it persists `collects_patient`, which is what
+    // this test is named for. Removed: a missing toggle now always falls through to
+    // the RPC + DB verification below, which actually asserts the persisted state.
     // Verify via DB that we can call the RPC (unit test of the setter). ADR
     // 0096: `set_template_collects_patient` is now version-grained.
     const chefeAToken = await getToken(page.request, 'chefe.ccih@test.local')
