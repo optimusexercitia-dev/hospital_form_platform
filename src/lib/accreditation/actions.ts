@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { ACCREDITATION_MESSAGES as MESSAGES, mapAccreditationError } from '@/lib/accreditation/messages'
+import { findEvidenceCandidates } from '@/lib/queries/accreditation'
 import type {
   ArtifactKind,
   AssessmentStatus,
@@ -409,52 +410,12 @@ export async function setStandardAssessment(
   return { ok: true, error: MESSAGES.assessmentSaved }
 }
 
-/** A single standard's assessment detail, for the edit form's prefill. */
-export interface StandardAssessmentDetail {
-  status: AssessmentStatus
-  noteMd: string | null
-  assessedAt: string
-  assessedByName: string | null
-}
-
-/**
- * Read one commission's current assessment for one standard — the prefill
- * BUG-P16-001's root-cause half needed. Routes to `get_standard_assessment`
- * (backend's `3ece65f`, landed mid-Wave-3), a member-scoped read
- * DELIBERATELY separate from `getReadinessReport`/`getReadinessEvidence`
- * (D8 — those carry no `note` field by design; this door does, and is
- * commission-scoped only, never reachable from the hospital tier). Returns
- * `null` when there is no assessment yet (never assessed) OR the caller is
- * out of scope — the door returns zero rows either way, and the two are
- * handled identically here (an empty textarea), matching
- * `ReadinessRow.assessmentStatus: null`'s existing "never assessed" meaning.
- */
-export async function getStandardAssessmentDetail(
-  commissionId: string,
-  standardId: string,
-): Promise<StandardAssessmentDetail | null> {
-  if (!commissionId || !standardId) return null
-
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('get_standard_assessment', {
-    p_commission: commissionId,
-    p_standard: standardId,
-  })
-
-  if (error || !data || data.length === 0) return null
-
-  const row = data[0]
-  return {
-    status: row.status as AssessmentStatus,
-    // The generated Args/Returns type marks these non-null, but the RPC's
-    // own SQL is a nullable column (`note_md`) and a LEFT JOIN
-    // (`assessed_by_name`) — defend against both actually being null at
-    // runtime regardless of what the generator asserts.
-    noteMd: row.note_md ?? null,
-    assessedAt: row.assessed_at,
-    assessedByName: row.assessed_by_name ?? null,
-  }
-}
+/* `getStandardAssessmentDetail` moved to `@/lib/queries/accreditation` (FUP-P16-2,
+ * Architecture Rule 9). It was only ever here because `queries/accreditation.ts`
+ * was still a `not implemented` stub when frontend needed it (BUG-P16-002) — debt,
+ * not a design choice. Its one caller (the standard detail page) imports it from
+ * the query layer directly; nothing needs a server-action wrapper, because a
+ * Server Component can read the query layer itself. */
 
 // ---------------------------------------------------------------------------
 // Evidence candidate search (staff_admin DEFINER search feeding the picker)
@@ -463,15 +424,18 @@ export async function getStandardAssessmentDetail(
 /**
  * Candidate artifacts of one kind matching `query`, for the evidence picker's
  * debounced search (injected `onSearch`, mirroring
- * `src/components/responses/wizard/reference-picker.tsx`'s pattern). Routes
- * directly to the `evidence_candidates` RPC (Migration D, already landed)
- * rather than through `getReadinessReport`'s sibling `getEvidenceCandidates`
- * stub in `src/lib/queries/accreditation.ts` — that module is backend-owned
- * and still `throw new Error('not implemented')`; calling the RPC here keeps
- * the picker unblocked without touching a file I don't own. Per-kind SELECTs
- * inside the RPC already apply the reader's own visibility (`can_read_case` /
- * `can_read_capa`), so a candidate never appears if the caller could not read
- * it.
+ * `src/components/responses/wizard/reference-picker.tsx`'s pattern). Per-kind
+ * SELECTs inside the RPC already apply the reader's own visibility
+ * (`can_read_case` / `can_read_capa`), so a candidate never appears if the
+ * caller could not read it.
+ *
+ * This stays a server ACTION — its caller is `evidence-picker.tsx`, a Client
+ * Component, which cannot reach the query layer directly — but the data access
+ * itself now goes through `findEvidenceCandidates` (Architecture Rule 9,
+ * FUP-P16-2). It used to call the RPC inline, with a comment explaining that
+ * `queries/accreditation.ts` was still a `not implemented` stub and frontend
+ * would not edit a backend-owned file. That stub is long since real, so the
+ * reason expired; the comment outlived it.
  */
 export async function searchEvidenceCandidates(
   commissionId: string,
@@ -480,24 +444,14 @@ export async function searchEvidenceCandidates(
 ): Promise<EvidenceCandidateSearchResult> {
   if (!commissionId) return { ok: false, error: MESSAGES.commissionNotFound }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('evidence_candidates', {
-    p_commission: commissionId,
-    p_kind: kind,
-    p_query: query.trim() || undefined,
-  })
-
+  const { candidates, error } = await findEvidenceCandidates(
+    commissionId,
+    kind,
+    query,
+  )
   if (error) return { ok: false, error: mapAccreditationError(error) }
 
-  return {
-    ok: true,
-    candidates: (data ?? []).map((row) => ({
-      id: row.id,
-      kind,
-      label: row.label,
-      subtitle: row.sublabel,
-    })),
-  }
+  return { ok: true, candidates }
 }
 
 // ---------------------------------------------------------------------------
