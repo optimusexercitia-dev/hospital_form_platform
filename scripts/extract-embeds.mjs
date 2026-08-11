@@ -148,6 +148,10 @@ for (const file of files) {
   visit(sf)
 }
 
+// Create the output dir rather than requiring the caller to: the `sweep:embeds`
+// npm entry point (FUP-PCITV-1) points both scripts at a fixed gitignored dir,
+// and a fresh clone has never had it.
+fs.mkdirSync(process.argv[3], { recursive: true })
 fs.writeFileSync(
   path.join(process.argv[3], 'embeds.json'),
   JSON.stringify({ results, unresolved }, null, 2),
