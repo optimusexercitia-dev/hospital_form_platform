@@ -52,10 +52,17 @@
 # exactly this list. Reveals only the caller's OWN grants — the information the
 # caller just chose a hat from. Its consumers were audited instead (that audit
 # found and fixed BUG-ACT-HATBLIND-001, list_my_nsp_hospitals).
-# WRONG THE DAY: session_context() output is used as an ACCESS DECISION rather
-# than an option list — any consumer treating grants[] as "may do" (the way
-# pre-ACT partitionGrants() did) reopens class 1 of the four hat-blindness
-# classes, and the door must then split option-list from decision surfaces.
+# WRONG THE DAY (either of two; (b) added by the lead 2026-08-10 per QA MINOR-5):
+#  (a) session_context() output is used as an ACCESS DECISION rather than an
+#      option list — any consumer treating grants[] as "may do" (the way pre-ACT
+#      partitionGrants() did) reopens class 1 of the four hat-blindness classes,
+#      and the door must then split option-list from decision surfaces.
+#  (b) this function reads any `memberships` rows BEYOND the caller's own. The
+#      entry keys the WHOLE FUNCTION but reasons about ONE read. A second,
+#      third-party read added later would inherit this exemption SILENTLY: the
+#      existing caller-bound read keeps the finding alive, so the entry keeps
+#      absorbing it — no ghost, no new finding, no signal. Symmetric with the
+#      clause assume_role already carries, and with memberships_select (b).
 fn: public.session_context()
 
 # public.assume_role(p_role platform_role) — the hat-ACQUISITION door (ADR 0106

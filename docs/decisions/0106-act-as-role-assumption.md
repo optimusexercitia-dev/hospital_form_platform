@@ -122,7 +122,21 @@ weaker boundary beside the one already trusted, which is the "UI hiding is not s
 trap.
 
 ### D5 — Fail CLOSED
-No active role means **no role at all** — the request sees what a stranger sees.
+No active role means **no ROLE-derived reach**. Per-object relationships (D6) are
+unaffected, including in the hatless state.
+
+> ⚠ **Corrected 2026-08-10 (S4, QA MINOR-4).** This sentence read *"no role at all — the
+> request sees what a stranger sees."* **As built that is literally false, and it
+> manufactured half the tension §D14/A13 is asked to resolve.** Measured: a stranger
+> resolves `app._case_caps` = **0**; a hatless principal holding a per-case ACL grant
+> resolves **30** (`read_case_deliberation|read_case_content|read_standard_phi|
+> read_restricted_phi` — read-only; both write bits, 32 `write_case_content` and 64
+> `manage_case_access`, are absent). Keystone `319` A13 pins it. The security content of
+> D5 is fully delivered — **all five role-derived arms read 0** — but the reach is not a
+> stranger's, and the record must say what is true. Reviewed and **upheld as-built** by QA
+> S4 §3: an ACL grant names a *person*, so no principled hat could own it; the only
+> implementable alternative is "requires *some* hat", which is friction, not a security
+> property.
 
 The rejected alternative fails *open*, and its failure mode is specific and nasty: every path
 that forgets to set a hat **silently reverts to today's behaviour and looks completely
@@ -130,8 +144,24 @@ normal**, while the audit records a hat that constrained nothing. That is the ex
 ADR 0079 exists for — "a gate that isn't exercised is a live leak wearing a green check".
 
 ### D6 — "Act as" governs roles you HOLD, not relationships you are IN
-Per-object relationships are **immune** to hat changes: `is_case_respondent`,
-`is_recused_from_case`, `is_document_approver_of`, `is_document_version_approver`.
+Per-object relationships are **immune** to hat changes.
+
+**The class is a PROPERTY, not this list: you are the OBJECT of a per-object relationship,
+not the holder of a grant.** Enumerated members, as built — **six**, not the four this
+decision first named (extended 2026-08-10, S4, QA MINOR-3):
+
+1. `is_case_respondent`
+2. `is_recused_from_case`
+3. `is_document_approver_of`
+4. `is_document_version_approver`
+5. the `_case_caps` **S3 arm** — a `case_access_grants` row keyed `principal_id`
+6. the `_case_caps` **S4 arm** — `case_phases`/`case_narratives.assigned_to`
+
+> ⚠ Members 5–6 come from D14's classification and were **absent from this list** until S4.
+> That is *"an enumeration's boundary must be the property, not a list"* in its
+> documentation form: a reader re-deriving the class from the old four would get a
+> different answer than keystone `319` pins. If a seventh member appears, it joins here
+> **and** the property above decides it — the list never does.
 
 You do not "act as a respondent" — a case does not stop being about you because you switched
 context. Two of these are **protective** (recusal keeps you *out* of something; if a hat
