@@ -1282,13 +1282,18 @@ async function getCaseDetailUncached(
   // allowed subset — the same direct-read pattern as `getCasePhaseForFill`. A row
   // the caller may not read simply defaults to "no result mode". D3: the allowed
   // subset is embedded from case_phase_allowed_results (was allowed_result_ids jsonb).
-  const { data: modeRows } = await supabase
+  // ⚠ THROW. The "a row the caller may not read defaults to no-result-mode" contract
+  // above is about RLS, which returns ZERO ROWS — not an error. A genuine error is a
+  // different event, and swallowed it silently disables the post-conclusion result
+  // correction picker.
+  const { data: modeRows, error: modeError } = await supabase
     .from('case_phases')
     .select(
       'id, emits_result, result_ruleset, case_phase_allowed_results ( result_id, position )',
     )
     .eq('case_id', caseId)
     .returns<CasePhaseModeRow[]>()
+  if (modeError) throw modeError
   const modeByPhaseId = new Map(
     (modeRows ?? []).map((r) => [r.id, r] as const),
   )
@@ -1306,31 +1311,47 @@ async function getCaseDetailUncached(
   // Also read `case_type_id` (ETH·E3a; O-1) + the type's `primary_subject_kind` via the
   // cases→case_types FK embed (unambiguous — the single FK). RLS-scoped; a type-less case
   // yields null → default terminology + a 'patient' subject kind (today's framing).
-  const { data: deptRow } = await supabase
+  // ⚠ THROW — the highest-consequence swallow in this function. `caseTypeId`,
+  // `primarySubjectKind` AND `terminology` all derive from this row, so on a
+  // swallowed error an Ethics case silently reverts to the PLATFORM DEFAULT
+  // vocabulary: "Caso" instead of the procedure's label, primary-subject kind back to
+  // `patient` instead of `professional`. The page renders fully and looks right.
+  // `.maybeSingle()` reports no-row as `data: null, error: null`, so throwing here
+  // cannot break the legitimate empty case.
+  const { data: deptRow, error: deptError } = await supabase
     .from('cases')
     .select(
       'department_id, department_other, visibility_policy, confidentiality_level, case_type_id, case_types ( primary_subject_kind )',
     )
     .eq('id', caseId)
     .maybeSingle()
+  if (deptError) throw deptError
   const caseTypeId: string | null = deptRow?.case_type_id ?? null
   const primarySubjectKind: PrimarySubjectKind =
     (deptRow?.case_types?.primary_subject_kind as PrimarySubjectKind | undefined) ?? 'patient'
   const terminology = await getCaseTypeTerminology(caseTypeId)
   let departmentName: string | null = deptRow?.department_other ?? null
   if (deptRow?.department_id) {
-    const { data: dept } = await supabase
+    // The documented "archived-away or unreadable → null name" fallback is about RLS
+    // and missing rows, both of which are `error: null` under `.maybeSingle()`. An
+    // actual error is not that case, so it surfaces rather than blanking the label.
+    const { data: dept, error: deptNameError } = await supabase
       .from('hospital_departments')
       .select('name')
       .eq('id', deptRow.department_id)
       .maybeSingle()
+    if (deptNameError) throw deptNameError
     departmentName = dept?.name ?? null
   }
 
   // The case's participants (ADR 0064 · E1), RLS-scoped via `case_participants`
   // (already `can_read_case`-gated). `[]` pre-m2 / when the case has none. The
   // registry `display_name` is a SURROGATE for a patient — never raw identity (Rule 12).
-  const { data: partRows } = await supabase
+  // ⚠ THROW (see the block comment on the professional embed below). Swallowed, a
+  // failure here renders the ENTIRE ETH·E4 roster empty — and an empty roster is a
+  // legitimate state, so nothing looks wrong. A coordinator then re-seats people who
+  // are already seated. Strictly larger blast radius than the embed below.
+  const { data: partRows, error: partError } = await supabase
     .from('case_participants')
     .select(
       'id, participant_id, is_primary_subject, involvement_summary, ' +
@@ -1340,6 +1361,7 @@ async function getCaseDetailUncached(
     .eq('case_id', caseId)
     .is('removed_at', null)
     .returns<CaseParticipantRow[]>()
+  if (partError) throw partError
 
   // ETH·E4 (ADR 0108 D3) — resolve the LIVE professional identity for the roster.
   // A SEPARATE query, not an embed off `case_participants`: `participants`' only FK
@@ -1410,7 +1432,10 @@ async function getCaseDetailUncached(
   let myRecusal: CaseRecusal | null = null
   let myConflict: CaseConflictDeclaration | null = null
   if (viewerId) {
-    const { data: recRow } = await supabase
+    // ⚠ THROW. Swallowed, `myRecusal` stays null and the "você está impedido" banner
+    // never renders — a recused viewer is not told they are impeded, which is a
+    // governance-visible silence, not a cosmetic one.
+    const { data: recRow, error: recError } = await supabase
       .from('case_recusals')
       .select(
         'id, case_id, user_id, reason_md, source, conflict_declaration_id, recused_at, lifted_at',
@@ -1419,6 +1444,7 @@ async function getCaseDetailUncached(
       .eq('user_id', viewerId)
       .is('lifted_at', null)
       .maybeSingle()
+    if (recError) throw recError
     if (recRow) {
       myRecusal = {
         id: recRow.id,
@@ -1431,7 +1457,9 @@ async function getCaseDetailUncached(
         liftedAt: recRow.lifted_at,
       }
     }
-    const { data: coiRow } = await supabase
+    // ⚠ THROW. Swallowed, the viewer's own COI declaration vanishes and they are
+    // invited to declare a conflict they have already declared.
+    const { data: coiRow, error: coiError } = await supabase
       .from('case_conflict_declarations')
       .select(
         'id, case_id, declarant_id, conflict_type, description_md, status, declared_at, resolved_at',
@@ -1439,6 +1467,7 @@ async function getCaseDetailUncached(
       .eq('case_id', caseId)
       .eq('declarant_id', viewerId)
       .maybeSingle()
+    if (coiError) throw coiError
     if (coiRow) {
       myConflict = {
         id: coiRow.id,
