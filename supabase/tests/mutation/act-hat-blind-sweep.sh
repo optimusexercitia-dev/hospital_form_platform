@@ -50,9 +50,18 @@
 #        (the §7.17 class-4 / house-style shape)        -> MUST be flagged
 #    ST4 strips the active-role condition from the REAL app.has_role_any
 #        (rolled back)                                  -> anchor check MUST flip
-#  ST2 plus the live rejection baseline (36 of 38 raw readers correctly NOT
-#  flagged, hand-classified 2026-08-10) is the "prove it does not find what is
-#  not there" twin (Amendment 5a).
+#    ST5 plants a POLICY on a non-memberships table whose qual does a blind
+#        caller-bound memberships read — the `else` half of the policy
+#        branch, whose three live specimens are all negatives; without this
+#        a dead branch produces an identical run        -> MUST be flagged
+#    ST6 plants its hat-covered policy twin (active_role
+#        in the same subquery window)                   -> MUST NOT be flagged
+#  ST2/ST6 plus the live rejection baseline (36 of 38 raw readers correctly NOT
+#  flagged, hand-classified 2026-08-10) are the "prove it does not find what is
+#  not there" twins (Amendment 5a). ST6 matters even with zero live covered
+#  cross-table policies: the first legitimate one would otherwise meet an
+#  undetected discrimination loss as a spurious NEW finding, and the tempting
+#  "fix" (allowlist it) would mask a later real hat-blindness on that policy.
 #
 # ── Known blind spots (stated so silence is not over-read) ────────────────────
 #  * Chunk-level adjacency: a chunk with one covered AND one uncovered
@@ -347,6 +356,20 @@ create function app._hb_selftest_param_caller() returns boolean
 language sql stable as $$
   select app._hb_selftest_param_gate((select auth.uid()))
 $$;
+-- ST5/ST6: a policy pair on a NON-memberships table — the `else` half of the
+-- policy branch (cross-table reads), which has no live positive specimen
+create table app._hb_selftest_t5(id uuid);
+create policy _hb_selftest_policy_blind on app._hb_selftest_t5
+  for select using (
+    exists (select 1 from public.memberships m
+            where m.principal_id = (select auth.uid()))
+  );
+create policy _hb_selftest_policy_covered on app._hb_selftest_t5
+  for select using (
+    exists (select 1 from public.memberships m
+            where m.principal_id = (select auth.uid())
+              and m.role is not distinct from app.active_role())
+  );
 -- ST4: strip the caller-only condition from the REAL has_role_any (rolled back)
 create or replace function app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid)
 returns boolean language sql stable security definer
@@ -379,7 +402,17 @@ select 'ST|' ||
 union all
 select 'ST|' ||
   case when exists (select 1 from f where kind='AN' and key = 'app.has_role_any|HATLESS')
-       then '4|OK' else '4|FAIL anchor check did not notice a neutralized has_role_any' end;
+       then '4|OK' else '4|FAIL anchor check did not notice a neutralized has_role_any' end
+union all
+select 'ST|' ||
+  case when exists (select 1 from f where kind='F'
+                      and key like 'policy: app._hb_selftest_t5._hb_selftest_policy_blind%')
+       then '5|OK' else '5|FAIL planted blind cross-table POLICY not flagged (else-branch dead?)' end
+union all
+select 'ST|' ||
+  case when not exists (select 1 from f
+                        where key like 'policy: app._hb_selftest_t5._hb_selftest_policy_covered%')
+       then '6|OK' else '6|FAIL hat-covered cross-table policy WAS flagged (false positive)' end;
 
 rollback;
 
@@ -390,15 +423,15 @@ SQL
 
 echo "=== ACT hat-blind sweep (ADR 0106 S4 / ADR 0079 Am. 6 method) ==="
 
-# 1) self-test: exactly 4 STs, all OK
+# 1) self-test: exactly 6 STs, all OK
 ST_FAIL=$(printf '%s\n' "$OUT" | grep '^ST|' | grep -v '|OK$' || true)
 ST_N=$(printf '%s\n' "$OUT" | grep -c '^ST|' || true)
-if [ -n "$ST_FAIL" ] || [ "$ST_N" -ne 4 ]; then
+if [ -n "$ST_FAIL" ] || [ "$ST_N" -ne 6 ]; then
   echo "SELF-TEST FAILED (detector cannot be trusted; findings below are void):"
   printf '%s\n' "$OUT" | grep '^ST|'
   exit 1
 fi
-echo "self-test: 4/4 OK (blind flagged · covered not flagged · class-4 param flagged · anchor flip seen)"
+echo "self-test: $ST_N/6 OK (blind flagged · covered not flagged · class-4 param flagged · anchor flip seen · x-table policy flagged · covered x-table policy not flagged)"
 
 # 2) anchors: has_role + has_role_any still carry the active-role condition
 AN_BAD=$(printf '%s\n' "$OUT" | grep '^AN|' | grep -v '|OK$' || true)

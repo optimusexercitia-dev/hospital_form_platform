@@ -301,7 +301,8 @@ run_arm_census () {
 # read with no adjacent active-role condition is D5's fail-open wearing a green
 # check; the census cannot see it (active_role() returns text, and hat-blindness
 # is not keystone coverage). The sweep proves its own detector on every run
-# (planted blind/covered/class-4 specimens + a neutralized-anchor flip) and
+# (planted blind/covered/class-4 function specimens, a blind/covered
+# cross-table POLICY pair + a neutralized-anchor flip) and
 # compares findings against act-hat-blind-allowlist.txt in BOTH directions
 # (new finding AND ghost entry each fail).
 # ════════════════════════════════════════════════════════════════════════════════
