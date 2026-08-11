@@ -47,16 +47,17 @@ Verified against the **live catalog** (`pg_proc` incl. `prosecdef`, `pg_policies
 | A8 | Table name confirmed **`case_access_grants`** (`source` ∈ `manual_grant, nsp_investigation, referral, break_glass`; `list_case_access` filters `source='manual_grant'` and is coordinator-gated — hence the new RPC is still required). |
 | A9 | **Direction bug re-verified post-merge.** Only `encaminhamentos/[referralId]/page.tsx:111` needs the fix; `direcao-tecnica/[referralId]/page.tsx:85` also omits the arg but never consumes `detail.direction` (its "direction" hits are prose about *technical direction*). Signature confirmed at `src/lib/queries/referrals.ts:637`. |
 
-### ⚠ OPEN QUESTION (raised by the E2E locator survey, 2026-08-11)
+### ✅ A10 — requested action keeps a home (PO decision, 2026-08-11)
 
-**The requested-action chip has no home under D1.** `ReferralRequestedActionChip`
-(`page.tsx:294–296`) renders `detail.requestedActionLabel` in the header chip tail. D1 reduces
-the header to Status + Type chips only, and the `referral-details-card.tsx` field list below
-does **not** include a requested-action row — so the field disappears from the detail page
-entirely. It is asserted today at `e2e/phase22-referrals-governance.spec.ts:552` (a detail-page
-assertion; the sibling hub assertion is unaffected). **Needs a PO decision before Phase 3
-builds the Details card**: add an "Ação solicitada" row, or drop the field and retire the
-assertion. Detail: `docs/testing/referral-detail-redesign-locator-survey.md` §5.1.
+Raised by the E2E locator survey: `ReferralRequestedActionChip` (`page.tsx:294–296`) renders
+`detail.requestedActionLabel` in the header chip tail. D1 reduces the header to Status + Type
+chips only, but D1 also says "everything else moves to a Details card" — and the enumerated
+`referral-details-card.tsx` field list omitted it, so as written the field vanished from the
+page. **Resolved: the omission was an enumeration slip, not an intent to delete.** Add an
+**"Ação solicitada"** row to the Details card (null-hidden like every other row) and re-point
+the detail-page assertion at `e2e/phase22-referrals-governance.spec.ts:552` to the card scope.
+The sibling hub-page assertion is unaffected. Detail:
+`docs/testing/referral-detail-redesign-locator-survey.md` §5.1.
 
 ### Live bug fixed as part of this work
 
@@ -296,7 +297,7 @@ BLIND blocks.
 
 ### New components (`src/components/referrals/`)
 - `referral-details-card.tsx` (server): dt/dd rows — De, Para (DT-target: composed DT name;
-  null-guard `targetCommissionId` everywhere), Prioridade (chip), Criado (+ "por {name}"),
+  null-guard `targetCommissionId` everywhere), **Ação solicitada (A10)**, Prioridade (chip), Criado (+ "por {name}"),
   Enviado, Recebido, Status (chip + overdue chip), Prazo de resposta (destructive when overdue),
   Decidido, Concluído/Retirado, Motivo da recusa (destructive, rejected only), Resposta
   esperada. Null rows hidden.
