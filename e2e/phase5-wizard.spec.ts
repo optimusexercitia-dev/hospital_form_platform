@@ -515,7 +515,8 @@ test('AC4 — Controlling-answer change: warns dialog appears and orphaned answe
   ).toBeVisible({ timeout: 10_000 })
 
   // Change possui_termolabeis to Não → S2 has an answer → orphan warning.
-  await page.getByRole('radio', { name: 'Não' }).nth(1).click()
+  const changingRadio = page.getByRole('radio', { name: 'Não' }).nth(1)
+  await changingRadio.click()
 
   // Orphan warning AlertDialog must appear.
   const dialog = page.getByRole('alertdialog')
@@ -529,6 +530,24 @@ test('AC4 — Controlling-answer change: warns dialog appears and orphaned answe
   // Confirm "Alterar e remover".
   await dialog.getByRole('button', { name: /Alterar e remover/i }).click()
   await expect(dialog).toBeHidden({ timeout: 10_000 })
+
+  /**
+   * BUG-RDR-001 focus-restoration measurement (FUP item d). `OrphanWarningDialog`
+   * is the one destructive-confirmation flow frontend flagged as EXPECTED fixed
+   * but UNVERIFIED: it opens programmatically via `setPendingOrphan` on this exact
+   * answer change, not from a `<Button onClick>` trigger, so
+   * `DialogFocusRestoreProvider` restores to whatever held focus at that moment —
+   * `changingRadio` above. If the wizard's re-render (S1 recomputes visible
+   * sections when this answer changes) replaces that radio's DOM node before the
+   * dialog closes, `useRestoreFocusOnClose`'s `target.isConnected` guard fails and
+   * it silently falls through to Radix's pre-fix behaviour (focus dropped to
+   * `<body>`). Measured directly via `document.activeElement`, per the BUG-RDR-001
+   * repro's own method, rather than inferred from a `toBeFocused()` matcher.
+   */
+  const focusRestoredToChangingRadio = await changingRadio.evaluate(
+    (el) => el === document.activeElement,
+  )
+  expect(focusRestoredToChangingRadio).toBe(true)
 
   // Step count drops: 4 visible (S0, S1, S3, S4) + 1 review = 5.
   await expect(progressBar).toHaveAttribute('aria-valuemax', '5', { timeout: 10_000 })

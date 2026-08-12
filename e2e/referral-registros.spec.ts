@@ -931,44 +931,13 @@ test('KB-2: keyboard-only — the access dialog opens on Enter, traps focus, clo
 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden({ timeout: 10_000 })
-})
 
-/**
- * BUG-RDR-001 — focus is NOT restored to the trigger when a controlled dialog closes;
- * it drops to `<body>`, stranding a keyboard user at the top of the document.
- *
- * ⚠ `test.fail()` on purpose: this pins a KNOWN, OPEN defect executably instead of
- * deleting the assertion (which would leave the platform's only proof of focus
- * restoration nowhere). It is expected to FAIL today; the run goes RED the moment it
- * starts passing, which is the signal to drop this marker and fold the assertion back
- * into KB-2.
- *
- * NOT an RDR regression — verified by hand against the PRE-EXISTING, RDR-untouched
- * "Atribuir responsável" dialog on ENC-0002, which drops focus to `<body>` identically.
- * The cause is platform-wide: `src/components/ui/dialog.tsx` documents "focus
- * trapping/restoration … come for free", but Radix only restores to a
- * `DialogPrimitive.Trigger`, and 20+ components across the repo (this one included)
- * drive `<Dialog open onOpenChange>` from their own `<Button onClick>` instead.
- */
-test('KB-3: keyboard-only — closing the access dialog returns focus to its trigger', async ({
-  page,
-}) => {
-  test.fail()
-
-  await signInAs(page, 'staff2.farm@test.local')
-  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
-
-  const trigger = page
-    .getByRole('region', { name: 'Caso em análise' })
-    .getByRole('button', { name: 'Quem tem acesso?' })
-  await expect(trigger).toBeVisible({ timeout: 15_000 })
-  await trigger.focus()
-  await page.keyboard.press('Enter')
-
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden({ timeout: 10_000 })
-
+  // BUG-RDR-001 (fixed) — closing a controlled dialog must return focus to its
+  // trigger, not drop it to `<body>`. Formerly pinned as a separate `test.fail()`
+  // spec (KB-3) while the defect was open platform-wide (Radix's `onCloseAutoFocus`
+  // + `preventDefault()` combo only restores to a `DialogPrimitive.Trigger`, and
+  // this dialog — like 20+ others — drives `<Dialog open onOpenChange>` from its own
+  // `<Button onClick>` instead); folded back into KB-2 per that test's own
+  // instruction now that the shared fix (`src/components/ui/dialog.tsx`) lands.
   await expect(trigger).toBeFocused()
 })

@@ -163,6 +163,52 @@ from `supabase/templates/invite.html` and `supabase/templates/recovery.html`
 (the defaults link to a route the server can't read — BUG-UREG-002). Only then
 flip `AUTH_EMAIL_VERIFICATION=on` in Coolify and redeploy.
 
+### 2.5 — Bootstrap the FIRST `platform_admin` (manual SQL — there is no in-app path)
+
+⚠ **On a production database that was not seeded, this step is mandatory and nothing
+in the product can do it for you.** `profiles.is_admin` is written only by direct SQL,
+and the in-app promote guard requires an **existing** admin to promote another — so the
+admin set is *closed under the product*. A fresh Cloud database starts with it empty,
+and no screen, action or RPC can open it. Skip this step and Step 6.3 fails with the
+"logs in but never lands on `/admin`" symptom **even when the Step 2.3 hook is correctly
+enabled**, because the hook is faithfully reporting `is_admin = false`.
+
+⛔ **Do not "fix" this by weakening the promote guard.** The closure is deliberate — it
+is exactly what stops a normal user self-promoting. The gap is that the bootstrap is
+manual, not that the guard is wrong.
+
+1. Create the account through the normal sign-up / invite flow first, so GoTrue owns the
+   identity and a `profiles` row exists. Do **not** hand-insert into `auth.users`.
+2. Dashboard → **SQL Editor**, promote that one account **by email**:
+
+   ```sql
+   update public.profiles p
+      set is_admin = true
+     from auth.users u
+    where u.id = p.id
+      and u.email = 'the-real-admin@yourdomain.com';
+   ```
+
+3. Confirm exactly one row came back, and that it is the intended person:
+
+   ```sql
+   select u.email, p.is_admin
+     from public.profiles p
+     join auth.users u on u.id = p.id
+    where p.is_admin;
+   ```
+
+4. Have that user **sign out and back in** — `is_admin` rides the access-token claim
+   (Step 2.3), so an already-issued token keeps the old value until it is re-minted.
+
+Every later `platform_admin` goes through the admin UI. This SQL is a one-time
+bootstrap per environment, not an operational tool.
+
+> Why this is written down: tracked as **BUG-BOOTSTRAP-001**. Local and E2E never hit it
+> because `supabase/seed.sql` supplies `platform@test.local` already promoted — which is
+> precisely why the gap is invisible to every gate and surfaces for the first time on a
+> real deploy.
+
 ---
 
 ## Step 3 — Create the Coolify application
@@ -256,8 +302,15 @@ list in [`.env.production.example`](../../.env.production.example).
      click) → the `getClaims()` local-verification path is failing against Cloud
      JWTs → revisit **Step 2.2** (asymmetric signing keys / JWKS endpoint).
    - **Login succeeds but you do NOT land on `/admin`** (treated as a normal
-     user, no admin area) → the `is_admin` claim is missing → revisit
-     **Step 2.3** (custom access-token hook), then sign out and back in.
+     user, no admin area) → the `is_admin` claim is missing or is `false`. Two
+     different causes, check both: revisit **Step 2.3** (custom access-token hook
+     not enabled → claim absent), and **Step 2.5** (no `platform_admin` was ever
+     bootstrapped → claim present but `false`). Then sign out and back in.
+
+   ⚠ On a **non-seeded** production database there is no `admin@test.local` at all —
+   use the account you bootstrapped in **Step 2.5**. The seed personas named in this
+   step exist only on local/E2E databases and on a Cloud project you reset with
+   `npm run db:reset:linked`.
 4. Log in as `chefe.ccih@test.local` and open a commission dashboard to confirm
    RLS-scoped reads work end to end (validates the hook + JWKS path for a
    non-admin, role-scoped session too).

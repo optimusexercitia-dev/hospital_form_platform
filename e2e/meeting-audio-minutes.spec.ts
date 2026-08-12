@@ -31,6 +31,7 @@ import {
   buildErrorCallback,
   postSignedCallback,
   tinyWavBuffer,
+  STUB_SERVICE_PORT,
 } from "./helpers/minutes";
 
 /**
@@ -56,7 +57,35 @@ test.describe.configure({ mode: "serial" });
 
 test.use({ viewport: { width: 1280, height: 950 } });
 
+/**
+ * BUG-MIN-E2E-1 fail-fast (FUP item c) — a stale `.env.local` `MINUTES_SERVICE_URL`
+ * (observed: `:8000` instead of the stub's `127.0.0.1:${STUB_SERVICE_PORT}`) presents
+ * as a bare 30-second `toBeVisible` timeout deep in test 1, stranding 9 serial siblings
+ * and reading exactly like a product defect — it cost two days to diagnose. `.env.local`
+ * is gitignored and PER-WORKTREE, so a checkout that never got the fix stays broken
+ * silently. `submitMinutesJob` (`src/lib/audio-jobs/client.ts`) reads
+ * `process.env.MINUTES_SERVICE_URL` at call time in the Next server process; this spec's
+ * own Playwright process loads the SAME `.env.local` via `@next/env` (the same
+ * assumption `SUPABASE_SERVICE_KEY`/`MINUTES_CALLBACK_HMAC_SECRET` already rely on in
+ * `helpers/minutes.ts`), so checking `process.env` here is a faithful proxy for what the
+ * app itself is configured to call. Fail loudly, by name, before any test runs.
+ */
+function assertMinutesServiceUrlPointsAtStub(): void {
+  const expected = `http://127.0.0.1:${STUB_SERVICE_PORT}`;
+  const configured = process.env.MINUTES_SERVICE_URL;
+  if (configured !== expected) {
+    throw new Error(
+      `MINUTES_SERVICE_URL precondition failed (BUG-MIN-E2E-1) — this suite's stub audio ` +
+        `service listens at "${expected}", but .env.local's MINUTES_SERVICE_URL is ` +
+        `"${configured ?? "<unset>"}". Fix .env.local (gitignored, PER-WORKTREE — see ` +
+        `PROGRESS.md MIN row / e2e/helpers/minutes.ts) and re-run. Left unfixed, this ` +
+        `surfaces 30 tests later as a 30s toBeVisible timeout that reads like a product bug.`,
+    );
+  }
+}
+
 test.beforeAll(async () => {
+  assertMinutesServiceUrlPointsAtStub();
   await startStubAudioService();
   // Defensive: test 5 toggles `audio_minutes` off and restores it in a `finally`, but a
   // prior run that crashed mid-test (observed once: a Chromium renderer crash) can skip

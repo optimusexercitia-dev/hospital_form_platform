@@ -1474,3 +1474,70 @@ resolved as part of writing it, **not** from the ADR's number.
   ▶ **Still open: FUP-VACUOUS-COVERAGE-1** (`phi-remediation` REM-8/REM-9 never run). They are
   honest `test.skip()`s, so they sit OUTSIDE the vacuity property and this gate will never
   catch them — closing the audit did not close them.
+
+## Rotated 2026-08-12 — the backend FUP wave (FUP-PDF-3 · FUP-F2-BUCKETS)
+
+### ⬛ FUP-PDF-3 — RESOLVED 2026-08-12: mint/revoke doors narrowed to the granted-column composite (backend)
+
+**Original finding (QA P1 MINOR-2):** both doors `returns printed_documents` (the full row
+type), so a **direct PostgREST caller** received `storage_path` + `verification_token` — the
+columns deliberately excluded from the authenticated column-list GRANT. `storage_path` is
+derivable from granted columns anyway (defense-in-depth, recorded Note C); **the token was the
+real widening** (the public-verification credential). Catalog measurement at fix time found
+the GRANT excludes FOUR columns, not two: also `revoked_by` + `revoked_reason`.
+
+**Resolution (ADR 0111; migration `20260921000100`):** both doors now
+`RETURNS public.printed_document_public` — a named composite mirroring the authenticated
+column-list SELECT GRANT exactly (15 columns), projected BY NAME via `jsonb_populate_record`.
+Chosen over `RETURNS TABLE` (set-returning → an array over PostgREST, breaking the
+single-object action contract) and over ad-hoc lists (one shared type forces a future column
+to join together with its own GRANT). Product impact none: the mint action supplies the
+credentials itself and reads only summary columns; the revoke caller ignores the returned row.
+TS: `src/lib/pdf-mint/actions.ts` retyped to a `Pick<>` of the table Row limited to the
+granted columns.
+
+**Method record:** the return-type change forced DROP+CREATE; the before/after property diff
+FROM THE CATALOG (prosecdef · provolatile · proleakproof · proisstrict · owner · proacl ·
+proconfig) shows `returns` as the ONLY changed property on both doors. pgTAP
+`323_printed_document_door_return_shape.sql`: keystones t2–t5/t7–t8 observed RED pre-change
+(returns=printed_documents; to_jsonb carried the withheld keys); t10–t13 pin the
+rebuild-loss-prone properties (ACL incl. anon=none, SECURITY DEFINER, search_path) with the
+population pinned to exactly 2.
+
+### ⬛ FUP-F2-BUCKETS — RESOLVED 2026-08-12: `meeting-attachments` retired; the other two buckets deliberately untouched (backend)
+
+**Original finding (2026-08-11):** F2's legacy-bucket retirement was deferred in writing four
+times (f2-attachments-migration-contract §D:326 · phase-14e:167 · the
+`20260717000300_attachments_foldin.sql` header · a retrospective) and tracked nowhere. Live
+catalog state: `referral-attachments` NOT legacy (live referral PHI plane, Phase 22);
+`interview-attachments` already sealed (member SELECT dropped as a confirmed PHI exposure;
+pgTAP `236` §③b + `u1-mutation-audit.sh` own that state); **`meeting-attachments` was the
+finding** — no product writer (every writer through `bucketForTier`) but BOTH policies live,
+the read gating on bare `is_member_of(seg[1])`, the coarse rule F2 replaced.
+
+**Resolution (migration `20260921000300`):**
+1. **Measure** — local (fresh reset): `storage.objects` is empty; bucket count 0. ⚠ **Remote
+   count could NOT be measured from the fixing session** — a background agent's remote SQL is
+   auto-denied by the permission system (the standing remote-auth constraint). Compensated in
+   the migration itself: a guard COUNTS `storage.objects` for the bucket at apply time and
+   RAISES on non-zero, so a data-bearing remote turns `db push` into the loud data decision
+   the original item required, never a silent strand. (The backfill-guard shape, inverted into
+   a defense.)
+2. **Dropped** `meeting_attachments_select_member` + `meeting_attachments_insert_staff_admin`.
+3. **Deleted** the `meeting-attachments` bucket row (via the transaction-local
+   `storage.allow_delete_query` opt-in that `storage.protect_delete` — catalog-verified
+   trigger — requires; SET LOCAL, nothing leaks). `interview-attachments` bucket row KEPT
+   (pgTAP `236` fixtures insert probe objects into it — the FK needs the row);
+   `case-documents` KEPT: its snapshot-reader SELECT (`can_read_snapshot_document`) is live by
+   design while `getReferralDocumentUrl` still signs from it — that retirement travels with
+   the separate open item in [f2-attachments.md](./f2-attachments.md) § *Open risks*.
+4. **Pinned** — pgTAP `325_legacy_bucket_policy_pin.sql`, derived from `pg_policies` (never
+   transcribed): 0 policies referencing `meeting-attachments` (t1, RED pre-migration: 2) or
+   `interview-attachments` (t2, keeps the seal from silently returning); bucket row absent
+   (t3, RED pre-migration); t4 POSITIVE CONTROL — the derivation must still SEE the live
+   case-documents policy, so the zero-counts cannot go vacuous ("a detector that finds
+   nothing must be proven able to find something").
+5. **authz-capability-inventory §5.1 question #3** ("`interview-attachments` +
+   `case-documents` — in scope, or Stage E?") — answered in substance for the interview/meeting
+   half (sealed + pinned / retired + pinned); the `case-documents` half stays open with the
+   `getReferralDocumentUrl` item. Noted inline there.

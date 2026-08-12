@@ -4,16 +4,42 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  DialogFocusRestoreProvider,
+  useRestoreFocusOnClose,
+} from "@/components/ui/dialog-focus-restore";
 
 /**
- * Modal dialog built on Radix Dialog — focus trapping/restoration, `Escape` to
- * close, scroll-lock, and `aria-*` wiring come for free. Distinct from
- * `AlertDialog` (which is for destructive confirmations): this is for content
- * flows like "Novo formulário" and the section/item editors. Styled to match the
- * platform's popover/menu surfaces.
+ * Modal dialog built on Radix Dialog. Distinct from `AlertDialog` (destructive
+ * confirmations): this is for content flows like "Novo formulário" and the
+ * section/item editors. Styled to match the platform's popover/menu surfaces.
+ *
+ * **What Radix actually gives** (verified against
+ * `@radix-ui/react-dialog/dist/index.mjs`, not assumed): focus TRAPPING while
+ * open, `Escape`/outside-pointer dismissal, scroll-lock, and the
+ * `role="dialog"` / `aria-modal` / `aria-labelledby` wiring.
+ *
+ * **What it does NOT give: focus RESTORATION** for a dialog that was not opened
+ * through `DialogPrimitive.Trigger` — it restores to a null `triggerRef` and
+ * focus lands on `<body>`. The comment that used to sit here claimed
+ * restoration "comes for free"; that was false for every controlled call site
+ * (BUG-RDR-001). Full mechanism + the Radix source it was read from:
+ * `dialog-focus-restore.tsx`.
+ *
+ * **What this wrapper adds:** that file's capture-on-open / restore-on-close
+ * pair, covering `Escape`, overlay click and programmatic close identically. A
+ * caller that passes its own `onCloseAutoFocus` and calls `preventDefault()`
+ * keeps control.
  */
-function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+function Dialog({
+  open,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return (
+    <DialogFocusRestoreProvider open={open}>
+      <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />
+    </DialogFocusRestoreProvider>
+  );
 }
 
 function DialogTrigger(
@@ -32,10 +58,13 @@ function DialogContent({
   className,
   children,
   showClose = true,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showClose?: boolean;
 }) {
+  const handleCloseAutoFocus = useRestoreFocusOnClose(onCloseAutoFocus);
+
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
@@ -53,6 +82,7 @@ function DialogContent({
           className,
         )}
         {...props}
+        onCloseAutoFocus={handleCloseAutoFocus}
       >
         {children}
         {showClose && (

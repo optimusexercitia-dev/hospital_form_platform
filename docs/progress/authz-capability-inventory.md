@@ -356,6 +356,11 @@ v2 §5's twelve items stand. **Added:**
    Organization User arm (safe by construction — Org Users are not members and cannot self-grant).
 2. **`platform_admin` on case content + referral PHI destruction** (§1.6) — reconcile with CLAUDE.md §1.
 3. **`interview-attachments` + `case-documents` buckets** (§1.4) — in scope, or Stage E?
+   ⬛ *Answered in substance 2026-08-12 (FUP-F2-BUCKETS):* `interview-attachments` sealed (0
+   policies; pinned by pgTAP `325` t2) and `meeting-attachments` RETIRED outright
+   (`20260921000300`; pinned by `325` t1/t3). `case-documents` remains live BY DESIGN while
+   `getReferralDocumentUrl` still signs from it — that half travels with the open item in
+   [f2-attachments.md](./f2-attachments.md) § *Open risks*.
 4. **`case_tag_report`** (§3.6·B) — PHI-free governance aggregate, or case content?
 5. **`professional_profiles.user_id` `ON DELETE SET NULL`** (§1.7) — B7 blocking.
 6. **`administrativo`'s `assign_case_phases`** (§1.5) — contradicts O8.

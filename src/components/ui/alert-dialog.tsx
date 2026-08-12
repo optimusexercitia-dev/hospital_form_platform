@@ -4,21 +4,54 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  DialogFocusRestoreProvider,
+  useRestoreFocusOnClose,
+} from "@/components/ui/dialog-focus-restore";
 
 /**
- * Confirmation dialog built on Radix AlertDialog — focus trapping, focus
- * restoration, `Escape` to cancel, and the `alertdialog` role/`aria-*` wiring
- * come for free. Used for destructive confirmations (removing a coordinator or a
- * staff member). Styled to match the platform's popover/menu surfaces.
+ * Confirmation dialog built on Radix AlertDialog. Used for destructive
+ * confirmations (removing a coordinator or a staff member). Styled to match the
+ * platform's popover/menu surfaces.
+ *
+ * **What Radix actually gives** (verified against
+ * `@radix-ui/react-alert-dialog/dist/index.mjs`, not assumed): focus TRAPPING,
+ * `Escape` to cancel, initial focus on `Cancel` rather than the destructive
+ * action, the `alertdialog` role + `aria-*` wiring, and — unlike `Dialog` — NO
+ * dismiss-on-overlay-click, because `onPointerDownOutside`/`onInteractOutside`
+ * are hard-`preventDefault`ed (a caller cannot re-enable it).
+ *
+ * **What it does NOT give: focus RESTORATION** for a controlled alert dialog
+ * with no `AlertDialogTrigger`. `AlertDialogContent` spreads its props straight
+ * into Radix's `DialogContentModal`, so it inherits that component's
+ * unconditional restore-to-`triggerRef`; with a null ref, focus lands on
+ * `<body>`. The comment that used to sit here claimed restoration "comes for
+ * free" — the same false claim `dialog.tsx` carried, and false here for the six
+ * destructive flows that drive this controlled (BUG-RDR-001). Full mechanism +
+ * the Radix source it was read from: `dialog-focus-restore.tsx`.
+ *
+ * **What this wrapper adds:** that file's capture-on-open / restore-on-close
+ * pair — the SAME implementation `dialog.tsx` uses, deliberately not a second
+ * copy. Close paths here are `Escape`, `Cancel`, `Action` and programmatic;
+ * there is no overlay-click path to cover.
  *
  * The `Action`/`Cancel` triggers render as the platform Button so keyboard
  * activation and the focus ring stay consistent. The action button defaults to
  * the destructive variant since every current use is a removal.
  */
-function AlertDialog(
-  props: React.ComponentProps<typeof AlertDialogPrimitive.Root>,
-) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
+function AlertDialog({
+  open,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
+  return (
+    <DialogFocusRestoreProvider open={open}>
+      <AlertDialogPrimitive.Root
+        data-slot="alert-dialog"
+        open={open}
+        {...props}
+      />
+    </DialogFocusRestoreProvider>
+  );
 }
 
 function AlertDialogTrigger(
@@ -31,8 +64,11 @@ function AlertDialogTrigger(
 
 function AlertDialogContent({
   className,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+  const handleCloseAutoFocus = useRestoreFocusOnClose(onCloseAutoFocus);
+
   return (
     <AlertDialogPrimitive.Portal>
       <AlertDialogPrimitive.Overlay
@@ -50,6 +86,7 @@ function AlertDialogContent({
           className,
         )}
         {...props}
+        onCloseAutoFocus={handleCloseAutoFocus}
       />
     </AlertDialogPrimitive.Portal>
   );

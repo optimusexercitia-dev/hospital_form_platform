@@ -13201,30 +13201,10 @@ export type Database = {
           p_verification_short_code: string
           p_verification_token: string
         }
-        Returns: {
-          commission_id: string
-          contains_phi: boolean
-          content_hash: string
-          id: string
-          minted_at: string
-          minted_by: string
-          revoked_at: string | null
-          revoked_by: string | null
-          revoked_reason: string | null
-          revoked_reason_class: string | null
-          source_id: string
-          source_kind: string
-          status: string
-          storage_path: string
-          superseded_at: string | null
-          template_key: string
-          template_version: number
-          verification_short_code: string
-          verification_token: string
-        }
+        Returns: Database["public"]["CompositeTypes"]["printed_document_public"]
         SetofOptions: {
           from: "*"
-          to: "printed_documents"
+          to: "printed_document_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14559,30 +14539,10 @@ export type Database = {
       }
       revoke_printed_document: {
         Args: { p_id: string; p_reason: string; p_reason_class: string }
-        Returns: {
-          commission_id: string
-          contains_phi: boolean
-          content_hash: string
-          id: string
-          minted_at: string
-          minted_by: string
-          revoked_at: string | null
-          revoked_by: string | null
-          revoked_reason: string | null
-          revoked_reason_class: string | null
-          source_id: string
-          source_kind: string
-          status: string
-          storage_path: string
-          superseded_at: string | null
-          template_key: string
-          template_version: number
-          verification_short_code: string
-          verification_token: string
-        }
+        Returns: Database["public"]["CompositeTypes"]["printed_document_public"]
         SetofOptions: {
           from: "*"
-          to: "printed_documents"
+          to: "printed_document_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -17235,7 +17195,23 @@ export type Database = {
         | "platform_admin"
     }
     CompositeTypes: {
-      [_ in never]: never
+      printed_document_public: {
+        id: string | null
+        source_kind: string | null
+        source_id: string | null
+        commission_id: string | null
+        template_key: string | null
+        template_version: number | null
+        content_hash: string | null
+        contains_phi: boolean | null
+        status: string | null
+        verification_short_code: string | null
+        minted_by: string | null
+        minted_at: string | null
+        superseded_at: string | null
+        revoked_reason_class: string | null
+        revoked_at: string | null
+      }
     }
   }
 }

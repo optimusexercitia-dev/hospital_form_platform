@@ -280,9 +280,24 @@ function CaseParticipantRoleDialog({
       : EMPTY_ROLE_INPUT,
   );
 
-  const keyField = useFieldIds("role-key", { hasDescription: true });
-  const nameField = useFieldIds("role-name");
+  // FUP-ETH-A11Y-1 m3: `hasError` is what puts the `FieldError`'s id into
+  // `aria-describedby`. Declaring only `hasDescription` (as "Chave" did) wires
+  // the help text and silently drops the error, so a user tabbing BACK to the
+  // rejected control hears the label and the hint but never the reason.
+  const keyField = useFieldIds("role-key", {
+    hasDescription: true,
+    hasError: Boolean(fieldErrors.key),
+  });
+  const nameField = useFieldIds("role-name", {
+    hasError: Boolean(fieldErrors.displayName),
+  });
   const scopeField = useFieldIds("role-scope");
+  // The "tipos aceitos" error belongs to the checkbox GROUP, not to any one
+  // box — so it hangs off the `<fieldset>`'s own `aria-describedby`. Only
+  // `aria-describedby` and `errorId` are used from this one.
+  const typesField = useFieldIds("role-participant-types", {
+    hasError: Boolean(fieldErrors.allowedParticipantTypes),
+  });
 
   function toggleType(type: ParticipantType, checked: boolean) {
     const set = new Set(draft.allowedParticipantTypes);
@@ -354,25 +369,24 @@ function CaseParticipantRoleDialog({
               Nome exibido
             </FieldLabel>
             <Input
-              id={nameField.controlProps.id}
+              {...nameField.controlProps}
               value={draft.displayName}
               disabled={isPending}
-              aria-invalid={Boolean(fieldErrors.displayName)}
               onChange={(e) =>
                 setDraft({ ...draft, displayName: e.target.value })
               }
             />
-            <FieldError>{fieldErrors.displayName}</FieldError>
+            <FieldError id={nameField.errorId}>
+              {fieldErrors.displayName}
+            </FieldError>
           </Field>
 
           <Field>
             <FieldLabel htmlFor={keyField.controlProps.id}>Chave</FieldLabel>
             <Input
-              id={keyField.controlProps.id}
+              {...keyField.controlProps}
               value={draft.key}
               disabled={isPending || mode === "edit"}
-              aria-describedby={keyField.descriptionId}
-              aria-invalid={Boolean(fieldErrors.key)}
               onChange={(e) => setDraft({ ...draft, key: e.target.value })}
             />
             <FieldDescription id={keyField.descriptionId}>
@@ -380,10 +394,13 @@ function CaseParticipantRoleDialog({
                 ? "A chave não pode ser alterada depois de criada — o impedimento automático do denunciado depende dela permanecer estável. Para trocar, desative este papel e crie outro."
                 : "Identificador interno, sem acentos ou espaços (ex.: complainant)."}
             </FieldDescription>
-            <FieldError>{fieldErrors.key}</FieldError>
+            <FieldError id={keyField.errorId}>{fieldErrors.key}</FieldError>
           </Field>
 
-          <fieldset className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3">
+          <fieldset
+            aria-describedby={typesField.controlProps["aria-describedby"]}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3"
+          >
             <legend className="px-1 text-sm font-medium">
               Tipos de participante aceitos
             </legend>
@@ -402,7 +419,9 @@ function CaseParticipantRoleDialog({
                 </label>
               ))}
             </div>
-            <FieldError>{fieldErrors.allowedParticipantTypes}</FieldError>
+            <FieldError id={typesField.errorId}>
+              {fieldErrors.allowedParticipantTypes}
+            </FieldError>
           </fieldset>
 
           <label className="flex items-center gap-2.5 text-sm">
@@ -424,7 +443,7 @@ function CaseParticipantRoleDialog({
               </span>
             </FieldLabel>
             <NativeSelect
-              id={scopeField.controlProps.id}
+              {...scopeField.controlProps}
               value={draft.caseTypeId ?? ""}
               disabled={isPending}
               onChange={(e) =>

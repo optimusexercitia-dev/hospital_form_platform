@@ -1230,3 +1230,91 @@ test('KBD-1 keyboard-only: seat an external witness with no mouse', async ({ pag
 
   await signOut(page)
 })
+
+// ===========================================================================
+// KBD-2 (FUP-ETH-KBD-1) — the PROFESSIONAL lane, keyboard-only. KBD-1 above only
+// ever drove the external lane; `PROF-PICK`/`PROF-CREATE` were mouse-only, so
+// BUG-ETHE4-FOCUS-1's defect (Escape jumping focus to the search field and
+// resetting the lane radio) was never ruled out on this mount of the SAME shared
+// `TypeaheadField`. Tab-stop count (does the radiogroup land on/select
+// "Profissional" within a bounded number of keyboard steps) + Escape-does-not-
+// reset-the-lane, mirroring KBD-1's external-lane symptom-2 check, then completes
+// the seating keyboard-only via the create-inline / não possui conta sub-flow
+// (self-contained — no typeahead pick, so it can't collide with PROF-PICK's
+// mouse-driven use of the same seeded "Dra. Denunciada" candidate).
+// ===========================================================================
+
+test('KBD-2 keyboard-only: the professional lane resists Escape reset and seats a new professional with no mouse', async ({
+  page,
+}) => {
+  await signInAs(page, CHEFE)
+  await gotoCase(page)
+
+  const addButton = participantsPanel(page).getByRole('button', { name: 'Adicionar participante' })
+  await tabTo(page, addButton)
+  await page.keyboard.press('Enter')
+
+  const dialog = page.getByRole('dialog', { name: 'Adicionar participante' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+  const radioProfissional = dialog.getByRole('radio', { name: 'Profissional' })
+  const radioExterna = dialog.getByRole('radio', { name: 'Pessoa externa ou órgão' })
+  // Tab-stop count: "Profissional" is the default lane, so a working roving-tabindex
+  // radiogroup lands here directly; if it lands on the other option instead, one
+  // ArrowUp both moves to AND selects "Profissional" (mirrors KBD-1's opposite case).
+  const landed = await tabUntilOneFocused(page, [radioProfissional, radioExterna])
+  if (landed !== 0) {
+    await page.keyboard.press('ArrowUp')
+  }
+  await expect(radioProfissional).toBeChecked()
+
+  // Escape-does-not-reset-the-lane (BUG-ETHE4-FOCUS-1 symptom 2, mirrored from
+  // KBD-1): tab to the professional search field (auto-opens its — still empty —
+  // popup via onFocus), press Escape, and confirm the popup's dismissal neither
+  // resets the lane radio nor moves focus off the field.
+  const profSearch = dialog.getByRole('combobox', { name: 'Buscar profissional' })
+  await tabTo(page, profSearch)
+  await page.keyboard.press('Escape')
+  await expect(radioProfissional).toBeChecked()
+  await expect(profSearch).toBeFocused()
+
+  // Complete the seating keyboard-only via create-inline / não possui conta.
+  const createButton = dialog.getByRole('button', { name: 'Cadastrar novo profissional' })
+  await tabTo(page, createButton)
+  await page.keyboard.press('Enter')
+
+  const nameField = dialog.getByLabel('Nome completo')
+  await tabTo(page, nameField)
+  await page.keyboard.type('Perita Teclado (E4)')
+
+  // Role selected BEFORE the linkage choice — same order `seatProfessionalCreateInline`
+  // uses, for the same reason (canSubmit gating; see that helper's comment).
+  const roleSelect = dialog.getByLabel('Papel')
+  await tabTo(page, roleSelect)
+  await arrowSelectNative(page, roleSelect, 'Relator')
+
+  const radioHasAccount = dialog.getByRole('radio', { name: 'Possui conta', exact: true })
+  const radioNoAccount = dialog.getByRole('radio', { name: 'Não possui conta', exact: true })
+  const linkageLanded = await tabUntilOneFocused(page, [radioHasAccount, radioNoAccount])
+  if (linkageLanded !== 1) {
+    await page.keyboard.press('ArrowDown')
+  }
+  await expect(radioNoAccount).toBeChecked()
+
+  const consequenceCheckbox = dialog.getByRole('checkbox', { name: NO_ACCOUNT_CONSEQUENCE_TEXT })
+  await tabTo(page, consequenceCheckbox)
+  await page.keyboard.press('Space')
+  await expect(consequenceCheckbox).toBeChecked()
+
+  const submit = dialog.getByRole('button', { name: 'Adicionar', exact: true })
+  await tabTo(page, submit)
+  await page.keyboard.press('Enter')
+  await expect(dialog).toHaveCount(0, { timeout: 10_000 })
+
+  await expect(rosterRow(page, 'Perita Teclado (E4)')).toBeVisible({ timeout: 10_000 })
+  await expect(
+    rosterRow(page, 'Perita Teclado (E4)').getByText('Relator', { exact: true }),
+  ).toBeVisible()
+
+  await signOut(page)
+})

@@ -1672,3 +1672,109 @@ failure is the accurate signal; do not edit the spec to route around this.
 "Buscar profissional", "Buscar participante externo", and "Usuário da plataforma" — the
 professional lane's own typeahead was never keyboard-navigated in this suite (`PROF-PICK`/
 `PROF-CREATE` drive it by mouse), so whether it shares this defect is untested, not ruled out.
+
+---
+
+## Rotated 2026-08-12 — the FUP batch (both CLOSED)
+
+> Rotated out of PROGRESS.md at the §6 Record step for the 2026-08-12 follow-up batch.
+> Full entries verbatim below, each preceded by its resolution.
+
+### ✅ BUG-MIN-E2E-1 — RESOLVED 2026-08-12: **it was never a product defect**
+
+**Root cause: stale local config.** `.env.local` carried
+`MINUTES_SERVICE_URL=http://localhost:8000`, but the spec starts its own in-process stub at
+`STUB_SERVICE_PORT = 8891` (`e2e/helpers/minutes.ts`), bound to `127.0.0.1`. So the app POSTed
+`/jobs` at a closed port, `submitMinutesJob` failed, the upload dialog never closed, and — the file
+being `mode: 'serial'` — its 9 siblings stranded. The `:8000` value is the **temporary** flip that
+`FUP-MIN-CUTOVER`'s T5 smoke step prescribes ("flip `MINUTES_SERVICE_URL` :8891→:8000 for the
+session"); it was never reverted. This also explains the entry's own puzzle (d): the spec was 10/10
+green in another worktree at 08:37 the same day because **`.env.local` is gitignored and
+per-worktree**, and that checkout still held 8891.
+
+Fixed to `http://127.0.0.1:8891` — deliberately `127.0.0.1`, not `localhost`: the stub binds
+`127.0.0.1`, and on Windows `localhost` can resolve to `::1` first and fail identically.
+**Verified:** `RESET=1 REBUILD=1 SPECS="meeting-audio-minutes.spec.ts"` → GATE GREEN, test 1 passing
+on first attempt, `accounted 10/10`, **0 did-not-run**.
+
+⚠ **The durable fix is the guard, not the value.** Because `.env.local` is per-worktree, any other
+checkout flipped during a T5 smoke is still broken. `tester` added
+`assertMinutesServiceUrlPointsAtStub()` in `beforeAll`, which compares the configured URL against
+the stub port and fails with a one-line diagnostic naming both values. **It was mutation-proven** —
+`.env.local` was deliberately mis-set to `:8000`, the diagnostic fired instead of a 30-second
+timeout, and the file was restored.
+
+**The lesson worth keeping:** a config error presented as a 30-second `toBeVisible` timeout deep in a
+feature spec, and was carried for two days as a *major product bug with a whole feature's E2E
+unproven*. Four careful measurements in the original entry correctly ruled out batch-order,
+contamination, blast radius and storage — and still landed on the wrong class, because none of them
+asked whether the thing under test was **configured to be reachable at all**. The entry even named
+the suspect ("a stale value … remains the most likely remaining cause") and stopped, correctly, at
+the app/spec ownership boundary.
+
+### ✅ BUG-RDR-001 — RESOLVED 2026-08-12: fixed at the shared layer, both dialog primitives
+
+**The recorded mechanism was right about the symptom but incomplete about the cause.** The entry
+said Radix "restores only to a `DialogPrimitive.Trigger`". Confirmed against the installed source
+(`@radix-ui/react-dialog/dist/index.mjs:146-149`), the close handler does **two** things:
+
+```js
+onCloseAutoFocus: composeEventHandlers(props.onCloseAutoFocus, (event) => {
+  event.preventDefault();
+  context.triggerRef.current?.focus();
+}),
+```
+
+That `preventDefault()` **also cancels `FocusScope`'s own restore** (`react-focus-scope` skips it on
+`defaultPrevented`). So with a null `triggerRef` — every controlled call site — *both* restore paths
+are dead and focus lands on `<body>`. **Consequence for any fix: the two halves must be replaced
+together.** Replacing only the `.focus()` leaves the cancelled fallback; replacing only the
+`preventDefault()` re-enables a fallback that aims at the wrong element.
+
+**Fix:** `src/components/ui/dialog-focus-restore.tsx` — capture the previously-focused element in a
+**layout** effect keyed on `open` (FocusScope moves focus in a *passive* effect, and all layout
+effects of a commit flush first), publish it on context, restore on close. Falls through
+un-prevented when the captured element is disconnected or disabled, so Radix's own
+`DialogTrigger` path still works.
+
+**`alert-dialog.tsx` shared the identical defect and was fixed in the same mechanism** (PO-approved
+widening, folded in to ride the same E2E pass). Justified from source, not preference:
+`AlertDialogContent` spreads `...contentProps` straight into Radix's *own* `DialogContentModal` and
+overrides only `onOpenAutoFocus` / `onPointerDownOutside` / `onInteractOutside` — `onCloseAutoFocus`
+is untouched, so the two primitives do not merely have similar bugs, **they share one defective
+close path**. Dismissal, where the primitives genuinely differ (`AlertDialog` hard-`preventDefault`s
+outside-pointer interaction and has no overlay-click path), was deliberately left unshared.
+
+**Measured `document.activeElement`, before → after** (real key events, before/after isolated by
+flipping exactly one line):
+
+| Dialog | Before | After |
+| --- | --- | --- |
+| "Quem tem acesso?" (ENC-0001, `staff2.farm`) | `BODY` | `BUTTON` — trigger |
+| "Atribuir responsável" (ENC-0002, `chefe.ccih`) | `BODY` | `BUTTON` — trigger |
+| "Desativar" (`user-lifecycle-actions`, AlertDialog) | `BODY` | `BUTTON` — trigger |
+
+Escape, overlay click and programmatic close all restore; the focus trap still holds after 25 Tabs
+(KB-2 unregressed).
+
+⚠ **The honest count for the six AlertDialog call sites is not six** — recorded so it is not
+rounded up later: **1 fixed + measured** (`users/user-lifecycle-actions.tsx`) · **3 fixed,
+structurally verified only** (`meetings/minutes-audio-slot`, `meetings/review/conclude-bar`,
+`users/affiliations-panel`) · **1 fixed and independently measured by `tester`**
+(`responses/wizard/orphan-warning-dialog` — the one at genuine risk, since it opens programmatically
+and would degrade silently if the wizard replaced the control on re-render; measured restoring) ·
+**1 that was NEVER BROKEN** (`documents/document-actions-menu` — Radix's `DropdownMenu` already
+restored focus to its own trigger, so the AlertDialog's null-`triggerRef` no-op left it in the right
+place; measured identical before and after — **unregressed, not fixed**).
+
+**The KB-3 pin was dropped correctly, not deleted.** `e2e/referral-registros.spec.ts` KB-3 carried
+the assertion under `test.fail()`; with the fix in place that marker makes the suite RED, so
+`tester` folded the assertion back into KB-2 as the bug's own instruction required.
+
+**The lesson worth keeping:** the entry's own diagnosis — *"`dialog.tsx`'s doc comment claims focus
+trapping/restoration come for free … the restore half of that comment is false"* — was a textbook
+instance of *a comment is an assertion that goes stale silently*, and the fix corrected the comment
+in both primitives rather than leaving the false claim in place beside working code.
+
+---
+

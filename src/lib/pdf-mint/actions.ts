@@ -79,8 +79,31 @@ export interface RevokePrintedDocumentInput {
 // Internals
 // ---------------------------------------------------------------------------
 
-type PrintedDocumentRow =
-  Database['public']['Tables']['printed_documents']['Row']
+/**
+ * The doors' narrowed return surface (`public.printed_document_public`,
+ * FUP-PDF-3): exactly the columns the authenticated column-list SELECT GRANT
+ * exposes — `verification_token` / `storage_path` / `revoked_by` /
+ * `revoked_reason` never leave the door. Derived from the table Row type so
+ * column renames stay compiler-checked.
+ */
+type PrintedDocumentDoorRow = Pick<
+  Database['public']['Tables']['printed_documents']['Row'],
+  | 'id'
+  | 'source_kind'
+  | 'source_id'
+  | 'commission_id'
+  | 'template_key'
+  | 'template_version'
+  | 'content_hash'
+  | 'contains_phi'
+  | 'status'
+  | 'verification_short_code'
+  | 'minted_by'
+  | 'minted_at'
+  | 'superseded_at'
+  | 'revoked_reason_class'
+  | 'revoked_at'
+>
 
 const GENERIC_MINT_ERROR =
   'Não foi possível emitir o documento. Tente novamente.'
@@ -135,7 +158,7 @@ const sha256Hex = (bytes: Buffer) =>
   createHash('sha256').update(bytes).digest('hex')
 
 function toSummary(
-  row: PrintedDocumentRow,
+  row: PrintedDocumentDoorRow,
   mintedByDisplay: string,
 ): PrintedDocumentSummary {
   return {
@@ -273,7 +296,7 @@ export async function mintPrintedDocument(
     )
 
     if (!rpcError && data) {
-      const row = data as unknown as PrintedDocumentRow
+      const row = data as unknown as PrintedDocumentDoorRow
       return { ok: true, document: toSummary(row, byDisplay) }
     }
 

@@ -34,6 +34,24 @@ together.
 
 ### 🟡 FUP-ETH-A11Y-1 — the ETH·E4 dialogs: error text is never `aria-describedby`-wired, and the typeahead announces neither loading nor result count (QA m3 + m4; owner: frontend + tester)
 
+> ✅ **BUILT in the working tree 2026-08-12 (`frontend`) — NOT committed. Awaiting the tester
+> batch.** m3: both files now pass `hasError`/`hasDescription` into `useFieldIds`, spread
+> `controlProps`, and put `id={errorId}` / `id={descriptionId}` on `FieldError` /
+> `FieldDescription`; the checkbox-GROUP error in `case-participant-role-manager.tsx` hangs off
+> the `<fieldset>`'s own `aria-describedby` (a 3rd site QA's count of 2 did not include).
+> Verified live by submitting an empty "Novo papel": every emitted `aria-describedby` resolves to
+> a real `role="alert"` node carrying the pt-BR message.
+> **m4 route chosen: (a) a separate `sr-only` `role="status" aria-live="polite"` region, worded
+> so it duplicates NO visible string** — the listbox's `aria-label` (`Opções para {label}`), which
+> `pickFromTypeahead` scopes on, is byte-for-byte unchanged, and route (b) was rejected for that
+> reason. New strings, all `sr-only` and all previously absent from the DOM:
+> `"Carregando resultados…"` · `"1 opção disponível. Use as setas para navegar e Enter para
+> escolher."` / `"{n} opções disponíveis. …"` · `"Nenhuma opção disponível."`. The error path
+> announces nothing (the visible message already carries `role="alert"`), and a query below the
+> 2-character floor announces nothing (a `null` `emptyAnnouncement`), so no claim is made about a
+> search that never ran. Verified live: `"Nenhum resultado. Você pode cadastrar um novo."`,
+> `"Digite ao menos 2 letras para buscar."` and `"Buscando…"` each still match exactly ONCE.
+
 **m3 — `aria-describedby` never reaches the error id.** `useFieldIds`
 (`src/components/ui/field.tsx:103-133`) already emits `descriptionId`, `errorId` and a
 composed `aria-describedby`, but every ETH·E4 call site passes only `.controlProps.id` and
@@ -79,65 +97,6 @@ batching — its own sub-batches hit `server_dead` and recovered.
 failed in one of these batches. It is filed because it costs a full gate re-run each time it
 bites, and because "infra is not a pass": a batch that never produced a verdict must not be
 read as green.
-### 🟡 FUP-F2-BUCKETS — the F2 legacy-bucket retirement was deferred in writing, four times, and tracked nowhere (2026-08-11; owner: backend)
-
-F2 consolidated case / meeting / interview attachments into `public.attachments` + the two
-tier buckets, and **every writer is rewired** (`meetings/actions.ts:984`,
-`interviews/actions.ts:771`, `cases/documents-actions.ts` all go through `bucketForTier`).
-The legacy buckets were deliberately left standing to keep the atomic fold-in minimal — a
-sound call, recorded in
-[f2-attachments-migration-contract.md](../design/f2-attachments-migration-contract.md) §D:326
-("retire in a later cleanup migration, post-gate"), repeated in
-[phase-14e](../phases/phase-14e-attachment-phi-classification.md):167 and in the
-`20260717000300_attachments_foldin.sql` header:20. **The cleanup migration was never
-written, and the deferral never became a task** — it lives in two planning docs, one
-migration comment, and a retrospective, and in no tracker. Verified 2026-08-11: `grep` over
-PROGRESS.md for *legacy bucket / retire / cleanup migration / the three bucket names* → **0
-hits**; `f2-attachments.md` § *Open risks / deferred* lists four items, none of them this.
-
-**Live catalog state (2026-08-11, local) — the three are in three different states, and only
-the middle one is the finding:**
-
-| Bucket | Policies | State |
-| --- | --- | --- |
-| `referral-attachments` | `can_manage_referral_target` INSERT · `can_read_referral_phi` SELECT | **NOT legacy** — live referral PHI plane (Phase 22), never in F2's scope. Leave it. |
-| `meeting-attachments` | `meeting_attachments_insert_staff_admin` · `meeting_attachments_select_member` (**both live**) | **No writer in the product, two working doors.** Reads gate on bare `is_member_of(seg[1])` — the coarse rule F2 replaced. |
-| `interview-attachments` | **none** | Already sealed: its member SELECT was a confirmed PHI exposure ([authz-a0-inventory-review](../reviews/authz-a0-inventory-review.md) §2.1) and was dropped; `236` §③b pins EXCLUDED-member-reads-0, and `u1-mutation-audit.sh` re-creates it as the injected leak. |
-
-⚠ **`meeting-attachments` is named in the two planning docs and NOWHERE else.** The §7.12
-exclusion-perimeter analysis ([authz-handoff.md](./authz-handoff.md):572) measured
-reachability for `case-documents` + `interview-attachments` and drove the interview drop; it
-never covered the meeting bucket, most likely because it was scoped to *case* PHI surfaces
-and a meeting attachment is not a case artifact. The attention that closed two of three
-skipped the third — **a per-surface sweep is not a sweep**, the recorded rule again.
-
-**A second, separable question — do NOT fold it into the policy drop.** The fold-in is
-explicitly *pure DDL, no data migration* ("on a fresh `db reset` all these tables are EMPTY"),
-then `drop table … meeting_attachments cascade`. Against a **data-bearing** database that
-drops the metadata rows while their blobs stay in the legacy bucket, still reachable through
-that live member SELECT. F2 is local-only (remote `db push` deferred to pilot cutover) and
-there are no live users pre-launch, so this is very likely a non-issue — but that is an
-**assumption about remote state which nothing verifies**, and it is the
-backfill-guard shape: passes a 0-row local reset, behaves differently against real data.
-**Measure remote object counts before dropping anything** (§7.12's own rule: reachability
-measured, never inferred).
-
-Proposed scope, in order:
-1. **Measure** — `storage.objects` counts per legacy bucket on the linked remote. Record the
-   numbers here; a non-zero `meeting-attachments` turns item 3 into a data decision.
-2. **Drop the two `meeting_attachments_*` storage policies** (the actual open door).
-3. **Delete the three legacy buckets** — `case-documents` only after confirming the referral
-   snapshot reader is off it (that reader is the *separate* open item in
-   [f2-attachments.md](./f2-attachments.md) § *Open risks*: `getReferralDocumentUrl` still
-   signs from it).
-4. **Pin it** — a pgTAP assertion that **no** policy exists on `bucket_id in
-   ('meeting-attachments','interview-attachments','case-documents')`, derived from
-   `pg_policies` rather than transcribed, so the retirement cannot silently regress. Without
-   this, step 2 is a change no gate can see — the same prose-only failure that produced this
-   entry.
-5. **Close [authz-capability-inventory.md](./authz-capability-inventory.md):358 open question
-   #3** ("`interview-attachments` + `case-documents` — in scope, or Stage E?") as answered.
-
 ### 🟡 FUP-ACT-HATLESS-AUDIT — a hatless read's audit row omits the `acting_as` KEY, and absence has three meanings (S4 QA MINOR-6; owner: backend)
 
 Catalog-verified in `app.audit_write`:
@@ -164,14 +123,6 @@ inference into a fact for a few characters.
 hatless principals must lose relationship-derived reach, this class of row stops existing and
 the follow-up dies with it. Do not implement it ahead of that ruling. Needs a migration —
 deliberately out of S4, which shipped none.
-
-### 🟡 FUP-PDF-3 — mint/revoke `returns printed_documents` re-exposes withheld columns (QA P1 MINOR-2; owner: backend)
-
-Both doors return the full row type, so a **direct PostgREST caller** receives
-`storage_path` + `verification_token` — the two columns deliberately excluded from the
-column-list GRANT. Needs a return-shape decision (narrowed composite / explicit column
-list on the RETURNS). Context: `storage_path` is derivable from granted columns anyway
-(defense-in-depth, not a secret — recorded Note C); **the token is the real widening**.
 
 ### 🟡 FUP-PDF-4 — verification rate limiter: comment FIXED, availability lever still OPEN and re-scoped (QA P1 MINOR-3; owner: backend)
 
@@ -563,6 +514,18 @@ shipped). Merged `97acfd6`. Full bodies in the archive.
 **Rotated in the same pass, but NOT part of the batch:** FUP-QOB-1 (the `270` §J J1c catalog
 pin, RATIFIED by the PO 2026-08-09) — a separate, earlier closure that had simply never been
 rotated out of either file.
+
+### ⬛ Resolved — rotated 2026-08-12 (backend FUP wave) → [follow-ups-archive.md](./follow-ups-archive.md)
+
+FUP-PDF-3 (both doors narrowed to the granted-column composite `printed_document_public` —
+ADR 0111, migration `20260921000100`, pgTAP `323` red-first + DROP+CREATE property controls) ·
+FUP-F2-BUCKETS (`meeting-attachments` retired — `20260921000300`, policies + bucket behind a
+non-empty REFUSE guard; pgTAP `325` pins the absence from `pg_policies`; `case-documents`
+retirement stays with the open `getReferralDocumentUrl` item; ⚠ remote object count could NOT
+be measured — background-agent remote SQL is auto-denied — the migration guard turns a
+data-bearing remote `db push` into a loud refusal instead). Full resolution bodies in the
+archive. Same wave, tracked in the RDR phase row rather than here: the `case_narrative_types`
+reorder-after-archive `23505` fixed in `20260921000200` + pgTAP `324`.
 
 ⚠ **The one thing worth carrying forward rather than archiving:** three of those six were
 measurably WRONG about the code, each phrased as an instruction someone would have executed

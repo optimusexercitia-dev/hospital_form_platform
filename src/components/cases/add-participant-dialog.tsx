@@ -203,6 +203,46 @@ export function suppressEscapeWhilePopupOpen(event: KeyboardEvent) {
 }
 
 /**
+ * The polite announcement for {@link TypeaheadField}'s popup (FUP-ETH-A11Y-1
+ * m4). The popup's loading row, empty hint and result list all sit OUTSIDE the
+ * listbox `aria-controls` points at, so nothing about them ever reached a
+ * screen reader.
+ *
+ * Deliberately worded so that **no string here duplicates a visible one** in
+ * this dialog. Re-emitting "Buscando…" or "Nenhum resultado. Você pode
+ * cadastrar um novo." into an `sr-only` node would give each of those a second
+ * DOM match and put every future `getByText` on them into Playwright strict-mode
+ * violation — the exact reason this item was filed rather than fixed in ETH·E4.
+ * For the same reason the listbox's own `aria-label` ("Opções para {label}",
+ * which `pickFromTypeahead` scopes on) is left byte-for-byte alone.
+ *
+ * The error path announces NOTHING: the visible message already carries
+ * `role="alert"`, which is both louder and earlier than a polite region, and
+ * mirroring it here would announce the same sentence twice.
+ */
+function typeaheadLiveStatus({
+  open,
+  loading,
+  error,
+  count,
+  emptyAnnouncement,
+}: {
+  open: boolean;
+  loading: boolean;
+  error: string | null;
+  count: number;
+  emptyAnnouncement: string | null;
+}): string {
+  if (!open) return "";
+  if (loading) return "Carregando resultados…";
+  if (error) return "";
+  if (count === 0) return emptyAnnouncement ?? "";
+  return count === 1
+    ? "1 opção disponível. Use as setas para navegar e Enter para escolher."
+    : `${count} opções disponíveis. Use as setas para navegar e Enter para escolher.`;
+}
+
+/**
  * A minimal accessible typeahead: combobox input + a listbox of options.
  * Generic over the item type so it serves both the async participant search
  * (§2a/§2b "Buscar profissional" / "Buscar participante externo") and the
@@ -223,6 +263,7 @@ function TypeaheadField<T>({
   getLabel,
   renderOption,
   emptyHint,
+  emptyAnnouncement = null,
   disabled = false,
 }: {
   id: string;
@@ -250,6 +291,17 @@ function TypeaheadField<T>({
   renderOption?: (item: T) => React.ReactNode;
   /** Copy shown under the list when it is open, empty, AND not erroring. */
   emptyHint?: string;
+  /**
+   * The `sr-only` sentence for that same empty state (FUP-ETH-A11Y-1 m4).
+   * Paired with `emptyHint` rather than derived from it: re-emitting the
+   * visible hint verbatim would give that sentence a second DOM node and put
+   * every `getByText` on it into a Playwright strict-mode violation, which is
+   * exactly why m4 was deferred out of ETH·E4. `null` announces nothing — which
+   * is what a search
+   * that has not run yet ("Digite ao menos 2 letras") deserves, since "nenhuma
+   * opção" would be a claim about a search nobody performed.
+   */
+  emptyAnnouncement?: string | null;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -409,6 +461,21 @@ function TypeaheadField<T>({
           </div>
         )}
       </div>
+
+      {/* FUP-ETH-A11Y-1 m4. Mounted unconditionally, OUTSIDE the `{open && …}`
+          popup: a live region inserted into the DOM already holding its text is
+          not reliably announced — the region has to exist before the text
+          changes. Mirrors `reference-picker.tsx`'s treatment of the same
+          pattern. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {typeaheadLiveStatus({
+          open,
+          loading,
+          error,
+          count: items.length,
+          emptyAnnouncement,
+        })}
+      </p>
     </div>
   );
 }
@@ -459,6 +526,9 @@ function PlatformUserField({
       getKey={(u) => u.userId}
       getLabel={(u) => u.fullName ?? u.email ?? u.userId}
       emptyHint="Nenhum usuário encontrado."
+      // This lane filters an already-loaded roster, so an empty list is always
+      // a real, completed answer — never "not searched yet".
+      emptyAnnouncement="Nenhuma opção disponível."
       disabled={disabled}
     />
   );
@@ -614,16 +684,24 @@ export function AddParticipantDialog({
   const [roleId, setRoleId] = useState("");
   const [involvementSummary, setInvolvementSummary] = useState("");
 
-  const roleField = useFieldIds("participant-role");
   const summaryField = useFieldIds("participant-summary");
   const laneLegendId = useId();
-  const nameField = useFieldIds("prof-full-name");
+  // FUP-ETH-A11Y-1 m3: every field that can carry an error declares it to
+  // `useFieldIds`, so `aria-describedby` reaches the `FieldError` id below.
+  // `FieldError`'s `role="alert"` only announces the message the moment it
+  // appears; without the wiring, a user who tabs BACK to the invalid control
+  // hears the label and nothing else.
+  const nameField = useFieldIds("prof-full-name", {
+    hasError: Boolean(fieldErrors.fullName),
+  });
   const typeField = useFieldIds("prof-type");
   const licenseField = useFieldIds("prof-license");
   const regionField = useFieldIds("prof-license-region");
   const specialtyField = useFieldIds("prof-specialty");
   const extTypeField = useFieldIds("ext-type");
-  const extNameField = useFieldIds("ext-name");
+  const extNameField = useFieldIds("ext-name", {
+    hasError: Boolean(fieldErrors.displayName),
+  });
 
   const searchSeq = useRef(0);
 
@@ -792,6 +870,15 @@ export function AddParticipantDialog({
   const availableRoles = chosenType
     ? roles.filter((r) => r.allowedParticipantTypes.includes(chosenType))
     : [];
+
+  // Declared here rather than with the other fields above because BOTH of its
+  // wiring inputs are conditional and derived: the "nenhum papel aceita este
+  // tipo" hint only renders for a chosen type with no roles, so the field's
+  // `aria-describedby` must appear and disappear with it.
+  const roleField = useFieldIds("participant-role", {
+    hasError: Boolean(fieldErrors.roleId),
+    hasDescription: Boolean(chosenType) && availableRoles.length === 0,
+  });
 
   const hasParticipantSelection =
     lane === "professional"
@@ -1052,6 +1139,11 @@ export function AddParticipantDialog({
                       ? "Nenhum resultado. Você pode cadastrar um novo."
                       : "Digite ao menos 2 letras para buscar."
                   }
+                  emptyAnnouncement={
+                    profQuery.trim().length >= 2
+                      ? "Nenhuma opção disponível."
+                      : null
+                  }
                   disabled={isPending}
                 />
                 {selectedProf && (
@@ -1095,22 +1187,23 @@ export function AddParticipantDialog({
                       Nome completo
                     </FieldLabel>
                     <Input
-                      id={nameField.controlProps.id}
+                      {...nameField.controlProps}
                       value={profDraft.fullName}
                       disabled={isPending}
-                      aria-invalid={Boolean(fieldErrors.fullName)}
                       onChange={(e) =>
                         setProfDraft({ ...profDraft, fullName: e.target.value })
                       }
                     />
-                    <FieldError>{fieldErrors.fullName}</FieldError>
+                    <FieldError id={nameField.errorId}>
+                      {fieldErrors.fullName}
+                    </FieldError>
                   </Field>
                   <Field>
                     <FieldLabel htmlFor={typeField.controlProps.id}>
                       Tipo profissional
                     </FieldLabel>
                     <Input
-                      id={typeField.controlProps.id}
+                      {...typeField.controlProps}
                       value={profDraft.professionalType}
                       disabled={isPending}
                       placeholder="Ex.: Médico, Técnico de enfermagem…"
@@ -1127,7 +1220,7 @@ export function AddParticipantDialog({
                       CRM
                     </FieldLabel>
                     <Input
-                      id={licenseField.controlProps.id}
+                      {...licenseField.controlProps}
                       value={profDraft.licenseNumber}
                       disabled={isPending}
                       onChange={(e) =>
@@ -1143,7 +1236,7 @@ export function AddParticipantDialog({
                       UF do registro
                     </FieldLabel>
                     <Input
-                      id={regionField.controlProps.id}
+                      {...regionField.controlProps}
                       value={profDraft.licenseRegion}
                       disabled={isPending}
                       maxLength={2}
@@ -1160,7 +1253,7 @@ export function AddParticipantDialog({
                       Especialidade
                     </FieldLabel>
                     <Input
-                      id={specialtyField.controlProps.id}
+                      {...specialtyField.controlProps}
                       value={profDraft.specialty}
                       disabled={isPending}
                       onChange={(e) =>
@@ -1213,6 +1306,11 @@ export function AddParticipantDialog({
                     ? "Nenhum resultado. Você pode cadastrar um novo."
                     : "Digite ao menos 2 letras para buscar."
                 }
+                emptyAnnouncement={
+                  extQuery.trim().length >= 2
+                    ? "Nenhuma opção disponível."
+                    : null
+                }
                 disabled={isPending}
               />
               {selectedExt && (
@@ -1249,7 +1347,7 @@ export function AddParticipantDialog({
                     Tipo
                   </FieldLabel>
                   <NativeSelect
-                    id={extTypeField.controlProps.id}
+                    {...extTypeField.controlProps}
                     value={extType}
                     disabled={isPending}
                     onChange={(e) =>
@@ -1268,13 +1366,14 @@ export function AddParticipantDialog({
                     Nome
                   </FieldLabel>
                   <Input
-                    id={extNameField.controlProps.id}
+                    {...extNameField.controlProps}
                     value={extName}
                     disabled={isPending}
-                    aria-invalid={Boolean(fieldErrors.displayName)}
                     onChange={(e) => setExtName(e.target.value)}
                   />
-                  <FieldError>{fieldErrors.displayName}</FieldError>
+                  <FieldError id={extNameField.errorId}>
+                    {fieldErrors.displayName}
+                  </FieldError>
                 </Field>
               </div>
               <div>
@@ -1314,7 +1413,7 @@ export function AddParticipantDialog({
           <Field>
             <FieldLabel htmlFor={roleField.controlProps.id}>Papel</FieldLabel>
             <NativeSelect
-              id={roleField.controlProps.id}
+              {...roleField.controlProps}
               value={roleId}
               disabled={isPending || availableRoles.length === 0}
               onChange={(e) => setRoleId(e.target.value)}
@@ -1327,7 +1426,7 @@ export function AddParticipantDialog({
               ))}
             </NativeSelect>
             {chosenType && availableRoles.length === 0 && (
-              <FieldDescription>
+              <FieldDescription id={roleField.descriptionId}>
                 Nenhum papel cadastrado aceita este tipo de participante.{" "}
                 {roleVocabularyHref ? (
                   <>
@@ -1348,7 +1447,7 @@ export function AddParticipantDialog({
                 )}
               </FieldDescription>
             )}
-            <FieldError>{fieldErrors.roleId}</FieldError>
+            <FieldError id={roleField.errorId}>{fieldErrors.roleId}</FieldError>
           </Field>
 
           <Field>
@@ -1356,7 +1455,7 @@ export function AddParticipantDialog({
               Resumo do envolvimento
             </FieldLabel>
             <Textarea
-              id={summaryField.controlProps.id}
+              {...summaryField.controlProps}
               value={involvementSummary}
               disabled={isPending}
               rows={3}

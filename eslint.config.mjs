@@ -30,6 +30,21 @@ const eslintConfig = defineConfig([
     // ~46.8k problems — 100% of the total — making the 0-warning gate
     // unreachable whenever a worktree existed.
     "worktrees/**",
+    // Supabase CLI scratch output — NOT first-party source. `supabase/.temp/`
+    // holds artifacts the CLI writes during `supabase start` (notably
+    // `start-secrets/**`, a vendored edge-runtime `index.ts`). It is gitignored
+    // but was NOT eslint-ignored, so `eslint --max-warnings=0` failed on ~186
+    // problems in vendored code the moment the local stack had been started.
+    //
+    // ⚠ Why this mattered far more than a noisy exit code: `npm run lint` is
+    // FIVE gates chained with `&&` (CLAUDE.md §8). eslint is the FIRST link, so
+    // its failure short-circuited the chain and `lint:css-vars`,
+    // `lint:memberships-door`, `lint:client-server-imports` and `lint:vacuous`
+    // NEVER RAN — the Phase Gate §6 step-1 command silently delivered one fifth
+    // of itself. Worse, being permanently red, the gate stopped being read at
+    // all and the working practice became running the five individually.
+    // Found in the 2026-08-12 FUP batch QA review.
+    "supabase/.temp/**",
   ]),
   // Honor the `_`-prefix convention for intentionally-unused bindings (already
   // used in the codebase, e.g. `_args` mock signatures). Severity stays at

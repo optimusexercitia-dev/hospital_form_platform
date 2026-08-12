@@ -2191,7 +2191,10 @@ credential HASH only).
   registry RLS predicate AND the doors' authority check (never invoker-RLS — inside a DEFINER
   an invoker EXISTS would run as owner, fail-open). No `is_admin()` anywhere: platform_admin
   reads 0 rows, mints/opens/revokes nothing (D11 noun rule; keystoned).
-- **Doors** (authenticated+service_role; census verdicts COVERED, 2026-08-07):
+- **Doors** (authenticated+service_role; census verdicts COVERED, 2026-08-07). ⚠ Since
+  `20260921000100` (FUP-PDF-3, ADR 0111) mint + revoke `RETURNS public.printed_document_public` —
+  the composite mirroring the authenticated column-list GRANT exactly; `verification_token` /
+  `storage_path` / `revoked_by` / `revoked_reason` never leave the doors (pgTAP `323`).
   `mint_printed_document(p_id, kind, source, template_key, template_version, content_hash,
   token, short_code, contains_phi)` — authority = the dispatch; PHI refused in P1 (`HC0D2`);
   format-validates the action-minted credentials (Amendment A; collision `HC0D4` → the action
@@ -2226,7 +2229,9 @@ credential HASH only).
   revoke MERGES it into the 42501 raise, open returns no-row-no-audit, lookup answers
   `matched=false`. No door is an existence oracle.
 - **Tests:** pgTAP `312_printed_documents.sql` (73; fail-closed ELSE + platform_admin denial
-  keystones; A33 drills D1–D6 RED-proven); Vitest fingerprint/overlay/semaphore/lookup
+  keystones; A33 drills D1–D6 RED-proven) + `323_printed_document_door_return_shape.sql`
+  (13; FUP-PDF-3 red-first keystones + DROP+CREATE property-preservation controls);
+  Vitest fingerprint/overlay/semaphore/lookup
   (`p_viewer` declared-param pin + rate-limit pin); e2e smoke
   `scripts/smoke/pdf-mint.smoke.ts` (`vitest.smoke.config.ts`; needs stack + sidecar).
 - ⚠ `hospitals_select` has NO member arm (catalog, 2026-08-07) — letterhead names resolve via
@@ -2679,9 +2684,13 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   **sign-own-row** (`signer_id = auth.uid() AND app.can_sign_meeting(...)`); no broad UPDATE/DELETE
   (revoke flows through `reopen_meeting`/`sign_meeting`). Meeting content (minutes/agenda/attendees/
   case-links) **freezes at `em_assinatura`** (the child-lock trigger, keyed on parent status).
-  Storage (`meeting-attachments`) — members read, staff_admin INSERT, NO update/delete (immutable,
-  Rule 6); path `{commission_id}/{meeting_id}/{uuid}.{ext}`; reads via signed URLs. External guests
-  are name/org free-text only (no account, cannot sign) — **no patient data** anywhere.
+  Storage — ⚠ the legacy `meeting-attachments` bucket was **RETIRED** `20260921000300`
+  (FUP-F2-BUCKETS): no product writer remained after F2's `bucketForTier` rewiring, zero objects,
+  and its two policies (member SELECT on bare `is_member_of(seg[1])` + staff_admin INSERT) were the
+  coarse rule F2 replaced. Absence pinned by pgTAP `325` (policies derived from `pg_policies`;
+  bucket row gone); the migration REFUSES if objects exist at apply time. Meeting attachments live
+  in `public.attachments` + the tier buckets. External guests are name/org free-text only (no
+  account, cannot sign) — **no patient data** anywhere.
 - **Interviews (Phase 11)** — the NEW write shape: `case_interviews` SELECT = member; **INSERT =
   staff_admin/admin** (bootstrap); **UPDATE/DELETE = `app.can_write_interview(id, auth.uid())`** (staff_admin/admin
   OR a registered interviewer of that interview). The 3 child tables (`case_interview_subjects`/
