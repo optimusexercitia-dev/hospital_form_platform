@@ -1,0 +1,192 @@
+# 0109 — Document model redesign: documents, versions, file objects, securable resources
+
+- **Status:** Accepted — ratified by the PO 2026-08-12 (drafted 2026-08-11 from the
+  external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling
+  session with the PO)
+- **Supersedes / amends:** ADR 0063 (centralized attachments substrate) — replaced
+  wholesale; ADR 0065 owner-set conventions — the closed owner set survives as the
+  initial `securable_resources` type set. ARCHITECTURE.md Rules 6/11/12 unchanged.
+- **Companion plan:** `docs/plans/document-model-redesign.md` (phases DM0–DM5).
+
+## Context
+
+An external audit (2026-08-11, read-only, live-catalog-verified) found that the
+centralized `attachments(owner_type, owner_id)` substrate cannot carry the platform's
+document roadmap, and carries live defects. The lead independently re-verified every
+load-bearing finding against the live catalog before this ADR:
+
+- **F-01 confirmed** — the `storage.objects` SELECT policy for the standard bucket
+  authorizes from the *path* alone; it never joins the attachment row, so it ignores
+  `confidentiality_label` AND `deleted_at`. A metadata-denied or soft-deleted object
+  stays byte-readable.
+- **F-02 confirmed** — `dispose_attachment_phi` neither deletes bytes nor blocks
+  reads; `open_attachment` never checks `phi_disposed_at`. Disposal is a false
+  audit assertion.
+- **F-03/F-04/F-09 confirmed** — pointer-only reclassification; no
+  `UNIQUE(storage_bucket, storage_path)`; scan default `'skipped'` served as if safe.
+- **F-14 confirmed** — `getReferralDocumentUrl` signs from the legacy
+  `case-documents` bucket while fresh case documents land in `attachments-phi`:
+  broken downloads for centralized rows, a parallel signer for legacy ones.
+- **Production census (2026-08-11):** 45 objects / ~0.5 MB total (38 form-assets,
+  3 controlled-documents, 4 printed-documents). The `attachments`/`attachments-phi`
+  buckets are **empty**; the 4 production attachment rows are dangling. Drift exists
+  in BOTH directions (3 controlled-doc objects unreferenced by any version row;
+  1 frozen referral path referencing no object).
+- **All 35 feature flags were ON in production**, so the vulnerable surface was live
+  but unused.
+
+One audit claim was rejected: the disposal double-audit-row (F-10 part) was already
+QA-dispositioned in the live function body (phase-F2-review INFO-1) and is not
+re-opened.
+
+## Decisions
+
+**D1 — Immediate posture (EXECUTED 2026-08-11).** `app.feature_flags.attachments`
+was set to `false` in production, making every attachment RPC unreachable at
+`assert_attachments_enabled()`. Known residual, accepted: the attachment Storage
+policies are not flag-aware, so raw Storage-API writes/reads to the empty standard
+bucket remain theoretically possible until DM1 drops those policies. No ad-hoc
+production schema mutation outside the migration chain.
+
+**D2 — Replace, don't remediate.** With zero objects and the flag off, the audit's
+D1 "harden the old model" phase is dropped. The old substrate is **dropped and
+rebuilt** (D5); its defects are corrected by construction in the new model, not
+patched. The referral signer (F-14) is fixed in its wave (DM4) — with the flag off
+no new broken rows can be created meanwhile.
+
+**D3 — Aggregate split.** The single attachment row is decomposed into:
+`documents` (logical governed record; title, kind, lifecycle, tenant anchors,
+`home_resource_id`) → `document_versions` (immutable revisions,
+`UNIQUE(document_id, version_number)`) → `document_version_files` (binding, with
+`rendition_kind`: `source | redacted | preview | signed | printed_pdf`) →
+`file_objects` (physical identity: `UNIQUE(storage_bucket, storage_path)`,
+server-generated paths, verified size/hash/MIME, sensitivity tier, scan state,
+disposal state; bucket derived from tier by CHECK).
+
+**D4 — Securable resource registry.** Every document-bearing domain row (initial
+closed set: case, meeting, interview, action_item; later waves add controlled
+document, referral, RCA/CAPA evidence anchors) owns one `securable_resources` row
+(shared-PK / typed composite-FK pinning, the technique proven by the participants
+registry). `documents.home_resource_id` is a real FK; the `owner_type` CASE-dispatch
+dialect (F-06) ends. The registry holds identity + type + tenant anchors ONLY —
+never domain payload (anti-EAV rule).
+
+**D5 — Legacy substrate dropped.** DM1 drops `attachments`,
+`attachment_references`, `attachment_subjects`, the four `app.*` attachment
+dispatchers, the seven attachment-named public RPCs, and every attachment-named
+Storage policy. The 4 dangling production rows are deleted (they reference no
+bytes). Binding guardrail from project scar tissue (“cutting a table does not cut
+its doors”): the drop migration ships WITH a catalog-sweep pgTAP keystone proving
+zero surviving attachment-named routines/policies/grants, and attachment E2E specs
+are rewritten against the new module in the same program — never merely deleted.
+
+**D6 — Access model: inheritance now, sharing plane later.** Document access =
+home-resource access, resolved live through the domain predicates (case capability,
+recusal, membership). The audience/group/scoped-role/access-policy plane from the
+audit's §6.7 is **deferred**: no committed product feature requires it. The schema
+keeps the seam (`documents.access_policy_id uuid NULL`, unreferenced until a future
+ADR defines the policy tables). Placements (`document_placements`) are
+non-authorizing, ever; an authorizing placement requires a new ADR.
+
+**D7 — Substrate scope (PO decision: full set minus audience plane).** DM1 creates:
+`securable_resources`, `documents`, `document_versions`, `document_version_files`,
+`file_objects`, `document_placements`, `upload_sessions`, `document_retention`
+(structure now, **values provisional** — see Open item O1), `document_legal_holds`
+(issuer, reason category, lifecycle — replaces the bare boolean), and disposal-job
+state on `file_objects`. RLS enabled at creation; mutations command-only; every
+DEFINER door search-path-pinned, PUBLIC-revoked, and census-registered.
+
+**D8 — Storage topology.** Two new private buckets: `documents-standard`,
+`documents-phi`. Bucket derived from `sensitivity_tier`, never caller-chosen. Paths
+are server-generated `{organization_id}/{file_object_id}/{generation_uuid}` — no
+filenames, titles, or identifiers. **No SELECT policy on either bucket for any
+tier**: all bytes flow through the single audited `open_document_version` door,
+which authorizes first, then signs short-TTL with the service-role client
+(the F-01 class dies structurally). Upload INSERT policies accept only paths
+reserved by `begin_document_upload`. Legacy buckets retire per plan DM5.
+
+*Authorization-model clarification.* This changes enforcement topology, not the
+policy model: document access still resolves through the existing domain
+predicates (case capability, recusal, memberships — ADR 0041/0078 untouched).
+Two explicit supersessions: (a) the prior lead decision that referral snapshot
+signing uses the cookie client with "RLS as the boundary" is **reversed** — all
+protected document bytes adopt the PHI pattern (audited DEFINER door +
+service-role signing, no SELECT policies); (b) Architecture Rule 1 gains a
+sharpened reading for document BYTES — RLS remains the boundary for metadata
+tables, DEFINER-door-only for bytes — to be written into ARCHITECTURE.md at DM5.
+Every new door enters the ADR 0079 census; `ARM=census` per phase.
+
+**D9 — Upload/scan lifecycle (fail-closed machine, interim acceptance).**
+`reserved → uploaded → verifying → scan_pending → clean → active`, with
+`abandoned/failed` reconcilable and `infected/rejected` terminal. Finalize derives
+and verifies size/MIME/hash server-side — caller-supplied values are hints, never
+trusted (F-04). While no scanner is integrated (PO risk acceptance): user uploads
+enter an explicit auditable **`unscanned_accepted`** state, compensated by the
+existing MIME allow-list, size caps, and download-only serving headers. Scanner
+integration is a named fast-follow (Open item O2); flipping to strict fail-closed
+is a single transition change. `pending`/`skipped`-style states are NEVER served.
+
+**D10 — Disposal that means it.** Disposition is a durable job:
+`disposal_pending` (reads fail closed immediately) → Storage-API delete when
+retention/hold allows → verify absence → `disposed` (non-PHI governance metadata
+retained). `open_document_version` rejects both disposal states — the F-02 class
+dies structurally. Reclassification across tiers is copy → verify → commit →
+retire-source; never a pointer update (F-03). Legal hold blocks disposal;
+soft-delete honors hold.
+
+**D11 — Audit contract (Rule 11 floor, exactly).** `open_document_version` writes
+an audit row for: every PHI-tier open, every open by a principal other than the
+document's creator, and every disposition / classification change / hold change /
+(future) policy change. Same-user standard opens and denials are NOT hash-chained;
+denials remain raised errors. Expanding beyond the floor is a future product
+decision, not a default.
+
+**D12 — Metadata contract: titles are contractually non-PHI.** Titles/descriptions
+stay member-readable (list UX preserved); the control is the naming layer: pt-BR
+upload guidance + neutral suggested titles; PHI lives in bytes, never labels.
+Disposal still redacts title/description (bounded residual). The contradictory
+case/interview dialog copy is corrected: the FILE may contain patient data (the
+case module is Class-1 under Rule 12); the TITLE must not.
+
+**D13 — Consumer scope (four waves in, two out).** Wave A: case / meeting /
+interview / action-item attachments (rebuilt UI on the new module — this turns
+`attachments` back ON). Wave B: controlled documents (versions bind to core
+`document_versions` + `file_objects`; approval/effective lifecycle stays
+domain-owned; no-PHI stance kept, PHI input fails closed). Wave C: referrals —
+snapshot/reply files become version/file/rendition records; F-14 signer replaced by
+the audited door; frozen snapshots stay immutable. Wave D: NSP RCA/CAPA evidence +
+printed renditions (`printed_pdf` rendition kind; verification tokens stay in a
+satellite). **Out of scope:** meeting audio (its own program; transient processing
+media pending that program's cutover decisions) and form assets (ratified as a
+permanently separate non-PHI immutable asset subsystem).
+
+**D14 — Program structure.** Six phases (DM0–DM5) on `main` via the standard agent
+team; the drafting worktree carries only DM0. Wave C is **serialized behind the
+in-flight referral-detail-redesign merge** (both touch `src/lib/queries/referrals.ts`).
+Every phase passes the full §6 gate incl. `ARM=census`/`hat`/`floor` and diff-scoped
+door sweeps; per authz-handoff §7, green security tests count only after one-at-a-time
+mutation twins.
+
+## Consequences
+
+- The platform gains one document aggregate and ONE byte-serving corridor; adding a
+  document-bearing feature becomes a registry row + wave adapter, not a CASE-arm
+  sweep across four DEFINER functions and two Storage policies.
+- Attachment UI is dark in production until DM2 completes (accepted: zero usage).
+- Two authorization surfaces never coexist; the drop is total and keystone-proven.
+- The deferred sharing plane means "share with user/group/role" is impossible until
+  its future ADR — deliberately, until a feature commits to it.
+- `next dev`'s CLAUDE.md auto-block and generated types must be regenerated after
+  every DM migration (Rule 8).
+
+## Open items (owned, not forgotten)
+
+- **O1 (PO + legal/clinical):** retention-policy VALUES — trigger events, 20-yr CFM
+  floors, erasure vs. retention reconciliation. Schema lands in DM1; values stay
+  provisional until signed off.
+- **O2 (PO + backend):** scanner selection/integration + operational owner; expiry
+  condition for the `unscanned_accepted` acceptance.
+- **O3 (future ADR):** audience/group/scoped-role sharing plane, if/when a feature
+  commits to it. The `access_policy_id` seam and audit §6.7 sketch are its start.
+- **O4 (PO):** signed-URL TTL per sensitivity + whether any content class warrants
+  streaming-proxy serving instead of signing (revisit at DM2 with real latency).
