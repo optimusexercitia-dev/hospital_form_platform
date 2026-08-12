@@ -139,6 +139,9 @@ process_template_versions.process_template_versions_staff_admin_write (ALL)
 #    1 ERROR (`open_attachment` — opening its guard makes an unauthorized principal hit
 #    `log_audit_access`, which RAISES and aborts 208_attachments.sql, so the run shape
 #    stops matching baseline and no clean verdict can be read; it owes one).
+#    [RESOLVED BY DELETION 2026-08-12: DM1/20260923000100 dropped open_attachment with
+#    the attachments substrate (ADR 0114 D5) and 208_attachments.sql with it — the owed
+#    ERROR verdict is discharged by the gate no longer existing, not by inference.]
 #
 #    ⚠ This class is NOT hypothetical debt. BUG-AUTHZ-002 lived here: two row-doors
 #    returned commission content to platform_admin against ADR 0078 A35's noun rule, and

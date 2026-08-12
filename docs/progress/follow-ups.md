@@ -6,6 +6,61 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🟠 FUP-DM1-E2E — six attachment-touching E2E specs are PARKED by the DM1 substrate drop; DM2 must rewrite them against the document model, never merely delete them (owner: tester [park] + frontend/backend [DM2 rewrite])
+
+Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
+dropped the centralized attachments substrate (ADR 0114 D5) and `seed.sql` no longer
+enables the `attachments` flag nor seeds attachment fixtures, so every spec that
+exercises the old attachment surface fails or asserts against removed fixtures.
+**ADR 0114 D5 is binding here: attachment specs are REWRITTEN against the new module
+in the same program (DM2 / Wave A) — a park with no named list is a deletion with
+extra steps.** The named list, classified from a per-file sweep (2026-08-12):
+
+1. **`e2e/phase-f2-attachments.spec.ts`** — the F2 substrate spec (37 refs). Parks
+   ENTIRELY; its contracts (PHI-tier listing with no inline URL, audited open door,
+   audit-row exactness, tier bucketing) are exactly what DM2's new specs must
+   re-express against `open_document_version`.
+2. **`e2e/ethics-e1-access-spine.spec.ts`** — calls the dropped `open_attachment`
+   RPC directly (~L505/L510/L530) against the removed seed fixtures
+   `a7000000-…e1`/`…e2` (legal_privileged + ethics_investigation docs). Those
+   probes park; the rest of the spine (grants/recusal/`/meus-casos`) stands.
+3. **`e2e/quality-oversight.spec.ts`** — the coordinator "Baixar Prescrição
+   digitalizada" `OpenAttachmentButton` flow (~L38, ~L466) against the removed
+   `a3300000-…a1` fixture. That flow parks; the oversight perimeter tests stand.
+4. **`e2e/phase11-interviews.spec.ts`** — IV2-4's "attachments stay manageable
+   after conclude" assertions on the "Anexos e gravações" region (~L533+): the
+   seeded FILE attachment is gone (the LINK remains in `case_interview_links`).
+   Partial park — the link half may stand; tester's call.
+5. **`e2e/cases-extras.spec.ts`** — the case-documents panel download assertion
+   (~L377) referencing the audited OpenAttachmentButton. Parks with the panel dark.
+6. **`e2e/meeting-audio-minutes.spec.ts`** — comment-only reference (L124);
+   expected NO park needed — verify, don't assume, at the DM1 triage run.
+
+**Discharge condition:** DM2 (Wave A) lands rewritten specs covering the same
+contracts on the document model AND un-parks/deletes the parked halves in the same
+change, with the park list above checked off item by item. The DM1 phase gate runs
+the suite with these parked per the tester's mechanism (skip annotation naming this
+FUP id), not silently red.
+
+### 🟠 FUP-DM1-DISPOSE — `dispose_case_phi` lost its attachment-redaction step in DM1; DM2 must wire case PHI erasure to document disposition (owner: backend, DM2)
+
+Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
+removed the F2 SEAM block from `public.dispose_case_phi` (it redacted
+title/description and stamped `phi_disposed_*` on live case-owned `attachments`
+rows) because the substrate it wrote to was dropped. **This is a PHI erasure path
+(LGPD Art. 18, ADR 0035/0038) losing a step.** It is a no-op TODAY — zero attachment
+rows carried bytes anywhere (production census 2026-08-11; the flag has been OFF
+since D1) — but it stops being a no-op the moment Wave A creates case-homed
+documents.
+
+**Discharge condition (DM2 / Wave A, before its flag flips ON):**
+`dispose_case_phi` triggers document disposition (ADR 0114 D10: fail-closed reads →
+verified byte deletion → `disposed`) — or the documented equivalent — for every
+document homed on the disposed case, WITH a keystone asserting it (a case with a
+live document → dispose → `open_document_version` refuses + bytes verified absent),
+mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_phi`
+(f) names this FUP; ADR 0116 records the decision.
+
 ### 🟡 FUP-ETH-KBD-1 — the professional lane's `TypeaheadField` mount is keyboard-UNTESTED, so BUG-ETHE4-FOCUS-1's defect is not ruled out there (owner: frontend + tester)
 
 Carried out of **BUG-ETHE4-FOCUS-1** when that bug was rotated to

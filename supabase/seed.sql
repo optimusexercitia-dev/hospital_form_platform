@@ -1362,18 +1362,18 @@ end $$;
 --     this exercises the participant write grant (a registered interviewer can
 --     edit/conclude even if not acting as staff_admin), and one EXTERNAL interviewer.
 --   * staff1.ccih as a REGISTERED subject + one EXTERNAL subject (free-text role).
---   * one `file` attachment (a signed-transcript metadata row — the object itself
---     is not seeded; the row is enough for the panel/list) and one `link`
---     attachment (an external https audio-recording URL — audio bytes are never
---     stored).
+--   * one `link` attachment (an external https audio-recording URL — audio bytes
+--     are never stored). The former stored-file metadata row lived on the F2
+--     attachments substrate, DROPPED by DM1 (ADR 0114 D5); Wave A (DM2) reseeds
+--     a document-model fixture when the rebuilt panel needs one.
 --
 -- The seed runs as superuser (RLS bypassed) and inserts DIRECTLY (like the cases /
 -- meetings fixtures) — it does NOT call the flag-gated RPCs. The interview-number
 -- minting trigger fires on the INSERT; the lifecycle/child-lock guards are
 -- UPDATE/DELETE-only (and the parent is em_andamento, not locked), so the direct
 -- inserts pass. app.guard_interview_links DOES fire on insert and passes
--- (commission_id matches Caso 0001's commission; no case_phase_id set). The
--- attachment XOR/https CHECKs fire and pass (each row sets exactly one source).
+-- (commission_id matches Caso 0001's commission; no case_phase_id set); its
+-- https CHECK fires and passes.
 do $$
 declare
   v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
@@ -1428,17 +1428,9 @@ begin
     (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null,
      'other_professional');
 
-  -- Attachments (F2 fold-in): one stored-file metadata row now lives in
-  -- public.attachments (owner_type='interview'); the external audio link now lives
-  -- in public.case_interview_links.
-  insert into public.attachments
-    (owner_type, owner_id, kind, title, storage_bucket, storage_path,
-     sensitivity_tier, confidentiality_label, mime_type, size_bytes, uploaded_by)
-  values
-    ('interview', v_itw, 'transcricao_assinada', 'Transcrição assinada (rascunho)',
-     'attachments-phi',
-     'interview/' || v_itw || '/00000000-0000-0000-0000-0000000000f1.pdf',
-     'phi', 'phi_standard', 'application/pdf', 12345, v_chefe_a);
+  -- DM1 (ADR 0114 D5): the F2 stored-file attachment fixture was removed with
+  -- the attachments substrate; the external audio link remains in
+  -- public.case_interview_links. Wave A (DM2) reseeds a document-model fixture.
   insert into public.case_interview_links
     (interview_id, title, external_url, created_by)
   values
@@ -1786,7 +1778,6 @@ declare
   v_gate_case uuid := 'dca00000-0000-0000-0000-0000000000a1';  -- a PHASE-CLEAN source for the HC076 close-gate
   v_tgt_case  uuid := 'dba00000-0000-0000-0000-0000000000b1';  -- a case B creates to link
   v_narr      uuid := 'a2200000-0000-0000-0000-0000000000a1';  -- a narrative to snapshot
-  v_doc       uuid := 'a3300000-0000-0000-0000-0000000000a1';  -- a document to snapshot
   v_type_par  uuid;                                            -- 'parecer' (reply-expected)
   v_outcome   uuid;                                            -- 'procede'
   v_ref1      uuid := 'efa00000-0000-0000-0000-0000000000a1';  -- ENC-0001 (concluida)
@@ -1807,15 +1798,11 @@ begin
     (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
      || E'parecer da farmácia sobre a conciliação medicamentosa.', v_chefe_a);
-  -- F2 fold-in: case_documents no longer exists; the row is now a case-owned
-  -- public.attachments row (owner_type='case').
-  insert into public.attachments
-    (id, owner_type, owner_id, kind, title, storage_bucket, storage_path,
-     sensitivity_tier, confidentiality_label, mime_type, uploaded_by)
-  values
-    (v_doc, 'case', v_src_case, 'digitalizacao', 'Prescrição digitalizada',
-     'attachments-phi', 'case/' || v_src_case || '/prescricao-seed.pdf',
-     'phi', 'phi_standard', 'application/pdf', v_chefe_a);
+  -- DM1 (ADR 0114 D5): the case-owned source attachment fixture was removed
+  -- with the attachments substrate. The FROZEN snapshot row below keeps its
+  -- frozen_storage_path (the case_documents_select_member boundary + pgTAP 325
+  -- t4 still exercise it); its source_document_id provenance pointer is NULL —
+  -- exactly the production drift shape DM4 reconciles (re-freeze or tombstone).
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
@@ -1848,7 +1835,7 @@ begin
   insert into public.referral_shared_item
     (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
   values
-    (v_ref1, 'document', v_doc, 'Prescrição digitalizada',
+    (v_ref1, 'document', null, 'Prescrição digitalizada',
      v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', 1);
 
   -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture. Phase 23 (ADR
@@ -2242,15 +2229,12 @@ end $ind$;
 --  state — prod ON intended. Phase 17 is not shipping yet, so we use the seed instead.)
 update app.feature_flags set enabled = true where key = 'controlled_docs';
 
--- LOCAL-ONLY FLAG FLIP (F2 / ADR 0063 — same convention as controlled_docs above).
--- After the F2 fold-in, the meeting / interview / case attachment features all sit
--- behind the `attachments` flag (their upload/delete/open paths assert it), so with it
--- OFF the EXISTING attachment E2E specs — not just F2's — would fail and the frontend
--- rewire can't be verified in the browser preview. The migration keeps it default OFF
--- (prod stays OFF until the deliberate pilot-cutover flip the lead owns); seed.sql runs
--- ONLY on `db reset`, so flipping it ON HERE yields a flag-ON LOCAL/E2E env. NOT under
--- the F1 m2 hard gate (that gate is case_participants/case_types only — real ethics data).
-update app.feature_flags set enabled = true where key = 'attachments';
+-- DM1 (ADR 0114 D1/D5): the former F2 LOCAL-ONLY flip of the `attachments` flag
+-- was REMOVED — the substrate it gated was dropped by 20260923000100 and the
+-- flag key is verbless until DM2 retires it. Local now matches production
+-- (attachments = false, flipped in prod 2026-08-11). Wave A (DM2) introduces
+-- documents_foundation / documents_wave_a and rebuilds the attachment
+-- experience on the document model.
 
 -- BELT-AND-SUSPENDERS FLAG FLIP (SUP / ADR 0074): the companion migration
 -- 20260720000610_flag_response_correction_on.sql already flips
@@ -2660,10 +2644,10 @@ on conflict (commission_id, user_id, capability) do nothing;
 -- ETH·E1 (ADR 0072) — m2-gate E2E fixtures. The case_participants / case_types
 -- flags are flipped ON by migration 20260720001040 (local via db reset); these
 -- direct inserts (superuser ⇒ bypass RLS) give the tester the isolation-negative
--- scenarios: a respondent-doctor-who-IS-a-user, a granted-then-recused member, an
--- explicit_grants_only case (a plain member without a grant sees nothing), and a
--- legal_privileged document (gated above ordinary case-read) + an ordinary
--- ethics_investigation document (O2 — stays visible). All under CCIH (commission A)
+-- scenarios: a respondent-doctor-who-IS-a-user, a granted-then-recused member, and an
+-- explicit_grants_only case (a plain member without a grant sees nothing). The two
+-- confidentiality fixture documents were removed with the attachments substrate
+-- (DM1, ADR 0114 D5; Wave A reseeds them on the document model). All under CCIH (commission A)
 -- where the staff personas live. pt-BR labels (Rule 10).
 -- ---------------------------------------------------------------------------
 do $eth$
@@ -2769,7 +2753,9 @@ begin
   values ('fe000000-0000-0000-0000-0000000000e1', v_case, v_recu, 'coordinator', 'Conflito declarado', v_chefe)
   on conflict do nothing;
 
-  -- Coordinator clearance so the legal_privileged doc is openable by chefe.ccih.
+  -- Coordinator clearance (max_confidentiality ceiling). The legal_privileged
+  -- fixture doc it once gated was removed with the attachments substrate (DM1,
+  -- ADR 0114 D5); the grant row stays — it exercises the grant machinery itself.
   -- max_confidentiality is the orthogonal RESERVED ceiling (carried, not inferred).
   insert into public.case_access_grants
     (case_id, principal_id, source, read_case_content, read_case_deliberation,
@@ -2777,17 +2763,10 @@ begin
   values (v_case, v_chefe, 'manual_grant', true, true, 'legal_privileged', 'coordinator_grant', v_chefe)
   on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null do nothing;
 
-  -- A gated legal_privileged document + an ordinary ethics_investigation document (O2).
-  insert into public.attachments
-    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-  values ('a7000000-0000-0000-0000-0000000000e1', 'case', v_case, 'Parecer jurídico (privilegiado)',
-          'attachments', 'case/' || v_case || '/legal.pdf', 'standard', 'legal_privileged')
-  on conflict do nothing;
-  insert into public.attachments
-    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-  values ('a7000000-0000-0000-0000-0000000000e2', 'case', v_case, 'Nota do processo ético',
-          'attachments', 'case/' || v_case || '/nota.pdf', 'standard', 'ethics_investigation')
-  on conflict do nothing;
+  -- DM1 (ADR 0114 D5): the two confidentiality-fixture documents (a gated
+  -- legal_privileged one + an ordinary ethics_investigation one, O2) were
+  -- removed with the attachments substrate. Wave A (DM2) reseeds their
+  -- document-model equivalents when confidentiality gating returns.
 
   -- ETH·E2 (ADR 0073) — mark the case ETHICS-TYPED (ethics_case_details is the canonical
   -- marker, Lead ruling 1) + the procedure catalogs the E2E acceptance flow needs. PHI-free
