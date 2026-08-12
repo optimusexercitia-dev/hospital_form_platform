@@ -1778,3 +1778,30 @@ in both primitives rather than leaving the false claim in place beside working c
 
 ---
 
+---
+
+## BUG-REFNOTE-001 — DEFINER doors returned the unmasked `body_md` past the column GRANT
+
+Rotated from PROGRESS.md 2026-08-12 at the §6 Record step. Fix + full reasoning:
+ADR [0113](../decisions/0113-referral-door-return-shape.md); completion record:
+[authz-invoker-wrapper.md](./authz-invoker-wrapper.md).
+
+⚠ The entry below is the report AS FILED (4 doors). The catalog said **23** across three
+tables, and the 15 `case_referral` doors — serving `description_md` — were the larger half
+and are NOT described below. Read the ADR for the real scope; this is kept for the repro,
+which is what a filed bug is worth archiving for.
+
+✅ **BUG-REFNOTE-001 — DEFINER doors returned the unmasked `body_md` past the column GRANT.
+FIXED 2026-08-12** (migration `20260922000100_refnote_referral_door_return_shape.sql`, pgTAP 326,
+ADR [0113](docs/decisions/0113-referral-door-return-shape.md); branch `authz-wrapper-refnote`).
+Filed as **4 doors; the catalog said 23** — the same shape (`RETURNS <table>` re-opening what a
+column-list GRANT closed) held across `case_referral` (15 doors, serving `description_md` +
+`decline_note`), `referral_internal_notes` (6, `body_md`) and `referral_messages` (2, `body`).
+**The 15 `case_referral` doors were the larger half and were not in the report.** Fixed as a class:
+one named composite per table mirroring its GRANT exactly, projected BY NAME. The filed Control G
+was reproduced and closed — the reverted door served `SEGREDO-CLINICO-XYZ` to a plain member, the
+narrowed one returns 16 fields with no `body_md`. **Rule 11's two halves resolved separately**: the
+READ obligation is discharged by removal (no withheld column is served anymore); the MUTATION
+obligation already held (`trg_audit_referral_aiud` + direct `app.audit_write`, catalog-verified, not
+taken from body comments). ⚠ The durable defence is pgTAP 326 **t1–t3**, which pin composite ≡ GRANT
+— a column added to either side alone reds. Full record → the ADR.

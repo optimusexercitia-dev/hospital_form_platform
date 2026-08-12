@@ -21,6 +21,33 @@
 > before 2026-08-09, read the old name as this one. ADR
 > [0105](./decisions/0105-rename-is-tenancy-admin-of.md).
 >
+> 🔧 **Surface changes 2026-08-12 (REFNOTE, `20260922000100`; 360 registered == 360 files).**
+> Read this before touching ANY referral RPC's return value:
+>
+> - **23 referral doors no longer return a table row type.** `RETURNS case_referral` /
+>   `referral_internal_notes` / `referral_messages` became **`case_referral_public`** /
+>   **`referral_internal_note_public`** / **`referral_message_public`** — three new named
+>   composites whose fields are EXACTLY the columns each table's `authenticated` column-list
+>   SELECT GRANT exposes. Doors: the 15 `case_referral` verbs (`send`/`accept`/`decline`/
+>   `resolve`/`conclude`/`receive`/`reopen`/`withdraw`/`start_review`/`link_case`/
+>   `create_draft`/`update_draft`/`set_deadline`/`request_information`/`provide_information`),
+>   the 6 `referral_internal_notes` verbs, and `post_referral_message` / `redact_referral_message`.
+> - **Projection goes through `app._project_case_referral` / `_project_referral_internal_note` /
+>   `_project_referral_message`** — `jsonb_populate_record` BY NAME, so the composite is an
+>   ALLOWLIST: a column absent from it is dropped.
+> - ⚠ **A new column on any of the three tables is NOT returned by these doors until it is
+>   added to the composite, and it must not be added there without its own column GRANT.**
+>   pgTAP `326` t1–t3 pin composite ≡ GRANT as ordered name arrays and red in both directions.
+> - ⚠ **A composite cannot carry NOT NULL**, so every field is `T | null` in the generated TS
+>   types even where the column is NOT NULL. Coerce at the call site; do not assert.
+> - Withheld, and therefore served ONLY by the audited read doors: `case_referral.description_md`
+>   + `decline_note` + `phi_disposed_*` (→ `get_referral_detail`), `referral_internal_notes.body_md`
+>   (→ `list_referral_internal_notes`), `referral_messages.body`. ADR
+>   [0113](./decisions/0113-referral-door-return-shape.md).
+> - **Authz harness:** a FOURTH sweep exists — `p0-authz-invoker-audit.sh` + `ARM=wrapper`
+>   (ADR 0079 Amendment 7) — covering `public` **INVOKER** functions, which the other three
+>   exclude by construction. ARM 3's census domain widened with it: **452 → 540** live gates.
+>
 > 🔧 **Surface changes 2026-08-09 (QO·B follow-up waves, `20260917000000`–`…000400`; 334
 > registered == 334 files).** Read this before touching disposal, template config, or cadence:
 >

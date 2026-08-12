@@ -149,35 +149,6 @@ tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that 
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
-**1. ✅ AUDIT-INVOKER-WRAPPER — CLOSED 2026-08-12** (branch `authz-wrapper-refnote`; ADR
-[0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 7**; sweep
-`supabase/tests/mutation/p0-authz-invoker-audit.sh`; report
-[authz-invoker-audit-findings.md](docs/reviews/authz-invoker-audit-findings.md); keystones pgTAP 327).
-All three prior sweeps begin `and p.prosecdef`, so the whole `public` INVOKER surface — **88
-`authenticated`-reachable plpgsql functions** — was in **no arm's domain at all**. Now swept by a
-fourth sweep + **`ARM=wrapper`**, and ARM 3's census widened in the same change (live gates
-**452 → 540**) so a NEW wrapper cannot pass vacuously. CLAUDE.md §6 step 1 runs the cheap
-`FROMFINDINGS=1` form every phase; the ~100 min full sweep is periodic, like ARM 1's.
-
-**The finding.** 47 BLIND on the first pass — but ⚠ **BLIND is not a synonym for vulnerable here**:
-an INVOKER's write still runs under RLS, and for **26** wrappers the target table's write policy
-re-states the gate verbatim (defence in depth — a green suite is CORRECT). The real leak is where the
-wrapper is **stricter** than the policy behind it: the meeting verbs gate on `is_staff_admin_of`
-while `meetings` RLS also admits `member_can(…,'schedule_meetings')`. **Mutation-proven live**: with
-`cancel_meeting`'s gate opened, `staff2.ccih@test.local` — a plain `staff` holding the ADR-0061
-`schedule_meetings` capability — went from `42501` to **successfully cancelling the meeting**. pgTAP
-327 keystones that family (4 doors, all red-first verified).
-
-⚠ **Two harness defects found by hand-checking the sweep's own output; both are recorded in the
-script header because no gate can see them.** (a) The obvious build — reuse the row-door regex —
-is **definitionally wrong** for this class and missed `get_response_validation_errors`, the exemplar
-that motivated the item; its guard names no identity primitive, because for an INVOKER an existence
-probe against an RLS table **is** the authorization decision. (b) A verdict resting only on that
-probe class is **PROVISIONAL** — the same shape is the gate in one wrapper and a domain check in
-another — and an identity assert called as `v := app.assert_X(…)` cannot be opened at all, so those
-report UNSUPPORTED rather than a verdict about the wrong guard. `update_meeting` was BLIND on exactly
-that mistake. **Never trust a g1-only verdict without hand-classifying it.**
-
 ---
 
 ### Completed work (archived to docs/progress/)
@@ -188,6 +159,7 @@ that mistake. **Never trust a g1-only verdict without hand-classifying it.**
 > here — the phase table row + its `docs/progress/*.md` link is the durable pointer. This list holds
 > only ad-hoc/out-of-phase work that has no Phase Status row of its own.
 
+- **AUDIT-INVOKER-WRAPPER + BUG-REFNOTE-001** (ad-hoc, out-of-phase; backend + test tooling — ADR [0113](docs/decisions/0113-referral-door-return-shape.md) · ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 7**) — **(a)** REFNOTE filed as 4 doors, catalog said **23**: narrowed every referral-module door's RETURN to a named composite mirroring its column GRANT (migration `20260922000100`, pgTAP 326). **(b)** ARM 5 — all three prior sweeps begin `and p.prosecdef`, so the 88 `public` INVOKER functions were in **no arm's domain**; new sweep `p0-authz-invoker-audit.sh` + `ARM=wrapper` + census widened **452 → 540** live gates. ⚠ **BLIND ≠ vulnerable in that class** (26 of 47 are RLS-backstopped); the one real leak is the meeting verbs vs an ADR-0061 `schedule_meetings` delegate, keystoned by pgTAP 327. — ✅ **2026-08-12**, `authz-wrapper-refnote` `297d3e2` + `f22ddab` + `a8d457c`. Gate: pgTAP **188 files / 5906** · `census`/`hat`/`floor`/`wrapper` all HOLD · `e2e:prod` 1046p/0f (batch 4 stranded by `server_dead`, re-run 67/67 GREEN). ⚠ **Not QA-reviewed** (§6 step 3 not run — ad-hoc work). Detail → [authz-invoker-wrapper.md](docs/progress/authz-invoker-wrapper.md).
 - **Case-corrections relocation + process-builder layout** (ad-hoc, out-of-phase; pure frontend — **no migration/RLS/route**) — ADR 0085's case-wide "Solicitações de correção" cockpit card becomes a per-target list at the bottom of each phase/narrative card (`CaseCorrectionsPanel` → `CaseCorrectionsList`; filing moves to each card's header cluster); the process-template builder gains a two-column workspace with a feature-gated 320px rail, and outcome selection moves from an inline whole-vocabulary checkbox list into a dialog that persists once on save. — ✅ 2026-08-03, `main` `2613120` + `0c1ae4c` (+ graph `ec6e49a`). Bar: lint 0/0 · tsc · Vitest 851 · `next build` EXIT=0 · targeted `e2e:prod` **51/51, 0 infra/0 flaky** (the 4 correction specs + `processless-cases`, fresh reset, 235==235). ⚠ **Not QA-reviewed, and the spec-locator re-scoping still needs `tester` sign-off (§6).** ⚠ The process-builder half has **no E2E coverage at all** — pre-existing gap, not introduced here. _No separate docs/progress record: this line is the durable one._
 - **MEM — single `memberships` collapse** (S1 substrate; ADR [0075](docs/decisions/0075-memberships-collapse-write-path-split.md); `HC0G*`) — three role tables → one `memberships` + `grant_role`/`revoke_role` DEFINER door + one `has_role` family. Structural, no flag. QA APPROVED (0B/0M/3 minor cleared); pgTAP 2161/0 · E2E 586p/0f. — ✅ 2026-07-13, `pre-pilot-release-s0`. Detail → [s1-substrate.md](docs/progress/s1-substrate.md).
 - **SUP — supersession correction engine** (S1 substrate; ADR [0074](docs/decisions/0074-supersession-correction-model.md); `HC0H*`) — `responses.supersedes_id` + `supersede_response` DEFINER RPC; flag `response_correction` ON. QA APPROVED (BUG-SUP-002 blocker found+fixed); pgTAP 2203/0 · SUP E2E 5/5 + phase8 24/24. — ✅ 2026-07-13, `pre-pilot-release-s0`. Detail → [s1-substrate.md](docs/progress/s1-substrate.md).
@@ -212,21 +184,6 @@ that mistake. **Never trust a g1-only verdict without hand-classifying it.**
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
-
-✅ **BUG-REFNOTE-001 — DEFINER doors returned the unmasked `body_md` past the column GRANT.
-FIXED 2026-08-12** (migration `20260922000100_refnote_referral_door_return_shape.sql`, pgTAP 326,
-ADR [0113](docs/decisions/0113-referral-door-return-shape.md); branch `authz-wrapper-refnote`).
-Filed as **4 doors; the catalog said 23** — the same shape (`RETURNS <table>` re-opening what a
-column-list GRANT closed) held across `case_referral` (15 doors, serving `description_md` +
-`decline_note`), `referral_internal_notes` (6, `body_md`) and `referral_messages` (2, `body`).
-**The 15 `case_referral` doors were the larger half and were not in the report.** Fixed as a class:
-one named composite per table mirroring its GRANT exactly, projected BY NAME. The filed Control G
-was reproduced and closed — the reverted door served `SEGREDO-CLINICO-XYZ` to a plain member, the
-narrowed one returns 16 fields with no `body_md`. **Rule 11's two halves resolved separately**: the
-READ obligation is discharged by removal (no withheld column is served anymore); the MUTATION
-obligation already held (`trg_audit_referral_aiud` + direct `app.audit_write`, catalog-verified, not
-taken from body comments). ⚠ The durable defence is pgTAP 326 **t1–t3**, which pin composite ≡ GRANT
-— a column added to either side alone reds. Full record → the ADR.
 
 ✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
 succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
@@ -339,8 +296,9 @@ beat `DismissableLayer`'s capture-phase Escape. Its untested residual is live as
 **Also 2026-08-12:** the **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1** summary block
 — a residual duplicate; the record itself was rotated at closure 2026-08-10 and every claim in the
 summary was verified present in the archive before deletion. ⚠ **BUG-ACT-ACL-1 closed one instance,
-not the population** — the standing **AUDIT-INVOKER-WRAPPER** item (*Remaining pre-pilot work* §1)
-still owns the `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep.
+not the population** — that population is now swept: **AUDIT-INVOKER-WRAPPER closed 2026-08-12**
+(ARM 5; *Completed work* above → [authz-invoker-wrapper.md](docs/progress/authz-invoker-wrapper.md)),
+and `FROMFINDINGS=1 ARM=wrapper` is a standing §6 step-1 gate over it.
 
 **Also 2026-08-12:** **FUP-VACUOUS-AUDIT-1** (closed 2026-08-10) → closing line in
 [follow-ups-archive.md](docs/progress/follow-ups-archive.md); its full record was already

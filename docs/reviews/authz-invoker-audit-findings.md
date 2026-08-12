@@ -16,7 +16,16 @@ census backlog.
 Baseline: Files=187, Tests=5899, Result: PASS.
 Public INVOKER functions in the live catalog: 88. Swept: 88.
 
-> ⚠ **Run in TWO passes, same baseline.** The first pass aborted at case 81/88 on a
+> ⚠ **Run in FOUR passes.** Passes 1–3 shared one baseline (Files=187, Tests=5899,
+> Result: PASS); pass 4 ran after pgTAP 327 landed, so its baseline is Files=188,
+> Tests=5906 — a HIGHER baseline, which is what makes its COVERED verdicts meaningful
+> rather than an artifact of a changed denominator.
+> · **pass 1** cases 1–80, aborted (below) · **pass 2** the 8 it skipped · **pass 3** the
+> 12 whose verdicts the G1/assignment-form defects made unsafe · **pass 4** the 4 that
+> pgTAP 327 keystoned, re-swept to confirm they flipped BLIND → COVERED through the
+> harness itself and not merely by hand-probe.
+>
+> ⚠ **Pass 1 aborted at case 81/88 on a
 > harness defect: it failed to capture a rollback point for `update_meeting` (slug
 > longer than the filename limit) and **mutated the function anyway**, leaving its
 > gate open in the shared local stack until a `db reset`. The guard that now makes
