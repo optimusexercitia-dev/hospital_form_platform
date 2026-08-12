@@ -113,6 +113,15 @@ branch merged (docs only).
 9. `npm run gen:types`; pgTAP for every §10.2-style assertion (grants, prosecdef,
    search_path, constraints); seed personas extended only if a keystone needs one.
 
+10. **Parked seams.** Four live tables held FKs INTO `attachments` that no program
+    document named (found at backend plan time, catalog-verified): `rca_evidence`,
+    `referral_shared_item`, `ethics_decision_details`, `ethics_notifications`. DM1
+    drops those four FKs explicitly (never by CASCADE), keeps the columns as
+    nullable parked seams, and makes each writer reject a non-null value
+    (fail-closed, keystone K8). Adopting wave: `rca_evidence` → Wave D,
+    `referral_shared_item` → Wave C. **The two ethics columns have no wave — see
+    "Unassigned scope" below (Q1, PO ruling open).**
+
 Exit: fresh `supabase db reset` green; pgTAP + authz arms green; census shows the
 new doors; QA approves an inert-substrate review. Nothing user-visible changed.
 
@@ -159,6 +168,13 @@ Exit: full §6 gate; `npm run e2e:prod` green; reconciliation report clean.
 4. Downloads through `open_document_version`; `controlled-documents` bucket
    SELECT policy dropped; prior-version downloads keep working for authorized
    commission members.
+
+5. **Possible scope addition — ethics decision letters (Q1, PO ruling open).** If
+   the PO rules option 1, this wave also adopts
+   `ethics_decision_details.decision_letter_document_id` and
+   `ethics_notifications.related_document_id`, discharging their parked seams per
+   "Unassigned scope" below. **Plan DM3 only after the ruling** — the wave's size
+   depends on it.
 
 Exit: full lifecycle E2E green (draft→approve→publish→supersede→obsolete +
 prior-version download); migration counts reconciled; gate + approval.
@@ -241,6 +257,60 @@ full `e2e:prod` green; QA program-level review; human approval; Record step.
   session holds uncommitted applied migrations (memory: two-sessions-one-DB).
 - Migration windows allocated above the highest REGISTERED version at each
   phase start.
+
+## Unassigned scope — the ethics document seams (Q1, OPEN)
+
+> Raised by `backend` at DM1 plan time, verified by the lead against the live
+> catalog 2026-08-12. **Owner: PO.** Blocks nothing in DM1; must be ruled before
+> whichever wave adopts it is planned.
+
+**The gap.** ADR 0114 **D13** enumerates four consumer waves — A case / meeting /
+interview / action_item, B controlled documents, C referrals, D NSP evidence +
+printed renditions. **Ethics is in none of them**, yet two live ethics columns
+pointed at the substrate DM1 just dropped:
+
+| Column | Writer | Rows (local) |
+| --- | --- | --- |
+| `ethics_decision_details.decision_letter_document_id` | *none* — a seam only; `get_ethics_case_procedure` projects it | 3 rows, 0 non-null |
+| `ethics_notifications.related_document_id` | `public.issue_ethics_notification`, fed from `src/lib/ethics/actions.ts` (`p_related_document_id`) | 2 rows, 0 non-null |
+
+This is a **scope gap, not a deferral** — nothing decided to postpone it; the wave
+decomposition simply never covered ethics. Recorded here because a reader of ADR
+0114 D13 would not see the omission, and the DM1 backend plan's §9 Q1 is not where
+a future wave owner looks.
+
+**Current state (DM1, verified in the catalog post-M1).** Both columns survive as
+nullable `uuid` with **their FKs dropped and no replacement FK** — parked seams.
+`issue_ethics_notification` now **rejects a non-null** `p_related_document_id`
+(fail-closed, keystone K8). Unreachable in practice: with `attachments = false`
+and zero attachment bytes, no document id could ever have been produced. **Until
+the PO rules, these parked seams ARE the record of the decision not yet made.**
+
+**Not to be confused with the two seams that DO have owners:**
+`rca_evidence.cited_document_id` → Wave D, and
+`referral_shared_item.source_document_id` → Wave C (DM4). Both are parked by the
+same mechanism, but their adopting wave is already named. Ethics is the only orphan.
+
+**Options for the ruling:**
+
+1. **Wave B (DM3) — lead's recommendation.** A disciplinary decision letter is a
+   governed document with an approval/effective lifecycle; it is the same shape as
+   a controlled document and would reuse that wave's machinery rather than needing
+   its own. Costs DM3 a modest scope increase.
+2. **Wave A (DM2).** Gets ethics onto the substrate soonest, but ethics letters are
+   not case/meeting/interview attachments and would ride a wave built for a
+   different access shape.
+3. **A named follow-up after DM5.** Legitimate — the seams are inert and nothing
+   regresses — but it means the legacy-retirement manifest in DM5 closes with two
+   columns still pointing at nothing, which must then be stated in that manifest
+   rather than read as an oversight.
+
+**Discharge condition (whichever wave adopts it).** Re-point both columns to
+`documents(id)` (or drop them, if the ruling is that ethics letters are not
+document-model citizens); restore `issue_ethics_notification`'s parameter; remove
+the fail-closed rejection **and** the K8 keystone that pins it — a keystone left
+pinning a rejection the product no longer wants is a test asserting a bug.
+Cross-referenced from DM1 (parked seams) and DM3 (the likely home).
 
 ## Program acceptance (condensed from audit §14, minus deferred items)
 
