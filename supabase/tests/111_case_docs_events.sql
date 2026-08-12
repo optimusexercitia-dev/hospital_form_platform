@@ -2,10 +2,11 @@
 -- public.attachments — their RLS/soft-delete/scoping coverage moved to
 -- 208_attachments.sql. This file now covers case_events only.)
 -- Covers: RLS member-read / staff_admin-write; cross-commission isolation;
--- staff_admin edit + hard-delete; plain staff cannot insert.
+-- staff_admin edit + hard-delete; plain staff cannot insert; and the
+-- BUG-CASEKIND-001 keystone — a user-role write may carry only a MANUAL kind.
 
 begin;
-select plan(5);
+select plan(9);
 
 -- Enable both feature flags for this transaction.
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
@@ -116,6 +117,57 @@ select lives_ok(
   'staff_admin can DELETE (hard-delete) a case_event'
 );
 reset role;
+
+-- =========================================================================
+-- 5) BUG-CASEKIND-001: `kind` write authority is enforced in the DB, not only
+--    in TypeScript. The 16-value CHECK constrains the DOMAIN of `kind`; the
+--    policy arm constrains WHO MAY WRITE WHICH VALUE. The ten system kinds
+--    (registry echoes + E3a ethics procedural) are emitted ONLY by the
+--    SECURITY DEFINER RPCs, which bypass RLS.
+--
+--    The persona here is sa_x, the STRONGEST user role on this case — so a
+--    refusal below is about the KIND, never about capability. Test 5b is the
+--    positive control that proves the session can still write at all.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+select throws_ok(
+  format($$
+    insert into public.case_events (case_id, kind, body, created_by)
+    values (%L, 'decision_issued', 'Decisao forjada', %L)
+  $$, (select cid from cse), (select sa_x from k)),
+  '42501',
+  null,
+  'BUG-CASEKIND-001: a staff_admin cannot INSERT a system kind (decision_issued)'
+);
+
+select lives_ok(
+  format($$
+    insert into public.case_events (id, case_id, kind, body, created_by)
+    values ('11111111-2222-3333-4444-555555555555', %L, 'follow_up', 'Acompanhamento', %L)
+  $$, (select cid from cse), (select sa_x from k)),
+  'BUG-CASEKIND-001 control: a MANUAL kind still inserts (capability intact)'
+);
+
+-- Weakest mutator: an INSERT-only arm is defeated by insert-then-update.
+select throws_ok(
+  $$ update public.case_events set kind = 'decision_issued'
+      where id = '11111111-2222-3333-4444-555555555555' $$,
+  '42501',
+  null,
+  'BUG-CASEKIND-001: a manual event cannot be UPDATED into a system kind'
+);
+reset role;
+
+-- Structural: a future DROP+CREATE of any write policy must not lose the arm.
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public' and tablename = 'case_events'
+      and with_check like '%is_manual_case_event_kind%'),
+  4,
+  'BUG-CASEKIND-001: all four case_events write policies carry the kind arm'
+);
 
 select * from finish();
 rollback;

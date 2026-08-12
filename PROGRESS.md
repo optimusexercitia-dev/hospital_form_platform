@@ -233,19 +233,62 @@ table on the LGPD Art. 18 path. ⚠ **Rule 11 gap alongside it:** the mutator do
 **Do not fix by narrowing the return alone without checking the audit arm** — the two halves are
 separate obligations (Rule 12 exposure, Rule 11 legibility) and closing one silently leaves the other.
 
-🔴 **BUG-CASEKIND-001 — `case_events.kind` is enforced in TypeScript ONLY; a forged `kind` insert
-succeeds.** Found 2026-08-12 by `qa` during the same review. **PRE-EXISTING and did NOT block the
-batch** — REG·KIND (ADR 0110) only widened the list by two benign manual values (`update`,
-`follow_up`); it neither created nor worsened this. Owner: unassigned.
+✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
+succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
+Found 2026-08-12 by `qa` during the same review; PRE-EXISTING, did not block that batch.
 
 **Mechanism, catalog-verified:** a 16-value `CHECK` on the column, **zero triggers**, and **no `kind`
-arm in either INSERT policy**. The vocabulary's real authority is `src/lib/cases/registro-kinds.ts`
+arm in either INSERT policy**. The vocabulary's real authority was `src/lib/cases/registro-kinds.ts`
 — application code. A forged `kind='decision_issued'` insert **succeeded** as an ordinary committee
-writer, i.e. a user can mint an event that the UI presents as a governance decision.
+writer, i.e. a user could mint an event the UI presents as a governance decision. This is the
+recorded *"a correct predicate ≠ correct policies"* family: the CHECK constrains the **domain** of
+`kind`; nothing constrained **who may write which value**.
 
-⚠ This is the recorded *"a correct predicate ≠ correct policies"* family: the CHECK constrains the
-**domain** of `kind`, but nothing constrains **who may write which value**. Any fix belongs in the
-policy/trigger layer, not in a wider CHECK.
+**The fix.** `app.is_manual_case_event_kind(text)` — the SQL mirror of the six-value manual
+vocabulary — is appended as a `kind` arm to **all four** user-role write policies. The ten system
+kinds stay writable only by the eleven `SECURITY DEFINER` RPCs that emit them: they are owned by
+`postgres`, which owns `case_events`, and the table is **not** `force row level security`, so they
+bypass RLS and are unaffected (`relowner`/`relforcerowsecurity`/`proowner` read from the catalog,
+not inferred). ⚠ **The arm is on both INSERTs AND both UPDATEs** — an INSERT-only arm is defeated by
+insert-then-update (`note` → `decision_issued`), the recorded *"an exclusion is only as strong as its
+weakest mutator"* shape. Policies were amended with `alter policy … with check (<existing catalog
+expr> and <arm>)`, never DROP+CREATE, so the E3a `coordinator_only` narrowing and the
+`is_case_excluded` arm survive verbatim.
+
+**Proved live as a real persona, `staff3.ccih@test.local`** (a plain `staff` holding a case write
+grant — the exact "ordinary committee writer" of the report), rolled back, with controls:
+
+| Check | Result |
+| --- | --- |
+| Control A — is the persona `staff_admin` of the case's commission? | `false` |
+| Control B — a MANUAL kind insert, same session | **succeeds** (capability genuinely intact) |
+| F — forged `kind='decision_issued'` INSERT | **refused `42501`** |
+| G — insert `note`, then UPDATE to `decision_issued` | **refused `42501`** |
+| Oracle — neutralize the arm (`… returns true`), re-run F and G | **both succeed again** |
+
+**Keystones:** `supabase/tests/111_case_docs_events.sql` grows 5 → 9 (forged INSERT refused ·
+manual-kind positive control · UPDATE-to-system-kind refused · all four policies carry the arm).
+Proved able to fail: neutralizing the helper reds tests 6 and 8. Full pgTAP **5886/5886 PASS** on a
+fresh reset; `lint` (5 gates) + `typecheck` clean; authz `ARM=census` / `ARM=hat` / `ARM=floor` all
+INVARIANT HOLDS.
+
+**NOT closed by this (deliberate, separate obligations, no minting path):** a case writer can still
+`DELETE` a procedural event, and no audit row distinguishes a forged kind from an authentic one.
+
+
+🟠 **FUP-AUTHZ-WP-SNAPSHOT — the write-path sweep's policy arm silently ran ZERO cases for a valid
+subset.** Filed 2026-08-12 while gating BUG-CASEKIND-001. A diff-scoped
+`CASES="case_events_writer_insert case_events_staff_admin_insert case_events_writer_update
+case_events_staff_admin_update" p0-authz-writepath-audit.sh` printed `BLIND: 0 ERROR: 0 SKIPPED: 0`
+and **exercised nothing** — its ARM-2 domain is the 33-row worklist hardcoded at
+`p0-authz-writepath-audit.sh:388`, embedded 2026-07-18 and never grown; it contains **zero**
+`case_events` rows. ADR 0079 Amendment 3 already names the stale snapshot as a structural gap; what
+is new is that a **subset run over policies outside it is indistinguishable from a clean pass**.
+The Phase-Gate step-1 "diff-scoped ARM=policy" is therefore a no-op for any policy the snapshot
+misses — the recorded *"a detector that finds nothing must be proven able to find something"* class.
+⚠ Also re-confirms hazard 1: the run **overwrote** `docs/reviews/authz-writepath-audit-findings.md`
+with its empty report (restored via `git checkout --`). Fix: derive ARM 2's worklist from
+`pg_policies` at run time, and make a subset that matches no case a non-zero exit.
 
 
 🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**

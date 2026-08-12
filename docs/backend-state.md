@@ -2487,6 +2487,18 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   `app.response_validation_errors(response)` **DEFINER** - the single walker both the read path and the
   submit gate consume.
 
+- **`app.is_manual_case_event_kind(kind)`** (BUG-CASEKIND-001, migration `20260921000400`) —
+  **IMMUTABLE + security INVOKER + pure**; the SQL mirror of the six-value manual registro
+  vocabulary in `src/lib/cases/registro-kinds.ts`. It is the `kind` arm of **all four** user-role
+  write policies on `case_events` (`writer_insert` · `staff_admin_insert` · `writer_update` ·
+  `staff_admin_update`), so the ten SYSTEM kinds (2 registry echoes + 8 E3a ethics procedural) are
+  writable only by the eleven `SECURITY DEFINER` RPCs that emit them — those are owned by `postgres`,
+  which owns `case_events`, and the table is NOT `force row level security`, so they bypass RLS.
+  ⚠ The arm is on the UPDATEs too: an INSERT-only arm is defeated by insert-then-update. Widening
+  the manual vocabulary means widening this function, `case_events_kind_check`,
+  `referral_internal_notes_kind_check` and the TS module **together**. Keystones: pgTAP
+  `111_case_docs_events.sql` tests 6–9.
+
 - `is_member_of(commission)` / `is_staff_admin_of(commission)` — `security definer`,
   used throughout RLS.
 - `app.is_admin()` — from the verified JWT claim, DB fallback as defense-in-depth.

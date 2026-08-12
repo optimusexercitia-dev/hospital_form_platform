@@ -16,7 +16,15 @@
  * ⚠ This list is mirrored by TWO SQL CHECK constraints — `case_events_kind_check`
  * (which additionally allows the system/procedural kinds, see
  * `ProceduralCaseEventKind`) and `referral_internal_notes_kind_check` (which allows
- * exactly this list). Adding a kind here means widening both.
+ * exactly this list) — AND by the SQL function `app.is_manual_case_event_kind`,
+ * which is the `kind` arm of all four user-role write policies on `case_events`
+ * (BUG-CASEKIND-001). Adding a kind here means widening all three.
+ *
+ * This module is a CONVENIENCE mirror, not the security boundary: the CHECK
+ * constrains the *domain* of `kind`, and the policy arm constrains *who may write
+ * which value*, so a forged `kind = 'decision_issued'` is refused by the database
+ * even if this guard is bypassed. The ten system kinds are writable only by the
+ * SECURITY DEFINER RPCs that emit them (they bypass RLS as the table owner).
  */
 
 /**
