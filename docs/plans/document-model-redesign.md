@@ -18,9 +18,21 @@
 - Non-`clean`/`unscanned_accepted` content, `disposal_pending`, and `disposed`
   are NEVER served (D9/D10).
 - Audit = Rule 11 floor exactly (D11). Titles contractually non-PHI (D12).
-- Every phase: full CLAUDE.md §6 gate, `ARM=census`/`hat`/`floor`, diff-scoped
-  door sweep over touched gates, mutation twins for every new keystone.
+- Every phase: full CLAUDE.md §6 gate — `ARM=census`/`hat`/`floor` **and**
+  `FROMFINDINGS=1 ARM=wrapper` — plus the diff-scoped door sweep over touched
+  gates, and mutation twins for every new keystone. Two known traps bind here:
+  every NEW door must be added to the census domain **and** the committed
+  findings file in the same phase (a new wrapper passes `ARM=wrapper` vacuously
+  by absence — ADR 0079 Am. 7), and the diff-scoped write-path `ARM=policy` step
+  is a no-op outside its hardcoded worklist — check its reported case count is
+  nonzero for the phase's new doors before citing it.
 - PROGRESS.md updated at every start/finish/bug/gate step — never verbal-only.
+- **No live users exist before the pilot** (the whole program is pre-pilot).
+  Consequences used throughout: production data is the tiny 2026-08-11 census;
+  no soak windows, shadow-comparison periods, or rollback-retention windows are
+  required; a destructive re-run of a migration step is acceptable where it is
+  cheaper than surgical repair. This does NOT relax any security keystone,
+  gate, or catalog-proof step.
 
 ## Phase DM0 — ratification (this worktree)
 
@@ -34,18 +46,35 @@ branch merged (docs only).
 
 **Drop (with proof):**
 1. Migration drops: `attachments`, `attachment_references`, `attachment_subjects`;
-   `app.commission_of_attachment`, `app.can_read_attachment`,
-   `app.can_write_attachment`, `app.attachment_confidentiality_ok`; the seven
-   attachment-named public RPCs (`create_attachment`, `open_attachment`,
-   `dispose_attachment_phi`, `reclassify_attachment`, + list/update/delete
-   variants — enumerate from `pg_proc` at build time, not from this list); every
-   attachment-named `storage.objects` policy; the 4 dangling prod rows go with
-   the table. Legacy per-feature policies on `meeting-attachments` /
-   `case-documents` are dropped here too (their buckets retire in DM5).
+   the **five** centralized public RPCs (`create_attachment`, `open_attachment`,
+   `dispose_attachment_phi`, `reclassify_attachment`, `soft_delete_attachment`);
+   the **seven** `app.*` attachment routines — the four dispatchers
+   (`commission_of_attachment`, `can_read_attachment`, `can_write_attachment`,
+   `attachment_confidentiality_ok`) plus `assert_attachments_enabled` and the
+   two trigger functions `guard_attachment_immutable` / `trg_audit_attachment`
+   (dropping the table drops its triggers, NOT these functions); every
+   centralized-attachment `storage.objects` policy
+   (`attachments_obj_insert_writable`, `attachments_obj_select_readable`,
+   `attachments_phi_obj_insert_writable`); the 4 dangling prod rows go with the
+   table. Enumerate the final set from `pg_proc` / `pg_policies` at build time,
+   not from this list — **but the referral module's surfaces are EXCLUDED and
+   must survive until DM4**: `add_referral_reply_attachment`,
+   `get_referral_attachment_path`, the `referral_reply_attachment` table policy,
+   and the `referral_attachments_obj_insert` / `referral_attachments_obj_select`
+   storage policies are live referral features, not centralized-attachment
+   doors. A naive `%attachment%` sweep-and-drop breaks referrals.
+   Legacy per-feature policies on `case-documents` are dropped here too, and on
+   `meeting-attachments` **if it still exists** — the 2026-08-11 audit recorded
+   that bucket + policies, but the current local catalog has neither (10 buckets,
+   no meeting-attachment policies); verify local AND prod at build time and make
+   the drop conditional. (Both buckets retire in DM5.)
 2. **Door-sweep keystone (pgTAP):** after the drop, assert zero routines matching
    `%attachment%` in `pg_proc` (public + app), zero `%attachment%` policies in
-   `pg_policies`, zero surviving grants. This keystone must FAIL if any door
-   survives — prove it by mutation (re-add one stub → red).
+   `pg_policies`, and zero surviving grants — **minus an explicit, named
+   allowlist containing exactly the referral-owned surfaces above**. The
+   allowlist is a keystone artifact: DM4's exit empties it and re-runs the
+   keystone at zero exceptions. This keystone must FAIL if any non-allowlisted
+   door survives — prove it by mutation (re-add one stub → red).
 
 **Create (per ADR 0114 D3/D4/D7/D8):**
 3. `securable_resources` + shared-PK links from `cases`, `meetings`,
@@ -92,6 +121,9 @@ new doors; QA approves an inert-substrate review. Nothing user-visible changed.
 5. Flag choreography at gate: `documents_foundation` ON + Wave A flag ON locally
    and in prod after human approval; legacy `attachments` flag key retired from
    the seed (the D1 flip becomes moot).
+6. **ADR 0114 Open item O4 revisited here** (per the ADR): signed-URL TTL per
+   sensitivity + whether any content class warrants streaming-proxy serving,
+   decided with the PO against real DM2 latency; record the decision in the ADR.
 
 Exit: full §6 gate; `npm run e2e:prod` green; reconciliation report clean.
 
@@ -114,21 +146,35 @@ Exit: full §6 gate; `npm run e2e:prod` green; reconciliation report clean.
 Exit: full lifecycle E2E green (draft→approve→publish→supersede→obsolete +
 prior-version download); migration counts reconciled; gate + approval.
 
-## Phase DM4 — Wave C: referrals (BLOCKED until referral-detail-redesign merges)
+## Phase DM4 — Wave C: referrals
+
+> Former blocker RESOLVED: referral-detail-redesign merged + pushed 2026-08-12,
+> so the F-14 fix belongs here (it landed second). ⚠ That program was itself
+> partially superseded by REG·KIND / ADR 0110 — at phase start, re-verify the
+> referral query/action surface (function names below included) against the
+> CODE and the referral RPCs against the CATALOG; do not trust names recorded
+> before those merges.
 
 1. Snapshot/reply files become version/file/rendition records; frozen snapshots
    immutable even if the source document later changes/disposes.
-2. `getReferralDocumentUrl` / `getReferralReplyAttachmentUrl` route through the
-   audited open door; the `case-documents` signer dies (F-14). The 1 dangling
-   frozen production row is reconciled (re-freeze or explicit tombstone).
+2. `getReferralDocumentUrl` / `getReferralReplyAttachmentUrl` (names as of the
+   audit — re-verify per the note above) route through the audited open door;
+   the `case-documents` signer dies (F-14). The 1 dangling frozen production row
+   is reconciled (re-freeze or explicit tombstone).
 3. Referral PHI authorization (`can_read_referral_phi`) remains the gate;
    document-layer access must not widen it — negative twin required.
-4. Regression: fresh centralized PHI snapshot opens from the canonical bucket
+4. Referral attachment surfaces migrate off the legacy substrate:
+   `add_referral_reply_attachment` / `get_referral_attachment_path`, the
+   `referral_reply_attachment` policy, and both `referral_attachments_obj_*`
+   storage policies are replaced/dropped here.
+5. **DM1 keystone closure:** empty the DM1 referral allowlist and re-run the
+   `%attachment%` door-sweep keystone at zero exceptions.
+6. Regression: fresh centralized PHI snapshot opens from the canonical bucket
    exactly once with exactly one audit row; the retired bucket path serves
    nothing.
 
 Exit: referral E2E (source + target sides) green; audit-row exactness proven;
-gate + approval.
+keystone at zero exceptions; gate + approval.
 
 ## Phase DM5 — Wave D + retirement
 
@@ -139,13 +185,25 @@ gate + approval.
    verification-token flow and revoked/superseded overlays keep working from a
    satellite table; 4 production objects migrated copy→verify→switch.
 3. Legacy retirement: for each of `attachments`, `attachments-phi`,
-   `case-documents`, `meeting-attachments`, `interview-attachments`,
+   `case-documents`, `meeting-attachments` (**if it exists** — see DM1 note;
+   absent from the current local catalog), `interview-attachments`,
    `nsp-evidence`, `referral-attachments`, `controlled-documents`,
    `printed-documents`: prove zero DB references + zero product callers + zero
    policies, then empty + delete the bucket (Storage API only — never
-   `storage.objects` DML). `form-assets` and `meeting-audio` remain (out of
-   scope, D13).
-4. ARCHITECTURE.md §2 + Rule updates (schema canon), `docs/backend-state.md`
+   `storage.objects` DML). All bucket deletions batch here **deliberately** —
+   even buckets already empty and policy-less since DM1 — so there is exactly
+   one retirement manifest; do not delete any early. No rollback-retention
+   window is required (no live users). `form-assets` and `meeting-audio` remain
+   (out of scope, D13).
+4. **Operational closure (slimmed pre-pilot hardening — dispositions the audit's
+   D7 phase, which this plan otherwise drops):** name the operational owner and
+   execution mechanism (pg_cron / scheduled job / manual runbook) for the
+   disposal job and the reconciliation command; one backup/restore drill of DB +
+   Storage together on the pre-pilot stack; capture baseline `EXPLAIN` + latency
+   for document list / open / sign as the pilot's comparison point. Full
+   production-volume performance testing and staged rollout are **explicitly
+   deferred to the pilot** (PO-accepted: no live users, ~45 objects).
+5. ARCHITECTURE.md §2 + Rule updates (schema canon), `docs/backend-state.md`
    rewrite of the document surface, PHASES/PROGRESS record + rotation.
 
 Exit: repo-wide sweep — no `storage_path` writes outside `src/lib/documents/`;
@@ -153,8 +211,9 @@ full `e2e:prod` green; QA program-level review; human approval; Record step.
 
 ## Serialization & shared-file constraints
 
-- Wave C ⟂ referral-detail-redesign: DM4 does not start until that program's
-  merge; the F-14 fix belongs to whichever lands second (tracked in PROGRESS).
+- Wave C ⟂ referral-detail-redesign: **RESOLVED** — that program merged + pushed
+  2026-08-12 before any DM implementation phase, so the F-14 fix belongs to DM4
+  (it lands second). Kept for the record; DM4 carries a re-verification note.
 - One backend owner for: migrations, Storage policies, signer routes, audit
   unions, generated types (never split across agents).
 - Local DB is shared across worktrees — no DM migration work while another
@@ -163,6 +222,13 @@ full `e2e:prod` green; QA program-level review; human approval; Record step.
   phase start.
 
 ## Program acceptance (condensed from audit §14, minus deferred items)
+
+> Deferral ledger (so nothing is silently dropped): audit §14 items 1–13 map
+> below or to their wave exits; item 14 (measured performance at scale) and
+> item 15's production-scale recovery rehearsal are **deferred to the pilot**
+> (PO-accepted — no live users; DM5 step 4 keeps a baseline drill + `EXPLAIN`
+> capture); the sharing/audience plane is deferred per ADR 0114 D6/O3; scanner
+> integration per O2.
 
 1. Every protected file: one `file_objects` row, one unique `(bucket,path)`.
 2. Upload lifecycle enforced; non-servable states never served.
