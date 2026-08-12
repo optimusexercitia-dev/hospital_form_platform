@@ -101,6 +101,35 @@ the pilot is § *Remaining pre-pilot work*.
 Plan: [referral-detail-redesign.md](docs/plans/referral-detail-redesign.md). Owned rows only; the
 lead owns the Phase Status table.
 
+**PHASE STATUS: Phases 0–4 BUILT + GATED. Gate step 3 (QA) ✅ APPROVED
+([review](docs/reviews/referral-detail-redesign-review.md), `862c782`). Gate step 4 (human
+approval) — PENDING. NOT merged, NOT pushed.**
+
+**QA verdict: APPROVED**, no blocking finding; 2 MINOR + 3 INFO. QA proved A11/Rule 7 holds by
+enumerating from the **read door** (`body_md` is grant-REVOKED ⇒ `listReferralInternalNotes` is the
+only read path ⇒ one call site ⇒ an exhaustive 3-arm ternary) rather than by grepping `bodyMd` —
+so a surface that renamed the field on its way to the DOM would still have been caught. Zero
+`dangerouslySetInnerHTML` in `src/`; exactly one Markdown pair declared, no `rehype-raw`.
+
+- **MINOR-1 — live, reproduced, KNOWINGLY SHIPPED.** Reordering registro types raises `23505` after
+  archiving any non-last type: the manager is fed non-archived types only, but the RPC renumbers
+  `1..n` while archived rows keep their positions, colliding with
+  `referral_note_types_commission_position_key`. The user sees a misleading pt-BR message; no raw
+  PG string leaks. **Not fixed here on purpose**: amendment A6 mandates mirroring
+  `case_narrative_types`, and the sibling carries the identical defect today — fixing one side
+  creates exactly the drift A6 exists to prevent. Needs one platform-wide change.
+- **MINOR-2 — the sole Rule 7 defense had zero automated coverage.** `markdown-renderer.tsx` had no
+  test file (verified: the directory held only the component). Removing `rehypeSanitize` or adding
+  `rehypeRaw` would have left lint, typecheck, vitest, pgTAP **and** E2E green. **Being closed now**
+  with a unit test requiring both mutations to redden it.
+- **INFO-1** — `case-narratives.test.ts:17` claims sanitization "is covered by the `MarkdownRenderer`
+  tests"; it was not. Corrected alongside MINOR-2. ([[a-comment-is-an-assertion-that-goes-stale-silently]])
+
+⚠ **Self-caught vacuous keystone, worth repeating**: `322` §5.1/5.2 originally matched on SQLSTATE
+`42501` alone and stayed GREEN under the door's own neutralization — execution fell through to
+`log_audit_access`, which refuses the same caller with the same code, so the keystone was measuring
+the **backstop**. Both now pin the door's pt-BR message.
+
 | # | Task | Owner | Status |
 | --- | --- | --- | --- |
 | 1a | `referral_note_types` + RLS (mirrors the LIVE `case_narrative_types`) | backend | ✅ 2026-08-11 |
