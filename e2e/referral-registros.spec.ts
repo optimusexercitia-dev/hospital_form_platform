@@ -295,7 +295,16 @@ let referralsFlagBefore: boolean
  */
 const REG_SUBJECT = `RDR — ciclo do registro (${RUN_TAG})`
 
-const TYPE_LABEL = `Análise interna (${RUN_TAG})`
+/**
+ * The registro kind this spec files under. NOT run-tagged and NOT per-commission:
+ * the vocabulary is the FIXED six-value case-Registro list shared with the case
+ * timeline (`CASE_EVENT_KIND_LABELS`), so it is the same on both sides and on every
+ * run. That is exactly why cross-side assertions here key on RUN_TAG'd title/body
+ * text and never on the kind label — 'Reunião' legitimately appears in the other
+ * side's own picker.
+ */
+const KIND_VALUE = 'meeting'
+const KIND_LABEL = 'Reunião'
 const REG_TITLE = `Contato com a farmácia (${RUN_TAG})`
 const REG_BODY = `Corpo **markdown** do registro (${RUN_TAG}).`
 const REG_BODY_EDITED = `Corpo revisado pela responsável (${RUN_TAG}).`
@@ -445,7 +454,7 @@ test.afterAll(() => {
 // REG — "Registros internos" (RDR D6 / ADR 0109), end to end
 // ===========================================================================
 
-test('REG-1: a side coordinator creates a registro TYPE through the manage dialog', async ({
+test('REG-1: the registro kind picker offers the SHARED case vocabulary, with nothing to configure', async ({
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
@@ -459,26 +468,30 @@ test('REG-1: a side coordinator creates a registro TYPE through the manage dialo
     timeout: 15_000,
   })
 
-  await page.getByRole('button', { name: 'Tipos de registro' }).click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Tipos de registro' })).toBeVisible()
-  // NOT asserted: "Nenhum tipo definido ainda" — `referral_note_types` rows persist
-  // across E2E runs, so the empty state only holds on a virgin `db reset`. Every
-  // assertion in this file is keyed to RUN_TAG for that reason.
-  await expect(dialog.getByText(TYPE_LABEL)).toHaveCount(0)
+  // The per-commission vocabulary (and the dialog that maintained it) is GONE: the
+  // kinds are fixed platform-wide, so there is nothing for a coordinator to manage.
+  // Asserted for a COORDINATOR — the one viewer the old dialog was ever shown to —
+  // so its absence is attributable to the removal and not to a permission gate.
+  await expect(page.getByRole('button', { name: 'Tipos de registro' })).toHaveCount(0)
 
-  await dialog.getByLabel('Nome', { exact: true }).fill(TYPE_LABEL)
-  await dialog.getByRole('button', { name: 'Criar tipo' }).click()
+  await page.getByRole('button', { name: 'Adicionar registro' }).click()
+  const tipo = registroForm(page).getByLabel('Tipo', { exact: true })
+  await expect(tipo).toBeVisible()
 
-  // The vocabulary row lands in the dialog's own list (archive-only vocabulary, so
-  // the row carries reorder/edit/archive controls rather than a delete).
-  await expect(dialog.getByText(TYPE_LABEL)).toBeVisible({ timeout: 15_000 })
-  await expect(
-    dialog.getByRole('button', { name: `Arquivar o tipo ${TYPE_LABEL}` }),
-  ).toBeVisible()
-
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden({ timeout: 10_000 })
+  // The exact six manual kinds of the case timeline's "Registros", in picker order —
+  // an EXACT list, not a contains: the whole point of this change is that the two
+  // surfaces offer the identical vocabulary, which a subset assertion would not catch
+  // drifting. `update`/`follow_up` are the two added alongside this change.
+  await expect(tipo.getByRole('option')).toHaveText([
+    'Nota',
+    'Reunião',
+    'Decisão',
+    'Atualização',
+    'Acompanhamento',
+    'Outro',
+  ])
+  // Required, never untyped: there is no empty option and the default is Nota.
+  await expect(tipo).toHaveValue('note')
 })
 
 test('REG-2: the coordinator files a TYPED registro with an assignee', async ({ page }) => {
@@ -495,7 +508,7 @@ test('REG-2: the coordinator files a TYPED registro with an assignee', async ({ 
   await expect(form).toBeVisible()
 
   await form.getByLabel(/^Título/).fill(REG_TITLE)
-  await form.getByLabel('Tipo', { exact: true }).selectOption({ label: TYPE_LABEL })
+  await form.getByLabel('Tipo', { exact: true }).selectOption(KIND_VALUE)
   await form.getByLabel(/^Responsável/).selectOption(UID_STAFF1_A)
   await form.getByLabel('Registro', { exact: true }).fill(REG_BODY)
   await page.getByRole('button', { name: 'Registrar' }).click()
@@ -503,7 +516,7 @@ test('REG-2: the coordinator files a TYPED registro with an assignee', async ({ 
   const card = panel.locator('li').filter({ hasText: REG_TITLE })
   await expect(card).toBeVisible({ timeout: 15_000 })
   await expect(card.getByRole('heading', { name: REG_TITLE })).toBeVisible()
-  await expect(card.getByText(TYPE_LABEL)).toBeVisible()
+  await expect(card.getByText(KIND_LABEL)).toBeVisible()
   await expect(card.getByText('Aberto')).toBeVisible()
   // Author + assignee ride the card's meta line. Scoped to it deliberately: the
   // assignee's name ALSO appears on the AssignMenu trigger's label and face, so an
@@ -601,16 +614,24 @@ test('REG-6: K-R5-1 — the OTHER committee sees none of it (title, body or type
   const html = await page.content()
   expect(html).not.toContain(REG_TITLE)
   expect(html).not.toContain(REG_BODY_EDITED)
-  expect(html).not.toContain(TYPE_LABEL)
+  // ⚠ NOT asserted: the absence of KIND_LABEL. The vocabulary is now shared and
+  // fixed, so 'Reunião' is a legitimate option in THIS side's own picker — a
+  // not-toContain here would fail on the picker's own markup, not on a leak. The
+  // RUN_TAG'd title/body above are what carry the cross-side keystone.
 
-  // The type VOCABULARY is per-commission too: Farmácia's picker must not offer
-  // CCIH's type. (Asserted as the ABSENCE of that one option rather than an exact
-  // option list — `referral_note_types` rows survive across E2E runs.)
+  // The kinds are platform-wide, so the other side's picker offers the SAME six —
+  // the mirror of REG-1, proving the vocabulary does not vary by commission.
   await page.getByRole('button', { name: 'Adicionar registro' }).click()
   const tipo = registroForm(page).getByLabel('Tipo', { exact: true })
   await expect(tipo).toBeVisible()
-  await expect(tipo.getByRole('option', { name: 'Sem tipo' })).toHaveCount(1)
-  await expect(tipo.getByRole('option', { name: TYPE_LABEL })).toHaveCount(0)
+  await expect(tipo.getByRole('option')).toHaveText([
+    'Nota',
+    'Reunião',
+    'Decisão',
+    'Atualização',
+    'Acompanhamento',
+    'Outro',
+  ])
 })
 
 // ===========================================================================

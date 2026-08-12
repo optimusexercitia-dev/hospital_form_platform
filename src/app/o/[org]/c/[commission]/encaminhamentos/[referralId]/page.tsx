@@ -12,7 +12,6 @@ import {
   getReferralDetail,
   getReferralDocumentUrl,
   listReferralInternalNotes,
-  listReferralNoteTypes,
   listReplyOutcomes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
@@ -215,12 +214,9 @@ export default async function ReferralDetailPage({
     ? detail.sourceCaseNumber
     : detail.targetCaseNumber;
 
-  const [internalNotes, noteTypes, caseAccessSummary] = await Promise.all([
+  const [internalNotes, caseAccessSummary] = await Promise.all([
     myNoteCommitteeId
       ? listReferralInternalNotes(detail.id)
-      : Promise.resolve([]),
-    myNoteCommitteeId
-      ? listReferralNoteTypes(myNoteCommitteeId)
       : Promise.resolve([]),
     // The audited access door is asked ONLY when this side actually has a case —
     // it emits `referral.case_access_summary_viewed`, so an unnecessary call would
@@ -410,7 +406,6 @@ export default async function ReferralDetailPage({
                 referralId={detail.id}
                 committeeId={myNoteCommitteeId}
                 notes={internalNotes}
-                noteTypes={noteTypes}
                 members={assignMembers}
                 viewerUserId={access.context.userId}
                 canCreate={true}

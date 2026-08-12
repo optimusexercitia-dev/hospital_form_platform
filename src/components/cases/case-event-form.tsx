@@ -8,7 +8,8 @@ import {
   updateCaseEvent,
   type ActionState,
 } from "@/lib/cases/documents-actions";
-import type { CaseEvent, CaseEventKind } from "@/lib/queries/case-documents";
+import type { CaseEvent } from "@/lib/queries/case-documents";
+import { CASE_EVENT_KINDS } from "@/lib/cases/registro-kinds";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +28,7 @@ import { EVENT_KIND_LABEL } from "./case-extras-labels";
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
-const EVENT_KINDS: CaseEventKind[] = ["note", "meeting", "decision", "other"];
+const EVENT_KINDS = CASE_EVENT_KINDS;
 
 /**
  * Create / edit a manual case event (R1) — a free-text working note, meeting or
@@ -78,8 +79,8 @@ export function CaseEventForm({
             {mode === "create" ? "Adicionar registro" : "Editar registro"}
           </DialogTitle>
           <DialogDescription>
-            Registre uma nota, reunião ou decisão deste caso. Nunca inclua dados
-            de paciente.
+            Registre uma nota, reunião, decisão, atualização ou acompanhamento
+            deste caso. Nunca inclua dados de paciente.
           </DialogDescription>
         </DialogHeader>
 
@@ -157,7 +158,7 @@ export function CaseEventForm({
               rows={4}
               className={FIELD_CLASS}
               defaultValue={event?.body ?? ""}
-              placeholder="Descreva a nota, reunião ou decisão…"
+              placeholder="Descreva o registro…"
               aria-invalid={state?.fieldErrors?.body ? true : undefined}
             />
             {state?.fieldErrors?.body && (

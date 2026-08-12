@@ -1,13 +1,15 @@
 -- Referral detail redesign — Phase 1 (Backend). Plan: docs/plans/referral-detail-redesign.md.
 --
 -- What this file pins:
---   §1 referral_note_types — the per-commission vocabulary. Writes are DIRECT and
---      RLS-gated (mirroring case_narrative_types, amendment A6), so RLS is the whole
---      boundary; reorder is a SECURITY INVOKER RPC on top of it.
---   §2 create_referral_internal_note — the new title/type/assignee params, the
---      type_label SNAPSHOT, and authority-before-domain ordering (42501 before HC0A9).
+--   §1 (RETIRED) referral_note_types — the per-commission vocabulary this phase
+--      shipped with. It was replaced by the fixed case-Registro `kind` vocabulary
+--      (shared with case_events.kind), so the table, its RLS, its audit trigger and
+--      the reorder RPC are gone and there is nothing left here to gate.
+--   §2 create_referral_internal_note — the title/kind/assignee params, the REQUIRED
+--      kind (default 'note') with its CHECK backstop, and authority-before-domain
+--      ordering (42501 before HC0A9).
 --   §3 K-R5-1 PRESERVED ACROSS THE NEW FIELDS. The old keystone proved a note's BODY
---      does not cross sides. A note now also carries a title, a type label and an
+--      does not cross sides. A note now also carries a title, a kind and an
 --      assignee — each of which is just as disclosing — so the keystone is re-proven
 --      over the whole enriched row plus the A4 column-grant matrix.
 --   §4 the open → concluded lifecycle and its four doors.
@@ -23,7 +25,7 @@
 -- masquerade as passing isolation.
 
 begin;
-select plan(72);
+select plan(63);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -126,90 +128,19 @@ select public.receive_referral((select id from r2));
 reset role;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- §1 — referral_note_types: RLS-gated direct writes + the reorder RPC
--- ═══════════════════════════════════════════════════════════════════════════
-create temp table nt on commit drop as
-  select gen_random_uuid() as t_x1, gen_random_uuid() as t_x2,
-         gen_random_uuid() as t_x_arch, gen_random_uuid() as t_y;
-grant select on nt to authenticated;
-
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select lives_ok(
-  format($$ insert into public.referral_note_types (id, commission_id, label, position)
-            values (%L, %L, 'Análise técnica', 1) $$,
-    (select t_x1 from nt), (select comm_x from k)),
-  '1.1 a commission staff_admin creates a note type by DIRECT write (RLS is the gate)');
-reset role;
-
--- The rest of the vocabulary as superuser (fixture, not the system under test).
-insert into public.referral_note_types (id, commission_id, label, position, archived) values
-  ((select t_x2 from nt),     (select comm_x from k), 'Despacho',  2, false),
-  ((select t_x_arch from nt), (select comm_x from k), 'Obsoleto',  3, true),
-  ((select t_y from nt),      (select comm_y from k), 'Parecer Y', 1, false);
-
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select throws_ok(
-  format($$ insert into public.referral_note_types (commission_id, label, position)
-            values (%L, 'Tipo negado', 90) $$, (select comm_x from k)),
-  '42501', null,
-  '1.2 a plain member CANNOT create a note type (referral_note_types_staff_admin_write)');
-select is((select count(*)::int from public.referral_note_types
-           where commission_id = (select comm_x from k)), 3,
-  '1.3 non-vacuity: that same plain member DOES read the commission''s vocabulary');
-reset role;
-
-select test_helpers.claims_for((select sa_y from k), false);
-set local role authenticated;
-select is((select count(*)::int from public.referral_note_types
-           where commission_id = (select comm_x from k)), 0,
-  '1.4 referral_note_types_select: a coordinator of the OTHER commission reads 0 of X''s types');
-select throws_ok(
-  format($$ select public.reorder_referral_note_types(%L, array[%L,%L]::uuid[]) $$,
-    (select comm_x from k), (select t_x2 from nt), (select t_x1 from nt)),
-  '42501', null,
-  '1.5 reorder_referral_note_types is commission-scoped: Y''s coordinator cannot reorder X');
-reset role;
-
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select throws_ok(
-  format($$ select public.reorder_referral_note_types(%L, array[%L,%L]::uuid[]) $$,
-    (select comm_x from k), (select t_x2 from nt), (select t_x1 from nt)),
-  '42501', null,
-  '1.6 a plain member cannot reorder the vocabulary (42501)');
-reset role;
-
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select lives_ok(
-  format($$ select public.reorder_referral_note_types(%L, array[%L,%L]::uuid[]) $$,
-    (select comm_x from k), (select t_x2 from nt), (select t_x1 from nt)),
-  '1.7 the owning coordinator reorders (the DEFERRABLE position unique tolerates the swap)');
-reset role;
-select is((select position from public.referral_note_types where id = (select t_x2 from nt)), 1,
-  '1.8 …and the new order took effect (Despacho moved to position 1)');
-
-select cmp_ok((select count(*)::int from public.audit_log
-               where action = 'referral_note_type.created'
-                 and commission_id = (select comm_x from k)), '>=', 1,
-  '1.9 Rule 11: a DIRECT vocabulary write still emits an audit row (trigger, not RPC)');
-
--- ═══════════════════════════════════════════════════════════════════════════
--- §2 — create_referral_internal_note: title / type / assignee
+-- §2 — create_referral_internal_note: title / kind / assignee
 -- ═══════════════════════════════════════════════════════════════════════════
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table note_src on commit drop as
   select * from public.create_referral_internal_note(
     (select id from r1), (select comm_x from k), 'CORPO-NOTA-ORIGEM',
-    'TITULO-NOTA-ORIGEM', (select t_x1 from nt), (select st_x2 from k));
+    'TITULO-NOTA-ORIGEM', 'meeting', (select st_x2 from k));
 reset role;
 grant select on note_src to authenticated;
 
-select is((select type_label from note_src), 'Análise técnica',
-  '2.1 the type label is SNAPSHOTTED onto the note at pick time');
+select is((select kind from note_src), 'meeting',
+  '2.1 the picked kind is stored (the SHARED case-Registro vocabulary)');
 select is((select title from note_src), 'TITULO-NOTA-ORIGEM', '2.2 the title is stored');
 select is((select assigned_to from note_src), (select st_x2 from k), '2.3 the assignee is stored');
 select is((select status from note_src), 'open', '2.4 a new note starts open');
@@ -217,38 +148,43 @@ select is((select status from note_src), 'open', '2.4 a new note starts open');
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.create_referral_internal_note(%L, %L, 'corpo', null, %L, null) $$,
-    (select id from r1), (select comm_x from k), (select t_y from nt)),
+  format($$ select public.create_referral_internal_note(%L, %L, 'corpo', null, 'analise_interna', null) $$,
+    (select id from r1), (select comm_x from k)),
   'HC0A9', null,
-  '2.5 a type belonging to the OTHER commission is rejected (HC0A9)');
+  '2.5 a kind outside the shared six is rejected (HC0A9)');
+-- On r2, NOT r1: this probe inserts a real note, and r1's list is the subject of
+-- §4's open-before-concluded ordering contract (an extra open row there would push
+-- the concluded note past the index 4.18 asserts on).
+select is(
+  (select kind from public.create_referral_internal_note(
+     (select id from r2), (select comm_x from k), 'corpo sem tipo', null, null, null)),
+  'note',
+  '2.6 an omitted kind defaults to ''note'' (the type is REQUIRED, never untyped)');
 select throws_ok(
-  format($$ select public.create_referral_internal_note(%L, %L, 'corpo', null, %L, null) $$,
-    (select id from r1), (select comm_x from k), (select t_x_arch from nt)),
-  'HC0A9', null,
-  '2.6 an ARCHIVED type is rejected (HC0A9)');
-select throws_ok(
-  format($$ select public.create_referral_internal_note(%L, %L, 'corpo', null, null, %L) $$,
+  format($$ select public.create_referral_internal_note(%L, %L, 'corpo', null, 'note', %L) $$,
     (select id from r1), (select comm_x from k), (select sa_y from k)),
   'HC0A9', null,
   '2.7 an assignee who is not a member of THIS side is rejected (HC0A9)');
 reset role;
 
--- Authority still precedes domain: a wrong-side caller passing an ALSO-invalid type
+-- Authority still precedes domain: a wrong-side caller passing an ALSO-invalid kind
 -- must get 42501, never HC0A9 (the non-vacuity that proves the ordering).
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.create_referral_internal_note(%L, %L, '   ', null, %L, null) $$,
-    (select id from r1), (select comm_x from k), (select t_y from nt)),
+  format($$ select public.create_referral_internal_note(%L, %L, '   ', null, 'analise_interna', null) $$,
+    (select id from r1), (select comm_x from k)),
   '42501', null,
   '2.8 authority is checked BEFORE domain: a wrong-side caller gets 42501, not HC0A9');
 reset role;
 
--- The snapshot must survive a later rename of the type.
-update public.referral_note_types set label = 'Análise técnica (renomeada)'
- where id = (select t_x1 from nt);
-select is((select type_label from public.referral_internal_notes where id = (select id from note_src)),
-  'Análise técnica', '2.9 the snapshot SURVIVES a later rename of the type');
+-- The RPC's pt-BR refusal is the front door; the CHECK is the backstop that holds
+-- even for a writer that never goes through it.
+select throws_ok(
+  format($$ update public.referral_internal_notes set kind = 'analise_interna' where id = %L $$,
+    (select id from note_src)),
+  '23514', null,
+  '2.9 referral_internal_notes_kind_check rejects a kind outside the shared six');
 
 -- A target-side note, so the cross-side keystone has something to fail to see.
 select test_helpers.claims_for((select sa_y from k), false);
@@ -256,7 +192,7 @@ set local role authenticated;
 create temp table note_tgt on commit drop as
   select * from public.create_referral_internal_note(
     (select id from r1), (select comm_y from k), 'CORPO-NOTA-DESTINO',
-    'TITULO-NOTA-DESTINO', (select t_y from nt), null);
+    'TITULO-NOTA-DESTINO', 'decision', null);
 reset role;
 grant select on note_tgt to authenticated;
 
@@ -296,8 +232,7 @@ select ok(not has_column_privilege('authenticated', 'public.referral_internal_no
   '3.6 A4: authenticated has NO direct SELECT on referral_internal_notes.body_md');
 select ok(
   has_column_privilege('authenticated', 'public.referral_internal_notes', 'title',        'SELECT') and
-  has_column_privilege('authenticated', 'public.referral_internal_notes', 'note_type_id', 'SELECT') and
-  has_column_privilege('authenticated', 'public.referral_internal_notes', 'type_label',   'SELECT') and
+  has_column_privilege('authenticated', 'public.referral_internal_notes', 'kind',         'SELECT') and
   has_column_privilege('authenticated', 'public.referral_internal_notes', 'assigned_to',  'SELECT') and
   has_column_privilege('authenticated', 'public.referral_internal_notes', 'status',       'SELECT') and
   has_column_privilege('authenticated', 'public.referral_internal_notes', 'concluded_at', 'SELECT') and
@@ -322,7 +257,7 @@ reset role;
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.update_referral_internal_note(%L, 'x', 'y', null) $$,
+  format($$ select public.update_referral_internal_note(%L, 'x', 'y', 'note') $$,
     (select id from note_src)),
   '42501', null,
   '4.1 a member who is neither author, assignee nor coordinator cannot edit (42501)');
@@ -337,14 +272,14 @@ reset role;
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select lives_ok(
-  format($$ select public.update_referral_internal_note(%L, 'TITULO-EDITADO', 'CORPO-EDITADO', %L) $$,
-    (select id from note_src), (select t_x2 from nt)),
+  format($$ select public.update_referral_internal_note(%L, 'TITULO-EDITADO', 'CORPO-EDITADO', 'follow_up') $$,
+    (select id from note_src)),
   '4.3 the ASSIGNEE can edit the note (non-vacuity for 4.1)');
 reset role;
 select is((select title from public.referral_internal_notes where id = (select id from note_src)),
   'TITULO-EDITADO', '4.4 …and the edit landed');
-select is((select type_label from public.referral_internal_notes where id = (select id from note_src)),
-  'Despacho', '4.5 …and the type_label was RE-snapshotted from the new type');
+select is((select kind from public.referral_internal_notes where id = (select id from note_src)),
+  'follow_up', '4.5 …and the kind was re-filed (meeting -> follow_up)');
 select ok((select updated_by from public.referral_internal_notes where id = (select id from note_src))
           = (select st_x2 from k), '4.6 …and updated_by records who edited');
 

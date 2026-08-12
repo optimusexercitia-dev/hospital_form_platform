@@ -9,6 +9,7 @@ import type {
   AnyCaseEventKind,
 } from "@/lib/queries/case-documents";
 import type { ActionItemStatus } from "@/lib/queries/case-action-items";
+import { CASE_EVENT_KIND_LABELS } from "@/lib/cases/registro-kinds";
 
 /** File-backed document kinds (R1). */
 export const DOC_TYPE_LABEL: Record<CaseDocumentType, string> = {
@@ -26,11 +27,9 @@ export const DOC_TYPE_LABEL: Record<CaseDocumentType, string> = {
  * the rest are system-emitted and read-only.
  */
 export const EVENT_KIND_LABEL: Record<AnyCaseEventKind, string> = {
-  // Manually authored via CaseEventForm.
-  note: "Nota",
-  meeting: "Reunião",
-  decision: "Decisão",
-  other: "Outro",
+  // Manually authored via CaseEventForm. Spread from the shared vocabulary the
+  // referral "Registros internos" panel files under too — one list, two surfaces.
+  ...CASE_EVENT_KIND_LABELS,
   // System "registry echo" kinds (deduped off the timeline; labeled for completeness).
   interview: "Entrevista",
   safety_event: "Evento de segurança",

@@ -8561,14 +8561,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -8581,14 +8580,13 @@ export type Database = {
           concluded_by?: string | null
           created_at?: string
           id?: string
-          note_type_id?: string | null
+          kind?: string
           redacted_at?: string | null
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id: string
           status?: string
           title?: string | null
-          type_label?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -8601,14 +8599,13 @@ export type Database = {
           concluded_by?: string | null
           created_at?: string
           id?: string
-          note_type_id?: string | null
+          kind?: string
           redacted_at?: string | null
           redacted_by?: string | null
           redacted_reason?: string | null
           referral_id?: string
           status?: string
           title?: string | null
-          type_label?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -8639,13 +8636,6 @@ export type Database = {
             columns: ["concluded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referral_internal_notes_note_type_id_fkey"
-            columns: ["note_type_id"]
-            isOneToOne: false
-            referencedRelation: "referral_note_types"
             referencedColumns: ["id"]
           },
           {
@@ -8730,47 +8720,6 @@ export type Database = {
             columns: ["sender_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      referral_note_types: {
-        Row: {
-          archived: boolean
-          commission_id: string
-          created_at: string
-          description: string | null
-          id: string
-          label: string
-          position: number
-          updated_at: string
-        }
-        Insert: {
-          archived?: boolean
-          commission_id: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          label: string
-          position: number
-          updated_at?: string
-        }
-        Update: {
-          archived?: boolean
-          commission_id?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          label?: string
-          position?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referral_note_types_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: false
-            referencedRelation: "commissions"
             referencedColumns: ["id"]
           },
         ]
@@ -10622,14 +10571,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -11362,14 +11310,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -12164,7 +12111,7 @@ export type Database = {
           p_assigned_to?: string
           p_body_md: string
           p_committee_id: string
-          p_note_type_id?: string
+          p_kind?: string
           p_referral_id: string
           p_title?: string
         }
@@ -12177,14 +12124,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -13989,14 +13935,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -14438,10 +14383,6 @@ export type Database = {
       }
       reorder_rca_timeline: {
         Args: { p_ordered_ids: string[]; p_rca_id: string }
-        Returns: undefined
-      }
-      reorder_referral_note_types: {
-        Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_section: {
@@ -15888,14 +15829,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -16950,8 +16890,8 @@ export type Database = {
       update_referral_internal_note: {
         Args: {
           p_body_md: string
+          p_kind?: string
           p_note_id: string
-          p_note_type_id?: string
           p_title: string
         }
         Returns: {
@@ -16963,14 +16903,13 @@ export type Database = {
           concluded_by: string | null
           created_at: string
           id: string
-          note_type_id: string | null
+          kind: string
           redacted_at: string | null
           redacted_by: string | null
           redacted_reason: string | null
           referral_id: string
           status: string
           title: string | null
-          type_label: string | null
           updated_at: string
           updated_by: string | null
         }

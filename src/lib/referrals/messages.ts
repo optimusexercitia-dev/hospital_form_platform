@@ -129,16 +129,10 @@ export const REFERRAL_MESSAGES = {
   redactReasonRequired: 'Informe o motivo da tarja.',
   missingNote: 'Nota interna não encontrada.',
   missingMessage: 'Mensagem não encontrada.',
-  // RDR (ADR 0109) — "Registros internos" + the type vocabulary.
-  missingNoteType: 'Tipo de registro não encontrado.',
-  noteTypeLabelRequired: 'Informe o nome do tipo de registro.',
-  noteTypeLabelTaken: 'Já existe um tipo de registro com esse nome nesta comissão.',
-  /** The write matched no row: `referral_note_types_staff_admin_write` filtered it
-   * out (not a coordinator / tenancy admin of that commission) or it is gone. RLS
-   * is the authority and reports no error for a non-matching UPDATE — only 0 rows,
-   * so the affordance must say something rather than claim success. */
-  noteTypeWriteBlocked:
-    'Não foi possível salvar: apenas a coordenação desta comissão pode alterar os tipos de registro.',
+  /** RDR (ADR 0109) — "Registros internos". The per-commission type vocabulary it
+   * shipped with was replaced by the fixed case-Registro kinds, so the vocabulary
+   * CRUD messages went with it; a bad kind is a domain refusal (HC0A9). */
+  noteKindInvalid: 'Tipo de registro inválido.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -228,15 +222,11 @@ export const REFERRAL_MESSAGES = {
   noteCreated: 'Nota interna registrada.',
   noteRedacted: 'Nota interna tarjada.',
   messageRedacted: 'Mensagem tarjada.',
-  // RDR (ADR 0109) — registro lifecycle + vocabulary
+  // RDR (ADR 0109) — registro lifecycle
   noteUpdated: 'Registro interno atualizado.',
   noteAssigned: 'Responsável definido para o registro.',
   noteUnassigned: 'Responsável removido do registro.',
   noteConcluded: 'Registro interno concluído.',
-  noteTypeCreated: 'Tipo de registro criado.',
-  noteTypeUpdated: 'Tipo de registro atualizado.',
-  noteTypeArchived: 'Tipo de registro arquivado.',
-  noteTypesReordered: 'Ordem dos tipos de registro atualizada.',
 } as const
 
 /**

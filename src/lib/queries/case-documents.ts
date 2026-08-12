@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { listAttachments } from '@/lib/queries/attachments'
+import type { CaseEventKind } from '@/lib/cases/registro-kinds'
 
 /**
  * Case DOCUMENTS & manual EVENTS data-access (Cases-Extras batch, R1).
@@ -73,8 +74,13 @@ export interface CaseDocumentWithUrl extends CaseDocument {
  * authoritative source event and are never surfaced as a manual event, so they
  * stay out of this user-facing union (the timeline compares the raw `kind` string
  * to drop them — see `case-timeline.ts`). `meeting` predates this and remains.
+ *
+ * DEFINED in the dependency-free `@/lib/cases/registro-kinds` and re-exported here
+ * so the long-standing import path keeps working: the referral module's private
+ * "Registros internos" now files under the SAME vocabulary, and that module cannot
+ * import this one (it would drag `@/lib/supabase/server` into a client bundle).
  */
-export type CaseEventKind = 'note' | 'meeting' | 'decision' | 'other'
+export type { CaseEventKind }
 
 /**
  * System / auto-derived event kinds — NEVER manually creatable (so they stay OUT of
