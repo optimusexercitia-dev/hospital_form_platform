@@ -98,6 +98,19 @@ and **zero `public`-schema functions reference any of the six doors**
 (comment-stripped `prosrc` sweep, 2026-08-12) — the only reachable paths are
 policy evaluation and future DEFINER commands.
 
+**10. DM1 dropped an ENFORCEMENT MECHANISM whose replacement is unspecified —
+the confidentiality-label ceiling (⚠ visible from this record, not only from
+the follow-up file).** `app.attachment_confidentiality_ok` + the
+`confidentiality_label` column + the `HC0E6` open-door arm enforced ADR 0072
+D7's per-document ceiling (`legal_privileged` / `credentialing_sensitive`
+gated ABOVE ordinary case-read; clearance via
+`case_access_grants.max_confidentiality`). The document model carries no
+successor: `sensitivity_tier` selects a bucket, not a ceiling, and ADR 0114 D6
+defers only the WIDENING (audience) plane — this is a NARROWING control, and
+ADR 0114 does not supersede ADR 0072. **FUP-DM1-CEILING (🔴) blocks DM2 Wave A
+until a PO ruling lands as an ADR 0114 amendment.** The retired keystones (228
+tests 36–40, E2E AC-4a–d/AC-9) return with the control, not before.
+
 ## Consequences
 
 - The `%attachment%` catalog surface is exactly the named DM4 allowlist

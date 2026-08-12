@@ -6,6 +6,54 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### 🔴 FUP-DM1-CEILING — the ADR 0072 D7 confidentiality-label ceiling is a LIVE narrowing control the document model cannot express; **BLOCKS DM2 Wave A start** (owner: PO ruling → ADR 0114 amendment; filed by backend, upgraded by lead 2026-08-12)
+
+Escalated out of the DM1 triage (228 tests 36–40) and **upgraded by the lead
+from "retired coverage" to a blocking design input**: it is not a coverage
+loss, it is an authorization control with no home in the replacement substrate.
+
+**The control.** ADR **0072 D7 / ETH·E1** made `legal_privileged` +
+`credentialing_sensitive` **ENFORCING** per-document ceilings: a document so
+labeled is gated ABOVE ordinary case-read (clearance via
+`case_access_grants.max_confidentiality`), while `ethics_investigation`
+documents stay visible to ordinary case readers (the O2 pair). DM1 dropped its
+enforcement mechanism — `app.attachment_confidentiality_ok` + the label column
++ the `HC0E6` open-door arm — with the substrate (ADR 0116 §10).
+
+**Why the new model cannot express it (each verified against the catalog
+2026-08-12):**
+- `documents` / `document_versions` / `document_version_files` /
+  `file_objects` carry NO label column; the only sensitivity axis is
+  `file_objects.sensitivity_tier (standard|phi)`, which **selects a BUCKET —
+  it is not an access ceiling**.
+- ADR 0114 **D6 defers the audience plane as a WIDENING feature**
+  (share-with-user/group). This control **narrows below** home-resource
+  access — a different plane; D6's deferral does not cover it.
+- **ADR 0114 does not supersede ADR 0072**, so the D7 control is still the
+  ruled state of the platform.
+
+**The live contract that encodes it:** `e2e/ethics-e1-access-spine.spec.ts`
+**AC-4a/b/c/d** (two documents on the SAME ethics case; an ordinary case
+reader sees one and is denied the other) and **AC-9** (a keyboard-only path to
+the privileged one) — currently parked under FUP-DM1-E2E; plus the five
+retired pgTAP pins (228 tests 36–40: absent-from-list / refused-open /
+O2-stays-visible / clearance-admits-list / clearance-admits-open).
+
+**Why DM2, not later:** `cases.confidentiality_level` snapshots from the label
+vocabulary, and Wave A (DM2) re-points case / meeting / interview documents.
+If a wave re-points documents before this is resolved, a document that was
+gated above case-read becomes readable by every ordinary case reader — **a
+silent authorization regression introduced by a data-model migration.**
+Current real-world risk is zero (flag off, zero bytes), which is exactly why
+it would be easy to wave through.
+
+**Discharge condition: a PO ruling recorded as an ADR 0114 amendment. Wave A
+cannot start without it.** The ruling decides the ceiling's carrier in the
+document model (or explicitly retires the D7 control, superseding 0072); the
+implementation then restores all five pgTAP pins + AC-4/AC-9. 228's retired
+block stays retired until the control exists — the coverage returns WITH it,
+not before. Record only — the design is the PO/ADR decision, not backend's.
+
 ### 🟠 FUP-DM1-E2E — six attachment-touching E2E specs are PARKED by the DM1 substrate drop; DM2 must rewrite them against the document model, never merely delete them (owner: tester [park] + frontend/backend [DM2 rewrite])
 
 Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`

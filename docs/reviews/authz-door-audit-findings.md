@@ -70,6 +70,27 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 > This row is the ONLY hand-edited region this pass; nothing else was reordered. The next
 > FULL sweep regenerates this file and re-derives it from scratch.
 
+> ⚠ **HAND-MERGED, 2026-08-12 (DM1 / ADR 0114+0116).** The 14 DM1 gates — 6 new `app.*`
+> document-kernel doors + 8 new SELECT policies (the 9th, `document_retention_select`, is
+> `qual = true` and joins the Skipped catalog list below) — are merged from a **diff-scoped**
+> sweep (16-token CASES; baseline Files=188 Tests=5924 = the DM1 tree with 328's K11;
+> run 2 baseline 5926 = +K12), following the MIN/PDF·P2 precedent because a subset run
+> OVERWRITES this report. Verdicts: **13 executed → 12 COVERED + 1 BLIND
+> (`securable_resources_select`), 0 ERROR**; the BLIND was **keystoned (328 K12) and
+> re-swept COVERED** in a second single-case run — the observed BLIND is that keystone's
+> red-first evidence. **Two requested cases never executed**: `app.storage_upload_reserved`
+> and `app._audit_access_authorized` are outside this harness's name-prefix domain
+> (`^(is_|can_|has_)` at the predicate filter — the known RDR blind spot, see the note two
+> blocks up). Neither is inferred green: `storage_upload_reserved` carries a **targeted
+> mutation** (neutralized to `true` in a rolled-back txn → 328 K6d/K6f flip false→true →
+> the keystones red; rollback catalog-verified) and its COVERED row below cites that;
+> `_audit_access_authorized` keeps its existing name-keyed verdict from the standing sweep,
+> and the DM1 rewrite (attachment-read arm out, document-open arm in) is behaviorally pinned
+> by 328 K10a–K10d (allow/deny + exactly-one-audit-row + forge-refusal). The two storage
+> INSERT policies (`documents_std/phi_obj_insert_reserved`) are in NO sweep's domain
+> (FUP-AUTHZ-WP-SNAPSHOT class) and are NOT census members; their coverage is 328
+> K6d–K6h + the smuggled-SELECT-policy twin — never cite a sweep for them.
+
 ## BLIND — the work-list (no keystone exercises these)
 
 | gate / policy | arm | direction | verdict | note |
@@ -171,6 +192,20 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
+| app.can_read_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 144_case_access.sql,191_grant_hardening.sql,229_authz_m1_exclusion_durability.sql,311_oversight_readonly_perimeter.sql,328_dm1_document_substrate.sql (DM1 hand-merge 2026-08-12) |
+| app.can_write_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,314_qob_org_admin_content_wall.sql,328_dm1_document_substrate.sql (DM1) |
+| app.can_read_document_version(p_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| app.can_read_file_object(p_file_object_id uuid, p_uid uuid) | predicate | positive | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| app.can_read_document_hold(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid) | predicate | positive | COVERED | TARGETED MUTATION 2026-08-12 (out of the harness name-prefix domain — see the DM1 hand-merge note): neutralized to true in a rolled-back txn → 328 K6d/K6f flip false→true (keystones red); restore catalog-verified. Behavioral pins: 328 K6d–K6h |
+| documents.documents_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,311_oversight_readonly_perimeter.sql,328_dm1_document_substrate.sql (DM1) |
+| document_versions.document_versions_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| document_version_files.document_version_files_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| file_objects.file_objects_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| document_placements.document_placements_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| upload_sessions.upload_sessions_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| document_legal_holds.document_legal_holds_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql (DM1) |
+| securable_resources.securable_resources_select (SELECT) | policy | open->true | COVERED | 328_dm1_document_substrate.sql — BLIND on the first DM1 sweep (no keystone), K12 added, re-swept COVERED in run 2 (the BLIND is K12's red-first evidence) |
 | app.can_read_full_meeting_content(p_meeting_id uuid, p_uid uuid) | predicate | positive | COVERED | 313_printed_documents_meetings.sql (PDF·P2 fix-wave hand-merge — diff-scoped run 2026-08-08 after ADR 0104 A7 landed in 20260914000100, baseline Files=174 Tests=5502, BLIND 0 ERROR 0; A33 drill D9 helper-open REDs 313 t40/t41/t43/t47/t48) |
 | app.can_view_printed_document(p_source_kind text, p_source_id uuid, p_uid uuid) | predicate | positive | COVERED | 312_printed_documents.sql,313_printed_documents_meetings.sql (PDF·P2 fix-wave RE-sweep 2026-08-08 after the A7 conjunction landed in 20260914000100, baseline Files=174 Tests=5502, BLIND 0 ERROR 0; A33 drills: D1 ELSE-true, D8 arm-open [16 reds incl. the A7 keystones], D9 via the helper row above. Earlier verdicts: P2 arm sweep Files=174 Tests=5486; original PDF·P1 run 2026-08-07 Files=173 Tests=5444) |
 | printed_documents.printed_documents_select (SELECT) | policy | open->true | COVERED | 312_printed_documents.sql (PDF·P1 hand-merge — same diff-scoped run) |
@@ -442,6 +477,8 @@ from a clean-looking summary. That arm is covered instead by a targeted mutation
 ## Skipped SELECT/ALL policies (qual = true — intentionally public catalogs)
 
 - `action_item_statuses / action_item_statuses_select / SELECT`
+- `document_retention / document_retention_select / SELECT`
+  (DM1 2026-08-12 — deliberately open catalog: kind/tier/years config, no tenant or clinical data. ⚠ The bullet above must end at the backtick — ARM 3 parses this list with a $-anchored regex.)
 - `action_item_urgency_levels / action_item_urgency_levels_select / SELECT`
 - `pqs_department / pqs_department_select / SELECT`
 - `pqs_event_types / pqs_event_types_select / SELECT`

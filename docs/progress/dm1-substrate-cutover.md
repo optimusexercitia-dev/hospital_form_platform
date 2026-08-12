@@ -24,7 +24,7 @@
 | T5 | pgTAP triage (16 files incl. 2 outside the attachment grep) + full `test:db` green | ✅ 2026-08-12 | `All tests successful. Files=188, Tests=5909, Result: PASS` (verdict read from the pg_prove summary, never the exit code); §triage ledger |
 | T5b | Repo-wide changed-identifier sweep across src/ (relations + routines + bucket literals, not just RPC sites) | ✅ 2026-08-12 | beyond rca.ts: ONE more live-code find — `getCaseDocumentDownloadUrl` (legacy-bucket cookie signer, ZERO callers) parked to null; everything else = comments/JSDoc + the deliberately-historical audit vocabulary in `queries/audit.ts` + legacy consts in `attachments/constants.ts` (types still consumed by the stubs/UI) |
 | T6 | TS stubs + wrapper patches + lint/typecheck/vitest | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 3: stubs land with gen:types); lint 5-gate 0/0 · tsc 0 · vitest 1254/1254 |
-| T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ⬜ | |
+| T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ✅ 2026-08-12 | §Turn-7 record: all four arms HOLD, exit 0 each; sweep 13 executed / 12 COVERED / 1 BLIND→keystoned→COVERED / 0 ERROR |
 
 ## Red-first record (lead condition 5)
 
@@ -185,16 +185,86 @@ new home — DM2's gate must check these off):**
    non-vacuity twin, at the serving layer AND as door resolve-shape.
 3. `dispose_case_phi` → document disposition keystone (FUP-DM1-DISPOSE; 197
    regains 1.11's successor).
-4. **OPEN (PO/lead — Q1-adjacent): the ADR 0063 confidentiality-label ceiling**
-   (five pins from 228: absent-from-list / refused-open / O2-stays-visible /
-   clearance-admits ×2) has NO DM substrate — the document model defers
-   per-document access semantics to the D6/O3 access-policy seam and carries no
-   label column. The ceiling's return vehicle must be decided, not assumed.
+4. ~~OPEN (PO/lead)~~ → **UPGRADED by the lead 2026-08-12 to 🔴 FUP-DM1-CEILING,
+   BLOCKING DM2 Wave A** (a live ADR 0072 D7 NARROWING control the document
+   model cannot express — not a coverage loss). Full body in follow-ups.md;
+   ADR 0116 §10 names the dropped enforcement mechanism; discharge = a PO
+   ruling recorded as an ADR 0114 amendment. 228's block stays retired until
+   the control exists.
 
 (Also noted: the historical q1 phase harness's `open_bytes_cut` /
 `open_resolver_door` cases reference retired surfaces — a phase harness, not a
 standing gate; `276`'s commission-delete `throws_ok('23503')` is errcode-only
 and green regardless of which constraint fires.)
+
+## Turn-7 record (the authz arms, 2026-08-12)
+
+- **FUP-DM1-CEILING re-filed per the lead's upgrade** (🔴, blocks DM2 Wave A;
+  body in follow-ups.md; index row in PROGRESS.md; ADR 0116 §10 names the
+  dropped enforcement mechanism from the phase's own decision record). 228's
+  retired block stays retired.
+- **`ARM=census` REQUIRED-FAIL captured** (fresh reset, pre-verdicts):
+  `INVARIANT VIOLATED — 15 gates UNKNOWN`, naming exactly the 6 new doors + 9
+  new SELECT policies. ⚠ The two storage INSERT policies
+  (`documents_std/phi_obj_insert_reserved`) are in NO sweep's domain by
+  construction (the FUP-AUTHZ-WP-SNAPSHOT structural hole: the door audit
+  filters `polcmd in ('r','*')`, the write-path arm has a hardcoded worklist) —
+  their coverage is BEHAVIORAL and mutation-proven: 328 K6d–K6h + TWIN5
+  (smuggled SELECT policy → K6b red) + K6h (unreserved INSERT → 42501). Never
+  cite a sweep for these two.
+- **K11 added before the sweep** (15 read-pair keystones through every
+  resolver door + chain policy; plan 70→85): the sweep's one-at-a-time
+  neutralizations are K11's mutation proof. ⚠ K11h's first draft went RED on a
+  wrong-arm fixture — bare membership does NOT confer case-read on a fresh
+  case under the capability lattice; re-pointed at a seeded-case chain where
+  the member holds a real content source. 328 = 1..85 → ran 85 / ok 85 / 0
+  aborts.
+- **Diff-scoped ARM-1 door sweep** (16-token CASES; baselines 5924/5926 — the
+  +15/+17 vs turn-4/5's 5909 are K11/K12 by name, i.e. the CURRENT tree):
+  **13 cases executed → 12 COVERED + 1 BLIND + 0 ERROR.** The case-count
+  check paid twice: (a) `document_retention_select` skipped-by-design
+  (qual=true → the Skipped catalog list, census-parsed); (b)
+  **`storage_upload_reserved` + `_audit_access_authorized` NEVER RAN** — the
+  known RDR name-prefix harness blind spot (`^(is_|can_|has_)`); neither
+  inferred green: `storage_upload_reserved` got a TARGETED MUTATION
+  (open→true in a rolled-back txn → K6d/K6f flip → keystones red; restore
+  catalog-verified) and a cited COVERED row; `_audit_access_authorized` keeps
+  its standing name-keyed verdict + K10a–d behavioral pins. ⚠ A 17th
+  implicit match I predicted (`case_documents_select_member` via substring)
+  did NOT occur — matching is exact; reconciled count = 13 executed of 16
+  requested, fully accounted.
+- **`securable_resources_select` came back BLIND — a real finding, keystoned
+  not allowlisted:** K12 pair added (member reads own-commission registry
+  rows / foreign staff_admin reads 0), 328 → **1..87, ran 87 / ok 87 / 0
+  aborts**; single-case re-sweep → **COVERED** (the observed BLIND is K12's
+  red-first evidence).
+- **Restore verified from the CATALOG before any arm ran** (lead condition):
+  all 6 predicates carry full non-neutralized bodies (arm-pattern positive
+  checks incl. the two my first regex missed), all 8 policy quals real
+  (`qual <> 'true'`), plus 87/87 behavioral. No gate left open.
+- **Findings hand-merge** (restore-then-append per the MIN/PDF·P2 precedent):
+  committed file restored via `git checkout --` (the 8-line subset-overwrite
+  partial never staged), 14 verdict rows + the retention Skipped bullet +
+  a DM1 note block appended. ⚠ Two census-parser traps hit and fixed in the
+  merge: pgtap-installed inflated the census domain 548→729 (dropped before
+  re-run — the gen-types-pollution scar, census edition), and the Skipped
+  bullet regex is $-anchored (my trailing annotation broke it; note moved to
+  its own line).
+- **The arms, each by name (no tail pipes; exit codes read separately):**
+  - `ARM=census` — **required-FAIL captured pre-verdicts** (15 UNKNOWN, the
+    exact new-gate set), then post-merge: **INVARIANT HOLDS, exit 0**
+    (548 live gates / 568 verdicts).
+  - `ARM=hat` — **INVARIANT HOLDS, exit 0**.
+  - `FROMFINDINGS=1 ARM=wrapper` — **INVARIANT HOLDS, exit 0** (BLIND set
+    41 ⊆ allowlist; DM1 added zero public INVOKER wrappers).
+  - `ARM=floor` — **INVARIANT HOLDS, exit 0** (77 never-called doors, all
+    allowlisted; DM1 added no authenticated-reachable public DEFINER door and
+    removed five).
+  - The write-path `ARM=policy` subset was **deliberately NOT run**: the DM1
+    diff contains no gate inside its hardcoded worklist, so it would print
+    `BLIND: 0` over ZERO cases (the FUP-AUTHZ-WP-SNAPSHOT no-op) — stated
+    per the case-count rule; the two storage INSERT policies are covered by
+    328 K6d–K6h + twins, never by a sweep citation.
 
 ## PROD-VERIFY checklist (lead condition 2 — for the later lead-authorized `db push`; NO remote action was taken this phase)
 

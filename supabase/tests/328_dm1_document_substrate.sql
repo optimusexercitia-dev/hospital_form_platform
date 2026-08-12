@@ -23,7 +23,7 @@
 -- =============================================================================
 
 begin;
-select plan(70);
+select plan(87);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -556,6 +556,103 @@ select throws_ok(
               '00000000-0000-0000-0000-000000000002') $q$,
   '42501', null,
   'K6h a direct Storage write without a reservation is DENIED (the M5 policy is live and fail-closed)');
+reset role;
+
+-- =============================================================================
+-- K11 — the RESOLVER chain, read BEHAVIORALLY through every policy (the ARM-1
+-- door sweep neutralizes each of these one at a time and requires reds HERE —
+-- the sweep is K11's mutation proof). Fixtures reused: K7's chain (case c2 →
+-- doc d0c2 → version e0c2 → file f0c2, hold dd released), K5's d101/d102,
+-- K6's session a6c1 (expired). Plus one placement.
+-- =============================================================================
+
+insert into public.document_placements (id, document_id, resource_id, created_by)
+values ('32800000-0000-0000-0000-00000000ac01', '32800000-0000-0000-0000-00000000d101',
+        (select home_resource_id from public.documents where id = '32800000-0000-0000-0000-00000000d102'),
+        '00000000-0000-0000-0000-000000000002');
+
+-- A chain under K5's d101 (homed on SEEDED Caso 0001, which staff1 reads via a
+-- real content source — verified pre-authoring; a FRESH case is NOT readable
+-- by bare membership under the capability lattice, which a first draft of
+-- K11h learned by going red on the wrong arm).
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('32800000-0000-0000-0000-00000000e101', '32800000-0000-0000-0000-00000000d101',
+        1, '00000000-0000-0000-0000-000000000002');
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('32800000-0000-0000-0000-00000000f101', 'documents-standard',
+        '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f101/gen-1',
+        'standard', '00000000-0000-0000-0000-000000000002');
+update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+ where id = '32800000-0000-0000-0000-00000000f101';
+update public.file_objects set upload_state = 'verifying'
+ where id = '32800000-0000-0000-0000-00000000f101';
+update public.file_objects set upload_state = 'scan_pending'
+ where id = '32800000-0000-0000-0000-00000000f101';
+update public.file_objects set upload_state = 'clean'
+ where id = '32800000-0000-0000-0000-00000000f101';
+insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+values ('32800000-0000-0000-0000-00000000e101', '32800000-0000-0000-0000-00000000f101', 'source');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.document_versions where id = '32800000-0000-0000-0000-00000000e0c2'),
+  1, 'K11a the home staff_admin reads the version (can_read_document via document_id)');
+select is((select count(*)::int from public.document_version_files where document_version_id = '32800000-0000-0000-0000-00000000e0c2'),
+  1, 'K11b …and the version-file binding (can_read_document_version resolver)');
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f0c2'),
+  1, 'K11c …and the file object (can_read_file_object)');
+select is((select count(*)::int from public.document_legal_holds where id = '32800000-0000-0000-0000-0000000000dd'),
+  1, 'K11d …and the legal hold (can_read_document_hold: staff_admin arm)');
+select is((select count(*)::int from public.document_placements where id = '32800000-0000-0000-0000-00000000ac01'),
+  1, 'K11e …and the placement (non-authorizing read follows the document)');
+select cmp_ok((select count(*) from public.document_retention), '>', 0::bigint,
+  'K11f retention config is authenticated-readable (deliberately open catalog read)');
+select is((select count(*)::int from public.upload_sessions where id = '32800000-0000-0000-0000-00000000a6c1'),
+  1, 'K11g the reservation owner reads their own upload session');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f101'),
+  1, 'K11h a plain member reads the file object through the BINDING CHAIN (not the creator arm — staff1 is not the creator; the home case is readable to him by a real content source)');
+select is((select count(*)::int from public.document_legal_holds where id = '32800000-0000-0000-0000-0000000000dd'),
+  0, 'K11i …but NOT the hold (write-authority governance metadata: staff_admin/tenancy only)');
+select is((select count(*)::int from public.upload_sessions where id = '32800000-0000-0000-0000-00000000a6c1'),
+  0, 'K11j …and NOT someone else''s upload session');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.document_versions where id = '32800000-0000-0000-0000-00000000e0c2'),
+  0, 'K11k a foreign staff_admin reads NO version');
+select is((select count(*)::int from public.document_version_files where document_version_id = '32800000-0000-0000-0000-00000000e0c2'),
+  0, 'K11l …no version-file binding');
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f0c2'),
+  0, 'K11m …no file object (neither creator nor chain)');
+select is((select count(*)::int from public.document_legal_holds where id = '32800000-0000-0000-0000-0000000000dd'),
+  0, 'K11n …no hold');
+select is((select count(*)::int from public.document_placements where id = '32800000-0000-0000-0000-00000000ac01'),
+  0, 'K11o …no placement');
+reset role;
+
+-- =============================================================================
+-- K12 — the registry's OWN policy, asserted through (added after the ARM-1
+-- diff-scoped sweep returned securable_resources_select = BLIND — the doctrine
+-- is keystone-what-comes-back-BLIND, never allowlist a tenant boundary).
+-- =============================================================================
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select cmp_ok((select count(*) from public.securable_resources
+                where commission_id = 'a0000000-0000-0000-0000-0000000000a1'), '>', 0::bigint,
+  'K12a a commission member reads his own commission''s registry rows (non-vacuous: CCIH has seeded resources)');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.securable_resources
+            where commission_id = 'a0000000-0000-0000-0000-0000000000a1'), 0,
+  'K12b a staff_admin of ANOTHER commission reads ZERO CCIH registry rows (member-or-tenancy boundary)');
 reset role;
 
 -- =============================================================================
