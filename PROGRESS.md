@@ -149,20 +149,34 @@ tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that 
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
-**1. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
-[0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
-(QA M-2); **not an FF-3 defect and not a known leak** — PO decision on scheduling. The sweep floors
-`prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written
-RLS probe is the only gate in front of a DEFINER body** — a `prosecdef = f` function whose security rests
-entirely on an `if not exists (…)`. FF-3's `get_response_validation_errors` is one instance: deleting its
-existence probe reds **0 assertions across six files**, while a commission-Y staff then reads
-commission-X rule messages **and item labels** (proven live; keystone `§O` added, mutation-proven).
-**It is a pattern, not an accident** — it is the natural way to front an `app.` DEFINER helper, and
-**173 of 328 `app` DEFINER functions carry `EXECUTE` to `PUBLIC`** (catalog-measured 2026-08-10;
-was 130 of 281 when filed — the population **grows**, so re-measure rather than citing this line),
-so the wrapper is the whole boundary each time. Proposed scope: enumerate `public` `prosecdef = f`
-functions calling an `app` `prosecdef = t` function, and require a keystone per wrapper that reds
-when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
+**1. ✅ AUDIT-INVOKER-WRAPPER — CLOSED 2026-08-12** (branch `authz-wrapper-refnote`; ADR
+[0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) **Amendment 7**; sweep
+`supabase/tests/mutation/p0-authz-invoker-audit.sh`; report
+[authz-invoker-audit-findings.md](docs/reviews/authz-invoker-audit-findings.md); keystones pgTAP 327).
+All three prior sweeps begin `and p.prosecdef`, so the whole `public` INVOKER surface — **88
+`authenticated`-reachable plpgsql functions** — was in **no arm's domain at all**. Now swept by a
+fourth sweep + **`ARM=wrapper`**, and ARM 3's census widened in the same change (live gates
+**452 → 540**) so a NEW wrapper cannot pass vacuously. CLAUDE.md §6 step 1 runs the cheap
+`FROMFINDINGS=1` form every phase; the ~100 min full sweep is periodic, like ARM 1's.
+
+**The finding.** 47 BLIND on the first pass — but ⚠ **BLIND is not a synonym for vulnerable here**:
+an INVOKER's write still runs under RLS, and for **26** wrappers the target table's write policy
+re-states the gate verbatim (defence in depth — a green suite is CORRECT). The real leak is where the
+wrapper is **stricter** than the policy behind it: the meeting verbs gate on `is_staff_admin_of`
+while `meetings` RLS also admits `member_can(…,'schedule_meetings')`. **Mutation-proven live**: with
+`cancel_meeting`'s gate opened, `staff2.ccih@test.local` — a plain `staff` holding the ADR-0061
+`schedule_meetings` capability — went from `42501` to **successfully cancelling the meeting**. pgTAP
+327 keystones that family (4 doors, all red-first verified).
+
+⚠ **Two harness defects found by hand-checking the sweep's own output; both are recorded in the
+script header because no gate can see them.** (a) The obvious build — reuse the row-door regex —
+is **definitionally wrong** for this class and missed `get_response_validation_errors`, the exemplar
+that motivated the item; its guard names no identity primitive, because for an INVOKER an existence
+probe against an RLS table **is** the authorization decision. (b) A verdict resting only on that
+probe class is **PROVISIONAL** — the same shape is the gate in one wrapper and a domain check in
+another — and an identity assert called as `v := app.assert_X(…)` cannot be opened at all, so those
+report UNSUPPORTED rather than a verdict about the wrong guard. `update_meeting` was BLIND on exactly
+that mistake. **Never trust a g1-only verdict without hand-classifying it.**
 
 ---
 
@@ -199,39 +213,20 @@ when its guard is removed. Relates to ARCHITECTURE.md Rule 1.
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🔴 **BUG-REFNOTE-001 — `redact_referral_note`'s masking is bypassable: four sibling DEFINER doors
-return the unmasked `body_md`.** Found 2026-08-12 by `qa` during the FUP-batch review
-([report](docs/reviews/fup-batch-2026-08-12-review.md)). **PRE-EXISTING — NOT introduced by that
-batch, and it did NOT block it** (the four exploitable doors are untouched by it; the two REG·KIND
-rebuilt are not exploitable — `create` takes the body from the caller, `update` refuses outright on
-a redacted note). **Severity: P2 — insider-only, no privilege escalation, no cross-tenant reach.**
-Owner: unassigned.
-
-**Mechanism.** `list_referral_internal_notes` masks a redacted body as `'[redigido]'`. Four sibling
-DEFINER doors — `assign` / `conclude` / `unassign` / `redact` — declare `RETURNS
-referral_internal_notes`, the **full row**, and hand back the real `body_md`. That is the one column
-of 17 deliberately withheld from the `authenticated` GRANT by the K-R5-2 hardening, so the row-type
-return re-opens exactly what the column-list GRANT closed. **Same shape as FUP-PDF-3**, which this
-batch fixed on the printed-document doors — the class is not confined to one module.
-
-**Proved live, not inferred** — direct read as a named persona, `staff1.ccih@test.local`, a plain
-`staff` member; run twice, rolled back both times, with controls:
-
-| Check | Result |
-| --- | --- |
-| Control A — is the persona a coordinator? | `false` |
-| Control B — `authenticated` EXECUTE on the doors? | 2 of 2 (PostgREST-reachable) |
-| Control E — direct `select body_md` as that persona | **refused `42501`** (the GRANT works) |
-| F — read door | `body_md = "[redigido]"` |
-| G — `conclude_referral_internal_note`, **same txn, role and hat** | `body_md = "SEGREDO-CLINICO-XYZ"` |
-
-⚠ **Rule 12 surface.** Referral note free text sits in a PHI module — the platform's own
-`log_audit_access` call treats a served body as *a PHI read*, and `dispose_referral_phi` updates this
-table on the LGPD Art. 18 path. ⚠ **Rule 11 gap alongside it:** the mutator doors serve the body with
-**no `referral.note_viewed` audit row**, so a read through this path leaves no trail at all.
-
-**Do not fix by narrowing the return alone without checking the audit arm** — the two halves are
-separate obligations (Rule 12 exposure, Rule 11 legibility) and closing one silently leaves the other.
+✅ **BUG-REFNOTE-001 — DEFINER doors returned the unmasked `body_md` past the column GRANT.
+FIXED 2026-08-12** (migration `20260922000100_refnote_referral_door_return_shape.sql`, pgTAP 326,
+ADR [0113](docs/decisions/0113-referral-door-return-shape.md); branch `authz-wrapper-refnote`).
+Filed as **4 doors; the catalog said 23** — the same shape (`RETURNS <table>` re-opening what a
+column-list GRANT closed) held across `case_referral` (15 doors, serving `description_md` +
+`decline_note`), `referral_internal_notes` (6, `body_md`) and `referral_messages` (2, `body`).
+**The 15 `case_referral` doors were the larger half and were not in the report.** Fixed as a class:
+one named composite per table mirroring its GRANT exactly, projected BY NAME. The filed Control G
+was reproduced and closed — the reverted door served `SEGREDO-CLINICO-XYZ` to a plain member, the
+narrowed one returns 16 fields with no `body_md`. **Rule 11's two halves resolved separately**: the
+READ obligation is discharged by removal (no withheld column is served anymore); the MUTATION
+obligation already held (`trg_audit_referral_aiud` + direct `app.audit_write`, catalog-verified, not
+taken from body comments). ⚠ The durable defence is pgTAP 326 **t1–t3**, which pin composite ≡ GRANT
+— a column added to either side alone reds. Full record → the ADR.
 
 ✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
 succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).

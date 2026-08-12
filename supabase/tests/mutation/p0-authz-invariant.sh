@@ -42,11 +42,30 @@
 #     enough to run EVERY phase, which is the whole point: an expensive gate gets
 #     satisfied nominally, and that is the failure this arm exists to prevent.
 #
+#   ARM 5  INVOKER-WRAPPER BLIND ⊆ ALLOWLIST (AUDIT-INVOKER-WRAPPER)
+#     ARMs 1–3 all bound their domain with `p.prosecdef` — so the entire `public`
+#     INVOKER surface (88 `authenticated`-reachable plpgsql functions) had never been
+#     swept in any direction, by any arm, and could not be: a `prosecdef = f` wrapper
+#     is in no BLIND set (ARM 1), is not a door (ARM 2), and is not in the census
+#     domain (ARM 3). That is the AUDIT-INVOKER-WRAPPER hole, found in FF-3 (QA M-2).
+#     This arm compares p0-authz-invoker-audit.sh's BLIND set to
+#     authz-invoker-blind-allowlist.txt, exactly as ARM 1 does for policies.
+#
+#     ⚠ ARM 3's census domain is WIDENED to include these wrappers in the same change.
+#     Without that, a NEW invoker wrapper would pass ARM 5 vacuously by being absent
+#     from the findings md — precisely how 15 policies crossed five phase gates before
+#     Amendment 3. An arm that only checks BLIND ⊆ allowlist can never notice a gate
+#     nobody has swept; only the census can.
+#
 # ── Modes ──────────────────────────────────────────────────────────────────────
 #   bash p0-authz-invariant.sh                 # ARM 1 (full sweep, ~90 min) + 2 + 3
 #   ARM=policy  bash p0-authz-invariant.sh     # ARM 1 only
 #   ARM=floor   bash p0-authz-invariant.sh     # ARM 2 only  (~1 min)
 #   ARM=census  bash p0-authz-invariant.sh     # ARM 3 only  (~2 s)
+#   ARM=wrapper bash p0-authz-invariant.sh     # ARM 5 only  (~2 s from the committed
+#                                               # findings; the SWEEP behind it is
+#                                               # ~25 min and the lead runs it in the
+#                                               # background, like ARM 1's)
 #   ARM=hat     bash p0-authz-invariant.sh     # ARM 4 only  (~10 s) — ACT hat-blindness:
 #                                               # caller-bound raw memberships reads with no
 #                                               # active-role condition (ADR 0106 S4; the
@@ -69,10 +88,12 @@ WORK="${WORK:-/c/Users/micha/AppData/Local/Temp/claude/C--Users-micha-Developmen
 HERE="$ROOT/supabase/tests/mutation"
 ALLOWLIST="$HERE/authz-blind-allowlist.txt"
 FLOOR_ALLOW="$HERE/authz-neverclled-door-allowlist.txt"
+INV_ALLOW="$HERE/authz-invoker-blind-allowlist.txt"
 UNSWEPT="$HERE/authz-unswept-backlog.txt"
 DOOR_FINDINGS="$ROOT/docs/reviews/authz-door-audit-findings.md"
 WP_FINDINGS="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
 ROW_FINDINGS="$ROOT/docs/reviews/authz-rowdoor-audit-findings.md"
+INV_FINDINGS="$ROOT/docs/reviews/authz-invoker-audit-findings.md"
 ARM="${ARM:-all}"
 FROMFINDINGS="${FROMFINDINGS:-0}"
 mkdir -p "$WORK"
@@ -248,6 +269,22 @@ run_arm_census () {
       where n.nspname in ('app','public') and p.prosecdef
         and (t.typname = 'bool'
              or (p.proretset and has_function_privilege('authenticated', p.oid, 'EXECUTE')));"
+    # ⚠ AND every authenticated-reachable PUBLIC INVOKER plpgsql function
+    # (AUDIT-INVOKER-WRAPPER). Added with ARM 5. Note what changes here: every OTHER
+    # clause in this census is bounded by `p.prosecdef`, and so were all three sweeps —
+    # which is exactly why this class had no verdict in any direction. A `prosecdef = f`
+    # wrapper whose own hand-written probe is the only gate in front of an `app` DEFINER
+    # body is an authorization decision by any honest reading, and until this line it was
+    # not in the enumeration at all. Widening ARM 5 without widening the census would let
+    # a NEW wrapper pass ARM 5 by simply being absent from the findings md.
+    psql_c -c "
+      select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      join pg_language l on l.oid = p.prolang
+      where n.nspname = 'public' and not p.prosecdef and p.prokind = 'f'
+        and l.lanname = 'plpgsql'
+        and has_function_privilege('authenticated', p.oid, 'EXECUTE');"
     psql_c -c "
       select c.relname||'.'||pol.polname||' ('||
              (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'
@@ -262,8 +299,14 @@ run_arm_census () {
   # were swept and found BLIND, which is a verdict.
   { verdicts_from_findings "$DOOR_FINDINGS"; verdicts_from_findings "$WP_FINDINGS"
     verdicts_from_rowfindings "$ROW_FINDINGS"
+    # The invoker report shares the row-door report's four-table layout, so it needs the
+    # same verdict-column filter: its UNSUPPORTED table means "this harness has no
+    # mechanism for that wrapper", which is the OPPOSITE of a sweep result. Counting
+    # those as verdicts would let a wrapper leave the backlog on the strength of the
+    # harness admitting it could not test it.
+    verdicts_from_rowfindings "$INV_FINDINGS"
     skipped_from_findings "$DOOR_FINDINGS"; skipped_from_findings "$WP_FINDINGS"
-    allow_body "$ALLOWLIST"; allow_body "$UNSWEPT"
+    allow_body "$ALLOWLIST"; allow_body "$INV_ALLOW"; allow_body "$UNSWEPT"
   } | sort -u > "$accounted"
 
   echo "  live authz gates (catalog): $(wc -l < "$live" | tr -d '[:space:]')"
@@ -310,13 +353,54 @@ run_arm_hat () {
   bash "$HERE/act-hat-blind-sweep.sh" || RC=1
 }
 
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 5 — INVOKER-WRAPPER BLIND ⊆ ALLOWLIST (AUDIT-INVOKER-WRAPPER)
+# The `prosecdef = f` half of the surface. Structurally identical to ARM 1, over a
+# domain ARMs 1–3 each excluded by construction.
+# ════════════════════════════════════════════════════════════════════════════════
+run_arm_wrapper () {
+  echo "=== ARM 5: invoker-wrapper BLIND ⊆ allowlist ==="
+  local blinds="$WORK/invariant_blinds_invoker.txt"
+
+  if [ "$FROMFINDINGS" = "1" ]; then
+    echo "  mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)"
+    blind_from_findings "$INV_FINDINGS" | sort -u > "$blinds"
+  else
+    echo "  mode: FULL SWEEP (invoker) — ~25 min"
+    ( cd "$ROOT" && bash "$HERE/p0-authz-invoker-audit.sh" ) || { echo "  *** invoker sweep failed"; RC=1; }
+    awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_invoker.tsv" 2>/dev/null | sort -u > "$blinds"
+  fi
+
+  local n; n=$(wc -l < "$blinds" | tr -d '[:space:]')
+  echo "  BLIND set size: $n"
+  local offenders
+  offenders=$(comm -23 "$blinds" <(allow_body "$INV_ALLOW" | sort -u))
+  if [ -n "$offenders" ]; then
+    echo "  *** INVARIANT VIOLATED — BLIND wrappers NOT in the allowlist:"
+    echo "$offenders" | sed 's/^/      /'
+    echo "  Fix: add a mutation-proven keystone (preferred) or, if a genuine backstop,"
+    echo "       add the line to $INV_ALLOW with justification."
+    RC=1
+  else
+    echo "  OK: every BLIND wrapper is on the allowlist."
+  fi
+  local stale
+  stale=$(comm -13 "$blinds" <(allow_body "$INV_ALLOW" | sort -u))
+  if [ -n "$stale" ]; then
+    echo "  note: allowlist entries no longer BLIND (now COVERED — prune when convenient):"
+    echo "$stale" | sed 's/^/      /'
+  fi
+}
+
 case "$ARM" in
-  policy) run_arm_policy ;;
-  floor)  run_arm_floor ;;
-  census) run_arm_census ;;
-  hat)    run_arm_hat ;;
-  all)    run_arm_policy; echo; run_arm_floor; echo; run_arm_census; echo; run_arm_hat ;;
-  *) echo "unknown ARM=$ARM (use policy|floor|census|hat|all)"; exit 2 ;;
+  policy)  run_arm_policy ;;
+  floor)   run_arm_floor ;;
+  census)  run_arm_census ;;
+  hat)     run_arm_hat ;;
+  wrapper) run_arm_wrapper ;;
+  all)     run_arm_policy; echo; run_arm_floor; echo; run_arm_census; echo; run_arm_hat
+           echo; run_arm_wrapper ;;
+  *) echo "unknown ARM=$ARM (use policy|floor|census|hat|wrapper|all)"; exit 2 ;;
 esac
 
 echo

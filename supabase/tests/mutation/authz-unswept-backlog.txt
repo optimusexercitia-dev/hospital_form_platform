@@ -223,3 +223,55 @@ public.remind_document_approver(p_version_id uuid, p_approver_id uuid)
 #    a findings verdict makes ARM 3 report the gate as an unswept NEWCOMER. So a line
 #    leaves this section only after the findings md carries its verdict: full sweep, or
 #    hand-merge as above.
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# AUDIT-INVOKER-WRAPPER, 2026-08-12 (ADR 0079 Amendment 7). `public` INVOKER wrappers
+# the invoker sweep returned UNSUPPORTED — it has no mechanism to open their gate, so
+# it returns NO verdict about them. Two distinct reasons, both recorded because the
+# difference is what a later reader needs:
+#
+#   (a) NO OPENABLE GUARD — the authorization is a conjunct inside a query, or a
+#       `select … into` whose RLS read IS the gate. Same shape the row-door sweep files
+#       UNSUPPORTED; owes a walk-through keystone, not a neutralization.
+#   (b) UN-OPENABLE IDENTITY ASSERT — the gate is `v := app.assert_X(…)`, the assignment
+#       form, which has no type-safe neutral value. ⚠ `update_meeting` is here: it was
+#       previously recorded BLIND on the strength of a DOMAIN probe the sweep could open,
+#       a verdict about the wrong guard. Its authority exposure is the same as the
+#       meetings verbs and is covered by pgTAP 327 t6 rather than by the harness.
+#
+# ⚠ UNSUPPORTED is not a pass and not a verdict — it is the harness admitting its edge.
+# ─────────────────────────────────────────────────────────────────────────────────
+public.add_group_instance(p_response_id uuid, p_group_item_id uuid)
+public.add_meeting_attendee(p_meeting_id uuid, p_user_id uuid, p_external_name text, p_external_org text, p_role text, p_attendance text, p_note text)
+public.add_template_narrative(p_template_version_id uuid, p_narrative_type_id uuid, p_title text, p_instructions text, p_is_expected boolean)
+public.assert_profile_tenant_has_org()
+public.clone_form_version(p_source_version_id uuid)
+public.clone_template_version(p_source_version_id uuid)
+public.create_form(p_commission_id uuid, p_title text, p_description text)
+public.create_process_template(p_commission_id uuid, p_title text, p_description text)
+public.delete_section_moving_items(p_section_id uuid, p_target_section_id uuid)
+public.discard_response(p_response_id uuid)
+public.discard_template_draft(p_template_version_id uuid)
+public.form_item_options_code_immutable()
+public.guard_profile_no_delete()
+public.mark_all_notifications_read()
+public.publish_form_version(p_form_version_id uuid, p_approved_by uuid, p_effective_date date, p_review_cycle_months integer, p_review_due_date date)
+public.publish_process_template(p_template_id uuid)
+public.publish_template_version(p_template_version_id uuid)
+public.reference_candidates(p_response_id uuid, p_item_id uuid, p_query text)
+public.remove_template_narrative(p_narrative_id uuid)
+public.reorder_case_layout_template(p_template_version_id uuid, p_ordered jsonb)
+public.reorder_item(p_item_id uuid, p_direction text)
+public.reorder_section(p_section_id uuid, p_direction text)
+public.reorder_template_phase(p_phase_id uuid, p_direction text)
+public.save_section_answers(p_response_id uuid, p_section_id uuid, p_answers jsonb, p_clear_item_ids uuid[], p_observations jsonb, p_selections jsonb, p_other_text jsonb, p_instance_answers jsonb, p_matrix_cells jsonb, p_risk_matrix jsonb, p_references jsonb)
+public.seed_expected_meeting_attendees(p_meeting_id uuid)
+public.seed_selected_meeting_attendees(p_meeting_id uuid, p_user_ids uuid[])
+public.set_notification_preferences(p_surface text, p_enabled boolean)
+public.set_template_phase_blocks(p_phase_id uuid, p_blocks integer[])
+public.skip_phase(p_case_phase_id uuid)
+public.start_or_resume_phase(p_case_phase_id uuid)
+public.start_or_resume_response(p_form_version_id uuid)
+public.submit_response(p_response_id uuid)
+public.update_meeting(p_meeting_id uuid, p_title text, p_scheduled_start timestamp with time zone, p_modality text, p_meeting_type_id uuid, p_scheduled_end timestamp with time zone, p_location_text text, p_meeting_url text, p_minutes_md text)
+public.update_template_narrative(p_narrative_id uuid, p_title text, p_instructions text, p_is_expected boolean, p_clear_title boolean, p_clear_instructions boolean)

@@ -467,3 +467,71 @@ was "greps for the short helper name" (the `\yname\y` / `name_for` finding) and 
 this directory". Each shipped a confident closure that was false. Full write-up with the method
 to repeat: `docs/progress/authz-handoff.md` §7.17. Fix + keystone: `20260918002800`,
 `supabase/tests/318_act_hat_blind_caller_gate_siblings.sql`.
+
+## Amendment 7 — ARM 5: the `prosecdef = f` half was in NO arm's domain (2026-08-12)
+
+**Found by:** the FF-3 QA review (M-2), filed as AUDIT-INVOKER-WRAPPER and carried as a standing
+item in *Remaining pre-pilot work* §1 until now.
+
+**What this ADR's arms could not see.** Every arm here bounds its domain with `p.prosecdef` —
+ARM 1's three sweeps each begin `and p.prosecdef`, ARM 2 asks only about *doors*, ARM 3's census
+counts `prosecdef` booleans, `prosecdef` row-returning doors, and RLS policies. So the entire
+`public` **INVOKER** surface — 88 `authenticated`-reachable plpgsql functions — had never been
+swept in any direction, by any arm, and structurally could not be. It was not BLIND; it was
+outside the enumeration. Widening the census to include it moved the live-gate count from 452 to
+**540**: 88 authorization decisions that no arm had ever counted.
+
+That surface matters because of this codebase's own shape: fronting an `app` DEFINER helper with
+a thin `public` INVOKER wrapper is the natural pattern here, and a majority of `app` DEFINER
+functions carry `EXECUTE` to `PUBLIC` (re-measure; the population grows). When the wrapper is the
+only gate and the helper bypasses RLS, the wrapper's hand-written probe **is** the whole
+boundary. FF-3's `get_response_validation_errors` was the proof: deleting its existence probe
+reddened **0 assertions across six files** while a commission-Y staff read commission-X rule
+messages and item labels.
+
+**Amendment.** A fifth arm, `ARM=wrapper`, backed by a fourth sweep
+(`p0-authz-invoker-audit.sh`), with the same BLIND ⊆ allowlist contract ARM 1 has
+(`authz-invoker-blind-allowlist.txt`). **ARM 3's census domain widens in the same change** to
+include these wrappers — without that, a NEW wrapper passes ARM 5 vacuously by being absent from
+the findings md, which is Amendment 3's lesson recurring in a new domain. CLAUDE.md §6 step 1
+runs the cheap `FROMFINDINGS=1 ARM=wrapper` comparison every phase; the ~100 min full sweep is
+periodic, exactly like ARM 1's.
+
+**The methodological finding, which is the part worth carrying:** *a neutralization is only valid
+for the class it was designed against, and reusing one across classes can be silently inverted.*
+The obvious build was to reuse the row-door regex, which opens `if <cond> then` only when the
+CONDITION names an identity primitive (`app.is_*`, `auth.uid()`, …) — a rule written
+deliberately, to avoid mistaking a feature-flag guard for an authz gate. Applied to INVOKER
+wrappers that rule is not merely incomplete, it is **definitionally wrong**, and a dry run said
+so before any verdict was trusted: it matched 32 of 88 and **did not match
+`get_response_validation_errors`, the exemplar that motivated the whole item**. Its guard is
+
+```sql
+if not exists (select 1 from public.responses r where r.id = p_response_id) then
+```
+
+which names no identity primitive at all. For an INVOKER function, a bare existence probe against
+an RLS-protected table **is** the authorization decision — "the row does not exist" and "the row
+is not visible to YOU" are the same condition, because RLS is what answers it. The identity
+reference is the RLS on the probed table, not a token in the source. Had the sweep inherited the
+regex, it would have filed its own motivating example UNSUPPORTED and reported a clean run over
+the class it exists to audit.
+
+So ARM 5 defines three guard classes, **each computed in-database from the live catalog rather
+than hand-listed** (Amendment 6's rule — the boundary must be the property, not the syntax):
+
+- **G1 RLS existence probe** — `if [not] exists (… <t> …) then`, where `<t>` has
+  `relrowsecurity = true`. The table alternation is built from `pg_class`, so a table gaining or
+  losing RLS moves in or out of the class automatically. A probe against a non-RLS table is a
+  DOMAIN check and is deliberately left closed.
+- **G2 identity assert statement** — `perform app.assert_X(…)` → `perform 1`, where `X`'s own
+  body touches identity. Computed, so the ~13 identity asserts separate from the ~34
+  feature-flag/domain asserts by property. Opening `assert_referrals_enabled` would let a
+  keystone that notices a FLAG guard be recorded as one that notices the AUTHZ gate — a false
+  COVERED, which is worse than no verdict.
+- **G3 identity-primitive condition** — the row-door regex verbatim, lookaheads included, kept
+  because 32 of these functions do use that shape.
+
+Together: **56 of 88 supported**, against 32 for the inherited regex alone. The dry-run mode
+(`DRYRUN=1`) is part of the harness, not scaffolding — *a detector that finds nothing must be
+proven able to find something*, and this one silently found nothing once already.

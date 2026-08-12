@@ -248,17 +248,25 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
    suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
    E2E-mutated DB yields spurious commission-count reds that are not defects.
-   **Authz gates** — `ARM=census` (~2 s), `ARM=hat` (~10 s) **and** `ARM=floor` (~1 min) of
+   **Authz gates** — `ARM=census` (~2 s), `ARM=hat` (~10 s), `ARM=floor` (~1 min) **and**
+   `FROMFINDINGS=1 ARM=wrapper` (~2 s) of
    `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
    catches a gate you just added** — a brand-new gate is in no BLIND set, so it passes
-   `ARM=policy` **vacuously** (ADR 0079 Amendment 3). **If the phase touched any RLS policy or
+   `ARM=policy` **vacuously** (ADR 0079 Amendment 3). ⚠ **`ARM=wrapper` covers the
+   `prosecdef = f` half** (ADR 0079 Amendment 7): every other arm bounds its domain with
+   `p.prosecdef`, so a `public` INVOKER wrapper whose own probe is the only gate in front of an
+   `app` DEFINER body was in **no** arm's domain at all. Its census domain widened in the same
+   change — without that a NEW wrapper passes `ARM=wrapper` vacuously by being absent from the
+   findings. **If the phase touched any RLS policy or
    `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
    (~1 min/gate), deriving the list from the migration diff, never by hand — recipe: **ADR
    [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 1**.
    **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop, never a
    tenant-isolation policy); **`ERROR` is not a pass** (cover it in the phase's mutation
    audit). Sweep-run mechanics incl. the findings-file restore: lead-playbook §4. The
-   **full** ~5 h sweep is a periodic audit, **not** a phase step.
+   **full** ~5 h sweep is a periodic audit, **not** a phase step — and `ARM=wrapper`'s own
+   full sweep (~100 min, 56 suite runs) is periodic for the same reason; the phase step is
+   the cheap `FROMFINDINGS=1` comparison against the committed findings.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
    and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
    current-phase** specs (chromium); the **full E2E suite runs once to declare green** —

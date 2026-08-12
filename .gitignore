@@ -67,3 +67,7 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # `npm run sweep:embeds` scratch (regenerated from src/ + the live schema cache)
 .embed-sweep/
+
+# authz sweep scratch (p0-authz-*-audit.sh WORK dir) — neutralized-function backups and
+# per-case run logs; regenerated every run, and some filenames exceed git.
+.authz-work/
