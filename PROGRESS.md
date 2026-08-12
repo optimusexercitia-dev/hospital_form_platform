@@ -43,7 +43,8 @@
 | 21 | Committee Charters & Cadence [0080](docs/decisions/0080-committee-charters-cadence-model.md) | ✅ complete | ✅ | ✅ E2E 10/10 + pgTAP 260/261/262 = 11/29/10 | ✅ APPROVED r1 [review](docs/reviews/phase-CH-review.md) | ✅ 2026-07-20 | 2026-07-20 | BE `458aedb`…`13750b1` · FE `d982401`+`5d366db` · `14c4381`/`cb6a671` |
 | 22 | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
-| 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main` **local only, NOT pushed** · graphify `dfc3e35` |
+| 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110 — see 22-v3) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main` **local only, NOT pushed** · graphify `dfc3e35` |
+| 22-v3 | **REG·KIND — one Registro vocabulary for cases and referrals** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ (tsc 0 · Vitest **1254** · eslint 0/0 first-party) | ⚠ **step 1 only** — pgTAP **183f/5857** (`322` 72→63, `298` 36→32 as the retired table's tests retired with it) · `ARM=census`/`hat`/`floor` HOLD · diff-scoped sweep 3 COVERED + 1 **pre-existing** `ERROR` · E2E **targeted 24/24** (`referral-registros` 16 + `cases-extras` 8) — **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | merge `9a20c8a` → `main` **local only, NOT pushed**; remote `db push` **NOT done** (`20260920000100`/`…000200`) |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
 | result-rec | **Result-based phase recommendation** [0043](docs/decisions/0043-phase-result-based-recommendation.md) | ✅ complete | ✅ | ✅ pgTAP 1122 + Vitest 164 + E2E 431/0 | ✅ APPROVED 2026-06-26 [review](docs/reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | `6c5baeb…` · ✅ remote re-baselined 2026-07-01 |
@@ -92,9 +93,13 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-**No phase in flight.** RDR (referral detail redesign) completed, merged and rotated 2026-08-12 —
-task detail, the final gate record and the method lessons are in
-[referral-detail-redesign.md](docs/progress/referral-detail-redesign.md); ETH·E4 before it is in
+**No phase in flight.** Most recent: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
+vocabulary for cases and referrals. ⚠ **It ran gate step 1 ONLY** (no tester pass, no QA review, no
+`e2e:prod`) by PO direction, and is **local-only with the remote `db push` not done** — treat it as
+merged-but-ungated, not as complete. Before it, **RDR** (referral detail redesign) completed, merged
+and rotated the same day — task detail, the final gate record and the method lessons are in
+[referral-detail-redesign.md](docs/progress/referral-detail-redesign.md) (⚠ its type-vocabulary
+sections are **history**: REG·KIND deleted `referral_note_types`); ETH·E4 before that is in
 [eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md). What is left before
 the pilot is § *Remaining pre-pilot work*.
 
@@ -144,9 +149,17 @@ tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that 
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
-**1. 🟠 The Coolify app deploy** — the last step of the pilot deploy; **both code halves are done**
-(`git push` + the remote database, 2026-08-10 — AFF, ACT, QO·B, PDF·P1/P2 all live; catalog-verified
-345 == 345, and the `custom_access_token_hook` is enabled, so the ACT cutover is real on the remote).
+**1. 🟠 The Coolify app deploy** — the last step of the pilot deploy. ⚠ **BOTH code halves have since
+gone STALE — re-read this row before acting on it.** As of 2026-08-12 `main` carries **11 migrations
+the remote does not have** (356 local vs the 345 == 345 verified at the 2026-08-10 push), and none of
+the work since that push has been `git push`ed either. The drift, oldest first:
+`20260918003000`+`…3100` (ACT expiry/ACL) · `20260919000100`–`…000600` (ETH·E4, 6) ·
+`20260919010000` (RDR) · `20260920000100`+`…000200` (REG·KIND). So **four separate pieces of work are
+local-only**, and REG·KIND among them is *also* ungated (step 1 only — see 22-v3). Deploying the app
+now would ship a frontend against a remote schema that is 11 migrations behind it.
+The 2026-08-10 state, still true as far as it goes (`git push` + the remote database — AFF, ACT,
+QO·B, PDF·P1/P2 all live; the `custom_access_token_hook` is enabled, so the ACT cutover is real on
+the remote), is the **baseline**, not the current position.
 Deploying the app is **when the ETH·E1 m2 flag flip reaches production**.
 ✅ **PDF printing is no longer a blocker on this row.** The **Gotenberg Coolify resource is active
 and working** (PO, 2026-08-10; runbook [pdf-renderer.md](docs/deployment/pdf-renderer.md)), and
