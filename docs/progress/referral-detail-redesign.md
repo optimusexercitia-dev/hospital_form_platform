@@ -8,6 +8,17 @@ Rotated out of `PROGRESS.md` on 2026-08-12 at completion. Plan + binding amendme
 
 Merged to `main` locally 2026-08-12 — merge `81e1dc9`, graphify refresh `dfc3e35`. **Not pushed.**
 
+> ⚠ **PARTIALLY SUPERSEDED, same day (2026-08-12) — REG·KIND / ADR
+> [0110](../decisions/0110-shared-registro-kind-vocabulary.md), merge `9a20c8a`.** This record is
+> kept as the account of what RDR shipped; it is NOT a description of the live system. What
+> changed: the per-commission **`referral_note_types`** vocabulary (task 1a, ADR 0109 D2) — the
+> table, both policies, the audit trigger, `reorder_referral_note_types`, the four server actions
+> and the "Tipos de registro" dialog — is **DELETED**. `referral_internal_notes.note_type_id` /
+> `type_label` are one **`kind`** column carrying the fixed case-Registro list. Read every mention
+> of a note TYPE below as history. Consequence for the open items: **MINOR-1 is moot on the
+> referral side** (see below), and the `create_/update_referral_internal_note` signatures cited in
+> the mutation-audit sections took a `uuid → text` parameter change.
+
 ---
 
 ### RDR — Referral detail redesign (worktree `worktree-referral-detail-redesign`)
@@ -32,6 +43,11 @@ so a surface that renamed the field on its way to the DOM would still have been 
   PG string leaks. **Not fixed here on purpose**: amendment A6 mandates mirroring
   `case_narrative_types`, and the sibling carries the identical defect today — fixing one side
   creates exactly the drift A6 exists to prevent. Needs one platform-wide change.
+  **→ MOOT on the referral side 2026-08-12 (ADR 0110):** `referral_note_types` and
+  `reorder_referral_note_types` are deleted, so this defect now has exactly ONE site,
+  `case_narrative_types`. ⚠ It is **still unfixed there** — what changed is the reason for not
+  fixing it: there is no longer a sibling to drift from, so A6's mirroring argument no longer
+  applies and a unilateral fix to `case_narrative_types` is now the right move.
 - **MINOR-2 — the sole Rule 7 defense had zero automated coverage.** `markdown-renderer.tsx` had no
   test file (verified: the directory held only the component). Removing `rehypeSanitize` or adding
   `rehypeRaw` would have left lint, typecheck, vitest, pgTAP **and** E2E green. **Being closed now**
