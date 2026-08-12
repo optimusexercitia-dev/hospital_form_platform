@@ -14,9 +14,17 @@ import { DEFAULT_CASE_TERMINOLOGY } from './case-types'
  * the interleave is RPC-guaranteed, not DB-constrained, so the merge must tolerate
  * gaps/duplicates WITHOUT throwing and order deterministically.
  *
- * Markdown sanitization is covered by the `MarkdownRenderer` tests; the card just
- * uses that renderer (asserted in the component/E2E layer), so it is not retested
- * here.
+ * Markdown sanitization is not retested here: the card renders bodies through
+ * `MarkdownRenderer`, whose Rule 7 contract is pinned in
+ * `src/components/forms/markdown/markdown-renderer.test.tsx`.
+ *
+ * ⚠ That sentence used to read "is covered by the `MarkdownRenderer` tests" — and
+ * was FALSE from the day it was written until 2026-08-11: no such test file
+ * existed (QA INFO-1, alongside MINOR-2). It deferred to coverage that was never
+ * there, which is worse than deferring to nothing, because it stops the next
+ * reader from looking. The tests it names now exist; keep this pointer honest or
+ * delete it. (The repo's standing lesson: a comment is an assertion that goes
+ * stale silently — and this one was never true to begin with.)
  */
 
 // ---------------------------------------------------------------------------
