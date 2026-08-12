@@ -23,7 +23,7 @@
 -- =============================================================================
 
 begin;
-select plan(20);
+select plan(43);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -176,6 +176,215 @@ select ok(exists(
    where schemaname = 'storage' and tablename = 'objects'
      and policyname = 'referral_attachments_obj_select'),
   'K2g referral_attachments_obj_select survives DM1');
+
+-- =============================================================================
+-- K3 — the securable-resource registry (M2). The anti-join was ALSO proven on
+-- the pre-M2 POPULATED stack (2026-08-12: backfill minted 8 case / 3 meeting /
+-- 1 interview / 1 action_item over pre-existing rows) — a fresh reset exercises
+-- only the TRIGGER path, because reset replays the chain against an empty DB
+-- and the backfill is a no-op there forever.
+-- =============================================================================
+
+-- Population non-vacuity first (§7.10: an empty population proves nothing).
+select cmp_ok((select count(*) from public.cases), '>', 0::bigint,
+  'K3-pre the domain population is non-empty (the anti-join has something to prove)');
+
+select is(
+  (select (select count(*) from public.cases c where not exists
+            (select 1 from public.securable_resources s where s.id = c.id and s.resource_type = 'case'))
+        + (select count(*) from public.meetings m where not exists
+            (select 1 from public.securable_resources s where s.id = m.id and s.resource_type = 'meeting'))
+        + (select count(*) from public.case_interviews i where not exists
+            (select 1 from public.securable_resources s where s.id = i.id and s.resource_type = 'interview'))
+        + (select count(*) from public.action_items a where not exists
+            (select 1 from public.securable_resources s where s.id = a.id and s.resource_type = 'action_item'))),
+  0::bigint,
+  'K3a every domain row of all four types has its typed registry row (anti-join = 0)');
+
+select is(
+  (select count(*) from public.securable_resources s
+    where (s.resource_type = 'case' and not exists (select 1 from public.cases t where t.id = s.id))
+       or (s.resource_type = 'meeting' and not exists (select 1 from public.meetings t where t.id = s.id))
+       or (s.resource_type = 'interview' and not exists (select 1 from public.case_interviews t where t.id = s.id))
+       or (s.resource_type = 'action_item' and not exists (select 1 from public.action_items t where t.id = s.id))),
+  0::bigint,
+  'K3b no orphan registry rows (every registry row has its domain row)');
+
+-- K3c: the BEFORE INSERT trigger mints the registry row for a NEW domain row.
+insert into public.cases (id, commission_id, case_number, label, status, created_by)
+values ('32800000-0000-0000-0000-0000000000c1', 'a0000000-0000-0000-0000-0000000000a1',
+        328001, 'Caso K3 (fixture 328)', 'pending', '00000000-0000-0000-0000-000000000002');
+
+select ok(exists(
+  select 1 from public.securable_resources
+   where id = '32800000-0000-0000-0000-0000000000c1' and resource_type = 'case'),
+  'K3c inserting a case mints its registry row through the trigger');
+
+select is(
+  (select s.organization_id::text || '|' || s.hospital_id::text || '|' || s.commission_id::text
+     from public.securable_resources s where s.id = '32800000-0000-0000-0000-0000000000c1'),
+  (select c.organization_id::text || '|' || c.hospital_id::text || '|' || c.id::text
+     from public.commissions c where c.id = 'a0000000-0000-0000-0000-0000000000a1'),
+  'K3d the minted registry row carries the tenant trio resolved from commissions');
+
+select throws_ok(
+  $q$ insert into public.securable_resources (id, resource_type, organization_id, hospital_id, commission_id)
+      values (gen_random_uuid(), 'case', null, null, null) $q$,
+  '23514', null,
+  'K3e the tenant-shape CHECK refuses a commission-anchored type without its trio');
+
+select throws_ok(
+  $q$ update public.cases set securable_type = 'meeting'
+      where id = '32800000-0000-0000-0000-0000000000c1' $q$,
+  '23514', null,
+  'K3f the typed pin cannot be re-keyed to another resource type');
+
+-- K3g: the RESTRICT fail-safe, witnessed with a hand-planted document (it
+-- cannot fire on live data in DM1 — zero documents exist outside this txn).
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('32800000-0000-0000-0000-00000000d0c1', '32800000-0000-0000-0000-0000000000c1',
+        'Documento K3g (fixture 328)', '00000000-0000-0000-0000-000000000002');
+
+select set_config('app.in_case_rpc', 'on', true);
+select throws_ok(
+  $q$ delete from public.cases where id = '32800000-0000-0000-0000-0000000000c1' $q$,
+  '23503', null,
+  'K3g deleting a domain row that still owns documents is BLOCKED (AFTER DELETE trigger hits documents'' ON DELETE RESTRICT)');
+
+delete from public.documents where id = '32800000-0000-0000-0000-00000000d0c1';
+select lives_ok(
+  $q$ delete from public.cases where id = '32800000-0000-0000-0000-0000000000c1' $q$,
+  'K3h with its documents gone, the domain delete proceeds');
+select set_config('app.in_case_rpc', 'off', true);
+
+select ok(not exists(
+  select 1 from public.securable_resources where id = '32800000-0000-0000-0000-0000000000c1'),
+  'K3i the AFTER DELETE trigger removed the registry row with the domain row');
+
+-- =============================================================================
+-- K7 — core-table constraints and guards (M3): physical-identity uniqueness,
+-- bucket-from-tier, the D9 upload machine, the D10 disposal machine + hold
+-- blocks, version immutability, the Q6 rendition pin, the O1 posture.
+-- =============================================================================
+
+-- Fixture: a second fresh case (registry row via trigger) + document + version.
+insert into public.cases (id, commission_id, case_number, label, status, created_by)
+values ('32800000-0000-0000-0000-0000000000c2', 'a0000000-0000-0000-0000-0000000000a1',
+        328002, 'Caso K7 (fixture 328)', 'pending', '00000000-0000-0000-0000-000000000002');
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('32800000-0000-0000-0000-00000000d0c2', '32800000-0000-0000-0000-0000000000c2',
+        'Documento K7 (fixture 328)', '00000000-0000-0000-0000-000000000002');
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('32800000-0000-0000-0000-00000000e0c2', '32800000-0000-0000-0000-00000000d0c2',
+        1, '00000000-0000-0000-0000-000000000002');
+
+-- A file object born reserved, then walked LEGALLY to clean (the guards have
+-- no bypass GUC — fixtures walk the machine, which also exercises it).
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('32800000-0000-0000-0000-00000000f0c2', 'documents-standard',
+        '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f0c2/gen-1',
+        'standard', '00000000-0000-0000-0000-000000000002');
+
+select throws_ok(
+  $q$ insert into public.file_objects (storage_bucket, storage_path, sensitivity_tier, created_by)
+      values ('documents-standard',
+              '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f0c2/gen-1',
+              'standard', '00000000-0000-0000-0000-000000000002') $q$,
+  '23505', null,
+  'K7a one physical object, one row: UNIQUE(storage_bucket, storage_path) refuses a duplicate');
+
+select throws_ok(
+  $q$ insert into public.file_objects (storage_bucket, storage_path, sensitivity_tier, created_by)
+      values ('documents-standard', '328/k7/tier-mismatch', 'phi',
+              '00000000-0000-0000-0000-000000000002') $q$,
+  '23514', null,
+  'K7b the bucket is DERIVED from the tier: a phi object cannot sit in documents-standard');
+
+select throws_ok(
+  $q$ insert into public.file_objects (storage_bucket, storage_path, sensitivity_tier, upload_state, created_by)
+      values ('documents-standard', '328/k7/born-clean', 'standard', 'clean',
+              '00000000-0000-0000-0000-000000000002') $q$,
+  'HC0D1', null,
+  'K7c a file object must be born reserved (guard refuses a born-clean insert)');
+
+select throws_ok(
+  $q$ update public.file_objects set upload_state = 'clean'
+      where id = '32800000-0000-0000-0000-00000000f0c2' $q$,
+  'HC0D1', null,
+  'K7d the D9 machine refuses the reserved -> clean jump (scan states are not skippable)');
+
+select lives_ok(
+  $q$ do $w$ begin
+        update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+          where id = '32800000-0000-0000-0000-00000000f0c2';
+        update public.file_objects set upload_state = 'verifying'
+          where id = '32800000-0000-0000-0000-00000000f0c2';
+        update public.file_objects set upload_state = 'scan_pending',
+               size_bytes = 12345, mime_type = 'application/pdf', sha256 = repeat('a', 64),
+               verified_at = now()
+          where id = '32800000-0000-0000-0000-00000000f0c2';
+        update public.file_objects set upload_state = 'clean'
+          where id = '32800000-0000-0000-0000-00000000f0c2';
+      end $w$ $q$,
+  'K7e the legal walk reserved -> uploaded -> verifying -> scan_pending -> clean proceeds');
+
+select throws_ok(
+  $q$ update public.file_objects set storage_path = '328/k7/moved'
+      where id = '32800000-0000-0000-0000-00000000f0c2' $q$,
+  'HC0D2', null,
+  'K7f physical identity is immutable: a path rewrite is refused (reclassification = new row, F-03)');
+
+select throws_ok(
+  $q$ update public.document_versions set version_number = 2
+      where id = '32800000-0000-0000-0000-00000000e0c2' $q$,
+  'HC0D2', null,
+  'K7g1 document versions are immutable rows (UPDATE refused)');
+
+select throws_ok(
+  $q$ delete from public.document_versions
+      where id = '32800000-0000-0000-0000-00000000e0c2' $q$,
+  'HC0D2', null,
+  'K7g2 document versions are immutable rows (DELETE refused)');
+
+-- Bind the clean file to the version, place a legal hold, and witness both
+-- D10 hold blocks (file disposal + document soft-delete).
+insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+values ('32800000-0000-0000-0000-00000000e0c2', '32800000-0000-0000-0000-00000000f0c2', 'source');
+insert into public.document_legal_holds (id, document_id, issued_by, reason_category)
+values ('32800000-0000-0000-0000-0000000000dd', '32800000-0000-0000-0000-00000000d0c2',
+        '00000000-0000-0000-0000-000000000002', 'litigation');
+
+select throws_ok(
+  $q$ update public.file_objects set disposal_state = 'disposal_pending'
+      where id = '32800000-0000-0000-0000-00000000f0c2' $q$,
+  'HC0D3', null,
+  'K7h1 an active legal hold blocks file disposal (D10)');
+
+select throws_ok(
+  $q$ update public.documents set status = 'soft_deleted', deleted_at = now()
+      where id = '32800000-0000-0000-0000-00000000d0c2' $q$,
+  'HC0D3', null,
+  'K7h2 soft-delete honors an active hold (D10)');
+
+update public.document_legal_holds
+   set released_at = now(), released_by = '00000000-0000-0000-0000-000000000002'
+ where id = '32800000-0000-0000-0000-0000000000dd';
+
+select lives_ok(
+  $q$ update public.file_objects set disposal_state = 'disposal_pending'
+      where id = '32800000-0000-0000-0000-00000000f0c2' $q$,
+  'K7h3 with the hold released, disposal_pending proceeds');
+
+select throws_ok(
+  $q$ insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+      values ('32800000-0000-0000-0000-00000000e0c2',
+              '32800000-0000-0000-0000-00000000f0c2', 'source') $q$,
+  '23505', null,
+  'K7i one file per rendition per version (Q6 provisional pin)');
+
+select ok(
+  (select count(*) >= 1 from public.document_retention where is_provisional),
+  'K7j the retention structure carries its PROVISIONAL catch-all row (ADR 0114 O1 posture)');
 
 -- =============================================================================
 -- K8 — parked-seam writers refuse their document arms (HC0DM), fail-closed

@@ -17,9 +17,10 @@
 | T1c | `seed.sql` surgery (3 fixture inserts + `attachments` flag flip removed; frozen-snapshot fixture kept, provenance NULL) | ✅ 2026-08-12 | fresh `db reset` exit 0 |
 | T1d | `208_attachments.sql` deleted (coverage → 328 now, DM2 specs later); allowlist hygiene (blind-allowlist −2 policies, neverclled −2 doors, unswept-backlog ERROR resolved-by-deletion note) | ✅ 2026-08-12 | commit message carries the justification |
 | T1e | FUP-DM1-E2E + FUP-DM1-DISPOSE filed (index + body) | ✅ 2026-08-12 | PROGRESS.md + follow-ups.md |
-| T2 | M2 `securable_resources` + pins + backfill + triggers | ⬜ | |
-| T3 | M3 core tables + guards · M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ⬜ | |
-| T4 | 328 K3–K7/K9/K10 + mutation-twin runlog | ⬜ | |
+| T2 | M2 `securable_resources` + pins + backfill + triggers | ✅ 2026-08-12 | §Turn-2 record below; ADR 0116 §2–4 |
+| T2b | M3 core tables + guards + K3/K7 keystones + guard twins | ✅ 2026-08-12 | 328 = 43/43 planned/ran on BOTH stacks; 3 twins proven |
+| T3 | M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ⬜ | |
+| T4 | 328 K4/K5/K6/K9/K10 + remaining mutation-twin runlog | ⬜ | |
 | T5 | pgTAP triage of attachment-touching suites + full `test:db` green on fresh reset | ⬜ | |
 | T6 | TS stubs (`src/lib/attachments/*`, `src/lib/queries/attachments.ts`, wrapper actions, `src/lib/audit/access.ts`) + lint/typecheck/vitest | ⬜ | |
 | T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ⬜ | |
@@ -50,6 +51,32 @@ Suite `328` was authored and run against the **pre-M1** catalog (2026-08-12, HEA
 Post-M1: 328 = **20/20 green** (post-`migration up` AND post-fresh-reset).
 Mutation twin (K1): `app.probe_attachment_stub()` created in a txn → K1a count
 **1** (red); rollback → **0**. Rollback verified before trusting the harness.
+
+## Turn-2 record (M2 + M3, 2026-08-12)
+
+- **Backfill proven on the POPULATED stack** (lead watch-item 1): M2 applied via
+  `supabase migration up` against the seeded DB (8 cases / 3 meetings /
+  1 interview / 1 action_item present BEFORE the migration) — registry counts
+  after: case 8 · meeting 3 · interview 1 · action_item 1; anti-join **0**;
+  reverse orphans **0**. The fresh reset exercises only the TRIGGER path (the
+  backfill is a no-op on an empty DB forever); 328 K3 asserts both directions
+  on both paths.
+- **RESTRICT fail-safe witnessed now, not in DM2** (lead watch-item 2):
+  keystone K3g hand-plants a document on a fresh case → `DELETE` the case →
+  **23503** (AFTER DELETE trigger → `documents.home_resource_id` RESTRICT);
+  K3h/K3i: remove the document → delete proceeds → registry row swept. The
+  K3g/K3h pair is differential (same statement, one variable), self-proving.
+- **328 = 43/43, planned 43 / ran 43, zero aborts**, on the populated post-M3
+  stack AND on the fresh post-reset stack (run-shape checked on both).
+- **Guard mutation twins (each in a rolled-back txn, rollback verified):**
+  TWIN1 drop `trg_ensure_securable_resource` → case insert fails **23503**
+  (the composite pin fails closed without the mint trigger — the two halves
+  hold each other) · TWIN2 drop `guard_file_object_transition` → a born-clean
+  insert **succeeds** (K7c would red — the guard is load-bearing) · TWIN3 drop
+  `guard_document_version_immutable` → a version UPDATE **succeeds** (K7g1
+  would red). K7h1–h3 (hold blocks) are differential by construction
+  (hold present → HC0D3; released → proceeds).
+- Guard SQLSTATEs minted: HC0D1/HC0D2/HC0D3/HC0D4 (ADR 0116 §5).
 
 ## PROD-VERIFY checklist (lead condition 2 — for the later lead-authorized `db push`; NO remote action was taken this phase)
 
