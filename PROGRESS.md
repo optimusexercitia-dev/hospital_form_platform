@@ -68,7 +68,7 @@
 | **ETH·E1** | **Ethics Access Spine [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
 | **ETH·E2** | **Ethics disciplinary procedure** [0073](docs/decisions/0073-ethics-procedure-model.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
 | **ETH·E3a** | **Ethics terminology/UX surfacing** [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
-| **ETH·E4** | **Ethics participant seating & professional identity** [0108](docs/decisions/0108-eth-e4-participant-seating.md) · [record](docs/progress/eth-e4-participant-seating.md) — closes FUP-ETH-1 + FUP-FF5-2 | ✅ **complete** | ✅ lint 0/0 · typecheck · vitest 1218/1218 · `next build` exit 0 | ✅ pgTAP **182f/5794** on a fresh reset (353 registered == 353 files) · `ARM=census`+`hat`+`floor` HOLD · diff-scoped door sweep 0 BLIND/0 ERROR · the 3 write doors **COVERED** in the standing write-path harness (⛔ never `ARM=census` — ADR 0079 Am. 5) · e2e:prod **GATE GREEN 140/0**, accounted 140/141 · [gate detail](docs/progress/eth-e4-participant-seating.md) | ✅ **APPROVED (r3)** [review](docs/reviews/eth-e4-review.md) — r1 ⛔ (1 P0) / r2 ⛔ (narrow) / r3 ✅ | ✅ 2026-08-11 | 2026-08-11 | `worktree-ethics-committee-completion` → `main`. Open: **FUP-ETH-A11Y-1** · **FUP-E2E-SERVER-DEAD-1**; m2/m5 → PO. ⚠ remote `db push` needs the `professional_profile_id` duplicate check first |
+| **ETH·E4** | **Ethics participant seating & professional identity** [0108](docs/decisions/0108-eth-e4-participant-seating.md) · [record](docs/progress/eth-e4-participant-seating.md) — closes FUP-ETH-1 + FUP-FF5-2 | ✅ **complete** | ✅ lint 0/0 · typecheck · vitest 1218/1218 · `next build` exit 0 | ✅ pgTAP **182f/5794** on a fresh reset (353 registered == 353 files) · `ARM=census`+`hat`+`floor` HOLD · diff-scoped door sweep 0 BLIND/0 ERROR · the 3 write doors **COVERED** in the standing write-path harness (⛔ never `ARM=census` — ADR 0079 Am. 5) · e2e:prod **GATE GREEN 140/0**, accounted 140/141 · [gate detail](docs/progress/eth-e4-participant-seating.md) | ✅ **APPROVED (r3)** [review](docs/reviews/eth-e4-review.md) — r1 ⛔ (1 P0) / r2 ⛔ (narrow) / r3 ✅ | ✅ 2026-08-11 | 2026-08-11 | `worktree-ethics-committee-completion` → `main`. Open: **FUP-ETH-A11Y-1** · **FUP-E2E-SERVER-DEAD-1**; m2/m5 → PO. ✅ remote `db push` **DONE** — `20260919000100`–`…000600` registered; the `professional_profile_id` duplicate check is moot (see the rotated row) |
 | **AUTHZ** | ADR 0078 Gate 1 | ✅ complete | ✅ | ✅ pgTAP 2981 · e2e 0-regress | ✅ APPROVED [review](docs/reviews/authz-b-series-review.md) | ✅ 2026-07-16 | 2026-07-16 | `87858f7` (local) |
 | **AUTHZ · Gate 2** | ADR 0078 Gate 2 | ✅ complete | ✅ | ✅ pgTAP 772/772 authz · e2e green | ✅ APPROVED (re-review) | ✅ 2026-07-17 | 2026-07-17 | `f07341f` |
 | **case-corrections** | **Case Correction Lifecycle** [0085](docs/decisions/0085-case-correction-lifecycle.md) | ✅ complete | ✅ | ✅ tester 24/24 + full prod E2E feat 7/7 (reds triaged infra/baseline; T-2 clean-stack 76/76) | ✅ APPROVED (0P0/0MAJ/2min) [review](docs/reviews/case-corrections-review.md) | ✅ 2026-07-24 | 2026-07-24 | `6b50abc` → main+origin; **remote `db push` ✅ (flag ON, backfill verified live)** |
@@ -112,7 +112,7 @@ task table, findings and narrative. "Still open" points at the live sections fur
 | --- | --- | --- | --- |
 | **REG·KIND** — one Registro vocabulary for cases and referrals (PO-directed, post-RDR). Adds `update`/`follow_up` to `case_events.kind`; **replaces the referral's per-commission `referral_note_types` with the SAME six-value `kind`** — table + 2 policies + audit trigger + `reorder_referral_note_types` + 4 server actions + the "Tipos de registro" dialog all DROPPED. Type is now REQUIRED (default `note`). One TS source, `src/lib/cases/registro-kinds.ts`. **No flag — structural** | 2026-08-12 | ADR [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) · migrations `20260920000100`+`…000200` · `docs/backend-state.md` (referral R5 lines) | ⚠ **NO tester pass and NO QA review** — gate steps 2–4 are unrun by PO direction; the E2E evidence is 2 targeted specs, not `e2e:prod`. ⚠ **Committed LOCALLY only — not pushed**, and the remote `db push` is NOT done (both migrations are local-only). Two PRE-EXISTING, not from this work: the door-sweep `ERROR\|run-shape!=baseline` on `can_read_referral_internal_note` (same verdict at HEAD) · `npm run lint` reds on `supabase/.temp/start-secrets/**`, a CLI artifact that is gitignored but not eslint-ignored (first-party scope is 0/0) |
 | **RDR** — referral detail page redesign (minimal header + fact rail, Registros internos with ~~per-commission type vocabulary~~ **→ superseded 2026-08-12 by REG·KIND / ADR 0110: the fixed case-Registro `kind` list**, messenger Diálogo with synthesized inline events, 5-group case-access door; **no new flag — reuses `case_referrals`**) · QA APPROVED (r1) · human-approved | 2026-08-12 | [referral-detail-redesign.md](docs/progress/referral-detail-redesign.md) · plan + amendments **A1–A12** [plan](docs/plans/referral-detail-redesign.md) · ADR [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) · [review](docs/reviews/referral-detail-redesign-review.md) · [locator survey](docs/testing/referral-detail-redesign-locator-survey.md) · `docs/backend-state.md` (RDR) | Fixed 2 pre-existing defects in passing (a NULL-hole authoring gate on DT referrals; a rename orphan that would have silently broken `dispose_referral_phi`'s LGPD path). Open: ~~**MINOR-1** reorder `23505` after archiving a non-last type~~ — **MOOT on the referral side 2026-08-12**: REG·KIND deleted `referral_note_types` and its reorder RPC outright, so the "ONE platform-wide fix" now has only ONE site left, `case_narrative_types`. ⚠ The defect is NOT fixed — it is unfixed in the sibling and no longer mirrored, which removes A6's reason not to fix it unilaterally · **BUG-RDR-001** (dialogs never restore focus; platform-wide, pinned under `test.fail()` — do not delete that pin) · **BUG-MIN-E2E-1** · the **door-sweep harness blind spot** (`^(is_\|can_\|has_…)` at `p0-authz-door-audit.sh:176` skips `_`-prefixed names ⇒ swept 4-of-5; affects every future phase). ⚠ **Merged LOCALLY only — not pushed.** 🔴 **A11 was CORRECTED by mutation**: the Rule 7 defense is the **absence of `rehype-raw`**, not `rehype-sanitize` |
-| **ETH·E4** — ethics participant seating & professional identity (the `participants`-lane writers, the roster UI, T5 org vocabulary admin; **no flag — the seating panel was already mounted and unfillable**) · QA APPROVED (r3) · human-approved | 2026-08-11 | [eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md) · ADR [0108](docs/decisions/0108-eth-e4-participant-seating.md) (+ the D5 amendment) · [review](docs/reviews/eth-e4-review.md) · `docs/backend-state.md` (ETH·E4) | Closes **FUP-ETH-1** + **FUP-FF5-2**; **FUP-ETH-CPF-1** closed in-phase by the P0 column-list grant + DEFINER projection. Open: **FUP-ETH-A11Y-1** · **FUP-E2E-SERVER-DEAD-1** · new **FUP-ETH-ROLES-1**; the two **PO** items (Class-2 audit posture · the three role-less external types) are ✅ **RATIFIED + APPLIED 2026-08-11** — detail in the record's § *Open at completion*. ⚠ **Remote `db push` is BLOCKED on** the `professional_participants.professional_profile_id` duplicate check (plan §6 step 3) — a local `count=1` proves nothing about the remote |
+| **ETH·E4** — ethics participant seating & professional identity (the `participants`-lane writers, the roster UI, T5 org vocabulary admin; **no flag — the seating panel was already mounted and unfillable**) · QA APPROVED (r3) · human-approved | 2026-08-11 | [eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md) · ADR [0108](docs/decisions/0108-eth-e4-participant-seating.md) (+ the D5 amendment) · [review](docs/reviews/eth-e4-review.md) · `docs/backend-state.md` (ETH·E4) | Closes **FUP-ETH-1** + **FUP-FF5-2**; **FUP-ETH-CPF-1** closed in-phase by the P0 column-list grant + DEFINER projection. Open: **FUP-ETH-A11Y-1** · **FUP-E2E-SERVER-DEAD-1** · new **FUP-ETH-ROLES-1**; the two **PO** items (Class-2 audit posture · the three role-less external types) are ✅ **RATIFIED + APPLIED 2026-08-11** — detail in the record's § *Open at completion*. ✅ **Remote `db push` DONE** (verified 2026-08-12 against `azkbbhskturikxpgmafq`): `20260919000100`–`…000600` are registered in `supabase_migrations.schema_migrations` and `professional_participants_profile_uniq` exists in `pg_indexes`. The `professional_profile_id` duplicate check (plan §6 step 3) is **moot** — a unique index that BUILT on the live data is stronger evidence than the pre-check it was gating. A confirming read found 0 duplicate groups over 1 row (non-vacuous: 1 non-null id, 0 nulls) |
 | **ACT** — "act as" strict role assumption, **S0–S4** (hat bound to the auth session via the `active_role` JWT claim; **unflagged — the migration IS the cutover**; S4 = D14 arm audit + the standing `ARM=hat` sweep + the reasoned hat-blind allowlist) · QA APPROVED (S0–S3 r2 · S4 r1) · human-approved | 2026-08-10 | [act-as-role-assumption.md](docs/progress/act-as-role-assumption.md) (incl. § S4 and § *Merge, push & the two deploy debts*) · ADRs [0106](docs/decisions/0106-act-as-role-assumption.md)/[0107](docs/decisions/0107-act-s4-hat-blind-sweep-and-allowlist.md) · [review](docs/reviews/act-as-stage-4-review.md) · [authz-handoff §7.17](docs/progress/authz-handoff.md) · `docs/backend-state.md` (ACT) | ✅ **Both deploy debts DISCHARGED 2026-08-10** — remote `db push` done and `custom_access_token_hook` **enabled on Supabase Cloud** (user-confirmed working; catalog-verified). The remote is cut over. **FUP-ACT-DISPOSE-UI** = pilot-gate check, item **0** · FUP-ACT-CAPA-ASSIGN · FUP-ACT-HATLESS-AUDIT (the A13 consequence) — all in Follow-ups |
 | **PDF·P2** — PDF printing: Meetings (ata); the A7 full-sight conjunction + A8 presence-derived PHI labeling came out of QA's r1 BLOCKER → the PO "Package A" ruling · QA APPROVED (r2) | 2026-08-08 | [pdf-p2-meetings.md](docs/progress/pdf-p2-meetings.md) (its § *PDF-program item status* carries the per-item checklist) · ADR [0104](docs/decisions/0104-pdf-document-printing-module.md) **A7/A8/A9** · [review](docs/reviews/phase-PDF-P2-review.md) | FUP-PDF-2..4 (Follow-ups) · `git push` **and** remote `db push` both ✅ done 2026-08-10 (catalogs match on the meeting arm) — **Gotenberg is up and `document_printing` is ON permanently** (PO 2026-08-10 — supersedes ADR 0104's ships-OFF clause). Scope question **HELD**: kind-sites = exactly 3, the A8 trio — a 4th = leak |
 | **QO·B** — Quality-office oversight, Phase B (content wall + UI coherence) · QA APPROVED (r2) | 2026-08-09 | [quality-office-oversight-phase-b.md](docs/progress/quality-office-oversight-phase-b.md) · ADR [0100](docs/decisions/0100-quality-office-oversight.md) D12 · [review](docs/reviews/phase-QO-B-review.md) | **BUG-QOB-004** (Bug Log) · **FUP-QOB-1 + FUP-QOB-2** (Follow-ups — the PO ratification package, parked for a future session) |
@@ -149,31 +149,7 @@ tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that 
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
-**1. 🟠 The Coolify app deploy** — the last step of the pilot deploy. ⚠ **BOTH code halves have since
-gone STALE — re-read this row before acting on it.** As of 2026-08-12 `main` carries **11 migrations
-the remote does not have** (356 local vs the 345 == 345 verified at the 2026-08-10 push), and none of
-the work since that push has been `git push`ed either. The drift, oldest first:
-`20260918003000`+`…3100` (ACT expiry/ACL) · `20260919000100`–`…000600` (ETH·E4, 6) ·
-`20260919010000` (RDR) · `20260920000100`+`…000200` (REG·KIND). So **four separate pieces of work are
-local-only**, and REG·KIND among them is *also* ungated (step 1 only — see 22-v3). Deploying the app
-now would ship a frontend against a remote schema that is 11 migrations behind it.
-The 2026-08-10 state, still true as far as it goes (`git push` + the remote database — AFF, ACT,
-QO·B, PDF·P1/P2 all live; the `custom_access_token_hook` is enabled, so the ACT cutover is real on
-the remote), is the **baseline**, not the current position.
-Deploying the app is **when the ETH·E1 m2 flag flip reaches production**.
-✅ **PDF printing is no longer a blocker on this row.** The **Gotenberg Coolify resource is active
-and working** (PO, 2026-08-10; runbook [pdf-renderer.md](docs/deployment/pdf-renderer.md)), and
-**`document_printing` is ruled ON PERMANENTLY** — see the Decisions row. The flag reads
-`enabled = true` on the remote today, which now matches the intended posture instead of contradicting
-it. ⚠ ADR 0104's "ships **OFF**" clause is **superseded** for prod, and P3/P4 must not re-assert it.
-⚠ The 2026-08-10 remote refresh applied `seed.sql`, which reseeded the remote with the **36
-`@test.local` personas** (0 real users) — fine pre-pilot, and it matches the deliberate 2026-07-12
-pilot reset, but it must not recur once real users exist. *(That refresh is also what set both flags
-ON, `seed.sql:2363`/`2373`; for `document_printing` the ruling has since made that the correct
-state — `audio_minutes` is a separate question, still governed by FUP-MIN-CUTOVER.)*
-Re-verify live before acting on this row — it has been stale in both directions before.
-
-**2. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
+**1. 🔴 AUDIT-INVOKER-WRAPPER — a structural blind spot in the ADR
 [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) standing sweep.** Found in FF-3
 (QA M-2); **not an FF-3 defect and not a known leak** — PO decision on scheduling. The sweep floors
 `prosecdef = t` **public** doors. The shape it cannot see is an **INVOKER wrapper whose own hand-written
@@ -281,136 +257,11 @@ trap half IS real and is asserted green by KB-2.) A textbook instance of the rep
 assertion under `test.fail()`. It is expected to fail today; the suite goes **RED the moment it
 starts passing**, which is the signal to drop the marker and fold the assertion back into KB-2.
 Do not "fix" this by deleting KB-3 — that would leave the platform with no proof of focus
-restoration anywhere. Note the closed **BUG-ETHE4-FOCUS-1** was a *different* mechanism (a
-`onBlur`-race inside one dialog's own typeahead); this is the generic close path.
+restoration anywhere. Note the closed
+**[BUG-ETHE4-FOCUS-1](docs/progress/bug-log-archive.md)** (rotated 2026-08-12) was a *different*
+mechanism (an `onBlur`-race inside one dialog's own typeahead); this is the generic close path.
+Fixing either does not fix the other.
 
-✅ **BUG-ETHE4-FOCUS-1 — FIXED 2026-08-11 (`8e5ebcd`), verified by KBD-1 on a prod build.
-Add-participant dialog: keyboard focus gets trapped after the typeahead search field, and Escape
-silently resets the whole form.** Phase ETH·E4 (`tester`, found live during the dev-server fix
-loop, not from static review). Fixed by `frontend` in
-`src/components/cases/add-participant-dialog.tsx` + `resolve-linkage-dialog.tsx`.
-
-**Root causes — TWO independent mechanisms, not one.** The lead hypothesized symptom 2 was
-downstream of symptom 1; `frontend` disproved that empirically (re-tested with the popup
-demonstrably open — Escape still dismissed) rather than accepting it. Both found by reading
-`@radix-ui/*` source in `node_modules`, then confirmed live:
-- **Trap:** `onBlur={() => setOpen(false)}` closed the popup *synchronously*, racing the browser's
-  native focus handoff. The popup's removal dropped `document.activeElement` to `body` for one
-  tick; `@radix-ui/react-focus-scope`'s `handleMutations` safety net then refocused its own
-  container (`tabIndex=-1`) — a stop Tab should never reach — and the next Tab restarted the
-  candidate list from the top. Hence the 3-element loop. **Fix:** defer `setOpen(false)` one tick.
-- **Escape:** Radix's `DismissableLayer` listens for Escape on `document` in the **CAPTURE
-  phase**, so the field's own bubble-phase `stopPropagation()` was structurally too late
-  regardless of where focus sat — the handler was correct in isolation and was NOT the bug.
-  **Fix:** `suppressEscapeWhilePopupOpen` wired to `DialogContent`'s `onEscapeKeyDown` (the
-  escape hatch `DismissableLayer` honours via `!event.defaultPrevented`), calling
-  `preventDefault()` only so the event still reaches the field and closes just the popup.
-
-**Durable lesson:** a component's own event handler can be correct and still lose, if a library
-ancestor handles the same key in the capture phase. Read the library source, not just yours.
-All three `TypeaheadField` mounts + the resolve-linkage mount verified individually (7+ unique
-tab stops each; was 3, forever). The KBD-1 Escape assertion was committed **before** the fix
-(`bc60555`), which is why it is a regression guard rather than a description of the fix.
-
-**Repro (keyboard-only, chromium, local dev server):** sign in `chefe.ccih@test.local` → open a
-case → Tab to "Adicionar participante", Enter → Tab into the "Tipo de participante" radiogroup,
-ArrowDown to select "Pessoa externa ou órgão" (confirmed checked) → Tab once more (lands on the
-"Buscar participante externo" search input, which auto-opens its (empty) suggestion popup via
-`onFocus`) → continue pressing Tab.
-
-**Expected:** focus moves sequentially through the remaining dialog controls — "Cadastrar novo",
-then (once in create mode) Tipo / Nome / Papel / Resumo do envolvimento / Cancelar / Adicionar —
-same as every other dialog in this codebase.
-
-**Actual, two distinct symptoms, both reproduced twice on a fresh `db reset`:**
-1. **Plain Tab, no Escape:** focus cycles through exactly THREE elements forever — the search
-   input (`#ext-search`) → the dialog's own container (`role="dialog"`, which should not normally
-   be a tab stop) → a radio input → back to the search input. "Cadastrar novo" and everything
-   after it is **never reached** — confirmed via a temporary `document.activeElement` dump over
-   10 Tab presses, not inferred from the timeout alone.
-2. **Tab then Escape (a natural instinct to dismiss an empty suggestion list):** focus jumps to
-   `#prof-search` — the **professional** lane's search field — and the subsequent Tab sequence
-   shows the Papel `<select>` now listing only professional-allowed roles and the "Profissional"
-   radio checked. **The Escape key resets the entire form's lane selection (and by implication
-   the rest of `resetAll()`'s state) back to its defaults**, without the dialog closing and
-   without the user asking for that. The second run's test then hit the outer 30s timeout mid-
-   diagnostic and Playwright force-closed the page (`Target page, context or browser has been
-   closed`) — the state churn is severe enough to blow the budget even instrumented.
-
-**Violates:** CLAUDE.md §8 ("Every form input accessible: labels, keyboard navigation, visible
-focus") and this phase's own acceptance criterion for a keyboard-only flow
-(`docs/phases/ethics-e4-participant-seating.md` §5.2's E2E bullet). Test:
-`e2e/ethics-e4-participants.spec.ts` KBD-1 — left failing (not weakened, not skipped) because the
-failure is the accurate signal; do not edit the spec to route around this.
-
-**Not confirmed, flagged as a hypothesis for whoever fixes it:** `TypeaheadField` is shared by
-"Buscar profissional", "Buscar participante externo", and "Usuário da plataforma" — the
-professional lane's own typeahead was never keyboard-navigated in this suite (`PROF-PICK`/
-`PROF-CREATE` drive it by mouse), so whether it shares this defect is untested, not ruled out.
-
-✅ **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1 — ALL THREE RESOLVED 2026-08-10.**
-Branch `worktree-fix-vacuous-assert-act-expiry-acl`; migrations `20260918003000` +
-`20260918003100`; new keystone `320` (10 assertions, RED-first); keystone `318` PART 2 amended.
-Full detail — including why `318`’s D5 twin had to be **re-anchored onto the LIVE arm** rather
-than left measuring a now-fixed defect — in
-[bug-log-archive.md](docs/progress/bug-log-archive.md). Verified: pgTAP **181 files / 5718
-tests** on a fresh `db reset`, `phase22-referrals.spec.ts` **40/40**.
-
-> ⚠ **BUG-ACT-EXPIRY-1 was NOT latent-only after all.** Its own keystone caught the expired
-> principal’s `create_case_assignment_role` call SUCCEEDING against the pre-fix catalog — it
-> inserted a real row into another org’s vocabulary. "Latent" described the *seed* (which
-> carries zero expired memberships), not the *door*.
-
-> ⚠ **BUG-ACT-ACL-1 closed ONE INSTANCE, not the population.** The standing
-> *AUDIT-INVOKER-WRAPPER* item under §"Remaining pre-pilot work" is untouched and still owns
-> the broader `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep. Keystone `320` does add a uniformity
-> assertion over all 8 Stage-2 gates, so that subset is now pinned.
-
-✅ **FUP-VACUOUS-AUDIT-1 — CLOSED 2026-08-10. 89 raw → 33 real → 0, and it is now a STANDING
-GATE:** `npm run lint` runs `lint:vacuous`, which exits non-zero on any finding and names the
-offending test. Detector → `scripts/check-vacuous-assertions.mjs` (AST; `--self-test`, `--json`,
-`--gate`). Full record →
-[docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md).
-
-**The checkable property**, chosen because "would a regression still be caught" is undecidable:
-*every test must carry at least ONE assertion that executes UNCONDITIONALLY.* Passing it does
-not make a test good; **failing** it proves the test can go GREEN having checked nothing.
-Invisible to every other gate — lint didn’t flag it, `tsc` doesn’t either (both branches are
-valid TypeScript), and a green run cannot say which branch ran.
-
-⭐ **SIX REAL DEFECTS, none of which any gate had ever reported.** The shape does not merely
-fail to catch defects — it conceals *failing* ones:
-- **Flow 4c** ran as an `org_admin` that `create_referral_draft` has ALWAYS refused (HC071).
-  Every run since the test was written took the silent `return` and asserted nothing.
-- **`phase14c-rca` R8** probed the relation `interviews`, which **does not exist** — it is the
-  feature-flag KEY; the table is `case_interviews` (the same trap CLAUDE.md §1 flags for
-  `case_patient`). The citation arm named in its own title had **never executed once**.
-- **`phase14c-rca` R6/R9/R10/R11** each silently `return`ed when the shared RCA row wasn’t in
-  the wanted state — R11’s bail fired exactly when R10 had failed, so **one broken test
-  silently disarmed the next**.
-- **`hospital-admin-tier`** badge test matched the **sidebar nav link**, not a meeting row (a
-  row’s link text is the meeting NUMBER, not its title) — it clicked navigation and never
-  opened a meeting. That is why its badge assertion had to be "soft". Its cleanup test had no
-  assertion at all, so a failed cleanup left the next run’s fixture dirty, silently.
-- **`rollups.test.ts`** `assertNeverCollapsed` began `if (!hasAnyEvidenceField) return`,
-  exempting the most complete collapse there is — and was the ONLY check in one test.
-- **`door-error-arms.test.ts`** the test written BY NAME as the guard against an empty domain
-  was itself sweeping a constant that could empty.
-
-⭐ **The detector was validated in BOTH directions, and the negative half is load-bearing.**
-Positive control: against the pre-fix `phase22-referrals.spec.ts` it reports exactly the 4
-hand-found instances. ⚠ **RETRACTED:** an interim claim that it found "3 more the manual check
-missed" was WRONG — those were the detector’s own false positives, and the tester’s count of 4
-was right. Negative control: the first run said **89**, and **seven** detector defects
-accounted for 56 of them — `.tsx` parsed as `ScriptKind.TS` (`createSourceFile` does NOT throw
-on a syntax error, it returns a best-effort tree — 18), `try`/`finally` (16), exhaustive
-`if`/`else` (12), `for…of` over an array literal incl. `as const` (10), assert-then-return
-guard clauses (5), conditional `test.skip()` (3), `await waitFor(() => expect(…))` (2).
-**Well over half the first report was the tool’s own fault** — the same lesson in the other
-direction: *a detector that finds A LOT needs proving as much as one that finds nothing.* A
-42-fixture self-test pins every fix, runs on every invocation, and the script refuses to report
-if it fails its own fixtures. The GATE was itself proven able to fail (vacuous probe → exit 1,
-offender named) before being wired in.
 
 🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**
 `phi-remediation.spec.ts` REM-8 and REM-9 skip on every run — there is no seeded RCA for
@@ -428,8 +279,8 @@ which is why it is here rather than in Follow-ups. Surfaced during AFF, **not ca
 admin to promote another — so the set is closed under the product. On a fresh production database it
 starts empty and nothing in the app can open it. **Impact:** the first production `platform_admin` is
 a manual `update profiles set is_admin = true …` that **appears in no runbook** — not in
-`docs/deployment/`, not in the pilot-deploy checklist (*Remaining pre-pilot work* item 1). Whoever
-runs the pilot deploy hits this with no written instruction.
+`docs/deployment/`, and not in any pre-pilot checklist. Whoever runs the pilot deploy hits this
+with no written instruction.
 ⚠ **Not a security defect — the closure is deliberate** (it is what stops self-promotion, and the
 guard is correct). The defect is that the bootstrap is undocumented and unautomated, so do **not**
 "fix" it by weakening the guard.
@@ -445,6 +296,25 @@ All closed rows (incl. the one-line table, the 2026-08-03 batch’s method notes
 earlier-era pointers) rotated 2026-08-06; each bug’s full entry — repro, fix, lessons — is in
 the archive. ⚠ Before touching `buildAnswerMaps`, read BUG-FF4-001 there (the obvious one-line
 fix breaks Rule 3 SQL↔TS evaluator parity).
+
+**Rotated 2026-08-12:** **BUG-ETHE4-FOCUS-1** (ETH·E4, fixed `8e5ebcd`) → the archive's closing
+section. ⚠ Before touching `TypeaheadField` or any Radix dialog focus behaviour, read it there:
+it carries the only written record of the `@radix-ui/react-focus-scope` `handleMutations`
+mechanism behind the 3-element tab loop, and of why a bubble-phase `stopPropagation()` cannot
+beat `DismissableLayer`'s capture-phase Escape. Its untested residual is live as **FUP-ETH-KBD-1**.
+
+**Also 2026-08-12:** the **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1** summary block
+— a residual duplicate; the record itself was rotated at closure 2026-08-10 and every claim in the
+summary was verified present in the archive before deletion. ⚠ **BUG-ACT-ACL-1 closed one instance,
+not the population** — the standing **AUDIT-INVOKER-WRAPPER** item (*Remaining pre-pilot work* §1)
+still owns the `app` DEFINER `EXECUTE`-to-`PUBLIC` sweep.
+
+**Also 2026-08-12:** **FUP-VACUOUS-AUDIT-1** (closed 2026-08-10) → closing line in
+[follow-ups-archive.md](docs/progress/follow-ups-archive.md); its full record was already
+[docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md) and the live
+block duplicated it. ⚠ Its output, `lint:vacuous`, is a **standing member of `npm run lint`** —
+see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are honest
+`test.skip()`s, outside the vacuity property, so this gate will never catch them.
 
 ## Test Run Summary
 
@@ -538,6 +408,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🔴 **FUP-PCITV-1** — PCI + TV: what QA APPROVED over, ranked — **5 open** (`TRUNCATE` revoke residue · audit-mesh 2/7 arms · unexercised org-admin disjunct · resolver/GUC semantics · 10 bare `for select` policies); the embed-sweep entry point closed 2026-08-11 (`npm run sweep:embeds`, named baseline in the body) — unassigned
 - 🟡 **FUP-SILENT-READ-1** — ~207 of 773 PostgREST reads never destructure `error`; an empty result is then indistinguishable from a failure. All 3 ETH·E4-authored instances fixed (`7e55f01`); the residue is pre-existing style and needs per-call-site triage, **not** a bulk fix — unassigned → [body](docs/progress/follow-ups.md)
 - 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
+- 🟡 **FUP-ETH-KBD-1** — the **professional** lane's `TypeaheadField` mount was never keyboard-navigated (`PROF-PICK`/`PROF-CREATE` drive it by mouse), so whether it shares the closed BUG-ETHE4-FOCUS-1 defect is **untested, not ruled out**. Carried out of that bug at its 2026-08-12 rotation so a green ✅ would not bury it. Same shape as QA's **m8** (`evidence-picker.tsx` has both root causes, unverified) — frontend + tester → [body](docs/progress/follow-ups.md)
 - 🟡 **FUP-ETH-A11Y-1** — ETH·E4 dialogs: `aria-describedby` never reaches the error id (m3), and the typeahead announces neither loading nor result count (m4). Filed rather than fixed in-phase because m4's only two routes both collide with `pickFromTypeahead`'s locators, so it needs a coordinated **tester-owned** spec change — frontend + tester → [body](docs/progress/follow-ups.md)
 - 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches (was 1 of 17 the same morning); `BATCH_TESTS=22` has rescued two different dead groups. Infra characteristic, **never** an assertion failure — but a batch with no verdict is not a pass — unassigned → [body](docs/progress/follow-ups.md)
 - 🔴 **FUP-FF5-1** — patient-lane sublabel is degenerate on the READ path (PO DEFERRED 2026-07-28; resolve before the lane reaches a real committee) — backend

@@ -136,7 +136,9 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 ├── Dockerfile                 # Coolify deploy — root, Next.js standalone (ADR 0059)
 ├── .claude/agents/            # teammate role definitions  (+ .claude/skills/)
 ├── scripts/                   # e2e-prod-gate.sh (the §6 gate) · check-tailwind-css-vars.mjs
-│                              #   (the lint:css-vars gate) · worktree-setup.sh
+│                              #   + check-memberships-door · check-client-server-imports ·
+│                              #   check-vacuous-assertions (the 4 non-eslint lint gates, §8)
+│                              #   · worktree-setup.sh
 ├── supabase/
 │   ├── migrations/            # SQL migrations (Backend) — the live catalog, not this
 │   │                          #   text, is truth (see the graphify exception below)
@@ -292,10 +294,19 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` = `eslint --max-warnings=0` **&& `npm run lint:css-vars`**
-  (`scripts/check-tailwind-css-vars.mjs` — gates the Tailwind-v4 bare `[--var]` form, which
-  compiles to dead CSS; added after it shipped nine dead motion utilities). Both must pass:
-  **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
+- **Lint gate** — `npm run lint` is **FIVE gates chained**; ALL must pass (verify against
+  `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
+  `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous`. Each was
+  added after the class it gates shipped a live defect:
+  - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
+    compiles to dead CSS; added after it shipped nine dead motion utilities.
+  - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
+    bypass the `has_role` doors.
+  - `lint:client-server-imports` (`check-client-server-imports.mjs`) — a client value-import from
+    a server query module, which **aborts `next build`** while tsc/lint/vitest stay green.
+  - `lint:vacuous` (`check-vacuous-assertions.mjs`) — a test that can go GREEN having asserted
+    nothing. Record: [docs/reviews/vacuous-assertion-audit.md](./docs/reviews/vacuous-assertion-audit.md).
+  eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
@@ -318,7 +329,8 @@ npm run db:push                # push migrations to remote
 npm run db:reset:linked        # reset REMOTE DB + seed (destructive!)
 npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
-npm run lint && npm run typecheck   # lint = eslint(0 warnings) && lint:css-vars
+npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
+                               #   && client-server-imports && vacuous — all five (§8)
 npm run format:check           # Prettier (npm run format to write)
 npm run test                   # Vitest unit tests (full suite)
 npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1

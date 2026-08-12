@@ -1491,6 +1491,13 @@ exception"** — it succeeded and inserted a real row into another org's vocabul
 raises 42501. A live-staff_admin CONTROL in the same session, same hat, same RPC still succeeds,
 so the refusal is not a broken-closed pass.
 
+⚠ **This bug was NOT latent-only, despite being filed that way** (carried here from PROGRESS.md at
+the 2026-08-12 rotation — the durable half of the finding). "Latent" described the **seed**, which
+carries zero expired memberships, **not the door**, which was genuinely open and inserted a real
+row into another org's vocabulary the first time a keystone actually pushed on it. A severity set
+from what the fixture happens to contain travels afterwards as if it described the mechanism.
+Re-derive "latent" from the door before deferring on it.
+
 ⚠ **Keystone `318` PART 2 changed with the fix, as its own comment had instructed.** Assertion 10
 is INVERTED (it read `ok(can_manage_professional(...))` at Stage 3 and now reads `ok(not ...)`).
 The D5 hat twin was **re-anchored onto the LIVE arm**: leaving it measuring the expired arm would
@@ -1586,3 +1593,82 @@ baseline, which is the documented E2E-leftover artifact, not a defect):
 
 The partial run overwrote `docs/reviews/authz-door-audit-findings.md` (a full-sweep record);
 restored from git per lead-playbook §4.
+
+
+## BUG-ETHE4-FOCUS-1 (rotated from PROGRESS.md 2026-08-12, closed at rotation)
+
+Phase **ETH·E4**. Fixed `8e5ebcd` 2026-08-11, QA-verified at the mechanism
+([eth-e4-review.md](../reviews/eth-e4-review.md) focus item 5). Rotated verbatim below.
+
+> ⚠ **The final paragraph is NOT closed.** The professional lane's typeahead was never
+> keyboard-navigated, so whether it shares this defect is untested. It now lives as
+> **FUP-ETH-KBD-1** in PROGRESS.md Follow-ups — do not read it here as resolved.
+
+> ⚠ **Distinct from BUG-RDR-001** (open): that one is the *generic* dialog close path
+> (focus never returns to a non-`DialogPrimitive.Trigger`), pinned by `test.fail()` KB-3.
+> This one was an `onBlur` race + capture-phase Escape **inside one dialog's own typeahead**.
+> Fixing either does not fix the other.
+
+✅ **BUG-ETHE4-FOCUS-1 — FIXED 2026-08-11 (`8e5ebcd`), verified by KBD-1 on a prod build.
+Add-participant dialog: keyboard focus gets trapped after the typeahead search field, and Escape
+silently resets the whole form.** Phase ETH·E4 (`tester`, found live during the dev-server fix
+loop, not from static review). Fixed by `frontend` in
+`src/components/cases/add-participant-dialog.tsx` + `resolve-linkage-dialog.tsx`.
+
+**Root causes — TWO independent mechanisms, not one.** The lead hypothesized symptom 2 was
+downstream of symptom 1; `frontend` disproved that empirically (re-tested with the popup
+demonstrably open — Escape still dismissed) rather than accepting it. Both found by reading
+`@radix-ui/*` source in `node_modules`, then confirmed live:
+- **Trap:** `onBlur={() => setOpen(false)}` closed the popup *synchronously*, racing the browser's
+  native focus handoff. The popup's removal dropped `document.activeElement` to `body` for one
+  tick; `@radix-ui/react-focus-scope`'s `handleMutations` safety net then refocused its own
+  container (`tabIndex=-1`) — a stop Tab should never reach — and the next Tab restarted the
+  candidate list from the top. Hence the 3-element loop. **Fix:** defer `setOpen(false)` one tick.
+- **Escape:** Radix's `DismissableLayer` listens for Escape on `document` in the **CAPTURE
+  phase**, so the field's own bubble-phase `stopPropagation()` was structurally too late
+  regardless of where focus sat — the handler was correct in isolation and was NOT the bug.
+  **Fix:** `suppressEscapeWhilePopupOpen` wired to `DialogContent`'s `onEscapeKeyDown` (the
+  escape hatch `DismissableLayer` honours via `!event.defaultPrevented`), calling
+  `preventDefault()` only so the event still reaches the field and closes just the popup.
+
+**Durable lesson:** a component's own event handler can be correct and still lose, if a library
+ancestor handles the same key in the capture phase. Read the library source, not just yours.
+All three `TypeaheadField` mounts + the resolve-linkage mount verified individually (7+ unique
+tab stops each; was 3, forever). The KBD-1 Escape assertion was committed **before** the fix
+(`bc60555`), which is why it is a regression guard rather than a description of the fix.
+
+**Repro (keyboard-only, chromium, local dev server):** sign in `chefe.ccih@test.local` → open a
+case → Tab to "Adicionar participante", Enter → Tab into the "Tipo de participante" radiogroup,
+ArrowDown to select "Pessoa externa ou órgão" (confirmed checked) → Tab once more (lands on the
+"Buscar participante externo" search input, which auto-opens its (empty) suggestion popup via
+`onFocus`) → continue pressing Tab.
+
+**Expected:** focus moves sequentially through the remaining dialog controls — "Cadastrar novo",
+then (once in create mode) Tipo / Nome / Papel / Resumo do envolvimento / Cancelar / Adicionar —
+same as every other dialog in this codebase.
+
+**Actual, two distinct symptoms, both reproduced twice on a fresh `db reset`:**
+1. **Plain Tab, no Escape:** focus cycles through exactly THREE elements forever — the search
+   input (`#ext-search`) → the dialog's own container (`role="dialog"`, which should not normally
+   be a tab stop) → a radio input → back to the search input. "Cadastrar novo" and everything
+   after it is **never reached** — confirmed via a temporary `document.activeElement` dump over
+   10 Tab presses, not inferred from the timeout alone.
+2. **Tab then Escape (a natural instinct to dismiss an empty suggestion list):** focus jumps to
+   `#prof-search` — the **professional** lane's search field — and the subsequent Tab sequence
+   shows the Papel `<select>` now listing only professional-allowed roles and the "Profissional"
+   radio checked. **The Escape key resets the entire form's lane selection (and by implication
+   the rest of `resetAll()`'s state) back to its defaults**, without the dialog closing and
+   without the user asking for that. The second run's test then hit the outer 30s timeout mid-
+   diagnostic and Playwright force-closed the page (`Target page, context or browser has been
+   closed`) — the state churn is severe enough to blow the budget even instrumented.
+
+**Violates:** CLAUDE.md §8 ("Every form input accessible: labels, keyboard navigation, visible
+focus") and this phase's own acceptance criterion for a keyboard-only flow
+(`docs/phases/ethics-e4-participant-seating.md` §5.2's E2E bullet). Test:
+`e2e/ethics-e4-participants.spec.ts` KBD-1 — left failing (not weakened, not skipped) because the
+failure is the accurate signal; do not edit the spec to route around this.
+
+**Not confirmed, flagged as a hypothesis for whoever fixes it:** `TypeaheadField` is shared by
+"Buscar profissional", "Buscar participante externo", and "Usuário da plataforma" — the
+professional lane's own typeahead was never keyboard-navigated in this suite (`PROF-PICK`/
+`PROF-CREATE` drive it by mouse), so whether it shares this defect is untested, not ruled out.

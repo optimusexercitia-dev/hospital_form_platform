@@ -163,10 +163,27 @@ widened the read together.
   `department` / `institution` / `other`, which are **mintable but have no seeded role**
   (catalog-confirmed) — the UI names the state ("Nenhum papel cadastrado aceita este tipo de
   participante") rather than dead-ending silently, so this is a seeding choice, not a defect.
-- **Before any remote `db push`:** the duplicate check on
-  `professional_participants.professional_profile_id` (plan §6 step 3) — the new unique index
-  `professional_participants_profile_uniq` will fail against a data-bearing remote if duplicates
-  exist. A local `count=1` proves nothing about the remote.
+- **Remote push drift — MEASURED 2026-08-12 against `azkbbhskturikxpgmafq`: exactly 2.** 356 local
+  migration files vs **354** registered in `supabase_migrations.schema_migrations`; remote max is
+  `20260919010000`, and the only local files above it are the REG·KIND pair
+  `20260920000100_case_events_update_follow_up_kinds` + `20260920000200_referral_registros_shared_kind_vocabulary`.
+  ACT (`…003000`/`…003100`), ETH·E4 (6) and RDR (`20260919010000`) **are all on the remote**.
+  ⚠ **This corrects a ledger that claimed 11.** The removed *Remaining pre-pilot work* deploy row
+  derived its drift by subtracting a **2026-08-10 baseline of 345** from the local file count,
+  assuming nothing had been pushed since. Nine had been. A drift number computed from a remembered
+  baseline is a guess; count `schema_migrations` instead. ⚠ REG·KIND is also **ungated** (Phase Gate
+  step 1 only) and re-keys live `case_events` rows — it needs its own pre-push read, which the
+  closed check below does not provide.
+- ~~**Before any remote `db push`:** the duplicate check on
+  `professional_participants.professional_profile_id` (plan §6 step 3).~~ **CLOSED 2026-08-12** —
+  the ETH·E4 batch `20260919000100`–`…000600` is already registered on the remote and
+  `professional_participants_profile_uniq` exists in `pg_indexes`. The index **built against live
+  data**, which proves absence of duplicates more strongly than the pre-check ever could; a
+  confirming read returned 0 duplicate groups (non-vacuous — 1 row, 1 non-null id, 0 nulls).
+  ⚠ The general lesson still stands for the **next** push: a local `count=1` on a fresh reset is
+  true by construction of the fixture and proves nothing about a data-bearing remote. The two
+  unpushed REG·KIND migrations (`20260920000100`, `…000200`) re-key live `case_events` rows and
+  need their own pre-push read — this closure says nothing about them.
 
 
 ## ACT — "act as" STRICT ROLE ASSUMPTION (2026-08-10; ADR 0106 D1–D14; migrations `20260918000000`–`…002800`; **NO flag — the migration IS the cutover**, PO-locked P4)

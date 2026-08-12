@@ -1460,3 +1460,17 @@ so the 5 label slots cannot be edited in-app on any tenant.
 *and* name. Today's catalog answers **one** (`set_participant_patient`) against ADR 0091's prose claim of
 *"exactly two functions"* — so the assertion should be written from the catalog, and the discrepancy
 resolved as part of writing it, **not** from the ADR's number.
+
+## FUP-VACUOUS-AUDIT-1 — CLOSED 2026-08-10 (rotated from PROGRESS.md 2026-08-12)
+
+- [x] **FUP-VACUOUS-AUDIT-1 — repo-wide vacuous-assertion audit. 89 raw → 33 real → 0, and it
+  is now a STANDING GATE.** `npm run lint` runs `lint:vacuous`
+  (`scripts/check-vacuous-assertions.mjs --gate`), which exits non-zero on any finding and
+  names the offending test. **Full record — the checkable property, the six real defects it
+  exposed, the retraction, and the seven detector defects behind 56 of the first 89 — is
+  [docs/reviews/vacuous-assertion-audit.md](../reviews/vacuous-assertion-audit.md).** The live
+  PROGRESS.md block was a duplicate of that record and was verified claim-by-claim against it
+  before deletion.
+  ▶ **Still open: FUP-VACUOUS-COVERAGE-1** (`phi-remediation` REM-8/REM-9 never run). They are
+  honest `test.skip()`s, so they sit OUTSIDE the vacuity property and this gate will never
+  catch them — closing the audit did not close them.

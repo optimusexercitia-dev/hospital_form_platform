@@ -1188,6 +1188,7 @@ would have been a stranger, not just multi-role ones. Measured while it was outs
 sessions see stranger-level nothing until they sign in again.
 
 Live tracking: both items were REMOVED from PROGRESS.md § *Remaining pre-pilot work* on 2026-08-10 as
-fully concluded; only the **Coolify app deploy** remains there (item 1). This file is now the durable
-record of the ACT cutover.
+fully concluded. The **Coolify app deploy** row that remained beside them was itself removed
+2026-08-12 (PO: not needed); its one durable fact, the remote push drift, lives corrected in
+`docs/backend-state.md`. This file is now the durable record of the ACT cutover.
 
