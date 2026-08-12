@@ -258,6 +258,67 @@ full `e2e:prod` green; QA program-level review; human approval; Record step.
 - Migration windows allocated above the highest REGISTERED version at each
   phase start.
 
+## ⛔ BLOCKS DM2 — the per-document confidentiality ceiling has no replacement
+
+> Found by `backend` during the DM1 pgTAP triage (pgTAP `228` t36–40), severity
+> upgraded by the lead after running it down 2026-08-12. **Owner: PO. Wave A
+> (DM2) must not start until this is ruled.** Tracked as **FUP-DM1-CEILING**.
+
+**The control that was dropped.** ADR **0072 D7 / ETH·E1** made the attachment
+confidentiality labels `legal_privileged` and `credentialing_sensitive`
+**ENFORCING**, not informational: a document could be gated **above** ordinary
+case-read. `e2e/ethics-e1-access-spine.spec.ts` encodes it as an acceptance
+contract — AC-4a/b/c/d put two documents on the **same** ethics case where an
+ordinary reader sees one and is denied the other, and AC-9 is a keyboard-only
+path to the privileged one. DM1 dropped its enforcement mechanism
+(`app.attachment_confidentiality_ok`) along with the substrate.
+
+**Why ADR 0114 does not cover it.** D6 defers the audience/sharing plane — a
+mechanism for **widening** access (share with a user, group, scoped role). The
+confidentiality ceiling is the opposite: it **narrows** access below the home
+resource. D6's "document access = home-resource access" is precisely the
+statement that makes the ceiling inexpressible. **ADR 0114 does not supersede
+ADR 0072**, so this is a live authorization control with no replacement, not a
+deliberate simplification.
+
+**`sensitivity_tier` is not the ceiling.** The new model's only classification
+column is `file_objects.sensitivity_tier ∈ {standard, phi}` (verified against
+every column of `documents` / `document_versions` / `document_version_files` /
+`file_objects`). It selects a **bucket** by CHECK constraint (D8). It carries no
+principal-facing gate and cannot express "readable by cleared case readers only".
+
+**Why this blocks DM2 rather than the ethics wave.** The label lived on
+`attachments` generally, and `cases.confidentiality_level` is snapshotted from
+`attachments.confidentiality_label`. **Wave A re-points case / meeting /
+interview documents.** If a wave lands document re-pointing before the ruling, a
+document formerly gated above case-read becomes readable by every ordinary case
+reader — a silent authorization regression introduced by a data-model migration,
+in a module whose access spine is a different ADR. Present real-world risk is
+**zero** (flag off, zero bytes, no wave carries ethics yet), which is exactly why
+it is easy to wave through: this is the QO·B lesson — *a subtractive phase needs
+over-cut guards, and one of them guards a ruling from a different ADR that a
+later sweep would otherwise reverse without ever reading it.*
+
+**Options for the ruling** (each needs an ADR 0114 amendment):
+
+1. **Re-express the ceiling on `documents`** — a nullable confidentiality column
+   plus a kernel arm, restoring ADR 0072 D7 semantics before Wave A re-points
+   anything. Smallest behavioural delta; adds a narrowing dimension the ADR
+   deliberately kept out of the aggregate.
+2. **Pull the ceiling forward into the deferred access plane (O3)** — accept that
+   O3 must now cover narrowing as well as widening, and schedule it **before**
+   Wave A rather than "if/when a feature commits to it".
+3. **Ratify the loss explicitly** — rule that per-document ceilings are not part
+   of the target model, retire ADR 0072 D7's enforcing status by amendment, and
+   delete the AC-4/AC-9 contracts deliberately. Legitimate, but it is a
+   **product decision to widen access to privileged legal material** and must be
+   made in the open, never by omission.
+
+**Discharge condition.** A PO ruling recorded as an ADR 0114 amendment, plus
+either a restored control or an explicit retirement of ADR 0072 D7's enforcing
+status. pgTAP `228` t36–40 stay retired until the control returns — the coverage
+comes back with the mechanism, not before.
+
 ## Unassigned scope — the ethics document seams (Q1, OPEN)
 
 > Raised by `backend` at DM1 plan time, verified by the lead against the live
