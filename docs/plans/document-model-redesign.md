@@ -63,15 +63,32 @@ branch merged (docs only).
    and the `referral_attachments_obj_insert` / `referral_attachments_obj_select`
    storage policies are live referral features, not centralized-attachment
    doors. A naive `%attachment%` sweep-and-drop breaks referrals.
-   Legacy per-feature policies on `case-documents` are dropped here too, and on
-   `meeting-attachments` **if it still exists** — the 2026-08-11 audit recorded
-   that bucket + policies, but the current local catalog has neither (10 buckets,
-   no meeting-attachment policies); verify local AND prod at build time and make
-   the drop conditional. (Both buckets retire in DM5.)
+   ⚠ **Amended 2026-08-12 (second catalog pass, same error class as the first):**
+   the `case-documents` SELECT policy `case_documents_select_member` and its
+   predicate `app.can_read_snapshot_document` are **NOT dropped here** — they are
+   **referral-owned** and join the DM4 allowlist. The predicate resolves
+   `referral_shared_item.frozen_storage_path` through
+   `app.can_read_referral_phi`, and `getReferralDocumentUrl`
+   (`src/lib/queries/referrals.ts`, ~L1100) signs that bucket with the **cookie
+   client** — so this policy *is* the live boundary for referral snapshot
+   downloads until DM4 replaces the path (ADR 0114 D8 reverses that topology
+   *in DM4*, not before). Dropping it in DM1 breaks a live feature. This
+   contradicted the plan's own referral-exclusion rule three lines above; the
+   original text ("legacy per-feature policies on `case-documents` are dropped
+   here too") is superseded by this note.
+   `meeting-attachments` needs no conditional drop: migration
+   `20260921000300_retire_meeting_attachments_bucket.sql` already retired it and
+   the local catalog confirms 10 buckets with no meeting-attachment policies —
+   verify prod at build time and record, but expect a no-op. (`case-documents`
+   retires in DM5, after DM4 frees it.)
 2. **Door-sweep keystone (pgTAP):** after the drop, assert zero routines matching
    `%attachment%` in `pg_proc` (public + app), zero `%attachment%` policies in
    `pg_policies`, and zero surviving grants — **minus an explicit, named
    allowlist containing exactly the referral-owned surfaces above**. The
+   allowlist is broader than `%attachment%`: it also names
+   `case_documents_select_member` + `app.can_read_snapshot_document`, which the
+   `%attachment%` sweep does not match but which DM4 must still retire — assert
+   them by name so DM4 cannot forget them. The
    allowlist is a keystone artifact: DM4's exit empties it and re-runs the
    keystone at zero exceptions. This keystone must FAIL if any non-allowlisted
    door survives — prove it by mutation (re-add one stub → red).
@@ -166,9 +183,13 @@ prior-version download); migration counts reconciled; gate + approval.
 4. Referral attachment surfaces migrate off the legacy substrate:
    `add_referral_reply_attachment` / `get_referral_attachment_path`, the
    `referral_reply_attachment` policy, and both `referral_attachments_obj_*`
-   storage policies are replaced/dropped here.
-5. **DM1 keystone closure:** empty the DM1 referral allowlist and re-run the
-   `%attachment%` door-sweep keystone at zero exceptions.
+   storage policies are replaced/dropped here — **plus
+   `case_documents_select_member` and `app.can_read_snapshot_document`**, which
+   DM1 deliberately spared (see the DM1 amendment) because they are the live
+   cookie-client boundary for frozen snapshots until step 2 above lands.
+5. **DM1 keystone closure:** empty the DM1 referral allowlist — all of it,
+   including the two non-`%attachment%` case-documents entries — and re-run the
+   door-sweep keystone at zero exceptions.
 6. Regression: fresh centralized PHI snapshot opens from the canonical bucket
    exactly once with exactly one audit row; the retired bucket path serves
    nothing.
