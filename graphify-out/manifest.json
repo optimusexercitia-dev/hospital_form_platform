@@ -160,8 +160,8 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/casos/[caseId]/page.tsx": {
-    "mtime": 1786470431.4097037,
-    "ast_hash": "e56c3c5318089953b58204c500ac03c5",
+    "mtime": 1786473001.221181,
+    "ast_hash": "bb7f4b82d4faf5ae33b2b94a1c2e2fcb",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/casos/error.tsx": {
@@ -210,13 +210,13 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/encaminhamentos/[referralId]/loading.tsx": {
-    "mtime": 1782428316.5736618,
-    "ast_hash": "45c2212866216e1ddb48a7017093a9c9",
+    "mtime": 1786516380.6198175,
+    "ast_hash": "8aa3430beb506a6b39a37b788c1c8433",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/encaminhamentos/[referralId]/page.tsx": {
-    "mtime": 1785888740.529603,
-    "ast_hash": "cb33811a19766445c497895bfffd7002",
+    "mtime": 1786516380.6205065,
+    "ast_hash": "0f6594265f652dd1d6109c687ffd502f",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/encaminhamentos/error.tsx": {
@@ -355,8 +355,8 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/page.tsx": {
-    "mtime": 1786470431.4107044,
-    "ast_hash": "2e6ddfca64a1f8a9171728260e5e5e43",
+    "mtime": 1786473017.250355,
+    "ast_hash": "330e62be7e3c9366253883ea730e7ebd",
     "semantic_hash": ""
   },
   "src/app/o/[org]/c/[commission]/manage/cases/[caseId]/(detail)/timeline/page.tsx": {
@@ -1135,8 +1135,8 @@
     "semantic_hash": ""
   },
   "src/components/cases/case-detail-view.tsx": {
-    "mtime": 1786470431.4132288,
-    "ast_hash": "5566efd9e3cc0524e08f096d39fdb107",
+    "mtime": 1786472980.5737753,
+    "ast_hash": "6358d9f14b04a081623821be256fa39c",
     "semantic_hash": ""
   },
   "src/components/cases/case-document-delete.tsx": {
@@ -3465,8 +3465,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/case-narratives.test.ts": {
-    "mtime": 1785116750.6491952,
-    "ast_hash": "abbe8b0348d838c8b4d89692fab1f5da",
+    "mtime": 1786516380.6311696,
+    "ast_hash": "dd0a5ea88327d593bebd5c813c9cf0a5",
     "semantic_hash": ""
   },
   "src/lib/queries/case-narratives.ts": {
@@ -3600,8 +3600,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/referrals.ts": {
-    "mtime": 1786325577.812021,
-    "ast_hash": "14f24780dbfb9767b085dc3b51b9ff91",
+    "mtime": 1786516380.6331735,
+    "ast_hash": "3e998c5096b89959ff576cc0243a210b",
     "semantic_hash": ""
   },
   "src/lib/queries/responses.ts": {
@@ -3640,18 +3640,18 @@
     "semantic_hash": ""
   },
   "src/lib/referrals/actions.ts": {
-    "mtime": 1786325577.8210366,
-    "ast_hash": "70f32c5d43538bd6861a66bed08cfe1d",
+    "mtime": 1786516380.634187,
+    "ast_hash": "f4b6f05fbb8ea13eb592d876e8ec50b8",
     "semantic_hash": ""
   },
   "src/lib/referrals/messages.ts": {
-    "mtime": 1785968649.370987,
-    "ast_hash": "257dc81b78a6a29257525e12327cef8f",
+    "mtime": 1786516380.6351817,
+    "ast_hash": "a971736249aead6072cb22acfdf22f57",
     "semantic_hash": ""
   },
   "src/lib/referrals/types.ts": {
-    "mtime": 1785968649.3720243,
-    "ast_hash": "7aadee1096ba6ae2dd5c87fb95690561",
+    "mtime": 1786516380.6372492,
+    "ast_hash": "7a0a4a279ba013a6b2a2b726f65db4ac",
     "semantic_hash": ""
   },
   "src/lib/responses/actions.ts": {
@@ -3740,8 +3740,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1786470431.427861,
-    "ast_hash": "65a5156b564549959632963e3ea27a5f",
+    "mtime": 1786516380.6403003,
+    "ast_hash": "eadfacef2dc77021450b3b1be7cbdde8",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4170,8 +4170,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/150_referrals.sql": {
-    "mtime": 1786398447.6809964,
-    "ast_hash": "89257e25b5d1f01b2c16e3748e5a0163",
+    "mtime": 1786516380.6423056,
+    "ast_hash": "88172ab6f208327462706bedf8353876",
     "semantic_hash": ""
   },
   "supabase/tests/151_case_patient.sql": {
@@ -4460,8 +4460,8 @@
     "semantic_hash": ""
   },
   "ARCHITECTURE.md": {
-    "mtime": 1786127614.9895155,
-    "ast_hash": "ee2e6a17a1569fa1c8ff12b6fed3436e",
+    "mtime": 1786471395.7930183,
+    "ast_hash": "72ca98895fd68759df6cb0142254b79d",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -4475,8 +4475,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1786470431.388819,
-    "ast_hash": "605d847b278e07a5176d6cf6cf194550",
+    "mtime": 1786516380.6089475,
+    "ast_hash": "5b7a943623fcd877f575f81580d8866b",
     "semantic_hash": ""
   },
   "README.md": {
@@ -5595,8 +5595,8 @@
     "semantic_hash": ""
   },
   "e2e/phase22-referrals.spec.ts": {
-    "mtime": 1786429416.3966348,
-    "ast_hash": "9bc272880a03172f04b8cb7582064414",
+    "mtime": 1786516380.6167138,
+    "ast_hash": "8dc4112bc29fc7eed59f84775a2dfd94",
     "semantic_hash": ""
   },
   "e2e/phase3-admin-members.spec.ts": {
@@ -6450,13 +6450,13 @@
     "semantic_hash": ""
   },
   "src/components/referrals/referral-composer.tsx": {
-    "mtime": 1784051500.1057665,
-    "ast_hash": "9a8e6946309dc5b38b48d0704e54a2ac",
+    "mtime": 1786516380.6251333,
+    "ast_hash": "c8c8aecc9019e5edb5fe8bba4f8dd345",
     "semantic_hash": ""
   },
   "src/components/referrals/referral-thread.tsx": {
-    "mtime": 1784492308.0811512,
-    "ast_hash": "4275c65ccf40b0cd04b17f632aab5dac",
+    "mtime": 1786516380.6311696,
+    "ast_hash": "bbcb64eb005619038bf2e6d5857eda41",
     "semantic_hash": ""
   },
   "supabase/migrations/20260720000920_referral_detail_compose_flags.sql": {
@@ -7205,8 +7205,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/mutation/p0b-isolation-mutation-audit.sh": {
-    "mtime": 1785968649.3730335,
-    "ast_hash": "0f1f950dcf6ac264678af045b289287c",
+    "mtime": 1786516380.6453009,
+    "ast_hash": "d6b200f1a9c81b33a4c5c68b9c18e546",
     "semantic_hash": ""
   },
   "docs/decisions/0079-authz-door-blindness-standing-invariant.md": {
@@ -7220,8 +7220,8 @@
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-findings.md": {
-    "mtime": 1786398447.6140912,
-    "ast_hash": "ad2dcce945e0ca298c7bad44576e7212",
+    "mtime": 1786516380.6122096,
+    "ast_hash": "311a8f3037f22274e0a2eb7f56e4154f",
     "semantic_hash": ""
   },
   "docs/reviews/authz-door-audit-p0-review.md": {
@@ -7385,8 +7385,8 @@
     "semantic_hash": ""
   },
   "e2e/phase22-referrals-governance.spec.ts": {
-    "mtime": 1785784844.7085862,
-    "ast_hash": "2c7c2e5df44dfdbfd849b66552e3cab3",
+    "mtime": 1786516380.6157136,
+    "ast_hash": "a013b07f256a6eb6c2fda2a97f06e597",
     "semantic_hash": ""
   },
   "src/app/conta/encaminhamentos/page.tsx": {
@@ -7440,13 +7440,13 @@
     "semantic_hash": ""
   },
   "src/components/referrals/referral-assignment-panel.tsx": {
-    "mtime": 1784492308.0789115,
-    "ast_hash": "c1afd0bf630629bb8deea8932f5370d1",
+    "mtime": 1786516380.6223817,
+    "ast_hash": "56616933dad57d9e780f84eed128862a",
     "semantic_hash": ""
   },
   "src/components/referrals/referral-internal-notes-panel.tsx": {
-    "mtime": 1784492308.0811512,
-    "ast_hash": "074a17445b9a1a10fe8fbefdff543a60",
+    "mtime": 1786516380.6261714,
+    "ast_hash": "362b7ffb84b9451ea86b66f0de6d60aa",
     "semantic_hash": ""
   },
   "src/components/referrals/referral-lineage.tsx": {
@@ -7460,8 +7460,8 @@
     "semantic_hash": ""
   },
   "src/components/referrals/referral-related-cases-panel.tsx": {
-    "mtime": 1784492308.0811512,
-    "ast_hash": "ffcfa2ea0086297127a37ddf869cf7ff",
+    "mtime": 1786516380.6291692,
+    "ast_hash": "2b3f77f3a428cb27e2444f5e8072a7ab",
     "semantic_hash": ""
   },
   "src/components/referrals/referral-resolutions.tsx": {
@@ -7470,8 +7470,8 @@
     "semantic_hash": ""
   },
   "src/components/referrals/referral-thread-item.tsx": {
-    "mtime": 1784492308.0811512,
-    "ast_hash": "356345bb637d985ad7f4fa4c25b99db6",
+    "mtime": 1786516380.63017,
+    "ast_hash": "fcc5cbcb9b5c6676a20769e92e2b4d95",
     "semantic_hash": ""
   },
   "supabase/migrations/20260817001000_referral_triage.sql": {
@@ -10140,8 +10140,8 @@
     "semantic_hash": ""
   },
   "e2e/technical-direction-referrals.spec.ts": {
-    "mtime": 1786398447.6467447,
-    "ast_hash": "4f05383d5a9391916b4765a244c79431",
+    "mtime": 1786516380.6186278,
+    "ast_hash": "d1004f01d59dbf5c5d4e849809302fbf",
     "semantic_hash": ""
   },
   "scripts/extract-embeds.mjs": {
@@ -10155,8 +10155,8 @@
     "semantic_hash": ""
   },
   "src/app/o/[org]/direcao-tecnica/[referralId]/page.tsx": {
-    "mtime": 1785968649.3491116,
-    "ast_hash": "8a98fec0dcfa121a9a9e2aaaa33cb956",
+    "mtime": 1786516380.621377,
+    "ast_hash": "66571e1edd7306780f1ea4c8db64393d",
     "semantic_hash": ""
   },
   "src/app/o/[org]/direcao-tecnica/error.tsx": {
@@ -10200,8 +10200,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/298_authz_p0_isolation.sql": {
-    "mtime": 1785968649.3730335,
-    "ast_hash": "498bf4a3f387ea8f18bf8e1c01be423e",
+    "mtime": 1786516380.6433012,
+    "ast_hash": "284a43acb94de849f801d637b5dd9c4a",
     "semantic_hash": ""
   },
   "supabase/tests/299_hospital_content_door_noun_rule.sql": {
@@ -11645,13 +11645,13 @@
     "semantic_hash": ""
   },
   "src/components/cases/add-participant-dialog.tsx": {
-    "mtime": 1786470431.4122305,
-    "ast_hash": "9b86b02f46c3684ff4658bc126040387",
+    "mtime": 1786472946.4192533,
+    "ast_hash": "56f3b3aba0ac9c551d873d197f9e8ba7",
     "semantic_hash": ""
   },
   "src/components/cases/case-participants-panel.tsx": {
-    "mtime": 1786470431.4142292,
-    "ast_hash": "f9fe211287c2c9971cf4fae9ca849e87",
+    "mtime": 1786472960.8617702,
+    "ast_hash": "b7b868385f3d774f8f1460f2e97ee84f",
     "semantic_hash": ""
   },
   "src/components/cases/resolve-linkage-dialog.tsx": {
@@ -11670,8 +11670,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/participants.ts": {
-    "mtime": 1786470431.4228587,
-    "ast_hash": "91f523d2a98375ab1f06e8b7746b4564",
+    "mtime": 1786472925.368359,
+    "ast_hash": "490d664b7e9fea1b75b2b8e3db1d1e6a",
     "semantic_hash": ""
   },
   "src/lib/text.ts": {
@@ -11735,8 +11735,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0108-eth-e4-participant-seating.md": {
-    "mtime": 1786470431.392823,
-    "ast_hash": "dd400dbf20d65c8a916f2ef2943dcbec",
+    "mtime": 1786471410.2457154,
+    "ast_hash": "1a70e51f69420afe8a8cd6da6e534e88",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e4-locator-contract.md": {
@@ -11755,8 +11755,8 @@
     "semantic_hash": ""
   },
   "docs/progress/eth-e4-participant-seating.md": {
-    "mtime": 1786470431.3960106,
-    "ast_hash": "f218f2f87542d79a257fdc15aa627098",
+    "mtime": 1786473187.501146,
+    "ast_hash": "d9afe4175815173c45bc9fbf32994896",
     "semantic_hash": ""
   },
   "docs/progress/phase-status-archive.md": {
@@ -11777,6 +11777,101 @@
   "docs/reviews/vacuous-assertion-audit.md": {
     "mtime": 1786429416.3886728,
     "ast_hash": "f0a9b571e83ad2b1598c2569d28d0a69",
+    "semantic_hash": ""
+  },
+  "e2e/referral-registros.spec.ts": {
+    "mtime": 1786516380.6177175,
+    "ast_hash": "dd93c1a2655d6cd2b00e28848f2848f6",
+    "semantic_hash": ""
+  },
+  "src/components/forms/markdown/markdown-renderer.test.tsx": {
+    "mtime": 1786516380.6223817,
+    "ast_hash": "1220bd8141973d8c9288896330839350",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-case-access-dialog.tsx": {
+    "mtime": 1786516380.623382,
+    "ast_hash": "7b98dba4892615e89079ba0809e34899",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-case-card.tsx": {
+    "mtime": 1786516380.6243825,
+    "ast_hash": "eaa0aab6405b2ff5c76a7807b186bf4d",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-details-card.tsx": {
+    "mtime": 1786516380.6251333,
+    "ast_hash": "fc232cae6d5dce368c69b680ab29c29a",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-note-card.tsx": {
+    "mtime": 1786516380.627169,
+    "ast_hash": "b600612343edc2ecbefaa85a2f596c2e",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-note-type-manager.tsx": {
+    "mtime": 1786516380.628169,
+    "ast_hash": "a9199cc2cd35eb1f190fa7fe04f476c0",
+    "semantic_hash": ""
+  },
+  "src/components/referrals/referral-thread-event.tsx": {
+    "mtime": 1786516380.6291692,
+    "ast_hash": "257c48d19e1b23cd9f70254ca7858d20",
+    "semantic_hash": ""
+  },
+  "src/lib/queries/referrals.test.ts": {
+    "mtime": 1786516380.6321697,
+    "ast_hash": "97e6461e6ccc3a940cca8c37f6534f9a",
+    "semantic_hash": ""
+  },
+  "src/lib/referrals/thread-events.test.ts": {
+    "mtime": 1786516380.6361783,
+    "ast_hash": "3f387dcedfd02b44c6e1377044c49264",
+    "semantic_hash": ""
+  },
+  "src/lib/referrals/thread-events.ts": {
+    "mtime": 1786516380.6361783,
+    "ast_hash": "a9a126e927e205463126e6c73ca4fd40",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260919010000_referral_registros_case_access_summary.sql": {
+    "mtime": 1786516380.6413069,
+    "ast_hash": "e4611cdd8ce6932a459de263184129ef",
+    "semantic_hash": ""
+  },
+  "supabase/tests/322_referral_registros.sql": {
+    "mtime": 1786516380.6443007,
+    "ast_hash": "4f5be11793d06920cf8449f759cf27d9",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0109-referral-registros-and-case-access-summary.md": {
+    "mtime": 1786516380.6099465,
+    "ast_hash": "8c6bb304f286cdeb7212cd8ea16d6979",
+    "semantic_hash": ""
+  },
+  "docs/design/temp/authorization-database-audit-handoff-2026-08-11.md": {
+    "mtime": 1786490563.6341996,
+    "ast_hash": "6f62aa8c8f463937a1a82a6ef10d65ec",
+    "semantic_hash": ""
+  },
+  "docs/design/temp/document-model-audit-handoff.md": {
+    "mtime": 1786481972.1092958,
+    "ast_hash": "a0cad04755456211cf99e79b8f5520e5",
+    "semantic_hash": ""
+  },
+  "docs/plans/referral-detail-redesign.md": {
+    "mtime": 1786516380.6099465,
+    "ast_hash": "e55cec7fdd39babe5ee34d6f0cd80869",
+    "semantic_hash": ""
+  },
+  "docs/reviews/referral-detail-redesign-review.md": {
+    "mtime": 1786516380.6137187,
+    "ast_hash": "2c17ceb51d6a7f613ef32c6546193da1",
+    "semantic_hash": ""
+  },
+  "docs/testing/referral-detail-redesign-locator-survey.md": {
+    "mtime": 1786516380.6147137,
+    "ast_hash": "bbd013f3925a25ca0ff3b31fa1ff3495",
     "semantic_hash": ""
   }
 }
