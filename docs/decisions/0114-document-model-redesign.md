@@ -1,4 +1,4 @@
-# 0109 — Document model redesign: documents, versions, file objects, securable resources
+# 0114 — Document model redesign: documents, versions, file objects, securable resources
 
 - **Status:** Accepted — ratified by the PO 2026-08-12 (drafted 2026-08-11 from the
   external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling

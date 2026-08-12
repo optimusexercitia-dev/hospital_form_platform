@@ -1,8 +1,8 @@
 # Document model redesign — program plan (DM0–DM5)
 
-> Executes **ADR 0109**. Source analysis:
+> Executes **ADR 0114**. Source analysis:
 > `docs/design/temp/document-model-audit-handoff.md` (external audit, findings
-> re-verified by the lead against the live catalog 2026-08-11). Read ADR 0109
+> re-verified by the lead against the live catalog 2026-08-11). Read ADR 0114
 > first; this file adds sequencing, deliverables, and gate detail only.
 > **Standing prerequisite for every phase:** `docs/progress/authz-handoff.md §7`
 > before any RLS/DEFINER work; the live catalog — never migration text — is truth.
@@ -10,7 +10,7 @@
 ## Program invariants (bind every phase)
 
 - One canonical model at all times — DM1 drops the old substrate before the new
-  one takes writes; no dual-write, no adapters (ADR 0109 D2/D5).
+  one takes writes; no dual-write, no adapters (ADR 0114 D2/D5).
 - No SELECT policy on `documents-standard` / `documents-phi`; every byte flows
   through `open_document_version` → service-role short-TTL signing (D8).
 - Buckets/paths derived server-side; caller-supplied bucket/path/size/MIME/hash
@@ -24,10 +24,10 @@
 
 ## Phase DM0 — ratification (this worktree)
 
-Deliverables: ADR 0109, this plan, PROGRESS.md program entry recording the
+Deliverables: ADR 0114, this plan, PROGRESS.md program entry recording the
 **already-executed** production flag flip (`attachments=false`, 2026-08-11) and
 its accepted residual (non-flag-aware Storage policies on an empty bucket, killed
-in DM1). Exit: human ratifies ADR 0109; phase identifiers allocated; worktree
+in DM1). Exit: human ratifies ADR 0114; phase identifiers allocated; worktree
 branch merged (docs only).
 
 ## Phase DM1 — substrate cutover (backend-only, no UI)
@@ -47,7 +47,7 @@ branch merged (docs only).
    `pg_policies`, zero surviving grants. This keystone must FAIL if any door
    survives — prove it by mutation (re-add one stub → red).
 
-**Create (per ADR 0109 D3/D4/D7/D8):**
+**Create (per ADR 0114 D3/D4/D7/D8):**
 3. `securable_resources` + shared-PK links from `cases`, `meetings`,
    `interviews`, `action_items` (typed composite-FK pinning per the participants
    registry precedent); tenant-shape CHECKs.
