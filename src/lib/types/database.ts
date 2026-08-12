@@ -9519,55 +9519,10 @@ export type Database = {
     Functions: {
       accept_referral: {
         Args: { p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -10562,28 +10517,10 @@ export type Database = {
       }
       assign_referral_internal_note: {
         Args: { p_note_id: string; p_user_id: string }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -11246,83 +11183,20 @@ export type Database = {
           p_reply_outcome_id?: string
           p_result_md?: string
         }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       conclude_referral_internal_note: {
         Args: { p_note_id: string }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -12053,55 +11927,10 @@ export type Database = {
           p_target_commission_id: string
           p_target_hospital_id?: string
         }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -12115,28 +11944,10 @@ export type Database = {
           p_referral_id: string
           p_title?: string
         }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -12336,55 +12147,10 @@ export type Database = {
           p_note?: string
           p_referral_id: string
         }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -12873,55 +12639,10 @@ export type Database = {
       }
       link_referral_case: {
         Args: { p_referral_id: string; p_target_case_id?: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13369,24 +13090,10 @@ export type Database = {
           p_message_type?: string
           p_referral_id: string
         }
-        Returns: {
-          body: string
-          created_at: string
-          id: string
-          in_reply_to_message_id: string | null
-          message_type: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          sender_commission_id: string | null
-          sender_user_id: string | null
-          sequence_number: number
-          supersedes_message_id: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_message_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_messages"
+          to: "referral_message_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13419,55 +13126,10 @@ export type Database = {
       processless_cases_enabled: { Args: never; Returns: boolean }
       provide_referral_information: {
         Args: { p_body: string; p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13662,55 +13324,10 @@ export type Database = {
       }
       receive_referral: {
         Args: { p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13882,52 +13499,20 @@ export type Database = {
       }
       redact_referral_message: {
         Args: { p_message_id: string; p_reason: string }
-        Returns: {
-          body: string
-          created_at: string
-          id: string
-          in_reply_to_message_id: string | null
-          message_type: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          sender_commission_id: string | null
-          sender_user_id: string | null
-          sequence_number: number
-          supersedes_message_id: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_message_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_messages"
+          to: "referral_message_public"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       redact_referral_note: {
         Args: { p_note_id: string; p_reason: string }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14240,55 +13825,10 @@ export type Database = {
       }
       reopen_referral: {
         Args: { p_reason: string; p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14379,55 +13919,10 @@ export type Database = {
       }
       request_referral_information: {
         Args: { p_body: string; p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14438,55 +13933,10 @@ export type Database = {
           p_referral_id: string
           p_summary_md?: string
         }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14740,55 +14190,10 @@ export type Database = {
       }
       send_referral: {
         Args: { p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -15190,55 +14595,10 @@ export type Database = {
       }
       set_referral_deadline: {
         Args: { p_referral_id: string; p_response_due_at?: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -15465,55 +14825,10 @@ export type Database = {
       }
       start_referral_review: {
         Args: { p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -15780,28 +15095,10 @@ export type Database = {
       unassign_narrative: { Args: { p_narrative: string }; Returns: undefined }
       unassign_referral_internal_note: {
         Args: { p_note_id: string }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -16794,55 +16091,10 @@ export type Database = {
           p_response_expected?: boolean
           p_subject: string
         }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -16854,28 +16106,10 @@ export type Database = {
           p_note_id: string
           p_title: string
         }
-        Returns: {
-          assigned_to: string | null
-          author_user_id: string | null
-          body_md: string
-          committee_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          id: string
-          kind: string
-          redacted_at: string | null
-          redacted_by: string | null
-          redacted_reason: string | null
-          referral_id: string
-          status: string
-          title: string | null
-          updated_at: string
-          updated_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["referral_internal_note_public"]
         SetofOptions: {
           from: "*"
-          to: "referral_internal_notes"
+          to: "referral_internal_note_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -17119,55 +16353,10 @@ export type Database = {
       }
       withdraw_referral: {
         Args: { p_referral_id: string }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          decline_reason_code: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          last_message_at: string | null
-          parent_referral_id: string | null
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          priority: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          requested_action_id: string | null
-          requested_action_label: string | null
-          response_due_at: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          source_commission_name: string | null
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string | null
-          target_commission_name: string | null
-          target_hospital_id: string | null
-          target_hospital_name: string | null
-          target_type: string
-          type_label: string
-          updated_at: string
-          waiting_on_committee_id: string | null
-          waiting_on_hospital_id: string | null
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
+        Returns: Database["public"]["CompositeTypes"]["case_referral_public"]
         SetofOptions: {
           from: "*"
-          to: "case_referral"
+          to: "case_referral_public"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -17195,6 +16384,47 @@ export type Database = {
         | "platform_admin"
     }
     CompositeTypes: {
+      case_referral_public: {
+        id: string | null
+        code: string | null
+        source_case_id: string | null
+        source_commission_id: string | null
+        target_commission_id: string | null
+        referral_type_id: string | null
+        type_label: string | null
+        subject: string | null
+        status: string | null
+        response_expected: boolean | null
+        target_case_id: string | null
+        has_patient: boolean | null
+        created_by: string | null
+        sent_at: string | null
+        sent_by: string | null
+        received_at: string | null
+        received_by: string | null
+        decided_at: string | null
+        decided_by: string | null
+        concluded_at: string | null
+        concluded_by: string | null
+        withdrawn_at: string | null
+        withdrawn_by: string | null
+        created_at: string | null
+        updated_at: string | null
+        source_commission_name: string | null
+        target_commission_name: string | null
+        waiting_on_committee_id: string | null
+        last_message_at: string | null
+        priority: string | null
+        requested_action_id: string | null
+        requested_action_label: string | null
+        response_due_at: string | null
+        decline_reason_code: string | null
+        parent_referral_id: string | null
+        target_type: string | null
+        target_hospital_id: string | null
+        target_hospital_name: string | null
+        waiting_on_hospital_id: string | null
+      }
       printed_document_public: {
         id: string | null
         source_kind: string | null
@@ -17211,6 +16441,38 @@ export type Database = {
         superseded_at: string | null
         revoked_reason_class: string | null
         revoked_at: string | null
+      }
+      referral_internal_note_public: {
+        id: string | null
+        referral_id: string | null
+        committee_id: string | null
+        author_user_id: string | null
+        created_at: string | null
+        redacted_at: string | null
+        redacted_by: string | null
+        redacted_reason: string | null
+        title: string | null
+        assigned_to: string | null
+        status: string | null
+        concluded_at: string | null
+        concluded_by: string | null
+        updated_at: string | null
+        updated_by: string | null
+        kind: string | null
+      }
+      referral_message_public: {
+        id: string | null
+        referral_id: string | null
+        sequence_number: number | null
+        sender_commission_id: string | null
+        sender_user_id: string | null
+        message_type: string | null
+        created_at: string | null
+        in_reply_to_message_id: string | null
+        supersedes_message_id: string | null
+        redacted_at: string | null
+        redacted_by: string | null
+        redacted_reason: string | null
       }
     }
   }

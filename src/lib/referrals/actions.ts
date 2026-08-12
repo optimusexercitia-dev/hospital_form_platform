@@ -145,8 +145,12 @@ export async function createReferralDraft(
   return {
     ok: true,
     message: REFERRAL_MESSAGES.referralDrafted,
-    referralId: data.id,
-    code: data.code,
+    // BUG-REFNOTE-001: the door now returns `case_referral_public`, the composite
+    // mirroring the column GRANT. A composite cannot carry NOT NULL, so these
+    // widen to `string | null` in the generated types even though the RPC always
+    // populates them — coerce rather than assert.
+    referralId: data.id ?? undefined,
+    code: data.code ?? undefined,
   }
 }
 
