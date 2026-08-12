@@ -1380,8 +1380,8 @@ select ok(not app.can_read_referral_internal_note((select id from note_tgt), (se
   'R5·K-R5-1: the QPS operator is DENIED the TARGET note (no QPS arm)');
 
 -- ---- K-R5-2: the note body is column-REVOKED (door-only) ----
-select ok(not has_column_privilege('authenticated', 'public.referral_internal_notes', 'body', 'SELECT'),
-  'R5·K-R5-2: authenticated has NO direct SELECT on referral_internal_notes.body');
+select ok(not has_column_privilege('authenticated', 'public.referral_internal_notes', 'body_md', 'SELECT'),
+  'R5·K-R5-2: authenticated has NO direct SELECT on referral_internal_notes.body_md');
 select ok(has_column_privilege('authenticated', 'public.referral_internal_notes', 'committee_id', 'SELECT'),
   'R5·K-R5-2 (non-vacuity): the PHI-free columns ARE selectable');
 
@@ -1394,7 +1394,7 @@ reset role;
 grant select on notes_src to authenticated;
 select is((select jsonb_array_length(notes_src.j) from notes_src), 1,
   'R5·K-R5-1: the source coordinator''s note list carries ONLY the source note (1)');
-select is((select notes_src.j->0->>'body' from notes_src), 'CORPO-NOTA-ORIGEM',
+select is((select notes_src.j->0->>'body_md' from notes_src), 'CORPO-NOTA-ORIGEM',
   'R5: the audited door serves the (non-redacted) note body to the owning side');
 
 -- ---- K-R5-4: redact authority is checked FIRST (42501, not HC0A9) ----
@@ -1424,7 +1424,7 @@ create temp table notes_src2 on commit drop as
   select public.list_referral_internal_notes((select id from r10)) as j;
 reset role;
 grant select on notes_src2 to authenticated;
-select is((select notes_src2.j->0->>'body' from notes_src2), '[redigido]',
+select is((select notes_src2.j->0->>'body_md' from notes_src2), '[redigido]',
   'R5·K-R5-3: a redacted note renders [redigido] via the door (even to the owning side)');
 select is((select count(*)::int from public.referral_internal_notes where id = (select id from note_src)),
   1, 'R5·K-R5-3: the redacted row is NOT deleted (append-only)');
@@ -1433,7 +1433,7 @@ select ok((select redacted_by from public.referral_internal_notes where id = (se
 select is((select redacted_reason from public.referral_internal_notes where id = (select id from note_src)),
   'contém dados sensíveis', 'R5·K-R5-3: redacted_reason is recorded');
 -- The real body STAYS in the table (append-only; distinct from disposal's purge).
-select is((select body from public.referral_internal_notes where id = (select id from note_src)),
+select is((select body_md from public.referral_internal_notes where id = (select id from note_src)),
   'CORPO-NOTA-ORIGEM', 'R5·K-R5-3: the real body is retained server-side (audited who/why)');
 
 -- ---- Message redaction: authority (42501) + append-only ([redigido]) ----

@@ -59,9 +59,12 @@ import type {
   ReferralDetail,
   ReferralDirection,
   ReferralFlowMetrics,
+  ReferralCaseAccessSummary,
   ReferralInternalNote,
   ReferralListItem,
   ReferralMessage,
+  ReferralNoteStatus,
+  ReferralNoteType,
   ReferralPatient,
   ReferralPatientSex,
   ReferralPriority,
@@ -105,9 +108,17 @@ export type {
   ReferralPatient,
   ReferralDashboardFilters,
   ReferralFlowMetrics,
+  ReferralInternalNote,
+  ReferralNoteStatus,
+  ReferralNoteType,
+  ReferralCaseAccessSummary,
+  ReferralThreadEvent,
+  ReferralThreadEventKind,
 } from '@/lib/referrals/types'
 export {
   REFERRAL_STATUS_LABELS,
+  REFERRAL_NOTE_STATUS_LABELS,
+  REFERRAL_NOTE_STATUS_TOKENS,
   REFERRAL_STATUS_TOKENS,
   REFERRAL_PRIORITY_LABELS,
   REFERRAL_PRIORITY_TOKENS,
@@ -636,7 +647,13 @@ interface ReferralDetailJson {
  */
 export async function getReferralDetail(
   referralId: string,
-  viewerCommissionId: string | null = null,
+  // REQUIRED ON PURPOSE — no default. This parameter carried `= null` until the A9
+  // fix, and that default is exactly how the bug shipped: omitting the argument
+  // silently resolved `direction` to 'outgoing' for every reader. After D1 dropped
+  // the direction chip nothing renders `direction` on the detail page, so no E2E
+  // assertion can catch a regression here — the compiler is the only guard left.
+  // Callers with no viewing commission (the QPS drill-down) pass `null` explicitly.
+  viewerCommissionId: string | null,
 ): Promise<ReferralDetail | null> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_referral_detail', {
@@ -872,8 +889,21 @@ interface ReferralInternalNoteJson {
   committee_id: string
   author_user_id: string | null
   author_name: string | null
-  body: string
+  title: string | null
+  note_type_id: string | null
+  type_label: string | null
+  /** RDR / ADR 0109: the column was renamed `body` → `body_md`, and because the
+   * write doors return the TABLE ROW TYPE the rename moved this door's JSON key
+   * with it. Reading `body` here would silently yield `undefined`. */
+  body_md: string
+  assigned_to: string | null
+  assigned_to_name: string | null
+  status: string
+  concluded_at: string | null
+  concluded_by: string | null
+  concluded_by_name: string | null
   created_at: string
+  updated_at: string
   redacted_at: string | null
   redacted_by: string | null
   redacted_by_name: string | null
@@ -885,8 +915,14 @@ interface ReferralInternalNoteJson {
  * ONLY. Routes through the `list_referral_internal_notes` DEFINER door, which
  * re-applies `app.can_read_referral_internal_note` per row (source members see source
  * notes; target members see target notes; QPS sees NEITHER — the K-R5-1 keystone).
- * The PHI `body` is column-REVOKED from direct SELECT, so this door is the ONLY read
- * path; a redacted note's body arrives as `'[redigido]'`. `[]` on any error.
+ * The PHI `body_md` is column-REVOKED from direct SELECT, so this door is the ONLY
+ * read path; a redacted note's body arrives as `'[redigido]'`. `[]` on any error.
+ *
+ * ⚠ ORDER IS THE DOOR'S, NOT OURS. The RPC orders `(status = 'concluded'),
+ * created_at desc` — i.e. OPEN registros first, then concluded, newest first
+ * within each group. This mapper therefore PRESERVES array order and must never
+ * re-sort: a `.sort()` here would silently override the grouping the panel
+ * renders (ADR 0109 Consequences).
  */
 export async function listReferralInternalNotes(
   referralId: string,
@@ -904,13 +940,147 @@ export async function listReferralInternalNotes(
     committeeId: n.committee_id,
     authorUserId: n.author_user_id,
     authorName: n.author_name,
-    body: n.body,
+    title: n.title,
+    noteTypeId: n.note_type_id,
+    typeLabel: n.type_label,
+    bodyMd: n.body_md,
+    assignedTo: n.assigned_to,
+    assignedToName: n.assigned_to_name,
+    // The column is CHECK-constrained to exactly these two values; anything else
+    // would be a DB-level impossibility, so fall closed to `open` rather than
+    // widening the domain type.
+    status: (n.status === 'concluded' ? 'concluded' : 'open') as ReferralNoteStatus,
+    concludedAt: n.concluded_at,
+    concludedById: n.concluded_by,
+    concludedByName: n.concluded_by_name,
     createdAt: n.created_at,
+    updatedAt: n.updated_at,
     redactedAt: n.redacted_at,
     redactedById: n.redacted_by,
     redactedByName: n.redacted_by_name,
     redactedReason: n.redacted_reason,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Registro-type vocabulary + the case-access summary (RDR; ADR 0109)
+// ---------------------------------------------------------------------------
+
+interface ReferralNoteTypeRow {
+  id: string
+  commission_id: string
+  label: string
+  description: string | null
+  archived: boolean
+  position: number
+}
+
+const REFERRAL_NOTE_TYPE_SELECT =
+  'id, commission_id, label, description, archived, position' as const
+
+/**
+ * A commission's registro-type vocabulary, ordered by `position`. A DIRECT
+ * RLS-scoped table read (amendment A6 — `referral_note_types` mirrors
+ * `case_narrative_types`, which is NOT behind a DEFINER door): the
+ * `referral_note_types_select` policy (`is_member_of` OR `is_tenancy_admin_of`)
+ * is the authority, so a non-member simply reads nothing.
+ *
+ * By default only NON-archived types are returned (the note composer's picker);
+ * pass `includeArchived = true` for the manage dialog. `[]` when unreadable —
+ * mirroring {@link listNarrativeTypes}.
+ */
+export async function listReferralNoteTypes(
+  commissionId: string,
+  includeArchived = false,
+): Promise<ReferralNoteType[]> {
+  if (!commissionId) return []
+  const supabase = await createClient()
+  let query = supabase
+    .from('referral_note_types')
+    .select(REFERRAL_NOTE_TYPE_SELECT)
+    .eq('commission_id', commissionId)
+
+  if (!includeArchived) {
+    query = query.eq('archived', false)
+  }
+
+  const { data, error } = await query
+    .order('position', { ascending: true })
+    .returns<ReferralNoteTypeRow[]>()
+
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    commissionId: r.commission_id,
+    label: r.label,
+    description: r.description,
+    position: r.position,
+    archived: r.archived,
+  }))
+}
+
+/** The door's raw payload. Every field is optional at the type level because the
+ * RPC returns `jsonb` — the shape is asserted by the narrowing below, not by a
+ * cast, so a future SQL edit that drops a key degrades to `[]`/`false` instead of
+ * producing `undefined` inside a `string[]`. */
+interface ReferralCaseAccessSummaryJson {
+  case_id?: unknown
+  can_read?: unknown
+  coordinators?: unknown
+  grantees?: unknown
+  assignees?: unknown
+  patient_safety?: unknown
+  quality?: unknown
+}
+
+/** Narrow a jsonb array-of-names into `string[]`, dropping anything else. */
+function nameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+}
+
+/**
+ * WHO can read the case linked to this referral on ONE side (RDR D3/D5; ADR
+ * 0109). Routes through the audited `get_referral_case_access_summary` DEFINER
+ * door, whose authority is three conjuncts — `commissionId` is one of the
+ * referral's two sides, the caller is an ACTIVE member of that side, and the
+ * caller can read the referral at all — and which emits
+ * `referral.case_access_summary_viewed` (Rule 11).
+ *
+ * `null` in THREE distinguishable-to-the-DB but deliberately identical-to-us
+ * cases: the door refused (42501 / no_data_found), that side has no linked case
+ * yet, or the linked case is unresolvable. The UI renders the same empty state
+ * for all three, and folding them here keeps a raw Postgres error off the page
+ * (CLAUDE.md §8).
+ */
+export async function getReferralCaseAccessSummary(
+  referralId: string,
+  commissionId: string,
+): Promise<ReferralCaseAccessSummary | null> {
+  if (!referralId || !commissionId) return null
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc(
+    'get_referral_case_access_summary',
+    { p_referral_id: referralId, p_commission_id: commissionId },
+  )
+  // SQL NULL (no linked case on this side) arrives as `null`, not as an error.
+  if (error || !data) return null
+
+  const json = data as ReferralCaseAccessSummaryJson
+  if (typeof json.case_id !== 'string') return null
+
+  return {
+    caseId: json.case_id,
+    canRead: json.can_read === true,
+    coordinators: nameList(json.coordinators),
+    grantees: nameList(json.grantees),
+    assignees: nameList(json.assignees),
+    // A7: FIVE groups. `patient_safety` = PQS/NSP operators of the case's
+    // hospital, `quality` = quality reviewers — both confer `read_case_content`
+    // and must be named, or the dialog under-reports who to ask.
+    patientSafety: nameList(json.patient_safety),
+    quality: nameList(json.quality),
+  }
 }
 
 interface ReferralPatientJson {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/queries/referrals";
 import { getFeatureFlags } from "@/lib/queries/feature-flags";
 import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
+import { synthesizeThreadEvents } from "@/lib/referrals/thread-events";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { SafetyMotion } from "@/components/safety/safety-motion";
 import {
@@ -82,7 +83,11 @@ export default async function TechnicalDirectionReferralPage({
     notFound();
   }
 
-  const detail = await getReferralDetail(referralId);
+  // `null` is correct and deliberate here, not an omission: a técnica-direção referral
+  // has no target COMMISSION to align a viewer against, and this page never renders
+  // `detail.direction`. Passed explicitly because the parameter is required — see the
+  // A9 note on `getReferralDetail`.
+  const detail = await getReferralDetail(referralId, null);
   if (!detail) {
     notFound();
   }
@@ -199,8 +204,17 @@ export default async function TechnicalDirectionReferralPage({
       <div data-rise>
         <ReferralThread
           messages={detail.messages}
+          // RDR D7: the same synthesized lifecycle rows the commission-side detail
+          // interleaves — derived from fields this door already returned.
+          events={synthesizeThreadEvents(detail)}
           readReceipts={detail.readReceipts}
           viewerUserId={access.context.userId}
+          // A technical-direction referral has NO target commission
+          // (`target_commission_id IS NULL`, ADR 0094 W4), and the Diretor Técnico
+          // reads it as a hospital officer rather than as a committee. There is no
+          // "my side" to align bubbles to, so every message renders as incoming —
+          // the sender committee's name still labels each one.
+          viewerCommissionId={null}
           canRedact={false}
           waitingOnLabel={waitingOnLabel}
           composer={

@@ -415,6 +415,29 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | responses.responses_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,255_ethics_e2_targeted.sql,264_correction_requests.sql,270_ff1_repeating_groups.sql,272_ff2_door_parity.sql,273_eth_targeted_choice_lane.sql,274_ff3_validations.sql,31_discard_response.sql,40_rls.sql,70_response_fill.sql |
 | standard_assessments.standard_assessments_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
 | standard_ownerships.standard_ownerships_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
+| app.can_edit_referral_internal_note(p_note_id uuid, p_uid uuid) | predicate | positive | COVERED | 322_referral_registros.sql |
+| app.can_manage_referral_internal_note(p_note_id uuid, p_uid uuid) | predicate | positive | COVERED | 322_referral_registros.sql |
+| referral_note_types.referral_note_types_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,322_referral_registros.sql |
+| referral_note_types.referral_note_types_staff_admin_write (ALL) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,322_referral_registros.sql |
+
+<!--
+Merged 2026-08-11 from a DIFF-SCOPED subset run (ADR 0079 Amendment 1) over the
+referral "Registros internos" phase: the four gates that migration
+20260919010000 added. Verdicts are the subset run's own output; the rest of this
+report is the committed full-sweep record, restored with `git checkout --` before
+the merge exactly as Amendment 1's hazard 1 requires.
+
+⚠ The same run was ASKED for a fifth case, `app._audit_access_authorized`, whose
+body this phase also changed (a new dispatch arm). It appears in NEITHER arm's
+output: the predicate arm's worklist is bounded by the name regex
+`^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)` at
+p0-authz-door-audit.sh:176, and a gate named with a leading underscore cannot match
+it. This is Amendment 5a/6's "the boundary of an enumeration must be the property,
+not the syntax", holding at the harness level. The run's `BLIND: 0` therefore covers
+4 of the 5 cases requested, not 5 — recorded here rather than left to be inferred
+from a clean-looking summary. That arm is covered instead by a targeted mutation
+(322 §5.19: forcing the new dispatch arm to `return false` reddens the door).
+-->
 
 ## Skipped SELECT/ALL policies (qual = true — intentionally public catalogs)
 

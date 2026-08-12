@@ -2,25 +2,22 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Building2,
-  CalendarClock,
-  CircleSlash,
-  FolderOpen,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   canDisposeReferralPhi,
   getReferralAttachmentUrl,
+  getReferralCaseAccessSummary,
   getReferralDetail,
   getReferralDocumentUrl,
   listReferralInternalNotes,
+  listReferralNoteTypes,
   listReplyOutcomes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
 import { revealReferralPatient } from "@/lib/referrals/actions";
+import { synthesizeThreadEvents } from "@/lib/referrals/thread-events";
 import { patientXrefCount } from "@/lib/queries/patient-index";
 import { listCasesBoard } from "@/lib/queries/cases";
 import { listMembers } from "@/lib/queries/members";
@@ -28,13 +25,8 @@ import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { SafetyMotion } from "@/components/safety/safety-motion";
 import {
-  ReferralDirectionChip,
-  ReferralOverdueChip,
-  ReferralPriorityChip,
-  ReferralRequestedActionChip,
   ReferralStatusChip,
   ReferralTypeChip,
-  ResponseExpectedChip,
 } from "@/components/referrals/referral-chips";
 import { ReferralSnapshot } from "@/components/referrals/referral-snapshot";
 import { ReferralReplyView } from "@/components/referrals/referral-reply-view";
@@ -50,33 +42,31 @@ import { ReferralPatientPanel } from "@/components/referrals/referral-patient-pa
 import { ReferralAssignmentPanel } from "@/components/referrals/referral-assignment-panel";
 import { ReferralRelatedCasesPanel } from "@/components/referrals/referral-related-cases-panel";
 import { ReferralInternalNotesPanel } from "@/components/referrals/referral-internal-notes-panel";
+import { ReferralDetailsCard } from "@/components/referrals/referral-details-card";
+import { ReferralCaseCard } from "@/components/referrals/referral-case-card";
 import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 import { ReferralDraftDelete } from "@/components/referrals/referral-draft-delete";
-import {
-  formatCaseNumber,
-  formatDateTime,
-  formatReferralCode,
-} from "@/components/referrals/format";
-import {
-  REFERRAL_DECLINE_REASON_LABELS,
-  RESOLVED_REFERRAL_STATUSES,
-} from "@/lib/referrals/types";
+import { formatReferralCode } from "@/components/referrals/format";
+import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
 
 export const metadata: Metadata = {
   title: "Encaminhamento",
 };
 
 /**
- * The referral detail (Decisions 1, 3, 4, 10, 16) — the working view for BOTH the
- * source (A) and the target (B), opened from the hub or the case-detail card. Renders:
- *  - the PHI-free header (code/subject/type/status/direction/commissions/case);
- *  - A's free-text description (sanitized Markdown, Rule 7);
- *  - the frozen SNAPSHOT (narratives + documents — documents via signed URLs minted
- *    server-side through the DEFINER `getReferralDocumentUrl` door);
- *  - the entitled coordinator's ACTIONS (receive/accept/decline/start-review/link-case/
- *    reply, or source withdraw), gated by RLS-backed coordinator booleans;
- *  - the delivered reply once `concluida`;
- *  - the LAZY, audited isolated-PHI panel.
+ * The referral detail (Decisions 1, 3, 4, 10, 16; redesigned by RDR) — the working
+ * view for BOTH the source (A) and the target (B), opened from the hub or the
+ * case-detail card.
+ *
+ * LAYOUT (RDR D1–D8). A MINIMAL header — back link, code, subject, Status + Type
+ * chips — over a two-column body:
+ *  - main column: A's description (sanitized Markdown, Rule 7) → the frozen SNAPSHOT
+ *    → the messenger-style Diálogo with its gated composer and interleaved system
+ *    events → the delivered reply → the resolution history → "Registros internos";
+ *  - rail: Ações → discard-draft → Detalhes → Responsáveis → the side's case card →
+ *    Casos relacionados → lineage → the lazy audited PHI panel → LGPD disposal.
+ * Every referral FACT the old header crammed into a `dl` now lives in the Detalhes
+ * card; the direction chip is gone entirely.
  *
  * Gating: `referralsEnabled` flag → 404; `getCommissionAccessByOrg(org, commission)` → 404 for a
  * foreign/unknown commission; `getReferralDetail` re-gates `can_read_referral` and
@@ -108,7 +98,14 @@ export default async function ReferralDetailPage({
     notFound();
   }
 
-  const detail = await getReferralDetail(referralId);
+  const myCommissionId = access.commission.id;
+
+  // RDR / plan amendment A9 — the LIVE DIRECTION BUG. `getReferralDetail`'s second
+  // parameter is the viewer's commission and defaults to `null`; omitting it made
+  // `direction` resolve `'outgoing'` for EVERY reader, so the receiving committee
+  // was told its incoming referral was outbound. The hub list pages always passed
+  // it; only this page did not.
+  const detail = await getReferralDetail(referralId, myCommissionId);
   if (!detail) {
     notFound();
   }
@@ -117,7 +114,6 @@ export default async function ReferralDetailPage({
   // (member coordinator, or org_admin resolved to that role) manages only the end
   // that is THIS commission. A platform_admin is not a referral actor and was
   // already denied above.
-  const myCommissionId = access.commission.id;
   const canManageTarget =
     access.role === "staff_admin" &&
     detail.targetCommissionId === myCommissionId;
@@ -196,19 +192,43 @@ export default async function ReferralDetailPage({
     label: row.case.label,
   }));
 
-  // RV2 R5 private internal notes (side-private; the K-R5-1 keystone). The viewer's
-  // OWN committee side is the referral's source OR target commission that equals the
-  // route's commission; a viewer of neither side (e.g. a QPS drill-in) has `null` and
-  // the door already returns `[]` for them. The audited door returns only the
-  // caller's-side notes, so passing them to the panel never crosses the wall.
+  // RV2 R5 private "Registros internos" (side-private; the K-R5-1 keystone). The
+  // viewer's OWN committee side is the referral's source OR target commission that
+  // equals the route's commission; a viewer of neither side (e.g. a QPS drill-in) has
+  // `null` and the door already returns `[]` for them. The audited door returns only
+  // the caller's-side registros, so passing them to the panel never crosses the wall.
   const myNoteCommitteeId =
     myCommissionId === detail.sourceCommissionId ||
     myCommissionId === detail.targetCommissionId
       ? myCommissionId
       : null;
-  const internalNotes = myNoteCommitteeId
-    ? await listReferralInternalNotes(detail.id)
-    : [];
+
+  // RDR D3: the case THIS side is working from — the source's originating case
+  // (always present) or the target's linked case (null until "Vincular caso").
+  const isSourceSide = myCommissionId === detail.sourceCommissionId;
+  const sideCaseId = myNoteCommitteeId
+    ? isSourceSide
+      ? detail.sourceCaseId
+      : detail.targetCaseId
+    : null;
+  const sideCaseNumber = isSourceSide
+    ? detail.sourceCaseNumber
+    : detail.targetCaseNumber;
+
+  const [internalNotes, noteTypes, caseAccessSummary] = await Promise.all([
+    myNoteCommitteeId
+      ? listReferralInternalNotes(detail.id)
+      : Promise.resolve([]),
+    myNoteCommitteeId
+      ? listReferralNoteTypes(myNoteCommitteeId)
+      : Promise.resolve([]),
+    // The audited access door is asked ONLY when this side actually has a case —
+    // it emits `referral.case_access_summary_viewed`, so an unnecessary call would
+    // be unnecessary audit noise (and it returns null anyway).
+    myNoteCommitteeId && sideCaseId
+      ? getReferralCaseAccessSummary(detail.id, myNoteCommitteeId)
+      : Promise.resolve(null),
+  ]);
 
   // The audited PHI reveal door, bound to this referral. `revealReferralPatient` is
   // a `"use server"` action wrapping the `get_referral_patient` RPC (which emits the
@@ -251,6 +271,13 @@ export default async function ReferralDetailPage({
       ? `${commissionHref(org, commission, "manage", "cases", detail.targetCaseId)}?encaminharDe=${detail.id}`
       : null;
 
+  // RDR D3: the non-coordinator case route. A pre-built STRING — never a builder
+  // function handed to a client component (that is a server reference crossing the
+  // RSC boundary, a recurring crash in this repo).
+  const sideCaseHref = sideCaseId
+    ? commissionHref(org, commission, "casos", sideCaseId)
+    : null;
+
   // RV2 R1: the dialogue thread + its gated composer. The waiting-on indicator is
   // shown only while `awaiting_information`, resolving the PHI-free
   // `waitingOnCommitteeId` to the source/target committee name (never a body). The
@@ -265,8 +292,15 @@ export default async function ReferralDetailPage({
         : `Aguardando informações da comissão de destino (${detail.targetCommissionName ?? "destino"}).`
       : null;
 
+  // RDR D7: the system rows interleaved into the Diálogo. Pure derivation from
+  // fields the audited detail door already returned — no new table, no extra read.
+  const threadEvents = synthesizeThreadEvents(detail);
+
   return (
     <SafetyMotion runKey={detail.id} className="flex flex-col gap-8">
+      {/* RDR D1 — the MINIMAL header. Everything the old `dl` carried (origin →
+          destination, case numbers, SLA, created/sent line, the decline banner) now
+          lives in the rail's Detalhes card; the direction chip is gone. */}
       <header data-rise className="flex flex-col gap-4">
         <Link
           href={backHref}
@@ -275,94 +309,33 @@ export default async function ReferralDetailPage({
           <ArrowLeft aria-hidden="true" className="size-4" />
           Encaminhamentos
         </Link>
-        <div className="flex flex-col gap-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <span className="font-mono text-xs text-muted-foreground">
-              {formatReferralCode(detail.code)}
-            </span>
-            <h1 className="text-3xl text-balance">{detail.subject}</h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <ReferralStatusChip status={detail.status} />
-              <ReferralTypeChip
-                label={detail.typeLabel}
-                colorToken={detail.typeColorToken}
-              />
-              <ReferralDirectionChip direction={detail.direction} />
-              {detail.priority !== "routine" && (
-                <ReferralPriorityChip priority={detail.priority} />
-              )}
-              {detail.requestedActionLabel && (
-                <ReferralRequestedActionChip
-                  label={detail.requestedActionLabel}
-                />
-              )}
-              {detail.overdue && <ReferralOverdueChip />}
-              {detail.responseExpected && inFlight && <ResponseExpectedChip />}
-            </div>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <span className="font-mono text-xs text-muted-foreground">
+            {formatReferralCode(detail.code)}
+          </span>
+          <h1 className="text-3xl text-balance">{detail.subject}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <ReferralStatusChip status={detail.status} />
+            <ReferralTypeChip
+              label={detail.typeLabel}
+              colorToken={detail.typeColorToken}
+            />
           </div>
-
-          <dl className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            <div className="inline-flex items-center gap-1.5">
-              <Building2 aria-hidden="true" className="size-4" />
-              <span>
-                {detail.sourceCommissionName ?? "Origem"}
-                {" → "}
-                {detail.targetCommissionName ?? "Destino"}
-              </span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 tabular-nums">
-              <FolderOpen aria-hidden="true" className="size-4" />
-              <span>
-                Origem: {formatCaseNumber(detail.sourceCaseNumber)}
-                {detail.targetCaseNumber != null
-                  ? ` · Vinculado: ${formatCaseNumber(detail.targetCaseNumber)}`
-                  : ""}
-              </span>
-            </div>
-            {/* RV2 R2: the SLA deadline, read in a firm tone once overdue (the
-                overdue chip above already flags it — icon + text carry it too). */}
-            {detail.responseDueAt && (
-              <div
-                className={`inline-flex items-center gap-1.5 tabular-nums ${
-                  detail.overdue ? "font-medium text-destructive" : ""
-                }`}
-              >
-                <CalendarClock aria-hidden="true" className="size-4" />
-                <span>
-                  Prazo de resposta: {formatDateTime(detail.responseDueAt)}
-                  {detail.overdue ? " · vencido" : ""}
-                </span>
-              </div>
-            )}
-          </dl>
-
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {detail.sentAt
-              ? `Enviado em ${formatDateTime(detail.sentAt)}`
-              : `Criado em ${formatDateTime(detail.createdAt)}`}
-            {detail.createdByName ? ` por ${detail.createdByName}` : ""}
-          </p>
-
-          {/* RV2 R2: the PHI-free structured decline reason on a rejected referral
-              (distinct from the PHI-gated decline note). */}
-          {detail.status === "rejected" && detail.declineReasonCode && (
-            <p className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm text-destructive">
-              <CircleSlash aria-hidden="true" className="size-4" />
-              Motivo da recusa:{" "}
-              {REFERRAL_DECLINE_REASON_LABELS[detail.declineReasonCode]}
-            </p>
-          )}
         </div>
       </header>
 
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-8">
-        <div className="flex flex-col gap-6">
+        {/* MAIN — the narrative surfaces. On mobile both wrappers collapse to
+            `contents` so the two columns INTERLEAVE by `order-N` into one calm
+            sequence (the case-detail pattern); on `lg` each becomes its own flex
+            column again and `order-none` restores source order. */}
+        <div className="contents lg:flex lg:flex-col lg:gap-6">
           {/* A's free-text description (sanitized Markdown — Rule 7). */}
-          {detail.descriptionMd?.trim() && (
+          {detail.descriptionMd?.trim() ? (
             <section
               data-rise
               aria-labelledby="referral-description-heading"
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
+              className="order-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs lg:order-none"
             >
               <h2
                 id="referral-description-heading"
@@ -372,25 +345,29 @@ export default async function ReferralDetailPage({
               </h2>
               <MarkdownRenderer content={detail.descriptionMd} />
             </section>
-          )}
+          ) : null}
 
           {/* The frozen snapshot B reads. */}
-          <div data-rise>
+          <div data-rise className="order-5 lg:order-none">
             <ReferralSnapshot
               sharedItems={detail.sharedItems}
               documentUrls={documentUrls}
             />
           </div>
 
-          {/* RV2 R1: the two-way dialogue thread + the side/status-gated composer.
-              The read thread is server-rendered (PHI-safe: a restricted body shows
-              a placeholder, never the text); the composer is a client island shown
-              only to a side coordinator while the referral is non-terminal. */}
-          <div data-rise>
+          {/* RV2 R1 + RDR D7: the two-way dialogue as a messenger timeline —
+              committee-aligned bubbles with the synthesized lifecycle events
+              interleaved — plus the side/status-gated composer. The read thread is
+              server-rendered (PHI-safe: a restricted body shows a placeholder, never
+              the text); the composer is a client island shown only to an authorized
+              side while the referral is non-terminal. */}
+          <div data-rise className="order-8 lg:order-none">
             <ReferralThread
               messages={detail.messages}
+              events={threadEvents}
               readReceipts={detail.readReceipts}
               viewerUserId={access.context.userId}
+              viewerCommissionId={myNoteCommitteeId}
               canRedact={canManageEitherSide}
               waitingOnLabel={waitingOnLabel}
               composer={
@@ -407,27 +384,93 @@ export default async function ReferralDetailPage({
           </div>
 
           {/* The delivered reply, once concluded. */}
-          {detail.reply && (
-            <div data-rise>
+          {detail.reply ? (
+            <div data-rise className="order-9 lg:order-none">
               <ReferralReplyView
                 reply={detail.reply}
                 attachmentUrls={attachmentUrls}
               />
             </div>
-          )}
+          ) : null}
 
           {/* RV2 R3: the append-only resolution history (renders nothing until the
               source first resolves). */}
-          {detail.resolutions.length > 0 && (
-            <div data-rise>
+          {detail.resolutions.length > 0 ? (
+            <div data-rise className="order-10 lg:order-none">
               <ReferralResolutions resolutions={detail.resolutions} />
             </div>
-          )}
+          ) : null}
 
-          {/* RV2 R4: WHO is responsible (assignments) + typed related-case pointers.
-              Both are PHI-free governance metadata visible to any reader; the
-              coordinator of the viewer's side gets the write controls. */}
-          <div data-rise>
+          {/* RV2 R5 / RDR D6: the PRIVATE per-committee "Registros internos"
+              (K-R5-1) — visible only to the viewer's own side; renders nothing for a
+              QPS/neither-side reader. */}
+          {myNoteCommitteeId ? (
+            <div data-rise className="order-12 lg:order-none">
+              <ReferralInternalNotesPanel
+                referralId={detail.id}
+                committeeId={myNoteCommitteeId}
+                notes={internalNotes}
+                noteTypes={noteTypes}
+                members={assignMembers}
+                viewerUserId={access.context.userId}
+                canCreate={true}
+                canManage={canManageEitherSide}
+                canRedact={canManageEitherSide}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {/* RAIL — the fact + control surfaces (RDR D1–D4). */}
+        <div className="contents lg:flex lg:flex-col lg:gap-4 lg:sticky lg:top-8">
+          {/* Entitled coordinator actions — wrapper omitted when null to avoid a
+              phantom flex gap that misaligns the right column with the left.
+              Rendered while in flight AND when `resolved` (so the source may
+              REOPEN — RV2 R3; `resolved` is otherwise terminal). The component
+              itself no-ops to null when nothing is actionable for this viewer. */}
+          {(canManageTarget || canManageSource) &&
+          (inFlight || detail.status === "resolved") ? (
+            <div data-rise className="order-1 lg:order-none">
+              <ReferralActions
+                referralId={detail.id}
+                status={detail.status}
+                responseExpected={detail.responseExpected}
+                responseDueAt={detail.responseDueAt}
+                canManageTarget={canManageTarget}
+                canManageSource={canManageSource}
+                replyOutcomes={replyOutcomes}
+                linkableCases={linkableCases}
+                linkedCaseNumber={detail.targetCaseNumber}
+              />
+            </div>
+          ) : null}
+
+          {/* Discard an UNSENT draft. Source-commission coordinator only — the
+              same authority that sends/withdraws — and only while `draft`, which
+              is also pinned server-side by the delete. A draft has no recipient
+              yet, so this is the one referral state that can be removed outright
+              rather than withdrawn. */}
+          {detail.status === "draft" && canManageSource ? (
+            <div data-rise className="order-2 lg:order-none">
+              <ReferralDraftDelete
+                referralId={detail.id}
+                org={org}
+                commission={commission}
+                sourceCaseId={detail.sourceCaseId}
+                referralCode={formatReferralCode(detail.code)}
+              />
+            </div>
+          ) : null}
+
+          {/* RDR D1: every fact the header shed. */}
+          <div data-rise className="order-3 lg:order-none">
+            <ReferralDetailsCard detail={detail} />
+          </div>
+
+          {/* RV2 R4 / RDR D2: WHO is responsible. PHI-free governance metadata
+              visible to any reader; the coordinator of the viewer's side gets the
+              write controls. */}
+          <div data-rise className="order-6 lg:order-none">
             <ReferralAssignmentPanel
               referralId={detail.id}
               assignments={detail.assignments}
@@ -437,7 +480,29 @@ export default async function ReferralDetailPage({
             />
           </div>
 
-          <div data-rise>
+          {/* RDR D3: the case THIS side is working from. A pointer only — the card
+              opens it when `can_read_case` is true and otherwise names who can. Not
+              rendered for a neither-side (QPS) reader, who has no "own" case here. */}
+          {myNoteCommitteeId ? (
+            <div data-rise className="order-7 lg:order-none">
+              <ReferralCaseCard
+                heading={isSourceSide ? "Caso de origem" : "Caso em análise"}
+                headingId="referral-side-case-heading"
+                caseId={sideCaseId}
+                caseNumber={sideCaseNumber}
+                caseHref={sideCaseHref}
+                summary={caseAccessSummary}
+                emptyHint={
+                  canManageTarget
+                    ? 'Use "Vincular caso" em Ações para associar um caso desta comissão.'
+                    : undefined
+                }
+              />
+            </div>
+          ) : null}
+
+          {/* RV2 R4 / RDR D4: TYPED related-case pointers (kept, moved to the rail). */}
+          <div data-rise className="order-11 lg:order-none">
             <ReferralRelatedCasesPanel
               referralId={detail.id}
               links={detail.links}
@@ -447,74 +512,19 @@ export default async function ReferralDetailPage({
             />
           </div>
 
-          {/* RV2 R5: the PRIVATE per-committee internal notes (K-R5-1) — visible only
-              to the viewer's own side; renders nothing for a QPS/neither-side reader. */}
-          {myNoteCommitteeId && (
-            <div data-rise>
-              <ReferralInternalNotesPanel
-                referralId={detail.id}
-                committeeId={myNoteCommitteeId}
-                notes={internalNotes}
-                canCreate={true}
-                canRedact={canManageEitherSide}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-6 lg:sticky lg:top-8">
           {/* RV2 R3: lineage — parent back-link + "Encaminhar adiante" forward
               affordance. Renders nothing when neither applies. */}
-          {(parentHref || forwardHref) && (
-            <div data-rise>
+          {parentHref || forwardHref ? (
+            <div data-rise className="order-12 lg:order-none">
               <ReferralLineageCard
                 parentHref={parentHref}
                 forwardHref={forwardHref}
               />
             </div>
-          )}
-
-          {/* Entitled coordinator actions — wrapper omitted when null to avoid a
-              phantom flex gap that misaligns the right column with the left.
-              Rendered while in flight AND when `resolved` (so the source may
-              REOPEN — RV2 R3; `resolved` is otherwise terminal). The component
-              itself no-ops to null when nothing is actionable for this viewer. */}
-          {(canManageTarget || canManageSource) &&
-            (inFlight || detail.status === "resolved") && (
-              <div data-rise>
-                <ReferralActions
-                  referralId={detail.id}
-                  status={detail.status}
-                  responseExpected={detail.responseExpected}
-                  responseDueAt={detail.responseDueAt}
-                  canManageTarget={canManageTarget}
-                  canManageSource={canManageSource}
-                  replyOutcomes={replyOutcomes}
-                  linkableCases={linkableCases}
-                  linkedCaseNumber={detail.targetCaseNumber}
-                />
-              </div>
-            )}
-
-          {/* Discard an UNSENT draft. Source-commission coordinator only — the
-              same authority that sends/withdraws — and only while `draft`, which
-              is also pinned server-side by the delete. A draft has no recipient
-              yet, so this is the one referral state that can be removed outright
-              rather than withdrawn. */}
-          {detail.status === "draft" && canManageSource && (
-            <div data-rise>
-              <ReferralDraftDelete
-                referralId={detail.id}
-                org={org}
-                commission={commission}
-                sourceCaseId={detail.sourceCaseId}
-                referralCode={formatReferralCode(detail.code)}
-              />
-            </div>
-          )}
+          ) : null}
 
           {/* Lazy, audited isolated-PHI panel. */}
-          <div data-rise>
+          <div data-rise className="order-12 lg:order-none">
             <ReferralPatientPanel
               hasPatient={detail.hasPatient}
               onReveal={revealPatient}
@@ -528,11 +538,11 @@ export default async function ReferralDetailPage({
               hospital) returns true — so the destructive affordance never dangles
               for a caller the RPC would reject (BUG-NPH-002). The RPC stays the
               authoritative control. */}
-          {canDisposePhi && (
-            <div data-rise>
+          {canDisposePhi ? (
+            <div data-rise className="order-12 lg:order-none">
               <ReferralDisposeDialog referralId={detail.id} />
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </SafetyMotion>

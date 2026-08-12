@@ -71,14 +71,14 @@ export function ReferralRelatedCasesPanel({
   return (
     <section
       aria-labelledby="referral-related-cases-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Link2 aria-hidden="true" className="size-4 text-muted-foreground" />
           <h2
             id="referral-related-cases-heading"
-            className="text-base font-semibold"
+            className="text-sm font-semibold"
           >
             Casos relacionados
           </h2>
@@ -101,18 +101,18 @@ export function ReferralRelatedCasesPanel({
       </div>
 
       {links.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground text-pretty">
+        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground text-pretty">
           Nenhum caso relacionado. Um vínculo é apenas um ponteiro — não concede
           acesso ao caso relacionado.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul className="flex flex-col gap-2">
           {links.map((l) => {
             const mine = l.commissionId === myCommissionId && canManage;
             return (
               <li
                 key={l.id}
-                className="flex flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/20 p-3"
+                className="flex flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/20 p-2.5"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground tabular-nums">

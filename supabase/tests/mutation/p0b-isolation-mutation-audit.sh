@@ -204,10 +204,57 @@ run298 "accreditation_standards_select" "alter policy accreditation_standards_se
 run298 "form_item_options_select_targeted" "alter policy form_item_options_select_targeted on public.form_item_options using(true);"       "form_item_options_select_targeted DENY"
 run298 "answer_selected_options_select_targeted" "alter policy answer_selected_options_select_targeted on public.answer_selected_options using(true);" "answer_selected_options_select_targeted DENY"
 run298 "answer_selected_options_write_targeted"  "alter policy answer_selected_options_write_targeted on public.answer_selected_options using(true) with check(true);" "answer_selected_options_write_targeted DENY"
+# referral "Registros internos" vocabulary (2026-08-11) — both policies are NEW, so
+# they are in no BLIND set and pass ARM=policy vacuously. These two cases are what
+# make 298's GROUP G non-vacuous.
+# NOTE on the write case: opening a FOR ALL policy to using(true) also opens SELECT,
+# so that mutation reddens the select DENY as well. Only the write DENY is asserted
+# here — that is the gate the mutation is aimed at.
+run298 "referral_note_types_select"       "alter policy referral_note_types_select on public.referral_note_types using(true);"                                  "referral_note_types_select DENY"
+run298 "referral_note_types_write"        "alter policy referral_note_types_staff_admin_write on public.referral_note_types using(true) with check(true);"       "referral_note_types_staff_admin_write DENY"
+
+# =============================================================================
+# BATCH 5 (SRC=322) — the referral "Registros internos" doors. Three raise-guards,
+# each neutralized to `if false then` (Amendment 4's row-door shape: these doors
+# return a row or void, so there is no boolean to open).
+#
+# The fourth case is the odd one and the most valuable: it does not open a gate, it
+# RESTORES A DEFECT. `create_referral_internal_note` used to gate with
+# `p_committee_id not in (source, target)`, which is NULL — not TRUE — on a
+# technical_director referral, where target_commission_id is NULL. Re-injecting that
+# form must redden 6.2, which is what proves 6.2 is a regression test rather than a
+# tautology.
+# =============================================================================
+echo
+echo "--- BATCH 5 (322) — referral Registros doors ---"
+B5=supabase/tests/322_referral_registros.sql
+run322 () { SRC="$B5" run_case "$@"; }
+
+MUT_R1="do \$z\$ declare d text := pg_get_functiondef('public.get_referral_case_access_summary(uuid,uuid)'::regprocedure);
+begin execute replace(d, '  if (p_commission_id is distinct from v_ref.source_commission_id
+      and p_commission_id is distinct from v_ref.target_commission_id)
+     or not app.is_member_of_for(p_commission_id, auth.uid())
+     or not app.can_read_referral(p_referral_id, auth.uid()) then', '  if false then'); end \$z\$;"
+run322 "get_referral_case_access_summary" "$MUT_R1" "5.1 a principal|5.2 a member of Y"
+
+MUT_R2="do \$z\$ declare d text := pg_get_functiondef('public.reorder_referral_note_types(uuid,uuid[])'::regprocedure);
+begin execute replace(d, 'if not (app.is_staff_admin_of(p_commission_id) or app.is_tenancy_admin_of(p_commission_id)) then', 'if false then'); end \$z\$;"
+run322 "reorder_referral_note_types" "$MUT_R2" "1.5 reorder|1.6 a plain member cannot reorder"
+
+MUT_R3="do \$z\$ declare d text := pg_get_functiondef('public.update_referral_internal_note(uuid,text,text,uuid)'::regprocedure);
+begin execute replace(d, 'if not app.can_edit_referral_internal_note(p_note_id, auth.uid()) then', 'if false then'); end \$z\$;"
+run322 "update_referral_internal_note" "$MUT_R3" "4.1 a member who is neither"
+
+MUT_R4="do \$z\$ declare d text := pg_get_functiondef('public.create_referral_internal_note(uuid,uuid,text,text,uuid,uuid)'::regprocedure);
+begin execute replace(d, '  if (p_committee_id is distinct from v_ref.source_commission_id
+      and p_committee_id is distinct from v_ref.target_commission_id)
+     or not app.is_member_of_for(p_committee_id, auth.uid()) then', '  if p_committee_id not in (v_ref.source_commission_id, v_ref.target_commission_id)
+     or not app.is_member_of_for(p_committee_id, auth.uid()) then'); end \$z\$;"
+run322 "create_referral_internal_note NULL-hole" "$MUT_R4" "6.2 NULL-HOLE CLOSED"
 
 echo
 echo "=== CONTROL — no mutation: every keystone GREEN in ALL files (harness is not a red-generator) ==="
-for f in "$SRC" "$B2" "$B3" "$B4"; do
+for f in "$SRC" "$B2" "$B3" "$B4" "$B5"; do
   docker cp "$f" "$DB:/tmp/_noop_p0b.sql" >/dev/null
   control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_p0b.sql 2>&1)
   if echo "$control" | grep -qE "^not ok"; then

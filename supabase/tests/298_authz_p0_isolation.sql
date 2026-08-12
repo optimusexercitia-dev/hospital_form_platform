@@ -34,11 +34,16 @@
 --                                     targeted policies are the sole grant (F0).
 --   platform   ..b0  platform@      — the real platform_admin (is_admin = true;
 --                                     admin@test.local is NOT one).
+--   member_a   ..03  enf1.ccih      — a plain `staff` of CCIH (a0..a1). The
+--                                     READER-NON-WRITER for GROUP G's write policy
+--                                     (ADR 0079 D2): he passes the SELECT gate, so a
+--                                     denied INSERT is attributable to the WRITE
+--                                     policy and to nothing else.
 --
--- Assertion count: 32
+-- Assertion count: 36
 
 begin;
-select plan(32);
+select plan(36);
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FIXTURES (superuser — setup, not the system under test)
@@ -67,7 +72,7 @@ values
 -- member of the note's OWN committee only (the target committee's members read the
 -- target's notes, never the source's).
 insert into public.referral_internal_notes
-  (id, referral_id, committee_id, author_user_id, body)
+  (id, referral_id, committee_id, author_user_id, body_md)
 values
   ('4b000000-0000-0000-0000-000000000003','efa00000-0000-0000-0000-0000000000a1',
    'a0000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000000002',
@@ -190,10 +195,18 @@ values ('4b000000-0000-0000-0000-00000000001b','4b000000-0000-0000-0000-00000000
 insert into public.answer_selected_options (answer_id, option_id)
 values ('4b000000-0000-0000-0000-00000000001b','4b000000-0000-0000-0000-000000000014');
 
+-- ── Referral note-type vocabulary (Referral registros redesign) ────────────
+-- Commission-scoped, exactly like case_narrative_types. Owned by CCIH (a0..a1).
+insert into public.referral_note_types (id, commission_id, label, description, position)
+values
+  ('4b000000-0000-0000-0000-00000000001f','a0000000-0000-0000-0000-0000000000a1',
+   'Análise técnica (keystone)','Tipo de registro interno para o keystone',1);
+
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000b3'::uuid as foreign_b,  -- staff1.qual.b (rede B)
   '00000000-0000-0000-0000-000000000002'::uuid as sa,         -- chefe.ccih
   '00000000-0000-0000-0000-000000000006'::uuid as farm,       -- staff1.farm = targeted
+  '00000000-0000-0000-0000-000000000003'::uuid as member_a,   -- enf1.ccih = reader-non-writer
   '00000000-0000-0000-0000-0000000000b0'::uuid as platform;   -- platform_admin
 grant select on k to authenticated;
 
@@ -369,6 +382,42 @@ select lives_ok(
   $$ insert into public.answer_selected_options (answer_id, option_id)
      values ('4b000000-0000-0000-0000-00000000001e','4b000000-0000-0000-0000-00000000001d') $$,
   'answer_selected_options_write_targeted POS: the targeted respondent CAN INSERT a selection');
+reset role;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- GROUP G — referral_note_types (referral "Registros internos", 2026-08-11)
+-- The vocabulary mirrors case_narrative_types: a member-scoped SELECT policy plus
+-- a FOR ALL staff_admin write policy. Both are BRAND NEW, so neither is in any
+-- BLIND set and both pass ARM=policy vacuously — ARM=census is what surfaces them
+-- and these four assertions are what give them a verdict.
+--
+-- ⚠ ADR 0079 D2 applied properly: the write DENY uses member_a, a plain CCIH staff
+-- who DOES pass the SELECT gate (G1 proves it). A fully-foreign principal would be
+-- denied for the boring reason — not being a member at all — and the keystone would
+-- not distinguish "not a coordinator" from "not in the tenant".
+-- ═══════════════════════════════════════════════════════════════════════════
+select test_helpers.claims_for((select foreign_b from k), false); set local role authenticated;
+select is((select count(*)::int from public.referral_note_types
+           where id = '4b000000-0000-0000-0000-00000000001f'), 0,
+  'referral_note_types_select DENY: a rede-B principal reads 0 of rede A''s note types');
+reset role;
+
+select test_helpers.claims_for((select member_a from k), false); set local role authenticated;
+select is((select count(*)::int from public.referral_note_types
+           where id = '4b000000-0000-0000-0000-00000000001f'), 1,
+  'referral_note_types_select POS: a plain member of the owning commission DOES read the note type');
+select throws_ok(
+  $$ insert into public.referral_note_types (commission_id, label, position)
+     values ('a0000000-0000-0000-0000-0000000000a1','Tipo negado (keystone)',90) $$,
+  '42501', null,
+  'referral_note_types_staff_admin_write DENY 42501: a reader-non-writer member cannot add a note type');
+reset role;
+
+select test_helpers.claims_for((select sa from k), false); set local role authenticated;
+select lives_ok(
+  $$ insert into public.referral_note_types (commission_id, label, position)
+     values ('a0000000-0000-0000-0000-0000000000a1','Tipo permitido (keystone)',91) $$,
+  'referral_note_types_staff_admin_write POS: the commission staff_admin CAN add a note type');
 reset role;
 
 select * from finish();
