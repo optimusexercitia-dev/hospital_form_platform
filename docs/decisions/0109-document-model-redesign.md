@@ -1,8 +1,8 @@
 # 0109 — Document model redesign: documents, versions, file objects, securable resources
 
-- **Status:** Proposed (drafted 2026-08-11 from the external audit
-  `docs/design/temp/document-model-audit-handoff.md` + a grilling session with the PO;
-  awaiting human ratification)
+- **Status:** Accepted — ratified by the PO 2026-08-12 (drafted 2026-08-11 from the
+  external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling
+  session with the PO)
 - **Supersedes / amends:** ADR 0063 (centralized attachments substrate) — replaced
   wholesale; ADR 0065 owner-set conventions — the closed owner set survives as the
   initial `securable_resources` type set. ARCHITECTURE.md Rules 6/11/12 unchanged.
