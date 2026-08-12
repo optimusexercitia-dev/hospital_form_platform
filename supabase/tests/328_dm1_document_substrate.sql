@@ -23,7 +23,7 @@
 -- =============================================================================
 
 begin;
-select plan(43);
+select plan(70);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -385,6 +385,225 @@ select throws_ok(
 select ok(
   (select count(*) >= 1 from public.document_retention where is_provisional),
   'K7j the retention structure carries its PROVISIONAL catch-all row (ADR 0114 O1 posture)');
+
+-- =============================================================================
+-- K4 — posture of the nine new tables (M2+M3+M4): RLS on, EXACTLY ONE policy
+-- per table (a permissive sibling would un-falsify every deny below —
+-- authz-handoff §7.1-6), SELECT-only, zero client DML.
+-- =============================================================================
+
+select is(
+  (select count(*)::int from pg_tables
+    where schemaname = 'public' and rowsecurity
+      and tablename in ('securable_resources','documents','document_versions','file_objects',
+                        'document_version_files','document_placements','upload_sessions',
+                        'document_retention','document_legal_holds')),
+  9, 'K4a all nine document-model tables have RLS enabled');
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and tablename in ('securable_resources','documents','document_versions','file_objects',
+                        'document_version_files','document_placements','upload_sessions',
+                        'document_retention','document_legal_holds')),
+  9, 'K4b exactly ONE policy per table (nine tables, nine policies)');
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and tablename in ('securable_resources','documents','document_versions','file_objects',
+                        'document_version_files','document_placements','upload_sessions',
+                        'document_retention','document_legal_holds')
+      and cmd <> 'SELECT'),
+  0, 'K4c every policy is SELECT-only (command-only mutations)');
+
+select is(
+  (select count(*)::int from information_schema.role_table_grants g
+    where g.table_schema = 'public'
+      and g.table_name in ('securable_resources','documents','document_versions','file_objects',
+                           'document_version_files','document_placements','upload_sessions',
+                           'document_retention','document_legal_holds')
+      and (g.grantee = 'anon'
+           or (g.grantee = 'authenticated' and g.privilege_type <> 'SELECT'))),
+  0, 'K4d zero anon grants and zero authenticated DML on all nine tables');
+
+-- =============================================================================
+-- K5 — the kernel, BEHAVIORALLY (the noun rule is a measurement, not a body
+-- grep). Fixtures: one case-homed + one meeting-homed document on CCIH.
+-- Verified pre-authoring: staff1 CAN read Caso 0001 (member arm), chefe.farm
+-- is NOT a CCIH member, platform@test.local = …b0.
+-- =============================================================================
+
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('32800000-0000-0000-0000-00000000d101', 'd0000000-0000-0000-0000-0000000000c1',
+        'Documento K5 (caso)', '00000000-0000-0000-0000-000000000002'),
+       ('32800000-0000-0000-0000-00000000d102',
+        (select id from public.meetings where commission_id = 'a0000000-0000-0000-0000-0000000000a1' limit 1),
+        'Documento K5 (reunião)', '00000000-0000-0000-0000-000000000002');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  1, 'K5a the home-commission staff_admin reads the case-homed document');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  0, 'K5b a staff_admin of ANOTHER commission reads zero (home-resource access, D6)');
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d102'),
+  0, 'K5c the meeting-homed document is invisible to a non-member (dispatch arm: meeting)');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0'::uuid, true);
+set local role authenticated;
+select is((select count(*)::int from public.documents
+            where id in ('32800000-0000-0000-0000-00000000d101','32800000-0000-0000-0000-00000000d102')),
+  0, 'K5d ⭐ NOUN RULE (A35): platform_admin reads ZERO documents — measured behaviorally, no is_admin arm');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d102'),
+  1, 'K5e a plain commission member reads the meeting-homed document (member arm)');
+reset role;
+
+-- The is_active outer gate, differentially (same persona, same query). The
+-- profiles guard reads the caller claims — clear them so the update runs in
+-- system context (the 231 dialect).
+select set_config('request.jwt.claims', '', true);
+update public.profiles set is_active = false where id = '00000000-0000-0000-0000-000000000002';
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  0, 'K5f deactivated, the SAME persona reads zero (app.is_active outer gate)');
+reset role;
+select set_config('request.jwt.claims', '', true);
+update public.profiles set is_active = true where id = '00000000-0000-0000-0000-000000000002';
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  1, 'K5g reactivated, the same persona reads again (the K5f/K5g pair is differential)');
+reset role;
+
+-- can_write_document contract pins (DM2 builds on these signatures).
+select is(app.can_write_document('32800000-0000-0000-0000-00000000d101', '00000000-0000-0000-0000-000000000002'),
+  true, 'K5h the home staff_admin may write the case-homed document');
+select is(app.can_write_document('32800000-0000-0000-0000-00000000d101', '00000000-0000-0000-0000-000000000003'),
+  false, 'K5i a plain member may NOT write it (write = staff_admin/assignee arms)');
+select is(app.can_write_document('32800000-0000-0000-0000-00000000d101', '00000000-0000-0000-0000-0000000000b0'),
+  false, 'K5j platform_admin may NOT write it (noun rule, write side)');
+
+-- =============================================================================
+-- K6 — buckets (M5): two private buckets, NO SELECT policy for any tier (D8),
+-- INSERT bound to a reservation that nothing can mint until DM2.
+-- =============================================================================
+
+select is((select count(*)::int from storage.buckets
+            where id in ('documents-standard', 'documents-phi') and not public),
+  2, 'K6a both document buckets exist and are private');
+
+-- The 325 derivation dialect: qual + with_check TEXT, never policy names —
+-- a policy referencing the bucket indirectly still matches.
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and cmd = 'SELECT'
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, ''))
+          ~ '''documents-standard''|''documents-phi'''),
+  0, 'K6b ⭐ ZERO SELECT policies reference either document bucket (D8: bytes flow only through the audited door)');
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and cmd = 'INSERT'
+      and policyname in ('documents_std_obj_insert_reserved', 'documents_phi_obj_insert_reserved')),
+  2, 'K6c the two reservation-bound INSERT policies exist');
+
+select is(app.storage_upload_reserved('documents-standard', '328/k6/unreserved',
+            '00000000-0000-0000-0000-000000000002'),
+  false, 'K6d no reservation, no permission (fail-closed default)');
+
+-- Plant a reservation as postgres (the DM2 command's shape).
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('32800000-0000-0000-0000-00000000f6c1', 'documents-standard',
+        '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f6c1/gen-1',
+        'standard', '00000000-0000-0000-0000-000000000002');
+insert into public.upload_sessions (id, file_object_id, reserved_by, expires_at)
+values ('32800000-0000-0000-0000-00000000a6c1', '32800000-0000-0000-0000-00000000f6c1',
+        '00000000-0000-0000-0000-000000000002', now() + interval '15 minutes');
+
+select is(app.storage_upload_reserved('documents-standard',
+            '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f6c1/gen-1',
+            '00000000-0000-0000-0000-000000000002'),
+  true, 'K6e the reservation owner may upload to exactly the reserved path');
+
+select is(app.storage_upload_reserved('documents-standard',
+            '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f6c1/gen-1',
+            '00000000-0000-0000-0000-000000000003'),
+  false, 'K6f another principal may NOT use someone else''s reservation');
+
+update public.upload_sessions set expires_at = now() - interval '1 minute'
+ where id = '32800000-0000-0000-0000-00000000a6c1';
+select is(app.storage_upload_reserved('documents-standard',
+            '0c000000-0000-0000-0000-00000000000a/32800000-0000-0000-0000-00000000f6c1/gen-1',
+            '00000000-0000-0000-0000-000000000002'),
+  false, 'K6g an EXPIRED reservation no longer authorizes the upload');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $q$ insert into storage.objects (bucket_id, name, owner)
+      values ('documents-phi', '328/k6/no-reservation.pdf',
+              '00000000-0000-0000-0000-000000000002') $q$,
+  '42501', null,
+  'K6h a direct Storage write without a reservation is DENIED (the M5 policy is live and fail-closed)');
+reset role;
+
+-- =============================================================================
+-- K9 — the five program flags exist and are OFF (asserted as STATE, §7.3).
+-- =============================================================================
+
+select is(
+  (select count(*)::int from app.feature_flags
+    where key in ('documents_foundation','documents_wave_a','documents_wave_b',
+                  'documents_wave_c','documents_wave_d')
+      and enabled = false),
+  5, 'K9 all five DM flags exist and are OFF');
+
+-- =============================================================================
+-- K10 — the D11 read-verb dispatch (M6): attachment.read is gone,
+-- document.opened resolves through the kernel.
+-- =============================================================================
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $q$ select public.log_audit_access('attachment.read', 'attachment',
+        '32800000-0000-0000-0000-00000000d101', 'a0000000-0000-0000-0000-0000000000a1',
+        'K10 probe') $q$,
+  '23514', null,
+  'K10a the attachment.read verb was removed from the audited-read registry');
+select lives_ok(
+  $q$ select public.log_audit_access('document.opened', 'document',
+        '32800000-0000-0000-0000-00000000d101', 'a0000000-0000-0000-0000-0000000000a1',
+        'Documento aberto (K10)') $q$,
+  'K10b document.opened is registered and authorized for an entitled reader');
+reset role;
+
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'document.opened'
+      and entity_id = '32800000-0000-0000-0000-00000000d101'),
+  1, 'K10c the audited open wrote exactly one audit row');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $q$ select public.log_audit_access('document.opened', 'document',
+        '32800000-0000-0000-0000-00000000d101', 'a0000000-0000-0000-0000-0000000000a1',
+        'K10 probe negativa') $q$,
+  '42501', null,
+  'K10d a non-reader cannot mint a document.opened row (registry no laxer than the door)');
+reset role;
 
 -- =============================================================================
 -- K8 — parked-seam writers refuse their document arms (HC0DM), fail-closed

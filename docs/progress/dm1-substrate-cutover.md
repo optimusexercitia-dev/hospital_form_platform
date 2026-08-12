@@ -19,10 +19,10 @@
 | T1e | FUP-DM1-E2E + FUP-DM1-DISPOSE filed (index + body) | ✅ 2026-08-12 | PROGRESS.md + follow-ups.md |
 | T2 | M2 `securable_resources` + pins + backfill + triggers | ✅ 2026-08-12 | §Turn-2 record below; ADR 0116 §2–4 |
 | T2b | M3 core tables + guards + K3/K7 keystones + guard twins | ✅ 2026-08-12 | 328 = 43/43 planned/ran on BOTH stacks; 3 twins proven |
-| T3 | M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ⬜ | |
-| T4 | 328 K4/K5/K6/K9/K10 + remaining mutation-twin runlog | ⬜ | |
+| T3 | M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ✅ 2026-08-12 | §Turn-3 record; 328 = 70/70 both stacks |
+| T4 | 328 K4/K5/K6/K9/K10 + mutation twins 4–6 | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 2: K4 lands WITH the policies) |
 | T5 | pgTAP triage of attachment-touching suites + full `test:db` green on fresh reset | ⬜ | |
-| T6 | TS stubs (`src/lib/attachments/*`, `src/lib/queries/attachments.ts`, wrapper actions, `src/lib/audit/access.ts`) + lint/typecheck/vitest | ⬜ | |
+| T6 | TS stubs + wrapper patches + lint/typecheck/vitest | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 3: stubs land with gen:types); lint 5-gate 0/0 · tsc 0 · vitest 1254/1254 |
 | T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ⬜ | |
 
 ## Red-first record (lead condition 5)
@@ -77,6 +77,64 @@ Mutation twin (K1): `app.probe_attachment_stub()` created in a txn → K1a count
   would red). K7h1–h3 (hold blocks) are differential by construction
   (hold present → HC0D3; released → proceeds).
 - Guard SQLSTATEs minted: HC0D1/HC0D2/HC0D3/HC0D4 (ADR 0116 §5).
+
+## Turn-3 record (M4 + M5 + M6 + gen:types + TS, 2026-08-12)
+
+**Tenant-deletion measurement (lead follow-through on turn 2):** the "commission
+delete traverses the new pins" question dissolves against reality — **commission
+hard-deletes were ALREADY impossible pre-DM1**: the fixture's own Rule-11 audit
+rows block via `audit_log_commission_id_fkey` (DEL1, measured; `audit_log` is
+append-only, so this holds for any commission with audited children). DEL2's
+block printed the same constraint — a §7.1 wrong-arm claim avoided by reading
+SQLERRM, so "blocked once a document hangs off it" is NOT provable at commission
+level and is not claimed. What IS proven: **DEL3 — all four DOMAIN-row types
+delete cleanly through the pins** (the level deletes actually happen: RPCs, E2E
+teardowns), registry swept 4→0; and the document RESTRICT backstop at
+domain-row level (K3g, turn 2). Suite `276` deletes a commission expecting
+`23503` errcode-only → stays green regardless of which constraint fires; no
+triage mis-attribution risk.
+
+**Landed:** M4 kernel (6 DEFINER doors; `can_read_document` with **no is_admin
+arm**, dispatch = the exact predicate set the retired dispatchers used) + the 8
+SELECT policies (one per table, kept falsifiable); M5 buckets (private, F2-
+mirrored caps/MIME; INSERT-only reservation-bound; **zero SELECT**); M6
+`document.opened` dispatch arm + allowlist entry + 5 flags OFF (targeted
+`on conflict`). `gen:types` regenerated (+524/−375, pgtap dropped first).
+
+**328 = 1..70 → ran 70 / ok 70 / 0 aborts** on the populated post-M6 stack AND
+on the fresh post-reset stack. One §7.15 catch in-turn: the K5f `is_active`
+flip aborted the file at 49/69 (profiles guard vs. lingering claims — fixed
+with the 231 clear-claims dialect); caught by the run-shape check, which is the
+point of reporting it.
+
+**Mutation twins (rolled back, rollback verified):** TWIN4 kernel neutralized
+to `return true` → platform_admin reads 1 (K5d reds) · TWIN5 smuggled SELECT
+policy on `documents-phi` → K6b count 1 (reds) · TWIN6 permissive sibling on
+`documents` → K4b count 10 (reds).
+
+**Census registration debt for T7 (the turn-7 sweep list, named now):** 6 new
+boolean DEFINER doors (`can_read_document`, `can_write_document`,
+`can_read_document_version`, `can_read_file_object`, `can_read_document_hold`,
+`storage_upload_reserved`) + 10 new policies (8 table + 2 storage INSERT) + the
+6 M1/M6-rewritten function bodies. `ARM=census` is expected to FAIL before
+their verdicts are appended — that failure is required evidence.
+
+**TS surgery (signatures stable, all fail closed):**
+`src/lib/attachments/actions.ts` + `src/lib/queries/attachments.ts` → parked
+stubs; the dead RPC blocks replaced in `src/lib/cases/documents-actions.ts`,
+`src/lib/meetings/actions.ts`, `src/lib/interviews/actions.ts` (link half of
+interview attachments kept LIVE on `case_interview_links`); **discovery:**
+`src/lib/queries/rca.ts` read the dropped table for the RCA citation-target
+picker — document candidates removed (Wave D restores; matches the K8b writer
+guard); `src/lib/audit/access.ts` emitter union drops `attachment.read`;
+`src/lib/queries/audit.ts` keeps the `attachment.*` vocabulary as HISTORICAL
+(append-only log renders forever) and adds `document.opened`. Gates: lint
+five-gate 0 errors/0 warnings · tsc clean · vitest 1254/1254.
+
+**Runtime note (recorded, not user-visible in prod):** interview LINK
+attachments remain gated by the `attachments` flag (F2 fold) — dark locally
+now exactly as in prod since 2026-08-11; whether links ride `documents_wave_a`
+or get their own gate is a Wave A decision.
 
 ## PROD-VERIFY checklist (lead condition 2 — for the later lead-authorized `db push`; NO remote action was taken this phase)
 

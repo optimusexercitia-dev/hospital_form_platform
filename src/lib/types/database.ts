@@ -522,6 +522,7 @@ export type Database = {
           due_date: string | null
           id: string
           linked_case_id: string | null
+          securable_type: string
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -544,6 +545,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           linked_case_id?: string | null
+          securable_type?: string
           source_agenda_item_id?: string | null
           source_case_id?: string | null
           source_case_phase_id?: string | null
@@ -566,6 +568,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           linked_case_id?: string | null
+          securable_type?: string
           source_agenda_item_id?: string | null
           source_case_id?: string | null
           source_case_phase_id?: string | null
@@ -612,6 +615,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
           {
             foreignKeyName: "action_items_source_agenda_item_fkey"
@@ -920,226 +930,6 @@ export type Database = {
             columns: ["response_id"]
             isOneToOne: false
             referencedRelation: "responses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attachment_references: {
-        Row: {
-          attachment_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          note: string | null
-          owner_id: string
-          owner_type: string
-        }
-        Insert: {
-          attachment_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note?: string | null
-          owner_id: string
-          owner_type: string
-        }
-        Update: {
-          attachment_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note?: string | null
-          owner_id?: string
-          owner_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attachment_references_attachment_id_fkey"
-            columns: ["attachment_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachment_references_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attachment_subjects: {
-        Row: {
-          attachment_id: string
-          created_at: string
-          created_by: string | null
-          id: string
-          note: string | null
-          participant_id: string
-          role_id: string | null
-        }
-        Insert: {
-          attachment_id: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note?: string | null
-          participant_id: string
-          role_id?: string | null
-        }
-        Update: {
-          attachment_id?: string
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          note?: string | null
-          participant_id?: string
-          role_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attachment_subjects_attachment_id_fkey"
-            columns: ["attachment_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachment_subjects_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachment_subjects_participant_id_fkey"
-            columns: ["participant_id"]
-            isOneToOne: false
-            referencedRelation: "participants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachment_subjects_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "case_participant_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      attachments: {
-        Row: {
-          confidentiality_label: string | null
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          description: string | null
-          document_group_id: string | null
-          id: string
-          kind: string
-          legal_hold: boolean
-          mime_type: string | null
-          occurred_on: string | null
-          owner_id: string
-          owner_type: string
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          scan_status: string
-          sensitivity_tier: string
-          sha256: string | null
-          size_bytes: number | null
-          storage_bucket: string
-          storage_path: string
-          supersedes_id: string | null
-          title: string
-          updated_at: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          confidentiality_label?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          document_group_id?: string | null
-          id?: string
-          kind?: string
-          legal_hold?: boolean
-          mime_type?: string | null
-          occurred_on?: string | null
-          owner_id: string
-          owner_type: string
-          phi_disposed_at?: string | null
-          phi_disposed_by?: string | null
-          phi_disposed_reason?: string | null
-          scan_status?: string
-          sensitivity_tier?: string
-          sha256?: string | null
-          size_bytes?: number | null
-          storage_bucket: string
-          storage_path: string
-          supersedes_id?: string | null
-          title: string
-          updated_at?: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          confidentiality_label?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          document_group_id?: string | null
-          id?: string
-          kind?: string
-          legal_hold?: boolean
-          mime_type?: string | null
-          occurred_on?: string | null
-          owner_id?: string
-          owner_type?: string
-          phi_disposed_at?: string | null
-          phi_disposed_by?: string | null
-          phi_disposed_reason?: string | null
-          scan_status?: string
-          sensitivity_tier?: string
-          sha256?: string | null
-          size_bytes?: number | null
-          storage_bucket?: string
-          storage_path?: string
-          supersedes_id?: string | null
-          title?: string
-          updated_at?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attachments_deleted_by_fkey"
-            columns: ["deleted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachments_phi_disposed_by_fkey"
-            columns: ["phi_disposed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachments_supersedes_id_fkey"
-            columns: ["supersedes_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attachments_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2348,6 +2138,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -2369,6 +2160,7 @@ export type Database = {
           interview_number: number
           participant_id?: string | null
           registry_event_id?: string | null
+          securable_type?: string
           status?: string
           summary_md?: string | null
           title?: string | null
@@ -2390,6 +2182,7 @@ export type Database = {
           interview_number?: number
           participant_id?: string | null
           registry_event_id?: string | null
+          securable_type?: string
           status?: string
           summary_md?: string | null
           title?: string | null
@@ -2451,6 +2244,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "case_events"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
         ]
       }
@@ -3649,6 +3449,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -3674,6 +3475,7 @@ export type Database = {
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
+          securable_type?: string
           status?: string
           template_version_id?: string | null
           updated_at?: string
@@ -3699,6 +3501,7 @@ export type Database = {
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
+          securable_type?: string
           status?: string
           template_version_id?: string | null
           updated_at?: string
@@ -3753,6 +3556,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "case_outcomes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
           {
             foreignKeyName: "cases_template_version_id_fkey"
@@ -4236,6 +4046,272 @@ export type Database = {
           },
         ]
       }
+      document_legal_holds: {
+        Row: {
+          document_id: string
+          id: string
+          issued_by: string
+          placed_at: string
+          reason_category: string
+          released_at: string | null
+          released_by: string | null
+        }
+        Insert: {
+          document_id: string
+          id?: string
+          issued_by: string
+          placed_at?: string
+          reason_category: string
+          released_at?: string | null
+          released_by?: string | null
+        }
+        Update: {
+          document_id?: string
+          id?: string
+          issued_by?: string
+          placed_at?: string
+          reason_category?: string
+          released_at?: string | null
+          released_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_legal_holds_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_legal_holds_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_legal_holds_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_placements: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_id: string
+          id: string
+          resource_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_id: string
+          id?: string
+          resource_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_id?: string
+          id?: string
+          resource_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_placements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_placements_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_placements_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_retention: {
+        Row: {
+          applies_to_kind: string | null
+          applies_to_tier: string | null
+          created_at: string
+          id: string
+          is_provisional: boolean
+          notes: string | null
+          retention_years: number
+          trigger_event: string
+        }
+        Insert: {
+          applies_to_kind?: string | null
+          applies_to_tier?: string | null
+          created_at?: string
+          id?: string
+          is_provisional?: boolean
+          notes?: string | null
+          retention_years: number
+          trigger_event: string
+        }
+        Update: {
+          applies_to_kind?: string | null
+          applies_to_tier?: string | null
+          created_at?: string
+          id?: string
+          is_provisional?: boolean
+          notes?: string | null
+          retention_years?: number
+          trigger_event?: string
+        }
+        Relationships: []
+      }
+      document_version_files: {
+        Row: {
+          created_at: string
+          document_version_id: string
+          file_object_id: string
+          id: string
+          rendition_kind: string
+        }
+        Insert: {
+          created_at?: string
+          document_version_id: string
+          file_object_id: string
+          id?: string
+          rendition_kind: string
+        }
+        Update: {
+          created_at?: string
+          document_version_id?: string
+          file_object_id?: string
+          id?: string
+          rendition_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_version_files_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_version_files_file_object_id_fkey"
+            columns: ["file_object_id"]
+            isOneToOne: false
+            referencedRelation: "file_objects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          created_at: string
+          created_by: string
+          document_id: string
+          id: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          document_id: string
+          id?: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          document_id?: string
+          id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          access_policy_id: string | null
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          description: string | null
+          home_resource_id: string
+          id: string
+          kind: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          access_policy_id?: string | null
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          description?: string | null
+          home_resource_id: string
+          id?: string
+          kind?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          access_policy_id?: string | null
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          description?: string | null
+          home_resource_id?: string
+          id?: string
+          kind?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_home_resource_id_fkey"
+            columns: ["home_resource_id"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ethics_allegation_categories: {
         Row: {
           display_name: string
@@ -4537,13 +4613,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "ethics_decision_details_decision_letter_document_id_fkey"
-            columns: ["decision_letter_document_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ethics_decision_details_external_reporting_referral_id_fkey"
             columns: ["external_reporting_referral_id"]
             isOneToOne: false
@@ -4772,13 +4841,6 @@ export type Database = {
             columns: ["recipient_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ethics_notifications_related_document_id_fkey"
-            columns: ["related_document_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
             referencedColumns: ["id"]
           },
         ]
@@ -5088,6 +5150,78 @@ export type Database = {
             columns: ["standard_id"]
             isOneToOne: false
             referencedRelation: "accreditation_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_objects: {
+        Row: {
+          created_at: string
+          created_by: string
+          disposal_reason_category: string | null
+          disposal_state: string
+          disposed_at: string | null
+          disposed_by: string | null
+          id: string
+          mime_type: string | null
+          sensitivity_tier: string
+          sha256: string | null
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          upload_state: string
+          uploaded_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          disposal_reason_category?: string | null
+          disposal_state?: string
+          disposed_at?: string | null
+          disposed_by?: string | null
+          id?: string
+          mime_type?: string | null
+          sensitivity_tier: string
+          sha256?: string | null
+          size_bytes?: number | null
+          storage_bucket: string
+          storage_path: string
+          upload_state?: string
+          uploaded_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          disposal_reason_category?: string | null
+          disposal_state?: string
+          disposed_at?: string | null
+          disposed_by?: string | null
+          id?: string
+          mime_type?: string | null
+          sensitivity_tier?: string
+          sha256?: string | null
+          size_bytes?: number | null
+          storage_bucket?: string
+          storage_path?: string
+          upload_state?: string
+          uploaded_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_objects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_objects_disposed_by_fkey"
+            columns: ["disposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6552,6 +6686,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -6584,6 +6719,7 @@ export type Database = {
           quorum_value?: number | null
           scheduled_end?: string | null
           scheduled_start: string
+          securable_type?: string
           status?: string
           title: string
           updated_at?: string
@@ -6616,6 +6752,7 @@ export type Database = {
           quorum_value?: number | null
           scheduled_end?: string | null
           scheduled_start?: string
+          securable_type?: string
           status?: string
           title?: string
           updated_at?: string
@@ -6656,6 +6793,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
         ]
       }
@@ -8171,13 +8315,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rca_evidence_cited_document_id_fkey"
-            columns: ["cited_document_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "rca_evidence_cited_interview_id_fkey"
             columns: ["cited_interview_id"]
             isOneToOne: false
@@ -9097,13 +9234,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "referral_shared_item_source_document_id_fkey"
-            columns: ["source_document_id"]
-            isOneToOne: false
-            referencedRelation: "attachments"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "referral_shared_item_source_narrative_id_fkey"
             columns: ["source_narrative_id"]
             isOneToOne: false
@@ -9380,6 +9510,55 @@ export type Database = {
           },
         ]
       }
+      securable_resources: {
+        Row: {
+          commission_id: string | null
+          created_at: string
+          hospital_id: string | null
+          id: string
+          organization_id: string | null
+          resource_type: string
+        }
+        Insert: {
+          commission_id?: string | null
+          created_at?: string
+          hospital_id?: string | null
+          id: string
+          organization_id?: string | null
+          resource_type: string
+        }
+        Update: {
+          commission_id?: string | null
+          created_at?: string
+          hospital_id?: string | null
+          id?: string
+          organization_id?: string | null
+          resource_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "securable_resources_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "securable_resources_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "securable_resources_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       standard_assessments: {
         Row: {
           assessed_at: string
@@ -9484,6 +9663,48 @@ export type Database = {
             columns: ["standard_id"]
             isOneToOne: false
             referencedRelation: "accreditation_standards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      upload_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          file_object_id: string
+          id: string
+          reserved_by: string
+          state: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          file_object_id: string
+          id?: string
+          reserved_by: string
+          state?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          file_object_id?: string
+          id?: string
+          reserved_by?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_sessions_file_object_id_fkey"
+            columns: ["file_object_id"]
+            isOneToOne: true
+            referencedRelation: "file_objects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "upload_sessions_reserved_by_fkey"
+            columns: ["reserved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10211,6 +10432,7 @@ export type Database = {
           due_date: string | null
           id: string
           linked_case_id: string | null
+          securable_type: string
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -10621,6 +10843,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -10691,6 +10914,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -10732,6 +10956,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -10909,6 +11134,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -10980,6 +11206,7 @@ export type Database = {
           due_date: string | null
           id: string
           linked_case_id: string | null
+          securable_type: string
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -11122,6 +11349,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -11163,6 +11391,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -11229,56 +11458,6 @@ export type Database = {
         Args: { p_commission_id: string }
         Returns: number
       }
-      create_attachment: {
-        Args: {
-          p_confidentiality_label?: string
-          p_description?: string
-          p_kind?: string
-          p_mime_type?: string
-          p_occurred_on?: string
-          p_owner_id: string
-          p_owner_type: string
-          p_sensitivity_tier?: string
-          p_sha256?: string
-          p_size_bytes?: number
-          p_storage_path: string
-          p_title: string
-        }
-        Returns: {
-          confidentiality_label: string | null
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          description: string | null
-          document_group_id: string | null
-          id: string
-          kind: string
-          legal_hold: boolean
-          mime_type: string | null
-          occurred_on: string | null
-          owner_id: string
-          owner_type: string
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          scan_status: string
-          sensitivity_tier: string
-          sha256: string | null
-          size_bytes: number | null
-          storage_bucket: string
-          storage_path: string
-          supersedes_id: string | null
-          title: string
-          updated_at: string
-          uploaded_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "attachments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       create_case: {
         Args: {
           p_case_type_id?: string
@@ -11309,6 +11488,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -11363,6 +11543,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -11472,6 +11653,7 @@ export type Database = {
           due_date: string | null
           id: string
           linked_case_id: string | null
+          securable_type: string
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -11739,6 +11921,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -11789,6 +11972,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -12202,10 +12386,6 @@ export type Database = {
         Args: { p_template_version_id: string }
         Returns: undefined
       }
-      dispose_attachment_phi: {
-        Args: { p_id: string; p_reason: string }
-        Returns: undefined
-      }
       dispose_case_phi: {
         Args: { p_case_id: string; p_reason: string }
         Returns: undefined
@@ -12251,6 +12431,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -12895,6 +13076,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -13015,13 +13197,6 @@ export type Database = {
       nsp_org_capa_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_event_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_roster: { Args: { p_org_id: string }; Returns: Json }
-      open_attachment: {
-        Args: { p_id: string }
-        Returns: {
-          bucket: string
-          path: string
-        }[]
-      }
       open_capa_plan: {
         Args: {
           p_classification?: string
@@ -13328,43 +13503,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral_public"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      reclassify_attachment: {
-        Args: { p_id: string; p_new_label?: string; p_new_tier: string }
-        Returns: {
-          confidentiality_label: string | null
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          description: string | null
-          document_group_id: string | null
-          id: string
-          kind: string
-          legal_hold: boolean
-          mime_type: string | null
-          occurred_on: string | null
-          owner_id: string
-          owner_type: string
-          phi_disposed_at: string | null
-          phi_disposed_by: string | null
-          phi_disposed_reason: string | null
-          scan_status: string
-          sensitivity_tier: string
-          sha256: string | null
-          size_bytes: number | null
-          storage_bucket: string
-          storage_path: string
-          supersedes_id: string | null
-          title: string
-          updated_at: string
-          uploaded_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "attachments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -13712,6 +13850,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -13742,6 +13881,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -13783,6 +13923,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -14247,6 +14388,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -14449,6 +14591,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -14490,6 +14633,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -14772,7 +14916,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      soft_delete_attachment: { Args: { p_id: string }; Returns: undefined }
       start_correction_draft: {
         Args: { p_request_id: string }
         Returns: string
@@ -15274,6 +15417,7 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          securable_type: string
           status: string
           template_version_id: string | null
           updated_at: string
@@ -15386,6 +15530,7 @@ export type Database = {
           due_date: string | null
           id: string
           linked_case_id: string | null
+          securable_type: string
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -15650,6 +15795,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -15736,6 +15882,7 @@ export type Database = {
           interview_number: number
           participant_id: string | null
           registry_event_id: string | null
+          securable_type: string
           status: string
           summary_md: string | null
           title: string | null
@@ -15787,6 +15934,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string
@@ -15866,6 +16014,7 @@ export type Database = {
           quorum_value: number | null
           scheduled_end: string | null
           scheduled_start: string
+          securable_type: string
           status: string
           title: string
           updated_at: string

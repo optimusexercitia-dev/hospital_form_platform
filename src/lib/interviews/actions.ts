@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import { featureEnabled } from '@/lib/queries/feature-flags'
-import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import {
@@ -756,50 +755,12 @@ export async function uploadInterviewAttachment(
   if (!(await interviewsEnabled())) {
     return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
-  // Phase F2 (ADR 0063): interview file attachments are `attachments`
-  // (owner_type='interview'), gated by the `attachments` flag. Inert while OFF.
-  if (!(await featureEnabled('attachments'))) {
-    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
-  }
-
-  const supabase = await createClient()
-
-  // Owner-scoped immutable path `interview/{interviewId}/{uuid}.{ext}`; interviews
-  // default to the PHI tier → the attachments-phi bucket (the write RPC + bucket
-  // policy enforce can_write_interview).
-  const tier = effectiveTier('interview')
-  const bucket = bucketForTier(tier)
-  const path = `interview/${interviewId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (uploadError) return { ok: false, error: INTERVIEW_MESSAGES.uploadFailed }
-
-  const { data, error } = await supabase.rpc('create_attachment', {
-    p_owner_type: 'interview',
-    p_owner_id: interviewId,
-    p_storage_path: path,
-    p_title: title,
-    p_kind: kind,
-    p_mime_type: file.type,
-    p_size_bytes: file.size,
-    p_sensitivity_tier: tier,
-  })
-
-  if (error || !data) {
-    // Metadata insert failed AFTER the object landed; the object is orphaned but
-    // never overwritten (Rule 6 — orphans tolerated, no GC in v1).
-    return { ok: false, error: mapInterviewError(error) }
-  }
-
-  revalidateInterviews()
-  return {
-    ok: true,
-    error: INTERVIEW_MESSAGES.attachmentAdded,
-    attachmentId: data.id,
-  }
+  // PARKED (DM1, ADR 0114 D5): the F2 attachments substrate this uploaded into
+  // was dropped by 20260923000100 and the `attachments` flag is false
+  // everywhere, so this action fails closed until Wave A (DM2) rebuilds the
+  // flow on the document model (documents_wave_a). Field validation above is
+  // kept so the form contract stays stable.
+  return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
 }
 
 /**
@@ -876,20 +837,11 @@ export async function softDeleteInterviewAttachment(
 
   const supabase = await createClient()
 
-  // A file attachment? (RLS-scoped visibility.)
-  const { data: file } = await supabase
-    .from('attachments')
-    .select('id')
-    .eq('id', attachmentId)
-    .maybeSingle()
-
-  if (file) {
-    const { error } = await supabase.rpc('soft_delete_attachment', {
-      p_id: attachmentId,
-    })
-    if (error) return { ok: false, error: mapInterviewError(error) }
-  } else {
-    // Otherwise a link row — soft-delete via the RLS write policy (can_write_interview).
+  // PARKED half (DM1, ADR 0114 D5): FILE attachments' substrate was dropped by
+  // 20260923000100, so every id can only be a LINK row now — soft-delete via
+  // the RLS write policy (can_write_interview). Wave A restores the file half
+  // on the document model.
+  {
     const context = await getSessionContext()
     const { error } = await supabase
       .from('case_interview_links')

@@ -8,7 +8,6 @@ import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { MEETING_MESSAGES, mapMeetingError } from '@/lib/meetings/messages'
-import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type {
   AttendanceStatus,
   AttendeeRole,
@@ -965,76 +964,23 @@ export async function uploadMeetingAttachment(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
-  // Phase F2 (ADR 0063): meeting attachments are `attachments` (owner_type='meeting'),
-  // gated by the `attachments` flag (in addition to meetings). Inert while OFF.
-  if (!(await featureEnabled('attachments'))) {
-    return { ok: false, error: MEETING_MESSAGES.unavailable }
-  }
-
-  const supabase = await createClient()
-  const commissionId = await commissionOfMeeting(supabase, meetingId)
-  if (!commissionId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MEETING_MESSAGES.forbidden }
-  }
-
-  // Owner-scoped immutable path `meeting/{meetingId}/{uuid}.{ext}`; meetings default to
-  // the STANDARD tier → the `attachments` bucket.
-  const tier = effectiveTier('meeting')
-  const bucket = bucketForTier(tier)
-  const path = `meeting/${meetingId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (uploadError) return { ok: false, error: MEETING_MESSAGES.uploadFailed }
-
-  const { data, error } = await supabase.rpc('create_attachment', {
-    p_owner_type: 'meeting',
-    p_owner_id: meetingId,
-    p_storage_path: path,
-    p_title: title,
-    p_kind: kind,
-    p_mime_type: file.type,
-    p_size_bytes: file.size,
-    p_sensitivity_tier: tier,
-  })
-
-  if (error || !data) {
-    // The metadata insert failed AFTER the object landed; the object is orphaned
-    // but never overwritten (Rule 6 — orphans tolerated, no GC in v1).
-    return { ok: false, error: mapMeetingError(error) }
-  }
-
-  revalidateMeetings()
-  return {
-    ok: true,
-    error: MEETING_MESSAGES.attachmentAdded,
-    attachmentId: data.id,
-  }
+  // PARKED (DM1, ADR 0114 D5): the F2 attachments substrate this uploaded into
+  // was dropped by 20260923000100 and the `attachments` flag is false
+  // everywhere, so this action fails closed until Wave A (DM2) rebuilds the
+  // flow on the document model (documents_wave_a). Field validation above is
+  // kept so the form contract stays stable.
+  return { ok: false, error: MEETING_MESSAGES.unavailable }
 }
 
 /** SOFT-delete an attachment (row hidden, Storage object retained — Rule 6). staff_admin-only. */
 export async function deleteMeetingAttachment(
-  attachmentId: string,
+  _attachmentId: string,
 ): Promise<ActionState> {
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
-  if (!(await featureEnabled('attachments'))) {
-    return { ok: false, error: MEETING_MESSAGES.unavailable }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('soft_delete_attachment', {
-    p_id: attachmentId,
-  })
-
-  if (error) return { ok: false, error: mapMeetingError(error) }
-
-  revalidateMeetings()
-  return { ok: true, error: MEETING_MESSAGES.attachmentRemoved }
+  // PARKED (DM1, ADR 0114 D5): substrate dropped; fails closed until Wave A.
+  return { ok: false, error: MEETING_MESSAGES.unavailable }
 }
 
 // ---------------------------------------------------------------------------

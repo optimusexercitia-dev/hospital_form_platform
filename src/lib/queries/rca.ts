@@ -531,24 +531,11 @@ export async function listRcaCitationTargets(
     })
   }
 
-  // Phase F2: case documents are `attachments` (owner_type='case'). RCA citations
-  // reference the attachment id (rca_evidence.cited_document_id → attachments.id).
-  const { data: docs } = await supabase
-    .from('attachments')
-    .select('id, title, created_at')
-    .eq('owner_type', 'case')
-    .eq('owner_id', caseId)
-    .is('deleted_at', null)
-    .neq('scan_status', 'infected')
-    .returns<{ id: string; title: string | null; created_at: string }[]>()
-  for (const d of docs ?? []) {
-    targets.push({
-      kind: 'document',
-      id: d.id,
-      label: d.title?.trim() || 'Documento',
-      date: d.created_at,
-    })
-  }
+  // PARKED (DM1, ADR 0114 D5): document citation candidates came from the
+  // dropped attachments substrate, and add_rca_evidence now refuses a document
+  // citation (HC0DM) until Wave D re-points cited_document_id at the document
+  // model. No document targets are offered meanwhile (the 'document' kind stays
+  // in the type for Wave D and for rendering any historical rows).
 
   return targets
 }

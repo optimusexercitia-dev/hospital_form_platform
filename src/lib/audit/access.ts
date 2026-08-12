@@ -42,10 +42,11 @@ export type AuditAccessAction = Extract<
   // migration 20260620014000_referrals_rpcs.sql.
   | 'referral_patient.read'
   | 'referral.viewed'
-  // centralized attachments (Phase F2; ADR 0063; Rule 11/12) — the audited PHI
-  // blob-open. Emitted server-side by the open_attachment DEFINER door; listed here to
-  // keep the triple-mirror complete (DB allow-list + _audit_access_authorized arm + TS).
-  | 'attachment.read'
+  // DM1 (ADR 0114 D5): 'attachment.read' was REMOVED here with its DB
+  // allow-list entry + dispatch arm (20260923000100) — the emitter union must
+  // not offer a verb the DB refuses. Its successor 'document.opened' is
+  // emitted INSIDE DM2's open_document_version, never from the app layer, so
+  // it does not join this union.
 >
 
 export async function logAuditAccess(params: {

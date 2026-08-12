@@ -182,12 +182,18 @@ export type AuditAction =
   // centralized attachments (Phase F2; ADR 0063) — mutation verbs (PHI-free metadata:
   // owner/kind/tier/label/bucket/scan/legal_hold/reason/deleted_at) + the audited PHI
   // blob-open read. title/description/path/sha256/subject are NEVER audited (Rule 11).
+  // ⚠ HISTORICAL since DM1 (ADR 0114 D5): the attachments substrate was dropped
+  // by 20260923000100 and nothing emits these anymore — they stay here because
+  // the audit log is append-only and existing rows must keep rendering.
   | 'attachment.created'
   | 'attachment.updated'
   | 'attachment.reclassified'
   | 'attachment.deleted'
   | 'attachment.phi_disposed'
   | 'attachment.read'
+  // document model (DM, ADR 0114 D11) — the audited document open, emitted by
+  // DM2's open_document_version through log_audit_access.
+  | 'document.opened'
   // charters & cadence — S4·CH (ADR 0080). Commission-level config; emitted by the
   // upsert_commission_charter DEFINER RPC (CH-BE-3) with entity_type 'commission'
   // (entity_id = commission_id). PHI-free metadata (Rule 12).
@@ -304,6 +310,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'attachment.deleted': 'Anexo removido',
   'attachment.phi_disposed': 'Dados do anexo descartados',
   'attachment.read': 'Anexo (PHI) aberto',
+  'document.opened': 'Documento aberto',
   'charter.upserted': 'Regimento e cadência atualizados',
 }
 
