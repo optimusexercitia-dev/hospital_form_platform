@@ -113,11 +113,13 @@ select '00000000-0000-0000-0000-0000000f1401', k.comm_x, cs.case_a, 1, 'witness'
 insert into public.case_interview_links (interview_id, title, external_url)
 values ('00000000-0000-0000-0000-0000000f1401', 'Gravacao de audio (link externo)',
         'https://example.com/recordings/probe-perimetro.mp3');
-insert into public.attachments
-  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
-select '00000000-0000-0000-0000-0000000f1450', 'interview', '00000000-0000-0000-0000-0000000f1401',
-       'documento', 'Transcricao assinada (rascunho)', 'attachments',
-       'interview/00000000-0000-0000-0000-0000000f1401/transcricao.pdf', 'standard', k.sa_x
+-- DM1 (ADR 0114 D5): the interview-owned attachment became an interview-HOMED
+-- document (same predicate family: can_read_document dispatches the interview
+-- arm through can_read_case_committee(case_of_interview), exactly the arm the
+-- 9th-member cut governs).
+insert into public.documents (id, home_resource_id, title, created_by)
+select '00000000-0000-0000-0000-0000000f1450', '00000000-0000-0000-0000-0000000f1401',
+       'Transcricao assinada (rascunho)', k.sa_x
 from k;
 
 -- Action item, case_restricted scope (the one arm that routes can_read_case).
@@ -183,9 +185,9 @@ select is((select count(*)::int from public.action_items where id = '00000000-00
 select is((select count(*)::int from public.case_interview_links
            where interview_id = '00000000-0000-0000-0000-0000000f1401'), 0,
   '3.7 INTERVIEW FAMILY, 8th MEMBER (QA r2 R1): ZERO case_interview_links - the reviewer must not learn the interview title, let alone WHERE ITS AUDIO LIVES (external_url is not a storage object, so the M8/M9 bytes cut never governed it)');
-select is((select count(*)::int from public.attachments
-           where owner_type = 'interview' and owner_id = '00000000-0000-0000-0000-0000000f1401'), 0,
-  '3.8 INTERVIEW FAMILY, 9th MEMBER (QA r2 R1): ZERO interview-owned attachment metadata (can_read_attachment interview arm was raw can_read_case)');
+select is((select count(*)::int from public.documents
+           where home_resource_id = '00000000-0000-0000-0000-0000000f1401'), 0,
+  '3.8 INTERVIEW FAMILY, 9th MEMBER (QA r2 R1 → DM1): ZERO interview-homed document metadata (can_read_document''s interview arm is can_read_case_committee, never raw can_read_case)');
 reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -196,9 +198,9 @@ select is((select count(*)::int from public.action_items where id = '00000000-00
 select is((select count(*)::int from public.case_interview_links
            where interview_id = '00000000-0000-0000-0000-0000000f1401'), 1,
   '3.9 NON-VACUITY twin: the coordinator DOES read the interview link - 3.7 zero is the cut, not an empty fixture');
-select is((select count(*)::int from public.attachments
-           where owner_type = 'interview' and owner_id = '00000000-0000-0000-0000-0000000f1401'), 1,
-  '3.10 NON-VACUITY twin: ...and the interview attachment');
+select is((select count(*)::int from public.documents
+           where home_resource_id = '00000000-0000-0000-0000-0000000f1401'), 1,
+  '3.10 NON-VACUITY twin: ...and the interview-homed document');
 reset role;
 
 -- =============================================================================
@@ -252,9 +254,9 @@ select cmp_ok(
 select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname = 'can_read_attachment')
+    where n.nspname = 'app' and p.proname = 'can_read_document')
     ~ 'can_read_case_committee\(app\.case_of_interview',
-  '5.2b CATALOG: can_read_attachment INTERVIEW arm is cut (its case arm deliberately is NOT - case metadata stays visible per the lead ruling)');
+  '5.2b CATALOG (DM1 successor): can_read_document''s INTERVIEW arm is the committee-scoped cut (its case arm deliberately is NOT - case metadata stays visible per the lead ruling)');
 select is(
   (select count(*)::int from pg_policies
     where schemaname = 'public'

@@ -236,13 +236,15 @@ select ok(
   '3.12: _audit_access_authorized is NOT anon-executable (t19 grant hygiene)');
 
 -- ============================================================================
--- §4: F2 (ADR 0063) — the attachment.read triple-mirror pair. An entitled reader
---     (a member of the owning commission → can_read_attachment) CAN log
---     attachment.read; a foreign member CANNOT (the C-4 forge-guard closes it).
+-- §4: DM (ADR 0114 D11 — successor of the F2 pair, same C-4 forge-guard
+--     contract): an entitled reader (a member of the owning commission →
+--     can_read_document, meeting arm) CAN log the audited document open; a
+--     foreign member CANNOT. Verb names deliberately built by format() below —
+--     test 3.10's parser reads every quoted dotted literal in the audit
+--     bodies, and this file must not become a counterexample of its own gate.
 -- ============================================================================
--- A meeting in comm_x (create_meeting mints it) + a standard-tier attachment owned
--- by it (inserted directly — no storage object needed for the RLS/audit-guard test;
--- the immutability guard is BEFORE UPDATE only, so a plain INSERT is unaffected).
+-- A meeting in comm_x (create_meeting mints it; its BEFORE INSERT trigger
+-- mints the registry row) + a document homed on it.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table mtg on commit drop as
@@ -252,28 +254,27 @@ grant select on mtg to authenticated;
 
 create temp table att on commit drop as select gen_random_uuid() as id;
 grant select on att to authenticated;
-insert into public.attachments (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier)
-  select (select id from att), 'meeting', (select id from mtg), 'Anexo de teste',
-         'attachments', 'meeting/' || (select id from mtg)::text || '/x.pdf', 'standard';
+insert into public.documents (id, home_resource_id, title, created_by)
+  select (select id from att), (select id from mtg), 'Documento de teste', (select sa_x from k);
 
--- (4a) ENTITLED: st_x2 (a comm_x member → can_read_attachment) may log attachment.read.
+-- (4a) ENTITLED: st_x2 (a comm_x member → can_read_document) may log the open.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select lives_ok(
-  format($$ select public.log_audit_access('attachment.read','attachment',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
+  format($$ select public.log_audit_access('document.opened','document',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
          (select id from att), (select comm_x from k)),
-  '3.13: an entitled reader (can_read_attachment) CAN log attachment.read');
+  '3.13: an entitled reader (can_read_document) CAN log the audited document open');
 reset role;
 
 -- (4b) UNENTITLED cross-commission: st_y (comm_y, no relationship to comm_x) CANNOT
--- forge attachment.read for the comm_x attachment → 42501 (the C-4 vector, closed).
+-- forge the open verb for the comm_x document → 42501 (the C-4 vector, closed).
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.log_audit_access('attachment.read','attachment',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
+  format($$ select public.log_audit_access('document.opened','document',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
          (select id from att), (select comm_x from k)),
   '42501', null,
-  '3.14: an UNENTITLED cross-commission caller CANNOT forge attachment.read (C-4 closed)');
+  '3.14: an UNENTITLED cross-commission caller CANNOT forge the document-open verb (C-4 closed)');
 reset role;
 
 select * from finish();

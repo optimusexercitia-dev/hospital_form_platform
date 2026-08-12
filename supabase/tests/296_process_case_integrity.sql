@@ -317,6 +317,15 @@ select is(
          -- ADR 0096: process_template_versions joins the cluster this FK sweep covers.
          'process_template_versions',
          'process_template_phases','case_outcomes','phase_results')
+       -- DM1 (ADR 0114 D4 / ADR 0116 §2): the securable-registry pin
+       -- (cases_securable_resource_fk, conkey = (id, securable_type)) is EXEMPT
+       -- by reasoning, not oversight — its FIRST column is the table's UNIQUE
+       -- pkey, so every referenced-side check ("does a case still point at this
+       -- registry row?") is O(1) via the pkey index already; a dedicated
+       -- (id, securable_type) index would duplicate the pkey for zero scans
+       -- saved. The unindexed-FK hazard this sweep hunts (seq-scan cascades)
+       -- cannot arise when the FK's leading column is unique.
+       and c.conname <> 'cases_securable_resource_fk'
    )
    select count(*)::int from fk
    where not exists (

@@ -436,9 +436,15 @@ set local role authenticated;
 select cmp_ok((select count(*)::int from public.list_commission_documents((select comm_x from k))), '>', 0,
   '8.2 NON-VACUITY TWIN ⭐: a committee MEMBER still lists them through the same door — 8.1''s zero is the wall, not an empty commission');
 reset role;
-select is(app.can_write_attachment('case', (select case1 from f), (select oa_b from k)), false,
-  '8.3 ⭐ WALL (M6, §4.3): the tenancy admin can no longer WRITE case attachments');
-select is(app.can_write_attachment('case', (select case1 from f), (select sa_x from k)), true,
+-- DM1 (ADR 0114 D5): can_write_attachment died with the substrate; its
+-- successor app.can_write_document carries the SAME wall (case arm = home
+-- staff_admin only, NO tenancy arm) — asserted on a document homed on case1.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('31400000-0000-0000-0000-0000000000d1', (select case1 from f),
+        'Documento (wall 8.3)', (select sa_x from k));
+select is(app.can_write_document('31400000-0000-0000-0000-0000000000d1', (select oa_b from k)), false,
+  '8.3 ⭐ WALL (M6→DM1, §4.3): the tenancy admin can no longer WRITE case documents');
+select is(app.can_write_document('31400000-0000-0000-0000-0000000000d1', (select sa_x from k)), true,
   '8.4 NON-VACUITY TWIN ⭐: the committee''s own coordinator still can');
 select is(
   (select count(*)::int from pg_proc p

@@ -20,7 +20,7 @@
 -- =============================================================================
 
 begin;
-select plan(33);
+select plan(27);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -267,79 +267,40 @@ select is(
 -- names, links stay dead by DB fact, not UI choice — Rule 1).
 -- =============================================================================
 
-insert into storage.objects (bucket_id, name)
-select 'attachments', 'case/' || cs.case_a || '/probe-bytes.pdf' from cs
-union all
-select 'attachments', 'case/' || cs.case_eg || '/probe-bytes-eg.pdf' from cs;
-
-insert into public.attachments
-  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
-select '00000000-0000-0000-0000-0000000d8201'::uuid, 'case', cs.case_a, 'documento', 'Doc QO',
-       'attachments', 'case/' || cs.case_a || '/probe-bytes.pdf', 'standard', k.sa_x
+-- DM1 (ADR 0114 D5/D8): the probe attachments became case-HOMED documents.
+-- 5.1 (metadata stays reviewer-visible) is PRESERVED on the successor —
+-- can_read_document's case arm is can_read_case, exactly what S7 confers.
+insert into public.documents (id, home_resource_id, title, created_by)
+select '00000000-0000-0000-0000-0000000d8201'::uuid, cs.case_a, 'Doc QO', k.sa_x
 from cs, k
 union all
-select '00000000-0000-0000-0000-0000000d8202'::uuid, 'case', cs.case_eg, 'documento', 'Doc QO EG',
-       'attachments', 'case/' || cs.case_eg || '/probe-bytes-eg.pdf', 'standard', k.sa_x
+select '00000000-0000-0000-0000-0000000d8202'::uuid, cs.case_eg, 'Doc QO EG', k.sa_x
 from cs, k;
 
 select test_helpers.claims_for((select qr from p), false);
 set local role authenticated;
 
 select is(
-  (select count(*)::int from public.attachments a, cs
-    where a.owner_type = 'case' and a.owner_id = cs.case_a),
+  (select count(*)::int from public.documents d, cs
+    where d.home_resource_id = cs.case_a),
   1,
-  '5.1 METADATA stays reviewer-visible: the documents panel renders the file NAME (can_read_attachment untouched)');
-
-select is(
-  (select count(*)::int from storage.objects o, cs
-    where o.bucket_id = 'attachments' and o.name = 'case/' || cs.case_a || '/probe-bytes.pdf'),
-  0,
-  '5.2 BYTES CUT ⭐⭐ (M8): the reviewer reaches ZERO object rows of a case they read in full — the DB is the boundary, not the missing link');
-
-select is(
-  (select count(*)::int from storage.objects o, cs
-    where o.bucket_id = 'attachments' and o.name = 'case/' || cs.case_eg || '/probe-bytes-eg.pdf'),
-  1,
-  '5.3 GRANT PATH INTACT ⭐: the S3-granted reviewer on the LOCKED case reads its bytes (grant closure confers deliberation) — the cut is capability-shaped, not identity-shaped');
-reset role;
-
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select is(
-  (select count(*)::int from storage.objects where bucket_id = 'attachments'),
-  2,
-  '5.4 NON-VACUITY twin: the coordinator reads BOTH probe objects — 5.2''s zero is the cut, not an empty bucket');
+  '5.1 METADATA stays reviewer-visible: the documents panel renders the file NAME (can_read_document''s case arm = can_read_case, S7''s reach)');
 reset role;
 
 -- ---------------------------------------------------------------------------
--- 5.5–5.7 — THE RESOLVE DOOR (M9). The storage policy is not the whole bytes
--- layer: public.open_attachment (prosecdef) resolves bucket+path and the app
--- signs it with the SERVICE ROLE — storage RLS never runs on that mint (the
--- BUG-AUTHZ-001 shape, caught by frontend). The door must carry the SAME cut,
--- or M8 is a boundary with a door-shaped hole beside it. q1 `open_resolver_door`
--- proves 5.5 can fail.
+-- 5.2–5.7 — RETIRED WITH THEIR LAYER (DM1, ADR 0114 D8). The M8 storage-policy
+-- cut and the M9 open_attachment resolve door BOTH died with the substrate,
+-- and the capability-shaped byte discrimination they pinned (reviewer zero /
+-- S3-grantee reads / coordinator non-vacuity twin) is no longer expressible at
+-- the storage layer BY DESIGN: the document buckets carry NO SELECT policy for
+-- ANY principal (D8 — pinned by 328 K6b), so byte discrimination lives INSIDE
+-- DM2's open_document_version. ⛔ That door's keystones MUST re-express all
+-- six pins (5.2/5.3/5.4 at the serving layer; 5.5/5.6/5.7 as door
+-- resolve-shape) — named in docs/progress/dm1-substrate-cutover.md §triage
+-- ledger. (The q1 harness cases `open_bytes_cut` / `open_resolver_door` that
+-- proved 5.2/5.5 falsifiable reference the retired surfaces — historical phase
+-- harness, not a standing gate.)
 -- ---------------------------------------------------------------------------
-select test_helpers.claims_for((select qr from p), false);
-set local role authenticated;
-select is(
-  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8201')),
-  0,
-  '5.5 RESOLVE DOOR ⭐⭐ (M9): the reviewer calling open_attachment on a standard-tier case document resolves NOTHING — no path, no service-role URL');
-
-select is(
-  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8202')),
-  1,
-  '5.6 GRANT PATH through the door: the S3-granted reviewer on the LOCKED case still resolves its document (capability-shaped, like 5.3)');
-reset role;
-
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select is(
-  (select count(*)::int from public.open_attachment('00000000-0000-0000-0000-0000000d8201')),
-  1,
-  '5.7 NON-VACUITY twin: the coordinator resolves the same document — 5.5''s zero is the door''s cut, not a broken door');
-reset role;
 
 -- =============================================================================
 -- §6 — THE D7 WRITE PIN, PER DOOR (M10; replaces 1.4's vacuous claim).

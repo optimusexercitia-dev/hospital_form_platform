@@ -18,7 +18,7 @@ begin;
 -- 125 → 132: Gate-2 fix wave. Proof 2 (was 2 row-count tests) is rewritten COLUMN-LEVEL
 -- as 9 (4 preconditions + row + summary-mask + decision-visible + column-REVOKE + sweep)
 -- and becomes A26/K16's only pin. See the Proof-2 block for the full rationale.
-select plan(132);
+select plan(127);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -350,47 +350,27 @@ select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), 
 select is(app.can_read_case((select cid from c_ethics), (select sa_x from k)), true,
   'explicit_grants_only: the coordinator keeps read');
 
--- Document confidentiality ceiling (attachments ON, case_access ON) on c_default.
-update app.feature_flags set enabled = true where key in ('case_access', 'attachments');
-insert into public.attachments
-  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-values ('00000000-0000-0000-0000-0000000e0201', 'case', (select cid from c_default),
-        'Parecer jurídico', 'attachments',
-        'case/' || (select cid from c_default) || '/legal.pdf', 'standard', 'legal_privileged');
-insert into public.attachments
-  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-values ('00000000-0000-0000-0000-0000000e0202', 'case', (select cid from c_default),
-        'Nota de ética', 'attachments',
-        'case/' || (select cid from c_default) || '/ethics.pdf', 'standard', 'ethics_investigation');
-
--- (36) an ordinary case reader (coordinator, no clearance) does NOT see the legal doc.
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select is((select count(*)::int from public.attachments
-           where id = '00000000-0000-0000-0000-0000000e0201'), 0,
-  'ceiling: a legal_privileged doc is absent from the list for a reader without clearance');
--- (37) opening it by id → HC0E6.
-select throws_ok(
-  $$ select * from public.open_attachment('00000000-0000-0000-0000-0000000e0201') $$,
-  'HC0E6', null,
-  'ceiling: open_attachment on a legal_privileged doc without clearance raises HC0E6');
--- (40) an ethics_investigation doc STAYS visible to the ordinary reader (O2).
-select is((select count(*)::int from public.attachments
-           where id = '00000000-0000-0000-0000-0000000e0202'), 1,
-  'ceiling (O2): an ethics_investigation doc stays visible to an ordinary case reader');
-reset role;
-
--- (38)+(39) a clearance grant (max_confidentiality >= legal_privileged) opens both.
+-- ===========================================================================
+-- Document confidentiality ceiling (tests 36–40) — RETIRED WITH ITS SUBSTRATE
+-- (DM1, ADR 0114 D5). ⚠ NAMED COVERAGE LOSS, deliberately parked, NOT quietly
+-- absorbed: the ADR 0063 confidentiality_label ceiling (legal_privileged gated
+-- ABOVE ordinary case-read via attachment_confidentiality_ok + the HC0E6 open
+-- door; ethics_investigation stays visible — the O2 pair) has NO DM1 successor
+-- surface: the document model defers per-document access semantics to the
+-- access_policy_id seam (ADR 0114 D6/O3) and its tables carry no label column.
+-- Reachability today: zero documents exist anywhere; the max_confidentiality
+-- grant column itself is untouched (its carrier keystones live in 144/238).
+-- The ceiling's RETURN VEHICLE (Wave A/B design or the O3 plane) is a PO/lead
+-- decision recorded in docs/progress/dm1-substrate-cutover.md §triage ledger —
+-- whoever builds it must restore all FIVE pins: absent-from-list, refused-open,
+-- O2-stays-visible, clearance-admits-list, clearance-admits-open.
+--
+-- The retired block's clearance grant was FIXTURE, not assertion — the
+-- interview-confidentiality tests below (set_interview_confidentiality
+-- enforcing pair) still need sa_x to hold legal_privileged clearance on
+-- c_default. Kept:
+-- ===========================================================================
 select test_helpers.grant_ca((select cid from c_default), (select sa_x from k), 'read', (select sa_x from k), null, 'legal_privileged');
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select is((select count(*)::int from public.attachments
-           where id = '00000000-0000-0000-0000-0000000e0201'), 1,
-  'ceiling: a legal-clearance grant makes the legal_privileged doc visible in the list');
-select lives_ok(
-  $$ select * from public.open_attachment('00000000-0000-0000-0000-0000000e0201') $$,
-  'ceiling: a cleared reader opens the legal_privileged doc');
-reset role;
 
 -- ===========================================================================
 -- BE-5 — DEFINER write authority (ADR 0072 D6/D8). The ethics write spine gates

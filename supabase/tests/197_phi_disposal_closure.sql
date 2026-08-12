@@ -16,7 +16,7 @@
 --      metadata-only reader; a PHI reader still sees them.
 
 begin;
-select plan(24);
+select plan(23);
 
 update app.feature_flags set enabled = true where key in
   ('case_patient','patient_safety','meetings','case_referrals','cases_multi_phase','audit_trail');
@@ -86,12 +86,12 @@ insert into public.case_interviews (id, case_id, commission_id, interview_number
   values ((select intv_x from cs), (select case_x from cs), (select comm_x from k), 1, 'RESUMO-ENTREVISTA-PHI', (select sa_x from k), 'scheduled', 'other');
 insert into public.case_interview_subjects (id, interview_id, external_name, note, relationship_to_case)
   values ((select subj_x from cs), (select intv_x from cs), 'Entrevistado Externo', 'NOTA-SUJEITO-PHI', 'other');
--- F2 (ADR 0063): case documents are attachments (owner_type='case'); dispose_case_phi
--- redacts them at the D10 seam. Insert directly (superuser bypasses RLS + the flag).
-insert into public.attachments
-  (id, owner_type, owner_id, kind, title, description, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
-  values ((select doc_x from cs), 'case', (select case_x from cs), 'other', 'TITULO-DOC-PHI', 'DESC-DOC-PHI',
-          'attachments-phi', 'case/' || (select case_x from cs)::text || '/y.pdf', 'phi', (select sa_x from k));
+-- DM1 (ADR 0114 D5): the F2 attachment fixture + dispose_case_phi's
+-- attachment-redaction seam were REMOVED with the substrate (zero rows carried
+-- bytes). ⛔ FUP-DM1-DISPOSE: when Wave A (DM2) lets a case own documents,
+-- dispose_case_phi MUST trigger document disposition (D10) and THIS SUITE must
+-- regain a keystone for it (case with a live document → dispose → the open
+-- door refuses + bytes verified absent), mutation-proven.
 insert into public.meetings (id, commission_id, meeting_number, title, status, scheduled_start, created_by)
   values ((select mtg_x from cs), (select comm_x from k), 9701, 'Reunião', 'scheduled', now(), (select sa_x from k));
 insert into public.meeting_cases (meeting_id, case_id, summary, decision)
@@ -127,11 +127,8 @@ select is((select note from public.case_interview_subjects where id = (select su
   '1.9: case_interview_subjects.note redacted');
 select is((select label from public.cases where id = (select case_x from cs)), '[PHI removido]',
   '1.10: cases.label redacted (asymmetry closed)');
-select ok(
-  (select title from public.attachments where id = (select doc_x from cs)) = '[PHI removido]'
-  and (select description from public.attachments where id = (select doc_x from cs)) is null
-  and (select storage_path from public.attachments where id = (select doc_x from cs)) is not null,
-  '1.11: case attachment title/description redacted; storage_path kept (Rule 6)');
+-- (1.11 RETIRED with the substrate — see the FUP-DM1-DISPOSE note above; the
+-- disposal contract for case-homed DOCUMENTS returns here in DM2.)
 select ok(
   (select summary from public.meeting_cases where case_id = (select case_x from cs)) = '[PHI removido]'
   and (select decision from public.meeting_cases where case_id = (select case_x from cs)) = '[PHI removido]',

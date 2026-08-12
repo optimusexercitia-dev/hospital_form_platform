@@ -315,19 +315,22 @@ select is(app.can_write_case_narrative('00000000-0000-0000-0000-0000000a5003', (
   'M5 RESTORE ⭐: restoring him restores the write — the denial was is_active');
 
 -- ===========================================================================
--- can_write_attachment · ⭐ NOT IN THE BRIEF. Its `action_item` arm carries the
--- same two raw assignee arms as can_read_action_item and — unlike
--- can_write_action_item_stake, which returns false unless can_read_action_item
--- passes first — it gates on NOTHING. So it was independently ungated.
+-- can_write_document (DM1 successor of can_write_attachment — ADR 0114 D5).
+-- The `action_item` arm carries the SAME two raw assignee arms the M5 finding
+-- covered (can_write_attachment was independently ungated; the DM1 kernel
+-- copied the arms verbatim WITH the is_active outer gate — hold it here).
 -- ===========================================================================
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000a5005', (select st_x2 from k)), true,
-  'M5 TWIN ⭐: the ACTIVE action-item assignee attaches to his item');
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('23100000-0000-0000-0000-0000000000d5', '00000000-0000-0000-0000-0000000a5005',
+        'Documento M5 (action item)', (select st_x2 from k));
+select is(app.can_write_document('23100000-0000-0000-0000-0000000000d5', (select st_x2 from k)), true,
+  'M5 TWIN ⭐: the ACTIVE action-item assignee writes its documents');
 update public.profiles set is_active = false where id = (select st_x2 from k);
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000a5005', (select st_x2 from k)), false,
-  'M5 ⭐ defect ③: a DEACTIVATED action-item assignee no longer attaches (an arm can_write_action_item_stake''s read-check never covered)');
+select is(app.can_write_document('23100000-0000-0000-0000-0000000000d5', (select st_x2 from k)), false,
+  'M5 ⭐ defect ③: a DEACTIVATED action-item assignee no longer writes (the arm can_write_action_item_stake''s read-check never covered)');
 update public.profiles set is_active = true where id = (select st_x2 from k);
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000a5005', (select st_x2 from k)), true,
-  'M5 RESTORE ⭐: reactivating restores the attach');
+select is(app.can_write_document('23100000-0000-0000-0000-0000000000d5', (select st_x2 from k)), true,
+  'M5 RESTORE ⭐: reactivating restores the write');
 
 -- ===========================================================================
 -- referral_target_analyst · ⭐ NOT IN THE BRIEF'S FUNCTION LIST — but named in its
@@ -440,7 +443,7 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
   'M5 STRUCTURAL ⭐ A24·5: can_read_action_item calls is_active in CODE');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname in
-                 ('can_write_case_narrative', 'can_write_attachment', 'referral_target_analyst')
+                 ('can_write_case_narrative', 'can_write_document', 'referral_target_analyst')
              and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 3,
   'M5 STRUCTURAL ⭐: the three functions BEYOND the brief''s list call is_active in CODE too');
 

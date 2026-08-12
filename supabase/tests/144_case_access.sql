@@ -110,13 +110,11 @@ values
    (select st_x2 from k)),
   ((select narr2 from cs), (select case_x from cs), 'Conclusão', 3, 'open', null);
 
--- F2 (ADR 0063): case documents are attachments (owner_type='case'); their read
--- follows can_read_attachment('case', …) = can_read_case (ACL under case_access).
-insert into public.attachments
-  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
-values ((select doc_x from cs), 'case', (select case_x from cs), 'ata', 'Ata',
-        'attachments-phi', 'case/' || (select case_x from cs) || '/doc.pdf', 'phi',
-        (select sa_x from k));
+-- DM1 (ADR 0114 D5): case documents live on the document model; their read
+-- follows can_read_document = can_read_case for a case-homed document (the
+-- same ACL family this suite exercises).
+insert into public.documents (id, home_resource_id, title, created_by)
+values ((select doc_x from cs), (select case_x from cs), 'Ata', (select sa_x from k));
 
 insert into public.case_events (id, case_id, kind, body, created_by)
 values ((select event_x from cs), (select case_x from cs), 'note', 'nota',
@@ -256,8 +254,8 @@ select is((select count(*)::int from public.case_phases where case_id = (select 
   0, 'RLS: unrelated member reads 0 case_phases rows');
 select is((select count(*)::int from public.case_narratives where case_id = (select case_x from cs)),
   0, 'RLS: unrelated member reads 0 case_narratives rows');
-select is((select count(*)::int from public.attachments where owner_type = 'case' and owner_id = (select case_x from cs)),
-  0, 'RLS: unrelated member reads 0 case attachments rows');
+select is((select count(*)::int from public.documents where home_resource_id = (select case_x from cs)),
+  0, 'RLS: unrelated member reads 0 case-homed document rows');
 select is((select count(*)::int from public.case_events where case_id = (select case_x from cs)),
   0, 'RLS: unrelated member reads 0 case_events rows');
 reset role;
@@ -267,8 +265,8 @@ select test_helpers.claims_for((select gx_r from p), false);
 set local role authenticated;
 select is((select count(*)::int from public.cases where id = (select case_x from cs)),
   1, 'RLS: granted-read member reads the case');
-select is((select count(*)::int from public.attachments where owner_type = 'case' and owner_id = (select case_x from cs)),
-  1, 'RLS: granted-read member reads the case attachments');
+select is((select count(*)::int from public.documents where home_resource_id = (select case_x from cs)),
+  1, 'RLS: granted-read member reads the case-homed document');
 reset role;
 
 -- st_x (phase assignee): reads the case (attribution-derived).

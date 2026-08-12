@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(217);
+select plan(218);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -71,13 +71,11 @@ insert into public.cases (id, commission_id, case_number, label, created_by) val
 insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'CORPO-SENSIVEL-DO-PACIENTE', (select sa_x from k));
--- F2 (ADR 0063): a shared case document is an attachment (owner_type='case');
--- referral_shared_item.source_document_id now references attachments(id).
-insert into public.attachments
-  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, mime_type, sensitivity_tier, uploaded_by)
-values ((select doc from cs), 'case', (select src_case from cs), 'other', 'Laudo',
-        'attachments-phi', 'case/' || (select src_case from cs) || '/laudo.pdf',
-        'application/pdf', 'phi', (select sa_x from k));
+-- DM1 (ADR 0114 D5): the attachments substrate was dropped, so there is no
+-- source document row to share — the document arm of add_referral_shared_item
+-- is PARKED (HC0DM) until DM4 re-points it at the document model. The frozen
+-- document ITEM below is inserted directly (source_document_id NULL — exactly
+-- the DM4 reconciliation shape) so the snapshot fixtures keep their two items.
 
 -- =========================================================================
 -- create_referral_draft: source coordinator only (HC071).
@@ -110,8 +108,23 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.add_referral_shared_item(
   (select id from r1), 'narrative', (select narr from cs), null);
-select public.add_referral_shared_item(
-  (select id from r1), 'document', null, (select doc from cs));
+-- DM1: the parked document arm refuses IN-FLOW (authority passes first — the
+-- caller is the source coordinator; 328 K8a is the sibling pin).
+select throws_ok(
+  format($$ select public.add_referral_shared_item(%L, 'document', null, %L) $$,
+         (select id from r1), (select doc from cs)),
+  'HC0DM', null,
+  'DM1: the document share arm is PARKED (HC0DM) until DM4');
+reset role;
+select set_config('app.in_referral_rpc', 'on', true);
+insert into public.referral_shared_item
+  (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
+values ((select id from r1), 'document', null, 'Laudo',
+        (select comm_x from k) || '/' || (select src_case from cs) || '/laudo.pdf',
+        'application/pdf', 1);
+select set_config('app.in_referral_rpc', 'off', true);
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
 -- ADR 0078 D7/F1: set_referral_patient left the public API; the SOURCE coordinator
 -- writes the snapshot through the save_referral_patient door.
 select public.save_referral_patient(
@@ -438,7 +451,9 @@ create temp table r2 on commit drop as
   select * from public.create_referral_draft(
     (select src_case from cs), (select comm_y from k),
     (select type_ciencia from voc), 'Apenas ciência', false);
-select public.add_referral_shared_item((select id from r2), 'document', null, (select doc from cs));
+-- DM1: r2 just needs ≥1 snapshot item to send — share the NARRATIVE (the
+-- document arm is parked until DM4; the arm choice is incidental here).
+select public.add_referral_shared_item((select id from r2), 'narrative', (select narr from cs), null);
 select public.send_referral((select id from r2));
 reset role;
 grant select on r2 to authenticated;

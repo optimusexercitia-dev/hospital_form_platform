@@ -74,8 +74,11 @@ select is((select count(*)::int from public.case_phases), 0,
   'WALL: platform sees 0 case_phases');
 select is((select count(*)::int from public.case_events), 0,
   'WALL: platform sees 0 case_events');
-select is((select count(*)::int from public.attachments), 0,
-  'WALL: platform sees 0 attachments (folded case_documents)');
+-- DM1 (ADR 0114 D5): the attachments store was dropped; the document WALL now
+-- lives on public.documents (the kernel has no is_admin arm — pgTAP 328 K5d is
+-- the behavioral pin WITH a fixture row; this line keeps the census shape).
+select is((select count(*)::int from public.documents), 0,
+  'WALL: platform sees 0 documents (ADR 0114 document model)');
 select is((select count(*)::int from public.case_narratives), 0,
   'WALL: platform sees 0 case_narratives');
 select is((select count(*)::int from public.case_access_grants), 0,

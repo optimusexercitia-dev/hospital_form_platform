@@ -62,9 +62,9 @@ begin
     when 'professional_profile.read' then
       return app.can_read_professional_profile(p_entity_id, v_uid);
 
-    -- DM1 (ADR 0114 D5): the ADR 0063 'attachment.read' arm was REMOVED with
-    -- the attachments substrate. The document-model read verb (document.opened)
-    -- joins this dispatch in migration 20260923000600.
+    -- DM1 (ADR 0114 D5): the ADR 0063 attachment-read arm was REMOVED with
+    -- the attachments substrate. The document-model read verb joins this
+    -- dispatch in migration 20260923000600.
 
     -- MIN (ADR 0099 D8/D15): the entity is the meeting_minutes_jobs id. The predicate
     -- has NO admin arm — but note the `is_admin()` short-circuit ABOVE still returns
@@ -149,8 +149,11 @@ begin
     'referral.note_viewed',
     'case_patient.read',
     'professional_profile.read',
-    -- DM1 (ADR 0114 D5): the ADR 0063 'attachment.read' verb was removed with
-    -- the attachments substrate; 'document.opened' joins in 20260923000600.
+    -- DM1 (ADR 0114 D5): the ADR 0063 attachment-read verb left this list with
+    -- the attachments substrate; the document-model open verb joins in
+    -- 20260923000600. NO quoted dotted literal may appear in ANY comment of
+    -- this body — pgTAP 191's completeness parser reads every verb-shaped
+    -- quoted string here, comments included.
     -- MIN (ADR 0099 D8/D15): the audited meeting-transcript read.
     'minutes_transcript.read',
     -- Referral registros: the audited case-access roster read.

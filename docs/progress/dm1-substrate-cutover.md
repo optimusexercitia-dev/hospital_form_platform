@@ -21,7 +21,8 @@
 | T2b | M3 core tables + guards + K3/K7 keystones + guard twins | ✅ 2026-08-12 | 328 = 43/43 planned/ran on BOTH stacks; 3 twins proven |
 | T3 | M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ✅ 2026-08-12 | §Turn-3 record; 328 = 70/70 both stacks |
 | T4 | 328 K4/K5/K6/K9/K10 + mutation twins 4–6 | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 2: K4 lands WITH the policies) |
-| T5 | pgTAP triage of attachment-touching suites + full `test:db` green on fresh reset | ⬜ | |
+| T5 | pgTAP triage (16 files incl. 2 outside the attachment grep) + full `test:db` green | ✅ 2026-08-12 | `All tests successful. Files=188, Tests=5909, Result: PASS` (verdict read from the pg_prove summary, never the exit code); §triage ledger |
+| T5b | Repo-wide changed-identifier sweep across src/ (relations + routines + bucket literals, not just RPC sites) | ✅ 2026-08-12 | beyond rca.ts: ONE more live-code find — `getCaseDocumentDownloadUrl` (legacy-bucket cookie signer, ZERO callers) parked to null; everything else = comments/JSDoc + the deliberately-historical audit vocabulary in `queries/audit.ts` + legacy consts in `attachments/constants.ts` (types still consumed by the stubs/UI) |
 | T6 | TS stubs + wrapper patches + lint/typecheck/vitest | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 3: stubs land with gen:types); lint 5-gate 0/0 · tsc 0 · vitest 1254/1254 |
 | T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ⬜ | |
 
@@ -119,6 +120,16 @@ boolean DEFINER doors (`can_read_document`, `can_write_document`,
 6 M1/M6-rewritten function bodies. `ARM=census` is expected to FAIL before
 their verdicts are appended — that failure is required evidence.
 
+**Two recorded deviations from the approved plan (ADR 0116 §8–§9; lead-ack'd
+2026-08-12):** (1) SIX kernel doors, not the plan's three — the three extras
+are policy RESOLVERS (an inlined EXISTS chain would recurse through RLS with
+the caller's privileges); the census debt figure is 6. (2) The plan's
+"REVOKE … FROM authenticated" on the doors was WRONG — policy predicates
+evaluate with the querying role's privileges, so `authenticated` EXECUTE is
+required; shipped posture matches the policy-referenced siblings exactly
+(PUBLIC/anon revoked), `app` is not PostgREST-exposed, and a comment-stripped
+sweep found zero `public` wrappers reaching any of the six.
+
 **TS surgery (signatures stable, all fail closed):**
 `src/lib/attachments/actions.ts` + `src/lib/queries/attachments.ts` → parked
 stubs; the dead RPC blocks replaced in `src/lib/cases/documents-actions.ts`,
@@ -135,6 +146,55 @@ five-gate 0 errors/0 warnings · tsc clean · vitest 1254/1254.
 attachments remain gated by the `attachments` flag (F2 fold) — dark locally
 now exactly as in prod since 2026-08-11; whether links ride `documents_wave_a`
 or get their own gate is a Wave A decision.
+
+## Turn-4/5 triage ledger (full `test:db` → 15 failing files → every red attributed BY NAME, 2026-08-12)
+
+First full run: `Files=188, Tests=5240, Result: FAIL` — 10 mid-file ABORTS (Bad
+plan) + 5 genuine assertion failures. ⚠ Method note: `npm run test:db | tail`
+returned exit 0 (tail's, not the suite's — the known masking scar); the verdict
+was read from the pg_prove summary, never the exit code. A second §7.15 catch:
+the first per-file diagnostics printed NOTHING because the harness had dropped
+pgtap on exit — visible only because the raw head was checked.
+
+| Suite | Red shape | Named cause | Disposition |
+|---|---|---|---|
+| 144 | abort 0/91 | fixture INSERT into dropped `public.attachments` (case-doc ACL pair) | re-pointed 1:1 → case-homed `documents` row (`can_read_document` = `can_read_case`) |
+| 150 | abort 0/217 | snapshot-source attachment fixture + 2 document-share calls | fixture removed; **in-flow HC0DM pin ADDED (+1, plan 218)**; frozen item inserted directly (`source_document_id` NULL — the DM4 reconciliation shape); r2 shares a narrative |
+| 171 | abort 10/76 | platform-WALL census line on the dropped table | re-pointed → `documents` (328 K5d is the behavioral pin with a fixture row) |
+| 191 #22 | genuine | **§7.2 instance, mine**: the M6 comment inside `log_audit_access` quoted the removed verb; 191's completeness parser reads EVERY quoted dotted literal, comments included | M1+M6 comments reworded; ⚠ the FIRST rewording itself contained a matching two-letter dotted literal — caught before commit (the "inside the comment warning about it" scar, live) |
+| 191 §4 | abort 24/26 (masked in run 1 by #22 — TWO distinct defects in one file) | the F2 triple-mirror pair's fixture inserted into the dropped table | re-pointed 1:1 → the successor verb on a meeting-homed document (same C-4 forge-guard contract: entitled member logs, cross-commission caller 42501); verbs built via format() so the file cannot counterexample its own 3.10 parser |
+| 193 #3 | genuine | hardcoded-6 FK census counted `rca_evidence_cited_document_id_fkey` (died with the table) | census → 5 with a tombstone naming the parked-column guards + Wave D re-entry |
+| 197 | abort 0/24 | fixture + assertion 1.11 on `dispose_case_phi`'s removed redaction seam | retired with an in-file FUP-DM1-DISPOSE tombstone (plan 23); the disposal contract returns in DM2 |
+| 228 | abort 35/132 | confidentiality-ceiling fixtures + `open_attachment` probes (tests 36–40) | **NAMED COVERAGE LOSS** — see below; the block's `grant_ca` was FIXTURE for test 101 (first rerun caught the dependency at 126/127) and is kept; plan 127 |
+| 229 | abort 47/89 | fixtures + 8 exclusion-arm asserts + the reclassify §W-2.5 block | exclusion arms re-pointed 1:1 → `can_read/write_document` on homed documents (the kernel copied the arms verbatim); reclassify block retired → DM2 obligation; plan 85 |
+| 231 | abort 55/80 | `can_write_attachment` action_item is_active triple + the structural name list | re-pointed → `can_write_document` (same raw assignee arms; `is_active` in CODE asserted); plan unchanged 80 |
+| 235 #21 | genuine | the positive twin read bytes via the dropped store's SELECT policy | replaced with a superuser-census non-vacuity (per D8, byte reads are door-only for EVERYONE now — no entitled-principal twin is satisfiable anywhere, by design) |
+| 238 #31-32 | genuine | `reclassify_attachment` fence probes (RPC dropped); `attachments` in the flag-enable list | fence retired → DM2 obligation; flag out of the list; plan 31 |
+| 296 #16 | genuine | **MY composite pin FK** `cases_securable_resource_fk` unindexed per the sweep's leading-columns rule | exempted BY REASONING in-file: the FK's first column is the UNIQUE pkey, so the seq-scan-cascade hazard the sweep hunts cannot arise; a dedicated index would duplicate the pkey |
+| 308 | abort 21/33 | §5 bytes layer (storage objects + the `open_attachment` resolve door) | 5.1 re-pointed → documents (PRESERVED); 5.2–5.7 retired → the six pins named as DM2 door obligations; plan 27 |
+| 311 | abort 3/39 | interview-owned attachment fixture + 3 asserts + the `can_read_attachment` catalog pin | re-pointed 1:1 → interview-homed document + `can_read_document` catalog pin (same committee-arm regex) |
+| 314 | abort 46/120 | 8.3/8.4 tenancy-wall probes on `can_write_attachment` | re-pointed 1:1 → `can_write_document` on a case1-homed document (same wall: no tenancy arm) |
+
+**DM2 keystone obligations minted by this triage (the retired coverage's named
+new home — DM2's gate must check these off):**
+1. `reclassify_document_file`: excluded-party deny + clean-coordinator positive
+   twin (from 229 §W-2.5) AND the ceiling-label rejection fence (from 238 K8a/b)
+   — in whatever label vocabulary DM2 defines.
+2. `open_document_version`: the six byte-discrimination pins (from 308 5.2–5.7)
+   — reviewer resolves nothing / capability-grantee resolves / coordinator
+   non-vacuity twin, at the serving layer AND as door resolve-shape.
+3. `dispose_case_phi` → document disposition keystone (FUP-DM1-DISPOSE; 197
+   regains 1.11's successor).
+4. **OPEN (PO/lead — Q1-adjacent): the ADR 0063 confidentiality-label ceiling**
+   (five pins from 228: absent-from-list / refused-open / O2-stays-visible /
+   clearance-admits ×2) has NO DM substrate — the document model defers
+   per-document access semantics to the D6/O3 access-policy seam and carries no
+   label column. The ceiling's return vehicle must be decided, not assumed.
+
+(Also noted: the historical q1 phase harness's `open_bytes_cut` /
+`open_resolver_door` cases reference retired surfaces — a phase harness, not a
+standing gate; `276`'s commission-delete `throws_ok('23503')` is errcode-only
+and green regardless of which constraint fires.)
 
 ## PROD-VERIFY checklist (lead condition 2 — for the later lead-authorized `db push`; NO remote action was taken this phase)
 

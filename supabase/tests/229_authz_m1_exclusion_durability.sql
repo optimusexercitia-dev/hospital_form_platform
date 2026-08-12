@@ -27,7 +27,7 @@
 -- =============================================================================
 
 begin;
-select plan(89);
+select plan(85);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -470,7 +470,9 @@ select lives_ok(
 -- value (ADR 0072 delta 3 / ETH·E1's lesson). st_x is the excluded principal AND
 -- a staff_admin, so every denial below is the EXCLUSION, not the authority.
 -- ===========================================================================
-update app.feature_flags set enabled = true where key in ('attachments');
+-- (DM1/ADR 0114 D5: the 'attachments' flag enable left with the substrate —
+-- the exclusion arms under test now live in app.can_write_document /
+-- app.can_read_document, which are flag-independent.)
 
 -- ---- can_write_case_narrative ⭐ (D6) -------------------------------------
 insert into public.case_narrative_types (id, commission_id, label, position)
@@ -501,15 +503,16 @@ select is(app.can_write_case_narrative('00000000-0000-0000-0000-0000000f0502', (
 update public.case_narratives set assigned_to = null
   where id = '00000000-0000-0000-0000-0000000f0502';
 
--- ---- can_write_attachment (D7) — callers incl. dispose_attachment_phi ------
-insert into public.attachments
-  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-values ('00000000-0000-0000-0000-0000000f0601', 'case', '00000000-0000-0000-0000-0000000f0001',
-        'Laudo', 'attachments-phi',
-        'case/00000000-0000-0000-0000-0000000f0001/laudo.pdf', 'phi', 'phi_standard');
+-- ---- can_write_document (D7 — DM1 successor of can_write_attachment) -------
+-- DM1 (ADR 0114 D5): the substrate row became a case-HOMED document; the case
+-- arm (is_case_excluded deny + is_staff_admin_of_for) was copied verbatim into
+-- the kernel, so the D7 exclusion contract is asserted on its successor.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('00000000-0000-0000-0000-0000000f0601', '00000000-0000-0000-0000-0000000f0001',
+        'Laudo', (select sa_x from k));
 
-select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select st_x from k)), false,
-  'M1·4b D7: a respondent-coordinator CANNOT write attachments of her own case (incl. PHI disposal)');
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0601', (select st_x from k)), false,
+  'M1·4b D7: a respondent-coordinator CANNOT write documents of her own case (incl. disposal, DM2)');
 -- ⛔ PRINCIPAL CORRECTED BY QO·B M6, and it was MISLABELLED — the second instance of
 -- this exact slip in this file. The twin said "coordinator" but passed `sa_y`, which
 -- line 107 inserts as a CLEAN ORG_ADMIN, so it was really proving that the TENANCY admin
@@ -518,45 +521,20 @@ select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001
 -- the M1·4b narrative twin twenty lines above already spells out for itself:
 -- "the twin is sa_x …, NOT sa_y … an org_admin is false here for reasons that have
 -- nothing to do with M1 — and the twin would prove nothing."
-select is(app.can_write_attachment('case', '00000000-0000-0000-0000-0000000f0001', (select sa_x from k)), true,
-  'M1·4b POSITIVE TWIN: a clean coordinator still writes attachments — sa_x, a REAL staff_admin, since QO·B M6');
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0601', (select sa_x from k)), true,
+  'M1·4b POSITIVE TWIN: a clean coordinator still writes case documents — sa_x, a REAL staff_admin, since QO·B M6');
 
--- ---- reclassify_attachment — the DIRECT-CHECK RESIDUE (§W-2.5) ------------
--- The declassify arm checks the role DIRECTLY, so the helper fix does NOT reach
--- it. This is the assertion that proves the direct-check set was swept too.
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select throws_ok(
-  $$ select public.reclassify_attachment('00000000-0000-0000-0000-0000000f0601', 'standard', null) $$,
-  'HC0F1', null,
-  'M1·4 ⭐ §W-2.5: a recused/respondent coordinator CANNOT declassify a PHI attachment (direct-check arm)');
-reset role;
-select is((select storage_bucket from public.attachments where id = '00000000-0000-0000-0000-0000000f0601'),
-          'attachments-phi',
-  'M1·4 §W-2.5: …and the attachment STAYS in attachments-phi with its label intact');
-select is((select sensitivity_tier from public.attachments where id = '00000000-0000-0000-0000-0000000f0601'),
-          'phi',
-  'M1·4 §W-2.5: …and its Rule 12 tier survives her');
-
--- POSITIVE TWIN: a NON-excluded coordinator still declassifies.
---
--- ⚠ PRINCIPAL CORRECTED BY QO·B (20260915), and the OLD ONE WAS MISLABELLED. This twin
--- said "coordinator" but passed `sa_y`, which line 107 of this file inserts as *a CLEAN
--- org_admin of org_x* — so it was really proving that the TENANCY admin could
--- declassify, via reclassify_attachment's is_tenancy_admin_of arm (the §W-2.5 note at
--- L319 spells that dependency out). QO·B M4 removes that arm (ADR 0100 D12), so the twin
--- had to move to a principal who genuinely is what the assertion CLAIMS.
---
--- It is now `sa_x`, the real staff_admin of comm_x. That keeps the twin's JOB intact —
--- proving the exclusion fix deleted no legitimate coordinator reach — and makes its text
--- true for the first time. Had it simply been inverted, the file would have lost its only
--- evidence that declassification still works for anyone at all.
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select lives_ok(
-  $$ select public.reclassify_attachment('00000000-0000-0000-0000-0000000f0601', 'standard', null) $$,
-  'M1·4 POSITIVE TWIN ⭐: a non-excluded coordinator STILL declassifies (no reach deleted) — sa_x, a REAL staff_admin, since QO·B');
-reset role;
+-- ---- reclassify_attachment §W-2.5 — RETIRED WITH ITS DOOR (DM1, ADR 0114) --
+-- The four W-2.5 keystones here (recused party cannot declassify HC0F1; bucket
+-- + Rule 12 tier survive her; the sa_x positive twin — principal corrected by
+-- QO·B after the sa_y mislabel) pinned reclassify_attachment's DIRECT-CHECK
+-- arm. That RPC was dropped with the substrate (328 K1 pins zero survivors);
+-- reclassification's successor is DM2's reclassify_document_file
+-- (copy→verify→commit→retire, D10), whose keystones MUST re-express BOTH
+-- halves: the excluded-party deny AND the clean-coordinator positive twin —
+-- named in docs/progress/dm1-substrate-cutover.md §triage ledger. Physical
+-- tier immutability already holds in the substrate (328 K7f: bucket/path/tier
+-- are trigger-immutable; a pointer-flip declassify is impossible by CHECK).
 
 -- ---- can_read_action_item (A22 + A24·5) ----------------------------------
 -- `assignees_only` — the scope that had NO deny. The excluded principal is even
@@ -597,16 +575,15 @@ select is(app.can_read_action_item('00000000-0000-0000-0000-0000000f0701', (sele
   'M1·4b (C7 / A11⊃A4): sa_y (a CLEAN org_admin) does NOT read the action item — C7 removed the org/commission-admin arm from action_items (_select); same reconciliation as 235 K3');
 
 -- ⭐ FIXED FOR FREE, asserted rather than assumed (the closure argument, §W-2.3):
--- can_read_attachment's `action_item` arm delegates to can_read_action_item and
--- was never patched directly. If the closure argument is right, it is already
--- denied. This is the assertion that tests the ARGUMENT, not just the code.
-insert into public.attachments
-  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-values ('00000000-0000-0000-0000-0000000f0602', 'action_item', '00000000-0000-0000-0000-0000000f0701',
-        'Anexo da tarefa', 'attachments',
-        'action_item/00000000-0000-0000-0000-0000000f0701/a.pdf', 'standard', 'non_phi_internal');
-select is(app.can_read_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select st_x from k)), false,
-  'M1·4b ⭐ CLOSURE: can_read_attachment''s action_item arm is denied FOR FREE (never patched directly)');
+-- can_read_document's `action_item` arm (DM1 successor of can_read_attachment's
+-- — ADR 0114 D5) delegates to can_read_action_item and was never patched
+-- directly. If the closure argument is right, it is already denied. This is
+-- the assertion that tests the ARGUMENT, not just the code.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('00000000-0000-0000-0000-0000000f0602', '00000000-0000-0000-0000-0000000f0701',
+        'Anexo da tarefa', (select sa_x from k));
+select is(app.can_read_document('00000000-0000-0000-0000-0000000f0602', (select st_x from k)), false,
+  'M1·4b ⭐ CLOSURE: can_read_document''s action_item arm is denied FOR FREE (never patched directly)');
 
 -- ⛔ AND THE OVER-REACH TWIN FOR THE CLOSURE: a COMMITTEE action item with NO
 -- case anchor must STILL be readable. D5's scoping rule says the deny binds only
@@ -683,10 +660,14 @@ select is(app.can_write_interview('00000000-0000-0000-0000-0000000f0801', (selec
 select is(app.can_write_interview('00000000-0000-0000-0000-0000000f0801', (select sa_x from k)), true,
   'M1·4b POSITIVE TWIN: a clean staff_admin still writes the interview (M1 deleted no reach; A4 removed the ORG arm, not the staff arm)');
 
--- …and the delegation: can_write_attachment's `interview` arm routes here, so it
--- is denied FOR FREE. Asserted, not assumed — the same closure claim as test 53.
-select is(app.can_write_attachment('interview', '00000000-0000-0000-0000-0000000f0801', (select st_x from k)), false,
-  'M1·4b ⭐ CLOSURE: can_write_attachment''s interview arm is denied FOR FREE via can_write_interview');
+-- …and the delegation: can_write_document's `interview` arm (DM1 successor)
+-- routes here, so it is denied FOR FREE. Asserted, not assumed — the same
+-- closure claim as test 53.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('00000000-0000-0000-0000-0000000f0603', '00000000-0000-0000-0000-0000000f0801',
+        'Transcrição', (select sa_x from k));
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0603', (select st_x from k)), false,
+  'M1·4b ⭐ CLOSURE: can_write_document''s interview arm is denied FOR FREE via can_write_interview');
 
 -- ===========================================================================
 -- THE DEVIATION SWEEP (qa M-1). ⚠ THE LENS, RECORDED BECAUSE IT KEEPS PAYING:
@@ -744,18 +725,22 @@ select lives_ok(
   'M-1 DOOR2 POSITIVE TWIN ⭐: once the linkage is RESOLVED, the same re-key SUCCEEDS');
 reset role;
 
--- ---- DEVIATION 2 · can_write_attachment's `action_item` arm ----------------
+-- ---- DEVIATION 2 · can_write_document's `action_item` arm (DM1 successor) --
 -- MY invention: D5's scoping rule says the deny binds wherever a case_id resolves,
 -- so I added app.case_of_action_item + the deny to this arm. §W-6 never named it,
--- and only the `case` and `interview` arms were asserted. Unguarded until now.
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select st_x from k)), false,
-  'DEVIATION 2 ⭐: can_write_attachment''s action_item arm DENIES the excluded party (case_of_action_item)');
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select sa_y from k)), false,
-  'DEVIATION 2 (C7 / A11⊃A4): sa_y (a CLEAN org_admin) does NOT write the action item''s attachment — C7 removed the org/commission-admin arm from action_items (_staff_admin_write)');
+-- and only the `case` and `interview` arms were asserted. The DM1 kernel copied
+-- the arm verbatim (ADR 0114 D5) — asserted on documents homed on the items.
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0602', (select st_x from k)), false,
+  'DEVIATION 2 ⭐: can_write_document''s action_item arm DENIES the excluded party (case_of_action_item)');
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0602', (select sa_y from k)), false,
+  'DEVIATION 2 (C7 / A11⊃A4): sa_y (a CLEAN org_admin) does NOT write the action item''s document — C7 removed the org/commission-admin arm from action_items (_staff_admin_write)');
 -- OVER-REACH TWIN: a COMMITTEE item with no case anchor must stay writable —
 -- case_of_action_item returns null there and is_case_excluded(null, …) is false.
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0702', (select st_x from k)), true,
-  'DEVIATION 2 OVER-REACH TWIN ⭐: a COMMITTEE item with no case anchor stays writable');
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('00000000-0000-0000-0000-0000000f0604', '00000000-0000-0000-0000-0000000f0702',
+        'Pauta anexa', (select sa_x from k));
+select is(app.can_write_document('00000000-0000-0000-0000-0000000f0604', (select st_x from k)), true,
+  'DEVIATION 2 OVER-REACH TWIN ⭐: a COMMITTEE item''s document with no case anchor stays writable');
 
 -- ---- DEVIATION 3 · professional_profiles.user_id ON DELETE RESTRICT --------
 -- MY PO ruling (A0 open ruling 5), and I never asserted it. SET NULL is a silent

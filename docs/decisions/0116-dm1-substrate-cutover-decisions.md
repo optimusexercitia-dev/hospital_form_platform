@@ -73,6 +73,31 @@ mutation-proven keystone **before Wave A's flag flips ON**.
 catch-all row (CFM 1821/2007 20-year floor, `is_provisional = true`); the
 disposal job (DM2+) must refuse to act on provisional rows.
 
+**8. Deviation from the approved plan — SIX kernel doors, not three
+(deliberate).** The plan named `can_read_document` / `can_write_document` /
+`storage_upload_reserved`. The build added `can_read_document_version`,
+`can_read_file_object`, `can_read_document_hold` because the per-table SELECT
+policies need DEFINER **resolvers**: an inlined `EXISTS` chain in a policy
+qual would query RLS'd tables (`document_versions`, `documents`) with the
+CALLER's privileges, recursing through the very policies being evaluated — a
+DEFINER resolver reads the chain without recursion and keeps each policy a
+single falsifiable expression. All six enter the ADR 0079 census (the phase
+record's T7 debt figure is 6, superseding the plan's 3).
+
+**9. Deviation from the approved plan — kernel EXECUTE grants (the plan text
+was WRONG; recorded so a plan-vs-catalog diff does not read as a P0).** The
+plan said "every DEFINER door … PUBLIC-revoked" and the door section said
+revoke from `authenticated`. Taken literally that breaks all eight policies: a
+policy predicate is evaluated with the QUERYING role's privileges, so
+`authenticated` must hold EXECUTE on every policy-referenced door. Shipped
+posture: PUBLIC + `anon` revoked; explicit `authenticated` + `service_role`
+EXECUTE — byte-identical to the pre-existing policy-referenced siblings
+(`app.can_read_snapshot_document`, `app.can_read_case`, …). Safe because the
+`app` schema is not PostgREST-exposed (`config.toml` exposes only `public`)
+and **zero `public`-schema functions reference any of the six doors**
+(comment-stripped `prosrc` sweep, 2026-08-12) — the only reachable paths are
+policy evaluation and future DEFINER commands.
+
 ## Consequences
 
 - The `%attachment%` catalog surface is exactly the named DM4 allowlist

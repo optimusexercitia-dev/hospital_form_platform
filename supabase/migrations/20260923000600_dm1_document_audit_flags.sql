@@ -42,8 +42,8 @@ begin
 
     -- DM (ADR 0114 D11): the document-model read verb. The entity is the
     -- documents id; DM2's open_document_version records PHI-tier and foreign
-    -- opens through this registry. Replaces the ADR 0063 'attachment.read'
-    -- arm removed by 20260923000100.
+    -- opens through this registry. Replaces the ADR 0063 attachment-read arm
+    -- removed by 20260923000100.
     when 'document.opened' then
       return app.can_read_document(p_entity_id, v_uid);
 
@@ -131,7 +131,10 @@ begin
     'case_patient.read',
     'professional_profile.read',
     -- DM (ADR 0114 D11): the audited document open (replaces the ADR 0063
-    -- 'attachment.read' verb removed by 20260923000100).
+    -- attachment-read verb removed by 20260923000100). NO quoted dotted
+    -- literal may appear in ANY comment of this body — pgTAP 191's
+    -- completeness parser reads every verb-shaped quoted string here,
+    -- comments included.
     'document.opened',
     -- MIN (ADR 0099 D8/D15): the audited meeting-transcript read.
     'minutes_transcript.read',
