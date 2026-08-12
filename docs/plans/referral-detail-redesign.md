@@ -74,8 +74,28 @@ at `:362` / `:844` reading "sanitized Markdown — Rule 7". Verified by hand. Re
 therefore stored **verbatim**, faithfully mirroring the sibling.
 
 Rule 7 (stored-XSS) is satisfied **only at render**, by
-`src/components/forms/markdown/markdown-renderer.tsx` (react-markdown + `rehype-sanitize`, and
-crucially **no `rehype-raw`**).
+`src/components/forms/markdown/markdown-renderer.tsx`.
+
+> **A11 CORRECTION (measured 2026-08-11, supersedes the mechanism stated in the first draft of this
+> amendment and repeated in the QA review).** The protective component is **the absence of
+> `rehype-raw`**, not `rehype-sanitize`. Proven by mutation, not read from the source: deleting
+> `rehypeSanitize` reddened **nothing** on the first attempt, because **react-markdown v10's own
+> `defaultUrlTransform` already neutralizes `javascript:`, `vbscript:`, `data:`, `ftp:` and `tel:`**.
+> With no `rehype-raw` in the pipeline (it is not even a dependency), raw HTML is **dropped
+> entirely** — a `<script>` in a stored body renders an empty node.
+>
+> `rehype-sanitize`'s *only* unique contribution here is excluding the `irc:`/`ircs:`/`xmpp:` schemes
+> that react-markdown permits. It is therefore **redundant today and load-bearing the instant anyone
+> enables raw HTML.** Guard accordingly: **adding `rehype-raw` is the change that would open the
+> hole**, and it must never be added without `rehype-sanitize` behind it.
+>
+> Consequence for reviewers: a `<script>`/`onerror` test proves *nothing* on its own — under one
+> failure mode sanitize strips them, under the other raw HTML is already inert, so they fail only if
+> both layers break at once. Coverage lives in
+> `src/components/forms/markdown/markdown-renderer.test.tsx` (16 cases, both mutations proven to
+> redden it). Its `irc:`/`xmpp:` detector is **contingent on react-markdown's default safe list** —
+> if a future version drops those, the sanitizer becomes unfalsifiable again and the battery diff
+> documented in that file must be re-run.
 
 **Consequence — Phase 3 must obey this or it ships a stored-XSS hole:** every surface that
 displays `note.bodyMd` **must** render it through `MarkdownRenderer`. A plain `{note.bodyMd}`,
