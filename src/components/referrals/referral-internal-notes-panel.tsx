@@ -6,16 +6,17 @@ import { EyeOff, Lock, Plus, X } from "lucide-react";
 
 import { createReferralInternalNote } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
-import type {
-  ReferralInternalNote,
-  ReferralNoteType,
-} from "@/lib/referrals/types";
+import type { ReferralInternalNote } from "@/lib/referrals/types";
+import {
+  CASE_EVENT_KINDS,
+  CASE_EVENT_KIND_LABELS,
+  type CaseEventKind,
+} from "@/lib/cases/registro-kinds";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { FormBanner } from "@/components/auth/form-banner";
 import { ReferralNoteCard } from "./referral-note-card";
-import { ReferralNoteTypeManager } from "./referral-note-type-manager";
 import type { AssignableMember } from "./referral-assignment-panel";
 
 const FIELD_CLASS =
@@ -36,12 +37,16 @@ const FIELD_CLASS =
  * `created_at` DESC within each group. This panel PARTITIONS by status to label the
  * two groups — a filter, which preserves the door's relative order — and never
  * sorts. A `.sort()` here would silently override the grouping the door computed.
+ *
+ * A registro files under the SAME fixed kinds as the case timeline's "Registros"
+ * ({@link CASE_EVENT_KINDS}). The per-commission vocabulary RDR originally shipped
+ * — and the manage dialog that maintained it — is gone: there is nothing to
+ * configure, so the picker is always populated and the type is always set.
  */
 export function ReferralInternalNotesPanel({
   referralId,
   committeeId,
   notes,
-  noteTypes,
   members,
   viewerUserId,
   canCreate,
@@ -53,8 +58,6 @@ export function ReferralInternalNotesPanel({
    * belongs to neither side (e.g. QPS) — then registros are neither read nor written. */
   committeeId: string | null;
   notes: ReferralInternalNote[];
-  /** The commission's NON-archived type vocabulary (picker + manage dialog). */
-  noteTypes: ReferralNoteType[];
   /** The viewer's-side roster for the assignee pickers; `[]` when !canManage. */
   members: AssignableMember[];
   /** The viewing user's id — decides authorship/assignment for the edit gate. */
@@ -71,7 +74,7 @@ export function ReferralInternalNotesPanel({
   const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [noteTypeId, setNoteTypeId] = useState("");
+  const [kind, setKind] = useState<CaseEventKind>("note");
   const [assignedTo, setAssignedTo] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +89,7 @@ export function ReferralInternalNotesPanel({
   function reset() {
     setTitle("");
     setBody("");
-    setNoteTypeId("");
+    setKind("note");
     setAssignedTo("");
     setFieldError(null);
     setError(null);
@@ -106,7 +109,7 @@ export function ReferralInternalNotesPanel({
         committeeId: committeeId as string,
         bodyMd: body.trim(),
         title: title.trim() || null,
-        noteTypeId: noteTypeId || null,
+        kind,
         assignedTo: assignedTo || null,
       });
       if (!result.ok) {
@@ -133,7 +136,6 @@ export function ReferralInternalNotesPanel({
       <ReferralNoteCard
         key={note.id}
         note={note}
-        noteTypes={noteTypes}
         canEdit={canEditNote(note)}
         canAssign={canManage && note.status !== "concluded" && !note.redactedAt}
         canRedact={canRedact}
@@ -161,12 +163,6 @@ export function ReferralInternalNotesPanel({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canManage ? (
-            <ReferralNoteTypeManager
-              commissionId={committeeId}
-              noteTypes={noteTypes}
-            />
-          ) : null}
           {canCreate ? (
             <Button
               type="button"
@@ -212,8 +208,8 @@ export function ReferralInternalNotesPanel({
           {/* Labels associate EXPLICITLY (`htmlFor`/`id`) rather than wrapping the
               control: a `<label>` that wraps a `<select>` folds every option's text
               into its own text content, which pollutes the computed accessible name
-              ("Tipo Sem tipo Análise interna …") and makes the field unaddressable
-              by its visible label. */}
+              ("Tipo Nota Reunião Decisão …") and makes the field unaddressable by
+              its visible label. */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5 text-sm">
               <label
@@ -242,15 +238,14 @@ export function ReferralInternalNotesPanel({
               </label>
               <NativeSelect
                 id="referral-new-note-type"
-                value={noteTypeId}
-                onChange={(e) => setNoteTypeId(e.target.value)}
-                disabled={isPending || noteTypes.length === 0}
+                value={kind}
+                onChange={(e) => setKind(e.target.value as CaseEventKind)}
+                disabled={isPending}
                 className="py-2"
               >
-                <option value="">Sem tipo</option>
-                {noteTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
+                {CASE_EVENT_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {CASE_EVENT_KIND_LABELS[k]}
                   </option>
                 ))}
               </NativeSelect>

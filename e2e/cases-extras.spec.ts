@@ -413,12 +413,33 @@ test('AC-Docs: coordinator uploads a PDF document to a case and downloads it; ad
     await titleField.fill('Reunião de revisão E2E')
   }
 
+  // The MANUAL kind vocabulary, exact and in picker order. Exact rather than a
+  // contains: this same list is what the referral "Registros internos" picker offers
+  // (`src/lib/cases/registro-kinds.ts` is the one source both read), and a subset
+  // assertion would not catch the two drifting apart. The ten system/procedural
+  // kinds the DB CHECK also allows are never offered here.
+  const kindSelect = eventDialog.locator('select[name="kind"]')
+  await expect(kindSelect.getByRole('option')).toHaveText([
+    'Nota',
+    'Reunião',
+    'Decisão',
+    'Atualização',
+    'Acompanhamento',
+    'Outro',
+  ])
+  // File it under one of the two kinds added alongside the referral change, so the
+  // slug survives the CHECK constraint AND resolves through EVENT_KIND_LABEL.
+  await kindSelect.selectOption('follow_up')
+
   await eventDialog.getByRole('button', { name: /Adicionar/i }).click()
   await expect(eventDialog).toHaveCount(0, { timeout: 15_000 })
 
   await expect(
     page.getByText(/Reunião de revisão realizada/i).first(),
   ).toBeVisible({ timeout: 15_000 })
+  await expect(
+    eventsPanel.locator('li').filter({ hasText: 'Reunião de revisão E2E' }),
+  ).toContainText('Acompanhamento')
 })
 
 // ---------------------------------------------------------------------------

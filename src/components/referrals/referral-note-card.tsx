@@ -22,10 +22,12 @@ import {
   updateReferralInternalNote,
 } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
-import type {
-  ReferralInternalNote,
-  ReferralNoteType,
-} from "@/lib/referrals/types";
+import type { ReferralInternalNote } from "@/lib/referrals/types";
+import {
+  CASE_EVENT_KINDS,
+  CASE_EVENT_KIND_LABELS,
+  type CaseEventKind,
+} from "@/lib/cases/registro-kinds";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
@@ -67,15 +69,12 @@ const FIELD_CLASS =
  */
 export function ReferralNoteCard({
   note,
-  noteTypes,
   canEdit,
   canAssign,
   canRedact,
   members,
 }: {
   note: ReferralInternalNote;
-  /** The commission's NON-archived vocabulary, for the type picker while editing. */
-  noteTypes: ReferralNoteType[];
   /**
    * Whether the viewer may edit AND conclude this registro — the UI mirror of
    * `app.can_edit_referral_internal_note`: the registro is open and un-redacted, and
@@ -99,18 +98,19 @@ export function ReferralNoteCard({
 
   const [title, setTitle] = useState(note.title ?? "");
   const [body, setBody] = useState(note.bodyMd);
-  const [noteTypeId, setNoteTypeId] = useState(note.noteTypeId ?? "");
+  const [kind, setKind] = useState<CaseEventKind>(note.kind);
 
   const redacted = Boolean(note.redactedAt);
   const concluded = note.status === "concluded";
   const headingId = `referral-note-${note.id}-heading`;
-  const heading = note.title || note.typeLabel || "Registro interno";
+  const kindLabel = CASE_EVENT_KIND_LABELS[note.kind];
+  const heading = note.title || kindLabel;
 
   function startEdit() {
     setError(null);
     setTitle(note.title ?? "");
     setBody(note.bodyMd);
-    setNoteTypeId(note.noteTypeId ?? "");
+    setKind(note.kind);
     setEditing(true);
   }
 
@@ -125,7 +125,7 @@ export function ReferralNoteCard({
         noteId: note.id,
         title: title.trim() || null,
         bodyMd: body.trim(),
-        noteTypeId: noteTypeId || null,
+        kind,
       });
       if (!result.ok) {
         setError(
@@ -160,16 +160,11 @@ export function ReferralNoteCard({
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <RegistroStatusPill concluded={concluded} />
-            {note.typeLabel ? (
-              <span
-                className={cn(
-                  REFERRAL_META_CHIP_BASE,
-                  referralTypeChipClass(null),
-                )}
-              >
-                {note.typeLabel}
-              </span>
-            ) : null}
+            <span
+              className={cn(REFERRAL_META_CHIP_BASE, referralTypeChipClass(null))}
+            >
+              {kindLabel}
+            </span>
             {redacted ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">
                 <EyeOff aria-hidden="true" className="size-3" />
@@ -245,15 +240,14 @@ export function ReferralNoteCard({
             </label>
             <NativeSelect
               id={`referral-note-type-${note.id}`}
-              value={noteTypeId}
-              onChange={(e) => setNoteTypeId(e.target.value)}
+              value={kind}
+              onChange={(e) => setKind(e.target.value as CaseEventKind)}
               disabled={isPending}
               className="py-2"
             >
-              <option value="">Sem tipo</option>
-              {noteTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
+              {CASE_EVENT_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {CASE_EVENT_KIND_LABELS[k]}
                 </option>
               ))}
             </NativeSelect>

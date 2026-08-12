@@ -3,10 +3,12 @@
  * (Phase 22 — `case_referrals`; ADR 0037).
  *
  * **Purity contract (the Phase-12 `event-model.ts` / Phase-14 `safety/types.ts`
- * discipline).** This module has ZERO imports — it must remain importable from
- * CLIENT components (the send wizard, the hub tables, the B-side detail, the QPS
- * dashboard). It must NEVER import `@/lib/supabase/*`, `next/headers`,
- * `server-only`, or any data-access/action module. The server-only query
+ * discipline).** This module imports exactly ONE thing — the type of the shared
+ * Registro vocabulary from `@/lib/cases/registro-kinds`, itself a zero-import,
+ * side-effect-free module — and must otherwise stay import-free, because it has to
+ * remain importable from CLIENT components (the send wizard, the hub tables, the
+ * B-side detail, the QPS dashboard). It must NEVER import `@/lib/supabase/*`,
+ * `next/headers`, `server-only`, or any data-access/action module. The server-only query
  * functions (`@/lib/queries/referrals`) and the `"use server"` actions
  * (`@/lib/referrals/actions`) IMPORT their types from here — so a `"use client"`
  * component that needs a type/label never transitively drags
@@ -30,6 +32,8 @@
  * ({@link SharedItem.frozenBodyMd}, {@link ReferralReply.resultMd}) are
  * PHI-bearing clinical free text and arrive only via the audited detail door.
  */
+
+import type { CaseEventKind } from '@/lib/cases/registro-kinds'
 
 // ---------------------------------------------------------------------------
 // Domain unions — the FROZEN vocabulary (stored slugs; pt-BR via labels)
@@ -617,9 +621,10 @@ export interface ReferralMessage {
  * redacted it renders `'[redigido]'` (the real body stays, append-only + audited).
  *
  * RDR (ADR 0109) promoted the note to a "Registro interno": it gains a title, a
- * per-commission type vocabulary snapshot, an assignee and a one-way
- * `open → concluded` lifecycle, and its body column was renamed `body` → `body_md`
- * (so the door's returned JSON key moved with it).
+ * type, an assignee and a one-way `open → concluded` lifecycle, and its body column
+ * was renamed `body` → `body_md` (so the door's returned JSON key moved with it).
+ * The type is now the SHARED case-Registro {@link CaseEventKind} vocabulary — the
+ * per-commission `referral_note_types` table it originally pointed at is gone.
  */
 export interface ReferralInternalNote {
   id: string
@@ -630,11 +635,11 @@ export interface ReferralInternalNote {
   authorName: string | null
   /** Optional short heading; `null` for an untitled (or legacy) registro. */
   title: string | null
-  /** The picked `referral_note_types` row; `null` = untyped/legacy. */
-  noteTypeId: string | null
-  /** The type's label SNAPSHOTTED at pick time — stable across later vocabulary
-   * edits (mirrors `case_narratives.type_label`); `null` when untyped. */
-  typeLabel: string | null
+  /** The registro kind — the SAME six-value vocabulary as the case timeline's
+   * `case_events.kind`. Required (DB default `note`); resolve the pt-BR label via
+   * `CASE_EVENT_KIND_LABELS`. No snapshot column exists any more: the vocabulary is
+   * fixed platform-wide, so there is nothing a later edit could rewrite. */
+  kind: CaseEventKind
   /** PHI-bearing note text (sanitized Markdown — Rule 7); `'[redigido]'` once redacted. */
   bodyMd: string
   /** The member responsible for this registro; `null` when unassigned. */
@@ -653,24 +658,6 @@ export interface ReferralInternalNote {
   redactedByName: string | null
   /** PHI-free governance reason for the redaction; `null` if not redacted. */
   redactedReason: string | null
-}
-
-/**
- * One entry of a commission's registro-type vocabulary (`referral_note_types`),
- * RDR / ADR 0109. PHI-FREE. Mirrors `case_narrative_types`, and — like it — is
- * written by DIRECT RLS-gated table writes rather than through DEFINER RPCs
- * (amendment A6); only the reorder is an RPC. Archive-only (no delete), because a
- * registro that snapshotted the label must keep rendering.
- */
-export interface ReferralNoteType {
-  id: string
-  commissionId: string
-  label: string
-  description: string | null
-  /** 1-based ordering within the commission (unique per commission, DEFERRABLE). */
-  position: number
-  /** Archived types stay readable but disappear from the picker. */
-  archived: boolean
 }
 
 /**
@@ -1349,9 +1336,9 @@ export interface CreateReferralInternalNoteInput {
   bodyMd: string
   /** Optional short heading; blank/`null` stores NULL. */
   title?: string | null
-  /** Optional `referral_note_types` pick; the RPC rejects a type from ANOTHER
-   * commission or an archived one (HC0A9) and snapshots its label. */
-  noteTypeId?: string | null
+  /** The registro kind (shared case vocabulary). Omitted/blank defaults to `note`;
+   * a value outside the six raises HC0A9. */
+  kind?: CaseEventKind
   /** Optional responsible member; must be an ACTIVE member of `committeeId` (HC0A9). */
   assignedTo?: string | null
 }
@@ -1361,9 +1348,8 @@ export interface CreateReferralInternalNoteInput {
  * the assignee, or a coordinator of the note's OWN side (42501 otherwise, checked
  * FIRST); a concluded or redacted registro refuses with HC0A9.
  *
- * Both `title` and `noteTypeId` are CLEARING fields: a blank/`null` title stores
- * NULL, and a `null` `noteTypeId` clears BOTH the pointer and the `typeLabel`
- * snapshot. Send the current value to keep it.
+ * `title` is a CLEARING field — a blank/`null` title stores NULL. `kind` is NOT:
+ * it is required, so an omitted value falls back to `note` rather than clearing.
  */
 export interface UpdateReferralInternalNoteInput {
   noteId: string
@@ -1371,16 +1357,8 @@ export interface UpdateReferralInternalNoteInput {
   title: string | null
   /** New PHI-bearing body (required, non-blank). */
   bodyMd: string
-  /** New type pick; `null` makes the registro untyped. */
-  noteTypeId: string | null
-}
-
-/** A create/update definition for one entry of the registro-type vocabulary
- * (`referral_note_types`). Written by DIRECT RLS-gated table writes (amendment
- * A6): the `referral_note_types_staff_admin_write` policy is the authority. */
-export interface ReferralNoteTypeInput {
-  label: string
-  description: string | null
+  /** New registro kind (shared case vocabulary); omitted/blank falls back to `note`. */
+  kind: CaseEventKind
 }
 
 /** Redact a private internal note (RV2 R5 — append-only). The actor must be a

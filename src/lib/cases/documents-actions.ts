@@ -9,7 +9,8 @@ import type { Database } from '@/lib/types/database'
 import { casesExtrasEnabled } from '@/lib/cases/extras-gate'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
-import type { CaseDocumentType, CaseEventKind } from '@/lib/queries/case-documents'
+import type { CaseDocumentType } from '@/lib/queries/case-documents'
+import { isCaseEventKind } from '@/lib/cases/registro-kinds'
 
 /**
  * Case DOCUMENTS & EVENTS server actions (Cases-Extras batch, R1).
@@ -60,7 +61,6 @@ const MESSAGES = {
 } as const
 
 const DOC_TYPES: CaseDocumentType[] = ['ata', 'digitalizacao', 'registro', 'other']
-const EVENT_KINDS: CaseEventKind[] = ['note', 'meeting', 'decision', 'other']
 
 const MAX_DOC_BYTES = 25 * 1024 * 1024 // mirrors the bucket's 25 MiB limit
 // MIME → file extension, mirroring the case-documents bucket allow-list (092003).
@@ -289,7 +289,7 @@ export async function createCaseEvent(
   const occurredTime = parseTime(String(formData.get('occurredTime') ?? ''))
 
   if (!caseId) return { ok: false, error: MESSAGES.missingCase }
-  if (!EVENT_KINDS.includes(kind as CaseEventKind)) {
+  if (!isCaseEventKind(kind)) {
     return { ok: false, error: MESSAGES.kindInvalid }
   }
   if (!body) {
@@ -355,7 +355,7 @@ export async function updateCaseEvent(
   const occurredTime = parseTime(String(formData.get('occurredTime') ?? ''))
 
   if (!eventId) return { ok: false, error: MESSAGES.missingEvent }
-  if (!EVENT_KINDS.includes(kind as CaseEventKind)) {
+  if (!isCaseEventKind(kind)) {
     return { ok: false, error: MESSAGES.kindInvalid }
   }
   if (!body) {

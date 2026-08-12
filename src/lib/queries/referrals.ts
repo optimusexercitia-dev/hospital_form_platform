@@ -7,7 +7,8 @@
  * ADR 0042), and the Phase-12 case timeline.
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
- * in the CLIENT-SAFE `@/lib/referrals/types` (ZERO imports) and are re-exported
+ * in the CLIENT-SAFE `@/lib/referrals/types` (whose only import is the inert
+ * `@/lib/cases/registro-kinds`) and are re-exported
  * here so existing `import … from '@/lib/queries/referrals'` consumers resolve
  * unchanged WITHOUT a `"use client"` component dragging this server-only module
  * (→ `@/lib/supabase/server` → `next/headers`) into the client bundle.
@@ -37,6 +38,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEventPatient } from '@/lib/queries/safety-events'
 import { getCasePatient } from '@/lib/queries/cases'
 import { featureEnabled } from '@/lib/queries/feature-flags'
+import { isCaseEventKind } from '@/lib/cases/registro-kinds'
 import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
 import {
   DEFAULT_PAGE_SIZE,
@@ -64,7 +66,6 @@ import type {
   ReferralListItem,
   ReferralMessage,
   ReferralNoteStatus,
-  ReferralNoteType,
   ReferralPatient,
   ReferralPatientSex,
   ReferralPriority,
@@ -110,7 +111,6 @@ export type {
   ReferralFlowMetrics,
   ReferralInternalNote,
   ReferralNoteStatus,
-  ReferralNoteType,
   ReferralCaseAccessSummary,
   ReferralThreadEvent,
   ReferralThreadEventKind,
@@ -890,8 +890,7 @@ interface ReferralInternalNoteJson {
   author_user_id: string | null
   author_name: string | null
   title: string | null
-  note_type_id: string | null
-  type_label: string | null
+  kind: string
   /** RDR / ADR 0109: the column was renamed `body` → `body_md`, and because the
    * write doors return the TABLE ROW TYPE the rename moved this door's JSON key
    * with it. Reading `body` here would silently yield `undefined`. */
@@ -941,8 +940,9 @@ export async function listReferralInternalNotes(
     authorUserId: n.author_user_id,
     authorName: n.author_name,
     title: n.title,
-    noteTypeId: n.note_type_id,
-    typeLabel: n.type_label,
+    // CHECK-constrained to the six shared kinds; anything else is a DB-level
+    // impossibility, so fall closed to `note` rather than widening the domain type.
+    kind: isCaseEventKind(n.kind) ? n.kind : 'note',
     bodyMd: n.body_md,
     assignedTo: n.assigned_to,
     assignedToName: n.assigned_to_name,
@@ -963,61 +963,8 @@ export async function listReferralInternalNotes(
 }
 
 // ---------------------------------------------------------------------------
-// Registro-type vocabulary + the case-access summary (RDR; ADR 0109)
+// The case-access summary (RDR; ADR 0109)
 // ---------------------------------------------------------------------------
-
-interface ReferralNoteTypeRow {
-  id: string
-  commission_id: string
-  label: string
-  description: string | null
-  archived: boolean
-  position: number
-}
-
-const REFERRAL_NOTE_TYPE_SELECT =
-  'id, commission_id, label, description, archived, position' as const
-
-/**
- * A commission's registro-type vocabulary, ordered by `position`. A DIRECT
- * RLS-scoped table read (amendment A6 — `referral_note_types` mirrors
- * `case_narrative_types`, which is NOT behind a DEFINER door): the
- * `referral_note_types_select` policy (`is_member_of` OR `is_tenancy_admin_of`)
- * is the authority, so a non-member simply reads nothing.
- *
- * By default only NON-archived types are returned (the note composer's picker);
- * pass `includeArchived = true` for the manage dialog. `[]` when unreadable —
- * mirroring {@link listNarrativeTypes}.
- */
-export async function listReferralNoteTypes(
-  commissionId: string,
-  includeArchived = false,
-): Promise<ReferralNoteType[]> {
-  if (!commissionId) return []
-  const supabase = await createClient()
-  let query = supabase
-    .from('referral_note_types')
-    .select(REFERRAL_NOTE_TYPE_SELECT)
-    .eq('commission_id', commissionId)
-
-  if (!includeArchived) {
-    query = query.eq('archived', false)
-  }
-
-  const { data, error } = await query
-    .order('position', { ascending: true })
-    .returns<ReferralNoteTypeRow[]>()
-
-  if (error || !data) return []
-  return data.map((r) => ({
-    id: r.id,
-    commissionId: r.commission_id,
-    label: r.label,
-    description: r.description,
-    position: r.position,
-    archived: r.archived,
-  }))
-}
 
 /** The door's raw payload. Every field is optional at the type level because the
  * RPC returns `jsonb` — the shape is asserted by the narrowing below, not by a
