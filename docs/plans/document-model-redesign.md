@@ -319,6 +319,13 @@ either a restored control or an explicit retirement of ADR 0072 D7's enforcing
 status. pgTAP `228` t36–40 stay retired until the control returns — the coverage
 comes back with the mechanism, not before.
 
+**PO decision status (2026-08-12): DEFERRED, deliberately.** The options above
+were put to the PO at DM1 close; the ruling is **held over, not made**. This is
+an explicit deferral of a known blocker, *not* an oversight and *not* tacit
+acceptance of option 3 — silence must never be read as the ratification that
+option 3 requires. **Wave A (DM2) remains blocked** until the ruling lands.
+Whoever plans DM2 must treat this section as a gate, not as background.
+
 ## Unassigned scope — the ethics document seams (Q1, OPEN)
 
 > Raised by `backend` at DM1 plan time, verified by the lead against the live
