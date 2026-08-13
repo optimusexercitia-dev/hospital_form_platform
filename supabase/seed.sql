@@ -2569,10 +2569,16 @@ declare
   v_farm    uuid := '00000000-0000-0000-0000-000000000005';  -- chefe.farm (same hospital, NOT a CCIH member) — the E2E outside-commission approver
   v_farm2   uuid := '00000000-0000-0000-0000-000000000006';  -- Farmacêutico Um (same hospital, NOT a CCIH member) — DOC-0001's outside approver
   v_staff1  uuid := '00000000-0000-0000-0000-000000000003';  -- staff of A (in-commission approver)
-  v_doc_vig uuid;
-  v_ver_vig uuid;
-  v_doc_apr uuid;
-  v_ver_apr uuid;
+  v_doc_vig  uuid := 'd0c00000-0000-0000-0000-0000000000d1';
+  v_ver_vig  uuid := 'd0c00000-0000-0000-0000-00000000d101';
+  -- ⚠ DETERMINISTIC ids (DM3). These were `gen_random_uuid()` via `returning id`,
+  -- which made every suite that referenced a seeded controlled document depend on
+  -- ids that CHANGE on every `db reset` — pgTAP 330 hardcoded five of them and
+  -- went red the first time the DB was actually rebuilt. The regimento below
+  -- already used a fixed id for the same reason (its charter FK references it);
+  -- these now match that convention.
+  v_doc_apr  uuid := 'd0c00000-0000-0000-0000-0000000000d2';
+  v_ver_apr  uuid := 'd0c00000-0000-0000-0000-00000000d201';
   -- DM3: the core-model counterparts each controlled document now owns.
   v_core_doc_vig uuid;
   v_core_ver_vig uuid;
@@ -2591,7 +2597,6 @@ begin
   -- implementation — the door is not callable here because the seed needs an
   -- explicit `code`, a non-draft `status`, and specific dates that the door
   -- (deliberately) does not accept. If the door changes, change this with it.
-  v_doc_vig := gen_random_uuid();
   insert into public.securable_resources
     (id, resource_type, organization_id, hospital_id, commission_id)
   select v_doc_vig, 'controlled_document', c.organization_id, c.hospital_id, c.id
@@ -2624,13 +2629,12 @@ begin
   -- weaken the guard for the seed's convenience, the seed follows the state
   -- machine the product follows: draft → in_approval → effective.
   insert into public.controlled_document_versions
-    (document_id, version_number, summary_of_changes_md,
+    (id, document_id, version_number, summary_of_changes_md,
      effective_date, review_due_date, status, created_by, core_document_version_id)
   values
-    (v_doc_vig, 1,
+    (v_ver_vig, v_doc_vig, 1,
      'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
-     'draft', v_chefe, v_core_ver_vig)
-  returning id into v_ver_vig;
+     'draft', v_chefe, v_core_ver_vig);
 
   update public.controlled_document_versions set status = 'in_approval' where id = v_ver_vig;
   update public.controlled_document_versions set status = 'effective'   where id = v_ver_vig;
@@ -2651,7 +2655,6 @@ begin
   -- 2) IN_APPROVAL document naming the OUTSIDE-commission approver 0005 (pending).
   -- Same DM3 obligations as (1) — registry row, core document, fileless core
   -- version. See the note there.
-  v_doc_apr := gen_random_uuid();
   insert into public.securable_resources
     (id, resource_type, organization_id, hospital_id, commission_id)
   select v_doc_apr, 'controlled_document', c.organization_id, c.hospital_id, c.id
@@ -2674,11 +2677,10 @@ begin
 
   -- Born draft with the pointer, then one legal edge to in_approval (see (1)).
   insert into public.controlled_document_versions
-    (document_id, version_number, summary_of_changes_md, status, created_by,
+    (id, document_id, version_number, summary_of_changes_md, status, created_by,
      core_document_version_id)
   values
-    (v_doc_apr, 1, 'Primeira versão para aprovação.', 'draft', v_chefe, v_core_ver_apr)
-  returning id into v_ver_apr;
+    (v_ver_apr, v_doc_apr, 1, 'Primeira versão para aprovação.', 'draft', v_chefe, v_core_ver_apr);
 
   update public.controlled_document_versions set status = 'in_approval' where id = v_ver_apr;
 

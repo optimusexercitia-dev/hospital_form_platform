@@ -47,7 +47,7 @@
 -- =============================================================================
 
 begin;
-select plan(50);
+select plan(54);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -156,6 +156,66 @@ select is(
   'DM3·R2b BOTH securable_resources constraints enumerate controlled_document (no half-widening)');
 
 -- =============================================================================
+-- R3 — THE CREATE DOOR MINTS WHAT THE FK REQUIRES (M8).
+--
+-- ⚠ THIS KEYSTONE'S ABSENCE IS WHY A P0 SHIPPED. M1 added the composite FK and
+-- BACKFILLED existing rows, but nothing taught `create_controlled_document` to
+-- satisfy it — so from M1 until M8, every create through the product raised
+-- 23503. Nothing caught it because migrations were applied incrementally to a DB
+-- that already held the seeded documents (the backfill made everything
+-- consistent) and no suite ever exercised a fresh INSERT. The mandatory
+-- fresh-reset gate step found it, via the seed.
+--
+-- The class: adding a referential obligation is not done until every WRITER has
+-- been taught it. A backfill covers the rows that exist; only the door covers
+-- the rows that will. So this asserts the DOOR, not the data.
+-- =============================================================================
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+
+-- ⚠ `select (f()).*` EVALUATES f ONCE PER OUTPUT COLUMN. The first draft of this
+-- fixture used that idiom on a 15-column composite and silently created FIFTEEN
+-- controlled documents — which then broke DM3·X1 downstream ("have 3, want 19")
+-- rather than failing here. Bind the composite to ONE column first, then expand.
+create temp table r3_row on commit drop as
+  select public.create_controlled_document(
+           'a0000000-0000-0000-0000-0000000000a1', 'Documento R3', 'policy') as d;
+create temp table r3_created on commit drop as select (d).* from r3_row;
+
+select is(
+  (select count(*)::int from r3_created), 1,
+  'DM3·R3 ⭐ create_controlled_document SUCCEEDS (pre-M8 it raised 23503 on the composite FK)');
+
+select is(
+  (select count(*)::int from r3_created r
+     join public.securable_resources s
+       on s.id = r.id and s.resource_type = 'controlled_document'
+    where s.commission_id = r.commission_id
+      and s.organization_id is not null and s.hospital_id is not null),
+  1,
+  'DM3·R3b ⭐ …and mints its registry row with the full tenant triple');
+
+select is(
+  (select count(*)::int from r3_created r
+     join public.documents d on d.id = r.core_document_id
+    where d.home_resource_id = r.id and d.kind = 'documento_controlado'),
+  1,
+  'DM3·R3c ⭐ …and its core `documents` row, homed on that registry row (without which no file could ever be attached)');
+
+-- R3d — the DELIBERATE asymmetry, pinned so it stays a decision. A NEWLY created
+-- document's initial version has a NULL pointer: `begin_document_upload` mints
+-- the core version when a file is actually uploaded. Backfilled/seeded versions
+-- DO carry a fileless core version (lead ruling Q2, 1:1). Both render `pending`.
+select is(
+  (select count(*)::int from public.controlled_document_versions v
+     join r3_created r on r.id = v.document_id
+    where v.core_document_version_id is null),
+  1,
+  'DM3·R3d a NEWLY created document''s initial version has a NULL pointer (no fileless core version minted at create)');
+
+select set_config('request.jwt.claims', '', true);
+
+-- =============================================================================
 -- A — THE AUTHORIZATION ARM (M2). `app.can_read_document`'s dispatch gains a
 -- `controlled_document` arm: commission member OR entitled approver. The
 -- approver half is the arm the dying bucket policy
@@ -177,7 +237,7 @@ select 'dd300000-0000-0000-0000-0000000000c1', d.id,
        'Fixture A · controlled-document home', 'documento_controlado', 'active',
        '00000000-0000-0000-0000-000000000002'
   from public.controlled_documents d
- where d.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58';
+ where d.id = 'd0c00000-0000-0000-0000-0000000000d1';
 
 insert into public.documents (id, home_resource_id, title, kind, status, created_by)
 values ('dd300000-0000-0000-0000-0000000000e1',
@@ -311,7 +371,7 @@ select is(
 -- app.guard_controlled_document_status (BEFORE DELETE OR UPDATE only).
 insert into public.controlled_document_versions (id, document_id, version_number, status, created_by)
 values ('dc300000-0000-0000-0000-0000000000d1',
-        'c4c3f346-b18b-42bf-a754-968ecf264e58', 2, 'draft',
+        'd0c00000-0000-0000-0000-0000000000d1', 2, 'draft',
         '00000000-0000-0000-0000-000000000002');
 
 -- P2b — POSITIVE CONTROL, and it must come FIRST. Without it, P2/P3 are
@@ -325,7 +385,7 @@ select lives_ok(
               join public.securable_resources s on s.id = d.home_resource_id
               where s.resource_type = 'controlled_document'
                 and d.id = (select core_document_id from public.controlled_documents
-                             where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')
+                             where id = 'd0c00000-0000-0000-0000-0000000000d1')
               order by dv.version_number limit 1)
       where id = 'dc300000-0000-0000-0000-0000000000d1' $$,
   'DM3·P2b POSITIVE CONTROL: the pointer DOES move while the version is a draft (P2/P3 are not "nothing ever moves")');
@@ -335,7 +395,7 @@ select lives_ok(
 select throws_ok(
   $$ update public.controlled_document_versions
         set core_document_version_id = gen_random_uuid()
-      where id = '18f68d3e-7804-4d01-a1ff-33e6bdd55218' $$,
+      where id = 'd0c00000-0000-0000-0000-00000000d101' $$,
   'HC0DB', null,
   'DM3·P2 ⭐ the core-binding trigger refuses a pointer move on an EFFECTIVE version');
 
@@ -348,7 +408,7 @@ set local app.in_controlled_docs_rpc = 'on';
 select throws_ok(
   $$ update public.controlled_document_versions
         set core_document_version_id = gen_random_uuid()
-      where id = '5e49cd45-307a-4216-8004-75d0354f8d63' $$,
+      where id = 'd0c00000-0000-0000-0000-00000000d201' $$,
   'HC0DB', null,
   'DM3·P3 ⭐⭐ the freeze holds even INSIDE the RPC corridor (app.in_controlled_docs_rpc = on) — the sibling guard''s bypass is deliberately not inherited');
 set local app.in_controlled_docs_rpc = 'off';
@@ -361,7 +421,7 @@ set local app.in_controlled_docs_rpc = 'on';
 select lives_ok(
   $$ update public.controlled_document_versions
         set summary_of_changes_md = 'corridor probe'
-      where id = '18f68d3e-7804-4d01-a1ff-33e6bdd55218' $$,
+      where id = 'd0c00000-0000-0000-0000-00000000d101' $$,
   'DM3·P3b PROOF OF IMPERSONATION: the SIBLING guard IS disarmed by the same GUC (a non-pointer update on a frozen version succeeds) — so P3 defeats a real bypass');
 set local app.in_controlled_docs_rpc = 'off';
 
@@ -407,7 +467,7 @@ insert into public.document_versions (id, document_id, version_number, created_b
 select 'da300000-0000-0000-0000-0000000000a1', cd.core_document_id, 2,
        '00000000-0000-0000-0000-000000000002'
   from public.controlled_documents cd
- where cd.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58';
+ where cd.id = 'd0c00000-0000-0000-0000-0000000000d1';
 
 -- P1c — AUTHORITY, inherited from the retiring door. A plain member of the
 -- owning commission is not a writer. Asserted BEFORE the success case so a
@@ -426,7 +486,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, fal
 -- HC0DB) so the two barriers are separately attributable (R2).
 select throws_ok(
   $q$ select public.attach_controlled_document_version_file(
-        '18f68d3e-7804-4d01-a1ff-33e6bdd55218',
+        'd0c00000-0000-0000-0000-00000000d101',
         'da300000-0000-0000-0000-0000000000a1') $q$,
   'HC089', null,
   'DM3·P1 ⭐ the DOOR refuses attaching a file to an EFFECTIVE version (HC089, distinct from the trigger''s HC0DB)');
@@ -481,7 +541,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, fal
 select throws_ok(
   format($q$ select public.reclassify_document(%L, 'phi') $q$,
          (select core_document_id from public.controlled_documents
-           where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')),
+           where id = 'd0c00000-0000-0000-0000-0000000000d1')),
   'HC0DH', null,
   'DM3·T1 ⭐ reclassify_document refuses to move a CONTROLLED document into the phi tier (D13 no-PHI stance)');
 
@@ -509,10 +569,10 @@ select lives_ok(
 create temp table t2_begin on commit drop as
   select public.begin_document_upload(
            'controlled_document',
-           'c4c3f346-b18b-42bf-a754-968ecf264e58',
+           'd0c00000-0000-0000-0000-0000000000d1',
            'Fixture T2', null, null,
            (select core_document_id from public.controlled_documents
-             where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')) as r;
+             where id = 'd0c00000-0000-0000-0000-0000000000d1')) as r;
 
 select is(
   (select f.storage_bucket || '|' || f.sensitivity_tier
@@ -628,11 +688,11 @@ select is(
   pg_temp.door_serves(
     (select dv.id from public.document_versions dv
       join public.controlled_documents cd on cd.core_document_id = dv.document_id
-     where cd.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58' and dv.version_number = 1)),
+     where cd.id = 'd0c00000-0000-0000-0000-0000000000d1' and dv.version_number = 1)),
   pg_temp.availability_oracle(
     (select dv.id from public.document_versions dv
       join public.controlled_documents cd on cd.core_document_id = dv.document_id
-     where cd.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58' and dv.version_number = 1)) = 'available',
+     where cd.id = 'd0c00000-0000-0000-0000-0000000000d1' and dv.version_number = 1)) = 'available',
   'DM3·X3c unbound: the door REFUSES and the predicate does NOT say available — they agree');
 
 -- B4a — PRECONDITION for B4: the version B4 opens must genuinely NOT be the
@@ -641,7 +701,7 @@ select is(
 select ok(
   (select max(dv.version_number) from public.document_versions dv
      join public.controlled_documents cd on cd.core_document_id = dv.document_id
-    where cd.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')
+    where cd.id = 'd0c00000-0000-0000-0000-0000000000d1')
   > (select version_number from public.document_versions
       where id = 'da300000-0000-0000-0000-0000000000a1'),
   'DM3·B4a PRECONDITION: the version B4 opens is genuinely NOT the latest');

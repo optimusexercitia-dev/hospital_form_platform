@@ -82,9 +82,52 @@ and family**, never its name; and the first dry-run must run against a **hand-cl
 control** containing all three families above as known-goods — *a detector that finds a lot needs
 proving too* ([[a-detector-that-finds-a-lot-needs-proving-too]]).
 
-**Discharge:** a `scripts/check-stale-symbol-comments.mjs` chained into `npm run lint`, with the
-tombstone convention **and** family-scoped resolution, **proven able to fail** before it is
-trusted ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
+### 🔻 LEAD RECOMMENDATION 2026-08-13: **do NOT build the gate.** Adopt the convention; keep the process step
+
+Four findings, in order of how much they cost the idea:
+
+1. **The same identifier holds THREE truth values inside ONE file.** Verified in
+   `src/lib/controlled-documents/actions.ts`: **`:119`** tombstone · **`:309` LIVE and
+   correct** (it names the live export *and its module*, `@/lib/documents/upload-client`) ·
+   **`:693`** tombstone. So **file scoping fails too**, not just name-keying. Classification
+   must be **per-occurrence**, and `:309` is separable from `:119` only by **adjacent prose** —
+   natural-language disambiguation, not resolution. It is also the occurrence a gate most needs
+   to get right: flagging it invites deleting the sentence that tells the next reader where the
+   live helper lives.
+2. **Module resolution reaches only 3 of the 7 tombstones (43%).** Sites 1–3 are TS module
+   bindings; site 4 names a **Postgres function + column**, site 5 a **TS property** (`hasFile`
+   — never a module binding), sites 6–7 a **Postgres policy**. The misses need two *further*
+   resolvers: a type-level property resolver and a catalog lookup.
+3. **The DB arm needs a RUNNING DATABASE, and that is not negotiable.** The standing rule is
+   that the **live catalog is the sole truth** for any schema/RLS/RPC question — never migration
+   text, which is stale by design (runtime `pg_get_functiondef()` + `replace()` + `execute`), and
+   which has already produced a confident **false P0** here. So the arm must query `pg_proc` /
+   `pg_policies`. All five current `npm run lint` gates are **stateless static checks that run in
+   a fresh worktree with no stack up**; a DB-dependent arm changes what the lint gate *is*, and
+   the shared-stack constraint makes it worse.
+4. ⚠ **The proposed convention-only gate does NOT work as specified**, and the error is
+   instructive. `frontend` suggested checking that *"mentions of removal-set symbols carry the
+   marker"*, arguing it would leave `actions.ts:309` alone *"because a live reference wouldn't
+   carry the marker."* That exemption is **inverted**: `uploadDocumentFile` **is** in the removal
+   set, so `:309` mentioning it **without** a marker is precisely what the rule flags. Rescuable
+   with per-occurrence suppression — but the authoring burden then lands exactly on the most
+   confusing case. **Also fatal to the "it's just a grep" claim:** the rule needs a *removal set*,
+   which needs a **diff base** — making it a CI check, not a stateless lint gate.
+
+**Recommendation (PO decides — it is a lint-gate change):** adopt the tombstone marker as an
+**authoring convention** (zero cost, helps every reader) and **do not build a checker**. Rely on
+the step that actually worked here: **at deletion time, derive the removal set from the diff
+(`git diff <base>..HEAD -- src/lib` ∪ the migrations' `drop function|policy|column` statements)
+and sweep it.** That is what found all seven; three prior lists built from recall found 6, 3 and
+4, each bounded by a different unstated key. **Encode it as a deletion-discipline step, not a
+script** — the knowledge lives with whoever removes the symbol, and no resolver reproduces it.
+
+**If the PO still wants a checker**, it must satisfy all of: per-occurrence classification ·
+family/module resolution · a catalog arm · a diff base · and a first dry-run against a
+**hand-classified control** containing `actions.ts:309`, `api/documents/[id]/route.ts:46` and the
+`components/forms/*` hits as **known-goods** — *a detector that finds a lot needs proving too*
+([[a-detector-that-finds-a-lot-needs-proving-too]],
+[[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
 ### 🔴 FUP-PGTAP-SAVEPOINT — a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape (owner: lead + backend)
 
