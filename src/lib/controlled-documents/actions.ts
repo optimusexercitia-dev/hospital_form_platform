@@ -2,6 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 
+import {
+  beginDocumentUpload,
+  finalizeDocumentUpload,
+  openDocumentVersion,
+} from '@/lib/documents/actions'
+import type {
+  DocumentActionErrorCode,
+  DocumentUploadCredential,
+  OpenDocumentVersionResult,
+} from '@/lib/documents/types'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -32,9 +42,20 @@ export interface ActionState {
   fieldErrors?: Record<string, string>
 }
 
-/** Create/update return the document id so the UI can route to its detail. */
+/**
+ * Create/update return the document id so the UI can route to its detail.
+ *
+ * `versionId` (DM3, lead-ruled 2026-08-13): the draft version minted alongside
+ * the header. The wizard needs BOTH ids before it can call
+ * {@link beginControlledVersionUpload}, because on the DM2 substrate the
+ * document and version must exist before an upload can be reserved — so
+ * "create + upload + submit" is not expressible as one atomic server action and
+ * the wizard orchestrates the chain client-side. `create_controlled_document`
+ * already returns the whole row; this stops discarding its `current_version_id`.
+ */
 export interface CreateDocumentState extends ActionState {
   documentId?: string
+  versionId?: string
 }
 
 /** Add-version returns the new version id so the UI can route/refresh. */
@@ -319,43 +340,181 @@ async function uploadDocumentFile(
   return { path }
 }
 
+// ---------------------------------------------------------------------------
+// DM3 Wave B — the three-step file flow (ADR 0114 D8; plan §7)
+//
+// `addDocumentVersion` is GONE. It uploaded the bytes SERVER-side and then
+// pointed the domain row at a raw `storage_path`; both halves of that are
+// retired (M4/M5). The replacement is the DM2 corridor:
+//
+//   beginControlledVersionUpload   → reserve a core version + a signed PUT
+//   (client uploads the bytes)     → uploadDocumentFile from
+//                                    @/lib/documents/upload-client
+//   finalizeControlledVersionUpload→ server-verifies size/MIME/hash, then
+//                                    points the domain version at the core one
+//
+// The bucket and path never cross this boundary (ADR 0118 §1).
+// ---------------------------------------------------------------------------
+
+/** What the client needs to PUT the bytes, plus the ids to finalize with. */
+export interface BeginControlledVersionUploadInput {
+  commissionId: string
+  /** `controlled_documents.id` — also its `securable_resources.id` (shared PK). */
+  documentId: string
+  /** `controlled_document_versions.id` — the DOMAIN version being filled. */
+  versionId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+}
+
+export type BeginControlledVersionUploadResult =
+  | {
+      ok: true
+      credential: DocumentUploadCredential
+      coreDocumentVersionId: string
+      /**
+       * ⚠ ADDED to the §7 sketch (lead + frontend notified): §7 omitted it, and
+       * without it {@link finalizeControlledVersionUpload} is uncallable — the
+       * finalize step is keyed on the upload SESSION, not on the version.
+       */
+      uploadSessionId: string
+    }
+  | { ok: false; error: string; code: DocumentActionErrorCode }
+
 /**
- * Attach/replace the file of a `draft` version (immutable upload). Fields:
- * `commissionId`, `documentId`, `versionId`, the uploaded `file`, optional
- * `summaryOfChangesMd`/`expiryDate`. Uploads to a NEW path then routes to
- * `set_document_version_file`. Returns `versionId`.
+ * Finalize's state: {@link AddVersionState} plus the MAJOR-3 `terminal` flag,
+ * carried through from the core contract. `terminal: true` means the bytes
+ * landed but FAILED verification — the reservation is spent and re-running
+ * finalize can never succeed, so the dialog must not offer "Tentar novamente".
+ * Absent = retryable (e.g. a PUT that left no object).
  */
-export async function addDocumentVersion(
-  _prev: AddVersionState | undefined,
-  formData: FormData,
-): Promise<AddVersionState> {
-  const commissionId = String(formData.get('commissionId') ?? '')
-  const documentId = String(formData.get('documentId') ?? '')
-  const versionId = String(formData.get('versionId') ?? '')
-  const file = formData.get('file')
-  const expiryDate = parseDate(formData.get('expiryDate'))
+export interface FinalizeControlledVersionUploadState extends AddVersionState {
+  terminal?: boolean
+}
 
-  if (!commissionId || !documentId || !versionId) return { ok: false, error: MESSAGES.notFound }
-  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
-  if (!(file instanceof File)) return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
+/**
+ * Reserve a core `document_versions` row + `file_objects` path for a controlled
+ * document version and return the upload credential. Wraps
+ * `begin_document_upload(p_resource_type := 'controlled_document')`, which
+ * derives the tier SERVER-side — a controlled document is always `standard`,
+ * and `reclassify_document` refuses to move it to `phi` (HC0DH, M6).
+ *
+ * Returns a machine `code` on the failure arm so the caller can render its own
+ * pt-BR copy; `finalizeControlledVersionUpload` returns a pre-rendered string.
+ */
+export async function beginControlledVersionUpload(
+  input: BeginControlledVersionUploadInput,
+): Promise<BeginControlledVersionUploadResult> {
+  const doc = await getControlledCoreDocumentId(input.documentId)
+  if (!doc) return { ok: false, error: MESSAGES.notFound, code: 'not_found' }
 
-  const uploaded = await uploadDocumentFile(file, commissionId, documentId)
-  if ('error' in uploaded) {
-    return { ok: false, fieldErrors: { [uploaded.field]: uploaded.error } }
+  const begun = await beginDocumentUpload({
+    homeResourceType: 'controlled_document',
+    homeResourceId: input.documentId,
+    documentId: doc,
+    title: input.fileName,
+    kind: 'documento_controlado',
+    declaredFileName: input.fileName,
+    declaredMimeType: input.mimeType,
+    declaredSizeBytes: input.sizeBytes,
+  })
+  if (!begun.ok) {
+    // The core returns the CODE in `error`; this wrapper's contract is a
+    // machine code PLUS a fallback pt-BR string (§7), so the component layer
+    // can render its own copy per code without inventing one for the default.
+    return { ok: false, error: MESSAGES.generic, code: begun.error }
+  }
+
+  return {
+    ok: true,
+    credential: begun.upload,
+    coreDocumentVersionId: begun.documentVersionId,
+    uploadSessionId: begun.uploadSessionId,
+  }
+}
+
+/**
+ * Verify the uploaded bytes server-side and point the DOMAIN version at the
+ * core one. Two RPCs: `finalize_document_upload` (derives + verifies
+ * size/MIME/hash — caller-supplied values are hints, never trusted) then
+ * `attach_controlled_document_version_file`, which re-checks staff-admin
+ * authority and the draft/changes_requested freeze (HC089).
+ */
+export async function finalizeControlledVersionUpload(input: {
+  versionId: string
+  uploadSessionId: string
+  coreDocumentVersionId: string
+  summaryOfChangesMd?: string | null
+  expiryDate?: string | null
+}): Promise<FinalizeControlledVersionUploadState> {
+  const finalized = await finalizeDocumentUpload(input.uploadSessionId)
+  if (!finalized.ok) {
+    return {
+      ok: false,
+      error: finalized.error === 'file_too_large' ? MESSAGES.fileTooLarge
+        : finalized.error === 'file_type_not_allowed' ? MESSAGES.fileTypeInvalid
+        : finalized.error === 'forbidden' ? MESSAGES.forbidden
+        : finalized.error === 'not_found' ? MESSAGES.notFound
+        : MESSAGES.uploadFailed,
+      terminal: finalized.terminal,
+    }
   }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('set_document_version_file', {
-    p_version_id: versionId,
-    p_storage_path: uploaded.path,
-    p_summary_of_changes_md: String(formData.get('summaryOfChangesMd') ?? '').trim() || undefined,
-    p_expiry_date: expiryDate ?? undefined,
+  const { data, error } = await supabase.rpc('attach_controlled_document_version_file', {
+    p_version_id: input.versionId,
+    p_core_version_id: input.coreDocumentVersionId,
+    p_summary_of_changes_md: input.summaryOfChangesMd?.trim() || undefined,
+    p_expiry_date: input.expiryDate ?? undefined,
   })
-
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
 
   revalidateDocuments()
   return { ok: true, error: MESSAGES.versionAdded, versionId: data.id }
+}
+
+/**
+ * Authorize and sign a short-TTL download for ANY version of a controlled
+ * document — current or PRIOR. Takes the DOMAIN
+ * `controlled_document_versions.id`; the core version is resolved from the
+ * pointer here so callers never handle core ids.
+ *
+ * Replaces `createSignedDownloadUrl`. Authority is now checked at CALL time by
+ * `open_document_version` (member OR entitled approver, via the kernel arm),
+ * which also refuses disposed/non-servable state and emits the D11 audit row.
+ * Prior-version downloads keep working because the door takes a version id and
+ * never consults `current_version_id`.
+ */
+export async function openControlledDocumentVersion(
+  versionId: string,
+): Promise<OpenDocumentVersionResult> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('controlled_document_versions')
+    .select('core_document_version_id')
+    .eq('id', versionId)
+    .maybeSingle<{ core_document_version_id: string | null }>()
+
+  if (error || !data?.core_document_version_id) {
+    // Absence ≡ denial: an unreadable version and an unbound one are reported
+    // identically, matching the door's own oracle-kill. `error` carries the
+    // machine CODE here (the core OpenDocumentVersionResult contract) — the UI
+    // owns the pt-BR wording.
+    return { ok: false, error: 'not_found' }
+  }
+  return openDocumentVersion(data.core_document_version_id)
+}
+
+/** The core `documents.id` a controlled document owns (DM3 M3), or `null`. */
+async function getControlledCoreDocumentId(documentId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('controlled_documents')
+    .select('core_document_id')
+    .eq('id', documentId)
+    .maybeSingle<{ core_document_id: string | null }>()
+  return data?.core_document_id ?? null
 }
 
 /**
@@ -723,7 +882,11 @@ export async function createDraftOnly(
   }
 
   revalidateDocuments()
-  return { ok: true, error: MESSAGES.created, documentId }
+  // versionId is returned (DM3): the wizard needs BOTH ids before it can call
+  // beginControlledVersionUpload — the document and version must exist before
+  // an upload can be reserved, which is why the create+upload+submit composite
+  // cannot be atomic on the DM2 substrate and moves client-side.
+  return { ok: true, error: MESSAGES.created, documentId, versionId }
 }
 
 /**

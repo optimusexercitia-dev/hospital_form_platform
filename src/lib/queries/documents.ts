@@ -80,17 +80,46 @@ type DocumentRow = {
 const SERVABLE = new Set(['clean', 'unscanned_accepted'])
 const FAILED = new Set(['failed', 'rejected', 'infected', 'abandoned'])
 
+/**
+ * The ONE availability predicate, shared by Wave A and Wave B
+ * (`src/lib/queries/controlled-documents.ts`) so the two projections cannot
+ * drift from each other — or, more importantly, from the door.
+ *
+ * ⚠ THIS MUST AGREE WITH `open_document_version` EXACTLY. `available` means
+ * "the door would serve these bytes right now": a `source` rendition is bound,
+ * its file object is `clean`/`unscanned_accepted`, nothing is disposed, and the
+ * document is `active`. Anything the door would refuse must NOT read as
+ * `available` here, and anything it would serve must not read as `pending` —
+ * the UI gates its submit/download affordances on this value, so a disagreement
+ * is a broken affordance in one direction and a false promise in the other.
+ * Pinned by pgTAP 330 DM3·X3 (projection ↔ door agreement).
+ */
+export function documentVersionAvailability(input: {
+  documentStatus: string
+  /** `file_objects.upload_state` of the bound `source` rendition; `null` when unbound. */
+  sourceUploadState: string | null
+  /** `file_objects.disposal_state` of that same rendition; `null` when unbound. */
+  sourceDisposalState: string | null
+}): DocumentAvailability {
+  const { documentStatus, sourceUploadState, sourceDisposalState } = input
+  if (documentStatus === 'disposal_pending' || documentStatus === 'disposed') return 'disposed'
+  if (sourceUploadState === null) return 'pending'
+  if (sourceDisposalState !== 'none') return 'disposed'
+  if (SERVABLE.has(sourceUploadState)) {
+    return documentStatus === 'active' ? 'available' : 'unavailable'
+  }
+  if (FAILED.has(sourceUploadState)) return 'failed'
+  return 'pending'
+}
+
 function versionAvailability(v: VersionRow, docStatus: string): DocumentAvailability {
-  if (docStatus === 'disposal_pending' || docStatus === 'disposed') return 'disposed'
   const source = v.document_version_files.find((b) => b.rendition_kind === 'source')
   const file = source?.file_objects
-  if (!file) return 'pending'
-  if (file.disposal_state !== 'none') return 'disposed'
-  if (SERVABLE.has(file.upload_state)) {
-    return docStatus === 'active' ? 'available' : 'unavailable'
-  }
-  if (FAILED.has(file.upload_state)) return 'failed'
-  return 'pending'
+  return documentVersionAvailability({
+    documentStatus: docStatus,
+    sourceUploadState: file?.upload_state ?? null,
+    sourceDisposalState: file?.disposal_state ?? null,
+  })
 }
 
 function toVersionSummary(v: VersionRow, docStatus: string): DocumentVersionSummary {

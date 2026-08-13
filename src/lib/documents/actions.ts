@@ -81,6 +81,16 @@ export async function documentsWaveAEnabled(): Promise<boolean> {
   return featureEnabled('documents_wave_a')
 }
 
+/**
+ * Wave B (DM3 — controlled documents on the core model). Mirrors
+ * {@link documentsWaveAEnabled}. UI-gating only: the DB gate is
+ * `app.assert_documents_wave_b_enabled()`, which every DM3 door calls (HC0D7),
+ * so a stale client cannot reach past this.
+ */
+export async function documentsWaveBEnabled(): Promise<boolean> {
+  return featureEnabled('documents_wave_b')
+}
+
 /** Reserves a file object + upload session (server-derived path/tier/bucket)
  * and returns the short-TTL signed upload credential. */
 export async function beginDocumentUpload(

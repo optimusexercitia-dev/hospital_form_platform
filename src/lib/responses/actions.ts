@@ -1209,8 +1209,12 @@ const SUBMISSIONS_DETAIL_PATH =
  * SUCCESSOR that supersedes it (wraps `supersede_response` — the single
  * authority; SUP / ADR 0074). Reads `responseId` + `reason` (mandatory) from
  * `formData` — the `useActionState`-as-prop pattern (mirrors
- * `supersedeDocument`/`SupersedeDocumentButton`), so the confirm dialog's
- * "Motivo da correção" textarea posts here.
+ * `supersedeDocument`), so the confirm dialog's "Motivo da correção" textarea
+ * posts here.
+ * (The `SupersedeDocumentButton` half of that comparison was removed here in
+ * DM3: the component had zero importers repo-wide and frontend deleted it in
+ * the Wave B slice. A comment naming a component that no longer exists is
+ * invisible to all five lint gates and reads as current to the next person.)
  *
  * The RPC copies the predecessor's answers + selections into the new draft
  * (correct-in-place ergonomics — the corrector edits what was wrong rather

@@ -1,6 +1,13 @@
+import type { DocumentAvailability } from '@/lib/documents/types'
+
 /**
  * Controlled Documents (Phase 17 — Gestão de Documentos Controlados) — CLIENT-SAFE
  * domain types + label maps.
+ *
+ * ⚠ The `@/lib/documents/types` import above is types + consts only (no
+ * server-only runtime), so the client-safety rule in the header below still
+ * holds. Do not "upgrade" it to a value import from `@/lib/queries/*` — that is
+ * the BUG-FBE-005 class, which aborts `next build` while tsc/lint/vitest pass.
  *
  * **Purity contract** (the `indicators/types.ts` / `safety/capa-types.ts` discipline).
  * This module has ZERO runtime imports of server-only code — it stays importable
@@ -99,6 +106,13 @@ export interface ControlledDocument {
   currentVersionId: string | null
   createdAt: string
   updatedAt: string
+  // ⚠ NO `coreDocumentId` here, deliberately (§7 amendment, DM3). The core
+  // `documents` id is an internal seam: `beginControlledVersionUpload` resolves
+  // it server-side from the domain id, so no caller needs it. Exposing it would
+  // also have forced a lie in the list projection — `list_commission_documents`
+  // is a DEFINER rollup that does not return the column, so every list row
+  // would have carried `null`, which reads as "this document has no core
+  // document" rather than "this projection doesn't carry it".
 }
 
 /**
@@ -111,7 +125,23 @@ export interface ControlledDocumentVersion {
   id: string
   documentId: string
   versionNumber: number
-  storagePath: string | null
+  /**
+   * The core `document_versions` row carrying this version's file (DM3 M3).
+   * `null` until a file is attached. Movable only while the domain version is
+   * `draft`/`changes_requested` — the DB enforces that twice (the door's HC089
+   * and `app.guard_controlled_core_binding`'s HC0DB).
+   *
+   * ⚠ Do NOT gate affordances on this being non-null: a bound version can still
+   * be unservable (upload in flight, scan failed, disposed). Gate on
+   * {@link ControlledDocumentVersion.availability}.
+   */
+  coreDocumentVersionId: string | null
+  /**
+   * Whether the byte door would serve this version RIGHT NOW — derived by the
+   * shared `documentVersionAvailability` predicate, which is written to agree
+   * with `open_document_version` exactly. `available` ⟺ the door serves.
+   */
+  availability: DocumentAvailability
   summaryOfChangesMd: string | null
   effectiveDate: string | null
   reviewDueDate: string | null

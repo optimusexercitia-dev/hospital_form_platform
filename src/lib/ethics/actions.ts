@@ -386,10 +386,16 @@ export async function setEthicsDecisionDetails(
   input: SetEthicsDecisionDetailsInput,
 ): Promise<ActionState> {
   const supabase = await createClient()
-  // NOTE: decisionLetterDocumentId is part of the frozen input contract but the
-  // set_ethics_decision_details RPC does not accept it yet — the decision-letter /
-  // legal_privileged clearance path defers to Stage E (0078 A19/B3; ADR 0073 Amendment
-  // §3). Passing the fields the RPC supports; the doc id is a no-op until Stage E.
+  // DM3 (ADR 0114 Amendment 2 / D17, discharge condition 5): the decision-letter
+  // id is now FORWARDED. It was accepted here and silently dropped, which — once
+  // condition 1 gave the column a real FK — would have left it pointing at
+  // documents nothing could create: the same defect wearing a constraint.
+  //
+  // The document must be a CASE document of THIS case, and the caller must be
+  // able to READ it (linking is disclosure by reference, so the D15 ceiling
+  // gates it exactly as it gates the read). Both are enforced server-side —
+  // door-side as HC0DJ and, independently, by app.guard_ethics_document_case_scope
+  // as HC0DI — never here.
   const { error } = await supabase.rpc('set_ethics_decision_details', {
     p_decision_id: decisionId,
     p_sanction_type_id: input.sanctionTypeId ?? undefined,
@@ -402,6 +408,7 @@ export async function setEthicsDecisionDetails(
     p_external_reporting_deadline: input.externalReportingDeadline ?? undefined,
     p_appeal_allowed: input.appealAllowed ?? undefined,
     p_appeal_deadline: input.appealDeadline ?? undefined,
+    p_decision_letter_document_id: input.decisionLetterDocumentId ?? undefined,
   })
   if (error) return { ok: false, error: mapEthicsError(error) }
   revalidateCase()

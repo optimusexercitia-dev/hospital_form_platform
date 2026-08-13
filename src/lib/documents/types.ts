@@ -28,8 +28,21 @@
  *   DATABASE is the authority, these are projections.
  */
 
-/** The four Wave-A home resource types (`securable_resources.resource_type`). */
-export type DocumentHomeResourceType = 'case' | 'meeting' | 'interview' | 'action_item'
+/**
+ * The home resource types (`securable_resources.resource_type`) — the four
+ * Wave-A ones plus Wave B's `controlled_document` (DM3, ADR 0114 D13).
+ *
+ * ⚠ An ETHICS decision letter is NOT a `controlled_document` home: it homes on
+ * the `case` resource so it inherits the ETH·E1 spine (ADR 0114 Amendment 2 /
+ * lead ruling Q1). Only the LIFECYCLE is shared with controlled documents; the
+ * reader set is not. Pinned by pgTAP 330 DM3·A4.
+ */
+export type DocumentHomeResourceType =
+  | 'case'
+  | 'meeting'
+  | 'interview'
+  | 'action_item'
+  | 'controlled_document'
 
 /** Physical sensitivity tier (`file_objects.sensitivity_tier`). SERVER-derived
  * from the home resource (case/interview → phi; meeting/action_item →
@@ -77,6 +90,10 @@ export const DOCUMENT_KINDS: Record<DocumentHomeResourceType, readonly string[]>
   meeting: ['pauta', 'apresentacao', 'literatura', 'lista_presenca', 'ata_assinada', 'outro'],
   interview: ['gravacao_audio', 'transcricao_assinada', 'evidencia', 'outro'],
   action_item: ['evidencia', 'outro'],
+  // Wave B: the controlled document's OWN taxonomy lives on
+  // `controlled_documents.doc_type` (policy/sop/protocol/bylaws/manual/other),
+  // so the core `kind` carries only what the core model needs to know.
+  controlled_document: ['documento_controlado'],
 }
 
 /**

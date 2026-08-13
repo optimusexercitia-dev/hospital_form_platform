@@ -18,11 +18,16 @@
  *    no broad write). The pending row is the grant.
  *  - The hospital tier reads ONLY via `hospital_document_register` (a PHI-free
  *    DEFINER rollup — counts/metadata, no bodies/paths), never the row.
- *  - Storage reads are signed-URL only, minted server-side (`createSignedDownloadUrl`).
+ *  - Storage reads NO LONGER happen here (DM3, ADR 0114 D8). The bucket signer
+ *    `createSignedDownloadUrl` is gone with both `controlled-documents` bucket
+ *    policies; bytes flow through `openControlledDocumentVersion`
+ *    (`@/lib/controlled-documents/actions`) → `open_document_version`, which
+ *    authorizes at CALL time and audits. No bucket or path is reachable here.
  *
  * PHI-FREE: controlled documents are governance artifacts (ADR 0057).
  */
 
+import { documentVersionAvailability } from '@/lib/queries/documents'
 import { createClient } from '@/lib/supabase/server'
 import type {
   ApprovalDecision,
@@ -62,7 +67,9 @@ export {
   OBSOLETE_KIND_LABELS,
 } from '@/lib/controlled-documents/types'
 
-const SIGNED_URL_TTL_SECONDS = 3600
+// (The 3600 s signed-URL TTL retired with `createSignedDownloadUrl` — DM3 M5.
+// TTLs are now the core model's, PO-ruled at DM2: phi 120 s / standard 300 s,
+// applied inside `src/lib/documents/`. ADR 0114 O4.)
 
 // ---------------------------------------------------------------------------
 // Row shapes + mappers
@@ -113,7 +120,21 @@ interface VersionRow {
   id: string
   document_id: string
   version_number: number
-  storage_path: string | null
+  core_document_version_id: string | null
+  /**
+   * The core version's `source` binding, embedded so `availability` can be
+   * derived by the SAME predicate Wave A uses — and therefore agree with
+   * `open_document_version`. The embed is one level deeper than it looks
+   * because the binding is a join table (`document_version_files`).
+   */
+  document_versions?: {
+    document_id: string
+    documents?: { status: string } | null
+    document_version_files: Array<{
+      rendition_kind: string
+      file_objects: { upload_state: string; disposal_state: string } | null
+    }>
+  } | null
   summary_of_changes_md: string | null
   effective_date: string | null
   review_due_date: string | null
@@ -128,17 +149,32 @@ interface VersionRow {
 }
 
 const VERSION_SELECT =
-  'id, document_id, version_number, storage_path, summary_of_changes_md, ' +
+  'id, document_id, version_number, core_document_version_id, summary_of_changes_md, ' +
   'effective_date, review_due_date, expiry_date, proposed_effective_date, ' +
   'approval_due_date, obsolete_kind, status, created_at, updated_at, ' +
-  'profiles:created_by(full_name)'
+  'profiles:created_by(full_name), ' +
+  'document_versions:core_document_version_id(' +
+  'document_id, documents:document_id(status), ' +
+  'document_version_files(rendition_kind, file_objects:file_object_id(upload_state, disposal_state))' +
+  ')'
 
 function mapVersion(r: VersionRow): ControlledDocumentVersion {
+  const core = r.document_versions ?? null
+  const source = core?.document_version_files?.find((b) => b.rendition_kind === 'source')
   return {
     id: r.id,
     documentId: r.document_id,
     versionNumber: r.version_number,
-    storagePath: r.storage_path,
+    coreDocumentVersionId: r.core_document_version_id,
+    // Derived by the SHARED predicate (`documentVersionAvailability`), never
+    // re-implemented here — a second copy is how a UI gate drifts away from the
+    // door it is supposed to mirror. An unbound pointer yields `pending`, so
+    // `available` can never be reported for a version with no core version.
+    availability: documentVersionAvailability({
+      documentStatus: core?.documents?.status ?? 'active',
+      sourceUploadState: source?.file_objects?.upload_state ?? null,
+      sourceDisposalState: source?.file_objects?.disposal_state ?? null,
+    }),
     summaryOfChangesMd: r.summary_of_changes_md,
     effectiveDate: r.effective_date,
     reviewDueDate: r.review_due_date,
@@ -537,16 +573,17 @@ export async function listApproverCandidates(commissionId: string): Promise<Appr
 }
 
 /**
- * Mint a short-lived signed download URL for a controlled-document storage object.
- * Server-side only (the `controlled-documents` bucket is private; SELECT is gated
- * by the DEFINER storage predicate incl. the approver arm). `null` when the object
- * is not readable by the caller / does not exist.
+ * ⛔ `createSignedDownloadUrl` was REMOVED by DM3 (ADR 0114 D8).
+ *
+ * It signed the `controlled-documents` bucket directly with the cookie client,
+ * so authority was checked ONCE at RSC render time by the storage SELECT policy
+ * and the resulting bearer URL stayed valid for its whole TTL with no
+ * download-time re-check and no audit row — the F-14 shape that motivated this
+ * ADR. Both bucket policies are gone (M5) and the predicate with them.
+ *
+ * Bytes now flow through `openControlledDocumentVersion`
+ * (`@/lib/controlled-documents/actions`) → `open_document_version`, which
+ * authorizes at CALL time, refuses non-servable/disposed state, emits the D11
+ * audit row, and signs short-TTL inside the coordinate-resolving module. No
+ * bucket or path crosses this boundary (ADR 0118 §1).
  */
-export async function createSignedDownloadUrl(storagePath: string): Promise<string | null> {
-  if (!storagePath) return null
-  const supabase = await createClient()
-  const { data } = await supabase.storage
-    .from('controlled-documents')
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
-  return data?.signedUrl ?? null
-}
