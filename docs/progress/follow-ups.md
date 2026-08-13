@@ -8,6 +8,44 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
+
+Filed 2026-08-13 during DM3. Every one of the five gates in `npm run lint` was added **after**
+its class shipped a live defect (CLAUDE.md §8). This class qualifies twice over: **~6 instances
+in DM3 alone**, plus 4 historically, **one of which shipped a live bug**.
+
+**The class.** A deletion strands every comment that referenced it, and **no gate sees any of
+them** — not typecheck, not eslint, not the four custom gates. Worst DM3 specimen:
+`supersedeDocument`'s doc comment telling the frontend to upload *"via `addDocumentVersion`"* —
+**a deleted verb, named in the documentation of a verb the frontend actively calls**. Others:
+a page header claiming the storage SELECT policy carried the approver arm (false since M5 —
+different provenance, a *migration* rather than a deletion, same class), and a module header
+still advertising the signed-URL byte path M5 deleted.
+
+⚠ **The design tension that must be resolved BEFORE the gate is built — raised by `frontend`,
+ruled by the lead 2026-08-13.** Four comments in `src/app` + `src/components` deliberately
+name a dead symbol **as dead** ("`reviseChangesRequestedDocument` is gone"), which a naive
+implementation would flag as false positives:
+
+- `…/documentos/novo/page.tsx:40` · `…/nova-versao/page.tsx:27` · `…/revisar/page.tsx:33` ·
+  `components/controlled-documents/add-version-form.tsx:52`
+
+**RULING: tombstones are legitimate and stay.** A reader who remembers `supersedeAndSubmitDocument`
+and finds **silence** concludes they are in the wrong file; one who finds *"it is gone, and here
+is what replaced it"* is served. Deleting that information to satisfy a gate would make the
+codebase worse in order to make a check pass — the gate exists to serve the reader, not the
+reverse.
+
+**Therefore the gate's spec must include a machine-checkable tombstone convention** (an explicit
+marker token adjacent to the symbol, e.g. `@removed`), so a deliberate tombstone is
+distinguishable from a stale claim **without natural-language guessing**. Settle the exact token
+when the gate is built. ⛔ **Do not churn the four sites now** for a gate that does not yet
+exist — a mid-phase rewrite for a hypothetical checker is cost with no coverage.
+
+**Discharge:** a `scripts/check-stale-symbol-comments.mjs` chained into `npm run lint`, with the
+tombstone convention, **and proven able to fail** before it is trusted
+(cf. `detector-that-finds-nothing-must-be-proven-able-to-find-something`).
+
 ### 🔴 FUP-PGTAP-SAVEPOINT — a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape (owner: lead + backend)
 
 Found by `backend` during DM3·M2 (2026-08-13) and **independently reproduced by the lead

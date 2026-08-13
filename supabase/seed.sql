@@ -2579,21 +2579,48 @@ begin
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
 
   -- 1) EFFECTIVE document with a PAST-DUE review_due_date.
+  -- ⚠ DM3: a controlled document is now a SECURABLE RESOURCE. Its registry row
+  -- must exist BEFORE the insert (composite FK on (id, securable_type)), and it
+  -- needs a core `documents` row or it can never receive a file. These direct
+  -- inserts MIRROR `public.create_controlled_document`, which is the reference
+  -- implementation — the door is not callable here because the seed needs an
+  -- explicit `code`, a non-draft `status`, and specific dates that the door
+  -- (deliberately) does not accept. If the door changes, change this with it.
+  v_doc_vig := gen_random_uuid();
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_doc_vig, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_comm_a;
+
   insert into public.controlled_documents
-    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
+    (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'policy', 12, 'effective', v_chefe)
-  returning id into v_doc_vig;
+    (v_doc_vig, v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'policy', 12,
+     'effective', v_chefe);
+
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_doc_vig, 'Política de Higienização das Mãos', 'documento_controlado', 'active', v_chefe)
+  returning id into v_core_doc_vig;
+  update public.controlled_documents set core_document_id = v_core_doc_vig where id = v_doc_vig;
 
   insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md,
+    (document_id, version_number, summary_of_changes_md,
      effective_date, review_due_date, status, created_by)
-  -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
   values
-    (v_doc_vig, 1, null,
+    (v_doc_vig, 1,
      'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
      'effective', v_chefe)
   returning id into v_ver_vig;
+
+  -- The FILELESS core version, 1:1 with the domain version — mirroring M3's
+  -- backfill exactly, so a fresh reset reproduces the post-backfill state that
+  -- pgTAP 330 DM3·X1 measures. (A fresh reset runs the backfill against an EMPTY
+  -- database, so it is the SEED that must produce this, not the migration.)
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_core_doc_vig, 1, v_chefe)
+  returning id into v_core_ver_vig;
+  update public.controlled_document_versions
+     set core_document_version_id = v_core_ver_vig where id = v_ver_vig;
 
   update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
 
