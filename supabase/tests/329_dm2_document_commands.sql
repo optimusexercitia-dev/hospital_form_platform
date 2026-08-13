@@ -23,7 +23,9 @@ begin;
 -- authority, hold, happy path, copy integrity, the last-copy differential
 -- pair, the vacuity pin, version semantics) + A1–A3 (4: canDelete
 -- affordances).
-select plan(92);
+-- 92 → 100: S4 routed bugs — B0–B6 (8: BUG-DM2-001 observable failure,
+-- BUG-DM2-003 expired-session contract).
+select plan(100);
 
 -- Flags: the module flag flips ON for this txn; the rest asserted as state.
 update app.feature_flags set enabled = true where key = 'documents_foundation';
@@ -80,8 +82,14 @@ select throws_ok(
         'probe F2') $q$,
   '23514', null,
   'F2 the document verb is not registry-dispatchable even for an entitled reader');
-select is((select count(*)::int from public.audit_log where action = 'document.opened'),
-  0, 'F3 zero registry-minted document-open rows exist');
+-- Scoped to the probe's entity (F2 deliberately used the CASE id, which no
+-- real open ever uses as the document entity) — a GLOBAL zero broke the first
+-- time the tester's legitimate E2E opens landed in the append-only log (the
+-- pgtap-vs-E2E-leftovers class, caught 2026-08-13: have 10, want 0).
+select is((select count(*)::int from public.audit_log
+            where action = 'document.opened'
+              and entity_id = 'd0000000-0000-0000-0000-0000000000c1'),
+  0, 'F3 the refused registry attempt minted nothing (probe-scoped, hermetic)');
 
 -- =============================================================================
 -- U — the upload machine on seeded Caso 0001 (CCIH; phi tier by home rule).
@@ -613,6 +621,81 @@ select is(
   (select can_delete from public.document_delete_affordances(
      array[(select (r->>'document_id')::uuid from u8)])),
   false, 'A3 under a live hold even the staff_admin loses the affordance (no hold disclosure needed)');
+
+-- =============================================================================
+-- B — S4 routed bugs (2026-08-13). BUG-DM2-001 (MAJOR): a failed verification
+-- must be READER-OBSERVABLE — the completion door now binds the failed file,
+-- so the projection derives `failed`, not eternal `pending`. The door-side
+-- pins B1–B4 are the substrate half; the browser-side half is tester's
+-- test.fail() spec flipping hard. BUG-DM2-003 (MINOR): the expired-marking
+-- UPDATE was rolled back by its own RAISE — removed; the refusal stays
+-- predicate-based and expiry marking belongs to reconciliation. B5/B6 pin the
+-- DECIDED contract (B6 is green-on-both-sides BY DESIGN — it asserts the
+-- refusal leaves state 'reserved', replacing the state-column lie; its red
+-- half is the tester's spec + the dead line's removal, catalog-diffed).
+-- RED-FIRST: B1 `have: 0, want: 1` · B2 `have: 0, want: 1` · B4 caught the
+-- unbound message, wanted the failed-state message — observed pre-
+-- 20260924000600 and quoted in the S2 record.
+-- =============================================================================
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u9 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (falha)', null, null, null, 'x.pdf', 'application/pdf', 100) as r;
+grant select on u9 to authenticated;  -- B2 reads it under set local role (the 191 mtg dialect)
+select set_config('request.jwt.claims', '', true);
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 3, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u9);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u9)) $q$,
+  'B0 u9 finalizes (object present)');
+select set_config('request.jwt.claims', '', true);
+select is(
+  (select public.complete_document_upload_verification(
+      (select (r->>'upload_session_id')::uuid from u9), '', false)->>'upload_state'),
+  'failed', 'B0b the verifier reports the failure (p_verified = false)');
+
+select is(
+  (select count(*)::int from public.document_version_files
+    where document_version_id = (select (r->>'document_version_id')::uuid from u9)),
+  1, 'B1 BUG-DM2-001: the FAILED file is BOUND — the failure is part of the version''s record');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is(
+  (select f.upload_state from public.file_objects f
+    where f.id = (select (r->>'file_object_id')::uuid from u9)),
+  'failed',
+  'B2 …and READER-OBSERVABLE: the uploader sees the failed state through the chain (the projection derives `failed`, never eternal `pending`)');
+reset role;
+select is(
+  (select f.disposal_state from public.file_objects f
+    where f.id = (select (r->>'file_object_id')::uuid from u9)),
+  'none', 'B3 a failed upload is not a disposal (states stay orthogonal)');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from u9)) $q$,
+  'HC0D8', 'arquivo indisponível para download',
+  'B4 the corridor refuses the failed version on its STATE, no longer as merely unbound (message-matched)');
+
+-- BUG-DM2-003: the expired-session contract, as decided.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u10 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (expira)', null, null, null, 'y.pdf', 'application/pdf', 100) as r;
+select set_config('request.jwt.claims', '', true);
+update public.upload_sessions set expires_at = now() - interval '1 minute'
+ where id = (select (r->>'upload_session_id')::uuid from u10);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u10)) $q$,
+  'HC0DE', null, 'B5 an expired reservation refuses finalize (predicate-based — no state write needed)');
+select is(
+  (select s.state from public.upload_sessions s
+    where s.id = (select (r->>'upload_session_id')::uuid from u10)),
+  'reserved',
+  'B6 the refusal leaves state = reserved BY DESIGN (a refusal that must also persist state fights its own transaction; expiry marking is reconciliation''s sweep)');
 
 select * from finish();
 rollback;

@@ -68,7 +68,47 @@ async function listBucketPaths(bucket) {
   return paths
 }
 
-const report = { missing: [], missingDelete: [], orphans: [], counts: {} }
+const report = { missing: [], missingDelete: [], orphans: [], expiredSwept: 0, abandonedSwept: 0, counts: {} }
+
+// BUG-DM2-003 (lead ruling): expiry MARKING lives here, not in the refusal
+// path — finalize's refusal is predicate-based (expires_at < now()) and a
+// refusal that must also persist state fights its own transaction. This sweep
+// runs in its own transaction and makes the state columns truthful:
+// lapsed reserved sessions -> 'expired'; their still-reserved files ->
+// 'abandoned' (both legal machine transitions; reported, not silent).
+{
+  const { data: lapsed, error: lapsedError } = await admin
+    .from('upload_sessions')
+    .select('id, file_object_id')
+    .eq('state', 'reserved')
+    .lt('expires_at', new Date().toISOString())
+  if (lapsedError) {
+    console.error('expiry sweep read failed:', lapsedError.message)
+    process.exit(2)
+  }
+  if (lapsed && lapsed.length > 0) {
+    const { error: sErr } = await admin
+      .from('upload_sessions')
+      .update({ state: 'expired' })
+      .in('id', lapsed.map((s) => s.id))
+    if (sErr) {
+      console.error('expiry sweep (sessions) failed:', sErr.message)
+      process.exit(2)
+    }
+    report.expiredSwept = lapsed.length
+    const { data: swept, error: fErr } = await admin
+      .from('file_objects')
+      .update({ upload_state: 'abandoned' })
+      .in('id', lapsed.map((s) => s.file_object_id))
+      .eq('upload_state', 'reserved')
+      .select('id')
+    if (fErr) {
+      console.error('expiry sweep (files) failed:', fErr.message)
+      process.exit(2)
+    }
+    report.abandonedSwept = swept?.length ?? 0
+  }
+}
 
 const { data: rows, error: rowsError } = await admin
   .from('file_objects')

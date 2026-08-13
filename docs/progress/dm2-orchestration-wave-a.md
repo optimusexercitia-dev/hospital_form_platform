@@ -346,4 +346,28 @@ returns `upload_incomplete`, the session stays retryable ~15 min until
 against; a disagreement is a genuine finding in either direction, not
 automatically an app bug.
 
+## S4 routed bugs (backend, 2026-08-13 — both lead-confirmed from the catalog)
+
+| # | Bug | Fix | Evidence |
+|---|-----|-----|----------|
+| BUG-DM2-001 (🟠) | A failed verification left the row **pending forever** — the door marked the FILE failed but never bound it, and the projection derives availability from the BOUND file. The door's own pin was green: it asserted the column, never what the reader sees. | Migration `20260924000600` (373): **the failure BINDS** — the failed file joins the version's record; the chain makes it reader-observable; the projection derives `failed`. Retry safety verified: every retry mints a NEW version via `begin`, so the failure binding cannot collide with `UNIQUE(version, rendition)`; re-verification of a failed file stays refused. | 329 **B1 red-first `have: 0, want: 1`** (unbound) + B2 (reader-observable through the chain under `set local role`) + B4 (corridor refuses on STATE, message-matched — red pre-fix on the unbound message). Browser half: tester's `test.fail()` spec flips hard. |
+| BUG-DM2-003 (🟡) | finalize's expired-marking UPDATE was rolled back by its own RAISE — `state` stayed `reserved` forever (a state-column lie; the refusal itself was correct, predicate-based). | Dead UPDATE **removed** (postcondition-pinned gone); the refusal stays predicate-based; **expiry marking moved to reconciliation's sweep** (its own transaction — a refusal that must also persist state fights its own transaction): lapsed reserved sessions → `expired`, their reserved files → `abandoned`, both reported. | 329 B5 (HC0DE) + **B6 green-by-design, labeled** (the refusal leaves `reserved` — the DECIDED contract; its red half = tester's spec + the dead line's catalog diff). Sweep smoke on the live stack: `expiredSwept: 3` — my planted row **plus two real E2E-lapsed reservations**, the exact rows the bug predicted; catalog confirms `expired`/`abandoned`. |
+
+- **Fixture-fragility catch en route**: 329 F3 asserted a GLOBAL zero of
+  document-open audit rows — red (`have: 10`) the moment the tester's
+  legitimate E2E opens landed in the append-only log. Re-scoped to the probe
+  entity (the F2 probe deliberately uses the CASE id, which no real open ever
+  carries) — hermetic now.
+- Gate: fresh reset 373==373 · full suite **189f/6059 PASS** (6051 + 8,
+  accounted) · lint 5-gate 0 · tsc 0 first-party · four arms HOLD (census
+  zero-delta; the two changed doors are already named in the findings note's
+  behavioral-coverage list; diff-scoped case list mechanically empty — not
+  cited).
+- **S5 choreography ledger addition (lead-routed, tester-pinned):**
+  `documents_wave_a` gates the UI; `documents_foundation` gates the RPC layer
+  — with foundation ON and wave_a OFF the UI is dark while a direct API
+  caller can still write. **The two flip together, and `documents_wave_a`
+  alone is NOT a kill switch** — if a wave flag is ever meant as an emergency
+  stop it must gate the door, not only the surface.
+
 ## S2+ — (subsequent slices append here)
