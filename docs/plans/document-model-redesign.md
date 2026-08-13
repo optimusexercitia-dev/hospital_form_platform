@@ -189,15 +189,22 @@ Exit: full §6 gate; `npm run e2e:prod` green; reconciliation report clean.
    SELECT policy dropped; prior-version downloads keep working for authorized
    commission members.
 
-5. **Possible scope addition — ethics decision letters (Q1, PO ruling open).** If
-   the PO rules option 1, this wave also adopts
-   `ethics_decision_details.decision_letter_document_id` and
-   `ethics_notifications.related_document_id`, discharging their parked seams per
-   "Unassigned scope" below. **Plan DM3 only after the ruling** — the wave's size
-   depends on it.
+5. **Ethics document seams — IN SCOPE (Q1 RULED 2026-08-13, ADR 0114 Amendment 2 /
+   D17).** This wave adopts `ethics_decision_details.decision_letter_document_id`
+   and `ethics_notifications.related_document_id`. All four discharge conditions
+   are binding, and a partial discharge is not a discharge: re-point both columns
+   to `documents(id)` **with a real FK**; restore `issue_ethics_notification`'s
+   `p_related_document_id` to a working parameter; remove the fail-closed
+   rejection; **remove keystone K8**, which pins that rejection.
+   ⚠ **Lifecycle machinery is shared; the reader set is NOT.** Ethics case reads
+   are gated by the ADR 0072 / ETH·E1 spine (`case_access_grants` +
+   `max_confidentiality` + recusal), with the D15 ceiling column as the surviving
+   mechanism. Prove the ethics arm against that spine with a **negative twin** —
+   reusing Wave B's lifecycle must not import Wave B's readers.
 
 Exit: full lifecycle E2E green (draft→approve→publish→supersede→obsolete +
-prior-version download); migration counts reconciled; gate + approval.
+prior-version download); ethics seam discharged on all four conditions with the
+negative twin green; migration counts reconciled; gate + approval.
 
 ## Phase DM4 — Wave C: referrals
 
@@ -372,7 +379,16 @@ non-member needs to see specific things" three times bespoke — `referral_share
 `case_access_grants`, and Phase 19's planned `surveyor_grants` — and that **F-14, a
 load-bearing finding behind ADR 0114 itself, was a bug inside one of them**.
 
-## Unassigned scope — the ethics document seams (Q1, OPEN)
+## ✅ RULED 2026-08-13 — the ethics document seams (was: Q1, unassigned scope)
+
+> **PO ruling: option 1 — Wave B (DM3)**, recorded as **ADR 0114 Amendment 2
+> (D17)**. The discharge conditions are now binding DM3 scope; see DM3 step 5.
+> Option 2 (Wave A / DM2) was already foreclosed at ruling time — DM2 had closed
+> and been approved, so it would have meant reopening a completed phase. Option 3
+> (a follow-up after DM5) was rejected: it closes the legacy-retirement manifest
+> with two columns pointing at nothing.
+>
+> The section below is kept as the record of the gap and the pre-ruling state.
 
 > Raised by `backend` at DM1 plan time, verified by the lead against the live
 > catalog 2026-08-12. **Owner: PO.** Blocks nothing in DM1; must be ruled before

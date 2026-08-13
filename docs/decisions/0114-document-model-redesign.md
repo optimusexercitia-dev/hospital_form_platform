@@ -4,6 +4,8 @@
   external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling
   session with the PO). **Amendment 1 (D15/D16) ratified 2026-08-13** — the
   per-document confidentiality ceiling; see the end of this file.
+  **Amendment 2 (D17) ratified 2026-08-13** — the ethics document seams join
+  Wave B; see the end of this file.
 - **Supersedes / amends:** ADR 0063 (centralized attachments substrate) — replaced
   wholesale; ADR 0065 owner-set conventions — the closed owner set survives as the
   initial `securable_resources` type set. ARCHITECTURE.md Rules 6/11/12 unchanged.
@@ -247,3 +249,44 @@ the Phase 19 plane.
 
 **Consequence for the D6 deferral.** D6 stands for DM2–DM5 and is no longer open-ended:
 its "if/when a feature commits to it" condition has fired (O3, above).
+
+## Amendment 2 (2026-08-13) — the ethics document seams join Wave B
+
+**Status:** ratified by the PO 2026-08-13. Closes plan question **Q1**, open since
+DM1 plan time. Amends **D13**, which enumerated four consumer waves and covered
+ethics in none of them.
+
+**The gap this closes.** Two live ethics columns pointed at the substrate DM1
+dropped — `ethics_decision_details.decision_letter_document_id` (a seam only; no
+writer, projected by `get_ethics_case_procedure`) and
+`ethics_notifications.related_document_id` (written by
+`public.issue_ethics_notification`, fed from `src/lib/ethics/actions.ts`). This was
+a **scope gap, not a deferral**: nothing decided to postpone ethics, the wave
+decomposition simply never named it. DM1 parked both as nullable `uuid` with their
+FKs dropped and no replacement, and made `issue_ethics_notification` reject a
+non-null id fail-closed (keystone **K8**). Both columns hold zero non-null rows.
+
+**D17 — ethics decision letters and notification-linked documents are Wave B
+citizens.** A disciplinary decision letter is a *governed* document with an
+approval/effective lifecycle — the same shape as a controlled document — so it
+reuses Wave B's machinery rather than earning a wave of its own. Wave A (DM2) was
+rejected for shape: ethics letters are not case/meeting/interview attachments and
+would have ridden a wave built for a different access shape; by the time this was
+ruled, DM2 was a closed, approved phase and adopting them there would have meant
+reopening it. A named follow-up after DM5 was rejected because it would close the
+legacy-retirement manifest with two columns pointing at nothing.
+
+**Discharge conditions, binding on DM3** (all four, or the seam is not discharged):
+re-point both columns to `documents(id)` with a real FK; restore
+`issue_ethics_notification`'s `p_related_document_id` parameter to a working
+parameter; remove the fail-closed rejection; and **remove keystone K8**, which pins
+that rejection — *a keystone left pinning a refusal the product no longer wants is a
+test asserting a bug.* Ethics documents inherit Wave B's no-PHI stance: PHI-tier
+input on an ethics letter fails closed (D13).
+
+⚠ **The ethics access shape is NOT the controlled-document access shape**, even
+though the lifecycle is. Ethics case reads are gated by the ADR 0072 / ETH·E1 spine
+(`case_access_grants` + `max_confidentiality` + recusal), and the D15 ceiling column
+is the mechanism that survives it. DM3 must prove the ethics arm against that spine
+with a negative twin — reusing Wave B's *lifecycle* machinery must not import Wave
+B's *reader set*.
