@@ -122,6 +122,29 @@ QA MINOR-2 (`open_document_version` must gate **before** recording — the regis
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
 
+**🔴 THE SHARPEST OPEN RISK IN DM2 — the write path has never moved a byte** (raised by `frontend`
+at S3 close; lead-confirmed). `begin_document_upload` is **proven reachable and correctly shaped**
+(lead called it directly under `set local role authenticated` with real `sub`+`active_role` claims:
+it authorized, minted document+version+file_object+session, and returned **IDs only, no bucket or
+path** — so the ADR 0118 §1 door topology holds *behaviourally*, not just by construction; rolled
+back, 0 rows). But **nothing has ever exercised browser → server action → RPC → Storage PUT under
+the reserved-path INSERT policy → finalize → verification.** Every upload-island state
+(`preparing`/`uploading`/`finalizing`, the `upload_incomplete` retry that reuses the reservation,
+`upload_expired` dropping it) is **unexercised code**, and the retry branch is the kind that looks
+right and isn't. 329's 92 pins cover the *doors*; they do not cover the *seam*. This is the
+[[green-bar-misses-the-wired-seam]] class — three live bugs once survived a full green bar there and
+only E2E caught them. **S4's first priority, not something to treat as covered.**
+
+⚠ **Tooling note that nearly produced a false regression report.** Mid-verification the case page's
+entire content sat in a `div[hidden]`, buttons had no React fiber props and zero bounding rects, and
+clicks did nothing — which read exactly like a hydration regression from the preceding commit. It was
+not: **the Browser pane was not displayed, so the page was not compositing frames** (the screenshot
+call is what surfaced it). Consequence for method: `javascript_tool` text/DOM reads stay valid without
+compositing — the copy, option lists and badge assertions above are sound — but **layout, real
+clicks, and hydration-dependent behaviour are not observable with the pane hidden**, and their
+absence must never be read as a defect. Take a screenshot early; its failure message names the
+condition when nothing else does.
+
 **✅ S3 BROWSER VERIFICATION — lead-run 2026-08-13** (the agent stalled twice on a **denied**
 `preview_start`; PO approved it, and the lead ran it rather than risk a third stall — full stall
 mechanics in the S3 record). Dev preview on **:57449** (3000 held a stale bind). Method that made
