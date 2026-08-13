@@ -507,10 +507,11 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     // document count). M8 bytes-cut contract, RESTORED against the core
     // document model (DM2 obligation 2; FUP-DM1-E2E): the reviewer sees the
     // document's TITLE (case metadata) but `canDownload={!isOversight}`
-    // (case-detail-view.tsx) suppresses the single audited byte corridor
-    // entirely — `OpenDocumentButton` never renders for her, not merely
-    // disabled (there is no second, unaudited path left to also remember to
-    // suppress under the document model).
+    // (case-detail-view.tsx) suppresses only the AFFORDANCE — `OpenDocumentButton`
+    // never renders for her — never the corridor itself; QA r1 P0-1 was exactly
+    // this prop standing in as the only control (Architecture Rule 1 inverted).
+    // The corridor is shut server-side in `open_document_version` (migration
+    // `20260924000700`); the DOOR assertion below is what actually proves that.
     await expect(
       page.getByRole('heading', { name: 'Documentos' }),
     ).toBeVisible()
@@ -527,17 +528,29 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     // button proves the affordance is hidden; it does not prove the door is
     // shut — this calls the RPC directly, bypassing the UI entirely, exactly
     // the way a caller with the version id and quality.a's own session
-    // could. Expected to be RED until backend closes the corridor (the fix
-    // is in flight, per the lead) — a red-first observed here, not inferred.
-    // See the paired NON-VACUOUS positive control in "no-lockout control"
-    // below: the SAME document, a principal who SHOULD be served, succeeds —
-    // so this refusal cannot be a broken fixture or a blanket door failure.
+    // could. See the paired NON-VACUOUS positive control in "no-lockout
+    // control" below: the SAME document, a principal who SHOULD be served,
+    // succeeds — so this refusal cannot be a broken fixture or a blanket
+    // door failure.
+    //
+    // QA r2 carry-forward: pin the SPECIFIC refusal, not merely `!ok` — a
+    // door that started refusing for an unrelated reason (a bad fixture, a
+    // renamed id, an unrelated 42501 elsewhere in the function) would keep
+    // this green while the byte cut itself regressed. Read live from
+    // `pg_proc` (migration `20260924000700`'s corridor, not the file text):
+    // the kernel (`can_read_document`, M8) admits her — she is NOT P0002 —
+    // and she is refused specifically by the QO·B conjunct,
+    // `not app.has_case_capability(v_case, v_uid, 'read_case_deliberation')`,
+    // which raises 42501 with this exact message, distinct from every other
+    // refusal branch in the function (P0002/HC0DD/HC0D8 all read differently).
     const qualityToken = await accessToken(request, 'quality.a@test.local')
     const openResp = await openDocumentVersion(request, qualityToken, m8DocVersionId)
     expect(
       openResp.ok,
       `expected open_document_version to REFUSE the oversight reviewer; got ok=${openResp.ok} body=${JSON.stringify(openResp.body)}`,
     ).toBeFalsy()
+    expect(openResp.body.code).toBe('42501')
+    expect(openResp.body.message).toBe('sem autorização para baixar este documento')
 
     // INTERVIEWS + MEETINGS — OMITTED entirely (Q4), never an empty card. An
     // empty card reading "Nenhuma entrevista" would falsely assert "nothing
