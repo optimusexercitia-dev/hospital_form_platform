@@ -25,7 +25,9 @@
 begin;
 -- 88 → 109: DM2·S1 adds K14 (the D15 confidentiality ceiling — ADR 0114
 -- Amendment 1; column + seam guard + kernel arm), 21 assertions.
-select plan(109);
+-- 109 → 111: S4 spawn rewrites K9 as three pins (exist / waves-OFF /
+-- foundation+wave_a seed-forced ON).
+select plan(111);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -674,15 +676,27 @@ select is((select count(*)::int from public.securable_resources
 reset role;
 
 -- =============================================================================
--- K9 — the five program flags exist and are OFF (asserted as STATE, §7.3).
+-- K9 — the five program flags, asserted as the SEEDED state (§7.3). Rewritten
+-- at S4 spawn: seed.sql now forces foundation + wave_a ON for local/E2E (the
+-- MIN pattern; production defaults stay OFF from 20260923000600 until the S5
+-- choreography). wave_b/c/d remain OFF everywhere.
 -- =============================================================================
 
 select is(
   (select count(*)::int from app.feature_flags
     where key in ('documents_foundation','documents_wave_a','documents_wave_b',
-                  'documents_wave_c','documents_wave_d')
+                  'documents_wave_c','documents_wave_d')),
+  5, 'K9 all five DM flags exist');
+select is(
+  (select count(*)::int from app.feature_flags
+    where key in ('documents_wave_b','documents_wave_c','documents_wave_d')
       and enabled = false),
-  5, 'K9 all five DM flags exist and are OFF');
+  3, 'K9b the three unbuilt wave flags are OFF');
+select is(
+  (select count(*)::int from app.feature_flags
+    where key in ('documents_foundation','documents_wave_a')
+      and enabled = true),
+  2, 'K9c foundation + wave_a are ON in the seeded local/E2E state (seed-forced; prod default OFF)');
 
 -- =============================================================================
 -- K10 — the D11 read-verb registry, post-S2 (FINDING 1a, DM2): attachment.read

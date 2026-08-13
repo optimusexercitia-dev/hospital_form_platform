@@ -2229,12 +2229,24 @@ end $ind$;
 --  state — prod ON intended. Phase 17 is not shipping yet, so we use the seed instead.)
 update app.feature_flags set enabled = true where key = 'controlled_docs';
 
--- DM1 (ADR 0114 D1/D5): the former F2 LOCAL-ONLY flip of the `attachments` flag
--- was REMOVED — the substrate it gated was dropped by 20260923000100 and the
--- flag key is verbless until DM2 retires it. Local now matches production
--- (attachments = false, flipped in prod 2026-08-11). Wave A (DM2) introduces
--- documents_foundation / documents_wave_a and rebuilds the attachment
--- experience on the document model.
+-- DM2 Wave A (ADR 0114/0118). Both flag rows ship DISABLED from 20260923000600
+-- and stay disabled in production until the DM2 gate closes with human
+-- approval (the S5 flag choreography); these lines force them ON for local/E2E
+-- only — the MIN (audio_minutes) pattern. Without them every Wave A spec would
+-- assert an inert surface and pass vacuously.
+-- ⚠ CONSEQUENCE (the MIN T3-spec-5 trap, verbatim relevant here): a spec that
+-- wants to pin the deliberate flag-OFF contract — the Wave A surface is
+-- ABSENT, not disabled (HC0D7 on every door; no panel affordance) — must turn
+-- the flag(s) OFF itself and restore them, because this seed hands them ON.
+-- (pgTAP 328 K9 pins exactly this seeded state: wave_b/c/d OFF,
+-- foundation + wave_a ON locally.)
+update app.feature_flags set enabled = true
+ where key in ('documents_foundation', 'documents_wave_a');
+-- The legacy `attachments` flag key: seed-retired (DM2, plan item 5 — no flip,
+-- no reference; local matches production at false). The KEY ROW itself + the
+-- FeatureFlags interface entry are retired by the S5 choreography MIGRATION
+-- (prod-affecting, rides the push gate), not by seed surgery — a seed DELETE
+-- would fork local from production on the key's existence.
 
 -- BELT-AND-SUSPENDERS FLAG FLIP (SUP / ADR 0074): the companion migration
 -- 20260720000610_flag_response_correction_on.sql already flips
