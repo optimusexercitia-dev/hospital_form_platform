@@ -382,7 +382,10 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-🟠 **BUG-DM2-001 — a verification FAILURE never binds `document_version_files`, so the row reads
+✅ **BUG-DM2-001 — FIXED 2026-08-13** (backend, migration `20260924000600`, 373 registered; lead-verified from `pg_proc`): the `p_verified = false` branch now **inserts the `document_version_files` binding** alongside marking the file `failed`, so the failure becomes part of the version's record, the chain policies make it reader-observable, and the projection derives **`failed`** rather than eternal `pending`. No UNIQUE collision is reachable — the proven retry contract is the **pre-finalize** one (re-PUT to the same reserved URL); a post-failure retry is `begin` again, minting a new version with its own binding slot. The immutable-binding guard is untouched. Keystones assert the **projection's substrate, not only the column**: B1 red-first (`have: 0 / want: 1`), **B2 reads the failed state through the chain under `set local role authenticated`** (pre-fix: invisible), B4 message-matches the corridor refusing on *state* rather than as merely-unbound.
+
+<!-- original filing retained below -->
+🟠 **BUG-DM2-001 (as filed) — a verification FAILURE never binds `document_version_files`, so the row reads
 "Processando envio" (pending) forever instead of "Falha no envio" (failed).** Filed 2026-08-13
 (tester, DM2·S4 write-path testing). Severity: MAJOR (silent data-loss-adjacent UX — no path exists
 for the user to ever learn the upload failed, or to retry, once this branch is hit).
@@ -442,7 +445,10 @@ behavior ("O2: hidden from the LIST") — not blocked on this bug. **Owner:** ba
 fix the comment to describe row-absence, or wire a genuine row-visible-but-ceiling-denied state if
 Phase 19's general access plane wants one later).
 
-🟡 **BUG-DM2-003 — `upload_sessions.state` never actually becomes `'expired'`; the UPDATE is rolled
+✅ **BUG-DM2-003 — FIXED 2026-08-13** (backend; lead-verified from `pg_proc`: the dead `update … set state = 'expired'` is gone from `finalize_document_upload`). The refusal stays **predicate-based** (`expires_at < now()`) — unchanged and still correct — and the **marking moved to reconciliation**, which now sweeps lapsed reserved sessions → `expired` and their still-reserved files → `abandoned`, both counted in its report. Rationale, worth keeping: *a refusal that must also persist state is fighting its own transaction*; reconciliation already existed to sweep exactly this. ⚠ **The sweep validated the bug with real data on first contact** — its smoke run caught **3** lapsed sessions: one planted, plus **two genuine reservations left by the tester's own E2E runs**, i.e. precisely the rows nothing would ever have marked before.
+
+<!-- original filing retained below -->
+🟡 **BUG-DM2-003 (as filed) — `upload_sessions.state` never actually becomes `'expired'`; the UPDATE is rolled
 back by its own `RAISE EXCEPTION` in the same statement.** Filed 2026-08-13 (tester, DM2·S4 expiry
 testing). Severity: MINOR (the functional refusal is correct and unaffected — only the persisted
 `state` column is wrong).
