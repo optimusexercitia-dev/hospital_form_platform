@@ -107,7 +107,7 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S1 — M1–M7 migrations + suite `330` | backend | ✅ applied — `330` **44/44**, `328` **128/128**; **M8 dropped with evidence** (its premise was false: no projection door ever projected `storage_path`) |
 | S1b — backend side of the §7 contract (TS) | backend | ✅ landed (`d75883b`) — 3 lead-approved §7 corrections; `typecheck` 14 = **10 frontend** (the contract boundary, by design) + **4 backend** (composite verbs, held for frontend's signal) |
 | S1c — keystones `DM3·B4` + `DM3·X3` | backend | 🟢 in progress — ordered **now**, own commit, **not** folded into the composite deletion |
-| S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | 🟢 in progress (contract-first against plan §7) |
+| S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | ✅ landed (`ef62e1b` + `de21b87`) — all 3 wizard modes orchestrate client-side; lint 5/5, vitest **1258/1258**. ⚠ **`createDraftOnly` SURVIVES** (minus its `if (hasFile)` block) — it is the wizard's step 1 and the only verb returning `{documentId, versionId}`; **3 verbs die, not 4** |
 | S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
@@ -152,6 +152,40 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+### ⚠ INCIDENT (2026-08-13) — `supabase/` left the index; 613 files deleted from HEAD, all recovered
+
+**Recovered in full, lead-verified rather than accepted.** Counts of tracked files under
+`supabase/`: `226bfb9`/`d75883b` **613** → **`ef62e1b` 0** → `47e37ed` 1 → `d53d083` **613** →
+HEAD **613**. All 7 DM3 migrations present at HEAD; `git status` clean; and
+`git diff --stat c055e41 HEAD -- supabase/` is **exactly one** changed file — `330` at
++114/−1, precisely the intended B4/X3 addition. **Nothing was lost and nothing drifted:** the
+working tree was intact throughout (files showed `??`, never deleted).
+
+⛔ **ATTRIBUTION CORRECTED — `d53d083`'s commit message is WRONG and cannot be edited.** It
+says *"612 files were dropped by `47e37ed`"*. `47e37ed` is where the absence became **visible**
+(it re-added 1 file, its own `330`). The commit that dropped them is **`ef62e1b`**, and its
+author identified and reported it. History is deliberately **not** rewritten — other sessions
+are active on this branch, and amending another session's commit is a recorded scar. This
+entry is the correction of record; a reader auditing the branch from commit messages alone
+would otherwise start from a false premise about the wrong teammate's work.
+
+**Cause — now KNOWN** (it was reported as "not established", which was true of the reporter):
+staging a slice, `git add -A src/components src/app` was followed by
+`git rm --cached -r --ignore-unmatch supabase` intending to keep one file out of the commit.
+Two things made that catastrophic:
+1. ⚠ **`git rm --cached -r <dir>` does NOT "unstage" — it stages a DELETION of every tracked
+   file under that directory.** `git commit` then reads the index and commits all 613.
+   (The target file was already unstaged — ` M`, not `M ` — so the command was unnecessary
+   as well as wrong.)
+2. **Its output was piped to `/dev/null`**, discarding the 613 lines that would have said so.
+
+⚠ **The reusable lesson: a commit's own output is not a safe report of what it committed.**
+`ef62e1b`'s `--stat` read as an ordinary 3-file change while silently carrying 612 deletions.
+Only `git status --short` exposed it, and only because it happened to be appended to that
+command. **Standing rule: stage explicitly (`git add <paths>`), never send a `git rm` through
+`/dev/null`, and check `git ls-tree -r --name-only HEAD | wc -l` after any commit that touched
+the index broadly.**
 
 **Three §7 corrections, all lead-approved** (`d75883b`) — none moved a signature frontend was
 already building against:
