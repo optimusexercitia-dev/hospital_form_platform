@@ -36,14 +36,14 @@ import { createDocumentFixture, openDocumentVersion } from './helpers/document-m
  *   status `pending`, `patient_enabled = true`) has 2 phases ("Fase 1 —
  *   Coleta inicial" completed, "Fase 2 — Revisão do comitê" pending), and 2
  *   narratives with body text containing "leito 7".
- *   ⛔ PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md): Case 1's seeded
- *   PHI-tier attachment ("Prescrição digitalizada", id a3300000-…a1) and its
- *   AUDITED `OpenAttachmentButton` door ("Baixar Prescrição digitalizada")
- *   were dropped with the attachments substrate (DM1/ADR 0114 D5) — the M8
- *   bytes-cut assertion (`canDownload={!isOversight}` suppresses both the
- *   direct anchor AND the audited-door fallback — case-detail-view.tsx) is
- *   untestable without a live document fixture. Discharge: DM2 reseeds a
- *   case-homed document on the document model and restores the assertion.
+ *   ✅ DISCHARGED — FUP-DM1-E2E (PROGRESS.md, `ebd398a`): Case 1 is reseeded
+ *   with a document on the DM2 core document model, and the M8 bytes-cut
+ *   assertion below is not merely restored but STRENGTHENED past its
+ *   original form — it no longer stops at the button's absence; it calls
+ *   `open_document_version` directly via REST, bypassing the UI entirely,
+ *   to prove the DOOR itself refuses the oversight reviewer (QA r1 P0-1's
+ *   own lesson: an absent control is not proof a door is shut). See the
+ *   assertion itself, further down this file, for the full record.
  *
  *   Case 2 (id d0000000-0000-0000-0000-0000000000c2, "Óbito UTI leito 3",
  *   status `completed`) is the "Reabrir caso" fixture (only a coordinator on

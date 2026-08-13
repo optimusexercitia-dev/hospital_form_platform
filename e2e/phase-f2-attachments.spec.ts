@@ -124,6 +124,12 @@ const MEETING_URL = `/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`
 const INTERVIEW_URL = `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`
 
 const DB_CONTAINER = 'supabase_db_azkbbhskturikxpgmafq'
+const STORAGE_CONTAINER = 'supabase_storage_azkbbhskturikxpgmafq'
+/** The local Storage file backend's on-disk root (`FILE_STORAGE_BACKEND_PATH`
+ * + tenant prefix, probed directly against the running container before this
+ * was written, not assumed): `/mnt/stub/stub/{bucket}/{path}` mirrors
+ * `storage_bucket`/`storage_path` exactly. */
+const STORAGE_FILE_ROOT = '/mnt/stub/stub'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1014,6 +1020,133 @@ test('DM2-VERIFY-FAILED: a verification failure (complete_document_upload_verifi
 })
 
 // ===========================================================================
+// DM2-VERIFY-FAILED-TERMINAL-UI — QA r1 MAJOR-3: after a TERMINAL verification
+// failure the dialog offers no retry affordance at all (backend `797d55b`,
+// frontend `7cc833a`)
+// ===========================================================================
+
+test('DM2-VERIFY-FAILED-TERMINAL-UI: a terminal verification failure (bytes landed, then vanished before the service-role re-download) leaves the dialog with NO submit control — only "Fechar"', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000)
+  // Route to a REAL terminal failure, driven through the actual upload dialog
+  // (not a direct RPC shortcut, unlike DM2-VERIFY-FAILED above): let the PUT
+  // land for real, then remove the object's BYTES while its `storage.objects`
+  // row stays — `finalize_document_upload`'s presence check passes, and the
+  // service role's own download (the D9 verifier — SQL cannot hash) fails.
+  // Read from `pg_proc`: the verification door compares nothing else, so
+  // `failed` is minted SOLELY by that download failure — the only organic
+  // route to a terminal state through the real corridor.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(CASE_URL)
+  await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
+
+  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  await expect(docPanel).toBeVisible({ timeout: 10_000 })
+  await docPanel.getByRole('button', { name: 'Anexar documento' }).click()
+  const dialog = page.getByRole('dialog').filter({ hasText: 'Enviar documento' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+  const title = `DM2-VERIFY-FAILED-TERMINAL-UI ${Date.now()}`
+  await dialog.locator('input[type="file"]').setInputFiles(pdfFile('dm2-terminal.pdf'))
+  await dialog.locator('input[name="title"]').fill(title)
+
+  // Intercept the signed-upload PUT: let it really land (`route.fetch()`),
+  // then delete the object's bytes by the bucket/path the signed URL itself
+  // names — no DB lookup needed, the same shape DM2-STATES' disposal step
+  // uses — before handing the (unmodified) real response back to the client.
+  // The client believes the PUT succeeded, exactly as it did; only the byte
+  // corridor behind it is now empty.
+  await page.route('**/storage/v1/object/upload/sign/**', async (route) => {
+    // A cross-origin PUT with custom headers preflights with OPTIONS on the
+    // SAME URL — only the real PUT should trigger the byte deletion.
+    if (route.request().method() !== 'PUT') {
+      await route.continue()
+      return
+    }
+    const response = await route.fetch()
+    const match = decodeURIComponent(new URL(route.request().url()).pathname).match(
+      /\/storage\/v1\/object\/upload\/sign\/([^/]+)\/(.+)$/,
+    )
+    if (response.ok() && match) {
+      const [, bucket, path] = match
+      // Deliberately NOT the Storage REST `DELETE` (that drops the
+      // `storage.objects` metadata ROW too, which makes `finalize`'s
+      // presence check answer `upload_incomplete` — "the PUT never landed" —
+      // not the terminal `failed` this test targets). Remove only the
+      // on-disk BYTES, straight through the file backend, so the row
+      // (and thus the presence check) survives and only the service role's
+      // OWN re-download — the D9 verifier — fails. The file backend keys the
+      // leaf FILE one level below the object's own `path` (an internal
+      // revision id directory, confirmed against the running container
+      // before writing this), so find and remove the actual leaf file
+      // rather than assuming `path` names it directly.
+      execSync(
+        `docker exec ${STORAGE_CONTAINER} sh -c "find '${STORAGE_FILE_ROOT}/${bucket}/${path}' -type f -delete"`,
+        { encoding: 'utf8' },
+      )
+    }
+    await route.fulfill({ response })
+  })
+
+  await dialog.getByRole('button', { name: 'Enviar', exact: true }).click()
+
+  // The terminal message, verbatim — the copy that replaces the retired retry copy.
+  await expect(
+    dialog.getByText('A verificação do arquivo falhou. Remova este item e envie o arquivo novamente.'),
+  ).toBeVisible({ timeout: 20_000 })
+
+  // THE AFFORDANCE PIN (MAJOR-3): no "Tentar novamente", no "Enviar" — no submit
+  // control of any kind survives a terminal failure. Non-vacuous: paired with a
+  // positive control below proving the dialog is genuinely alive, not just empty.
+  await expect(dialog.getByRole('button', { name: 'Tentar novamente' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'Enviar', exact: true })).toHaveCount(0)
+  await expect(dialog.locator('button[type="submit"]')).toHaveCount(0)
+
+  // Positive control: the dialog is alive and rendering its (only) remaining
+  // affordance — the FOOTER's "Fechar" — not merely absent of controls because
+  // it crashed or never mounted. Scoped to `data-slot="dialog-footer"`: the
+  // dialog ALSO carries a built-in top-right close icon whose `aria-label` is
+  // the same string ("Fechar"), which would make an unscoped role/name
+  // locator ambiguous (two matches) rather than a clean single-element pin.
+  const footer = dialog.locator('[data-slot="dialog-footer"]')
+  const closeBtn = footer.getByRole('button', { name: 'Fechar', exact: true })
+  await expect(closeBtn).toBeVisible()
+  // The footer offers exactly one control in the terminal state.
+  await expect(footer.getByRole('button')).toHaveCount(1)
+
+  // DB truth backing the UI claim: the file really is terminally `failed`.
+  const docs = await svcGet<{ id: string }>(
+    request,
+    `documents?title=eq.${encodeURIComponent(title)}&select=id`,
+  )
+  expect(docs.length).toBe(1)
+  const versions = await svcGet<{ id: string }>(
+    request,
+    `document_versions?document_id=eq.${docs[0].id}&select=id`,
+  )
+  const dvfs = await svcGet<{ file_object_id: string }>(
+    request,
+    `document_version_files?document_version_id=eq.${versions[0].id}&select=file_object_id`,
+  )
+  expect(dvfs.length).toBe(1)
+  const files = await svcGet<{ upload_state: string }>(
+    request,
+    `file_objects?id=eq.${dvfs[0].file_object_id}&select=upload_state`,
+  )
+  expect(files[0].upload_state).toBe('failed')
+
+  // Closing the dialog reveals the failed row behind it (router.refresh() on
+  // the terminal branch) — the recovery the message points to actually exists.
+  await closeBtn.click()
+  await expect(dialog).toHaveCount(0, { timeout: 10_000 })
+  const row = docPanel.locator('li').filter({ hasText: title })
+  await expect(row).toBeVisible({ timeout: 15_000 })
+  await expect(row.getByText('Falha no envio')).toBeVisible()
+})
+
+// ===========================================================================
 // DM2-CEILING-NOONE — the D15 ceiling's row-absence shape, positively pinned
 // (formerly BUG-DM2-002's test.fail(); the underlying defect is FIXED)
 // ===========================================================================
@@ -1071,4 +1204,88 @@ test('DM2-CEILING-NOONE: a legal_privileged document on a case with zero case_ac
   const openResp = await openDocumentVersion(request, chefeToken, documentVersionId)
   expect(openResp.ok).toBeFalsy()
   expect((openResp.body as { code?: string }).code).toBe('P0002')
+})
+
+// ===========================================================================
+// DM2-DELETE-HOLD-REFUSED — QA r1 MINOR-4: a delete refused by a legal hold
+// must SAY so, not just leave the row in place (`document-delete-button.tsx`,
+// fixed `0acdd0d`)
+// ===========================================================================
+
+test('DM2-DELETE-HOLD-REFUSED: a delete refused because of an unreleased legal hold renders the refusal message and keeps the row', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000)
+  // Reachability (corrected from the catalog by `frontend`, not asserted
+  // here as new fact): `document_delete_affordances` returns `canDelete =
+  // false` while an unreleased hold exists, so a FRESHLY-LOADED page never
+  // renders "Remover" at all — the refusal is reachable only from a page
+  // whose affordance was computed BEFORE the hold, i.e. an already-open tab.
+  // This test reproduces exactly that window: upload → observe "Remover" is
+  // offered → place the hold out-of-band (no reload) → THEN click it.
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const title = `DM2-DELETE-HOLD-REFUSED ${Date.now()}`
+  const begun = await beginUpload(request, chefeToken, {
+    resourceType: 'case',
+    resourceId: SEEDED_CASE_ID,
+    title,
+    declaredFileName: 'hold-refused.pdf',
+    declaredMime: 'application/pdf',
+    declaredSize: 10,
+  })
+  expect(begun.ok).toBeTruthy()
+  const documentId = (begun.body as { document_id: string }).document_id
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(CASE_URL)
+  await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
+  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  const row = docPanel.locator('li').filter({ hasText: title })
+  await expect(row).toBeVisible({ timeout: 15_000 })
+
+  // The affordance renders BEFORE the hold exists — the window this test targets.
+  const deleteBtn = row.getByRole('button', { name: titleRe('Remover', title) })
+  await expect(deleteBtn).toBeVisible()
+
+  // Place the hold out-of-band, on the SAME open tab's already-rendered page —
+  // no navigation, no reload.
+  const holdResp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/place_document_hold`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${chefeToken}`,
+      'Content-Type': 'application/json',
+    },
+    data: { p_document_id: documentId, p_reason: 'litigation' },
+  })
+  expect(holdResp.ok(), await holdResp.text()).toBeTruthy()
+
+  // Now exercise the stale-but-still-rendered control.
+  await deleteBtn.click()
+  const dialog = page.getByRole('alertdialog').filter({ hasText: 'Remover este documento?' })
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await dialog.getByRole('button', { name: 'Remover', exact: true }).click()
+
+  // THE PIN (MINOR-4): the refusal is SAID, not silent — `role="alert"`, the
+  // exact under_legal_hold copy — and the dialog stays open (Radix's default
+  // close-on-click is prevented specifically so this is readable).
+  await expect(
+    dialog.getByRole('alert').filter({ hasText: 'Este documento está sob retenção legal e não pode ser removido.' }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(dialog).toBeVisible()
+
+  // DB truth backing the UI claim, taken while the dialog is still open —
+  // the refusal was real, not merely a message painted over a delete that
+  // happened anyway.
+  const docs = await svcGet<{ status: string }>(request, `documents?id=eq.${documentId}&select=status`)
+  expect(docs[0].status).toBe('active')
+
+  // Close and confirm the row is still there with the control intact. The
+  // underlying page is `aria-hidden` by Radix while the modal is open (its
+  // own focus-trap correctness, not a defect) — `docPanel`/`row` cannot be
+  // re-resolved via `getByRole` until the dialog is gone, so the UI-side
+  // non-vacuous control runs AFTER closing, not before.
+  await dialog.getByRole('button', { name: 'Cancelar' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(row).toBeVisible()
 })
