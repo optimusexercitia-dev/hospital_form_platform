@@ -371,3 +371,112 @@ Before/with applying `20260923000100` to the remote:
 
 `HC0DM` is the parked-seam SQLSTATE minted for this program (distinct code so the
 K8 keystones cannot be satisfied by a neighboring validation error — §7.1).
+
+---
+
+## Gate steps 2–5 (lead-run, 2026-08-12/13)
+
+> Rotated out of PROGRESS.md at the Record step. Everything below existed
+> **nowhere else** — the `e2e:prod` accounting and the AC-10 triage were run by
+> the lead, not by a teammate, so they had no home in the task log above.
+
+### Gate step 2 — tests
+
+**Parks.** Six specs parked under FUP-DM1-E2E (`dafcbb1`). The tester **corrected
+the backend's static per-file sweep in 3 of 6 files and found a 7th test**, all by
+running rather than reading:
+
+- `quality-oversight.spec.ts` — the dead assertions sit *inside* two otherwise
+  standing tests, so `test.skip` was impossible; the blocks were removed with
+  annotations (⚠ **deleted, not commented** — QA MINOR-3 corrected the follow-up's
+  claim; the **M8 bytes-cut contract** they carried is now DM2 obligation 2).
+- `phase11-interviews.spec.ts` — the follow-up's "FILE gone, LINK remains" was
+  wrong: `attachments-panel.tsx` gates **both** affordances behind one flag
+  (`canEditNow = canEdit && flagOn`), proven by both clicks hanging pre-park.
+  **IV2-11's MIME-rejection block was a genuine 7th finding**, not in the list.
+- `cases-extras.spec.ts` — the gated affordance is the **"Anexar" upload trigger**,
+  not the download assertion; the whole upload/download half parks.
+- `meeting-audio-minutes.spec.ts` — no park needed, as predicted (comment-only ref).
+
+**`e2e:prod` (lead-run, `REBUILD=1`):** **1073 passed · 1 failed · 3 flaky · 17
+batches · 0 did-not-run.** Every batch reported `accounted N/N`. Of 1092 collected,
+the 15 unaccounted are **exactly the 15 skips** (batch 9 = 6 `phase-f2`, batch 4 = 4
+`ethics-e1`, plus 5 pre-existing) — checked because **a batch whose reset fails
+drops out of the gate's own denominator while the summary still reads green.**
+
+**The single failure was triaged, not assumed.** `case-narratives.spec.ts` AC-10
+("correcting an individually-concluded narrative preserves its conclusion stamp")
+timed out waiting for a *Reenviada* badge. **Not a regression** — evidence:
+
+| Run | Config | Result |
+|---|---|---|
+| Isolation, fresh reset | `SPECS=case-narratives`, `RETRIES=0` | **13/13 PASS** |
+| Identical batch 2, same 6 specs, same order | `RETRIES=0` | **68/68 PASS**, gate green |
+
+Attribution: the **`server_dead` INFRA class, below the harness's classifier
+threshold.** The classifier reclassified batch 17's 24 failures as INFRA
+(`server_dead=1`, `conn_errors=47`) and passed them on re-run; batch 2's single
+failure did not cluster enough to trip it. Decisively, the **batch-2 reproduction's
+own first attempt died `server_dead=1` / 14 conn errors** before the harness re-ran
+it clean — the mechanism was reproduced directly rather than inferred. ⚠ Nothing
+DM1 touched is on the narrative-correction path, and `case-patient.spec.ts` (18
+tests incl. `dispose_case_phi` and audit-row exactness — the DM1-adjacent surfaces
+that would break first) passed in the same batch. An early hypothesis that REG·KIND
+(22-v3, gates 2–4 unrun) owned it was **disproven** by the two clean re-runs.
+
+### Gate step 3 — QA: **APPROVED**
+
+[review](../reviews/dm1-substrate-cutover-review.md) (`a44d222`). 1 MAJOR · 5 MINOR ·
+4 INFO, none blocking DM1. QA reproduced every gate figure on an **independent**
+fresh reset (367 registered == 367 files) and confirmed inertness **behaviourally**
+past the `using(true)` trap: **19/19 DML attempts → `42501`**, and a just-uploaded
+object invisible **to its own uploader**. It also caught its own vacuous check — the
+first noun-rule probe ran against an empty table (0→0) — and redid it against a
+planted row with a mutation twin.
+
+**MAJOR-1 — fixed, not deferred** (`ba25b1f`). `app.can_read_file_object` carried an
+undocumented, unkeystoned **uploader arm returning true before the
+`can_read_document` chain**: a widening vs the retired `can_read_attachment` (which
+had no creator arm), sitting **outside the kernel chain**, which D15's ceiling would
+therefore have silently bypassed. Suite 328 routed around it *by design* (K11h). QA
+proposed ruling it with the ceiling; the lead removed it instead — that ruling was
+parked with no date, the substrate is inert (0 rows, 0 writers, no consumer until
+DM2), so removal was free and DM2 can add uploader visibility deliberately, with a
+keystone. Pinned by **K13, authored red-first** (`have: 1, want: 0` against the
+pre-removal catalog) + mutation twin.
+
+**QA's "what the record overstates" answers — all four corrected:** ADR 0116 §8
+described two authorization-bearing doors as mechanical "resolvers" (**the
+load-bearing one** — an auditor reading §8 would not have known to look at the door
+that turned out to be MAJOR-1); "the *exact* predicate set the retired dispatchers
+used" → "same predicate FAMILY", delta named and its immateriality cited; the
+"preserved as a comment" claim, false for one of three files; and a stale `5909`
+describing a tree two commits old. QA also found the record **understated** one
+result: `ARM=census`'s required failure named **exactly** the 15 new gates and
+nothing else, which additionally rules out unrelated drift.
+
+Two MINORs recorded rather than fixed, to keep DM1's blast radius inert:
+**MINOR-2** (`document.opened` inherits the registry's pre-existing `is_admin()`
+short-circuit — platform_admin can mint an audit row for a document it cannot read;
+no read leak, but `open_document_version` must gate **before** recording → DM2
+obligation 5) and **MINOR-5** (`typecheck` exits 2 from a route-manifest skew
+between the prod-build and dev `.next` type files; **0 first-party errors**;
+a fresh build re-coheres it).
+
+### Gate step 4 — human approval
+
+**APPROVED by the PO 2026-08-13**, together with the FUP-DM1-CEILING ruling
+(ADR 0114 **Amendment 1**, D15/D16 — ceiling on `documents` as an interim DM2
+prerequisite; the general access plane scheduled at **Phase 19**).
+
+### Carried into DM2 (do not re-derive)
+
+1. **FUP-DM1-CEILING / D15** — ceiling column + kernel arm, **before** Wave A
+   re-points any document. Restores pgTAP `228` t36–40 and E2E AC-4a–d / AC-9.
+2. **FUP-DM1-E2E** — rewrite the six parked specs against the new module (ADR 0114
+   D5: rewritten, never merely deleted), incl. the M8 bytes-cut contract.
+3. **FUP-DM1-DISPOSE** — case PHI erasure needs a document-disposition hook
+   (`dispose_case_phi` lost its attachment-redaction arm in M1).
+4. **MINOR-2** — `open_document_version` gates before recording.
+5. **Plan Q1** — the two ethics seam columns still have no wave (PO).
+6. **O4** — signed-URL TTL per sensitivity, decided at DM2 against real latency.
