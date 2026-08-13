@@ -66,7 +66,7 @@ implementation then restores all five pgTAP pins + AC-4/AC-9. 228's retired
 block stays retired until the control exists — the coverage returns WITH it,
 not before. Record only — the design is the PO/ADR decision, not backend's.
 
-### 🟠 FUP-DM1-E2E — six (+1 found) attachment-touching E2E specs are PARKED by the DM1 substrate drop; DM2 must rewrite them against the document model, never merely delete them (owner: tester [park — ✅ done 2026-08-12] + frontend/backend [DM2 rewrite])
+### 🟢 FUP-DM1-E2E — ✅ DISCHARGED 2026-08-13 (DM2·S4) — six (+1 found) attachment-touching E2E specs were PARKED by the DM1 substrate drop; DM2 rewrote them against the document model, never merely deleted them (owner: tester [park — ✅ done 2026-08-12] + frontend/backend [DM2 rewrite — ✅ done 2026-08-13])
 
 Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
 dropped the centralized attachments substrate (ADR 0114 D5) and `seed.sql` no longer
@@ -146,7 +146,7 @@ missed. The DM1 phase gate runs the suite with these parked per the mechanism us
 commented-out assertion blocks with inline FUP-DM1-E2E annotations for files 3–5,
 since Playwright has no mid-test skip), not silently red.
 
-### 🟠 FUP-DM1-DISPOSE — `dispose_case_phi` lost its attachment-redaction step in DM1; DM2 must wire case PHI erasure to document disposition (owner: backend, DM2)
+### 🟢 FUP-DM1-DISPOSE — ✅ DISCHARGED 2026-08-13 (DM2·S2) — `dispose_case_phi` lost its attachment-redaction step in DM1; DM2 wired case PHI erasure to document disposition, verified present in the live `pg_proc.prosrc` (owner: backend, DM2)
 
 Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
 removed the F2 SEAM block from `public.dispose_case_phi` (it redacted
