@@ -100,6 +100,18 @@
 > **⛔ DM2 has NOT passed its gate.** QA r1 = **CHANGES REQUESTED** (1 P0 · 3 MAJOR · 6 MINOR · 4 INFO). **Do not flip the flags, do not seek approval, do not merge.** Paused because the backend agent was killed **four consecutive times by transient API 529s** (twice resumed, then replaced by a fresh lightweight agent that failed identically — disproving the context-size hypothesis; the API was broadly degraded while the lead's own session kept working, which is why the recorded state is verified rather than assumed).
 > **Safe checkpoint:** HEAD `56e3989`, 374 on disk == 374 registered, nothing half-applied, all five DM flags **OFF** in production defaults, nothing pushed (`main`/`origin/main` = `f84c6b6`).
 > **The P0 is FIXED and verified from two independent directions** (lead catalog + planted-row probe; tester red-then-green through the door via REST). What remains is proof discipline and two MAJORs.
+> ✅ **PO RULING 2026-08-13 — MAJOR-1 / S1-O4: PROPAGATE the interview's confidentiality to its
+> documents.** A document homed on an interview must be gated by **that interview's own ceiling**, not
+> only by case-level access. It is **item 0 of the next session** — the first thing picked up.
+> *Lead-reproduced as a differential probe (same member, same interview, one variable):*
+> `app.can_read_interview` = **false** while `app.can_read_document` on a document homed on it =
+> **true**. The kernel's interview arm dispatches `can_read_case_committee(case_of_interview(...))`,
+> which **skips a level** — it never consults `case_interviews.confidentiality_level`, so the
+> interview row is hidden while its transcript is not. Parity with the retired substrate is real, but
+> parity answers *"did we break this?"*, not *"is this correct?"* — and the old substrate is being
+> replaced **because** it had this shape of defect. Requires an ADR amendment when built (ADR 0117 is
+> the ceiling's decision record; ADR 0114 Amdt 1 D15/D16 the governing frame).
+>
 > ▶ **Resuming? Read the handoff first:** [dm2-orchestration-wave-a.md § *DM2 PAUSED — resumption handoff*](docs/progress/dm2-orchestration-wave-a.md) — it carries the 8 remaining items in order, the PO-owned questions, and two method findings that must not be lost (an uncommitted migration is applied by anyone's `db reset` and silently fixes the defect before the test meant to catch it runs; and a sweep boundary drawn on a return-type *syntax* cannot enforce a *property* — 536 functions share that class).
 
 > Program: Document Model Redesign — plan [DM0–DM5](docs/plans/document-model-redesign.md) §DM2 ·

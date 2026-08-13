@@ -430,6 +430,31 @@ assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
 
 ## The remaining work, in order (nothing here needs re-deriving)
 
+0. 🔴 **START HERE — MAJOR-1 / S1-O4: propagate the interview's confidentiality to its documents.**
+   **PO ruling 2026-08-13.** A document whose home is an interview must be gated by **that
+   interview's own ceiling**, in addition to the case-level access already checked.
+   *The defect, lead-reproduced as a differential probe (same member, same interview, one variable):*
+   `app.can_read_interview(iv, member)` = **false** while
+   `app.can_read_document(doc_homed_on_iv, member)` = **true** — the interview row is correctly
+   hidden and its transcript is not. Cause: the kernel's interview arm dispatches
+   `can_read_case_committee(app.case_of_interview(...))`, which **skips a level** — it asks who may
+   read the *case*, never who may read *this interview*, so `case_interviews.confidentiality_level`
+   is never consulted for documents.
+   *Why ruled rather than accepted:* parity with the retired substrate is real but answers "did we
+   break this?", not "is this correct?". The old substrate is being **replaced because it had this
+   shape of defect** (F-01 authorized from a path without joining the row). Wave A is the change that
+   puts real transcripts behind it, and the transcript is usually the sensitive part — a ceiling that
+   hides the interview record but not its files is close to decorative.
+   *Implementation notes:* the arm already resolves the interview, so this is a conjunct in one
+   place, beside the case-level ceiling proven in S1. It **fails safe** (over-narrow is visible and
+   complained about; under-narrow is silent). Red-first, with the differential probe above as the
+   pre-fix red, plus a **non-over-narrowing twin** (a non-enforcing interview label must still leave
+   its documents readable). ⚠ Before building, **count how many interviews carry an enforcing label**
+   — locally very few, production essentially empty — so the blast radius is stated, not assumed.
+   *Also required:* an **ADR amendment** recording this decision and its mechanism (ADR 0117 is the
+   ceiling's decision record; ADR 0114 Amendment 1 D15/D16 is the governing frame). The decision is
+   made; the mechanism is not — write it when you build it.
+
 1. **Close P0-1's proof.** Red-first for P0a–P0f (revert the `read_case_deliberation` conjunct in a
    **rolled-back txn**, each pin must red; verify the restore **from the catalog**), plus the
    **over-narrowing twin** (reviewer still reads titles). ⚠ **`supabase/tests/308_case_caps_s7.sql:291-303`
@@ -475,10 +500,7 @@ own lesson in miniature.
 
 ## Open with the PO (do not decide these for them)
 
-- **MAJOR-1 / S1-O4 — interview-label bytes.** A document on a `legal_privileged` interview is
-  visible and `open_document_version` returns **SERVED tier=phi**, even though `can_read_interview`
-  is false and the interview yields 0 rows. **Parity is real** (the retired substrate behaved the
-  same — verified in DM1's AMEND 3 chase), **but Wave A makes it live and nothing recorded that bytes
-  follow.** Needs a ruling before any flag flips.
+- ~~MAJOR-1 / S1-O4 — interview-label bytes~~ → ✅ **RULED by the PO 2026-08-13: PROPAGATE.**
+  Moved into the work list as **item 0 — the first task of the next session.** See below.
 - **Plan Q1 — the two ethics seam columns still have no wave.** Blocks planning DM3, not DM2.
 - **S1-O3** uploader visibility — deliberate non-decision in the ledger.
