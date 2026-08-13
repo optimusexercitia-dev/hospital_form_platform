@@ -4,7 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, UserPlus, X } from "lucide-react";
 
-import type { ApproverCandidate } from "@/lib/queries/documents";
+import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -14,7 +14,7 @@ import {
   FieldError,
   FieldLabel,
 } from "@/components/ui/field";
-import type { ActionState } from "@/lib/documents/actions";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 
 type SubmitAction = (
   prev: ActionState | undefined,

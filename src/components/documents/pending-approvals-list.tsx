@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 import { orgHref } from "@/lib/routing";
-import type { PendingApprovalRow } from "@/lib/documents/types";
+import type { PendingApprovalRow } from "@/lib/controlled-documents/types";
 import { DocumentTypeBadge } from "@/components/documents/document-badges";
 import { formatDateTime, formatVersionNumber } from "@/components/documents/format";
 

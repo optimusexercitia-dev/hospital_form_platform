@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Bell } from "lucide-react";
 
-import type { ActionState } from "@/lib/documents/actions";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 import { cn } from "@/lib/utils";
 
 type RemindAction = (

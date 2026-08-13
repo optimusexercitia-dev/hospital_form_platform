@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import type { DocType } from "@/lib/documents/types";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
+import type { DocType } from "@/lib/controlled-documents/types";
+import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 import {
   DerivedStatusChip,
   DocumentTypeBadge,

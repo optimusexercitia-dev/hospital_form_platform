@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 
-import type { ApproverCandidate } from "@/lib/queries/documents";
+import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";

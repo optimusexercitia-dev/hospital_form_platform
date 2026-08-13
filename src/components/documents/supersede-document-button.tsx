@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FilePlus, GitBranchPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { AddVersionState } from "@/lib/documents/actions";
+import type { AddVersionState } from "@/lib/controlled-documents/actions";
 
 type SupersedeAction = (
   prev: AddVersionState | undefined,

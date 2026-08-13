@@ -14,7 +14,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import type { AddVersionState } from "@/lib/documents/actions";
+import type { AddVersionState } from "@/lib/controlled-documents/actions";
 
 type AddVersionAction = (
   prev: AddVersionState | undefined,

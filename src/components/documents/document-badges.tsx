@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
-import type { DocStatus, DocType, ObsoleteKind } from "@/lib/documents/types";
+import type { DocStatus, DocType, ObsoleteKind } from "@/lib/controlled-documents/types";
 import {
   DOC_STATUS_LABELS,
   DOC_TYPE_LABELS,
   OBSOLETE_KIND_LABELS,
-} from "@/lib/documents/types";
+} from "@/lib/controlled-documents/types";
 
 /**
  * The display-only "Em revisão" state — an `effective` document that carries an

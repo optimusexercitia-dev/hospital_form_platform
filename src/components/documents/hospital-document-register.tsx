@@ -1,6 +1,6 @@
 import { FileText } from "lucide-react";
 
-import type { HospitalDocumentRegisterRow } from "@/lib/documents/types";
+import type { HospitalDocumentRegisterRow } from "@/lib/controlled-documents/types";
 import {
   DocumentStatusChip,
   DocumentTypeBadge,

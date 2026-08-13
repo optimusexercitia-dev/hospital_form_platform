@@ -12,7 +12,7 @@ import {
   FieldError,
   FieldLabel,
 } from "@/components/ui/field";
-import type { ActionState } from "@/lib/documents/actions";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 
 type DecisionAction = (
   prev: ActionState | undefined,

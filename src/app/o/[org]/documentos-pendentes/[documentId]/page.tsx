@@ -7,13 +7,13 @@ import { getSessionContext } from "@/lib/queries/session";
 import {
   getDocument,
   createSignedDownloadUrl,
-} from "@/lib/queries/documents";
-import { approveDocument, rejectDocument } from "@/lib/documents/actions";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
+} from "@/lib/queries/controlled-documents";
+import { approveDocument, rejectDocument } from "@/lib/controlled-documents/actions";
+import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 import {
   selectSignableVersion,
   findMyApprovalForVersion,
-} from "@/lib/documents/version-select";
+} from "@/lib/controlled-documents/version-select";
 import { orgHref } from "@/lib/routing";
 import {
   DocumentStatusChip,

@@ -22,7 +22,7 @@
 import type {
   ControlledDocumentVersion,
   DocumentApproval,
-} from '@/lib/documents/types'
+} from '@/lib/controlled-documents/types'
 
 /**
  * The single OPEN revision of a document — a `draft`, `in_approval`, or

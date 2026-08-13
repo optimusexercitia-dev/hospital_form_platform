@@ -7,8 +7,8 @@
  * from CLIENT components (the register list, the detail view, the approval queue,
  * the upload dialog). It must NEVER import `@/lib/supabase/*`, `next/headers`,
  * `server-only`, or any data-access/action module. The server-only readers
- * (`@/lib/queries/documents`) and the `"use server"` actions
- * (`@/lib/documents/actions`) import their types FROM here.
+ * (`@/lib/queries/controlled-documents`) and the `"use server"` actions
+ * (`@/lib/controlled-documents/actions`) import their types FROM here.
  *
  * A controlled document is a hospital policy/POP/protocolo/regimento/manual under a
  * controlled lifecycle (`draft → in_approval → effective → obsolete`) with a

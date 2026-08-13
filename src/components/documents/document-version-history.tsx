@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, Download, GitCompare } from "lucide-react";
 
-import type { ControlledDocumentVersion, ObsoleteKind } from "@/lib/documents/types";
+import type { ControlledDocumentVersion, ObsoleteKind } from "@/lib/controlled-documents/types";
 import { cn } from "@/lib/utils";
 import {
   DocumentStatusChip,

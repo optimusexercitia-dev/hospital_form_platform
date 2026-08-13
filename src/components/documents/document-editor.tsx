@@ -4,8 +4,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { commissionHref } from "@/lib/routing";
-import type { ControlledDocument, DocType } from "@/lib/documents/types";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
+import type { ControlledDocument, DocType } from "@/lib/controlled-documents/types";
+import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +20,7 @@ import {
 // Type-only import of the server-action module — the action is passed in as a prop
 // by the server page (WizardRunner boundary), so this client component never
 // value-imports a `"use server"` module.
-import type { ActionState } from "@/lib/documents/actions";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 
 type UpdateAction = (
   prev: ActionState | undefined,

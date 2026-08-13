@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { ActionState } from "@/lib/documents/actions";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 
 type PublishAction = (
   prev: ActionState | undefined,

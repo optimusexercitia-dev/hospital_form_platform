@@ -1,7 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 
-import type { ControlledDocument } from "@/lib/documents/types";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
+import type { ControlledDocument } from "@/lib/controlled-documents/types";
+import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 import { formatDateOnly } from "@/components/documents/format";
 
 /**

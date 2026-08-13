@@ -20,7 +20,7 @@ import {
 } from "@/lib/queries/feature-flags";
 import type { FeatureFlagKey } from "@/lib/queries/feature-flags";
 import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
-import { listApproverCandidates } from "@/lib/queries/documents";
+import { listApproverCandidates } from "@/lib/queries/controlled-documents";
 import { listBlockLibraryEntries } from "@/lib/queries/block-library";
 import { BuilderShell } from "@/components/forms/builder-shell";
 import { PublishedReadOnly } from "@/components/forms/published-read-only";

@@ -928,4 +928,4 @@ export async function remindDocumentApprover(versionId: string, approverId: stri
 // NOTE: no `export type { … }` re-exports here — a `'use server'` module may export
 // ONLY async server functions + plain interfaces (the RSC action compiler rejects
 // value re-exports). Consumers import the field-value unions (DocType /
-// ApprovalDecision / …) directly from the pure `@/lib/documents/types`.
+// ApprovalDecision / …) directly from the pure `@/lib/controlled-documents/types`.

@@ -1,9 +1,9 @@
 /**
  * Shared display helpers for the controlled-documents UI (Phase 17 — Gestão de
  * Documentos Controlados). Pure + client/server-safe: only string formatting (no
- * data access — that goes through `@/lib/queries/documents`, Rule 9). All
+ * data access — that goes through `@/lib/queries/controlled-documents`, Rule 9). All
  * user-facing text is pt-BR (Rule 10); storage slugs map to labels via the frozen
- * `*_LABELS` maps in the contract (`@/lib/documents/types`).
+ * `*_LABELS` maps in the contract (`@/lib/controlled-documents/types`).
  *
  * Mirrors the Phase-14 safety / Phase-22 referrals `format.ts` convention.
  */

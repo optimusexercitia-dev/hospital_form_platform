@@ -5,7 +5,7 @@ import { commissionHref } from "@/lib/routing";
 import type {
   ControlledDocumentListItem,
   ObsoleteKind,
-} from "@/lib/documents/types";
+} from "@/lib/controlled-documents/types";
 import { cn } from "@/lib/utils";
 import {
   DerivedStatusChip,

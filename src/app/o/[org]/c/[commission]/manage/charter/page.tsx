@@ -6,7 +6,7 @@ import { ArrowUpRight, CalendarClock, FilePlus2, ScrollText } from "lucide-react
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { chartersEnabled } from "@/lib/queries/feature-flags";
 import { getCharter, getMeetingCadenceStatus } from "@/lib/queries/charters";
-import { listDocuments } from "@/lib/queries/documents";
+import { listDocuments } from "@/lib/queries/controlled-documents";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { CadenceStatusBadge } from "@/components/charters/cadence-status-badge";

@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { CalendarClock, Plus } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listDocuments } from "@/lib/queries/documents";
-import type { ControlledDocumentListItem } from "@/lib/documents/types";
+import { listDocuments } from "@/lib/queries/controlled-documents";
+import type { ControlledDocumentListItem } from "@/lib/controlled-documents/types";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import type { DerivedDocStatus } from "@/components/documents/document-badges";

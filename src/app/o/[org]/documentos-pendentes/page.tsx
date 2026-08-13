@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { listPendingApprovalsForUser } from "@/lib/queries/documents";
+import { listPendingApprovalsForUser } from "@/lib/queries/controlled-documents";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
 import { PendingApprovalsList } from "@/components/documents/pending-approvals-list";
 

@@ -16,13 +16,13 @@ import {
 import { cn } from "@/lib/utils";
 import { plural } from "@/lib/text";
 import { commissionHref } from "@/lib/routing";
-import type { ApproverCandidate } from "@/lib/queries/documents";
-import type { DocType } from "@/lib/documents/types";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
+import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
+import type { DocType } from "@/lib/controlled-documents/types";
+import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 // Type-only import of the server-action module — the action functions are passed
 // in as props by the server page (WizardRunner boundary), so this client component
 // never value-imports a `"use server"` module.
-import type { CreateDocumentState } from "@/lib/documents/actions";
+import type { CreateDocumentState } from "@/lib/controlled-documents/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

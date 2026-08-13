@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { ActionState, AddVersionState } from "@/lib/documents/actions";
+import type { ActionState, AddVersionState } from "@/lib/controlled-documents/actions";
 
 type SupersedeAction = (
   prev: AddVersionState | undefined,

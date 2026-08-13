@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listDocumentsDueForReview } from "@/lib/queries/documents";
+import { listDocumentsDueForReview } from "@/lib/queries/controlled-documents";
 import { commissionHref } from "@/lib/routing";
 import { ReviewDueList } from "@/components/documents/review-due-list";
 

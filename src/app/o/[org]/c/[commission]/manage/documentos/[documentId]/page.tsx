@@ -17,7 +17,7 @@ import {
   getDocument,
   createSignedDownloadUrl,
   listApproverCandidates,
-} from "@/lib/queries/documents";
+} from "@/lib/queries/controlled-documents";
 import {
   addDocumentVersion,
   submitDocumentForApproval,
@@ -27,11 +27,11 @@ import {
   supersedeDocument,
   markDocumentObsolete,
   remindDocumentApprover,
-} from "@/lib/documents/actions";
+} from "@/lib/controlled-documents/actions";
 import {
   selectWorkingDraft,
   findMyApprovalForVersion,
-} from "@/lib/documents/version-select";
+} from "@/lib/controlled-documents/version-select";
 import { commissionHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { getDocument } from "@/lib/queries/documents";
-import { updateControlledDocument } from "@/lib/documents/actions";
-import { selectWorkingDraft } from "@/lib/documents/version-select";
+import { getDocument } from "@/lib/queries/controlled-documents";
+import { updateControlledDocument } from "@/lib/controlled-documents/actions";
+import { selectWorkingDraft } from "@/lib/controlled-documents/version-select";
 import { commissionHref } from "@/lib/routing";
 import { DocumentEditor } from "@/components/documents/document-editor";
 

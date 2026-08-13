@@ -1,7 +1,7 @@
 import { Check, Clock, PenLine } from "lucide-react";
 
-import { APPROVAL_DECISION_LABELS, type DocumentApproval } from "@/lib/documents/types";
-import type { ActionState } from "@/lib/documents/actions";
+import { APPROVAL_DECISION_LABELS, type DocumentApproval } from "@/lib/controlled-documents/types";
+import type { ActionState } from "@/lib/controlled-documents/actions";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { formatDateTime } from "@/components/documents/format";

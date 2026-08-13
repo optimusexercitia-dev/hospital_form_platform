@@ -5,7 +5,7 @@
  * queue, the review-due list, and the hospital-wide register rollup.
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
- * in the import-free, client-safe `@/lib/documents/types` (re-exported here for
+ * in the import-free, client-safe `@/lib/controlled-documents/types` (re-exported here for
  * convenience, mirroring the `queries/indicators.ts` re-export pattern).
  *
  * RLS (the security boundary — Rule 1):
@@ -37,7 +37,7 @@ import type {
   ObsoleteKind,
   PendingApprovalRow,
   ReviewDueRow,
-} from '@/lib/documents/types'
+} from '@/lib/controlled-documents/types'
 
 // Re-export the client-safe contract so consumers can import types/labels from
 // the query module too (mirrors queries/indicators.ts).
@@ -54,13 +54,13 @@ export type {
   ObsoleteKind,
   PendingApprovalRow,
   ReviewDueRow,
-} from '@/lib/documents/types'
+} from '@/lib/controlled-documents/types'
 export {
   APPROVAL_DECISION_LABELS,
   DOC_STATUS_LABELS,
   DOC_TYPE_LABELS,
   OBSOLETE_KIND_LABELS,
-} from '@/lib/documents/types'
+} from '@/lib/controlled-documents/types'
 
 const SIGNED_URL_TTL_SECONDS = 3600
 

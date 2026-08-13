@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarClock, FileText, ClipboardList } from "lucide-react";
 
 import { commissionHref } from "@/lib/routing";
-import type { ReviewDueRow } from "@/lib/documents/types";
+import type { ReviewDueRow } from "@/lib/controlled-documents/types";
 import { ReviewOverdueChip } from "@/components/documents/document-badges";
 import { formatDateOnly } from "@/components/documents/format";
 

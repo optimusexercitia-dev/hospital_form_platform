@@ -4,12 +4,12 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listApproverCandidates, listDocuments } from "@/lib/queries/documents";
+import { listApproverCandidates, listDocuments } from "@/lib/queries/controlled-documents";
 import {
   createAndSubmitDocument,
   createDraftOnly,
-} from "@/lib/documents/actions";
-import type { DocType } from "@/lib/documents/types";
+} from "@/lib/controlled-documents/actions";
+import type { DocType } from "@/lib/controlled-documents/types";
 import { commissionHref } from "@/lib/routing";
 import { CreateWizard } from "@/components/documents/create-wizard";
 

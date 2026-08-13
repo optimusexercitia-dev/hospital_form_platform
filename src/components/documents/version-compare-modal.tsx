@@ -1,7 +1,7 @@
 "use client";
 
-import type { ControlledDocumentVersion } from "@/lib/documents/types";
-import { DOC_STATUS_LABELS } from "@/lib/documents/types";
+import type { ControlledDocumentVersion } from "@/lib/controlled-documents/types";
+import { DOC_STATUS_LABELS } from "@/lib/controlled-documents/types";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
