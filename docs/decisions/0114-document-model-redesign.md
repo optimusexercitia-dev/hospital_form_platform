@@ -276,13 +276,40 @@ ruled, DM2 was a closed, approved phase and adopting them there would have meant
 reopening it. A named follow-up after DM5 was rejected because it would close the
 legacy-retirement manifest with two columns pointing at nothing.
 
-**Discharge conditions, binding on DM3** (all four, or the seam is not discharged):
-re-point both columns to `documents(id)` with a real FK; restore
-`issue_ethics_notification`'s `p_related_document_id` parameter to a working
-parameter; remove the fail-closed rejection; and **remove keystone K8**, which pins
-that rejection — *a keystone left pinning a refusal the product no longer wants is a
-test asserting a bug.* Ethics documents inherit Wave B's no-PHI stance: PHI-tier
-input on an ethics letter fails closed (D13).
+**Discharge conditions, binding on DM3** (all five, or the seam is not discharged):
+
+1. Re-point both columns to `documents(id)` with a **real FK**.
+2. Restore `issue_ethics_notification`'s `p_related_document_id` to a **working**
+   parameter. ⚠ Catalog-verified 2026-08-13: the parameter **still exists** (arg 7 of
+   8) — DM1 left the signature intact and put the refusal in the **body**. This
+   condition is a body change, not a signature change; do not plan a DROP+CREATE for
+   it, or the ACL is discarded for nothing.
+3. Remove the fail-closed rejection.
+4. **Remove keystone K8**, which pins that rejection — *a keystone left pinning a
+   refusal the product no longer wants is a test asserting a bug.*
+5. **Add `p_decision_letter_document_id` to `set_ethics_decision_details` and forward
+   it from `src/lib/ethics/actions.ts`.** Conditions 1–4 as originally written were
+   **incomplete**: catalog-verified, `set_ethics_decision_details` takes **11
+   parameters and none is a document id**, and the TS action accepts
+   `decisionLetterDocumentId` in its input type then **silently drops it**
+   (`actions.ts:393`). Without this, condition 1 would give that column a real FK to
+   `documents(id)` while leaving it **unwritable at every layer** — trading "a column
+   pointing at nothing" for "a column pointing at documents nothing can create",
+   which is the same defect wearing a constraint.
+
+Ethics documents inherit Wave B's no-PHI stance: PHI-tier input on an ethics letter
+fails closed (D13).
+
+**Scope boundary — PO ruling 2026-08-13: plumbing to writable, NO UI.** DM3 makes
+both seams genuinely writable document-model citizens *through the API* and stops
+there. **No attach-a-decision-letter affordance is built in DM3**, and this is a
+decision, not an omission: no such affordance has ever existed (verified across the
+ethics dialogs, every `type="file"` site in the repo, and the absence of any reader
+of either field), and a decision letter is the archetypal `legal_privileged`
+document — the UI needs the ETH·E1 access spine, the D15 ceiling, and E2E coverage
+designed as a feature, not appended to a migration wave. Filed as **FUP-DM3-ETHICS-UI**.
+A later phase reading these columns as write-only must read this paragraph, not infer
+an oversight.
 
 ⚠ **The ethics access shape is NOT the controlled-document access shape**, even
 though the lifecycle is. Ethics case reads are gated by the ADR 0072 / ETH·E1 spine

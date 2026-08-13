@@ -194,8 +194,20 @@ Exit: full §6 gate; `npm run e2e:prod` green; reconciliation report clean.
    and `ethics_notifications.related_document_id`. All four discharge conditions
    are binding, and a partial discharge is not a discharge: re-point both columns
    to `documents(id)` **with a real FK**; restore `issue_ethics_notification`'s
-   `p_related_document_id` to a working parameter; remove the fail-closed
-   rejection; **remove keystone K8**, which pins that rejection.
+   `p_related_document_id` to a working parameter (⚠ the param **still exists** —
+   catalog-verified; the refusal is in the **body**, so this is a body change, not
+   a DROP+CREATE that would discard the ACL); remove the fail-closed rejection;
+   **remove keystone K8**, which pins that rejection; **and add
+   `p_decision_letter_document_id` to `set_ethics_decision_details`, forwarded from
+   `src/lib/ethics/actions.ts`** — condition 5, added 2026-08-13 because the
+   original four were incomplete: that column has **no writer at any layer**
+   (11 RPC params, none a document id; the TS action drops the field at
+   `actions.ts:393`), so an FK alone yields a column pointing at documents nothing
+   can create.
+   **Scope boundary (PO, 2026-08-13): plumbing to writable, NO UI.** No
+   attach-a-letter affordance ships in DM3 — none has ever existed, and a decision
+   letter is the archetypal `legal_privileged` document, so its UI needs the ETH·E1
+   spine + D15 ceiling designed as a feature. → **FUP-DM3-ETHICS-UI**.
    ⚠ **Lifecycle machinery is shared; the reader set is NOT.** Ethics case reads
    are gated by the ADR 0072 / ETH·E1 spine (`case_access_grants` +
    `max_confidentiality` + recusal), with the D15 ceiling column as the surviving
