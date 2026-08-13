@@ -693,6 +693,22 @@ behind `surveyor_access`.
   no PostgREST table access**; the token is validated server-side, expiry + revocation enforced on every
   request; out-of-scope frameworks/commissions/date-ranges are invisible. The platform's own users are
   unaffected. This phase gets a dedicated **security/RLS review** at the QA gate.
+- ⭐ **SCOPE ADDED 2026-08-13 — this phase now owns the general document access plane**
+  ([0114](../decisions/0114-document-model-redesign.md) **Amendment 1 D16**, ratified by the PO;
+  discharges that ADR's open item **O3**). **Read D16 before planning this phase** — the
+  `surveyor_grants` design sketched above must be **re-examined, not simply built**, because it
+  would otherwise be the platform's **fourth** bespoke answer to one question: *a non-member needs
+  to see specific things.* The prior three are `referral_shared_item` + frozen snapshots (Phase 22),
+  `case_access_grants` + `max_confidentiality` (ETH·E1), and this sketch — and **F-14, a
+  load-bearing finding behind ADR 0114 itself, was a bug inside one of them**. The plane must cover
+  **both** directions: **widening** (this phase's surveyors) and **narrowing** (the ADR 0072 D7
+  confidentiality ceiling, shipped as D15's interim column on `documents` at DM2, which migrates
+  into the plane here). Its declared landing point already exists in the schema:
+  **`documents.access_policy_id`** — nullable, currently referencing nothing, reserved by
+  [0114](../decisions/0114-document-model-redesign.md) D6 for exactly this. Note also that D6 marks
+  `document_placements` non-authorizing *"ever; an authorizing placement requires a new ADR"* —
+  **this phase's ADR is that ADR.** Whether `surveyor_grants` survives as its own table or becomes a
+  policy shape on the plane is the first question the plan review must answer.
 - **UI**: `manage/accreditation/survey` (staff_admin) + `/admin/accreditation/survey` (admin) — create /
   list / revoke grants, copy the access link; the minimal, branded, read-only **surveyor portal**; the
   evidence-export action.

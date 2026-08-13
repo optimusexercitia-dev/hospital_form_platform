@@ -6,7 +6,19 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
-### 🔴 FUP-DM1-CEILING — the ADR 0072 D7 confidentiality-label ceiling is a LIVE narrowing control the document model cannot express; **BLOCKS DM2 Wave A start** (owner: PO ruling → ADR 0114 amendment; filed by backend, upgraded by lead 2026-08-12)
+### 🟠 FUP-DM1-CEILING — **RULED 2026-08-13**; now a **DM2 Wave A PREREQUISITE**, no longer a blocker (owner: backend @ DM2; filed by backend, upgraded by lead 2026-08-12, ruled by PO 2026-08-13)
+
+> **PO ruling — option 1, recorded as [ADR 0114](../decisions/0114-document-model-redesign.md)
+> Amendment 1 (D15/D16).** **D15:** re-express the ceiling on `documents` — a nullable
+> confidentiality column + an arm in the `app.can_read_document` kernel — as an explicit
+> **interim**. **Build it BEFORE Wave A re-points any case / meeting / interview document**;
+> that is the phase in which a formerly gated document would otherwise silently become
+> readable by every ordinary case reader. Deliberately **not** built in DM1 (a new migration
+> would have reopened a closed gate). **D16:** the general access plane is **scheduled at
+> Phase 19** (Surveyor Access), must cover **both** widening and narrowing, and absorbs D15's
+> column; `documents.access_policy_id` is its declared landing point. Option 3 (ratify the
+> loss) was **rejected**. **Discharge:** D15 shipped + the parked pgTAP `228` t36–40 and the
+> AC-4a–d / AC-9 E2E contracts restored. The analysis below is the record of why.
 
 Escalated out of the DM1 triage (228 tests 36–40) and **upgraded by the lead
 from "retired coverage" to a blocking design input**: it is not a coverage

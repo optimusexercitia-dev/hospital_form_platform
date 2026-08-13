@@ -258,11 +258,17 @@ full `e2e:prod` green; QA program-level review; human approval; Record step.
 - Migration windows allocated above the highest REGISTERED version at each
   phase start.
 
-## ⛔ BLOCKS DM2 — the per-document confidentiality ceiling has no replacement
+## ✅ RULED 2026-08-13 — the per-document confidentiality ceiling (was: BLOCKS DM2)
 
-> Found by `backend` during the DM1 pgTAP triage (pgTAP `228` t36–40), severity
-> upgraded by the lead after running it down 2026-08-12. **Owner: PO. Wave A
-> (DM2) must not start until this is ruled.** Tracked as **FUP-DM1-CEILING**.
+> **PO ruling: option 1**, recorded as **ADR 0114 Amendment 1 (D15/D16)**. The
+> ceiling is re-expressed on `documents` (nullable confidentiality column + an arm
+> in the `app.can_read_document` kernel) as an explicit **interim**, and the general
+> access plane is **scheduled at Phase 19** with `documents.access_policy_id` named
+> as its landing point. **FUP-DM1-CEILING is no longer a blocker — it is now a DM2
+> prerequisite**: build D15's column and kernel arm *before* Wave A re-points any
+> case / meeting / interview document. Not built in DM1 (that would have reopened a
+> closed gate for a new migration). The analysis below is retained as the record of
+> why; the options section is retained so the choice is not re-litigated blind.
 
 **The control that was dropped.** ADR **0072 D7 / ETH·E1** made the attachment
 confidentiality labels `legal_privileged` and `credentialing_sensitive`
@@ -319,12 +325,15 @@ either a restored control or an explicit retirement of ADR 0072 D7's enforcing
 status. pgTAP `228` t36–40 stay retired until the control returns — the coverage
 comes back with the mechanism, not before.
 
-**PO decision status (2026-08-12): DEFERRED, deliberately.** The options above
-were put to the PO at DM1 close; the ruling is **held over, not made**. This is
-an explicit deferral of a known blocker, *not* an oversight and *not* tacit
-acceptance of option 3 — silence must never be read as the ratification that
-option 3 requires. **Wave A (DM2) remains blocked** until the ruling lands.
-Whoever plans DM2 must treat this section as a gate, not as background.
+**PO decision status: RULED 2026-08-13 — option 1 + option 2 at Phase 19.**
+(Deferred 2026-08-12, ruled the next day.) Recorded as **ADR 0114 Amendment 1**:
+D15 re-expresses the ceiling on `documents` as an interim DM2 prerequisite; D16
+schedules the general access plane at **Phase 19** (Surveyor Access), where it must
+cover **both** directions and absorb D15's column. Option 3 (ratify the loss) was
+**rejected**. The deciding evidence for D16 was that the platform has answered "a
+non-member needs to see specific things" three times bespoke — `referral_shared_item`,
+`case_access_grants`, and Phase 19's planned `surveyor_grants` — and that **F-14, a
+load-bearing finding behind ADR 0114 itself, was a bug inside one of them**.
 
 ## Unassigned scope — the ethics document seams (Q1, OPEN)
 

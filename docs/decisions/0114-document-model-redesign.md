@@ -2,7 +2,8 @@
 
 - **Status:** Accepted — ratified by the PO 2026-08-12 (drafted 2026-08-11 from the
   external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling
-  session with the PO)
+  session with the PO). **Amendment 1 (D15/D16) ratified 2026-08-13** — the
+  per-document confidentiality ceiling; see the end of this file.
 - **Supersedes / amends:** ADR 0063 (centralized attachments substrate) — replaced
   wholesale; ADR 0065 owner-set conventions — the closed owner set survives as the
   initial `securable_resources` type set. ARCHITECTURE.md Rules 6/11/12 unchanged.
@@ -186,7 +187,58 @@ mutation twins.
   provisional until signed off.
 - **O2 (PO + backend):** scanner selection/integration + operational owner; expiry
   condition for the `unscanned_accepted` acceptance.
-- **O3 (future ADR):** audience/group/scoped-role sharing plane, if/when a feature
-  commits to it. The `access_policy_id` seam and audit §6.7 sketch are its start.
+- **O3 (future ADR): SCHEDULED at Phase 19 — see Amendment 1.** The audience/group/
+  scoped-role sharing plane. Its "if/when a feature commits to it" trigger has
+  **fired**: Phase 19 (Surveyor Access & Evidence Export) is a committed,
+  specified requirement for per-document access granted to a **non-member**. The
+  `access_policy_id` seam and the audit §6.7 sketch are its start.
 - **O4 (PO):** signed-URL TTL per sensitivity + whether any content class warrants
   streaming-proxy serving instead of signing (revisit at DM2 with real latency).
+
+## Amendment 1 (2026-08-13) — the per-document confidentiality ceiling
+
+**Status:** ratified by the PO 2026-08-13. Closes **FUP-DM1-CEILING**, raised during
+the DM1 pgTAP triage and upgraded by the lead from "lost coverage" to "blocks DM2".
+
+**The gap this closes.** ADR **0072 D7 / ETH·E1** made the labels `legal_privileged`
+and `credentialing_sensitive` **ENFORCING** — a document could be gated *above*
+ordinary case-read, pinned by `e2e/ethics-e1-access-spine.spec.ts` AC-4a/b/c/d and
+AC-9 (two documents on the **same** case, one visible to an ordinary reader and one
+not). DM1 dropped its enforcement mechanism (`app.attachment_confidentiality_ok`)
+with the substrate. **This ADR did not supersede ADR 0072**, and D6's deferral does
+not cover the case: D6 defers a plane for **widening** access (share with a user,
+group, scoped role), whereas the ceiling **narrows** access below the home resource.
+D6's "document access = home-resource access" is the very statement that makes the
+ceiling inexpressible. `file_objects.sensitivity_tier` is not a substitute — it
+selects a **bucket** by CHECK constraint and carries no principal-facing gate.
+
+**D15 — the ceiling is re-expressed on `documents`, as an explicit interim.** A
+nullable confidentiality column on `documents` plus an arm in the
+`app.can_read_document` kernel, restoring ADR 0072 D7 semantics. This is a
+**DM2 prerequisite**: Wave A must not re-point case / meeting / interview documents
+onto the substrate before it lands, because that is the phase in which a formerly
+gated document would silently become readable by every ordinary case reader.
+Rejected alternatives, recorded so the choice is not re-litigated blind: building the
+full access plane now was rejected as designing a general permissions system against a
+**single** requirement while blocking Wave A; ratifying the loss was rejected because
+it is a decision to widen access to privileged legal material and no one wants it.
+
+**D16 — the general access plane lands at Phase 19, and `documents.access_policy_id`
+is its declared landing point.** D15's column is interim **with a stated end-state**,
+not a permanent second access dimension. The plane must cover **both directions** —
+widening (Phase 19's surveyors) and narrowing (D15's ceiling) — and when it lands,
+D15's column migrates into it over a handful of labelled documents.
+
+*Why Phase 19 and not sooner or later.* The platform has now answered "a non-member
+needs to see specific things" **three times, bespoke**: `referral_shared_item` +
+frozen snapshots (Phase 22), `case_access_grants` + `max_confidentiality` (ETH·E1),
+and Phase 19's planned `surveyor_grants` + `scope jsonb`. That is the rule of three,
+and **F-14 — a load-bearing finding behind this very ADR — was a bug inside one of
+those bespoke mechanisms.** Phase 19 calls itself the most security-sensitive phase
+in the accreditation track; building it as a *fourth* one-off is how a fourth F-14
+happens. This ADR already anticipated the pressure: `document_placements` is marked
+non-authorizing *"ever; an authorizing placement requires a new ADR"* — that ADR is
+the Phase 19 plane.
+
+**Consequence for the D6 deferral.** D6 stands for DM2–DM5 and is no longer open-ended:
+its "if/when a feature commits to it" condition has fired (O3, above).
