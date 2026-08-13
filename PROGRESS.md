@@ -156,6 +156,52 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
 
+### ✅ AUTHZ ARMS — all four HOLD (lead-run 2026-08-13, registration by backend: the split was deliberate)
+
+`ARM=census` **HOLDS** (569 gates carry a verdict; no unswept newcomer) · `ARM=hat` **HOLDS**
+(3 findings, all reasoned-allowlisted) · `FROMFINDINGS=1 ARM=wrapper` **HOLDS** (BLIND 41, all
+allowlisted) · `ARM=floor` **HOLDS** (every never-called door on the floor allowlist).
+
+⛔ **READ THE SCOPE BEFORE CITING THESE.** A green census is **SILENT** on DM3's principal new
+door, not supportive. Lead-verified from the catalog:
+`attach_controlled_document_version_file` is **`prosecdef=t`, NOT `proretset`, returns the
+composite `controlled_document_versions`, lives in `public`, and carries EXECUTE to
+`authenticated`** — PostgREST-reachable, and **in no arm's domain**. Its own
+`app.is_staff_admin_of` check **is** the entire boundary. It is pinned **behaviourally**
+(`330 DM3·P1/P1b/P1c`, `314 §10.3`) — **by keystones, not by any arm.**
+
+### 🔴 THE CENSUS DOMAIN'S THIRD MEASURED EDGE — **146 DEFINER doors no arm can see** (PO decision)
+
+Lead-verified count: **146** functions that are `prosecdef`, composite-returning, non-`proretset`,
+and EXECUTE-able by `authenticated`. The census domain is **273 signatures and DM3 contributes 0**
+— the domain's clauses are bounded by **return type** (`bool`, or `proretset` + auth-EXECUTE, or
+`public` INVOKER plpgsql), so a composite-returning DEFINER is outside all of them. **Not a DM3
+regression — the class predates it (ADR 0118 §12) — but DM3 added one to it**, inherited from
+`set_document_version_file`, which was in the same class.
+
+⚠ **This is the THIRD measured edge on that file**, after the INVOKER-wrapper class and the
+row-returning doors BUG-AUTHZ-002 exposed — **and each previous edge was found by a live leak
+rather than by counting.** That is the argument for scheduling the widening: this one was found by
+counting, which is the cheap way to find it. **PO decision, not a phase decision** — widening the
+domain admits ~146 previously-unswept doors to the LIVE set at once, none carrying a verdict, so
+`ARM=census` would red on ~145 pre-existing doors immediately. A backlog to schedule, not a gate to
+trip mid-phase.
+
+⚠ **A fourth `enumeration-bounded-by-location` instance, same phase:** `ARM=wrapper`'s INVOKER
+clause is bounded by `nspname = 'public'`, so `app.assert_documents_wave_b_enabled` (INVOKER,
+schema `app`, auth-EXECUTE — lead-verified) is invisible to it.
+
+**Backend refused two shortcuts, and both refusals were right.** (1) **No findings-md row** — a
+findings verdict means *a neutralization sweep ran and this is what it said*; none has, so a row
+would be **a verdict nobody earned**, which is the exact fabrication the census exists to prevent
+and worse than an admitted gap. (2) **No domain widening mid-phase.** All six new functions went
+into `authz-unswept-backlog.txt` (*"we have never swept it, so we do not know"*) and **not** the
+BLIND allowlist (*"we swept it and nothing noticed"*) — the same distinction that made the stale
+allowlist entry below dangerous.
+⚠ **It was SIX new functions, not the four backend first reported** — the first list came from
+recall rather than the catalog, and the two missed included the INVOKER one. Same class as the
+four short counts in the frontend thread, now six landings this phase.
+
 ### 🔴 A STALE ALLOWLIST ENTRY PRE-EXCUSES A FUTURE DOOR — found by the repo-wide removal sweep
 
 `supabase/tests/mutation/authz-blind-allowlist.txt` still named **`app.can_read_document_object`**,
