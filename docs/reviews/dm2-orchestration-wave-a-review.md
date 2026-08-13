@@ -458,3 +458,376 @@ the platform has shipped — which is exactly why the one door that skipped its 
 has to be closed before Wave A goes live.
 
 — `qa`, 2026-08-13
+
+---
+
+# DM2 — orchestration + Wave A: QA review (r2)
+
+**Verdict: ✅ APPROVED**, with **one binding pre-merge condition** (r2-1 below) that
+does **not** require a gate re-run because it cannot change behaviour.
+
+r1 above is kept, not struck: the phase looped, and the loop is the record.
+
+- **Scope:** the r1 remediation on `docs/dm1-plan-amendments`, HEAD `3b7c8fb`
+  (r1 paused at `4644cef`). Still: nothing on `main`, nothing pushed, all five DM
+  flags OFF in production defaults.
+- **Method, unchanged from r1 and applied harder:** every SQL claim re-derived from the
+  **live catalog** (`pg_proc` incl. `prosecdef`, `pg_policies`, `pg_constraint`), never
+  from migration text. **Falsifiability claims were re-executed, not read** — I re-ran
+  all three P0-1 mutations myself, in rolled-back transactions, with the restore verified
+  by body-md5. Gate figures were re-run.
+- **Result: 0 P0 · 0 MAJOR · 1 MINOR (r2-1) · 4 INFO.** Every r1 finding is discharged
+  except one sub-item of P0-1's closure list, which is a comment, not a control.
+
+---
+
+## 0. What I re-derived myself (not accepted)
+
+| Claim | Source of the claim | What I measured | Verdict |
+| --- | --- | --- | --- |
+| Migrations registered | 375 | **375 registered == 375 files** | ✅ |
+| `308` sentinel 5.2s **can fail** | phase record | **Reproduced.** Cut → `and false` in a rolled-back txn: **1 red of 30, and it is 5.2s** — `caught: HC0D8 … wanted: 42501`. Control **5.2c2 stayed green**, so the red is the capability cut, not fixture rot. Door md5 `6def3045…` identical before and after | ✅ |
+| `329` mutation **A** (conjunct → `and false`) | phase record: P0a/P0d/P0f red | **Reproduced exactly.** 115 planned = 115 ran, 0 aborts, **3 red: P0a, P0f, P0d** | ✅ |
+| `329` mutation **B** (conjunct → `and true`) | phase record: file aborts at O1; P0b/P0c red in a focused harness | **Reproduced the abort.** 30 ok then abort at the first unguarded open — 191 cascade errors, no `finish()`. An aborted run is a failed run, so `329` cannot go green under B. P0b/P0c's individual reds are *forced* by the mutated body (`v_case is not null and true` ⇒ every case/interview open raises) — I did not re-run the focused harness | ✅ (see r2-INFO-1) |
+| `329` mutation **C** (the wrong fix — conjunct in the KERNEL) | phase record: P0e + P0a red | **Reproduced exactly.** 115 = 115, 0 aborts, **2 red: P0e, P0a** (`caught: P0002, wanted: 42501`) | ✅ |
+| `can_read_document` is **COVERED** by the diff-scoped sweep | lead re-gate table | **Re-derived by an independent, safer route:** kernel neutralized to `select true` in a rolled-back txn → `328` goes **18 red of 130** (K5b/c/d/f, K11k–o, K14s6, K14d1–d3, …). The gate is load-bearing and the suite notices | ✅ |
+| pgTAP files I could run in isolation | 189f/6097 PASS | `308` **30/30** · `311` **40/40** · `328` **130/130** · `329` **115/115**, all 0 errors, run shapes clean | ✅ |
+| `npm run lint` (five gates) | 0/0 | exit 0; chain runs to completion — `lint:vacuous` **179 spec files / 0 findings**, client/server gate 474 client + 124 server modules, both self-tests green | ✅ |
+| `npm run typecheck` | 0 errors | **exit 0** | ✅ |
+| `npm run test` (vitest) | 86 files / 1258 | **86 / 1258 passed** | ✅ |
+| `ARM=census` | HOLDS, 549 gates / 569 verdicts | **INVARIANT HOLDS — 549 / 569**, no unswept newcomer. `WORK` overridden; `git status` clean afterwards | ✅ |
+| `e2e:prod` | GREEN run 2 | not re-run (lead-owned) — **triaged below, §1.4** | see below |
+
+Everything I ran was inside a rolled-back transaction with the mutated body restored and
+**verified from the catalog by md5**. The working tree is clean; the committed findings
+file is untouched.
+
+---
+
+## 1. The four items I was asked to scrutinise hardest
+
+### 1.1 The P0-1 proof — real, and the sentinel genuinely fails
+
+This was the finding that made r1 a stop, so I did not accept the record: I re-executed all
+three mutations. All three reproduced exactly, including the shapes.
+
+The **`308` sentinel is the important one**, because the defect it was written to fix was a
+prose obligation that ran green all phase while unmet. It is now three live assertions
+(5.2c1 fixture, 5.2s sentinel, 5.2c2 control) and I proved the middle one can fail: with
+the byte cut neutralized, **5.2s is the only red in the file**, and it reds by *moving* —
+the reviewer stops being refused at the cut (42501) and sails on to file-absence (HC0D8),
+which is exactly the pre-fix behaviour. The differential control on the same version, one
+variable apart, stays green. That is a sentinel, not a tombstone.
+
+`329` P0a–P0f: **all six pins have an observed red under a targeted mutation**, and I
+reproduced five of the six myself. The backend's honest deviation is correct and I want it
+on the record as *correct*, not merely honest: the handoff's literal instruction ("revert
+the conjunct → every one of the six must red") is **unsatisfiable**, because P0b/P0c/P0e are
+positive controls — a control that reds when the thing it guards is removed is not a
+control. Splitting falsifiability across three mutations is the right construction, and
+mutation C is the strongest of them: it demonstrates *executably* why the cut lives in the
+door and not the kernel (the kernel conjunct kills M8 metadata reach, which 308 §5.1 pins).
+
+The **shape** of the fix is also right, and I checked the property rather than the diff:
+
+- `_case_caps` S7 confers `read_case_content | view_case_overview` and **not**
+  `read_case_deliberation`; every other content-conferring arm (S1, S3, S4, S6) confers
+  deliberation. So the cut removes **exactly one class** and cannot over-narrow.
+- That invariant is not merely true, it is **pinned**: `311` 6.6 asserts S7 is the only arm
+  conferring content without deliberation, and names itself as the place a second one must
+  be re-proven. This is the load-bearing lattice fact behind the cut, and it is executable.
+- The cut's domain (`case` + `interview` homes) is **complete relative to the reviewer's
+  reach**: the meeting arm is `is_member_of_for` and the action_item arm routes
+  `is_member_of_for` / `can_read_case_committee` / assignee — the reviewer holds no
+  commission membership, and `can_read_case_committee` explicitly subtracts
+  `is_oversight_only_reader`. There is no fourth home type that serves her bytes.
+
+### 1.2 MAJOR-1 cannot over-narrow — confirmed from the catalog
+
+`app.confidentiality_clearance_ok(p_case_id, p_label, p_uid)`, read from `pg_proc`:
+
+```
+if p_label is null
+   or p_label not in ('legal_privileged', 'credentialing_sensitive') then
+  return true;
+end if;
+```
+
+So for `NULL`, `non_phi_internal`, `ethics_investigation`, `peer_review_confidential`,
+`phi_restricted` — every non-enforcing label — it returns `true` unconditionally. Ordinary
+readers of ordinary interviews are unaffected, by construction and not by fixture.
+
+The new arm is `app.can_read_interview`, which is **exactly the old predicate plus the
+clearance conjunct**, row-joined; a missing interview row fails closed in both the old arm
+(`case_of_interview` → NULL → `_case_caps` STEP 3 → 0) and the new (`exists` over no row).
+ADR 0117 Amendment 1 states this accurately. The non-over-narrowing twins are first-class
+pins inside `328` (K15t1/t2, K15g1/g2), and `328` runs **130/130**.
+
+I also note a second-order effect, which is a *strengthening* and worth recording: because
+the kernel's interview arm now routes `can_read_case_committee`, the oversight reviewer can
+no longer reach interview-homed document **metadata** either. The byte cut's interview leg
+is now belt-and-braces. That is fine — defence in depth on a PHI corridor is not a defect —
+but it means the interview leg is currently unreachable-by-the-reviewer and the cut's
+assurance rests on the case leg. No action.
+
+### 1.3 Your gate claims — not overstated; if anything under-claimed
+
+I checked the derivation rather than the sentence, which is what r1 was asked to do and what
+the r1 *record* failed to do.
+
+- **The case list is genuinely one gate.** Across all eight DM2 migrations
+  `20260924000100`–`…000800` the functions touched are `guard_document_confidentiality`,
+  `assert_documents_enabled`, `can_read_document`, and the ten `public` command/open doors.
+  Under the ADR 0079 Amdt 1 `^(is_|can_|has_)` filter that is **exactly `can_read_document`**.
+  I also grepped all eight for `create policy` / `alter policy` / `drop policy`: **zero**.
+  Note `…000800` contains no `create or replace function` literal at all — it rewrites the
+  live body via `pg_get_functiondef` + `replace()` — so a naive text derivation would have
+  found *nothing*; the list was derived by resolving the `replace()` target, which is the
+  correct reading of the recipe.
+- **`case count nonzero` was checked before citing**, and the record says so. Good — that is
+  the write-path-sweep trap this project has been burned by.
+- **The `open_document_version` caveat is stated, not buried.** The re-gate section names it
+  explicitly: the door carrying the byte cut returns `jsonb`, is in no arm's domain, and its
+  assurance is `329` + the `308` sentinel, *not* the sweep. That is the honest form, and it
+  is the correction the r1 record needed.
+
+One thing you **under-claimed**: you cite the sweep's `COVERED` verdict without saying what
+it means behaviourally. I re-derived it directly — opening the kernel turns `328` 18 red —
+so the coverage is not a harness verdict, it is an observed property. Worth carrying.
+
+### 1.4 The `e2e:prod` triage — it does not block, and I am not deferring to you
+
+**Ruling: pass on this axis.** Not because "flake" was proven — it was not, and you were right
+to refuse to call it one — but because the red is **not attributable to this phase**, and three
+independent `RETRIES=0` passes stand against a single observation.
+
+What I verified independently, which narrows the hypothesis space further than the triage did:
+
+1. **The evidence loss is total, not partial.** I checked `/tmp/e2e-prod-gate/` — which is
+   never cleaned and survives across runs. `batch-8.log` is stamped **16:23**, i.e. run 2; run 1's
+   batch log was overwritten too. Nobody should go hunting: it is gone. (Caveat 2 is understated —
+   it was not only `test-results/`.)
+2. **Your own parked hypothesis is largely excluded by two facts visible in that batch log.**
+   The gate runs `supabase db reset --local` **before each batch** (`RESET=1` default), so
+   cross-batch fixture carryover cannot reach batch 8; and batch 8 ran **`1 worker`**, so
+   within-batch execution is strictly serial in file order. The `submittedResponseIds` pool
+   (`order=id.asc&limit=N`) is consumed at disjoint indices 1–5 by the five `pdf-printing` tests
+   in declaration order, and the failing test is the **first** one, taking index 0. For a
+   fixture-pollution explanation to survive, something must mint on index 0 *before* it — and the
+   only other minting spec in the whole suite is `pdf-printing-meetings.spec.ts`, which is in that
+   same batch and does not touch the response pool. So the shared-pool theory as written is close
+   to refuted, and the residue points at a **render/visibility timing** failure on a
+   `toBeVisible()` immediately after `page.goto` — the ordinary flake shape.
+3. **The surface argument holds.** DM2's diff touches `src/lib/documents`,
+   `src/components/documents`, `case-documents-panel`, migrations, tests and one ops script.
+   `printed_documents` and `src/components/printing/*` share no module with any of it.
+
+If DM2 had broken this it would fail deterministically; it passed in isolation 9/9, in an
+identical-batch re-run, and in a full-suite run. Blocking DM2 on it would be blocking the wrong
+artifact. The correct output is a **suite-health follow-up**, not a phase loop:
+
+> **FUP-GATE-PDFP1-FLAKE** — `pdf-printing.spec.ts:38` failed its pre-mint empty-state assertion
+> once, unreproducibly, with no infra signal. Next occurrence: **capture the page snapshot and the
+> batch log BEFORE re-running** (both were lost this time). First checks, in order: (a) was it a
+> `toBeVisible` timeout rather than a populated panel; (b) did `pdf-printing-meetings.spec.ts`
+> touch the response pool.
+
+**Process finding, recorded because it is the reusable half:** "re-run to see if it recurs" and
+"preserve the evidence" are in direct conflict, and the gate resolves it the wrong way — it wipes
+`test-results/` per run and overwrites `batch-N.log` per run. Worth one line in
+`docs/testing/e2e-prod-build-gate.md`.
+
+---
+
+## 2. Disposition of every r1 finding
+
+| r1 | Disposition | How I checked |
+| --- | --- | --- |
+| **P0-1** byte cut absent | ✅ **CLOSED** — cut live in `open_document_version` (catalog); six pins falsifiable; `308` sentinel proven able to fail; E2E asserts the DOOR | three mutations re-executed by me; md5 restores verified |
+| — its closure item 3 (the false comments) | ⚠ **PARTIALLY UNMET → r2-1** | `git log` shows the files untouched by any remediation commit |
+| **MAJOR-1** interview ceiling | ✅ **CLOSED** — PO ruled PROPAGATE; kernel arm re-pointed; ADR 0117 Amendment 1; K15 red-first 5/124 | catalog; `328` 130/130; over-narrow refuted from `confidentiality_clearance_ok` |
+| **MAJOR-2** reconciliation blind | ✅ **CLOSED — and my finding was corrected, rightly** | see below |
+| **MAJOR-3** dead retry | ✅ **CLOSED by removal** — `failed` has no outbound D9 arc, so retry was never recoverable; the server short-circuits with no download and no RPC; the dialog renders no submit control | `actions.ts:156-164`; vitest T1–T4 (red-first recorded); E2E `DM2-VERIFY-FAILED-TERMINAL-UI` |
+| **MINOR-1** pagination | ✅ **CLOSED** — both walks accumulate with a stable sort; **and the fixture found a second same-class defect I did not name** (the `file_objects` read was a bare `.select()`, PostgREST-capped at 1000) | diff; 1001-row fixture red/green recorded |
+| **MINOR-2** unguarded session UPDATE | ✅ **CLOSED** — `.eq('state','reserved')` in the statement, proven with a real two-session interleaving (`consumed` stomped pre-fix, survives post-fix); `expiredSwept` counts rows swept; the `:59` "record it" promise kept at two levels | diff |
+| **MINOR-3** stuck `verifying` | ✅ **CLOSED** — 60-min sweep → `failed`, reconciled against the live verifier by a threshold 4× the reservation TTL, deliberately not a second verifier | diff; T4 twin |
+| **MINOR-4** discarded pt-BR message | ✅ **CLOSED, and it was worse than I filed it** | see below |
+| **MINOR-5** props default to allow | ✅ **CLOSED** — `canWrite`/`canDownload` now **required**; lead ruling accepted (a default deny is still a guess) | diff; tsc 0 |
+| **MINOR-6** stale follow-ups | ✅ **CLOSED** — both rows discharged and, correctly, **verified at the source** rather than from the reports | `PROGRESS.md:760-761` |
+| **INFO-1** census blind spot | ✅ Recorded as **ADR 0118 §12**, correctly scoped as not-a-DM2-regression | ADR |
+| **INFO-2** `documents_wave_a` | ✅ **CLOSED better than asked** — the claim is corrected (`documents_foundation` is the kill switch, wave_a is not) and pinned by `328` **K16**, incl. K16s1 whose detector was proven able to find a planted reference. No flag-pair trigger: ruling accepted — a refuse-style dependency would slow the incident lever | `328` 130/130, K16s1/s2 green |
+| **INFO-3** credential wording | ✅ **CLOSED** both halves (`types.ts` + dialog) | diff |
+| **INFO-4** Rule 9 exception | ✅ **CLOSED** — DM5 step 5 carries the obligation beside the D8 Rule-1 sharpening | plan |
+
+**On MAJOR-2 — the backend corrected me, and the correction is right.** My finding said
+"treat `failed`/`abandoned` as `expectsBytes`". As stated that is wrong: an `abandoned` file
+with no object is the *common* case (a reservation that never PUT), and my version would have
+minted false MISSING at scale. The shipped contract — **terminal state AND bytes present ⇒
+`undisposed`** — is the correct formulation, and extending it to `infected`/`rejected` (same
+shape per the CHECK) is an improvement on what I asked for. I verified the classifier is
+**total**: against `file_objects_upload_state_check` (10 states) × `file_objects_disposal_state_check`
+(3 states), every pair lands in exactly one class, `unclassified` is currently unreachable and
+exists as a forward guard that fails loud in *both* directions. `classCounts` summing to the row
+count is the right shape here ("a census whose parts do not sum is wrong").
+
+**On MINOR-4 — the frontend corrected me, and that correction matters more than the fix.** I read
+the button as rendering the generic fallback where a mapped string existed. Driven for real it
+rendered **nothing**: `AlertDialogAction` is Radix's `Action` and closes on click, so `setError`
+wrote into an unmounting subtree and the `role="alert"` paragraph was dead UI — a refused delete
+left the row in place, unexplained. Mapping the code alone would have "fixed" copy into an element
+no user can reach. Both halves are fixed (`preventDefault` + `documentErrorMessage`, with an
+out-of-union value still falling back). The reachability correction is right too: the batched
+`document_delete_affordances` returns `canDelete=false` under a live hold, so the refusal is a race
+from a stale tab, not a steady state. *A safe fallback and a message that cannot render look
+identical from the outside* — that lesson is worth more than the two-line diff.
+
+---
+
+## 3. r2 findings
+
+### r2-1 (MINOR — binding pre-merge condition) — P0-1's third closure item was dropped: three sites still assert that a React prop suppresses the byte corridor
+
+r1's "Required to close" item 3 read, verbatim: *"Correct the two false comments
+(`document-row.tsx:73-78`, `e2e/quality-oversight.spec.ts:489-496`) and strengthen the E2E to
+assert the *door* refuses, not only that the button is absent."* The **E2E half is done**, and done
+well. The **comment half was never picked up** — it does not appear in the resumption handoff's
+work list, so it was dropped in transcription, not declined.
+
+`git log 29215f4~1..HEAD -- src/components/documents/document-row.tsx` is **empty**: the file has
+not been touched since before the P0 fix. Live today:
+
+```
+src/components/documents/document-row.tsx:75-76
+  * reviewer reads metadata but never downloads). Suppresses the audited door
+  * outright; there is no second byte path to also remember to suppress.
+
+src/components/cases/case-detail-view.tsx:727-729
+  // ADR 0100 — metadata yes, bytes no. Under the document model
+  // this suppresses the single audited byte corridor; there is no
+  // second signed-URL path left to also remember.
+
+e2e/quality-oversight.spec.ts:509-513
+  // ... `canDownload={!isOversight}` (case-detail-view.tsx) suppresses the
+  // single audited byte corridor entirely — `OpenDocumentButton` never
+  // renders for her, not merely disabled (there is no second, unaudited
+  // path left to also remember to suppress under the document model).
+```
+
+Three sites, not two — I missed the `case-detail-view.tsx` call site in r1. All three still say
+the prop suppresses the *corridor*. It suppresses the *button*. The corridor is shut by
+`app.has_case_capability(v_case, v_uid, 'read_case_deliberation')` inside the door, which none of
+them mentions. This is the exact assertion that made a reviewer believe a React prop was the
+boundary, that let a green E2E certify a UI-only control, and that this repo's own scar file
+records as having shipped a live bug four times ("a comment is an assertion that goes stale
+silently"). The spec's block is partly self-correcting — the paragraph below it now says
+explicitly that an absent button does not prove a door is shut — but the two in application code
+have no counterweight.
+
+**Why this is a condition and not a `CHANGES REQUESTED`.** I considered blocking, because "a
+required-to-close item silently evaporated" is precisely this phase's own failure mode. I am not
+blocking because the *control* is real, verified three ways, and independently reproduced by me;
+what is left is prose. The fix is comment-only across three files: it cannot change behaviour, so
+it needs `lint` + `typecheck` and nothing else — no fresh reset, no pgTAP, no `e2e:prod`. Looping
+the phase to gate step 1 over three comment lines would cost hours and teach the team that review
+verdicts are priced in whole gates. **But it must land before the branch merges or any flag flips**,
+and it must be recorded in the QA Verdicts row so it cannot evaporate a second time. Suggested
+replacement for all three: *"hides the download control; the corridor itself is shut by the
+`read_case_deliberation` conjunct inside `open_document_version` (ADR 0100 D3/D7, QA r1 P0-1) —
+this prop enforces nothing."*
+
+### r2-INFO-1 — P0b/P0c's individual reds rest on a focused harness I did not re-execute
+
+Mutation B aborts the file at the first unguarded open, which I reproduced (30 ok, then 191
+cascade errors, no `finish()`). That is sufficient for the *suite* property — `329` cannot go green
+under B — and the two pins' reds are logically forced by the mutated body. But the quoted
+`died: 42501` lines come from a replica harness, and a replica is a second implementation of the
+thing under test. Not a defect; recorded so nobody later cites "all six observed red in a clean
+run", which is not what happened.
+
+### r2-INFO-2 — the M8 E2E asserts refusal, not *which* refusal
+
+`e2e/quality-oversight.spec.ts:536-540` asserts `openResp.ok` is falsy. A door that 404s, a broken
+`m8DocVersionId`, or a blanket failure would satisfy it. The paired positive control in the sibling
+test (same version id, coordinator, must succeed) covers most of that, and `329` P0a pins the code
+and message exactly — so the contract *is* pinned, just not in the E2E. The two adjacent new probes
+in `phase-f2-attachments.spec.ts` / `phase11-interviews.spec.ts` do assert codes (`HC0D8`,
+`HC0DG`). One line — `expect(body.code).toBe('42501')` — would make this file consistent with its
+own siblings. Tester's call, not a phase item.
+
+### r2-INFO-3 — `disposal_pending` is indeterminate-and-accounted, and Wave B is where that bites
+
+The classifier deliberately never reports a `disposal_pending` row, and the header justifies it:
+the Storage delete legitimately precedes the completion door's absence check. That is correct
+today because `requestDocumentDisposition` has **no UI caller** in Wave A (the only callers of the
+disposal doors are `src/lib/documents/actions.ts` itself, and `complete_document_disposal` is
+invoked synchronously by `reclassifyDocument`). The moment a disposal UI lands, a request whose
+completion never runs leaves bytes in `documents-phi` that nothing reports and nothing sweeps — the
+MAJOR-2 shape, one state over. Worth a line in the DM3/Wave-B ledger now, while the reasoning is
+fresh: either a staleness threshold on `disposal_pending` (the MINOR-3 pattern) or a named owner.
+
+### r2-INFO-4 — "exit 127 with the output swallowed" now has two independent sightings
+
+Backend hit it three times with `process.exit()` and libuv's teardown assertion on Windows, and
+fixed it by moving to `process.exitCode`; the gate hit the same shape in run 2 batch 5 with
+`server_dead=0` / `conn_errors=0`. Both were correctly recorded. The reusable point is the one the
+re-gate section already makes: **a runbook keyed on an exit code cannot tell a swallowed report
+from a real failure.** Wherever `e2e-prod-gate.sh` classifies on exit codes, exit 127 with an empty
+summary deserves its own branch rather than falling through to "failed".
+
+---
+
+## 4. Requirements, security and hygiene — the standing checklist
+
+- **Requirements.** Every DM2 deliverable in the plan's §DM2 and every acceptance bullet is met.
+  The two contract obligations r1 found unmet (DM1 keystone obligation 2's door half; S1-O4) are
+  now discharged with rulings, mechanisms, ADR amendments and executable pins.
+- **Security / RLS.** The boundary is the DB, not the UI, and that is now true *and demonstrated*:
+  the byte cut is a catalog conjunct with six falsifiable pins, the D15 ceiling and the new
+  interview ceiling both route the single kernel, the document buckets carry INSERT policies only,
+  and the three service-role completion doors carry no `authenticated` EXECUTE. `prosecdef` was
+  read beside `pg_policies` throughout. `ARM=census` HOLDS at 549/569. The `jsonb`-door blind spot
+  is named as a standing platform finding (ADR 0118 §12) rather than papered over.
+- **Code quality.** `tsc --noEmit` exit 0; the Rule 9 exception in `src/lib/documents/actions.ts`
+  is ADR-justified and now carries a DM5 obligation to name it in ARCHITECTURE.md; the five lint
+  gates pass, including `lint:vacuous` over 179 spec files.
+- **UX & a11y.** New copy is pt-BR and code-mapped — no raw Postgres string can reach the UI
+  (closed union + fallback). The terminal-failure dialog renders no submit control at all rather
+  than a disabled one naming an action that does not exist, and the refusal messages carry
+  `role="alert"`. Both were driven in a real browser against a written prediction ledger, and both
+  ledgers recorded a miss — which is what makes them evidence.
+- **Hygiene.** ADR 0117 Amendment 1 and ADR 0118 §§10/12 exist and match the catalog.
+  `PROGRESS.md`'s follow-up rows now agree with the phase rows. Working tree clean; branch
+  unmerged, unpushed; all five DM flags OFF in production defaults.
+
+---
+
+## 5. What to write in the QA Verdicts table (lead-owned)
+
+> ✅ **APPROVED (r2)** [review](docs/reviews/dm2-orchestration-wave-a-review.md) — r1's 1 P0 · 3
+> MAJOR · 6 MINOR · 4 INFO all discharged; **P0-1's proof re-executed by QA, not accepted** (all
+> three mutations reproduced in rolled-back txns, restores md5-verified; the `308` 5.2s sentinel
+> observed RED under cut-removal with its control green; `can_read_document`'s coverage re-derived
+> as 18 reds in `328` under kernel neutralization). MAJOR-1 catalog-confirmed unable to
+> over-narrow. Two QA findings were **corrected by the engineers and the corrections adopted**
+> (MAJOR-2's classifier contract; MINOR-4 was worse than filed). r2: **0 P0 · 0 MAJOR · 1 MINOR ·
+> 4 INFO**. ⛔ **Binding pre-merge condition (r2-1):** three sites still assert that a React prop
+> suppresses the byte corridor (`document-row.tsx:75`, `case-detail-view.tsx:727`,
+> `quality-oversight.spec.ts:509`) — comment-only, no re-gate required, **must land before merge or
+> any flag flip**. `e2e:prod` run-1 red ruled **not phase-attributable** (→ FUP-GATE-PDFP1-FLAKE).
+
+And in the phase-status gate cell: *pgTAP 189f/6097 · lint 5-gate · tsc 0 · vitest 86/1258 ·
+`ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` HOLD · diff-scoped sweep `can_read_document`
+COVERED (`open_document_version` is out of every arm's domain by return-type syntax — ADR 0118 §12;
+its assurance is `329` P0a–P0f + the `308` sentinel) · `e2e:prod` GREEN run 2; run-1 red triaged as
+non-attributable with the mechanism explicitly unproven.*
+
+---
+
+**Bottom line.** The one thing that made r1 a stop is closed, and closed the hard way: the control
+is in the database, the pins can fail, and I proved they can fail rather than reading that they
+can. Two of my own findings came back corrected and better than I filed them, which is the sign of
+a team auditing the review instead of complying with it. What remains is three sentences of stale
+prose in the exact place that caused the P0 — small, but not nothing, and the reason it is a
+condition rather than a footnote.
+
+— `qa`, 2026-08-13 (r2)
