@@ -91,7 +91,23 @@ live, servable, same-sha256 file bound to the SAME document. **Invariant
 preserved: a servable copy always survives** — the argument is inductive and
 EXECUTABLE, not reasoned (Condition 1): the last copy has no sibling and
 stays behind the gate, pinned by the differential pair 329 R6/R7 (same
-statement, one variable — the sibling's liveness). The exemption is kept
+statement, one variable — the sibling's liveness).
+**The load-bearing term (QA r1, pinned 2026-08-13): "live" is spelled
+`f2.disposal_state = 'none'` — NEVER `<> 'disposed'`.** The induction
+survives simultaneous requests only because of it:
+`request_document_disposition` marks ALL bound files pending in one
+statement, so two simultaneously-pending same-sha duplicates each fail to
+find a live sibling and BOTH refuse. Relaxed to `<> 'disposed'`, each
+pending duplicate satisfies the other's evidence probe and both dispose —
+the last-copy invariant dies **while R6/R7/R8 still pass** (R7's dead
+sibling is `disposed`, which both spellings reject). Pinned executably, not
+only here in prose: 329 **R10a** (two-pending differential — reds on
+exactly that relaxation, mutation-proven with R6/R7/R8 observed green under
+the mutated door) and **R10s** (the f2-scoped spelling, comment-stripped;
+the document-closure query below the gate legitimately uses `<> 'disposed'`
+— the alias disambiguates). A related fact R7 also proves: §4's
+refuse-before-verify-absence ordering — the successor's bytes are still
+present at R7, so a leaked exemption would surface as HC0D9, not HC0DR. The exemption is kept
 GENERAL (evidence-gated), not path-narrowed to the reclassify door
 (Condition 2, reasoning recorded): the guardrail is the EVIDENCE, never
 caller provenance — a provenance marker would be a claim, strictly weaker

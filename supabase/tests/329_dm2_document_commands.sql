@@ -27,7 +27,10 @@ begin;
 -- BUG-DM2-003 expired-session contract).
 -- 100 → 108: QA r1 P0-1 — the QO·B byte-discrimination cut re-expressed
 -- (P0-f1/f2 fixtures + P0a–P0f, the 308 §5.2–5.7 obligation).
-select plan(108);
+-- 108 → 115: R10 (ADR 0118 §10 hardening — the load-bearing sibling
+-- predicate `f2.disposal_state = 'none'` pinned, structurally and with the
+-- two-pending differential QA r1 named), 7 assertions.
+select plan(115);
 
 -- Flags: the module flag flips ON for this txn; the rest asserted as state.
 update app.feature_flags set enabled = true where key = 'documents_foundation';
@@ -599,6 +602,94 @@ select throws_ok(
   $q$ select public.complete_document_disposal((select (r->>'file_object_id')::uuid from u7)) $q$,
   'HC0DR', null,
   'R8 a non-duplicated file claiming the duplicate lane is REFUSED (evidence-gated, not claim-gated)');
+
+-- ---------------------------------------------------------------------------
+-- R10 — ADR 0118 §10's LOAD-BEARING PREDICATE, pinned (QA r1). The last-copy
+-- induction holds BECAUSE the sibling arm requires `f2.disposal_state =
+-- 'none'`, not `<> 'disposed'`: request_document_disposition marks ALL bound
+-- files pending in one statement, so two simultaneously-pending same-sha
+-- duplicates must each fail to find a live sibling and BOTH refuse. Under a
+-- relaxation to `<> 'disposed'` each pending duplicate satisfies the other's
+-- evidence probe and BOTH dispose — the invariant dies while R6/R7/R8 all
+-- stay green (R7's dead sibling is `disposed`, which both spellings reject).
+-- R10a is the pin that reds on exactly that relaxation; R10b is the
+-- differential twin (same statement, one variable: the sibling's
+-- disposal_state pending → none, a legal back-arc in the D10 machine).
+-- FALSIFIABILITY: proven by the relaxation mutation in a rolled-back txn
+-- (R10a red `caught: HC0D9` — the exemption wrongly admitted and fell to the
+-- absence check; R10s red; R6/R7/R8 green throughout, QA's exact claim) —
+-- output in the DM2 phase record.
+-- ---------------------------------------------------------------------------
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u8 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (dupla pendencia)', null, null, null, 'p8.pdf', 'application/pdf', 100) as r;
+select set_config('request.jwt.claims', '', true);
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 7, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u8);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u8)) $q$,
+  'R10f1 u8 finalizes');
+select set_config('request.jwt.claims', '', true);
+select lives_ok(
+  $q$ select public.complete_document_upload_verification(
+        (select (r->>'upload_session_id')::uuid from u8), repeat('8', 64), true) $q$,
+  'R10f2 u8 completes');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table rr3 on commit drop as
+  select public.reclassify_document((select (r->>'document_id')::uuid from u8), 'standard') as r;
+select is(
+  (select count(*)::int from rr3 where (r->>'new_file_object_id') is not null
+      and (r->>'old_file_object_id') is not null),
+  1, 'R10f3 reclassify mints the same-sha successor pair');
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 7, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'new_file_object_id')::uuid from rr3);
+select set_config('request.jwt.claims', '', true);
+select lives_ok(
+  $q$ select public.complete_document_reclassification(
+        (select (r->>'new_document_version_id')::uuid from rr3),
+        (select (r->>'new_file_object_id')::uuid from rr3),
+        (select (r->>'old_file_object_id')::uuid from rr3),
+        repeat('8', 64)) $q$,
+  'R10f4 the copy commits — old copy now SYSTEM-set disposal_pending/duplicate');
+
+-- BOTH duplicates pending — the state request_document_disposition's
+-- one-statement marking produces.
+update public.file_objects
+   set disposal_state = 'disposal_pending', disposal_reason_category = 'duplicate'
+ where id = (select (r->>'new_file_object_id')::uuid from rr3);
+select throws_ok(
+  $q$ select public.complete_document_disposal((select (r->>'old_file_object_id')::uuid from rr3)) $q$,
+  'HC0DR', null,
+  'R10a TWO PENDING DUPLICATES: a pending sibling is NOT a live sibling — the lane refuses (disposal_state = ''none'' is load-bearing)');
+
+-- The differential twin: ONE variable flips (the sibling back to 'none' — a
+-- legal pending→none back-arc), the same statement admits.
+update public.file_objects
+   set disposal_state = 'none', disposal_reason_category = null
+ where id = (select (r->>'new_file_object_id')::uuid from rr3);
+select set_config('storage.allow_delete_query', 'true', true);
+delete from storage.objects o
+ where (o.bucket_id, o.name) in
+   (select f.storage_bucket, f.storage_path from public.file_objects f
+     where f.id = (select (r->>'old_file_object_id')::uuid from rr3));
+select set_config('storage.allow_delete_query', 'false', true);
+select lives_ok(
+  $q$ select public.complete_document_disposal((select (r->>'old_file_object_id')::uuid from rr3)) $q$,
+  'R10b …and with the SAME sibling live (none), the same statement admits — the pair isolates the predicate');
+
+-- Resolve-shape: the sibling arm's spelling, comment-stripped, f2-scoped (the
+-- document-closure query legitimately uses <> 'disposed' — the alias is the
+-- disambiguator).
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'complete_document_disposal')
+    ~ $r$f2\.disposal_state = 'none'$r$,
+  'R10s the sibling-liveness spelling is disposal_state = ''none'' (relaxing to <> ''disposed'' reds this pin)');
 
 -- A — the canDelete affordance door (server-computed; holds accounted
 -- WITHOUT disclosure).
