@@ -122,6 +122,20 @@ QA MINOR-2 (`open_document_version` must gate **before** recording — the regis
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
 
+**⚠ METHOD FINDING — the census caught the AUTHOR'S OWN domain misprediction (2026-08-13, S2.8).**
+Worth carrying past this program. Backend's S2.7 findings note *predicted* that SETOF doors stay
+outside the census domain — a reasoned claim, written into the findings file, and **wrong for
+`document_delete_affordances`**: `ARM=census` FAILED naming exactly that door (549 live gates). Two
+consequences the phase handled correctly and a third to remember: (a) the required-fail is not
+ceremony — it is the only thing standing between a reasoned domain claim and a silently
+unregistered gate; (b) the prescribed diff-scoped sweep then printed **`BLIND: 0` over ZERO executed
+cases** (the ARM-1 `^(is_|can_|has_)` matcher cannot run that name) and was **not cited**, coverage
+coming instead from a targeted mutation (door forced `true` → a plain member gains the affordance,
+A2/A3 would red; restore catalog-verified) — the case-count rule applied as intended; (c) **the wrong
+prediction was corrected IN PLACE in the findings file**, not merely superseded, so it cannot mislead
+a later reader. A stale reasoned claim inside the artifact that records coverage is worse than no
+claim — [[a-comment-is-an-assertion-that-goes-stale-silently]], census edition.
+
 **✅ PO RULINGS 2026-08-13 (DM2).** **O4 CLOSED** — signed-URL TTL **PHI 120 s / standard 300 s**,
 **no streaming proxy** (sign median measured **10 ms**). The tier split is deliberate and must not be
 "simplified" to one number: a signed URL is a bearer token, so PHI bytes carry a strictly smaller
