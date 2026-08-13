@@ -3941,6 +3941,7 @@ export type Database = {
           doc_type: string
           id: string
           review_cycle_months: number | null
+          securable_type: string
           status: string
           tags: string[]
           title: string
@@ -3957,6 +3958,7 @@ export type Database = {
           doc_type: string
           id?: string
           review_cycle_months?: number | null
+          securable_type?: string
           status?: string
           tags?: string[]
           title: string
@@ -3973,6 +3975,7 @@ export type Database = {
           doc_type?: string
           id?: string
           review_cycle_months?: number | null
+          securable_type?: string
           status?: string
           tags?: string[]
           title?: string
@@ -3992,6 +3995,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "controlled_document_versions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "controlled_documents_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
         ]
       }
@@ -11815,6 +11825,7 @@ export type Database = {
           doc_type: string
           id: string
           review_cycle_months: number | null
+          securable_type: string
           status: string
           tags: string[]
           title: string
@@ -13099,6 +13110,7 @@ export type Database = {
           doc_type: string
           id: string
           review_cycle_months: number | null
+          securable_type: string
           status: string
           tags: string[]
           title: string
@@ -15699,6 +15711,7 @@ export type Database = {
           doc_type: string
           id: string
           review_cycle_months: number | null
+          securable_type: string
           status: string
           tags: string[]
           title: string
