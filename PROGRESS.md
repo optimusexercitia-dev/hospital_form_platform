@@ -104,8 +104,9 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 
 | Slice | Owner | Status |
 | --- | --- | --- |
-| S1 — M1–M8 migrations + suite `330` | backend | 🟢 in progress |
-| S2 — frontend: open-door cutover, charter gate, dead-component removal | frontend | ⬜ not started (contract posted in plan §7) |
+| S1 — M1–M7 migrations + suite `330` | backend | ✅ applied — `330` **44/44**, `328` **128/128**; **M8 dropped with evidence** (its premise was false: no projection door ever projected `storage_path`) |
+| S1b — backend side of the §7 contract (TS) | backend | 🟢 in progress — `typecheck` RED at 6, deliberately: it *is* the contract boundary |
+| S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | 🟢 in progress (contract-first against plan §7) |
 | S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
@@ -142,6 +143,25 @@ call becomes ambiguous (`42725`) — it needs `DROP`+`CREATE`+**re-GRANT**.
 ⚠ **A lead over-claim was corrected by backend and the correction adopted:** "exactly one
 audit row per download" is wrong — the D11 floor does not log a creator's own
 standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**, denial → 0.
+
+**Build findings so far (S1):**
+- **Two real holes caught red-first, both "caught: no exception"** — `reclassify_document(<controlled doc>, 'phi')` genuinely **succeeded** (`DM3·T1`), and a direct `INSERT` linking *another case's* document into `ethics_notifications` genuinely **succeeded** (`DM3·E2`). T1 is the direct payoff of the M2/M6 split: merged, that keystone would have been **born green**.
+- **M4 absorbed two routines a column drop would have broken at RUNTIME, silently** — `submit_document_for_approval`'s has-a-file precondition and `decide_document_approval_core`'s **e-signature hash basis**. A column drop does not fail a function that references it. The hash stays bound to an immutable storage path rather than `file_objects.sha256`: changing the basis of an existing e-signature is a **semantic change to a signing artifact**, not a refactor → **FUP-DM3-SIGBASIS**.
+- **Three vacuity/false-positive finds in the backend's OWN work**, all the same shape — *a check that passes for a reason unrelated to the property*: `proacl::text like '%=X/postgres,%'` matches **every** ordinary grant (failed closed here; the identical shape fails **open** just as easily) · `prosrc like '%in_controlled_docs_rpc%'` returns **true because the comment saying it deliberately does NOT read the GUC contains the string** · a clearance-destroying probe ordered before `DM3·E5`, so E5 failed for the **fixture's** reason, not the product's.
+- **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
+- ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
+- ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+**Lead ruling — the TS cutover crosses a file-ownership boundary: option 1 (contract-first).**
+The five `set_document_version_file` call sites change *shape*, not just call: server-side
+`FormData` upload → the DM2 client-upload flow, which changes the component contract.
+Backend posts + lands the signatures in `src/lib/**`; **frontend** does the component
+cutover; `typecheck` stays RED at 6 until S2 lands, deliberately. **Option 3 (a thin
+server-side compat path) was rejected** — it would install a **second byte-writing path
+beside the DM2 corridor in the phase whose purpose is collapsing them to one**: a temporary
+red bar is a schedule cost, a second write path is an architecture cost that outlives the
+phase. Option 2 (backend takes frontend's files) breaks §4 ownership for speed — the exact
+trade the contract-first rule exists to prevent.
 
 ### ✅ COMPLETE — **DM2: orchestration + Wave A** (opened + completed 2026-08-13)
 
