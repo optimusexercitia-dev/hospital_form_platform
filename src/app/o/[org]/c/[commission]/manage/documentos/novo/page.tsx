@@ -11,7 +11,7 @@ import {
 } from "@/lib/controlled-documents/actions";
 import type { DocType } from "@/lib/controlled-documents/types";
 import { commissionHref } from "@/lib/routing";
-import { CreateWizard } from "@/components/documents/create-wizard";
+import { CreateWizard } from "@/components/controlled-documents/create-wizard";
 
 export const metadata: Metadata = {
   title: "Novo documento controlado",

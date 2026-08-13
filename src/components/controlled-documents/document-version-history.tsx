@@ -8,13 +8,13 @@ import { cn } from "@/lib/utils";
 import {
   DocumentStatusChip,
   ObsoleteKindChip,
-} from "@/components/documents/document-badges";
+} from "@/components/controlled-documents/document-badges";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/documents/format";
+import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 import {
   VersionCompareModal,
   type CompareVersion,
-} from "@/components/documents/version-compare-modal";
+} from "@/components/controlled-documents/version-compare-modal";
 
 /** A version paired with a freshly-minted signed download URL (or null if none). */
 export interface VersionWithUrl extends ControlledDocumentVersion {

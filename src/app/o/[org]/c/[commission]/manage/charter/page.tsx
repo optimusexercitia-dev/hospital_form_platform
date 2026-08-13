@@ -15,7 +15,7 @@ import {
   MEETING_FREQUENCY_LABELS,
   MEETING_FREQUENCY_WINDOW_LABELS,
 } from "@/components/charters/labels";
-import { DocumentStatusChip } from "@/components/documents/document-badges";
+import { DocumentStatusChip } from "@/components/controlled-documents/document-badges";
 import { saveCharter } from "./actions";
 
 export const metadata: Metadata = {

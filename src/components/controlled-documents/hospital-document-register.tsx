@@ -5,8 +5,8 @@ import {
   DocumentStatusChip,
   DocumentTypeBadge,
   ReviewOverdueChip,
-} from "@/components/documents/document-badges";
-import { formatDateOnly, formatVersionNumber } from "@/components/documents/format";
+} from "@/components/controlled-documents/document-badges";
+import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 
 /**
  * Hospital-wide controlled-document register (Phase 17, F6). A PHI-free, read-only

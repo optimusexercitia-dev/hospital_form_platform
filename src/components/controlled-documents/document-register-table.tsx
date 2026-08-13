@@ -13,8 +13,8 @@ import {
   ObsoleteKindChip,
   ReviewOverdueChip,
   type DerivedDocStatus,
-} from "@/components/documents/document-badges";
-import { formatDateOnly, formatVersionNumber } from "@/components/documents/format";
+} from "@/components/controlled-documents/document-badges";
+import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 
 /** Per-version approval progress, computed FE-side for `in_approval` rows. */
 export interface ApprovalProgress {

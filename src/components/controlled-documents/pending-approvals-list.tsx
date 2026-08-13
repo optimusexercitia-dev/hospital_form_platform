@@ -3,8 +3,8 @@ import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 import { orgHref } from "@/lib/routing";
 import type { PendingApprovalRow } from "@/lib/controlled-documents/types";
-import { DocumentTypeBadge } from "@/components/documents/document-badges";
-import { formatDateTime, formatVersionNumber } from "@/components/documents/format";
+import { DocumentTypeBadge } from "@/components/controlled-documents/document-badges";
+import { formatDateTime, formatVersionNumber } from "@/components/controlled-documents/format";
 
 /**
  * Per-user approval queue (Phase 17, F4). Lists the documents the caller was named

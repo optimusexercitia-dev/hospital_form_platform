@@ -8,7 +8,7 @@ import { getDocument } from "@/lib/queries/controlled-documents";
 import { updateControlledDocument } from "@/lib/controlled-documents/actions";
 import { selectWorkingDraft } from "@/lib/controlled-documents/version-select";
 import { commissionHref } from "@/lib/routing";
-import { DocumentEditor } from "@/components/documents/document-editor";
+import { DocumentEditor } from "@/components/controlled-documents/document-editor";
 
 export const metadata: Metadata = {
   title: "Editar documento controlado",

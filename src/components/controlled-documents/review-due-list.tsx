@@ -3,8 +3,8 @@ import { CalendarClock, FileText, ClipboardList } from "lucide-react";
 
 import { commissionHref } from "@/lib/routing";
 import type { ReviewDueRow } from "@/lib/controlled-documents/types";
-import { ReviewOverdueChip } from "@/components/documents/document-badges";
-import { formatDateOnly } from "@/components/documents/format";
+import { ReviewOverdueChip } from "@/components/controlled-documents/document-badges";
+import { formatDateOnly } from "@/components/controlled-documents/format";
 
 /**
  * Review-due list (Phase 17, F5). Surfaces two feeds together: controlled

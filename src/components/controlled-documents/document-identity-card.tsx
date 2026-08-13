@@ -6,8 +6,8 @@ import {
   DerivedStatusChip,
   DocumentTypeBadge,
   type DerivedDocStatus,
-} from "@/components/documents/document-badges";
-import { formatDateOnly } from "@/components/documents/format";
+} from "@/components/controlled-documents/document-badges";
+import { formatDateOnly } from "@/components/controlled-documents/format";
 
 /**
  * Full-width identity card atop the controlled-document detail (doc-detail

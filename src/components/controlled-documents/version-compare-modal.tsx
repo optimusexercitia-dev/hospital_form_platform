@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/documents/format";
+import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 
 /** A version paired with whether it has a stored file (drives the "Arquivo" row). */
 export interface CompareVersion extends ControlledDocumentVersion {

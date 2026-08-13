@@ -18,11 +18,11 @@ import { orgHref } from "@/lib/routing";
 import {
   DocumentStatusChip,
   DocumentTypeBadge,
-} from "@/components/documents/document-badges";
-import { ApprovalsPanel } from "@/components/documents/approvals-panel";
-import { ApprovalSignForm } from "@/components/documents/approval-sign-form";
+} from "@/components/controlled-documents/document-badges";
+import { ApprovalsPanel } from "@/components/controlled-documents/approvals-panel";
+import { ApprovalSignForm } from "@/components/controlled-documents/approval-sign-form";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/documents/format";
+import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 
 export const metadata: Metadata = {
   title: "Aprovação de documento",

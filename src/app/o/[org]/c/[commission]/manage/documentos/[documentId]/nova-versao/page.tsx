@@ -11,7 +11,7 @@ import { commissionHref } from "@/lib/routing";
 import {
   CreateWizard,
   type LockedIdentity,
-} from "@/components/documents/create-wizard";
+} from "@/components/controlled-documents/create-wizard";
 
 export const metadata: Metadata = {
   title: "Nova versão do documento",

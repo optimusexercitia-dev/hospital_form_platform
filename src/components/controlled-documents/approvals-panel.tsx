@@ -4,8 +4,8 @@ import { APPROVAL_DECISION_LABELS, type DocumentApproval } from "@/lib/controlle
 import type { ActionState } from "@/lib/controlled-documents/actions";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateTime } from "@/components/documents/format";
-import { RemindApproverButton } from "@/components/documents/remind-approver-button";
+import { formatDateTime } from "@/components/controlled-documents/format";
+import { RemindApproverButton } from "@/components/controlled-documents/remind-approver-button";
 
 /**
  * Approvals + signature-state panel (Phase 17, F3 + F4). Read-only view of each

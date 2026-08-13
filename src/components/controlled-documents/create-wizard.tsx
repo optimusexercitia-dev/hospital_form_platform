@@ -39,16 +39,16 @@ import { Stepper } from "@/components/ui/stepper";
 import {
   ChecklistRail,
   type ChecklistItem,
-} from "@/components/documents/checklist-rail";
-import { DocumentTypeBadge } from "@/components/documents/document-badges";
+} from "@/components/controlled-documents/checklist-rail";
+import { DocumentTypeBadge } from "@/components/controlled-documents/document-badges";
 import {
   formatDateOnly,
   formatVersionNumber,
-} from "@/components/documents/format";
+} from "@/components/controlled-documents/format";
 import {
   ReviewerPicker,
   type ChosenApprover,
-} from "@/components/documents/reviewer-picker";
+} from "@/components/controlled-documents/reviewer-picker";
 
 type CreateAction = (
   prev: CreateDocumentState | undefined,

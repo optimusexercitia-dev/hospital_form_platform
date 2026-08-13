@@ -35,19 +35,19 @@ import {
 import { commissionHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { DocumentIdentityCard } from "@/components/documents/document-identity-card";
+import { DocumentIdentityCard } from "@/components/controlled-documents/document-identity-card";
 import {
   DocumentVersionHistory,
   type VersionWithUrl,
-} from "@/components/documents/document-version-history";
-import { DocumentDetailRail } from "@/components/documents/document-detail-rail";
-import { DetailNotice } from "@/components/documents/detail-notice";
-import { ApprovalsPanel } from "@/components/documents/approvals-panel";
-import { ApprovalSignForm } from "@/components/documents/approval-sign-form";
-import { SubmitForApprovalForm } from "@/components/documents/submit-for-approval-form";
-import { AddVersionForm } from "@/components/documents/add-version-form";
-import { PublishDocumentDialog } from "@/components/documents/publish-document-dialog";
-import { DocumentActionsMenu } from "@/components/documents/document-actions-menu";
+} from "@/components/controlled-documents/document-version-history";
+import { DocumentDetailRail } from "@/components/controlled-documents/document-detail-rail";
+import { DetailNotice } from "@/components/controlled-documents/detail-notice";
+import { ApprovalsPanel } from "@/components/controlled-documents/approvals-panel";
+import { ApprovalSignForm } from "@/components/controlled-documents/approval-sign-form";
+import { SubmitForApprovalForm } from "@/components/controlled-documents/submit-for-approval-form";
+import { AddVersionForm } from "@/components/controlled-documents/add-version-form";
+import { PublishDocumentDialog } from "@/components/controlled-documents/publish-document-dialog";
+import { DocumentActionsMenu } from "@/components/controlled-documents/document-actions-menu";
 
 export const metadata: Metadata = {
   title: "Documento controlado",

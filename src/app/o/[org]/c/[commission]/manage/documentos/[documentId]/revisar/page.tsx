@@ -11,8 +11,8 @@ import { commissionHref } from "@/lib/routing";
 import {
   CreateWizard,
   type LockedIdentity,
-} from "@/components/documents/create-wizard";
-import type { ChosenApprover } from "@/components/documents/reviewer-picker";
+} from "@/components/controlled-documents/create-wizard";
+import type { ChosenApprover } from "@/components/controlled-documents/reviewer-picker";
 
 export const metadata: Metadata = {
   title: "Revisar versão do documento",

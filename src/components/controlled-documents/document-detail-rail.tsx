@@ -2,7 +2,7 @@ import { ShieldCheck } from "lucide-react";
 
 import type { ControlledDocument } from "@/lib/controlled-documents/types";
 import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
-import { formatDateOnly } from "@/components/documents/format";
+import { formatDateOnly } from "@/components/controlled-documents/format";
 
 /**
  * Detail right rail (Phase 17 v2, F-C): a "Detalhes do documento" metadata card
