@@ -22,7 +22,11 @@ import type {
  */
 
 /** Documents homed on one resource, for the Wave-A panels. RLS-scoped: the
- * caller sees only documents the kernel (incl. the D15 ceiling) admits. */
+ * caller sees only documents the kernel (incl. the D15 ceiling) admits.
+ * Contract guarantees (frontend review items 9–10): ordered `createdAt`
+ * DESC (newest first); EXCLUDES `soft_deleted`; disposal-state documents
+ * REMAIN listed (redacted title, availability `disposed` — the governance
+ * record survives, D12). */
 export async function listDocumentsForResource(
   _resourceType: DocumentHomeResourceType,
   _resourceId: string,

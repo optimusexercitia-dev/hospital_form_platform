@@ -65,7 +65,10 @@ export async function openDocumentVersion(
 }
 
 /** Audited classification change (S1-O2): the enforcing labels respect the
- * S1 seam (case/interview homes only — HC0D6 otherwise). */
+ * S1 seam (case/interview homes only — HC0D6 otherwise).
+ * ⚠ NO Wave-A UI surface (lead ruling 2026-08-13): classification happens at
+ * upload only; declassification is a widening decision that belongs to the
+ * Phase-19 access plane (D16). Server-side command + keystones only. */
 export async function setDocumentConfidentiality(
   _documentId: string,
   _level: DocumentConfidentialityLevel | null,
