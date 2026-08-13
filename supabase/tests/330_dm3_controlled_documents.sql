@@ -38,7 +38,7 @@
 -- =============================================================================
 
 begin;
-select plan(29);
+select plan(35);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -430,7 +430,117 @@ select lives_ok(
         'da300000-0000-0000-0000-0000000000a1', 'resumo das alterações') $q$,
   'DM3·P1b POSITIVE CONTROL: the staff_admin DOES attach on a draft version (P1/P1c are not "refuses everyone")');
 
+-- =============================================================================
+-- T — THE NO-PHI STANCE (M6). ADR 0114 D13: "PHI-tier input on a controlled
+-- document fails closed."
+--
+-- ⚠ THAT SENTENCE HAS NO TARGET AT THE UPLOAD DOOR. `begin_document_upload`
+-- DERIVES the tier server-side (`case`/`interview` → phi, else standard), so a
+-- controlled-document upload is standard BY CONSTRUCTION and there is no PHI
+-- input to reject there — a guard placed at that door would cover an impossible
+-- input. The reachable surface is `reclassify_document(p_document_id,
+-- p_target_tier)`, which accepts 'phi' for ANY home type. That is where the
+-- stance is enforced (M6) and where T1's red lives.
+-- =============================================================================
+
+-- A real, servable file on the controlled document's latest core version.
+-- Built by WALKING the D9 state machine, because app.guard_file_object_transition
+-- refuses any file object that does not start life 'reserved' (HC0D1) — the
+-- fixture cannot shortcut into 'clean'.
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('f0300000-0000-0000-0000-0000000000a1', 'documents-standard',
+        '0c000000-0000-0000-0000-00000000000a/f0300000-0000-0000-0000-0000000000a1/gen1',
+        'standard', '00000000-0000-0000-0000-000000000002');
+update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+  where id = 'f0300000-0000-0000-0000-0000000000a1';
+update public.file_objects set upload_state = 'verifying'
+  where id = 'f0300000-0000-0000-0000-0000000000a1';
+update public.file_objects set upload_state = 'scan_pending'
+  where id = 'f0300000-0000-0000-0000-0000000000a1';
+update public.file_objects
+   set upload_state = 'clean', verified_at = now(), size_bytes = 100,
+       mime_type = 'application/pdf', sha256 = repeat('a', 64)
+  where id = 'f0300000-0000-0000-0000-0000000000a1';
+insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+values ('da300000-0000-0000-0000-0000000000a1', 'f0300000-0000-0000-0000-0000000000a1', 'source');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+
+-- T1 ⭐ — a controlled document cannot be pushed into the PHI tier.
+-- RED pre-M6 for the RIGHT reason: with a clean, bound, servable file in place
+-- the call genuinely SUCCEEDS there — the hole is real, not hypothetical.
+select throws_ok(
+  format($q$ select public.reclassify_document(%L, 'phi') $q$,
+         (select core_document_id from public.controlled_documents
+           where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')),
+  'HC0DH', null,
+  'DM3·T1 ⭐ reclassify_document refuses to move a CONTROLLED document into the phi tier (D13 no-PHI stance)');
+
+-- T1b — POSITIVE CONTROL: the same door still works in the ALLOWED direction,
+-- so T1 is not passing because reclassification is simply broken. A case home
+-- is phi by the tier rule, so the legal move for it is phi → standard.
+select lives_ok(
+  format($q$ select public.reclassify_document(%L, 'standard') $q$,
+         (select d.id from public.documents d
+            join public.securable_resources s on s.id = d.home_resource_id
+            join public.document_versions dv on dv.document_id = d.id
+            join public.document_version_files dvf on dvf.document_version_id = dv.id
+            join public.file_objects f on f.id = dvf.file_object_id
+           where s.resource_type = 'case' and d.status = 'active'
+             and f.sensitivity_tier = 'phi' and f.disposal_state = 'none'
+             and f.upload_state in ('clean', 'unscanned_accepted')
+           limit 1)),
+  'DM3·T1b POSITIVE CONTROL: reclassify_document still works for a non-controlled home (T1 is not "the door is broken")');
+
+-- T2 — the upload door derives `standard` for a controlled-document home. The
+-- by-construction half, asserted so a future tier-derivation edit cannot
+-- quietly send Wave B bytes to the PHI bucket.
+-- ⚠ The door is called into a temp table first (the 329 idiom) rather than
+-- inlined in a scalar subquery — inlining made the result unobservable.
+create temp table t2_begin on commit drop as
+  select public.begin_document_upload(
+           'controlled_document',
+           'c4c3f346-b18b-42bf-a754-968ecf264e58',
+           'Fixture T2', null, null,
+           (select core_document_id from public.controlled_documents
+             where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')) as r;
+
+select is(
+  (select f.storage_bucket || '|' || f.sensitivity_tier
+     from public.file_objects f
+    where f.id = (select (r->>'file_object_id')::uuid from t2_begin)),
+  'documents-standard|standard',
+  'DM3·T2 the upload door derives the STANDARD tier/bucket for a controlled-document home');
+
 select set_config('request.jwt.claims', '', true);
+
+-- =============================================================================
+-- B — BUCKET + DOOR RETIREMENT (M5). The `controlled-documents` bucket loses
+-- BOTH policies (lead ruling Q4 — the INSERT one bypasses begin_document_upload
+-- entirely, so dropping only SELECT would leave a hole straight through the
+-- command layer). The bucket ROW itself retires at DM5 under the single
+-- retirement manifest — deliberately not here.
+-- =============================================================================
+
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%controlled-documents%'),
+  0,
+  'DM3·B1 ⭐ ZERO storage.objects policies reference controlled-documents (both SELECT and INSERT retired)');
+
+select hasnt_function('app', 'can_read_document_object',
+  'DM3·B2 the bucket predicate app.can_read_document_object is GONE (its only caller was that policy)');
+
+-- B3 — POSITIVE CONTROL for the derivation itself. B1 asserts a ZERO; a broken
+-- derivation also reports zero. This proves the same query still SEES a live
+-- policy elsewhere. Mirrors 325 t4 — a detector that finds nothing must be
+-- proven able to find something.
+select ok(
+  (select count(*) >= 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%case-documents%'),
+  'DM3·B3 POSITIVE CONTROL: the same derivation still sees the live case-documents policy (B1''s zero is real)');
 
 select * from finish();
 rollback;
