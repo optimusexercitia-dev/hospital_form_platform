@@ -363,12 +363,20 @@ automatically an app bug.
   zero-delta; the two changed doors are already named in the findings note's
   behavioral-coverage list; diff-scoped case list mechanically empty — not
   cited).
-- **S5 choreography ledger addition (lead-routed, tester-pinned):**
+- **S5 choreography ledger addition (lead-routed, tester-pinned; AMENDED
+  2026-08-13, backend — handoff item 5, now enforced not prose):**
   `documents_wave_a` gates the UI; `documents_foundation` gates the RPC layer
   — with foundation ON and wave_a OFF the UI is dark while a direct API
-  caller can still write. **The two flip together, and `documents_wave_a`
-  alone is NOT a kill switch** — if a wave flag is ever meant as an emergency
-  stop it must gate the door, not only the surface.
+  caller can still write. **`documents_wave_a` alone is NOT a kill switch;
+  `documents_foundation` alone IS** — one lever kills every door (HC0D7
+  first-statement), wave_a notwithstanding. Pinned by 328 **K16** (K16a/b/c
+  behavioral differential: same call, the flag the only variable; K16s1
+  wave_a consulted by ZERO DB functions; K16s2 all-12-doors assert census).
+  No flag-pair trigger was added, deliberately: a refuse-style dependency
+  would SLOW the incident lever (killing foundation would first demand a
+  wave_a flip) and a cascade trigger is unruled ops magic. The S5 emergency
+  stop is: **flip `documents_foundation` OFF**; flip wave_a too for UI
+  darkness, in either order.
 
 ## S2+ — (subsequent slices append here)
 

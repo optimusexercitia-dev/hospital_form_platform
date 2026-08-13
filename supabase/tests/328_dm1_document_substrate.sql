@@ -30,7 +30,10 @@ begin;
 -- 111 → 124: MAJOR-1 / S1-O4 adds K15 (the INTERVIEW's own ceiling propagates
 -- to its documents — PO PROPAGATE ruling 2026-08-13; ADR 0117 Amendment 1),
 -- 13 assertions.
-select plan(124);
+-- 124 → 130: K16 (the kill-switch property, QA r1 INFO-2 / handoff item 5):
+-- documents_foundation alone kills every door; documents_wave_a is UI-only
+-- and NOT a kill switch — enforced by pins, no longer prose. 6 assertions.
+select plan(130);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -1064,6 +1067,71 @@ select ok(
     where n.nspname = 'app' and p.proname = 'can_read_document')
     ~ 'can_read_interview',
   'K15s1 the kernel''s interview arm routes app.can_read_interview (the level-skipping dispatch is gone)');
+
+-- =============================================================================
+-- K16 — THE KILL SWITCH, enforced (QA r1 INFO-2 / pause-handoff item 5).
+-- `documents_wave_a` gates the UI; `documents_foundation` gates the doors
+-- (app.assert_documents_enabled, first statement of every door). So wave_a
+-- alone is NOT a kill switch, and "the two flip together" was prose with
+-- nothing enforcing it. The ruling here: the claim is made ACCURATE and the
+-- property that matters is PINNED — foundation alone kills the module — no
+-- flag-pair trigger is added (a refuse-style dependency would SLOW the
+-- incident lever by demanding a wave_a flip first; a cascade trigger is
+-- unruled ops magic). K16a/b/c carry their own differential: the SAME call,
+-- one variable (the foundation flag), HC0D7 dead vs HC0D8 alive. K16s2's
+-- reach, stated honestly: it catches an assert REMOVED from the existing
+-- doors; a FUTURE door that forgets the assert changes no count here — that
+-- is its own suite's keystone obligation (new-door-inherits-every-arm).
+-- =============================================================================
+
+-- Precondition: wave_a is ON while the doors die — the pin is precisely
+-- "wave_a does NOT keep the module alive".
+select is(app.feature_enabled('documents_wave_a'), true,
+  'K16p precondition: documents_wave_a is ON (seed-forced) while foundation is cut');
+
+update app.feature_flags set enabled = false where key = 'documents_foundation';
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.open_document_version('32800000-0000-0000-0000-00000000e305') $q$,
+  'HC0D7', null,
+  'K16a foundation OFF kills the READ door (HC0D7 before any other gate), wave_a ON notwithstanding');
+select throws_ok(
+  $q$ select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+        'Documento K16 (kill switch)', null, null, null, 'k16.pdf', 'application/pdf', 100) $q$,
+  'HC0D7', null,
+  'K16b …and the WRITE door — one lever, the whole module');
+
+update app.feature_flags set enabled = true where key = 'documents_foundation';
+
+-- The differential's other arm: the SAME call, the one variable restored —
+-- the door is alive again and fails only at its normal gate (no file bound).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000004'::uuid, false, 'staff');
+select throws_ok(
+  $q$ select public.open_document_version('32800000-0000-0000-0000-00000000e305') $q$,
+  'HC0D8', 'arquivo ainda não disponível',
+  'K16c foundation ON revives the same call (HC0D8 at file-absence — the flag was the only variable)');
+
+-- wave_a is UI-only, structurally: NO function in app/public consults it
+-- (comment-stripped). If a future change makes wave_a load-bearing in the
+-- DB, this pin forces the kill-switch claim to be rewritten consciously.
+select is(
+  (select count(*)::int from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('app', 'public')
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'documents_wave_a'),
+  0,
+  'K16s1 documents_wave_a is consulted by ZERO database functions (UI-only, by pin not prose)');
+
+-- The existing door census: every one of the 12 public DEFINER doors asserts
+-- the foundation flag. Catches a removed assert; grows consciously with DM3.
+select is(
+  (select count(*)::int from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'assert_documents_enabled'),
+  12,
+  'K16s2 all 12 public DEFINER document doors assert documents_foundation (exact census — update consciously when DM3 adds doors)');
 
 select * from finish();
 rollback;
