@@ -596,7 +596,12 @@ export async function submitDocumentForApproval(
 /**
  * Record the caller's `aprovado` decision on a version they were named on. Fields:
  * `versionId`, optional `note`. Routes to `approve_document` (sign-own-row; computes
- * `signature_hash` = sha256 over storage_path:approver_id:decision).
+ * `signature_hash` = sha256 over storagePath:approver_id:decision, where the
+ * path is now resolved through the core binding by
+ * `app.controlled_version_source_path` — the DOMAIN column is gone (DM3 M4).
+ * The basis is unchanged on purpose: it stays an immutable storage path rather
+ * than moving to `file_objects.sha256`, because re-basing an existing
+ * e-signature is a semantic change to a signing artifact (FUP-DM3-SIGBASIS).
  */
 export async function approveDocument(
   _prev: ActionState | undefined,

@@ -116,8 +116,11 @@ export interface ControlledDocument {
 }
 
 /**
- * One version of a controlled document. `storagePath` is IMMUTABLE and NEW per
- * upload (Rule 6) — the file object is never overwritten. `reviewDueDate` is
+ * One version of a controlled document. The file lives on the CORE model now
+ * (DM3): `coreDocumentVersionId` points at the `document_versions` row carrying
+ * it, and Rule 6 immutability is enforced there — `file_objects` paths are
+ * server-generated and never overwritten, and the binding itself is
+ * append-only. `reviewDueDate` is
  * computed `effectiveDate + reviewCycleMonths` at publish (overridable). `status`
  * is the version's own lifecycle state; the header mirrors the current version.
  */
