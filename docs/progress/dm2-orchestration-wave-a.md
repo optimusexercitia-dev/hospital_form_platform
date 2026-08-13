@@ -472,20 +472,29 @@ assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
    **over-narrowing twin** (reviewer still reads titles). ⚠ **`supabase/tests/308_case_caps_s7.sql:291-303`
    states this obligation verbatim — *"That door's keystones MUST re-express all six pins"* — and
    ran green all phase while it was unmet.** Make that file unable to pass while unmet, or it lies again.
-2. **MAJOR-2 — reconciliation is blind to `failed`/`abandoned` files holding bytes.** Its premise
+2. ✅ **DONE 2026-08-13 (backend, session 2) — commit `6327591`; records in §"Resumption
+   session, part 2" below.**
+   **MAJOR-2 — reconciliation is blind to `failed`/`abandoned` files holding bytes.** Its premise
    assumes those states carry no object; **this phase made that false** (BUG-DM2-001's fix binds a
    failed file; BUG-DM2-003's fix mints `abandoned`). `accounted.add` is unconditional, so they are
    not orphans either. Net: **undisposable PHI under a `RECONCILIATION CLEAN` banner.**
-3. **MAJOR-3 — "Tentar novamente" can never succeed after a verification failure.** `consumed` →
+3. ✅ **DONE 2026-08-13 (backend, session 2, server side) — commit `797d55b`; a FRONTEND
+   contract is handed to the lead (dialog + label copy); records below.**
+   **MAJOR-3 — "Tentar novamente" can never succeed after a verification failure.** `consumed` →
    `failed` → TS re-verifies → `HC0D9` → same banner forever, **each loop an unaudited service-role
    download of the whole object.** Make retry work or stop offering it.
-4. **ADR 0118 §10 — pin the load-bearing predicate.** The retention-exemption induction holds
+4. ✅ **DONE 2026-08-13 (backend, session 2) — commits `a4e2351` + `542002b`; records below.**
+   **ADR 0118 §10 — pin the load-bearing predicate.** The retention-exemption induction holds
    **because the sibling predicate is `disposal_state = 'none'`, not `<> 'disposed'`**. §10 credits
    "the evidence" generally; a later relaxation kills the invariant **while R6/R7 still pass**.
-5. **`documents_wave_a` kill-switch keystone.** wave_a gates the **UI**, `documents_foundation` gates
+5. ✅ **DONE 2026-08-13 (backend, session 2) — commit `872bf3f` (K16); the claim made accurate,
+   the foundation-kill property pinned; records below.**
+   **`documents_wave_a` kill-switch keystone.** wave_a gates the **UI**, `documents_foundation` gates
    the **doors** — so wave_a alone is **not** a kill switch. "They flip together" is prose with
    nothing enforcing it.
-6. **ADR 0118 §12** — record finding 2 above.
+6. ✅ **DONE 2026-08-13 (backend, session 2) — ADR 0118 §12 written (standing blind spot, not a
+   DM2 regression); in the final docs commit.**
+   **ADR 0118 §12** — record finding 2 above.
 7. **Re-run the full §6 gate**: fresh reset · `test:db` · lint 5-gate · typecheck · vitest · the four
    arms · diff-scoped sweep over every changed body (case count **nonzero** before citing) ·
    **`e2e:prod`** · then QA **r2**.
@@ -637,3 +646,147 @@ absent) → full pgTAP: **Files=189, Tests=6084, Result: PASS**. Not run here
 four authz arms, the diff-scoped door sweep over `can_read_document`'s changed
 body (**required at gate time — this session changed an RLS-adjacent DEFINER
 body**), `e2e:prod`, QA r2.
+
+# Resumption session 2026-08-13, part 2 (backend) — items 2–6 closed
+
+Commits, in order: `6327591` (MAJOR-2) · `797d55b` (MAJOR-3, server side) ·
+`a4e2351` (§10 predicate + R10) · `872bf3f` (K16 kill switch) · `542002b`
+(R10 fixture collision fix). **No migration this round** — 375 == 375
+unchanged; `gen:types` diff clean. Raw runs in the session scratchpad
+(`329_mutD_run2.txt`, `328_k16_run.txt`, MAJOR-2 script output inline below).
+
+## Item 2 — MAJOR-2 (reconciliation) — red/green record
+
+**RED (observed, planted committed fixtures on the live stack):** one
+byte-holding `failed` + one byte-holding `abandoned` `file_objects` row in
+`documents-phi`, objects present → the committed script printed
+`RECONCILIATION CLEAN`, exit 0, `counts: {objects: 2, rows: 2}` — both
+swallowed by the unconditional `accounted.add`, judged by neither direction.
+**GREEN:** the rewritten TOTAL first-match classifier reports both as a new
+`undisposed` class, `DRIFT: 2 finding(s)`, exit 1, `classCounts: {terminal:
+2}`. **TWIN (no over-reporting):** objects deleted, same terminal rows →
+`RECONCILIATION CLEAN`. Design points: `infected`/`rejected` (same shape,
+per the `file_objects_upload_state_check` CHECK) classify with
+failed/abandoned; an UNRECOGNIZED state pair is reported as `unclassified`
+AND left unaccounted (its object also surfaces as ORPHAN — fail-loud both
+directions); `reserved` and `disposal_pending` are indeterminate BY DESIGN
+(in-flight PUT window; the Storage delete legitimately precedes the
+completion door's absence check), documented in the header. Fixtures
+removed after the runs. (Adjacent, deliberately NOT touched: MINOR-1
+pagination and MINOR-2 unguarded session UPDATE — item 8's scope.)
+
+## Item 3 — MAJOR-3 (terminal verification failure) — ruling + record
+
+**Ruling (delegated): STOP OFFERING retry.** From the catalog: `failed` has
+**no outbound arc** in `guard_file_object_transition`'s D9 machine (it
+appears only as a target), and the bytes at the immutable path cannot change
+(Rule 6, `x-upsert: false`) — so a "successful retry" is necessarily a new
+reservation + path, i.e. exactly the remove-and-reupload the row already
+instructs. Accepted cost, recorded: a transient download error during
+verification also mints terminal `failed`; distinguishing it needs a
+`failed → verifying` machine arc (migration) for a pre-pilot edge where
+re-upload is always available.
+
+**Server side (shipped, `797d55b`):** `finalizeDocumentUpload` short-circuits
+the idempotent `failed` return — **no service-role download, no verify RPC**
+(the unaudited full-object download per click is dead server-side regardless
+of UI) — and both failure sites return `{ error: 'upload_incomplete',
+terminal: true }`. Encoded as an OPTIONAL discriminant, not a new error
+code, so the frontend-owned closed pt-BR label map keeps compiling.
+
+**RED-FIRST (vitest `src/lib/documents/actions.test.ts`):** T1 (short-circuit
+keystone) and T2 (first failure already terminal) observed RED against the
+pre-fix action — T1's pre-fix run invoked the verifier RPC/download; T2
+returned no terminal marker. T3 twin: a PUT that left no object stays
+NON-terminal (ADR 0118 §8's retry contract, preserved). T4: the `verifying`
+stuck-recovery re-entry still verifies and succeeds. 4/4 green post-fix;
+tree typechecks.
+
+**→ FRONTEND CONTRACT (handed to the lead — files are frontend-owned):**
+1. `src/components/documents/document-upload-dialog.tsx` — when a finalize
+   result carries `terminal: true`: do NOT keep the session for resubmit and
+   do NOT relabel the submit button "Tentar novamente"; surface the
+   remove-this-item-and-upload-again guidance as the only recovery (the
+   row's existing copy is correct; the dialog's is not).
+2. `src/components/documents/document-labels.ts` — terminal copy, e.g.
+   "A verificação do arquivo falhou. Remova este item e envie o arquivo
+   novamente." (today the user is shown "Tente enviar novamente", which
+   instructs an action that cannot work).
+3. Optional pairing: promote `terminal` to a first-class `upload_failed`
+   error code — the union lives in backend's `types.ts` and will be changed
+   in the SAME commit as the frontend's label line (a lone union addition
+   breaks the closed `Record` map's compile).
+4. Tester note: an E2E probe that the dialog no longer offers retry after a
+   verification failure would close the affordance half end-to-end
+   (`DM2-VERIFY-FAILED` asserts DB truth + row text only).
+
+## Item 4 — ADR 0118 §10 predicate — record
+
+§10 now names the load-bearing term: sibling liveness is
+`f2.disposal_state = 'none'`, never `<> 'disposed'`. Pinned in 329:
+**R10a** (two same-sha duplicates BOTH `disposal_pending` — the state
+`request_document_disposition`'s one-statement marking produces — the lane
+REFUSES HC0DR: a pending sibling is not a live sibling) with twin **R10b**
+(one variable flips — the sibling back to `none`, a legal D10 back-arc —
+the same statement admits) and **R10s** (the f2-scoped spelling,
+comment-stripped; the document-closure query legitimately uses
+`<> 'disposed'`, the alias disambiguates).
+
+**FALSIFIABILITY (mutation D, rolled-back txn, restore md5-verified
+`2aa61ca8…` before and after):** the exact relaxation applied to the live
+door → clean full-shape run, 115 planned = 115 ran, **exactly 2 red**:
+R10a `caught: HC0D9 'objeto ainda presente…' wanted: HC0DR` (the exemption
+wrongly admitted the pending sibling and fell through to the absence check)
+and R10s — while **R6 ok · R7 ok · R8 ok** under the mutated door: QA r1's
+claim that the pre-existing pins cannot see this relaxation, demonstrated
+executably.
+
+**Method lesson (own goal, recorded):** my R10 fixture first took the name
+`u8`, which 329's A-block already creates — on a fresh stack the file
+ABORTED at the A-block with 95 of 115 run and **zero failed tests**, and my
+verification had grepped pin lines + "Looks like" without checking run
+SHAPE (an aborted `finish()` prints neither). Fixed in `542002b`
+(`u8` → `u8d`); the mutation-D record above is from the post-fix clean-shape
+rerun. *A run's shape (planned == ran) is part of the evidence, every time.*
+
+## Item 5 — kill switch — ruling + record
+
+**Ruling (delegated): make the claim accurate + pin the property; no
+flag-pair trigger.** A refuse-style dependency would SLOW the incident lever
+(killing `documents_foundation` would first demand a `documents_wave_a`
+flip); a cascade trigger is unruled ops magic. The S5 emergency stop is now
+written as: **flip `documents_foundation` OFF** — one lever, every door.
+
+328 **K16** (130/130 green): K16p (wave_a asserted ON while foundation is
+cut — the pin is precisely "wave_a does not keep the module alive"),
+K16a/K16b (read + write doors die HC0D7 first-statement), K16c (the SAME
+open revives to HC0D8 at file-absence with the flag restored — the
+differential's one variable is the flag), K16s1 (`documents_wave_a`
+consulted by ZERO functions in app/public, comment-stripped — detector
+proven able to find a planted reference: 1 under a rolled-back mutation of
+`assert_documents_enabled`, 0 after restore), K16s2 (all-12-doors assert
+census — reach stated honestly: it catches a REMOVED assert; a future door
+that forgets one changes no count and is the new-door suite's obligation).
+The S5 ledger entry above was amended to match (prose → pins).
+
+## Item 6 — ADR 0118 §12
+
+Written: the standing method finding — a sweep boundary drawn on a
+return-type SYNTAX (`proretset`) cannot enforce the stated PROPERTY ("the
+DEFINER's internal gate is the entire boundary"); D8 moved the M8 cut from a
+census-covered storage policy into a `jsonb`-returning DEFINER in no arm's
+domain; the `document_delete_affordances` contrast case (TABLE-returning,
+inside, census caught the misprediction) proves the mechanism; **536**
+pre-existing functions share the class — a standing blind spot for the arms'
+next periodic revision, NOT a DM2 regression; DM2's compensation is
+behavioral (P0a–P0f + the 308 5.2s sentinel).
+
+## Gate state (session 2 scope — NOT the full §6 gate)
+
+Fresh `supabase db reset` (375 == 375, no new migrations) → `gen:types`
+diff clean → full pgTAP **Files=189, Tests=6097, Result: PASS** (6084 + 7
+R10 + 6 K16) → vitest **86 files / 1258 tests PASS** → lint **all five
+gates OK**; `tsc` clean. Still lead-owned before QA r2: the four authz arms
+(census zero-delta this round — no new DB function, policy, or door; the
+only body changes were rolled-back mutations), `e2e:prod`, the two
+unconfirmed tester probe files, and item 8's 6 MINOR + 4 INFO.

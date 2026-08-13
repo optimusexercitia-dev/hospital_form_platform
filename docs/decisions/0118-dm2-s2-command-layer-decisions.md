@@ -135,6 +135,31 @@ non-entitled writers, and without a UI-side restatement of a DB rule.
 display it actually is). The door returns SETOF — outside the census/ARM-1
 domains by definition; behavioral coverage 329 A1–A3.
 
+**12. METHOD FINDING (standing, not a DM2 regression) — a sweep boundary
+drawn on a return-type SYNTAX cannot enforce a PROPERTY.** All four authz
+arms ran green over P0-1 (the oversight reviewer served PHI bytes) because
+the M8 byte cut used to live in a **storage policy** — inside `ARM=census`'s
+domain — and D8 deliberately moved that boundary into a **`jsonb`-returning
+DEFINER** (`open_document_version`), which is in **no** arm's domain. The
+census's clause 2 was widened after BUG-AUTHZ-002 on the stated principle
+that *"a DEFINER's gate REPLACES RLS, so the internal gate IS the entire
+boundary"* — a **property** — but the implementation bounds it by
+**`proretset`**, a syntax. The door satisfies the property completely (D8
+deleted the storage SELECT policies precisely so it would be the whole
+boundary) and fails the syntax. QA r1 validated this account by checking the
+domain predicate itself rather than the claim, and the contrast case proves
+the mechanism: `document_delete_affordances` returns `TABLE(...)`, is
+therefore `proretset`, is therefore inside — and the census caught the
+author's misprediction on exactly that door. **536 pre-existing
+`prosecdef`/`authenticated`-EXECUTE/non-bool/non-setof functions share the
+class**, so this is the platform's standing model: whenever a phase
+relocates an authorization boundary from a census-covered artifact into a
+non-covered one, the first defect in the new location is invisible to every
+green arm. Recorded here as a standing blind spot for the arms' next
+periodic revision (a possible ARM domain over `jsonb`-returning DEFINER
+doors); DM2's own compensation is behavioral: the P0a–P0f keystones and the
+308 5.2s sentinel on the relocated door.
+
 ## Consequences
 
 - Wave A's UI consumes exactly the S2 contract (`src/lib/documents/types.ts`,
