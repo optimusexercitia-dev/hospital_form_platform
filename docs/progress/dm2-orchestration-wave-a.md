@@ -331,4 +331,19 @@ is a load that does not exist. If it ever bites, start from these numbers;
 first option: trim the file embed from LIST while keeping both fields
 resolving (a narrowed embed / computed column), routed through the lead.
 
+## S4 prep (backend, 2026-08-13 — lead-directed at S4 spawn)
+
+| # | Task | Status | Evidence |
+|---|------|--------|----------|
+| S4p.1 | Seed forces `documents_foundation` + `documents_wave_a` ON for local/E2E (MIN pattern; prod defaults stay OFF until S5); the flag-OFF-contract trap noted AT THE FLIP (a spec pinning "absent, not disabled" must toggle + restore itself) | ✅ `01134b1` | catalog-verified post-reset: both `t`, waves `f`, `attachments` `f` |
+| S4p.2 | `attachments` key: **seed-retired only** — lead-RATIFIED scoping: the key ROW + `FeatureFlags` entry + `attachmentsEnabled()` retire via the **S5 choreography MIGRATION**, because production never runs seed and a seed DELETE would fork local from production on the key's *existence* (the drift class two phases were spent killing) | ✅ ruling recorded | lead ack 2026-08-13; S5 ledger item |
+| S4p.3 | 328 K9 rewritten for the seeded state (would have red-ed on the tester's FIRST fresh reset with no defect behind it — a false red at calibration time); three pins, prod-default caveat in the pin name; plan 111 | ✅ | full suite **189f/6051 PASS** (6049 + 2, accounted) |
+
+**Handed to S4 (routed by the lead):** the browser-side half of the upload
+failure contract — a failed/partial PUT leaves NO storage object, `finalize`
+returns `upload_incomplete`, the session stays retryable ~15 min until
+`upload_expired` — 329 **U11/U12 are the specification** the E2E is checked
+against; a disagreement is a genuine finding in either direction, not
+automatically an app bug.
+
 ## S2+ — (subsequent slices append here)
