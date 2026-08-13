@@ -21,7 +21,9 @@ begin;
 -- 127 → 131: DM2·S1 restores the document-confidentiality-ceiling block (tests
 -- 36–39, retired with its substrate at DM1) against public.documents (ADR 0114
 -- Amendment 1, D15).
-select plan(131);
+-- 131 → 135: DM2·S2 adds the OPEN-level ceiling pins (40/40b/41/41b — S1-O1
+-- discharged on open_document_version).
+select plan(135);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -412,6 +414,54 @@ select is((select count(*)::int from public.documents
             where id = '22800000-0000-0000-0000-00000000d201'), 1,
   '39: clearance-admits-list — max_confidentiality = legal_privileged opens the privileged document');
 reset role;
+
+-- (40)+(41) DM2·S2 discharges S1-O1: the OPEN-level halves of the ceiling.
+-- Fixture: a servable version+file on the privileged d201, walked legally as
+-- the runner; the module flag flips ON for this txn (the door asserts it).
+update app.feature_flags set enabled = true where key = 'documents_foundation';
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('22800000-0000-0000-0000-00000000e201', '22800000-0000-0000-0000-00000000d201',
+        1, (select sa_x from k));
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('22800000-0000-0000-0000-00000000f201', 'documents-phi',
+        (select org_x::text from k) || '/22800000-0000-0000-0000-00000000f201/gen-1',
+        'phi', (select sa_x from k));
+update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+ where id = '22800000-0000-0000-0000-00000000f201';
+update public.file_objects set upload_state = 'verifying'
+ where id = '22800000-0000-0000-0000-00000000f201';
+update public.file_objects set upload_state = 'scan_pending'
+ where id = '22800000-0000-0000-0000-00000000f201';
+update public.file_objects set upload_state = 'clean'
+ where id = '22800000-0000-0000-0000-00000000f201';
+insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+values ('22800000-0000-0000-0000-00000000e201', '22800000-0000-0000-0000-00000000f201', 'source');
+
+-- (40) refused-open: the uncleared ordinary reader is refused AT THE BYTES
+-- DOOR with the absence-shaped error (denial ≡ absence — no oracle), and
+-- (40b) the denial mints NO audit row (D11: denials raise, never log).
+select test_helpers.claims_for((select st_x2 from k), false);
+select throws_ok(
+  $q$ select public.open_document_version('22800000-0000-0000-0000-00000000e201') $q$,
+  'P0002', null,
+  '40: refused-open — the uncleared case reader cannot open the privileged version (ceiling at the byte corridor)');
+select is((select count(*)::int from public.audit_log
+            where action = 'document.opened'
+              and entity_id = '22800000-0000-0000-0000-00000000d201'), 0,
+  '40b: the refusal minted no audit row (denials raise, never log)');
+
+-- (41) clearance-admits-open: the cleared coordinator opens it, and the open
+-- is audited exactly once (phi tier — the D11 floor logs it even for the
+-- creator).
+select test_helpers.claims_for((select sa_x from k), false);
+select is(
+  (select (public.open_document_version('22800000-0000-0000-0000-00000000e201')->>'document_id')::uuid),
+  '22800000-0000-0000-0000-00000000d201'::uuid,
+  '41: clearance-admits-open — max_confidentiality opens the privileged version');
+select is((select count(*)::int from public.audit_log
+            where action = 'document.opened'
+              and entity_id = '22800000-0000-0000-0000-00000000d201'), 1,
+  '41b: exactly one audit row for the cleared open (D11 exactness)');
 
 -- The retired block's clearance grant was FIXTURE, not assertion — the
 -- interview-confidentiality tests below (set_interview_confidentiality

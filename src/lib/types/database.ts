@@ -4266,6 +4266,7 @@ export type Database = {
           home_resource_id: string
           id: string
           kind: string | null
+          occurred_on: string | null
           status: string
           title: string
           updated_at: string
@@ -4280,6 +4281,7 @@ export type Database = {
           home_resource_id: string
           id?: string
           kind?: string | null
+          occurred_on?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -4294,6 +4296,7 @@ export type Database = {
           home_resource_id?: string
           id?: string
           kind?: string | null
+          occurred_on?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -9673,6 +9676,7 @@ export type Database = {
       upload_sessions: {
         Row: {
           created_at: string
+          document_version_id: string | null
           expires_at: string
           file_object_id: string
           id: string
@@ -9681,6 +9685,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          document_version_id?: string | null
           expires_at: string
           file_object_id: string
           id?: string
@@ -9689,6 +9694,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          document_version_id?: string | null
           expires_at?: string
           file_object_id?: string
           id?: string
@@ -9696,6 +9702,13 @@ export type Database = {
           state?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "upload_sessions_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "upload_sessions_file_object_id_fkey"
             columns: ["file_object_id"]
@@ -10783,6 +10796,22 @@ export type Database = {
         Returns: undefined
       }
       audit_trail_enabled: { Args: never; Returns: boolean }
+      begin_document_upload: {
+        Args: {
+          p_confidentiality_level?: string
+          p_declared_file_name?: string
+          p_declared_mime?: string
+          p_declared_size?: number
+          p_description?: string
+          p_document_id?: string
+          p_kind?: string
+          p_occurred_on?: string
+          p_resource_id: string
+          p_resource_type: string
+          p_title: string
+        }
+        Returns: Json
+      }
       bulk_create_cases: {
         Args: {
           p_deadline: string
@@ -11227,6 +11256,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      complete_document_disposal: {
+        Args: { p_file_object_id: string }
+        Returns: undefined
+      }
+      complete_document_upload_verification: {
+        Args: {
+          p_sha256: string
+          p_upload_session_id: string
+          p_verified: boolean
+        }
+        Returns: Json
       }
       complete_ethics_hearing: {
         Args: {
@@ -12509,6 +12550,10 @@ export type Database = {
         }
         Returns: string
       }
+      finalize_document_upload: {
+        Args: { p_upload_session_id: string }
+        Returns: Json
+      }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_meeting_links: {
         Args: { p_case_id: string }
@@ -13233,6 +13278,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_document_version: {
+        Args: { p_document_version_id: string }
+        Returns: Json
+      }
       open_ethics_external_referral: {
         Args: {
           p_decision_id: string
@@ -13261,6 +13310,10 @@ export type Database = {
       patient_xref_count: {
         Args: { p_entity_id: string; p_module: string }
         Returns: number
+      }
+      place_document_hold: {
+        Args: { p_document_id: string; p_reason: string }
+        Returns: string
       }
       post_referral_message: {
         Args: {
@@ -13691,6 +13744,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      release_document_hold: { Args: { p_hold_id: string }; Returns: undefined }
       remind_document_approver: {
         Args: { p_approver_id: string; p_version_id: string }
         Returns: boolean
@@ -14059,6 +14113,10 @@ export type Database = {
       }
       reorder_template_phase: {
         Args: { p_direction: string; p_phase_id: string }
+        Returns: undefined
+      }
+      request_document_disposition: {
+        Args: { p_document_id: string; p_reason: string }
         Returns: undefined
       }
       request_referral_information: {
@@ -14440,6 +14498,10 @@ export type Database = {
       }
       set_commission_oversight: {
         Args: { p_commission_id: string; p_oversight: string }
+        Returns: undefined
+      }
+      set_document_confidentiality: {
+        Args: { p_document_id: string; p_level: string }
         Returns: undefined
       }
       set_document_version_file: {
@@ -14918,6 +14980,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      soft_delete_document: {
+        Args: { p_document_id: string }
+        Returns: undefined
       }
       start_correction_draft: {
         Args: { p_request_id: string }

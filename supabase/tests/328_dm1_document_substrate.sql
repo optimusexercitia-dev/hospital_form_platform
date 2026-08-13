@@ -685,8 +685,12 @@ select is(
   5, 'K9 all five DM flags exist and are OFF');
 
 -- =============================================================================
--- K10 — the D11 read-verb dispatch (M6): attachment.read is gone,
--- document.opened resolves through the kernel.
+-- K10 — the D11 read-verb registry, post-S2 (FINDING 1a, DM2): attachment.read
+-- is gone AND the document-open verb left the registry — the open door mints
+-- it internally, AFTER its own gate, so the registry's admin short-circuit
+-- (DM1 QA MINOR-2) no longer touches this verb. Rewritten from the M6-era
+-- block that asserted registry dispatch worked; suite 329 F1-F3 carries the
+-- door-side pins.
 -- =============================================================================
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
@@ -697,28 +701,26 @@ select throws_ok(
         'K10 probe') $q$,
   '23514', null,
   'K10a the attachment.read verb was removed from the audited-read registry');
-select lives_ok(
+select throws_ok(
   $q$ select public.log_audit_access('document.opened', 'document',
         '32800000-0000-0000-0000-00000000d101', 'a0000000-0000-0000-0000-0000000000a1',
         'Documento aberto (K10)') $q$,
-  'K10b document.opened is registered and authorized for an entitled reader');
+  '23514', null,
+  'K10b the document-open verb is NOT registry-dispatchable — even for the entitled home staff_admin (the allowlist refuses before authorization)');
 reset role;
 
 select is(
   (select count(*)::int from public.audit_log
     where action = 'document.opened'
       and entity_id = '32800000-0000-0000-0000-00000000d101'),
-  1, 'K10c the audited open wrote exactly one audit row');
+  0, 'K10c the refused attempt minted NOTHING (the door is the only writer of this verb)');
 
-select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
-set local role authenticated;
-select throws_ok(
-  $q$ select public.log_audit_access('document.opened', 'document',
-        '32800000-0000-0000-0000-00000000d101', 'a0000000-0000-0000-0000-0000000000a1',
-        'K10 probe negativa') $q$,
-  '42501', null,
-  'K10d a non-reader cannot mint a document.opened row (registry no laxer than the door)');
-reset role;
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = '_audit_access_authorized')
+    !~ 'document\.opened',
+  'K10d the registry dispatcher body carries no document arm (comment-stripped)');
 
 -- =============================================================================
 -- K8 — parked-seam writers refuse their document arms (HC0DM), fail-closed
