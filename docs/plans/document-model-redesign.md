@@ -136,6 +136,26 @@ new doors; QA approves an inert-substrate review. Nothing user-visible changed.
    command reporting missing + orphan objects.
 2. `src/lib/documents/` module (queries + actions) — the ONLY place that knows
    buckets/paths/signing. Frontend consumes projections; raw paths never leave.
+   ⚠ **Amended 2026-08-13 (lead; the path is already occupied).** `src/lib/documents/`
+   is **not free**: it is the **Phase-17 controlled-document** module
+   (`actions.ts` 931 + `types.ts` 289 + `version-select.ts` 80 lines), with its
+   server readers in `src/lib/queries/documents.ts` (552 lines) — **32 files / 50
+   import specifiers** across `src/` and `e2e/`. That module is **Wave B (DM3)**
+   scope, not the core model. Two names for two substrates under one path would
+   also make DM5's exit criterion (step 3 below) **vacuously satisfiable** — the
+   legacy controlled-document signer would sit *inside* the directory the sweep
+   declares clean, which is exactly the vacuous-assertion class this repo keeps a
+   lint gate for. **Ruling:** the Phase-17 module is renamed
+   `src/lib/documents/` → **`src/lib/controlled-documents/`** and
+   `src/lib/queries/documents.ts` → **`src/lib/queries/controlled-documents.ts`**,
+   as a **mechanical, behaviour-free rename** and the **first task of S2**, before
+   the new core module is created. It is assigned to a **single owner** (`backend`)
+   even though most import sites are components, because a cross-owner rename must
+   be serialized (CLAUDE.md §4); it is path-only churn, not UI work. Verified by
+   `tsc` + the 5-gate lint + a real `next build` (a client value-import from a
+   server module aborts `next build` while tsc/lint/vitest stay green — the
+   BUG-FBE-005 class). DM3 rewrites that module's internals anyway when Wave B
+   folds controlled documents onto the core aggregate.
 3. Wave A UI: case / meeting / interview panels re-pointed to the new module
    (action-item panel stays substrate-only until a product flow exists, matching
    today). Upload states (pending/failed/unavailable/disposed) surfaced in pt-BR.
@@ -245,6 +265,12 @@ keystone at zero exceptions; gate + approval.
 
 Exit: repo-wide sweep — no `storage_path` writes outside `src/lib/documents/`;
 full `e2e:prod` green; QA program-level review; human approval; Record step.
+⚠ **The sweep criterion is only meaningful because of the DM2 step-2 amendment**
+(2026-08-13): `src/lib/documents/` holds the **core model alone**, the Phase-17
+controlled-document module having been renamed to `src/lib/controlled-documents/`.
+Run the sweep by **identifier** (`storage_path`, `storage_bucket`, bucket string
+literals, `createSignedUrl`), never by directory alone — a directory-scoped sweep
+is a boundary drawn on a syntax rather than on the property being asserted.
 
 ## Serialization & shared-file constraints
 
