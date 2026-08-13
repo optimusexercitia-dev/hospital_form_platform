@@ -401,7 +401,23 @@ indistinguishable from a merely slow, still-in-flight upload, forever. **Violate
 four axes"); pinned RED via `test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-1`), which
 will flip to a hard failure the moment this is fixed. **Owner:** backend.
 
-🟡 **BUG-DM2-002 — the D15 ceiling's "Restrito" badge is unreachable dead code; `canOpen` can never
+✅ **BUG-DM2-002 — FIXED 2026-08-13** (frontend, `18d08e9`): the unreachable branch,
+`DocumentRestrictedBadge` and the `DOCUMENT_RESTRICTED` strings are removed, and the false comment is
+replaced in **both** files with the true mechanism — denial is *absence*, `app.can_read_document`
+behind the `documents_select` policy is why, an uncleared reader gets zero rows including the
+creator, this is **stricter** than the UI assumed, and **ADR 0114 D16** is the named trigger that
+would bring the affordance back. `canOpen` deliberately **left alone** (it is correct), and
+`version.canOpen` is deliberately **kept** in the `showOpen` condition despite being currently
+redundant — inlining today's equivalence would bake a coincidence into the UI, and D16 may tighten
+the definition. ⚠ **Its `test.fail()` pin must be REWRITTEN, not un-pinned** (unlike 001/003): the
+defect was a *false claim*, not broken behaviour, so nothing will ever flip that pin — a
+`test.fail()` that can never flip is a test asserting behaviour the product deliberately does not
+have, the same trap the plan's Q1 discharge condition warns about ("a keystone left pinning a
+rejection the product no longer wants is a test asserting a bug"). Row-absence is already covered by
+the restored AC-4a–d/AC-9.
+
+<!-- original filing retained below for the evidence trail -->
+🟡 **BUG-DM2-002 (as filed) — the D15 ceiling's "Restrito" badge is unreachable dead code; `canOpen` can never
 be `false` on a rendered document row.** Filed 2026-08-13 (tester, DM2·S4 ceiling testing). Severity:
 MINOR/documentation (the underlying SECURITY property is intact and arguably stronger — see below —
 this is a dead-code / stale-doc-comment finding, not an access-control hole).
