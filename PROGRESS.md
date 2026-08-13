@@ -95,267 +95,42 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### ⏸ PAUSED — **DM2: orchestration + Wave A** (opened 2026-08-13, paused 2026-08-13 by PO)
+### ✅ COMPLETE — **DM2: orchestration + Wave A** (opened + completed 2026-08-13)
 
-> **⛔ DM2 has NOT passed its gate.** QA r1 = **CHANGES REQUESTED** (1 P0 · 3 MAJOR · 6 MINOR · 4 INFO). **Do not flip the flags, do not seek approval, do not merge.** Paused because the backend agent was killed **four consecutive times by transient API 529s** (twice resumed, then replaced by a fresh lightweight agent that failed identically — disproving the context-size hypothesis; the API was broadly degraded while the lead's own session kept working, which is why the recorded state is verified rather than assumed).
-> **Safe checkpoint:** HEAD `56e3989`, 374 on disk == 374 registered, nothing half-applied, all five DM flags **OFF** in production defaults, nothing pushed (`main`/`origin/main` = `f84c6b6`).
-> **The P0 is FIXED and verified from two independent directions** (lead catalog + planted-row probe; tester red-then-green through the door via REST). What remains is proof discipline and two MAJORs.
-> ✅ **PO RULING 2026-08-13 — MAJOR-1 / S1-O4: PROPAGATE the interview's confidentiality to its
-> documents.** A document homed on an interview must be gated by **that interview's own ceiling**, not
-> only by case-level access. It is **item 0 of the next session** — the first thing picked up.
-> *Lead-reproduced as a differential probe (same member, same interview, one variable):*
-> `app.can_read_interview` = **false** while `app.can_read_document` on a document homed on it =
-> **true**. The kernel's interview arm dispatches `can_read_case_committee(case_of_interview(...))`,
-> which **skips a level** — it never consults `case_interviews.confidentiality_level`, so the
-> interview row is hidden while its transcript is not. Parity with the retired substrate is real, but
-> parity answers *"did we break this?"*, not *"is this correct?"* — and the old substrate is being
-> replaced **because** it had this shape of defect. Requires an ADR amendment when built (ADR 0117 is
-> the ceiling's decision record; ADR 0114 Amdt 1 D15/D16 the governing frame).
+> ✅ **PO-APPROVED 2026-08-13 — all five §6 gate steps passed.** QA **r2 = APPROVED**
+> (0 P0 · 0 MAJOR · 1 MINOR · 4 INFO) after r1's ⛔ CHANGES REQUESTED (1 P0 · 3 MAJOR ·
+> 6 MINOR · 4 INFO) was fully discharged. The binding pre-merge condition **r2-1 is
+> closed** (`d46bb87` + `36deda5`).
+> **Gate:** pgTAP **189f/6097** · lint 5-gate · tsc 0 · vitest 86/1258 · `ARM=census`
+> (*has anything ever asked?*) / `ARM=hat` (*any door reading `memberships` hatless?*) /
+> `ARM=floor` (*is every door called?*) / `FROMFINDINGS=1 ARM=wrapper` — **all HOLD** ·
+> diff-scoped door sweep `app.can_read_document` **COVERED** (case list derived from the
+> diff; 1 case actually run) · `e2e:prod` **GREEN** (1091 passed · 0 did-not-run ·
+> coverage 1093/1099 = the 6 skips).
+> ⚠ **`open_document_version` is in NO authz arm's domain** (it returns `jsonb`) — that is
+> ADR 0118 §12's standing blind spot, not a DM2 regression. Its assurance is pgTAP `329`
+> P0a–P0f + the `308` 5.2s sentinel, **not** the sweep. Do not read the sweep as covering it.
+> ⚠ **`e2e:prod` run 1 was RED** on `pdf-printing.spec.ts:38` — ruled **not
+> phase-attributable** (outside the DM2 diff; three `RETRIES=0` passes), but the
+> **mechanism is UNPROVEN** and both evidence artifacts were destroyed by re-running →
+> **FUP-GATE-PDFP1-FLAKE**.
+> ⛔ **State:** branch `docs/dm1-plan-amendments` — **NOT merged to `main`, nothing
+> pushed, no `db push`** (standing PO directive; `main`/`origin/main` = `f84c6b6`).
+> **All five DM flags ship OFF** (migration `20260923000600`; `seed.sql` forces
+> `documents_foundation` + `documents_wave_a` ON for local/E2E only). graphify refresh
+> deliberately **SKIPPED** — it fires after a merge to `main`, which has not happened.
 >
-> ▶ **Resuming? Read the handoff first:** [dm2-orchestration-wave-a.md § *DM2 PAUSED — resumption handoff*](docs/progress/dm2-orchestration-wave-a.md) — it carries the 8 remaining items in order, the PO-owned questions, and two method findings that must not be lost (an uncommitted migration is applied by anyone's `db reset` and silently fixes the defect before the test meant to catch it runs; and a sweep boundary drawn on a return-type *syntax* cannot enforce a *property* — 536 functions share that class).
-
-> Program: Document Model Redesign — plan [DM0–DM5](docs/plans/document-model-redesign.md) §DM2 ·
-> ADR [0114](docs/decisions/0114-document-model-redesign.md) (+Amendment 1 D15/D16) · DM1 record
-> [dm1-substrate-cutover.md](docs/progress/dm1-substrate-cutover.md).
-> Branch: `docs/dm1-plan-amendments` (continues DM1's branch — `main` does not carry DM1; PO
-> directive stands: **nothing to `main`, nothing remote**). Migration window: **`20260924000100`+**
-> (highest registered = `20260923000600`; 367 registered == 367 files, catalog-verified 2026-08-13).
-
-**Sequencing — S1 is a hard prerequisite, not a preference.** ADR 0114 Amdt 1 D15: the ceiling must
-land *before* Wave A re-points any case / meeting / interview document, because that is the phase in
-which a formerly gated document would silently become readable by every ordinary case reader.
-
-| # | Slice | Owner | Status | Depends on |
-|---|-------|-------|--------|-----------|
-| S1 | **D15 confidentiality ceiling** — nullable label column on `documents` + kernel arm in `app.can_read_document`; restores pgTAP `228` t36–40 | backend | ✅ **done 2026-08-13** — migrations `20260924000100`+`…000200` (AMEND 1 two-step, behavioral reds observed on the real pre-arm catalog: 228 t36/t38 + 328 K14d1–d4 all `have: 1, want: 0`); seam guard **HC0D6** (HC0D5 taken by `revoke_printed_document`) + fail-closed kernel backstop; `228` 131/131 + `328` 109/109 (K14, 21 asserts); twins A+B rollback-verified; full pgTAP **188f/5952 PASS** fresh; 4 arms HOLD; diff-scoped sweep `can_read_document` 1 case COVERED/0 BLIND/0 ERROR; gen:types +3; **AMEND 3 = PARITY** (finding DM2-F1); open-door pins → S2 (S1-O1) · [record](docs/progress/dm2-orchestration-wave-a.md) · ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) | — |
-| S2 | Command layer + `src/lib/documents/` + reconciliation script. **Head task: the Phase-17 rename** (plan amendment 2026-08-13) | backend | 🟢 **built 2026-08-13 except S2.8** — rename ✅ · contract (+10 amendments) ✅ · migrations `20260924000300`+`…000400` ✅ (FINDING 1a removal; dispose arm = FUP-DM1-DISPOSE ✅; S1-O1 ✅; MINOR-2 ✅) · keystones 329 66/66 · 228 135/135 · 328 109/109 · 191 27/27 · full pgTAP **189f/6023 PASS** fresh · 4 arms HOLD (census zero-delta, doors registered as findings note) · 5 per-state twins · TS layer + reconcile script ✅ · O4 measured (sign 10 ms; file-chain ~3.7 ms/row watch item) · ADR [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) · **S2.8 ✅ built 2026-08-13** (lead-approved; 3 conditions discharged; `20260924000500`; 329 92/92; suite **189f/6049 PASS** fresh; census required-FAIL captured→HOLDS 549/569; O4 + list-perf PO-ruled — [record](docs/progress/dm2-orchestration-wave-a.md) §S2.8) — **S2 CLOSED** | S1 ✅ |
-| S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🟢 building 2026-08-13 — plan acked; shared `src/components/documents/` module (3 homes, one byte-corridor client). **Contract-first paid: 10 gaps found in the S2 stubs before either side hardened**, 3 of them visible F2 regressions (`kind` unsettable so the badge ships dead · `occurredAt` dropped · `underLegalHold` absent from the list, so per-row delete would offer an action HC0D3 refuses) — all routed to `backend`. Upload island unblocked once item 5 (PUT transport) was specified. **Gates green** (5-gate lint 0/0 · typecheck exit 0 via `PIPESTATUS` · vitest 1254 · real `next build` exit 0). **Lead-run browser verification 2026-08-13** — see the block below | S2 contracts ✅ `92d7e8a` |
-| S4 | E2E — **priority 1: the unexercised write path** (see the red block above), then rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract, AC-4a–d/AC-9 (the last of FUP-DM1-CEILING), + a keyboard-only flow; mutation list | tester | ✅ **done 2026-08-13** — **PRIORITY 1 ANSWERED: the write path is NOT broken** (real browser PUT → signed URL → finalize → verification → `available`, genuinely fetchable download, audited exactly once; retry + expiry hold functionally). 6 parked specs restored per ADR 0114 D5 (rewritten, never deleted) + new `e2e/helpers/document-model.ts`. **3 real bugs found, all fixed in-phase** (001/002/003). Final: **77 collected · 76 passed · 1 pre-existing unrelated skip · 0 unexpected failures · zero `test.fail()` pins remaining**. ⚠ **Method note worth keeping:** the tester independently applied the lead's BUG-DM2-002 pin-reasoning to **003** — the fix had *moved* the mechanism to reconciliation rather than repairing the inline UPDATE, so un-pinning as literally written would have left a permanently-red test **for a different reason than it was filed for**. Rewritten as `DM2-RECONCILE-EXPIRY`, which asserts `reserved` immediately after the HC0DE refusal (proving the synchronous marking is *gone*, not hidden) and then runs the **real** reconciliation script. It also re-audited every `audit_log` read across the five touched files after the F3 fixture-fragility warning — all already `action`+`entity` scoped — and deliberately avoided global drift counts in the new reconciliation assertions | S3 ✅ · seed `01134b1` ✅ |
-| S5 | QA review + full §6 gate + flag choreography | qa / lead | ⛔ **CHANGES REQUESTED (r1) 2026-08-13** — **1 P0 · 3 MAJOR · 6 MINOR · 4 INFO** [review](docs/reviews/dm2-orchestration-wave-a-review.md). **The phase does NOT pass gate step 3; the flags must NOT flip.** See the P0 block below | S4 ✅ · `e2e:prod` GREEN |
-
-**Carried in from DM1 (do not re-derive — bodies in the DM1 record §"Carried into DM2"):**
-FUP-DM1-CEILING/D15 (= S1) · FUP-DM1-E2E (= S4) · FUP-DM1-DISPOSE (S2, before the flag flips) ·
-QA MINOR-2 (`open_document_version` must gate **before** recording — the registry inherits an
-`is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
-**O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
-
-**Flag posture during DM2** (seed `01134b1`): `seed.sql` forces `documents_foundation` +
-`documents_wave_a` **ON for local/E2E** (the MIN `audio_minutes` pattern); **production defaults stay
-OFF** until the S5 choreography. ⚠ Consequence, noted at the flip site because that is where a spec
-author looks: a spec pinning the deliberate **flag-OFF** contract (affordances **absent, not
-disabled**; every door raises HC0D7) must toggle the flags **itself** and restore them.
-**`attachments` is seed-retired only** — the key row, the `FeatureFlags` entry and
-`attachmentsEnabled()` retire in the **S5 migration**, deliberately: production never runs `seed.sql`,
-so a seed `DELETE` would fork local from prod on the key's *existence* (local "no such flag" vs prod
-`false`) — the exact drift class two prior programs were spent killing. A migration is the only
-honest instrument for a change production must also see.
-⚠ Ripple caught before it reached the tester: pgTAP `328` **K9** pinned all five DM flags OFF and
-would have gone red on the tester's **first** fresh reset — a red with no defect behind it, arriving
-exactly when the tester is calibrating what "normal" looks like. Rewritten to assert the *seeded*
-state with the prod-default caveat in the pin name. Suite re-run **189f/6051 PASS** (6049 + 2).
-
-**🛑 P0-1 (QA r1, 2026-08-13) — THE OVERSIGHT QUALITY REVIEWER IS SERVED PHI BYTES; the only control is a React prop.** Lead-reproduced independently before routing, twice over:
-- Catalog: `app.can_read_document`'s case arm is a **bare `app.can_read_case`** — `prosrc ~ 'read_case_deliberation'` is **false** — and `open_document_version` carries **no** byte discrimination of its own (`prosrc ~ 'deliberation|oversight|quality_reviewer'` = false).
-- Live probe: `app.case_capabilities(case, quality.a@test.local)` = `["read_case_content","view_case_overview"]` — **no `read_case_deliberation`** — yet `app.can_read_document(...)` on a document homed on that case returns **true**. QA's own matrix went further: `open_document_version` → **SERVED tier=phi**, with a non-vacuous outsider control raising `P0002`.
-**The QO·B M8/M9 byte-discrimination cut was never re-expressed in the new corridor.** The only shipped control is `case-detail-view.tsx` `canDownload={!isOversight}` — **Architecture Rule 1 inverted** ("never rely on UI hiding"), and `document-row.tsx`'s own comment claiming it "suppresses the audited door outright; there is no second byte path" is **false in both clauses**.
-⚠ **Why the green bar certified it:** the restored E2E asserts the **button** has count 0 (`quality-oversight.spec.ts:502`), so it pins the UI-only control — [[green-bar-misses-the-wired-seam]] exactly. And **why four green authz arms missed it**: the M8 cut used to live in a *storage policy*, inside `ARM=census`'s domain; D8 deliberately deleted the SELECT policies and moved the boundary into a **`jsonb`-returning DEFINER**, which is in **no** arm's domain. QA checked the domain predicate rather than the claim and confirmed the lead's census reasoning was correct — `proretset` is why `document_delete_affordances` was caught and the jsonb doors were not. **The carried lesson: clause 2's boundary is a return-type *syntax* while its stated principle is a *property*, and 536 pre-existing functions share the class.** Not a DM2 regression — DM2 is just where the first defect landed in the new location. ⚠ `supabase/tests/308_case_caps_s7.sql:291-303` **states this obligation verbatim** ("That door's keystones MUST re-express all six pins") and **ran green this phase**; the DM2 record contains zero occurrences of "oversight", "quality reviewer" or "ADR 0100".
-
-**Tester re-verification (2026-08-13, P0-1):** `e2e/quality-oversight.spec.ts`'s two M8 tests
-strengthened to hit the door, not the button — three additions per the lead's spec: (1) metadata
-visibility kept as-is (must not over-narrow — the reviewer is *supposed* to see titles), (2) the
-button-absence check kept as-is, (3) `quality.a`'s test now calls `open_document_version` **directly**
-via REST (bypassing the UI entirely) and asserts it **REFUSES**, (4) a **non-vacuous positive
-control** in "no-lockout control": chefe.ccih calls the SAME door on the SAME document and is
-**served** — so a blanket door failure or a broken fixture cannot make the negative pass for the
-wrong reason. **Red-first OBSERVED, not inferred:** backend's fix (`supabase/migrations/
-20260924000700_dm2_qa1_byte_deliberation_cut.sql`) was already applied locally but **uncommitted**
-when this run started, so the strengthened test passed immediately — not proof enough on its own.
-Set the migration file aside, fresh-reset, re-ran: **genuine RED** — `open_document_version` returned
-`ok=true` with the full title/mime/size/tier payload to quality.a, reproducing QA's P0-1 exactly, byte
-for byte. Restored the migration, fresh-reset, re-ran: **GREEN**, and the positive control held
-throughout (never a blanket refusal). Regression sweep: all 6 S4 files, fresh reset — **77 collected,
-76 passed, 1 pre-existing unrelated skip, 0 collateral damage** — the new `read_case_deliberation`
-conjunct on `open_document_version` does not touch the meeting/action_item arm (`v_case` stays null
-there) and every case/interview persona the other 8 restored tests use already holds
-`read_case_deliberation`, so nothing else regressed. Lint/tsc/`lint:vacuous` all clean.
-**Re-scan requested by the lead** (any restored assertion whose subject is a rendered control rather
-than a server answer, carrying an authorization claim): AC-4a–d/AC-9, `DM2-CEILING-NOONE` and
-`DM2-FLAGOFF` were already door-level (the last one explicitly demonstrates+documents the
-`documents_wave_a`-vs-`documents_foundation` split, routed to backend for S5). Two **coverage gaps**
-(not confirmed vulnerabilities — the door was independently read from `pg_proc` and does enforce both,
-just not exercised by these specs end-to-end): `phase11-interviews.spec.ts` IV2-11 only exercises the
-CLIENT-SIDE MIME block (`begin_document_upload`'s own `HC0DG` server check, confirmed present in the
-live body, is untested by any bypass path); `phase-f2-attachments.spec.ts` `DM2-STATES`' `pending` row
-asserts a *disabled* button (never clickable, so no live corridor to bypass there) but does not
-independently probe `open_document_version` on an unbound version (confirmed via `pg_proc`: raises
-`HC0D8`, untested by E2E). **Spot-checked, not assumed:** the pre-existing (not S4-authored)
-`notFound()`-page-based denial tests this file and `ethics-e1-access-spine.spec.ts` share (AC-1a
-respondent-exclusion, AC-2a explicit-grants-only) — direct REST reads of `cases`/`case_phases` for
-both personas returned `200 []`, genuine RLS-level filtering, not a page-level-only check — **not**
-the same shape as P0-1.
-
-**🔴 THE SHARPEST OPEN RISK IN DM2 — the write path has never moved a byte** (raised by `frontend`
-at S3 close; lead-confirmed). `begin_document_upload` is **proven reachable and correctly shaped**
-(lead called it directly under `set local role authenticated` with real `sub`+`active_role` claims:
-it authorized, minted document+version+file_object+session, and returned **IDs only, no bucket or
-path** — so the ADR 0118 §1 door topology holds *behaviourally*, not just by construction; rolled
-back, 0 rows). But **nothing has ever exercised browser → server action → RPC → Storage PUT under
-the reserved-path INSERT policy → finalize → verification.** Every upload-island state
-(`preparing`/`uploading`/`finalizing`, the `upload_incomplete` retry that reuses the reservation,
-`upload_expired` dropping it) is **unexercised code**, and the retry branch is the kind that looks
-right and isn't. 329's 92 pins cover the *doors*; they do not cover the *seam*. This is the
-[[green-bar-misses-the-wired-seam]] class — three live bugs once survived a full green bar there and
-only E2E caught them. **S4's first priority, not something to treat as covered.**
-
-⚠ **Tooling note that nearly produced a false regression report.** Mid-verification the case page's
-entire content sat in a `div[hidden]`, buttons had no React fiber props and zero bounding rects, and
-clicks did nothing — which read exactly like a hydration regression from the preceding commit. It was
-not: **the Browser pane was not displayed, so the page was not compositing frames** (the screenshot
-call is what surfaced it). Consequence for method: `javascript_tool` text/DOM reads stay valid without
-compositing — the copy, option lists and badge assertions above are sound — but **layout, real
-clicks, and hydration-dependent behaviour are not observable with the pane hidden**, and their
-absence must never be read as a defect. Take a screenshot early; its failure message names the
-condition when nothing else does.
-
-**✅ S3 BROWSER VERIFICATION — lead-run 2026-08-13** (the agent stalled twice on a **denied**
-`preview_start`; PO approved it, and the lead ran it rather than risk a third stall — full stall
-mechanics in the S3 record). Dev preview on **:57449** (3000 held a stale bind). Method that made
-this worth doing: **the agent wrote its per-affordance flag-OFF prediction down BEFORE any
-observation**, so the run could falsify it. It held everywhere except the two items the agent had
-itself flagged as *unverified deviations* — a prediction that survives contact is evidence; one
-written afterwards is not.
-
-- **Flag OFF (ship state), all three homes:** heading renders · read-only empty copy · upload
-  trigger **absent, not disabled** · open + delete absent · **console clean**. Interview links
-  behaved per the lead ruling (count shown, existing row still readable, "Adicionar" absent).
-- **Flag ON:** trigger appears · empty copy switches to the writable variant · **console clean —
-  no RSC server-fn-as-prop crash** (BUG-QI-001 class), only HMR + benign font-preload warnings.
-- **🔒 The D15 ceiling's UI half is CORRECT END-TO-END** — the highest-value check of the set. On a
-  **case** home all 7 levels are offered; on a **meeting** home `legal_privileged` +
-  `credentialing_sensitive` are **absent from the option list** while all 5 non-enforcing levels
-  remain. It narrows exactly where HC0D6 refuses and **nowhere else** (no over-narrowing).
-  ⚠ **Scope of that claim, stated because the lead overstated it verbally and to `tester`:** what was
-  verified is the **write-side option list**. The **read-side** denial affordance was *inferred*, and
-  the inference was **wrong** — see BUG-DM2-002: denial is **row-absence**, so the "Restrito" badge is
-  unreachable. The lead confirmed what rendered and assumed what did not. *An affordance nobody has
-  seen render is a claim, not a fact* — the same trap `frontend`'s write-the-prediction-first habit
-  avoided in the other direction.
-- **D12 copy renders verbatim** on case + meeting, incl. the Título help that carries the actual
-  reason ("visíveis para toda a comissão, inclusive para quem não pode abrir o arquivo").
-- **The kind-slug drift fix is live:** case emits `other|Outro`, meeting emits `outro|Outro` — the
-  deliberate quirk preserved, slug from the contract, wording from the UI.
-- **A document ROW was rendered for the first time** (lead planted a temporary row, since nothing
-  had verified one; removed after, 0 rows and flags restored to OFF). It proved the **kind badge is
-  live, not dead** — the exact regression contract-first caught at stub time.
-- Two defects found + fixed in-phase: the interview heading promised "gravações" a panel no longer
-  contained; and the count badge was missing (then rendered `0` where every sibling hides at zero).
-- **INFO for QA (not a defect):** with `latestVersion` null a row asserts both "Sem arquivo" and
-  "o arquivo contém dados de paciente". `containsPhi` falls back to the home rule when no file
-  exists — the **correct fail-safe** (over-warn, never under-warn) — and the state is unreachable
-  via `begin_document_upload`. Fallback deliberately left alone.
-- **Recorded decision, so it is not later read as an oversight:** `DocumentsPanel` awaits its list
-  alongside the flag read in `Promise.all` rather than streaming under Suspense — needed for the
-  header count, consistent with every sibling section, ~1.6 ms/row against a 45-object census.
-  Remedy if volume ever changes that: a `cache()`-wrapped query sharing one round trip.
-
-**⚠ METHOD FINDING — the census caught the AUTHOR'S OWN domain misprediction (2026-08-13, S2.8).**
-Worth carrying past this program. Backend's S2.7 findings note *predicted* that SETOF doors stay
-outside the census domain — a reasoned claim, written into the findings file, and **wrong for
-`document_delete_affordances`**: `ARM=census` FAILED naming exactly that door (549 live gates). Two
-consequences the phase handled correctly and a third to remember: (a) the required-fail is not
-ceremony — it is the only thing standing between a reasoned domain claim and a silently
-unregistered gate; (b) the prescribed diff-scoped sweep then printed **`BLIND: 0` over ZERO executed
-cases** (the ARM-1 `^(is_|can_|has_)` matcher cannot run that name) and was **not cited**, coverage
-coming instead from a targeted mutation (door forced `true` → a plain member gains the affordance,
-A2/A3 would red; restore catalog-verified) — the case-count rule applied as intended; (c) **the wrong
-prediction was corrected IN PLACE in the findings file**, not merely superseded, so it cannot mislead
-a later reader. A stale reasoned claim inside the artifact that records coverage is worse than no
-claim — [[a-comment-is-an-assertion-that-goes-stale-silently]], census edition.
-
-**✅ PO RULINGS 2026-08-13 (DM2).** **O4 CLOSED** — signed-URL TTL **PHI 120 s / standard 300 s**,
-**no streaming proxy** (sign median measured **10 ms**). The tier split is deliberate and must not be
-"simplified" to one number: a signed URL is a bearer token, so PHI bytes carry a strictly smaller
-exposure window. Lands in ADR 0114 (O4's closure) + ADR 0118. · **List perf** — the file-chain costs
-~3.7 ms/row (a 200-doc panel ≈ 2 s); **keep `containsPhi` + `availability`, do NOT trim the embed** —
-the prod census is 45 objects total and real panels hold single digits, so the trim would spend two
-live projection fields on a load that does not exist. Filed as a **named pilot watch-item** with the
-measured numbers attached, not a pre-ship fix.
-
-**✅ RULED — S2.8 `reclassify_document_file` (lead, 2026-08-13): option 1 + an evidence-gated
-duplicate-retirement exemption, with 3 conditions.**
-The re-derivation confirmed the fork was real — `document_version_files_version_rendition_uniq
-UNIQUE (document_version_id, rendition_kind)` does block the originally recommended
-"second `source` binding" shape (backend had checked the table's *triggers* but never listed its
-*constraints*; owned and corrected). **Shape:** reclassification mints a **new `document_version`**
-whose binding points at the copied file — fully append-only, **zero DM1-invariant edits**, and the
-visible version history is honest (the bytes genuinely changed bucket, audited via
-`document.reclassified`). **The hole option 1 alone left:** the old file stays *bound* to its
-immutable old version, so retiring it hits the provisional-retention gate HC0DR — and the urgent
-reclassify case is precisely mis-tiered PHI that must leave the wrong bucket. **The amendment:**
-`complete_document_disposal` honors reason `duplicate` **only when the door itself verifies** a live,
-servable **same-sha256** file bound to the same document — retention protects the *record*, and a
-same-content sibling proves the record survives. Caller-asserted duplication is never accepted.
-**Conditions:** (1) the last-copy invariant is keystoned as a **differential pair** — dispose A while
-B is live → permitted, then B with no sibling → **refused by retention** — because "the last copy is
-protected" is the entire safety claim and an inductive argument must be executable, not reasoned;
-(2) the exemption as described is **wider than its use case** and symmetric (nothing in
-sha/live/same-document distinguishes the correct-tier copy from the mis-tiered one, so it would
-equally permit retiring the *new* copy) → narrow its reachability to the reclassification path, or
-keep it general and pin that a `duplicate` disposition of a **non**-duplicated file is refused;
-(3) it lands as an **ADR decision, not a state-only note** — it creates a new retention-exemption
-class, and a future reader hitting HC0DR must find its bounds without reconstructing them.
-Standing rule: *DM1 invariants may be amended, never widened as a side effect of making a command
-compile.*
-
-<!-- superseded fork text kept below for the reasoning trail -->
-**🔶 (RULED — see above) design fork — S2.8 `reclassify_document_file`.**
-D10's copy→verify→commit→retire-source has no legal expression on the DM1 substrate as built, and
-the recommended shape does not survive the catalog:
-- `document_version_files_version_rendition_uniq UNIQUE (document_version_id, rendition_kind)` —
-  so **"add a second `source` binding, door picks newest" is not buildable**; it requires altering
-  that constraint, i.e. it does *not* avoid a DM1-invariant edit as its proposal claimed.
-- `guard_document_version_file_immutable BEFORE DELETE OR UPDATE` — so a liveness column cannot be
-  set without a guard exception either.
-- **Mutating the binding is ruled OUT on ADR grounds, not cost:** ADR 0114 **D10** says
-  *"never a pointer update (F-03)"*, and F-03 is one of the audit defects this program exists to
-  kill by construction. Relaxing the guard to allow it re-opens a closed finding.
-Live option space (backend re-deriving against the catalog): **(1)** a new `document_version` whose
-binding points at the new file object, old file retired through the *mutable, already-guarded*
-`file_objects` state machine — fully append-only, zero invariant edits, but a tier change becomes
-visible version history (honest for audit? or pollutes the prior-version semantics DM3 needs?);
-**(2)** a partial UNIQUE over a liveness predicate **plus** a narrow keystoned guard exception;
-**(3)** unseen. Standing rule set for it: **DM1 invariants may be amended, never widened as a side
-effect of making a command compile** — any amendment lands as an ADR decision with the amended guard
-mutation-proven. ⚠ Reclassify has **no Wave A UI consumer** (both classification commands are
-surface-less by lead ruling), so there is room to get it right; deferring to a named slice with the
-DM1 ledger obligation carried forward is an acceptable outcome.
-
-**Lead findings handed to S1 (catalog-verified 2026-08-13, not read from migration text):**
-- `app.confidentiality_clearance_ok(p_case_id, p_label, p_uid)` and `app.confidentiality_rank(text)`
-  **SURVIVED DM1** — only the attachment-specific wrapper `app.attachment_confidentiality_ok` was
-  dropped. D15 **reuses** them (program invariant: reuse the domain predicates, never reimplement).
-- Only `legal_privileged` + `credentialing_sensitive` are ENFORCING; the other five labels return
-  true. Clearance = `case_access_grants.max_confidentiality` outranking the label.
-- ⚠ **The clearance helper is CASE-scoped.** `documents.home_resource_id` resolves to case ·
-  meeting · interview · action_item. Only `case` (direct) and `interview` (via
-  `app.case_of_interview`) yield a case id; **meeting and action_item do not** — S1 must rule that
-  seam explicitly and fail closed, not silently skip the ceiling.
-- ⚠ **Name-collision trap:** the Phase-17 controlled-document module owns a different
-  `%document%` family (`commission_of_document`, `is_document_approver_of`,
-  `guard_document_transition`, `trg_audit_controlled_documents`, …) on `controlled_documents`. A
-  `%document%` sweep hits both substrates. Enumerate by table, never by name substring.
-
-Most recent completed phase: **DM1 — substrate cutover**, PO-approved 2026-08-13 (record linked
-above). Before it: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
-vocabulary for cases and referrals. ⚠ **It ran gate step 1 ONLY** (no tester pass, no QA review, no
-`e2e:prod`) by PO direction. It is ✅ **pushed, and the remote `db push` IS done** (corrected
-2026-08-12) — but that changes nothing about the gate: treat it as
-merged-but-ungated, not as complete. Before it, **RDR** (referral detail redesign) completed, merged
-and rotated the same day — task detail, the final gate record and the method lessons are in
-[referral-detail-redesign.md](docs/progress/referral-detail-redesign.md) (⚠ its type-vocabulary
-sections are **history**: REG·KIND deleted `referral_note_types`); ETH·E4 before that is in
-[eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md). What is left before
-the pilot is § *Remaining pre-pilot work*.
+> **Full detail rotated →
+> [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)** (slice table
+> S1–S5, all three remediation sessions, the re-gate record, and the browser-verification
+> block). Program: plan [DM0–DM5](docs/plans/document-model-redesign.md) · ADR
+> [0114](docs/decisions/0114-document-model-redesign.md) +Amdt 1 · **0117** +Amdt 1
+> (interview ceiling) · **0118** (command layer; §10 predicate pin, §12 blind spot).
+>
+> **Open with the PO — do not assume:** plan **Q1** (the two ethics seam columns still
+> have no wave; blocks planning **DM3**) · **S1-O3** uploader visibility · ADR 0114
+> O1/O2/O4 · **S2.8** `reclassify_document_file` still has no legal expression on the DM1
+> substrate (no Wave A UI consumes it, so deferring stays legitimate).
 
 ### ⬛ Recently completed — rotated 2026-08-12; detail in `docs/progress/`
 
@@ -439,174 +214,9 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-✅ **BUG-DM2-001 — FIXED 2026-08-13** (backend, migration `20260924000600`, 373 registered; lead-verified from `pg_proc`): the `p_verified = false` branch now **inserts the `document_version_files` binding** alongside marking the file `failed`, so the failure becomes part of the version's record, the chain policies make it reader-observable, and the projection derives **`failed`** rather than eternal `pending`. No UNIQUE collision is reachable — the proven retry contract is the **pre-finalize** one (re-PUT to the same reserved URL); a post-failure retry is `begin` again, minting a new version with its own binding slot. The immutable-binding guard is untouched. Keystones assert the **projection's substrate, not only the column**: B1 red-first (`have: 0 / want: 1`), **B2 reads the failed state through the chain under `set local role authenticated`** (pre-fix: invisible), B4 message-matches the corridor refusing on *state* rather than as merely-unbound.
-**Tester re-verification (2026-08-13):** un-pinned. `e2e/phase-f2-attachments.spec.ts`'s `test.fail()` pin (`DM2-BUG-1`) flipped to an unexpected PASS on the FIRST re-run after the fix (confirmed not a flake — 2 further isolated runs, same result), so it is rewritten as a positive regression pin, **`DM2-VERIFY-FAILED`**: asserts the DB truth (the binding + `upload_state='failed'`) before the UI text ("Falha no envio"). Green on a fresh reset alongside the other 5 restored files (77 collected / 76 passed / 1 pre-existing unrelated skip).
-
-<!-- original filing retained below -->
-🟠 **BUG-DM2-001 (as filed) — a verification FAILURE never binds `document_version_files`, so the row reads
-"Processando envio" (pending) forever instead of "Falha no envio" (failed).** Filed 2026-08-13
-(tester, DM2·S4 write-path testing). Severity: MAJOR (silent data-loss-adjacent UX — no path exists
-for the user to ever learn the upload failed, or to retry, once this branch is hit).
-**Repro:** `begin_document_upload` → PUT real bytes to Storage (succeeds) → `finalize_document_upload`
-(transitions `file_objects.upload_state` to `verifying`) → `complete_document_upload_verification`
-called with `p_verified: false` (the documented branch for "the service's own re-download of the
-just-uploaded object failed") → `file_objects.upload_state = 'failed'`, but **no**
-`document_version_files` row is ever inserted for that version (only the SUCCESS branch of
-`complete_document_upload_verification` inserts one). **Expected:** the row's availability reads
-`failed` (`AVAILABILITY_PRESENTATION.failed` — "Falha no envio... Remova este item e envie o arquivo
-novamente"), per `src/components/documents/document-labels.ts`. **Actual:** `versionAvailability`
-(`src/lib/queries/documents.ts`) finds no `document_version_files` binding for the version, so it
-falls through to `pending` regardless of the underlying `file_objects.upload_state` — the row is
-indistinguishable from a merely slow, still-in-flight upload, forever. **Violates:** the DM2 Wave-A
-5-state availability contract (task brief: "`failed` and `disposed` are deliberately distinct on
-four axes"); pinned RED via `test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-1`), which
-will flip to a hard failure the moment this is fixed. **Owner:** backend.
-
-✅ **BUG-DM2-002 — FIXED 2026-08-13** (frontend, `18d08e9`): the unreachable branch,
-`DocumentRestrictedBadge` and the `DOCUMENT_RESTRICTED` strings are removed, and the false comment is
-replaced in **both** files with the true mechanism — denial is *absence*, `app.can_read_document`
-behind the `documents_select` policy is why, an uncleared reader gets zero rows including the
-creator, this is **stricter** than the UI assumed, and **ADR 0114 D16** is the named trigger that
-would bring the affordance back. `canOpen` deliberately **left alone** (it is correct), and
-`version.canOpen` is deliberately **kept** in the `showOpen` condition despite being currently
-redundant — inlining today's equivalence would bake a coincidence into the UI, and D16 may tighten
-the definition. ⚠ **Its `test.fail()` pin must be REWRITTEN, not un-pinned** (unlike 001/003): the
-defect was a *false claim*, not broken behaviour, so nothing will ever flip that pin — a
-`test.fail()` that can never flip is a test asserting behaviour the product deliberately does not
-have, the same trap the plan's Q1 discharge condition warns about ("a keystone left pinning a
-rejection the product no longer wants is a test asserting a bug"). Row-absence is already covered by
-the restored AC-4a–d/AC-9.
-**Tester re-verification (2026-08-13):** rewritten, not un-pinned, per the lead's ruling — a
-`test.fail()` asserting the (now-removed) badge would sit as a permanent expected-failure forever, so
-that is not the right closure shape. `e2e/phase-f2-attachments.spec.ts`'s `DM2-BUG-2` is replaced with
-**`DM2-CEILING-NOONE`** (`test.fail()` removed): a positive, non-redundant pin — a case with **zero**
-`case_access_grants` rows denies an enforcing-labeled document to its own creator/coordinator too, not
-just a third-party grantee (AC-4a/b's scenario). Green on a fresh reset alongside the other 5 restored
-files.
-
-<!-- original filing retained below for the evidence trail -->
-🟡 **BUG-DM2-002 (as filed) — the D15 ceiling's "Restrito" badge is unreachable dead code; `canOpen` can never
-be `false` on a rendered document row.** Filed 2026-08-13 (tester, DM2·S4 ceiling testing). Severity:
-MINOR/documentation (the underlying SECURITY property is intact and arguably stronger — see below —
-this is a dead-code / stale-doc-comment finding, not an access-control hole).
-**Repro/evidence:** `app.can_read_document` (read live from `pg_proc`) embeds the D15 ceiling as a
-ROW-level AND-conjunct — an uncleared reader gets **zero rows** for an enforcing-labeled document (the
-`documents_select`/`document_versions_select` RLS policies both gate on this same predicate), not a
-visible row with `canOpen: false`. Confirmed live via a real `begin_document_upload` + PostgREST
-probe: even the document's own creator/coordinator got `[]` back for her own just-created
-`legal_privileged` document on a case with no `case_access_grants` clearance row (the S1 "fail-closed
-— readable by NO ONE" backstop, working as designed). Separately, `DocumentVersionSummary.canOpen`
-(`src/lib/queries/documents.ts`) is defined purely as `availability === 'available'`, with **no**
-separate door call — so for any row that DOES pass RLS, `canOpen` is unconditionally `true`.
-**Expected** (per `src/components/documents/document-row.tsx`'s own doc comment): "The interesting
-cell is `available && !canOpen` — the D15 ceiling denying an ordinary case reader. It renders a
-NON-INTERACTIVE 'Restrito' badge... E2E AC-9 asserts exactly that." **Actual:** that branch cannot be
-reached by any caller today — the denial is 100% row-absence, never a visible Restrito badge.
-**Violates:** `document-row.tsx`'s own doc comment (a false claim about observable behavior) and the
-original DM2 task brief's framing of the AC-9 contract. Pinned RED via `test.fail()` in
-`e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-2`). **Restored `e2e/ethics-e1-access-spine.spec.ts`
-AC-4a/b/AC-9 assert the TRUE (row-absence) shape**, matching the pre-DM1 test's own historical
-behavior ("O2: hidden from the LIST") — not blocked on this bug. **Owner:** backend/frontend (either
-fix the comment to describe row-absence, or wire a genuine row-visible-but-ceiling-denied state if
-Phase 19's general access plane wants one later).
-
-✅ **BUG-DM2-003 — FIXED 2026-08-13** (backend; lead-verified from `pg_proc`: the dead `update … set state = 'expired'` is gone from `finalize_document_upload`). The refusal stays **predicate-based** (`expires_at < now()`) — unchanged and still correct — and the **marking moved to reconciliation**, which now sweeps lapsed reserved sessions → `expired` and their still-reserved files → `abandoned`, both counted in its report. Rationale, worth keeping: *a refusal that must also persist state is fighting its own transaction*; reconciliation already existed to sweep exactly this. ⚠ **The sweep validated the bug with real data on first contact** — its smoke run caught **3** lapsed sessions: one planted, plus **two genuine reservations left by the tester's own E2E runs**, i.e. precisely the rows nothing would ever have marked before.
-**Tester re-verification (2026-08-13):** un-pinned, rewritten as **`DM2-RECONCILE-EXPIRY`** in
-`e2e/phase-f2-attachments.spec.ts` (`test.fail()` removed) — a deliberate choice between the two honest
-contracts the marking-moved fix admits (picked, not assumed): asserts `state` stays `reserved`
-immediately after the HC0DE refusal (no synchronous marking), then runs the REAL reconciliation script
-(`node scripts/document-reconciliation.mjs`, not simulated) and asserts `state='expired'` +
-`file_objects.upload_state='abandoned'` afterward. The script's own exit code / global drift count is
-deliberately NOT asserted (only this test's own entity is checked) — the pgTAP `329` F3 shared-fixture
-lesson the lead flagged applies equally to E2E: a bare count over an append-only/shared table is a
-fragility this file's own `auditRows` helper already avoids by always scoping to one `entity_id`
-(re-audited across all 5 touched files: every `audit_log` read is action+entity-scoped, none global).
-Green on a fresh reset alongside the other 5 restored files.
-
-<!-- original filing retained below -->
-🟡 **BUG-DM2-003 (as filed) — `upload_sessions.state` never actually becomes `'expired'`; the UPDATE is rolled
-back by its own `RAISE EXCEPTION` in the same statement.** Filed 2026-08-13 (tester, DM2·S4 expiry
-testing). Severity: MINOR (the functional refusal is correct and unaffected — only the persisted
-`state` column is wrong).
-**Repro:** `finalize_document_upload`'s expiry branch: `update public.upload_sessions set state =
-'expired' where id = v_s.id; raise exception … using errcode = 'HC0DE';` — no `BEGIN/EXCEPTION`
-block, no autonomous transaction; a single PostgREST RPC call is one implicit transaction, so the
-`UPDATE` is unconditionally undone when the `RAISE` aborts it. **Expected:** `upload_sessions.state =
-'expired'` after an expired-reservation retry attempt (the CHECK-enumerated vocabulary includes
-`'expired'` as a distinct member; pinned by pgTAP `329` U12 per the DM2·S2 record). **Actual:** the
-row is left in `state = 'reserved'` forever (confirmed by a live E2E run before this was filed — the
-functional HC0DE refusal and the UI's "Feche e comece o envio novamente" message both fire correctly
-on EVERY subsequent retry attempt, since the check re-evaluates `expires_at < now()` rather than
-`state`, but the column itself never reflects reality). **Impact:** any future code that queries
-`upload_sessions.state = 'expired'` directly (an abandoned-upload cleanup sweep, an admin report)
-will find nothing, even though the refusal-by-timestamp behavior keeps working. Pinned RED via
-`test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-3`). **Owner:** backend.
-
-✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
-succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
-Found 2026-08-12 by `qa` during the same review; PRE-EXISTING, did not block that batch.
-
-**Mechanism, catalog-verified:** a 16-value `CHECK` on the column, **zero triggers**, and **no `kind`
-arm in either INSERT policy**. The vocabulary's real authority was `src/lib/cases/registro-kinds.ts`
-— application code. A forged `kind='decision_issued'` insert **succeeded** as an ordinary committee
-writer, i.e. a user could mint an event the UI presents as a governance decision. This is the
-recorded *"a correct predicate ≠ correct policies"* family: the CHECK constrains the **domain** of
-`kind`; nothing constrained **who may write which value**.
-
-**The fix.** `app.is_manual_case_event_kind(text)` — the SQL mirror of the six-value manual
-vocabulary — is appended as a `kind` arm to **all four** user-role write policies. The ten system
-kinds stay writable only by the eleven `SECURITY DEFINER` RPCs that emit them: they are owned by
-`postgres`, which owns `case_events`, and the table is **not** `force row level security`, so they
-bypass RLS and are unaffected (`relowner`/`relforcerowsecurity`/`proowner` read from the catalog,
-not inferred). ⚠ **The arm is on both INSERTs AND both UPDATEs** — an INSERT-only arm is defeated by
-insert-then-update (`note` → `decision_issued`), the recorded *"an exclusion is only as strong as its
-weakest mutator"* shape. Policies were amended with `alter policy … with check (<existing catalog
-expr> and <arm>)`, never DROP+CREATE, so the E3a `coordinator_only` narrowing and the
-`is_case_excluded` arm survive verbatim.
-
-**Proved live as a real persona, `staff3.ccih@test.local`** (a plain `staff` holding a case write
-grant — the exact "ordinary committee writer" of the report), rolled back, with controls:
-
-| Check | Result |
-| --- | --- |
-| Control A — is the persona `staff_admin` of the case's commission? | `false` |
-| Control B — a MANUAL kind insert, same session | **succeeds** (capability genuinely intact) |
-| F — forged `kind='decision_issued'` INSERT | **refused `42501`** |
-| G — insert `note`, then UPDATE to `decision_issued` | **refused `42501`** |
-| Oracle — neutralize the arm (`… returns true`), re-run F and G | **both succeed again** |
-
-**Keystones:** `supabase/tests/111_case_docs_events.sql` grows 5 → 9 (forged INSERT refused ·
-manual-kind positive control · UPDATE-to-system-kind refused · all four policies carry the arm).
-Proved able to fail: neutralizing the helper reds tests 6 and 8. Full pgTAP **5886/5886 PASS** on a
-fresh reset; `lint` (5 gates) + `typecheck` clean; authz `ARM=census` / `ARM=hat` / `ARM=floor` all
-INVARIANT HOLDS.
-
-**NOT closed by this (deliberate, separate obligations, no minting path):** a case writer can still
-`DELETE` a procedural event, and no audit row distinguishes a forged kind from an authentic one.
-
-
-🟠 **FUP-AUTHZ-WP-SNAPSHOT — the write-path sweep's policy arm silently ran ZERO cases for a valid
-subset.** Filed 2026-08-12 while gating BUG-CASEKIND-001. A diff-scoped
-`CASES="case_events_writer_insert case_events_staff_admin_insert case_events_writer_update
-case_events_staff_admin_update" p0-authz-writepath-audit.sh` printed `BLIND: 0 ERROR: 0 SKIPPED: 0`
-and **exercised nothing** — its ARM-2 domain is the 33-row worklist hardcoded at
-`p0-authz-writepath-audit.sh:388`, embedded 2026-07-18 and never grown; it contains **zero**
-`case_events` rows. ADR 0079 Amendment 3 already names the stale snapshot as a structural gap; what
-is new is that a **subset run over policies outside it is indistinguishable from a clean pass**.
-The Phase-Gate step-1 "diff-scoped ARM=policy" is therefore a no-op for any policy the snapshot
-misses — the recorded *"a detector that finds nothing must be proven able to find something"* class.
-⚠ Also re-confirms hazard 1: the run **overwrote** `docs/reviews/authz-writepath-audit-findings.md`
-with its empty report (restored via `git checkout --`). Fix: derive ARM 2's worklist from
-`pg_policies` at run time, and make a subset that matches no case a non-zero exit.
-
-
-🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**
-`phi-remediation.spec.ts` REM-8 and REM-9 skip on every run — there is no seeded RCA for
-EV-0001, and the only CAPA has a NULL `source_event_id` (both catalog-verified). They are
-honest `test.skip()`s, not silent greens, so they are outside the vacuity property and the gate
-will never catch them. Closing them means new fixture work against `seed.sql`, which is a
-contract with ~900 tests — hence its own item rather than a drive-by.
-
+✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
+(pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
+[bug-log-archive.md](docs/progress/bug-log-archive.md).
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -683,12 +293,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-13 | **DM2 · TESTER · quick-loop, chromium, `--workers=1`, fresh `supabase db reset`.** ⚠ **NOT `e2e:prod`.** Post-pause resumption: (1) confirmed the two gap-closure probes committed in `4644cef` (`HC0DG` in `phase11-interviews.spec.ts`, `HC0D8` `DM2-STATES` in `phase-f2-attachments.spec.ts`) — their final confirmation had been left mid-run at the pause; (2) added `DM2-VERIFY-FAILED-TERMINAL-UI` (pins QA r1 MAJOR-3: no retry affordance survives a terminal verification failure) and `DM2-DELETE-HOLD-REFUSED` (pins QA r1 MINOR-4: a delete refused by a legal hold says so, `role=alert`); (3) fixed a stale `⛔ PARKED — FUP-DM1-E2E` header comment in `quality-oversight.spec.ts:39` that contradicted its own (already-restored-and-strengthened) M8 assertion. Files: `e2e/phase-f2-attachments.spec.ts`, `e2e/phase11-interviews.spec.ts`, `e2e/quality-oversight.spec.ts` (comment-only). Commit `f7cc733` | **GREEN.** `47 collected, 47 ran, 47 passed, 0 skipped` (run shape checked, not just the pass count) across all three files on a fresh reset. **The two probes are now CONFIRMED**, not merely committed: `HC0DG` passes (server refuses `audio/mpeg` with `HC0DG`, then accepts a `.pdf` control on the same interview) and `HC0D8`'s `DM2-STATES` passes on a single clean run — the double `[removido]` row the paused session observed is **confirmed to be the documented re-run artifact** (running the disposal step twice without a reset), not a regression from either probe: this run shows exactly one `[removido]` row. **Two build issues found and fixed while authoring the new tests, both harness bugs in the new specs, not app defects:** (a) the terminal-failure route needed `execSync docker exec … rm` on the Storage file backend's on-disk leaf file (one directory level below `storage_path`, confirmed against the running container) rather than the Storage REST `DELETE`, which also drops the `storage.objects` metadata row and makes `finalize` read `upload_incomplete` (PUT-never-landed) instead of the terminal `failed` the test targets; (b) the dialog's built-in close icon shares the `aria-label="Fechar"` with the terminal footer's own "Fechar" button, so the positive control is scoped to `[data-slot="dialog-footer"]`; (c) `DM2-DELETE-HOLD-REFUSED`'s row-survives assertion had to move to AFTER closing the dialog — Radix marks the rest of the page `aria-hidden` while the modal is open, so `getByRole('region', …)` cannot re-resolve `docPanel` mid-dialog. `lint:vacuous`: 179 spec files, 0 findings. No bug filed — both new pins confirm fixes already shipped (backend `797d55b`, frontend `7cc833a`/`0acdd0d`) rather than finding new defects |
-| 2026-08-13 | **DM2 · LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — branch `docs/dm1-plan-amendments`; the whole-suite run for the document command layer + Wave A UI | **GATE GREEN.** **1088 passed · 0 failed · 0 infra · 3 flaky · 0 did-not-run · 17 batches**, every batch `accounted N/N`. **Coverage fully reconciled:** 1091 accounted of **1097 collected**, the 6 unaccounted being **exactly the 6 skips** (b2·1 + b4·1 + b8·1 + b15·2 + b17·1) — checked by arithmetic, not assumed, because *a batch whose reset fails drops out of the gate's own denominator while the summary still reads green*. ⚠ **Batch 17's first attempt died `server_dead=1 / conn_errors=9` with 5 failed + `12 did not run`**; the classifier called it INFRA and re-ran it on a fresh server → **61 passed · 0 failed · 0 did-not-run · accounted 62/62**. That intermediate `12 did not run` is in the log and is **not** a residual gap — the re-run's own accounting closes it. **All 3 flaky are pre-existing and unrelated to DM2** (`act-role-assumption` ACT-switch · `charters-cadence` AC-1a · `phase2-auth-shell` logout). **Every DM2 spec passed on the prod build**, incl. `DM2-U2` (retry reuses the SAME reservation) and `DM2-VERIFY-FAILED` (the BUG-DM2-001 fix, reading "Falha no envio") — so the three in-phase fixes hold under a real standalone build, not only in the quick loop |
-| 2026-08-13 | **DM2·S4 · TESTER · quick-loop, chromium, `--workers=1`, fresh `supabase db reset`.** ⚠ **NOT `e2e:prod`** — only the 6 files this slice touched (new + restored specs), not the full ~92-file suite; the lead runs `e2e:prod` next. Wrote `e2e/phase-f2-attachments.spec.ts` (rewrite, PRIORITY 1 write-path: real browser upload/retry/expiry/audit-exactness) + `e2e/helpers/document-model.ts` (new); restored the parked FUP-DM1-E2E blocks in `e2e/ethics-e1-access-spine.spec.ts` (AC-4a-d/AC-9, the D15 ceiling), `e2e/quality-oversight.spec.ts` (M8 bytes-cut), `e2e/phase11-interviews.spec.ts` (IV2-4/IV2-11), `e2e/cases-extras.spec.ts` (AC-Docs); verified `e2e/meeting-audio-minutes.spec.ts` needs no change | **GREEN.** **77 collected, 76 passed, 1 skipped (pre-existing AC-6, unrelated), 0 unexpected failures.** 3 of the 76 "passed" are `test.fail()`-marked genuine bugs found and filed this run (BUG-DM2-001/2/3 above) — the suite reports them as passing because they fail exactly as documented; Playwright will flip them to hard failures the moment each is fixed. **PRIORITY 1 finding: the write path is NOT broken** — `begin_document_upload` → real browser file PUT to the signed Storage URL → `finalize_document_upload` → `complete_document_upload_verification` → `available`, real fetchable download, exact audit rows (`document.upload_started`/`document.uploaded`/`document.opened`, the D11 floor's same-creator-standard-tier-unlogged conditional confirmed live), all pass. The `upload_incomplete` retry (reuses the SAME `document_version`/`file_object`, proven via DB counts before/after) and the `upload_expired` drop (session cleared, "Tentar novamente" reverts to "Enviar") both pass functionally — only `upload_sessions.state`'s own persisted value is wrong (BUG-DM2-003). Ceiling (D15): confirmed LIVE via a direct RPC+RLS probe that denial is 100% row-absence (not a visible "Restrito" badge — BUG-DM2-002, filed, not blocking); AC-4a-d/AC-9 restored against that TRUE shape, matching the pre-DM1 test's own historical behavior. **UPDATE 2026-08-13, same day, post-fix re-verification (still quick-loop, NOT `e2e:prod`):** all three bugs fixed (backend `f164938` for 001/003, frontend `18d08e9` for 002) — re-ran the six files fresh-reset. `DM2-BUG-1` flipped to an unexpected PASS on first re-run (confirmed not a flake, 2 more isolated runs) and is rewritten as a positive pin (`DM2-VERIFY-FAILED`); `DM2-BUG-3` did NOT flip on its original assertion (the fix moved marking to an out-of-band reconciliation sweep rather than repairing the inline UPDATE), rewritten deliberately as `DM2-RECONCILE-EXPIRY` (asserts `reserved` immediately post-refusal, then runs the REAL sweep script and asserts `expired`/`abandoned`); `DM2-BUG-2` rewritten per the lead's explicit ruling as `DM2-CEILING-NOONE` (a `test.fail()` pin for a now-removed affordance would never flip — "a keystone pinning a rejection the product no longer wants is a test asserting a bug"). **Final: 77 collected, 76 passed, 1 pre-existing unrelated skip, ZERO `test.fail()` pins remaining, 0 unexpected failures.** Lint (eslint 0/0) + `lint:vacuous` (178 files, 0 findings) + `tsc --noEmit` all clean on every touched file. Audited all 5 touched spec files for the pgTAP-329-F3-style global-count fragility the lead flagged: every `audit_log` read is `action`+`entity_id`-scoped (`ethics-e1-access-spine.spec.ts` additionally scopes by `actor_id`), none global. |
-| 2026-08-13 | **DM1 · LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — branch `docs/dm1-plan-amendments`; the whole-suite run for the attachments-substrate drop + inert document model | **GREEN (triaged).** **1073 passed · 1 failed · 3 flaky · 17 batches · 0 did-not-run**, every batch `accounted N/N`; of 1092 collected the 15 unaccounted are **exactly the 15 skips** (the FUP-DM1-E2E parks + 5 pre-existing). The sole failure (`case-narratives` AC-10) is a **proven `server_dead` INFRA flake below the classifier threshold**, not a regression — isolation **13/13** and an identical batch-2 re-run **68/68**, both `RETRIES=0`, and the re-run's own first attempt reproduced the mechanism (`server_dead=1`, 14 conn errors). pgTAP **188f/5927 PASS**; `ARM=census`/`hat`/`floor`/`wrapper` all HOLD. [detail](docs/progress/dm1-substrate-cutover.md) |
-| 2026-08-12 | **REFNOTE + ARM 5 · LEAD · FULL gate** (branch `authz-wrapper-refnote`, commits `297d3e2` + `f22ddab`). pgTAP + `e2e:prod` on a **fresh `supabase db reset`** | **GREEN.** `typecheck` **0 errors** (⚠ the lone `RouteContext` error in a fresh worktree is the absent `.next/types/routes.d.ts`, not a defect — it clears once `next build` runs; do not chase it) · vitest **1254/1254** · all **five** lint gates · pgTAP **5906 pass, 188 files** (+13 suite 326, +7 suite 327). **Authz: `ARM=census` HOLDS at 540 live gates** — up from 452, the +88 being the `public` INVOKER surface ARM 5 brought into the enumeration — **· `ARM=hat` HOLDS** (3 pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called, all allowlisted) **· the new `ARM=wrapper` HOLDS** (41 BLIND ⊆ allowlist). **No diff-scoped `ARM=policy` is owed**: the 23 rebuilt doors are `prosecdef` but **not** set-returning and **not** boolean, so they fall in no sweep's domain — verified against the three worklist queries, not assumed; no RLS policy and no boolean gate was touched. **`e2e:prod`: 1046 passed · 0 failed · 17 batches**, then **GATE RED (UNRUN)** — batch 4 (the four ethics specs) died `server_dead=1, conn_errors=5` **twice**, stranding 32 tests. ⚠ **Zero assertion failures anywhere in the run**; the gate is right to refuse green, because unrun ≠ passed. Batch 4 re-run standalone on a fresh server: **67 passed · 0 failed · 0 did-not-run · 68/68 accounted · GATE GREEN**, so every collected test now carries a result. ⚠ Method note: the background-task notice reported **"exit code 0"** for a run that exited **5** — `cmd > log; echo $?` makes the compound status `echo`'s. Read the printed code, never the notification |
-| 2026-08-12 | **REG·KIND · LEAD · gate step 1 ONLY.** ⚠ **NOT a tester pass and NOT `e2e:prod`** — no full-suite run was made, so this row is evidence for step 1 and for two targeted specs, nothing more. pgTAP on a **fresh `supabase db reset`**; E2E on a dev server, chromium, `--workers=1` | **Step 1 GREEN.** `typecheck` 0 errors · vitest **1254/1254** · eslint over `src`+`e2e` **0/0** + `lint:css-vars` · pgTAP **5857 pass, 183 files** (`322` re-planned 72→63 as §1 retired with the table; `298` 36→32 as GROUP G retired with its two policies). **Authz: `ARM=census` HOLDS** (452 live gates, all carry a verdict — the arm that catches a newcomer, and the two writers' signature change is what made it load-bearing here) **· `ARM=hat` HOLDS** (3 findings, all pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called doors, all allowlisted). **Diff-scoped door sweep** (`CASES="can_read/can_edit/can_manage_referral_internal_note referral_internal_notes_select"`) → 3 COVERED + 1 **pre-existing** `ERROR\|run-shape!=baseline` on `can_read_referral_internal_note`, verbatim the verdict it carried at HEAD — a harness class (§7.15), not a regression. The partial run TRUNCATED `docs/reviews/authz-door-audit-findings.md` (496 lines → 5); restored from HEAD, per lead-playbook §4. **E2E (targeted): `referral-registros` 16/16 · `cases-extras` 8/8.** New assertions pin the picker's **EXACT** six options on the case dialog AND on both referral sides (a subset assertion cannot catch the two surfaces drifting, which is the entire point of the change), the `note` default, the absence of the retired manage dialog **asserted for a coordinator** — the one viewer it was ever shown to, so its absence is attributable to removal and not to a permission gate — and a real `follow_up` round trip rendering "Acompanhamento". ⚠ Method note: browser-pane verification was ABANDONED, not skipped-silently — the pane was not compositing, so `getBoundingClientRect` returned zeros and programmatic clicks never reached React; Playwright against the dev server was used instead because it actually hydrates. ⚠ One self-inflicted red found and fixed in the loop: the new §2.6 default-kind probe inserted a note on `r1`, which pushed the concluded note past the index `4.18`'s open-before-concluded ordering contract asserts on — moved to `r2` rather than weakening the assertion |
-| 2026-08-11 | **LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — the prod-standalone full-suite run for the branch closing BUG-ACT-EXPIRY-1 / BUG-ACT-ACL-1 / BUG-VACUOUS-ASSERT-1 / FUP-VACUOUS-AUDIT-1. 17 batches, fresh build + fresh server + fresh DB per batch. | **GREEN after triage. 1055 passed · 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 17 batches.** ✅ **COVERAGE IS COMPLETE — the summary's "accounted for 1058 of 1064" is NOT a hole:** 1055+1+2 = 1058 accounted, and the 6 skipped make up the difference exactly (batches 1r/2/4/8/15/17). Checked per the standing traps *before* trusting the number: **no `reset FAILED`**, **no batch-number gaps** (1–17 all present), denominator reconciled against `spec-counts.txt`. **The 1 failure — `phase7-cases.spec.ts` AC-HappyPath (batch 15) — is a NON-REPRODUCING FLAKE, not a regression.** Evidence, in order: (a) its two attempts failed at **different** lines — attempt 1 at L752 (`Concluído` badge), retry #1 at L564 (`Fase 2 recomendada`), and the retry failing EARLIER is the signature of attempt 1's own partial run having mutated the shared case, so the retry is not independent evidence; (b) `phase7-cases.spec.ts` alone on a fresh DB → **15/15**; (c) batch 15's **exact spec list in its original order** on a fresh DB → **67 passed / 2 skipped / 0 failed** (same 69 denominator); (d) re-run through the gate itself against the **prod standalone build** (`SPECS=… REBUILD=0`) → **GATE GREEN, 67/69**. Not in the blast radius either: the branch touches none of batch 15's four specs, and its only behavioural change (`can_manage_professional` expiry) gates 10 professional-identity/ethics-vocab write RPCs — `close_case` is not among them (catalog-derived). **Batch 1's first attempt (12 failed) was infra** — `ERR_CONNECTION_REFUSED`, the server not yet up; the gate auto-classified and re-ran it → 64 passed, 1 flaky. **The 2 flaky:** `act-role-assumption.spec.ts:157` (the hat switch) and `phase2-auth-shell.spec.ts:268` (logout redirect), both green on retry #1. Far below the documented ~18–27 flaky baseline. ⚠ The gate output also makes **FUP-VACUOUS-COVERAGE-1** visible: `phi-remediation` REM-8/REM-9 render as `-` (skipped) in every batch — they never run. |
+| 2026-08-13 | **DM2 RE-GATE · LEAD · FULL `e2e:prod`, run TWICE** — branch `docs/dm1-plan-amendments`, at HEAD `9de4a39` after every QA-r1 remediation landed. Supersedes the pre-P0-1 DM2 gate row (rotated) | **RUN 1 = GATE RED · RUN 2 = GATE GREEN.** Run 1: 1090 passed · **1 failed** · 2 flaky · 0 did-not-run · 17 batches. Run 2: **1091 passed · 0 failed · 2 flaky · 0 did-not-run**; both runs `accounted 1093 of 1099 collected`, the 6 unaccounted being **exactly the 6 skips**. The run-1 failure is `pdf-printing.spec.ts:38`, failing its **pre-mint** empty-state assertion — **outside the DM2 diff** (`src/components/printing/labels.ts` untouched; the expected string intact in source). **Three independent disproofs, all `RETRIES=0`:** isolation **9/9** · identical-batch re-run (same 4 specs, same order) **60 passed/1 skipped/0 failed** · full-suite run 2, batch 8 **60/0**. ⚠ **Mechanism UNPROVEN** — the batch-8 log carries **no** infra signal (`server_dead=0`, no conn errors), so this is *not* the DM1 precedent where the flake was proven. "Non-reproducible" is what was measured; "flake" is an inference. ⚠ **Both evidence artifacts were destroyed by the re-runs** (`test-results/` AND `/tmp/e2e-prod-gate/batch-8.log`) → **FUP-GATE-PDFP1-FLAKE**, whose real fix is that `e2e-prod-gate.sh` archives a failing batch **before** re-running. ⚠ The gate's own retry re-hit the same **pre-condition** assertion, so "failed twice" was **one observation plus a dependent retry**, not two. Run 2 also carried 2 auto-classified infra events, both re-run clean: batch 16 the documented Windows prod-standalone collapse (`server_dead=1`, 46 conn errors → 69/69) and batch 5 a **crash to exit 127 with no summary** while `server_dead=0` (→ 70/70). QA r2 narrowed the residue further: the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0) — which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. **Rest of the gate:** pgTAP **189f/6097** · lint 5-gate · tsc 0 · vitest 86/1258 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped sweep `app.can_read_document` **COVERED** (1 case actually run; BLIND 0/ERROR 0) · [detail](docs/progress/dm2-orchestration-wave-a.md) |
 
 ## QA Verdicts
 
@@ -704,13 +309,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 | **DM2 — orchestration + Wave A** (ADR 0114 Amdt 1 / 0117 / 0118) | ✅ **APPROVED (r2)** [review](docs/reviews/dm2-orchestration-wave-a-review.md) — r1's 1 P0 · 3 MAJOR · 6 MINOR · 4 INFO all discharged; **P0-1's proof re-executed by QA, not accepted** (three mutations reproduced in rolled-back txns, restores md5-verified; `308` 5.2s observed RED under cut-removal with its control green; `can_read_document` coverage re-derived as 18 reds in `328` under kernel neutralization). MAJOR-1 catalog-confirmed unable to over-narrow. Two QA findings were **corrected by the engineers and the corrections adopted** (MAJOR-2's classifier contract; MINOR-4 was worse than filed). r2: **0 P0 · 0 MAJOR · 1 MINOR · 4 INFO**. ⛔ **Binding pre-merge condition (r2-1):** three sites still assert a React prop suppresses the byte corridor (`document-row.tsx:75`, `case-detail-view.tsx:727`, `quality-oversight.spec.ts:509`) — comment-only, no re-gate required, **must land before merge or any flag flip**. `e2e:prod` run-1 red ruled **not phase-attributable** (→ FUP-GATE-PDFP1-FLAKE). **Gate:** pgTAP 189f/6097 · lint 5-gate · tsc 0 · vitest 86/1258 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` HOLD · diff-scoped sweep `can_read_document` COVERED (`open_document_version` out of every arm's domain by return-type syntax — ADR 0118 §12; assurance is `329` P0a–P0f + the `308` sentinel) · `e2e:prod` GREEN run 2; run-1 red triaged as non-attributable, **mechanism explicitly unproven** | 2026-08-13 | [dm2-orchestration-wave-a](docs/reviews/dm2-orchestration-wave-a-review.md) |
 | ~~**DM2 — orchestration + Wave A**, round 1~~ | ⛔ **CHANGES REQUESTED (r1)** — **1 P0** · 3 MAJOR · 6 MINOR · 4 INFO. **P0-1: DM2 obligation 2 (the M8/M9 byte-discrimination cut) was never re-expressed in `open_document_version`** — no `read_case_deliberation` conjunct anywhere in the corridor, so the ADR-0100 quality reviewer is **SERVED PHI-tier bytes** (probed live: `SERVED tier=phi`, outsider control `P0002`); the only shipped control is `canDownload={!isOversight}`, a React prop — Architecture **Rule 1** inverted. The restored E2E asserts the *button* is absent, so the green bar now certifies a UI-only control; the record says "incl. the M8 bytes-cut contract" and contains **zero** mentions of oversight/ADR 0100. Invisible to all four arms because D8 moved the boundary from a census-covered storage policy into a `jsonb` DEFINER outside every domain (INFO-1). MAJOR: S1-O4 — a doc on a `legal_privileged` interview is readable **and its PHI bytes servable** by members who cannot see the interview (parity, but Wave A makes it live — needs a PO ruling); reconciliation is blind by construction to `failed`/`abandoned` files that DO hold bytes (undisposable PHI under a `RECONCILIATION CLEAN`); "Tentar novamente" after a verification failure is a guaranteed-fail loop, each iteration an unaudited service-role full-object download. **Verified sound and re-derived from the live catalog, not accepted:** the D15 ceiling both directions + no over-narrowing + row-absence through the whole chain + creator/staff_admin/platform_admin all denied + rank genuinely consulted; the meeting/action_item seam at **both** layers (HC0D6 write-side incl. relabel; kernel fail-closed for everyone, with a `true` control); the corridor's D9/D10 state matrix exactly; the **D11 floor exactly** (creator+standard = 0 rows, denials 0, no duplicates, sole minter in the catalog); D8's zero SELECT policies on both buckets; R6/R7/R8 as a real differential + vacuity pin. **Gate figures independently reproduced on a fresh reset:** pgTAP **189f/6059 PASS** (0 `not ok`, 0 bad plans), lint 5-gate exit 0, tsc **0 errors**, vitest 1254, `ARM=census`/`hat`/`wrapper` all HOLD (569 verdicts, BLIND 41) | 2026-08-13 | [dm2-orchestration-wave-a](docs/reviews/dm2-orchestration-wave-a-review.md) |
 | **DM1 — substrate cutover** (ADR 0114/0116) | ✅ **APPROVED (r1)** 2026-08-13 — 0 P0 · 1 MAJOR (fixed) · 5 MINOR · 4 INFO | [review](docs/reviews/dm1-substrate-cutover-review.md) · [gate detail](docs/progress/dm1-substrate-cutover.md) |
-| **FUP batch 2026-08-12** (BUG-RDR-001 · FUP-ETH-A11Y-1 m3/m4 · FUP-ETH-KBD-1 · FUP-PDF-3 · narrative reorder 23505 · FUP-F2-BUCKETS · BUG-MIN-E2E-1 · BUG-BOOTSTRAP-001) **+ REG·KIND (ADR 0110), reviewed for the first time** | ✅ **APPROVED (r1)** — 0 BLOCKER; 6 findings, none in scope. Every claim re-derived from the **live catalog** (359 registered == 359 files) + rolled-back probes under `set local role` with real hats, never from migration text. FUP-PDF-3's DROP+CREATE doors diffed **property-by-property** — `prosecdef`/owner/volatility/leakproof/strict/`search_path`/**ACL** all intact, `returns` the only change; the `anon`-no-EXECUTE control is the right ACL-trap guard. Both "corrected premises" independently verified (**4** withheld columns, not 2; constraint was ALREADY `DEFERRABLE INITIALLY IMMEDIATE` — real cause is archived rows retaining a NOT NULL `position`). REG·KIND's table DROP is **clean: 0 orphaned policy/trigger/proc/grant/FK/type/constraint** across a full catalog sweep, 0 source refs. Bucket retirement leaves **0 reachable doors** (general `pg_policies` sweep, not by-name). §2.5's self-promotion-closure claim **tested and TRUE** (refused by `guard_profile_privileged_columns_trg`). ⚠ Two **CONFIRMED-LIVE but PRE-EXISTING** defects surfaced, outside both scopes → **FUP-REF-NOTE-1** (P2: `redact_referral_note`'s `[redigido]` masking is bypassed by 4 sibling DEFINER doors that `RETURNS referral_internal_notes` — proved as a plain `staff` **assignee**: read door serves `[redigido]`, `conclude_…` returns the real `body_md`, same txn/role/hat, plus a Rule 11 read-audit gap; the 2 doors REG·KIND rebuilt are NOT the exploitable ones) and **FUP-CASEEV-KIND-1** (P2: `case_events.kind` guarded only in TS — 16-value CHECK, no trigger, no `kind` arm in either INSERT policy; forged `decision_issued` insert **succeeded** live). Also **FUP-LINT-TEMP-1** (`npm run lint` exits 1 on gitignored-but-not-eslint-ignored `supabase/.temp/**`, so gates 2–5 **never run**; all five verified passing individually — `lint:vacuous` 178/0) + `FUP-PDF-3a` (the "can never diverge" invariant is prose-only; 323 pins today's names, not the composite ≡ GRANT set) + `FUP-RDR-001a` (all 6 alert-dialog sites structurally wired — verified each, and FocusScope's passive-effect timing confirmed in the installed source — but 3 confirm-path restores remain unmeasured, where the documented `isConnected` fall-through bites) | 2026-08-12 | [fup-batch-2026-08-12](docs/reviews/fup-batch-2026-08-12-review.md) |
-| **ETH·E4** — ethics participant seating & professional identity (ADR 0108) | ✅ **APPROVED (r3)** — the 3 r2 blockers verified closed **at the source**, not from commit messages. ⚠ **r2’s MAJOR-1 was WRONG and its remedy would have REGRESSED the UI:** the catalog shows **six doors raise `P0002` deliberately in pt-BR** ("papel inválido", "organização não informada") and the engine cannot reach it (zero `INTO STRICT` in `public`/`app`) — `error.message` KEPT there, the measured reason recorded in-file so it is not re-filed a third time. The real §8 leak was the arm r2 bundled with it: **23514 is MIXED** (measured live — the engine yields `new row for relation "…" violates check constraint "…"`) → constant always; nothing user-visible lost, both pt-BR raises are pre-empted before the RPC. Also closed: the new gate’s **400-byte fail-open** window (measured 0 live — an unanchored grep says 16, all comment mentions), **two vacuous E2E assertions** — one of which my own first fix left **DEAD**, since no caller passed `assertLinkageGating` on that arm — plus **m1** (a pure read published as a Server-Action endpoint without `authorizeOrg`) and **m10**. P0-1 re-verified from the catalog (12/17 granted, projection ≡ granted set). Open items filed as **FUP-ETH-A11Y-1** + **FUP-E2E-SERVER-DEAD-1**; m2/m5 → PO | 2026-08-11 | [eth-e4](docs/reviews/eth-e4-review.md) |
-| **ACT** — act-as role assumption, **STAGE 4** (D14 arm audit · standing `ARM=hat` sweep · reasoned hat-blind allowlist; ADR 0107) | ✅ **APPROVED (r1)** — 0 BLOCKER / 0 MAJOR / 6 MINOR / 3 INFO; completeness re-derived mechanically from `prosrc` as a property, both keystone mutation twins neutralized and observed red | 2026-08-10 | [act-as-stage-4](docs/reviews/act-as-stage-4-review.md) |
-| **ACT** — act-as role assumption, **STAGE 3 build review** (ADR 0106) | ✅ **APPROVED (r2)** — r1 was ⛔ on 1 BLOCKER + 2 MAJOR (hat-blind caller gates on the membership-grant door and `can_manage_professional`), fixed in `20260918002800` + keystone `318`; r2 re-derived the population **by property** (61 caller-bound pairs, no third member) rather than accepting the two-instance fix. MAJOR-2 promoted to the pilot-gate check (*Remaining pre-pilot work* item 0). Verbose row + the three lead errors it recorded → archive | 2026-08-10 | [act-as-stage-3 (r1+r2)](docs/reviews/act-as-stage-3-review.md) |
-| **ACT** — act-as role assumption, PRE-BUILD plan review (ADR 0106) | ✅ **APPROVED (r2)** — verbose row → archive | 2026-08-09 | [act-as-plan (r2)](docs/reviews/act-as-plan-review.md) |
-| ~~**ACT** — act-as role assumption, PRE-BUILD plan review, round 1~~ | ⛔ CHANGES REQUESTED — verbose row → archive | 2026-08-09 | [act-as-plan (r1)](docs/reviews/act-as-plan-review.md) |
-| _Phase 0 → Phase 16_ — **99 concluded rows** (81 rotated 2026-08-06 + 18 rotated 2026-08-10: QO·B · PDF·P2 · PDF·P1 · QO·FUP · QO·A · MIN · AFF · PCI · TV · Phase 16, incl. struck loop rows) | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
+| _Phase 0 → FUP batch 2026-08-12_ — **105 concluded rows** (81 rotated 2026-08-06 + 18 rotated 2026-08-10 + 6 rotated 2026-08-13: QO·B · PDF·P2 · PDF·P1 · QO·FUP · QO·A · MIN · AFF · PCI · TV · Phase 16, incl. struck loop rows) | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
 ## Decisions
 
@@ -757,9 +356,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progress/follow-ups.md)** — update BOTH (the body there, the line here) when an item changes state. Resolved items → [follow-ups-archive.md](docs/progress/follow-ups-archive.md). One line per item: severity · id · title · owner._
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
-- 🟢 **FUP-DM1-CEILING** — **DB HALF DISCHARGED 2026-08-13 by DM2·S1** (`5dbeb76`; migrations `20260924000100`+`…000200`, ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md), record [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)). The ceiling is live and **lead-verified against the catalog, not from the report**: on one case with one reader, label as the sole variable → plain `t` / `legal_privileged` `f` while `can_read_case` stays `t`, so the denial is the ceiling and not lost home access; the seam guard admits `ethics_investigation` on a meeting home and refuses `legal_privileged` (HC0D6, pt-BR). **Remaining to close:** pgTAP `228` **t40** + the two open-door pins (S1-O1) ride S2's `open_document_version`, and E2E **AC-4a–d / AC-9** ride S4. — **RULED 2026-08-13 (ADR [0114](docs/decisions/0114-document-model-redesign.md) Amendment 1 D15/D16)**: option 1 — re-express the ADR 0072 D7 ceiling as a nullable confidentiality column on `documents` + a `can_read_document` kernel arm, **interim**; the general access plane is **scheduled at Phase 19** (landing point `documents.access_policy_id`). No longer a blocker — now a **DM2 Wave A PREREQUISITE** (build before Wave A re-points any document). Option 3 rejected. Discharge = D15 shipped + pgTAP `228` t36–40 and E2E AC-4a–d/AC-9 restored as an ADR 0114 amendment — PO/lead → [body](docs/progress/follow-ups.md)
-- 🟢 **FUP-DM1-E2E** — ✅ **DISCHARGED 2026-08-13 by DM2·S4** (parking done 2026-08-12; rewrite done at S4). All 6+1 attachment-touching specs/blocks rewritten against the document model per ADR 0114 D5 (rewritten, never merely deleted). **Lead-verified at the source, not from the S4 report** (QA r1 MINOR-6 was that this row contradicted the S2/S4 rows it should agree with): the M8 bytes-cut assertion is live in `e2e/quality-oversight.spec.ts` and was since **strengthened past its original form** — it now calls `open_document_version` directly via REST rather than asserting the download button's absence (QA r1 P0-1; `56e3989`). ⚠ One residue, routed to tester: that file's **header comment at `:39` still reads `⛔ PARKED`** while the assertion below it is restored — the repo's own "a comment is an assertion that goes stale silently" class. — tester + DM2 ✅ → [body](docs/progress/follow-ups.md)
-- 🟢 **FUP-DM1-DISPOSE** — ✅ **DISCHARGED 2026-08-13 by DM2·S2**: `dispose_case_phi` carries its case-homed-document arm again (the DM1 substrate drop had cost it the attachment-redaction step — a PHI erasure path losing a step; no-op at the time, zero rows carried bytes). **Lead-verified from the live catalog** (`pg_proc.prosrc`, per the standing catalog-over-migration-text rule), not from a commit message. Discharged **before** Wave A's flags flip, as required — backend ✅ → [body](docs/progress/follow-ups.md)
+- 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
 - 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators see ~only themselves in the CAPA assignee picker (`profiles` RLS has no operator arm; the hatless union used to mask it) — backend
 - 🟡 **FUP-ACT-HATLESS-AUDIT** — `audit_write` omits the `acting_as` KEY when hatless, so absence conflates *no hat* / *pre-ACT row* / *service-role path* (S4 QA MINOR-6; Rule 11 is met, this is legibility) — backend, travels with the A13 ruling

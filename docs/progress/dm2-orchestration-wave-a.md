@@ -1079,3 +1079,275 @@ Windows prod-standalone collapse (`server_dead=1`, 46 conn errors → 69/69), an
 exit-127-with-output-swallowed shape is the same class backend hit three times this session
 with `process.exit()` and libuv's teardown assertion on Windows — worth watching, since a
 runbook keyed on an exit code cannot tell it from a real failure.
+
+---
+
+# Rotated from PROGRESS.md at the DM2 Record step (2026-08-13)
+
+Verbatim, per the lead-playbook §5 rotation discipline: the live PROGRESS.md keeps a
+one-line pointer, and everything below stays here so nothing is lost. This block is the
+DM2 slice table (S1–S5), the lead notes, the P0 block and the browser-verification record
+as they stood in PROGRESS.md at approval.
+
+### ⏸ PAUSED — **DM2: orchestration + Wave A** (opened 2026-08-13, paused 2026-08-13 by PO)
+
+> **⛔ DM2 has NOT passed its gate.** QA r1 = **CHANGES REQUESTED** (1 P0 · 3 MAJOR · 6 MINOR · 4 INFO). **Do not flip the flags, do not seek approval, do not merge.** Paused because the backend agent was killed **four consecutive times by transient API 529s** (twice resumed, then replaced by a fresh lightweight agent that failed identically — disproving the context-size hypothesis; the API was broadly degraded while the lead's own session kept working, which is why the recorded state is verified rather than assumed).
+> **Safe checkpoint:** HEAD `56e3989`, 374 on disk == 374 registered, nothing half-applied, all five DM flags **OFF** in production defaults, nothing pushed (`main`/`origin/main` = `f84c6b6`).
+> **The P0 is FIXED and verified from two independent directions** (lead catalog + planted-row probe; tester red-then-green through the door via REST). What remains is proof discipline and two MAJORs.
+> ✅ **PO RULING 2026-08-13 — MAJOR-1 / S1-O4: PROPAGATE the interview's confidentiality to its
+> documents.** A document homed on an interview must be gated by **that interview's own ceiling**, not
+> only by case-level access. It is **item 0 of the next session** — the first thing picked up.
+> *Lead-reproduced as a differential probe (same member, same interview, one variable):*
+> `app.can_read_interview` = **false** while `app.can_read_document` on a document homed on it =
+> **true**. The kernel's interview arm dispatches `can_read_case_committee(case_of_interview(...))`,
+> which **skips a level** — it never consults `case_interviews.confidentiality_level`, so the
+> interview row is hidden while its transcript is not. Parity with the retired substrate is real, but
+> parity answers *"did we break this?"*, not *"is this correct?"* — and the old substrate is being
+> replaced **because** it had this shape of defect. Requires an ADR amendment when built (ADR 0117 is
+> the ceiling's decision record; ADR 0114 Amdt 1 D15/D16 the governing frame).
+>
+> ▶ **Resuming? Read the handoff first:** [dm2-orchestration-wave-a.md § *DM2 PAUSED — resumption handoff*](docs/progress/dm2-orchestration-wave-a.md) — it carries the 8 remaining items in order, the PO-owned questions, and two method findings that must not be lost (an uncommitted migration is applied by anyone's `db reset` and silently fixes the defect before the test meant to catch it runs; and a sweep boundary drawn on a return-type *syntax* cannot enforce a *property* — 536 functions share that class).
+
+> Program: Document Model Redesign — plan [DM0–DM5](docs/plans/document-model-redesign.md) §DM2 ·
+> ADR [0114](docs/decisions/0114-document-model-redesign.md) (+Amendment 1 D15/D16) · DM1 record
+> [dm1-substrate-cutover.md](docs/progress/dm1-substrate-cutover.md).
+> Branch: `docs/dm1-plan-amendments` (continues DM1's branch — `main` does not carry DM1; PO
+> directive stands: **nothing to `main`, nothing remote**). Migration window: **`20260924000100`+**
+> (highest registered = `20260923000600`; 367 registered == 367 files, catalog-verified 2026-08-13).
+
+**Sequencing — S1 is a hard prerequisite, not a preference.** ADR 0114 Amdt 1 D15: the ceiling must
+land *before* Wave A re-points any case / meeting / interview document, because that is the phase in
+which a formerly gated document would silently become readable by every ordinary case reader.
+
+| # | Slice | Owner | Status | Depends on |
+|---|-------|-------|--------|-----------|
+| S1 | **D15 confidentiality ceiling** — nullable label column on `documents` + kernel arm in `app.can_read_document`; restores pgTAP `228` t36–40 | backend | ✅ **done 2026-08-13** — migrations `20260924000100`+`…000200` (AMEND 1 two-step, behavioral reds observed on the real pre-arm catalog: 228 t36/t38 + 328 K14d1–d4 all `have: 1, want: 0`); seam guard **HC0D6** (HC0D5 taken by `revoke_printed_document`) + fail-closed kernel backstop; `228` 131/131 + `328` 109/109 (K14, 21 asserts); twins A+B rollback-verified; full pgTAP **188f/5952 PASS** fresh; 4 arms HOLD; diff-scoped sweep `can_read_document` 1 case COVERED/0 BLIND/0 ERROR; gen:types +3; **AMEND 3 = PARITY** (finding DM2-F1); open-door pins → S2 (S1-O1) · [record](docs/progress/dm2-orchestration-wave-a.md) · ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) | — |
+| S2 | Command layer + `src/lib/documents/` + reconciliation script. **Head task: the Phase-17 rename** (plan amendment 2026-08-13) | backend | 🟢 **built 2026-08-13 except S2.8** — rename ✅ · contract (+10 amendments) ✅ · migrations `20260924000300`+`…000400` ✅ (FINDING 1a removal; dispose arm = FUP-DM1-DISPOSE ✅; S1-O1 ✅; MINOR-2 ✅) · keystones 329 66/66 · 228 135/135 · 328 109/109 · 191 27/27 · full pgTAP **189f/6023 PASS** fresh · 4 arms HOLD (census zero-delta, doors registered as findings note) · 5 per-state twins · TS layer + reconcile script ✅ · O4 measured (sign 10 ms; file-chain ~3.7 ms/row watch item) · ADR [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) · **S2.8 ✅ built 2026-08-13** (lead-approved; 3 conditions discharged; `20260924000500`; 329 92/92; suite **189f/6049 PASS** fresh; census required-FAIL captured→HOLDS 549/569; O4 + list-perf PO-ruled — [record](docs/progress/dm2-orchestration-wave-a.md) §S2.8) — **S2 CLOSED** | S1 ✅ |
+| S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🟢 building 2026-08-13 — plan acked; shared `src/components/documents/` module (3 homes, one byte-corridor client). **Contract-first paid: 10 gaps found in the S2 stubs before either side hardened**, 3 of them visible F2 regressions (`kind` unsettable so the badge ships dead · `occurredAt` dropped · `underLegalHold` absent from the list, so per-row delete would offer an action HC0D3 refuses) — all routed to `backend`. Upload island unblocked once item 5 (PUT transport) was specified. **Gates green** (5-gate lint 0/0 · typecheck exit 0 via `PIPESTATUS` · vitest 1254 · real `next build` exit 0). **Lead-run browser verification 2026-08-13** — see the block below | S2 contracts ✅ `92d7e8a` |
+| S4 | E2E — **priority 1: the unexercised write path** (see the red block above), then rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract, AC-4a–d/AC-9 (the last of FUP-DM1-CEILING), + a keyboard-only flow; mutation list | tester | ✅ **done 2026-08-13** — **PRIORITY 1 ANSWERED: the write path is NOT broken** (real browser PUT → signed URL → finalize → verification → `available`, genuinely fetchable download, audited exactly once; retry + expiry hold functionally). 6 parked specs restored per ADR 0114 D5 (rewritten, never deleted) + new `e2e/helpers/document-model.ts`. **3 real bugs found, all fixed in-phase** (001/002/003). Final: **77 collected · 76 passed · 1 pre-existing unrelated skip · 0 unexpected failures · zero `test.fail()` pins remaining**. ⚠ **Method note worth keeping:** the tester independently applied the lead's BUG-DM2-002 pin-reasoning to **003** — the fix had *moved* the mechanism to reconciliation rather than repairing the inline UPDATE, so un-pinning as literally written would have left a permanently-red test **for a different reason than it was filed for**. Rewritten as `DM2-RECONCILE-EXPIRY`, which asserts `reserved` immediately after the HC0DE refusal (proving the synchronous marking is *gone*, not hidden) and then runs the **real** reconciliation script. It also re-audited every `audit_log` read across the five touched files after the F3 fixture-fragility warning — all already `action`+`entity` scoped — and deliberately avoided global drift counts in the new reconciliation assertions | S3 ✅ · seed `01134b1` ✅ |
+| S5 | QA review + full §6 gate + flag choreography | qa / lead | ⛔ **CHANGES REQUESTED (r1) 2026-08-13** — **1 P0 · 3 MAJOR · 6 MINOR · 4 INFO** [review](docs/reviews/dm2-orchestration-wave-a-review.md). **The phase does NOT pass gate step 3; the flags must NOT flip.** See the P0 block below | S4 ✅ · `e2e:prod` GREEN |
+
+**Carried in from DM1 (do not re-derive — bodies in the DM1 record §"Carried into DM2"):**
+FUP-DM1-CEILING/D15 (= S1) · FUP-DM1-E2E (= S4) · FUP-DM1-DISPOSE (S2, before the flag flips) ·
+QA MINOR-2 (`open_document_version` must gate **before** recording — the registry inherits an
+`is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
+**O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
+
+**Flag posture during DM2** (seed `01134b1`): `seed.sql` forces `documents_foundation` +
+`documents_wave_a` **ON for local/E2E** (the MIN `audio_minutes` pattern); **production defaults stay
+OFF** until the S5 choreography. ⚠ Consequence, noted at the flip site because that is where a spec
+author looks: a spec pinning the deliberate **flag-OFF** contract (affordances **absent, not
+disabled**; every door raises HC0D7) must toggle the flags **itself** and restore them.
+**`attachments` is seed-retired only** — the key row, the `FeatureFlags` entry and
+`attachmentsEnabled()` retire in the **S5 migration**, deliberately: production never runs `seed.sql`,
+so a seed `DELETE` would fork local from prod on the key's *existence* (local "no such flag" vs prod
+`false`) — the exact drift class two prior programs were spent killing. A migration is the only
+honest instrument for a change production must also see.
+⚠ Ripple caught before it reached the tester: pgTAP `328` **K9** pinned all five DM flags OFF and
+would have gone red on the tester's **first** fresh reset — a red with no defect behind it, arriving
+exactly when the tester is calibrating what "normal" looks like. Rewritten to assert the *seeded*
+state with the prod-default caveat in the pin name. Suite re-run **189f/6051 PASS** (6049 + 2).
+
+**🛑 P0-1 (QA r1, 2026-08-13) — THE OVERSIGHT QUALITY REVIEWER IS SERVED PHI BYTES; the only control is a React prop.** Lead-reproduced independently before routing, twice over:
+- Catalog: `app.can_read_document`'s case arm is a **bare `app.can_read_case`** — `prosrc ~ 'read_case_deliberation'` is **false** — and `open_document_version` carries **no** byte discrimination of its own (`prosrc ~ 'deliberation|oversight|quality_reviewer'` = false).
+- Live probe: `app.case_capabilities(case, quality.a@test.local)` = `["read_case_content","view_case_overview"]` — **no `read_case_deliberation`** — yet `app.can_read_document(...)` on a document homed on that case returns **true**. QA's own matrix went further: `open_document_version` → **SERVED tier=phi**, with a non-vacuous outsider control raising `P0002`.
+**The QO·B M8/M9 byte-discrimination cut was never re-expressed in the new corridor.** The only shipped control is `case-detail-view.tsx` `canDownload={!isOversight}` — **Architecture Rule 1 inverted** ("never rely on UI hiding"), and `document-row.tsx`'s own comment claiming it "suppresses the audited door outright; there is no second byte path" is **false in both clauses**.
+⚠ **Why the green bar certified it:** the restored E2E asserts the **button** has count 0 (`quality-oversight.spec.ts:502`), so it pins the UI-only control — [[green-bar-misses-the-wired-seam]] exactly. And **why four green authz arms missed it**: the M8 cut used to live in a *storage policy*, inside `ARM=census`'s domain; D8 deliberately deleted the SELECT policies and moved the boundary into a **`jsonb`-returning DEFINER**, which is in **no** arm's domain. QA checked the domain predicate rather than the claim and confirmed the lead's census reasoning was correct — `proretset` is why `document_delete_affordances` was caught and the jsonb doors were not. **The carried lesson: clause 2's boundary is a return-type *syntax* while its stated principle is a *property*, and 536 pre-existing functions share the class.** Not a DM2 regression — DM2 is just where the first defect landed in the new location. ⚠ `supabase/tests/308_case_caps_s7.sql:291-303` **states this obligation verbatim** ("That door's keystones MUST re-express all six pins") and **ran green this phase**; the DM2 record contains zero occurrences of "oversight", "quality reviewer" or "ADR 0100".
+
+**Tester re-verification (2026-08-13, P0-1):** `e2e/quality-oversight.spec.ts`'s two M8 tests
+strengthened to hit the door, not the button — three additions per the lead's spec: (1) metadata
+visibility kept as-is (must not over-narrow — the reviewer is *supposed* to see titles), (2) the
+button-absence check kept as-is, (3) `quality.a`'s test now calls `open_document_version` **directly**
+via REST (bypassing the UI entirely) and asserts it **REFUSES**, (4) a **non-vacuous positive
+control** in "no-lockout control": chefe.ccih calls the SAME door on the SAME document and is
+**served** — so a blanket door failure or a broken fixture cannot make the negative pass for the
+wrong reason. **Red-first OBSERVED, not inferred:** backend's fix (`supabase/migrations/
+20260924000700_dm2_qa1_byte_deliberation_cut.sql`) was already applied locally but **uncommitted**
+when this run started, so the strengthened test passed immediately — not proof enough on its own.
+Set the migration file aside, fresh-reset, re-ran: **genuine RED** — `open_document_version` returned
+`ok=true` with the full title/mime/size/tier payload to quality.a, reproducing QA's P0-1 exactly, byte
+for byte. Restored the migration, fresh-reset, re-ran: **GREEN**, and the positive control held
+throughout (never a blanket refusal). Regression sweep: all 6 S4 files, fresh reset — **77 collected,
+76 passed, 1 pre-existing unrelated skip, 0 collateral damage** — the new `read_case_deliberation`
+conjunct on `open_document_version` does not touch the meeting/action_item arm (`v_case` stays null
+there) and every case/interview persona the other 8 restored tests use already holds
+`read_case_deliberation`, so nothing else regressed. Lint/tsc/`lint:vacuous` all clean.
+**Re-scan requested by the lead** (any restored assertion whose subject is a rendered control rather
+than a server answer, carrying an authorization claim): AC-4a–d/AC-9, `DM2-CEILING-NOONE` and
+`DM2-FLAGOFF` were already door-level (the last one explicitly demonstrates+documents the
+`documents_wave_a`-vs-`documents_foundation` split, routed to backend for S5). Two **coverage gaps**
+(not confirmed vulnerabilities — the door was independently read from `pg_proc` and does enforce both,
+just not exercised by these specs end-to-end): `phase11-interviews.spec.ts` IV2-11 only exercises the
+CLIENT-SIDE MIME block (`begin_document_upload`'s own `HC0DG` server check, confirmed present in the
+live body, is untested by any bypass path); `phase-f2-attachments.spec.ts` `DM2-STATES`' `pending` row
+asserts a *disabled* button (never clickable, so no live corridor to bypass there) but does not
+independently probe `open_document_version` on an unbound version (confirmed via `pg_proc`: raises
+`HC0D8`, untested by E2E). **Spot-checked, not assumed:** the pre-existing (not S4-authored)
+`notFound()`-page-based denial tests this file and `ethics-e1-access-spine.spec.ts` share (AC-1a
+respondent-exclusion, AC-2a explicit-grants-only) — direct REST reads of `cases`/`case_phases` for
+both personas returned `200 []`, genuine RLS-level filtering, not a page-level-only check — **not**
+the same shape as P0-1.
+
+**🔴 THE SHARPEST OPEN RISK IN DM2 — the write path has never moved a byte** (raised by `frontend`
+at S3 close; lead-confirmed). `begin_document_upload` is **proven reachable and correctly shaped**
+(lead called it directly under `set local role authenticated` with real `sub`+`active_role` claims:
+it authorized, minted document+version+file_object+session, and returned **IDs only, no bucket or
+path** — so the ADR 0118 §1 door topology holds *behaviourally*, not just by construction; rolled
+back, 0 rows). But **nothing has ever exercised browser → server action → RPC → Storage PUT under
+the reserved-path INSERT policy → finalize → verification.** Every upload-island state
+(`preparing`/`uploading`/`finalizing`, the `upload_incomplete` retry that reuses the reservation,
+`upload_expired` dropping it) is **unexercised code**, and the retry branch is the kind that looks
+right and isn't. 329's 92 pins cover the *doors*; they do not cover the *seam*. This is the
+[[green-bar-misses-the-wired-seam]] class — three live bugs once survived a full green bar there and
+only E2E caught them. **S4's first priority, not something to treat as covered.**
+
+⚠ **Tooling note that nearly produced a false regression report.** Mid-verification the case page's
+entire content sat in a `div[hidden]`, buttons had no React fiber props and zero bounding rects, and
+clicks did nothing — which read exactly like a hydration regression from the preceding commit. It was
+not: **the Browser pane was not displayed, so the page was not compositing frames** (the screenshot
+call is what surfaced it). Consequence for method: `javascript_tool` text/DOM reads stay valid without
+compositing — the copy, option lists and badge assertions above are sound — but **layout, real
+clicks, and hydration-dependent behaviour are not observable with the pane hidden**, and their
+absence must never be read as a defect. Take a screenshot early; its failure message names the
+condition when nothing else does.
+
+**✅ S3 BROWSER VERIFICATION — lead-run 2026-08-13** (the agent stalled twice on a **denied**
+`preview_start`; PO approved it, and the lead ran it rather than risk a third stall — full stall
+mechanics in the S3 record). Dev preview on **:57449** (3000 held a stale bind). Method that made
+this worth doing: **the agent wrote its per-affordance flag-OFF prediction down BEFORE any
+observation**, so the run could falsify it. It held everywhere except the two items the agent had
+itself flagged as *unverified deviations* — a prediction that survives contact is evidence; one
+written afterwards is not.
+
+- **Flag OFF (ship state), all three homes:** heading renders · read-only empty copy · upload
+  trigger **absent, not disabled** · open + delete absent · **console clean**. Interview links
+  behaved per the lead ruling (count shown, existing row still readable, "Adicionar" absent).
+- **Flag ON:** trigger appears · empty copy switches to the writable variant · **console clean —
+  no RSC server-fn-as-prop crash** (BUG-QI-001 class), only HMR + benign font-preload warnings.
+- **🔒 The D15 ceiling's UI half is CORRECT END-TO-END** — the highest-value check of the set. On a
+  **case** home all 7 levels are offered; on a **meeting** home `legal_privileged` +
+  `credentialing_sensitive` are **absent from the option list** while all 5 non-enforcing levels
+  remain. It narrows exactly where HC0D6 refuses and **nowhere else** (no over-narrowing).
+  ⚠ **Scope of that claim, stated because the lead overstated it verbally and to `tester`:** what was
+  verified is the **write-side option list**. The **read-side** denial affordance was *inferred*, and
+  the inference was **wrong** — see BUG-DM2-002: denial is **row-absence**, so the "Restrito" badge is
+  unreachable. The lead confirmed what rendered and assumed what did not. *An affordance nobody has
+  seen render is a claim, not a fact* — the same trap `frontend`'s write-the-prediction-first habit
+  avoided in the other direction.
+- **D12 copy renders verbatim** on case + meeting, incl. the Título help that carries the actual
+  reason ("visíveis para toda a comissão, inclusive para quem não pode abrir o arquivo").
+- **The kind-slug drift fix is live:** case emits `other|Outro`, meeting emits `outro|Outro` — the
+  deliberate quirk preserved, slug from the contract, wording from the UI.
+- **A document ROW was rendered for the first time** (lead planted a temporary row, since nothing
+  had verified one; removed after, 0 rows and flags restored to OFF). It proved the **kind badge is
+  live, not dead** — the exact regression contract-first caught at stub time.
+- Two defects found + fixed in-phase: the interview heading promised "gravações" a panel no longer
+  contained; and the count badge was missing (then rendered `0` where every sibling hides at zero).
+- **INFO for QA (not a defect):** with `latestVersion` null a row asserts both "Sem arquivo" and
+  "o arquivo contém dados de paciente". `containsPhi` falls back to the home rule when no file
+  exists — the **correct fail-safe** (over-warn, never under-warn) — and the state is unreachable
+  via `begin_document_upload`. Fallback deliberately left alone.
+- **Recorded decision, so it is not later read as an oversight:** `DocumentsPanel` awaits its list
+  alongside the flag read in `Promise.all` rather than streaming under Suspense — needed for the
+  header count, consistent with every sibling section, ~1.6 ms/row against a 45-object census.
+  Remedy if volume ever changes that: a `cache()`-wrapped query sharing one round trip.
+
+**⚠ METHOD FINDING — the census caught the AUTHOR'S OWN domain misprediction (2026-08-13, S2.8).**
+Worth carrying past this program. Backend's S2.7 findings note *predicted* that SETOF doors stay
+outside the census domain — a reasoned claim, written into the findings file, and **wrong for
+`document_delete_affordances`**: `ARM=census` FAILED naming exactly that door (549 live gates). Two
+consequences the phase handled correctly and a third to remember: (a) the required-fail is not
+ceremony — it is the only thing standing between a reasoned domain claim and a silently
+unregistered gate; (b) the prescribed diff-scoped sweep then printed **`BLIND: 0` over ZERO executed
+cases** (the ARM-1 `^(is_|can_|has_)` matcher cannot run that name) and was **not cited**, coverage
+coming instead from a targeted mutation (door forced `true` → a plain member gains the affordance,
+A2/A3 would red; restore catalog-verified) — the case-count rule applied as intended; (c) **the wrong
+prediction was corrected IN PLACE in the findings file**, not merely superseded, so it cannot mislead
+a later reader. A stale reasoned claim inside the artifact that records coverage is worse than no
+claim — [[a-comment-is-an-assertion-that-goes-stale-silently]], census edition.
+
+**✅ PO RULINGS 2026-08-13 (DM2).** **O4 CLOSED** — signed-URL TTL **PHI 120 s / standard 300 s**,
+**no streaming proxy** (sign median measured **10 ms**). The tier split is deliberate and must not be
+"simplified" to one number: a signed URL is a bearer token, so PHI bytes carry a strictly smaller
+exposure window. Lands in ADR 0114 (O4's closure) + ADR 0118. · **List perf** — the file-chain costs
+~3.7 ms/row (a 200-doc panel ≈ 2 s); **keep `containsPhi` + `availability`, do NOT trim the embed** —
+the prod census is 45 objects total and real panels hold single digits, so the trim would spend two
+live projection fields on a load that does not exist. Filed as a **named pilot watch-item** with the
+measured numbers attached, not a pre-ship fix.
+
+**✅ RULED — S2.8 `reclassify_document_file` (lead, 2026-08-13): option 1 + an evidence-gated
+duplicate-retirement exemption, with 3 conditions.**
+The re-derivation confirmed the fork was real — `document_version_files_version_rendition_uniq
+UNIQUE (document_version_id, rendition_kind)` does block the originally recommended
+"second `source` binding" shape (backend had checked the table's *triggers* but never listed its
+*constraints*; owned and corrected). **Shape:** reclassification mints a **new `document_version`**
+whose binding points at the copied file — fully append-only, **zero DM1-invariant edits**, and the
+visible version history is honest (the bytes genuinely changed bucket, audited via
+`document.reclassified`). **The hole option 1 alone left:** the old file stays *bound* to its
+immutable old version, so retiring it hits the provisional-retention gate HC0DR — and the urgent
+reclassify case is precisely mis-tiered PHI that must leave the wrong bucket. **The amendment:**
+`complete_document_disposal` honors reason `duplicate` **only when the door itself verifies** a live,
+servable **same-sha256** file bound to the same document — retention protects the *record*, and a
+same-content sibling proves the record survives. Caller-asserted duplication is never accepted.
+**Conditions:** (1) the last-copy invariant is keystoned as a **differential pair** — dispose A while
+B is live → permitted, then B with no sibling → **refused by retention** — because "the last copy is
+protected" is the entire safety claim and an inductive argument must be executable, not reasoned;
+(2) the exemption as described is **wider than its use case** and symmetric (nothing in
+sha/live/same-document distinguishes the correct-tier copy from the mis-tiered one, so it would
+equally permit retiring the *new* copy) → narrow its reachability to the reclassification path, or
+keep it general and pin that a `duplicate` disposition of a **non**-duplicated file is refused;
+(3) it lands as an **ADR decision, not a state-only note** — it creates a new retention-exemption
+class, and a future reader hitting HC0DR must find its bounds without reconstructing them.
+Standing rule: *DM1 invariants may be amended, never widened as a side effect of making a command
+compile.*
+
+<!-- superseded fork text kept below for the reasoning trail -->
+**🔶 (RULED — see above) design fork — S2.8 `reclassify_document_file`.**
+D10's copy→verify→commit→retire-source has no legal expression on the DM1 substrate as built, and
+the recommended shape does not survive the catalog:
+- `document_version_files_version_rendition_uniq UNIQUE (document_version_id, rendition_kind)` —
+  so **"add a second `source` binding, door picks newest" is not buildable**; it requires altering
+  that constraint, i.e. it does *not* avoid a DM1-invariant edit as its proposal claimed.
+- `guard_document_version_file_immutable BEFORE DELETE OR UPDATE` — so a liveness column cannot be
+  set without a guard exception either.
+- **Mutating the binding is ruled OUT on ADR grounds, not cost:** ADR 0114 **D10** says
+  *"never a pointer update (F-03)"*, and F-03 is one of the audit defects this program exists to
+  kill by construction. Relaxing the guard to allow it re-opens a closed finding.
+Live option space (backend re-deriving against the catalog): **(1)** a new `document_version` whose
+binding points at the new file object, old file retired through the *mutable, already-guarded*
+`file_objects` state machine — fully append-only, zero invariant edits, but a tier change becomes
+visible version history (honest for audit? or pollutes the prior-version semantics DM3 needs?);
+**(2)** a partial UNIQUE over a liveness predicate **plus** a narrow keystoned guard exception;
+**(3)** unseen. Standing rule set for it: **DM1 invariants may be amended, never widened as a side
+effect of making a command compile** — any amendment lands as an ADR decision with the amended guard
+mutation-proven. ⚠ Reclassify has **no Wave A UI consumer** (both classification commands are
+surface-less by lead ruling), so there is room to get it right; deferring to a named slice with the
+DM1 ledger obligation carried forward is an acceptable outcome.
+
+**Lead findings handed to S1 (catalog-verified 2026-08-13, not read from migration text):**
+- `app.confidentiality_clearance_ok(p_case_id, p_label, p_uid)` and `app.confidentiality_rank(text)`
+  **SURVIVED DM1** — only the attachment-specific wrapper `app.attachment_confidentiality_ok` was
+  dropped. D15 **reuses** them (program invariant: reuse the domain predicates, never reimplement).
+- Only `legal_privileged` + `credentialing_sensitive` are ENFORCING; the other five labels return
+  true. Clearance = `case_access_grants.max_confidentiality` outranking the label.
+- ⚠ **The clearance helper is CASE-scoped.** `documents.home_resource_id` resolves to case ·
+  meeting · interview · action_item. Only `case` (direct) and `interview` (via
+  `app.case_of_interview`) yield a case id; **meeting and action_item do not** — S1 must rule that
+  seam explicitly and fail closed, not silently skip the ceiling.
+- ⚠ **Name-collision trap:** the Phase-17 controlled-document module owns a different
+  `%document%` family (`commission_of_document`, `is_document_approver_of`,
+  `guard_document_transition`, `trg_audit_controlled_documents`, …) on `controlled_documents`. A
+  `%document%` sweep hits both substrates. Enumerate by table, never by name substring.
+
+Most recent completed phase: **DM1 — substrate cutover**, PO-approved 2026-08-13 (record linked
+above). Before it: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
+vocabulary for cases and referrals. ⚠ **It ran gate step 1 ONLY** (no tester pass, no QA review, no
+`e2e:prod`) by PO direction. It is ✅ **pushed, and the remote `db push` IS done** (corrected
+2026-08-12) — but that changes nothing about the gate: treat it as
+merged-but-ungated, not as complete. Before it, **RDR** (referral detail redesign) completed, merged
+and rotated the same day — task detail, the final gate record and the method lessons are in
+[referral-detail-redesign.md](docs/progress/referral-detail-redesign.md) (⚠ its type-vocabulary
+sections are **history**: REG·KIND deleted `referral_note_types`); ETH·E4 before that is in
+[eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md). What is left before
+the pilot is § *Remaining pre-pilot work*.
+
