@@ -4,6 +4,7 @@ import { cachedSignIn } from './helpers/auth'
 import {
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
+  beginUpload,
   createDocumentFixture,
   openDocumentVersion,
   auditRows,
@@ -30,9 +31,20 @@ import {
  * Coverage map:
  *   DM2-U1        the write path, browser-driven: begin→PUT→finalize→verify lands
  *                 `available`, downloads for real, audited exactly once (PRIORITY 1).
- *   DM2-U2        `upload_incomplete` retry reuses the SAME reservation (329 U11).
+ *   DM2-U2        `upload_incomplete` retry reuses the SAME reservation (329 U11) —
+ *                 the PRE-finalize PUT-failure branch, unaffected by BUG-DM2-001's fix
+ *                 (`finalizeDocumentUpload` is never even called on this path).
  *   DM2-U3        `upload_expired` drops the reservation; "Tentar novamente" reverts
- *                 to "Enviar" (329 U12).
+ *                 to "Enviar" (329 U12) — the UI-facing HALF; see DM2-RECONCILE-EXPIRY
+ *                 below for the DB-column half (the two were split once the fix landed).
+ *   DM2-VERIFY-FAILED  a verification FAILURE binds the failed file and reads "Falha
+ *                 no envio" (formerly BUG-DM2-001, FIXED by `backend` — migration
+ *                 `20260924000600` / `f164938` — now a positive regression pin).
+ *   DM2-RECONCILE-EXPIRY  the expiry refusal stays predicate-based (no synchronous
+ *                 marking); the REAL reconciliation sweep
+ *                 (`scripts/document-reconciliation.mjs`) marks `state='expired'` and
+ *                 the file `'abandoned'` (formerly BUG-DM2-003, FIXED — the marking
+ *                 MOVED to an out-of-band sweep, not merely repaired in place).
  *   DM2-U4        meeting (standard tier) upload; the D11 floor audit conditional
  *                 (same-creator standard-tier opens are NOT logged; a non-creator's
  *                 IS) — read straight from `open_document_version`'s live body.
@@ -40,21 +52,27 @@ import {
  *                 links") — two independent sections, non-regression.
  *   DM2-FLAGOFF   `documents_wave_a` OFF: upload/delete ABSENT (not disabled); the
  *                 audited open control ABSENT for an existing row (a change from the
- *                 old F2 "disabled" pattern — pinned literally).
+ *                 old F2 "disabled" pattern — pinned literally). ⚠ `documents_wave_a`
+ *                 gates the UI ONLY — `documents_foundation` gates the RPC doors
+ *                 independently (pinned explicitly below, not assumed); routed to
+ *                 `backend` for the S5 flag choreography.
  *   DM2-KEYBOARD  keyboard-only: tab to the audited download button, Enter opens it.
  *   DM2-STATES    `pending` / `disposed` render distinctly and are not confusable;
  *                 a disposed document stays LISTED with a redacted title (governance
  *                 record, not a leak).
- *   DM2-BUG-1     (test.fail — known bug, filed) a verification FAILURE
- *                 (`complete_document_upload_verification(verified:=false)`) never
- *                 binds `document_version_files`, so the row reads `pending` forever
- *                 instead of `failed` — confirmed against the live catalog + a direct
- *                 RPC probe before writing this test.
- *   DM2-BUG-2     (test.fail — known bug, filed) the D15 ceiling denies at ROW-level
- *                 RLS (the whole `documents` row is invisible to an uncleared reader),
- *                 so `canOpen` (`availability === 'available'`, no separate door call)
- *                 can never be `false` on a rendered row — the `DocumentRestrictedBadge`
- *                 ("Restrito") is dead code, confirmed via a live RPC probe.
+ *   DM2-CEILING-NOONE  the D15 ceiling denies at ROW-level RLS — a case with ZERO
+ *                 `case_access_grants` rows denies an enforcing-labeled document to
+ *                 EVERYONE, including its own creator/coordinator (the S1 fail-closed
+ *                 backstop). Formerly filed as BUG-DM2-002 (a false doc-comment
+ *                 claiming a visible-but-restricted "Restrito" badge, `canOpen` never
+ *                 false on a rendered row — `DocumentRestrictedBadge` was dead code);
+ *                 FIXED by `frontend` (`18d08e9`, removed the branch + the badge +
+ *                 the false comment; `canOpen` was already correct and is untouched).
+ *                 This test now pins the TRUE mechanism positively instead of the
+ *                 retired badge — distinct from AC-4a/b (`ethics-e1-access-spine.spec.ts`),
+ *                 which covers a third-party grantee on a case WITH active
+ *                 `case_access_grants` machinery; this is the sharper "readable by no
+ *                 one at all" edge.
  *
  * Ground truth (read from `pg_proc`/`pg_policies` on the local stack, 2026-08-13 —
  * migration text is stale by design, CLAUDE.md graphify exception):
@@ -62,14 +80,19 @@ import {
  *     bucket, meeting/action_item → `standard`. It ALSO writes an unconditional
  *     `document.upload_started` audit row.
  *   - `complete_document_upload_verification` writes `document.uploaded` on success
- *     (binds `document_version_files`) or `document.upload_failed` on failure (does
- *     NOT bind — see DM2-BUG-1).
+ *     AND `document.upload_failed` on failure — BOTH now bind `document_version_files`
+ *     (post-BUG-DM2-001-fix: failure binds too, just marked `upload_state='failed'`
+ *     instead of a servable state).
  *   - `open_document_version` writes `document.opened` ONLY when
  *     `file.sensitivity_tier = 'phi' OR opener <> document.created_by` (the D11
  *     floor) — a same-creator standard-tier open is deliberately unlogged.
  *   - Supabase Storage's signed UPLOAD url path is
  *     `/storage/v1/object/upload/sign/{bucket}/{path}?token=...` (probed directly
  *     against local Storage, not assumed) — the `page.route` match for DM2-U2/U3.
+ *   - Expiry MARKING lives in `scripts/document-reconciliation.mjs` (its own
+ *     transaction, run out-of-band), never inline in `finalize_document_upload` —
+ *     a refusal that must also durably persist state fights its own transaction
+ *     (BUG-DM2-003's root cause, read live from `pg_proc` before it was fixed).
  *
  * Personas (password `Test1234!`): chefe.ccih@test.local (staff_admin, CCIH, Rede A) —
  * creator/coordinator on every fixture below; staff1.ccih@test.local (staff, CCIH) —
@@ -408,29 +431,31 @@ test('DM2-U3: an expired reservation refuses the retry with upload_expired and d
 })
 
 // ===========================================================================
-// DM2-BUG-3 (test.fail — filed) — the expiry branch's own UPDATE is rolled
-// back by its own RAISE EXCEPTION in the same statement
+// DM2-RECONCILE-EXPIRY — the refusal stays predicate-based (no synchronous
+// marking); the reconciliation SWEEP marks state (formerly BUG-DM2-003,
+// FIXED — the marking MOVED, not merely repaired)
 // ===========================================================================
 
-test('DM2-BUG-3 [KNOWN BUG, filed]: upload_sessions.state should read "expired" after HC0DE — it stays "reserved" forever (the UPDATE is rolled back by the RAISE EXCEPTION in the same function call)', async ({
+test('DM2-RECONCILE-EXPIRY: upload_sessions.state stays "reserved" through the HC0DE refusal; the reconciliation sweep marks it "expired" and its file "abandoned"', async ({
   page,
   request,
 }) => {
-  test.setTimeout(60_000)
-  // Filed as a bug — confirmed BOTH by static reading of `finalize_document_upload`
-  // (no BEGIN/EXCEPTION block, no dblink/autonomous-transaction call; a plpgsql
-  // `RAISE EXCEPTION` with no handler aborts the ENTIRE calling transaction — a
-  // single PostgREST RPC call is one implicit transaction, so the preceding
-  // `UPDATE ... SET state = 'expired'` in the SAME branch is unconditionally
-  // undone) AND empirically, live, in DM2-U3's own run before this test was split
-  // out (the functional HC0DE refusal is correct and unaffected — only the
-  // `state` COLUMN itself never reflects it). Consequence: any future code that
-  // queries `upload_sessions.state = 'expired'` directly (a cleanup sweep, an
-  // admin report of abandoned uploads) will find nothing, even though the
-  // refusal-by-timestamp behavior keeps working via `expires_at < now()` alone.
-  // `test.fail()` — see DM2-BUG-1's comment for the convention.
-  test.fail()
-
+  test.setTimeout(90_000)
+  // BUG-DM2-003 is FIXED (`backend`, migration `20260924000600` / `f164938`)
+  // — but NOT by making the doomed inline `UPDATE ... SET state = 'expired'`
+  // persist (a refusal that must also durably mark state fights its own
+  // transaction, exactly as the original bug proved). Instead the marking
+  // MOVED: the self-rolled-back UPDATE was REMOVED from
+  // `finalize_document_upload` entirely (the refusal stays purely
+  // predicate-based, `expires_at < now()`), and a separate reconciliation
+  // sweep (`scripts/document-reconciliation.mjs`, its own transaction,
+  // run out-of-band) now sweeps lapsed `reserved` sessions -> `expired` and
+  // their still-`reserved` files -> `abandoned`. Per the lead's framing this
+  // is a deliberate choice between two honest contracts, not an
+  // implementation detail — this test picks and asserts BOTH halves: state
+  // stays `reserved` immediately after the refusal (no premature marking),
+  // and running the REAL sweep script (not simulated) is what makes the
+  // column truthful.
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
   const begunResp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/begin_document_upload`, {
     headers: {
@@ -441,13 +466,13 @@ test('DM2-BUG-3 [KNOWN BUG, filed]: upload_sessions.state should read "expired" 
     data: {
       p_resource_type: 'meeting',
       p_resource_id: SEEDED_MEETING_ID,
-      p_title: `DM2-BUG-3 ${Date.now()}`,
+      p_title: `DM2-RECONCILE-EXPIRY ${Date.now()}`,
       p_declared_file_name: 'x.pdf',
       p_declared_mime: 'application/pdf',
       p_declared_size: 10,
     },
   })
-  const begun = (await begunResp.json()) as { upload_session_id: string }
+  const begun = (await begunResp.json()) as { upload_session_id: string; file_object_id: string }
 
   await svcPatch(request, `upload_sessions?id=eq.${begun.upload_session_id}`, {
     expires_at: new Date(Date.now() - 60_000).toISOString(),
@@ -463,15 +488,41 @@ test('DM2-BUG-3 [KNOWN BUG, filed]: upload_sessions.state should read "expired" 
   })
   expect(finalizeResp.ok()).toBeFalsy()
   const finalizeBody = (await finalizeResp.json()) as { code?: string }
-  expect(finalizeBody.code).toBe('HC0DE') // the refusal itself is correct
+  expect(finalizeBody.code).toBe('HC0DE') // the refusal itself is unchanged
 
-  const sessionAfter = await svcGet<{ state: string }>(
+  // Half 1: purely predicate-based refusal — no synchronous marking.
+  const beforeSweep = await svcGet<{ state: string }>(
     request,
     `upload_sessions?id=eq.${begun.upload_session_id}&select=state`,
   )
-  // The DOCUMENTED contract (the CHECK-enumerated state vocabulary, and 329 U12):
-  // this should read 'expired'. It reads 'reserved' instead — see the bug.
-  expect(sessionAfter[0].state).toBe('expired')
+  expect(beforeSweep[0].state).toBe('reserved')
+
+  // Half 2: run the REAL reconciliation sweep (not simulated) — its own
+  // transaction, out-of-band, exactly as it runs operationally. Exit 1 means
+  // "unrelated drift found elsewhere" (a legitimate outcome on a DB shared
+  // with every other spec's leftovers) and is not this test's concern — this
+  // test verifies its OWN entity only, never a global count or the script's
+  // exit code (the pgTAP 329 F3 shared-fixture-count lesson the lead flagged
+  // — an assertion over a global figure in a table other specs also touch is
+  // exactly the fragility that bit backend's own first draft). Only a
+  // script-level failure (exit 2) is a genuine problem for this test.
+  try {
+    execSync('node scripts/document-reconciliation.mjs', { encoding: 'utf8' })
+  } catch (e) {
+    const err = e as { status?: number }
+    if (err.status !== 1) throw e
+  }
+
+  const afterSweep = await svcGet<{ state: string }>(
+    request,
+    `upload_sessions?id=eq.${begun.upload_session_id}&select=state`,
+  )
+  expect(afterSweep[0].state).toBe('expired')
+  const fileAfterSweep = await svcGet<{ upload_state: string }>(
+    request,
+    `file_objects?id=eq.${begun.file_object_id}&select=upload_state`,
+  )
+  expect(fileAfterSweep[0].upload_state).toBe('abandoned')
 })
 
 // ===========================================================================
@@ -831,29 +882,29 @@ test('DM2-STATES: a not-yet-verified upload reads "pending" (with no download co
 })
 
 // ===========================================================================
-// DM2-BUG-1 (test.fail — filed) — a verification FAILURE never binds
-// document_version_files, so the row reads 'pending' forever, not 'failed'
+// DM2-VERIFY-FAILED — a verification FAILURE binds document_version_files
+// and reads "Falha no envio" (formerly BUG-DM2-001, FIXED by backend)
 // ===========================================================================
 
-test('DM2-BUG-1 [KNOWN BUG, filed]: a verification failure should read "Falha no envio" — it actually reads "Processando envio" forever (document_version_files is never bound on the failure path)', async ({
+test('DM2-VERIFY-FAILED: a verification failure (complete_document_upload_verification verified:=false) binds the failed file and reads "Falha no envio"', async ({
   page,
   request,
 }) => {
   test.setTimeout(60_000)
-  // Filed as a bug in PROGRESS.md — confirmed via a direct RPC probe against the
-  // live catalog before writing this test (begin → real PUT → finalize →
-  // complete_document_upload_verification(verified:=false) leaves
-  // document_version_files EMPTY for the version, so `versionAvailability` falls
-  // through to 'pending', never inspecting `file.upload_state = 'failed'` at all).
-  // `test.fail()` marks this an EXPECTED failure: the suite reports it as passing
-  // precisely because the assertion below fails as documented, and Playwright
-  // flips it to a hard failure the moment the bug is fixed and the row starts
-  // reading "Falha no envio" — so it cannot go stale silently.
-  test.fail()
-
+  // BUG-DM2-001 is FIXED (`backend`, migration `20260924000600` /
+  // `f164938`): the `p_verified = false` branch now BINDS the failed file
+  // (`document_version_files`, `rendition_kind = 'source'`) alongside marking
+  // `file_objects.upload_state = 'failed'`, so `versionAvailability`
+  // (`queries/documents.ts`) can actually see the failed file instead of
+  // reading no binding at all and falling through to `pending`. Re-verifying
+  // a bound-failed file stays refused (backend's own retry-safety note: a
+  // fresh retry mints a NEW version via `begin`, so the binding can never
+  // collide with `UNIQUE(document_version_id, rendition_kind)`). This test
+  // was originally filed red (`test.fail()`, BUG-DM2-001) — now a positive
+  // regression pin: DB truth first, then the UI-facing text.
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const title = `DM2-BUG-1 verify-fail ${Date.now()}`
-  const bytes = Buffer.from(`%PDF-1.4 dm2-bug-1 ${Date.now()}\n%%EOF\n`)
+  const title = `DM2-VERIFY-FAILED ${Date.now()}`
+  const bytes = Buffer.from(`%PDF-1.4 dm2-verify-failed ${Date.now()}\n%%EOF\n`)
 
   const begunResp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/begin_document_upload`, {
     headers: {
@@ -908,76 +959,94 @@ test('DM2-BUG-1 [KNOWN BUG, filed]: a verification failure should read "Falha no
     data: { p_upload_session_id: begun.upload_session_id, p_sha256: '', p_verified: false },
   })
 
+  // DB truth first: the failed file is now BOUND (rendition_kind='source'),
+  // not merely marked — the binding is what makes it reader-observable at all.
+  const docs = await svcGet<{ id: string }>(
+    request,
+    `documents?title=eq.${encodeURIComponent(title)}&select=id`,
+  )
+  expect(docs.length).toBe(1)
+  const versions = await svcGet<{ id: string }>(
+    request,
+    `document_versions?document_id=eq.${docs[0].id}&select=id`,
+  )
+  const dvfs = await svcGet<{ rendition_kind: string; file_object_id: string }>(
+    request,
+    `document_version_files?document_version_id=eq.${versions[0].id}&select=rendition_kind,file_object_id`,
+  )
+  expect(dvfs.length).toBe(1)
+  expect(dvfs[0].rendition_kind).toBe('source')
+  const files = await svcGet<{ upload_state: string }>(
+    request,
+    `file_objects?id=eq.${dvfs[0].file_object_id}&select=upload_state`,
+  )
+  expect(files[0].upload_state).toBe('failed')
+
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(CASE_URL)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
   const docPanel = page.getByRole('region', { name: /Documentos/i })
   const row = docPanel.locator('li').filter({ hasText: title })
   await expect(row).toBeVisible({ timeout: 15_000 })
-
-  // The DOCUMENTED contract (AVAILABILITY_PRESENTATION.failed): this should read
-  // "Falha no envio". It currently reads "Processando envio" instead — see the bug.
   await expect(row.getByText('Falha no envio')).toBeVisible({ timeout: 5_000 })
 })
 
 // ===========================================================================
-// DM2-BUG-2 (test.fail — filed) — the D15 ceiling denies via ROW-level RLS
-// absence, so `canOpen` can never be false on a rendered row (dead code)
+// DM2-CEILING-NOONE — the D15 ceiling's row-absence shape, positively pinned
+// (formerly BUG-DM2-002's test.fail(); the underlying defect is FIXED)
 // ===========================================================================
 
-test('DM2-BUG-2 [KNOWN BUG, filed]: an uncleared reader should see a "Restrito" badge on a legal_privileged document — the row is actually absent entirely (canOpen can never be false on a rendered row)', async ({
+test('DM2-CEILING-NOONE: a legal_privileged document on a case with zero case_access_grants rows is absent for EVERYONE, including its own creator/coordinator', async ({
   page,
   request,
 }) => {
   test.setTimeout(60_000)
-  // Filed as a bug (severity: low/documentation — the SECURITY property holds,
-  // arguably more strongly, via row absence than a badge would provide).
-  // Confirmed via a direct RPC + PostgREST probe before writing this test:
-  // `app.can_read_document` embeds the D15 ceiling as a ROW-level AND-conjunct
-  // (read from `pg_proc`), and `documents_select`/`document_versions_select` both
-  // use exactly that predicate — an uncleared reader gets ZERO rows for an
-  // enforcing-labeled document, not a visible row with `canOpen: false`. Since
-  // `DocumentVersionSummary.canOpen` is defined purely as
-  // `availability === 'available'` (`queries/documents.ts`), with no separate
-  // door call, the "available && !canOpen" branch that renders
-  // `DocumentRestrictedBadge` ("Restrito") in `document-row.tsx` is unreachable
-  // through any caller today. `document-row.tsx`'s own doc comment claims this
-  // is what makes the D15 ceiling "observable from the keyboard" (cited by AC-9)
-  // — it does not, because there is nothing rendered to observe.
-  test.fail()
-
-  // Uses the plain seeded CCIH case, which has NO case_access_grants row for
-  // anyone — confirmed live: even the document's own creator/coordinator
-  // (chefe.ccih) cannot read it back afterward (the S1 fail-closed backstop:
-  // "an enforcing label with no clearance plane is readable by NO ONE").
+  // BUG-DM2-002 is FIXED (`frontend`, `18d08e9`): the unreachable "Restrito"
+  // branch, `DocumentRestrictedBadge`, and the `DOCUMENT_RESTRICTED` strings
+  // are gone; the false doc-comment is replaced with the true mechanism in
+  // both `document-row.tsx` and `document-labels.ts`. `canOpen` was NEVER
+  // touched — it was already correct. A pin asserting the old (removed)
+  // badge would sit as a permanent expected-failure forever ("a keystone
+  // left pinning a rejection the product no longer wants is a test
+  // asserting a bug" — the plan's own Q1 discharge condition), so this test
+  // is rewritten to assert the TRUE mechanism positively instead of
+  // un-pinning it outright: it is a sharper, non-redundant edge than AC-4a/b
+  // (`ethics-e1-access-spine.spec.ts`), which covers a THIRD-PARTY grantee
+  // on the ethics case (`case_access_grants` machinery active for other
+  // principals). This one uses the plain seeded CCIH case, which has ZERO
+  // `case_access_grants` rows for anyone — the S1 fail-closed backstop: "an
+  // enforcing label with no clearance plane is readable by NO ONE," proven
+  // here against the document's own creator/coordinator, not merely a
+  // third party.
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const title = `DM2-BUG-2 privileged ${Date.now()}`
-  const begunResp = await request.post(`${SUPABASE_URL}/rest/v1/rpc/begin_document_upload`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${chefeToken}`,
-      'Content-Type': 'application/json',
-    },
-    data: {
-      p_resource_type: 'case',
-      p_resource_id: SEEDED_CASE_ID,
-      p_title: title,
-      p_confidentiality_level: 'legal_privileged',
-      p_declared_file_name: 'privileged.pdf',
-      p_declared_mime: 'application/pdf',
-      p_declared_size: 10,
-    },
+  const title = `DM2-CEILING-NOONE privileged ${Date.now()}`
+  const begun = await beginUpload(request, chefeToken, {
+    resourceType: 'case',
+    resourceId: SEEDED_CASE_ID,
+    title,
+    confidentialityLevel: 'legal_privileged',
+    declaredFileName: 'privileged.pdf',
+    declaredMime: 'application/pdf',
+    declaredSize: 10,
   })
-  expect(begunResp.ok()).toBeTruthy()
+  expect(begun.ok).toBeTruthy()
+  const documentVersionId = (begun.body as { document_version_id: string }).document_version_id
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(CASE_URL)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
   const docPanel = page.getByRole('region', { name: /Documentos/i })
+  await expect(docPanel).toBeVisible({ timeout: 10_000 })
 
-  // The DOCUMENTED contract: a Restrito badge, no download control. It currently
-  // renders NOTHING for this title at all — see the bug.
-  const row = docPanel.locator('li').filter({ hasText: title })
-  await expect(row).toBeVisible({ timeout: 10_000 })
-  await expect(row.getByText('Restrito')).toBeVisible()
+  // Absent entirely — no trace of the title anywhere on the page, and the
+  // retired "Restrito" affordance never reappears (a regression guard on the
+  // fix itself, not just the row-count).
+  await expect(docPanel.getByText(title)).toHaveCount(0)
+  await expect(page.getByText('Restrito')).toHaveCount(0)
+
+  // A known-id direct open is the same explicit denial — absence ≡ denial
+  // (oracle-kill): P0002, identical to a genuinely nonexistent version.
+  const openResp = await openDocumentVersion(request, chefeToken, documentVersionId)
+  expect(openResp.ok).toBeFalsy()
+  expect((openResp.body as { code?: string }).code).toBe('P0002')
 })
