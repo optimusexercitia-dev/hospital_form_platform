@@ -33,13 +33,16 @@ import { cachedSignIn } from './helpers/auth'
  *
  *   Case 1 (id d0000000-0000-0000-0000-0000000000c1, "Óbito UTI leito 7",
  *   status `pending`, `patient_enabled = true`) has 2 phases ("Fase 1 —
- *   Coleta inicial" completed, "Fase 2 — Revisão do comitê" pending), 2
- *   narratives with body text containing "leito 7", and one PHI-tier
- *   attachment ("Prescrição digitalizada") — the door a coordinator opens via
- *   the AUDITED `OpenAttachmentButton` ("Baixar Prescrição digitalizada"),
- *   which the M8 bytes-cut closes for the oversight reader specifically
- *   (`canDownload={!isOversight}` suppresses both the direct anchor AND the
- *   audited-door fallback — buildnotes row 17 / case-detail-view.tsx).
+ *   Coleta inicial" completed, "Fase 2 — Revisão do comitê" pending), and 2
+ *   narratives with body text containing "leito 7".
+ *   ⛔ PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md): Case 1's seeded
+ *   PHI-tier attachment ("Prescrição digitalizada", id a3300000-…a1) and its
+ *   AUDITED `OpenAttachmentButton` door ("Baixar Prescrição digitalizada")
+ *   were dropped with the attachments substrate (DM1/ADR 0114 D5) — the M8
+ *   bytes-cut assertion (`canDownload={!isOversight}` suppresses both the
+ *   direct anchor AND the audited-door fallback — case-detail-view.tsx) is
+ *   untestable without a live document fixture. Discharge: DM2 reseeds a
+ *   case-homed document on the document model and restores the assertion.
  *
  *   Case 2 (id d0000000-0000-0000-0000-0000000000c2, "Óbito UTI leito 3",
  *   status `completed`) is the "Reabrir caso" fixture (only a coordinator on
@@ -461,17 +464,18 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     await expect(backLink).toBeVisible()
     await expect(backLink).toHaveAttribute('href', QUALIDADE)
 
-    // DOCUMENTS PANEL — renders (metadata), but the seeded doc's download
-    // control is gone (M8 bytes-cut; closes BOTH the anchor and the audited
-    // OpenAttachmentButton fallback, not just the direct link).
+    // DOCUMENTS PANEL — renders (the heading always mounts regardless of
+    // document count). The M8 bytes-cut assertion below is PARKED —
+    // FUP-DM1-E2E: the seeded case-document fixture ("Prescrição
+    // digitalizada", a3300000-…a1) was dropped with the attachments
+    // substrate (DM1/ADR 0114 D5), so the panel now legitimately renders
+    // empty for EVERY viewer regardless of `canDownload` — the negative this
+    // once proved (oversight readers specifically lose the download control)
+    // is untestable without a live document. Discharge: DM2 reseeds a
+    // case-homed document fixture on the document model and restores it.
     await expect(
       page.getByRole('heading', { name: 'Documentos' }),
     ).toBeVisible()
-    await expect(page.getByText('Prescrição digitalizada')).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Baixar Prescrição digitalizada' }),
-    ).toHaveCount(0)
-    await expect(page.getByRole('link', { name: /Baixar/ })).toHaveCount(0)
 
     // INTERVIEWS + MEETINGS — OMITTED entirely (Q4), never an empty card. An
     // empty card reading "Nenhuma entrevista" would falsely assert "nothing
@@ -518,9 +522,10 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     await expect(
       page.getByRole('button', { name: 'Nova entrevista' }),
     ).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Baixar Prescrição digitalizada' }),
-    ).toBeVisible()
+    // PARKED — FUP-DM1-E2E: the paired positive control for the audited
+    // "Baixar Prescrição digitalizada" door (a3300000-…a1) is gone — the
+    // fixture was dropped with the attachments substrate (DM1/ADR 0114 D5).
+    // Discharge: DM2 reseeds a case-homed document and restores this check.
   })
 
   test('"Reabrir caso" pairing on a COMPLETED case (case 1 is pending, so testing it there would be vacuous for everyone)', async ({

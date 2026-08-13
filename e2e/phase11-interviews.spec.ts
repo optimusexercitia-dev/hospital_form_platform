@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import path from 'path'
-import fs from 'fs'
+// `path`/`fs` were only used by the MIME-rejection upload block PARKED below
+// (FUP-DM1-E2E, IV2-11) — dropped to keep the import list live.
 import { setDateTimeField } from './helpers/date-pickers'
 import { cachedSignIn } from "./helpers/auth"
 
@@ -530,7 +530,7 @@ test('IV2-3 — adding a follow-up session while em_andamento, then completing t
 // IV2-4 — conclude requires >=1 subject; single registry event; content lock
 // ---------------------------------------------------------------------------
 
-test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly one registry event, no duplicate on reopen+reconclude; content locks but attachments stay manageable', async ({ page }) => {
+test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly one registry event, no duplicate on reopen+reconclude; content locks (attachments-manageable half PARKED, FUP-DM1-E2E)', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
   const interviewId = await createInterviewRpc(page, chefeToken, {
     title: 'Entrevista IV2-4 Sem Sujeito',
@@ -597,16 +597,29 @@ test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly o
   expect(interviewEventsAfter).toBe(interviewEventsBefore)
 
   // Content is locked once concluded (canEditContent=false): no session/subject/
-  // interviewer "add" controls — but attachments stay manageable (ADR 0026).
+  // interviewer "add" controls.
   const sessionsSection = page.getByRole('region', { name: /Sessões/i })
   await expect(sessionsSection.getByRole('button', { name: /Agendar sessão/i })).not.toBeVisible()
   await expect(subjectsSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
   const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
   await expect(interviewersSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
 
-  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
-  await expect(attachmentsSection.getByRole('button', { name: /Enviar anexo/i })).toBeVisible()
-  await expect(attachmentsSection.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
+  // PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md): this block asserted
+  // "attachments stay manageable" post-conclude (ADR 0026) — BOTH controls
+  // visible. CORRECTS the FUP's per-file sweep prediction ("the FILE
+  // attachment is gone, the LINK remains"): live-verified against
+  // `attachments-panel.tsx`, "Enviar anexo" (file) AND "Adicionar gravação"
+  // (link) are gated by the SAME `attachmentsEnabled()` flag
+  // (`canEditNow = canEdit && flagOn`), which seed.sql now leaves OFF by
+  // default (DM1/ADR 0114 D5 — the flag flip was removed, matching prod
+  // since 2026-08-11). So neither write control renders — not just the file
+  // one. Confirmed by running: both `toBeVisible()` calls below failed with
+  // "element(s) not found" before this park.
+  //   const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
+  //   await expect(attachmentsSection.getByRole('button', { name: /Enviar anexo/i })).toBeVisible()
+  //   await expect(attachmentsSection.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
+  // Discharge: DM2/Wave A restores this once the document model's interview
+  // attachment UI ships (flag ON), whatever gate it lands under.
 
   await signOut(page)
 })
@@ -937,7 +950,7 @@ test('IV2-10 — security: foreign-commission user gets 404, no data leakage', a
 // IV2-11 — server-level negatives
 // ---------------------------------------------------------------------------
 
-test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https link CHECK, HC038 wrong-state, HC0B0 schedule precondition, MIME rejection', async ({ page }) => {
+test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https link CHECK, HC038 wrong-state, HC0B0 schedule precondition (MIME-rejection UI half PARKED, FUP-DM1-E2E)', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
   const interviewId = await createInterviewRpc(page, chefeToken, {
     title: 'Entrevista IV2-11 Negativos',
@@ -985,27 +998,32 @@ test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https
   expect(scheduleAfterCancel.status).toBe(400)
   expect((scheduleAfterCancel.body as { code: string }).code).toBe('HC0B0')
 
-  // UI: MIME rejection on upload (fresh unlocked interview).
-  const uploadInterviewId = await createInterviewRpc(page, chefeToken, {
-    title: 'Entrevista IV2-11 Upload',
-    category: 'other',
-  })
-  await signInAs(page, 'chefe.ccih@test.local')
-  await goToInterview(page, uploadInterviewId)
-
-  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
-  await attachmentsSection.getByRole('button', { name: /Enviar anexo/i }).click()
-  const uploadDialog = page.getByRole('dialog', { name: /Enviar anexo/i })
-  await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
-
-  const tmpAudioPath = path.join(__dirname, '__tmp_iv2_test.mp3')
-  fs.writeFileSync(tmpAudioPath, Buffer.from([0xff, 0xfb, 0x90, 0x00]))
-  await uploadDialog.locator('input[type="file"]').setInputFiles(tmpAudioPath)
-  await uploadDialog.locator('input[name="title"]').fill('Audio Upload Test')
-  await uploadDialog.getByRole('button', { name: /Enviar anexo/i }).click()
-  await expect(uploadDialog.locator('[role="alert"]').first()).toBeVisible({ timeout: 15_000 })
-  fs.unlinkSync(tmpAudioPath)
-  await uploadDialog.getByRole('button', { name: /Cancelar/i }).click()
-
-  await signOut(page)
+  // PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md): "UI: MIME rejection
+  // on upload" — a NEW FINDING, not in the FUP's per-file list (that list
+  // named only IV2-4 for this file). The "Enviar anexo" button is gated by
+  // `attachmentsEnabled()` (`attachments-panel.tsx`), which seed.sql now
+  // leaves OFF by default (DM1/ADR 0114 D5), so the button never renders and
+  // the click hangs to the 30s test timeout. Confirmed by running before
+  // this park. HC021 / non-https-link CHECK / HC038 / HC0B0 above are
+  // unaffected and stand. Discharge: DM2/Wave A restores this once the
+  // document model's interview-upload UI ships (flag ON).
+  //   const uploadInterviewId = await createInterviewRpc(page, chefeToken, {
+  //     title: 'Entrevista IV2-11 Upload',
+  //     category: 'other',
+  //   })
+  //   await signInAs(page, 'chefe.ccih@test.local')
+  //   await goToInterview(page, uploadInterviewId)
+  //   const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
+  //   await attachmentsSection.getByRole('button', { name: /Enviar anexo/i }).click()
+  //   const uploadDialog = page.getByRole('dialog', { name: /Enviar anexo/i })
+  //   await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
+  //   const tmpAudioPath = path.join(__dirname, '__tmp_iv2_test.mp3')
+  //   fs.writeFileSync(tmpAudioPath, Buffer.from([0xff, 0xfb, 0x90, 0x00]))
+  //   await uploadDialog.locator('input[type="file"]').setInputFiles(tmpAudioPath)
+  //   await uploadDialog.locator('input[name="title"]').fill('Audio Upload Test')
+  //   await uploadDialog.getByRole('button', { name: /Enviar anexo/i }).click()
+  //   await expect(uploadDialog.locator('[role="alert"]').first()).toBeVisible({ timeout: 15_000 })
+  //   fs.unlinkSync(tmpAudioPath)
+  //   await uploadDialog.getByRole('button', { name: /Cancelar/i }).click()
+  //   await signOut(page)
 })

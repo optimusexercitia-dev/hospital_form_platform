@@ -54,7 +54,7 @@ implementation then restores all five pgTAP pins + AC-4/AC-9. 228's retired
 block stays retired until the control exists — the coverage returns WITH it,
 not before. Record only — the design is the PO/ADR decision, not backend's.
 
-### 🟠 FUP-DM1-E2E — six attachment-touching E2E specs are PARKED by the DM1 substrate drop; DM2 must rewrite them against the document model, never merely delete them (owner: tester [park] + frontend/backend [DM2 rewrite])
+### 🟠 FUP-DM1-E2E — six (+1 found) attachment-touching E2E specs are PARKED by the DM1 substrate drop; DM2 must rewrite them against the document model, never merely delete them (owner: tester [park — ✅ done 2026-08-12] + frontend/backend [DM2 rewrite])
 
 Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
 dropped the centralized attachments substrate (ADR 0114 D5) and `seed.sql` no longer
@@ -62,33 +62,72 @@ enables the `attachments` flag nor seeds attachment fixtures, so every spec that
 exercises the old attachment surface fails or asserts against removed fixtures.
 **ADR 0114 D5 is binding here: attachment specs are REWRITTEN against the new module
 in the same program (DM2 / Wave A) — a park with no named list is a deletion with
-extra steps.** The named list, classified from a per-file sweep (2026-08-12):
+extra steps.**
 
-1. **`e2e/phase-f2-attachments.spec.ts`** — the F2 substrate spec (37 refs). Parks
-   ENTIRELY; its contracts (PHI-tier listing with no inline URL, audited open door,
-   audit-row exactness, tier bucketing) are exactly what DM2's new specs must
-   re-express against `open_document_version`.
-2. **`e2e/ethics-e1-access-spine.spec.ts`** — calls the dropped `open_attachment`
-   RPC directly (~L505/L510/L530) against the removed seed fixtures
-   `a7000000-…e1`/`…e2` (legal_privileged + ethics_investigation docs). Those
-   probes park; the rest of the spine (grants/recusal/`/meus-casos`) stands.
-3. **`e2e/quality-oversight.spec.ts`** — the coordinator "Baixar Prescrição
-   digitalizada" `OpenAttachmentButton` flow (~L38, ~L466) against the removed
-   `a3300000-…a1` fixture. That flow parks; the oversight perimeter tests stand.
-4. **`e2e/phase11-interviews.spec.ts`** — IV2-4's "attachments stay manageable
-   after conclude" assertions on the "Anexos e gravações" region (~L533+): the
-   seeded FILE attachment is gone (the LINK remains in `case_interview_links`).
-   Partial park — the link half may stand; tester's call.
-5. **`e2e/cases-extras.spec.ts`** — the case-documents panel download assertion
-   (~L377) referencing the audited OpenAttachmentButton. Parks with the panel dark.
-6. **`e2e/meeting-audio-minutes.spec.ts`** — comment-only reference (L124);
-   expected NO park needed — verify, don't assume, at the DM1 triage run.
+**✅ Parking done 2026-08-12 (tester), verified by running every file to green on a
+fresh `db reset` — chromium, dev server.** The original per-file sweep (static, never
+run) got the *mechanism* right but the *boundary* wrong in three of six files, plus
+missed one test entirely. Corrected list, each verified live:
 
-**Discharge condition:** DM2 (Wave A) lands rewritten specs covering the same
-contracts on the document model AND un-parks/deletes the parked halves in the same
-change, with the park list above checked off item by item. The DM1 phase gate runs
-the suite with these parked per the tester's mechanism (skip annotation naming this
-FUP id), not silently red.
+1. **`e2e/phase-f2-attachments.spec.ts`** — parks ENTIRELY, as predicted (6/6 tests).
+   Wrapped the whole file in `test.describe.skip(...)` naming this FUP + the discharge
+   condition, body preserved verbatim for DM2's reference. **6 skipped, 0 run.**
+2. **`e2e/ethics-e1-access-spine.spec.ts`** — as predicted: AC-4a/b, AC-4c/d, and AC-9
+   each call the dropped `open_attachment` RPC against the removed seed fixtures
+   (`a7000000-…e1`/`…e2`), individually `test.skip(true, …)`'d in-body. The rest of
+   the spine stands. **10 passed, 4 skipped** (the 3 above + the pre-existing AC-6
+   skip) — matches the file's own 14-test count exactly.
+3. **`e2e/quality-oversight.spec.ts`** — CORRECTED MECHANISM, same two sites. Playwright
+   cannot skip mid-test, and the "Baixar Prescrição digitalizada" assertions sit inside
+   two otherwise-standing tests ("content renders…" and "no-lockout control…") that
+   cover unrelated write-affordance/sidebar/interview-omission contracts. Commented out
+   the two now-untestable assertion blocks (doc title existence + the audited-button
+   visibility/absence pair) with inline FUP-DM1-E2E annotations, preserving the removed
+   code as a comment; corrected the file's header "Ground truth" doc-comment, which had
+   gone stale the moment the fixture dropped. **21/21 passed**, both host tests intact
+   for everything else they assert.
+4. **`e2e/phase11-interviews.spec.ts`** — CORRECTED BOUNDARY + ONE MISSED TEST.
+   - IV2-4: the FUP predicted "FILE gone, LINK remains" — **wrong**, verified by running
+     before parking. `attachments-panel.tsx` gates BOTH "Enviar anexo" (file) and
+     "Adicionar gravação" (link) behind the SAME `attachmentsEnabled()` flag
+     (`canEditNow = canEdit && flagOn`), and seed.sql now leaves that flag OFF by
+     default — so neither write control renders, not just the file one. Commented out
+     the whole "attachments stay manageable" assertion pair.
+   - IV2-11 — **NOT in the original list.** Its trailing "UI: MIME rejection on upload"
+     block also clicks "Enviar anexo" and hung to the 30s test timeout (same flag gate).
+     HC021 / the non-https-link CHECK / HC038 / HC0B0 earlier in the same test are
+     unrelated and stand — only the MIME-rejection sub-block parked.
+   Both test titles annotated inline. **13/13 passed.**
+5. **`e2e/cases-extras.spec.ts`** — CORRECTED SCOPE. The FUP framed this as "the
+   download assertion… parks with the panel dark" — **wrong**, verified by running
+   before parking: the "Anexar" UPLOAD TRIGGER itself is gated by
+   `canWriteNow = canWrite && attachmentsEnabled()` (`case-documents-panel.tsx`), so
+   the click on "Anexar" hangs to the 120s test timeout — the whole upload→list→
+   download flow parks, not just the download button. The test's separate "add a
+   free-text event" half is unrelated and stands. **8/8 passed** (fresh reset; a
+   same-run-twice collision on the event title during my own iterative re-runs was
+   NOT a DM1 regression — the "Reunião de revisão E2E" title has no per-run
+   uniqueness suffix, unlike the F2 tests' `Date.now()` pattern; confirmed clean on a
+   single fresh-reset run).
+6. **`e2e/meeting-audio-minutes.spec.ts`** — confirmed NO park needed, as predicted.
+   Its only reference is a comment (L124); no live dependency on the dropped
+   substrate. **10/10 passed** on a fresh reset. (BUG-MIN-E2E-1, flagged as a
+   possible pre-existing red to expect in this suite, did NOT reproduce — it was
+   already closed 2026-08-12, before this parking task, as a stale `.env.local`
+   `MINUTES_SERVICE_URL`, not a product defect; see the Bug Log archive.)
+
+Both `path`/`fs` imports in `phase11-interviews.spec.ts` and `cases-extras.spec.ts`
+were dropped where the parked blocks were their only remaining live use (kept the
+import list green, noted inline).
+
+**Discharge condition (unchanged):** DM2 (Wave A) lands rewritten specs covering the
+same contracts on the document model AND un-parks/restores the parked
+tests/assertion-blocks in the same change, with the corrected list above checked off
+item by item — including the IV2-11 MIME-rejection block this FUP's original filing
+missed. The DM1 phase gate runs the suite with these parked per the mechanism used
+(whole-file `test.describe.skip` for file 1; per-test `test.skip(true, …)` for file 2;
+commented-out assertion blocks with inline FUP-DM1-E2E annotations for files 3–5,
+since Playwright has no mid-test skip), not silently red.
 
 ### 🟠 FUP-DM1-DISPOSE — `dispose_case_phi` lost its attachment-redaction step in DM1; DM2 must wire case PHI erasure to document disposition (owner: backend, DM2)
 

@@ -489,6 +489,15 @@ test('AC-4a/b ordinary reader: sees the ethics_investigation doc, NOT the legal_
   page,
   request,
 }) => {
+  // ⛔ PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md). DM1 (ADR 0114 D5,
+  // migration 20260923000100) dropped the `open_attachment` RPC and the
+  // seeded confidentiality fixture documents (a7000000-…e1/e2) this test
+  // calls (seed.sql confirms: "removed with the attachments substrate").
+  // The ADR 0072 D7 ceiling control itself has no replacement in the
+  // document model yet — see FUP-DM1-CEILING, which blocks DM2 Wave A start.
+  // Discharge: DM2 restores this test against the document model once the
+  // PO ruling in FUP-DM1-CEILING lands.
+  test.skip(true, 'FUP-DM1-E2E: open_attachment RPC + fixtures dropped (DM1/ADR 0114 D5) — restores in DM2 with FUP-DM1-CEILING')
   await upsertCaseAccess({ caseId: CASE_ID, userId: UID_MULTI, level: 'read' }) // no clearance
   const multiToken = await getOwnerToken(request, 'multi@test.local')
 
@@ -517,6 +526,11 @@ test('AC-4c/d cleared reader (chefe): sees BOTH documents; direct open of the le
   page,
   request,
 }) => {
+  // ⛔ PARKED — FUP-DM1-E2E. Same reason as AC-4a/b above: `open_attachment`
+  // + the a7000000-…e1/e2 fixtures were dropped with the attachments
+  // substrate (DM1/ADR 0114 D5); the ADR 0072 D7 ceiling control has no
+  // replacement yet (FUP-DM1-CEILING). Discharge: DM2.
+  test.skip(true, 'FUP-DM1-E2E: open_attachment RPC + fixtures dropped (DM1/ADR 0114 D5) — restores in DM2 with FUP-DM1-CEILING')
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/casos/${CASE_ID}`)
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
@@ -654,6 +668,13 @@ test('AC-7 flag-ON regression spot-check: a granted READ member (multi) on this 
 test('AC-9 keyboard-only: coordinator (chefe) tabs from Meus Casos into the case, then to the legal_privileged document link, and opens it', async ({
   page,
 }) => {
+  // ⛔ PARKED — FUP-DM1-E2E. This keyboard-only path lands on the
+  // legal_privileged document control, which requires the a7000000-…e1
+  // fixture + the `open_attachment` door — both dropped with the
+  // attachments substrate (DM1/ADR 0114 D5). Discharge: DM2 restores a
+  // keyboard-only path to the privileged document once FUP-DM1-CEILING's
+  // ceiling control lands in the document model.
+  test.skip(true, 'FUP-DM1-E2E: legal_privileged document fixture + open_attachment RPC dropped (DM1/ADR 0114 D5) — restores in DM2 with FUP-DM1-CEILING')
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/meus-casos`)
   await page.waitForURL(`${BASE}/meus-casos`)
