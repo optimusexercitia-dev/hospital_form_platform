@@ -264,7 +264,9 @@ export interface BeginDocumentUploadInput {
  * 200. Failure (4xx/5xx, network abort, partial body) leaves NO object behind
  * the reservation: `finalizeDocumentUpload` then returns
  * `{ ok: false, error: 'upload_incomplete' }` and the reservation stays
- * retryable until it expires (`upload_expired`).
+ * retryable until it expires (`upload_expired`). Distinct from that: a PUT
+ * that LANDED but failed byte verification is `terminal: true` (MAJOR-3) —
+ * the reservation is spent and only a new upload recovers.
  */
 export interface DocumentUploadCredential {
   method: 'PUT'
@@ -290,7 +292,24 @@ export type FinalizeDocumentUploadResult =
       documentVersionId: string
       availability: DocumentAvailability
     }
-  | { ok: false; error: DocumentActionErrorCode }
+  | {
+      ok: false
+      error: DocumentActionErrorCode
+      /**
+       * QA r1 MAJOR-3: present (`true`) when the failure is FINAL for this
+       * reservation — the object landed but failed byte verification
+       * (`upload_state = 'failed'`, a state the D9 machine has no outbound
+       * arc from, over bytes that are immutable), so re-running finalize can
+       * never succeed. The dialog must NOT offer "Tentar novamente" here;
+       * the only recovery is removing the item and uploading again. Absent =
+       * retryable as before (e.g. a PUT that left no object — ADR 0118 §8).
+       * Optional (not a new error code) so the closed pt-BR label map stays
+       * compiling until the frontend adds the terminal copy; migrating this
+       * to a first-class `upload_failed` code is a paired backend+frontend
+       * change.
+       */
+      terminal?: true
+    }
 
 export type OpenDocumentVersionResult =
   | {

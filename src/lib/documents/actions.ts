@@ -153,6 +153,16 @@ export async function finalizeDocumentUpload(
     }
   }
 
+  if (r.upload_state === 'failed') {
+    // QA r1 MAJOR-3: TERMINAL. `failed` has no outbound arc in the D9
+    // machine (catalog: guard_file_object_transition) and the bytes are
+    // immutable (Rule 6), so re-verifying cannot change the outcome — and
+    // pre-fix, every retry click re-entered the branch below: a service-role
+    // download of the WHOLE object, unaudited, ending in HC0D9. Short-circuit
+    // with no download and no RPC; the only recovery is a NEW upload.
+    return { ok: false, error: 'upload_incomplete', terminal: true }
+  }
+
   // D9 verification — the service role is the byte verifier (SQL cannot hash).
   const admin = createAdminClient()
   const { data: file, error: fileError } = await admin
@@ -177,7 +187,9 @@ export async function finalizeDocumentUpload(
   if (doneError || !done) return { ok: false, error: errCode(doneError) }
   const d = done as Record<string, string>
   if (d.upload_state !== 'unscanned_accepted') {
-    return { ok: false, error: 'upload_incomplete' }
+    // The verifier just ruled: the file is now `failed` — terminal from the
+    // FIRST failure (MAJOR-3), not only on the retry that discovers it.
+    return { ok: false, error: 'upload_incomplete', terminal: true }
   }
   return {
     ok: true,
