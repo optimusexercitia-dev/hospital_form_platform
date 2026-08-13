@@ -45,7 +45,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110 — see 22-v3) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main`. ✅ **PUSHED** — `81e1dc9` is an ancestor of `origin/main` (corrected 2026-08-12; the cell read "local only, NOT pushed", true when written) · graphify `dfc3e35` |
 | 22-v3 | **REG·KIND — one Registro vocabulary for cases and referrals** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ (tsc 0 · Vitest **1254** · eslint 0/0 first-party) | ⚠ **step 1 only** — pgTAP **183f/5857** (`322` 72→63, `298` 36→32 as the retired table's tests retired with it) · `ARM=census`/`hat`/`floor` HOLD · diff-scoped sweep 3 COVERED + 1 **pre-existing** `ERROR` · E2E **targeted 24/24** (`referral-registros` 16 + `cases-extras` 8) — **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | merge `9a20c8a` → `main`. ✅ **PUSHED** (`9a20c8a` is an ancestor of `origin/main`) and ✅ **remote `db push` DONE** — both `20260920000100`/`…000200` are registered on the linked project, `referral_note_types` is gone from the remote catalog. **Corrected 2026-08-12**; this cell previously read "local only, NOT pushed" + "`db push` NOT done", which had been true when written and was overtaken by a later push. ⚠ Verified against the REMOTE CATALOG, not the CLI: `supabase migration list --linked` showed a **blank Remote column for all 354** rows and the MCP `list_migrations` returned a **truncated 84** — both wrong. Only `select … from supabase_migrations.schema_migrations` on the linked project agreed with the objects actually present |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amendment 1** D15/D16, ratified 2026-08-13; supersedes [0063](docs/decisions/0063-centralized-attachments-substrate.md)) · plan [DM0–DM5](docs/plans/document-model-redesign.md) · [record](docs/progress/dm1-substrate-cutover.md) | ✅ **DM0 + DM1 complete** — DM2 **not started** | ✅ 6 migrations `20260923000100`–`…000600` · ADR **0116** · lint 5-gate 0/0 · tsc · vitest 1254 | ✅ pgTAP **188f/5927 PASS** (suite `328`, 88 keystones) · `ARM=census`+`hat`+`floor`+`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped sweep 13/16 reconciled, 12 COVERED + 1 BLIND (real, keystoned K12 → COVERED) + 0 ERROR · `e2e:prod` **1073p/1f/3flaky, 0 did-not-run**, every batch `accounted N/N`; the 1 failure is a proven `server_dead` INFRA flake (isolation 13/13 + identical-batch 68/68, `RETRIES=0`) · [gate detail](docs/progress/dm1-substrate-cutover.md) | ✅ **APPROVED (r1)** [review](docs/reviews/dm1-substrate-cutover-review.md) — 0 P0 · 1 MAJOR **fixed not deferred** (`can_read_file_object`'s uploader arm short-circuited the kernel chain; K13 red-first) · 5 MINOR · 4 INFO | ✅ **2026-08-13** | 2026-08-13 | ⚠ **branch `docs/dm1-plan-amendments` — NOT merged to `main`, nothing pushed** (PO directive; `main`/`origin/main` still `f84c6b6`). `phase(DM1)` = `bd45246`. Open → DM2: **FUP-DM1-CEILING/D15** (build before Wave A), FUP-DM1-E2E, FUP-DM1-DISPOSE, MINOR-2, plan **Q1** (ethics seams have no wave), O4 |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amendment 1** D15/D16, ratified 2026-08-13; supersedes [0063](docs/decisions/0063-centralized-attachments-substrate.md)) · plan [DM0–DM5](docs/plans/document-model-redesign.md) · [record](docs/progress/dm1-substrate-cutover.md) | ✅ **DM0 + DM1 complete** — 🟢 **DM2 IN FLIGHT** (opened 2026-08-13; S1 = the D15 ceiling, the Wave A prerequisite) | ✅ 6 migrations `20260923000100`–`…000600` · ADR **0116** · lint 5-gate 0/0 · tsc · vitest 1254 | ✅ pgTAP **188f/5927 PASS** (suite `328`, 88 keystones) · `ARM=census`+`hat`+`floor`+`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped sweep 13/16 reconciled, 12 COVERED + 1 BLIND (real, keystoned K12 → COVERED) + 0 ERROR · `e2e:prod` **1073p/1f/3flaky, 0 did-not-run**, every batch `accounted N/N`; the 1 failure is a proven `server_dead` INFRA flake (isolation 13/13 + identical-batch 68/68, `RETRIES=0`) · [gate detail](docs/progress/dm1-substrate-cutover.md) | ✅ **APPROVED (r1)** [review](docs/reviews/dm1-substrate-cutover-review.md) — 0 P0 · 1 MAJOR **fixed not deferred** (`can_read_file_object`'s uploader arm short-circuited the kernel chain; K13 red-first) · 5 MINOR · 4 INFO | ✅ **2026-08-13** | 2026-08-13 | ⚠ **branch `docs/dm1-plan-amendments` — NOT merged to `main`, nothing pushed** (PO directive; `main`/`origin/main` still `f84c6b6`). `phase(DM1)` = `bd45246`. Open → DM2: **FUP-DM1-CEILING/D15** (build before Wave A), FUP-DM1-E2E, FUP-DM1-DISPOSE, MINOR-2, plan **Q1** (ethics seams have no wave), O4 |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) (plan [Slices 0–6](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's own Slice 0 gate). Drafted 2026-08-12 from a 20-question PO grilling (D1–D20): first-class commission-scoped `deliberations` + explicit `deliberation_seatings`; versioned `commission_governance_policies` **subsumes `commission_meeting_settings`** (table dropped); append-only ballots with the vote arithmetic owned by Postgres; append-only `committee_decisions` with supersession; `meeting_cases.decision` dropped. Flag `deliberations` (prod OFF) covers everything **except Slice 1**, which replaces live meeting-settings plumbing and so must land flag-independent + regression-safe. Slice 6 (D14, resolution promotion) is conditional on the [0114](docs/decisions/0114-document-model-redesign.md) document substrate — that ADR is ratified but **unbuilt**, and the plan recommends shipping v1 without it | – | – | – | ⛔ **not ratified** | – | ADR merge `a68f179` + renumber `feab771` — drafted as 0112, renumbered because **0112 was already taken** by [case-event kind write authority](docs/decisions/0112-case-event-kind-write-authority.md). ⚠ **Differing filenames merge CLEANLY**, so an ADR-number collision announces itself nowhere — renumber at merge time, not draft time. Same commit retargeted the draft's stale `0109` cross-refs (both the ADR and the plan) → `0114`. ✅ **PUSHED** — verified against the server (`git ls-remote origin refs/heads/main` = `a68f179`), not a cached remote-tracking ref. ⚠ This cell first read "NOT pushed", true when written and overtaken by a push minutes later — the third row in this table to need that correction |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -95,13 +95,50 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-**No phase in flight.** Most recent: **DM1 — substrate cutover** (ADR 0114 +Amdt 1 / 0116), gate
-complete and PO-approved 2026-08-13 — task log, the red-first record, the turn-by-turn build, the
-gate-2/3 detail and the six DM2 carry-overs are in
-[dm1-substrate-cutover.md](docs/progress/dm1-substrate-cutover.md). ⚠ **It is NOT merged to `main`
-and NOT pushed** (PO directive) — it lives on branch `docs/dm1-plan-amendments`; `main`/`origin/main`
-are still `f84c6b6`. **DM2 (Wave A) must not start** until FUP-DM1-CEILING's D15 ceiling ships.
-Before it: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
+### 🟢 IN FLIGHT — **DM2: orchestration + Wave A** (opened 2026-08-13)
+
+> Program: Document Model Redesign — plan [DM0–DM5](docs/plans/document-model-redesign.md) §DM2 ·
+> ADR [0114](docs/decisions/0114-document-model-redesign.md) (+Amendment 1 D15/D16) · DM1 record
+> [dm1-substrate-cutover.md](docs/progress/dm1-substrate-cutover.md).
+> Branch: `docs/dm1-plan-amendments` (continues DM1's branch — `main` does not carry DM1; PO
+> directive stands: **nothing to `main`, nothing remote**). Migration window: **`20260924000100`+**
+> (highest registered = `20260923000600`; 367 registered == 367 files, catalog-verified 2026-08-13).
+
+**Sequencing — S1 is a hard prerequisite, not a preference.** ADR 0114 Amdt 1 D15: the ceiling must
+land *before* Wave A re-points any case / meeting / interview document, because that is the phase in
+which a formerly gated document would silently become readable by every ordinary case reader.
+
+| # | Slice | Owner | Status | Depends on |
+|---|-------|-------|--------|-----------|
+| S1 | **D15 confidentiality ceiling** — nullable label column on `documents` + kernel arm in `app.can_read_document`; restores pgTAP `228` t36–40 | backend | 🟢 in progress | — |
+| S2 | Command layer (`begin_document_upload` · `finalize_document_upload` · `open_document_version` · disposition/hold · `reclassify_document_file` · reconciliation) + `src/lib/documents/`; contract-first typed signatures posted for S3 | backend | 🔜 queued | S1 |
+| S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🔜 queued | S2 contracts |
+| S4 | E2E — rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract + a keyboard-only flow; mutation list | tester | 🔜 queued | S3 |
+| S5 | QA review + full §6 gate + flag choreography | qa / lead | 🔜 queued | S4 |
+
+**Carried in from DM1 (do not re-derive — bodies in the DM1 record §"Carried into DM2"):**
+FUP-DM1-CEILING/D15 (= S1) · FUP-DM1-E2E (= S4) · FUP-DM1-DISPOSE (S2, before the flag flips) ·
+QA MINOR-2 (`open_document_version` must gate **before** recording — the registry inherits an
+`is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
+**O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
+
+**Lead findings handed to S1 (catalog-verified 2026-08-13, not read from migration text):**
+- `app.confidentiality_clearance_ok(p_case_id, p_label, p_uid)` and `app.confidentiality_rank(text)`
+  **SURVIVED DM1** — only the attachment-specific wrapper `app.attachment_confidentiality_ok` was
+  dropped. D15 **reuses** them (program invariant: reuse the domain predicates, never reimplement).
+- Only `legal_privileged` + `credentialing_sensitive` are ENFORCING; the other five labels return
+  true. Clearance = `case_access_grants.max_confidentiality` outranking the label.
+- ⚠ **The clearance helper is CASE-scoped.** `documents.home_resource_id` resolves to case ·
+  meeting · interview · action_item. Only `case` (direct) and `interview` (via
+  `app.case_of_interview`) yield a case id; **meeting and action_item do not** — S1 must rule that
+  seam explicitly and fail closed, not silently skip the ceiling.
+- ⚠ **Name-collision trap:** the Phase-17 controlled-document module owns a different
+  `%document%` family (`commission_of_document`, `is_document_approver_of`,
+  `guard_document_transition`, `trg_audit_controlled_documents`, …) on `controlled_documents`. A
+  `%document%` sweep hits both substrates. Enumerate by table, never by name substring.
+
+Most recent completed phase: **DM1 — substrate cutover**, PO-approved 2026-08-13 (record linked
+above). Before it: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
 vocabulary for cases and referrals. ⚠ **It ran gate step 1 ONLY** (no tester pass, no QA review, no
 `e2e:prod`) by PO direction. It is ✅ **pushed, and the remote `db push` IS done** (corrected
 2026-08-12) — but that changes nothing about the gate: treat it as
