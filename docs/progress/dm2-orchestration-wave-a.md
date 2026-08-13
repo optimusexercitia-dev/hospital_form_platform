@@ -781,6 +781,96 @@ pre-existing functions share the class — a standing blind spot for the arms'
 next periodic revision, NOT a DM2 regression; DM2's compensation is
 behavioral (P0a–P0f + the 308 5.2s sentinel).
 
+# Resumption session 2026-08-13, part 3 (backend) — QA r1 MINOR-1/2/3 + INFO-3/4 closed
+
+Commits: `98c7835` (the five items) · `a2640a8` (two follow-ons MINOR-1's own
+fixture surfaced). Interleaved on the branch with the frontend's `7cc833a`
+(MAJOR-3 UI half) + `0acdd0d` (MINOR-4/5 + INFO-3 dialog half) and the lead's
+`ebd398a` (MINOR-6) — no file collisions. **No migration; 375 == 375.**
+
+## MINOR-1 — pagination (red observed past the page boundary, as required)
+
+Fixture: **1001** `uploaded` rows + 1001 objects in one directory
+(`minor1fx/fo0001..1001/1`). **RED (pre-fix script, pinned from commit
+`6327591`):** the walk saw **11 of ~1012** objects (the 1001-entry directory
+returned only its LAST page) → **missing: 986 (all false)** + **orphans: 1
+(false)** → `DRIFT: 992` of which ~0 real. **The fixture also caught a
+SECOND same-class defect the review did not name:** the `file_objects` read
+was a single `.select()`, PostgREST-capped at 1000 rows — `rows` read was
+**exactly 1000** of 1012, the unread remainder judged by nobody, its object
+the false ORPHAN. Both directions now paginate (stable sort, accumulate
+until a short page). **GREEN:** `objects: 1011 == rows: 1011`, missing 0,
+orphans 0. Also fixed while in the file: the ops verdict now sets
+`process.exitCode` instead of `process.exit()` — the hard exit during
+supabase-js teardown intermittently tripped libuv's UV_HANDLE_CLOSING
+assertion on Windows and **swallowed the entire report at exit 127** (an
+ops verdict lost to the runtime; observed three times this session).
+
+## MINOR-2 — the lost-update race (proven with a real interleaving)
+
+Real two-session interleaving on the REAL `finalize_document_upload` door
+(sweep statements as their SQL twins), timestamps from the run:
+`17:10:30.76` expiry set to +5 s → `17:10:31.12` **S1 txn begins** (its
+`now()` = txn start, predating expiry, so finalize's predicate passes) →
+`17:10:37` **S2 sweep READ** finds the session `reserved`+lapsed (S1
+uncommitted) → `17:10:39.14` **S1 finalize succeeds** (`verifying`) and
+commits `consumed` → `17:10:42` **S2's OLD unguarded UPDATE:
+`state_before_stomp = consumed` → STOMPED to `expired`, UPDATE 1** — final
+state `expired` session over a `verifying` file (which is also MINOR-3's
+input state, by the race). **GREEN, identical choreography:** the guarded
+update (`… and state='reserved'`) → **0 rows, `consumed` survives.**
+`expiredSwept` now counts rows actually swept. The `:59` "record it" promise
+is kept: a FILE at the bucket root — and at `{org}/x` one level down — is
+recorded as an orphan instead of silently skipped.
+
+## MINOR-3 — stuck `verifying` is now swept (reconciled with T4)
+
+Fixture via the real doors: begin → PUT → finalize (file `verifying`,
+session `consumed`), verification never called, `uploaded_at` backdated 2 h.
+**RED (pre-fix):** the file sat in the `bytes-required` class — present
+bytes, no drift, **invisible under the banner**, the reader's eternal
+`pending` (BUG-DM2-001's symptom by a second route). **GREEN:**
+**`verifyingSwept: 1` observed directly**; the file → `failed` (legal arc)
+→ surfaces as UNDISPOSED drift in the same run; subsequent runs 0
+(idempotent). Reconciliation with `actions.test.ts` T4 (the live
+`verifying` re-entry must keep succeeding): the sweep is deliberately NOT a
+second verifier (evaluator-drift class) and fires only after
+**60 min** — 4× the 15-min reservation TTL, far beyond any live verifier's
+download+hash of a ≤25 MB object — so the two paths cannot meet. The
+update is state-guarded in the statement (the MINOR-2 lesson applied).
+
+## INFO-3 (types half) + INFO-4
+
+- `types.ts` trust-boundary comment no longer implies the CREDENTIAL is
+  coordinate-free: the signed URL embeds bucket, full path, and a live
+  bearer token for its TTL and lands in browser history; ADR 0114 O4 is
+  named as the authority. (Dialog half: frontend, `0acdd0d`.)
+- DM5 step 5 (`docs/plans/document-model-redesign.md`) now names the
+  **Rule-9 exception obligation** — `src/lib/documents/actions.ts`'s
+  admin-client coordinate reads, ADR 0118 §1-justified, QA-accepted —
+  beside the D8 Rule-1 sharpening, so the canon rewrite cannot lose it.
+
+## Shared-stack note (method, for the record)
+
+The frontend was LIVE on the shared local stack throughout this session
+(its E2E fixtures interleaved with mine by the minute). Consequences
+handled: all script passes were deferred to observed-quiet windows (their
+15-min reservations could not lapse into my sweep's domain during the runs);
+the reset waited for an 8-minute-quiet + their commit landing. One
+baseline fact this surfaced: the **truly fresh stack runs the script to
+`RECONCILIATION CLEAN 0/0`** — the DRIFT-5/6/8/9 baselines seen mid-session
+were REAL E2E residue (five byte-holding `failed` fixtures from the
+frontend's verification specs + my own), i.e. the classifier's first
+catches were genuine, and the seed itself plants no file rows.
+
+## Gate state (session 3 scope — NOT the full §6 gate)
+
+Fresh reset (375 == 375) → `gen:types` diff clean → pgTAP **189 files /
+6097 tests PASS** → vitest **86 / 1258 PASS** → lint five-gate OK → tsc
+clean → the fixed script on the fresh stack: **RECONCILIATION CLEAN**.
+Still lead-owned: authz arms (census zero-delta again — no DB surface
+change this round), `e2e:prod`, the two unconfirmed tester probes, QA r2.
+
 ## Gate state (session 2 scope — NOT the full §6 gate)
 
 Fresh `supabase db reset` (375 == 375, no new migrations) → `gen:types`
