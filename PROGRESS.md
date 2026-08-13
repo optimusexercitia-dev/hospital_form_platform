@@ -109,7 +109,9 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S1c — keystones `DM3·B4` + `DM3·X3` | backend | ✅ green (`47e37ed`) — neither could be red-first (both pin existing behaviour), so **both twins were RUN**: twin 1 reds `X3a`+`B4` (2/50), twin 2 reds `X3b` **alone** (1/50) |
 | S1d — composite deletion + §7 process note | backend | ✅ landed (`9167497`) — **typecheck 0**, lint 5/5, `330` **50/50**, `328` **128/128** |
 | S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | ✅ landed (`ef62e1b` + `de21b87`) — all 3 wizard modes orchestrate client-side; lint 5/5, vitest **1258/1258**. ⚠ **`createDraftOnly` SURVIVES** (minus its `if (hasFile)` block) — it is the wizard's step 1 and the only verb returning `{documentId, versionId}`; **3 verbs die, not 4** |
-| S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ **BLOCKED on the seed fix** (needs a DB that resets) |
+| S1e — P0 remediation: M8/M9/M10 + `DM3·R3` twins + repo-wide removal sweep | backend | ✅ landed (`5a7c684`) — pgTAP **190f/6150 PASS** |
+| S1f — register the 4 new DEFINER doors (census domain + findings file) | backend | 🟢 in progress — **lead runs the arms**, not the registrar (an arm run by the hand that registered the door is not independent) |
+| S3 — tester: the BYTE ROUND TRIP + lifecycle + prior-version E2E | tester | 🟢 in progress |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
 
@@ -153,6 +155,32 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+### 🔴 A STALE ALLOWLIST ENTRY PRE-EXCUSES A FUTURE DOOR — found by the repo-wide removal sweep
+
+`supabase/tests/mutation/authz-blind-allowlist.txt` still named **`app.can_read_document_object`**,
+which **M5 dropped** along with the policy it served. **The allowlist is where a door is *excused*
+from the BLIND check** — so an entry naming a dropped function **pre-excuses any future function
+that reclaims the name.** A hole that opens silently, years later, for whoever picks the natural
+name, and invisible in every direction: no test fails, no gate reds, the entry reads as
+maintained configuration. Pruned.
+
+⚠ **This is the payoff for widening the sweep, and it settles that argument empirically.** The
+lead predicted only the mutation-script chore; **neither lead nor backend listed the allowlist**.
+A removal-set sweep bounded by `src/**` — the boundary actually used earlier in the phase — would
+have missed **the only finding that had teeth**. Fifth landing of *an enumeration bounded by a
+location cannot enforce a property*, and the first where the miss was dangerous rather than
+untidy.
+
+**`DM3·R3` is now falsifiable — and twin B's construction is itself a finding.** Twin A (kill the
+door's core-document minting) reds `R3c`+`X1`, 2/55. Twin B had to neutralize registry minting on
+**both** sides — the M9 trigger *and* the M8 door's belt-and-braces insert — because **with either
+alone neutralized `R3` stays green**: two sufficient mechanisms, only both-off reproduces the P0.
+Third appearance of *two barriers, one behaviour* this phase; a single twin would have certified a
+keystone that cannot fail. Twin B's own first draft **failed its own `if mutated = src then raise`
+guard** on whitespace drift — the guard earning its keep on the twin that needed it. `R3e` added as
+`R3d`'s positive control (*"one row with a null pointer" is otherwise satisfiable by counting
+nothing*).
 
 ### ✅ GATE STEP 1 — **GREEN**, lead-verified independently (2026-08-13)
 
