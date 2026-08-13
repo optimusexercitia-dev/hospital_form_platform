@@ -106,7 +106,8 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | --- | --- | --- |
 | S1 — M1–M7 migrations + suite `330` | backend | ✅ applied — `330` **44/44**, `328` **128/128**; **M8 dropped with evidence** (its premise was false: no projection door ever projected `storage_path`) |
 | S1b — backend side of the §7 contract (TS) | backend | ✅ landed (`d75883b`) — 3 lead-approved §7 corrections; `typecheck` 14 = **10 frontend** (the contract boundary, by design) + **4 backend** (composite verbs, held for frontend's signal) |
-| S1c — keystones `DM3·B4` + `DM3·X3` | backend | 🟢 in progress — ordered **now**, own commit, **not** folded into the composite deletion |
+| S1c — keystones `DM3·B4` + `DM3·X3` | backend | ✅ green (`47e37ed`) — neither could be red-first (both pin existing behaviour), so **both twins were RUN**: twin 1 reds `X3a`+`B4` (2/50), twin 2 reds `X3b` **alone** (1/50) |
+| S1d — composite deletion + §7 process note | backend | ✅ landed (`9167497`) — **typecheck 0**, lint 5/5, `330` **50/50**, `328` **128/128** |
 | S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | ✅ landed (`ef62e1b` + `de21b87`) — all 3 wizard modes orchestrate client-side; lint 5/5, vitest **1258/1258**. ⚠ **`createDraftOnly` SURVIVES** (minus its `if (hasFile)` block) — it is the wizard's step 1 and the only verb returning `{documentId, versionId}`; **3 verbs die, not 4** |
 | S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
 | S4 — QA review | qa | ⬜ not started |
@@ -152,6 +153,26 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+**Two gate lessons from the composite deletion (`9167497`):**
+- ⚠ **`typecheck` hit 0 with three dead symbols still present** — `uploadDocumentFile`,
+  `MAX_DOCUMENT_BYTES` and the MIME→extension map, all mirroring the retired bucket. **eslint
+  caught them, typecheck did not.** "0 typecheck errors" is not a safe stopping point for a
+  deletion; the five-gate `npm run lint` is what closes it.
+- ⚠ **The deletion set was verified from the CODE, not from the lead's message — and the
+  message was wrong.** Enumerating every caller of all 16 exported verbs showed the three
+  doomed verbs had **6 references, all comments, zero call sites**, while `createDraftOnly`
+  had a real import. It also showed *why* "four" was wrong: `supersedeDocument` **and**
+  `supersedeAndSubmitDocument` both exist and frontend calls the former — **two names
+  collapsed into one is how a live verb gets deleted.**
+
+⚠ **STALE-COMMENT CLASS — 5th, 6th … instance this phase; the deletion alone stranded 8.**
+Two were backend's (fixed): `supersedeDocument`'s doc told the frontend to upload *"via
+`addDocumentVersion`"* — **a deleted verb, in the doc of a verb they actively call** — and a
+section header still described the full retired chain. Six are in frontend's page/wizard
+headers (list handed over, not edited across the ownership line). **The pattern is now stable
+enough to name: a deletion strands every comment that referenced it, and NO gate sees any of
+them.** → **FUP-LINT-STALE-SYMBOL-COMMENT**.
 
 ### ⚠ INCIDENT (2026-08-13) — `supabase/` left the index; 613 files deleted from HEAD, all recovered
 
@@ -519,6 +540,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
 - 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
+- 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — propose a **6th lint gate**: flag a comment naming an identifier that no longer exists in the codebase. Every one of the five existing gates was added after its class shipped a live defect, and this class hit **~6 times in DM3 alone** (plus 4 historically, one of which shipped a live bug). Worst specimen: `supersedeDocument`'s doc telling the frontend to upload *"via `addDocumentVersion`"* — **a deleted verb, in the doc of a verb they actively call**. Invisible to typecheck, eslint, and all five current gates. **Deletion strands every comment that referenced it** — the one refactor class with no automated check — lead/PO (a gate change is not a mid-phase edit)
 - 🔴 **FUP-PGTAP-SAVEPOINT** — a pgTAP assertion between `savepoint` and `rollback to savepoint` **prints `ok` but is DISCARDED from the tally** (lead-reproduced twice: same assertion, `finish()` → `# No tests run!` with the savepoint, clean without). The pgTAP twin of the `lint:vacuous` class, with **no equivalent gate for SQL**. Lead sweep: **`193_schema_integrity.sql:89-99` AFFECTED** (a *mutation twin* — missed by the original report, which flagged only `194`) · **`194:87-95` AFFECTED** · `330` and `100_dashboard` clean. ⚠ **`100_dashboard.sql:411` already documented the hazard as a local comment** — and two suites shipped the shape anyway; knowledge in one file's comment does not propagate. Blast radius NOT yet measured (suites need the harness; `194`'s dirty-DB `planned 8 but ran 0` is **not** attributed to this). **Discharge = measure on a fresh reset · rewrite both to `330`'s captured-definition pattern · ADD the missing gate** — lead + backend
 - 🟡 **FUP-DM3-ETHICS-UI** — no affordance exists to attach a decision letter to an ethics case; DM3 ships the seams **writable via the API only** (PO ruling 2026-08-13, ADR 0114 Amdt 2 scope boundary). **Deliberate, not an oversight** — a decision letter is the archetypal `legal_privileged` document, so the UI needs the ETH·E1 spine + D15 ceiling designed as a feature, with E2E that does not exist today (`ethics-e2-procedure.spec.ts:55` already declares it unbuilt) — PO (feature phase)
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
