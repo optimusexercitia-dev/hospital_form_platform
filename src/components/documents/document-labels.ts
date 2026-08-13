@@ -389,6 +389,12 @@ export const DOCUMENT_ERROR_FALLBACK =
  * is the authority, so the message must exist and be testable), and
  * `upload_incomplete` is the retry path — the session stays usable, so the copy
  * says "tente enviar novamente", not "comece de novo".
+ *
+ * ⚠ `upload_incomplete` carries TWO outcomes, and this map only words one of
+ * them. When `FinalizeDocumentUploadResult` marks the failure `terminal`, the
+ * bytes landed and failed verification, retrying is impossible, and the copy
+ * below would instruct an action that cannot work — render
+ * {@link DOCUMENT_UPLOAD_TERMINAL_MESSAGE} instead (QA r1 MAJOR-3).
  */
 export const DOCUMENT_ERROR_MESSAGE: Record<DocumentActionErrorCode, string> = {
   module_disabled: "O envio de documentos ainda não está disponível.",
@@ -416,6 +422,20 @@ export const DOCUMENT_ERROR_MESSAGE: Record<DocumentActionErrorCode, string> = {
 export function documentErrorMessage(code: DocumentActionErrorCode): string {
   return DOCUMENT_ERROR_MESSAGE[code] ?? DOCUMENT_ERROR_FALLBACK;
 }
+
+/**
+ * The one upload failure with NO retry (QA r1 MAJOR-3).
+ *
+ * The bytes reached Storage but failed verification, so `file_objects` is
+ * `failed` — a state the D9 machine has no outbound arc from, over bytes that
+ * are immutable (Rule 6). Re-running finalize therefore cannot succeed, and a
+ * "successful retry" would definitionally be a new reservation. The only
+ * recovery is the one the ROW already states, so this copy says the same thing
+ * the row does rather than inventing a second vocabulary for it — see
+ * `AVAILABILITY_PRESENTATION.failed.detail` above.
+ */
+export const DOCUMENT_UPLOAD_TERMINAL_MESSAGE =
+  "A verificação do arquivo falhou. Remova este item e envie o arquivo novamente.";
 
 /** pt-BR upload/size hint shown under the file picker. Derived from the contract
  * cap so the stated limit cannot drift from the enforced one. */

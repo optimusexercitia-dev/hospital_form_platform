@@ -34,6 +34,7 @@ import {
   D12_TITLE_GUIDANCE,
   DOCUMENT_FILE_HINT,
   DOCUMENT_HOME_CONFIG,
+  DOCUMENT_UPLOAD_TERMINAL_MESSAGE,
   confidentialityOptionsForHome,
   documentErrorMessage,
   kindOptionsForHome,
@@ -103,12 +104,27 @@ export function DocumentUpload({
  * refuse before a pointless wait — `finalize` re-derives both server-side, and
  * the caller's values are hints (D9).
  *
- * **Retry is real, not cosmetic.** A failed or partial PUT leaves NO object, so
- * `finalize` answers `upload_incomplete` and the RESERVATION stays valid. The
- * dialog therefore keeps the session and offers "Tentar novamente", which
- * re-PUTs into the same reservation rather than starting over — until the
- * reservation expires (`upload_expired`), which is the one failure that sends
- * the user back to the beginning.
+ * **Retry is real, not cosmetic — and it is not offered where it cannot work.**
+ * A failed or partial PUT leaves NO object, so `finalize` answers
+ * `upload_incomplete` and the RESERVATION stays valid: the dialog keeps the
+ * session and offers "Tentar novamente", which re-PUTs into the same
+ * reservation rather than starting over.
+ *
+ * TWO failures end that reservation instead, and neither may show a retry:
+ *
+ * - `upload_expired` — the reservation lapsed; a new one must be begun.
+ * - a `terminal` finalize result (QA r1 MAJOR-3) — the bytes LANDED and failed
+ *   verification, so `file_objects` is `failed`, a state the D9 machine has no
+ *   outbound arc from, over bytes that are immutable (Rule 6). Every "retry"
+ *   click re-entered the same dead end forever, and pre-`797d55b` each one
+ *   also drove an unaudited service-role download of the whole object. The
+ *   dialog now enters a TERMINAL state: the reservation is dropped, the form is
+ *   locked, and the only affordance is "Fechar" — the recovery is to remove the
+ *   failed item from the list (which the refresh below puts on screen) and
+ *   upload again, exactly what the row and the banner both say.
+ *
+ * The failure is discriminated on the RESULT's `terminal` marker, never on the
+ * error code: `upload_incomplete` is returned for both outcomes.
  */
 function UploadDialog({
   homeType,
@@ -135,8 +151,17 @@ function UploadDialog({
     id: string;
     credential: DocumentUploadCredential;
   } | null>(null);
+  /**
+   * The dead end (MAJOR-3): this upload can never be completed from here. Held
+   * separately from `banner` because it governs AFFORDANCES, not just copy —
+   * a message telling the user to remove the item while a submit button still
+   * invites another attempt is the defect, not the fix.
+   */
+  const [terminal, setTerminal] = useState(false);
 
   const isBusy = phase !== "idle";
+  /** No further input is meaningful once the reservation is spent. */
+  const isLocked = isBusy || terminal;
 
   // Reset on each open (render-phase prop-sync, not an effect).
   const [wasOpen, setWasOpen] = useState(false);
@@ -148,15 +173,26 @@ function UploadDialog({
       setBanner(null);
       setPhase("idle");
       setSession(null);
+      setTerminal(false);
     }
   }
 
-  function fail(code: DocumentActionErrorCode) {
-    setBanner(documentErrorMessage(code));
+  /**
+   * @param options.terminal the finalize result's `terminal` marker — the
+   * failure is final for this reservation, so no retry may be offered.
+   */
+  function fail(code: DocumentActionErrorCode, options?: { terminal?: boolean }) {
+    const isTerminal = options?.terminal === true;
+    setBanner(
+      isTerminal ? DOCUMENT_UPLOAD_TERMINAL_MESSAGE : documentErrorMessage(code),
+    );
     setPhase("idle");
-    // `upload_expired` is the one code that invalidates the reservation: drop it
-    // so the next attempt begins a fresh one instead of re-PUTting to a dead URL.
-    if (code === "upload_expired") setSession(null);
+    // Two failures invalidate the reservation and must drop it, so nothing
+    // re-PUTs into a dead URL or re-finalizes a spent session: `upload_expired`
+    // (the reservation lapsed) and a terminal verification failure (the bytes
+    // landed and are `failed` — MAJOR-3).
+    if (isTerminal || code === "upload_expired") setSession(null);
+    if (isTerminal) setTerminal(true);
   }
 
   /** Steps 2–3. Split out so a retry re-enters here with the SAME reservation. */
@@ -177,7 +213,14 @@ function UploadDialog({
     try {
       const finalized = await finalizeDocumentUpload(sessionId);
       if (!finalized.ok) {
-        fail(finalized.error);
+        const isTerminal = finalized.terminal === true;
+        fail(finalized.error, { terminal: isTerminal });
+        // The failed version BOUND itself to the document (BUG-DM2-001), so the
+        // item the banner tells the user to remove now exists — refresh so it is
+        // actually on screen behind this dialog, with its own "Remover" control,
+        // instead of an instruction pointing at a row that only a manual reload
+        // would reveal.
+        if (isTerminal) router.refresh();
         return;
       }
       setPhase("idle");
@@ -190,7 +233,9 @@ function UploadDialog({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isBusy) return;
+    // `terminal` guards the ACTION as well as the button: a form still reachable
+    // by Enter must not re-enter a flow whose reservation is spent.
+    if (isLocked) return;
 
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") ?? "").trim();
@@ -276,7 +321,7 @@ function UploadDialog({
               type="file"
               name="file"
               accept={DOCUMENT_ACCEPTED_MIME_TYPES.join(",")}
-              disabled={isBusy}
+              disabled={isLocked}
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
                 // A different file needs a different reservation.
@@ -307,7 +352,7 @@ function UploadDialog({
             <NativeSelect
               name="kind"
               className="h-10"
-              disabled={isBusy}
+              disabled={isLocked}
               defaultValue={kinds[0]?.value}
             >
               {kinds.map((k) => (
@@ -326,7 +371,7 @@ function UploadDialog({
               id="document-title"
               name="title"
               type="text"
-              disabled={isBusy}
+              disabled={isLocked}
               className={FIELD_CLASS}
               placeholder={config.titlePlaceholder}
               aria-invalid={errors.title ? true : undefined}
@@ -352,7 +397,7 @@ function UploadDialog({
             <input
               name="description"
               type="text"
-              disabled={isBusy}
+              disabled={isLocked}
               className={FIELD_CLASS}
               placeholder="Breve descrição do documento"
             />
@@ -363,7 +408,7 @@ function UploadDialog({
               Data do documento{" "}
               <span className="font-normal text-muted-foreground">(opcional)</span>
             </span>
-            <DatePicker name="occurredOn" />
+            <DatePicker name="occurredOn" disabled={isLocked} />
             <span className="text-xs text-muted-foreground">
               Data real do documento, se diferente da data de envio.
             </span>
@@ -383,7 +428,7 @@ function UploadDialog({
               id="document-confidentiality"
               name="confidentialityLevel"
               className="h-10"
-              disabled={isBusy}
+              disabled={isLocked}
               defaultValue=""
               aria-describedby="document-confidentiality-help"
             >
@@ -403,22 +448,34 @@ function UploadDialog({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              disabled={isBusy}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" size="lg" disabled={isBusy}>
-              {isBusy
-                ? PHASE_MESSAGE[phase]
-                : session
-                  ? "Tentar novamente"
-                  : "Enviar"}
-            </Button>
+            {terminal ? (
+              /* MAJOR-3: no submit at all. A disabled "Tentar novamente" would
+                 still name an action that does not exist; the recovery lives in
+                 the list behind this dialog, so the only thing left to do here
+                 is leave. */
+              <Button type="button" size="lg" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={isBusy}
+                  onClick={() => onOpenChange(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" size="lg" disabled={isBusy}>
+                  {isBusy
+                    ? PHASE_MESSAGE[phase]
+                    : session
+                      ? "Tentar novamente"
+                      : "Enviar"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

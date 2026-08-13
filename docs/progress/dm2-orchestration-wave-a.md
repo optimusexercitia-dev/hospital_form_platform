@@ -790,3 +790,67 @@ gates OK**; `tsc` clean. Still lead-owned before QA r2: the four authz arms
 (census zero-delta this round — no new DB function, policy, or door; the
 only body changes were rolled-back mutations), `e2e:prod`, the two
 unconfirmed tester probe files, and item 8's 6 MINOR + 4 INFO.
+
+# Resumption session 2026-08-13, part 3 (frontend) — item 3's UI half
+
+## Item 3 — MAJOR-3 (terminal verification failure) — the dialog
+
+Built against the backend's posted contract (`FinalizeDocumentUploadResult.terminal`,
+`797d55b`); no backend file touched, no new error code.
+
+**Change.** The dialog now holds a `terminal` state distinct from `banner`,
+because the defect was an AFFORDANCE, not copy: on `terminal: true` the
+reservation is dropped, every form control is locked, the submit button is not
+rendered **at all** (a disabled "Tentar novamente" would still name an action
+that does not exist), the only footer control is **"Fechar"**, and
+`router.refresh()` runs so the failed row the banner points at is actually on
+screen behind the dialog. New pt-BR copy `DOCUMENT_UPLOAD_TERMINAL_MESSAGE`
+deliberately repeats the ROW's wording rather than inventing a second vocabulary.
+The stale doc comment asserting "retry ... until the reservation expires, which
+is the one failure that sends the user back to the beginning" was FALSE after
+`797d55b` and is rewritten to name both reservation-ending failures.
+
+**RED/GREEN — observed in a real browser, not inferred.** Fault injection with
+no app-code change: `window.fetch` patched (Playwright `addInitScript`) to HOLD
+the storage PUT after it really lands; while held, the object's BYTES are removed
+from the storage file backend leaving the `storage.objects` row intact — so
+`finalize_document_upload`'s presence check passes and the service-role
+`storage.download` fails, which is the ONLY organic route to `p_verified = false`
+(verified in `pg_proc`, not migration text: the verification door compares
+nothing — `failed` is minted solely by the download failing). Both runs ended
+`file_objects.upload_state = 'failed'` + session `consumed`, i.e. the real
+MAJOR-3 precondition.
+
+- **RED (pre-fix dialog, same injection):** banner "O arquivo não chegou por
+  completo. Tente enviar novamente." · footer `["Cancelar", "Tentar novamente"]`
+  · every control enabled · panel behind after closing: **"Nenhum anexo"** — the
+  row carrying the correct recovery was not even on screen.
+- **GREEN:** banner "A verificação do arquivo falhou. Remova este item e envie o
+  arquivo novamente." rendered as `<div role="status" aria-live="polite">` ·
+  footer `["Fechar"]`, **`type=submit` buttons in the form = 0**, "Tentar
+  novamente" count 0 · all user-operable controls `disabled` · panel behind shows
+  the row "FALHA NO ENVIO" + "Remova este item…" with a working **Remover**
+  (exercised: confirm copy "Remover este item permite enviar o arquivo
+  novamente.", row gone, panel back to empty). The recovery the copy names is
+  reachable, not a claim.
+
+**Prediction ledger (written before observing; the two that missed).** 9 of 11
+held. (a) I predicted every control would report `disabled` in the terminal
+state; `input[name=occurredOn]` does not — it is `DatePicker`'s **hidden** value
+input, not user-operable, and its visible trigger IS disabled. (b) Environment,
+not product: I predicted the Browser pane would drive this. It cannot here —
+the pane never composites, so `document.hidden` stays `true` and the page's
+client islands never hydrate (5 of 42 buttons); every click is a no-op against
+inert HTML. A headless Playwright driver in the scratchpad was used instead.
+*A dev page that renders fully and hydrates not at all looks exactly like a
+working page to any check that reads text.*
+
+**Left on the local stack:** 5 soft-deleted `documents` rows on meeting
+`…0000e1` plus their `failed` file objects and 5 `storage.objects` rows whose
+bytes I deleted. All invisible to the UI (panel reads "Nenhum anexo") and washed
+by the `supabase db reset` the gate requires anyway.
+
+**Not done / open:** the `upload_failed` first-class code (backend's optional
+pairing) — see the recommendation handed to the lead. No E2E probe was added
+(tester owns `e2e/`); the affordance half of MAJOR-3 is still unpinned by the
+suite — backend's item-3 note 4 stands.
