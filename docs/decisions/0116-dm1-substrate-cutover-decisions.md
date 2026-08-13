@@ -74,14 +74,31 @@ catch-all row (CFM 1821/2007 20-year floor, `is_provisional = true`); the
 disposal job (DM2+) must refuse to act on provisional rows.
 
 **8. Deviation from the approved plan — SIX kernel doors, not three
-(deliberate).** The plan named `can_read_document` / `can_write_document` /
-`storage_upload_reserved`. The build added `can_read_document_version`,
-`can_read_file_object`, `can_read_document_hold` because the per-table SELECT
-policies need DEFINER **resolvers**: an inlined `EXISTS` chain in a policy
-qual would query RLS'd tables (`document_versions`, `documents`) with the
-CALLER's privileges, recursing through the very policies being evaluated — a
-DEFINER resolver reads the chain without recursion and keeps each policy a
-single falsifiable expression. All six enter the ADR 0079 census (the phase
+(deliberate; wording corrected at QA r1 MINOR-1 — the first draft called all
+three additions "resolvers", which was accurate for only one).** The plan
+named three doors; the build shipped six. What each actually is:
+- `can_read_document` — the READ KERNEL: home-resource dispatch (case /
+  meeting / interview / action_item arms via the existing domain predicates)
+  behind the `is_active` outer gate. No `is_admin` arm (noun rule).
+- `can_write_document` — the WRITE KERNEL, with **independent authorization
+  arms** (staff_admin-of-home-commission, `is_case_excluded` denies, the
+  action-item assignee arms, `can_write_interview` delegation). Not a
+  resolver.
+- `can_read_document_version` — a **pure resolver**: version → document →
+  `can_read_document`, nothing else.
+- `can_read_file_object` — a **chain resolver** (binding → version → document
+  → kernel) and, since QA MAJOR-1 (§11), NOTHING else — its uploader arm was
+  removed.
+- `can_read_document_hold` — carries an **independent authorization
+  decision**: staff_admin-of-home-commission OR tenancy admin — deliberately
+  NARROWER than document read (hold existence is write-authority governance
+  metadata).
+- `storage_upload_reserved` — an **independent reservation predicate** over
+  `upload_sessions`/`file_objects`; not part of the read chain at all.
+The three additions exist because the per-table SELECT policies need DEFINER
+doors rather than inlined `EXISTS` chains: a chain in a policy qual would
+query RLS'd tables with the CALLER's privileges, recursing through the very
+policies being evaluated. All six enter the ADR 0079 census (the phase
 record's T7 debt figure is 6, superseding the plan's 3).
 
 **9. Deviation from the approved plan — kernel EXECUTE grants (the plan text
@@ -110,6 +127,31 @@ defers only the WIDENING (audience) plane — this is a NARROWING control, and
 ADR 0114 does not supersede ADR 0072. **FUP-DM1-CEILING (🔴) blocks DM2 Wave A
 until a PO ruling lands as an ADR 0114 amendment.** The retired keystones (228
 tests 36–40, E2E AC-4a–d/AC-9) return with the control, not before.
+
+**11. QA MAJOR-1 (r1, 2026-08-13) — the uploader arm was REMOVED from
+`can_read_file_object` before merge.** As built, the door short-circuited
+`created_by = uid → true` BEFORE the chain. Removed because: (a) it **widened
+against the surface it replaces** — the retired `can_read_attachment` had no
+creator arm, and DM1's thesis is that the old model's defects die by
+construction, not that new widenings ride in; (b) it sat **outside the kernel
+chain** — never calling `can_read_document` — so a future FUP-DM1-CEILING
+confidentiality ceiling installed in the kernel would silently not govern it
+(the "cutting a table does not cut its doors" class, pre-installed); (c) it
+was **unkeystoned by design** (K11h deliberately routed around it); (d) its
+UX (upload status) has **no consumer** until DM2's `begin_document_upload`.
+Chain-only behaviour is pinned by 328 **K13** (an unbound file object is
+invisible even to its own uploader), observed RED pre-removal and
+mutation-proven (arm re-added in a rolled-back txn → uploader-visible →
+red). DM2 may add uploader visibility **deliberately** — keystoned, with the
+ceiling interaction considered.
+
+**12. Wording correction (QA r1, overstatement 2): the kernel's dispatch is
+the SAME PREDICATE FAMILY as the retired dispatchers, not "the exact set".**
+QA's comparison found a commission-admin `OR`-arm delta on the retired
+surface's meeting/interview arms that the kernel deliberately does not carry;
+QA verified the delta immaterial (the staff_admin hat already reaches those
+rows through the retained membership arms via `has_role`), so the conclusion
+— no new reach minted, none silently lost — stands with corrected wording.
 
 ## Consequences
 

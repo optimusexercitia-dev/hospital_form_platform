@@ -21,10 +21,11 @@
 | T2b | M3 core tables + guards + K3/K7 keystones + guard twins | ✅ 2026-08-12 | 328 = 43/43 planned/ran on BOTH stacks; 3 twins proven |
 | T3 | M4 kernel + RLS · M5 buckets · M6 audit/flags · `gen:types` | ✅ 2026-08-12 | §Turn-3 record; 328 = 70/70 both stacks |
 | T4 | 328 K4/K5/K6/K9/K10 + mutation twins 4–6 | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 2: K4 lands WITH the policies) |
-| T5 | pgTAP triage (16 files incl. 2 outside the attachment grep) + full `test:db` green | ✅ 2026-08-12 | `All tests successful. Files=188, Tests=5909, Result: PASS` (verdict read from the pg_prove summary, never the exit code); §triage ledger |
+| T5 | pgTAP triage (16 files incl. 2 outside the attachment grep) + full `test:db` green | ✅ 2026-08-12 | `All tests successful. Files=188, Tests=5909, Result: PASS` — the count AT THAT RUN; current tree = **5927** after K11/K12/K13 (QA r1 MINOR-4). Verdict read from the pg_prove summary, never the exit code; §triage ledger |
 | T5b | Repo-wide changed-identifier sweep across src/ (relations + routines + bucket literals, not just RPC sites) | ✅ 2026-08-12 | beyond rca.ts: ONE more live-code find — `getCaseDocumentDownloadUrl` (legacy-bucket cookie signer, ZERO callers) parked to null; everything else = comments/JSDoc + the deliberately-historical audit vocabulary in `queries/audit.ts` + legacy consts in `attachments/constants.ts` (types still consumed by the stubs/UI) |
 | T6 | TS stubs + wrapper patches + lint/typecheck/vitest | ✅ 2026-08-12 | pulled into turn 3 (lead watch-item 3: stubs land with gen:types); lint 5-gate 0/0 · tsc 0 · vitest 1254/1254 |
 | T7 | Authz arms (census fail→verdicts→green, hat, floor, FROMFINDINGS wrapper) + diff-scoped door sweep (case count checked nonzero) | ✅ 2026-08-12 | §Turn-7 record: all four arms HOLD, exit 0 each; sweep 13 executed / 12 COVERED / 1 BLIND→keystoned→COVERED / 0 ERROR |
+| T8 | QA r1 fix turn: MAJOR-1 + MINOR-1/3/4 + overstatement-2 wording + MINOR-2/5 recorded | ✅ 2026-08-13 | §Turn-8 record below |
 
 ## Red-first record (lead condition 5)
 
@@ -96,7 +97,8 @@ domain-row level (K3g, turn 2). Suite `276` deletes a commission expecting
 triage mis-attribution risk.
 
 **Landed:** M4 kernel (6 DEFINER doors; `can_read_document` with **no is_admin
-arm**, dispatch = the exact predicate set the retired dispatchers used) + the 8
+arm**, dispatch = the same predicate FAMILY as the retired dispatchers — QA r1
+found an immaterial commission-admin OR-arm delta, ADR 0116 §12) + the 8
 SELECT policies (one per table, kept falsifiable); M5 buckets (private, F2-
 mirrored caps/MIME; INSERT-only reservation-bound; **zero SELECT**); M6
 `document.opened` dispatch arm + allowlist entry + 5 flags OFF (targeted
@@ -182,7 +184,12 @@ new home — DM2's gate must check these off):**
    — in whatever label vocabulary DM2 defines.
 2. `open_document_version`: the six byte-discrimination pins (from 308 5.2–5.7)
    — reviewer resolves nothing / capability-grantee resolves / coordinator
-   non-vacuity twin, at the serving layer AND as door resolve-shape.
+   non-vacuity twin, at the serving layer AND as door resolve-shape. **PLUS
+   (QA r1 MINOR-3) the E2E-level M8 bytes-cut contract deleted from
+   `quality-oversight.spec.ts`** (4 `expect()`s, 137→133: the reviewer sees
+   the doc title while the audited download door renders for `canDownload`
+   only / is absent otherwise) — restored against the new door in DM2's
+   rewritten specs.
 3. `dispose_case_phi` → document disposition keystone (FUP-DM1-DISPOSE; 197
    regains 1.11's successor).
 4. ~~OPEN (PO/lead)~~ → **UPGRADED by the lead 2026-08-12 to 🔴 FUP-DM1-CEILING,
@@ -191,6 +198,18 @@ new home — DM2's gate must check these off):**
    ADR 0116 §10 names the dropped enforcement mechanism; discharge = a PO
    ruling recorded as an ADR 0114 amendment. 228's block stays retired until
    the control exists.
+5. **(QA r1 MINOR-2)** `document.opened` inherits `_audit_access_authorized`'s
+   pre-existing `is_admin()` short-circuit: QA measured a platform_admin
+   minting a `document.opened` audit row for a document it CANNOT read (no
+   read leak — the registry is laxer than the kernel, an all-18-arms
+   property the function body itself documents). The body's own named
+   mitigation is the contract: **`open_document_version` must gate BEFORE
+   recording** (the `read_minutes_transcript` pattern, noun rule A35) —
+   deliberately NOT changed in DM1 (pre-existing behaviour; touching the
+   dispatch now would widen an inert phase's blast radius).
+6. **(QA r1 MAJOR-1 consequence)** uploader visibility on `file_objects`, if
+   Wave A wants it: add the arm deliberately — INSIDE the ceiling's reach,
+   with its own keystone (K13 currently pins the absence).
 
 (Also noted: the historical q1 phase harness's `open_bytes_cut` /
 `open_resolver_door` cases reference retired surfaces — a phase harness, not a
@@ -251,9 +270,12 @@ and green regardless of which constraint fires.)
   bullet regex is $-anchored (my trailing annotation broke it; note moved to
   its own line).
 - **The arms, each by name (no tail pipes; exit codes read separately):**
-  - `ARM=census` — **required-FAIL captured pre-verdicts** (15 UNKNOWN, the
-    exact new-gate set), then post-merge: **INVARIANT HOLDS, exit 0**
-    (548 live gates / 568 verdicts).
+  - `ARM=census` — **required-FAIL captured pre-verdicts: the UNKNOWN set was
+    EXACTLY the 15 new gates and nothing else** — which simultaneously proves
+    the census sees every new door AND rules out unrelated catalog drift
+    (nothing pre-existing lost its verdict; QA r1 notes the record first
+    UNDERstated this). Then post-merge: **INVARIANT HOLDS, exit 0** (548 live
+    gates / 568 verdicts).
   - `ARM=hat` — **INVARIANT HOLDS, exit 0**.
   - `FROMFINDINGS=1 ARM=wrapper` — **INVARIANT HOLDS, exit 0** (BLIND set
     41 ⊆ allowlist; DM1 added zero public INVOKER wrappers).
@@ -265,6 +287,58 @@ and green regardless of which constraint fires.)
     `BLIND: 0` over ZERO cases (the FUP-AUTHZ-WP-SNAPSHOT no-op) — stated
     per the case-count rule; the two storage INSERT policies are covered by
     328 K6d–K6h + twins, never by a sweep citation.
+
+## Turn-8 record (QA r1 fix turn, 2026-08-13)
+
+- **MAJOR-1 — uploader arm REMOVED from `app.can_read_file_object`** (chain-only
+  now; reasoning in ADR 0116 §11). Red-first held: **K13 authored first and
+  observed RED against the pre-removal catalog** (`have: 1, want: 0` — the arm
+  was live), then the removal (M4 file + live body together;
+  properties preserved: prosecdef + pinned search_path catalog-verified), then
+  **328 = 1..88 → ran 88 / ok 88 / 0 aborts**. Mutation twin: arm re-added in a
+  rolled-back txn + an unbound file planted → uploader-visible = true (K13
+  would red); rollback verified (`created_by` absent from the stripped body).
+  ⚠ Twin discipline caught twice en route: the first twin probe used a null
+  uid (vacuous — the outer gate short-circuits) and was redone with a real
+  planted row; and the first live apply SILENTLY DID NOTHING — `docker exec`
+  without `-i` discards the heredoc and psql exits 0 having read no stdin —
+  caught by the catalog probe, not the exit code.
+- **Diff-scoped sweep over the touched door**: `can_read_file_object` →
+  **COVERED** (baseline Files=188 Tests=**5927** = 5926 + K13, accounted;
+  **1 case executed** — nonzero, per the case-count rule). Findings row
+  updated on the `git checkout --`-restored file (restore-then-append).
+- **MINOR-1**: ADR 0116 §8 rewritten — each of the six doors described
+  accurately ("resolver" was true of only `can_read_document_version`;
+  `can_write_document` and `can_read_document_hold` carry independent
+  authorization arms; `storage_upload_reserved` is not in the read chain).
+- **Overstatement 2**: "exact predicate set" corrected to "same predicate
+  FAMILY" in M4's header, the turn-3 record, and ADR 0116 §12 — QA's
+  comparison found a commission-admin OR-arm delta on the retired
+  meeting/interview arms, verified immaterial (the staff_admin hat reaches
+  via the retained membership arms); conclusion unchanged, wording fixed.
+- **MINOR-3**: FUP-DM1-E2E item 3 corrected — the four `quality-oversight`
+  assertions were DELETED (137→133 `expect()`s; zero commented-out expects,
+  re-verified against the file), not "preserved as a comment"; the M8
+  bytes-cut contract they carried is now NAMED in DM2 obligation 2.
+- **MINOR-4**: stale `5909` annotated at both phase-record sites; current
+  tree figure is **5927** (none in ADR 0116).
+- **MINOR-2 recorded, not fixed** (obligation 5): `document.opened` inherits
+  the registry's `is_admin()` short-circuit — platform_admin can mint an
+  audit row for a document it cannot read (no read leak); DM2's
+  `open_document_version` must gate BEFORE recording.
+- **MINOR-5 verified with the mechanism**: `npm run typecheck` (= `tsc
+  --noEmit`) fails on exactly 4 errors, ALL in generated
+  `.next/types/validator.ts` — a route-manifest SKEW between two generated
+  trees: `.next/types/routes.d.ts` (prod-build era, 22:21, carries the
+  `cases/[caseId]` layout routes) vs `.next/dev/types/routes.d.ts` (dev-server
+  era, 22:38, lazily generated per visited route — carries zero). The
+  validator imports both. Zero first-party errors; a fresh `next build` (or
+  wiping `.next`) re-coheres it; pre-existing generated-artifact class, not a
+  DM1 defect. (And the probe itself: `npm run typecheck | tail` prints exit 0
+  — tail's; the real exit is nonzero. Same scar, caught again.)
+- **Census understatement fixed** (QA's addition): the required-fail named
+  EXACTLY the 15 new gates and nothing else — also ruling out unrelated
+  catalog drift.
 
 ## PROD-VERIFY checklist (lead condition 2 — for the later lead-authorized `db push`; NO remote action was taken this phase)
 

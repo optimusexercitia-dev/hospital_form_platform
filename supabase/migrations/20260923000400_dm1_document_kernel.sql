@@ -7,7 +7,11 @@
 -- domain predicates (ADR 0114 D6). Nothing is reimplemented: the kernel
 -- dispatches to app.can_read_case / is_member_of_for / can_read_case_committee
 -- / can_read_action_item / can_write_interview / is_staff_admin_of_for /
--- is_case_excluded — the exact set the retired attachment dispatchers used.
+-- is_case_excluded — the same predicate FAMILY the retired attachment
+-- dispatchers used (not byte-exact: QA r1 found a commission-admin OR-arm
+-- delta on the retired meeting/interview arms that this kernel deliberately
+-- does not carry; verified immaterial — the staff_admin hat already reaches
+-- those rows through the retained membership arms. ADR 0116 §12).
 --
 -- ⛔ NOUN RULE (ADR 0078 A35): app.can_read_document has NO is_admin arm —
 -- documents are commission CONTENT. Pinned BEHAVIORALLY by pgTAP 328 K5
@@ -141,12 +145,12 @@ begin
   if not app.is_active(p_uid) then
     return false;
   end if;
-  -- The uploader sees their own object (upload status UX); everyone else
-  -- reaches it only through a readable bound document.
-  if exists (select 1 from public.file_objects fo
-             where fo.id = p_file_object_id and fo.created_by = p_uid) then
-    return true;
-  end if;
+  -- CHAIN-ONLY, deliberately (QA MAJOR-1, ADR 0116 §11): a file object is
+  -- readable ONLY through a readable bound document. An uploader-sees-own arm
+  -- was removed at QA — it widened against the retired surface, sat OUTSIDE
+  -- the kernel chain (so a future FUP-DM1-CEILING ceiling would not govern
+  -- it), and had no consumer until DM2. Pinned by 328 K13; DM2 may add
+  -- uploader visibility deliberately, keystoned, ceiling-aware.
   return exists (
     select 1
     from public.document_version_files dvf

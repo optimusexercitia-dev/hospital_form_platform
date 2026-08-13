@@ -23,7 +23,7 @@
 -- =============================================================================
 
 begin;
-select plan(87);
+select plan(88);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -633,6 +633,22 @@ select is((select count(*)::int from public.document_legal_holds where id = '328
   0, 'K11n …no hold');
 select is((select count(*)::int from public.document_placements where id = '32800000-0000-0000-0000-00000000ac01'),
   0, 'K11o …no placement');
+reset role;
+
+-- =============================================================================
+-- K13 — file_objects is CHAIN-ONLY (QA MAJOR-1, 2026-08-12): the uploader arm
+-- was REMOVED from app.can_read_file_object — an unbound file object is
+-- invisible even to its own creator until a readable document binds it. This
+-- pins the ABSENCE (a future re-add of the arm goes red here); DM2 may add
+-- uploader visibility deliberately, keystoned, with the FUP-DM1-CEILING
+-- interaction considered. RED-FIRST: observed RED (count=1) against the
+-- pre-removal catalog with the arm still present.
+-- =============================================================================
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f6c1'),
+  0, 'K13 an UNBOUND file object is invisible even to its own uploader (chain-only — no creator arm)');
 reset role;
 
 -- =============================================================================

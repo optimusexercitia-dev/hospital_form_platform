@@ -80,12 +80,17 @@ missed one test entirely. Corrected list, each verified live:
 3. **`e2e/quality-oversight.spec.ts`** — CORRECTED MECHANISM, same two sites. Playwright
    cannot skip mid-test, and the "Baixar Prescrição digitalizada" assertions sit inside
    two otherwise-standing tests ("content renders…" and "no-lockout control…") that
-   cover unrelated write-affordance/sidebar/interview-omission contracts. Commented out
-   the two now-untestable assertion blocks (doc title existence + the audited-button
-   visibility/absence pair) with inline FUP-DM1-E2E annotations, preserving the removed
-   code as a comment; corrected the file's header "Ground truth" doc-comment, which had
-   gone stale the moment the fixture dropped. **21/21 passed**, both host tests intact
-   for everything else they assert.
+   cover unrelated write-affordance/sidebar/interview-omission contracts.
+   ⚠ **CORRECTED at QA r1 (MINOR-3): the four assertions were DELETED, not "preserved
+   as a comment"** as this item first claimed — the file's `expect()` count went
+   137→133 and zero commented-out expects remain (verified against the file
+   2026-08-13); what was preserved is the inline FUP-DM1-E2E annotations at both
+   sites + the corrected header "Ground truth" doc-comment. **The four carried the
+   M8 BYTES-CUT security contract** (the reviewer sees the doc title but the audited
+   download door renders for `canDownload` only / absent otherwise) — that contract
+   is now a NAMED DM2 obligation (dm1-substrate-cutover.md §obligations, item 2),
+   so its disappearance is tracked, not silent. **21/21 passed**, both host tests
+   intact for everything else they assert.
 4. **`e2e/phase11-interviews.spec.ts`** — CORRECTED BOUNDARY + ONE MISSED TEST.
    - IV2-4: the FUP predicted "FILE gone, LINK remains" — **wrong**, verified by running
      before parking. `attachments-panel.tsx` gates BOTH "Enviar anexo" (file) and
