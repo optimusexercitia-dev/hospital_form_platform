@@ -152,6 +152,31 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
 
+**Lead ruling — the create-wizard's terminal step (frontend escalation, Q-A/B/C).** Plan §7
+posted a contract for **one** upload path, but M4 kills **five** `p_storage_path` call sites;
+the other four are the wizard's composites. They cannot survive: `begin` needs
+`{commissionId, documentId, versionId}`, so **"create + upload + submit" is not expressible
+atomically on the DM2 substrate**, whichever layer orchestrates it. Ruled: the wizard moves to
+a **client-orchestrated chain**; backend adds `versionId?` to `CreateDocumentState` (verified
+first — `create_controlled_document` returns the whole row, `controlled_documents` carries
+`current_version_id`, and `actions.ts:609-610` already reads and **discards** it); the three
+composite verbs are then **deleted**. Rejected: keeping them alive on an `uploadSessionId`
+param — still not atomic, so it preserves four byte-adjacent verbs that only *look* like a
+transaction and that DM5's exit sweep would have to reason about.
+⚠ **Named so it is not later discovered as a regression:** partial failure is *already* a
+designed, recoverable state (server returns `documentId` + banner), so client orchestration
+does **not** introduce it. What widens is the **abandonment** surface — closing the tab between
+`begin` and `finalize` leaves a created draft + an unfinalized upload session. That is the DM2
+`failed`/`abandoned` state: **new to this surface, not to the platform, already reconciled.**
+Tester covers it; QA should not file it as new.
+Q-B: the partial-failure banner decision moves to the component layer, on four conditions —
+the `aviso` value set stays **enumerated** (growing it is a lead call) · branch on the failed
+step + `DocumentActionErrorCode`, **never message text** · ⛔ no comment claiming a client
+branch is a control (the DM2 P0 / r2-1 class) · the failure message must actually **render**
+(Radix `AlertDialogAction` unmounts on click).
+Q-C: the wizard stays in S2, **sequenced** after backend's field, with standing latitude for
+frontend to stop at that boundary and split if it proves larger than the ruling assumes.
+
 **Lead ruling — the TS cutover crosses a file-ownership boundary: option 1 (contract-first).**
 The five `set_document_version_file` call sites change *shape*, not just call: server-side
 `FormData` upload → the DM2 client-upload flow, which changes the component contract.
