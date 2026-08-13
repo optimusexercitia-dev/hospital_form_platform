@@ -15,7 +15,15 @@
  *   and never appear as inputs. `declared*` fields are hints for validation
  *   caps only; finalize re-derives and verifies server-side.
  * - Projections carry NO raw storage coordinates. Bytes move only through
- *   short-TTL signed credentials minted by the audited open door.
+ *   short-TTL signed credentials minted by the audited open door. That claim
+ *   is about the PROJECTIONS, not the credential (QA r1 INFO-3): the signed
+ *   URL itself embeds the bucket, the full object path, and a live bearer
+ *   token for its TTL (phi 120 s / standard 300 s — ADR 0114 O4), and lands
+ *   in browser history via window.open. Not exploitable — the buckets carry
+ *   no SELECT policy for any principal, so nothing signable exists outside
+ *   the door (D8) — but never lean on this comment as "the client never
+ *   learns a bucket, path or token": O4's bearer-token reasoning is the
+ *   authority and this comment must not contradict it.
  * - Union vocabularies mirror the live DB (catalog-read 2026-08-13); the
  *   DATABASE is the authority, these are projections.
  */

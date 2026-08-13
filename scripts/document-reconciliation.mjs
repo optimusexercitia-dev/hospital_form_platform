@@ -56,27 +56,48 @@ if (!url || !key) {
 const admin = createClient(url, key, { auth: { persistSession: false } })
 
 const BUCKETS = ['documents-standard', 'documents-phi']
-/** Paths are {org}/{file_object_id}/{generation}: walk exactly three levels. */
+/** Paths are {org}/{file_object_id}/{generation}: walk exactly three levels.
+ *
+ * MINOR-1 (QA r1): pages are ACCUMULATED — the old loop returned only the
+ * LAST page (a 1500-entry directory kept 500; exactly 1000 returned `[]`,
+ * losing the whole directory), and offset paging without a stable sort can
+ * skip or duplicate. Every lost object became a false MISSING and hid real
+ * ORPHANs in the same page. Unreachable at the production census — proven
+ * with a planted 1001-entry directory, not the census. */
 async function listBucketPaths(bucket) {
   const paths = new Set()
   const listDir = async (prefix) => {
+    const entries = []
     let offset = 0
     for (;;) {
       const { data, error } = await admin.storage
         .from(bucket)
-        .list(prefix, { limit: 1000, offset })
+        .list(prefix, { limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } })
       if (error) throw new Error(`${bucket}/${prefix}: ${error.message}`)
-      if (!data || data.length === 0) return []
+      if (!data || data.length === 0) return entries
+      entries.push(...data)
+      if (data.length < 1000) return entries
       offset += data.length
-      if (data.length < 1000) return data
     }
   }
   // level 1: orgs
   const orgs = await listDir('')
   for (const org of orgs) {
-    if (org.id) continue // a file at the root would itself be drift; record it
+    if (org.id) {
+      // A FILE at the bucket root (MINOR-2's ":59" — the old comment promised
+      // to record it and `continue`d recording nothing): no legal row path has
+      // one segment, so it can never be accounted — it is drift, reported.
+      report.orphans.push({ bucket, path: org.name })
+      continue
+    }
     const files = await listDir(org.name)
     for (const fo of files) {
+      if (fo.id) {
+        // Same promise one level down: a FILE at {org}/x (two segments) is
+        // unaccountable — the old walk silently listed it as a prefix.
+        report.orphans.push({ bucket, path: `${org.name}/${fo.name}` })
+        continue
+      }
       const gens = await listDir(`${org.name}/${fo.name}`)
       for (const gen of gens) {
         paths.add(`${org.name}/${fo.name}/${gen.name}`)
@@ -94,6 +115,7 @@ const report = {
   unclassified: [],
   expiredSwept: 0,
   abandonedSwept: 0,
+  verifyingSwept: 0,
   counts: {},
   classCounts: {},
 }
@@ -115,15 +137,25 @@ const report = {
     process.exit(2)
   }
   if (lapsed && lapsed.length > 0) {
-    const { error: sErr } = await admin
+    // MINOR-2 (QA r1): `.eq('state','reserved')` re-checks state IN the
+    // UPDATE. The read above and this write are two REST calls; a finalize
+    // whose transaction began before the expiry instant (its `now()` is the
+    // txn start, so its predicate passed) can commit `consumed` in the
+    // window, and the unguarded update stomped it to `expired` — a lost
+    // update, reproduced with a real two-session interleaving before the
+    // guard was added. `expiredSwept` now counts rows actually swept, not
+    // rows read.
+    const { data: sweptSessions, error: sErr } = await admin
       .from('upload_sessions')
       .update({ state: 'expired' })
       .in('id', lapsed.map((s) => s.id))
+      .eq('state', 'reserved')
+      .select('id')
     if (sErr) {
       console.error('expiry sweep (sessions) failed:', sErr.message)
       process.exit(2)
     }
-    report.expiredSwept = lapsed.length
+    report.expiredSwept = sweptSessions?.length ?? 0
     const { data: swept, error: fErr } = await admin
       .from('file_objects')
       .update({ upload_state: 'abandoned' })
@@ -136,6 +168,39 @@ const report = {
     }
     report.abandonedSwept = swept?.length ?? 0
   }
+}
+
+// MINOR-3 (QA r1): a file stuck in `verifying` was swept by NOTHING — the
+// expiry sweep above only sees state='reserved' sessions, but a process that
+// dies between finalize (file 'verifying', session 'consumed') and the
+// verification door leaves a version with no binding and a reader staring at
+// the eternal 'pending' BUG-DM2-001 was filed about, by a second route.
+// After STUCK_VERIFYING_MINUTES (far beyond any live verifier's
+// download+hash of a ≤25 MB object; 4x the 15-minute reservation TTL) the
+// file is marked 'failed' — a legal verifying→failed arc — so the reader's
+// 'pending' becomes the observable failure state and the bytes surface as
+// UNDISPOSED drift below instead of hiding as bytes-required. Deliberately
+// NOT auto-re-verified here: the verifier lives in
+// src/lib/documents/actions.ts and a second implementation in an ops script
+// is evaluator drift; a caller re-driving finalize on a consumed session
+// re-enters verification legitimately (actions.test.ts T4) — the threshold
+// is what reconciles the two: a live verifier is minutes old, this sweep
+// needs an hour. The update re-checks state IN the statement (the MINOR-2
+// lesson): a verification completing in the window is not stomped.
+const STUCK_VERIFYING_MINUTES = 60
+{
+  const cutoff = new Date(Date.now() - STUCK_VERIFYING_MINUTES * 60_000).toISOString()
+  const { data: stuck, error: stuckErr } = await admin
+    .from('file_objects')
+    .update({ upload_state: 'failed' })
+    .eq('upload_state', 'verifying')
+    .lt('uploaded_at', cutoff)
+    .select('id')
+  if (stuckErr) {
+    console.error('stuck-verifying sweep failed:', stuckErr.message)
+    process.exit(2)
+  }
+  report.verifyingSwept = stuck?.length ?? 0
 }
 
 const { data: rows, error: rowsError } = await admin

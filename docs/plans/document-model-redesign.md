@@ -262,6 +262,17 @@ keystone at zero exceptions; gate + approval.
    deferred to the pilot** (PO-accepted: no live users, ~45 objects).
 5. ARCHITECTURE.md §2 + Rule updates (schema canon), `docs/backend-state.md`
    rewrite of the document surface, PHASES/PROGRESS record + rotation.
+   **Named obligations for the Rule updates (so they cannot be lost — QA r1
+   INFO-4, recorded 2026-08-13):** alongside the D8 Rule-1 sharpening this
+   step already owes, **Rule 9's text must carve the documents-module
+   exception it currently lacks**: `src/lib/documents/actions.ts` reads
+   `file_objects` / `document_version_files` inline with the admin client,
+   justified in the module header per ADR 0118 §1 (storage coordinates
+   resolve ONLY there, which is what makes this step's exit sweep meaningful
+   by construction) and QA-accepted as topology — but Rule 9 as written
+   admits no exception, so today the rule and the accepted practice
+   contradict. Name the exception in the Rule's own text, scoped to the
+   coordinate-resolving module, when this step rewrites the canon.
 
 Exit: repo-wide sweep — no `storage_path` writes outside `src/lib/documents/`;
 full `e2e:prod` green; QA program-level review; human approval; Record step.
