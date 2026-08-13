@@ -154,6 +154,40 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
 
+### 🔴 P0-DM3-1 — the CREATE door never satisfied M1's own FK. **The seed failure was the symptom, not the defect**
+
+**Found by the mandatory fresh-reset gate step**, and it is the strongest argument for that step
+the program has produced. M1 added
+`controlled_documents_securable_resource_fk (id, securable_type) → securable_resources(id, resource_type)`
+**and backfilled the existing rows — but never taught the CREATE path to satisfy it.** So **since
+M1, every attempt to create a controlled document has raised 23503** — *the product's create
+wizard*, not merely `seed.sql`. Fixed by **M8**
+(`20260925000800_dm3_create_door_mints_registry.sql`): the create door now mints the registry row.
+
+⚠ **The lead's own RED diagnosis was one level too shallow** — recorded because the shallow
+version reads as complete. "Three raw insert sites in `seed.sql` lack registry rows" is *true*
+and would have produced a *fix that works*: patch the seed, reset goes green, gate passes, and
+**the create wizard stays broken in production**. The seed was simply the first caller to run
+after the FK existed. **When a fixture violates a new constraint, ask what else writes that
+table before patching the fixture** — a fixture is a caller, and callers come in families.
+
+### ⚠ LEAD ERROR — `git add -A` swept backend's in-progress work into three docs commits
+
+`94fc3f0`, `f7265bd` and `0b6706d` carry `docs(dm3):` subjects but **also contain backend's live
+work**: the new **M8 migration** (119 lines), the `seed.sql` rewrite (~170 lines across the
+three), and `330` edits (90 lines). Nothing is lost or broken — the work is committed and the
+tip is correct — but **three commit messages materially misdescribe their contents**.
+
+⛔ **History is NOT rewritten** (other sessions live on this branch; standing rule). This entry
+is the correction of record.
+
+**This is the same class the lead had just written up twice** — *a commit's own output is not a
+safe report of what it committed* — and the same standing rule the lead had just issued to
+frontend after the 613-file incident: **stage explicitly; never `git add -A`**. Issuing a rule
+is not applying it. Cf. [the proposal you author is the one you don't test] — the rule you write
+for others is the one you exempt yourself from. **Lead practice changed: explicit path staging
+only.**
+
 ### ⛔ GATE STEP 1 — **RED**. `supabase db reset` FAILS (2026-08-13, lead-run)
 
 ```
