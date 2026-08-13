@@ -1,4 +1,4 @@
-import { AlertTriangle, Clock, EyeOff, Lock, ShieldAlert, Tag, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock, EyeOff, ShieldAlert, Tag, Trash2 } from "lucide-react";
 
 import type {
   DocumentAvailability,
@@ -11,7 +11,6 @@ import {
   CONFIDENTIALITY_LABEL,
   CONFIDENTIALITY_STYLE,
   DOCUMENT_NO_VERSION,
-  DOCUMENT_RESTRICTED,
 } from "./document-labels";
 
 /**
@@ -57,26 +56,6 @@ export function DocumentAvailabilityBadge({
     <span className={cn(PILL_BASE, preset.style, className)}>
       <Icon aria-hidden="true" className="size-3" />
       {preset.label}
-    </span>
-  );
-}
-
-/**
- * The D15 ceiling badge — the caller is not entitled to open an otherwise
- * servable document (ADR 0114 Amendment 1).
- *
- * Deliberately NOT interactive and deliberately not a disabled button: a
- * keyboard user tabbing this row must find no download control at all, which is
- * what makes the ceiling observable from the keyboard (E2E AC-9). The
- * explanation rides in the accessible name so that observation does not depend
- * on sighted hover.
- */
-export function DocumentRestrictedBadge({ className }: { className?: string }) {
-  return (
-    <span className={cn(PILL_BASE, DOCUMENT_RESTRICTED.style, className)}>
-      <Lock aria-hidden="true" className="size-3" />
-      {DOCUMENT_RESTRICTED.label}
-      <span className="sr-only"> — {DOCUMENT_RESTRICTED.detail}</span>
     </span>
   );
 }

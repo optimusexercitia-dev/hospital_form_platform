@@ -104,15 +104,12 @@ export const DOCUMENT_AVAILABILITY_ALLOWS_WRITE: Record<DocumentAvailability, bo
   disposed: false,
 };
 
-/** Copy for the orthogonal "servable, but not to YOU" axis — the ADR 0114
- * Amendment 1 (D15) ceiling denying this caller. NOT a sixth availability
- * member: availability describes the FILE, `canOpen` describes the CALLER. */
-export const DOCUMENT_RESTRICTED = {
-  label: "Restrito",
-  detail:
-    "Você não tem autorização para abrir este documento. Fale com a coordenação da comissão.",
-  style: "bg-warning/15 text-warning",
-} as const;
+// A `DOCUMENT_RESTRICTED` ("servable, but not to YOU") string set lived here for
+// a row the D15 ceiling denied. It is REMOVED, not parked: the ceiling is a
+// row-level RLS predicate, so a denied document is absent from the list rather
+// than present-and-locked, and no caller could ever have seen this copy
+// (BUG-DM2-002; full reasoning in `document-row.tsx`). Re-introducing it is a
+// consequence of ADR 0114 D16, not a UI decision.
 
 /** A document row whose version does not exist yet. The contract permits
  * `latestVersion: null`; this is how it reads until it is named upstream. */

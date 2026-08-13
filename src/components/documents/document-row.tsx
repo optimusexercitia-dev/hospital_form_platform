@@ -7,7 +7,6 @@ import {
   DOCUMENT_AVAILABILITY_ALLOWS_OPEN,
   DOCUMENT_AVAILABILITY_ALLOWS_WRITE,
   DOCUMENT_NO_VERSION,
-  DOCUMENT_RESTRICTED,
   kindLabel,
 } from "./document-labels";
 import {
@@ -16,7 +15,6 @@ import {
   DocumentKindBadge,
   DocumentNoVersionBadge,
   DocumentPhiBadge,
-  DocumentRestrictedBadge,
 } from "./document-badges";
 import { DocumentDeleteButton } from "./document-delete-button";
 import { OpenDocumentButton } from "./open-document-button";
