@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Download, GitCompare } from "lucide-react";
+import { Check, GitCompare } from "lucide-react";
 
 import type { ControlledDocumentVersion, ObsoleteKind } from "@/lib/controlled-documents/types";
 import { cn } from "@/lib/utils";
@@ -10,16 +10,13 @@ import {
   ObsoleteKindChip,
 } from "@/components/controlled-documents/document-badges";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
 import {
-  VersionCompareModal,
-  type CompareVersion,
-} from "@/components/controlled-documents/version-compare-modal";
-
-/** A version paired with a freshly-minted signed download URL (or null if none). */
-export interface VersionWithUrl extends ControlledDocumentVersion {
-  downloadUrl: string | null;
-}
+  formatDateOnly,
+  formatVersionNumber,
+  versionFileLabel,
+} from "@/components/controlled-documents/format";
+import { OpenControlledVersionButton } from "@/components/controlled-documents/open-controlled-version-button";
+import { VersionCompareModal } from "@/components/controlled-documents/version-compare-modal";
 
 /**
  * Document version history (Phase 17 v2, F-C; doc-detail redesign). Newest-first
@@ -35,6 +32,11 @@ export interface VersionWithUrl extends ControlledDocumentVersion {
  * passes it down as a prop — this component only decides WHICH card hosts it
  * (`version.id === activeDraftId`); it never executes server-only code itself
  * (BUG-QI-001 — never pass a closure here, only serializable/element props).
+ *
+ * DM3·S2: versions arrive as the plain projection. There is no longer a
+ * per-version signed URL minted during render — every card's download is the
+ * audited on-click door (`OpenControlledVersionButton`), and PRIOR versions go
+ * through exactly the same door as the current one.
  */
 export function DocumentVersionHistory({
   versions,
@@ -42,7 +44,7 @@ export function DocumentVersionHistory({
   activeDraftId = null,
   activeDraftSlot,
 }: {
-  versions: VersionWithUrl[];
+  versions: ControlledDocumentVersion[];
   currentVersionId: string | null;
   /** The working draft's version id (`draft` or `in_approval`) — or null/absent. */
   activeDraftId?: string | null;
@@ -63,9 +65,9 @@ export function DocumentVersionHistory({
 
   const canCompare = selected.length === 2;
   const pair = canCompare
-    ? (selected
+    ? selected
         .map((id) => versions.find((v) => v.id === id))
-        .filter((v): v is VersionWithUrl => v != null) as VersionWithUrl[])
+        .filter((v): v is ControlledDocumentVersion => v != null)
     : [];
 
   return (
@@ -119,16 +121,12 @@ export function DocumentVersionHistory({
         <VersionCompareModal
           open={compareOpen}
           onOpenChange={setCompareOpen}
-          a={toCompareVersion(pair[0])}
-          b={toCompareVersion(pair[1])}
+          a={pair[0]}
+          b={pair[1]}
         />
       ) : null}
     </section>
   );
-}
-
-function toCompareVersion(v: VersionWithUrl): CompareVersion {
-  return { ...v, hasFile: v.storagePath != null };
 }
 
 function VersionCard({
@@ -141,7 +139,7 @@ function VersionCard({
   onToggleSelect,
   draftSlot,
 }: {
-  version: VersionWithUrl;
+  version: ControlledDocumentVersion;
   /** The in-force version (`document.currentVersionId`) — shows the "Versão atual" pill. */
   isCurrentVersion: boolean;
   /** The working draft under revision — accent-bordered, hosts `draftSlot`. */
@@ -216,18 +214,21 @@ function VersionCard({
               Comparar
             </button>
           ) : null}
-          {version.downloadUrl ? (
-            <a
-              href={version.downloadUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40"
-            >
-              <Download aria-hidden="true" className="size-4" />
-              Baixar
-            </a>
+          {/* `available` is the ONE state that means a usable file is present:
+              the shared predicate returns it exactly when `open_document_version`
+              would serve. Every other state — including a version that HAS a
+              bound core version whose bytes are still scanning, failed, or were
+              disposed — gets the label instead of a control that would only
+              produce a refusal. The door re-checks regardless (Rule 1). */}
+          {version.availability === "available" ? (
+            <OpenControlledVersionButton
+              versionId={version.id}
+              label="Baixar"
+            />
           ) : (
-            <span className="text-sm text-muted-foreground">Sem arquivo</span>
+            <span className="text-sm text-muted-foreground">
+              {versionFileLabel(version)}
+            </span>
           )}
         </div>
       </div>

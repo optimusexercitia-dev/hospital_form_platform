@@ -277,6 +277,8 @@ export const DOCUMENT_KIND_LABEL: Record<string, string> = {
   gravacao_audio: "Gravação de áudio",
   transcricao_assinada: "Transcrição assinada",
   evidencia: "Evidência",
+  // controlled_document (DM3) — the single kind a Wave-B core document carries.
+  documento_controlado: "Documento controlado",
   // shared
   outro: "Outro",
 };
@@ -340,6 +342,33 @@ export const DOCUMENT_HOME_CONFIG: Record<DocumentHomeResourceType, DocumentHome
     emptyWritable: "Nenhum anexo. Envie a transcrição assinada ou outra evidência.",
     emptyReadOnly: "Nenhum anexo.",
     titlePlaceholder: "Ex.: Transcrição assinada",
+  },
+  /**
+   * DM3 widened `DocumentHomeResourceType` with `controlled_document`, which
+   * makes this `Record` non-exhaustive until an entry exists — the compile error
+   * is the vocabulary doing its job.
+   *
+   * ⚠ Nothing in Wave A renders this entry, and nothing should. A controlled
+   * document is created and versioned through
+   * `@/components/controlled-documents/**` — its own wizard, its own
+   * add-version form, its own approval lifecycle. The Wave-A upload dialog is
+   * never mounted on a `controlled_document` home, so this copy exists to keep
+   * the map total and to give any future caller a correct starting point rather
+   * than a placeholder that reads as product surface.
+   *
+   * The D12 file sentence is still written truthfully: controlled documents are
+   * PHI-free by design (ADR 0057, Rule 12), so it says so.
+   */
+  controlled_document: {
+    heading: "Arquivo da versão",
+    domId: "controlled-document-file",
+    uploadLabel: "Enviar arquivo",
+    dialogTitle: "Enviar arquivo da versão",
+    fileGuidance:
+      "Anexe o arquivo desta versão do documento controlado. Não anexe arquivos com dados de paciente: documentos controlados são políticas, POPs e protocolos institucionais.",
+    emptyWritable: "Nenhum arquivo enviado para esta versão.",
+    emptyReadOnly: "Nenhum arquivo enviado.",
+    titlePlaceholder: "Ex.: Política de higienização das mãos",
   },
   /**
    * No product flow exists for action-item documents and none is added here

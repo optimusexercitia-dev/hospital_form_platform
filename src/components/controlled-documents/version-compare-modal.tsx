@@ -11,12 +11,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
+import {
+  formatDateOnly,
+  formatVersionNumber,
+  versionFileLabel,
+} from "@/components/controlled-documents/format";
 
-/** A version paired with whether it has a stored file (drives the "Arquivo" row). */
-export interface CompareVersion extends ControlledDocumentVersion {
-  hasFile: boolean;
-}
+/**
+ * A version as the compare table reads it.
+ *
+ * Formerly this widened `ControlledDocumentVersion` with a `hasFile: boolean`
+ * the page computed as `storagePath != null`. Both halves of that are gone: the
+ * column was dropped in DM3 M4, and the projection now carries
+ * `coreDocumentVersionId` + `availability` itself, so the wrapper had nothing
+ * left to add. A boolean would also have been a downgrade — "attached" and
+ * "attached but not servable" are different answers to the question this row
+ * asks, and the alias is kept only so callers need not be re-pointed.
+ */
+export type CompareVersion = ControlledDocumentVersion;
 
 interface CompareRow {
   label: string;
@@ -32,7 +44,7 @@ function buildRows(before: CompareVersion, after: CompareVersion): CompareRow[] 
     { label: "Revisão", before: formatDateOnly(before.reviewDueDate), after: formatDateOnly(after.reviewDueDate) },
     { label: "Expiração", before: formatDateOnly(before.expiryDate), after: formatDateOnly(after.expiryDate) },
     { label: "Autor", before: before.createdByName ?? "—", after: after.createdByName ?? "—" },
-    { label: "Arquivo", before: before.hasFile ? "Anexado" : "Sem arquivo", after: after.hasFile ? "Anexado" : "Sem arquivo" },
+    { label: "Arquivo", before: versionFileLabel(before), after: versionFileLabel(after) },
   ];
 }
 

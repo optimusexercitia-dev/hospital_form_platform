@@ -8,6 +8,8 @@
  * Mirrors the Phase-14 safety / Phase-22 referrals `format.ts` convention.
  */
 
+import type { DocumentAvailability } from "@/lib/documents/types";
+
 /**
  * Format a DATE-ONLY value (`YYYY-MM-DD`, e.g. `effective_date`/`review_due_date`)
  * as pt-BR `dd/MM/yyyy` WITHOUT a timezone shift. `new Date("2026-07-01")` is
@@ -46,4 +48,41 @@ export function formatDateTime(iso: string | null | undefined): string {
 export function formatVersionNumber(n: number | null | undefined): string {
   if (n == null) return "—";
   return `v${n}`;
+}
+
+/**
+ * How a version's file reads when there is no download control to speak for it
+ * (DM3·S2) — the compare table's "Arquivo" row, and the version card's
+ * no-download state.
+ *
+ * DESCRIPTION ONLY. It says what a coordinator is looking at; it decides nothing.
+ * The affordance gate is `availability === "available"` and the authority is
+ * `open_document_version` — do not read a label from here and branch on it.
+ *
+ * The two inputs are both needed because `pending` is overloaded: the shared
+ * predicate returns it BOTH for a version with no file bound at all and for one
+ * whose bytes are mid-verification. Those look identical in `availability` and
+ * mean opposite things to the person deciding whether to upload something, so
+ * the unbound case is split out on `coreDocumentVersionId` first.
+ *
+ * Wording is deliberately borrowed from Wave A's `AVAILABILITY_PRESENTATION`
+ * rather than reinvented: the same state must not have two names in one product.
+ */
+export function versionFileLabel(version: {
+  coreDocumentVersionId: string | null;
+  availability: DocumentAvailability;
+}): string {
+  if (version.coreDocumentVersionId == null) return "Sem arquivo";
+  switch (version.availability) {
+    case "available":
+      return "Anexado";
+    case "pending":
+      return "Processando envio";
+    case "failed":
+      return "Falha no envio";
+    case "unavailable":
+      return "Indisponível";
+    case "disposed":
+      return "Eliminado";
+  }
 }

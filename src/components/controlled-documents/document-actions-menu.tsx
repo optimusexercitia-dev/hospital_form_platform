@@ -34,12 +34,16 @@ type ObsoleteAction = (documentId: string) => Promise<ActionState>;
  * (doc-detail redesign, approved mockup). Renders ONLY in the effective-no-draft
  * state — the two actions here don't apply mid-revision. Two items:
  *
- * - "Substituir por rascunho em branco" — reuses the `supersedeDocument` action
- *   contract ({@link SupersedeDocumentButton}): a plain FormData post with a
- *   `documentId` field; on `ok` the page refreshes into the fresh `rascunho`.
+ * - "Substituir por rascunho em branco" — the `supersedeDocument` action contract:
+ *   a plain FormData post with a `documentId` field; on `ok` the page refreshes
+ *   into the fresh `rascunho`.
  * - "Marcar como obsoleto" (destructive) — confirms via `AlertDialog`, then calls
- *   `markDocumentObsolete(documentId)` ({@link ObsoleteDocumentButton}'s
- *   contract); on `ok` the page refreshes.
+ *   `markDocumentObsolete(documentId)`; on `ok` the page refreshes.
+ *
+ * (Two standalone predecessors, `SupersedeDocumentButton` and
+ * `ObsoleteDocumentButton`, were superseded by this menu and deleted in DM3·S2
+ * after a repo-wide check found zero importers — the `{@link}`s that used to sit
+ * on the two bullets above pointed at files that no longer exist.)
  *
  * Both actions are passed in as props (never value-imported — Rule 9/ARCHITECTURE
  * client-boundary discipline).

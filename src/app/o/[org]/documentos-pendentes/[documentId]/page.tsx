@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
-import {
-  getDocument,
-  createSignedDownloadUrl,
-} from "@/lib/queries/controlled-documents";
+import { getDocument } from "@/lib/queries/controlled-documents";
 import { approveDocument, rejectDocument } from "@/lib/controlled-documents/actions";
 import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
 import {
@@ -22,7 +19,12 @@ import {
 import { ApprovalsPanel } from "@/components/controlled-documents/approvals-panel";
 import { ApprovalSignForm } from "@/components/controlled-documents/approval-sign-form";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
-import { formatDateOnly, formatVersionNumber } from "@/components/controlled-documents/format";
+import { OpenControlledVersionButton } from "@/components/controlled-documents/open-controlled-version-button";
+import {
+  formatDateOnly,
+  formatVersionNumber,
+  versionFileLabel,
+} from "@/components/controlled-documents/format";
 
 export const metadata: Metadata = {
   title: "Aprovação de documento",
@@ -33,9 +35,18 @@ export const metadata: Metadata = {
  * commission approver reaches from the approval queue to SIGN a document they were
  * named on. NOT commission-gated — gated only on `getDocument(id)` returning
  * non-null, which is proof of the approver-read RLS arm (RLS is the security
- * boundary; the storage SELECT policy carries the same approver arm, so the
- * download works too). The approve/reject RPC re-checks entitlement (HC091 for a
+ * boundary). The approve/reject RPC re-checks entitlement (HC091 for a
  * non-approver), so the shared `<ApprovalSignForm>` is safe here.
+ *
+ * ⚠ This comment used to add "…the storage SELECT policy carries the same
+ * approver arm, so the download works too". That is FALSE as of DM3 M5, which
+ * DROPPED `controlled_documents_obj_select_member`. The approver's byte access
+ * survives, but it moved: it is now an arm of the KERNEL
+ * (`app.can_read_document` dispatching `controlled_document` →
+ * `is_member_of_for` OR `is_document_approver_of`), which is what
+ * `open_document_version` authorizes against. Same outcome for this approver,
+ * an entirely different gate — and the sentence is rewritten rather than
+ * deleted because a reader who remembers the old one needs to be told it moved.
  *
  * Read-only apart from the sign form: the approver sees the version under approval,
  * downloads it, and records their decision. Full lifecycle stays on the
@@ -82,11 +93,6 @@ export default async function ApproverDocumentPage({
     : null;
   const isPendingApprover = Boolean(myApproval && myApproval.decision == null);
 
-  const downloadUrl =
-    signableVersion?.storagePath != null
-      ? await createSignedDownloadUrl(signableVersion.storagePath)
-      : null;
-
   const queueHref = orgHref(org, "documentos-pendentes");
 
   return (
@@ -123,18 +129,15 @@ export default async function ApproverDocumentPage({
         <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Arquivo em aprovação</h2>
-            {downloadUrl ? (
-              <a
-                href={downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-              >
-                <Download aria-hidden="true" className="size-4" />
-                Baixar arquivo
-              </a>
+            {signableVersion.availability === "available" ? (
+              <OpenControlledVersionButton
+                versionId={signableVersion.id}
+                label="Baixar arquivo"
+              />
             ) : (
-              <span className="text-sm text-muted-foreground">Sem arquivo</span>
+              <span className="text-sm text-muted-foreground">
+                {versionFileLabel(signableVersion)}
+              </span>
             )}
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
