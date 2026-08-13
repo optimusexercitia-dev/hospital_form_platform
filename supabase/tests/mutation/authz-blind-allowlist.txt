@@ -55,10 +55,16 @@
 #     grant to authenticated — door-only, PostgREST cannot reach it);
 #     responses_delete_own_draft + notification_preferences_update_own (see below).
 #   * READ-PREDICATE backstops (no reachable public policy to assert through):
-#     can_read_referral (RPC-internal only), can_read_document_object (Storage RLS,
-#     not a public table), can_read_xref_row (patient_xref — no grant, door-only).
+#     can_read_referral (RPC-internal only), can_read_xref_row (patient_xref — no
+#     grant, door-only).
 #     (can_sign_section [251 signoffs_insert] and can_read_document_of_version
 #     [252 document_approvals_select] were PRUNED from this list — now COVERED.)
+#     (can_read_document_object was PRUNED by DM3: the `controlled-documents`
+#     bucket policy it served was dropped (ADR 0114 D8, migration 20260925000500)
+#     and the function with it. Document-byte authorization now runs through the
+#     `app.can_read_document` kernel arm, which is COVERED — an allowlist entry
+#     for a function that no longer exists is dead weight that also pre-excuses
+#     any future function that reclaims the name.)
 #   * BENIGN PREDICATE WRAPPERS (pure delegation to a COVERED base predicate — no
 #     independent gate): is_*_of_self, is_admin_for, is_hospital_admin_of_for,
 #     has_role(text,uuid,text), is_pqs_writer_of.
@@ -79,7 +85,6 @@
 
 answer_matrix_cells.answer_matrix_cells_select (SELECT)
 answer_risk_matrix.answer_risk_matrix_select (SELECT)
-app.can_read_document_object(p_name text, p_uid uuid)
 app.can_read_referral(p_referral_id uuid, p_uid uuid)
 app.can_read_xref_row(p_commission_id uuid, p_uid uuid)
 app.has_role(p_scope_type text, p_scope_id uuid, p_role text)

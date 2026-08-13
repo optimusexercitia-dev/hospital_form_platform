@@ -47,7 +47,7 @@
 -- =============================================================================
 
 begin;
-select plan(54);
+select plan(55);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -173,31 +173,46 @@ select is(
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 
--- ⚠ `select (f()).*` EVALUATES f ONCE PER OUTPUT COLUMN. The first draft of this
--- fixture used that idiom on a 15-column composite and silently created FIFTEEN
--- controlled documents — which then broke DM3·X1 downstream ("have 3, want 19")
--- rather than failing here. Bind the composite to ONE column first, then expand.
-create temp table r3_row on commit drop as
-  select public.create_controlled_document(
-           'a0000000-0000-0000-0000-0000000000a1', 'Documento R3', 'policy') as d;
-create temp table r3_created on commit drop as select (d).* from r3_row;
+-- ⚠ TWO FIXTURE HAZARDS AVOIDED HERE, both learned the hard way.
+-- (1) `select (f()).*` EVALUATES f ONCE PER OUTPUT COLUMN — the first draft used
+--     that idiom on a 15-column composite and silently created FIFTEEN
+--     controlled documents, surfacing downstream as DM3·X1 "have 3, want 19"
+--     rather than as an error here.
+-- (2) Calling the door directly makes its FAILURE abort the transaction and drop
+--     every later assertion, so the mutation twin that neutralizes registry
+--     minting would take the suite with it instead of reddening these lines.
+-- The catching wrapper solves both: exactly one call, and a refusal becomes a
+-- NULL id that the assertions below read as red.
+create or replace function pg_temp.try_create_cd() returns uuid language plpgsql as $$
+declare v public.controlled_documents;
+begin
+  v := public.create_controlled_document(
+         'a0000000-0000-0000-0000-0000000000a1', 'Documento R3', 'policy');
+  return v.id;
+exception when others then
+  return null;
+end $$;
 
-select is(
-  (select count(*)::int from r3_created), 1,
-  'DM3·R3 ⭐ create_controlled_document SUCCEEDS (pre-M8 it raised 23503 on the composite FK)');
+create temp table r3_created on commit drop as select pg_temp.try_create_cd() as id;
+
+select isnt(
+  (select id from r3_created), null,
+  'DM3·R3 ⭐ create_controlled_document SUCCEEDS (pre-M8 it raised 23503 on the composite FK — the P0 this pins)');
 
 select is(
   (select count(*)::int from r3_created r
+     join public.controlled_documents cd on cd.id = r.id
      join public.securable_resources s
        on s.id = r.id and s.resource_type = 'controlled_document'
-    where s.commission_id = r.commission_id
+    where s.commission_id = cd.commission_id
       and s.organization_id is not null and s.hospital_id is not null),
   1,
   'DM3·R3b ⭐ …and mints its registry row with the full tenant triple');
 
 select is(
   (select count(*)::int from r3_created r
-     join public.documents d on d.id = r.core_document_id
+     join public.controlled_documents cd on cd.id = r.id
+     join public.documents d on d.id = cd.core_document_id
     where d.home_resource_id = r.id and d.kind = 'documento_controlado'),
   1,
   'DM3·R3c ⭐ …and its core `documents` row, homed on that registry row (without which no file could ever be attached)');
@@ -212,6 +227,15 @@ select is(
     where v.core_document_version_id is null),
   1,
   'DM3·R3d a NEWLY created document''s initial version has a NULL pointer (no fileless core version minted at create)');
+
+-- R3e — POSITIVE CONTROL for R3d: the version EXISTS. Without it, R3d's "one row
+-- with a null pointer" could be satisfied by counting nothing at all — the
+-- pass-by-absence shape this suite has already been caught by twice.
+select is(
+  (select count(*)::int from public.controlled_document_versions v
+     join r3_created r on r.id = v.document_id),
+  1,
+  'DM3·R3e POSITIVE CONTROL: that initial version exists (R3d counts a real row, not an empty set)');
 
 select set_config('request.jwt.claims', '', true);
 
