@@ -8,6 +8,58 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🔴 FUP-PGTAP-SAVEPOINT — a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape (owner: lead + backend)
+
+Found by `backend` during DM3·M2 (2026-08-13) and **independently reproduced by the lead
+the same day**, twice, against the live DB.
+
+**The mechanism, proven — not inferred.** With `pgtap` installed, two runs differing only
+in the savepoint:
+
+```
+RUN A:  plan(1); savepoint s; select throws_ok($$ select 1/0 $$,'22012'); rollback to savepoint s; select * from finish();
+        → prints  "ok 1 - threw 22012"   then  ERROR: # No tests run!
+RUN B:  plan(1); select throws_ok($$ select 1/0 $$,'22012'); select * from finish();
+        → prints  "ok 1 - threw 22012"   then  finish() returns 0 rows (clean)
+```
+
+pgTAP keeps its results in transaction-local state, so `rollback to savepoint` unwinds its
+own bookkeeping along with the mutation. **The assertion still prints `ok`.** The file then
+reports `planned N but ran <N`, which a summary line can hide — this is the pgTAP twin of
+the class `lint:vacuous` gates for TypeScript, and there is **no equivalent gate for SQL**.
+
+**Live instances — a lead sweep of `supabase/tests/` found the shape in 4 files:**
+
+| File | Verdict |
+| --- | --- |
+| `193_schema_integrity.sql:89-99` | ⚠ **AFFECTED** — `throws_ok` at `:93` sits inside the window. **Missed by the original report, which flagged only 194.** The enclosed assertion is a *mutation twin* (drop the twin CHECK, assert the refusal still holds) — the kind whose silent non-counting matters most, because its whole job is to prove a barrier is independent |
+| `194_tenant_composite_fk.sql:87-95` | ⚠ **AFFECTED** — `throws_ok` at `:89` inside the window (its test 4.1) |
+| `330_dm3_controlled_documents.sql` | ✅ **CLEAN** — its 3 hits are *comments documenting the hazard*; the suite mutates without a savepoint and restores from a **captured** `pg_get_constraintdef`, so the restore cannot drift from the real definition |
+| `100_dashboard.sql:411-412` | ✅ clean — **and it already carried the explanation**: *"⛔ Deliberately NOT a savepoint. pgTAP keeps its test counter in transaction-local state, so `rollback to savepoint` after an `is()` would rewind the counter."* |
+
+**The most useful part of this finding is that last row.** The hazard was **already known and
+already written down** — as a comment in one file, where it protected that file and nothing
+else. Two other suites then shipped the shape. Knowledge that lives only in a local comment
+does not propagate; that is what `lint:vacuous` and the keystone discipline exist to fix, and
+this class had neither. Related: [a comment is an assertion that goes stale silently].
+
+**What is NOT yet established.** The per-suite blast radius. `194` was observed reporting
+`planned 8 but ran 0` on a **dirty** local DB, and that is *not* attributed to this mechanism —
+`194` is a tenant/commission-count suite and the stack carried E2E leftovers, a known
+spurious-red class. The suites cannot be run raw (`test_helpers` is harness-created), so the
+real numbers come from `npm run test:db` on a **fresh `supabase db reset`**.
+
+**Discharge:**
+1. On a fresh reset, capture `planned N / ran M` for `193` and `194`; if `M < N`, those
+   assertions have never contributed to any gate record, and the affected keystones' prior
+   green must be re-read as unproven.
+2. Rewrite both to `330`'s pattern — mutate without a savepoint, restore from a captured
+   definition, and keep the file-level `rollback` as the outer restore.
+3. **Add the missing gate.** A `lint:vacuous`-style check for pgTAP: flag any assertion
+   between `savepoint` and `rollback to savepoint`, and/or assert `planned == ran` per file
+   rather than trusting the summary. Without step 3 this recurs — it already did, twice,
+   after being documented once.
+
 ### 🟡 FUP-DM3-ETHICS-UI — no UI can attach a decision letter to an ethics case; DM3 ships both seams writable via the API only (owner: PO, a feature phase)
 
 Filed 2026-08-13 at DM3 open, as the recorded half of a PO scope ruling. **This is a
