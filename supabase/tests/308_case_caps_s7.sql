@@ -20,7 +20,11 @@
 -- =============================================================================
 
 begin;
-select plan(27);
+-- 27 → 30: the §5.2 SENTINEL (QA r1 P0-1 closure) — the prose obligation at
+-- §5 became three live assertions; this file now REDS if the byte cut is
+-- ever removed from open_document_version, instead of running green over an
+-- unmet obligation (the tombstone did exactly that all phase — a finding).
+select plan(30);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -294,13 +298,40 @@ reset role;
 -- S3-grantee reads / coordinator non-vacuity twin) is no longer expressible at
 -- the storage layer BY DESIGN: the document buckets carry NO SELECT policy for
 -- ANY principal (D8 — pinned by 328 K6b), so byte discrimination lives INSIDE
--- DM2's open_document_version. ⛔ That door's keystones MUST re-express all
--- six pins (5.2/5.3/5.4 at the serving layer; 5.5/5.6/5.7 as door
--- resolve-shape) — named in docs/progress/dm1-substrate-cutover.md §triage
--- ledger. (The q1 harness cases `open_bytes_cut` / `open_resolver_door` that
--- proved 5.2/5.5 falsifiable reference the retired surfaces — historical phase
--- harness, not a standing gate.)
+-- DM2's open_document_version. That door's keystones re-express all six pins
+-- as 329 P0a–P0f (falsifiability proven by three catalog-restored mutations —
+-- record in the phase file). This comment once carried the obligation as
+-- PROSE ALONE and ran green all phase while it was unmet — so 5.2's core is
+-- now a LIVE SENTINEL here (below): this file cannot pass while the byte cut
+-- is absent from the door.
 -- ---------------------------------------------------------------------------
+
+-- 5.2s — THE SENTINEL. A version row on the case-homed Doc QO; the reviewer
+-- must be refused BYTES at the door (metadata reach was just proven at 5.1 —
+-- same document, same principal, one layer apart). Differential control: a
+-- deliberation-holder passes the cut and fails only LATER, at file-absence
+-- (HC0D8) — so 5.2s's refusal is the capability cut, not fixture rot.
+-- Under cut-removal both callers reach HC0D8 and 5.2s REDS.
+update app.feature_flags set enabled = true where key = 'documents_foundation';
+insert into public.document_versions (id, document_id, version_number, created_by)
+select '00000000-0000-0000-0000-0000000d8204'::uuid,
+       '00000000-0000-0000-0000-0000000d8201'::uuid, 1, k.sa_x from k;
+
+select ok(
+  (select app.has_case_capability(cs.case_a, k.sa_x, 'read_case_deliberation') from cs, k),
+  '5.2c1 fixture: the staff_admin holds deliberation (the control below cannot be refused by the cut)');
+
+select test_helpers.claims_for((select qr from p), false);
+select throws_ok(
+  $q$ select public.open_document_version('00000000-0000-0000-0000-0000000d8204') $q$,
+  '42501', 'sem autorização para baixar este documento',
+  '5.2s SENTINEL: the reviewer is refused BYTES at the door (metadata at 5.1, bytes never — M8/M9)');
+
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+select throws_ok(
+  $q$ select public.open_document_version('00000000-0000-0000-0000-0000000d8204') $q$,
+  'HC0D8', 'arquivo ainda não disponível',
+  '5.2c2 control: the deliberation-holder passes the cut and dies only at file-absence — the 5.2s refusal IS the cut');
 
 -- =============================================================================
 -- §6 — THE D7 WRITE PIN, PER DOOR (M10; replaces 1.4's vacuous claim).

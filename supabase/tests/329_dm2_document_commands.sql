@@ -709,10 +709,21 @@ select is(
 -- half of the contract is that the reviewer KEEPS metadata (titles).
 -- Personas: quality.a (…f3) holds content+overview, NO deliberation
 -- (catalog-verified); staff1 + chefe both hold deliberation, so no green pin
--- over-narrows. RED-FIRST (QA's own reproduction, then mine): P0a caught NO
--- exception (SERVED, tier=phi), P0d prosrc lacks the conjunct, P0f have 1
--- want 0 (the served open minted). P0e is the OVER-NARROWING control (green
--- both sides by design — the M8 metadata contract must survive the fix).
+-- over-narrows. P0e is the OVER-NARROWING control (green in the unmutated
+-- run by design — the M8 metadata contract must survive the fix). The QA/
+-- tester pre-fix reproduction (P0a caught NO exception, SERVED tier=phi) is
+-- recorded in the phase record.
+-- FALSIFIABILITY RECORD (executed 2026-08-13 — three mutations in rolled-back
+-- txns, each restore verified from the catalog by body-md5; output in the
+-- phase record): (A) conjunct -> `and false`: P0a red (caught: no exception),
+-- P0d red, P0f red (have 1 want 0). (B) conjunct -> `and true`: P0b + P0c red
+-- (died: 42501); the FULL file under B aborts earlier at O1 (an unguarded
+-- serving assertion — a cruder member-refusal detector), so B ran as a
+-- focused harness replicating up0 + the two pins verbatim. (C) the wrong fix
+-- QA warned against — the deliberation conjunct in the KERNEL's case arm:
+-- P0e red AND P0a red (caught P0002, wanted 42501 — the message pin
+-- discriminates the kernel corridor from the byte cut, which is why the fix
+-- lives in the door and not the kernel).
 -- =============================================================================
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 create temp table up0 on commit drop as
