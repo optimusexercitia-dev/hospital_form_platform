@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { cachedSignIn, accessToken } from './helpers/auth'
-import { createDocumentFixture } from './helpers/document-model'
+import { createDocumentFixture, openDocumentVersion } from './helpers/document-model'
 
 /**
  * Quality-Office Oversight, Phase A (ADR 0100) — E2E for the `quality_reviewer`
@@ -407,20 +407,38 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
   // chain — see phase-f2-attachments.spec.ts for that contract in full) once per
   // file, shared by BOTH the negative (quality.a) and positive (chefe.ccih)
   // halves below.
+  //
+  // ⚠ STRENGTHENED post-QA-r1-P0 (2026-08-13): the original restoration
+  // asserted only the download BUTTON has count 0 for quality.a — a UI-only
+  // control ([[green-bar-misses-the-wired-seam]]). QA reproduced a caller
+  // with quality.a's own session and the document's version id calling
+  // `open_document_version` DIRECTLY, bypassing the UI, and being served the
+  // PHI bytes: `app.can_read_document` had no arm for the oversight-reviewer
+  // axis at all (`case-detail-view.tsx`'s `canDownload={!isOversight}` was
+  // the ONLY shipped control — Architecture Rule 1 inverted). Both tests
+  // below now hit the DOOR, not the button: quality.a's own test asserts
+  // `open_document_version` REFUSES her directly (RED until backend closes
+  // the corridor — confirmed red-first, not inferred, before this comment was
+  // written); "no-lockout control" asserts the SAME door serves chefe.ccih on
+  // the SAME document, so the negative cannot pass because the door merely
+  // fails shut for everyone or the fixture is broken.
   let m8DocTitle: string
+  let m8DocVersionId: string
 
   test.beforeAll(async ({ request }) => {
     const chefeToken = await accessToken(request, 'chefe.ccih@test.local')
     m8DocTitle = `M8 Prescrição digitalizada ${Date.now()}`
-    await createDocumentFixture(request, chefeToken, {
+    const fixture = await createDocumentFixture(request, chefeToken, {
       resourceType: 'case',
       resourceId: CASE_1,
       title: m8DocTitle,
     })
+    m8DocVersionId = fixture.documentVersionId
   })
 
-  test('quality.a: content renders; every write affordance + the member sidebar are absent; documents panel has no download', async ({
+  test('quality.a: content renders; every write affordance + the member sidebar are absent; documents panel has no download; the DOOR refuses direct byte access', async ({
     page,
+    request,
   }) => {
     await signIn(page, 'quality.a@test.local')
     await page.goto(CASE_URL)
@@ -502,6 +520,25 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
       docPanel.getByRole('button', { name: `Baixar ${m8DocTitle}` }),
     ).toHaveCount(0)
 
+    // THE DOOR, not the button (QA r1 P0: an oversight reviewer served PHI
+    // bytes via a direct `open_document_version` call — the only shipped
+    // control was this React prop, `canDownload={!isOversight}`
+    // (`case-detail-view.tsx`), Architecture Rule 1 inverted. An absent
+    // button proves the affordance is hidden; it does not prove the door is
+    // shut — this calls the RPC directly, bypassing the UI entirely, exactly
+    // the way a caller with the version id and quality.a's own session
+    // could. Expected to be RED until backend closes the corridor (the fix
+    // is in flight, per the lead) — a red-first observed here, not inferred.
+    // See the paired NON-VACUOUS positive control in "no-lockout control"
+    // below: the SAME document, a principal who SHOULD be served, succeeds —
+    // so this refusal cannot be a broken fixture or a blanket door failure.
+    const qualityToken = await accessToken(request, 'quality.a@test.local')
+    const openResp = await openDocumentVersion(request, qualityToken, m8DocVersionId)
+    expect(
+      openResp.ok,
+      `expected open_document_version to REFUSE the oversight reviewer; got ok=${openResp.ok} body=${JSON.stringify(openResp.body)}`,
+    ).toBeFalsy()
+
     // INTERVIEWS + MEETINGS — OMITTED entirely (Q4), never an empty card. An
     // empty card reading "Nenhuma entrevista" would falsely assert "nothing
     // exists" when the truth is "not visible to you".
@@ -518,6 +555,7 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
 
   test('no-lockout control: chefe.ccih reaches the SAME case URL with full content + every write affordance intact', async ({
     page,
+    request,
   }) => {
     await signIn(page, 'chefe.ccih@test.local')
     await page.goto(CASE_URL)
@@ -560,6 +598,17 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     const openedUrl = download ? download.url() : popup.url()
     expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
     await popup.close().catch(() => {})
+
+    // NON-VACUOUS control for the paired door-level refusal above (QA r1 P0):
+    // chefe.ccih, on the SAME document, gets served through the SAME
+    // `open_document_version` door quality.a's test expects to be refused.
+    // Without this, a blanket door failure (or a broken `m8DocVersionId`
+    // fixture) could make the negative test pass for the wrong reason —
+    // this proves the door is discriminating on the CALLER, not merely
+    // failing shut for everyone.
+    const chefeToken = await accessToken(request, 'chefe.ccih@test.local')
+    const openResp = await openDocumentVersion(request, chefeToken, m8DocVersionId)
+    expect(openResp.ok, `expected the coordinator's own open to succeed; got ${JSON.stringify(openResp.body)}`).toBeTruthy()
   })
 
   test('"Reabrir caso" pairing on a COMPLETED case (case 1 is pending, so testing it there would be vacuous for everyone)', async ({

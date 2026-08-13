@@ -143,6 +143,40 @@ state with the prod-default caveat in the pin name. Suite re-run **189f/6051 PAS
 **The QO·B M8/M9 byte-discrimination cut was never re-expressed in the new corridor.** The only shipped control is `case-detail-view.tsx` `canDownload={!isOversight}` — **Architecture Rule 1 inverted** ("never rely on UI hiding"), and `document-row.tsx`'s own comment claiming it "suppresses the audited door outright; there is no second byte path" is **false in both clauses**.
 ⚠ **Why the green bar certified it:** the restored E2E asserts the **button** has count 0 (`quality-oversight.spec.ts:502`), so it pins the UI-only control — [[green-bar-misses-the-wired-seam]] exactly. And **why four green authz arms missed it**: the M8 cut used to live in a *storage policy*, inside `ARM=census`'s domain; D8 deliberately deleted the SELECT policies and moved the boundary into a **`jsonb`-returning DEFINER**, which is in **no** arm's domain. QA checked the domain predicate rather than the claim and confirmed the lead's census reasoning was correct — `proretset` is why `document_delete_affordances` was caught and the jsonb doors were not. **The carried lesson: clause 2's boundary is a return-type *syntax* while its stated principle is a *property*, and 536 pre-existing functions share the class.** Not a DM2 regression — DM2 is just where the first defect landed in the new location. ⚠ `supabase/tests/308_case_caps_s7.sql:291-303` **states this obligation verbatim** ("That door's keystones MUST re-express all six pins") and **ran green this phase**; the DM2 record contains zero occurrences of "oversight", "quality reviewer" or "ADR 0100".
 
+**Tester re-verification (2026-08-13, P0-1):** `e2e/quality-oversight.spec.ts`'s two M8 tests
+strengthened to hit the door, not the button — three additions per the lead's spec: (1) metadata
+visibility kept as-is (must not over-narrow — the reviewer is *supposed* to see titles), (2) the
+button-absence check kept as-is, (3) `quality.a`'s test now calls `open_document_version` **directly**
+via REST (bypassing the UI entirely) and asserts it **REFUSES**, (4) a **non-vacuous positive
+control** in "no-lockout control": chefe.ccih calls the SAME door on the SAME document and is
+**served** — so a blanket door failure or a broken fixture cannot make the negative pass for the
+wrong reason. **Red-first OBSERVED, not inferred:** backend's fix (`supabase/migrations/
+20260924000700_dm2_qa1_byte_deliberation_cut.sql`) was already applied locally but **uncommitted**
+when this run started, so the strengthened test passed immediately — not proof enough on its own.
+Set the migration file aside, fresh-reset, re-ran: **genuine RED** — `open_document_version` returned
+`ok=true` with the full title/mime/size/tier payload to quality.a, reproducing QA's P0-1 exactly, byte
+for byte. Restored the migration, fresh-reset, re-ran: **GREEN**, and the positive control held
+throughout (never a blanket refusal). Regression sweep: all 6 S4 files, fresh reset — **77 collected,
+76 passed, 1 pre-existing unrelated skip, 0 collateral damage** — the new `read_case_deliberation`
+conjunct on `open_document_version` does not touch the meeting/action_item arm (`v_case` stays null
+there) and every case/interview persona the other 8 restored tests use already holds
+`read_case_deliberation`, so nothing else regressed. Lint/tsc/`lint:vacuous` all clean.
+**Re-scan requested by the lead** (any restored assertion whose subject is a rendered control rather
+than a server answer, carrying an authorization claim): AC-4a–d/AC-9, `DM2-CEILING-NOONE` and
+`DM2-FLAGOFF` were already door-level (the last one explicitly demonstrates+documents the
+`documents_wave_a`-vs-`documents_foundation` split, routed to backend for S5). Two **coverage gaps**
+(not confirmed vulnerabilities — the door was independently read from `pg_proc` and does enforce both,
+just not exercised by these specs end-to-end): `phase11-interviews.spec.ts` IV2-11 only exercises the
+CLIENT-SIDE MIME block (`begin_document_upload`'s own `HC0DG` server check, confirmed present in the
+live body, is untested by any bypass path); `phase-f2-attachments.spec.ts` `DM2-STATES`' `pending` row
+asserts a *disabled* button (never clickable, so no live corridor to bypass there) but does not
+independently probe `open_document_version` on an unbound version (confirmed via `pg_proc`: raises
+`HC0D8`, untested by E2E). **Spot-checked, not assumed:** the pre-existing (not S4-authored)
+`notFound()`-page-based denial tests this file and `ethics-e1-access-spine.spec.ts` share (AC-1a
+respondent-exclusion, AC-2a explicit-grants-only) — direct REST reads of `cases`/`case_phases` for
+both personas returned `200 []`, genuine RLS-level filtering, not a page-level-only check — **not**
+the same shape as P0-1.
+
 **🔴 THE SHARPEST OPEN RISK IN DM2 — the write path has never moved a byte** (raised by `frontend`
 at S3 close; lead-confirmed). `begin_document_upload` is **proven reachable and correctly shaped**
 (lead called it directly under `set local role authenticated` with real `sub`+`active_role` claims:
