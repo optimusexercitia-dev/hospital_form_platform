@@ -203,12 +203,28 @@ const STUCK_VERIFYING_MINUTES = 60
   report.verifyingSwept = stuck?.length ?? 0
 }
 
-const { data: rows, error: rowsError } = await admin
-  .from('file_objects')
-  .select('id, storage_bucket, storage_path, upload_state, disposal_state')
-if (rowsError) {
-  console.error('file_objects read failed:', rowsError.message)
-  process.exit(2)
+// MINOR-1's fixture found a SECOND defect of the same class the review named
+// for the bucket walk: this read was a single `.select()`, which PostgREST
+// caps at 1000 rows by default — with 1000+ rows the unread remainder was
+// judged by NOBODY, its objects surfacing as false ORPHANs. Paginate with a
+// stable order until a short page.
+const rows = []
+{
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error: rowsError } = await admin
+      .from('file_objects')
+      .select('id, storage_bucket, storage_path, upload_state, disposal_state')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (rowsError) {
+      console.error('file_objects read failed:', rowsError.message)
+      process.exit(2)
+    }
+    if (!data || data.length === 0) break
+    rows.push(...data)
+    if (data.length < PAGE) break
+  }
 }
 
 for (const bucket of BUCKETS) {
@@ -282,4 +298,9 @@ const drift =
   report.undisposed.length +
   report.unclassified.length
 console.log(drift === 0 ? 'RECONCILIATION CLEAN' : `DRIFT: ${drift} finding(s)`)
-process.exit(drift === 0 ? 0 : 1)
+// `process.exitCode`, NOT `process.exit()`: the hard exit during supabase-js
+// teardown intermittently trips libuv's UV_HANDLE_CLOSING assertion on
+// Windows (observed: exit 127 with the whole report swallowed — an ops
+// verdict lost to the runtime). Setting the code lets node drain and exit
+// naturally.
+process.exitCode = drift === 0 ? 0 : 1
