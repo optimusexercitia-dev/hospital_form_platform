@@ -116,24 +116,13 @@ const PG_CHECK_VIOLATION = '23514'
 const PG_FORBIDDEN = '42501'
 const PG_UNIQUE_VIOLATION = '23505'
 
-// The controlled-documents bucket allowed MIME → extension map (mirrors the bucket's
-// allowed_mime_types in B1). 25 MB cap.
-const MAX_DOCUMENT_BYTES = 26214400
-const ALLOWED_DOCUMENT_MIME = new Map<string, string>([
-  ['application/pdf', 'pdf'],
-  ['image/png', 'png'],
-  ['image/jpeg', 'jpg'],
-  ['image/webp', 'webp'],
-  ['image/gif', 'gif'],
-  ['application/msword', 'doc'],
-  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
-  ['application/vnd.ms-excel', 'xls'],
-  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
-  ['application/vnd.ms-powerpoint', 'ppt'],
-  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'],
-  ['text/csv', 'csv'],
-  ['text/plain', 'txt'],
-])
+// (The MIME→extension map and the 25 MB cap died with `uploadDocumentFile` —
+// DM3. They mirrored the RETIRED `controlled-documents` bucket, and both caps
+// are now server-derived: `begin_document_upload` validates the declared hints
+// against `storage.buckets` for the tier it picks, and `finalize` re-derives
+// size/MIME/hash from the bytes that actually landed. The client-side mirrors
+// live in `DOCUMENT_MAX_SIZE_BYTES` / `DOCUMENT_ACCEPTED_MIME_TYPES`
+// (`@/lib/documents/types`) so the dialog can refuse before the wait.)
 
 /**
  * Map a controlled-document RPC error (SQLSTATE HC089–HC093 + generic) to a pt-BR
@@ -307,37 +296,6 @@ export async function updateControlledDocument(
 
   revalidateDocuments()
   return { ok: true, error: MESSAGES.updated, documentId: data.id }
-}
-
-// --- immutable upload helper (Rule 6) -------------------------------------
-
-/**
- * Upload a file to a NEW immutable object under `{commissionId}/{documentId}/{uuid}.{ext}`
- * and return the path. An `error` result means a validation/upload failure (the caller
- * surfaces the pt-BR message on the given field). Never overwrites (`upsert: false`).
- */
-async function uploadDocumentFile(
-  file: File,
-  commissionId: string,
-  documentId: string,
-): Promise<{ path: string } | { error: string; field: string }> {
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: MESSAGES.fileRequired, field: 'file' }
-  }
-  if (file.size > MAX_DOCUMENT_BYTES) {
-    return { error: MESSAGES.fileTooLarge, field: 'file' }
-  }
-  const ext = ALLOWED_DOCUMENT_MIME.get(file.type)
-  if (!ext) return { error: MESSAGES.fileTypeInvalid, field: 'file' }
-
-  const supabase = await createClient()
-  const path = `${commissionId}/${documentId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const { error } = await supabase.storage
-    .from('controlled-documents')
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (error) return { error: MESSAGES.uploadFailed, field: 'file' }
-  return { path }
 }
 
 // ---------------------------------------------------------------------------
@@ -688,8 +646,12 @@ export async function publishDocument(
 /**
  * Supersede the current `effective` version with a NEW draft version. Fields:
  * `documentId`. Routes to `supersede_document` (creates the next `draft` version;
- * the prior stays `effective` until the new one publishes). The frontend then uploads
- * a file to the returned version via {@link addDocumentVersion}. Returns `versionId`.
+ * the prior stays `effective` until the new one publishes). Returns `versionId`.
+ *
+ * This is STEP 1 of the wizard's new-version path (DM3); the bytes follow as
+ * {@link beginControlledVersionUpload} → PUT →
+ * {@link finalizeControlledVersionUpload} → {@link submitDocumentForApproval}.
+ * (Previously this line pointed at `addDocumentVersion`, which DM3 deleted.)
  */
 export async function supersedeDocument(
   _prev: AddVersionState | undefined,
@@ -724,16 +686,26 @@ export async function markDocumentObsolete(documentId: string): Promise<ActionSt
 }
 
 // ---------------------------------------------------------------------------
-// B3 · All-in-one create (chained actions — NO new RPC; ADR 0081 decision 1)
+// B3 · Create (ADR 0081 decision 1 — NO new RPC), rewired by DM3
 // ---------------------------------------------------------------------------
 //
-// The wizard's terminal action chains the existing RPCs
-// (`create → uploadDocumentFile → set_document_version_file → submit`). The chain is
-// NOT transactional across Storage + DB (ADR 0081 risk): once the document is created,
-// ANY later failure returns the created `documentId` (never swallows the error), so the
-// UI lands the user on the recoverable draft's detail with a mapped pt-BR banner
-// (memory: phi-write-atomic-with-create — never a silently-dropped write). A future
-// orchestration RPC is noted, not built.
+// ⚠ REWRITTEN (DM3). This section previously described a SERVER-side chain
+// (`create → uploadDocumentFile → set_document_version_file → submit`) run by
+// `createAndSubmitDocument`. Every element of that sentence is now retired: the
+// upload helper, the RPC, and the composite verb itself. What survives here is
+// `createDraftOnly` — metadata only, step 1 of the wizard's create path.
+//
+// The chain still exists, but the CLIENT drives it (it cannot be one server
+// action: the document and version must EXIST before an upload can be
+// reserved):
+//   createDraftOnly → beginControlledVersionUpload → PUT →
+//   finalizeControlledVersionUpload → submitDocumentForApproval
+//
+// The ADR 0081 non-atomicity risk is unchanged in KIND and narrower in scope:
+// nothing spans Storage + DB in one action any more, and a failure after
+// `createDraftOnly` leaves a recoverable draft the UI can land on — the file
+// simply has not been attached yet, which `availability: 'pending'` already
+// renders. A future orchestration RPC is still noted, not built.
 
 /** Read + validate the shared create fields. `{error}`/`{fieldErrors}` on failure. */
 function readCreateFields(
@@ -774,82 +746,37 @@ async function createDocumentRow(
   return { documentId: data.id, versionId: data.current_version_id }
 }
 
-/**
- * The all-in-one wizard's terminal action: create → attach file → submit for
- * approval, in one chained call. On ANY post-create failure it returns `documentId`
- * (so the UI redirects to the created draft's detail) + a mapped pt-BR banner naming
- * what to finish. Fields: create fields + `category`/`tags` + `file` (required) +
- * optional `summaryOfChangesMd`/`expiryDate`/`proposedEffectiveDate`/`approvalDueDate`
- * + `approvers` (JSON, ≥1).
- */
-export async function createAndSubmitDocument(
-  _prev: CreateDocumentState | undefined,
-  formData: FormData,
-): Promise<CreateDocumentState> {
-  const fields = readCreateFields(formData)
-  if ('ok' in fields) return fields
-
-  // Validate the submit-only inputs UP FRONT (avoid an orphan draft on trivially
-  // invalid input — nothing is created if these fail).
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
-  }
-  const parsedApprovers = parseApprovers(formData.get('approvers'))
-  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
-  const expiryDate = parseDate(formData.get('expiryDate'))
-  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
-  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
-  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
-  if (proposedEffectiveDate === null) {
-    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
-  }
-  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
-
-  // 1) create (the point of no return — after this, failures carry documentId).
-  const created = await createDocumentRow(fields, formData)
-  if ('ok' in created) return created
-  const { documentId, versionId } = created
-
-  const supabase = await createClient()
-
-  // 2) upload the immutable file object + attach it to the draft version.
-  const uploaded = await uploadDocumentFile(file, fields.commissionId, documentId)
-  if ('error' in uploaded) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-  }
-  const { error: fileError } = await supabase.rpc('set_document_version_file', {
-    p_version_id: versionId,
-    p_storage_path: uploaded.path,
-    p_summary_of_changes_md: String(formData.get('summaryOfChangesMd') ?? '').trim() || undefined,
-    p_expiry_date: expiryDate ?? undefined,
-  })
-  if (fileError) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-  }
-
-  // 3) submit for approval (persists proposed/approval dates + enqueues approvers).
-  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
-    p_version_id: versionId,
-    p_approvers: parsedApprovers.payload as never,
-    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
-    p_approval_due_date: approvalDueDate ?? undefined,
-  })
-  if (submitError) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedSubmitLater, documentId }
-  }
-
-  revalidateDocuments()
-  return { ok: true, error: MESSAGES.submitted, documentId }
-}
+// ---------------------------------------------------------------------------
+// DELETED (DM3): `createAndSubmitDocument`, `supersedeAndSubmitDocument` and
+// `reviseChangesRequestedDocument` — the three server-side create/attach/submit
+// COMPOSITES. Each uploaded bytes server-side and then pointed the domain row at
+// a raw `storage_path` via `set_document_version_file`; both halves are retired
+// (M4/M5), and the chain cannot be one atomic server action on the DM2 substrate
+// because the document and version must EXIST before an upload can be reserved.
+//
+// The wizard now drives the chain client-side:
+//   create      createDraftOnly → begin → PUT → finalize → submitDocumentForApproval
+//   new version supersedeDocument → begin → PUT → finalize → submitDocumentForApproval
+//   revise      begin → PUT → finalize → submitDocumentForApproval (version exists)
+//
+// ⚠ `createDraftOnly` SURVIVES — it is step 1 of the create path and the only
+// verb returning BOTH ids. It is not a composite; it lost only its file block.
+// ---------------------------------------------------------------------------
 
 /**
- * The wizard's "Salvar rascunho" exit: create the header + draft version, and — if a
- * `file` was provided — attach it, WITHOUT submitting. Returns `documentId`. A file
- * failure after create still returns `documentId` + a banner (the draft is saved).
+ * Create the header + its draft version. METADATA ONLY — no file.
+ *
+ * This is the create wizard's STEP 1 (DM3). The bytes follow as a client-driven
+ * chain: `beginControlledVersionUpload` → PUT → `finalizeControlledVersionUpload`
+ * → `submitDocumentForApproval`. It is the only verb returning BOTH ids, and the
+ * wizard needs both before it can reserve an upload — which is exactly why the
+ * old create+attach+submit composite could not survive: on the DM2 substrate the
+ * document and version must EXIST before an upload can be reserved, so the chain
+ * cannot be one atomic server action.
+ *
+ * FormData: the create fields + `category`/`tags`; `expiryDate` is still parsed
+ * (and validated) so the wizard can post one form, but it is applied by
+ * `finalizeControlledVersionUpload` with the file, not here.
  */
 export async function createDraftOnly(
   _prev: CreateDocumentState | undefined,
@@ -858,8 +785,6 @@ export async function createDraftOnly(
   const fields = readCreateFields(formData)
   if ('ok' in fields) return fields
 
-  const file = formData.get('file')
-  const hasFile = file instanceof File && file.size > 0
   const expiryDate = parseDate(formData.get('expiryDate'))
   if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
 
@@ -867,204 +792,12 @@ export async function createDraftOnly(
   if ('ok' in created) return created
   const { documentId, versionId } = created
 
-  if (hasFile) {
-    const supabase = await createClient()
-    const uploaded = await uploadDocumentFile(file, fields.commissionId, documentId)
-    if ('error' in uploaded) {
-      revalidateDocuments()
-      return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-    }
-    const { error: fileError } = await supabase.rpc('set_document_version_file', {
-      p_version_id: versionId,
-      p_storage_path: uploaded.path,
-      p_summary_of_changes_md: String(formData.get('summaryOfChangesMd') ?? '').trim() || undefined,
-      p_expiry_date: expiryDate ?? undefined,
-    })
-    if (fileError) {
-      revalidateDocuments()
-      return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-    }
-  }
-
   revalidateDocuments()
   // versionId is returned (DM3): the wizard needs BOTH ids before it can call
   // beginControlledVersionUpload — the document and version must exist before
   // an upload can be reserved, which is why the create+upload+submit composite
   // cannot be atomic on the DM2 substrate and moves client-side.
   return { ok: true, error: MESSAGES.created, documentId, versionId }
-}
-
-/**
- * The all-in-one NEW-VERSION action (Wave 2.5a): supersede the current effective
- * version → attach the new draft's file → submit for approval, chained. Mirrors
- * {@link createAndSubmitDocument} for the supersede path. Identity is LOCKED — this
- * takes NO title/docType/category/tags/reviewCycle/description; the header is frozen
- * with the artifact. FormData: `documentId`, `commissionId` (for the immutable upload
- * path — same as {@link addDocumentVersion}), `file` (required), `summaryOfChangesMd`
- * (required), optional `expiryDate`/`proposedEffectiveDate`/`approvalDueDate`,
- * `approvers` (JSON `{approverId, approverTitle?}[]`, ≥1). On ANY post-supersede
- * failure it returns `documentId` (so the FE lands on the detail) + a mapped pt-BR
- * banner; never swallows the error.
- */
-export async function supersedeAndSubmitDocument(
-  _prev: CreateDocumentState | undefined,
-  formData: FormData,
-): Promise<CreateDocumentState> {
-  const documentId = String(formData.get('documentId') ?? '')
-  const commissionId = String(formData.get('commissionId') ?? '')
-  if (!documentId || !commissionId) return { ok: false, error: MESSAGES.notFound }
-
-  // Validate submit-only inputs UP FRONT (avoid superseding into an orphan draft on
-  // trivially invalid input — nothing is created if these fail).
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
-  }
-  const summary = String(formData.get('summaryOfChangesMd') ?? '').trim()
-  if (!summary) return { ok: false, fieldErrors: { summaryOfChangesMd: MESSAGES.summaryRequired } }
-  const parsedApprovers = parseApprovers(formData.get('approvers'))
-  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
-  const expiryDate = parseDate(formData.get('expiryDate'))
-  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
-  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
-  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
-  if (proposedEffectiveDate === null) {
-    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
-  }
-  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
-
-  const supabase = await createClient()
-
-  // 1) supersede → a NEW draft version (creates nothing lasting if it fails: e.g. the
-  // doc is not effective, or an open version already exists → HC089). documentId is
-  // known from input, so land the FE on the detail regardless.
-  const { data: sup, error: supError } = await supabase.rpc('supersede_document', {
-    p_document_id: documentId,
-  })
-  if (supError || !sup) return { ok: false, error: mapDocumentError(supError), documentId }
-  const versionId = sup.id
-
-  // 2) upload the immutable file object + attach it to the new draft version.
-  const uploaded = await uploadDocumentFile(file, commissionId, documentId)
-  if ('error' in uploaded) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-  }
-  const { error: fileError } = await supabase.rpc('set_document_version_file', {
-    p_version_id: versionId,
-    p_storage_path: uploaded.path,
-    p_summary_of_changes_md: summary,
-    p_expiry_date: expiryDate ?? undefined,
-  })
-  if (fileError) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
-  }
-
-  // 3) submit the new version for approval.
-  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
-    p_version_id: versionId,
-    p_approvers: parsedApprovers.payload as never,
-    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
-    p_approval_due_date: approvalDueDate ?? undefined,
-  })
-  if (submitError) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.draftSavedSubmitLater, documentId }
-  }
-
-  revalidateDocuments()
-  return { ok: true, error: MESSAGES.submitted, documentId }
-}
-
-/**
- * The REVISE-IN-PLACE terminal action (`changes_requested` wizard): re-attach the
- * corrected file to an EXISTING `changes_requested` version → re-submit it for
- * approval with the (possibly changed) approver set, chained. Mirrors
- * {@link supersedeAndSubmitDocument} but targets a version that ALREADY exists — there
- * is NO supersede/version bump: rejection produced a `changes_requested` state and the
- * coordinator revises the SAME version. Identity (title/docType/category/tags/cycle/
- * description) stays LOCKED — this takes none of it. The re-submit rebuilds a fresh
- * all-pending approver roster (server-side, in `submit_document_for_approval`).
- *
- * FormData contract (the FE revise wizard builds this):
- *   - `documentId`   (required) — the controlled-document id (for revalidate + the
- *                     partial-failure landing; not passed to any RPC).
- *   - `commissionId` (required) — the immutable upload path prefix (as {@link addDocumentVersion}).
- *   - `versionId`    (required) — the `changes_requested` version to revise in place.
- *   - `file`         (required) — the corrected artifact (immutable upload, new path).
- *   - `summaryOfChangesMd` (required) — describe the revision.
- *   - `approvers`    (required) — JSON `{approverId, approverTitle?}[]`, ≥1 (may differ
- *                     from the prior round; each must be an active same-hospital user).
- *   - `expiryDate` / `proposedEffectiveDate` / `approvalDueDate` (optional, YYYY-MM-DD).
- *
- * On ANY post-file-set failure it returns `documentId` (so the FE lands on the detail)
- * + a mapped pt-BR banner; it never swallows the error.
- */
-export async function reviseChangesRequestedDocument(
-  _prev: ReviseDocumentState | undefined,
-  formData: FormData,
-): Promise<ReviseDocumentState> {
-  const documentId = String(formData.get('documentId') ?? '')
-  const commissionId = String(formData.get('commissionId') ?? '')
-  const versionId = String(formData.get('versionId') ?? '')
-  if (!documentId || !commissionId || !versionId) return { ok: false, error: MESSAGES.notFound }
-
-  // Validate all inputs UP FRONT (avoid uploading an orphan object / mutating the
-  // version on trivially invalid input).
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
-  }
-  const summary = String(formData.get('summaryOfChangesMd') ?? '').trim()
-  if (!summary) return { ok: false, fieldErrors: { summaryOfChangesMd: MESSAGES.summaryRequired } }
-  const parsedApprovers = parseApprovers(formData.get('approvers'))
-  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
-  const expiryDate = parseDate(formData.get('expiryDate'))
-  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
-  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
-  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
-  if (proposedEffectiveDate === null) {
-    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
-  }
-  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
-
-  // 1) upload the immutable file object (nothing on the version has changed yet — an
-  // upload failure leaves the version untouched, so surface it as a field error).
-  const uploaded = await uploadDocumentFile(file, commissionId, documentId)
-  if ('error' in uploaded) {
-    return { ok: false, fieldErrors: { [uploaded.field]: uploaded.error } }
-  }
-
-  const supabase = await createClient()
-
-  // 2) attach the corrected file to the existing changes_requested version (HC089 if
-  // the version is no longer in a revisable state — draft/changes_requested only).
-  const { error: fileError } = await supabase.rpc('set_document_version_file', {
-    p_version_id: versionId,
-    p_storage_path: uploaded.path,
-    p_summary_of_changes_md: summary,
-    p_expiry_date: expiryDate ?? undefined,
-  })
-  if (fileError) {
-    revalidateDocuments()
-    return { ok: false, error: mapDocumentError(fileError), documentId }
-  }
-
-  // 3) re-submit for approval (rebuilds a fresh all-pending roster server-side).
-  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
-    p_version_id: versionId,
-    p_approvers: parsedApprovers.payload as never,
-    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
-    p_approval_due_date: approvalDueDate ?? undefined,
-  })
-  if (submitError) {
-    revalidateDocuments()
-    return { ok: false, error: MESSAGES.revisionSavedSubmitLater, documentId }
-  }
-
-  revalidateDocuments()
-  return { ok: true, error: MESSAGES.submitted, documentId }
 }
 
 // ---------------------------------------------------------------------------

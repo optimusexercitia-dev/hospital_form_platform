@@ -1047,6 +1047,31 @@ DM3 must not move any of them again.
 
 ---
 
+### ⚠ PROCESS NOTE — a contract review must TRACE ONE FULL CALL CHAIN
+
+**Raised by the lead 2026-08-13, from a live failure in this very section.**
+§7 was reviewed, approved, and declared *stable* to the frontend — and it was
+**unbuildable**, not merely incomplete: `beginControlledVersionUpload` did not
+return `uploadSessionId`, and `finalizeControlledVersionUpload` is keyed on the
+upload *session*, so **finalize could never be called**. Neither the plan review
+nor the approval caught it. It surfaced only when the implementer tried to *use*
+the contract rather than just satisfy it.
+
+Contract-first buys parallelism by letting one side build against signatures the
+other has not implemented yet. That trade only pays if the signatures actually
+compose — and reading them one at a time cannot show that, because each one
+looks complete in isolation. The missing field was invisible in every view
+except the sequence.
+
+**Binding on every future phase's contract review:** before a posted contract is
+declared stable, **trace at least one complete call chain end to end** —
+caller → each signature in order → the value each step needs from the one
+before — and confirm every input is actually produced by something upstream. A
+signature list is not a contract until one full path through it has been walked.
+
+(Two other §7 corrections came out of the same implementation pass and are
+recorded in §8: the `terminal` flag, and dropping `coreDocumentId`.)
+
 ## 7b. Hand-off notes for the frontend / tester slices (verified, not adopted on trust)
 
 **E2E specs that pin behaviour DM3 changes.** Specs are `tester`'s — engineers never

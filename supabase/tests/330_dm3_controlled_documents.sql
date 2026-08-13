@@ -25,6 +25,15 @@
 -- Sections A/C/T/B/P/E/X/S join with M2–M7; plan() grows with them.
 -- =============================================================================
 
+-- ⚠ NEVER CALL A DOOR INLINE INSIDE `is()` (found the hard way under the B4
+-- mutation twin). `is(public.open_document_version(...)->>'x', …)` RAISES when
+-- the door refuses, which ABORTS the transaction and silently drops every
+-- assertion after it: the twin run reported ONE failure and TEN un-run tests,
+-- with B4's own line never printed. Route door calls through
+-- `pg_temp.door_serves` (or throws_ok/lives_ok), which catch the refusal and
+-- keep the tally intact. Same family as the savepoint note below — an assertion
+-- that never reaches `finish()` — reached by a different route.
+--
 -- ⚠ IN-SUITE MUTATION IDIOM (found the hard way, 2026-08-13). An assertion that
 -- sits between `savepoint` and `rollback to savepoint` PRINTS `ok` but is
 -- DISCARDED from pgTAP's tally — the rollback unwinds pgTAP's own bookkeeping.
