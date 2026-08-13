@@ -95,6 +95,54 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### 🟢 IN PROGRESS — **DM3: Wave B — controlled documents** (opened 2026-08-13)
+
+Plan: **[dm3-controlled-documents-plan.md](docs/plans/dm3-controlled-documents-plan.md)**
+(`dc6ae9b`) — **APPROVED by the lead 2026-08-13** with two binding conditions (R1, R2).
+Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, plus a
+**K8c-only** edit to `328`. Census: 375 registered == 375 files.
+
+| Slice | Owner | Status |
+| --- | --- | --- |
+| S1 — M1–M8 migrations + suite `330` | backend | 🟢 in progress |
+| S2 — frontend: open-door cutover, charter gate, dead-component removal | frontend | ⬜ not started (contract posted in plan §7) |
+| S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
+| S4 — QA review | qa | ⬜ not started |
+| S5 — gate + approval | lead | ⬜ not started |
+
+**Rulings made at plan approval** (detail: ADR 0114 Amdt 2, corrected `57da0ce`):
+- **Ethics letters home on the `case` securable resource, never `controlled_document`** —
+  three catalog facts each force it alone. Lead-ruled, not sent to the PO, because it
+  follows necessarily from the ratified Amendment-2 text and the alternative is
+  affirmatively unsafe (it silently deletes the D15 ceiling via `HC0D6`).
+- Backfill fileless core versions **1:1**; the domain-side pointer is **outside D10**
+  (which governs the core *file binding*) — **conditional on R2**; **both**
+  `controlled_documents_obj_*` policies dropped (the INSERT one bypasses
+  `begin_document_upload` entirely); production **not** re-measured during DM3, with
+  re-measurement a **precondition of DM5's manifest and any `db push`**; charter screen
+  gates on `charters && controlled_docs`.
+
+**Lead's two binding conditions on the plan:**
+- **R1** — `330` reuses the labels **K8a/K8b/K8c**, which already mean *referral / RCA /
+  ethics seam* in `328` and which **DM4 and Wave D still cite by name**. Renumber `330`'s
+  trio. (The plan diagnoses this exact class one section later.)
+- **R2** — Q3's approval is conditional on a keystone pinning that the domain pointer
+  **cannot move once the version leaves draft**, proven able to fail. Unpinned, "mutable
+  while draft" is an intention, and the failure mode is swapping the file under an
+  already-approved document — the class D10 exists to prevent, re-entering through the
+  door just ruled open.
+
+⚠ **Corrections the census forced in binding text the LEAD authored** — both verified
+independently before amending: (1) "remove keystone K8" named **three** sub-keystones and
+would have deleted DM4's and Wave D's parked-seam pins; (2) conditions 2 and 5 need
+**opposite** treatments — `issue_ethics_notification` keeps its 8-arg identity
+(`CREATE OR REPLACE`, ACL preserved) while `set_ethics_decision_details` has 11 args with
+**10 `DEFAULT NULL`**, so `CREATE OR REPLACE` mints an **overload** and the live 11-arg
+call becomes ambiguous (`42725`) — it needs `DROP`+`CREATE`+**re-GRANT**.
+⚠ **A lead over-claim was corrected by backend and the correction adopted:** "exactly one
+audit row per download" is wrong — the D11 floor does not log a creator's own
+standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**, denial → 0.
+
 ### ✅ COMPLETE — **DM2: orchestration + Wave A** (opened + completed 2026-08-13)
 
 > ✅ **PO-APPROVED 2026-08-13 — all five §6 gate steps passed.** QA **r2 = APPROVED**
