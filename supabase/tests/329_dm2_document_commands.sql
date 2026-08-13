@@ -25,7 +25,9 @@ begin;
 -- affordances).
 -- 92 → 100: S4 routed bugs — B0–B6 (8: BUG-DM2-001 observable failure,
 -- BUG-DM2-003 expired-session contract).
-select plan(100);
+-- 100 → 108: QA r1 P0-1 — the QO·B byte-discrimination cut re-expressed
+-- (P0-f1/f2 fixtures + P0a–P0f, the 308 §5.2–5.7 obligation).
+select plan(108);
 
 -- Flags: the module flag flips ON for this txn; the rest asserted as state.
 update app.feature_flags set enabled = true where key = 'documents_foundation';
@@ -696,6 +698,80 @@ select is(
     where s.id = (select (r->>'upload_session_id')::uuid from u10)),
   'reserved',
   'B6 the refusal leaves state = reserved BY DESIGN (a refusal that must also persist state fights its own transaction; expiry marking is reconciliation''s sweep)');
+
+-- =============================================================================
+-- P0 — QA r1 P0-1: the QO·B byte-discrimination cut, re-expressed in the new
+-- corridor (308 §5.2–5.7's named obligation — its tombstone ran green this
+-- phase, which was itself a finding). The predecessor contract (M9,
+-- 20260911000800): case/interview BYTES require `read_case_deliberation` —
+-- conferred by every content source EXCEPT the S7 oversight arm — applied
+-- INSIDE the byte door; the KERNEL stays bare can_read_case because the M8
+-- half of the contract is that the reviewer KEEPS metadata (titles).
+-- Personas: quality.a (…f3) holds content+overview, NO deliberation
+-- (catalog-verified); staff1 + chefe both hold deliberation, so no green pin
+-- over-narrows. RED-FIRST (QA's own reproduction, then mine): P0a caught NO
+-- exception (SERVED, tier=phi), P0d prosrc lacks the conjunct, P0f have 1
+-- want 0 (the served open minted). P0e is the OVER-NARROWING control (green
+-- both sides by design — the M8 metadata contract must survive the fix).
+-- =============================================================================
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table up0 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (oversight)', null, null, null, 'q.pdf', 'application/pdf', 100) as r;
+grant select on up0 to authenticated;
+select set_config('request.jwt.claims', '', true);
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 9, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from up0);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from up0)) $q$,
+  'P0-f1 oversight fixture finalizes');
+select set_config('request.jwt.claims', '', true);
+select lives_ok(
+  $q$ select public.complete_document_upload_verification(
+        (select (r->>'upload_session_id')::uuid from up0), repeat('9', 64), true) $q$,
+  'P0-f2 oversight fixture completes (servable)');
+
+-- (5.6/M8) METADATA stays reviewer-visible — the over-narrowing control.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000f3'::uuid, false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.documents
+    where id = (select (r->>'document_id')::uuid from up0)),
+  1, 'P0e M8 SURVIVES: the oversight reviewer still reads the document row (metadata yes)');
+reset role;
+
+-- (5.2 serving layer) the reviewer is REFUSED bytes at the corridor.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000f3'::uuid, false);
+select throws_ok(
+  $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from up0)) $q$,
+  '42501', 'sem autorização para baixar este documento',
+  'P0a M9 RE-EXPRESSED: content-without-deliberation (the S7 oversight arm) gets NO bytes');
+-- (5.7) …and the refusal minted NOTHING.
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'document.opened'
+      and entity_id = (select (r->>'document_id')::uuid from up0)),
+  0, 'P0f the byte refusal mints no audit row (denials raise, never log)');
+
+-- (5.3/5.4) non-vacuity twins: deliberation-holders keep bytes.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+select lives_ok(
+  $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from up0)) $q$,
+  'P0b a deliberation-holding member (the member arm confers it) is SERVED');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from up0)) $q$,
+  'P0c the coordinator is SERVED (the cut removes exactly one class, nothing else)');
+
+-- (5.5 resolve-shape) the conjunct lives in the DOOR body (comment-stripped).
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'open_document_version')
+    ~ 'read_case_deliberation',
+  'P0d the deliberation conjunct is the DOOR''s, not a React prop (resolve-shape)');
 
 select * from finish();
 rollback;
