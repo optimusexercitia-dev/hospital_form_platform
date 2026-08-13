@@ -198,12 +198,21 @@ export interface DocumentListItem {
    */
   latestVersion: DocumentVersionSummary | null
   /**
-   * `null` = the caller is not entitled to hold visibility (hold existence is
-   * write-authority governance metadata); a boolean only for entitled readers.
-   * On the LIST so per-row delete affordances can disable instead of failing
-   * server-side (HC0D3).
+   * Server-computed delete/dispose affordance (the `canOpen` principle, lead
+   * route 2026-08-13): write authority AND no live hold — computed by the
+   * batched `document_delete_affordances` door, so holds are accounted for
+   * WITHOUT disclosing their existence to non-entitled writers. Disable the
+   * affordance on `false`; never derive this UI-side from session context.
    */
-  underLegalHold: boolean | null
+  canDelete: boolean
+  /**
+   * Entitled-reader governance DISPLAY only (never an affordance input —
+   * that is `canDelete`): `true` = a live hold row is visible to the caller;
+   * `null` = no hold visible, which RLS makes indistinguishable between
+   * "none exists" and "not entitled to hold visibility". `false` is
+   * deliberately not a member — it was unreachable.
+   */
+  underLegalHold: true | null
   createdBy: string
   createdByName: string | null
   createdAt: string

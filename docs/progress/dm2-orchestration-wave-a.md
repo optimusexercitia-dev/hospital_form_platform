@@ -279,4 +279,56 @@ gate): recorded as ADR 0118 §10 (state only); implementation on the lead's
 ack, as its own migration + the 229-heritage keystones (excluded-party deny +
 ceiling fence + copy-integrity sha pin + the new exemption's own twin).
 
+### S2.8 record (2026-08-13 — lead-approved, three conditions discharged)
+
+- Migration `20260924000500` (372 registered): `reclassify_document` +
+  service-only `complete_document_reclassification` (append-only new-version
+  commit; copy integrity = sha of the moved bytes, refused on mismatch) + the
+  evidence-gated duplicate-retirement lane re-emitted into
+  `complete_document_disposal` (drift-asserted) + the batched
+  `document_delete_affordances` door. TS: `reclassifyDocument` real body
+  (download→hash→upload→commit→retire), `canDelete` merged into the queries
+  (one batched door call per list), `underLegalHold` retyped `true | null`.
+- **Condition 1** (last-copy invariant, executable): 329 **R6/R7** — the old
+  copy retires on the live same-sha successor; the successor, sibling
+  disposed, is REFUSED (HC0DR). Same statement, one variable.
+- **Condition 2** (kept GENERAL, justified in ADR 0118 §10): the guardrail is
+  the EVIDENCE, never caller provenance; `request_document_disposition` marks
+  ALL files so the lane self-blocks on that path; vacuity pin **R8** (a
+  non-duplicated file cannot claim the lane). Exemption twin: sha term
+  neutralized → a different-content sibling wrongly satisfies (probe
+  `disposal_pending`→`disposed`); restored control HC0DR; restore verified.
+- **Condition 3**: ADR 0118 §10 PROMOTED to the decision (invariant + both
+  guardrails named); §11 records the canDelete route.
+- Red-first: S7 `have: 0, want: 3` + abort at 42883 (planned 92 / ran 67)
+  pre-`000500`; post: **329 92/92** · fresh-stack full suite
+  **189f/6049 PASS** (6023 + 26, accounted) · lint 5-gate · tsc 0 first-party
+  · vitest 1254/1254.
+- **`ARM=census` REQUIRED-FAIL captured, and it corrected ME**: 549 live
+  gates, VIOLATED naming exactly `document_delete_affordances` — my S2.7
+  findings note had predicted SETOF doors stay outside the domain; wrong for
+  this one, and the census caught the misprediction (the arm working as
+  designed). The prescribed diff-scoped sweep printed **BLIND: 0 over ZERO
+  executed cases** (the ARM-1 `^(is_|can_|has_)` matcher cannot run it) — NOT
+  cited, per the case-count rule; covered instead by TARGETED MUTATION (door
+  forced true in a rolled-back txn → plain member gains the affordance,
+  A2/A3 would red; restored control `f`; restore catalog-verified — the DM1
+  `storage_upload_reserved` dialect). Findings file: `git checkout --`
+  restore, verdict row + note-correction appended; census re-run **HOLDS**
+  (549/569). `ARM=hat` / `ARM=floor` / `FROMFINDINGS=1 ARM=wrapper` all HOLD.
+- **PO rulings folded in**: O4 closed in ADR 0114 (PHI 120 s / standard
+  300 s, no proxy — the bearer-token asymmetry reasoning recorded there);
+  list-perf ruled NO TRIM — see the watch-item below.
+
+### Pilot watch-item — LIST file-chain RLS cost (PO-ruled: no action pre-pilot)
+
+`document_version_files`→`file_objects` chain policies cost **~3.7 ms/row**
+(measured 2026-08-13, 25 docs × 2 versions, member persona, fresh stack;
+documents ~1.6 ms/row, versions ~1.6 ms/row; sign median 10 ms). PO ruling:
+keep the embed — `containsPhi` + `availability` stay; production census is 45
+objects and Wave-A panels hold single-digit documents, so the 200-row figure
+is a load that does not exist. If it ever bites, start from these numbers;
+first option: trim the file embed from LIST while keeping both fields
+resolving (a narrowed embed / computed column), routed through the lead.
+
 ## S2+ — (subsequent slices append here)

@@ -106,7 +106,7 @@ function toVersionSummary(v: VersionRow, docStatus: string): DocumentVersionSumm
   }
 }
 
-function toListItem(row: DocumentRow): DocumentListItem {
+function toListItem(row: DocumentRow, canDelete: boolean): DocumentListItem {
   const versions = [...row.document_versions].sort((a, b) => b.version_number - a.version_number)
   const latest = versions[0]
   const latestSummary = latest ? toVersionSummary(latest, row.status) : null
@@ -129,11 +129,32 @@ function toListItem(row: DocumentRow): DocumentListItem {
       ? latestFile.sensitivity_tier === 'phi'
       : homeType === 'case' || homeType === 'interview',
     latestVersion: latestSummary,
+    canDelete,
     underLegalHold: liveHold ? true : null,
     createdBy: row.created_by,
     createdByName: row.profiles?.full_name ?? null,
     createdAt: row.created_at,
   }
+}
+
+/** One batched call to the server-computed delete-affordance door (the
+ * canOpen principle: never derived UI-side; holds accounted WITHOUT
+ * disclosure). Fail-closed: an error yields no affordances. */
+async function deleteAffordances(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  documentIds: string[],
+): Promise<Map<string, boolean>> {
+  if (documentIds.length === 0) return new Map()
+  const { data, error } = await supabase.rpc('document_delete_affordances', {
+    p_document_ids: documentIds,
+  })
+  if (error || !data) return new Map()
+  return new Map(
+    (data as Array<{ document_id: string; can_delete: boolean }>).map((r) => [
+      r.document_id,
+      r.can_delete,
+    ]),
+  )
 }
 
 /** Documents homed on one resource, for the Wave-A panels. */
@@ -149,9 +170,14 @@ export async function listDocumentsForResource(
     .neq('status', 'soft_deleted')
     .order('created_at', { ascending: false })
   if (error || !data) return []
-  return (data as unknown as DocumentRow[])
-    .filter((row) => (row.securable_resources?.resource_type ?? resourceType) === resourceType)
-    .map(toListItem)
+  const rows = (data as unknown as DocumentRow[]).filter(
+    (row) => (row.securable_resources?.resource_type ?? resourceType) === resourceType,
+  )
+  const affordances = await deleteAffordances(
+    supabase,
+    rows.map((r) => r.id),
+  )
+  return rows.map((row) => toListItem(row, affordances.get(row.id) ?? false))
 }
 
 /** One document with its version history (versionNumber DESC), or null when
@@ -165,7 +191,8 @@ export async function getDocument(documentId: string): Promise<DocumentDetail | 
     .maybeSingle()
   if (error || !data) return null
   const row = data as unknown as DocumentRow
-  const item = toListItem(row)
+  const affordances = await deleteAffordances(supabase, [row.id])
+  const item = toListItem(row, affordances.get(row.id) ?? false)
   const versions = [...row.document_versions]
     .sort((a, b) => b.version_number - a.version_number)
     .map((v) => toVersionSummary(v, row.status))

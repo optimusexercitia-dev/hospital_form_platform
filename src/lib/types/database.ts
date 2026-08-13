@@ -11261,6 +11261,15 @@ export type Database = {
         Args: { p_file_object_id: string }
         Returns: undefined
       }
+      complete_document_reclassification: {
+        Args: {
+          p_document_version_id: string
+          p_new_file_object_id: string
+          p_old_file_object_id: string
+          p_sha256: string
+        }
+        Returns: Json
+      }
       complete_document_upload_verification: {
         Args: {
           p_sha256: string
@@ -12488,6 +12497,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      document_delete_affordances: {
+        Args: { p_document_ids: string[] }
+        Returns: {
+          can_delete: boolean
+          document_id: string
+        }[]
+      }
       documents_due_for_review: {
         Args: { p_commission: string }
         Returns: {
@@ -13562,6 +13578,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reclassify_document: {
+        Args: { p_document_id: string; p_target_tier: string }
+        Returns: Json
       }
       recompute_recommendations: {
         Args: { p_case_id: string }

@@ -29,8 +29,10 @@ import type {
  * nothing signable. Callers should `router.refresh()` after a mutation (the
  * house pattern); no revalidatePath here — the panels' routes are S3's.
  *
- * Signed-URL TTLs are PROVISIONAL pending the O4 ruling (PO decides against
- * the measured latency; see the S2 record).
+ * Signed-URL TTLs: PO-RULED 2026-08-13 (ADR 0114 O4 closure): PHI 120 s /
+ * standard 300 s, no streaming proxy. The split is deliberate — a signed URL
+ * is a bearer token, so PHI bytes get a strictly smaller exposure window.
+ * Never "simplify" to one number.
  */
 
 const SIGNED_URL_TTL_SECONDS: Record<DocumentSensitivityTier, number> = {
@@ -280,13 +282,67 @@ export async function softDeleteDocument(documentId: string): Promise<DocumentAc
   return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Tier reclassification — ⛔ S2.8, BLOCKED on a lead ruling (the
- * document_version_files UNIQUE(version, rendition) + immutability guard rule
- * out both a sibling binding and a rebind; re-derivation in the S2 record).
- * Stub stays loud until the ruled shape lands. */
+/** Tier reclassification (S2.8, lead-approved shape — ADR 0118 §10):
+ * copy → verify (sha of the COPIED bytes) → commit as a NEW VERSION
+ * (append-only; no binding edited) → retire-source through the
+ * evidence-gated duplicate lane. */
 export async function reclassifyDocument(
-  _documentId: string,
-  _targetTier: DocumentSensitivityTier,
+  documentId: string,
+  targetTier: DocumentSensitivityTier,
 ): Promise<DocumentActionState> {
-  throw new Error('DM2 S2.8: reclassify awaits the lead ruling (see the S2 record)')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('reclassify_document', {
+    p_document_id: documentId,
+    p_target_tier: targetTier,
+  })
+  if (error || !data) return { ok: false, error: errCode(error) }
+  const r = data as Record<string, string>
+
+  const admin = createAdminClient()
+  // COPY: download the source, hash what we actually move, upload to the
+  // reserved target path — the hash we pass is of the bytes we wrote.
+  const { data: oldFile } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path, mime_type')
+    .eq('id', r.old_file_object_id)
+    .single()
+  const { data: newFile } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path')
+    .eq('id', r.new_file_object_id)
+    .single()
+  if (!oldFile || !newFile) return { ok: false, error: 'unknown' }
+  const { data: blob, error: dlError } = await admin.storage
+    .from(oldFile.storage_bucket)
+    .download(oldFile.storage_path)
+  if (dlError || !blob) return { ok: false, error: 'upload_incomplete' }
+  const bytes = await blob.arrayBuffer()
+  const sha = sha256Hex(bytes)
+  const { error: upError } = await admin.storage
+    .from(newFile.storage_bucket)
+    .upload(newFile.storage_path, bytes, {
+      contentType: oldFile.mime_type ?? 'application/octet-stream',
+      upsert: false,
+    })
+  if (upError) return { ok: false, error: 'upload_incomplete' }
+
+  const { error: commitError } = await admin.rpc('complete_document_reclassification', {
+    p_document_version_id: r.new_document_version_id,
+    p_new_file_object_id: r.new_file_object_id,
+    p_old_file_object_id: r.old_file_object_id,
+    p_sha256: sha,
+  })
+  if (commitError) return { ok: false, error: errCode(commitError) }
+
+  // RETIRE-SOURCE: Storage-API delete, then the verified disposal (the
+  // evidence-gated duplicate lane — the live successor is the evidence).
+  const { error: rmError } = await admin.storage
+    .from(oldFile.storage_bucket)
+    .remove([oldFile.storage_path])
+  if (rmError) return { ok: false, error: 'unknown' }
+  const { error: disposeError } = await admin.rpc('complete_document_disposal', {
+    p_file_object_id: r.old_file_object_id,
+  })
+  if (disposeError) return { ok: false, error: errCode(disposeError) }
+  return { ok: true }
 }

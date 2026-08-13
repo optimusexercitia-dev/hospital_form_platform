@@ -192,8 +192,13 @@ mutation twins.
   **fired**: Phase 19 (Surveyor Access & Evidence Export) is a committed,
   specified requirement for per-document access granted to a **non-member**. The
   `access_policy_id` seam and the audit §6.7 sketch are its start.
-- **O4 (PO):** signed-URL TTL per sensitivity + whether any content class warrants
-  streaming-proxy serving instead of signing (revisit at DM2 with real latency).
+- **O4 (PO): ✅ RULED 2026-08-13, at DM2 against measured latency** (ADR 0118;
+  measurements in the DM2 record §S2.7): **PHI 120 s / standard 300 s signed-URL
+  TTLs; no streaming proxy** (the measured 10 ms sign median is what killed the
+  proxy option — the corridor's cost is authorization, not signing). The split is
+  deliberate, not tuning: **a signed URL is a bearer token, so PHI bytes get a
+  strictly smaller exposure window than non-PHI** — the asymmetry IS the point of
+  two tiers; do not later "simplify" them to one number.
 
 ## Amendment 1 (2026-08-13) — the per-document confidentiality ceiling
 

@@ -193,6 +193,7 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | gate / policy | arm | direction | verdict | failing files / note |
 |---|---|---|---|---|
 | app.can_read_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 144_case_access.sql,191_grant_hardening.sql,229_authz_m1_exclusion_durability.sql,311_oversight_readonly_perimeter.sql,328_dm1_document_substrate.sql (DM1 hand-merge 2026-08-12; re-swept 2026-08-13 after the DM2·S1 ceiling-arm body change — 1 case executed, COVERED; 228 t36-39 + 328 K14 added) |
+| public.document_delete_affordances(p_document_ids uuid[]) | predicate | positive | COVERED | 329_dm2_document_commands.sql A1-A3 (S2.8 hand-merge 2026-08-13; ARM-1 case matcher cannot run it — name-shape blind spot, 0 cases executed, NOT citable; covered by TARGETED MUTATION: door forced true in a rolled-back txn -> plain member gains the affordance (A2/A3 would red), restored control f, restore catalog-verified — the DM1 storage_upload_reserved dialect) |
 | app.can_write_document(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,314_qob_org_admin_content_wall.sql,328_dm1_document_substrate.sql (DM1) |
 | app.can_read_document_version(p_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 328_dm1_document_substrate.sql (DM1) |
 | app.can_read_file_object(p_file_object_id uuid, p_uid uuid) | predicate | positive | COVERED | 328_dm1_document_substrate.sql (DM1; RE-SWEPT 2026-08-13 after QA MAJOR-1 removed the uploader arm — chain-only body, baseline Files=188 Tests=5927, 1 case executed, COVERED; K13 pins the absence, twin: arm re-added → unbound file uploader-visible → red) |
@@ -584,3 +585,10 @@ arm REMOVAL is pinned by 328 K10d + 191 3.13–3.15), `public.log_audit_access`
 (behavioral: 328 K10a/b, 329 F2, 191 §4), `public.dispose_case_phi` (behavioral:
 329 W1–W5 + suite 197 green). No S2 change added a boolean door or a policy —
 `ARM=census` zero-delta verified 2026-08-13.
+
+**Correction (S2.8, same day):** the prediction above was WRONG for the tenth-plus-one
+door — `public.document_delete_affordances` (added by `20260924000500`) DOES enter the
+census domain (549) despite returning SETOF, and `ARM=census` FAILED naming exactly it —
+the required-fail working as designed, catching the author's own domain misprediction.
+Its verdict row (COVERED via targeted mutation; the ARM-1 matcher cannot run it) is in
+the COVERED table above. The ten COMMAND doors remain outside the domain as stated.

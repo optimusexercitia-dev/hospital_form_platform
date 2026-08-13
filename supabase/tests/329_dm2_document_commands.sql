@@ -19,7 +19,11 @@
 
 begin;
 -- 3 preconditions + S6 + F3 + U18 + O16 + D5 + H7 + C3 + W5 = 66.
-select plan(66);
+-- 66 → 92: S2.8 adds S7–S9 (3 structural) + R0–R9 (19: fixtures-as-pins,
+-- authority, hold, happy path, copy integrity, the last-copy differential
+-- pair, the vacuity pin, version semantics) + A1–A3 (4: canDelete
+-- affordances).
+select plan(92);
 
 -- Flags: the module flag flips ON for this txn; the rest asserted as state.
 update app.feature_flags set enabled = true where key = 'documents_foundation';
@@ -414,6 +418,201 @@ select is(
     where f.id = (select (r->>'file_object_id')::uuid from u5)),
   'disposal_pending|subject_request',
   'W5 the phi-tier file entered the disposal machine on the Art. 18 lane');
+
+-- =============================================================================
+-- R — S2.8 reclassification (ADR 0118 §10: append-only new-version commit +
+-- the EVIDENCE-GATED duplicate-retirement lane) + S7–S9 structural.
+-- RED-FIRST: authored before 20260924000500; R1/R2/R4 observed
+-- `caught: 42883` pre-migration (doors absent), fixture-bearing pins abort —
+-- shape recorded in the S2 record.
+-- =============================================================================
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+      and p.proconfig::text ~ 'search_path=app, public, pg_catalog'
+      and p.proname in ('reclassify_document', 'complete_document_reclassification',
+                        'document_delete_affordances')),
+  3, 'S7 the three S2.8 doors are SECURITY DEFINER with the pinned search_path');
+select is(has_function_privilege('authenticated',
+  'public.complete_document_reclassification(uuid,uuid,uuid,text)', 'EXECUTE'),
+  false, 'S8 the reclassification completion door is SERVICE-ROLE ONLY');
+select is(has_function_privilege('authenticated',
+  'public.document_delete_affordances(uuid[])', 'EXECUTE'),
+  true, 'S9 authenticated may EXECUTE the canDelete affordance door');
+
+-- Fixture: a fresh, fully-walked phi document on Caso 0001 (u6).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u6 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (reclassificacao)', null, null, null, 'r.pdf', 'application/pdf', 100) as r;
+select set_config('request.jwt.claims', '', true);
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 11, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u6);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u6)) $q$,
+  'R0 u6 upload finalizes');
+select set_config('request.jwt.claims', '', true);
+select lives_ok(
+  $q$ select public.complete_document_upload_verification(
+        (select (r->>'upload_session_id')::uuid from u6), repeat('d', 64), true) $q$,
+  'R0b u6 upload completes');
+
+-- R1 authority: a non-writer cannot reclassify (the canonical door carries
+-- the case-arm exclusion deny — 229 heritage).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+select throws_ok(
+  $q$ select public.reclassify_document((select (r->>'document_id')::uuid from u6), 'standard') $q$,
+  '42501', null, 'R1 a plain member cannot reclassify');
+
+-- R2 a live hold blocks reclassification (retire-source is a disposal).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table rh on commit drop as
+  select public.place_document_hold((select (r->>'document_id')::uuid from u6), 'audit') as hold_id;
+select throws_ok(
+  $q$ select public.reclassify_document((select (r->>'document_id')::uuid from u6), 'standard') $q$,
+  'HC0D3', null, 'R2 a live hold blocks reclassification');
+select lives_ok(
+  $q$ select public.release_document_hold((select hold_id from rh)) $q$,
+  'R2b hold released for the happy path');
+
+-- R3 happy begin: append-only successor minted.
+create temp table rr on commit drop as
+  select public.reclassify_document((select (r->>'document_id')::uuid from u6), 'standard') as r;
+select is(
+  (select count(*)::int from rr where (r->>'new_document_version_id') is not null
+      and (r->>'old_file_object_id') is not null),
+  1, 'R3 reclassify mints the successor version + reserved target-tier file');
+select is(
+  (select f.storage_bucket || '|' || f.sensitivity_tier || '|' || f.upload_state
+     from public.file_objects f where f.id = (select (r->>'new_file_object_id')::uuid from rr)),
+  'documents-standard|standard|reserved',
+  'R3b the new file is reserved in the TARGET bucket (tier override is the door''s purpose)');
+
+-- R4 copy integrity: a wrong sha is refused (service context).
+select set_config('request.jwt.claims', '', true);
+select throws_ok(
+  $q$ select public.complete_document_reclassification(
+        (select (r->>'new_document_version_id')::uuid from rr),
+        (select (r->>'new_file_object_id')::uuid from rr),
+        (select (r->>'old_file_object_id')::uuid from rr),
+        repeat('e', 64)) $q$,
+  'HC0D9', null, 'R4 a sha mismatch refuses the commit (copy integrity is the gate)');
+
+-- R5 happy completion: plant the copied object, commit with the TRUE sha.
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 11, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'new_file_object_id')::uuid from rr);
+select lives_ok(
+  $q$ select public.complete_document_reclassification(
+        (select (r->>'new_document_version_id')::uuid from rr),
+        (select (r->>'new_file_object_id')::uuid from rr),
+        (select (r->>'old_file_object_id')::uuid from rr),
+        repeat('d', 64)) $q$,
+  'R5 the commit proceeds with the verified sha');
+select is(
+  (select count(*)::int from public.document_version_files
+    where document_version_id = (select (r->>'new_document_version_id')::uuid from rr)),
+  1, 'R5b the successor version is bound (append-only — no binding was edited)');
+select is(
+  (select f.disposal_state || '|' || f.disposal_reason_category || '|' from public.file_objects f
+    where f.id = (select (r->>'old_file_object_id')::uuid from rr)) ||
+  (select f2.upload_state from public.file_objects f2
+    where f2.id = (select (r->>'new_file_object_id')::uuid from rr)),
+  'disposal_pending|duplicate|unscanned_accepted',
+  'R5c retire-source entered the SYSTEM-set duplicate lane; the copy inherited servability');
+
+-- R6 Condition 1a: the old copy retires THROUGH provisional retention on
+-- EVIDENCE (the live same-sha successor), with the audited override.
+select set_config('storage.allow_delete_query', 'true', true);
+delete from storage.objects o
+ where (o.bucket_id, o.name) in
+   (select f.storage_bucket, f.storage_path from public.file_objects f
+     where f.id = (select (r->>'old_file_object_id')::uuid from rr));
+select set_config('storage.allow_delete_query', 'false', true);
+select lives_ok(
+  $q$ select public.complete_document_disposal((select (r->>'old_file_object_id')::uuid from rr)) $q$,
+  'R6 duplicate-evidence lane: the old copy retires (a live same-sha sibling survives)');
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'document.retention_override'
+      and entity_id = (select (r->>'document_id')::uuid from u6)
+      and metadata->>'lane' = 'duplicate_evidence'),
+  1, 'R6b …with the audited override marker naming the evidence lane');
+
+-- R9 version semantics: the retired copy''s version reads disposed; the
+-- successor serves.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from u6)) $q$,
+  'HC0DD', null, 'R9a the pre-reclassification version reads disposed (content lives in the successor)');
+select lives_ok(
+  $q$ select public.open_document_version((select (r->>'new_document_version_id')::uuid from rr)) $q$,
+  'R9b the successor version serves');
+
+-- R7 Condition 1b — THE LAST-COPY INVARIANT, differentially (same statement,
+-- one variable: the sibling''s liveness): the successor now has NO live
+-- same-sha sibling — the duplicate lane must refuse it.
+select set_config('request.jwt.claims', '', true);
+update public.file_objects
+   set disposal_state = 'disposal_pending', disposal_reason_category = 'duplicate'
+ where id = (select (r->>'new_file_object_id')::uuid from rr);
+select throws_ok(
+  $q$ select public.complete_document_disposal((select (r->>'new_file_object_id')::uuid from rr)) $q$,
+  'HC0DR', null,
+  'R7 LAST COPY PROTECTED: with the sibling disposed, the duplicate lane refuses — a servable copy always survives');
+
+-- R8 Condition 2 — the vacuity pin: a NON-duplicated file cannot claim the
+-- lane (the exemption is evidence, never a caller''s claim).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u7 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (unico)', null, null, null, 'u.pdf', 'application/pdf', 100) as r;
+select set_config('request.jwt.claims', '', true);
+insert into storage.objects (bucket_id, name, metadata)
+select f.storage_bucket, f.storage_path, '{"size": 5, "mimetype": "application/pdf"}'::jsonb
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u7);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u7)) $q$,
+  'R8a u7 finalizes');
+select set_config('request.jwt.claims', '', true);
+select lives_ok(
+  $q$ select public.complete_document_upload_verification(
+        (select (r->>'upload_session_id')::uuid from u7), repeat('f', 64), true) $q$,
+  'R8b u7 completes (a UNIQUE sha — no sibling anywhere)');
+update public.file_objects
+   set disposal_state = 'disposal_pending', disposal_reason_category = 'duplicate'
+ where id = (select (r->>'file_object_id')::uuid from u7);
+select throws_ok(
+  $q$ select public.complete_document_disposal((select (r->>'file_object_id')::uuid from u7)) $q$,
+  'HC0DR', null,
+  'R8 a non-duplicated file claiming the duplicate lane is REFUSED (evidence-gated, not claim-gated)');
+
+-- A — the canDelete affordance door (server-computed; holds accounted
+-- WITHOUT disclosure).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+create temp table u8 on commit drop as
+  select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
+    'Documento 329 (afford)', null, null, null, 'a.pdf', 'application/pdf', 100) as r;
+select is(
+  (select can_delete from public.document_delete_affordances(
+     array[(select (r->>'document_id')::uuid from u8)])),
+  true, 'A1 the home staff_admin holds the delete affordance');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+select is(
+  (select can_delete from public.document_delete_affordances(
+     array[(select (r->>'document_id')::uuid from u8)])),
+  false, 'A2 a plain member does not');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.place_document_hold((select (r->>'document_id')::uuid from u8), 'litigation') $q$,
+  'A3a hold placed');
+select is(
+  (select can_delete from public.document_delete_affordances(
+     array[(select (r->>'document_id')::uuid from u8)])),
+  false, 'A3 under a live hold even the staff_admin loses the affordance (no hold disclosure needed)');
 
 select * from finish();
 rollback;
