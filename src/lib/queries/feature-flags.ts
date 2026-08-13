@@ -123,6 +123,16 @@ export interface FeatureFlags {
   // `20260913000300_document_printing_flag`; `seed.sql` forces it ON for local/E2E.
   // Resolve the VALUE in `app.feature_flags.enabled`, never this comment.
   document_printing: boolean
+  // DM (ADR 0114): the document model. Five flags minted by DM1 M6
+  // (`20260923000600`), ALL OFF everywhere as of 2026-08-13 — the substrate is
+  // inert until DM2's flag choreography (foundation + wave_a flip at the DM2
+  // gate after human approval; the wave_b/c/d flips belong to their waves).
+  // Resolve the VALUE in `app.feature_flags.enabled`, never this comment.
+  documents_foundation: boolean
+  documents_wave_a: boolean
+  documents_wave_b: boolean
+  documents_wave_c: boolean
+  documents_wave_d: boolean
 }
 
 /** A flag key. */
