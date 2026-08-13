@@ -99,10 +99,21 @@ export function DocumentUpload({
  *
  *   begin → PUT the bytes to the signed credential → finalize
  *
- * The client never learns a bucket, a path or a token: the credential's URL
- * carries its own authority and expires. Size and MIME are checked here only to
- * refuse before a pointless wait — `finalize` re-derives both server-side, and
- * the caller's values are hints (D9).
+ * No storage coordinate is ever handed to this component as DATA: there is no
+ * bucket prop, no path prop, no browser Supabase client and no reusable key.
+ * What the client does hold is the signed credential itself, and the accurate
+ * statement about it is narrower than "the client never learns a bucket, a path
+ * or a token" — which this comment used to claim, and which is false (QA r1
+ * INFO-3). The signed URL embeds the bucket and the full object path in plain
+ * text and carries a live bearer token in its query string; it is a CREDENTIAL,
+ * and should be reasoned about as one. What is true is that it is
+ * single-purpose and perishable: it authorizes writing exactly its own path,
+ * for its short TTL, and nothing durable survives the upload. It is also only
+ * ever `fetch`ed (see `upload-client.ts`), never navigated to, so — unlike the
+ * download corridor — it does not enter session history.
+ *
+ * Size and MIME are checked here only to refuse before a pointless wait —
+ * `finalize` re-derives both server-side, and the caller's values are hints (D9).
  *
  * **Retry is real, not cosmetic — and it is not offered where it cannot work.**
  * A failed or partial PUT leaves NO object, so `finalize` answers

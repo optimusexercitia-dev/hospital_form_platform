@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DOCUMENT_ERROR_FALLBACK } from "./document-labels";
+import { DOCUMENT_ERROR_FALLBACK, documentErrorMessage } from "./document-labels";
 
 /**
  * Soft-delete a Wave-A document (DM2·S3).
@@ -28,8 +28,20 @@ import { DOCUMENT_ERROR_FALLBACK } from "./document-labels";
  * repo (BUG-QI-001, which has recurred); `.bind()` is serializable but a plain
  * string needs no such reasoning to be correct.
  *
- * Failure renders inline in pt-BR. `error` from the action is not rendered
- * verbatim unless it is a known user-safe string — see the note in the handler.
+ * Failure renders inline in pt-BR, mapped from the action's error CODE — never
+ * a raw server string (Rule 10).
+ *
+ * ## Why the confirm button prevents its own default (QA r1 MINOR-4)
+ *
+ * `AlertDialogAction` is Radix's `AlertDialogPrimitive.Action`: clicking it
+ * CLOSES the dialog. Without `preventDefault` this component set its error into
+ * a subtree that was already unmounting, so the `role="alert"` paragraph below
+ * was dead UI — a refused delete told the user nothing at all and simply left
+ * the row in place. Observed, not reasoned: a delete refused by a legal hold
+ * left `documents.status = 'active'` with the dialog already gone. The sibling
+ * confirm dialogs that render an inline error (`ethics-decisions-panel`,
+ * `archive-indicator-button`, `meeting-type-manager`) all prevent the default;
+ * this one did not. The dialog now closes only on success.
  */
 export function DocumentDeleteButton({
   documentId,
@@ -57,11 +69,14 @@ export function DocumentDeleteButton({
           router.refresh();
           return;
         }
-        // ⚠ The contract types `error` as an open `string` and has not yet
-        // guaranteed it is user-facing pt-BR (routed to the lead as contract
-        // finding 4). Until it does, an unrecognised value is replaced rather
-        // than rendered — a raw Postgres message must never reach the UI.
-        setError(DOCUMENT_ERROR_FALLBACK);
+        // The premise this once guarded against is gone: `softDeleteDocument`
+        // returns `DocumentActionState`, whose `error` is the CLOSED
+        // `DocumentActionErrorCode` union, and `documentErrorMessage` maps every
+        // member to pt-BR. Discarding it cost the one message written for this
+        // button — a delete refused by a legal hold read as a generic failure.
+        // A value outside the union still cannot reach the UI: the mapper falls
+        // back rather than rendering an unknown string.
+        setError(documentErrorMessage(result.error));
       } catch {
         setError(DOCUMENT_ERROR_FALLBACK);
       }
@@ -94,7 +109,15 @@ export function DocumentDeleteButton({
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction disabled={isPending} onClick={handleConfirm}>
+          <AlertDialogAction
+            disabled={isPending}
+            onClick={(event) => {
+              // Radix closes on click; a refusal must keep the dialog open so
+              // its message can be read. `handleConfirm` closes on success.
+              event.preventDefault();
+              handleConfirm();
+            }}
+          >
             {isPending ? "Removendo…" : "Remover"}
           </AlertDialogAction>
         </AlertDialogFooter>

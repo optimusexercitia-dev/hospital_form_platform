@@ -15,18 +15,32 @@ import { DocumentsPanel } from "@/components/documents/documents-panel";
  * The panel no longer takes a `documents` prop: it fetches its own list through
  * `listDocumentsForResource`, which keeps the retired attachment projections out
  * of the case-detail prop chain entirely.
+ *
+ * ## Both authorization props are REQUIRED (QA r1 MINOR-5)
+ *
+ * They defaulted to `true`. Nothing was wrong at the time — the one call site
+ * passes both — but an authorization prop that defaults to ALLOW is a trap that
+ * springs on whoever adds the second call site, and DM2's own P0-1 is what that
+ * looks like when it matters: the only shipped control over PHI bytes was a
+ * React prop, which is Architecture Rule 1 inverted. Required (not `= false`)
+ * because a silent deny is still a guess about a question the caller alone can
+ * answer; `tsc` now makes the next caller answer it. This also matches the
+ * sibling meeting/interview adapters, whose `canEdit` was always required.
+ *
+ * The server remains the boundary either way: these props hide controls, they
+ * do not enforce anything.
  */
 export function CaseDocumentsPanel({
   caseId,
   variant = "default",
-  canWrite = true,
-  canDownload = true,
+  canWrite,
+  canDownload,
 }: {
   caseId: string;
   /** "rail" = compact treatment for the case-detail side rail. */
   variant?: "default" | "rail";
   /** Whether the viewer may upload/remove documents (`canWriteContent`; ADR 0033). */
-  canWrite?: boolean;
+  canWrite: boolean;
   /**
    * Whether this viewer may obtain document BYTES at all (ADR 0100 D3/D7 — the
    * quality reviewer reads case metadata but never downloads).
@@ -37,7 +51,7 @@ export function CaseDocumentsPanel({
    * made the old version hazardous is gone: projections carry no storage
    * coordinates at all, so there is no second path to leave open.
    */
-  canDownload?: boolean;
+  canDownload: boolean;
 }) {
   return (
     <DocumentsPanel
