@@ -129,7 +129,45 @@ family/module resolution · a catalog arm · a diff base · and a first dry-run 
 ([[a-detector-that-finds-a-lot-needs-proving-too]],
 [[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
-### 🔴 FUP-PGTAP-SAVEPOINT — a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape (owner: lead + backend)
+### 🟡 FUP-PGTAP-SAVEPOINT — ⚠ **DOWNGRADED 2026-08-13 (🔴→🟡): the original claim was WRONG. No coverage is being lost** (owner: lead + backend)
+
+> ## ⛔ CORRECTION — read this before the original text below
+>
+> **Measured on a clean reset (the run this follow-up demanded): `193` → `ok`, `194` → `ok`,
+> ZERO bad plans across 190 files / 6149 tests, `Result: PASS`.** The two "affected" suites are
+> **not** losing assertions.
+>
+> **The true mechanism**, pinned by a two-assertion repro (one outside the savepoint, one inside):
+> ```
+> plan(2); ok(true,'A'); savepoint s; throws_ok(…,'B'); rollback to savepoint s; finish();
+>   → ok 1 - A          ← emitted to stdout
+>   → ok 2 - B          ← ALSO emitted; TAP output cannot be rolled back
+>   → # Looks like you planned 2 tests but ran 1
+> ```
+> **pg_prove parses the TAP stream, not pgTAP's internal table.** Both `ok` lines are emitted at
+> statement execution and survive the rollback, so **the gate's tally is correct and the
+> assertion does count**. Only pgTAP's *internal* counter under-counts, producing a `#`
+> **diagnostic** that pg_prove does not treat as a failure.
+>
+> **What IS real:** the **degenerate** case — when *every* assertion in the file sits inside the
+> rolled-back region, `finish()` raises `# No tests run!`, which **does** fail the file.
+>
+> ⚠ **My error, recorded because it is the more useful part: I generalized from the degenerate
+> case.** The original repro was `plan(1)` with its single assertion inside the savepoint — the
+> one shape where the internal under-count reaches zero and becomes an error. I proved that shape
+> and then asserted the general one, filing a 🔴 gate-integrity item on a mechanism I had not
+> tested in the configuration the live suites actually use.
+> [[the-proposal-you-author-is-the-one-you-dont-test]], again, and this time it was mine.
+>
+> **Residual value (why this stays open at 🟡, not closed):** the `finish()` diagnostic is
+> genuinely misleading to anyone reading it, and the degenerate shape is a real hazard worth not
+> writing. `330`'s captured-definition pattern remains the better style. But **nothing is
+> uncovered and no prior gate record is invalidated** — the earlier `194` "planned 8 but ran 0"
+> was the dirty-DB artifact, exactly as `backend` suspected and declined to attribute.
+>
+> The original text below is retained as written, so the correction is legible as a correction.
+
+### (original filing, superseded above) a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape
 
 Found by `backend` during DM3·M2 (2026-08-13) and **independently reproduced by the lead
 the same day**, twice, against the live DB.
