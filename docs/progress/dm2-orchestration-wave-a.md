@@ -1006,3 +1006,76 @@ success path is unchanged.
 terminality is orthogonal to cause, and a code-per-cause forces the dialog to
 enumerate causes, which is a fails-open list. Revisit only if a second terminal
 cause appears (a Wave B/C scanner `infected` verdict is the candidate).
+
+# DM2 re-gate (lead, 2026-08-13) — handoff item 7, after all remediation landed
+
+**Scope:** the full §6 step-1 gate re-run on a fresh `supabase db reset`, at HEAD `9de4a39`
+(all QA-r1 remediation + the tester's confirmations committed). Arms are named, not the
+script (§6 step 5 / ADR 0079).
+
+| Gate step | Result |
+| --- | --- |
+| fresh `supabase db reset` | clean |
+| `npm run test:db` | **189 files / 6097 tests / PASS** |
+| `npm run lint` (five gates) | ALL — `lint:vacuous` 179 spec files / 0 findings |
+| `npm run typecheck` | 0 errors |
+| `npm run test` (vitest) | 86 files / **1258** tests |
+| `ARM=census` — *has anything ever asked?* | **HOLDS** — 549 live gates, 569 verdicts, no unswept newcomer |
+| `ARM=hat` — *does any door read `memberships` without the caller's hat?* | **HOLDS** — 3 findings, all reasoned-allowlisted (`assume_role`, `session_context`, `memberships_select`) |
+| `ARM=floor` — *is every door called?* | **HOLDS** — 77 never-called doors, all on the floor allowlist |
+| `FROMFINDINGS=1 ARM=wrapper` | **HOLDS** — BLIND 41 ⊆ allowlist |
+| diff-scoped door sweep | `app.can_read_document` **COVERED**; BLIND 0 / ERROR(harness) 0 |
+| `e2e:prod` | **GREEN on run 2** (see the triage below) |
+
+**The sweep's case list was DERIVED, not hand-written** (ADR 0079 Amdt 1 recipe): the eight
+DM2 migrations `20260924000100`–`…000800` yield exactly **one** gate in the recipe's domain
+(`can_read_document`, changed by `…000800`) and **zero** new policies. **Case count checked
+nonzero before citing it** — the run printed a real `COVERED` line for the case, not the
+`BLIND: 0` over zero cases that this project has been burned by. `WORK` was overridden and
+`docs/reviews/authz-door-audit-findings.md` restored to its committed 594 lines afterwards
+(hazards 1 + 2).
+
+⚠ Note what the diff-scoped sweep does NOT cover, so the record does not overstate it:
+`open_document_version` — the door carrying the P0-1 byte cut — returns `jsonb` and is
+therefore in **no** arm's domain, which is precisely INFO-1 / ADR 0118 §12's standing blind
+spot. Its assurance is pgTAP `329` P0a–P0f (falsifiability observed this session) and the
+`308` sentinel, **not** this sweep.
+
+## `e2e:prod` — one unexplained red in run 1, GREEN in run 2. Mechanism NOT proven.
+
+- **Run 1: GATE RED — 1 real failure.** `pdf-printing.spec.ts:38` ("full lifecycle"), failing
+  its **pre-mint** empty-state assertion at `:50` (`Nenhum documento emitido a partir desta
+  resposta ainda.`). 1090 passed · 1 failed · 2 flaky · 0 did-not-run · 17 batches; coverage
+  1093/1099 with the 6 unaccounted **exactly** the 6 skips.
+- **Run 2: GATE GREEN.** 1091 passed · 0 failed · 2 flaky · 0 did-not-run; same coverage
+  reconciliation. **Batch 8 — the failing batch — returned 60 passed / 0 failed.**
+- **Three independent disproofs, all `RETRIES=0`:** isolation **9/9**; identical-batch re-run
+  (same four specs, same order) **60 passed / 1 skipped / 0 failed**; and the full-suite run 2
+  above.
+- **Not a DM2 surface.** `src/components/printing/labels.ts` is untouched by the DM2 diff and
+  the expected string is intact in source; the phase touched no printing module.
+
+**Three honest caveats, recorded rather than smoothed over:**
+1. **The mechanism is UNPROVEN.** The batch-8 log carries **no infra signal** — no
+   `server_dead`, no connection errors. This is therefore *not* the DM1 precedent, where the
+   flake was proven (`server_dead=1`, 14 conn errors). "Non-reproducible" is what was measured;
+   "flake" is an inference.
+2. **The lead destroyed the evidence.** `test-results/` is wiped per run, so the re-runs
+   deleted the `error-context.md` page snapshot that would have said what was actually on
+   screen. **Capture artifacts BEFORE re-running.**
+3. **"Failed twice" was ONE observation, not two.** The gate's retry hit the same pre-mint
+   assertion, so the retry is dependent on the first failure, not independent confirmation.
+
+*Live lead of an unresolved hypothesis, for whoever sees this again:* the P1 record
+(`docs/progress/pdf-p1-forms-skeleton.md` T1) states the spec draws from a **deterministic
+id-ascending pool of 5 seeded submitted responses**, one per state-mutating test. A shared
+fixture pool resolving differently under some batch interleaving is the known class here
+([[a-shared-fixture-cannot-satisfy-two-specs]]) — but the identical-batch re-run passed, so it
+is not deterministic and the hypothesis is **untested**, not adopted.
+
+**Two infra events in run 2, both auto-classified and re-run clean:** batch 16 the documented
+Windows prod-standalone collapse (`server_dead=1`, 46 conn errors → 69/69), and batch 5
+**crashed exit 127 with no summary** while `server_dead=0`/`conn_errors=0` (→ 70/70). That
+exit-127-with-output-swallowed shape is the same class backend hit three times this session
+with `process.exit()` and libuv's teardown assertion on Windows — worth watching, since a
+runbook keyed on an exit code cannot tell it from a real failure.
