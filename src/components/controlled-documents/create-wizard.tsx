@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -19,10 +19,27 @@ import { commissionHref } from "@/lib/routing";
 import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
 import type { DocType } from "@/lib/controlled-documents/types";
 import { DOC_TYPE_LABELS } from "@/lib/controlled-documents/types";
-// Type-only import of the server-action module — the action functions are passed
-// in as props by the server page (WizardRunner boundary), so this client component
-// never value-imports a `"use server"` module.
-import type { CreateDocumentState } from "@/lib/controlled-documents/actions";
+import type { DocumentUploadCredential } from "@/lib/documents/types";
+import {
+  DOCUMENT_ACCEPTED_MIME_TYPES,
+  DOCUMENT_MAX_SIZE_BYTES,
+} from "@/lib/documents/types";
+import { uploadDocumentFile } from "@/lib/documents/upload-client";
+// DM3·S2: the wizard now DRIVES a multi-step chain rather than posting one
+// FormData to one action, so it value-imports the `"use server"` verbs it
+// sequences (the Wave-A dialect — see `documents/document-upload-dialog.tsx`).
+// This is legal and is not the client/server-import hazard: that gate is about
+// importing a server QUERY module (which drags `next/headers` into the bundle
+// and aborts `next build`). Server ACTIONS are exactly what a client island is
+// meant to call.
+import {
+  beginControlledVersionUpload,
+  createDraftOnly,
+  finalizeControlledVersionUpload,
+  submitDocumentForApproval,
+  supersedeDocument,
+} from "@/lib/controlled-documents/actions";
+import { documentErrorMessage } from "@/components/documents/document-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,10 +67,39 @@ import {
   type ChosenApprover,
 } from "@/components/controlled-documents/reviewer-picker";
 
-type CreateAction = (
-  prev: CreateDocumentState | undefined,
-  formData: FormData,
-) => Promise<CreateDocumentState>;
+/** The three `?aviso=` keys `DetailNotice` renders. Enumerated, not free-form. */
+type Aviso = "enviado" | "rascunho" | "incompleto";
+
+/** Which leg of the chain is in flight — drives the live region + button copy. */
+type WizardPhase =
+  | "idle"
+  | "creating"
+  | "preparing"
+  | "uploading"
+  | "finalizing"
+  | "submitting";
+
+const PHASE_MESSAGE: Record<Exclude<WizardPhase, "idle">, string> = {
+  creating: "Criando a versão…",
+  preparing: "Preparando o envio…",
+  uploading: "Enviando arquivo…",
+  finalizing: "Verificando arquivo…",
+  submitting: "Enviando para aprovação…",
+};
+
+/**
+ * Outcome of the begin → PUT → finalize leg.
+ *
+ * `recoverable` distinguishes the two failure classes the wizard MUST treat
+ * differently, and it is about DOMAIN STATE, not about severity:
+ * - `true`  — nothing was written (begin refused, or the PUT left no object),
+ *             so staying on the wizard and trying again is honest.
+ * - `false` — finalize ran and the version may already be bound, so the truth
+ *             now lives on the document detail and that is where the user goes.
+ */
+type AttachOutcome =
+  | { ok: true }
+  | { ok: false; message: string; recoverable: boolean };
 
 /**
  * Which flow the wizard drives: a brand-new document (`create`), a new version of
@@ -120,9 +166,30 @@ const FIELD_STEP: Record<string, number> = {
  *   (`initialApprovers`); the terminal step re-attaches the corrected file + re-submits
  *   the SAME version via `reviseChangesRequestedDocument` (needs `versionId`).
  *
- * On a post-create/supersede/revise partial failure the action returns the
- * `documentId`, so we land the user on the recoverable draft's detail with an
- * `?aviso=` banner. Client boundary: actions are props; `@/lib/**` is type-only.
+ * ## DM3·S2 — why the terminal step is a chain the CLIENT drives
+ *
+ * The terminal step used to be one server action that received the `File` in
+ * FormData and did create → upload → submit server-side. That shape is no longer
+ * expressible: bytes now move client-side to a signed credential, and
+ * `beginControlledVersionUpload` needs `{commissionId, documentId, versionId}` —
+ * i.e. the version must ALREADY EXIST before an upload can start. So the wizard
+ * sequences the legs itself:
+ *
+ *   create/supersede (metadata only) → begin → PUT → finalize → submit
+ *
+ * This does NOT introduce partial failure — the chain was never transactional
+ * across Storage and the DB, and the recovery has always been the same: land the
+ * user on the created draft's detail with `?aviso=incompleto`, where the
+ * add-version form and the submit form both live. What it changes is only WHO
+ * decides the landing, and the rule is deliberately blunt so it cannot rot:
+ *
+ * - a failure BEFORE the document/version exists keeps the user here, inline;
+ * - any failure AFTER it exists lands on the detail, and never retries in place
+ *   — a retry after step 1 would create a SECOND document.
+ *
+ * The `?aviso=` set is unchanged and closed ({@link Aviso}); growing it is a
+ * lead call, not a local one. Branching is on WHICH LEG failed plus the
+ * contract's error codes — never on message text.
  */
 export function CreateWizard({
   mode = "create",
@@ -135,8 +202,7 @@ export function CreateWizard({
   categories,
   initialApprovers,
   defaultDocType = "sop",
-  submitAction,
-  draftAction,
+  allowDraftExit = false,
 }: {
   /** `create` (default), `newversion`, or `revise` — see the component doc. */
   mode?: WizardMode;
@@ -153,9 +219,11 @@ export function CreateWizard({
   /** Pre-selected approvers (revise mode — the version's prior approver set). */
   initialApprovers?: ChosenApprover[];
   defaultDocType?: DocType;
-  submitAction: CreateAction;
-  /** The "Salvar rascunho" action — only rendered in create mode. */
-  draftAction?: CreateAction;
+  /**
+   * Offer the "Salvar rascunho" exit. Create mode only — the locked-identity
+   * modes have no draft exit because the version already exists.
+   */
+  allowDraftExit?: boolean;
 }) {
   const router = useRouter();
   const isNewVersion = mode === "newversion";
@@ -163,7 +231,8 @@ export function CreateWizard({
   // Both new-version and revise lock the header and require the change summary.
   const isLockedIdentity = isNewVersion || isRevise;
   const summaryRequired = isLockedIdentity;
-  const [isPending, startTransition] = useTransition();
+  const [phase, setPhase] = useState<WizardPhase>("idle");
+  const isPending = phase !== "idle";
   const headingRef = useRef<HTMLHeadingElement>(null);
   const categoryListId = "wizard-category-list";
 
@@ -240,27 +309,26 @@ export function CreateWizard({
     if (step > 0) goTo(step - 1);
   }
 
-  function buildFormData(): FormData {
+  /** Step-1 metadata for a brand-new document (create mode only). */
+  function buildCreateFormData(): FormData {
     const fd = new FormData();
     fd.set("commissionId", commissionId);
-    if (isLockedIdentity && locked) {
-      // New-version / revise mode: identity is frozen — the action takes only the
-      // artifact, dates and approvers, keyed by the existing document id. Revise
-      // additionally targets the `changes_requested` version revised in place.
-      fd.set("documentId", locked.documentId);
-      if (isRevise && versionId) fd.set("versionId", versionId);
-    } else {
-      fd.set("title", title.trim());
-      fd.set("docType", docType);
-      if (category.trim()) fd.set("category", category.trim());
-      if (description.trim()) fd.set("description", description.trim());
-      fd.set("tags", JSON.stringify(tags));
-      if (reviewCycleMonths.trim()) fd.set("reviewCycleMonths", reviewCycleMonths.trim());
-    }
-    if (file) fd.set("file", file);
-    if (summary.trim()) fd.set("summaryOfChangesMd", summary.trim());
-    if (proposedEffectiveDate) fd.set("proposedEffectiveDate", proposedEffectiveDate);
-    if (expiryDate) fd.set("expiryDate", expiryDate);
+    fd.set("title", title.trim());
+    fd.set("docType", docType);
+    if (category.trim()) fd.set("category", category.trim());
+    if (description.trim()) fd.set("description", description.trim());
+    fd.set("tags", JSON.stringify(tags));
+    if (reviewCycleMonths.trim())
+      fd.set("reviewCycleMonths", reviewCycleMonths.trim());
+    return fd;
+  }
+
+  /** The final leg: approvers + the two approval dates, for a known version. */
+  function buildSubmitFormData(targetVersionId: string): FormData {
+    const fd = new FormData();
+    fd.set("versionId", targetVersionId);
+    if (proposedEffectiveDate)
+      fd.set("proposedEffectiveDate", proposedEffectiveDate);
     if (approvalDueDate) fd.set("approvalDueDate", approvalDueDate);
     fd.set(
       "approvers",
@@ -274,38 +342,248 @@ export function CreateWizard({
     return fd;
   }
 
-  function handleResult(result: CreateDocumentState, kind: "submit" | "draft") {
-    if (result.ok && result.documentId) {
-      const aviso = kind === "submit" ? "enviado" : "rascunho";
-      router.push(
-        `${commissionHref(org, commission, "manage", "documentos", result.documentId)}?aviso=${aviso}`,
-      );
-      return;
-    }
-    if (!result.ok && result.documentId) {
-      // Partial failure — the draft is saved; finish on its detail (banner there).
-      router.push(
-        `${commissionHref(org, commission, "manage", "documentos", result.documentId)}?aviso=incompleto`,
-      );
-      return;
-    }
-    // Pure validation failure — surface inline + jump to the earliest errored step.
+  /** Land on the document detail with one of the three known notices. */
+  function landOnDetail(targetDocumentId: string, aviso: Aviso) {
+    router.push(
+      `${commissionHref(org, commission, "manage", "documentos", targetDocumentId)}?aviso=${aviso}`,
+    );
+  }
+
+  /** Surface an inline failure and jump back to the earliest errored step. */
+  function failInline(result: {
+    error?: string;
+    fieldErrors?: Record<string, string>;
+  }) {
     const errs = result.fieldErrors ?? {};
     setFieldErrors(errs);
     setBanner(result.error ?? null);
+    setPhase("idle");
     const errSteps = Object.keys(errs)
       .map((k) => FIELD_STEP[k])
       .filter((n) => n != null);
     if (errSteps.length > 0) goTo(Math.min(...errSteps));
   }
 
-  function runAction(action: CreateAction, kind: "submit" | "draft") {
+  /**
+   * begin → PUT → finalize, against a version that already exists.
+   *
+   * Client-side size/type checks refuse before a pointless wait only; finalize
+   * re-derives both server-side and is the authority (ADR 0114 D9).
+   */
+  async function attachFile(
+    targetDocumentId: string,
+    targetVersionId: string,
+    bytes: File,
+  ): Promise<AttachOutcome> {
+    if (bytes.size > DOCUMENT_MAX_SIZE_BYTES) {
+      return {
+        ok: false,
+        message: documentErrorMessage("file_too_large"),
+        recoverable: true,
+      };
+    }
+    if (bytes.type && !DOCUMENT_ACCEPTED_MIME_TYPES.includes(bytes.type)) {
+      return {
+        ok: false,
+        message: documentErrorMessage("file_type_not_allowed"),
+        recoverable: true,
+      };
+    }
+
+    setPhase("preparing");
+    let reservation: {
+      id: string;
+      coreDocumentVersionId: string;
+      credential: DocumentUploadCredential;
+    };
+    try {
+      const begun = await beginControlledVersionUpload({
+        commissionId,
+        documentId: targetDocumentId,
+        versionId: targetVersionId,
+        fileName: bytes.name,
+        mimeType: bytes.type || "application/octet-stream",
+        sizeBytes: bytes.size,
+      });
+      if (!begun.ok) {
+        // Machine code → pt-BR here; never branch on message text.
+        return {
+          ok: false,
+          message: documentErrorMessage(begun.code),
+          recoverable: true,
+        };
+      }
+      reservation = {
+        id: begun.uploadSessionId,
+        coreDocumentVersionId: begun.coreDocumentVersionId,
+        credential: begun.credential,
+      };
+    } catch {
+      return {
+        ok: false,
+        message: documentErrorMessage("unknown"),
+        recoverable: true,
+      };
+    }
+
+    setPhase("uploading");
+    const put = await uploadDocumentFile(reservation.credential, bytes);
+    if (!put.ok) {
+      // A failed or partial PUT leaves NO object, so nothing is bound yet.
+      return {
+        ok: false,
+        message: documentErrorMessage("upload_incomplete"),
+        recoverable: true,
+      };
+    }
+
+    setPhase("finalizing");
+    try {
+      const finalized = await finalizeControlledVersionUpload({
+        versionId: targetVersionId,
+        uploadSessionId: reservation.id,
+        coreDocumentVersionId: reservation.coreDocumentVersionId,
+        summaryOfChangesMd: summary.trim() || null,
+        expiryDate: expiryDate || null,
+      });
+      if (!finalized.ok) {
+        return {
+          ok: false,
+          message: finalized.error ?? documentErrorMessage("unknown"),
+          // Finalize ran: the version may already be bound, and a `terminal`
+          // result means the reservation is spent for good. Either way the
+          // recovery lives on the detail page, not in this wizard.
+          recoverable: false,
+        };
+      }
+      return { ok: true };
+    } catch {
+      return {
+        ok: false,
+        message: documentErrorMessage("unknown"),
+        recoverable: false,
+      };
+    }
+  }
+
+  /**
+   * Step 1 — make sure a version exists to upload into, and return its ids.
+   *
+   * `revise` already has one (the `changes_requested` version revised in place,
+   * no bump), `newversion` supersedes to get one, `create` mints the document
+   * and its v1. `existed` says whether step 1 CHANGED anything, which is what
+   * decides where a later failure lands.
+   */
+  async function ensureVersion(): Promise<
+    | { ok: true; documentId: string; versionId: string; existed: boolean }
+    | { ok: false; landOn?: string }
+  > {
+    if (isRevise && locked && versionId) {
+      return {
+        ok: true,
+        documentId: locked.documentId,
+        versionId,
+        existed: true,
+      };
+    }
+
+    setPhase("creating");
+    if (isNewVersion && locked) {
+      const fd = new FormData();
+      fd.set("documentId", locked.documentId);
+      const sup = await supersedeDocument(undefined, fd);
+      if (!sup.ok || !sup.versionId) {
+        // Supersede refused (e.g. the document is no longer `effective`, or a
+        // draft opened underneath us). Nothing was created, but the document
+        // exists and its detail is where the real state is.
+        setBanner(sup.error ?? null);
+        setPhase("idle");
+        return { ok: false, landOn: locked.documentId };
+      }
+      return {
+        ok: true,
+        documentId: locked.documentId,
+        versionId: sup.versionId,
+        existed: false,
+      };
+    }
+
+    const created = await createDraftOnly(undefined, buildCreateFormData());
+    if (!created.ok || !created.documentId || !created.versionId) {
+      if (created.documentId) {
+        // The header landed but we have no version to upload into — the draft
+        // is real and recoverable, so finish on its detail.
+        return { ok: false, landOn: created.documentId };
+      }
+      failInline(created);
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      documentId: created.documentId,
+      versionId: created.versionId,
+      existed: false,
+    };
+  }
+
+  /** The terminal "enviar para aprovação" chain, in all three modes. */
+  async function runSubmit() {
+    if (isPending || !file) return;
     setBanner(null);
     setFieldErrors({});
-    startTransition(async () => {
-      const result = await action(undefined, buildFormData());
-      handleResult(result, kind);
-    });
+
+    const step1 = await ensureVersion();
+    if (!step1.ok) {
+      if (step1.landOn) landOnDetail(step1.landOn, "incompleto");
+      return;
+    }
+
+    const attached = await attachFile(step1.documentId, step1.versionId, file);
+    if (!attached.ok) {
+      // Recoverable ⇒ nothing was written by THIS leg. Staying is only honest
+      // when step 1 wrote nothing either; if it created a document, retrying
+      // here would create a second one.
+      if (attached.recoverable && step1.existed) {
+        setBanner(attached.message);
+        setPhase("idle");
+        return;
+      }
+      landOnDetail(step1.documentId, "incompleto");
+      return;
+    }
+
+    setPhase("submitting");
+    const submitted = await submitDocumentForApproval(
+      undefined,
+      buildSubmitFormData(step1.versionId),
+    );
+    if (!submitted.ok) {
+      landOnDetail(step1.documentId, "incompleto");
+      return;
+    }
+    landOnDetail(step1.documentId, "enviado");
+  }
+
+  /** The "Salvar rascunho" exit — create mode only. The file is optional here. */
+  async function runDraft() {
+    if (isPending) return;
+    setBanner(null);
+    setFieldErrors({});
+
+    const step1 = await ensureVersion();
+    if (!step1.ok) {
+      if (step1.landOn) landOnDetail(step1.landOn, "incompleto");
+      return;
+    }
+
+    if (file) {
+      const attached = await attachFile(step1.documentId, step1.versionId, file);
+      if (!attached.ok) {
+        landOnDetail(step1.documentId, "incompleto");
+        return;
+      }
+    }
+    landOnDetail(step1.documentId, "rascunho");
   }
 
   const cancelHref = commissionHref(org, commission, "manage", "documentos");
@@ -328,6 +606,13 @@ export function CreateWizard({
             {banner}
           </p>
         ) : null}
+
+        {/* The chain now has five legs and a slow one in the middle (the byte
+            PUT). A keyboard or screen-reader user must hear which one is
+            running, not just that a button went disabled. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {isPending ? PHASE_MESSAGE[phase as Exclude<WizardPhase, "idle">] : ""}
+        </p>
 
         <section className="flex flex-col gap-6 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
           {step === 0 ? (
@@ -413,12 +698,12 @@ export function CreateWizard({
             {/* Save-as-draft exit (create mode only) — available at any step once a
                 title exists. Locked-identity modes (new-version / revise) have no
                 draft exit: the version already exists. */}
-            {!isLockedIdentity && draftAction ? (
+            {!isLockedIdentity && allowDraftExit ? (
               <Button
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => runAction(draftAction, "draft")}
+                onClick={() => void runDraft()}
                 disabled={isPending || !titleValid}
               >
                 <Save aria-hidden="true" className="size-4" />
@@ -455,12 +740,12 @@ export function CreateWizard({
               <Button
                 type="button"
                 size="lg"
-                onClick={() => runAction(submitAction, "submit")}
+                onClick={() => void runSubmit()}
                 disabled={isPending || !readyToSubmit}
               >
                 <Send aria-hidden="true" className="size-4" />
                 {isPending
-                  ? "Enviando…"
+                  ? PHASE_MESSAGE[phase as Exclude<WizardPhase, "idle">]
                   : isRevise
                     ? "Enviar versão revisada"
                     : "Enviar para aprovação"}

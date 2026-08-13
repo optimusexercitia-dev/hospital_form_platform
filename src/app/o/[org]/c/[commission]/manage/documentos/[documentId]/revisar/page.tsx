@@ -5,7 +5,6 @@ import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getDocument, listApproverCandidates } from "@/lib/queries/controlled-documents";
-import { reviseChangesRequestedDocument } from "@/lib/controlled-documents/actions";
 import { selectWorkingDraft } from "@/lib/controlled-documents/version-select";
 import { commissionHref } from "@/lib/routing";
 import {
@@ -129,7 +128,6 @@ export default async function ReviseDocumentVersionPage({
         candidates={candidates}
         categories={[]}
         initialApprovers={initialApprovers}
-        submitAction={reviseChangesRequestedDocument}
       />
     </div>
   );

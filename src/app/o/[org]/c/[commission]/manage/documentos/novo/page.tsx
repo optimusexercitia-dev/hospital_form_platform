@@ -5,10 +5,6 @@ import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listApproverCandidates, listDocuments } from "@/lib/queries/controlled-documents";
-import {
-  createAndSubmitDocument,
-  createDraftOnly,
-} from "@/lib/controlled-documents/actions";
 import type { DocType } from "@/lib/controlled-documents/types";
 import { commissionHref } from "@/lib/routing";
 import { CreateWizard } from "@/components/controlled-documents/create-wizard";
@@ -101,8 +97,7 @@ export default async function NewDocumentPage({
         candidates={candidates}
         categories={categories}
         defaultDocType={asDocType(docType)}
-        submitAction={createAndSubmitDocument}
-        draftAction={createDraftOnly}
+        allowDraftExit
       />
     </div>
   );
