@@ -122,6 +122,28 @@ QA MINOR-2 (`open_document_version` must gate **before** recording — the regis
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
 
+**🔶 OPEN DESIGN FORK — S2.8 `reclassify_document_file` (lead, 2026-08-13; nothing built pending it).**
+D10's copy→verify→commit→retire-source has no legal expression on the DM1 substrate as built, and
+the recommended shape does not survive the catalog:
+- `document_version_files_version_rendition_uniq UNIQUE (document_version_id, rendition_kind)` —
+  so **"add a second `source` binding, door picks newest" is not buildable**; it requires altering
+  that constraint, i.e. it does *not* avoid a DM1-invariant edit as its proposal claimed.
+- `guard_document_version_file_immutable BEFORE DELETE OR UPDATE` — so a liveness column cannot be
+  set without a guard exception either.
+- **Mutating the binding is ruled OUT on ADR grounds, not cost:** ADR 0114 **D10** says
+  *"never a pointer update (F-03)"*, and F-03 is one of the audit defects this program exists to
+  kill by construction. Relaxing the guard to allow it re-opens a closed finding.
+Live option space (backend re-deriving against the catalog): **(1)** a new `document_version` whose
+binding points at the new file object, old file retired through the *mutable, already-guarded*
+`file_objects` state machine — fully append-only, zero invariant edits, but a tier change becomes
+visible version history (honest for audit? or pollutes the prior-version semantics DM3 needs?);
+**(2)** a partial UNIQUE over a liveness predicate **plus** a narrow keystoned guard exception;
+**(3)** unseen. Standing rule set for it: **DM1 invariants may be amended, never widened as a side
+effect of making a command compile** — any amendment lands as an ADR decision with the amended guard
+mutation-proven. ⚠ Reclassify has **no Wave A UI consumer** (both classification commands are
+surface-less by lead ruling), so there is room to get it right; deferring to a named slice with the
+DM1 ledger obligation carried forward is an acceptable outcome.
+
 **Lead findings handed to S1 (catalog-verified 2026-08-13, not read from migration text):**
 - `app.confidentiality_clearance_ok(p_case_id, p_label, p_uid)` and `app.confidentiality_rank(text)`
   **SURVIVED DM1** — only the attachment-specific wrapper `app.attachment_confidentiality_ok` was
