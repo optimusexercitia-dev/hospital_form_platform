@@ -621,25 +621,25 @@ select throws_ok(
 -- output in the DM2 phase record.
 -- ---------------------------------------------------------------------------
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
-create temp table u8 on commit drop as
+create temp table u8d on commit drop as
   select public.begin_document_upload('case', 'd0000000-0000-0000-0000-0000000000c1',
     'Documento 329 (dupla pendencia)', null, null, null, 'p8.pdf', 'application/pdf', 100) as r;
 select set_config('request.jwt.claims', '', true);
 insert into storage.objects (bucket_id, name, metadata)
 select f.storage_bucket, f.storage_path, '{"size": 7, "mimetype": "application/pdf"}'::jsonb
-  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u8);
+  from public.file_objects f where f.id = (select (r->>'file_object_id')::uuid from u8d);
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 select lives_ok(
-  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u8)) $q$,
+  $q$ select public.finalize_document_upload((select (r->>'upload_session_id')::uuid from u8d)) $q$,
   'R10f1 u8 finalizes');
 select set_config('request.jwt.claims', '', true);
 select lives_ok(
   $q$ select public.complete_document_upload_verification(
-        (select (r->>'upload_session_id')::uuid from u8), repeat('8', 64), true) $q$,
+        (select (r->>'upload_session_id')::uuid from u8d), repeat('8', 64), true) $q$,
   'R10f2 u8 completes');
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 create temp table rr3 on commit drop as
-  select public.reclassify_document((select (r->>'document_id')::uuid from u8), 'standard') as r;
+  select public.reclassify_document((select (r->>'document_id')::uuid from u8d), 'standard') as r;
 select is(
   (select count(*)::int from rr3 where (r->>'new_file_object_id') is not null
       and (r->>'old_file_object_id') is not null),
