@@ -38,7 +38,7 @@
 -- =============================================================================
 
 begin;
-select plan(22);
+select plan(29);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -46,6 +46,12 @@ select is(app.feature_enabled('documents_foundation'), true,
   'precondition: documents_foundation is ON (the core model must be live)');
 select is(app.feature_enabled('controlled_docs'), true,
   'precondition: controlled_docs is ON (section R exercises the domain tables)');
+-- ⚠ Wave B's own gate. With this OFF, every DM3 door answers HC0D7 and sections
+-- B/P/E red on the FLAG rather than on a defect — the pgTAP fixture-flag-gap
+-- trap, which normally hides keystones by SKIPPING them. Asserted, never
+-- assumed; seed.sql forces it ON locally (and 328 K9b/K9c is its twin).
+select is(app.feature_enabled('documents_wave_b'), true,
+  'precondition: documents_wave_b is ON (seed-forced locally; prod stays OFF until the DM3 gate)');
 
 -- =============================================================================
 -- R — REGISTRY ADMISSION (M1). `controlled_document` becomes a
@@ -349,6 +355,82 @@ select lives_ok(
       where id = '18f68d3e-7804-4d01-a1ff-33e6bdd55218' $$,
   'DM3·P3b PROOF OF IMPERSONATION: the SIBLING guard IS disarmed by the same GUC (a non-pointer update on a frozen version succeeds) — so P3 defeats a real bypass');
 set local app.in_controlled_docs_rpc = 'off';
+
+-- =============================================================================
+-- B / S — THE WRITE PATH REPLACEMENT (M4). `set_document_version_file` and the
+-- raw `storage_path` column die; bytes arrive only through the DM2
+-- begin/finalize pair, and the domain records the pointer.
+--
+-- Five product verbs called the retiring RPC — addDocumentVersion,
+-- createAndSubmitDocument, createDraftOnly, supersedeAndSubmitDocument,
+-- reviseChangesRequestedDocument — so the TS side changes with it.
+-- =============================================================================
+
+select hasnt_function('public', 'set_document_version_file',
+  'DM3·B5a the raw-path writer set_document_version_file is GONE');
+select hasnt_column('public', 'controlled_document_versions', 'storage_path',
+  'DM3·B5b the raw storage_path column is GONE (0 non-null rows in either environment)');
+
+-- S1a — door hygiene asserted from the CATALOG, never from the migration text.
+-- A DROP+CREATE that forgot the re-GRANT would restore the Postgres default
+-- (PUBLIC EXECUTE, no authenticated grant) and this is what catches it.
+--
+-- ⚠ PRIVILEGE IS TESTED SEMANTICALLY, via has_function_privilege — never by
+-- pattern-matching proacl. The first draft of this keystone used
+-- `proacl::text like '%=X/postgres,%'` to mean "PUBLIC has EXECUTE"; that
+-- substring is present in EVERY ordinary grant (`postgres=X/postgres,`), so it
+-- reported PUBLIC access on a correctly-locked door. It happened to fail
+-- closed, but the same shape fails OPEN just as easily — an ACL is a value to
+-- resolve, not a string to grep.
+select is(
+  (select p.prosecdef::text || '|' ||
+          array_to_string(p.proconfig, ',') || '|' ||
+          has_function_privilege('authenticated', p.oid, 'EXECUTE')::text || '|' ||
+          has_function_privilege('public', p.oid, 'EXECUTE')::text
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'attach_controlled_document_version_file'),
+  'true|search_path=app, public, pg_catalog|true|false',
+  'DM3·S1a the new door is DEFINER, search_path-pinned, EXECUTable by authenticated, and NOT by PUBLIC');
+
+-- A core version to attach: minted directly (begin/finalize is exercised by 329;
+-- this section is about the DOMAIN door, not the upload machine).
+insert into public.document_versions (id, document_id, version_number, created_by)
+select 'da300000-0000-0000-0000-0000000000a1', cd.core_document_id, 2,
+       '00000000-0000-0000-0000-000000000002'
+  from public.controlled_documents cd
+ where cd.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58';
+
+-- P1c — AUTHORITY, inherited from the retiring door. A plain member of the
+-- owning commission is not a writer. Asserted BEFORE the success case so a
+-- broken door cannot pass P1b by being open to everyone.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+select throws_ok(
+  $q$ select public.attach_controlled_document_version_file(
+        'dc300000-0000-0000-0000-0000000000d1',
+        'da300000-0000-0000-0000-0000000000a1') $q$,
+  '42501', null,
+  'DM3·P1c a plain commission member cannot attach a file (the set_document_version_file authority survives)');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+
+-- P1 ⭐ — THE DOOR's freeze re-check, distinct from the trigger's (HC089 vs
+-- HC0DB) so the two barriers are separately attributable (R2).
+select throws_ok(
+  $q$ select public.attach_controlled_document_version_file(
+        '18f68d3e-7804-4d01-a1ff-33e6bdd55218',
+        'da300000-0000-0000-0000-0000000000a1') $q$,
+  'HC089', null,
+  'DM3·P1 ⭐ the DOOR refuses attaching a file to an EFFECTIVE version (HC089, distinct from the trigger''s HC0DB)');
+
+-- P1b — POSITIVE CONTROL: the door works on a draft. Without it P1/P1c are
+-- satisfied by a door that refuses everyone.
+select lives_ok(
+  $q$ select public.attach_controlled_document_version_file(
+        'dc300000-0000-0000-0000-0000000000d1',
+        'da300000-0000-0000-0000-0000000000a1', 'resumo das alterações') $q$,
+  'DM3·P1b POSITIVE CONTROL: the staff_admin DOES attach on a draft version (P1/P1c are not "refuses everyone")');
+
+select set_config('request.jwt.claims', '', true);
 
 select * from finish();
 rollback;

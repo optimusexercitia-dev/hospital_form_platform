@@ -693,16 +693,21 @@ select is(
     where key in ('documents_foundation','documents_wave_a','documents_wave_b',
                   'documents_wave_c','documents_wave_d')),
   5, 'K9 all five DM flags exist');
+-- ⚠ AMENDED BY DM3 (2026-08-13). Wave B shipped, so `documents_wave_b` moved
+-- from the OFF set to the ON set in seed.sql. K9b/K9c and that seed line are ONE
+-- artifact — this is the coordinated edit K9 exists to force. wave_c/d remain
+-- OFF (DM4/DM5 unbuilt); production defaults stay OFF for ALL of them until each
+-- wave's gate closes with human approval.
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_wave_b','documents_wave_c','documents_wave_d')
+    where key in ('documents_wave_c','documents_wave_d')
       and enabled = false),
-  3, 'K9b the three unbuilt wave flags are OFF');
+  2, 'K9b the two still-unbuilt wave flags (c/d) are OFF');
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_foundation','documents_wave_a')
+    where key in ('documents_foundation','documents_wave_a','documents_wave_b')
       and enabled = true),
-  2, 'K9c foundation + wave_a are ON in the seeded local/E2E state (seed-forced; prod default OFF)');
+  3, 'K9c foundation + wave_a + wave_b are ON in the seeded local/E2E state (seed-forced; prod default OFF)');
 
 -- =============================================================================
 -- K10 — the D11 read-verb registry, post-S2 (FINDING 1a, DM2): attachment.read

@@ -2238,10 +2238,19 @@ update app.feature_flags set enabled = true where key = 'controlled_docs';
 -- wants to pin the deliberate flag-OFF contract — the Wave A surface is
 -- ABSENT, not disabled (HC0D7 on every door; no panel affordance) — must turn
 -- the flag(s) OFF itself and restore them, because this seed hands them ON.
--- (pgTAP 328 K9 pins exactly this seeded state: wave_b/c/d OFF,
--- foundation + wave_a ON locally.)
+-- (pgTAP 328 K9 pins exactly this seeded state: wave_c/d OFF,
+-- foundation + wave_a + wave_b ON locally.)
+--
+-- DM3 Wave B joins the same MIN pattern (2026-08-13). `documents_wave_b` gates
+-- attach_controlled_document_version_file; with it OFF every DM3 door answers
+-- HC0D7 and the Wave B keystones red on the gate rather than on a defect.
+-- Production stays OFF until the DM3 gate closes with human approval.
+-- ⚠ This line and pgTAP 328 K9b/K9c are ONE artifact — K9b counts the flags
+-- that are OFF and K9c the ones that are ON, so flipping a flag here without
+-- moving it there reds 328. That coupling is deliberate: K9 exists to force
+-- the flag choreography to be an explicit, reviewed edit rather than a drift.
 update app.feature_flags set enabled = true
- where key in ('documents_foundation', 'documents_wave_a');
+ where key in ('documents_foundation', 'documents_wave_a', 'documents_wave_b');
 -- The legacy `attachments` flag key: seed-retired (DM2, plan item 5 — no flip,
 -- no reference; local matches production at false). The KEY ROW itself + the
 -- FeatureFlags interface entry are retired by the S5 choreography MIGRATION

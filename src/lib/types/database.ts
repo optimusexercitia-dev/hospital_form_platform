@@ -3874,7 +3874,6 @@ export type Database = {
           proposed_effective_date: string | null
           review_due_date: string | null
           status: string
-          storage_path: string | null
           summary_of_changes_md: string | null
           updated_at: string
           version_number: number
@@ -3892,7 +3891,6 @@ export type Database = {
           proposed_effective_date?: string | null
           review_due_date?: string | null
           status?: string
-          storage_path?: string | null
           summary_of_changes_md?: string | null
           updated_at?: string
           version_number: number
@@ -3910,7 +3908,6 @@ export type Database = {
           proposed_effective_date?: string | null
           review_due_date?: string | null
           status?: string
-          storage_path?: string | null
           summary_of_changes_md?: string | null
           updated_at?: string
           version_number?: number
@@ -10825,6 +10822,37 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["platform_role"] }
         Returns: undefined
       }
+      attach_controlled_document_version_file: {
+        Args: {
+          p_core_version_id: string
+          p_expiry_date?: string
+          p_summary_of_changes_md?: string
+          p_version_id: string
+        }
+        Returns: {
+          approval_due_date: string | null
+          core_document_version_id: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
+          review_due_date: string | null
+          status: string
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       begin_document_upload: {
         Args: {
@@ -13435,7 +13463,6 @@ export type Database = {
           proposed_effective_date: string | null
           review_due_date: string | null
           status: string
-          storage_path: string | null
           summary_of_changes_md: string | null
           updated_at: string
           version_number: number
@@ -14559,38 +14586,6 @@ export type Database = {
         Args: { p_document_id: string; p_level: string }
         Returns: undefined
       }
-      set_document_version_file: {
-        Args: {
-          p_expiry_date?: string
-          p_storage_path: string
-          p_summary_of_changes_md?: string
-          p_version_id: string
-        }
-        Returns: {
-          approval_due_date: string | null
-          core_document_version_id: string | null
-          created_at: string
-          created_by: string | null
-          document_id: string
-          effective_date: string | null
-          expiry_date: string | null
-          id: string
-          obsolete_kind: string | null
-          proposed_effective_date: string | null
-          review_due_date: string | null
-          status: string
-          storage_path: string | null
-          summary_of_changes_md: string | null
-          updated_at: string
-          version_number: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "controlled_document_versions"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       set_ethics_decision_details: {
         Args: {
           p_appeal_allowed?: boolean
@@ -15148,7 +15143,6 @@ export type Database = {
           proposed_effective_date: string | null
           review_due_date: string | null
           status: string
-          storage_path: string | null
           summary_of_changes_md: string | null
           updated_at: string
           version_number: number
@@ -15244,7 +15238,6 @@ export type Database = {
           proposed_effective_date: string | null
           review_due_date: string | null
           status: string
-          storage_path: string | null
           summary_of_changes_md: string | null
           updated_at: string
           version_number: number
