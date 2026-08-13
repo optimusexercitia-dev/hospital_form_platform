@@ -9,8 +9,26 @@
  *   - MISSING: a row whose state promises bytes (uploaded → clean /
  *     unscanned_accepted) but no storage object exists.
  *   - ORPHAN: a storage object no row accounts for.
- *   Reserved/failed/abandoned rows expect NO object (not drift); disposed
- *   rows expect ABSENCE (an object present there is drift: MISSING-DELETE).
+ *   - MISSING-DELETE: a disposed row whose object is still present.
+ *   - UNDISPOSED (QA r1 MAJOR-2): a terminal-failure row (failed / abandoned /
+ *     infected / rejected) still holding bytes. This phase made byte-holding
+ *     `failed` (BUG-DM2-001 binds after a successful PUT) and `abandoned`
+ *     (the expiry sweep's own product) REACHABLE; such objects have no
+ *     serving path and nothing else ever asks for their disposition, so a
+ *     reconciliation that ignores them retains PHI indefinitely under a
+ *     CLEAN banner. Bytes present = reported; bytes absent = fine (an upload
+ *     that never landed left nothing to dispose).
+ *   - UNCLASSIFIED: a (upload_state, disposal_state) pair this classifier
+ *     does not recognize. Reported AND deliberately NOT accounted, so its
+ *     object also surfaces as ORPHAN — a future state fails loud in both
+ *     directions instead of being silently swallowed (the pre-fix defect:
+ *     `accounted.add` was unconditional, so unjudged rows hid their bytes).
+ *   Indeterminate by design, accounted, never drift: `reserved` (in-flight
+ *   PUT window — the sweep above has already expired lapsed sessions) and
+ *   `disposal_pending` (the Storage delete legitimately precedes the
+ *   completion door's absence check, so bytes may or may not exist in the
+ *   window; a stuck pending row is disposal-job latency, not an accounting
+ *   hole — the completion door is its owner).
  *
  * Invocation (documented per FINDING 3):
  *   node scripts/document-reconciliation.mjs
@@ -68,7 +86,17 @@ async function listBucketPaths(bucket) {
   return paths
 }
 
-const report = { missing: [], missingDelete: [], orphans: [], expiredSwept: 0, abandonedSwept: 0, counts: {} }
+const report = {
+  missing: [],
+  missingDelete: [],
+  orphans: [],
+  undisposed: [],
+  unclassified: [],
+  expiredSwept: 0,
+  abandonedSwept: 0,
+  counts: {},
+  classCounts: {},
+}
 
 // BUG-DM2-003 (lead ruling): expiry MARKING lives here, not in the refusal
 // path — finalize's refusal is predicate-based (expires_at < now()) and a
@@ -131,17 +159,50 @@ for (const bucket of BUCKETS) {
 
   const accounted = new Set()
   for (const r of bucketRows) {
-    accounted.add(r.storage_path)
     const hasObject = objectPaths.has(r.storage_path)
-    const expectsBytes =
+    // TOTAL first-match classification (MAJOR-2): every row lands in exactly
+    // ONE class — the classCounts sum equals the row count by construction —
+    // and only a JUDGED row may account for its path.
+    let cls
+    if (r.disposal_state === 'disposed') cls = 'absence-required'
+    else if (r.disposal_state === 'disposal_pending') cls = 'indeterminate'
+    else if (
       r.disposal_state === 'none' &&
       ['uploaded', 'verifying', 'scan_pending', 'clean', 'unscanned_accepted'].includes(
         r.upload_state,
       )
-    const expectsAbsence = r.disposal_state === 'disposed'
-    if (expectsBytes && !hasObject) report.missing.push({ bucket, id: r.id, path: r.storage_path })
-    if (expectsAbsence && hasObject)
+    )
+      cls = 'bytes-required'
+    else if (r.disposal_state === 'none' && r.upload_state === 'reserved') cls = 'indeterminate'
+    else if (
+      r.disposal_state === 'none' &&
+      ['failed', 'abandoned', 'infected', 'rejected'].includes(r.upload_state)
+    )
+      cls = 'terminal'
+    else cls = 'unclassified'
+
+    report.classCounts[cls] = (report.classCounts[cls] ?? 0) + 1
+    if (cls !== 'unclassified') accounted.add(r.storage_path)
+
+    if (cls === 'bytes-required' && !hasObject)
+      report.missing.push({ bucket, id: r.id, path: r.storage_path })
+    if (cls === 'absence-required' && hasObject)
       report.missingDelete.push({ bucket, id: r.id, path: r.storage_path })
+    if (cls === 'terminal' && hasObject)
+      report.undisposed.push({
+        bucket,
+        id: r.id,
+        path: r.storage_path,
+        upload_state: r.upload_state,
+      })
+    if (cls === 'unclassified')
+      report.unclassified.push({
+        bucket,
+        id: r.id,
+        path: r.storage_path,
+        upload_state: r.upload_state,
+        disposal_state: r.disposal_state,
+      })
   }
   for (const p of objectPaths) {
     if (!accounted.has(p)) report.orphans.push({ bucket, path: p })
@@ -149,6 +210,11 @@ for (const bucket of BUCKETS) {
 }
 
 console.log(JSON.stringify(report, null, 2))
-const drift = report.missing.length + report.missingDelete.length + report.orphans.length
+const drift =
+  report.missing.length +
+  report.missingDelete.length +
+  report.orphans.length +
+  report.undisposed.length +
+  report.unclassified.length
 console.log(drift === 0 ? 'RECONCILIATION CLEAN' : `DRIFT: ${drift} finding(s)`)
 process.exit(drift === 0 ? 0 : 1)
