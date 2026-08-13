@@ -159,4 +159,13 @@ MINOR-2 `open_document_version` gates before recording; plan Q1; O4). Item 1
 | S1-O3 | **Uploader visibility, if S2 adds it** (DM1 MAJOR-1 consequence): the arm goes INSIDE the kernel chain so the ceiling governs it, keystoned | S2 | ADR 0116 §11 |
 | S1-O4 | **Interview-label inheritance is a product question, not a bug** (DM2-F1): if Wave A wants interview-homed documents to inherit the interview's own `confidentiality_level`, that is a deliberate widening of the ceiling's scope — new ruling + keystone, not a silent arm | S3 planning / PO | DM2-F1 |
 
+## S2 — orchestration: the command layer (backend, opened 2026-08-13)
+
+| # | Task | Status | Evidence |
+|---|------|--------|----------|
+| S2.0 | Phase-17 rename (plan amendment `06ab1ae`): `src/lib/documents` → `src/lib/controlled-documents`, `src/lib/queries/documents.ts` → `…/controlled-documents.ts` | ✅ 2026-08-13 | `git mv` (history follows, 98% similarity); **39 files / 69 specifiers** rewritten by node script (lead's 32/50 was an undercount — the delta is the module's 3 self-imports + comment references, all updated); diff exactly 69+/69−, no CRLF damage; 0 residuals; tsc 0 first-party + 5-gate lint + **real `next build` exit 0** (the BUG-FBE-005 gate) |
+| S2.1 | Contract-first typed stubs: `src/lib/documents/{types,actions}.ts` + `src/lib/queries/documents.ts` + the 5 DM flag keys into `FeatureFlags` | ✅ 2026-08-13 | Signatures = the S3 contract, stable from here. Actions THROW (a faking stub is the silent-return scar); queries return the truthful empty state; unions CHECK-mirrored from the live catalog (disposal reasons, hold reasons, status, tier); trust boundary visible in types (no bucket/path/tier/hash inputs; `declared*` = hints). tsc **exit 0** (the real build re-cohered the `.next` skew — MINOR-5 mechanism confirmed) · lint 5-gate OK · vitest 1254/1254 |
+| S2.2 | Command-layer plan posted to the lead | 🕐 awaiting ack | this file + the lead thread |
+| S2.3+ | Implementations (migrations `20260924000300`+, pgTAP, twins, arms) | 🔜 after ack | — |
+
 ## S2+ — (subsequent slices append here)
