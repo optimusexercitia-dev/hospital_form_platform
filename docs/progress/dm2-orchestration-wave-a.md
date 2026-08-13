@@ -455,6 +455,24 @@ assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
 8. **The 6 MINOR + 4 INFO** from the QA r1 review, not itemised here — read
    `docs/reviews/dm2-orchestration-wave-a-review.md` directly.
 
+## ⚠ One item is committed but NOT fully verified — do not read it as green
+
+The tester's **two gap-closure probes are committed** (`4644cef`): a server-side **`HC0DG`** probe in
+`phase11-interviews.spec.ts` (IV2-11 previously tripped only the *client-side* MIME block) and a
+server-side **`HC0D8`** probe in `phase-f2-attachments.spec.ts` (`DM2-STATES`' `pending` row
+previously asserted only a disabled button). Both close UI-only assertions of **the same class that
+hid P0-1** — an assertion whose subject is a rendered control cannot carry an authorization claim.
+
+**But their final clean fresh-reset confirmation run did not complete** — the tester was interrupted
+mid-verification when DM2 was paused. Its last observation was that a `DM2-STATES` double-row it saw
+is a **pre-existing, already-documented iteration artifact** (running that test twice without a reset
+creates two identically-redacted `[removido]` rows), **not** a regression from the new probes — and
+it was in the middle of confirming exactly that on a clean reset when it stopped.
+
+**On resume: re-run those two files on a fresh `supabase db reset` before trusting them.** They are
+written and reviewed, not yet confirmed green. Treating them as verified would repeat this phase's
+own lesson in miniature.
+
 ## Open with the PO (do not decide these for them)
 
 - **MAJOR-1 / S1-O4 — interview-label bytes.** A document on a `legal_privileged` interview is
