@@ -122,7 +122,17 @@ export function DocumentRow({
             {doc.title}
           </span>
           {kind && <DocumentKindBadge label={kind} />}
-          {doc.containsPhi && <DocumentPhiBadge />}
+          {/* The PHI badge asserts something about a FILE ("o arquivo contém
+              dados de paciente"), so it is suppressed when no file exists — a
+              row with no version otherwise claimed both "Sem arquivo" and
+              "Dados de paciente" at once.
+
+              ⚠ This suppresses the BADGE only. `containsPhi` itself falls back
+              to the home rule when there is no file object, which is the correct
+              fail-safe (over-warn, never under-warn) and must NOT be changed.
+              The contradiction is only reachable for a `latestVersion: null` row,
+              a state `begin_document_upload` cannot produce. */}
+          {doc.containsPhi && version != null && <DocumentPhiBadge />}
           {doc.confidentialityLevel && (
             <DocumentConfidentialityBadge level={doc.confidentialityLevel} />
           )}

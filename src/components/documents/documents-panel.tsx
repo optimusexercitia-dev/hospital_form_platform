@@ -105,11 +105,14 @@ export async function DocumentsPanel({
           >
             {config.heading}
           </h2>
-          {/* Every sibling panel on these pages carries a count; without one this
-              section reads as a rendering bug rather than a design choice. */}
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">
-            {documents.length}
-          </span>
+          {/* Every sibling panel on these pages carries a count — and hides it
+              at zero (Itens de ação, Etiquetas), because an empty section already
+              says "empty" in its own copy and a `0` badge only repeats it. */}
+          {documents.length > 0 && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">
+              {documents.length}
+            </span>
+          )}
         </div>
         {/* Upload trigger: gated on write capability AND the Wave-A flag. */}
         {canWriteNow && <DocumentUpload homeType={home.type} homeId={home.id} />}
