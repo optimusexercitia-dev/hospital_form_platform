@@ -282,11 +282,21 @@ legacy-retirement manifest with two columns pointing at nothing.
 2. Restore `issue_ethics_notification`'s `p_related_document_id` to a **working**
    parameter. ⚠ Catalog-verified 2026-08-13: the parameter **still exists** (arg 7 of
    8) — DM1 left the signature intact and put the refusal in the **body**. This
-   condition is a body change, not a signature change; do not plan a DROP+CREATE for
-   it, or the ACL is discarded for nothing.
+   condition is a body change: `CREATE OR REPLACE` keeps the 8-arg identity and
+   **preserves the ACL**. Do not plan a DROP+CREATE for it.
 3. Remove the fail-closed rejection.
-4. **Remove keystone K8**, which pins that rejection — *a keystone left pinning a
-   refusal the product no longer wants is a test asserting a bug.*
+4. **Remove keystone K8c** — ⚠ **corrected 2026-08-13, and the correction is
+   load-bearing.** "Remove keystone K8" as originally written names an object that is
+   not one: in `supabase/tests/328_dm1_document_substrate.sql`, K8 is **three**
+   sub-keystones — **K8a** (`add_referral_shared_item`, parked until **DM4**),
+   **K8b** (`add_rca_evidence`, parked until **Wave D**), **K8c** (ethics). **Only
+   K8c is DM3's**; removing "K8" literally would delete two parked-seam pins that
+   other waves still depend on. In the same edit: decrement `328`'s `plan(N)` and
+   remove *only* the K8c flag precondition, leaving the referral and RCA
+   preconditions intact. The rationale still holds for K8c alone — *a keystone left
+   pinning a refusal the product no longer wants is a test asserting a bug* — and the
+   seam is not left unpinned: the pin changes from *"this is refused"* to *"this is
+   allowed, exactly this far."*
 5. **Add `p_decision_letter_document_id` to `set_ethics_decision_details` and forward
    it from `src/lib/ethics/actions.ts`.** Conditions 1–4 as originally written were
    **incomplete**: catalog-verified, `set_ethics_decision_details` takes **11
@@ -296,6 +306,14 @@ legacy-retirement manifest with two columns pointing at nothing.
    `documents(id)` while leaving it **unwritable at every layer** — trading "a column
    pointing at nothing" for "a column pointing at documents nothing can create",
    which is the same defect wearing a constraint.
+   ⚠ **This one is the mirror image of condition 2, and the asymmetry is the trap.**
+   Catalog-verified: `set_ethics_decision_details` has **11 args of which 10 carry
+   `DEFAULT NULL`**, so `CREATE OR REPLACE` **cannot** add a 12th — it mints an
+   **overload**, after which the live 11-arg call from the ethics screen becomes
+   **ambiguous (`42725`)**. Condition 5 therefore requires `DROP FUNCTION` +
+   `CREATE` **with an explicit re-GRANT**, because the DROP restores the Postgres
+   default ACL. Two ethics functions, opposite treatments, one migration — assert the
+   resulting ACL from `pg_proc.proacl`, never from the migration text.
 
 Ethics documents inherit Wave B's no-PHI stance: PHI-tier input on an ethics letter
 fails closed (D13).
@@ -317,3 +335,29 @@ though the lifecycle is. Ethics case reads are gated by the ADR 0072 / ETH·E1 s
 is the mechanism that survives it. DM3 must prove the ethics arm against that spine
 with a negative twin — reusing Wave B's *lifecycle* machinery must not import Wave
 B's *reader set*.
+
+**The mechanism, ruled by the lead 2026-08-13 and catalog-verified twice
+independently: an ethics decision letter's core `documents` row homes on the `case`
+securable resource, NEVER on a `controlled_document` one.** This follows necessarily
+from the warning above rather than adding to it, and three catalog facts each force
+it alone:
+
+1. `app.can_read_document`'s dispatch resolves a `case` home through
+   `app.can_read_case` + `app.confidentiality_clearance_ok` — the ETH·E1 spine. It
+   has **no `controlled_document` arm today** (it falls to `else false`), so the arm
+   DM3 adds for Wave B is the commission-membership arm — i.e. *every ordinary
+   commission member*. That is the reader set ethics must not inherit.
+2. `app.guard_document_confidentiality` (BEFORE INSERT/UPDATE on `documents`,
+   `HC0D6`) refuses `legal_privileged` / `credentialing_sensitive` on any home whose
+   type is `not in ('case','interview')`. A controlled-document home would therefore
+   **silently delete the D15 ceiling** for the most sensitive material the platform
+   holds — and silently, because the refusal fires on the *label*, not on the read.
+3. The kernel resolves the clearance case as `case → itself`,
+   `interview → case_of_interview`, **`else null`**, and a null case fails closed. So
+   a controlled-document home cannot express the clearance plane at all.
+
+**D17's "same shape as a controlled document" is a statement about LIFECYCLE and must
+not be read as a schema instruction.** Read as one, it is an ethics-content leak. The
+negative twin (DM3 keystone K4) is accordingly written to fail on **widening** — it
+adds a membership arm to the `case` branch and requires red — because a twin that
+merely removed the ethics arm would prove nothing.
