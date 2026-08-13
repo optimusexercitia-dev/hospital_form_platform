@@ -4258,6 +4258,7 @@ export type Database = {
       documents: {
         Row: {
           access_policy_id: string | null
+          confidentiality_level: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -4271,6 +4272,7 @@ export type Database = {
         }
         Insert: {
           access_policy_id?: string | null
+          confidentiality_level?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -4284,6 +4286,7 @@ export type Database = {
         }
         Update: {
           access_policy_id?: string | null
+          confidentiality_level?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null

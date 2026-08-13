@@ -23,7 +23,9 @@
 -- =============================================================================
 
 begin;
-select plan(88);
+-- 88 → 109: DM2·S1 adds K14 (the D15 confidentiality ceiling — ADR 0114
+-- Amendment 1; column + seam guard + kernel arm), 21 assertions.
+select plan(109);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -783,6 +785,153 @@ select throws_ok(
   'HC0DM',
   'anexar documento à notificação está temporariamente indisponível (migração do modelo de documentos)',
   'K8c issue_ethics_notification refuses a related document (parked until the Q1 ruling)');
+reset role;
+
+-- =============================================================================
+-- K14 — the D15 confidentiality ceiling (DM2·S1; ADR 0114 Amendment 1, restores
+-- ADR 0072 D7 semantics). The two enforcing labels (legal_privileged,
+-- credentialing_sensitive) gate ABOVE home-resource read as an AND-conjunct in
+-- app.can_read_document; clearance rides case_access_grants.max_confidentiality
+-- through the SURVIVING app.confidentiality_clearance_ok (reused, never
+-- reimplemented — its carrier keystones live in 144/238; O2 semantics —
+-- ethics_investigation stays at case-read — are inherited from it).
+-- The meeting/action_item seam is ruled UNREPRESENTABLE at write time
+-- (trg_guard_document_confidentiality → HC0D6; HC0D5 is TAKEN by
+-- revoke_printed_document, verified against comment-stripped pg_proc.prosrc)
+-- with a fail-closed read backstop in the kernel. The backstop is reachable
+-- only with the guard dropped — proven by the S1 mutation twin (guard dropped
+-- in a rolled-back txn -> enforcing meeting doc plants -> kernel refuses
+-- EVERYONE incl. its creator; control: relabel to ethics_investigation -> true).
+-- K14s4/K14s5 are PRESERVATION pins (green on both sides by design — their red
+-- is "the S1 re-emit lost a property", the accident they exist to catch).
+-- RED-FIRST (lead AMEND 1, two-migration split): structural + guard pins
+-- observed red pre-20260924000100 (have false / caught 42703); the behavioral
+-- ceiling pins ran RED against the REAL post-column, pre-arm catalog
+-- (20260924000100 applied, 20260924000200 not yet) — quoted in the S1 record.
+-- S2 obligations (DM2 ledger): refused-open + clearance-admits-open land on
+-- open_document_version.
+-- =============================================================================
+
+-- Structural pins.
+select has_column('public', 'documents', 'confidentiality_level',
+  'K14s1 documents.confidentiality_level exists (the D15 column)');
+select is(
+  (select count(*)::int from pg_constraint
+    where conrelid = 'public.documents'::regclass
+      and conname = 'documents_confidentiality_level_check'),
+  1, 'K14s2 the 7-value CHECK is present (sibling-shaped, NULL legal)');
+select is(
+  (select count(*)::int from pg_trigger
+    where tgrelid = 'public.documents'::regclass
+      and tgname = 'trg_guard_document_confidentiality' and not tgisinternal),
+  1, 'K14s3 the confidentiality seam guard trigger is attached');
+select is(
+  (select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_document'),
+  true, 'K14s4 the kernel kept SECURITY DEFINER through the S1 re-emit (preservation pin)');
+select ok(
+  (select array_to_string(p.proconfig, '|') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_document')
+    ~ 'search_path=app, public, pg_catalog',
+  'K14s5 the kernel kept its pinned search_path (preservation pin)');
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_document')
+    ~ 'confidentiality_clearance_ok',
+  'K14s6 the ceiling arm is present in the kernel (comment-stripped)');
+
+-- K14a/b/c — the seam at write time: enforcing labels are unrepresentable on
+-- homes with no clearance plane; non-enforcing labels stay legal everywhere.
+select throws_ok(
+  $q$ insert into public.documents (id, home_resource_id, title, created_by, confidentiality_level)
+      values ('32800000-0000-0000-0000-00000000d301',
+              (select id from public.securable_resources
+                where resource_type = 'meeting'
+                  and commission_id = 'a0000000-0000-0000-0000-0000000000a1' limit 1),
+              'Documento K14a (reuniao, privilegiado)',
+              '00000000-0000-0000-0000-000000000002', 'legal_privileged') $q$,
+  'HC0D6', null,
+  'K14a an enforcing label on a MEETING-homed document is refused (HC0D6 — no clearance plane)');
+
+select lives_ok(
+  $q$ insert into public.documents (id, home_resource_id, title, created_by, confidentiality_level)
+      values ('32800000-0000-0000-0000-00000000d302',
+              (select id from public.securable_resources
+                where resource_type = 'meeting'
+                  and commission_id = 'a0000000-0000-0000-0000-0000000000a1' limit 1),
+              'Documento K14b (reuniao, investigacao)',
+              '00000000-0000-0000-0000-000000000002', 'ethics_investigation') $q$,
+  'K14b1 a NON-enforcing label stays legal on a meeting home (the guard does not over-narrow)');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d302'),
+  1, 'K14b2 …and a plain member still reads it (ethics_investigation never gates — O2, inherited)');
+reset role;
+
+select throws_ok(
+  $q$ insert into public.documents (id, home_resource_id, title, created_by, confidentiality_level)
+      values ('32800000-0000-0000-0000-00000000d303',
+              (select id from public.securable_resources where resource_type = 'action_item' limit 1),
+              'Documento K14c (pendencia, privilegiado)',
+              '00000000-0000-0000-0000-000000000002', 'credentialing_sensitive') $q$,
+  'HC0D6', null,
+  'K14c an enforcing label on an ACTION_ITEM-homed document is refused (no source_* resolution — ruled)');
+
+-- K14g/h — the UPDATE leg of the seam guard.
+select throws_ok(
+  $q$ update public.documents set confidentiality_level = 'legal_privileged'
+      where id = '32800000-0000-0000-0000-00000000d102' $q$,
+  'HC0D6', null,
+  'K14g relabelling a MEETING-homed document to an enforcing label is refused (UPDATE leg)');
+select lives_ok(
+  $q$ update public.documents set confidentiality_level = 'legal_privileged'
+      where id = '32800000-0000-0000-0000-00000000d101' $q$,
+  'K14h relabelling a CASE-homed document to an enforcing label proceeds (no over-block on case homes)');
+
+-- K14d — the deny legs, maximally differential with K11h: SAME persona
+-- (staff1), SAME rows (d101 -> e101 -> f101) K11h read minutes ago — the ONE
+-- variable is the label K14h just applied.
+select lives_ok(
+  $q$ insert into public.documents (id, home_resource_id, title, created_by, confidentiality_level)
+      values ('32800000-0000-0000-0000-00000000d304',
+              'f2000000-0000-0000-0000-0000000000e1',
+              'Documento K14d (entrevista, privilegiado)',
+              '00000000-0000-0000-0000-000000000002', 'legal_privileged') $q$,
+  'K14d0 an enforcing label on an INTERVIEW-homed document is legal (resolves via case_of_interview)');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  0, 'K14d1 UNCLEARED: the privileged case document vanishes from the reader who read it at K11h');
+select is((select count(*)::int from public.document_versions where id = '32800000-0000-0000-0000-00000000e101'),
+  0, 'K14d2 UNCLEARED: …and its version (the ceiling propagates through can_read_document_version)');
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f101'),
+  0, 'K14d3 UNCLEARED: …and its file object (chain-only — the MAJOR-1 removal is what makes this governable)');
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d304'),
+  0, 'K14d4 UNCLEARED: the privileged interview document is absent for a committee reader without clearance');
+reset role;
+
+-- ONE variable flips: a clearance grant on Caso 0001 — the case behind BOTH
+-- the case-homed chain and the seeded interview (verified pre-authoring:
+-- staff1 holds NO prior grant on it; his case-read rides another content
+-- source, so this grant adds clearance, not reach).
+select test_helpers.grant_ca('d0000000-0000-0000-0000-0000000000c1'::uuid,
+  '00000000-0000-0000-0000-000000000003'::uuid, 'read',
+  '00000000-0000-0000-0000-000000000002'::uuid, null, 'legal_privileged');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000003'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d101'),
+  1, 'K14f1 CLEARED: max_confidentiality = legal_privileged admits the case document back');
+select is((select count(*)::int from public.document_versions where id = '32800000-0000-0000-0000-00000000e101'),
+  1, 'K14f2 CLEARED: …and its version');
+select is((select count(*)::int from public.file_objects where id = '32800000-0000-0000-0000-00000000f101'),
+  1, 'K14f3 CLEARED: …and its file object');
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d304'),
+  1, 'K14f4 CLEARED: the interview document too (clearance resolved on case_of_interview)');
 reset role;
 
 select * from finish();

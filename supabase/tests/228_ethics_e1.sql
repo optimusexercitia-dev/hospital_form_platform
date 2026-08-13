@@ -18,7 +18,10 @@ begin;
 -- 125 → 132: Gate-2 fix wave. Proof 2 (was 2 row-count tests) is rewritten COLUMN-LEVEL
 -- as 9 (4 preconditions + row + summary-mask + decision-visible + column-REVOKE + sweep)
 -- and becomes A26/K16's only pin. See the Proof-2 block for the full rationale.
-select plan(127);
+-- 127 → 131: DM2·S1 restores the document-confidentiality-ceiling block (tests
+-- 36–39, retired with its substrate at DM1) against public.documents (ADR 0114
+-- Amendment 1, D15).
+select plan(131);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -351,25 +354,69 @@ select is(app.can_read_case((select cid from c_ethics), (select sa_x from k)), t
   'explicit_grants_only: the coordinator keeps read');
 
 -- ===========================================================================
--- Document confidentiality ceiling (tests 36–40) — RETIRED WITH ITS SUBSTRATE
--- (DM1, ADR 0114 D5). ⚠ NAMED COVERAGE LOSS, deliberately parked, NOT quietly
--- absorbed: the ADR 0063 confidentiality_label ceiling (legal_privileged gated
--- ABOVE ordinary case-read via attachment_confidentiality_ok + the HC0E6 open
--- door; ethics_investigation stays visible — the O2 pair) has NO DM1 successor
--- surface: the document model defers per-document access semantics to the
--- access_policy_id seam (ADR 0114 D6/O3) and its tables carry no label column.
--- Reachability today: zero documents exist anywhere; the max_confidentiality
--- grant column itself is untouched (its carrier keystones live in 144/238).
--- The ceiling's RETURN VEHICLE (Wave A/B design or the O3 plane) is a PO/lead
--- decision recorded in docs/progress/dm1-substrate-cutover.md §triage ledger —
--- whoever builds it must restore all FIVE pins: absent-from-list, refused-open,
--- O2-stays-visible, clearance-admits-list, clearance-admits-open.
---
+-- Document confidentiality ceiling (tests 36–39) — RESTORED (DM2·S1, ADR 0114
+-- Amendment 1 D15; was retired with its substrate at DM1). The label now lives
+-- on public.documents.confidentiality_level and the ceiling is an AND-conjunct
+-- arm of app.can_read_document; clearance is UNCHANGED —
+-- case_access_grants.max_confidentiality via app.confidentiality_clearance_ok,
+-- the surviving helper, reused not reimplemented. The historical pins return
+-- at LIST level: absent-from-list (36), O2-stays-visible (37),
+-- coordinator-not-exempt (38 — the E1 as-built delta-6 semantics),
+-- clearance-admits-list (39). The two OPEN-level pins (refused-open,
+-- clearance-admits-open) are S2 obligations on open_document_version —
+-- recorded in docs/progress/dm2-orchestration-wave-a.md (obligations ledger)
+-- so S2 cannot forget them. The meeting/action_item seam keystones (HC0D6 +
+-- the fail-closed kernel backstop) live in 328 K14.
+-- RED-FIRST: 36 + 38 observed RED (have 1, want 0) against the real
+-- post-column, pre-arm catalog (20260924000100 applied, 20260924000200 not
+-- yet — the AMEND 1 two-migration split); quoted in the S1 record.
+-- ===========================================================================
+
+insert into public.documents (id, home_resource_id, title, created_by, confidentiality_level)
+values ('22800000-0000-0000-0000-00000000d201', (select cid from c_ethics),
+        'Parecer juridico (privilegiado)', (select sa_x from k), 'legal_privileged'),
+       ('22800000-0000-0000-0000-00000000d202', (select cid from c_ethics),
+        'Documento da investigacao (O2)', (select sa_x from k), 'ethics_investigation');
+
+-- (36)+(37) an ordinary case reader (st_x2 holds the test-33 read grant, NO
+-- clearance) sees the O2 document and NOT the privileged one — same case, two
+-- documents, one variable (the label).
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.documents
+            where id = '22800000-0000-0000-0000-00000000d201'), 0,
+  '36: absent-from-list — an uncleared case reader does not see the legal_privileged document');
+select is((select count(*)::int from public.documents
+            where id = '22800000-0000-0000-0000-00000000d202'), 1,
+  '37: O2 — ethics_investigation stays visible to an ordinary case reader (only the two labels gate)');
+reset role;
+
+-- (38) coordinators are NOT exempt without clearance (E1 as-built delta 6
+-- dropped the is_admin bypass from the clearance helpers; the coordinator UX
+-- arm is a deferred product question, not an implicit bypass).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.documents
+            where id = '22800000-0000-0000-0000-00000000d201'), 0,
+  '38: coordinator-not-exempt — sa_x reads the case but not the privileged document without clearance');
+reset role;
+
+-- (39) clearance admits. sa_x had NO prior grant on c_ethics (grant_ca inserts
+-- fresh); st_x2''s test-33 grant is deliberately untouched — Proof-2 (below)
+-- depends on its later state.
+select test_helpers.grant_ca((select cid from c_ethics), (select sa_x from k), 'read',
+  (select sa_x from k), null, 'legal_privileged');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.documents
+            where id = '22800000-0000-0000-0000-00000000d201'), 1,
+  '39: clearance-admits-list — max_confidentiality = legal_privileged opens the privileged document');
+reset role;
+
 -- The retired block's clearance grant was FIXTURE, not assertion — the
 -- interview-confidentiality tests below (set_interview_confidentiality
 -- enforcing pair) still need sa_x to hold legal_privileged clearance on
 -- c_default. Kept:
--- ===========================================================================
 select test_helpers.grant_ca((select cid from c_default), (select sa_x from k), 'read', (select sa_x from k), null, 'legal_privileged');
 
 -- ===========================================================================
