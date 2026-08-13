@@ -109,7 +109,7 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S1c — keystones `DM3·B4` + `DM3·X3` | backend | ✅ green (`47e37ed`) — neither could be red-first (both pin existing behaviour), so **both twins were RUN**: twin 1 reds `X3a`+`B4` (2/50), twin 2 reds `X3b` **alone** (1/50) |
 | S1d — composite deletion + §7 process note | backend | ✅ landed (`9167497`) — **typecheck 0**, lint 5/5, `330` **50/50**, `328` **128/128** |
 | S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | ✅ landed (`ef62e1b` + `de21b87`) — all 3 wizard modes orchestrate client-side; lint 5/5, vitest **1258/1258**. ⚠ **`createDraftOnly` SURVIVES** (minus its `if (hasFile)` block) — it is the wizard's step 1 and the only verb returning `{documentId, versionId}`; **3 verbs die, not 4** |
-| S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
+| S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ **BLOCKED on the seed fix** (needs a DB that resets) |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
 
@@ -154,6 +154,31 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
 
+### ⛔ GATE STEP 1 — **RED**. `supabase db reset` FAILS (2026-08-13, lead-run)
+
+```
+RESET_EXIT=1 · Seeding data from supabase/seed.sql...
+ERROR: insert or update on table "controlled_documents" violates foreign key
+constraint "controlled_documents_securable_resource_fk" (SQLSTATE 23503)
+```
+**Fails at SEEDING, not migration** — all 7 DM3 migrations applied cleanly. Three raw insert
+sites in `seed.sql` (**`:2582`, `:2612`, `:2864`**) create controlled documents with **no
+`securable_resources` row**, against
+`FK (id, securable_type) REFERENCES securable_resources(id, resource_type)`.
+
+⚠ **Why nothing caught it: M3's BACKFILL MASKED IT.** Migrations were applied incrementally to
+a DB that *already held* the seeded rows, so the backfill minted their registry rows. A fresh
+reset inverts that — migrations hit an **empty** DB (backfill finds nothing), then `seed.sql`
+inserts **new** documents that must satisfy the FK unaided. **The backfill and the seed can
+each be correct while the pair is broken.** The recorded rule, earned again: *the migration
+chain and `seed.sql` are ONE artifact* — and `seed.sql` is a contract with ~900 tests.
+Returned to backend with the instruction **not to stop at the constraint that fired** — the FK
+is the first invariant to reject the row, not necessarily the only one DM3 added.
+
+⚠ **The pgTAP numbers from that run are VOID** — the suite ran against a half-seeded DB, so its
+fifteen `planned N but ran 0` lines are **artifacts of the failed seed** and are **NOT**
+evidence for FUP-PGTAP-SAVEPOINT. That measurement remains outstanding.
+
 **Two gate lessons from the composite deletion (`9167497`):**
 - ⚠ **`typecheck` hit 0 with three dead symbols still present** — `uploadDocumentFile`,
   `MAX_DOCUMENT_BYTES` and the MIME→extension map, all mirroring the retired bucket. **eslint
@@ -165,6 +190,30 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
   had a real import. It also showed *why* "four" was wrong: `supersedeDocument` **and**
   `supersedeAndSubmitDocument` both exist and frontend calls the former — **two names
   collapsed into one is how a live verb gets deleted.**
+
+**S2 findings (frontend, `ef62e1b` · `de21b87` · `7cbe6b7`):**
+- ⚠ **A real defect caught only by a RUNTIME check — no gate would have seen it.** Moving the
+  wizard chain client-side made step *ordering* frontend's responsibility, and the size/MIME
+  validation ended up **inside `attachFile`** — i.e. **after** create/supersede had already
+  run. The retired server action validated **up front** precisely to avoid orphan drafts, so
+  an oversized file would have left a created document plus an empty draft. Fixed in
+  `7cbe6b7`. *A responsibility that moves layers does not announce that it moved.*
+- ⚠ **A label reversed on evidence — and the first reasoning was wrong for a subtle reason.**
+  Frontend had declined to reword Wave A's `pending`, arguing one state should not carry two
+  names across waves; backend agreed. The screens then showed both seeded documents rendering
+  `pending` with a **non-null** pointer, because **M3's backfill binds every version to a
+  deliberately fileless core version** — so "Processando envio" told coordinators to wait for
+  an upload that never happened. Wave A's `pending` can arise **only** from a real upload;
+  Wave B's also covers backfilled versions, **a state Wave A cannot reach**. Two state *sets*
+  sharing one label, not one state with two names → **"Aguardando arquivo"**.
+- A page header claiming the **storage SELECT policy carried the approver arm** was rewritten —
+  false since M5; that access moved to the kernel. Another instance of the class below.
+- Submit affordance gates on **`availability === 'available'`** — the only state meaning the
+  door will hand over bytes, read from the **shared** predicate rather than a parallel opinion,
+  and pinned executably by `DM3·X3b`.
+- ⚠ **Not verified: the byte round trip.** No seeded version has bytes, so every controlled
+  document renders `pending`; upload/download success paths are **tester's**, with
+  `documents_wave_b` on.
 
 ⚠ **STALE-COMMENT CLASS — 5th, 6th … instance this phase; the deletion alone stranded 8.**
 Two were backend's (fixed): `supersedeDocument`'s doc told the frontend to upload *"via
