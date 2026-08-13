@@ -38,7 +38,7 @@
 -- =============================================================================
 
 begin;
-select plan(7);
+select plan(14);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -139,6 +139,100 @@ select is(
       and pg_get_constraintdef(oid) like '%controlled_document%'),
   2,
   'DM3·R2b BOTH securable_resources constraints enumerate controlled_document (no half-widening)');
+
+-- =============================================================================
+-- A — THE AUTHORIZATION ARM (M2). `app.can_read_document`'s dispatch gains a
+-- `controlled_document` arm: commission member OR entitled approver. The
+-- approver half is the arm the dying bucket policy
+-- (`controlled_documents_obj_select_member` → `app.can_read_document_object`,
+-- "member of foldername[1] OR approver on foldername[2]") would otherwise take
+-- with it, silently.
+--
+-- Seed fixtures (catalog-verified, not assumed):
+--   chefe.ccih  …002  CCIH member;      reads the ethics case;   cleared
+--   staff1.ccih …003  CCIH member;      NO ethics-case access;   uncleared
+--   staff1.farm …006  NOT a CCIH member; approver on DOC-0001
+--   chefe.farm  …005  NOT a CCIH member; approver on DOC-0002 ONLY
+-- =============================================================================
+
+-- Fixture: a core document homed on DOC-0001's registry row, and one homed on
+-- the seeded ethics case. Both live only inside this rolled-back transaction.
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+select 'dd300000-0000-0000-0000-0000000000c1', d.id,
+       'Fixture A · controlled-document home', 'documento_controlado', 'active',
+       '00000000-0000-0000-0000-000000000002'
+  from public.controlled_documents d
+ where d.id = 'c4c3f346-b18b-42bf-a754-968ecf264e58';
+
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+values ('dd300000-0000-0000-0000-0000000000e1',
+        'ca000000-0000-0000-0000-0000000000e1',
+        'Fixture A · ethics-case home', 'registro', 'active',
+        '00000000-0000-0000-0000-000000000002');
+
+-- A1 ⭐ — the member arm. RED pre-M2: the dispatch falls to `else false`, so
+-- this is denied to EVERYONE, member or not.
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000c1',
+                        '00000000-0000-0000-0000-000000000002'),
+  true,
+  'DM3·A1 ⭐ a commission member reads a controlled-document-homed document');
+
+-- A2a — POSITIVE CONTROL. Without it, A1 red is indistinguishable from "that
+-- persona was never a member" (a wrong-arm fixture — authz-handoff §7.1).
+select is(
+  app.is_member_of_for('a0000000-0000-0000-0000-0000000000a1',
+                       '00000000-0000-0000-0000-000000000002'),
+  true,
+  'DM3·A2a POSITIVE CONTROL: chefe.ccih genuinely holds CCIH membership');
+
+-- A2b ⭐ — the approver arm is scoped to THIS DOCUMENT, not global. chefe.farm
+-- is an approver — on DOC-0002 — and a non-member here. A global approver arm
+-- would hand him DOC-0001. This is the discriminating control: it separates
+-- "the approver arm works" from "the approver arm is a blanket grant".
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000c1',
+                        '00000000-0000-0000-0000-000000000005'),
+  false,
+  'DM3·A2b ⭐ an approver of a DIFFERENT controlled document does NOT reach this one');
+
+-- A3 ⭐ — the approver arm. RED pre-M2. staff1.farm holds no membership in the
+-- owning commission; his ONLY route is the approver corridor the bucket policy
+-- grants today.
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000c1',
+                        '00000000-0000-0000-0000-000000000006'),
+  true,
+  'DM3·A3 ⭐ a cross-commission APPROVER reads the controlled document (the arm the bucket policy carried)');
+
+-- A3b — POSITIVE CONTROL for A3: he must genuinely NOT be a member, else A3
+-- passes through the member arm and proves nothing about the approver arm.
+select is(
+  app.is_member_of_for('a0000000-0000-0000-0000-0000000000a1',
+                       '00000000-0000-0000-0000-000000000006'),
+  false,
+  'DM3·A3b POSITIVE CONTROL: staff1.farm holds NO membership in the owning commission');
+
+-- A4 ⭐ NEGATIVE TWIN (ADR 0114 Amendment 2). An ethics-case-homed document is
+-- gated by the ETH·E1 spine, NOT by commission membership. staff1.ccih IS a
+-- member of the ethics case's commission and has NO case access.
+-- ⚠ This is a NO-REGRESSION pin: green before AND after M2 by design. Its
+-- falsifier is the mutation twin, which WIDENS the `case` branch with a
+-- membership arm and requires this to go red — a no-regression claim passes a
+-- widening by construction, so the twin is the assertion, not this line.
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000e1',
+                        '00000000-0000-0000-0000-000000000003'),
+  false,
+  'DM3·A4 ⭐ NEGATIVE TWIN: an ethics-case-homed document is NOT readable by an ordinary commission member (Wave B''s reader set must not leak into ethics)');
+
+-- A4b — POSITIVE CONTROL: the same document IS readable by a persona with real
+-- case access, so A4 is not passing because the fixture is unreadable to all.
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000e1',
+                        '00000000-0000-0000-0000-000000000002'),
+  true,
+  'DM3·A4b POSITIVE CONTROL: a persona WITH ethics-case access does read it (A4 is not vacuous)');
 
 select * from finish();
 rollback;
