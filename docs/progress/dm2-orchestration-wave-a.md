@@ -165,7 +165,60 @@ MINOR-2 `open_document_version` gates before recording; plan Q1; O4). Item 1
 |---|------|--------|----------|
 | S2.0 | Phase-17 rename (plan amendment `06ab1ae`): `src/lib/documents` → `src/lib/controlled-documents`, `src/lib/queries/documents.ts` → `…/controlled-documents.ts` | ✅ 2026-08-13 | `git mv` (history follows, 98% similarity); **39 files / 69 specifiers** rewritten by node script (lead's 32/50 was an undercount — the delta is the module's 3 self-imports + comment references, all updated); diff exactly 69+/69−, no CRLF damage; 0 residuals; tsc 0 first-party + 5-gate lint + **real `next build` exit 0** (the BUG-FBE-005 gate) |
 | S2.1 | Contract-first typed stubs: `src/lib/documents/{types,actions}.ts` + `src/lib/queries/documents.ts` + the 5 DM flag keys into `FeatureFlags` | ✅ 2026-08-13 | Signatures = the S3 contract, stable from here. Actions THROW (a faking stub is the silent-return scar); queries return the truthful empty state; unions CHECK-mirrored from the live catalog (disposal reasons, hold reasons, status, tier); trust boundary visible in types (no bucket/path/tier/hash inputs; `declared*` = hints). tsc **exit 0** (the real build re-cohered the `.next` skew — MINOR-5 mechanism confirmed) · lint 5-gate OK · vitest 1254/1254 |
-| S2.2 | Command-layer plan posted to the lead | 🕐 awaiting ack | this file + the lead thread |
-| S2.3+ | Implementations (migrations `20260924000300`+, pgTAP, twins, arms) | 🔜 after ack | — |
+| S2.2 | Command-layer plan | ✅ acked (lead, 4 findings) | lead thread |
+| S2.3 | Contract amendments 1–10 (frontend review, lead-routed) folded in | ✅ 2026-08-13 | types.ts rewrite + `upload-client.ts` + M-a re-coded for code-only error mapping (HC0DE/DF/DG); `occurred_on` + `kind` through the door; committed — frontend unblocked |
+| S2.4 | Migrations `20260924000300` (machine + doors + FINDING 1a + dispose arm) + `…000400` (open door) — 371 registered | ✅ 2026-08-13 | catalog-verified: 9 command doors + open door, registry arm GONE, dispose arm landed; all replace() surgeries needle-matched with postconditions |
+| S2.5 | Keystones: 329 NEW **66/66** · 228 **135/135** (S1-O1 t40/40b/41/41b) · 328 **109/109** (K10 rewritten) — populated stack | ✅ 2026-08-13 | red-first record below |
+| S2.6 | FINDING 2 per-state twins (5, independent, rolled back, restore 5/5) | ✅ 2026-08-13 | twin record below |
+| S2.7 | TS implementation (`actions`/`queries` real bodies, reconcile script), fresh-reset full gates, authz arms + census registration + diff-scoped sweep, O4 + canOpen list measurement, ADR 0118 | 🔜 NEXT TURN — named, not started | — |
+| S2.8 | **Reclassify doors — BLOCKED on a lead ruling** (design fork below) | ⛔ lead | §Reclassify fork |
+
+### S2 red-first record (the adapted ladder)
+
+- Pre-migrations (369): **329** — S1 genuinely red `have: 0, want: 10`, then
+  abort at the 42883 boundary (planned 66 / ran 4 — abort shape recorded, not
+  counted as red). **328** — 109 = 109 ran; K10b `caught: no exception,
+  wanted: 23514` (**the registry arm was LIVE**), K10c `have: 1, want: 0`
+  (**the registry minted a row**), K10d red. **228** — ran 41/135; t40
+  `caught: 42883` (door absent), then abort.
+- ⚠ Ladder deviation, recorded: the intended "M-a only" intermediate
+  observation was skipped — both migration files existed when
+  `migration up` ran, so they applied together. The door-absent 42883 reds +
+  the FINDING-2 twins carry the falsifiability of the open-door pins.
+- Post-migrations: **329 66/66 · 228 135/135 · 328 109/109**, all planned =
+  ran, 0 aborts (populated stack; fresh-stack run rides the S2.7 gate).
+- Two red-first catches in my own code, both fixed in the TEST after ruling
+  the DOOR right: (1) D1 expected verify-absence before retention — inverted:
+  retention must refuse BEFORE anything instructs a byte deletion (a
+  retention-blocked file must never lose bytes); (2) the storage fixture
+  delete used the protect-trigger's sanctioned txn-local GUC after an ALTER
+  TRIGGER attempt failed on ownership.
+
+### S2 twin record (FINDING 2 — one neutralization per state, own txn each)
+
+N1 doc-disposal (BOTH doc-status checks — see catch) · N2 soft-deleted ·
+N3 unbound version · N4 file-disposal · N5 non-servable upload state: each
+neutralization SERVED the entitled reader (`t` — the corresponding pin
+O16/O14/O12/etc. would red); restore verified from the catalog (5/5 checks
+present). **FINDING-2 catch, recorded:** neutralizing the HC0DD doc-check
+alone still refused via the neighboring `<> 'active'` check — the two
+doc-status checks are ONE barrier with two codes (defense overlap); the
+honest twin removes both. The standing 329 pins (green immediately before)
+are each twin's restored-side control.
+
+### Reclassify fork (S2.8 — lead ruling needed)
+
+`document_version_files` is **immutable by DM1 guard** (HC0D2, no bypass GUC
+— ADR 0116 §5). Reclassify's D10 "commit" step (re-point the version's source
+file to the copied object) therefore cannot be an UPDATE of the binding. The
+fork: **(a)** add-and-supersede — insert a second `source` binding, the open
+door already picks the newest (`order by created_at desc`), old file retires
+through the disposal machine (unbound-file exemption applies); **(b)** relax
+the DM1 guard with a scoped legal transition for the reclassify door.
+My recommendation: **(a)** — no DM1 invariant is touched, the door already
+resolves newest-first, and the superseded binding is an honest historical
+record. Not improvised mid-turn because it edits a DM1 invariant's blast
+radius either way. The 229-heritage obligations (excluded-party deny +
+ceiling fence pins) land with whichever shape you pick.
 
 ## S2+ — (subsequent slices append here)
