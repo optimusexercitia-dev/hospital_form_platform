@@ -113,7 +113,7 @@ which a formerly gated document would silently become readable by every ordinary
 | S1 | **D15 confidentiality ceiling** — nullable label column on `documents` + kernel arm in `app.can_read_document`; restores pgTAP `228` t36–40 | backend | ✅ **done 2026-08-13** — migrations `20260924000100`+`…000200` (AMEND 1 two-step, behavioral reds observed on the real pre-arm catalog: 228 t36/t38 + 328 K14d1–d4 all `have: 1, want: 0`); seam guard **HC0D6** (HC0D5 taken by `revoke_printed_document`) + fail-closed kernel backstop; `228` 131/131 + `328` 109/109 (K14, 21 asserts); twins A+B rollback-verified; full pgTAP **188f/5952 PASS** fresh; 4 arms HOLD; diff-scoped sweep `can_read_document` 1 case COVERED/0 BLIND/0 ERROR; gen:types +3; **AMEND 3 = PARITY** (finding DM2-F1); open-door pins → S2 (S1-O1) · [record](docs/progress/dm2-orchestration-wave-a.md) · ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) | — |
 | S2 | Command layer + `src/lib/documents/` + reconciliation script. **Head task: the Phase-17 rename** (plan amendment 2026-08-13) | backend | 🟢 **built 2026-08-13 except S2.8** — rename ✅ · contract (+10 amendments) ✅ · migrations `20260924000300`+`…000400` ✅ (FINDING 1a removal; dispose arm = FUP-DM1-DISPOSE ✅; S1-O1 ✅; MINOR-2 ✅) · keystones 329 66/66 · 228 135/135 · 328 109/109 · 191 27/27 · full pgTAP **189f/6023 PASS** fresh · 4 arms HOLD (census zero-delta, doors registered as findings note) · 5 per-state twins · TS layer + reconcile script ✅ · O4 measured (sign 10 ms; file-chain ~3.7 ms/row watch item) · ADR [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) · **S2.8 ✅ built 2026-08-13** (lead-approved; 3 conditions discharged; `20260924000500`; 329 92/92; suite **189f/6049 PASS** fresh; census required-FAIL captured→HOLDS 549/569; O4 + list-perf PO-ruled — [record](docs/progress/dm2-orchestration-wave-a.md) §S2.8) — **S2 CLOSED** | S1 ✅ |
 | S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🟢 building 2026-08-13 — plan acked; shared `src/components/documents/` module (3 homes, one byte-corridor client). **Contract-first paid: 10 gaps found in the S2 stubs before either side hardened**, 3 of them visible F2 regressions (`kind` unsettable so the badge ships dead · `occurredAt` dropped · `underLegalHold` absent from the list, so per-row delete would offer an action HC0D3 refuses) — all routed to `backend`. Upload island unblocked once item 5 (PUT transport) was specified. **Gates green** (5-gate lint 0/0 · typecheck exit 0 via `PIPESTATUS` · vitest 1254 · real `next build` exit 0). **Lead-run browser verification 2026-08-13** — see the block below | S2 contracts ✅ `92d7e8a` |
-| S4 | E2E — rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract + a keyboard-only flow; mutation list | tester | 🔜 queued | S3 |
+| S4 | E2E — **priority 1: the unexercised write path** (see the red block above), then rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract, AC-4a–d/AC-9 (the last of FUP-DM1-CEILING), + a keyboard-only flow; mutation list | tester | 🟢 in progress 2026-08-13 | S3 ✅ · seed `01134b1` ✅ |
 | S5 | QA review + full §6 gate + flag choreography | qa / lead | 🔜 queued | S4 |
 
 **Carried in from DM1 (do not re-derive — bodies in the DM1 record §"Carried into DM2"):**
@@ -121,6 +121,21 @@ FUP-DM1-CEILING/D15 (= S1) · FUP-DM1-E2E (= S4) · FUP-DM1-DISPOSE (S2, before 
 QA MINOR-2 (`open_document_version` must gate **before** recording — the registry inherits an
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
+
+**Flag posture during DM2** (seed `01134b1`): `seed.sql` forces `documents_foundation` +
+`documents_wave_a` **ON for local/E2E** (the MIN `audio_minutes` pattern); **production defaults stay
+OFF** until the S5 choreography. ⚠ Consequence, noted at the flip site because that is where a spec
+author looks: a spec pinning the deliberate **flag-OFF** contract (affordances **absent, not
+disabled**; every door raises HC0D7) must toggle the flags **itself** and restore them.
+**`attachments` is seed-retired only** — the key row, the `FeatureFlags` entry and
+`attachmentsEnabled()` retire in the **S5 migration**, deliberately: production never runs `seed.sql`,
+so a seed `DELETE` would fork local from prod on the key's *existence* (local "no such flag" vs prod
+`false`) — the exact drift class two prior programs were spent killing. A migration is the only
+honest instrument for a change production must also see.
+⚠ Ripple caught before it reached the tester: pgTAP `328` **K9** pinned all five DM flags OFF and
+would have gone red on the tester's **first** fresh reset — a red with no defect behind it, arriving
+exactly when the tester is calibrating what "normal" looks like. Rewritten to assert the *seeded*
+state with the prod-default caveat in the pin name. Suite re-run **189f/6051 PASS** (6049 + 2).
 
 **🔴 THE SHARPEST OPEN RISK IN DM2 — the write path has never moved a byte** (raised by `frontend`
 at S3 close; lead-confirmed). `begin_document_upload` is **proven reachable and correctly shaped**
