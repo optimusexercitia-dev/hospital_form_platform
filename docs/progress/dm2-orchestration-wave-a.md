@@ -430,7 +430,9 @@ assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
 
 ## The remaining work, in order (nothing here needs re-deriving)
 
-0. 🔴 **START HERE — MAJOR-1 / S1-O4: propagate the interview's confidentiality to its documents.**
+0. ✅ **DONE 2026-08-13 (backend, resumption session) — commits `f0b3d1c` (fix + K15) and
+   `bd05bd8` (311 5.2b re-expression); records in §"Resumption session" below.**
+   🔴 **START HERE — MAJOR-1 / S1-O4: propagate the interview's confidentiality to its documents.**
    **PO ruling 2026-08-13.** A document whose home is an interview must be gated by **that
    interview's own ceiling**, in addition to the case-level access already checked.
    *The defect, lead-reproduced as a differential probe (same member, same interview, one variable):*
@@ -455,7 +457,9 @@ assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
    ceiling's decision record; ADR 0114 Amendment 1 D15/D16 is the governing frame). The decision is
    made; the mechanism is not — write it when you build it.
 
-1. **Close P0-1's proof.** Red-first for P0a–P0f (revert the `read_case_deliberation` conjunct in a
+1. ✅ **DONE 2026-08-13 (backend, resumption session) — commit `8eb20de`; records in
+   §"Resumption session" below.**
+   **Close P0-1's proof.** Red-first for P0a–P0f (revert the `read_case_deliberation` conjunct in a
    **rolled-back txn**, each pin must red; verify the restore **from the catalog**), plus the
    **over-narrowing twin** (reviewer still reads titles). ⚠ **`supabase/tests/308_case_caps_s7.sql:291-303`
    states this obligation verbatim — *"That door's keystones MUST re-express all six pins"* — and
@@ -504,3 +508,124 @@ own lesson in miniature.
   Moved into the work list as **item 0 — the first task of the next session.** See below.
 - **Plan Q1 — the two ethics seam columns still have no wave.** Blocks planning DM3, not DM2.
 - **S1-O3** uploader visibility — deliberate non-decision in the ledger.
+
+# Resumption session 2026-08-13 (backend) — items 0 + 1 closed
+
+Commits, in order: `f0b3d1c` (MAJOR-1 fix `20260924000800` + 328 K15) ·
+`8eb20de` (P0a–P0f falsifiability + the 308 sentinel) · `bd05bd8` (311 5.2b
+two-hop re-expression). 375 migrations on disk == 375 registered. Everything
+below observed, not claimed; raw runs in the session scratchpad
+(`328_prefix_run.txt`, `329_mut{A,B2,C}_run.txt`, `308_mutA_run.txt`).
+
+## Item 0 — MAJOR-1 / S1-O4 (PO: PROPAGATE) — ADR 0117 Amendment 1
+
+**Mechanism, catalog-validated before building** (the lead's proposed dispatch
+held; no correction needed): the kernel's interview arm
+`can_read_case_committee(case_of_interview(v_resource), p_uid)` →
+`app.can_read_interview(v_resource, p_uid)`, which `pg_get_functiondef` shows
+is exactly the old predicate PLUS `confidentiality_clearance_ok(ci.case_id,
+ci.confidentiality_level, p_uid)`, row-joined. Non-enforcing labels clear
+trivially (no over-narrow); missing rows fail closed in both arms; all
+functions STABLE SECURITY DEFINER, pinned search_path — nesting mirrors the
+sibling arms. One edit governs the aggregate: `documents` /
+`document_versions` / `document_placements` RLS, `can_read_document_version`,
+`can_read_file_object`, and `open_document_version` all route the kernel.
+Migration `20260924000800`: live-def `replace()` re-emit, pre/post drift
+asserts (dispatch present exactly once pre; arm present, D15 arm untouched,
+prosecdef + search_path + ACL preserved post).
+
+**Blast-radius census (run, not assumed):** pre-fix live DB: 13 interviews,
+ALL `non_phi_internal` (12 E2E artifacts + the seed row); fresh reset: **1
+interview, `non_phi_internal`, 0 interview-homed documents**. Zero
+enforcing-label interviews exist anywhere locally; production pre-pilot empty.
+The keystones plant their own enforcing fixture.
+
+### Red-first record (K15, real pre-fix catalog — 374 migrations, unmutated)
+
+328 with K15 authored, run pre-`20260924000800`: **5/124 RED, 124 ran, 0
+aborts** — the reds are exactly the keystones, the differential rendered in
+TAP (K15c1 green beside K15k1 red):
+
+- K15k1 `not ok` — `can_read_document(d305, staff2)` = **true** (kernel serves
+  the uncleared member the document homed on a `legal_privileged` interview)
+- K15k2/k3 `have: 1, want: 0` — the row and its version visible under RLS
+- K15k4 `caught: HC0D8: arquivo ainda não disponível / wanted: P0002` — the
+  byte corridor passed the kernel and died only at file-absence
+- K15s1 `not ok` — prosrc lacks `can_read_interview`
+
+Green pre-fix by design: K15t0–t2 (non-enforcing twins), K15c1–c3 (interview
+row hidden / case-read intact / deliberation held), K15g1–g2 (clearance
+admits, trivially pre-fix). Post-migration: **328 124/124**, and K15g1/g2 now
+prove the admit side non-trivially.
+
+**311 5.2b red at the migration — its job.** The pin matched the retired
+dispatch *syntax*; the property (interview-homed documents behind the
+committee cut) survives one hop down. Re-expressed as the closure of both hops
+(`bd05bd8`). Full suite after: **Files=189, Tests=6084, PASS** on a fresh
+reset; `gen:types` diff clean (kernel body only — no schema surface change).
+
+### Twin record (item 0)
+
+Non-over-narrowing is pinned INSIDE 328 as first-class keystones rather than a
+separate harness: K15t1/t2 (same document, same member, label at the seed's
+`non_phi_internal` → readable at kernel AND RLS) run before the flip, and
+K15g1/g2 (a `max_confidentiality = legal_privileged` grant re-admits document
+AND interview — the two predicates agree in both directions) after it. Their
+red is "the fix denies where no ceiling enforces". The deny side's
+falsifiability is the observed pre-fix red above (§7.10: the probes MOVED
+t→f across the migration on identical fixtures).
+
+## Item 1 — P0-1's proof closed
+
+Baseline (unmutated, post-`20260924000700`): 329 **108/108** including P0e —
+the over-narrowing twin: the oversight reviewer still reads the document row
+(metadata yes, bytes no). Then three mutations, each inside a rolled-back
+txn (no COMMIT exists in any driver stream), each restore verified from the
+catalog by body-md5 equality with the pre-run baseline
+(door `a3f96749…`, kernel `d52647fb…`):
+
+- **Mutation A** — conjunct → `and false` (byte cut unreachable): 329 →
+  **3/108 RED**: P0a `caught: no exception` (the reviewer is SERVED) · P0f
+  `have: 1, want: 0` (the served open MINTED an audit row) · P0d (conjunct
+  gone from prosrc). P0b/P0c/P0e green (controls). Door md5 restored.
+- **Mutation B** — conjunct → `and true` (unconditional refusal): the FULL
+  file aborts at **O1** (an unguarded serving assertion — itself a cruder
+  member-refusal detector; an aborted plan is a failed run, so 329 cannot go
+  green under B either way). P0b/P0c individually exercised in a **focused
+  harness** replicating up0 + both pins VERBATIM (q1-harness precedent):
+  **P0b RED `died: 42501…` · P0c RED `died: 42501…`**, fixture pins green.
+  Door md5 restored.
+- **Mutation C** — the wrong fix QA r1 warned against (deliberation conjunct
+  in the KERNEL's case arm): 329 → **2/108 RED**: **P0e** `not ok` (the
+  reviewer loses metadata — M8 violated) · P0a `caught: P0002, wanted: 42501`
+  (the message pin discriminates the kernel corridor from the byte cut —
+  the executable demonstration of WHY the fix lives in the door). Kernel md5
+  restored.
+
+Every one of the six pins has an observed red under a targeted mutation. The
+handoff's literal instruction ("revert the conjunct … every one of the six
+pins must go red") was over-stated for the three positive controls — P0b/P0c/
+P0e *cannot* red under conjunct-removal; they red under the inverse and the
+kernel-conjunct mutations, which is what was executed and recorded.
+
+### The 308 obligation is now executable
+
+`308_case_caps_s7.sql` §5's prose obligation ("that door's keystones MUST
+re-express all six pins" — green all phase while unmet) is replaced by a live
+sentinel: **5.2s** (the reviewer refused BYTES at `open_document_version`,
+42501 + message pinned) with **5.2c1/5.2c2** differential controls (the
+staff_admin holds deliberation; he passes the cut and dies only at
+file-absence HC0D8 — same version, one variable). Proven: under mutation A,
+**5.2s REDS** (`caught: HC0D8, wanted: 42501` — the reviewer sailed past the
+absent cut), 1/30, controls green; door md5 restored after. 329's stale
+header comment (which claimed an executed red-first) rewritten to the actual
+falsifiability record.
+
+## Gate state (this session's scope — NOT the full §6 gate)
+
+Fresh `supabase db reset` (375 == 375) → `gen:types` (diff clean, pgtap
+absent) → full pgTAP: **Files=189, Tests=6084, Result: PASS**. Not run here
+(lead-owned, remaining work items 2+): lint 5-gate, typecheck, vitest, the
+four authz arms, the diff-scoped door sweep over `can_read_document`'s changed
+body (**required at gate time — this session changed an RLS-adjacent DEFINER
+body**), `e2e:prod`, QA r2.

@@ -1,6 +1,8 @@
 # 0117 — DM2·S1 build decisions: the D15 confidentiality ceiling on `documents`
 
 - **Status:** Accepted (lead-acked plan 2026-08-13 with three amendments; built same day).
+  **Amendment 1 (2026-08-13, PO ruling): the interview's ceiling propagates to its
+  documents — supersedes decision 6.**
 - **Scope:** the build-time decisions S1 made executing ADR 0114 **Amendment 1 (D15)**.
   Keystones: pgTAP `228` t36–39 (restored) + `328` K14; phase record
   `docs/progress/dm2-orchestration-wave-a.md`.
@@ -54,12 +56,58 @@ confidentiality arm, dispatch shape intact; post: arm present, prosecdef, pinned
 search_path, ACL unchanged), and the pre/post live-body diff shows exactly the
 intended edit.
 
-**6. AMEND 3 verdict — the interview-label dimension is PARITY** (finding DM2-F1
+**6. ⛔ SUPERSEDED by Amendment 1 (below). AMEND 3 verdict — the interview-label dimension is PARITY** (finding DM2-F1
 in the phase record): no version of the retired `can_read_attachment` ever routed
 `can_read_interview`; the interview's own ceiling gates the interview ROW (via
 `can_read_interview`, which survived DM1 intact) and never gated its attachments'
 metadata. Interview-label inheritance for documents is a named product question
 (S1-O4), not a regression.
+
+## Amendment 1 (2026-08-13) — the INTERVIEW's ceiling propagates to its documents
+
+**Status:** PO ruling 2026-08-13 (PROPAGATE); built same day (migration
+`20260924000800`). **Supersedes decision 6 above**: the parity verdict (DM2-F1)
+stands as *history* — no version of the retired `can_read_attachment` ever
+routed `can_read_interview` — but parity answers "did we break this?", not "is
+this correct?". The old substrate is being replaced *because* it had this shape
+of defect (F-01: authorized from a path without joining the row), and Wave A is
+the phase that puts real transcripts behind the seam; a ceiling that hides the
+interview record but not its files is close to decorative. S1-O4 is closed.
+
+**The defect** (lead-reproduced as a differential probe — same member, same
+interview, one variable): `app.can_read_interview(iv, member)` = false while
+`app.can_read_document(doc_homed_on_iv, member)` = true. The kernel's interview
+arm dispatched `can_read_case_committee(case_of_interview(v_resource), p_uid)`,
+skipping the level where `case_interviews.confidentiality_level` lives.
+
+**Mechanism:** the arm now dispatches `app.can_read_interview(v_resource,
+p_uid)` — catalog-verified to be *exactly* the old arm's predicate PLUS the
+missing clearance conjunct, row-joined
+(`exists(ci … can_read_case_committee(ci.case_id) and
+confidentiality_clearance_ok(ci.case_id, ci.confidentiality_level))`). It
+cannot over-narrow: `confidentiality_clearance_ok` returns true for every
+non-enforcing label, and a missing interview row fails closed in both the old
+and new arm. One kernel edit governs the whole aggregate (the three RLS
+policies, `can_read_document_version`, `can_read_file_object`, and
+`open_document_version` all route through `can_read_document`). The D15 arm
+below the dispatch is untouched — **two independent ceilings must now both
+hold: the document's own label (D15) and the interview's (this amendment)**.
+Re-emit derived from the live `pg_get_functiondef` with pre/post drift asserts
+(decision 5's method); prosecdef, pinned search_path, and ACL asserted
+preserved in-migration.
+
+**Proof:** 328 K15, authored red-first — K15k1–k4 + K15s1 observed RED on the
+real pre-fix catalog (kernel true / RLS have-1-want-0 / corridor caught HC0D8
+wanted P0002 / prosrc), beside green controls including K15c1 (the interview
+row hidden — the differential's other arm) and the K15t non-over-narrowing
+twins (a non-enforcing interview label leaves documents readable). K15g pins
+that a `max_confidentiality` clearance re-admits. 311's 5.2b — a syntax pin on
+the retired direct dispatch — went red at the migration (its job) and is
+re-expressed as the two-hop closure. Blast radius censused, not assumed: the
+fresh seed carries ONE interview (`non_phi_internal`); zero enforcing-label
+interviews exist locally (the pre-fix live DB's 13 were 12 E2E artifacts + the
+seed row, all non-enforcing) and production is pre-pilot empty — the keystones
+plant their own enforcing fixture.
 
 ## Consequences
 
