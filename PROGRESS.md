@@ -95,7 +95,12 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### 🟢 IN FLIGHT — **DM2: orchestration + Wave A** (opened 2026-08-13)
+### ⏸ PAUSED — **DM2: orchestration + Wave A** (opened 2026-08-13, paused 2026-08-13 by PO)
+
+> **⛔ DM2 has NOT passed its gate.** QA r1 = **CHANGES REQUESTED** (1 P0 · 3 MAJOR · 6 MINOR · 4 INFO). **Do not flip the flags, do not seek approval, do not merge.** Paused because the backend agent was killed **four consecutive times by transient API 529s** (twice resumed, then replaced by a fresh lightweight agent that failed identically — disproving the context-size hypothesis; the API was broadly degraded while the lead's own session kept working, which is why the recorded state is verified rather than assumed).
+> **Safe checkpoint:** HEAD `56e3989`, 374 on disk == 374 registered, nothing half-applied, all five DM flags **OFF** in production defaults, nothing pushed (`main`/`origin/main` = `f84c6b6`).
+> **The P0 is FIXED and verified from two independent directions** (lead catalog + planted-row probe; tester red-then-green through the door via REST). What remains is proof discipline and two MAJORs.
+> ▶ **Resuming? Read the handoff first:** [dm2-orchestration-wave-a.md § *DM2 PAUSED — resumption handoff*](docs/progress/dm2-orchestration-wave-a.md) — it carries the 8 remaining items in order, the PO-owned questions, and two method findings that must not be lost (an uncommitted migration is applied by anyone's `db reset` and silently fixes the defect before the test meant to catch it runs; and a sweep boundary drawn on a return-type *syntax* cannot enforce a *property* — 536 functions share that class).
 
 > Program: Document Model Redesign — plan [DM0–DM5](docs/plans/document-model-redesign.md) §DM2 ·
 > ADR [0114](docs/decisions/0114-document-model-redesign.md) (+Amendment 1 D15/D16) · DM1 record

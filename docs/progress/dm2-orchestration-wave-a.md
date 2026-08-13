@@ -371,3 +371,96 @@ automatically an app bug.
   stop it must gate the door, not only the surface.
 
 ## S2+ — (subsequent slices append here)
+
+---
+
+# ⏸ DM2 PAUSED 2026-08-13 — resumption handoff (PO decision)
+
+**Why paused:** the backend agent was killed **four consecutive times by transient API 529s** — twice
+resumed, then replaced by a **fresh lightweight agent which failed identically**, disproving the
+lead's context-size hypothesis. The API was broadly degraded; the lead's own session was unaffected
+(catalog probes and commits kept succeeding), which is why the state below is verified rather than
+assumed. The PO chose to stop at a clean checkpoint rather than keep retrying.
+
+## State at pause — verified, not assumed
+
+- **HEAD `56e3989`** on `docs/dm1-plan-amendments`. ⛔ **NOT merged to `main`, nothing pushed** —
+  `main`/`origin/main` still `f84c6b6`.
+- **374 migrations on disk == 374 registered.** Nothing half-applied.
+- **All five DM flags OFF in production defaults**; `seed.sql` forces `documents_foundation` +
+  `documents_wave_a` ON for local/E2E only. **Nothing is exposed.**
+- **Gate step 3 verdict stands: ⛔ CHANGES REQUESTED (QA r1)** — 1 P0 · 3 MAJOR · 6 MINOR · 4 INFO.
+  DM2 has **not** passed its gate. Do not flip flags, do not seek approval, do not merge.
+
+## What IS done and proven
+
+- **P0-1 (oversight reviewer served PHI bytes) — FIXED and verified from two independent
+  directions.** Migration `20260924000700` (`29215f4`) re-expresses the QO·B byte cut inside
+  **`open_document_version`**, deliberately **not** the kernel: the kernel governs *metadata* and the
+  M8 half of the contract is that the reviewer **keeps titles**, so a kernel conjunct would
+  over-narrow exactly where M8 forbids. Grounded in the M9 predecessor (`open_attachment`,
+  `20260911000800`) — legitimate archaeology on a **dropped** object.
+  - *Lead verification:* catalog shows the conjunct present in the door and absent from the kernel;
+    behavioural probe on a **planted** row → reviewer still sees metadata `true`, cross-org control
+    `false`.
+  - *Tester verification:* the E2E now calls `open_document_version` **directly via REST**, and a
+    **genuine red-then-green** was obtained under adversarial conditions (see the contamination note).
+- **`329` carries P0a–P0f keystones** (plan 100→108) — written, **but their red-first proof is NOT
+  yet executed** (item 1 below).
+- **M8 E2E strengthened** (`56e3989`) from "the button is absent" to "the door refuses", with a
+  non-vacuous positive control on the same door and document.
+- Full `e2e:prod` was **GREEN before the P0 was known** (1088 passed, coverage reconciled 1091 of
+  1097 = the 6 skips) — that run is **superseded**; it must be re-run after remediation.
+
+## ⚠ Two method findings that must survive this pause
+
+1. **An uncommitted migration on disk is applied by anyone's `db reset`.** The tester's first green on
+   the strengthened M8 spec was **contaminated** — the backend's fix migration was on disk but
+   uncommitted, so its own reset applied the fix before the test meant to catch the defect ran. **A
+   green obtained that way is indistinguishable from a real one except by checking `git`.** The tester
+   caught it by noticing there was no fix commit, set the file aside, fresh-reset, reproduced the P0
+   exactly, then restored. *Cause was the lead's:* the migration sat uncommitted across two API
+   failures. **Commit migrations promptly on a shared stack.**
+2. **A sweep boundary drawn on a return-type SYNTAX cannot enforce a property.** All four authz arms
+   missed P0-1 because the M8 cut used to live in a **storage policy** (inside `ARM=census`'s domain)
+   and D8 moved the boundary into a **`jsonb`-returning DEFINER**, which is in **no** arm's domain.
+   QA validated the lead's census reasoning by checking the domain predicate (`proretset`) rather than
+   the claim. **536 pre-existing functions share the class.** Not a DM2 regression — DM2 is merely
+   where the first defect landed in the new blind spot. A future arm may need to close it.
+
+## The remaining work, in order (nothing here needs re-deriving)
+
+1. **Close P0-1's proof.** Red-first for P0a–P0f (revert the `read_case_deliberation` conjunct in a
+   **rolled-back txn**, each pin must red; verify the restore **from the catalog**), plus the
+   **over-narrowing twin** (reviewer still reads titles). ⚠ **`supabase/tests/308_case_caps_s7.sql:291-303`
+   states this obligation verbatim — *"That door's keystones MUST re-express all six pins"* — and
+   ran green all phase while it was unmet.** Make that file unable to pass while unmet, or it lies again.
+2. **MAJOR-2 — reconciliation is blind to `failed`/`abandoned` files holding bytes.** Its premise
+   assumes those states carry no object; **this phase made that false** (BUG-DM2-001's fix binds a
+   failed file; BUG-DM2-003's fix mints `abandoned`). `accounted.add` is unconditional, so they are
+   not orphans either. Net: **undisposable PHI under a `RECONCILIATION CLEAN` banner.**
+3. **MAJOR-3 — "Tentar novamente" can never succeed after a verification failure.** `consumed` →
+   `failed` → TS re-verifies → `HC0D9` → same banner forever, **each loop an unaudited service-role
+   download of the whole object.** Make retry work or stop offering it.
+4. **ADR 0118 §10 — pin the load-bearing predicate.** The retention-exemption induction holds
+   **because the sibling predicate is `disposal_state = 'none'`, not `<> 'disposed'`**. §10 credits
+   "the evidence" generally; a later relaxation kills the invariant **while R6/R7 still pass**.
+5. **`documents_wave_a` kill-switch keystone.** wave_a gates the **UI**, `documents_foundation` gates
+   the **doors** — so wave_a alone is **not** a kill switch. "They flip together" is prose with
+   nothing enforcing it.
+6. **ADR 0118 §12** — record finding 2 above.
+7. **Re-run the full §6 gate**: fresh reset · `test:db` · lint 5-gate · typecheck · vitest · the four
+   arms · diff-scoped sweep over every changed body (case count **nonzero** before citing) ·
+   **`e2e:prod`** · then QA **r2**.
+8. **The 6 MINOR + 4 INFO** from the QA r1 review, not itemised here — read
+   `docs/reviews/dm2-orchestration-wave-a-review.md` directly.
+
+## Open with the PO (do not decide these for them)
+
+- **MAJOR-1 / S1-O4 — interview-label bytes.** A document on a `legal_privileged` interview is
+  visible and `open_document_version` returns **SERVED tier=phi**, even though `can_read_interview`
+  is false and the interview yields 0 rows. **Parity is real** (the retired substrate behaved the
+  same — verified in DM1's AMEND 3 chase), **but Wave A makes it live and nothing recorded that bytes
+  follow.** Needs a ruling before any flag flips.
+- **Plan Q1 — the two ethics seam columns still have no wave.** Blocks planning DM3, not DM2.
+- **S1-O3** uploader visibility — deliberate non-decision in the ledger.

@@ -789,6 +789,28 @@ test('DM2-STATES: a not-yet-verified upload reads "pending" (with no download co
     },
   })
   expect(begunResp.ok()).toBeTruthy()
+  const pendingBegun = (await begunResp.json()) as { document_version_id: string }
+
+  // THE DOOR, not the button (same class as P0-1 — a UI-level assertion
+  // carrying a server-side claim): the disabled placeholder asserted below
+  // is never clickable, so there is no live UI corridor to bypass through
+  // IT — but a caller who skips the UI and calls the door directly on this
+  // unbound version must ALSO be refused. `open_document_version` raises
+  // HC0D8 for a version with no bound file (read live from `pg_proc` before
+  // this probe was added — "arquivo ainda não disponível").
+  const pendingOpen = await openDocumentVersion(request, chefeToken, pendingBegun.document_version_id)
+  expect(pendingOpen.ok).toBeFalsy()
+  expect((pendingOpen.body as { code?: string }).code).toBe('HC0D8')
+
+  // Non-vacuous control: a genuinely AVAILABLE document opens fine through
+  // the SAME door right after — proves this isn't a blanket refusal.
+  const availableFixture = await createDocumentFixture(request, chefeToken, {
+    resourceType: 'case',
+    resourceId: SEEDED_CASE_ID,
+    title: `DM2-STATES available-control ${Date.now()}`,
+  })
+  const availableOpen = await openDocumentVersion(request, chefeToken, availableFixture.documentVersionId)
+  expect(availableOpen.ok).toBeTruthy()
 
   // --- disposed: a full, real upload, then request+complete disposition. ---
   const disposedTitle = `DM2-STATES disposed ${Date.now()}`

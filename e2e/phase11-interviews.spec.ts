@@ -1030,5 +1030,35 @@ test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https
     { timeout: 10_000 },
   )
   await uploadDialog.getByRole('button', { name: 'Cancelar' }).click()
+
+  // THE DOOR, not the button (same class as P0-1 — a UI-level assertion
+  // carrying a server-side claim): the dialog's client-side block above
+  // proves the AFFORDANCE is refused; it does not prove the RPC itself
+  // would refuse a caller who skips the dialog entirely. `begin_document_
+  // upload`'s own MIME check (HC0DG, read live from `pg_proc` before this
+  // probe was added) is what actually protects that path.
+  const mimeRejected = await callRPC(page, chefeToken, 'begin_document_upload', {
+    p_resource_type: 'interview',
+    p_resource_id: uploadInterviewId,
+    p_title: 'Server-side MIME probe (should be refused)',
+    p_declared_file_name: 'probe.mp3',
+    p_declared_mime: 'audio/mpeg',
+    p_declared_size: 4,
+  })
+  expect(mimeRejected.status).toBe(400)
+  expect((mimeRejected.body as { code: string }).code).toBe('HC0DG')
+
+  // Non-vacuous control: the SAME interview accepts an ALLOWED mime right
+  // after — proves this isn't a blanket refusal or a broken interview id.
+  const mimeAllowed = await callRPC(page, chefeToken, 'begin_document_upload', {
+    p_resource_type: 'interview',
+    p_resource_id: uploadInterviewId,
+    p_title: 'Server-side MIME probe (should succeed)',
+    p_declared_file_name: 'probe.pdf',
+    p_declared_mime: 'application/pdf',
+    p_declared_size: 4,
+  })
+  expect(mimeAllowed.status).toBe(200)
+
   await signOut(page)
 })
