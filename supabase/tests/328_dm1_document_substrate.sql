@@ -33,15 +33,19 @@ begin;
 -- 124 → 130: K16 (the kill-switch property, QA r1 INFO-2 / handoff item 5):
 -- documents_foundation alone kills every door; documents_wave_a is UI-only
 -- and NOT a kill switch — enforced by pins, no longer prose. 6 assertions.
-select plan(130);
+-- 130 → 128: DM3 removes K8c (the ethics parked-seam refusal, discharged by
+-- ADR 0114 Amendment 2 / D17) and its now-unused ethics flag precondition.
+-- K8a/K8b and their preconditions are untouched — see the K8c note below.
+select plan(128);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
   'precondition: case_referrals flag is ON (K8a exercises a referral writer)');
 select is(app.feature_enabled('patient_safety'), true,
   'precondition: patient_safety flag is ON (K8b exercises an RCA writer)');
-select is(app.feature_enabled('ethics'), true,
-  'precondition: ethics flag is ON (K8c exercises an ethics writer)');
+-- (The ethics-flag precondition retired with K8c — DM3, ADR 0114 Am. 2
+-- condition 4. Only that one; the referral and RCA preconditions above stay,
+-- because K8a and K8b still exercise those writers.)
 
 -- =============================================================================
 -- K1 — the attachment door-sweep: zero surviving centralized-attachment
@@ -799,20 +803,22 @@ select throws_ok(
   'K8b add_rca_evidence refuses a document citation (parked until Wave D)');
 reset role;
 
--- K8c: the ethics coordinator cannot attach a related document to a
--- notification (the related_document_id seam, parked until the Q1 ruling).
-select test_helpers.claims_for(
-  '00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
-set local role authenticated;
-select throws_ok(
-  $$ select public.issue_ethics_notification(
-       'ca000000-0000-0000-0000-0000000000e1', 'other', 'system',
-       'fd000000-0000-0000-0000-0000000000e1', null, null,
-       'a7000000-0000-0000-0000-0000000000e1', null) $$,
-  'HC0DM',
-  'anexar documento à notificação está temporariamente indisponível (migração do modelo de documentos)',
-  'K8c issue_ethics_notification refuses a related document (parked until the Q1 ruling)');
-reset role;
+-- K8c — REMOVED BY DM3 (2026-08-13; ADR 0114 Amendment 2 / D17, discharge
+-- condition 4). It pinned the DM1 fail-closed HC0DM refusal on
+-- issue_ethics_notification's related_document_id. The PO ruled that seam into
+-- Wave B, so the product no longer wants that refusal — and a keystone left
+-- pinning a refusal the product no longer wants is a test asserting a bug.
+--
+-- ⚠ K8a and K8b STAY. "Remove keystone K8" as originally written named an
+-- object that is not one: K8a is the REFERRAL seam (parked until DM4) and K8b
+-- the RCA seam (parked until Wave D). Removing "K8" literally would have
+-- deleted two parked-seam pins that other waves still depend on.
+--
+-- The seam is NOT left unpinned — the pin inverted from "this is refused" to
+-- "this is allowed, exactly this far": suite 330 DM3·E1 (real FKs), E1b (the
+-- same-case link is ACCEPTED), E2/E3 (cross-case refused by trigger and door
+-- independently), E4 (no linking what you cannot read), E5/E6 (the decision-
+-- letter writer and its ACL).
 
 -- =============================================================================
 -- K14 — the D15 confidentiality ceiling (DM2·S1; ADR 0114 Amendment 1, restores

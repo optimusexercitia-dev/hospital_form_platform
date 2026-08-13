@@ -4646,6 +4646,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ethics_decision_details_decision_letter_document_fk"
+            columns: ["decision_letter_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ethics_decision_details_external_reporting_referral_id_fkey"
             columns: ["external_reporting_referral_id"]
             isOneToOne: false
@@ -4874,6 +4881,13 @@ export type Database = {
             columns: ["recipient_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_notifications_related_document_fk"
+            columns: ["related_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -14591,6 +14605,7 @@ export type Database = {
           p_appeal_allowed?: boolean
           p_appeal_deadline?: string
           p_decision_id: string
+          p_decision_letter_document_id?: string
           p_external_reporting_deadline?: string
           p_external_reporting_required?: boolean
           p_external_reporting_target?: string

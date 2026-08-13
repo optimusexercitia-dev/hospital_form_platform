@@ -38,7 +38,7 @@
 -- =============================================================================
 
 begin;
-select plan(35);
+select plan(44);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -541,6 +541,135 @@ select ok(
     where schemaname = 'storage' and tablename = 'objects'
       and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%case-documents%'),
   'DM3·B3 POSITIVE CONTROL: the same derivation still sees the live case-documents policy (B1''s zero is real)');
+
+-- =============================================================================
+-- E — THE ETHICS DOCUMENT SEAMS (M7). ADR 0114 Amendment 2 / D17, five binding
+-- discharge conditions. A partial discharge is not a discharge.
+--
+-- ⚠ THE HOME TYPE IS THE WHOLE SECURITY ARGUMENT (lead ruling Q1). An ethics
+-- letter's core `documents` row homes on the CASE securable resource, NEVER on
+-- a `controlled_document` one, so it inherits the ETH·E1 spine
+-- (app.can_read_case + app.confidentiality_clearance_ok) rather than Wave B's
+-- commission-membership arm. DM3·A4 is the negative twin for that; this section
+-- pins the seam itself.
+--
+-- Distinct errcodes so a red is attributable to ONE barrier:
+--   HC0DI  the TRIGGER's cross-case refusal (substrate)
+--   HC0DJ  the RPC's cross-case refusal (door, nicer pt-BR message)
+-- =============================================================================
+
+-- E1 — condition 1: BOTH columns carry a real FK to documents(id).
+select is(
+  (select count(*)::int from pg_constraint con
+     join pg_class src on src.oid = con.conrelid
+     join pg_class tgt on tgt.oid = con.confrelid
+    where con.contype = 'f' and tgt.relname = 'documents'
+      and src.relname in ('ethics_decision_details', 'ethics_notifications')),
+  2,
+  'DM3·E1 ⭐ both ethics seam columns carry a REAL FK to documents(id) (condition 1)');
+
+-- A second case's document, for the cross-case probes.
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+values ('dd300000-0000-0000-0000-0000000000e2',
+        'd0000000-0000-0000-0000-0000000000c2',
+        'Fixture E · a DIFFERENT case''s document', 'registro', 'active',
+        '00000000-0000-0000-0000-000000000002');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+
+-- E1b ⭐ — conditions 2+3: the door ACCEPTS a same-case document. This is the
+-- inverse of 328 K8c, which pinned the DM1 fail-closed refusal and which DM3
+-- removes. RED pre-M7: HC0DM.
+select lives_ok(
+  $q$ select public.issue_ethics_notification(
+        'ca000000-0000-0000-0000-0000000000e1', 'decision_notice', 'email',
+        null, null, null, 'dd300000-0000-0000-0000-0000000000e1') $q$,
+  'DM3·E1b ⭐ issue_ethics_notification ACCEPTS a same-case document (the 328 K8c refusal is lifted — conditions 2+3)');
+
+-- E3 ⭐ — the DOOR refuses a document belonging to ANOTHER case.
+select throws_ok(
+  $q$ select public.issue_ethics_notification(
+        'ca000000-0000-0000-0000-0000000000e1', 'decision_notice', 'email',
+        null, null, null, 'dd300000-0000-0000-0000-0000000000e2') $q$,
+  'HC0DJ', null,
+  'DM3·E3 ⭐ the RPC refuses linking a document that belongs to a DIFFERENT case');
+
+select set_config('request.jwt.claims', '', true);
+
+-- E2 ⭐ — and the SUBSTRATE refuses it independently, with a distinct code.
+-- Direct DML bypasses the RPC entirely, so this neutralizes the door barrier by
+-- going around it rather than by editing it — one twin per barrier (the DM2
+-- "two codes, one barrier" finding).
+select throws_ok(
+  $q$ insert into public.ethics_notifications
+        (case_id, notification_type, delivery_method, status, related_document_id)
+      values ('ca000000-0000-0000-0000-0000000000e1', 'decision_notice', 'email',
+              'sent', 'dd300000-0000-0000-0000-0000000000e2') $q$,
+  'HC0DI', null,
+  'DM3·E2 ⭐ the TRIGGER refuses a cross-case link independently of the RPC (distinct code HC0DI)');
+
+-- E5 ⭐ — condition 5: set_ethics_decision_details ACCEPTS and PERSISTS the
+-- decision-letter id. Condition 1 without this would give the column a real FK
+-- while leaving it unwritable at every layer — "a column pointing at documents
+-- nothing can create", the same defect wearing a constraint.
+-- RED pre-M7: 42883, the parameter does not exist.
+insert into public.case_decisions (id, case_id, decision_type, summary_md, status)
+values ('cd300000-0000-0000-0000-0000000000e1',
+        'ca000000-0000-0000-0000-0000000000e1', 'sancao', 'Resumo', 'draft');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select lives_ok(
+  $q$ select public.set_ethics_decision_details(
+        'cd300000-0000-0000-0000-0000000000e1', null, null, null, false, null,
+        false, null, null, true, null,
+        'dd300000-0000-0000-0000-0000000000e1') $q$,
+  'DM3·E5a condition 5: set_ethics_decision_details ACCEPTS p_decision_letter_document_id');
+select is(
+  (select decision_letter_document_id from public.ethics_decision_details
+    where decision_id = 'cd300000-0000-0000-0000-0000000000e1'),
+  'dd300000-0000-0000-0000-0000000000e1'::uuid,
+  'DM3·E5 ⭐ …and PERSISTS it (the round trip, not just the signature)');
+select set_config('request.jwt.claims', '', true);
+
+-- E6 — the DROP+CREATE did not silently restore the default ACL. Asserted on the
+-- 12-ARG identity, so it cannot be satisfied by the surviving 11-arg overload.
+select is(
+  (select p.pronargs::text || '|' ||
+          has_function_privilege('authenticated', p.oid, 'EXECUTE')::text || '|' ||
+          has_function_privilege('public', p.oid, 'EXECUTE')::text
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_ethics_decision_details'),
+  '12|true|false',
+  'DM3·E6 ⭐ set_ethics_decision_details is the 12-arg identity, authenticated-granted, NOT PUBLIC (the re-GRANT after DROP+CREATE)');
+
+-- E4 ⭐ — you may not link what you cannot read. The document is raised to an
+-- ENFORCING label and the coordinator's clearance is removed, so the D15
+-- ceiling — not the same-case rule — is the barrier under test.
+-- ⚠ ORDERED LAST ON PURPOSE: this probe DESTROYS the coordinator's clearance,
+-- and anything after it inherits a caller who can no longer read the letter.
+-- Placed earlier, it silently broke E5 (which then failed with HC0DJ for the
+-- fixture's reason, not the product's) — a fixture whose side effect becomes
+-- the next test's premise.
+update public.documents set confidentiality_level = 'legal_privileged'
+ where id = 'dd300000-0000-0000-0000-0000000000e1';
+delete from public.case_access_grants
+ where case_id = 'ca000000-0000-0000-0000-0000000000e1'
+   and principal_id = '00000000-0000-0000-0000-000000000002';
+
+select is(
+  app.can_read_document('dd300000-0000-0000-0000-0000000000e1',
+                        '00000000-0000-0000-0000-000000000002'),
+  false,
+  'DM3·E4a PRECONDITION: with clearance removed the coordinator genuinely cannot READ the letter (so E4 tests the read gate, not the case rule)');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.issue_ethics_notification(
+        'ca000000-0000-0000-0000-0000000000e1', 'decision_notice', 'email',
+        null, null, null, 'dd300000-0000-0000-0000-0000000000e1') $q$,
+  'HC0DJ', null,
+  'DM3·E4 ⭐ a coordinator who cannot READ the letter cannot LINK it either (no leak by reference)');
+select set_config('request.jwt.claims', '', true);
 
 select * from finish();
 rollback;
