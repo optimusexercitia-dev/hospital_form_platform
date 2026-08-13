@@ -31,11 +31,16 @@ function asDocType(value: string | undefined): DocType | undefined {
 
 /**
  * New controlled document (Phase 17 v2, F-B — create). Coordinator area (flag +
- * role gated by the layout). The all-in-one wizard collects everything and either
- * submits for approval (`createAndSubmitDocument`) or saves a draft
- * (`createDraftOnly`). WizardRunner boundary: this Server Component loads the
- * approver candidates + existing categories and binds the actions; the client
- * wizard receives them as props (it imports `@/lib/**` type-only).
+ * role gated by the layout). The wizard collects everything, then DRIVES the
+ * chain itself (DM3·S2): `createDraftOnly` → begin → client PUT → finalize →
+ * `submitDocumentForApproval`, or stops after the create+upload legs for the
+ * "Salvar rascunho" exit (`allowDraftExit`).
+ *
+ * This Server Component's job is now only to load the approver candidates and
+ * the existing categories. It no longer binds actions: `createAndSubmitDocument`
+ * and `createDraftOnly` used to be passed down as props, but the terminal step
+ * can no longer be one server action — bytes move client-side to a signed
+ * credential, and the upload cannot begin until the version exists.
  */
 export default async function NewDocumentPage({
   params,

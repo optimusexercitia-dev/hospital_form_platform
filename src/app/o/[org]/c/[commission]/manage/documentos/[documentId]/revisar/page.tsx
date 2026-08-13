@@ -20,12 +20,17 @@ export const metadata: Metadata = {
 /**
  * Revise a `changes_requested` version of a controlled document (ADR 0081 —
  * changes-requested loop). Coordinator area (flag + role gated by the layout). The
- * all-in-one wizard, in `revise` mode, re-attaches the corrected file and re-submits
- * the SAME version for approval via `reviseChangesRequestedDocument` (identity locked,
- * NO version bump). Same WizardRunner boundary as `nova-versao/`: this Server
- * Component resolves the working version + approver candidates, derives the prior
- * approver set to pre-fill, and binds the action; the client wizard receives them as
- * props.
+ * wizard, in `revise` mode, re-attaches the corrected file and re-submits the SAME
+ * version for approval (identity locked, NO version bump).
+ *
+ * This is the ONE mode with no step 1 (DM3·S2): the `changes_requested` version
+ * already exists, so the chain is just begin → client PUT → finalize →
+ * `submitDocumentForApproval`. That also makes it the one mode where a failed
+ * upload can safely be retried in place — nothing was created to duplicate.
+ *
+ * This Server Component resolves the working version + approver candidates and
+ * derives the prior approver set to pre-fill. It no longer binds a terminal
+ * action (`reviseChangesRequestedDocument` is gone).
  *
  * Precondition gate: revision only applies to a version in the `changes_requested`
  * state. If the document has no such open version (draft/in-approval/effective/

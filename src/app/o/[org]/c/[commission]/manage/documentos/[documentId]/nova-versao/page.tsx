@@ -18,11 +18,15 @@ export const metadata: Metadata = {
 
 /**
  * New version of a controlled document (Phase 17 v2, F-B — new-version wizard).
- * Coordinator area (flag + role gated by the layout). The all-in-one wizard, in
- * `newversion` mode, supersedes the current effective version and submits the new
- * draft for approval via `supersedeAndSubmitDocument` (identity locked). Same
- * WizardRunner boundary as `novo/`: this Server Component loads the approver
- * candidates + binds the action; the client wizard receives them as props.
+ * Coordinator area (flag + role gated by the layout). The wizard, in
+ * `newversion` mode, drives the chain itself (DM3·S2): `supersedeDocument` to
+ * mint the new draft version, then begin → client PUT → finalize →
+ * `submitDocumentForApproval`. Identity stays locked.
+ *
+ * This Server Component loads the approver candidates and nothing else — it no
+ * longer binds a terminal action. (`supersedeAndSubmitDocument`, the single
+ * server-side verb this used to pass down, is gone: the upload cannot begin
+ * until the version exists, so the chain cannot be one action.)
  *
  * Precondition gate: a new version can only be started while the document is
  * `effective` with NO open working draft (the state `supersede_document` accepts,

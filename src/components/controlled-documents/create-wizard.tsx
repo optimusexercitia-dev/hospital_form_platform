@@ -150,21 +150,25 @@ const FIELD_STEP: Record<string, number> = {
 };
 
 /**
- * All-in-one wizard (Phase 17 v2, F-B) — two modes over one flow:
+ * All-in-one wizard (Phase 17 v2, F-B) — THREE modes over one flow. Every mode
+ * ends in the same four legs (begin → PUT → finalize → submit); they differ only
+ * in how a version comes to exist for those legs to run against:
  *
- * - **create** (default): Detalhes → Documento → Aprovadores → Confirmação. The
- *   terminal step submits via `createAndSubmitDocument`; "Salvar rascunho" exits at
- *   draft via `createDraftOnly`. Committee is implicit from the route.
- * - **newversion** (ADR 0081 Wave 2.5b): Step 1 is a **locked-identity** panel — the
- *   header is inherited verbatim; only the artifact + approvers change. The terminal
- *   step supersedes the current effective version and submits via
- *   `supersedeAndSubmitDocument`. No draft exit (the detail-page supersede is the
- *   blank-draft fallback).
+ * - **create** (default): Detalhes → Documento → Aprovadores → Confirmação.
+ *   `createDraftOnly` mints the document and its v1. Committee is implicit from
+ *   the route. This is the only mode with a "Salvar rascunho" exit, which stops
+ *   after the upload legs and never submits.
+ * - **newversion** (ADR 0081 Wave 2.5b): Step 1 is a **locked-identity** panel —
+ *   the header is inherited verbatim; only the artifact + approvers change.
+ *   `supersedeDocument` mints the new draft over the current effective version.
+ *   No draft exit (the detail-page supersede is the blank-draft fallback).
  * - **revise** (ADR 0081 — `changes_requested`): a locked-identity flow like
- *   `newversion`, but it revises an EXISTING `changes_requested` version IN PLACE (no
- *   version bump). The approver step is pre-filled with the version's prior set
- *   (`initialApprovers`); the terminal step re-attaches the corrected file + re-submits
- *   the SAME version via `reviseChangesRequestedDocument` (needs `versionId`).
+ *   `newversion`, but the version ALREADY EXISTS and is revised IN PLACE (no
+ *   version bump), so it has no step 1 at all — `versionId` is a prop. The
+ *   approver step is pre-filled with the version's prior set (`initialApprovers`).
+ *
+ * That difference is not cosmetic: it is exactly what decides whether a failed
+ * upload can be retried here or has to be finished on the document detail.
  *
  * ## DM3·S2 — why the terminal step is a chain the CLIENT drives
  *
