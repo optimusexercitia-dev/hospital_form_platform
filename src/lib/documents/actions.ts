@@ -1,10 +1,16 @@
 'use server'
 
+import { createHash } from 'node:crypto'
+
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { featureEnabled } from '@/lib/queries/feature-flags'
+import { mapDocumentErrorCode } from '@/lib/documents/errors'
 import type {
   BeginDocumentUploadInput,
   BeginDocumentUploadResult,
   DocumentActionState,
+  DocumentAvailability,
   DocumentConfidentialityLevel,
   DocumentDispositionReason,
   DocumentHoldReason,
@@ -14,100 +20,273 @@ import type {
 } from '@/lib/documents/types'
 
 /**
- * Document model — COMMAND-LAYER SERVER ACTIONS (DM2·S2 contract-first stubs).
+ * Document model — COMMAND-LAYER SERVER ACTIONS (DM2·S2; ADR 0118).
  *
- * Signatures are the CONTRACT (posted to the lead 2026-08-13; S3 builds
- * against them — keep stable; a shape change goes through the lead). Bodies
- * THROW until the S2 command RPCs land: a stub that faked success would be the
- * "silent return hides a live defect" class, so unimplemented is loud.
+ * Topology (ADR 0118, deviating from ADR 0111/0113 deliberately): the DB
+ * doors authorize/validate/audit and return IDS ONLY; THIS module is the only
+ * place that resolves storage coordinates (service client) and signs. A
+ * direct PostgREST caller of any door gets authorization semantics and
+ * nothing signable. Callers should `router.refresh()` after a mutation (the
+ * house pattern); no revalidatePath here — the panels' routes are S3's.
  *
- * The implementations will follow ADR 0114 D8/D9/D10/D11 + ADR 0117:
- * server-derived buckets/paths, verify-don't-trust finalize, the single
- * audited byte corridor (authorize THROUGH `app.can_read_document` so the D15
- * ceiling applies, gate BEFORE recording — DM1 QA MINOR-2), disposal that
- * means it, and the S1-O2 audited classification change.
- *
- * A `'use server'` module may export ONLY async functions — the shared
- * contract types live in `./types` (pure, client-safe).
+ * Signed-URL TTLs are PROVISIONAL pending the O4 ruling (PO decides against
+ * the measured latency; see the S2 record).
  */
 
-const NOT_IMPLEMENTED = 'DM2 S2: not implemented (contract stub)'
+const SIGNED_URL_TTL_SECONDS: Record<DocumentSensitivityTier, number> = {
+  phi: 120,
+  standard: 300,
+}
+
+/** node crypto sha256 over the downloaded bytes — the D9 verifier. */
+function sha256Hex(buf: ArrayBuffer): string {
+  return createHash('sha256').update(Buffer.from(buf)).digest('hex')
+}
+
+const MIME_EXT: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'text/csv': '.csv',
+  'text/plain': '.txt',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+}
+
+function downloadFileName(title: string, mime: string | null): string {
+  const base = title
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip combining marks
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 80)
+  return (base || 'documento') + (mime ? (MIME_EXT[mime] ?? '') : '')
+}
+
+function errCode(error: { code?: string | null } | null): ReturnType<typeof mapDocumentErrorCode> {
+  return mapDocumentErrorCode(error?.code ?? null)
+}
 
 /** Whether the Wave-A document experience is on (`documents_wave_a`). */
 export async function documentsWaveAEnabled(): Promise<boolean> {
   return featureEnabled('documents_wave_a')
 }
 
-/** Reserves a file object + upload session for a server-derived path and
- * returns a short-TTL signed upload credential (D8). */
+/** Reserves a file object + upload session (server-derived path/tier/bucket)
+ * and returns the short-TTL signed upload credential. */
 export async function beginDocumentUpload(
-  _input: BeginDocumentUploadInput,
+  input: BeginDocumentUploadInput,
 ): Promise<BeginDocumentUploadResult> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('begin_document_upload', {
+    p_resource_type: input.homeResourceType,
+    p_resource_id: input.homeResourceId,
+    p_title: input.title,
+    p_description: input.description ?? undefined,
+    p_confidentiality_level: input.confidentialityLevel ?? undefined,
+    p_document_id: input.documentId ?? undefined,
+    p_declared_file_name: input.declaredFileName,
+    p_declared_mime: input.declaredMimeType,
+    p_declared_size: input.declaredSizeBytes,
+    p_kind: input.kind ?? undefined,
+    p_occurred_on: input.occurredOn ?? undefined,
+  })
+  if (error || !data) return { ok: false, error: errCode(error) }
+
+  const r = data as Record<string, string>
+  // Coordinates never cross PostgREST: resolved here with the service client,
+  // signed, and handed out only as a short-TTL credential.
+  const admin = createAdminClient()
+  const { data: file, error: fileError } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path')
+    .eq('id', r.file_object_id)
+    .single()
+  if (fileError || !file) return { ok: false, error: 'unknown' }
+  const { data: signed, error: signError } = await admin.storage
+    .from(file.storage_bucket)
+    .createSignedUploadUrl(file.storage_path)
+  if (signError || !signed) return { ok: false, error: 'unknown' }
+
+  return {
+    ok: true,
+    uploadSessionId: r.upload_session_id,
+    documentId: r.document_id,
+    documentVersionId: r.document_version_id,
+    upload: {
+      method: 'PUT',
+      url: signed.signedUrl,
+      headers: { 'x-upsert': 'false' },
+      expiresAt: r.expires_at,
+    },
+  }
 }
 
-/** Verifies the uploaded object server-side (size/MIME/hash re-derived —
- * caller values were hints) and binds it as the document version's file.
- * Idempotent per session (D9). */
+/** Confirms the PUT landed (server-derived size/MIME), then verifies the
+ * bytes (sha256, service role) and binds the version file. Idempotent. */
 export async function finalizeDocumentUpload(
-  _uploadSessionId: string,
+  uploadSessionId: string,
 ): Promise<FinalizeDocumentUploadResult> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('finalize_document_upload', {
+    p_upload_session_id: uploadSessionId,
+  })
+  if (error || !data) return { ok: false, error: errCode(error) }
+  const r = data as Record<string, string>
+
+  if (r.upload_state === 'unscanned_accepted' || r.upload_state === 'clean') {
+    // Idempotent re-call after a completed verification.
+    return {
+      ok: true,
+      documentId: r.document_id ?? '',
+      documentVersionId: r.document_version_id,
+      availability: 'available',
+    }
+  }
+
+  // D9 verification — the service role is the byte verifier (SQL cannot hash).
+  const admin = createAdminClient()
+  const { data: file, error: fileError } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path')
+    .eq('id', (data as Record<string, string>).file_object_id)
+    .single()
+  if (fileError || !file) return { ok: false, error: 'unknown' }
+  const { data: blob, error: dlError } = await admin.storage
+    .from(file.storage_bucket)
+    .download(file.storage_path)
+  let verified = false
+  let sha = ''
+  if (!dlError && blob) {
+    sha = sha256Hex(await blob.arrayBuffer())
+    verified = true
+  }
+  const { data: done, error: doneError } = await admin.rpc(
+    'complete_document_upload_verification',
+    { p_upload_session_id: uploadSessionId, p_sha256: sha, p_verified: verified },
+  )
+  if (doneError || !done) return { ok: false, error: errCode(doneError) }
+  const d = done as Record<string, string>
+  if (d.upload_state !== 'unscanned_accepted') {
+    return { ok: false, error: 'upload_incomplete' }
+  }
+  return {
+    ok: true,
+    documentId: d.document_id,
+    documentVersionId: d.document_version_id,
+    availability: 'available' satisfies DocumentAvailability,
+  }
 }
 
-/** THE single byte corridor (D8/D10/D11): authorizes through the kernel
- * (D15 ceiling included), refuses non-servable states, records the audit row
- * AFTER its own gate, then signs short-TTL with the service-role client. */
+/** THE byte corridor: the door authorizes (kernel + D15 ceiling + serving
+ * states) and audits; only then does this module sign, short-TTL. */
 export async function openDocumentVersion(
-  _documentVersionId: string,
+  documentVersionId: string,
 ): Promise<OpenDocumentVersionResult> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('open_document_version', {
+    p_document_version_id: documentVersionId,
+  })
+  if (error || !data) return { ok: false, error: errCode(error) }
+  const r = data as Record<string, string>
+
+  const admin = createAdminClient()
+  const { data: binding, error: bindError } = await admin
+    .from('document_version_files')
+    .select('file_objects ( storage_bucket, storage_path, sensitivity_tier )')
+    .eq('document_version_id', documentVersionId)
+    .eq('rendition_kind', 'source')
+    .single()
+  const file = binding?.file_objects
+  if (bindError || !file) return { ok: false, error: 'unknown' }
+
+  const ttl = SIGNED_URL_TTL_SECONDS[(file.sensitivity_tier as DocumentSensitivityTier) ?? 'phi']
+  const fileName = downloadFileName(r.title ?? 'documento', r.mime_type ?? null)
+  const { data: signed, error: signError } = await admin.storage
+    .from(file.storage_bucket)
+    .createSignedUrl(file.storage_path, ttl, { download: fileName })
+  if (signError || !signed) return { ok: false, error: 'unknown' }
+
+  return {
+    ok: true,
+    url: signed.signedUrl,
+    expiresAt: new Date(Date.now() + ttl * 1000).toISOString(),
+    fileName,
+  }
 }
 
-/** Audited classification change (S1-O2): the enforcing labels respect the
- * S1 seam (case/interview homes only — HC0D6 otherwise).
- * ⚠ NO Wave-A UI surface (lead ruling 2026-08-13): classification happens at
- * upload only; declassification is a widening decision that belongs to the
- * Phase-19 access plane (D16). Server-side command + keystones only. */
+/** Audited classification change (S1-O2). NO Wave-A UI surface (lead ruling):
+ * server-side command + keystones only. */
 export async function setDocumentConfidentiality(
-  _documentId: string,
-  _level: DocumentConfidentialityLevel | null,
+  documentId: string,
+  level: DocumentConfidentialityLevel | null,
 ): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_document_confidentiality', {
+    p_document_id: documentId,
+    // NULL clears the label (legal SQL-side); the generated arg type has no
+    // null because the SQL param carries no default — cast, not `any`.
+    p_level: level as unknown as string,
+  })
+  return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Requests disposition (D10): reads fail closed immediately; deletion is the
- * verified disposal job, blocked by retention/holds. */
+/** Requests disposition (D10): reads fail closed immediately; the disposal
+ * job + service-only completion door do the verified deletion. */
 export async function requestDocumentDisposition(
-  _documentId: string,
-  _reason: DocumentDispositionReason,
+  documentId: string,
+  reason: DocumentDispositionReason,
 ): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('request_document_disposition', {
+    p_document_id: documentId,
+    p_reason: reason,
+  })
+  return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Places a legal hold (blocks disposal and soft-delete honors it — D10). */
+/** Places a legal hold (audience = hold visibility: staff_admin-of-home or
+ * tenancy admin). */
 export async function placeDocumentHold(
-  _documentId: string,
-  _reason: DocumentHoldReason,
+  documentId: string,
+  reason: DocumentHoldReason,
 ): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('place_document_hold', {
+    p_document_id: documentId,
+    p_reason: reason,
+  })
+  return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
 /** Releases a legal hold. */
-export async function releaseDocumentHold(_holdId: string): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+export async function releaseDocumentHold(holdId: string): Promise<DocumentActionState> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('release_document_hold', { p_hold_id: holdId })
+  return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Soft-deletes a document (status machine; honors holds). */
-export async function softDeleteDocument(_documentId: string): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+/** Soft-deletes a document (honors holds — HC0D3). */
+export async function softDeleteDocument(documentId: string): Promise<DocumentActionState> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('soft_delete_document', { p_document_id: documentId })
+  return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Tier reclassification: copy -> verify -> commit -> retire-source, never a
- * pointer update (D10 / F-03). */
+/** Tier reclassification — ⛔ S2.8, BLOCKED on a lead ruling (the
+ * document_version_files UNIQUE(version, rendition) + immutability guard rule
+ * out both a sibling binding and a rebind; re-derivation in the S2 record).
+ * Stub stays loud until the ruled shape lands. */
 export async function reclassifyDocument(
   _documentId: string,
   _targetTier: DocumentSensitivityTier,
 ): Promise<DocumentActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  throw new Error('DM2 S2.8: reclassify awaits the lead ruling (see the S2 record)')
 }

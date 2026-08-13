@@ -560,3 +560,27 @@ authorization decision (it decides which commissions a caller sees), and filing 
 non-decision would be false. The durable fix is FUP-AFF-1's — widen the door-audit's domain
 to follow the **property** (prosecdef + authenticated-reachable + carries an identity
 primitive) rather than the return type and a name prefix.
+
+## Note — DM2·S2 command doors: outside every sweep's domain BY CONSTRUCTION (2026-08-13)
+
+The ten S2 command doors (`begin_document_upload` · `finalize_document_upload` ·
+`open_document_version` · `set_document_confidentiality` ·
+`request_document_disposition` · `place_document_hold` · `release_document_hold` ·
+`soft_delete_document` + the two SERVICE-ROLE-ONLY completion doors
+`complete_document_upload_verification` / `complete_document_disposal`) return
+void/jsonb, not boolean — the census gate domain (548, unchanged) and the ARM-1
+door sweep's `^(is_|can_|has_)` population exclude them **by definition**, and the
+two completion doors are additionally outside `ARM=floor`'s domain (no
+`authenticated` EXECUTE — structurally pinned by 329 S4/S5). **Never cite a sweep
+for these ten** (the FUP-AUTHZ-WP-SNAPSHOT / DM1-storage-INSERT-policy class).
+Their coverage is BEHAVIORAL and mutation-proven: pgTAP `329` (66 pins: authority,
+oracle-killed not-found, seam HC0D6 through the door, serving-state ladder, D11
+floor discriminated, gate-before-record noun rule, retention/Art.18, holds) + the
+five FINDING-2 per-state twins (each an independent single-check neutralization in
+a rolled-back txn, restore catalog-verified) + `228` t40–41b + `328` K10 + `191`
+§4. The three S2-rewritten bodies are likewise outside the boolean-door
+population: `app._audit_access_authorized` (standing name-keyed verdict; the S2
+arm REMOVAL is pinned by 328 K10d + 191 3.13–3.15), `public.log_audit_access`
+(behavioral: 328 K10a/b, 329 F2, 191 §4), `public.dispose_case_phi` (behavioral:
+329 W1–W5 + suite 197 green). No S2 change added a boolean door or a policy —
+`ARM=census` zero-delta verified 2026-08-13.

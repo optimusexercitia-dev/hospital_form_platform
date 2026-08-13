@@ -170,8 +170,8 @@ MINOR-2 `open_document_version` gates before recording; plan Q1; O4). Item 1
 | S2.4 | Migrations `20260924000300` (machine + doors + FINDING 1a + dispose arm) + `…000400` (open door) — 371 registered | ✅ 2026-08-13 | catalog-verified: 9 command doors + open door, registry arm GONE, dispose arm landed; all replace() surgeries needle-matched with postconditions |
 | S2.5 | Keystones: 329 NEW **66/66** · 228 **135/135** (S1-O1 t40/40b/41/41b) · 328 **109/109** (K10 rewritten) — populated stack | ✅ 2026-08-13 | red-first record below |
 | S2.6 | FINDING 2 per-state twins (5, independent, rolled back, restore 5/5) | ✅ 2026-08-13 | twin record below |
-| S2.7 | TS implementation (`actions`/`queries` real bodies, reconcile script), fresh-reset full gates, authz arms + census registration + diff-scoped sweep, O4 + canOpen list measurement, ADR 0118 | 🔜 NEXT TURN — named, not started | — |
-| S2.8 | **Reclassify doors — BLOCKED on a lead ruling** (design fork below) | ⛔ lead | §Reclassify fork |
+| S2.7 | TS implementation (`actions`/`queries` real bodies + `errors.ts` map + reconcile script), fresh-reset full gates, authz arms, O4, ADR 0118 | 🟢 this turn — see §S2.7 record | — |
+| S2.8 | **Reclassify — BLOCKED on a lead ruling** (re-derived below; lead's constraint reading CONFIRMED) | ⛔ lead | §Reclassify re-derivation |
 
 ### S2 red-first record (the adapted ladder)
 
@@ -206,19 +206,77 @@ doc-status checks are ONE barrier with two codes (defense overlap); the
 honest twin removes both. The standing 329 pins (green immediately before)
 are each twin's restored-side control.
 
-### Reclassify fork (S2.8 — lead ruling needed)
+### S2.7 record (2026-08-13)
 
-`document_version_files` is **immutable by DM1 guard** (HC0D2, no bypass GUC
-— ADR 0116 §5). Reclassify's D10 "commit" step (re-point the version's source
-file to the copied object) therefore cannot be an UPDATE of the binding. The
-fork: **(a)** add-and-supersede — insert a second `source` binding, the open
-door already picks the newest (`order by created_at desc`), old file retires
-through the disposal machine (unbound-file exemption applies); **(b)** relax
-the DM1 guard with a scoped legal transition for the reclassify door.
-My recommendation: **(a)** — no DM1 invariant is touched, the door already
-resolves newest-first, and the superseded binding is an honest historical
-record. Not improvised mid-turn because it edits a DM1 invariant's blast
-radius either way. The 229-heritage obligations (excluded-party deny +
-ceiling fence pins) land with whichever shape you pick.
+- **TS layer implemented:** `src/lib/documents/actions.ts` (real bodies; door
+  → service-client coordinate resolution → short-TTL signing; sha256 D9
+  verification through the service client; SQLSTATE-only error mapping in
+  `errors.ts`), `src/lib/queries/documents.ts` (embed-shaped reads;
+  availability derivation; `canOpen` = row-visibility-is-the-kernel + servable
+  — no door call), `scripts/document-reconciliation.mjs` (FINDING 3 script;
+  smoke-run on the fresh stack: **RECONCILIATION CLEAN**; a trailing libuv
+  assertion on process exit is a known Windows/node teardown artifact, after
+  output). `reclassifyDocument` stays a loud stub (S2.8).
+- **Contract note for the lead → frontend:** `underLegalHold` in practice
+  emits `true | null` only (`true` = a live hold row is visible; `null` = none
+  visible — RLS makes "no hold" and "not entitled" indistinguishable to the
+  query). Type unchanged (`boolean | null`); affordance logic (disable on
+  `true`) unaffected.
+- **191 ripple (predicted class, found by the fresh-stack run):** 191 §4
+  (3.13/3.14) pinned the registry dispatch FINDING 1(a) removed — rewritten to
+  the STRICTLY STRONGER contract (verb not dispatchable for anyone; zero-mint
+  pin 3.15 added; plan 26→27). Red observed before the rewrite:
+  `died: 23514` / `caught: 23514 wanted: 42501`.
+- **Gate:** fresh reset 371==371 · full pgTAP **Files=189, Tests=6023, PASS**
+  (accounted: 5952 + 66 (329) + 4 (228) + 1 (191)) · lint 5-gate 0/0 · tsc 0
+  first-party · vitest 1254/1254 · `ARM=census` HOLDS **zero domain delta**
+  (548 — the command doors are non-boolean, outside the census by definition;
+  registered as a findings-file note instead, never citable to a sweep) ·
+  `ARM=hat` / `FROMFINDINGS=1 ARM=wrapper` / `ARM=floor` all HOLD (no INVOKER
+  wrapper added — all ten doors prosecdef, 329 S1; the 8 user doors are
+  suite-called, the 2 completion doors are outside floor's domain, ACL-pinned)
+  · diff-scoped ARM-1 case list derived mechanically = **EMPTY** (no
+  `is_/can_/has_` function, no policy in the S2 diff) — not cited, per the
+  case-count rule; behavioral coverage mapped in the findings note.
+- **O4 measurements** (25 case-homed docs × 2 versions, member persona, fresh
+  stack): documents list ≈ 37–42 ms (~1.6 ms/row through the kernel incl. the
+  S1 ceiling arm); versions ≈ 75–80 ms (~1.6 ms/row); the FILE-CHAIN layer
+  ≈ 187 ms (~3.7 ms/row — the chain resolver re-walks per file row; the
+  layer to watch at pilot scale: ~200-doc panels would spend ~2 s there).
+  Signed-URL latency median **10 ms** (5 runs: 9/10/10/12/37).
+  **Recommendation to the PO:** keep signing (streaming proxy unwarranted at
+  10 ms); TTLs phi 120 s / standard 300 s are comfortable; if Wave-A panels
+  ever list >50 documents, trim the file-object embed from the LIST query
+  (availability via version-level projection) before reaching for schema
+  changes. PO rules (ADR 0114 O4).
+
+### S2.8 re-derivation (lead constraint reading CONFIRMED; awaiting ruling)
+
+The lead's citation verified in the catalog:
+`document_version_files_version_rendition_uniq UNIQUE (document_version_id,
+rendition_kind)` — my option (a) (sibling `source` binding) violates it; I
+missed the constraint (checked the table's triggers, never its constraints —
+my error). Option (b) stays ruled out (D10: never a pointer update).
+
+**Surviving option — the lead's option 1, amended:** reclassification mints a
+**new `document_version`** whose `source` binding points at the copied file
+object (fully append-only; zero invariant edits; the reclassify becomes
+visible, audited version history — honest). The amendment it NEEDS: the OLD
+file stays **bound** to its immutable old version, so retiring it meets the
+provisional-retention gate (HC0DR) — and the urgent reclassify case is
+exactly mis-tiered PHI that must leave the wrong bucket. Proposed:
+an **EVIDENCE-GATED duplicate-retirement exemption** in
+`complete_document_disposal` — reason `duplicate` is honored **only when a
+live, servable file object with the SAME sha256 is bound to the same
+document** (the door verifies the sibling; a caller cannot merely claim it).
+Retention protects the record; a same-content sibling proves the record
+survives. Prior-version opens of the retired copy then return `disposed`
+(correct — the content lives in the successor, audit-linked via
+`document.reclassified` meta). Option 2 (partial UNIQUE + liveness column +
+guard exception) remains strictly worse: an invariant edit for no additional
+honesty. **Needs an ADR decision** (it shapes D10 semantics + the retention
+gate): recorded as ADR 0118 §10 (state only); implementation on the lead's
+ack, as its own migration + the 229-heritage keystones (excluded-party deny +
+ceiling fence + copy-integrity sha pin + the new exemption's own twin).
 
 ## S2+ — (subsequent slices append here)

@@ -16,7 +16,9 @@
 --           helper (entitled passes / unentitled fails, empirically).
 
 begin;
-select plan(26);
+-- 26 → 27: S2 rewrote §4 (the verb left the registry — FINDING 1a) and added
+-- the zero-mint pin 3.15.
+select plan(27);
 
 -- HARD REQUIREMENT (QA-B-1): the C-4 PHI-door + .viewed assertions need these flags
 -- (audit_write early-returns without audit_trail; the PHI doors gate on patient_safety).
@@ -236,12 +238,16 @@ select ok(
   '3.12: _audit_access_authorized is NOT anon-executable (t19 grant hygiene)');
 
 -- ============================================================================
--- §4: DM (ADR 0114 D11 — successor of the F2 pair, same C-4 forge-guard
---     contract): an entitled reader (a member of the owning commission →
---     can_read_document, meeting arm) CAN log the audited document open; a
---     foreign member CANNOT. Verb names deliberately built by format() below —
---     test 3.10's parser reads every quoted dotted literal in the audit
---     bodies, and this file must not become a counterexample of its own gate.
+-- §4: DM, rewritten at S2 (FINDING 1a, migration 20260924000300): the
+--     document-open verb LEFT the registry — the open door mints it
+--     internally AFTER its own gate, so registry forging is impossible for
+--     EVERYONE, entitled or not. That is STRICTLY STRONGER than the old C-4
+--     pair this block carried (entitled-logs / foreign-42501): the forge
+--     surface is gone entirely. The door-side successors of the old contract
+--     are 329 O9/O10 (gate-before-record, noun rule) and 228 41b (audit-row
+--     exactness). Verb names still built by format() — test 3.10's parser
+--     reads every quoted dotted literal in the audit bodies, and this file
+--     must not become a counterexample of its own gate.
 -- ============================================================================
 -- A meeting in comm_x (create_meeting mints it; its BEFORE INSERT trigger
 -- mints the registry row) + a document homed on it.
@@ -257,25 +263,32 @@ grant select on att to authenticated;
 insert into public.documents (id, home_resource_id, title, created_by)
   select (select id from att), (select id from mtg), 'Documento de teste', (select sa_x from k);
 
--- (4a) ENTITLED: st_x2 (a comm_x member → can_read_document) may log the open.
+-- (4a) even the ENTITLED reader (st_x2, comm_x member → can_read_document)
+-- is refused AT THE ALLOWLIST — the wrong-arm-proof persona for this pin.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
-select lives_ok(
+select throws_ok(
   format($$ select public.log_audit_access('document.opened','document',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
          (select id from att), (select comm_x from k)),
-  '3.13: an entitled reader (can_read_document) CAN log the audited document open');
+  '23514', null,
+  '3.13: the document-open verb is NOT registry-dispatchable even for an entitled reader (S2: the door is its only minter)');
 reset role;
 
--- (4b) UNENTITLED cross-commission: st_y (comm_y, no relationship to comm_x) CANNOT
--- forge the open verb for the comm_x document → 42501 (the C-4 vector, closed).
+-- (4b) the old C-4 vector, now refused one gate EARLIER: the foreign caller
+-- meets the allowlist refusal, never authorization.
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.log_audit_access('document.opened','document',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
          (select id from att), (select comm_x from k)),
-  '42501', null,
-  '3.14: an UNENTITLED cross-commission caller CANNOT forge the document-open verb (C-4 closed)');
+  '23514', null,
+  '3.14: the cross-commission forge attempt dies at the allowlist (forge surface removed entirely)');
 reset role;
+
+-- (4c) and NOTHING was minted by either attempt.
+select is(
+  (select count(*)::int from public.audit_log where entity_id = (select id from att)),
+  0, '3.15: zero audit rows from the refused registry attempts');
 
 select * from finish();
 rollback;
