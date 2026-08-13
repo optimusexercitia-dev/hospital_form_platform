@@ -110,10 +110,11 @@ create temp table doc_a on commit drop as
 grant select on doc_a to authenticated;
 
 -- Attach a file to v1 (so it can be submitted).
-select public.set_document_version_file(
-  (select current_version_id from doc_a),
-  (select comm_x from k) || '/' || (select id from doc_a) || '/a.pdf',
-  'v1', null);
+-- DM3: `set_document_version_file` is gone (ADR 0114 D8 — raw storage_path
+-- writes ended). The has-a-file precondition on submit SURVIVED, so this must
+-- build the real chain; `test_helpers.attach_stub_file` writes what the
+-- begin/finalize pair would.
+select test_helpers.attach_stub_file((select current_version_id from doc_a));
 
 reset role;
 
@@ -361,9 +362,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table v2 on commit drop as
   select id as ver2 from public.supersede_document((select id from doc_a));
 grant select on v2 to authenticated;
-select public.set_document_version_file(
-  (select ver2 from v2),
-  (select comm_x from k) || '/' || (select id from doc_a) || '/a-v2.pdf', 'v2', null);
+select test_helpers.attach_stub_file((select ver2 from v2));
 select public.submit_document_for_approval(
   (select ver2 from v2),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)));
@@ -570,9 +569,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table doc_p on commit drop as
   select * from public.create_controlled_document((select comm_x from k), 'Política Passada', 'policy', 1);
 grant select on doc_p to authenticated;
-select public.set_document_version_file(
-  (select current_version_id from doc_p),
-  (select comm_x from k) || '/' || (select id from doc_p) || '/p.pdf', 'vp', null);
+select test_helpers.attach_stub_file((select current_version_id from doc_p));
 select public.submit_document_for_approval(
   (select current_version_id from doc_p),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)));
@@ -610,9 +607,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table doc_r on commit drop as
   select * from public.create_controlled_document((select comm_x from k), 'Política R (reject)', 'sop', null);
 grant select on doc_r to authenticated;
-select public.set_document_version_file(
-  (select current_version_id from doc_r),
-  (select comm_x from k) || '/' || (select id from doc_r) || '/r.pdf', 'vr', null);
+select test_helpers.attach_stub_file((select current_version_id from doc_r));
 select public.submit_document_for_approval(
   (select current_version_id from doc_r),
   jsonb_build_array(
@@ -666,18 +661,23 @@ select is(
   1, 'CR (c): a still-pending approver RETAINS read of the changes_requested doc');
 reset role;
 
--- The coordinator re-sets the file on the changes_requested version IN PLACE (HC089
--- would fire on a frozen state — this proves set_document_version_file accepts it).
+-- The coordinator RE-attaches the file on the changes_requested version IN PLACE
+-- (HC089 would fire on a frozen state — this proves the door accepts this one).
+-- DM3: the assertion moved off the dropped `storage_path` column onto the core
+-- pointer, which is what "the file changed" now means; re-attaching mints a NEW
+-- core version (append-only, ADR 0118 §10) and moves the pointer to it, so the
+-- test is that the pointer CHANGED rather than that a path string matches.
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
-select public.set_document_version_file(
-  (select current_version_id from doc_r),
-  (select comm_x from k) || '/' || (select id from doc_r) || '/r2.pdf', 'vr2', null);
-select is(
-  (select storage_path from public.controlled_document_versions
-   where id = (select current_version_id from doc_r)),
-  (select comm_x from k) || '/' || (select id from doc_r) || '/r2.pdf',
-  'CR: set_document_version_file re-sets the file on a changes_requested version');
+create temp table cr_before on commit drop as
+  select core_document_version_id as ptr from public.controlled_document_versions
+   where id = (select current_version_id from doc_r);
+select test_helpers.attach_stub_file((select current_version_id from doc_r));
+select isnt(
+  (select core_document_version_id from public.controlled_document_versions
+    where id = (select current_version_id from doc_r)),
+  (select ptr from cr_before),
+  'CR: the door re-attaches a file on a changes_requested version (the core pointer moves)');
 
 -- (d) resubmit works from changes_requested (delete-then-insert) → in_approval.
 select public.submit_document_for_approval(

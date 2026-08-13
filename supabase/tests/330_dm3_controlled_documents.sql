@@ -342,28 +342,43 @@ select has_column('public', 'controlled_documents', 'core_document_id',
 select has_column('public', 'controlled_document_versions', 'core_document_version_id',
   'DM3·X1b controlled_document_versions.core_document_version_id exists (the domain-side pointer)');
 
--- X1 ⭐ — the reconciliation count identity (lead ruling Q2: backfill 1:1, so
--- this stays a real assertion with no documented exception). RED pre-M3: 0 vs 3.
+-- X1 ⭐ — every controlled document owns a core document. RED pre-M3.
+--
+-- ⚠ RE-SCOPED. This was a global COUNT IDENTITY ("one core version per domain
+-- version", per lead ruling Q2). That is true immediately after the backfill and
+-- is NOT AN INVARIANT: `begin_document_upload` mints a NEW core version on every
+-- upload (ADR 0118 §10, append-only), so re-uploading to a draft makes core
+-- versions outnumber domain versions BY DESIGN, and a freshly created document
+-- has a domain version with no core version at all (DM3·R3d). The identity
+-- survived only because it ran before the fixtures that break it — and the
+-- moment DM3·R3 created one document through the door, it read "have 3, want
+-- 19". A keystone that a legitimate product action falsifies is pinning a
+-- snapshot, not a rule.
+--
+-- What IS invariant is asserted here and in X1c: every controlled document has a
+-- core document, and every pointer that is SET resolves to a core version of
+-- that document.
 select is(
-  (select count(*)::int
-     from public.document_versions dv
-     join public.documents d on d.id = dv.document_id
-     join public.securable_resources s on s.id = d.home_resource_id
-    where s.resource_type = 'controlled_document'),
-  (select count(*)::int from public.controlled_document_versions),
-  'DM3·X1 ⭐ one core document_version per controlled_document_version (1:1 backfill reconciled)');
+  (select count(*)::int from public.controlled_documents
+    where core_document_id is not null),
+  (select count(*)::int from public.controlled_documents),
+  'DM3·X1 ⭐ every controlled document owns a core `documents` row (none can be fileless-forever)');
 
 -- X1c — every domain version's pointer RESOLVES to a core version of that same
 -- document. Expressed as "rows that AGREE == rows that EXIST", never as
 -- "violations == 0" — the latter passes by ABSENCE (the DM3·R1c lesson).
+-- Scoped to pointers that are SET (a null pointer is the legal "no file yet"
+-- state — DM3·R3d). Still expressed as "rows that AGREE == rows that EXIST", so
+-- it cannot pass by absence: the denominator is the set of bound versions.
 select is(
   (select count(*)::int
      from public.controlled_document_versions v
      join public.document_versions dv on dv.id = v.core_document_version_id
      join public.controlled_documents cd on cd.id = v.document_id
     where dv.document_id = cd.core_document_id),
-  (select count(*)::int from public.controlled_document_versions),
-  'DM3·X1c every domain version''s pointer resolves to a core version of its OWN core document');
+  (select count(*)::int from public.controlled_document_versions
+    where core_document_version_id is not null),
+  'DM3·X1c every SET pointer resolves to a core version of its OWN core document (no cross-document binding)');
 
 -- Fixture: the seed has NO draft/changes_requested version (all three are
 -- effective/in_approval — catalog-checked), so the unfrozen positive control
@@ -548,17 +563,41 @@ select throws_ok(
 -- T1b — POSITIVE CONTROL: the same door still works in the ALLOWED direction,
 -- so T1 is not passing because reclassification is simply broken. A case home
 -- is phi by the tier rule, so the legal move for it is phi → standard.
+--
+-- ⚠ BUILDS ITS OWN FIXTURE. This first SEARCHED for any case-homed document with
+-- a bound clean phi file — and passed only because one happened to be lying
+-- around from earlier DM2 work. On a fresh `db reset` no such row exists, the
+-- search returned NULL, and the control went red. A control that depends on
+-- incidental database state is not a control; same class as the hardcoded seed
+-- uuids this reset also exposed.
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+values ('dd300000-0000-0000-0000-0000000000f1',
+        'd0000000-0000-0000-0000-0000000000c2',
+        'Fixture T1b · case home', 'registro', 'active',
+        '00000000-0000-0000-0000-000000000002');
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('da300000-0000-0000-0000-0000000000f1',
+        'dd300000-0000-0000-0000-0000000000f1', 1,
+        '00000000-0000-0000-0000-000000000002');
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+values ('f0300000-0000-0000-0000-0000000000f1', 'documents-phi',
+        '0c000000-0000-0000-0000-00000000000a/f0300000-0000-0000-0000-0000000000f1/gen1',
+        'phi', '00000000-0000-0000-0000-000000000002');
+update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+  where id = 'f0300000-0000-0000-0000-0000000000f1';
+update public.file_objects set upload_state = 'verifying'
+  where id = 'f0300000-0000-0000-0000-0000000000f1';
+update public.file_objects set upload_state = 'scan_pending'
+  where id = 'f0300000-0000-0000-0000-0000000000f1';
+update public.file_objects
+   set upload_state = 'clean', verified_at = now(), size_bytes = 100,
+       mime_type = 'application/pdf', sha256 = repeat('b', 64)
+  where id = 'f0300000-0000-0000-0000-0000000000f1';
+insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+values ('da300000-0000-0000-0000-0000000000f1', 'f0300000-0000-0000-0000-0000000000f1', 'source');
+
 select lives_ok(
-  format($q$ select public.reclassify_document(%L, 'standard') $q$,
-         (select d.id from public.documents d
-            join public.securable_resources s on s.id = d.home_resource_id
-            join public.document_versions dv on dv.document_id = d.id
-            join public.document_version_files dvf on dvf.document_version_id = dv.id
-            join public.file_objects f on f.id = dvf.file_object_id
-           where s.resource_type = 'case' and d.status = 'active'
-             and f.sensitivity_tier = 'phi' and f.disposal_state = 'none'
-             and f.upload_state in ('clean', 'unscanned_accepted')
-           limit 1)),
+  $q$ select public.reclassify_document('dd300000-0000-0000-0000-0000000000f1', 'standard') $q$,
   'DM3·T1b POSITIVE CONTROL: reclassify_document still works for a non-controlled home (T1 is not "the door is broken")');
 
 -- T2 — the upload door derives `standard` for a controlled-document home. The

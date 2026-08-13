@@ -440,6 +440,104 @@ $$;
 
 -- act_as switches into the authenticated role, which then needs to call
 -- reset_role()/act_as() again; grant it access to the helper schema.
+/**
+ * DM3 — attach a servable stub file to a controlled-document version.
+ *
+ * Replaces the `set_document_version_file(version, path, …)` call that suites
+ * used before DM3 dropped it (ADR 0114 D8: raw `storage_path` writes ended and
+ * the domain now points at a CORE `document_versions` row). Suites need this
+ * because `submit_document_for_approval` still refuses a version with no file —
+ * that precondition survived the cutover, re-expressed through
+ * `app.controlled_version_source_path`, so a stub pointer alone is NOT enough:
+ * the whole chain (file_object → binding → pointer) has to exist.
+ *
+ * Test-only. It writes the rows the real begin/finalize pair would, walking the
+ * D9 upload state machine because `app.guard_file_object_transition` refuses any
+ * file object that does not start life `reserved`. It does NOT bypass the
+ * DM3 freeze guard: the caller must still be on a draft/changes_requested
+ * version, exactly as the product requires.
+ */
+create or replace function test_helpers.attach_stub_file(p_version_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path to 'public', 'pg_catalog'
+as $$
+declare
+  v_core_doc uuid;
+  v_org uuid;
+  v_actor uuid;
+  v_n int;
+  v_core_ver uuid := gen_random_uuid();
+  v_file uuid := gen_random_uuid();
+begin
+  -- ⚠ The fallback actor is RESOLVED, never hardcoded. A hardcoded seed persona
+  -- (`…002`) looked safe and broke `314_qob_org_admin_content_wall`, which
+  -- TRUNCATEs `profiles` and builds its own isolated tenant — so the "obviously
+  -- present" persona is absent in exactly the suites most likely to need this
+  -- helper. Prefer the document's own creator; fall back to the commission's, and
+  -- only then to any profile that exists in whatever world the suite built.
+  select cd.core_document_id, s.organization_id,
+         coalesce(v.created_by, cd.created_by, c.created_by,
+                  (select p.id from public.profiles p order by p.id limit 1))
+    into v_core_doc, v_org, v_actor
+    from public.controlled_document_versions v
+    join public.controlled_documents cd on cd.id = v.document_id
+    join public.securable_resources s on s.id = cd.id
+    join public.commissions c on c.id = cd.commission_id
+   where v.id = p_version_id;
+
+  if v_actor is null then
+    raise exception 'attach_stub_file: no profile exists to attribute the core document to';
+  end if;
+
+  -- Fixtures that insert `controlled_documents` DIRECTLY get their registry row
+  -- from the M9 trigger but no `core_document_id` — the trigger deliberately
+  -- does not mint the core document, because `documents.created_by` is NOT NULL
+  -- and a raw fixture supplies no creator to attribute it to. Mint it here, in
+  -- test-only code where a named fallback actor is honest, so every fixture can
+  -- become byte-capable without hand-rolling the chain.
+  if v_core_doc is null then
+    insert into public.documents (home_resource_id, title, kind, status, created_by)
+    select cd.id, cd.title, 'documento_controlado', 'active', v_actor
+      from public.controlled_documents cd
+      join public.controlled_document_versions v on v.document_id = cd.id
+     where v.id = p_version_id
+    returning id into v_core_doc;
+
+    update public.controlled_documents cd set core_document_id = v_core_doc
+      from public.controlled_document_versions v
+     where v.id = p_version_id and cd.id = v.document_id;
+  end if;
+
+  select coalesce(max(dv.version_number), 0) + 1 into v_n
+    from public.document_versions dv where dv.document_id = v_core_doc;
+
+  insert into public.document_versions (id, document_id, version_number, created_by)
+  values (v_core_ver, v_core_doc, v_n, v_actor);
+
+  insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+  values (v_file, 'documents-standard',
+          v_org::text || '/' || v_file::text || '/stub', 'standard', v_actor);
+  update public.file_objects set upload_state = 'uploaded', uploaded_at = now() where id = v_file;
+  update public.file_objects set upload_state = 'verifying' where id = v_file;
+  update public.file_objects set upload_state = 'scan_pending' where id = v_file;
+  update public.file_objects
+     set upload_state = 'clean', verified_at = now(), size_bytes = 100,
+         mime_type = 'application/pdf', sha256 = repeat('f', 64)
+   where id = v_file;
+
+  insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+  values (v_core_ver, v_file, 'source');
+
+  update public.controlled_document_versions
+     set core_document_version_id = v_core_ver
+   where id = p_version_id;
+
+  return v_core_ver;
+end;
+$$;
+
 grant usage on schema test_helpers to authenticated;
 grant execute on all functions in schema test_helpers to authenticated;
 
