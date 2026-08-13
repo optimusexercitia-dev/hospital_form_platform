@@ -944,3 +944,65 @@ by the `supabase db reset` the gate requires anyway.
 pairing) — see the recommendation handed to the lead. No E2E probe was added
 (tester owns `e2e/`); the affordance half of MAJOR-3 is still unpinned by the
 suite — backend's item-3 note 4 stands.
+
+## Items 4–6 (frontend) — MINOR-4, MINOR-5, INFO-3's dialog half — `0acdd0d`
+
+**MINOR-4 was understated, and the understated half was not the defect.** QA read
+the delete button as rendering the GENERIC fallback where a mapped pt-BR string
+existed. Driven for real (legal-hold refusal, headless driver): it rendered
+NOTHING — `ALERTDIALOG AFTER REFUSAL >>> (closed)` with `documents.status` still
+`active`. `AlertDialogAction` is Radix's `AlertDialogPrimitive.Action` and closes
+on click, so `setError` wrote into an unmounting subtree and the `role="alert"`
+paragraph was dead UI: a refused delete left the row in place, unexplained.
+Mapping the error code alone would have "fixed" copy into an element no user can
+reach. Three sibling confirm dialogs (`ethics-decisions-panel`,
+`archive-indicator-button`, `meeting-type-manager`) already `preventDefault()`
+there; this one did not. Both halves fixed — the dialog now closes only on
+success, and the closed 14-member union is mapped through `documentErrorMessage`
+(an out-of-union value still falls back, never reaching the UI).
+
+**Second correction to the finding's stated cost:** `document_delete_affordances`
+returns `canDelete = false` whenever an unreleased hold exists (catalog), so a
+freshly-loaded page renders NO Remover under a hold at all. The `under_legal_hold`
+refusal is reachable only from a page whose affordance was computed BEFORE the
+hold — an already-open tab. Real, but a race, not a steady state.
+
+**RED/GREEN.** RED: dialog gone, no message, `status = 'active'`. GREEN: dialog
+stays open, `<p role="alert" …>Este documento está sob retenção legal e não pode
+ser removido.</p>` rendered, status still `active`; hold then released and the
+SAME open dialog completed the delete → `soft_deleted`, dialog closed, row gone
+(success path not regressed).
+
+**Prediction ledger:** I predicted the fallback would render on RED. WRONG —
+nothing rendered. Recorded before editing, then re-predicted; the four revised
+GREEN predictions all held. *A "safe" fallback and a message that cannot render
+look identical from the outside; only driving the refusal separates them.*
+
+**MINOR-5.** `canWrite`/`canDownload` are now REQUIRED, not defaulted to `false`:
+a silent deny is still a guess about a question only the caller can answer, and
+`tsc` now makes the next call site answer it. Matches the meeting/interview
+adapters, whose `canEdit` was always required. One call site exists
+(`case-detail-view.tsx:723`) and it already passed both — `tsc` clean, and the
+case panel still renders "Anexar documento" and its rows (observed).
+**Lead ruling: accepted over `= false`** — defaulting would have fixed the
+direction while keeping the shape that made MINOR-5 a trap. The server door
+remains the boundary; these props hide controls, they enforce nothing.
+
+**INFO-3 (dialog half; backend owns `types.ts`).** "The client never learns a
+bucket, a path or a token" was false — the signed URL embeds the bucket and the
+full object path and carries a live bearer token. Replaced with what is true: no
+storage coordinate is handed to the component as DATA, and the credential is
+single-purpose, perishable, and only ever `fetch`ed, never navigated to (so the
+session-history concern is the download corridor's, not this one's).
+
+**Gates:** lint 5-gate OK · `tsc` clean · vitest 86 files / 1258 tests PASS.
+**Left on the local stack:** 4 `active` documents on meeting `…0000e1` from the
+driver's uploads (visible in its Anexos panel); **0** legal-hold rows — every
+fixture inserted was deleted. Cleared by the fresh `supabase db reset` the gate
+already mandates. No E2E spec targets the document delete confirm dialog, and the
+success path is unchanged.
+
+**Lead note — the `upload_failed` pairing is DECLINED** (frontend's call, adopted):
+terminality is orthogonal to cause, and a code-per-cause forces the dialog to
+enumerate causes, which is a fails-open list. Revisit only if a second terminal
+cause appears (a Wave B/C scanner `infected` verdict is the candidate).
