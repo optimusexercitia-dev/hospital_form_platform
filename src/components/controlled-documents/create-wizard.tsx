@@ -365,31 +365,33 @@ export function CreateWizard({
   }
 
   /**
-   * begin → PUT → finalize, against a version that already exists.
+   * Refuse a trivially invalid file BEFORE step 1 creates anything.
    *
-   * Client-side size/type checks refuse before a pointless wait only; finalize
-   * re-derives both server-side and is the authority (ADR 0114 D9).
+   * The server action this replaced validated the file up front for exactly
+   * this reason ("avoid an orphan draft on trivially invalid input — nothing is
+   * created if these fail"). With the chain client-side that ordering is now
+   * MINE to preserve: checking inside `attachFile` would mean a 30 MB PDF
+   * leaves behind a created document and an empty draft version.
+   *
+   * These are pre-flight refusals only. `finalize` re-derives size and MIME
+   * server-side and is the authority (ADR 0114 D9).
    */
+  function fileRejection(bytes: File): string | null {
+    if (bytes.size > DOCUMENT_MAX_SIZE_BYTES) {
+      return documentErrorMessage("file_too_large");
+    }
+    if (bytes.type && !DOCUMENT_ACCEPTED_MIME_TYPES.includes(bytes.type)) {
+      return documentErrorMessage("file_type_not_allowed");
+    }
+    return null;
+  }
+
+  /** begin → PUT → finalize, against a version that already exists. */
   async function attachFile(
     targetDocumentId: string,
     targetVersionId: string,
     bytes: File,
   ): Promise<AttachOutcome> {
-    if (bytes.size > DOCUMENT_MAX_SIZE_BYTES) {
-      return {
-        ok: false,
-        message: documentErrorMessage("file_too_large"),
-        recoverable: true,
-      };
-    }
-    if (bytes.type && !DOCUMENT_ACCEPTED_MIME_TYPES.includes(bytes.type)) {
-      return {
-        ok: false,
-        message: documentErrorMessage("file_type_not_allowed"),
-        recoverable: true,
-      };
-    }
-
     setPhase("preparing");
     let reservation: {
       id: string;
@@ -532,6 +534,12 @@ export function CreateWizard({
     setBanner(null);
     setFieldErrors({});
 
+    const rejected = fileRejection(file);
+    if (rejected) {
+      failInline({ fieldErrors: { file: rejected } });
+      return;
+    }
+
     const step1 = await ensureVersion();
     if (!step1.ok) {
       if (step1.landOn) landOnDetail(step1.landOn, "incompleto");
@@ -569,6 +577,14 @@ export function CreateWizard({
     if (isPending) return;
     setBanner(null);
     setFieldErrors({});
+
+    if (file) {
+      const rejected = fileRejection(file);
+      if (rejected) {
+        failInline({ fieldErrors: { file: rejected } });
+        return;
+      }
+    }
 
     const step1 = await ensureVersion();
     if (!step1.ok) {

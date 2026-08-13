@@ -65,8 +65,17 @@ export function formatVersionNumber(n: number | null | undefined): string {
  * mean opposite things to the person deciding whether to upload something, so
  * the unbound case is split out on `coreDocumentVersionId` first.
  *
- * Wording is deliberately borrowed from Wave A's `AVAILABILITY_PRESENTATION`
- * rather than reinvented: the same state must not have two names in one product.
+ * ⚠ Wording tracks Wave A's `AVAILABILITY_PRESENTATION` everywhere EXCEPT
+ * `pending`, and that one divergence is deliberate. Wave A says "Processando
+ * envio", which is safe there because a Wave-A version only ever exists as the
+ * product of an upload. Wave B can reach `pending` three ways: an upload in
+ * flight, a reserved-but-abandoned one, and — the case that forced this — a
+ * version BACKFILLED by DM3 M3, which is bound to a core version that is
+ * fileless by design and for which no upload is happening or ever happened.
+ * Verified on the local stack: both seeded controlled documents render this
+ * branch. "Processando envio" would tell a coordinator to wait for something
+ * that is never going to arrive, so Wave B says "Aguardando arquivo", which is
+ * true in all three cases and promises nothing.
  */
 export function versionFileLabel(version: {
   coreDocumentVersionId: string | null;
@@ -77,7 +86,7 @@ export function versionFileLabel(version: {
     case "available":
       return "Anexado";
     case "pending":
-      return "Processando envio";
+      return "Aguardando arquivo";
     case "failed":
       return "Falha no envio";
     case "unavailable":

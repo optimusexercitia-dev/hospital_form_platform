@@ -267,7 +267,7 @@ export default async function DocumentDetailPage({
             <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
               {workingDraft.coreDocumentVersionId == null
                 ? "Envie o arquivo da versão para poder enviá-la para aprovação."
-                : `Arquivo em processamento (${versionFileLabel(workingDraft).toLowerCase()}). A versão poderá ser enviada para aprovação assim que o arquivo estiver disponível.`}
+                : `${versionFileLabel(workingDraft)}. A versão poderá ser enviada para aprovação quando o arquivo estiver disponível.`}
             </p>
           )}
         </>
