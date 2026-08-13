@@ -24,7 +24,19 @@ if (!SUPABASE_SERVICE_KEY) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local.')
 }
 
-export type DocumentHomeResourceType = 'case' | 'meeting' | 'interview' | 'action_item'
+/**
+ * DM3 Wave B added `controlled_document` to the admitted home set
+ * (`securable_resources_type_check` + `..._tenant_shape`, migration M1), so a
+ * controlled document's bytes ride the SAME begin/PUT/finalize/open corridor as
+ * every Wave-A home. Kept in sync with `DocumentHomeResourceType` in
+ * `src/lib/documents/types.ts` — this is the E2E mirror, not the source.
+ */
+export type DocumentHomeResourceType =
+  | 'case'
+  | 'meeting'
+  | 'interview'
+  | 'action_item'
+  | 'controlled_document'
 
 export interface BeginUploadResult {
   upload_session_id: string

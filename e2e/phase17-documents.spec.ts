@@ -21,6 +21,9 @@ import {
   continuarButton,
   enviarButton,
   salvarRascunhoButton,
+  coreFileOfVersion,
+  waitForVersionFile,
+  versionHasFile,
 } from './helpers/documents'
 
 /**
@@ -173,7 +176,11 @@ test('AC-1: full lifecycle — create wizard submits with two approvers, both e-
   await page.reload()
   await expect(page.getByText('Vigente', { exact: true }).first()).toBeVisible()
   const versionsSection = page.locator('section').filter({ hasText: 'Versões' })
-  await expect(versionsSection.getByRole('link', { name: /baixar/i }).first()).toBeVisible()
+  // DM3: the download moved from a render-time signed `<a href>` to an on-click,
+  // audited BUTTON backed by `open_document_version`. Role changed, property did
+  // not. ⚠ An affordance assertion only — the authorization claim is made at the
+  // door in `dm3-wave-b-documents.spec.ts` (DM3B-4), never here.
+  await expect(versionsSection.getByRole('button', { name: /baixar/i }).first()).toBeVisible()
 })
 
 // ===========================================================================
@@ -328,9 +335,10 @@ test('AC-5: inline supersede retires the prior version to obsolete/superseded (r
   await expect(fileForm).toBeVisible({ timeout: 15_000 })
   await fileForm.locator('input[type="file"]').setInputFiles(pdfPayload)
   await fileForm.getByRole('button', { name: /enviar arquivo/i }).click()
-  await expect
-    .poll(async () => (await serviceQuery<{ storage_path: string | null }>(page, `controlled_document_versions?id=eq.${v2.id}&select=storage_path`))[0]?.storage_path ?? null, { timeout: 15_000, message: 'v2 file uploaded' })
-    .not.toBeNull()
+  // DM3: the upload is client-orchestrated and async (begin → PUT → finalize),
+  // and the file now lives on the CORE model — the domain `storage_path` column
+  // was dropped by M4. Wait on the end state, not on the form submission.
+  const v2File = await waitForVersionFile(page, v2.id)
   await page.reload()
   const submitForm = page.locator('form').filter({ hasText: 'Enviar para aprovação' })
   await pickApprover(submitForm, 'Enfermeiro CCIH Um')
@@ -351,22 +359,32 @@ test('AC-5: inline supersede retires the prior version to obsolete/superseded (r
   await page.goto(commissionDocHref(docId))
   await publishViaDialog(page)
 
-  // DB-truth: v2 effective; v1 retired to obsolete/superseded but RETAINED with its storage_path.
+  // DB-truth: v2 effective; v1 retired to obsolete/superseded but RETAINED with
+  // its file. "Retained" now means the CORE binding survives (the domain
+  // `storage_path` column is gone) — same property, new substrate.
   await expect
     .poll(async () => {
-      const rows = await serviceQuery<{ id: string; status: string; obsolete_kind: string | null; storage_path: string | null }>(
+      const rows = await serviceQuery<{ id: string; status: string; obsolete_kind: string | null }>(
         page,
-        `controlled_document_versions?document_id=eq.${docId}&select=id,status,obsolete_kind,storage_path&order=version_number`,
+        `controlled_document_versions?document_id=eq.${docId}&select=id,status,obsolete_kind&order=version_number`,
       )
       const v1row = rows.find((r) => r.id === v1.id)
       const v2row = rows.find((r) => r.id === v2.id)
-      return `${v1row?.status}/${v1row?.obsolete_kind}/${v2row?.status}/${v1row?.storage_path ? 'kept' : 'gone'}`
+      const kept = (await versionHasFile(page, v1.id)) ? 'kept' : 'gone'
+      return `${v1row?.status}/${v1row?.obsolete_kind}/${v2row?.status}/${kept}`
     }, { timeout: 15_000, message: 'v1 obsolete+superseded+retained, v2 effective' })
     .toBe('obsolete/superseded/effective/kept')
 
+  // …and v1's file is a DIFFERENT object from v2's — a retired version keeps its
+  // own bytes rather than pointing at the successor's (Rule 6).
+  const v1File = await coreFileOfVersion(page, v1.id)
+  expect(v1File, 'v1 retains its own core file binding').not.toBeNull()
+  expect(v1File!.fileObjectId, 'v1 and v2 hold distinct file objects').not.toBe(v2File.fileObjectId)
+
   await page.reload()
   const versionsSection = page.locator('section').filter({ hasText: 'Versões' })
-  await expect(versionsSection.getByRole('link', { name: /baixar/i })).toHaveCount(2)
+  // DM3: anchors → audited buttons (see AC-1). Affordance-only assertion.
+  await expect(versionsSection.getByRole('button', { name: /baixar/i })).toHaveCount(2)
 })
 
 // ===========================================================================
@@ -460,9 +478,24 @@ test('AC-6b: an overdue published form joins the review-due list (form arm)', as
 
 // ===========================================================================
 // AC-7: Immutable storage (Rule 6) — each version upload lands at a NEW path.
+//
+// DM3 moved the SUBSTRATE, not the property. `controlled_document_versions
+// .storage_path` was dropped (M4); the path now lives on `file_objects`, is
+// minted per upload by `begin_document_upload`, and is protected by
+// `file_objects_bucket_path_uniq UNIQUE (storage_bucket, storage_path)` — so a
+// collision is IMPOSSIBLE rather than merely unobserved.
+//
+// ⚠ That makes this assertion green by construction, which is not proof. The
+// deliberate-reuse counter-test that requires a 23505 lives in
+// `dm3-wave-b-documents.spec.ts` (DM3B-8); this one keeps the lifecycle-level
+// observation.
 // ===========================================================================
 
 test('AC-7: each version upload lands at a NEW storage path (Rule 6)', async ({ page }) => {
+  // DM3 made the upload a three-leg CLIENT chain (begin → signed PUT → finalize,
+  // the last of which downloads the object server-side to hash it). A full
+  // build-publish-supersede-reupload no longer fits the 30 s default.
+  test.setTimeout(90_000)
   const title = `Doc Paths ${Date.now()}`
   await signInAs(page, 'chefe.ccih@test.local')
   const docId = await buildPublishedDoc(page, title)
@@ -484,22 +517,18 @@ test('AC-7: each version upload lands at a NEW storage path (Rule 6)', async ({ 
   await fileForm.locator('input[type="file"]').setInputFiles(pdfPayload)
   await fileForm.getByRole('button', { name: /enviar arquivo/i }).click()
 
-  await expect
-    .poll(async () => {
-      const rows = await serviceQuery<{ storage_path: string | null }>(
-        page,
-        `controlled_document_versions?document_id=eq.${docId}&select=storage_path,version_number&order=version_number`,
-      )
-      return rows.length === 2 && rows.every((r) => r.storage_path)
-    }, { timeout: 15_000 })
-    .toBeTruthy()
-
-  const paths = await serviceQuery<{ storage_path: string }>(
+  const versions = await serviceQuery<{ id: string; version_number: number }>(
     page,
-    `controlled_document_versions?document_id=eq.${docId}&select=storage_path&order=version_number`,
+    `controlled_document_versions?document_id=eq.${docId}&select=id,version_number&order=version_number`,
   )
-  expect(paths.length).toBe(2)
-  expect(paths[0].storage_path, 'v1 and v2 have distinct immutable paths').not.toBe(paths[1].storage_path)
+  expect(versions.length, 'two versions exist').toBe(2)
+
+  const v2Upload = await waitForVersionFile(page, versions[1].id)
+  const v1Upload = await coreFileOfVersion(page, versions[0].id)
+  expect(v1Upload, 'v1 kept its own file after the supersede').not.toBeNull()
+
+  expect(v1Upload!.storagePath, 'v1 and v2 have distinct immutable paths').not.toBe(v2Upload.storagePath)
+  expect(v1Upload!.fileObjectId, 'and distinct file objects — nothing was rebound').not.toBe(v2Upload.fileObjectId)
 })
 
 // ===========================================================================
@@ -563,10 +592,10 @@ test('AC-9: a foreign-hospital user cannot be named approver (pt-BR error)', asy
   await salvarRascunhoButton(page).click()
   await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=rascunho$/, { timeout: 20_000 })
   const docId = page.url().split('/').pop()!.split('?')[0]
-  await expect
-    .poll(async () => (await serviceQuery<{ storage_path: string | null }>(page, `controlled_document_versions?document_id=eq.${docId}&select=storage_path`))[0]?.storage_path ?? null, { timeout: 15_000 })
-    .not.toBeNull()
   const versionId = (await serviceQuery<{ id: string }>(page, `controlled_document_versions?document_id=eq.${docId}&select=id`))[0].id
+  // DM3: the file lands on the core model; wait for the verified binding rather
+  // than for the dropped domain `storage_path`.
+  await waitForVersionFile(page, versionId)
 
   const foreignId = (await serviceQuery<{ id: string }>(page, `profiles?full_name=eq.Analista%20Qualidade%20B&select=id`))[0]?.id
   expect(foreignId, 'a foreign-hospital user exists in seed').toBeTruthy()
@@ -698,6 +727,7 @@ test('AC-12: OFF → the controlled-documents RPCs reject (flag gate); ON → th
 // ===========================================================================
 
 test('AC-13: keyboard-only — coordinator opens a doc; outside approver signs via keyboard', async ({ page }) => {
+  test.setTimeout(120_000)
   const doc0002 = await docIdByCode(page, 'DOC-0002')
 
   await signInAs(page, 'chefe.ccih@test.local')
@@ -706,12 +736,20 @@ test('AC-13: keyboard-only — coordinator opens a doc; outside approver signs v
 
   const doc0002Row = page.getByRole('link').filter({ hasText: 'DOC-0002' })
   await expect(doc0002Row).toBeVisible({ timeout: 15_000 })
-  await focusByTabbing(page, async () => {
-    return page.evaluate((id) => {
-      const el = document.activeElement as HTMLAnchorElement | null
-      return el?.tagName === 'A' && (el.getAttribute('href') ?? '').endsWith(`/documentos/${id}`)
-    }, doc0002)
-  })
+  // ⚠ The tab budget is a function of REGISTER SIZE, and the register grows with
+  // every E2E run that creates a document (56 rows observed on a stack that had
+  // run this suite a few times; the seed ships 2). The old 60-press budget was
+  // sized against a near-fresh DB and silently becomes a false red as data
+  // accumulates — it is not an accessibility signal when it trips that way.
+  await focusByTabbing(
+    page,
+    async () =>
+      page.evaluate((id) => {
+        const el = document.activeElement as HTMLAnchorElement | null
+        return el?.tagName === 'A' && (el.getAttribute('href') ?? '').endsWith(`/documentos/${id}`)
+      }, doc0002),
+    240,
+  )
   await page.keyboard.press('Enter')
   await page.waitForURL(new RegExp(`/documentos/${doc0002}$`), { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /POP de Isolamento/i })).toBeVisible()
