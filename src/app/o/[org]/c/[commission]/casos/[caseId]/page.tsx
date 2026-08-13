@@ -224,7 +224,6 @@ export default async function StaffCaseDetailPage({
       org={org} slug={slug}
       detail={detail}
       members={members}
-      documents={documents}
       events={events}
       tags={tags}
       caseTags={caseTags}

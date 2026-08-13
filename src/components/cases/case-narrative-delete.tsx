@@ -6,8 +6,8 @@ import { ConfirmDeleteButton } from "./confirm-delete-button";
 /**
  * Remove an AD-HOC case narrative. Thin client wrapper that binds
  * {@link deleteAdHocNarrative} to a narrative id, mirroring
- * {@link CaseDocumentDelete} / {@link CasePhaseDelete} so the destructive copy
- * for each entity lives next to its affordance rather than inline in a renderer.
+ * {@link CasePhaseDelete} so the destructive copy for each entity lives next to
+ * its affordance rather than inline in a renderer.
  *
  * ONLY ad-hoc ("adicional") narratives are deletable; template-derived narrative
  * slots belong to the case type and the caller renders no affordance for them
