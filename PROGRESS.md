@@ -112,7 +112,7 @@ which a formerly gated document would silently become readable by every ordinary
 |---|-------|-------|--------|-----------|
 | S1 | **D15 confidentiality ceiling** — nullable label column on `documents` + kernel arm in `app.can_read_document`; restores pgTAP `228` t36–40 | backend | ✅ **done 2026-08-13** — migrations `20260924000100`+`…000200` (AMEND 1 two-step, behavioral reds observed on the real pre-arm catalog: 228 t36/t38 + 328 K14d1–d4 all `have: 1, want: 0`); seam guard **HC0D6** (HC0D5 taken by `revoke_printed_document`) + fail-closed kernel backstop; `228` 131/131 + `328` 109/109 (K14, 21 asserts); twins A+B rollback-verified; full pgTAP **188f/5952 PASS** fresh; 4 arms HOLD; diff-scoped sweep `can_read_document` 1 case COVERED/0 BLIND/0 ERROR; gen:types +3; **AMEND 3 = PARITY** (finding DM2-F1); open-door pins → S2 (S1-O1) · [record](docs/progress/dm2-orchestration-wave-a.md) · ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) | — |
 | S2 | Command layer + `src/lib/documents/` + reconciliation script. **Head task: the Phase-17 rename** (plan amendment 2026-08-13) | backend | 🟢 **built 2026-08-13 except S2.8** — rename ✅ · contract (+10 amendments) ✅ · migrations `20260924000300`+`…000400` ✅ (FINDING 1a removal; dispose arm = FUP-DM1-DISPOSE ✅; S1-O1 ✅; MINOR-2 ✅) · keystones 329 66/66 · 228 135/135 · 328 109/109 · 191 27/27 · full pgTAP **189f/6023 PASS** fresh · 4 arms HOLD (census zero-delta, doors registered as findings note) · 5 per-state twins · TS layer + reconcile script ✅ · O4 measured (sign 10 ms; file-chain ~3.7 ms/row watch item) · ADR [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) · **S2.8 ✅ built 2026-08-13** (lead-approved; 3 conditions discharged; `20260924000500`; 329 92/92; suite **189f/6049 PASS** fresh; census required-FAIL captured→HOLDS 549/569; O4 + list-perf PO-ruled — [record](docs/progress/dm2-orchestration-wave-a.md) §S2.8) — **S2 CLOSED** | S1 ✅ |
-| S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🟢 building 2026-08-13 — plan acked; shared `src/components/documents/` module (3 homes, one byte-corridor client). **Contract-first paid: 10 gaps found in the S2 stubs before either side hardened**, 3 of them visible F2 regressions (`kind` unsettable so the badge ships dead · `occurredAt` dropped · `underLegalHold` absent from the list, so per-row delete would offer an action HC0D3 refuses) — all routed to `backend`. Upload island blocked on contract item 5 (the PUT transport); everything else unblocked | S2 contracts ✅ `92d7e8a` |
+| S3 | Wave A UI — case / meeting / interview panels re-pointed; upload states in pt-BR; D12 dialog copy | frontend | 🟢 building 2026-08-13 — plan acked; shared `src/components/documents/` module (3 homes, one byte-corridor client). **Contract-first paid: 10 gaps found in the S2 stubs before either side hardened**, 3 of them visible F2 regressions (`kind` unsettable so the badge ships dead · `occurredAt` dropped · `underLegalHold` absent from the list, so per-row delete would offer an action HC0D3 refuses) — all routed to `backend`. Upload island unblocked once item 5 (PUT transport) was specified. **Gates green** (5-gate lint 0/0 · typecheck exit 0 via `PIPESTATUS` · vitest 1254 · real `next build` exit 0). **Lead-run browser verification 2026-08-13** — see the block below | S2 contracts ✅ `92d7e8a` |
 | S4 | E2E — rewrite the 6 parked specs (FUP-DM1-E2E) incl. the M8 bytes-cut contract + a keyboard-only flow; mutation list | tester | 🔜 queued | S3 |
 | S5 | QA review + full §6 gate + flag choreography | qa / lead | 🔜 queued | S4 |
 
@@ -121,6 +121,41 @@ FUP-DM1-CEILING/D15 (= S1) · FUP-DM1-E2E (= S4) · FUP-DM1-DISPOSE (S2, before 
 QA MINOR-2 (`open_document_version` must gate **before** recording — the registry inherits an
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
+
+**✅ S3 BROWSER VERIFICATION — lead-run 2026-08-13** (the agent stalled twice on a **denied**
+`preview_start`; PO approved it, and the lead ran it rather than risk a third stall — full stall
+mechanics in the S3 record). Dev preview on **:57449** (3000 held a stale bind). Method that made
+this worth doing: **the agent wrote its per-affordance flag-OFF prediction down BEFORE any
+observation**, so the run could falsify it. It held everywhere except the two items the agent had
+itself flagged as *unverified deviations* — a prediction that survives contact is evidence; one
+written afterwards is not.
+
+- **Flag OFF (ship state), all three homes:** heading renders · read-only empty copy · upload
+  trigger **absent, not disabled** · open + delete absent · **console clean**. Interview links
+  behaved per the lead ruling (count shown, existing row still readable, "Adicionar" absent).
+- **Flag ON:** trigger appears · empty copy switches to the writable variant · **console clean —
+  no RSC server-fn-as-prop crash** (BUG-QI-001 class), only HMR + benign font-preload warnings.
+- **🔒 The D15 ceiling's UI half is CORRECT END-TO-END** — the highest-value check of the set. On a
+  **case** home all 7 levels are offered; on a **meeting** home `legal_privileged` +
+  `credentialing_sensitive` are **absent from the option list** while all 5 non-enforcing levels
+  remain. It narrows exactly where HC0D6 refuses and **nowhere else** (no over-narrowing).
+- **D12 copy renders verbatim** on case + meeting, incl. the Título help that carries the actual
+  reason ("visíveis para toda a comissão, inclusive para quem não pode abrir o arquivo").
+- **The kind-slug drift fix is live:** case emits `other|Outro`, meeting emits `outro|Outro` — the
+  deliberate quirk preserved, slug from the contract, wording from the UI.
+- **A document ROW was rendered for the first time** (lead planted a temporary row, since nothing
+  had verified one; removed after, 0 rows and flags restored to OFF). It proved the **kind badge is
+  live, not dead** — the exact regression contract-first caught at stub time.
+- Two defects found + fixed in-phase: the interview heading promised "gravações" a panel no longer
+  contained; and the count badge was missing (then rendered `0` where every sibling hides at zero).
+- **INFO for QA (not a defect):** with `latestVersion` null a row asserts both "Sem arquivo" and
+  "o arquivo contém dados de paciente". `containsPhi` falls back to the home rule when no file
+  exists — the **correct fail-safe** (over-warn, never under-warn) — and the state is unreachable
+  via `begin_document_upload`. Fallback deliberately left alone.
+- **Recorded decision, so it is not later read as an oversight:** `DocumentsPanel` awaits its list
+  alongside the flag read in `Promise.all` rather than streaming under Suspense — needed for the
+  header count, consistent with every sibling section, ~1.6 ms/row against a 45-object census.
+  Remedy if volume ever changes that: a `cache()`-wrapped query sharing one round trip.
 
 **⚠ METHOD FINDING — the census caught the AUTHOR'S OWN domain misprediction (2026-08-13, S2.8).**
 Worth carrying past this program. Backend's S2.7 findings note *predicted* that SETOF doors stay
