@@ -34,17 +34,28 @@ import { formatDate } from "./format";
  *    5-member union). Each member gets its own badge, its own explanatory
  *    sentence, and its own affordance set. `failed` and `disposed` are pulled as
  *    far apart as the design system allows.
- * 2. **`canOpen`** — whether the SERVER would serve this version to THIS caller
- *    (home access + the D15 ceiling + servable state). Server-computed, obeyed
- *    verbatim. This component never re-derives the ceiling, never inspects the
- *    confidentiality level to decide access, and never guesses: a label is a
- *    thing to display, `canOpen` is the thing to obey.
+ * 2. **`canOpen`** — whether the SERVER would serve this version to THIS caller.
+ *    Server-computed, obeyed verbatim. This component never re-derives access,
+ *    never inspects the confidentiality level to decide it, and never guesses:
+ *    a label is a thing to display, `canOpen` is the thing to obey.
  *
- * The interesting cell is `available && !canOpen` — the D15 ceiling denying an
- * ordinary case reader. It renders a NON-INTERACTIVE "Restrito" badge and no
- * download control whatsoever (not a disabled one), which is precisely what
- * makes the ceiling observable from the keyboard: there is nothing there to tab
- * onto. E2E AC-9 asserts exactly that.
+ * ## There is no "visible but restricted" row — denial is ABSENCE (BUG-DM2-002)
+ *
+ * An earlier version of this file rendered a "Restrito" badge for
+ * `available && !canOpen`, described as the D15 ceiling denying an ordinary
+ * reader. **That cell is unreachable and the description was wrong.** The
+ * ceiling lives in `app.can_read_document`, which is the predicate behind the
+ * `documents_select` RLS policy — so a document above the caller's clearance is
+ * absent from the result set entirely, not present-and-locked. Verified live:
+ * an uncleared reader gets zero rows, including the document's own creator.
+ * The enforcement is real and STRICTER than the UI assumed, and it matches
+ * ADR 0072's original contract, whose first pin was "absent-from-list".
+ *
+ * The branch is therefore gone rather than repaired. If it ever needs to come
+ * back, the trigger is **ADR 0114 D16**: Phase 19's access plane must cover
+ * narrowing AND widening, and a plane that makes documents visible-but-
+ * restricted is exactly what would make this affordance meaningful again.
+ * Until then, a row you can see is a row the server was willing to show you.
  */
 export function DocumentRow({
   document: doc,
@@ -72,16 +83,19 @@ export function DocumentRow({
   const availability = version?.availability ?? null;
   const kind = kindLabel(doc.kind);
 
-  // Which explanatory sentence, if any, sits under the title.
+  // Which explanatory sentence, if any, sits under the title. A servable row
+  // needs none — the enabled download control is the whole message.
   const detail =
     version == null
       ? DOCUMENT_NO_VERSION.detail
       : availability === "available"
-        ? version.canOpen
-          ? null
-          : DOCUMENT_RESTRICTED.detail
+        ? null
         : AVAILABILITY_PRESENTATION[availability!].detail;
 
+  // `canOpen` is still consulted rather than inferred from `availability`, even
+  // though the query currently defines it as exactly that. It is the server's
+  // answer, and obeying it is what keeps this component correct if the
+  // definition ever tightens (see the D16 note above).
   const showOpen =
     canDownload &&
     version != null &&
@@ -138,12 +152,9 @@ export function DocumentRow({
           )}
           {version == null ? (
             <DocumentNoVersionBadge />
-          ) : availability === "available" ? (
-            version.canOpen ? null : (
-              <DocumentRestrictedBadge />
-            )
           ) : (
-            <DocumentAvailabilityBadge availability={availability!} />
+            // Renders nothing for `available` — a servable row needs no badge.
+            <DocumentAvailabilityBadge availability={version.availability} />
           )}
         </div>
 

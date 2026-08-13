@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { cachedSignIn } from './helpers/auth'
+import { cachedSignIn, accessToken } from './helpers/auth'
+import { createDocumentFixture } from './helpers/document-model'
 
 /**
  * Quality-Office Oversight, Phase A (ADR 0100) — E2E for the `quality_reviewer`
@@ -398,6 +399,26 @@ test.describe('QO·A — oversight board', () => {
 test.describe('QO·A — case opens read-only (paired against a real coordinator)', () => {
   const CASE_URL = `${CCIH}/casos/${CASE_1}`
 
+  // M8 bytes-cut contract (DM2 obligation 2, restored against the core document
+  // model — FUP-DM1-E2E): the seeded PHI-tier "Prescrição digitalizada" fixture
+  // (a3300000-…-a1) was dropped with the attachments substrate (DM1/ADR 0114
+  // D5); DM2's `documents` table seeds zero rows, so this test creates its own
+  // case-homed document (real bytes, through the real begin→PUT→finalize→verify
+  // chain — see phase-f2-attachments.spec.ts for that contract in full) once per
+  // file, shared by BOTH the negative (quality.a) and positive (chefe.ccih)
+  // halves below.
+  let m8DocTitle: string
+
+  test.beforeAll(async ({ request }) => {
+    const chefeToken = await accessToken(request, 'chefe.ccih@test.local')
+    m8DocTitle = `M8 Prescrição digitalizada ${Date.now()}`
+    await createDocumentFixture(request, chefeToken, {
+      resourceType: 'case',
+      resourceId: CASE_1,
+      title: m8DocTitle,
+    })
+  })
+
   test('quality.a: content renders; every write affordance + the member sidebar are absent; documents panel has no download', async ({
     page,
   }) => {
@@ -465,17 +486,21 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     await expect(backLink).toHaveAttribute('href', QUALIDADE)
 
     // DOCUMENTS PANEL — renders (the heading always mounts regardless of
-    // document count). The M8 bytes-cut assertion below is PARKED —
-    // FUP-DM1-E2E: the seeded case-document fixture ("Prescrição
-    // digitalizada", a3300000-…a1) was dropped with the attachments
-    // substrate (DM1/ADR 0114 D5), so the panel now legitimately renders
-    // empty for EVERY viewer regardless of `canDownload` — the negative this
-    // once proved (oversight readers specifically lose the download control)
-    // is untestable without a live document. Discharge: DM2 reseeds a
-    // case-homed document fixture on the document model and restores it.
+    // document count). M8 bytes-cut contract, RESTORED against the core
+    // document model (DM2 obligation 2; FUP-DM1-E2E): the reviewer sees the
+    // document's TITLE (case metadata) but `canDownload={!isOversight}`
+    // (case-detail-view.tsx) suppresses the single audited byte corridor
+    // entirely — `OpenDocumentButton` never renders for her, not merely
+    // disabled (there is no second, unaudited path left to also remember to
+    // suppress under the document model).
     await expect(
       page.getByRole('heading', { name: 'Documentos' }),
     ).toBeVisible()
+    const docPanel = page.getByRole('region', { name: 'Documentos' })
+    await expect(docPanel.getByText(m8DocTitle)).toBeVisible({ timeout: 10_000 })
+    await expect(
+      docPanel.getByRole('button', { name: `Baixar ${m8DocTitle}` }),
+    ).toHaveCount(0)
 
     // INTERVIEWS + MEETINGS — OMITTED entirely (Q4), never an empty card. An
     // empty card reading "Nenhuma entrevista" would falsely assert "nothing
@@ -522,10 +547,19 @@ test.describe('QO·A — case opens read-only (paired against a real coordinator
     await expect(
       page.getByRole('button', { name: 'Nova entrevista' }),
     ).toBeVisible()
-    // PARKED — FUP-DM1-E2E: the paired positive control for the audited
-    // "Baixar Prescrição digitalizada" door (a3300000-…a1) is gone — the
-    // fixture was dropped with the attachments substrate (DM1/ADR 0114 D5).
-    // Discharge: DM2 reseeds a case-homed document and restores this check.
+    // The paired positive control for the audited download door, RESTORED
+    // against the core document model: chefe.ccih (canDownload=true, the
+    // non-oversight coordinator) sees the SAME document the negative half
+    // above denies quality.a, with a genuinely working download button.
+    const docPanel = page.getByRole('region', { name: 'Documentos' })
+    const downloadBtn = docPanel.getByRole('button', { name: `Baixar ${m8DocTitle}` })
+    await expect(downloadBtn).toBeVisible({ timeout: 10_000 })
+    const downloadPromise = page.context().waitForEvent('download', { timeout: 5_000 }).catch(() => null)
+    const [popup] = await Promise.all([page.waitForEvent('popup'), downloadBtn.click()])
+    const download = await downloadPromise
+    const openedUrl = download ? download.url() : popup.url()
+    expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
+    await popup.close().catch(() => {})
   })
 
   test('"Reabrir caso" pairing on a COMPLETED case (case 1 is pending, so testing it there would be vacuous for everyone)', async ({

@@ -1,5 +1,5 @@
-// `path`/`fs` were only used by the document-upload block PARKED below
-// (FUP-DM1-E2E, AC-Docs) — dropped to keep the import list live.
+// AC-Docs's restored upload block (DM2 Wave A) uses Playwright's inline
+// `setInputFiles({ name, mimeType, buffer })` — no `path`/`fs` needed.
 import { test, expect, type Page } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
 import { getPublishedTemplateVersion } from './helpers/process-templates'
@@ -337,7 +337,7 @@ test('AC-SubmitWhileFixedStatus: phase submit advances to concluida while case i
 // AC-Docs: coordinator uploads a document and downloads it; adds a free-text event
 // ---------------------------------------------------------------------------
 
-test('AC-Docs: adds a free-text event (upload/download half PARKED, FUP-DM1-E2E)', async ({
+test('AC-Docs: uploads and downloads a document (core document model, DM2 Wave A); adds a free-text event', async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -348,54 +348,46 @@ test('AC-Docs: adds a free-text event (upload/download half PARKED, FUP-DM1-E2E)
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
-  // ── Upload a document ── PARKED — FUP-DM1-E2E (docs/progress/follow-ups.md).
-  // CORRECTS the FUP's per-file framing ("the case-documents panel download
-  // assertion... parks with the panel dark"): the WHOLE upload flow parks,
-  // not just the download assertion — the "Anexar" TRIGGER button itself is
-  // gated by `canWriteNow = canWrite && attachmentsEnabled()`
-  // (`case-documents-panel.tsx`), and seed.sql now leaves that flag OFF by
-  // default (DM1/ADR 0114 D5, matching prod since 2026-08-11), so the button
-  // never renders and the click hangs to the test timeout. Confirmed by
-  // running before this park (120s timeout on the "Anexar" click). The
-  // "Documentos" heading itself still renders (see quality-oversight.spec.ts's
-  // parked block for that non-vacuous half); the free-text event assertions
-  // below are unrelated and stand. Discharge: DM2/Wave A restores this once
-  // the document model's case-upload UI ships (flag ON).
-  //   const docPanel = page.getByRole('region', { name: /Documentos/i })
-  //   await expect(docPanel).toBeVisible({ timeout: 10_000 })
-  //   await docPanel.getByRole('button', { name: /Anexar/i }).click()
-  //   const uploadDialog = page.getByRole('dialog').filter({ hasText: /Enviar documento/i })
-  //   await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
-  //   const tmpPdfPath = path.join(process.cwd(), 'e2e', '_tmp_test_doc.pdf')
-  //   fs.writeFileSync(tmpPdfPath, '%PDF-1.4 test pdf for e2e')
-  //   try {
-  //     const fileInput = uploadDialog.locator('input[type="file"]')
-  //     await fileInput.setInputFiles(tmpPdfPath)
-  //     await uploadDialog.locator('input[name="title"]').fill('Ata E2E de teste')
-  //     await uploadDialog.getByRole('button', { name: /Enviar documento/i }).click()
-  //     await expect(uploadDialog).toHaveCount(0, { timeout: 30_000 })
-  //     await expect(page.getByText(/Ata E2E de teste/i).first()).toBeVisible({ timeout: 15_000 })
-  //     // Phase F2 (ADR 0063): case documents default to the PHI tier, so the download
-  //     // control is the audited OpenAttachmentButton (a <button>, no inline href) — NOT
-  //     // a direct <a> link as before the centralized-attachments substrate swap. See
-  //     // e2e/phase-f2-attachments.spec.ts for the full audited-door + audit-row contract;
-  //     // here we only re-confirm the fold-in didn't regress the upload→list→open path.
-  //     const docRow = page.locator('li').filter({ hasText: 'Ata E2E de teste' })
-  //     await expect(docRow.locator('a')).toHaveCount(0)
-  //     const downloadButton = docRow.getByRole('button', { name: /Baixar Ata E2E de teste/i })
-  //     await expect(downloadButton).toBeVisible({ timeout: 10_000 })
-  //     // For a real `application/pdf` blob, headless Chromium treats the navigation as a
-  //     // native file DOWNLOAD rather than a page render — the popup's own `url()` never
-  //     // commits, but the context emits a `download` event carrying the real target URL.
-  //     const downloadPromise = page.context().waitForEvent('download', { timeout: 5_000 }).catch(() => null)
-  //     const [popup] = await Promise.all([page.waitForEvent('popup'), downloadButton.click()])
-  //     const download = await downloadPromise
-  //     const openedUrl = download ? download.url() : popup.url()
-  //     expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
-  //     await popup.close().catch(() => {})
-  //   } finally {
-  //     if (fs.existsSync(tmpPdfPath)) fs.unlinkSync(tmpPdfPath)
-  //   }
+  // ── Upload a document ── RESTORED against the core document model (DM2 Wave
+  // A; ADR 0114) — FUP-DM1-E2E. `attachments`/`OpenAttachmentButton` are gone;
+  // the case panel now homes on `documents`, and the audited door is
+  // `OpenDocumentButton` (`open_document_version`). See
+  // e2e/phase-f2-attachments.spec.ts for the full write-path (begin→PUT→
+  // finalize→verify), retry/expiry, and audit-row-exactness contract; this
+  // test only re-confirms the case panel's own upload→list→open path.
+  const docPanel = page.getByRole('region', { name: /Documentos/i })
+  await expect(docPanel).toBeVisible({ timeout: 10_000 })
+  await docPanel.getByRole('button', { name: 'Anexar documento' }).click()
+  const uploadDialog = page.getByRole('dialog').filter({ hasText: 'Enviar documento' })
+  await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
+
+  const docTitle = `Ata E2E de teste ${Date.now()}`
+  await uploadDialog.locator('input[type="file"]').setInputFiles({
+    name: 'ac-docs.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from(`%PDF-1.4 e2e fixture ${Date.now()}\n%%EOF\n`),
+  })
+  await uploadDialog.locator('input[name="title"]').fill(docTitle)
+  await uploadDialog.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await expect(uploadDialog).toHaveCount(0, { timeout: 30_000 })
+  await expect(page.getByText(docTitle).first()).toBeVisible({ timeout: 15_000 })
+
+  // Case documents default to the PHI tier (server-derived): the download
+  // control is the audited OpenDocumentButton (a <button>, no inline href) —
+  // there is no second, unaudited byte path in the document model at all.
+  const docRow = docPanel.locator('li').filter({ hasText: docTitle })
+  await expect(docRow.locator('a')).toHaveCount(0)
+  const downloadButton = docRow.getByRole('button', { name: `Baixar ${docTitle}` })
+  await expect(downloadButton).toBeVisible({ timeout: 10_000 })
+  // For a real `application/pdf` blob, headless Chromium treats the navigation as a
+  // native file DOWNLOAD rather than a page render — the popup's own `url()` never
+  // commits, but the context emits a `download` event carrying the real target URL.
+  const downloadPromise = page.context().waitForEvent('download', { timeout: 5_000 }).catch(() => null)
+  const [popup] = await Promise.all([page.waitForEvent('popup'), downloadButton.click()])
+  const download = await downloadPromise
+  const openedUrl = download ? download.url() : popup.url()
+  expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
+  await popup.close().catch(() => {})
 
   // ── Add a free-text event ──
   const eventsPanel = page.getByRole('region', { name: /Registros/i })

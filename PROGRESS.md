@@ -177,6 +177,12 @@ written afterwards is not.
   **case** home all 7 levels are offered; on a **meeting** home `legal_privileged` +
   `credentialing_sensitive` are **absent from the option list** while all 5 non-enforcing levels
   remain. It narrows exactly where HC0D6 refuses and **nowhere else** (no over-narrowing).
+  ⚠ **Scope of that claim, stated because the lead overstated it verbally and to `tester`:** what was
+  verified is the **write-side option list**. The **read-side** denial affordance was *inferred*, and
+  the inference was **wrong** — see BUG-DM2-002: denial is **row-absence**, so the "Restrito" badge is
+  unreachable. The lead confirmed what rendered and assumed what did not. *An affordance nobody has
+  seen render is a claim, not a fact* — the same trap `frontend`'s write-the-prediction-first habit
+  avoided in the other direction.
 - **D12 copy renders verbatim** on case + meeting, incl. the Título help that carries the actual
   reason ("visíveis para toda a comissão, inclusive para quem não pode abrir o arquivo").
 - **The kind-slug drift fix is live:** case emits `other|Outro`, meeting emits `outro|Outro` — the
@@ -376,6 +382,68 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+🟠 **BUG-DM2-001 — a verification FAILURE never binds `document_version_files`, so the row reads
+"Processando envio" (pending) forever instead of "Falha no envio" (failed).** Filed 2026-08-13
+(tester, DM2·S4 write-path testing). Severity: MAJOR (silent data-loss-adjacent UX — no path exists
+for the user to ever learn the upload failed, or to retry, once this branch is hit).
+**Repro:** `begin_document_upload` → PUT real bytes to Storage (succeeds) → `finalize_document_upload`
+(transitions `file_objects.upload_state` to `verifying`) → `complete_document_upload_verification`
+called with `p_verified: false` (the documented branch for "the service's own re-download of the
+just-uploaded object failed") → `file_objects.upload_state = 'failed'`, but **no**
+`document_version_files` row is ever inserted for that version (only the SUCCESS branch of
+`complete_document_upload_verification` inserts one). **Expected:** the row's availability reads
+`failed` (`AVAILABILITY_PRESENTATION.failed` — "Falha no envio... Remova este item e envie o arquivo
+novamente"), per `src/components/documents/document-labels.ts`. **Actual:** `versionAvailability`
+(`src/lib/queries/documents.ts`) finds no `document_version_files` binding for the version, so it
+falls through to `pending` regardless of the underlying `file_objects.upload_state` — the row is
+indistinguishable from a merely slow, still-in-flight upload, forever. **Violates:** the DM2 Wave-A
+5-state availability contract (task brief: "`failed` and `disposed` are deliberately distinct on
+four axes"); pinned RED via `test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-1`), which
+will flip to a hard failure the moment this is fixed. **Owner:** backend.
+
+🟡 **BUG-DM2-002 — the D15 ceiling's "Restrito" badge is unreachable dead code; `canOpen` can never
+be `false` on a rendered document row.** Filed 2026-08-13 (tester, DM2·S4 ceiling testing). Severity:
+MINOR/documentation (the underlying SECURITY property is intact and arguably stronger — see below —
+this is a dead-code / stale-doc-comment finding, not an access-control hole).
+**Repro/evidence:** `app.can_read_document` (read live from `pg_proc`) embeds the D15 ceiling as a
+ROW-level AND-conjunct — an uncleared reader gets **zero rows** for an enforcing-labeled document (the
+`documents_select`/`document_versions_select` RLS policies both gate on this same predicate), not a
+visible row with `canOpen: false`. Confirmed live via a real `begin_document_upload` + PostgREST
+probe: even the document's own creator/coordinator got `[]` back for her own just-created
+`legal_privileged` document on a case with no `case_access_grants` clearance row (the S1 "fail-closed
+— readable by NO ONE" backstop, working as designed). Separately, `DocumentVersionSummary.canOpen`
+(`src/lib/queries/documents.ts`) is defined purely as `availability === 'available'`, with **no**
+separate door call — so for any row that DOES pass RLS, `canOpen` is unconditionally `true`.
+**Expected** (per `src/components/documents/document-row.tsx`'s own doc comment): "The interesting
+cell is `available && !canOpen` — the D15 ceiling denying an ordinary case reader. It renders a
+NON-INTERACTIVE 'Restrito' badge... E2E AC-9 asserts exactly that." **Actual:** that branch cannot be
+reached by any caller today — the denial is 100% row-absence, never a visible Restrito badge.
+**Violates:** `document-row.tsx`'s own doc comment (a false claim about observable behavior) and the
+original DM2 task brief's framing of the AC-9 contract. Pinned RED via `test.fail()` in
+`e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-2`). **Restored `e2e/ethics-e1-access-spine.spec.ts`
+AC-4a/b/AC-9 assert the TRUE (row-absence) shape**, matching the pre-DM1 test's own historical
+behavior ("O2: hidden from the LIST") — not blocked on this bug. **Owner:** backend/frontend (either
+fix the comment to describe row-absence, or wire a genuine row-visible-but-ceiling-denied state if
+Phase 19's general access plane wants one later).
+
+🟡 **BUG-DM2-003 — `upload_sessions.state` never actually becomes `'expired'`; the UPDATE is rolled
+back by its own `RAISE EXCEPTION` in the same statement.** Filed 2026-08-13 (tester, DM2·S4 expiry
+testing). Severity: MINOR (the functional refusal is correct and unaffected — only the persisted
+`state` column is wrong).
+**Repro:** `finalize_document_upload`'s expiry branch: `update public.upload_sessions set state =
+'expired' where id = v_s.id; raise exception … using errcode = 'HC0DE';` — no `BEGIN/EXCEPTION`
+block, no autonomous transaction; a single PostgREST RPC call is one implicit transaction, so the
+`UPDATE` is unconditionally undone when the `RAISE` aborts it. **Expected:** `upload_sessions.state =
+'expired'` after an expired-reservation retry attempt (the CHECK-enumerated vocabulary includes
+`'expired'` as a distinct member; pinned by pgTAP `329` U12 per the DM2·S2 record). **Actual:** the
+row is left in `state = 'reserved'` forever (confirmed by a live E2E run before this was filed — the
+functional HC0DE refusal and the UI's "Feche e comece o envio novamente" message both fire correctly
+on EVERY subsequent retry attempt, since the check re-evaluates `expires_at < now()` rather than
+`state`, but the column itself never reflects reality). **Impact:** any future code that queries
+`upload_sessions.state = 'expired'` directly (an abandoned-upload cleanup sweep, an admin report)
+will find nothing, even though the refusal-by-timestamp behavior keeps working. Pinned RED via
+`test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-3`). **Owner:** backend.
+
 ✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
 succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
 Found 2026-08-12 by `qa` during the same review; PRE-EXISTING, did not block that batch.
@@ -516,6 +584,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-13 | **DM2·S4 · TESTER · quick-loop, chromium, `--workers=1`, fresh `supabase db reset`.** ⚠ **NOT `e2e:prod`** — only the 6 files this slice touched (new + restored specs), not the full ~92-file suite; the lead runs `e2e:prod` next. Wrote `e2e/phase-f2-attachments.spec.ts` (rewrite, PRIORITY 1 write-path: real browser upload/retry/expiry/audit-exactness) + `e2e/helpers/document-model.ts` (new); restored the parked FUP-DM1-E2E blocks in `e2e/ethics-e1-access-spine.spec.ts` (AC-4a-d/AC-9, the D15 ceiling), `e2e/quality-oversight.spec.ts` (M8 bytes-cut), `e2e/phase11-interviews.spec.ts` (IV2-4/IV2-11), `e2e/cases-extras.spec.ts` (AC-Docs); verified `e2e/meeting-audio-minutes.spec.ts` needs no change | **GREEN.** **77 collected, 76 passed, 1 skipped (pre-existing AC-6, unrelated), 0 unexpected failures.** 3 of the 76 "passed" are `test.fail()`-marked genuine bugs found and filed this run (BUG-DM2-001/2/3 above) — the suite reports them as passing because they fail exactly as documented; Playwright will flip them to hard failures the moment each is fixed. **PRIORITY 1 finding: the write path is NOT broken** — `begin_document_upload` → real browser file PUT to the signed Storage URL → `finalize_document_upload` → `complete_document_upload_verification` → `available`, real fetchable download, exact audit rows (`document.upload_started`/`document.uploaded`/`document.opened`, the D11 floor's same-creator-standard-tier-unlogged conditional confirmed live), all pass. The `upload_incomplete` retry (reuses the SAME `document_version`/`file_object`, proven via DB counts before/after) and the `upload_expired` drop (session cleared, "Tentar novamente" reverts to "Enviar") both pass functionally — only `upload_sessions.state`'s own persisted value is wrong (BUG-DM2-003). Ceiling (D15): confirmed LIVE via a direct RPC+RLS probe that denial is 100% row-absence (not a visible "Restrito" badge — BUG-DM2-002, filed, not blocking); AC-4a-d/AC-9 restored against that TRUE shape, matching the pre-DM1 test's own historical behavior. |
 | 2026-08-13 | **DM1 · LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — branch `docs/dm1-plan-amendments`; the whole-suite run for the attachments-substrate drop + inert document model | **GREEN (triaged).** **1073 passed · 1 failed · 3 flaky · 17 batches · 0 did-not-run**, every batch `accounted N/N`; of 1092 collected the 15 unaccounted are **exactly the 15 skips** (the FUP-DM1-E2E parks + 5 pre-existing). The sole failure (`case-narratives` AC-10) is a **proven `server_dead` INFRA flake below the classifier threshold**, not a regression — isolation **13/13** and an identical batch-2 re-run **68/68**, both `RETRIES=0`, and the re-run's own first attempt reproduced the mechanism (`server_dead=1`, 14 conn errors). pgTAP **188f/5927 PASS**; `ARM=census`/`hat`/`floor`/`wrapper` all HOLD. [detail](docs/progress/dm1-substrate-cutover.md) |
 | 2026-08-12 | **REFNOTE + ARM 5 · LEAD · FULL gate** (branch `authz-wrapper-refnote`, commits `297d3e2` + `f22ddab`). pgTAP + `e2e:prod` on a **fresh `supabase db reset`** | **GREEN.** `typecheck` **0 errors** (⚠ the lone `RouteContext` error in a fresh worktree is the absent `.next/types/routes.d.ts`, not a defect — it clears once `next build` runs; do not chase it) · vitest **1254/1254** · all **five** lint gates · pgTAP **5906 pass, 188 files** (+13 suite 326, +7 suite 327). **Authz: `ARM=census` HOLDS at 540 live gates** — up from 452, the +88 being the `public` INVOKER surface ARM 5 brought into the enumeration — **· `ARM=hat` HOLDS** (3 pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called, all allowlisted) **· the new `ARM=wrapper` HOLDS** (41 BLIND ⊆ allowlist). **No diff-scoped `ARM=policy` is owed**: the 23 rebuilt doors are `prosecdef` but **not** set-returning and **not** boolean, so they fall in no sweep's domain — verified against the three worklist queries, not assumed; no RLS policy and no boolean gate was touched. **`e2e:prod`: 1046 passed · 0 failed · 17 batches**, then **GATE RED (UNRUN)** — batch 4 (the four ethics specs) died `server_dead=1, conn_errors=5` **twice**, stranding 32 tests. ⚠ **Zero assertion failures anywhere in the run**; the gate is right to refuse green, because unrun ≠ passed. Batch 4 re-run standalone on a fresh server: **67 passed · 0 failed · 0 did-not-run · 68/68 accounted · GATE GREEN**, so every collected test now carries a result. ⚠ Method note: the background-task notice reported **"exit code 0"** for a run that exited **5** — `cmd > log; echo $?` makes the compound status `echo`'s. Read the printed code, never the notification |
 | 2026-08-12 | **REG·KIND · LEAD · gate step 1 ONLY.** ⚠ **NOT a tester pass and NOT `e2e:prod`** — no full-suite run was made, so this row is evidence for step 1 and for two targeted specs, nothing more. pgTAP on a **fresh `supabase db reset`**; E2E on a dev server, chromium, `--workers=1` | **Step 1 GREEN.** `typecheck` 0 errors · vitest **1254/1254** · eslint over `src`+`e2e` **0/0** + `lint:css-vars` · pgTAP **5857 pass, 183 files** (`322` re-planned 72→63 as §1 retired with the table; `298` 36→32 as GROUP G retired with its two policies). **Authz: `ARM=census` HOLDS** (452 live gates, all carry a verdict — the arm that catches a newcomer, and the two writers' signature change is what made it load-bearing here) **· `ARM=hat` HOLDS** (3 findings, all pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called doors, all allowlisted). **Diff-scoped door sweep** (`CASES="can_read/can_edit/can_manage_referral_internal_note referral_internal_notes_select"`) → 3 COVERED + 1 **pre-existing** `ERROR\|run-shape!=baseline` on `can_read_referral_internal_note`, verbatim the verdict it carried at HEAD — a harness class (§7.15), not a regression. The partial run TRUNCATED `docs/reviews/authz-door-audit-findings.md` (496 lines → 5); restored from HEAD, per lead-playbook §4. **E2E (targeted): `referral-registros` 16/16 · `cases-extras` 8/8.** New assertions pin the picker's **EXACT** six options on the case dialog AND on both referral sides (a subset assertion cannot catch the two surfaces drifting, which is the entire point of the change), the `note` default, the absence of the retired manage dialog **asserted for a coordinator** — the one viewer it was ever shown to, so its absence is attributable to removal and not to a permission gate — and a real `follow_up` round trip rendering "Acompanhamento". ⚠ Method note: browser-pane verification was ABANDONED, not skipped-silently — the pane was not compositing, so `getBoundingClientRect` returned zeros and programmatic clicks never reached React; Playwright against the dev server was used instead because it actually hydrates. ⚠ One self-inflicted red found and fixed in the loop: the new §2.6 default-kind probe inserted a note on `r1`, which pushed the concluded note past the index `4.18`'s open-before-concluded ordering contract asserts on — moved to `r2` rather than weakening the assertion |
