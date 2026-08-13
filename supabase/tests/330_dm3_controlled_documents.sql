@@ -38,7 +38,7 @@
 -- =============================================================================
 
 begin;
-select plan(14);
+select plan(22);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -233,6 +233,122 @@ select is(
                         '00000000-0000-0000-0000-000000000002'),
   true,
   'DM3·A4b POSITIVE CONTROL: a persona WITH ethics-case access does read it (A4 is not vacuous)');
+
+-- =============================================================================
+-- X / P — THE DOMAIN↔CORE SEAM AND ITS FREEZE (M3).
+--
+-- `controlled_document_versions.core_document_version_id` is the mutable
+-- DOMAIN-side pointer that lets a coordinator re-upload a draft's file without
+-- ever touching the append-only core binding (`document_version_files`), which
+-- D10 governs and DM1's immutability trigger enforces. Lead ruling Q3: the
+-- domain pointer is outside D10 — CONDITIONAL on the freeze below (R2).
+--
+-- ⚠⚠ WHY THE FREEZE NEEDS ITS OWN TRIGGER, AND WHY THAT TRIGGER MUST IGNORE THE
+-- GUC. `app.guard_controlled_document_status` already ends with:
+--     if old.status not in ('draft','changes_requested') and not v_in_rpc then
+--       raise ... 'versões publicadas/obsoletas são imutáveis' (HC089)
+-- where v_in_rpc := current_setting('app.in_controlled_docs_rpc') = 'on'. EVERY
+-- controlled-docs RPC sets that GUC, so that clause guards only direct table
+-- DML — and after M4 the RPC corridor is the ONLY writable path. A pointer
+-- guard written in that sibling's image would be VACUOUS BY CONSTRUCTION:
+-- green forever, guarding nothing, exactly where D10 exists to protect.
+-- So `app.guard_controlled_core_binding` deliberately does NOT read the GUC,
+-- and DM3·P3 makes that non-bypassability EXECUTABLE rather than a comment a
+-- future "restore consistency with the sibling" edit would delete.
+--
+-- Barrier codes are deliberately DISTINCT so a red can be attributed:
+--   HC089  — the DOOR's freeze re-check (mirrors set_document_version_file)
+--   HC0DB  — the TRIGGER's hard freeze (not bypassable by the corridor)
+-- =============================================================================
+
+-- Structural: the seam columns exist. RED pre-M3.
+select has_column('public', 'controlled_documents', 'core_document_id',
+  'DM3·X1a controlled_documents.core_document_id exists (one core document per controlled document)');
+select has_column('public', 'controlled_document_versions', 'core_document_version_id',
+  'DM3·X1b controlled_document_versions.core_document_version_id exists (the domain-side pointer)');
+
+-- X1 ⭐ — the reconciliation count identity (lead ruling Q2: backfill 1:1, so
+-- this stays a real assertion with no documented exception). RED pre-M3: 0 vs 3.
+select is(
+  (select count(*)::int
+     from public.document_versions dv
+     join public.documents d on d.id = dv.document_id
+     join public.securable_resources s on s.id = d.home_resource_id
+    where s.resource_type = 'controlled_document'),
+  (select count(*)::int from public.controlled_document_versions),
+  'DM3·X1 ⭐ one core document_version per controlled_document_version (1:1 backfill reconciled)');
+
+-- X1c — every domain version's pointer RESOLVES to a core version of that same
+-- document. Expressed as "rows that AGREE == rows that EXIST", never as
+-- "violations == 0" — the latter passes by ABSENCE (the DM3·R1c lesson).
+select is(
+  (select count(*)::int
+     from public.controlled_document_versions v
+     join public.document_versions dv on dv.id = v.core_document_version_id
+     join public.controlled_documents cd on cd.id = v.document_id
+    where dv.document_id = cd.core_document_id),
+  (select count(*)::int from public.controlled_document_versions),
+  'DM3·X1c every domain version''s pointer resolves to a core version of its OWN core document');
+
+-- Fixture: the seed has NO draft/changes_requested version (all three are
+-- effective/in_approval — catalog-checked), so the unfrozen positive control
+-- has to be created here. INSERT is not guarded by
+-- app.guard_controlled_document_status (BEFORE DELETE OR UPDATE only).
+insert into public.controlled_document_versions (id, document_id, version_number, status, created_by)
+values ('dc300000-0000-0000-0000-0000000000d1',
+        'c4c3f346-b18b-42bf-a754-968ecf264e58', 2, 'draft',
+        '00000000-0000-0000-0000-000000000002');
+
+-- P2b — POSITIVE CONTROL, and it must come FIRST. Without it, P2/P3 are
+-- satisfied by "the pointer can never move for anyone", which a broken column
+-- or a blanket-deny trigger would also satisfy.
+select lives_ok(
+  $$ update public.controlled_document_versions
+        set core_document_version_id = (
+              select dv.id from public.document_versions dv
+              join public.documents d on d.id = dv.document_id
+              join public.securable_resources s on s.id = d.home_resource_id
+              where s.resource_type = 'controlled_document'
+                and d.id = (select core_document_id from public.controlled_documents
+                             where id = 'c4c3f346-b18b-42bf-a754-968ecf264e58')
+              order by dv.version_number limit 1)
+      where id = 'dc300000-0000-0000-0000-0000000000d1' $$,
+  'DM3·P2b POSITIVE CONTROL: the pointer DOES move while the version is a draft (P2/P3 are not "nothing ever moves")');
+
+-- P2 ⭐ — the TRIGGER refuses a pointer move on a FROZEN version.
+-- RED pre-M3: the column does not exist, so this raises 42703, not HC0DB.
+select throws_ok(
+  $$ update public.controlled_document_versions
+        set core_document_version_id = gen_random_uuid()
+      where id = '18f68d3e-7804-4d01-a1ff-33e6bdd55218' $$,
+  'HC0DB', null,
+  'DM3·P2 ⭐ the core-binding trigger refuses a pointer move on an EFFECTIVE version');
+
+-- P3 ⭐⭐ — THE NON-BYPASSABILITY PIN. Impersonate the RPC corridor by setting
+-- the very GUC that disarms the sibling guard, and require the refusal to hold.
+-- If someone later "restores consistency" by making this trigger honour
+-- `app.in_controlled_docs_rpc`, THIS goes red instead of the freeze silently
+-- evaporating for every command in the corridor.
+set local app.in_controlled_docs_rpc = 'on';
+select throws_ok(
+  $$ update public.controlled_document_versions
+        set core_document_version_id = gen_random_uuid()
+      where id = '5e49cd45-307a-4216-8004-75d0354f8d63' $$,
+  'HC0DB', null,
+  'DM3·P3 ⭐⭐ the freeze holds even INSIDE the RPC corridor (app.in_controlled_docs_rpc = on) — the sibling guard''s bypass is deliberately not inherited');
+set local app.in_controlled_docs_rpc = 'off';
+
+-- P3b — PROOF THE IMPERSONATION IS REAL. If the GUC were not actually set, P3
+-- would pass for the trivial reason that it is just P2 again. This asserts the
+-- sibling guard genuinely IS disarmed by that GUC — i.e. the bypass P3 defeats
+-- is a real bypass, not a hypothetical one.
+set local app.in_controlled_docs_rpc = 'on';
+select lives_ok(
+  $$ update public.controlled_document_versions
+        set summary_of_changes_md = 'corridor probe'
+      where id = '18f68d3e-7804-4d01-a1ff-33e6bdd55218' $$,
+  'DM3·P3b PROOF OF IMPERSONATION: the SIBLING guard IS disarmed by the same GUC (a non-pointer update on a frozen version succeeds) — so P3 defeats a real bypass');
+set local app.in_controlled_docs_rpc = 'off';
 
 select * from finish();
 rollback;

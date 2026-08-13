@@ -3863,6 +3863,7 @@ export type Database = {
       controlled_document_versions: {
         Row: {
           approval_due_date: string | null
+          core_document_version_id: string | null
           created_at: string
           created_by: string | null
           document_id: string
@@ -3880,6 +3881,7 @@ export type Database = {
         }
         Insert: {
           approval_due_date?: string | null
+          core_document_version_id?: string | null
           created_at?: string
           created_by?: string | null
           document_id: string
@@ -3897,6 +3899,7 @@ export type Database = {
         }
         Update: {
           approval_due_date?: string | null
+          core_document_version_id?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string
@@ -3913,6 +3916,13 @@ export type Database = {
           version_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "controlled_document_versions_core_document_version_id_fkey"
+            columns: ["core_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "controlled_document_versions_created_by_fkey"
             columns: ["created_by"]
@@ -3934,6 +3944,7 @@ export type Database = {
           category: string | null
           code: string
           commission_id: string
+          core_document_id: string | null
           created_at: string
           created_by: string | null
           current_version_id: string | null
@@ -3951,6 +3962,7 @@ export type Database = {
           category?: string | null
           code: string
           commission_id: string
+          core_document_id?: string | null
           created_at?: string
           created_by?: string | null
           current_version_id?: string | null
@@ -3968,6 +3980,7 @@ export type Database = {
           category?: string | null
           code?: string
           commission_id?: string
+          core_document_id?: string | null
           created_at?: string
           created_by?: string | null
           current_version_id?: string | null
@@ -3987,6 +4000,13 @@ export type Database = {
             columns: ["commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "controlled_documents_core_document_id_fkey"
+            columns: ["core_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
           {
@@ -11818,6 +11838,7 @@ export type Database = {
           category: string | null
           code: string
           commission_id: string
+          core_document_id: string | null
           created_at: string
           created_by: string | null
           current_version_id: string | null
@@ -13103,6 +13124,7 @@ export type Database = {
           category: string | null
           code: string
           commission_id: string
+          core_document_id: string | null
           created_at: string
           created_by: string | null
           current_version_id: string | null
@@ -13402,6 +13424,7 @@ export type Database = {
         }
         Returns: {
           approval_due_date: string | null
+          core_document_version_id: string | null
           created_at: string
           created_by: string | null
           document_id: string
@@ -14545,6 +14568,7 @@ export type Database = {
         }
         Returns: {
           approval_due_date: string | null
+          core_document_version_id: string | null
           created_at: string
           created_by: string | null
           document_id: string
@@ -15113,6 +15137,7 @@ export type Database = {
         }
         Returns: {
           approval_due_date: string | null
+          core_document_version_id: string | null
           created_at: string
           created_by: string | null
           document_id: string
@@ -15208,6 +15233,7 @@ export type Database = {
         Args: { p_document_id: string }
         Returns: {
           approval_due_date: string | null
+          core_document_version_id: string | null
           created_at: string
           created_by: string | null
           document_id: string
@@ -15704,6 +15730,7 @@ export type Database = {
           category: string | null
           code: string
           commission_id: string
+          core_document_id: string | null
           created_at: string
           created_by: string | null
           current_version_id: string | null
