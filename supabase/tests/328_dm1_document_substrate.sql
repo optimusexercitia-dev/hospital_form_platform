@@ -27,7 +27,10 @@ begin;
 -- Amendment 1; column + seam guard + kernel arm), 21 assertions.
 -- 109 → 111: S4 spawn rewrites K9 as three pins (exist / waves-OFF /
 -- foundation+wave_a seed-forced ON).
-select plan(111);
+-- 111 → 124: MAJOR-1 / S1-O4 adds K15 (the INTERVIEW's own ceiling propagates
+-- to its documents — PO PROPAGATE ruling 2026-08-13; ADR 0117 Amendment 1),
+-- 13 assertions.
+select plan(124);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -949,6 +952,118 @@ select is((select count(*)::int from public.file_objects where id = '32800000-00
 select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d304'),
   1, 'K14f4 CLEARED: the interview document too (clearance resolved on case_of_interview)');
 reset role;
+
+-- =============================================================================
+-- K15 — the INTERVIEW's own ceiling propagates to its documents (QA r1 MAJOR-1
+-- / S1-O4; PO ruling 2026-08-13: PROPAGATE; ADR 0117 Amendment 1). The defect
+-- (lead-reproduced as a differential probe): can_read_interview(iv, member) =
+-- false while can_read_document(doc_homed_on_iv, member) = true — the
+-- interview ROW is hidden, its transcript is not, because the kernel's
+-- interview arm dispatched can_read_case_committee(case_of_interview(...)),
+-- skipping the level where case_interviews.confidentiality_level lives. The
+-- fix (20260924000800) dispatches the arm to app.can_read_interview — which IS
+-- the current arm's predicate AND the missing clearance conjunct
+-- (catalog-verified equivalence), so it cannot over-narrow: clearance_ok
+-- returns true for every non-enforcing label (K15t twins pin exactly that).
+-- Distinct from D15/K14: K14d4 gates on the DOCUMENT's own label; K15 gates on
+-- the INTERVIEW's, with the document deliberately label-NULL — one dimension
+-- per keystone family. Persona: staff2 (…004) — committee-read on Caso 0001,
+-- HOLDS read_case_deliberation (so the corridor red cannot be the QO·B byte
+-- cut — K15c3), holds NO clearance grant anywhere (verified pre-authoring;
+-- K14f granted staff1, never staff2).
+-- RED-FIRST record: K15k1–k4 + K15s1 observed RED against the real,
+-- unmutated pre-20260924000800 catalog (K15c1 green + K15k1 red = the
+-- MAJOR-1 differential rendered in TAP); output quoted in the phase record.
+-- =============================================================================
+
+-- Fixture writes attributed to chefe (audit triggers want an actor).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+
+-- A document homed on the SEEDED interview (f2…e1, Caso 0001) carrying NO
+-- label of its own — isolating the interview dimension — plus a version row
+-- so the byte corridor is probeable.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('32800000-0000-0000-0000-00000000d305',
+        'f2000000-0000-0000-0000-0000000000e1',
+        'Documento K15 (entrevista, sem rótulo próprio)',
+        '00000000-0000-0000-0000-000000000002');
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('32800000-0000-0000-0000-00000000e305', '32800000-0000-0000-0000-00000000d305',
+        1, '00000000-0000-0000-0000-000000000002');
+
+-- K15t — the NON-OVER-NARROWING TWINS, before the flip: with the seed's
+-- non-enforcing interview label, the uncleared member keeps reading. Green on
+-- BOTH sides by design — their red is "the fix denies where no ceiling
+-- enforces", the over-narrowing accident they exist to catch.
+select is((select confidentiality_level from public.case_interviews
+            where id = 'f2000000-0000-0000-0000-0000000000e1'),
+  'non_phi_internal',
+  'K15t0 fixture: the seeded interview carries the non-enforcing seed label (asserted, never assumed)');
+select ok(app.can_read_document('32800000-0000-0000-0000-00000000d305',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15t1 TWIN: a non-enforcing interview label leaves its documents readable (kernel)');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000004'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d305'),
+  1, 'K15t2 TWIN: …and under RLS');
+reset role;
+
+-- THE FLIP — one variable: the INTERVIEW's own label. The document stays
+-- label-NULL throughout.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+update public.case_interviews set confidentiality_level = 'legal_privileged'
+ where id = 'f2000000-0000-0000-0000-0000000000e1';
+
+-- K15c — fixture non-vacuity controls (green on both sides): the K15k denials
+-- below must be the ceiling and nothing else.
+select ok(not app.can_read_interview('f2000000-0000-0000-0000-0000000000e1',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15c1 control: the interview ROW is hidden from the uncleared member (the differential''s other arm)');
+select ok(app.can_read_case_committee('d0000000-0000-0000-0000-0000000000c1',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15c2 control: committee case-read is intact (the deny is not lost reach)');
+select ok(app.has_case_capability('d0000000-0000-0000-0000-0000000000c1',
+          '00000000-0000-0000-0000-000000000004', 'read_case_deliberation'),
+  'K15c3 control: the member holds deliberation (the corridor red cannot be the QO·B byte cut)');
+
+-- K15k — THE KEYSTONES. Red pre-20260924000800: the kernel served the
+-- document (k1: true, k2/k3: count 1, k4: HC0D8 past the kernel).
+select ok(not app.can_read_document('32800000-0000-0000-0000-00000000d305',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15k1 KEYSTONE: the interview''s ceiling gates its documents (kernel refuses the uncleared member)');
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000004'::uuid, false, 'staff');
+set local role authenticated;
+select is((select count(*)::int from public.documents where id = '32800000-0000-0000-0000-00000000d305'),
+  0, 'K15k2 KEYSTONE: …invisible under RLS');
+select is((select count(*)::int from public.document_versions where id = '32800000-0000-0000-0000-00000000e305'),
+  0, 'K15k3 KEYSTONE: …and its version (propagation through the kernel chain)');
+reset role;
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000004'::uuid, false, 'staff');
+select throws_ok(
+  $q$ select public.open_document_version('32800000-0000-0000-0000-00000000e305') $q$,
+  'P0002', 'versão de documento não encontrada',
+  'K15k4 KEYSTONE: the byte corridor refuses byte-identically to absence (the kernel arm, not the byte cut — K15c3)');
+
+-- K15g — clearance ADMITS (the conjunct narrows by clearance, not by class;
+-- green on both sides — its red is "the fix broke the clearance path").
+select test_helpers.grant_ca('d0000000-0000-0000-0000-0000000000c1'::uuid,
+  '00000000-0000-0000-0000-000000000004'::uuid, 'read',
+  '00000000-0000-0000-0000-000000000002'::uuid, null, 'legal_privileged');
+select ok(app.can_read_document('32800000-0000-0000-0000-00000000d305',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15g1 CLEARED: max_confidentiality = legal_privileged re-admits the interview document');
+select ok(app.can_read_interview('f2000000-0000-0000-0000-0000000000e1',
+          '00000000-0000-0000-0000-000000000004'),
+  'K15g2 CLEARED: …and the interview row itself — the two predicates agree in BOTH directions');
+
+-- K15s — resolve-shape: the interview arm dispatches app.can_read_interview
+-- (comment-stripped prosrc; red pre-fix).
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_document')
+    ~ 'can_read_interview',
+  'K15s1 the kernel''s interview arm routes app.can_read_interview (the level-skipping dispatch is gone)');
 
 select * from finish();
 rollback;
