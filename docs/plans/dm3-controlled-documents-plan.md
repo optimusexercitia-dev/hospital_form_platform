@@ -356,9 +356,17 @@ coverage.
 5. **The manifest.** The 3 object names go into the DM5 retirement manifest as
    quarantined-and-deleted-with-the-bucket, carried in `docs/backend-state.md` so
    DM5 does not rediscover them.
-6. **Production must be re-measured at build time**, by the lead or a session with
-   production read access, and the numbers recorded before the backfill runs. I could
-   not do this (no push/production access, and none is requested).
+6. **Production is NOT re-measured during DM3 — lead-ruled Q5, 2026-08-13.**
+   Every production figure in this plan is **PROVISIONAL and UN-RE-MEASURED**, sourced
+   from the 2026-08-11 audit record. Nothing is pushed; `main` stays at `f84c6b6`.
+   **Re-measurement becomes an explicit PRECONDITION of two things, and of nothing
+   before them:**
+   - **DM5's retirement manifest** — that is where buckets are actually deleted, and
+     the first moment a wrong count can destroy bytes;
+   - **any `supabase db push`** — the first moment the migration chain meets real data.
+
+   Until then the numbers are used only to size the work, never to authorize a
+   deletion. Any statement in §2 or §10 that rests on them carries this marking.
 
 **Backfill scope, consequently:** registry rows + core `documents` rows + core
 `document_versions` rows, and **no `file_objects` and no `upload_sessions`** — because
@@ -814,33 +822,92 @@ Every keystone below is **authored and observed RED before its implementing
 migration**, or carries a named mutation twin. Green-on-first-run is treated as a
 finding, not a pass.
 
+### Labelling — R1, and the collision is wider than the trio
+
+**R1 discharged by changing the whole scheme, not the three labels.** Enumerated from
+the suites: `328` uses **~104 `K`-prefixed labels** (`K1a`…`K16s`). My draft `330`
+labels collided with **eleven** of them, not three — `K1a`, `K1b`, `K2b`, `K3`, `K9`,
+`K10`, `K12a`, `K12b`, `K13`, `K14b`, `K16*` — each meaning something unrelated in
+each suite. Renumbering only K8a/K8b/K8c-POS would have left ten live collisions.
+
+`329` already abandoned `K`-numbering: it uses **section letters** (`S`/`F`/`U`/`O`/
+`D`/`H`/`C`/`W`/`R`/`A`/`B` + ordinal). `330` follows the newer sibling and adds the
+program tag the repo uses elsewhere (`QO·B`, `ETH·E1`, `DM2·S2`): every label is
+**`DM3·<Section><n>`** — globally greppable, collision-free against both `328`'s
+`K*` and `329`'s bare letters.
+
+Sections: **R** registry · **A** authorization arm · **C** ceiling · **T** tier/no-PHI ·
+**B** bucket & door retirement · **P** pointer freeze · **E** ethics seams ·
+**X** reconciliation & audit · **S** structural/ACL.
+
 | # | Pins | Proven able to fail |
 | --- | --- | --- |
-| **K1a** | `controlled_document` is an admitted `securable_resources.resource_type` with the full tenant triple | **Red-first vs. pre-M1**: the insert is refused by `securable_resources_type_check` |
-| **K1b** | …and by `securable_resources_tenant_shape` **independently** | Twin: restore only `type_check`, assert the insert still refuses — *two constraints, one behaviour* |
-| **K2** | ⭐ a commission member reads a controlled-document-homed `documents` row | **Red-first vs. M1-only** (`else false` denies everyone) |
-| **K2b** | POSITIVE control: that member genuinely holds membership; a foreign-commission member reads **zero** rows | Without it, K2's denial half is vacuous |
-| **K3** | ⭐ an approver who is **not** a commission member opens the version through `open_document_version` | Twin: drop the `is_document_approver_of` disjunct from the M2 arm → red. This is the arm the bucket-policy death would silently take |
-| **K4** | ⭐ **NEGATIVE TWIN** — an ethics-case-homed letter is **not** readable by an ordinary commission member without case access | Twin: **widen** the `case` branch with a membership arm → red (the failure mode is widening, so the twin widens) |
-| **K5** | the D15 ceiling still bites on the ethics letter: `legal_privileged` denied without `max_confidentiality`, served with it | Restores the coverage `228` t36–40 lost; twin: neutralize `confidentiality_clearance_ok`'s rank check → red |
-| **K6a** | the S1 seam guard refuses an enforcing label on a `controlled_document` home (`HC0D6`) | Red-first vs. pre-M1 (the type cannot exist) |
-| **K6b** | with the **guard neutralized**, the kernel's `v_case IS NULL` backstop still denies the read | Independent neutralization of the second barrier |
-| **K7** | `reclassify_document(cd, 'phi')` refuses | **Red-first vs. M2-without-M6** — it genuinely succeeds there |
-| **K7b** | `begin_document_upload` on a controlled-document home lands in `documents-standard` | Twin: force `p_resource_type` into the phi branch → red |
-| **K8a** | zero `storage.objects` policies reference `controlled-documents` (the `325` t1 shape) | **Red-first vs. pre-M5** (2 policies) |
-| **K8b** | `app.can_read_document_object` is absent from `pg_proc` | Red-first vs. pre-M5 |
-| **K8c-POS** | POSITIVE CONTROL: the same derivation still sees the live `case-documents` policy | Mirrors `325` t4 — *a detector that finds nothing must be proven able to find something* |
-| **K9** | ⭐ prior-version download: an authorized member opens version **N-1** of a superseded document and gets a payload | Twin: add a `current_version_id` check to the door → red |
-| **K10** | `set_document_version_file` absent from `pg_proc`; `controlled_document_versions.storage_path` absent from `pg_attribute` | Red-first vs. pre-M4 |
-| **K11** | ethics seams: both columns carry a real FK to `documents(id)` (asserted from `pg_constraint`), and `issue_ethics_notification` **accepts** a valid same-case document id | The K8c inverse; red-first vs. pre-M7 (the call raises `HC0DM`) |
-| **K12a** | cross-case link refused **by the trigger** when the RPC's own check is neutralized | Independent barrier 1 |
-| **K12b** | cross-case link refused **by the RPC** (distinct errcode) when the trigger is neutralized | Independent barrier 2 — *not one twin standing for both* |
-| **K13** | a coordinator without clearance cannot link a `legal_privileged` letter (`can_read_document` arm in the RPC) | Twin: drop the read check → red |
-| **K14** | every new/replaced door: `prosecdef = t`, `search_path` pinned, **PUBLIC revoked**, `authenticated` granted; and the six §1.8 helpers M5 touches are PUBLIC-revoked | Twin: a `DROP+CREATE` restores the Postgres default ACL → red (*guards that read right but fail open*) |
-| **K14b** | after the `set_ethics_decision_details` **DROP+CREATE**: PUBLIC has no EXECUTE and `authenticated` does — asserted from `pg_proc.proacl`, not from the migration text | Twin: omit the re-GRANT → red. *A rebuild restores the Postgres default ACL* |
-| **K15** | reconciliation: `count(controlled_document_versions) == count(document_versions` homed on a controlled document`)`, and every domain version's pointer resolves | Twin: delete one backfilled core version → red |
-| **K16** | the D11 audit split for a controlled-document download: non-creator → **exactly 1** `document.opened`; creator, standard tier → **0**; denial → **0** | Twin: widen the D11 condition to log same-user opens → the zero-arm goes red. Guards against both a missing row and a duplicate |
-| **K17** | `set_ethics_decision_details` accepts and PERSISTS `p_decision_letter_document_id` (round-trip through `get_ethics_case_procedure`) | Red-first vs. pre-M7: the parameter does not exist (`42883`) |
+| **DM3·R1** | `controlled_document` is an admitted `securable_resources.resource_type` with the full tenant triple | **Red-first vs. pre-M1**: refused by `securable_resources_type_check` |
+| **DM3·R2** | …and by `securable_resources_tenant_shape` **independently** | Twin: restore only `type_check`, assert the insert still refuses — *two constraints, one behaviour* |
+| **DM3·A1** | ⭐ a commission member reads a controlled-document-homed `documents` row | **Red-first vs. M1-only** (`else false` denies everyone) |
+| **DM3·A2** | POSITIVE control: that member genuinely holds membership; a foreign-commission member reads **zero** rows | Without it, A1's denial half is vacuous |
+| **DM3·A3** | ⭐ an approver who is **not** a commission member opens the version through `open_document_version` | Twin: drop the `is_document_approver_of` disjunct from the M2 arm → red. The arm the bucket-policy death would silently take |
+| **DM3·A4** | ⭐ **NEGATIVE TWIN** — an ethics-case-homed letter is **not** readable by an ordinary commission member without case access | Twin: **widen** the `case` branch with a membership arm → red (the failure mode is widening, so the twin widens) |
+| **DM3·C1** | the D15 ceiling still bites on the ethics letter: `legal_privileged` denied without `max_confidentiality`, served with it | Restores what `228` t36–40 lost; twin: neutralize `confidentiality_clearance_ok`'s rank check → red |
+| **DM3·C2** | the S1 seam guard refuses an enforcing label on a `controlled_document` home (`HC0D6`) | Red-first vs. pre-M1 (the type cannot exist) |
+| **DM3·C3** | with the **guard neutralized**, the kernel's `v_case IS NULL` backstop still denies the read | Independent neutralization of the second barrier |
+| **DM3·T1** | `reclassify_document(cd, 'phi')` refuses | **Red-first vs. M2-without-M6** — it genuinely succeeds there |
+| **DM3·T2** | `begin_document_upload` on a controlled-document home lands in `documents-standard` | Twin: force `p_resource_type` into the phi branch → red |
+| **DM3·B1** | zero `storage.objects` policies reference `controlled-documents` (the `325` t1 shape) | **Red-first vs. pre-M5** (2 policies) |
+| **DM3·B2** | `app.can_read_document_object` is absent from `pg_proc` | Red-first vs. pre-M5 |
+| **DM3·B3** | POSITIVE CONTROL: the same derivation still sees the live `case-documents` policy | Mirrors `325` t4 — *a detector that finds nothing must be proven able to find something* |
+| **DM3·B4** | ⭐ prior-version download: an authorized member opens version **N-1** of a superseded document and gets a payload | Twin: add a `current_version_id` check to the door → red |
+| **DM3·B5** | `set_document_version_file` absent from `pg_proc`; `controlled_document_versions.storage_path` absent from `pg_attribute` | Red-first vs. pre-M4 |
+| **DM3·P1** | ⭐ **R2** — once the domain version leaves `draft`/`changes_requested`, `core_document_version_id` cannot move: the **door** refuses (`HC089`) | Red-first vs. pre-M4; twin: remove the door's status check → red |
+| **DM3·P2** | ⭐ **R2** — …and with the door's check neutralized, the **trigger** refuses (distinct errcode) | Independent barrier — *not one twin standing for both* |
+| **DM3·P3** | ⭐⭐ **R2, the one that catches the vacuity** — the trigger still refuses **with `app.in_controlled_docs_rpc = 'on'`** | Twin: make the trigger honour the GUC (i.e. copy the sibling guard) → red. See the finding below |
+| **DM3·E1** | ethics seams: both columns carry a real FK to `documents(id)` (asserted from `pg_constraint`), and `issue_ethics_notification` **accepts** a valid same-case document id | The `328` K8c inverse; red-first vs. pre-M7 (`HC0DM`) |
+| **DM3·E2** | cross-case link refused **by the trigger** when the RPC's own check is neutralized | Independent barrier 1 |
+| **DM3·E3** | cross-case link refused **by the RPC** (distinct errcode) when the trigger is neutralized | Independent barrier 2 |
+| **DM3·E4** | a coordinator without clearance cannot link a `legal_privileged` letter | Twin: drop the `can_read_document` check → red |
+| **DM3·E5** | `set_ethics_decision_details` accepts and PERSISTS `p_decision_letter_document_id` (round-trip via `get_ethics_case_procedure`) | Red-first vs. pre-M7: the parameter does not exist (`42883`) |
+| **DM3·E6** | after that **DROP+CREATE**: PUBLIC has no EXECUTE, `authenticated` does — asserted from `pg_proc.proacl`, never from the migration text | Twin: omit the re-GRANT → red. *A rebuild restores the default ACL* |
+| **DM3·S1** | every new/replaced door: `prosecdef = t`, `search_path` pinned, **PUBLIC revoked**, `authenticated` granted; and the §1.8 helpers M5 touches are PUBLIC-revoked | Twin: a `DROP+CREATE` without re-GRANT → red |
+| **DM3·X1** | reconciliation count identity: `count(controlled_document_versions) == count(document_versions` homed on a controlled document`)`, and every pointer resolves | Twin: delete one backfilled core version → red |
+| **DM3·X2** | the D11 audit split for a controlled-document download: non-creator → **exactly 1** `document.opened`; creator, standard tier → **0**; denial → **0** | Twin: widen the D11 condition to log same-user opens → the zero-arm goes red. Catches a missing row *and* a duplicate |
+
+### ⚠ FINDING (R2) — the existing freeze guard is disarmed by the GUC every command sets
+
+R2 assumed the pointer freeze needed a pin. The catalog says it needs a **mechanism**
+first. `app.guard_controlled_document_status` (BEFORE DELETE OR UPDATE on
+`controlled_document_versions`) already ends with:
+
+```sql
+-- Non-status update: forbidden once the version is FROZEN … outside an RPC.
+if old.status not in ('draft', 'changes_requested') and not v_in_rpc then
+  raise exception 'versões publicadas/obsoletas são imutáveis' using errcode = 'HC089';
+end if;
+```
+where `v_in_rpc := coalesce(current_setting('app.in_controlled_docs_rpc', true),'off') = 'on'`.
+
+**Every controlled-docs RPC sets that GUC.** So the existing guard protects only
+against *direct table DML* — and after M4 the RPC corridor is the **only** writable
+path. A pointer-freeze trigger written in the sibling's image, consulting `v_in_rpc`,
+would be **vacuous by construction**: green forever, guarding nothing, in exactly the
+place D10 exists to protect.
+
+So R2 is implemented as **two independent barriers plus a non-bypassability pin**:
+
+1. **The door** (`attach_controlled_document_version_file`) re-checks
+   `status IN ('draft','changes_requested')` itself and raises `HC089` — mirroring
+   what `set_document_version_file` does today. → **DM3·P1**
+2. **The trigger** `app.guard_controlled_core_binding` guards the pointer column and
+   **deliberately does NOT read `app.in_controlled_docs_rpc`** — a hard freeze the RPC
+   corridor cannot bypass. → **DM3·P2**
+3. **DM3·P3 makes that non-bypassability executable rather than a comment.** It sets
+   the GUC to `'on'` — impersonating the corridor — and requires the refusal to hold.
+   A future author "restoring consistency" with the sibling guard turns P3 red instead
+   of silently disarming the freeze. *(A comment is an assertion that goes stale
+   silently; this repo has shipped a live bug that way.)*
+
+The freeze **is** expressible on the current substrate, so no stop-and-report is
+triggered — but only because the trigger declines the GUC bypass. Recorded because
+the natural implementation is the wrong one.
 
 ### ⚠ Finding: "remove keystone K8" names an object that no longer exists as one
 
@@ -859,9 +926,10 @@ removes line 44's precondition
 `'precondition: ethics flag is ON (K8c exercises an ethics writer)'` — while leaving
 lines 40/42 (the referral and RCA preconditions) intact.
 
-**Replacement coverage for K8c** is **K11** (the accept case), **K12a/K12b** (the
-refusals that replace the blanket one) and **K13**. The seam is not left unpinned;
-the pin changes from *"this is refused"* to *"this is allowed, exactly this far"*.
+**Replacement coverage for `328`'s K8c** is **DM3·E1** (the accept case),
+**DM3·E2/E3** (the refusals that replace the blanket one) and **DM3·E4**. The seam is
+not left unpinned; the pin changes from *"this is refused"* to *"this is allowed,
+exactly this far"*.
 
 `193_schema_integrity.sql:71-72` also references the K8b/HC0DM parking for
 `rca_evidence` — untouched by DM3, verified as a different seam.
@@ -1000,10 +1068,11 @@ edit them. What each needs is stated so the tester is not left to infer it:
 module (`:73`). So with `charters` ON and `controlled_docs` OFF the page still queries
 controlled documents. After DM3 a third flag (`documents_wave_b`) governs the byte
 path, so this screen could render a document list whose downloads all refuse.
-**Recommendation:** the charter screen's document list is gated on
+**RULED (lead, Q6, 2026-08-13):** the charter screen's document list gates on
 `chartersEnabled() && controlledDocsEnabled()`, and the download affordance
-additionally on the Wave B flag. Not a security defect (the RLS/kernel arms hold
-either way) — a broken-affordance risk. Frontend slice; raised as **§9 Q6**.
+additionally on `documents_wave_b`. Not a security defect (the RLS/kernel arms hold
+either way) — a broken-affordance risk. **Frontend's slice — backend does not
+implement this.**
 
 **Two dead components — verified dead, by a stated method.**
 `src/components/controlled-documents/obsolete-document-button.tsx` and
@@ -1027,8 +1096,16 @@ code**: they are deletion candidates for the frontend slice, not rewrite targets
    with three different owning waves (§6). Only K8c is DM3's.
 3. **Plan step 4 names only the bucket SELECT policy.** The catalog shows a second
    live door, `controlled_documents_obj_insert_writable` (§1.5, M5). Dropping SELECT
-   alone leaves an unguarded write path into the bucket. **Recommend dropping both —
-   needs the lead's confirmation, since it exceeds the plan text.**
+   alone leaves an unguarded write path into the bucket.
+   📌 **SCOPE WIDENING, RECORDED (lead-ruled Q4, 2026-08-13).** DM3 drops **both**
+   policies, which **exceeds the DM3 step-4 text**. Rationale, so a later reader does
+   not read this as drift: the INSERT policy authorizes on
+   `app.is_staff_admin_of(foldername[1])` alone and bypasses `begin_document_upload`
+   entirely — no reserved-path check, no server-derived tier, no `file_objects` row,
+   no `upload_sessions` row. Leaving it would leave a hole straight through the
+   command layer DM2 built, in the same phase that deletes its only legitimate
+   caller. The plan text was incomplete, not exceeded. Pinned by **DM3·B1**, which
+   asserts *zero* `controlled-documents` policies rather than the absence of one.
 4. **"PHI-tier input on a controlled document fails closed" has no target at
    `begin_document_upload`** — the tier is server-derived there and can never be PHI
    for this home. The real surface is `reclassify_document` (§3 M6). Implementing the
@@ -1062,29 +1139,29 @@ code**: they are deletion candidates for the frontend slice, not rewrite targets
 
 ---
 
-## 9. Questions for the lead / PO
+## 9. Rulings (all six closed by the lead, 2026-08-13)
 
-- **Q1 (PO — blocks M7 and K4).** Does an ethics decision letter home on the **case**
-  securable resource (my recommendation, §5.4), or on a `controlled_document`
-  resource? The catalog says the second choice silently deletes the D15 ceiling for
-  ethics material and hands every commission member read access. I need this ruled
-  before writing M7.
-- **Q2 (lead — §2).** Backfill fileless core `document_versions` 1:1 with domain
-  versions (plan text, clean reconciliation count), or leave the pointer NULL until
-  first upload? I recommend 1:1.
-- **Q3 (lead — §4).** Confirm that a **domain-side** pointer
-  (`controlled_document_versions.core_document_version_id`, moved only while the
-  version is unfrozen) is outside D10's "never a pointer update", which governs the
-  **file binding**. If not, the fallback is to forbid draft re-upload — a product
-  regression that needs a PO decision, not a silent one.
-- **Q4 (lead — §8.3).** Confirm dropping `controlled_documents_obj_insert_writable`
-  alongside the SELECT policy, exceeding the plan text.
-- **Q5 (lead).** Who re-measures **production** (§2) before the backfill runs? I have
-  no production access and am not requesting any.
-- **Q6 (lead → frontend, §7b).** Should the charter screen's document list gate on
-  `chartersEnabled() && controlledDocsEnabled()` (and its download affordance
-  additionally on `documents_wave_b`)? Today it gates on `charters` alone. Not a
-  security defect — a broken-affordance risk after the cutover.
+- **Q1 — RULED: the `case` securable resource.** An ethics decision letter's core
+  `documents` row homes on the case, never on a `controlled_document` resource.
+  Ruled by the lead as following *necessarily* from ADR 0114 Amendment 2's already
+  ratified "the ethics access shape is NOT the controlled-document access shape";
+  the three-fact argument is now recorded in the ADR itself. PO informed, open to
+  overrule. Binds M7 and **DM3·A4**.
+- **Q2 — RULED: backfill 1:1.** Fileless core `document_versions`, matching the plan
+  text, so **DM3·X1**'s count identity stays a real assertion with no documented
+  exception.
+- **Q3 — RULED: the domain-side pointer is outside D10**, which governs the **core
+  file binding** (`document_version_files`) — that stays append-only and untouched.
+  Ruled explicitly rather than passing silently, because an unwritten reinterpretation
+  of an ADR invariant is indistinguishable later from a widening nobody noticed.
+  **Conditional on R2** — discharged by **DM3·P1/P2/P3** (§6), and note the finding
+  there: the natural implementation of that freeze is vacuous.
+- **Q4 — RULED: drop both policies** (see the scope-widening record, §8 item 3).
+- **Q5 — RULED: nobody, during DM3.** Production is not re-measured and nothing is
+  pushed. See §2 and §10 for the provisional marking and the DM5 precondition.
+- **Q6 — RULED: yes** — `chartersEnabled() && controlledDocsEnabled()`, download
+  affordance additionally on `documents_wave_b`. **Frontend's slice**; recorded in
+  §7b, not implemented by backend.
 
 ---
 
@@ -1095,11 +1172,14 @@ code**: they are deletion candidates for the frontend slice, not rewrite targets
   2026-08-11 audit record. No production access; no `db push`; not re-measured.
 - **That production's policy/routine set matches local.** Must be re-derived at build
   time before M5 drops policies by name.
-- **Feature-flag state in production.** Locally `documents_foundation = true`,
-  `documents_wave_a = true`, `documents_wave_b = false`, `controlled_docs = true`,
-  `charters = true`, `ethics = true`, `attachments = false`. Session memory records
-  all five DM flags OFF in production after DM2 — the two do **not** agree, and the
-  gate must reconcile them rather than assume.
+- **Feature-flag state in production — a NAMED GATE ITEM, not a note.** Locally
+  `documents_foundation = true`, `documents_wave_a = true`, `documents_wave_b = false`,
+  `controlled_docs = true`, `charters = true`, `ethics = true`, `attachments = false`.
+  The DM2 record has all five DM flags **OFF** in production. **These disagree.**
+  Lead-ruled Q5: the disagreement is carried forward and must be
+  **reconciled at deploy time, never assumed** — the deploy step reads the production
+  flag table and compares, rather than flipping `documents_wave_b` on the assumption
+  that the others are already where local has them.
 - **The E2E surface.** I did not run Playwright; the lifecycle E2E in the DM3 exit
   criterion is `tester`'s.
 
