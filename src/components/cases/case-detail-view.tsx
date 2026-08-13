@@ -724,9 +724,14 @@ export function CaseDetailView({
                 caseId={c.id}
                 variant="rail"
                 canWrite={caps.canWriteContent}
-                // ADR 0100 — metadata yes, bytes no. Under the document model
-                // this suppresses the single audited byte corridor; there is no
-                // second signed-URL path left to also remember.
+                // ADR 0100 — metadata yes, bytes no. This hides the download
+                // affordance; it does NOT close the corridor, and saying it did
+                // was the P0-1 defect written down as a design. The boundary is
+                // `open_document_version`, which refuses case-homed BYTES to any
+                // caller without `read_case_deliberation` — the capability the
+                // S7 oversight arm alone does not confer (migration
+                // `20260924000700`; pinned by `329` P0a–P0f and the `308` 5.2s
+                // sentinel). This prop only keeps a dead control off the screen.
                 canDownload={!isOversight}
               />
             </div>

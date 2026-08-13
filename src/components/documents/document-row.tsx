@@ -71,9 +71,20 @@ export function DocumentRow({
    */
   canWrite: boolean;
   /**
-   * Viewer may obtain document BYTES at all (ADR 0100 D3/D7 — the quality
-   * reviewer reads metadata but never downloads). Suppresses the audited door
-   * outright; there is no second byte path to also remember to suppress.
+   * Whether to OFFER the download control (ADR 0100 D3/D7 — the quality
+   * reviewer reads metadata but never downloads).
+   *
+   * ⚠ This prop hides an affordance. It is NOT the boundary, and this comment
+   * used to say it was ("suppresses the audited door outright") — which is the
+   * P0-1 defect stated as a design: the control was absent while
+   * `open_document_version` stayed open to the same caller, i.e. Architecture
+   * Rule 1 inverted. The door is the boundary and now enforces it itself
+   * (migration `20260924000700`): every home passes the
+   * `app.can_read_document` kernel, and case- and interview-homed BYTES
+   * additionally require the `read_case_deliberation` capability, which every
+   * content source except the S7 oversight arm confers. Pinned by `329`
+   * P0a–P0f and the `308` 5.2s sentinel — a false `canDownload` that leaked
+   * would cost a hidden button, not bytes.
    */
   canDownload: boolean;
 }) {
