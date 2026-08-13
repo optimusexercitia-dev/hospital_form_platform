@@ -1,0 +1,172 @@
+-- Condition evaluator (app.eval_condition + app.eval_visibility) — the SQL side
+-- of the SQL<->TS mirror. These vectors MUST stay identical to
+-- src/lib/queries/__fixtures__/condition-vectors.json AND
+-- src/lib/queries/__fixtures__/visibility-vectors.json (consumed by the Vitest
+-- mirror). Drift between the two evaluators is a phase-blocking bug
+-- (ARCHITECTURE Rule 3). Covers all ops (incl. gt/gte/lt/lte), null condition,
+-- missing/null answers, checkbox-array answers, and the AND/OR group wrapper.
+
+begin;
+
+create temp table vectors (name text, visible_when jsonb, answers jsonb, expected boolean)
+  on commit drop;
+
+insert into vectors (name, visible_when, answers, expected) values
+  ('null condition is always visible', null, '{"q1":"Sim"}', true),
+  ('equals match', '{"question_key":"q1","op":"equals","value":"Sim"}', '{"q1":"Sim"}', true),
+  ('equals mismatch', '{"question_key":"q1","op":"equals","value":"Sim"}', '{"q1":"Não"}', false),
+  ('equals missing answer is false', '{"question_key":"q1","op":"equals","value":"Sim"}', '{}', false),
+  ('equals null answer is false', '{"question_key":"q1","op":"equals","value":"Sim"}', '{"q1":null}', false),
+  ('not_equals mismatch is true', '{"question_key":"q1","op":"not_equals","value":"Sim"}', '{"q1":"Não"}', true),
+  ('not_equals match is false', '{"question_key":"q1","op":"not_equals","value":"Sim"}', '{"q1":"Sim"}', false),
+  ('not_equals missing answer is true', '{"question_key":"q1","op":"not_equals","value":"Sim"}', '{}', true),
+  ('in match scalar', '{"question_key":"q1","op":"in","value":["A","B","C"]}', '{"q1":"B"}', true),
+  ('in mismatch scalar', '{"question_key":"q1","op":"in","value":["A","B","C"]}', '{"q1":"D"}', false),
+  ('in missing answer is false', '{"question_key":"q1","op":"in","value":["A","B"]}', '{}', false),
+  ('equals checkbox present', '{"question_key":"q1","op":"equals","value":"luvas"}', '{"q1":["luvas","avental"]}', true),
+  ('equals checkbox absent', '{"question_key":"q1","op":"equals","value":"mascara"}', '{"q1":["luvas","avental"]}', false),
+  ('not_equals checkbox absent is true', '{"question_key":"q1","op":"not_equals","value":"mascara"}', '{"q1":["luvas","avental"]}', true),
+  ('in checkbox any in list', '{"question_key":"q1","op":"in","value":["mascara","avental"]}', '{"q1":["luvas","avental"]}', true),
+  ('in checkbox none in list', '{"question_key":"q1","op":"in","value":["mascara","touca"]}', '{"q1":["luvas","avental"]}', false),
+  ('equals numeric', '{"question_key":"q1","op":"equals","value":3}', '{"q1":3}', true),
+  ('equals boolean', '{"question_key":"q1","op":"equals","value":true}', '{"q1":true}', true),
+  -- form-builder-enhancements: ordered ops gt/gte/lt/lte (mirror the JSON fixture).
+  ('gt numeric true', '{"question_key":"q1","op":"gt","value":5}', '{"q1":7}', true),
+  ('gt numeric false (equal)', '{"question_key":"q1","op":"gt","value":5}', '{"q1":5}', false),
+  ('gte numeric true (equal)', '{"question_key":"q1","op":"gte","value":5}', '{"q1":5}', true),
+  ('gte numeric false', '{"question_key":"q1","op":"gte","value":5}', '{"q1":4}', false),
+  ('lt numeric true', '{"question_key":"q1","op":"lt","value":5}', '{"q1":3}', true),
+  ('lte numeric true (equal)', '{"question_key":"q1","op":"lte","value":5}', '{"q1":5}', true),
+  ('gt numeric with negatives', '{"question_key":"q1","op":"gt","value":-3}', '{"q1":-1}', true),
+  ('gte numeric with decimals', '{"question_key":"q1","op":"gte","value":2.5}', '{"q1":2.5}', true),
+  ('gt missing answer is false', '{"question_key":"q1","op":"gt","value":5}', '{}', false),
+  ('lt null answer is false', '{"question_key":"q1","op":"lt","value":5}', '{"q1":null}', false),
+  ('gt array (checkbox) answer never orders, false', '{"question_key":"q1","op":"gt","value":1}', '{"q1":[2,3]}', false),
+  ('gte ISO date string sorts as text, true', '{"question_key":"q1","op":"gte","value":"2026-01-01"}', '{"q1":"2026-06-23"}', true),
+  ('lt ISO date string sorts as text, false', '{"question_key":"q1","op":"lt","value":"2026-01-01"}', '{"q1":"2026-06-23"}', false),
+  ('lt ISO date boundary (strictly before)', '{"question_key":"q1","op":"lt","value":"2026-06-23"}', '{"q1":"2026-06-22"}', true),
+  ('gt 24h time string sorts as text, true', '{"question_key":"q1","op":"gt","value":"08:00"}', '{"q1":"14:30"}', true),
+  ('lte 24h time string equal, true', '{"question_key":"q1","op":"lte","value":"23:59"}', '{"q1":"23:59"}', true),
+  -- F3 (ADR 0060 Rec D): contains/not_contains/is_empty/is_not_empty x each value_type.
+  -- MUST match condition-vectors.json byte-for-byte (Rule 3).
+  ('contains string substring hit', '{"question_key":"q1","op":"contains","value":"grave"}', '{"q1":"Infecção grave"}', true),
+  ('contains string substring miss', '{"question_key":"q1","op":"contains","value":"leve"}', '{"q1":"Infecção grave"}', false),
+  ('contains checkbox array membership hit', '{"question_key":"q1","op":"contains","value":"luvas"}', '{"q1":["luvas","avental"]}', true),
+  ('contains checkbox array membership miss', '{"question_key":"q1","op":"contains","value":"touca"}', '{"q1":["luvas","avental"]}', false),
+  ('contains number answer is false (no number substring)', '{"question_key":"q1","op":"contains","value":"2"}', '{"q1":12}', false),
+  ('contains date string is text substring', '{"question_key":"q1","op":"contains","value":"2026"}', '{"q1":"2026-06-23"}', true),
+  ('contains missing answer is false', '{"question_key":"q1","op":"contains","value":"x"}', '{}', false),
+  ('contains null answer is false', '{"question_key":"q1","op":"contains","value":"x"}', '{"q1":null}', false),
+  ('contains empty-string target on string answer is true', '{"question_key":"q1","op":"contains","value":""}', '{"q1":"abc"}', true),
+  ('not_contains string miss is true', '{"question_key":"q1","op":"not_contains","value":"leve"}', '{"q1":"Infecção grave"}', true),
+  ('not_contains string hit is false', '{"question_key":"q1","op":"not_contains","value":"grave"}', '{"q1":"Infecção grave"}', false),
+  ('not_contains checkbox absent option is true', '{"question_key":"q1","op":"not_contains","value":"touca"}', '{"q1":["luvas","avental"]}', true),
+  ('not_contains missing answer is true', '{"question_key":"q1","op":"not_contains","value":"x"}', '{}', true),
+  ('is_empty missing answer is true', '{"question_key":"q1","op":"is_empty","value":null}', '{}', true),
+  ('is_empty null answer is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":null}', true),
+  ('is_empty empty string is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":""}', true),
+  ('is_empty empty array is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":[]}', true),
+  ('is_empty non-empty string is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":"x"}', false),
+  ('is_empty number zero is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":0}', false),
+  ('is_empty non-empty array is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":["luvas"]}', false),
+  ('is_not_empty non-empty string is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":"x"}', true),
+  ('is_not_empty missing answer is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{}', false),
+  ('is_not_empty empty string is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":""}', false),
+  ('is_not_empty empty array is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":[]}', false),
+  ('is_not_empty number zero is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":0}', true),
+  ('is_not_empty date string is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":"2026-06-23"}', true);
+
+-- Visibility GROUP vectors (mirror visibility-vectors.json), exercised against
+-- app.eval_visibility (the AND/OR wrapper + legacy-single passthrough).
+create temp table visibility_vectors (name text, rule jsonb, answers jsonb, expected boolean)
+  on commit drop;
+
+insert into visibility_vectors (name, rule, answers, expected) values
+  ('null rule is always visible', null, '{"q1":"Sim"}', true),
+  ('legacy single shape delegates (match)', '{"question_key":"q1","op":"equals","value":"Sim"}', '{"q1":"Sim"}', true),
+  ('legacy single shape delegates (mismatch)', '{"question_key":"q1","op":"equals","value":"Sim"}', '{"q1":"Não"}', false),
+  ('all: both true', '{"match":"all","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gt","value":5}]}', '{"q1":"Sim","q2":7}', true),
+  ('all: one false short-circuits to false', '{"match":"all","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gt","value":5}]}', '{"q1":"Sim","q2":3}', false),
+  ('all: missing answer for one is false', '{"match":"all","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gte","value":1}]}', '{"q1":"Sim"}', false),
+  ('any: one true is true', '{"match":"any","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gt","value":100}]}', '{"q1":"Sim","q2":3}', true),
+  ('any: all false is false', '{"match":"any","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gt","value":100}]}', '{"q1":"Não","q2":3}', false),
+  ('any: single condition true', '{"match":"any","conditions":[{"question_key":"q1","op":"in","value":["A","B"]}]}', '{"q1":"B"}', true),
+  ('all: three conditions incl. date + checkbox, all true', '{"match":"all","conditions":[{"question_key":"q1","op":"not_equals","value":"Não"},{"question_key":"q2","op":"lte","value":"2026-12-31"},{"question_key":"q3","op":"equals","value":"luvas"}]}', '{"q1":"Sim","q2":"2026-06-23","q3":["luvas","avental"]}', true),
+  ('all: date out of range makes group false', '{"match":"all","conditions":[{"question_key":"q1","op":"not_equals","value":"Não"},{"question_key":"q2","op":"lte","value":"2026-12-31"}]}', '{"q1":"Sim","q2":"2027-01-01"}', false),
+  -- F3 (ADR 0060 Rec D): the new ops pass through the eval_visibility wrapper unchanged.
+  ('all: F3 ops pass through the wrapper (is_not_empty + contains, both true)', '{"match":"all","conditions":[{"question_key":"q1","op":"is_not_empty","value":null},{"question_key":"q2","op":"contains","value":"grave"}]}', '{"q1":"x","q2":"Infecção grave"}', true),
+  ('any: F3 is_empty short-circuits the wrapper to true', '{"match":"any","conditions":[{"question_key":"q1","op":"is_empty","value":null},{"question_key":"q2","op":"equals","value":"Sim"}]}', '{"q1":"","q2":"Não"}', true);
+
+-- ===========================================================================
+-- FF-1 (ADR 0087 ruling 2) - the INSTANCE-AWARE answer map.
+-- Mirrors src/lib/queries/__fixtures__/instance-map-vectors.json EXACTLY.
+-- `map_vectors` pin app.overlay_answer_map itself; `eval_vectors` pin the
+-- end-to-end DECISION (overlay, then the UNCHANGED evaluator) - agreeing on
+-- the map is not the same as agreeing on the outcome, and the outcome is what
+-- gates a submit. Drift SQL<->TS is phase-blocking (Rule 3).
+-- ===========================================================================
+create temp table instance_map_vectors (name text, base jsonb, overlay jsonb, expected jsonb)
+  on commit drop;
+insert into instance_map_vectors (name, base, overlay, expected) values
+  ('both empty stays empty', '{}', '{}', '{}'),
+  ('top-level only passes through', '{"topo": "valor"}', '{}', '{"topo": "valor"}'),
+  ('instance only passes through', '{}', '{"med_nome": "Dipirona"}', '{"med_nome": "Dipirona"}'),
+  ('disjoint keys merge (an instance child sees the top-level answers)', '{"topo": "valor"}', '{"med_nome": "Dipirona"}', '{"topo": "valor", "med_nome": "Dipirona"}'),
+  ('same-instance sibling WINS over a top-level key of the same name', '{"k": "top"}', '{"k": "instancia"}', '{"k": "instancia"}'),
+  ('a key in NEITHER map stays absent (no fallback to another instance)', '{"topo": "valor"}', '{"med_dose": "500mg"}', '{"topo": "valor", "med_dose": "500mg"}'),
+  ('an explicit JSON null in the overlay is PRESENT-with-null, not absent', '{}', '{"med_nome": null}', '{"med_nome": null}'),
+  ('an explicit JSON null in the overlay shadows a real top-level value', '{"k": "top"}', '{"k": null}', '{"k": null}'),
+  ('checkbox arrays REPLACE wholesale, never merge element-wise', '{"epi": ["luvas", "avental"]}', '{"epi": ["mascara"]}', '{"epi": ["mascara"]}'),
+  ('numbers and booleans survive the overlay unchanged', '{"n": 3, "b": true}', '{"n": 7}', '{"n": 7, "b": true}'),
+  ('multiple keys overlay independently', '{"a": "1", "b": "2", "c": "3"}', '{"b": "X", "d": "4"}', '{"a": "1", "b": "X", "c": "3", "d": "4"}');
+
+create temp table instance_eval_vectors (name text, base jsonb, overlay jsonb, visible_when jsonb, expected boolean)
+  on commit drop;
+insert into instance_eval_vectors (name, base, overlay, visible_when, expected) values
+  ('inside-out: a same-instance sibling satisfies the condition', '{}', '{"tipo": "medicacao"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', true),
+  ('inside-out: a same-instance sibling with a different value does not', '{}', '{"tipo": "material"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', false),
+  ('sibling ABSENT in this instance is absent — equals is false, NOT inherited', '{}', '{"outro": "x"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', false),
+  ('sibling ABSENT in this instance — not_equals is true (missing-answer semantics)', '{}', '{"outro": "x"}', '{"question_key": "tipo", "op": "not_equals", "value": "medicacao"}', true),
+  ('sibling ABSENT in this instance — is_empty is true', '{}', '{}', '{"question_key": "tipo", "op": "is_empty", "value": null}', true),
+  ('a TOP-LEVEL answer is visible from inside an instance', '{"porta": "sim"}', '{"tipo": "medicacao"}', '{"question_key": "porta", "op": "equals", "value": "sim"}', true),
+  ('the instance value shadows the top-level one for the evaluator', '{"k": "nao"}', '{"k": "sim"}', '{"question_key": "k", "op": "equals", "value": "sim"}', true),
+  ('ordered ops work against an instance value', '{}', '{"dose": 750}', '{"question_key": "dose", "op": "gt", "value": 500}', true),
+  ('checkbox membership works against an instance array', '{}', '{"vias": ["oral", "ev"]}', '{"question_key": "vias", "op": "equals", "value": "ev"}', true),
+  ('an instance array does not leak into a sibling instance''s decision', '{"vias": ["im"]}', '{"vias": ["oral"]}', '{"question_key": "vias", "op": "equals", "value": "im"}', false);
+
+select plan(
+  (select count(*)::int from vectors)
+  + (select count(*)::int from visibility_vectors)
+  + (select count(*)::int from instance_map_vectors)
+  + (select count(*)::int from instance_eval_vectors)
+);
+
+select is(
+  app.eval_condition(v.visible_when, v.answers),
+  v.expected,
+  v.name
+) from vectors v;
+
+select is(
+  app.eval_visibility(vv.rule, vv.answers),
+  vv.expected,
+  'visibility: ' || vv.name
+) from visibility_vectors vv;
+
+select is(
+  app.overlay_answer_map(imv.base, imv.overlay),
+  imv.expected,
+  'instance map: ' || imv.name
+) from instance_map_vectors imv;
+
+select is(
+  app.eval_condition(
+    iev.visible_when,
+    app.overlay_answer_map(iev.base, iev.overlay)
+  ),
+  iev.expected,
+  'instance eval: ' || iev.name
+) from instance_eval_vectors iev;
+
+select * from finish();
+rollback;

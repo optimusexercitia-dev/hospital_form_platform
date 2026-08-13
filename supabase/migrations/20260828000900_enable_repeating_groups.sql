@@ -1,0 +1,25 @@
+-- ============================================================================
+-- Flip `repeating_groups` ON permanently — the FF-1 gate flip (same two-migration
+-- convention as the ADR-0085 case_corrections flip 20260825000600, the ADR-0084
+-- cases_bulk_create flip 20260824000000, and the ADR-0083 case_custom_fields
+-- flip 20260822000000). Seeded OFF in 20260828000000; this is the deliberate
+-- permanent go-live flip (PO decision, 2026-07-27, at the FF-1 Phase Gate).
+--
+-- FF-1 Repeating Groups (ADR 0087 + Amendment 1) is live and gate-passed
+-- (QA APPROVED r2, docs/reviews/phase-FF-1-review.md): the depth-1-capped
+-- container schema, the instance-aware 2-tier answer map mirrored SQL↔TS, the
+-- three INVOKER instance RPCs under RLS, save_section_answers' instance arm,
+-- the dispatch-by-item_type completeness refactor with prune-then-check, the
+-- publish-time outside-in condition ban, explode-by-child-key aggregation, and
+-- the platform-wide drop of form_items_conditional_not_required.
+--
+-- This flip turns on BOTH container types: `repeating_group` (the instance
+-- engine) and the plain `group` visual container (ADR 0087 ruling 6) — the
+-- builder gates both on this one key.
+--
+-- seed.sql additionally forces it ON for local/E2E (redundant here; keeps the
+-- two paths honest — a seed regression then fails loudly rather than silently
+-- skipping the flag-guarded keystones, per pgTAP 270 §0).
+-- ============================================================================
+
+update app.feature_flags set enabled = true where key = 'repeating_groups';

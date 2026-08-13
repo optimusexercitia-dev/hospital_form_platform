@@ -1,0 +1,39 @@
+-- ============================================================================
+-- Flip `matrix_fields` ON permanently — the FF-2 gate flip (the same
+-- two-migration convention as the FF-1 flip 20260828000900, the ADR-0085
+-- case_corrections flip 20260825000600, the ADR-0084 cases_bulk_create flip
+-- 20260824000000, and the ADR-0083 case_custom_fields flip 20260822000000).
+-- Seeded OFF in 20260830000100; this is the deliberate permanent go-live flip.
+--
+-- ⚠ WHY THIS MIGRATION EXISTS (QA r1, B-3). Without it the flag was ON only via
+-- `supabase/seed.sql`, and `supabase db push` carries migrations, not the seed.
+-- So local dev and the entire E2E gate were green *because the seed turns it on*
+-- while the pilot deployment would have had `enabled = false`: upsert_matrix_axes
+-- and both answer writers refusing with HC0P2, and the "Matrizes" group never
+-- appearing in Adicionar bloco. The phase would have shipped dark, and the gap
+-- is invisible to every local signal — precisely the shape the seed-vs-migration
+-- split is designed to hide. ADR 0089's front matter promised this migration
+-- ("seeded OFF; flipped by its own enable migration at the FF-2 gate").
+--
+-- FF-2 Matrix & Risk Matrix (ADR 0089) is complete: the radio-grid cell contract
+-- with UNIQUE (answer_id, row_id), server-derived risk_score, row-complete
+-- required-ness through the collapsed app.item_required_satisfied, immutable
+-- axis codes, the extracted deep-copy helper carrying both axes through clones,
+-- the four correction copy blocks with instance remapping, the matrix arms of
+-- app.instance_is_empty, cell-unit + risk aggregation on the dashboard, and the
+-- sign-off / submission-detail projections.
+--
+-- This flip turns on BOTH matrix types: `matrix` (the radio grid) and
+-- `risk_matrix` (severity x likelihood with a derived score) — the builder gates
+-- both on this one key, as do upsert_matrix_axes and the two answer writers.
+--
+-- Read paths are deliberately UNGATED (a stored grid renders whether or not the
+-- flag is on), so this flip changes authoring and filling only; no stored data
+-- is affected in either direction.
+--
+-- seed.sql additionally forces it ON for local/E2E (redundant here; keeps the
+-- two paths honest — a seed regression then fails loudly rather than silently
+-- skipping the flag-guarded keystones, per pgTAP 271 §0).
+-- ============================================================================
+
+update app.feature_flags set enabled = true where key = 'matrix_fields';

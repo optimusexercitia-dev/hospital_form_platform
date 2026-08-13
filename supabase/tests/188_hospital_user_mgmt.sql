@@ -1,0 +1,207 @@
+-- Hospital-scoped user management RLS gates (ADR 0051 Decision 7 / Q2; migrations
+-- 20260709000500 self-read + 20260709000600 profiles hospital arm). These back the
+-- A10 service-role TS actions (registerUser / manage-user), whose authz reads the
+-- caller's hospitalAdminOf grant (self-read) and whose directory reads profiles
+-- under the hospital arm. The TS home-hospital hard-set + per-committee scope are
+-- covered by E2E (they are service-role/TS, not RLS); this file proves the RLS
+-- reads those gates depend on resolve correctly AND isolate.
+--
+-- Personas: hospitaladmin.a1 (e1, central-a ONLY), hospitaladmin.dual (e3, both
+-- org-a hospitals), orgadmin.a (b1), staff1.qual.b (b3, org-b).
+begin;
+select plan(18);
+
+create temp table p on commit drop as select
+  '00000000-0000-0000-0000-0000000000e1'::uuid as ha1,
+  '00000000-0000-0000-0000-0000000000e3'::uuid as ha_dual,
+  '00000000-0000-0000-0000-0000000000b1'::uuid as orgadmin_a,
+  '00000000-0000-0000-0000-0000000000b3'::uuid as staff_b,
+  '00000000-0000-0000-0000-000000000002'::uuid as chefe_ccih,   -- CCIH (central-a) member
+  '00000000-0000-0000-0000-000000000005'::uuid as chefe_farm,   -- Farmácia (central-a) member
+  '05000000-0000-0000-0000-00000000000a'::uuid as hosp_central_a,
+  '05000000-0000-0000-0000-0000000000a2'::uuid as hosp_secundario_a,  -- sibling (org-a)
+  '05000000-0000-0000-0000-00000000000b'::uuid as hosp_central_b,     -- org-b
+  '0c000000-0000-0000-0000-00000000000a'::uuid as org_a,
+  '0c000000-0000-0000-0000-00000000000b'::uuid as org_b;
+grant select on p to authenticated;
+
+-- ============================================================================
+-- §1: memberships self-read (20260709000500, now the collapsed table) — a
+--     hospital_admin reads its OWN grant so getSessionContext resolves hospitalAdminOf.
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.memberships where principal_id = (select ha1 from p)),
+  1,
+  'SELF-READ: hospitaladmin.a1 reads its OWN grant row (1 = central-a)');
+select is(
+  (select count(*)::int from public.memberships where principal_id = (select orgadmin_a from p)),
+  0,
+  'SELF-READ ISOLATION: a1 reads ZERO of ANOTHER user''s grant rows (no roster leak)');
+reset role;
+
+select test_helpers.claims_for((select ha_dual from p), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.memberships where principal_id = (select ha_dual from p)),
+  2,
+  'SELF-READ: hospitaladmin.dual reads its TWO own grant rows (both hospitals)');
+reset role;
+
+-- ============================================================================
+-- §2: profiles hospital arm (20260709000600) — a hospital_admin reads its own
+--     hospital's users; NOT a sibling hospital's / org-b's.
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+select ok(
+  exists(select 1 from public.profiles where id = (select chefe_ccih from p)),
+  'PROFILES: a1 reads a CCIH member''s profile (central-a via commission arm)');
+select ok(
+  exists(select 1 from public.profiles where id = (select chefe_farm from p)),
+  'PROFILES: a1 reads a Farmácia member''s profile (central-a via commission arm)');
+select ok(
+  not exists(select 1 from public.profiles where id = (select staff_b from p)),
+  'PROFILES PROOF: a1 reads ZERO of an org-b user''s profile (cross-org denied)');
+-- a1's directory read set (ACTIVE AFFILIATION ∪ central-a commission members). AFF W1
+-- (ADR 0097 D1/D3): the first arm was `home_hospital_id = central-a` until that column
+-- was dropped by 20260909000300; it is an employment ROW now.
+select ok(
+  (select count(*)::int from public.profiles
+   where id in (
+        select a.principal_id from public.hospital_affiliations a
+        where a.hospital_id = (select hosp_central_a from p) and a.ended_on is null
+      )
+      or id in (
+        select cm.principal_id from public.memberships cm
+        join public.commissions c on c.id = cm.commission_id
+        where c.hospital_id = (select hosp_central_a from p)
+      )) >= 5,
+  'DIRECTORY: a1 reads its hospital''s users (actively affiliated ∪ central-a commission members)');
+reset role;
+
+-- ============================================================================
+-- §3: an org-b user (staff) reads NONE of org-a's users; a plain member has no
+--     hospital-admin read power.
+-- ============================================================================
+select test_helpers.claims_for((select staff_b from p), false);
+set local role authenticated;
+select ok(
+  not exists(select 1 from public.profiles where id = (select chefe_ccih from p)),
+  'PROFILES PROOF: org-b staff reads ZERO of an org-a user''s profile');
+reset role;
+
+-- ============================================================================
+-- §4: org_admin still reads its whole org's users (org tier unchanged — the
+--     hospital arm ADDED coverage, removed none).
+-- ============================================================================
+select test_helpers.claims_for((select orgadmin_a from p), false);
+set local role authenticated;
+select ok(
+  exists(select 1 from public.profiles where id = (select chefe_ccih from p)),
+  'PROFILES: org_admin.a reads a central-a user (org arm intact)');
+-- org_admin's read is org-wide, not hospital-limited: it sees the secundario-a
+-- commission (Ética) too — the org tier is unchanged by the hospital arm.
+select ok(
+  exists(select 1 from public.commissions where id = 'e0000000-0000-0000-0000-0000000000e1'),
+  'PROFILES/ORG: org_admin.a reads the secundario-a (Ética) commission too (whole org, not hospital-limited)');
+reset role;
+
+-- ============================================================================
+-- §5: profiles WRITE is NOT widened — a hospital_admin cannot UPDATE a user's
+--     profile directly under RLS (mutations go through the service-role action,
+--     TS-gated). Prove the direct RLS write affects ZERO rows (RLS filters the
+--     row out of the UPDATE's scope).
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+-- Attempt the write (RLS scopes it to zero rows — no error, just a no-op), then
+-- prove the column did NOT change: a hospital_admin has no profiles WRITE arm.
+--
+-- AFF W1: this probed `hospital_employee_id` until 20260909000300 dropped it. The
+-- replacement target is `full_name` DELIBERATELY — it is NOT in the identity set of
+-- `guard_profile_privileged_columns`, so if RLS ever admitted the row the UPDATE would
+-- SUCCEED and this assertion would go red. Probing a guarded column instead would let
+-- the trigger satisfy the test on RLS's behalf (the "pre-existing deny" vacuity shape).
+update public.profiles set full_name = 'X-HACK'
+where id = '00000000-0000-0000-0000-000000000002';
+reset role;
+-- Read back as an org_admin (who CAN read the row) and assert it was untouched.
+select test_helpers.claims_for((select orgadmin_a from p), false);
+set local role authenticated;
+select isnt(
+  (select full_name from public.profiles where id = (select chefe_ccih from p)),
+  'X-HACK',
+  'WRITE GUARD: a hospital_admin''s direct RLS UPDATE of a user profile is a no-op (no WRITE arm; the service-role action is the only path)');
+reset role;
+
+-- ============================================================================
+-- §6: BUG-HAT-003 — organizations + hospitals READ arms (migration …000800).
+--     getSessionContext embeds organizations + hospitals off the hospital_admin
+--     grant; those embeds were NULL because neither policy admitted a
+--     hospital_admin reading its OWN org/hospital, starving hospitalAdminOf. The
+--     new arms must populate the context WITHOUT leaking a sibling hospital / org-b.
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+-- a1 reads its OWN hospital + org row (the embeds now resolve → context populates).
+select ok(
+  exists(select 1 from public.hospitals where id = (select hosp_central_a from p)),
+  'HAT-003: a1 reads its OWN hospital row (central-a) — hospital embed resolves');
+select ok(
+  exists(select 1 from public.organizations where id = (select org_a from p)),
+  'HAT-003: a1 reads its OWN org row (rede-a) — org embed resolves');
+-- Isolation: the new arms are PER-HOSPITAL, not org-wide — a1 (central-a only)
+-- reads NEITHER the sibling hospital nor org-b's hospital/org.
+select ok(
+  not exists(select 1 from public.hospitals where id = (select hosp_secundario_a from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of the SIBLING hospital''s row (secundario-a)');
+select ok(
+  not exists(select 1 from public.hospitals where id = (select hosp_central_b from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of org-b''s hospital row');
+select ok(
+  not exists(select 1 from public.organizations where id = (select org_b from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of org-b''s organization row');
+reset role;
+
+-- dual reads BOTH its hospitals' rows (both embeds resolve → both grants populate).
+select test_helpers.claims_for((select ha_dual from p), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.hospitals
+   where id in ((select hosp_central_a from p), (select hosp_secundario_a from p))),
+  2,
+  'HAT-003: hospitaladmin.dual reads BOTH its hospitals'' rows (both grants populate)');
+reset role;
+
+-- ============================================================================
+-- §7: MAJOR-2 (QA hospital-admin-tier review) — removeCommittee cross-hospital
+--     write guard. removeCommittee(userId, commissionId) is a TS/service-role
+--     action whose authz mirrors assignCommitteeRole: it now ALSO requires
+--     authorizeForCommission(commissionId), i.e. authorizeHospitalOps(
+--     commission.hospital_id) — the caller must administer the commission's
+--     hospital. Prove the RLS-backed predicate that gate reads DENIES an A-only
+--     hospital_admin for a secundario-a (sibling-hospital) commission: the
+--     Ética commission's hospital_id is NOT in ha1's admined-hospital set
+--     (from its OWN memberships self-read grant). Without this the
+--     caller could delete a shared user's sibling-hospital membership on the
+--     service-role client (no RLS backstop).
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+select ok(
+  not exists(
+    select 1
+    from public.commissions c
+    join public.memberships om
+      on om.hospital_id = c.hospital_id
+     and om.principal_id = (select ha1 from p)
+     and om.role = 'hospital_admin'
+    where c.id = 'e0000000-0000-0000-0000-0000000000e1'  -- Ética (secundario-a)
+  ),
+  'MAJOR-2: A-only hospital_admin resolves NO hospital-admin grant for a secundario-a commission — removeCommittee''s authorizeForCommission denies the cross-hospital membership delete');
+reset role;
+
+select * from finish();
+rollback;

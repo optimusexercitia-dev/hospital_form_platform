@@ -1,0 +1,280 @@
+# authz-unswept-backlog.txt — the CENSUS backlog for ARM 3 of the AUDIT-DOOR-BLINDNESS
+# invariant (ADR 0079 Amendment 3). One live authz gate per line, keyed EXACTLY as the
+# neutralization sweeps emit it:
+#   * predicate/guard : app.<fn>(<identity args>)   e.g. app.member_can(p_commission_id uuid, p_capability text)
+#   * RLS policy      : <table>.<polname> (<CMD>)   e.g. case_events.case_events_writer_insert (INSERT)
+#
+# CONTRACT (enforced by p0-authz-invariant.sh ARM 3 — `ARM=census`):
+#   every `prosecdef` boolean function in app/public and every RLS policy in the LIVE
+#   catalog MUST appear either in a committed findings md (any verdict — BLIND, COVERED,
+#   ERROR, SKIPPED) or in THIS file. A gate in NEITHER has never been through a
+#   neutralization sweep at all, so no verdict about it exists in any direction.
+#
+# WHY THIS FILE IS NOT authz-blind-allowlist.txt. That file's contract is
+# "BLIND ⊆ allowlist" — every line means *we swept it and no keystone noticed*. These
+# lines mean the opposite: *we have never swept it, so we do not know*. Merging them
+# would let an entry here silence a genuine BLIND finding later.
+#
+# ⚠ UNSWEPT is NOT a synonym for BLIND. Several entries below are probably COVERED
+# already; nobody has asked.
+#
+# ⛔ WHAT ARM 3 STILL CANNOT SEE — stated here because a census that looks complete is
+# more dangerous than one that admits its edge. The domain is: `prosecdef` booleans,
+# `prosecdef` row-returning doors, and RLS policies. It does NOT cover
+# **AUDIT-INVOKER-WRAPPER** (PROGRESS.md, Remaining pre-pilot work #3): a `prosecdef = f`
+# INVOKER function whose own hand-written `if not exists (…)` probe is the only gate in
+# front of an `app.` DEFINER body. Those carry no `prosecdef` flag and no policy, so
+# nothing in this file's domain reaches them — and **130 of 281 `app` DEFINER functions
+# carry EXECUTE to PUBLIC**, which makes the wrapper the whole boundary each time.
+# Proven live in FF-3: deleting `get_response_validation_errors`'s existence probe reds
+# ZERO assertions across six files while a commission-Y staff reads commission-X rule
+# messages and item labels. Scheduling is a PO decision; the point of this note is that
+# ARM 3 holding is not evidence about that class.
+#
+# ── HOW THIS FILE GREW (59 entries, and every jump has a cause worth reading) ──
+#   46  2026-08-04 · the first census, over booleans + policies (root cause below)
+#   +2  2026-08-05 · process_template_versions_{select,staff_admin_write} — the PCI+TV
+#                    merge; the phase keystoned its six CHILD policies and not its own
+#                    PARENT table's two
+#  +45  2026-08-05 · row-returning DEFINER doors, after BUG-AUTHZ-002 proved the
+#                    boolean-only domain could not see a live leak (see that block)
+#   +6  2026-08-05 · the `swept:` section (verdicts with nowhere else to live)
+#   -6  2026-08-05 · FUP-AUTHZ-4 burned that section back down to zero: the six
+#                    verdicts were hand-merged into the findings md, so they now live
+#                    where ARM 1 and ARM 3 both read them
+#  -34  2026-08-05 · FUP-AUTHZ-3 built the missing row-door harness and swept it. 34 of
+#                    the 45 row-doors now carry a verdict in
+#                    docs/reviews/authz-rowdoor-audit-findings.md (32 COVERED, 1 BLIND
+#                    +allowlisted, 1 ERROR) and left this file. ELEVEN remain, below.
+#
+# ── Why 46 gates were unswept on 2026-08-04 (the root cause, not 46 oversights) ──
+# The two sweeps enumerate DIFFERENT, and both INCOMPLETE, domains:
+#   * p0-authz-door-audit.sh policy arm queries the live catalog but filters
+#     `polcmd in ('r','*')` — it audits SELECT and ALL policies only. Every INSERT /
+#     UPDATE / DELETE policy is out of its domain by construction.
+#   * p0-authz-writepath-audit.sh covers those, but from a 33-row EMBEDDED SNAPSHOT
+#     captured 2026-07-18 and a 7-name hardcoded guard list. The snapshot never grew.
+#   * the door audit's predicate arm filters on a NAME PREFIX
+#     (`^(is_|can_|has_|…)`), so `capa_viewer_can_manage`, `interview_viewer_can_write`,
+#     `rca_writer_can_write`, `member_can` and `confidentiality_clearance_ok` are all
+#     real authz gates that no sweep has ever had in its worklist.
+# So a write policy or an off-convention gate could be added on any day and be invisible
+# to BOTH sweeps AND to ARM 1 — which compares BLIND to the allowlist, and a gate that
+# was never swept is in neither set. That is the hole ARM 3 closes.
+#
+# Two of these are the SAME 2026-07-27 out-of-phase ETH hotfix as the FUP-AUTHZ-2
+# fifteen (`answers_*_targeted`, `responses_update_targeted`): the hotfix's SELECT/ALL
+# policies showed up as BLIND, its write policies did not show up at all.
+#
+# BURN-DOWN: sweep an entry (diff-scoped ARM 1 recipe, ADR 0079 Amendment 1), then
+# either DELETE its line here (if the FULL sweep has since re-emitted the findings md
+# with its verdict) or MOVE it to the `swept:` section below.
+#
+# ⚠ WHY `swept:` HAS TO EXIST — the two halves of CLAUDE.md §6 step 1 otherwise
+# contradict each other. ARM 3 reads verdicts out of the committed findings md; the
+# diff-scoped ARM 1 recipe ends with `git checkout -- docs/reviews/authz-door-audit-findings.md`,
+# because a subset run OVERWRITES that file with only its own cases. So a diff-scoped
+# sweep — the one the phase gate actually mandates — has nowhere to leave its verdict,
+# and a correctly-swept, correctly-keystoned gate would read as UNSWEPT forever. The
+# `swept:` section is that missing destination. Discovered when the PCI+TV merge landed
+# six keystoned policies whose verdicts existed only in a discarded report.
+
+# ════════════════════════════════════════════════════════════════════════════════
+# gate: a real authorization decision. Owes a neutralization sweep → then a keystone
+#       (if BLIND) or an allowlist line with justification (if a genuine backstop).
+# ════════════════════════════════════════════════════════════════════════════════
+
+# -- ETH targeted lane, 2026-07-27 hotfix 4ee24c8 (out-of-phase). Same family as the
+#    FUP-AUTHZ-2 fifteen; 298_authz_p0_isolation.sql keystones the SELECT/ALL half.
+answers.answers_insert_targeted (INSERT)
+answers.answers_update_targeted (UPDATE)
+responses.responses_update_targeted (UPDATE)
+
+# -- case_events write family (both the staff_admin and the writer arm).
+case_events.case_events_staff_admin_delete (DELETE)
+case_events.case_events_staff_admin_insert (INSERT)
+case_events.case_events_staff_admin_update (UPDATE)
+case_events.case_events_writer_delete (DELETE)
+case_events.case_events_writer_insert (INSERT)
+case_events.case_events_writer_update (UPDATE)
+
+# -- DEFINER boolean gates the door audit's name-prefix worklist cannot see. Each is a
+#    principal-dependent authorization decision; `member_can` is the ADR 0061
+#    delegated-capability resolver, i.e. one of the most central gates in the schema.
+app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid)
+app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid)
+app.event_current_custodian(p_event_id uuid, p_user_id uuid)
+app.member_can(p_commission_id uuid, p_capability text)
+public.capa_viewer_can_manage(p_capa_id uuid)
+public.interview_viewer_can_write(p_interview_id uuid)
+public.rca_writer_can_write(p_rca_id uuid)
+
+# -- Tenant-scoping conjuncts: not principal-dependent on their own, but they appear
+#    INSIDE policies as the isolation half, so opening one widens a tenant boundary.
+app.artifact_belongs_to_commission(p_kind text, p_artifact uuid, p_commission uuid)
+app.department_belongs_to_commission(p_department_id uuid, p_commission_id uuid)
+
+# -- Template versioning (ADR 0096), added 2026-08-05 by the PCI+TV merge and found by
+#    ARM 3's first run against the merged catalog. The phase swept and keystoned the six
+#    CHILD policies on process_template_{phases,narratives,outcomes} (commit dcc5a4d) but
+#    not its own PARENT table's two — the "a new door must inherit EVERY sibling arm"
+#    shape, one level up. Genuine audit debt, not bookkeeping.
+process_template_versions.process_template_versions_select (SELECT)
+process_template_versions.process_template_versions_staff_admin_write (ALL)
+
+# -- ROW-RETURNING DEFINER DOORS — 11 of the original 45 remain. SWEPT AND UNSUPPORTED,
+#    which is a DIFFERENT claim from the rest of this file and must not be read as the same.
+#    Every other line here means *nobody has asked*. These eleven were asked, by
+#    `p0-authz-rowdoor-audit.sh` (ADR 0079 Amendment 4), and the harness answered that it
+#    has no mechanism for them: their gate is not a statement-level guard it can open, but
+#    an identity conjunct INSIDE the query (`where m.principal_id = auth.uid()`) or a
+#    `declare`d array of the caller's own hospitals. There is nothing to rewrite, so no
+#    verdict exists — not BLIND, not COVERED. They are recorded UNSUPPORTED in
+#    docs/reviews/authz-rowdoor-audit-findings.md and stay here, because the census must
+#    keep counting a door the audit could not test.
+#
+#    The other 34 left this file on 2026-08-05 carrying real verdicts: 32 COVERED (8 of
+#    them only after `supabase/tests/300_rowdoor_gate_keystones.sql` was written for
+#    them), 1 BLIND-and-allowlisted as a measured backstop (`get_case_meeting_links`),
+#    1 ERROR (`open_attachment` — opening its guard makes an unauthorized principal hit
+#    `log_audit_access`, which RAISES and aborts 208_attachments.sql, so the run shape
+#    stops matching baseline and no clean verdict can be read; it owes one).
+#    [RESOLVED BY DELETION 2026-08-12: DM1/20260923000100 dropped open_attachment with
+#    the attachments substrate (ADR 0114 D5) and 208_attachments.sql with it — the owed
+#    ERROR verdict is discharged by the gate no longer existing, not by inference.]
+#
+#    ⚠ This class is NOT hypothetical debt. BUG-AUTHZ-002 lived here: two row-doors
+#    returned commission content to platform_admin against ADR 0078 A35's noun rule, and
+#    a boolean-only census could not see them. Fixed by `20260908000100`, held by
+#    `299_hospital_content_door_noun_rule.sql` — whose §4 is the model for what each of
+#    these eleven owes: a COMPUTED enumeration plus a row-count assertion per principal,
+#    never a predicate call. `300_rowdoor_gate_keystones.sql` is a worked example.
+
+app.case_phase_option_aggregates(p_case_phase_id uuid)
+app.eligible_voters(p_case_id uuid)
+app.response_validation_errors(p_response_id uuid)
+app.signoff_target(p_response_id uuid, p_section_id uuid)
+app.submitted_form_responses(p_form_id uuid)
+public.capa_kpis()
+public.commission_overview()
+public.list_cases_board(p_commission_id uuid, p_limit integer)
+public.list_my_assigned_capa_actions()
+public.my_pending_meeting_signatures()
+public.pqs_inbox(p_status text, p_suspected_harm_level text, p_reporting_commission_id uuid, p_cursor_reported_at timestamp with time zone, p_cursor_id uuid, p_limit integer)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# helper: NOT an authorization decision — the result does not depend on WHO is asking.
+#         Classified, not deferred: these owe no sweep. They are listed rather than
+#         filtered out so the classification is a reviewable record instead of a regex
+#         nobody reads (the door audit's own `^is_valid_` exclusion is the same idea).
+#         ⚠ If one of these ever gains a `p_uid`/`auth.uid()` term it becomes a gate —
+#         move its line up.
+# ════════════════════════════════════════════════════════════════════════════════
+
+# -- feature-flag readers: a flag decides whether a FEATURE exists, never who may use it.
+app.feature_enabled(p_key text)
+public.action_items_enabled()
+public.audit_trail_enabled()
+public.case_narratives_enabled()
+public.case_patient_enabled()
+public.case_phase_results_enabled()
+public.cases_extras_enabled()
+public.interviews_enabled()
+public.meetings_enabled()
+public.patient_index_enabled()
+public.patient_safety_enabled()
+public.processless_cases_enabled()
+public.referrals_enabled()
+
+# -- structural / configuration validators (the `is_valid_*` class under other names).
+app.instance_is_empty(p_response_id uuid, p_instance_id uuid)
+app.item_required_satisfied(p_response_id uuid, p_item_id uuid, p_item_type text, p_instance_id uuid)
+app.response_required_complete(p_response_id uuid)
+app.validate_group_layout(p_form_version_id uuid)
+app.validate_template_allowed_results(p_template_version_id uuid, p_position integer, p_allowed_result_ids jsonb)
+app.validate_template_phase_blocks(p_template_version_id uuid, p_position integer, p_blocks integer[])
+app.validate_template_phase_result(p_template_version_id uuid, p_position integer)
+app.validate_template_recommend_when(p_template_version_id uuid, p_position integer, p_recommend_when jsonb)
+app.validate_template_result_ruleset(p_template_version_id uuid, p_position integer, p_result_ruleset jsonb)
+app.version_has_input_key(p_version_id uuid, p_question_key text)
+app.version_has_option_code(p_version_id uuid, p_question_key text, p_code text)
+public.validate_visible_when(p_form_version_id uuid)
+
+# -- state predicates and actions that happen to return boolean.
+app.event_capa_fully_settled(p_event_id uuid)
+app.enqueue_notification(p_user_id uuid, p_commission_id uuid, p_kind text, p_milestone text, p_is_reminder boolean, p_entity_type text, p_entity_id uuid, p_title text, p_body text, p_dedup_key text)
+public.remind_document_approver(p_version_id uuid, p_approver_id uuid)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# swept: a diff-scoped ARM 1 returned a verdict, but the findings md could not keep
+#        it (a subset run overwrites the report, so the recipe restores it). Recorded
+#        here WITH the verdict and the keystone that holds it. Delete a line once the
+#        next FULL sweep re-emits the findings md carrying its verdict.
+# ════════════════════════════════════════════════════════════════════════════════
+
+# -- (EMPTY as of 2026-08-05 — FUP-AUTHZ-4 closed the only occupants.)
+#    The six process_template_{phases,narratives,outcomes}_{select,staff_admin_write}
+#    policies lived here from the PCI+TV phase (commit dcc5a4d). A diff-scoped re-sweep
+#    returned COVERED for all six; their verdicts were HAND-MERGED into
+#    docs/reviews/authz-door-audit-findings.md, and only then were their lines deleted
+#    from here AND from authz-blind-allowlist.txt.
+#
+#    ⚠ THE ORDER IS THE WHOLE POINT, and it is the trap the next occupant will hit.
+#    ARM 1 compares the findings md's BLIND table against the allowlist. Pruning the
+#    allowlist FIRST — while the findings still list the gate as BLIND — makes ARM 1
+#    fail for a condition that was already fixed. And deleting a `swept:` line without
+#    a findings verdict makes ARM 3 report the gate as an unswept NEWCOMER. So a line
+#    leaves this section only after the findings md carries its verdict: full sweep, or
+#    hand-merge as above.
+
+# ─────────────────────────────────────────────────────────────────────────────────
+# AUDIT-INVOKER-WRAPPER, 2026-08-12 (ADR 0079 Amendment 7). `public` INVOKER wrappers
+# the invoker sweep returned UNSUPPORTED — it has no mechanism to open their gate, so
+# it returns NO verdict about them. Two distinct reasons, both recorded because the
+# difference is what a later reader needs:
+#
+#   (a) NO OPENABLE GUARD — the authorization is a conjunct inside a query, or a
+#       `select … into` whose RLS read IS the gate. Same shape the row-door sweep files
+#       UNSUPPORTED; owes a walk-through keystone, not a neutralization.
+#   (b) UN-OPENABLE IDENTITY ASSERT — the gate is `v := app.assert_X(…)`, the assignment
+#       form, which has no type-safe neutral value. ⚠ `update_meeting` is here: it was
+#       previously recorded BLIND on the strength of a DOMAIN probe the sweep could open,
+#       a verdict about the wrong guard. Its authority exposure is the same as the
+#       meetings verbs and is covered by pgTAP 327 t6 rather than by the harness.
+#
+# ⚠ UNSUPPORTED is not a pass and not a verdict — it is the harness admitting its edge.
+# ─────────────────────────────────────────────────────────────────────────────────
+public.add_group_instance(p_response_id uuid, p_group_item_id uuid)
+public.add_meeting_attendee(p_meeting_id uuid, p_user_id uuid, p_external_name text, p_external_org text, p_role text, p_attendance text, p_note text)
+public.add_template_narrative(p_template_version_id uuid, p_narrative_type_id uuid, p_title text, p_instructions text, p_is_expected boolean)
+public.assert_profile_tenant_has_org()
+public.clone_form_version(p_source_version_id uuid)
+public.clone_template_version(p_source_version_id uuid)
+public.create_form(p_commission_id uuid, p_title text, p_description text)
+public.create_process_template(p_commission_id uuid, p_title text, p_description text)
+public.delete_section_moving_items(p_section_id uuid, p_target_section_id uuid)
+public.discard_response(p_response_id uuid)
+public.discard_template_draft(p_template_version_id uuid)
+public.form_item_options_code_immutable()
+public.guard_profile_no_delete()
+public.mark_all_notifications_read()
+public.publish_form_version(p_form_version_id uuid, p_approved_by uuid, p_effective_date date, p_review_cycle_months integer, p_review_due_date date)
+public.publish_process_template(p_template_id uuid)
+public.publish_template_version(p_template_version_id uuid)
+public.reference_candidates(p_response_id uuid, p_item_id uuid, p_query text)
+public.remove_template_narrative(p_narrative_id uuid)
+public.reorder_case_layout_template(p_template_version_id uuid, p_ordered jsonb)
+public.reorder_item(p_item_id uuid, p_direction text)
+public.reorder_section(p_section_id uuid, p_direction text)
+public.reorder_template_phase(p_phase_id uuid, p_direction text)
+public.save_section_answers(p_response_id uuid, p_section_id uuid, p_answers jsonb, p_clear_item_ids uuid[], p_observations jsonb, p_selections jsonb, p_other_text jsonb, p_instance_answers jsonb, p_matrix_cells jsonb, p_risk_matrix jsonb, p_references jsonb)
+public.seed_expected_meeting_attendees(p_meeting_id uuid)
+public.seed_selected_meeting_attendees(p_meeting_id uuid, p_user_ids uuid[])
+public.set_notification_preferences(p_surface text, p_enabled boolean)
+public.set_template_phase_blocks(p_phase_id uuid, p_blocks integer[])
+public.skip_phase(p_case_phase_id uuid)
+public.start_or_resume_phase(p_case_phase_id uuid)
+public.start_or_resume_response(p_form_version_id uuid)
+public.submit_response(p_response_id uuid)
+public.update_meeting(p_meeting_id uuid, p_title text, p_scheduled_start timestamp with time zone, p_modality text, p_meeting_type_id uuid, p_scheduled_end timestamp with time zone, p_location_text text, p_meeting_url text, p_minutes_md text)
+public.update_template_narrative(p_narrative_id uuid, p_title text, p_instructions text, p_is_expected boolean, p_clear_title boolean, p_clear_instructions boolean)
