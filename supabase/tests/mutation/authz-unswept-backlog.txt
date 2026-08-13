@@ -31,6 +31,49 @@
 # messages and item labels. Scheduling is a PO decision; the point of this note is that
 # ARM 3 holding is not evidence about that class.
 #
+# ⛔ SECOND EDGE, MEASURED 2026-08-13 (DM3) — **DEFINER doors that return a COMPOSITE**.
+# The domain's function clauses are bounded by RETURN TYPE: `bool`, or `proretset` +
+# authenticated-EXECUTE. A `prosecdef` door that returns ONE composite row
+# (`returns public.<table>`) is in NEITHER, so it is invisible to ARM 3 — and to every
+# other arm, all of which bound themselves the same way. This is ADR 0118 §12's standing
+# finding ("a sweep boundary drawn on a return-type SYNTAX cannot enforce a PROPERTY"),
+# now with a number on it:
+#
+#     136  prosecdef boolean                      IN the domain
+#      49  prosecdef proretset, auth-reachable    IN the domain
+#      88  public INVOKER plpgsql, auth-reachable IN the domain
+#    ▸146  prosecdef COMPOSITE-returning,
+#          auth-reachable                         NOT in the domain
+#
+# 146 is not a DM3 regression — the class predates it — but DM3 ADDED one to it, and the
+# honest place to say so is here rather than in a findings md, because no sweep has been
+# run over any of them and a verdict nobody earned is worse than an admitted gap:
+#
+#     public.attach_controlled_document_version_file(p_version_id uuid,
+#       p_core_version_id uuid, p_summary_of_changes_md text, p_expiry_date date)
+#         → DEFINER, `returns public.controlled_document_versions`, EXECUTE to
+#           authenticated, and in `public` so PostgREST can reach it. Its own
+#           `app.is_staff_admin_of(v_commission)` check IS the entire boundary
+#           (it replaced `set_document_version_file`, which was in the same class).
+#           Behaviourally pinned by pgTAP 330 DM3·P1/P1b/P1c and by 314 §10.3's
+#           mutation case — but by keystones, NOT by any authz arm.
+#
+# DM3's other new functions are recorded here for completeness and are NOT of this class:
+#   app.controlled_version_source_path(p_version_id uuid) → DEFINER returning text, no
+#     authority check of its own (a resolver called by gated doors). Reachable only from
+#     `app`, which config.toml does not expose to PostgREST.
+#   app.guard_controlled_core_binding() / app.guard_ethics_document_case_scope() /
+#     app.mint_controlled_document_resource() → DEFINER TRIGGER functions; not callable
+#     as gates, PUBLIC-revoked.
+#   app.assert_documents_wave_b_enabled() → INVOKER, but in `app`, and the INVOKER census
+#     clause is bounded by `nspname = 'public'`. A flag assert, not an authz gate.
+#
+# ⚠ WIDENING THE DOMAIN TO COVER THE 146 IS A PROGRAM DECISION, NOT A PHASE ONE, and it
+# is deliberately NOT done here: adding the clause would put 146 previously-unswept doors
+# into ARM 3's LIVE set at once, none of which carries a verdict, so the arm would red on
+# 145 pre-existing doors the moment it ran. That is a real backlog to schedule, not a
+# gate to trip mid-phase.
+#
 # ── HOW THIS FILE GREW (59 entries, and every jump has a cause worth reading) ──
 #   46  2026-08-04 · the first census, over booleans + policies (root cause below)
 #   +2  2026-08-05 · process_template_versions_{select,staff_admin_write} — the PCI+TV
