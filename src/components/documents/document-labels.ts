@@ -328,14 +328,19 @@ export const DOCUMENT_HOME_CONFIG: Record<DocumentHomeResourceType, DocumentHome
     titlePlaceholder: "Ex.: Ata da reunião de revisão",
   },
   interview: {
-    heading: "Anexos e gravações",
+    // "Anexos", not "Anexos e gravações": Wave A splits interview evidence into
+    // two sections, and recordings live in the sibling "Gravações e links"
+    // (external URLs on `case_interview_links`, outside the document model).
+    // A heading naming content the section cannot hold is a heading that lies.
+    heading: "Anexos",
     domId: "interview-attachments",
     uploadLabel: "Enviar anexo",
     dialogTitle: "Enviar anexo",
     fileGuidance:
       "Anexe a transcrição assinada, uma evidência ou outro documento desta entrevista. O arquivo pode conter dados de paciente — ele fica guardado com a proteção reforçada do módulo de casos.",
-    emptyWritable:
-      "Nenhum anexo. Envie a transcrição assinada ou vincule a gravação de áudio.",
+    // No recording clause: vinculating a gravação is the sibling section's
+    // action, and this empty state must not invite what this section cannot do.
+    emptyWritable: "Nenhum anexo. Envie a transcrição assinada ou outra evidência.",
     emptyReadOnly: "Nenhum anexo.",
     titlePlaceholder: "Ex.: Transcrição assinada",
   },
