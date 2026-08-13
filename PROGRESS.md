@@ -105,7 +105,8 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | Slice | Owner | Status |
 | --- | --- | --- |
 | S1 — M1–M7 migrations + suite `330` | backend | ✅ applied — `330` **44/44**, `328` **128/128**; **M8 dropped with evidence** (its premise was false: no projection door ever projected `storage_path`) |
-| S1b — backend side of the §7 contract (TS) | backend | 🟢 in progress — `typecheck` RED at 6, deliberately: it *is* the contract boundary |
+| S1b — backend side of the §7 contract (TS) | backend | ✅ landed (`d75883b`) — 3 lead-approved §7 corrections; `typecheck` 14 = **10 frontend** (the contract boundary, by design) + **4 backend** (composite verbs, held for frontend's signal) |
+| S1c — keystones `DM3·B4` + `DM3·X3` | backend | 🟢 in progress — ordered **now**, own commit, **not** folded into the composite deletion |
 | S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | 🟢 in progress (contract-first against plan §7) |
 | S3 — tester: lifecycle + prior-version + ethics-seam E2E | tester | ⬜ not started |
 | S4 — QA review | qa | ⬜ not started |
@@ -151,6 +152,38 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+**Three §7 corrections, all lead-approved** (`d75883b`) — none moved a signature frontend was
+already building against:
+1. ⚠ **`beginControlledVersionUpload` had to return `uploadSessionId`.** `finalize` is keyed on
+   the **session**, not the version, so **§7 as approved was not merely incomplete — it was
+   UNCALLABLE.** Neither the lead nor the plan review caught it; it surfaced only because
+   backend tried to *use* the contract rather than just implement it. **Process note for the
+   next phase's contract review: trace one full call chain through the posted signatures.**
+2. `finalize` returns `AddVersionState` + `terminal?: boolean`, carrying DM2's MAJOR-3 through
+   so the dialog cannot offer a retry on a spent reservation.
+3. **`ControlledDocument.coreDocumentId` DROPPED** — `list_commission_documents` is a DEFINER
+   rollup that does not return the column, so every list row would have carried `null`, reading
+   as *"this document has no core document"* rather than *"this projection doesn't carry it."*
+   Same false-for-an-unrelated-reason shape as the vacuity finds — but this one would have been
+   read by a **human**, not a test.
+
+**Availability is ONE shared predicate, not a Wave-B copy.** Backend extracted Wave A's
+`documentVersionAvailability` and wrote it to match `open_document_version` branch for branch,
+so `availability === 'available'` means *"the door would serve these bytes right now"* — the
+value frontend gates the submit affordance on. Two copies drift **silently, because both still
+typecheck**; no gate catches a UI predicate that has diverged from the door it mirrors. That is
+exactly why `DM3·X3` (projection ↔ door agreement) was ordered written **now**: it is currently
+asserted in a **comment**, and prose cannot fail. `DM3·B4` was ordered now for a different
+reason — it pins a **DM3 exit criterion** (prior-version download), and an exit criterion
+deferred behind another teammate's landing is one that can be lost.
+
+⚠ **Stale-comment class: the instance count was 2, not 1.** Frontend flagged
+`SupersedeDocumentButton` in `src/lib/responses/actions.ts`; backend found
+`queries/controlled-documents.ts`'s header still advertising *"Storage reads are signed-URL
+only, minted server-side (`createSignedDownloadUrl`)"* — **describing the exact byte path M5
+deleted**. A found-instance list from whoever tripped over it is a starting point, never the
+population (cf. `328`'s eleven collisions vs three; `193` alongside `194`).
 
 **Lead ruling — the create-wizard's terminal step (frontend escalation, Q-A/B/C).** Plan §7
 posted a contract for **one** upload path, but M4 kills **five** `p_storage_path` call sites;
