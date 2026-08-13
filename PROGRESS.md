@@ -122,7 +122,43 @@ QA MINOR-2 (`open_document_version` must gate **before** recording — the regis
 `is_admin()` short-circuit) · plan **Q1** (ethics seams still have no wave — PO; blocks DM3, not DM2) ·
 **O4** (signed-URL TTL per sensitivity — decide with the PO against real DM2 latency).
 
-**🔶 OPEN DESIGN FORK — S2.8 `reclassify_document_file` (lead, 2026-08-13; nothing built pending it).**
+**✅ PO RULINGS 2026-08-13 (DM2).** **O4 CLOSED** — signed-URL TTL **PHI 120 s / standard 300 s**,
+**no streaming proxy** (sign median measured **10 ms**). The tier split is deliberate and must not be
+"simplified" to one number: a signed URL is a bearer token, so PHI bytes carry a strictly smaller
+exposure window. Lands in ADR 0114 (O4's closure) + ADR 0118. · **List perf** — the file-chain costs
+~3.7 ms/row (a 200-doc panel ≈ 2 s); **keep `containsPhi` + `availability`, do NOT trim the embed** —
+the prod census is 45 objects total and real panels hold single digits, so the trim would spend two
+live projection fields on a load that does not exist. Filed as a **named pilot watch-item** with the
+measured numbers attached, not a pre-ship fix.
+
+**✅ RULED — S2.8 `reclassify_document_file` (lead, 2026-08-13): option 1 + an evidence-gated
+duplicate-retirement exemption, with 3 conditions.**
+The re-derivation confirmed the fork was real — `document_version_files_version_rendition_uniq
+UNIQUE (document_version_id, rendition_kind)` does block the originally recommended
+"second `source` binding" shape (backend had checked the table's *triggers* but never listed its
+*constraints*; owned and corrected). **Shape:** reclassification mints a **new `document_version`**
+whose binding points at the copied file — fully append-only, **zero DM1-invariant edits**, and the
+visible version history is honest (the bytes genuinely changed bucket, audited via
+`document.reclassified`). **The hole option 1 alone left:** the old file stays *bound* to its
+immutable old version, so retiring it hits the provisional-retention gate HC0DR — and the urgent
+reclassify case is precisely mis-tiered PHI that must leave the wrong bucket. **The amendment:**
+`complete_document_disposal` honors reason `duplicate` **only when the door itself verifies** a live,
+servable **same-sha256** file bound to the same document — retention protects the *record*, and a
+same-content sibling proves the record survives. Caller-asserted duplication is never accepted.
+**Conditions:** (1) the last-copy invariant is keystoned as a **differential pair** — dispose A while
+B is live → permitted, then B with no sibling → **refused by retention** — because "the last copy is
+protected" is the entire safety claim and an inductive argument must be executable, not reasoned;
+(2) the exemption as described is **wider than its use case** and symmetric (nothing in
+sha/live/same-document distinguishes the correct-tier copy from the mis-tiered one, so it would
+equally permit retiring the *new* copy) → narrow its reachability to the reclassification path, or
+keep it general and pin that a `duplicate` disposition of a **non**-duplicated file is refused;
+(3) it lands as an **ADR decision, not a state-only note** — it creates a new retention-exemption
+class, and a future reader hitting HC0DR must find its bounds without reconstructing them.
+Standing rule: *DM1 invariants may be amended, never widened as a side effect of making a command
+compile.*
+
+<!-- superseded fork text kept below for the reasoning trail -->
+**🔶 (RULED — see above) design fork — S2.8 `reclassify_document_file`.**
 D10's copy→verify→commit→retire-source has no legal expression on the DM1 substrate as built, and
 the recommended shape does not survive the catalog:
 - `document_version_files_version_rendition_uniq UNIQUE (document_version_id, rendition_kind)` —
