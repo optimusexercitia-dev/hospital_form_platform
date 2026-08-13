@@ -39,12 +39,52 @@ reverse.
 **Therefore the gate's spec must include a machine-checkable tombstone convention** (an explicit
 marker token adjacent to the symbol, e.g. `@removed`), so a deliberate tombstone is
 distinguishable from a stale claim **without natural-language guessing**. Settle the exact token
-when the gate is built. ⛔ **Do not churn the four sites now** for a gate that does not yet
-exist — a mid-phase rewrite for a hypothetical checker is cost with no coverage.
+when the gate is built. ⛔ **Do not churn the sites now** for a gate that does not yet exist — a
+mid-phase rewrite for a hypothetical checker is cost with no coverage.
+
+**The tombstone population is SEVEN, and how it was established is the lesson.** Three
+successive lists (backend 6, frontend 3, lead 4) were each short, and **none was careless** —
+each was bounded by a different *unstated enumeration key*: "comments my deletion broke" / "the
+composite verbs" / "verbs + the RPC". `frontend` finally derived it **by construction** — the
+removal set from `git diff 5310358..HEAD -- src/lib` ∪ the `drop function|policy|column`
+statements in the DM3 migrations (**12 symbols**), swept across `src/app` + `src/components`:
+`novo/page.tsx:40` · `nova-versao/page.tsx:27` · `revisar/page.tsx:33` ·
+`add-version-form.tsx:52` · `version-compare-modal.tsx:23` ·
+`documentos-pendentes/[documentId]/page.tsx:43` · `open-controlled-version-button.tsx:20`.
+**A population is only well-defined once its key is stated**, and recall is keyed to whatever
+you were last looking at ([[enumeration-boundary-is-a-syntax-not-a-property]], three times in
+one thread).
+
+### ⛔ The gate CANNOT be keyed on identifier names — three live families prove it
+
+Lead sweep of all 12 removed symbols, 2026-08-13. Every hit below is **live, correct code** that
+a name-keyed gate would flag, and where the tempting "fix" edits a subsystem the rule has no
+business touching:
+
+1. ⭐ **`uploadDocumentFile` is simultaneously REMOVED and LIVE.** DM3 deleted a *private*
+   `async function uploadDocumentFile` from `src/lib/controlled-documents/actions.ts`, while
+   **`src/lib/documents/upload-client.ts:13` exports a live one** — imported and called by
+   `add-version-form.tsx:12,144`, `create-wizard.tsx:27,436` and
+   `documents/document-upload-dialog.tsx:18,216`. **This is decisive: a bare identifier is not a
+   key at all**, independent of scoping-by-family. A name-keyed gate would flag three live call
+   sites of a live function.
+2. **printed-documents (ADR 0104, retires DM5/Wave D)** — `src/app/api/documents/[id]/route.ts:46`
+   `.download(row.storage_path)`, downloading from the **`printed-documents`** bucket. A
+   different table's column that DM3 never dropped, under a URL that *reads* in-scope. Plan §1.2
+   named this exact hazard (two families sharing the `document` noun) and §1.3 warns the route's
+   URL is misleading while its body is not.
+3. **form-assets (ratified permanently separate, ADR 0114 D13)** — `storage_path` in
+   `components/forms/block-card.tsx:91,478` · `block-list.tsx:53` · `item-editor-dialog.tsx:281` ·
+   `read-only-blocks.tsx:52`.
+
+**Spec consequences (binding on whoever builds it):** resolve each symbol to its **owning module
+and family**, never its name; and the first dry-run must run against a **hand-classified
+control** containing all three families above as known-goods — *a detector that finds a lot needs
+proving too* ([[a-detector-that-finds-a-lot-needs-proving-too]]).
 
 **Discharge:** a `scripts/check-stale-symbol-comments.mjs` chained into `npm run lint`, with the
-tombstone convention, **and proven able to fail** before it is trusted
-(cf. `detector-that-finds-nothing-must-be-proven-able-to-find-something`).
+tombstone convention **and** family-scoped resolution, **proven able to fail** before it is
+trusted ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
 ### 🔴 FUP-PGTAP-SAVEPOINT — a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape (owner: lead + backend)
 

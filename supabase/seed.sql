@@ -2573,6 +2573,11 @@ declare
   v_ver_vig uuid;
   v_doc_apr uuid;
   v_ver_apr uuid;
+  -- DM3: the core-model counterparts each controlled document now owns.
+  v_core_doc_vig uuid;
+  v_core_ver_vig uuid;
+  v_core_doc_apr uuid;
+  v_core_ver_apr uuid;
 begin
   perform set_config('request.jwt.claims',
     jsonb_build_object('sub', v_chefe, 'role', 'authenticated')::text, true);
@@ -2603,15 +2608,6 @@ begin
   returning id into v_core_doc_vig;
   update public.controlled_documents set core_document_id = v_core_doc_vig where id = v_doc_vig;
 
-  insert into public.controlled_document_versions
-    (document_id, version_number, summary_of_changes_md,
-     effective_date, review_due_date, status, created_by)
-  values
-    (v_doc_vig, 1,
-     'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
-     'effective', v_chefe)
-  returning id into v_ver_vig;
-
   -- The FILELESS core version, 1:1 with the domain version — mirroring M3's
   -- backfill exactly, so a fresh reset reproduces the post-backfill state that
   -- pgTAP 330 DM3·X1 measures. (A fresh reset runs the backfill against an EMPTY
@@ -2619,8 +2615,25 @@ begin
   insert into public.document_versions (document_id, version_number, created_by)
   values (v_core_doc_vig, 1, v_chefe)
   returning id into v_core_ver_vig;
-  update public.controlled_document_versions
-     set core_document_version_id = v_core_ver_vig where id = v_ver_vig;
+
+  -- ⚠ BORN DRAFT, WITH the pointer, THEN transitioned along the real edges.
+  -- `app.guard_controlled_core_binding` refuses to set the pointer on a version
+  -- that is already frozen (HC0DB) and — unlike its sibling — deliberately does
+  -- NOT honour `app.in_controlled_docs_rpc`, so the seed cannot buy its way past
+  -- it (that non-bypassability is pinned by pgTAP 330 DM3·P3). Rather than
+  -- weaken the guard for the seed's convenience, the seed follows the state
+  -- machine the product follows: draft → in_approval → effective.
+  insert into public.controlled_document_versions
+    (document_id, version_number, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by, core_document_version_id)
+  values
+    (v_doc_vig, 1,
+     'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
+     'draft', v_chefe, v_core_ver_vig)
+  returning id into v_ver_vig;
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_ver_vig;
+  update public.controlled_document_versions set status = 'effective'   where id = v_ver_vig;
 
   update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
 
@@ -2636,19 +2649,38 @@ begin
      encode(extensions.digest('' || ':' || v_farm2::text || ':approved', 'sha256'), 'hex'));
 
   -- 2) IN_APPROVAL document naming the OUTSIDE-commission approver 0005 (pending).
-  insert into public.controlled_documents
-    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
-  values
-    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'sop', 24, 'in_approval', v_chefe)
-  returning id into v_doc_apr;
+  -- Same DM3 obligations as (1) — registry row, core document, fileless core
+  -- version. See the note there.
+  v_doc_apr := gen_random_uuid();
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_doc_apr, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_comm_a;
 
-  insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md, status, created_by)
+  insert into public.controlled_documents
+    (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
-    (v_doc_apr, 1, null,
-     'Primeira versão para aprovação.', 'in_approval', v_chefe)
+    (v_doc_apr, v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'sop', 24,
+     'in_approval', v_chefe);
+
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_doc_apr, 'POP de Isolamento de Contato', 'documento_controlado', 'active', v_chefe)
+  returning id into v_core_doc_apr;
+  update public.controlled_documents set core_document_id = v_core_doc_apr where id = v_doc_apr;
+
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_core_doc_apr, 1, v_chefe)
+  returning id into v_core_ver_apr;
+
+  -- Born draft with the pointer, then one legal edge to in_approval (see (1)).
+  insert into public.controlled_document_versions
+    (document_id, version_number, summary_of_changes_md, status, created_by,
+     core_document_version_id)
+  values
+    (v_doc_apr, 1, 'Primeira versão para aprovação.', 'draft', v_chefe, v_core_ver_apr)
   returning id into v_ver_apr;
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_ver_apr;
 
   update public.controlled_documents set current_version_id = v_ver_apr where id = v_doc_apr;
 
@@ -2880,6 +2912,8 @@ declare
   v_qualb_sa uuid := '00000000-0000-0000-0000-0000000000b2';  -- orgadmin.b (staff_admin of Qualidade B)
   v_reg_doc  uuid := 'd0c00000-0000-0000-0000-0000000000f1';  -- deterministic regimento doc id
   v_reg_ver  uuid;
+  v_reg_core_doc uuid;   -- DM3: the core `documents` row this regimento owns
+  v_reg_core_ver uuid;   -- DM3: its fileless core version (1:1 with the domain version)
 begin
   -- 1) Published bylaws controlled document for Farmácia (doc_type='bylaws' — the
   --    committee's "regimento" in pt-BR; the B0-anglicized key is 'bylaws').
@@ -2888,19 +2922,45 @@ begin
     jsonb_build_object('sub', v_farm_sa, 'role', 'authenticated')::text, true);
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
 
+  -- ⚠ DM3: registry row first (composite FK), then the core document + a fileless
+  -- core version 1:1 — mirroring `public.create_controlled_document` and M3's
+  -- backfill. This one CANNOT go through the door for an extra reason beyond the
+  -- explicit code/status: its id is DETERMINISTIC (`commission_charters`
+  -- references it), and the door mints its own.
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_reg_doc, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_farm;
+
   insert into public.controlled_documents
     (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
     (v_reg_doc, v_farm, 'REG-0001', 'Regimento Interno da Comissão de Farmácia',
      'bylaws', 12, 'effective', v_farm_sa);
 
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_reg_doc, 'Regimento Interno da Comissão de Farmácia',
+          'documento_controlado', 'active', v_farm_sa)
+  returning id into v_reg_core_doc;
+  update public.controlled_documents set core_document_id = v_reg_core_doc where id = v_reg_doc;
+
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_reg_core_doc, 1, v_farm_sa)
+  returning id into v_reg_core_ver;
+
+  -- Born draft with the pointer, then draft → in_approval → effective (see the
+  -- DOC-0001 note: the core-binding guard refuses a pointer on a frozen version
+  -- and does not honour the in-RPC bypass).
   insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md,
-     effective_date, review_due_date, status, created_by)
+    (document_id, version_number, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by, core_document_version_id)
   values
-    (v_reg_doc, 1, null, 'Versão inicial do regimento.',
-     current_date - 30, current_date + 335, 'effective', v_farm_sa)  -- review_due in the FUTURE
+    (v_reg_doc, 1, 'Versão inicial do regimento.',
+     current_date - 30, current_date + 335, 'draft', v_farm_sa, v_reg_core_ver)  -- review_due in the FUTURE
   returning id into v_reg_ver;
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_reg_ver;
+  update public.controlled_document_versions set status = 'effective'   where id = v_reg_ver;
 
   update public.controlled_documents set current_version_id = v_reg_ver where id = v_reg_doc;
 
