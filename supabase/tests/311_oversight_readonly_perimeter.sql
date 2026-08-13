@@ -26,7 +26,10 @@
 -- =============================================================================
 
 begin;
-select plan(39);
+-- 39 → 40: 5.2b re-expressed as a two-hop closure after 20260924000800
+-- (MAJOR-1: the kernel's interview arm now routes app.can_read_interview,
+-- which carries the committee cut PLUS the interview's own ceiling).
+select plan(40);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -251,12 +254,26 @@ select cmp_ok(
     where schemaname = 'public' and qual ~ 'case_of_interview\('),
   '>', 0,
   '5.1b NON-VACUITY for 5.1: interview-anchored policies EXIST - so 5.1 empty result means "none leak", not "none found" (the empty-set-as-a-pass trap)');
+-- 5.2b was `can_read_case_committee\(app\.case_of_interview` — the DIRECT
+-- dispatch retired by 20260924000800 (MAJOR-1 / ADR 0117 Amendment 1: the
+-- arm now routes app.can_read_interview, adding the interview's own
+-- ceiling). The pinned PROPERTY — interview-homed documents sit behind the
+-- committee-scoped cut — survives one hop down, so the pin is re-expressed
+-- as the closure of BOTH hops (a syntax pin that names only one level of an
+-- indirection goes silently stale — this one did exactly that, red at the
+-- migration, which is this pair's job).
 select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'can_read_document')
-    ~ 'can_read_case_committee\(app\.case_of_interview',
-  '5.2b CATALOG (DM1 successor): can_read_document''s INTERVIEW arm is the committee-scoped cut (its case arm deliberately is NOT - case metadata stays visible per the lead ruling)');
+    ~ $r$when 'interview' then app\.can_read_interview$r$,
+  '5.2b CATALOG (hop 1): can_read_document''s INTERVIEW arm routes app.can_read_interview (its case arm deliberately does NOT take the committee cut - case metadata stays visible per the lead ruling)');
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_read_interview')
+    ~ 'can_read_case_committee',
+  '5.2b2 CATALOG (hop 2): …and can_read_interview itself is the committee-scoped cut - the closure equals the retired direct dispatch, plus the interview''s own ceiling');
 select is(
   (select count(*)::int from pg_policies
     where schemaname = 'public'
