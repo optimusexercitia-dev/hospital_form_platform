@@ -2972,6 +2972,7 @@ export type Database = {
           requested_action_label: string | null
           response_due_at: string | null
           response_expected: boolean
+          securable_type: string
           sent_at: string | null
           sent_by: string | null
           source_case_id: string
@@ -3018,6 +3019,7 @@ export type Database = {
           requested_action_label?: string | null
           response_due_at?: string | null
           response_expected?: boolean
+          securable_type?: string
           sent_at?: string | null
           sent_by?: string | null
           source_case_id: string
@@ -3064,6 +3066,7 @@ export type Database = {
           requested_action_label?: string | null
           response_due_at?: string | null
           response_expected?: boolean
+          securable_type?: string
           sent_at?: string | null
           sent_by?: string | null
           source_case_id?: string
@@ -3119,6 +3122,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "referral_requested_actions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
           {
             foreignKeyName: "case_referral_source_case_id_fkey"
@@ -9061,54 +9071,6 @@ export type Database = {
           },
         ]
       }
-      referral_reply_attachment: {
-        Row: {
-          created_at: string
-          id: string
-          mime_type: string | null
-          referral_id: string
-          size_bytes: number | null
-          storage_path: string
-          title: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          referral_id: string
-          size_bytes?: number | null
-          storage_path: string
-          title: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          mime_type?: string | null
-          referral_id?: string
-          size_bytes?: number | null
-          storage_path?: string
-          title?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "referral_reply_attachment_referral_id_fkey"
-            columns: ["referral_id"]
-            isOneToOne: false
-            referencedRelation: "case_referral"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "referral_reply_attachment_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       referral_requested_actions: {
         Row: {
           color_token: string | null
@@ -9233,10 +9195,12 @@ export type Database = {
         Row: {
           created_at: string
           frozen_body_md: string | null
+          frozen_document_version_id: string | null
           frozen_mime_type: string | null
           frozen_size_bytes: number | null
-          frozen_storage_path: string | null
           frozen_title: string | null
+          frozen_tombstone_reason: string | null
+          frozen_tombstoned_at: string | null
           id: string
           kind: string
           position: number
@@ -9247,10 +9211,12 @@ export type Database = {
         Insert: {
           created_at?: string
           frozen_body_md?: string | null
+          frozen_document_version_id?: string | null
           frozen_mime_type?: string | null
           frozen_size_bytes?: number | null
-          frozen_storage_path?: string | null
           frozen_title?: string | null
+          frozen_tombstone_reason?: string | null
+          frozen_tombstoned_at?: string | null
           id?: string
           kind: string
           position?: number
@@ -9261,10 +9227,12 @@ export type Database = {
         Update: {
           created_at?: string
           frozen_body_md?: string | null
+          frozen_document_version_id?: string | null
           frozen_mime_type?: string | null
           frozen_size_bytes?: number | null
-          frozen_storage_path?: string | null
           frozen_title?: string | null
+          frozen_tombstone_reason?: string | null
+          frozen_tombstoned_at?: string | null
           id?: string
           kind?: string
           position?: number
@@ -9274,10 +9242,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "referral_shared_item_frozen_document_version_id_fkey"
+            columns: ["frozen_document_version_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "referral_shared_item_referral_id_fkey"
             columns: ["referral_id"]
             isOneToOne: false
             referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_shared_item_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
           {
@@ -10327,31 +10309,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      add_referral_reply_attachment: {
-        Args: {
-          p_mime_type?: string
-          p_referral_id: string
-          p_size_bytes?: number
-          p_storage_path: string
-          p_title: string
-        }
-        Returns: {
-          created_at: string
-          id: string
-          mime_type: string | null
-          referral_id: string
-          size_bytes: number | null
-          storage_path: string
-          title: string
-          uploaded_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "referral_reply_attachment"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       add_referral_shared_item: {
         Args: {
           p_kind: string
@@ -10362,10 +10319,12 @@ export type Database = {
         Returns: {
           created_at: string
           frozen_body_md: string | null
+          frozen_document_version_id: string | null
           frozen_mime_type: string | null
           frozen_size_bytes: number | null
-          frozen_storage_path: string | null
           frozen_title: string | null
+          frozen_tombstone_reason: string | null
+          frozen_tombstoned_at: string | null
           id: string
           kind: string
           position: number
@@ -12720,20 +12679,12 @@ export type Database = {
         Args: { p_entity_id: string; p_module: string }
         Returns: Json
       }
-      get_referral_attachment_path: {
-        Args: { p_attachment_id: string }
-        Returns: string
-      }
       get_referral_case_access_summary: {
         Args: { p_commission_id: string; p_referral_id: string }
         Returns: Json
       }
       get_referral_detail: { Args: { p_referral_id: string }; Returns: Json }
       get_referral_patient: { Args: { p_referral_id: string }; Returns: Json }
-      get_referral_snapshot_document_path: {
-        Args: { p_shared_item_id: string }
-        Returns: string
-      }
       get_reserved_session_items: {
         Args: { p_meeting_id: string }
         Returns: {
@@ -13103,6 +13054,10 @@ export type Database = {
         Args: { p_referral_id: string }
         Returns: Json
       }
+      list_referral_reply_documents: {
+        Args: { p_referral_id: string }
+        Returns: Json
+      }
       list_referral_target_commissions: {
         Args: { p_source_commission_id: string }
         Returns: {
@@ -13391,6 +13346,10 @@ export type Database = {
           status: string
           storage_path: string
         }[]
+      }
+      open_referral_snapshot_document: {
+        Args: { p_shared_item_id: string }
+        Returns: Json
       }
       open_reserved_session: { Args: { p_meeting_id: string }; Returns: string }
       patient_access_audit: {

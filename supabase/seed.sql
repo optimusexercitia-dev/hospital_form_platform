@@ -1798,11 +1798,13 @@ begin
     (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
      || E'parecer da farmácia sobre a conciliação medicamentosa.', v_chefe_a);
-  -- DM1 (ADR 0114 D5): the case-owned source attachment fixture was removed
-  -- with the attachments substrate. The FROZEN snapshot row below keeps its
-  -- frozen_storage_path (the case_documents_select_member boundary + pgTAP 325
-  -- t4 still exercise it); its source_document_id provenance pointer is NULL —
-  -- exactly the production drift shape DM4 reconciles (re-freeze or tombstone).
+  -- DM4 (ADR 0119 D7): the frozen document item below is seeded TOMBSTONED —
+  -- the exact state M3's inline reconciliation leaves a legacy dangling row in
+  -- (version binding NULL, reason 'legacy_unreconciled'; frozen_storage_path
+  -- no longer exists). It is the deterministic "indisponível" specimen for
+  -- E2E and pgTAP 340 E1/E2; 'legacy_unreconciled' has NO live writer
+  -- post-DM4. Same row, same position as the former dangling fixture — the
+  -- seed is a contract with ~900 tests, so the specimen did not move.
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
@@ -1833,10 +1835,11 @@ begin
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
      || E'parecer da farmácia sobre a conciliação medicamentosa.', 0);
   insert into public.referral_shared_item
-    (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
+    (referral_id, kind, source_document_id, frozen_title, frozen_mime_type, position,
+     frozen_tombstoned_at, frozen_tombstone_reason)
   values
-    (v_ref1, 'document', null, 'Prescrição digitalizada',
-     v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', 1);
+    (v_ref1, 'document', null, 'Prescrição digitalizada', 'application/pdf', 1,
+     now() - interval '2 days', 'legacy_unreconciled');
 
   -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture. Phase 23 (ADR
   -- 0039): this row is the SYNTHETIC CROSS-COMMITTEE TEST PATIENT — it deliberately
@@ -2257,8 +2260,14 @@ update app.feature_flags set enabled = true where key = 'controlled_docs';
 -- that are OFF and K9c the ones that are ON, so flipping a flag here without
 -- moving it there reds 328. That coupling is deliberate: K9 exists to force
 -- the flag choreography to be an explicit, reviewed edit rather than a drift.
+-- DM4 Wave C joins (2026-08-14; ADR 0119). `documents_wave_c` gates BEGIN for
+-- a `case_referral` home and the un-parked document arm of
+-- add_referral_shared_item — both at their FIRST residue-producing step,
+-- home/arm-scoped (pgTAP 340 B9/C7 pin the scope). Production stays OFF until
+-- the DM4 gate closes with human approval. K9b/K9c move in the same edit.
 update app.feature_flags set enabled = true
- where key in ('documents_foundation', 'documents_wave_a', 'documents_wave_b');
+ where key in ('documents_foundation', 'documents_wave_a', 'documents_wave_b',
+               'documents_wave_c');
 -- The legacy `attachments` flag key: seed-retired (DM2, plan item 5 — no flip,
 -- no reference; local matches production at false). The KEY ROW itself + the
 -- FeatureFlags interface entry are retired by the S5 choreography MIGRATION
