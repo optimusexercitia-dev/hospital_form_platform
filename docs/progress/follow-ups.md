@@ -102,6 +102,31 @@ buckets and lists *from* `storage.objects`, so it cannot see this class either �
 
 ---
 
+### 🟡 FUP-AUTHZ-ALLOWLIST-ROT — nothing validates that floor-allowlist entries name a LIVE door (owner: lead + backend; filed 2026-08-14, DM5 S2)
+
+`supabase/tests/mutation/authz-neverclled-door-allowlist.txt` keys entries on the **full identity
+signature**, and `p0-authz-invariant.sh:229` consumes it with
+`comm -23 <(offenders) <(allow_body …)` — i.e. it **only ever subtracts**. Nothing checks that a
+listed signature resolves to a function that exists.
+
+**Live specimen:** line 41 names `add_referral_reply_attachment(...)`, which **DM4 dropped**
+(`20260926000400`). Verified absent from `pg_proc` at HEAD.
+
+⚠ **Calibrated, and this corrects the lead's first framing.** A stale entry is **inert, not
+dangerous**: it can never match a live offender, so it masks nothing and fails nothing. The failure
+mode is **legibility, not enforcement** — a human reading the file sees a door "accounted for" that
+does not exist, and the entry's justification comment outlives the thing it justified.
+
+⭐ **The signature-keying is otherwise a FEATURE, and DM5 S2 demonstrates why.** When `…000120`
+drops `p_storage_path` from `add_capa_action_evidence`, line 37 stops matching the live door, which
+then appears in `unlisted` ⇒ **FLOOR VIOLATED, RC=1** — **loud**, exactly as designed. So the
+remedy for line 37 is to update it in the migration's own commit (planned), and the follow-up here
+is only about the rot the mechanism cannot see.
+
+**Proposed fix (not built):** a cheap assertion that every allowlist signature resolves in `pg_proc`,
+run as part of `ARM=floor` — turning silent rot into the same loud failure the live half already
+gets. ⚠ Prove it able to fail before trusting it: line 41 is a ready-made positive control.
+
 ### 🟡 FUP-DM5-GRANTS — `rca_evidence` / `capa_action_evidence` RPCs are NOT single doors (owner: backend; filed 2026-08-14 by ADR 0120)
 
 Both tables carry **table-wide `arwdDxtm` grants to `authenticated`**, so a client can
