@@ -30,7 +30,12 @@ begin;
 -- 108 → 115: R10 (ADR 0118 §10 hardening — the load-bearing sibling
 -- predicate `f2.disposal_state = 'none'` pinned, structurally and with the
 -- two-pending differential QA r1 named), 7 assertions.
-select plan(115);
+-- 115 -> 116: DM5·S3 split the P0d resolve-shape assertion into two parts
+-- (the resolver holds the conjunct; the door delegates to the resolver). The
+-- plan moves in the same edit as the assertions, deliberately — a plan that
+-- lags its file turns an abort into something indistinguishable from a
+-- smaller suite.
+select plan(116);
 
 -- Flags: the module flag flips ON for this txn; the rest asserted as state.
 update app.feature_flags set enabled = true where key = 'documents_foundation';
@@ -894,13 +899,49 @@ select lives_ok(
   $q$ select public.open_document_version((select (r->>'document_version_id')::uuid from up0)) $q$,
   'P0c the coordinator is SERVED (the cut removes exactly one class, nothing else)');
 
--- (5.5 resolve-shape) the conjunct lives in the DOOR body (comment-stripped).
+-- (5.5 resolve-shape) ⭐ RE-POINTED BY DM5·S3 — a DECLARED edit to a DM3-era
+-- test, never a fixture side effect.
+--
+-- Migration 20260927000330 (ADR 0120 D12) refactored `open_document_version`
+-- onto the shared byte resolver `app.resolve_document_version_bytes`, and the
+-- deliberation conjunct moved WITH it. So this assertion's SUBJECT was
+-- RELOCATED; the BEHAVIOUR was not changed — P0a (the refusal), P0b/P0c (the
+-- non-vacuity twins), P0e (the over-narrowing control) and P0f (no audit on a
+-- denial) all stayed green through the move, and THEY are what carry the
+-- behaviour. P0d/P0d2 are STRUCTURAL CORROBORATION: their whole value is
+-- catching a MOVE, which is precisely what happened, so nobody should later
+-- mistake them for the load-bearing guard.
+--
+-- ⚠ IT IS TWO PARTS ON PURPOSE. Simply re-pointing at the resolver would have
+-- been WEAKER than the original: "the resolver holds the conjunct" says nothing
+-- about whether the served path still reaches the resolver, so a future
+-- refactor could strand a correct conjunct behind a door that no longer calls
+-- it. Part 2 closes that, and it is the same claim migration …000330 asserts
+-- from the catalog at apply time.
+--
+-- ⚠ AND THE TITLE MOVED WITH THE SUBJECT. The old title said "the DOOR's"; the
+-- conjunct is now the RESOLVER's. Leaving that title while re-pointing the
+-- query would have made the highest-traffic comment in the file describe
+-- something the test no longer checks
+-- ([[a-comment-is-an-assertion-that-goes-stale-silently]]).
+--
+-- FALSIFIABILITY (executed 2026-08-14, ONE rolled-back transaction): the
+-- conjunct was neutralized out of the resolver body, this exact predicate
+-- flipped true -> FALSE (so P0d goes RED), the txn was rolled back, and
+-- `pg_get_functiondef` re-read byte-identical by md5. A re-pointed name-keyed
+-- assertion is a detector, and a detector never shown to fire is not evidence.
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'resolve_document_version_bytes')
+    ~ 'read_case_deliberation',
+  'P0d the deliberation conjunct is enforced in the SHARED RESOLVER''s body, never client-side (resolve-shape, part 1)');
 select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'open_document_version')
-    ~ 'read_case_deliberation',
-  'P0d the deliberation conjunct is the DOOR''s, not a React prop (resolve-shape)');
+    ~ 'resolve_document_version_bytes',
+  'P0d2 ...and the byte DOOR delegates to that resolver, so the conjunct is on the SERVED path (resolve-shape, part 2)');
 
 select * from finish();
 rollback;
