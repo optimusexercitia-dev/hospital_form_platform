@@ -1016,6 +1016,7 @@ export type Database = {
           owner: string | null
           position: number
           root_cause_id: string | null
+          securable_type: string
           status: string
           success_measure: string | null
           title: string
@@ -1033,6 +1034,7 @@ export type Database = {
           owner?: string | null
           position: number
           root_cause_id?: string | null
+          securable_type?: string
           status?: string
           success_measure?: string | null
           title: string
@@ -1050,6 +1052,7 @@ export type Database = {
           owner?: string | null
           position?: number
           root_cause_id?: string | null
+          securable_type?: string
           status?: string
           success_measure?: string | null
           title?: string
@@ -1083,6 +1086,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rca_root_causes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
         ]
       }
@@ -8245,6 +8255,7 @@ export type Database = {
           id: string
           impact: string | null
           scope: string | null
+          securable_type: string
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -8264,6 +8275,7 @@ export type Database = {
           id?: string
           impact?: string | null
           scope?: string | null
+          securable_type?: string
           status?: string
           submitted_at?: string | null
           submitted_by?: string | null
@@ -8283,6 +8295,7 @@ export type Database = {
           id?: string
           impact?: string | null
           scope?: string | null
+          securable_type?: string
           status?: string
           submitted_at?: string | null
           submitted_by?: string | null
@@ -8311,6 +8324,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "patient_safety_event"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_securable_resource_fk"
+            columns: ["id", "securable_type"]
+            isOneToOne: false
+            referencedRelation: "securable_resources"
+            referencedColumns: ["id", "resource_type"]
           },
           {
             foreignKeyName: "rca_submitted_by_fkey"
@@ -9981,6 +10001,7 @@ export type Database = {
           owner: string | null
           position: number
           root_cause_id: string | null
+          securable_type: string
           status: string
           success_measure: string | null
           title: string
@@ -10423,6 +10444,7 @@ export type Database = {
           owner: string | null
           position: number
           root_cause_id: string | null
+          securable_type: string
           status: string
           success_measure: string | null
           title: string
@@ -11244,6 +11266,7 @@ export type Database = {
           owner: string | null
           position: number
           root_cause_id: string | null
+          securable_type: string
           status: string
           success_measure: string | null
           title: string
@@ -11343,6 +11366,7 @@ export type Database = {
           id: string
           impact: string | null
           scope: string | null
+          securable_type: string
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -14062,6 +14086,7 @@ export type Database = {
           id: string
           impact: string | null
           scope: string | null
+          securable_type: string
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -15155,6 +15180,7 @@ export type Database = {
           id: string
           impact: string | null
           scope: string | null
+          securable_type: string
           status: string
           submitted_at: string | null
           submitted_by: string | null
@@ -15415,6 +15441,7 @@ export type Database = {
           owner: string | null
           position: number
           root_cause_id: string | null
+          securable_type: string
           status: string
           success_measure: string | null
           title: string
@@ -16201,6 +16228,7 @@ export type Database = {
           id: string
           impact: string | null
           scope: string | null
+          securable_type: string
           status: string
           submitted_at: string | null
           submitted_by: string | null
