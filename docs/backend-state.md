@@ -243,8 +243,27 @@ for case / meeting / interview / action-item homes. ⛔ On branch `docs/dm1-plan
 
 Record: [dm2-orchestration-wave-a.md](progress/dm2-orchestration-wave-a.md) · review
 [dm2-orchestration-wave-a-review.md](reviews/dm2-orchestration-wave-a-review.md).
-**Still unbuilt:** S2.8 `reclassify_document_file` has no legal expression on the DM1
-substrate; Waves B/C/D (controlled docs · referrals · NSP+printed) are DM3–DM5.
+⚠ **CORRECTED 2026-08-14 (lead, at the DM5 open). This line said "Still unbuilt: S2.8
+`reclassify_document_file` has no legal expression on the DM1 substrate." That was FALSE
+and it caused a bad ruling** — ADR 0120 D3/D4/D5 were drafted on it before the catalog
+was checked. **S2.8 was RULED, BUILT and ADR'd at DM2** (record
+[dm2-orchestration-wave-a.md](progress/dm2-orchestration-wave-a.md) §S2.8, "✅ RULED …
+option 1"; ADR [0118](decisions/0118-dm2-s2-command-layer-decisions.md)). It shipped under
+a **different name** — `public.reclassify_document` + `complete_document_reclassification`
+— which mint a new `document_version`, bind the new `file_object`, and retire the old one
+via `file_objects.disposal_state = 'disposal_pending'` with reason `duplicate`;
+`complete_document_disposal` gates that reason on a **live same-`sha256` sibling** it
+verifies itself ("EVIDENCE, never a claim", `HC0DR`). **Zero DM1-invariant edits**, which
+was the whole point of choosing option 1.
+⛔ The "no legal expression" text still in the DM2 record is the **superseded fork**, kept
+there behind `<!-- superseded fork text kept below for the reasoning trail -->`. Do not
+quote it as current.
+⭐ Root cause worth carrying: the verdict was keyed to the **noun** `reclassify_document_file`,
+which is absent from `pg_proc` — so a name-keyed check returned "unbuilt" while the
+**capability** was live under another name. Resolve the VALUE, not the noun
+([[a-rename-orphans-a-name-keyed-verdict]], [[a-comment-is-an-assertion-that-goes-stale-silently]]).
+
+**Still unbuilt:** Waves B/C/D (controlled docs · referrals · NSP+printed) are DM3–DM5.
 
 ---
 

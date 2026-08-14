@@ -35,28 +35,106 @@ is tenanted*. Rejected: pinning `current_owner_commission_id` (a moving tenancy 
 tenant-isolation hazard); a nullable commission for these types (would weaken `tenant_shape`
 for all six existing types).
 
-**D3 — `document_version_files` gains a liveness column and its UNIQUE becomes PARTIAL over
-live rows.** `UNIQUE (document_version_id, rendition_kind)` permits **one** `printed_pdf` per
-version; `printed_documents_one_active` is a **partial** unique on `status='active'`, i.e.
-many retained historical prints per source. The two cardinalities are incompatible and the
-partial form wins. ⚠ This is an **explicit, ratified amendment to a DM1 invariant**
-(ADR 0116), taken on its own merits — **not** a widening adopted as a side effect of making a
-command compile. That distinction is the binding DM2 S2.8 rule and it is what makes this
-decision legitimate where the DM2-era attempt was not.
+## ⛔⛔ D3, D4 and D5 ARE WITHDRAWN — superseded by D11 (PO re-ruling, 2026-08-14, same day)
 
-**D4 — the immutability guard gains ONE narrow, keystoned exception.**
-`guard_document_version_file_immutable` is `BEFORE DELETE OR UPDATE`, which is what makes
-D3's liveness column unwritable today. The exception admits **exactly** the liveness column,
-in **one direction only** (live → retired), and nothing else. Keystone **both polarities**:
-that the permitted transition succeeds, and that every other column and the reverse
-transition still refuse. An exception proven only in the permissive direction is a widening
-nobody measured.
+> **DO NOT IMPLEMENT D3, D4 OR D5. They were drafted on a false premise and never reached
+> SQL.** Their text is retained below under strike-through *solely* for the reasoning trail.
+> ⚠ **This banner is deliberately loud.** The DM2 record marked its own superseded fork with
+> an HTML comment (`<!-- superseded fork text … -->`), invisible in rendered Markdown — and
+> **that is exactly how the lead came to quote dead text as current and mis-brief the PO.**
+> A supersession marker that only a raw-file reader can see is not a marker.
 
-**D5 — `reclassify_document_file` is BUILT in DM5.** Parked at DM2 (S2.8) as having "no legal
-expression on the DM1 substrate"; D3+D4 are precisely the mechanism it was waiting for, and
-the expensive half is paid for regardless. The program closes with no known-unbuildable
-command. (PO ruling; consistent with the DM3 ethics ruling that rejected closing a manifest
-with seams pointing at nothing.)
+~~**D3 — `document_version_files` gains a liveness column and its UNIQUE becomes PARTIAL over
+live rows.** `UNIQUE (document_version_id, rendition_kind)` permits one `printed_pdf` per
+version; `printed_documents_one_active` is a partial unique on `status='active'`, i.e. many
+retained historical prints per source. The two cardinalities are incompatible and the partial
+form wins. This is an explicit, ratified amendment to a DM1 invariant (ADR 0116), taken on its
+own merits — not a widening adopted as a side effect of making a command compile.~~
+
+~~**D4 — the immutability guard gains ONE narrow, keystoned exception.** The exception admits
+exactly the liveness column, in one direction only (live → retired), and nothing else.
+Keystone both polarities.~~
+
+~~**D5 — `reclassify_document_file` is BUILT in DM5.** Parked at DM2 (S2.8) as having "no legal
+expression on the DM1 substrate"; D3+D4 are precisely the mechanism it was waiting for.~~
+
+**D11 — printed renditions follow the EXISTING new-version idiom; `document_version_files` is
+NOT touched.** Each print event mints a `document_version`, binds its bytes as the
+`printed_pdf` rendition of *that* version, records supersession on `printed_documents` (where
+`printed_documents_one_active` already models it), and retires superseded bytes through
+`file_objects.disposal_state`. **Zero schema change** to `document_version_files`, **no** guard
+exception, **no** DM1-invariant amendment.
+
+**Why D3–D5 were wrong — four catalog facts, each verified live before the re-ruling:**
+
+0. ⭐ **DM2 CONSIDERED D3+D4 AND REJECTED THEM BY NAME.**
+   `docs/progress/dm2-orchestration-wave-a.md:253-281` records the re-derivation and rules:
+   *"Option 2 (partial UNIQUE + liveness column + guard exception) remains strictly worse: an
+   invariant edit for no additional honesty."* That sentence **is** D3 and D4, evaluated and
+   rejected with the reasoning preserved, eight days before this ADR proposed them again. The
+   failure was not that the answer was hard — it was that a settled ruling was re-opened without
+   anyone reading it.
+1. **S2.8 was never parked.** It was **RULED at DM2 on 2026-08-13 (option 1), BUILT** in migration
+   `20260924000500`, and **recorded in ADR [0118](./0118-dm2-s2-command-layer-decisions.md)**,
+   keystoned at pgTAP `329` R6/R7 (the last-copy differential pair) and R8 (vacuity pin), with a
+   mutation twin neutralizing the sha term. It shipped under a
+   different name — `public.reclassify_document` + `complete_document_reclassification` — which
+   mint a new `document_version`, bind the new `file_object`, and retire the old via
+   `disposal_state = 'disposal_pending'` with reason `duplicate`; `complete_document_disposal`
+   gates that reason on a **live same-`sha256` sibling it verifies itself** (`HC0DR`, commented
+   *"EVIDENCE, never a claim"*). D5's premise was the **superseded fork text**, and the DM2 lead
+   chose option 1 **precisely because it needs zero DM1-invariant edits** — the opposite of what
+   D5 attributed to it.
+2. **The guard is SHARED.** `app.guard_document_version_immutable()` backs triggers on **both**
+   `document_version_files` *and* `document_versions`, and its body inspects nothing — it raises
+   `HC0D2` unconditionally. D4's "narrow exception on one table" would have altered the
+   immutability contract of `document_versions`, which ADR 0114 **D10** protects with *"never a
+   pointer update (F-03)"* — re-opening a closed audit finding.
+3. **`file_objects` already carries liveness** — `upload_state` (10 states) + `disposal_state`
+   ∈ `{none, disposal_pending, disposed}`, governed by `guard_file_object_transition`. D3's
+   column would have been a **second liveness authority able to disagree with the first**, with
+   every door then obliged to consult both.
+4. **The "incompatible cardinality" was a comparison between keys that never meet.**
+   `(document_version_id, rendition_kind)` is per-**version**; `(source_kind, source_id,
+   template_key)` is per-**source**. Under one-version-per-print they are the **same grain** and
+   do not conflict. The conflict was an artifact of the lead's framing, not of the schema — and
+   the PO ruled on that framing.
+
+⭐ **The reusable lesson, and the reason this ADR keeps the wreckage visible.** The verdict was
+keyed to the **noun** `reclassify_document_file`, which is genuinely absent from `pg_proc` — so a
+name-keyed check answered "unbuilt" while the **capability** was live under another name.
+*Resolve the VALUE, not the noun.* Same class as `docs/backend-state.md`'s stale "Still unbuilt"
+line (corrected in the same pass), and a direct instance of the standing rules
+`a-rename-orphans-a-name-keyed-verdict` and
+`a-comment-is-an-assertion-that-goes-stale-silently`.
+⚠ **Nothing was built on D3–D5.** The cost was one planning cycle and a held teammate, because the
+reevaluation happened before SQL — which is the argument for step 0 and for full plan review on
+invariant-touching slices, not against them.
+
+⛔ **The stale line has now misled TWICE, and the second time it produced an ADR decision.**
+`docs/backend-state.md:245-246` was written at DM2 S2 close and never updated when S2.8 landed
+**later the same day**. DM3's planner hit it and *caught* it
+(`docs/plans/dm3-controlled-documents-plan.md:611-637` — "S2.8 is CLOSED, and DM3 does not force
+it open"); DM5's lead hit it and did not. Corrected in the same change as this re-ruling. **A
+durable surface map that lags its own phase by hours is a trap with a long fuse** — the correction
+belongs in the same commit as the work, not in the next phase's Record step.
+
+**Two consequences carried into S3 rather than lost here:**
+- **A concrete TS defect the idiom exposes:** `src/lib/queries/documents.ts:116` and `:142` both do
+  `.find(b => b.rendition_kind === 'source')`. A print document whose only binding is `printed_pdf`
+  yields `latestFile === undefined`, so `containsPhi` and `availability` derive from a **missing
+  source**. Real, and S3's to handle.
+- **`documents.kind` has no CHECK** (`select count(*) from pg_constraint where
+  conrelid='public.documents'::regclass and conname ilike '%kind%'` → **0**; the only value in use
+  is `documento_controlado`), so it is available as a discriminator today without a migration.
+- **Five consumers order by `version_number desc` to mean "latest"** (`app._referral_reply_documents`,
+  `public.add_referral_shared_item` — which picks what to **freeze into a referral snapshot** —
+  `public.reclassify_document`, and `documents.ts:139/:226`). ⚠ **This only bites if a print appends
+  a version to an existing content `documents` row.** Under D6 a print homes on its *source's*
+  securable resource as its **own** `documents` row, so all three SQL consumers resolve within a
+  single document and never see it. Neither gate cares: `open_document_version` has no version
+  ordering at all, and `app.can_read_document` dispatches purely on
+  `securable_resources.resource_type`.
 
 **D6 — all four `printed_documents.source_kind` values migrate.** Prints home on their
 **source's** securable resource; `case` / `meeting` / `interview` already exist as types and

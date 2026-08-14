@@ -114,10 +114,35 @@
 >
 > **PO rulings 2026-08-14 (ADR 0120):** **R1** three new securable types (`rca`, `capa_action`,
 > `form_response`), commission pinned to **reporting** with custody staying a read-time input ·
-> **R2** the rendition UNIQUE relaxes to **partial over live rows** — an explicit ratified amendment
-> to a DM1 invariant, not a side-effect widening · **R3** all four `source_kind` values migrate, so
-> the manifest closes at 8/8 · **R4** **S2.8 `reclassify_document_file` is un-parked and BUILT**,
-> since R2 already buys the guard exception it was waiting for.
+> **R3** all four `source_kind` values migrate, so the manifest closes at 8/8. ⛔ **R2 and R4 were
+> RE-RULED the same day and are WITHDRAWN — see below.**
+>
+> ⛔ **ADR 0120 D3/D4/D5 WITHDRAWN 2026-08-14, never built; D11 replaces them.** Printed renditions
+> follow the **existing new-version idiom** — each print mints a `document_version`, binds its bytes
+> as that version's `printed_pdf`, records supersession on `printed_documents`, retires superseded
+> bytes via `file_objects.disposal_state`. **`document_version_files` is not touched**: no liveness
+> column, no partial unique, no guard exception, **no DM1-invariant amendment**. **S1 is withdrawn
+> as a slice**; its window is released to S2.
+>
+> **Why — four facts, each verified live before the re-ruling.** ⭐ **DM2 had already evaluated and
+> rejected D3+D4 BY NAME** (`dm2-orchestration-wave-a.md:253-281`: *"Option 2 (partial UNIQUE +
+> liveness column + guard exception) remains strictly worse: an invariant edit for no additional
+> honesty"*) · **S2.8 was never parked** — ruled, **built** (`20260924000500`), ADR'd at 0118 and
+> keystoned at `329` R6/R7/R8, shipped as `reclassify_document` + `complete_document_reclassification`
+> · `app.guard_document_version_immutable()` is **SHARED with `document_versions`**, so D4's
+> "narrow exception" reached the table ADR 0114 **D10** protects with *"never a pointer update
+> (F-03)"* · the "incompatible cardinality" compared **two keys that never meet**
+> (`(document_version_id, rendition_kind)` is per-**version**; `(source_kind, source_id,
+> template_key)` is per-**source**) — an artifact of the lead's framing, on an unrecorded
+> many-prints-to-one-version assumption.
+>
+> ⛔ **Root cause, and it has now misled TWICE:** `docs/backend-state.md:245-246` said *"Still
+> unbuilt: S2.8 … no legal expression"* — written at DM2 S2 close, never updated when S2.8 landed
+> **hours later**. DM3's planner hit it and **caught** it; DM5's lead hit it and **did not**, and it
+> produced an ADR decision. ⭐ The verdict was keyed to the **noun** `reclassify_document_file` —
+> genuinely absent from `pg_proc` — while the **capability** was live under another name. *Resolve
+> the VALUE, not the noun.* Corrected in the same change. **Nothing was built on D3–D5**; the cost
+> was one planning cycle, because the check happened before SQL.
 >
 > **Lead ruling, not a PO question:** the parent plan's retirement method — "prove empty via the
 > Storage API, then delete" — is **WITHDRAWN**. It proves emptiness against `storage.objects`, which
@@ -134,9 +159,17 @@
 > *sibling* lock (the table CHECK). **FUP-PGTAP-VACUOUS applies directly** — `lint:vacuous` does not
 > scan SQL and every DM5 keystone is SQL.
 >
-> **Slices:** S0 manifest tool (first, non-destructive) · S1 substrate amendment (liveness + partial
-> unique + guard exception + reclassify; **full plan review required**) · S2 NSP RCA/CAPA evidence ·
-> S3 printed renditions · S4 retirement execution · S5 operational closure · S6 canon + exit sweep.
+> **Slices:** **S0 ✅ COMPLETE** (`0e85cbe7`) — `scripts/storage-manifest.mjs`, **7/7 self-test
+> controls**, baseline for the 8 buckets, `document-reconciliation.mjs` widened 2→**12** buckets.
+> ⭐ **Two controls found real defects on first run**: `find` on a *missing* directory emits the same
+> empty output as an *empty* one, so an absent bucket read as verified-empty (now `—` vs `0` vs `?`);
+> and `storage.protect_delete()` **blocks `storage.objects` DML on this stack** — a platform guard
+> absent from the step-0 model, so the harness plants bytes directly. ⚠ The committed baseline
+> **self-labels DEGENERATE** (zero API-visible keys while bytes exist = the post-reset state) and
+> **must not be reused as S4 input**. Orphan counts, domains stated because they differ: **221 keys /
+> 6.93 MB / 15 PHI** over the 8 retirement buckets; **699 / 7.02 MB / 198 PHI** over all 12.
+> ~~S1 substrate amendment~~ ⛔ **WITHDRAWN** · S2 NSP RCA/CAPA evidence · S3 printed renditions
+> (D11; **no longer blocked**) · S4 retirement execution · S5 operational closure · S6 canon + sweep.
 >
 > ⛔ **State:** branch `main`, **NOT pushed**. All five DM flags ship **OFF**.
 > ✅ graphify refresh **discharged** `02cec1a0` (was owed since the DM0–DM3 merge).

@@ -21,8 +21,8 @@
 | Branch | `main` (DM4 landed there). ⛔ **No pushes, no `db push`** — the standing directive |
 
 Per-slice sub-windows, so two slices never collide mid-phase:
-`S1` `…000100–000199` · `S2` `…000200–000299` · `S3` `…000300–000399` ·
-`S4` `…000400–000499` · `S5`/`S6` `…000500`+.
+~~`S1` `…000100–000199`~~ **(released — S1 withdrawn)** · `S2` `…000100–000299` ·
+`S3` `…000300–000399` · `S4` `…000400–000499` · `S5`/`S6` `…000500`+.
 
 ## Slices
 
@@ -39,16 +39,15 @@ Also here: widen `scripts/document-reconciliation.mjs` past its 2-of-12-bucket c
 and prove the tool **able to fail** before trusting it — a detector that finds nothing must
 be shown able to find something.
 
-### S1 — substrate amendment: liveness, partial unique, guard exception, reclassify (backend)
+### ~~S1 — substrate amendment~~ ⛔ **WITHDRAWN 2026-08-14, never built**
 
-ADR 0120 **D3/D4/D5**, and the security-sensitive heart of the phase — it amends a **DM1
-invariant**, so it gets its own slice and its own keystones rather than riding inside S3.
-Sequence deliberately: liveness column → partial unique → guard exception → the command.
-**Keystone both polarities of D4** (permitted transition succeeds; every other column and
-the reverse transition still refuse) — an exception proven only permissively is an
-unmeasured widening. Requires **full plan review** before any SQL (lead-playbook §3: a new
-door on an immutability guard is exactly the novel/security-sensitive class).
-Also lands ADR 0114 **Amendment 3** ratifying the D3 amendment.
+ADR 0120 **D3/D4/D5 are struck**; **D11** replaces them and `document_version_files` is not
+touched at all. The enabling capability was already built at DM2 (`reclassify_document` +
+`complete_document_reclassification`), and DM2 had **already evaluated and rejected** the
+partial-unique/guard-exception shape by name — *"an invariant edit for no additional honesty."*
+Full reasoning and root cause: ADR 0120's withdrawal banner. **No ADR 0114 Amendment 3 is
+needed; no DM1 invariant is amended.** Migration window `20260927000100–000199` is **released
+back to S2**.
 
 ### S2 — Wave D pt.1: NSP RCA/CAPA evidence (backend + frontend)
 
@@ -63,14 +62,30 @@ following, **not** a commission bound at upload time (step 0 named this the most
 silent authz regression in DM5). ⚠ `nsp-evidence` has **four** policies in two pairs, with
 the RCA insert reading `foldername[2]` and the RCA select `foldername[1]`.
 
-### S3 — Wave D pt.2: printed renditions (backend + frontend) — needs S1
+### S3 — Wave D pt.2: printed renditions (backend + frontend) — **no longer blocked**
 
 D1 (`form_response`) · D6 (all four `source_kind` values) · D7 (`printed_documents` becomes
-the satellite; `storage_path` and `pd_storage_path_derived` retire). Production objects
-migrate **copy → verify → switch**. ⚠ Every new column on `printed_documents` needs its own
-**column GRANT** or it reads `42501`. ⚠ pgTAP `312`/`313`/`323` insert `storage.objects`
-rows for `printed-documents` **without creating the bucket row** — fix those fixtures here,
-before S4 can delete the bucket.
+the satellite; `storage_path` and `pd_storage_path_derived` retire) · **D11 (the new-version
+idiom)**: each print event mints a `document_version`, binds its bytes as that version's
+`printed_pdf`, records supersession on `printed_documents`, and retires superseded bytes via
+`file_objects.disposal_state`. **Zero schema change to `document_version_files`.**
+
+Two things D11 makes S3's job, carried from the S1 analysis:
+- ⚠ **`src/lib/queries/documents.ts:116` and `:142` do `.find(b => b.rendition_kind === 'source')`.**
+  A print document whose only binding is `printed_pdf` yields `latestFile === undefined`, so
+  `containsPhi` and `availability` derive from a **missing source**. Real defect — handle it here.
+  `documents.kind` has **no CHECK** (0 constraints), so it is available as a discriminator without
+  a migration. Whether a generated print belongs in a case's Documentos panel is a **product
+  question** — raise it, do not answer it in SQL.
+- ⚠ **A print must be its OWN `documents` row**, homed on its source's securable resource. Five
+  consumers read `version_number desc` as "latest", including `add_referral_shared_item`, which
+  picks what to **freeze into a referral snapshot** — appending print versions to a *content*
+  document would silently change what a referral freezes. Keystone the separation.
+
+Production objects migrate **copy → verify → switch**. ⚠ Every new column on `printed_documents`
+needs its own **column GRANT** or it reads `42501`. ⚠ pgTAP `312`/`313`/`323` insert
+`storage.objects` rows for `printed-documents` **without creating the bucket row** — fix those
+fixtures here, before S4 can delete the bucket.
 
 ### S4 — retirement execution (backend) — needs S2 + S3
 
