@@ -385,3 +385,206 @@ untested arm was hiding, so it is raised as a new finding rather than as a re-fi
 MAJOR-1 only. If fix (1) is chosen I will want to see the new keystone red with the
 `assert` removed, one twin, before the arm counts as covered. MINOR-1 through MINOR-4 and
 all INFO items are recordable without a second round.
+
+---
+---
+
+# Round 2 — 2026-08-13 · after M11 (`5b35003`)
+
+## VERDICT: **APPROVED**
+
+**MAJOR-1 is discharged.** The fix is the one I recommended (option 1), placed at the
+step I named, and scoped so it does not narrow Wave A — which I verified by measurement
+rather than by reading the scope. **r2: 0 P0 · 0 MAJOR · 3 MINOR carried · 5 INFO
+carried.** No new findings. No binding pre-merge condition.
+
+---
+
+## MAJOR-1 — DISCHARGED
+
+### The fix, read from the live catalog
+
+`public.begin_document_upload` now carries, immediately after
+`assert_documents_enabled()` and before any lookup or write:
+
+```sql
+-- DM3 QA MAJOR-1: Wave B's flag gates the corridor at its FIRST
+-- residue-producing step. Scoped to the home type so Wave A is untouched.
+if p_resource_type = 'controlled_document' then
+  perform app.assert_documents_wave_b_enabled();
+end if;
+```
+
+Two functions now assert the gate (`begin_document_upload`,
+`attach_controlled_document_version_file`) — up from one. 386 migration files = 386
+registered; `330` is `plan(57)` (was 55: `DM3·T3` + `DM3·T3b`).
+
+**The scoping is sound against the obvious evasion.** The assert keys on the *declared*
+`p_resource_type`, not the resolved home — but the resource lookup two statements later
+is `where s.id = p_resource_id and s.resource_type = p_resource_type`, so a caller who
+declares a different type to dodge the gate cannot then reach a controlled-document home:
+the lookup returns nothing and the door raises `P0002`. The `p_document_id` branch is
+bound by the same already-resolved `v_res`. There is no path to a controlled home that
+does not pass through the assert.
+
+### Evidence I produced — the fix works
+
+Flag flipped OFF inside a rolled-back transaction; home types **enumerated from
+`securable_resources`**, not from a hand list; the write-authorized `staff_admin`
+resolved per resource:
+
+```
+action_item          : BEGIN ACCEPTED
+case                 : BEGIN ACCEPTED
+controlled_document  : BEGIN REFUSED HC0D7      ← the gate
+interview            : BEGIN ACCEPTED
+meeting              : BEGIN ACCEPTED
+```
+
+The corridor now refuses **before** anything exists: at the moment of refusal there is no
+`documents` row, no `document_versions` row, no `file_objects` row, no `upload_sessions`
+row and no signed PUT credential. I measured the residue directly — reserved upload
+sessions homed on a controlled document, with the flag OFF: **0**.
+
+### Evidence I produced — the fix did not narrow Wave A
+
+This is the failure mode the fix's own shape invites, and the lead was right to name it.
+I ran the twin and captured **all five home types before and after** removing the assert,
+so the answer is a matrix, not an assertion:
+
+| phase | case | meeting | interview | action_item | controlled_document |
+|---|---|---|---|---|---|
+| **BEFORE** twin (assert present) | ACCEPTED | ACCEPTED | ACCEPTED | ACCEPTED | **REFUSED HC0D7** |
+| **AFTER** twin (assert removed) | ACCEPTED | ACCEPTED | ACCEPTED | ACCEPTED | **ACCEPTED** |
+
+Exactly one cell changes. The four Wave-A arms are ACCEPTED with the flag OFF both with
+and without the assert — so Wave A is untouched, and the twin's effect is confined to the
+one arm, which corroborates *"reds `T3` and only `T3`"* structurally as well as by the
+lead's suite run. Removing the assert also restores the residue: reserved controlled-home
+sessions **0 → 1**, with a minted session id. The twin was guarded
+(`if mutated = src then raise`) and it fired correctly on the first anchor attempt.
+
+`DM3·T3b` is therefore the right control and it is not vacuous: it pins the exact cell
+that a blanket assert at the top of the door would have flipped.
+
+### The two false comments
+
+Both corrected, and — importantly — **they read as corrections**, naming what they used
+to claim and why it was false:
+
+- `src/lib/documents/actions.ts:85-98` now names both asserting doors, states the property
+  that actually matters (*"a stale client cannot reserve a path or land bytes"*), and
+  carries the `⚠ This comment previously claimed "every DM3 door calls it", and that was
+  FALSE` retraction.
+- `supabase/seed.sql:2247-2250` likewise, and — the part I did not ask for and think is
+  the better half — it records that *"every door"* is **not** the target state either,
+  because the gate is deliberately scoped so Wave A keeps working. That closes the loop a
+  bare correction would have left open: the next reader who notices the gate is not
+  universal now finds the reason instead of re-filing my finding.
+
+`documentsWaveBEnabled()` is still uncalled in `src/`, which is now correct rather than
+misleading: it is a UI helper for a flag whose surface the DB refuses at BEGIN, available
+if the UI later wants to hide the affordance. Not carried as a finding.
+
+---
+
+## The scope decision I was asked to challenge — the diff-scoped sweep was correctly NOT re-run
+
+I agree, and I can say so from measurement rather than deference. But the warrant is not
+the one stated, and the difference matters.
+
+*"M11 creates no `is_/can_/has_` gate and no policy"* is a claim **about a migration
+file**, and migration text is stale by design on this project — it is the exact class
+that has produced a confident false P0 here before. The sound warrant is that the **live
+census domain is unchanged**, which is precisely what `ARM=census` exists to detect (ADR
+0079 Amendment 3: a brand-new gate is in no BLIND set, so it passes `ARM=policy`
+vacuously and only the census catches it).
+
+Measured, post-M11:
+
+```
+ARM=census   → live authz gates 548 · verdicts 569 · INVARIANT HOLDS
+public policies                 275   (r1: 275 — unchanged)
+prosecdef boolean functions     136
+app.can_read_document  prosrc md5  b024daba7434ae30483c27284b8d3dec
+app.can_write_document prosrc md5  335233b0138bcdc66f593f0d8c03d340
+```
+
+548 and 275 are identical to my r1 measurements taken before M11 existed, so M11 added
+zero gates and zero policies to the live domain. I also re-read
+`can_read_document`'s `controlled_document` arm from `pg_get_functiondef` and it is
+byte-identical to the text I audited in r1. M11 does not name either swept gate.
+
+So the sweep's case list is provably unchanged and a re-run would re-test an unchanged
+substrate. **Decision upheld — with the reasoning restated on the catalog rather than on
+the diff.**
+
+The r1 caveat still stands and is unaffected: `can_write_document`'s verdict remains
+`ERROR run-shape!=baseline` resolved by runlog, not a clean COVERED, and must not be
+cited later as COVERED.
+
+---
+
+## MINOR-1 — CLOSED
+
+Corrected at all four sites I could check, **including at its origin in ADR 0118 §12**,
+which is more than I asked for and is the difference between fixing a symptom and fixing
+a source. I verified `411` now appears in `docs/backend-state.md`, `docs/decisions/
+0118-dm2-s2-command-layer-decisions.md`, `docs/plans/dm3-controlled-documents-plan.md`
+and `PROGRESS.md`.
+
+Backend's stated reason for warning against the overstated form is the right one and
+worth preserving verbatim in the record: *an overstatement disprovable in one query
+invites a reader to dismiss the real gap along with it.* That is how a standing blind
+spot gets closed as "already checked" — and it is a sharper statement of the problem than
+my finding was.
+
+---
+
+## Carried forward, unchanged, non-blocking
+
+**MINOR-2** (`DM3B-2` does not assert sha256; `DM3B-1` carries that claim — fix the
+docstring or add the assertion) · **MINOR-3** (`HC0DI`/`HC0DJ` have no pt-BR mapping in
+`mapEthicsError`; safe today, unreachable under the D17 no-UI boundary) · **MINOR-4**
+(`docs/backend-state.md` still carries only 2 DM3 references — the surface map is a §6
+**step 5** item and is on schedule, flagged only so it is not skipped) · **INFO-1…5**.
+
+---
+
+## NEW-1 (INFO, not DM3's) — two specs flaked in BOTH independent full-gate runs
+
+`act-role-assumption.spec.ts:157` and `phase2-auth-shell.spec.ts:268` were flaky in run 1
+and again in run 2. Two independent `e2e:prod` runs is a pattern, not noise. Both are
+outside the DM3 diff and neither blocks this phase.
+
+**It warrants a follow-up, and my reason is not tidiness.** A spec that flakes reliably
+trains the gate's readers to discount a red on that line — and this project's own record
+is that the evidence for diagnosing a flake is destroyed by the next run
+(`re-running destroyed the flake evidence`, DM2). A repeat offender is the one case where
+the evidence is *cheap* to capture, because you already know which line to instrument
+before the run. Recommend filing it now, while two runs' worth of signal exists, rather
+than after a third run makes it three.
+
+---
+
+## r2 gate figures — what I re-ran vs accepted
+
+**Re-ran myself:** `ARM=census` (548/569, HOLDS) · the M11 twin, both directions, all five
+home types · the flag-OFF corridor probe across every catalog-enumerated home type ·
+migration reconciliation (386 = 386) · `330`'s `plan(57)` · the catalog placement, scoping
+and md5 checks above. Zero residue confirmed after every mutation (`QATWIN` count 0,
+`documents_wave_b` back to `true`, the assert still resident in `begin_document_upload`).
+
+**Accepted, same reasons as r1:** `e2e:prod` GATE GREEN (1101 + 0 + 3 = 1104, +6 skipped
+= 1110 = collected, every batch `accounted N/N`) · pgTAP 190f/6152 on a fresh reset ·
+`ARM=hat` / `ARM=wrapper` / `ARM=floor` · tsc 0 · lint 5/5. The accounting closes exactly
+and I have no reason to doubt it; I did not re-run the suites that require a fresh reset
+or that mutate the shared stack.
+
+---
+
+## Recommendation to the lead
+
+Proceed to §6 step 4 (human approval). Nothing is outstanding that blocks a merge or a
+flag flip. The three MINORs and NEW-1 are recordable as follow-ups; MINOR-4 discharges
+itself at step 5.
