@@ -26,6 +26,7 @@ import {
   REFERRAL_UPLOAD_TERMINAL_MESSAGE,
   referralDocumentErrorMessage,
 } from "./referral-document-labels";
+import { type AttachedRow, mergeAttachedRows } from "./reply-attachment-rows";
 import { formatFileSize } from "./format";
 
 const FIELD_CLASS =
@@ -40,15 +41,6 @@ const PHASE_MESSAGE: Record<Exclude<UploadPhase, "idle">, string> = {
   finalizing: "Verificando arquivo…",
 };
 
-/** One row in the in-dialog list: either an attachment that already existed
- * when the dialog opened, or one uploaded in this session. */
-interface AttachedRow {
-  key: string;
-  title: string;
-  sizeBytes: number | null;
-  /** `true` for a row uploaded in this session (drives the "Anexado" affordance). */
-  fresh: boolean;
-}
 
 /**
  * The B-side reply-attachment control (DM4 / ADR 0114 Wave C, PO ruling R1).
@@ -132,55 +124,11 @@ export function ReferralReplyAttachmentUpload({
 
   const isBusy = phase !== "idle";
 
-  /**
-   * The rendered list, merged BY `documentId` — never concatenated (BUG-DM4-DUP-1).
-   *
-   * ## Why a concat was wrong
-   *
-   * `finalizeReferralReplyAttachmentUpload` calls `revalidatePath` on the
-   * referral detail, so a successful upload makes Next refetch the RSC payload
-   * WHILE this dialog stays mounted. The page re-runs
-   * `listReferralReplyDocuments`, which now includes the attachment just
-   * created, and hands it back down as `initialDocuments` — while `uploaded`
-   * still holds the optimistic copy of the same row. Concatenating rendered the
-   * document TWICE, under the same React key.
-   *
-   * ⚠ It is a RACE, not a condition: whether the duplicate is on screen depends
-   * on whether the refetch resolved before the render being observed. A run that
-   * does not reproduce it has lost the race, not avoided the bug — which is
-   * exactly how this survived dev-loop verification and surfaced only on
-   * prod-standalone.
-   *
-   * ## Why the optimistic row is NOT the thing to drop
-   *
-   * `initialDocuments` is server-rendered and legitimately STALE for the whole
-   * upload window — that is the reason the optimistic row exists. Removing it
-   * would trade a duplicated row for a disappearing one, which is the worse
-   * failure: the user would attach a file and watch it vanish.
-   *
-   * ## Insertion order is load-bearing
-   *
-   * Optimistic rows are inserted FIRST so each one already occupies the position
-   * it will keep once the server catches up. Seeding from `initialDocuments`
-   * first would put a fresh upload at the END of the list pre-refetch and at the
-   * FRONT after it (the query returns newest-first) — a second timing-dependent
-   * DOM change, of the same family as the bug being fixed here. Keys are unique
-   * because they are `Map` keys, by construction rather than by luck.
-   */
-  const byId = new Map<string, AttachedRow>();
-  for (const row of uploaded) byId.set(row.key, row);
-  for (const d of initialDocuments) {
-    // The optimistic row wins the tie; `set` here would overwrite it (and drop
-    // its `fresh` marker) the moment the server caught up.
-    if (byId.has(d.documentId)) continue;
-    byId.set(d.documentId, {
-      key: d.documentId,
-      title: d.title,
-      sizeBytes: d.sizeBytes,
-      fresh: false,
-    });
-  }
-  const rows: AttachedRow[] = [...byId.values()];
+  // Merged by `documentId`, never concatenated (BUG-DM4-DUP-1). The rules and
+  // the reasoning live with the helper, which is pure so the invariants —
+  // including "the refetch reorders nothing" — are pinned deterministically
+  // rather than through a race an E2E only catches when it wins.
+  const rows = mergeAttachedRows(uploaded, initialDocuments);
 
   function fail(code: ReferralDocumentErrorCode, options?: { terminal?: boolean }) {
     const isTerminal = options?.terminal === true;
