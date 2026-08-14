@@ -1154,3 +1154,18 @@ session is already consumed and the caller restarts at `begin`.
 (`actions.ts:172`, `r.document_id ?? ''`). It propagates through
 `finalizeReferralReplyAttachmentUpload`, which returns that result straight to its
 caller. S2 routes around it by resolving from `documentVersionId`; the twin still has it.
+
+⭐ **This is a BLIND CLASS in the reconciliation tooling, not just a property of this
+bug — and it is a binding S5 input.** `scripts/document-reconciliation.mjs` compares
+storage against `file_objects` in both directions. It cannot see a document that has
+bytes, a verified file object and **no domain row**, because every object it judges is
+accounted for. **S5 must not sign off a reconciliation command whose coverage is
+narrower than the orphan classes it is meant to catch** — S5's job is to name the
+operational owner and mechanism for the disposal job and the reconciliation command,
+and this is a class that command does not currently cover.
+
+Cross-reference: **FUP-DM5-STORAGE-ORPHANS** is the same shape one layer down — an
+emptiness proof narrower than the thing it claims to prove (the Storage API lists *from*
+`storage.objects`, so it cannot see bytes that table has forgotten). Two layers, one
+defect shape: **the reconciler's domain is narrower than the drift it is trusted to
+rule out.**
