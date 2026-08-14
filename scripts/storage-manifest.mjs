@@ -649,6 +649,38 @@ async function cmdSelftest() {
       `saw ${seen.length}: ${seen.join(', ')}`,
     )
 
+    // ---- C8: the PERMISSIVE TWIN — a matching manifest deletes cleanly ----
+    // ⭐ C2 below proves the tool REFUSES a bad manifest. On its own that is
+    // half a proof: a tool hardwired to refuse everything passes C2 and is
+    // useless. The refusal is only meaningful beside a permitted case that
+    // actually succeeds — the same both-polarities discipline D4 was held to.
+    // Ordered BEFORE C2 so C2 still runs against a fully-planted bucket and
+    // tests "almost right" (4 of 5) rather than the weaker "nothing there".
+    const goodManifest = {
+      schemaVersion: SCHEMA_VERSION,
+      capturedAt: new Date().toISOString(),
+      buckets: { [bucket]: { exists: true, keyCount: planted.length, keys: [...planted] } },
+    }
+    const goodPath = `${process.env.TEMP ?? '.'}/dm5-selftest-good-${bucket}.json`
+    writeFileSync(goodPath, JSON.stringify(goodManifest), 'utf8')
+    const savedGood = process.exitCode
+    await cmdDelete(['--manifest', goodPath, '--execute'])
+    const accepted = process.exitCode === 0
+    process.exitCode = savedGood
+    const emptiedApi = await listBucketKeys(admin, bucket)
+    const emptiedVol = volumeCensus(loc, [bucket])[bucket]
+    check(
+      'C8 delete ACCEPTS a matching manifest, exits 0, and leaves zero keys and zero bytes',
+      accepted && emptiedApi.length === 0 && (emptiedVol.files ?? 0) === 0,
+      `exit=${accepted ? 0 : 'nonzero'} api=${emptiedApi.length} vol_files=${emptiedVol.files ?? 0}`,
+    )
+
+    // Re-plant for C2, so the mismatch it refuses is 4-of-5, not 0-of-5.
+    for (const k of planted) {
+      const { error } = await admin.storage.from(bucket).upload(k, new Blob([`x-${k}`]))
+      if (error) throw new Error(`replant ${k}: ${error.message}`)
+    }
+
     // ---- C2: a manifest whose count exceeds reality is REFUSED ----------
     // The deliberate mismatch. A tool that reports success on "delete whatever
     // is there" passes trivially; only a COUNT COMPARISON catches this.
