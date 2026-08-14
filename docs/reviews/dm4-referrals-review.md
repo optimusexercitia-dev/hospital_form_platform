@@ -1,6 +1,12 @@
 # DM4 — Wave C: referrals · QA review (gate step 3)
 
-- **Verdict: ⛔ CHANGES REQUESTED**
+> **ROUND 2 VERDICT: ✅ APPROVED — no binding pre-merge condition.**
+> Both blocking MAJORs are discharged and I verified each **by execution, not by
+> reading the report**. Round 2 detail is in the section
+> [Round 2](#round-2--2026-08-14--head-5e101245) at the end of this file; the r1
+> analysis below is retained verbatim as the record of what was found and why.
+
+- **Verdict (r1): ⛔ CHANGES REQUESTED**
 - **Round:** 1 · **Date:** 2026-08-14 · **Branch:** `main` · **HEAD audited:** `f8052575`
 - **Counts: 0 P0 · 3 MAJOR (2 blocking) · 8 MINOR · 6 INFO**
 - Contract audited against: `docs/plans/dm4-referrals-plan.md` §§0–4 · ADR
@@ -440,3 +446,200 @@ finding; the inference about remote behaviour is properly labelled as such.
 MINOR-1 through MINOR-8 and all INFO items are non-blocking and may be carried, but MINOR-2's
 correction to ADR 0119's ⭐ Consequences note and MINOR-4's one-line caveat beside T6 are cheap
 and should ride along with the MAJOR fixes.
+
+---
+---
+
+# Round 2 — 2026-08-14 — HEAD `5e101245`
+
+- **Verdict: ✅ APPROVED**
+- **Binding pre-merge condition: NONE.**
+- **Counts: 0 P0 · 0 MAJOR open (2 discharged, 1 PO-deferred) · 8 MINOR carried · 2 MINOR new ·
+  5 INFO carried · 1 INFO closed**
+- Discharge audited: `f4d03f44` (+ `5e101245`, which only committed the r1 review file).
+  Discharge diff touches **`src/` not at all** (`git diff --name-only f8052575..HEAD -- src/`
+  → 0 files) and **no migration**, so no gate-step-1 figure other than the matrix line is
+  affected — see "Gate-figure impact" below.
+
+## How I verified — execution, not reading
+
+You asked me not to repeat your r1 mistake of carrying a verdict forward. I did not accept
+"18/18" from any report. I did **all** of the following, and the raw outputs are in the
+session record:
+
+**1. Static needle check against live `prosrc` (before running anything).** All 14 distinct
+needles in the harness — including the previously-orphaned `AUDIT_CALL` — return `true` from
+`position(needle in pg_get_functiondef(…))`. The needle that caused MAJOR-1 is now correct.
+
+**2. Rollback discipline verified before executing.** `340` opens `begin;` at line 35, the
+injection marker is line 48, and the file ends `select * from finish(); rollback;` — so every
+`CREATE OR REPLACE` lands inside a rolled-back transaction (DDL is transactional in Postgres),
+and an aborted file still rolls back at disconnect. I checked this **first**, per
+[[mutation-harness-must-prove-its-rollback-first]].
+
+**3. I ran the committed harness myself.** Not piped through `tail`
+([[gate-summary-can-hide-unrun-tests]]):
+
+```
+N1 … RED-PROVEN   N2 … RED-PROVEN   N3 … RED-PROVEN   N4 … RED-PROVEN
+N5 … RED-PROVEN   N6 … RED-PROVEN   N7 … RED-PROVEN   N8 … RED-PROVEN
+N9a … RED-PROVEN  N9b … RED-PROVEN
+N10a … RED-PROVEN (audit-layer raise; same predicate, not a second lock)
+N10b … RED-PROVEN N11 … RED-PROVEN  N12 … RED-PROVEN  N13 … RED-PROVEN
+N14a door NARROWED to source-only (the ③TWIN heir)   RED-PROVEN
+N14b door welded SHUT (every serve-half detects)      RED-PROVEN
+CONTROL: unmutated 340 green
+matrix: 18 proven / 0 vacuous-or-broken   (HEAD: 5e101245)
+EXIT=0
+```
+
+**4. I proved the catalog was left unmutated.** `md5(pg_get_functiondef(…))` snapshotted for
+all eight mutated functions before the run and re-checked after **each** of my three runs —
+identical every time. `pgtap` is dropped again afterwards (`pgtap=0`), so `gen:types` cannot
+be polluted. The tree was clean (`git status --porcelain` empty) throughout, so the self-
+reported HEAD stamp is honest for my run.
+
+## The two things you asked me to prove rather than read
+
+### ✅ The `mut()` no-match guard **fires** — proven against the exact needle that caused MAJOR-1
+
+A guard that has never been shown to fire is unproven in exactly the way T6 is. So I ran the
+guard body twice against the live catalog: once with the current needle, once with the
+**pre-M5 needle N10b actually carried when it broke**.
+
+```
+NOTICE:  REAL NEEDLE: matched, would execute
+DO
+--- same guard, the orphaned pre-M5 needle ---
+ERROR:  DM4 matrix: needle matched NOTHING in open_referral_snapshot_document
+        (orphaned by a body rewrite — fix the needle against the LIVE catalog)
+psql EXIT=1
+```
+
+The r1 defect is now the guard's own positive control. That is the strongest available
+specimen — it is a **known-real** failure, not a synthetic one, which is precisely what
+[[vacuity-control-anchored-on-a-defect]] warns about getting wrong in the other direction
+(there the control was anchored on an *open* defect that then got fixed; here the mutation is
+reconstructed from history, so fixing the code cannot evaporate it).
+
+### ✅ N14a's must-stay-green mechanism **discriminates** — proven both ways
+
+Reading `run_case:80-87` shows three branches (`ok` → pass, `not ok` → `WENT-RED`, neither →
+`ABSENT`), so an absent assertion is structurally caught. But you asked for measurement, so I
+built a scratch copy (in the scratchpad — never editing the running script,
+[[mutation-harness-must-prove-its-rollback-first]]) and ran two deliberately-wrong variants:
+
+| variant | result |
+| --- | --- |
+| N14a's mutation, green pattern → a label that does not exist | `*** VACUOUS-OR-WRONG: [green:C10a_DOES_NOT_EXIST]=ABSENT(aborted?)` |
+| **no mutation at all**, still demanding `C11d` red | `*** VACUOUS-OR-WRONG: [C11d]=STILL-GREEN` |
+
+So the green branch cannot be satisfied by an absent assertion, and the red branch cannot be
+satisfied by luck.
+
+**And the polarity claim is genuine, not incidental.** I checked *which* principal C10a runs
+as: claims are set at `340:433` to `…0002` (`chefe.ccih`, `staff_admin` of the **source**
+commission), while C11d at `340:518` runs as `…0005` (the **target** coordinator). N14a
+narrows the gate to `can_manage_referral_source`, which `…0002` passes and `…0005` fails — so
+C10a's green is what makes C11d's red attributable to **narrowing** rather than to breaking
+the door, which is exactly what the retired `drop_snapshot_arm` did. Independently, **N14b
+proves C10a can go red** by welding the door shut. The same assertion is therefore pinned
+green under one mutation and red under another: a two-sided proof, in the harness, measured.
+
+## MAJOR-1 / MAJOR-2 / MAJOR-3
+
+- **MAJOR-1 — ✅ DISCHARGED, and fixed better than I asked.** I requested a re-pointed needle;
+  the fix is harness-wide (`mut()` guards *every* mutation) plus a self-reported HEAD stamp.
+  That converts a **silent** decay class into a **loud** one for all 18 cases, not just N10b.
+  Verified by my own run, my own needle check, and my own guard-fires proof.
+- **MAJOR-2 — ✅ DISCHARGED via the option I recommended.** N14a supplies the missing
+  narrowing mutation with a measured must-stay-green control; N14b covers the serve-half
+  generally. The disposition comments in `u1-mutation-audit.sh:134-152`, `236:15-25` and
+  `236:229-238` now enumerate coverage **per successor with its proving case**, and correctly
+  reclassify `D4a` / `325 t4` as *retirement pins — catalog assertions, a different category
+  from mutation coverage*, no longer counted. The ADR 0119 ⭐ note is rewritten to
+  "one predicate applied twice", with the MAJOR-1 lesson appended as a second corollary. I
+  read all four texts against the harness they describe: **each claim now matches a case that
+  exists and that I watched run.**
+- **MAJOR-3 — 🟡 PO-DEFERRED, correctly recorded, NOT resolved.** `add_referral_shared_item`
+  is unchanged; I re-confirmed the predicate chain is unaltered at HEAD. `FUP-DM4-RECUSAL` is
+  filed at `PROGRESS.md:741` with the live demonstration, the D16 pointer, and — importantly —
+  the framing I asked for: *"the gap STANDS behind a flag that will eventually be ON; not P0
+  only because `documents_wave_c` ships OFF"*, plus the instruction to name it in Phase 19's
+  scope. Deferring to the Phase 19 access plane is a legitimate PO call and D16 is the right
+  home, since a plane that only widens would not close this. **My one standing caveat: this
+  must be carried as an open security obligation, never quietly absorbed into "Phase 19
+  delivered an access plane". The flag turning on is the deadline.**
+
+## r1 MINOR / INFO — status at r2
+
+| # | r1 finding | r2 status |
+| --- | --- | --- |
+| MINOR-1 | availability/disposal locks not neutralized independently | **OPEN** — no case added for `d.status='active'`, `disposal_state`, `upload_state`, or the door's `disposal_pending/disposed` check. `340 C15c` still gives partial behavioural cover. ⚠ *Now cheaper than it was*: the `mut()` helper makes each new case two lines |
+| MINOR-2 | "two independent locks" overstated | ✅ **CLOSED** — corrected in ADR 0119 Consequences, `340:23-32`, and the matrix's N10 comment block. Wording verified against the live `_audit_access_authorized` body |
+| MINOR-3 | census 146/150 unreconcilable | ✅ **CLOSED** — `PROGRESS.md:332` records **141 at HEAD / 142 pre-DM4**, with the 144 (`proretset`) and 145 (`+app`) variants beside it so the definition is unambiguous. Re-measured at r2: still 141 |
+| MINOR-4 | T6 caveat only in the commit subject; file header says "All four" | **OPEN** — `src/` untouched |
+| MINOR-5 | HC0DC's pt-BR message unreachable on the freeze path | **OPEN** — `src/` untouched. Regrade note: this is the one carried MINOR with user-visible consequence, but the flag ships OFF so nobody meets it before Phase 19 |
+| MINOR-6 | `not_target_coordinator` / `referral_wrong_state` unreachable | **OPEN** — `src/` untouched |
+| MINOR-7 | focus ring, `aria-describedby`, icon-only state | **OPEN** — `src/` untouched. Still recommended as a **three-site sweep** with the Wave-A siblings, not a DM4-local patch |
+| MINOR-8 | retirement pins are zero-count negatives with no positive control | **OPEN, narrowed.** N14a/N14b now give `340 C10a/C11d/C14` genuine positive controls, so the *behavioural* half is closed. What remains is the **catalog** half: `328 K1a–K1d` and `340 D1–D7`. ⚠ I must retract half of my r1 mitigation: `u1`'s `restore_interview_attach_policy` *would* make `K1b` count 1 — but no harness runs `328` under that injection, so the mitigation is theoretical, not observed |
+| INFO-1 | `attachments` prop/flag name collision | **OPEN** (latent; no path reads the wrong flag) |
+| INFO-2 | wave-c gates writes only, not the read corridor | **OPEN** (recorded, correct as designed) |
+| INFO-3 | `listReferralReplyDocuments` discards `error` | **OPEN** |
+| INFO-4 | `narrowDocumentError` `default` defeats exhaustiveness | **OPEN** |
+| INFO-5 | `236` dead fixture (`shared.pdf`, the orphan PRE at `:128`) | **OPEN** — the `236` discharge diff is comments only; both remain |
+| INFO-6 | `325 t5` is a sound positive control | ✅ **CLOSED — no action** |
+
+## New at r2 (both MINOR, both non-blocking)
+
+- **MINOR-9 (new) — `run_case`'s pattern match is substring-bounded, not identity-bounded, and
+  there is exactly one collision.** `^not ok [0-9]+ - .*$pat` means N2's pattern `B1` also
+  matches `B10c`. I resolved it by measurement rather than by reasoning — and my reasoning
+  would have been **wrong**: I predicted B10c stays green under N2; running the mutation and
+  dumping every red line shows **both** flip:
+  ```
+  not ok 10 - B1 ⭐ BROAD half: a metadata-tier reader … sees a referral-homed document row
+  not ok 27 - B10c ⭐ NARROW half: the SAME metadata-tier reader … is refused the BYTES
+  ```
+  So the current verdict is correct — but only because both happen to flip. I swept every
+  pattern against every `340` label: `B1` ⊂ `B10c` is the **only** collision (`C5` does not
+  match `C15a`, `C4` has no `C4x` sibling, etc.). This is the
+  [[enumeration-boundary-is-a-syntax-not-a-property]] / [[word-boundary-cannot-match-the-for-variant]]
+  class, in the tool built to detect that class. One-character fix: anchor as
+  `- $pat[^0-9A-Za-z]`.
+- **MINOR-10 (new) — the HEAD stamp does not detect a dirty tree.** `…matrix.sh:221` uses
+  `git rev-parse --short HEAD`, so a run against uncommitted edits to `340` or to a function
+  stamps a clean-looking commit. The claim being made — *"a matrix result can never again be
+  cited detached from the commit it was measured at"* — is one flag short of true. Use
+  `git describe --always --dirty` (or append a `git status --porcelain` check). My own run was
+  against a verified-clean tree, so the `5e101245` stamp above is sound.
+
+## Gate-figure impact (for the lead's step-5 record)
+
+The discharge changed **no migration, no `src/` file, and no `340` assertion** — the `340`
+diff is comment-only and `plan(76)` is unchanged. Therefore the step-1 figures
+(pgTAP **191 files / 6231 tests**, registry **391 == 391**, tsc 0, lint 5/5, vitest
+1264/1264, `next build` EXIT=0, all four authz arms, the diff-scoped sweep) **remain valid at
+HEAD** and need no re-run. The single line that changed is the matrix, which I re-ran myself:
+**18/18 RED-PROVEN, control green, `HEAD: 5e101245`, EXIT=0, catalog verified unmutated.**
+
+## Exit criteria — r2
+
+Criteria 1, 2, 3 unchanged (**MET**). Criterion 4 (**bespoke keystones, each proven able to
+fail**) is now **MET**: all 18 cases red-proven at HEAD by my own run, with the no-match guard
+itself proven able to fire. Criterion 5 (**negative twin preserving the two-tier asymmetry**)
+is now **MET**: the kernel/byte twin was already two-sided (N1/N2/N3), and N14a/N14b restore
+the retired ③TWIN's polarity with a measured must-stay-green control. Criterion 6 proceeds to
+step 4 (human approval).
+
+## Recommendations (none binding)
+
+1. Carry **FUP-DM4-RECUSAL** as an open security obligation with the flag-on date as its
+   deadline; name it explicitly in Phase 19's scope document, not only in PROGRESS.md.
+2. Anchor the matrix's pattern match (**MINOR-9**) and add `--dirty` to the HEAD stamp
+   (**MINOR-10**) — together about three characters, and both sit in the assurance layer.
+3. Add the disposal/availability cases (**MINOR-1**) when DM5 touches the disposal lane; the
+   `mut()` helper makes them nearly free now.
+4. Sweep the focus-ring regression (**MINOR-7a**) across all three sites in one change.
+5. Fix the HC0DC mapping (**MINOR-5**) and the T6 caveat (**MINOR-4**) before the flag turns
+   on, not necessarily before merge.
