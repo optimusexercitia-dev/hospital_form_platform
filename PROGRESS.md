@@ -158,6 +158,30 @@
 > coverage for *synthesis* but **no E2E assertion that they reach the screen** (E2E asserts 5
 > kinds: `assignment`, `case_linked`, `decided_accepted`, `resolution`, `sent`). The old DET tests
 > touched `Recebido`/`Concluído`; that is the one thing genuinely thinner now.
+>
+> **S4 (frontend) — ✅ BUILT** 2026-08-14, against `backend`'s S0 contract (`67c0fe04`); no
+> provisional local shapes. Bar: tsc 0 · lint **5/5** · vitest **1258** · `next build` EXIT=0.
+> ⚠ Runtime unproven by design — the S1/S3 action bodies still throw `not implemented`.
+> - **R1 discharged**: the disabled placeholder is gone; `referral-reply-attachments.tsx` is a real
+>   begin → PUT → finalize control (reusing Wave A/B's `uploadDocumentFile` credential transport,
+>   incl. its MAJOR-3 `terminal` no-retry contract). It lives INSIDE the reply dialog because the
+>   write authority is `accepted`/`in_review` — the old copy ("após concluir") named the one window
+>   the DB refuses.
+> - **F-14 discharged**: both detail pages stopped pre-signing at render (a 120 s PHI credential is
+>   dead before the reader reaches it, and signing on render hands out bytes with no audited open).
+>   Opens are now click-time via `referral-open-file-button.tsx`.
+> - **Corridor gate, not last-step**: the whole three-step corridor lives in ONE component with ONE
+>   mount site, behind `attachments.enabled` — grep-verifiable. Flag OFF ⇒ no control, no `begin`,
+>   no reservation, no bytes; `listReferralReplyDocuments` is **not called**.
+> - **`canOpen: false` renders visible + explained + non-interactive** (badge + sentence, never a
+>   hidden row, never a probe of the open door). ⚠ Deliberately UNLIKE Wave A, which deleted that
+>   branch as unreachable — here visibility and bytes are two DIFFERENT predicates by design, so
+>   the state is reachable and hiding the row would misreport the reply's contents.
+> - 🔶 **Contract gap for the lead**: `SharedItem` has no `canOpen` twin, so a metadata-tier reader
+>   still gets an open affordance on a frozen document that refuses at click time (pt-BR mapped,
+>   not raw). Symmetry with `ReferralReplyDocument.canOpen` would close it.
+> - 🔶 **Open question**: the DT page offers the upload control (the DT *is* the target side);
+>   whether `can_write_document`'s referral arm admits the DT office is backend's to confirm.
 
 ### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
 
@@ -470,6 +494,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
 - 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
+- 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans **TS spec files only** (180 files, 0 findings); the **~6152 pgTAP assertions are entirely unscanned**. Live specimen found + lead-confirmed in a **PHI-boundary suite**: `197` §4.1's `-> 0 ->> field IS NULL` passes on an **empty array**, asserting nothing. DM4 fixes only its own diff + adds a positive control; a repo-wide sweep is its own audit and must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-DM5-STORAGE-ORPHANS** — a DB reset wipes `storage.objects` but **NOT the bytes**, and the Storage API lists *from* that table, so orphans are invisible to it too. Lead-reproduced: **0 metadata rows vs 663 files / 16.5 MB, 162 of them PHI-tier**. **Blocks DM5 step 3** — its "prove empty via the API then delete the bucket" would prove emptiness against a truncated table and report success while PHI bytes persist. DM5 must enumerate at the **backend layer**. ⚠ remote behaviour is an INFERENCE, unverified — lead/backend
 - 🟡 **FUP-DM4-PRODROW** — the 1 dangling frozen-snapshot PRODUCTION row + the 3 unreferenced controlled-doc objects: reconcile at the push/deploy step, NOT during DM4 (PO ruling R2). ⚠ **Amended same day: a REMOTE reset is available (no active users), which may close this outright** — but must NOT delete DM4's M3/M4 guards, which are correct independent of deploy strategy. 🔶 Open sub-question for **DM5**: a DB reset wipes `storage.objects` metadata but maybe not the BYTES — an emptiness proof from a truncated table is not an emptiness proof — lead/backend
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff — lead/tester
