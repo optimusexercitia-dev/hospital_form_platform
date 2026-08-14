@@ -113,7 +113,9 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S1f — register the 4 new DEFINER doors (census domain + findings file) | backend | 🟢 in progress — **lead runs the arms**, not the registrar (an arm run by the hand that registered the door is not independent) |
 | S3 — tester: the BYTE ROUND TRIP + lifecycle + prior-version E2E | tester | ✅ **GREEN** (`0c10b9b`+`ce85b4c`, ancestors verified) — **47 collected / 47 ran / 47 passed / 0 skipped** on a fresh reset; **NO bug filed, no application defect found** (all 9 baseline reds tester-owned: 7 stale locators + 2 worker interference) |
 | S3b — full `e2e:prod` gate (lead-run) | lead | ✅ **GATE GREEN** — 1102 passed · 0 failed · 0 infra · 2 flaky · **0 did-not-run** · 18 batches; **accounting closes exactly**: 1102+0+2 = 1104 accounted, +6 skipped = **1110 = collected**, every batch `accounted N/N` |
-| S4 — QA review | qa | 🟢 in progress |
+| S4 — QA review r1 | qa | ⛔ **CHANGES REQUESTED** — 0 P0 · **1 MAJOR (blocking)** · 4 MINOR · 5 INFO. [review](docs/reviews/dm3-controlled-documents-review.md) |
+| S4b — MAJOR-1 remediation (M11) | backend | ✅ landed (`5b35003`) — assert moved to `begin_document_upload`, **home-type-scoped**; `DM3·T3` **red-first** ("caught: no exception"), twin reds `T3` **and only** `T3`; `T3b` control keeps Wave A alive |
+| S4c — re-gate (lead) | lead | 🟢 in progress |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
 
@@ -157,6 +159,43 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+### ⛔→✅ QA MAJOR-1 — the flag gated the LAST STEP of the corridor, not the corridor
+
+**The untested arm held the defect.** `documents_wave_b` was checked by exactly **one** function
+(`attach_controlled_document_version_file`), and `documentsWaveBEnabled()` — added by DM3 — had
+**zero callers** in `src/`. QA's live probe with the flag OFF (rolled-back txn, as `chefe.ccih`):
+`create_controlled_document` **ACCEPTED** · `begin_document_upload` **ACCEPTED** · `attach_…`
+**REFUSED HC0D7**. So a coordinator still created the document, reserved a path, **PUT real bytes
+into `documents-standard`**, and finalized — leaving **orphaned bytes + an orphaned core version
++ a draft whose file never appears**. Lead- and backend-confirmed from the catalog independently
+before the fix.
+
+**Not an authz hole** (QA verified authority unchanged: outside approver reads but cannot write,
+`42501` at the door; plain member and outside approver both `P0002` at `begin`). A **flag-contract**
+defect — and the tree **asserted the opposite in two places**, `seed.sql` and
+`src/lib/documents/actions.ts:87` (*"which every DM3 door calls (HC0D7)"*).
+
+⚠ **The sharpest stale-comment instance of the phase, and the author named why:** *"I wrote
+'every DM3 door calls it' while having added the assert to exactly one door, in the same phase.
+**The claim was general where my knowledge was specific.**"* Both comments now name the two
+asserting doors **and** record that "every door" is not the target state either — the gate is
+deliberately scoped so Wave A keeps working. *A claim kept narrow enough to stay true is the
+correction; a more emphatic claim is not.*
+
+**Fix (M11) — placed by argument, not by convenience.** The assert went to
+**`begin_document_upload`**, because reserving the path is **the first step that produces
+residue**: before it nothing exists; after it a file object, an upload session and a signed PUT
+credential all do. Gating `finalize` is too late (bytes have landed); gating only `create` leaves
+the corridor open to anyone holding a document id. **Scoped to the home type, not blanket** —
+`begin_document_upload` serves every home, so a top-of-door assert would satisfy the new keystone
+while **silently killing Wave A**; `DM3·T3b` is the control that catches exactly that. `DM3·T3`
+authored **red-first** ("caught: no exception"); its twin reds `T3` **and only** `T3`.
+
+⚠ **Stated choice, not an assumption** (backend raised it; lead ruling): the `documents_wave_b`-OFF
+arm is covered by **pgTAP `DM3·T3`/`T3b` only**, not by E2E — exercising it in E2E means flipping a
+shared-stack flag mid-run, which would race every other spec. **This is the second finding that
+gap has produced**, so it is recorded as a decision rather than left implicit.
 
 ### ✅ DIFF-SCOPED DOOR SWEEP — `BLIND: 0`; the one `ERROR` resolved by reading the runlog
 
