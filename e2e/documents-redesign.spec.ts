@@ -18,6 +18,7 @@ import {
   enviarButton,
   salvarRascunhoButton,
   buildPublishedDocViaWizard,
+  versionHasFile,
 } from './helpers/documents'
 
 /**
@@ -314,16 +315,25 @@ test('RW-2: "Salvar rascunho" saves a draft with only a title, no submission', a
   await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=rascunho$/, { timeout: 20_000 })
   const docId = page.url().split('/').pop()!.split('?')[0]
 
-  await expect(page.getByRole('status')).toContainText('Rascunho salvo.')
+  // DM3 added sr-only `role="status"` live regions to the upload surfaces (the
+  // begin → PUT → finalize chain must be AUDIBLE, not just visibly disabled), so
+  // a bare `getByRole('status')` is now ambiguous on this page. Scope to the
+  // notice banner this assertion was always about.
+  await expect(page.getByRole('status').filter({ hasText: /rascunho/i })).toContainText('Rascunho salvo.')
   const rows = await serviceQuery<{ status: string }>(page, `controlled_documents?id=eq.${docId}&select=status`)
   expect(rows[0].status).toBe('draft')
 
-  const versions = await serviceQuery<{ storage_path: string | null }>(
+  // DM3: "no file attached" is now a CORE-model fact — the domain
+  // `storage_path` column was dropped by M4. A draft saved without a file has a
+  // NULL `core_document_version_id`, which is the strictly stronger of the two
+  // fileless states (the other being a pointer to a fileless core version).
+  const versions = await serviceQuery<{ id: string; core_document_version_id: string | null }>(
     page,
-    `controlled_document_versions?document_id=eq.${docId}&select=storage_path`,
+    `controlled_document_versions?document_id=eq.${docId}&select=id,core_document_version_id`,
   )
   expect(versions.length, 'one draft version, no file attached').toBe(1)
-  expect(versions[0].storage_path).toBeNull()
+  expect(versions[0].core_document_version_id, 'nothing was bound — no upload happened').toBeNull()
+  expect(await versionHasFile(page, versions[0].id), 'and the door has nothing to serve').toBe(false)
 })
 
 // ===========================================================================
@@ -433,7 +443,10 @@ test('RW-3: new-version wizard — locked identity, HC089 redirect, Em revisão,
   const versionsSection = page.locator('section').filter({ hasText: 'Versões' })
   await expect(versionsSection.getByText('Substituído', { exact: true })).toBeVisible()
   // Both versions retained + downloadable.
-  await expect(versionsSection.getByRole('link', { name: /baixar/i })).toHaveCount(2)
+  // DM3: render-time signed `<a href>` anchors are gone; downloads are on-click,
+  // audited buttons backed by `open_document_version`. Affordance-only — the
+  // authorization claim lives at the door (dm3-wave-b-documents.spec.ts DM3B-4).
+  await expect(versionsSection.getByRole('button', { name: /baixar/i })).toHaveCount(2)
 })
 
 // ===========================================================================

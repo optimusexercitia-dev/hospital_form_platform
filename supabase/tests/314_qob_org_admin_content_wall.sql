@@ -273,14 +273,30 @@ select is(app.can_view_printed_document('form_response', (select resp_sub from f
 -- carried along. It is not — it gates the controlled-document STORAGE BYTES, a content
 -- boundary, so §6 says keystone it, never allowlist it. The object name's folder shape is
 -- [1] = commission_id, [2] = document_id (read from the function body, not guessed).
-select is(app.can_read_document_object(
-            (select comm_x from k)::text || '/' || (select doc1 from f)::text || '/arquivo.pdf',
+-- ⚠ REWIRED BY DM3, NOT DELETED. `app.can_read_document_object` was the
+-- `controlled-documents` bucket's SELECT predicate; DM3 M5 dropped both the
+-- policy and the predicate, and byte access moved to the audited
+-- `open_document_version` door via the `app.can_read_document` kernel arm
+-- (member OR entitled approver). The QO·B PROPERTY these two pin — a tenancy
+-- admin gets document METADATA but never document BYTES — is unchanged and must
+-- outlive the mechanism that used to carry it, so they are re-expressed against
+-- the kernel rather than retired with the predicate.
+-- Make doc1 byte-capable first: the fixture inserted `controlled_documents`
+-- DIRECTLY, so the M9 trigger gave it a registry row but no core document (the
+-- trigger cannot attribute one — see 00_setup). Without this the assertions
+-- below would compare against a NULL document id and pass for the wrong reason.
+select test_helpers.attach_stub_file((select docver1 from f));
+
+select is(app.can_read_document(
+            (select core_document_id from public.controlled_documents
+              where id = (select doc1 from f)),
             (select oa_b from k)), false,
-  '2.8 ⭐ WRAPPER (was BLIND): can_read_document_object denies the tenancy admin the document BYTES');
-select is(app.can_read_document_object(
-            (select comm_x from k)::text || '/' || (select doc1 from f)::text || '/arquivo.pdf',
+  '2.8 ⭐ WRAPPER (was BLIND): the tenancy admin is denied the document BYTES (now via the can_read_document kernel arm)');
+select is(app.can_read_document(
+            (select core_document_id from public.controlled_documents
+              where id = (select doc1 from f)),
             (select st_x from k)), true,
-  '2.9 NON-VACUITY TWIN: ...and still admits a committee member, so 2.8 is the wall and not a malformed object name');
+  '2.9 NON-VACUITY TWIN: ...and a committee member IS admitted, so 2.8 is the wall and not a missing/!null document');
 
 -- =============================================================================
 -- §3 — INDICATORS: the ruling is a SPLIT (Q3). Both halves asserted.
@@ -436,9 +452,15 @@ set local role authenticated;
 select cmp_ok((select count(*)::int from public.list_commission_documents((select comm_x from k))), '>', 0,
   '8.2 NON-VACUITY TWIN ⭐: a committee MEMBER still lists them through the same door — 8.1''s zero is the wall, not an empty commission');
 reset role;
-select is(app.can_write_attachment('case', (select case1 from f), (select oa_b from k)), false,
-  '8.3 ⭐ WALL (M6, §4.3): the tenancy admin can no longer WRITE case attachments');
-select is(app.can_write_attachment('case', (select case1 from f), (select sa_x from k)), true,
+-- DM1 (ADR 0114 D5): can_write_attachment died with the substrate; its
+-- successor app.can_write_document carries the SAME wall (case arm = home
+-- staff_admin only, NO tenancy arm) — asserted on a document homed on case1.
+insert into public.documents (id, home_resource_id, title, created_by)
+values ('31400000-0000-0000-0000-0000000000d1', (select case1 from f),
+        'Documento (wall 8.3)', (select sa_x from k));
+select is(app.can_write_document('31400000-0000-0000-0000-0000000000d1', (select oa_b from k)), false,
+  '8.3 ⭐ WALL (M6→DM1, §4.3): the tenancy admin can no longer WRITE case documents');
+select is(app.can_write_document('31400000-0000-0000-0000-0000000000d1', (select sa_x from k)), true,
   '8.4 NON-VACUITY TWIN ⭐: the committee''s own coordinator still can');
 select is(
   (select count(*)::int from pg_proc p
@@ -622,10 +644,16 @@ select throws_ok(
   $$ select public.update_controlled_document((select doca from f10), 'Documento QO·B A', 'sop') $$,
   '42501', null,
   '10.2 ⭐ WALL (M6): update_controlled_document refuses the tenancy admin');
+-- DM3: `set_document_version_file` was replaced by
+-- `attach_controlled_document_version_file` (ADR 0114 D8). The WALL property is
+-- unchanged — a tenancy admin cannot attach a file — so it is re-expressed
+-- against the new door rather than retired with the old one. A null core version
+-- is fine here: authority is checked BEFORE the pointer is looked at, which is
+-- exactly what makes this an authority assertion and not a state one.
 select throws_ok(
-  $$ select public.set_document_version_file((select dva from f10), 'controlled/qob-a.pdf') $$,
+  $$ select public.attach_controlled_document_version_file((select dva from f10), null) $$,
   '42501', null,
-  '10.3 ⭐ WALL (M6): set_document_version_file refuses the tenancy admin');
+  '10.3 ⭐ WALL (M6): attach_controlled_document_version_file refuses the tenancy admin');
 select throws_ok(
   $$ select public.submit_document_for_approval((select dva from f10), '[]'::jsonb) $$,
   '42501', null,
@@ -678,8 +706,8 @@ select lives_ok(
   $$ select public.update_controlled_document((select doca from f10), 'Documento QO·B A2', 'sop') $$,
   '10.13 NO-REGRESSION TWIN ⭐: ...still EDITS the draft header');
 select lives_ok(
-  $$ select public.set_document_version_file((select dva from f10), 'controlled/qob-a.pdf') $$,
-  '10.14 NO-REGRESSION TWIN ⭐: ...still SETS the draft version file');
+  $$ select test_helpers.attach_stub_file((select dva from f10)) $$,
+  '10.14 NO-REGRESSION TWIN ⭐: ...still ATTACHES the draft version file');
 select lives_ok(
   $$ select public.submit_document_for_approval(
        (select dva from f10),

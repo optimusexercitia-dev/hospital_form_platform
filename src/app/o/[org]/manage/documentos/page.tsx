@@ -4,9 +4,9 @@ import { FileText } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
 import { listHospitalsForOrg } from "@/lib/queries/org";
-import { getHospitalDocumentRegister } from "@/lib/queries/documents";
+import { getHospitalDocumentRegister } from "@/lib/queries/controlled-documents";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
-import { HospitalDocumentRegister } from "@/components/documents/hospital-document-register";
+import { HospitalDocumentRegister } from "@/components/controlled-documents/hospital-document-register";
 
 export const metadata: Metadata = {
   title: "Documentos da organização",

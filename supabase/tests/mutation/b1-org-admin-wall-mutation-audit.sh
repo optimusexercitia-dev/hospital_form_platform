@@ -230,7 +230,12 @@ begin
     execute d;
 
   elsif p_what = 'restore_doc_setfile_door' then
-    d := pg_get_functiondef('public.set_document_version_file(uuid,text,text,date)'::regprocedure);
+    -- DM3 (ADR 0114 D8): `set_document_version_file` was replaced by
+    -- `attach_controlled_document_version_file`. The WALL this case mutates is
+    -- unchanged — a tenancy admin must not be able to attach a file — so the
+    -- mutation follows the door rather than retiring with it. The authority line
+    -- is identical in the new body, so the same substitution applies.
+    d := pg_get_functiondef('public.attach_controlled_document_version_file(uuid,uuid,text,date)'::regprocedure);
     d := app._mut_b1_sub(d,
       'if not (app.is_staff_admin_of(v_commission)) then',
       'if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then');
@@ -459,12 +464,15 @@ fi
 SNAP_SQL="select md5(
   (select string_agg(pg_get_functiondef(p.oid), '' order by p.oid)
    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-   where (n.nspname='app' and p.proname in ('can_read_document_of_version','can_read_document_object','can_view_printed_document'))
+   -- DM3: `can_read_document_object` (the retired `controlled-documents` bucket
+   -- predicate) dropped out of this set with the policy it served; the kernel
+   -- arm in `app.can_read_document` now carries document-byte authorization.
+   where (n.nspname='app' and p.proname in ('can_read_document_of_version','can_read_document','can_view_printed_document'))
       or (n.nspname='app' and p.proname = 'can_write_attachment')
       or (n.nspname='public' and p.proname in ('update_case_meta','grant_case_access','set_case_confidentiality','dashboard_free_text','dashboard_export_rows','dashboard_form_totals','list_commission_documents','revoke_printed_document',
                                                'dashboard_completion_by_member','get_response_for_signoff','supersede_response','target_case_response',
                                                'create_controlled_document','update_controlled_document','publish_document','mark_document_obsolete','supersede_document',
-                                               'submit_document_for_approval','set_document_version_file','documents_due_for_review','remind_document_approver',
+                                               'submit_document_for_approval','attach_controlled_document_version_file','documents_due_for_review','remind_document_approver',
                                                'remove_case_participant','record_recusal','lift_recusal','case_viewer_capabilities','case_tag_report',
                                                'schedule_ethics_hearing','set_case_outcome','update_case_narrative_body','cancel_case','close_case')))
   || coalesce((select pg_get_expr(polqual, polrelid) from pg_policy where polname='responses_select'),'')
@@ -546,7 +554,7 @@ run_case "restore_doc_update_door -> header edit reopens" \
 
 run_case "restore_doc_setfile_door -> version file write reopens" \
   "select app._mut_b1('restore_doc_setfile_door');" \
-  "set_document_version_file refuses the tenancy admin"
+  "attach_controlled_document_version_file refuses the tenancy admin"
 
 run_case "restore_doc_submit_door -> approval submission reopens" \
   "select app._mut_b1('restore_doc_submit_door');" \

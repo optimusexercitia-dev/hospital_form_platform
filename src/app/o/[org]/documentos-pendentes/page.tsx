@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { listPendingApprovalsForUser } from "@/lib/queries/documents";
+import { listPendingApprovalsForUser } from "@/lib/queries/controlled-documents";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
-import { PendingApprovalsList } from "@/components/documents/pending-approvals-list";
+import { PendingApprovalsList } from "@/components/controlled-documents/pending-approvals-list";
 
 export const metadata: Metadata = {
   title: "Aprovações pendentes",

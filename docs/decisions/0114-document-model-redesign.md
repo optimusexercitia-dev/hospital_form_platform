@@ -2,7 +2,10 @@
 
 - **Status:** Accepted — ratified by the PO 2026-08-12 (drafted 2026-08-11 from the
   external audit `docs/design/temp/document-model-audit-handoff.md` + a grilling
-  session with the PO)
+  session with the PO). **Amendment 1 (D15/D16) ratified 2026-08-13** — the
+  per-document confidentiality ceiling; see the end of this file.
+  **Amendment 2 (D17) ratified 2026-08-13** — the ethics document seams join
+  Wave B; see the end of this file.
 - **Supersedes / amends:** ADR 0063 (centralized attachments substrate) — replaced
   wholesale; ADR 0065 owner-set conventions — the closed owner set survives as the
   initial `securable_resources` type set. ARCHITECTURE.md Rules 6/11/12 unchanged.
@@ -186,7 +189,175 @@ mutation twins.
   provisional until signed off.
 - **O2 (PO + backend):** scanner selection/integration + operational owner; expiry
   condition for the `unscanned_accepted` acceptance.
-- **O3 (future ADR):** audience/group/scoped-role sharing plane, if/when a feature
-  commits to it. The `access_policy_id` seam and audit §6.7 sketch are its start.
-- **O4 (PO):** signed-URL TTL per sensitivity + whether any content class warrants
-  streaming-proxy serving instead of signing (revisit at DM2 with real latency).
+- **O3 (future ADR): SCHEDULED at Phase 19 — see Amendment 1.** The audience/group/
+  scoped-role sharing plane. Its "if/when a feature commits to it" trigger has
+  **fired**: Phase 19 (Surveyor Access & Evidence Export) is a committed,
+  specified requirement for per-document access granted to a **non-member**. The
+  `access_policy_id` seam and the audit §6.7 sketch are its start.
+- **O4 (PO): ✅ RULED 2026-08-13, at DM2 against measured latency** (ADR 0118;
+  measurements in the DM2 record §S2.7): **PHI 120 s / standard 300 s signed-URL
+  TTLs; no streaming proxy** (the measured 10 ms sign median is what killed the
+  proxy option — the corridor's cost is authorization, not signing). The split is
+  deliberate, not tuning: **a signed URL is a bearer token, so PHI bytes get a
+  strictly smaller exposure window than non-PHI** — the asymmetry IS the point of
+  two tiers; do not later "simplify" them to one number.
+
+## Amendment 1 (2026-08-13) — the per-document confidentiality ceiling
+
+**Status:** ratified by the PO 2026-08-13. Closes **FUP-DM1-CEILING**, raised during
+the DM1 pgTAP triage and upgraded by the lead from "lost coverage" to "blocks DM2".
+
+**The gap this closes.** ADR **0072 D7 / ETH·E1** made the labels `legal_privileged`
+and `credentialing_sensitive` **ENFORCING** — a document could be gated *above*
+ordinary case-read, pinned by `e2e/ethics-e1-access-spine.spec.ts` AC-4a/b/c/d and
+AC-9 (two documents on the **same** case, one visible to an ordinary reader and one
+not). DM1 dropped its enforcement mechanism (`app.attachment_confidentiality_ok`)
+with the substrate. **This ADR did not supersede ADR 0072**, and D6's deferral does
+not cover the case: D6 defers a plane for **widening** access (share with a user,
+group, scoped role), whereas the ceiling **narrows** access below the home resource.
+D6's "document access = home-resource access" is the very statement that makes the
+ceiling inexpressible. `file_objects.sensitivity_tier` is not a substitute — it
+selects a **bucket** by CHECK constraint and carries no principal-facing gate.
+
+**D15 — the ceiling is re-expressed on `documents`, as an explicit interim.** A
+nullable confidentiality column on `documents` plus an arm in the
+`app.can_read_document` kernel, restoring ADR 0072 D7 semantics. This is a
+**DM2 prerequisite**: Wave A must not re-point case / meeting / interview documents
+onto the substrate before it lands, because that is the phase in which a formerly
+gated document would silently become readable by every ordinary case reader.
+Rejected alternatives, recorded so the choice is not re-litigated blind: building the
+full access plane now was rejected as designing a general permissions system against a
+**single** requirement while blocking Wave A; ratifying the loss was rejected because
+it is a decision to widen access to privileged legal material and no one wants it.
+
+**D16 — the general access plane lands at Phase 19, and `documents.access_policy_id`
+is its declared landing point.** D15's column is interim **with a stated end-state**,
+not a permanent second access dimension. The plane must cover **both directions** —
+widening (Phase 19's surveyors) and narrowing (D15's ceiling) — and when it lands,
+D15's column migrates into it over a handful of labelled documents.
+
+*Why Phase 19 and not sooner or later.* The platform has now answered "a non-member
+needs to see specific things" **three times, bespoke**: `referral_shared_item` +
+frozen snapshots (Phase 22), `case_access_grants` + `max_confidentiality` (ETH·E1),
+and Phase 19's planned `surveyor_grants` + `scope jsonb`. That is the rule of three,
+and **F-14 — a load-bearing finding behind this very ADR — was a bug inside one of
+those bespoke mechanisms.** Phase 19 calls itself the most security-sensitive phase
+in the accreditation track; building it as a *fourth* one-off is how a fourth F-14
+happens. This ADR already anticipated the pressure: `document_placements` is marked
+non-authorizing *"ever; an authorizing placement requires a new ADR"* — that ADR is
+the Phase 19 plane.
+
+**Consequence for the D6 deferral.** D6 stands for DM2–DM5 and is no longer open-ended:
+its "if/when a feature commits to it" condition has fired (O3, above).
+
+## Amendment 2 (2026-08-13) — the ethics document seams join Wave B
+
+**Status:** ratified by the PO 2026-08-13. Closes plan question **Q1**, open since
+DM1 plan time. Amends **D13**, which enumerated four consumer waves and covered
+ethics in none of them.
+
+**The gap this closes.** Two live ethics columns pointed at the substrate DM1
+dropped — `ethics_decision_details.decision_letter_document_id` (a seam only; no
+writer, projected by `get_ethics_case_procedure`) and
+`ethics_notifications.related_document_id` (written by
+`public.issue_ethics_notification`, fed from `src/lib/ethics/actions.ts`). This was
+a **scope gap, not a deferral**: nothing decided to postpone ethics, the wave
+decomposition simply never named it. DM1 parked both as nullable `uuid` with their
+FKs dropped and no replacement, and made `issue_ethics_notification` reject a
+non-null id fail-closed (keystone **K8**). Both columns hold zero non-null rows.
+
+**D17 — ethics decision letters and notification-linked documents are Wave B
+citizens.** A disciplinary decision letter is a *governed* document with an
+approval/effective lifecycle — the same shape as a controlled document — so it
+reuses Wave B's machinery rather than earning a wave of its own. Wave A (DM2) was
+rejected for shape: ethics letters are not case/meeting/interview attachments and
+would have ridden a wave built for a different access shape; by the time this was
+ruled, DM2 was a closed, approved phase and adopting them there would have meant
+reopening it. A named follow-up after DM5 was rejected because it would close the
+legacy-retirement manifest with two columns pointing at nothing.
+
+**Discharge conditions, binding on DM3** (all five, or the seam is not discharged):
+
+1. Re-point both columns to `documents(id)` with a **real FK**.
+2. Restore `issue_ethics_notification`'s `p_related_document_id` to a **working**
+   parameter. ⚠ Catalog-verified 2026-08-13: the parameter **still exists** (arg 7 of
+   8) — DM1 left the signature intact and put the refusal in the **body**. This
+   condition is a body change: `CREATE OR REPLACE` keeps the 8-arg identity and
+   **preserves the ACL**. Do not plan a DROP+CREATE for it.
+3. Remove the fail-closed rejection.
+4. **Remove keystone K8c** — ⚠ **corrected 2026-08-13, and the correction is
+   load-bearing.** "Remove keystone K8" as originally written names an object that is
+   not one: in `supabase/tests/328_dm1_document_substrate.sql`, K8 is **three**
+   sub-keystones — **K8a** (`add_referral_shared_item`, parked until **DM4**),
+   **K8b** (`add_rca_evidence`, parked until **Wave D**), **K8c** (ethics). **Only
+   K8c is DM3's**; removing "K8" literally would delete two parked-seam pins that
+   other waves still depend on. In the same edit: decrement `328`'s `plan(N)` and
+   remove *only* the K8c flag precondition, leaving the referral and RCA
+   preconditions intact. The rationale still holds for K8c alone — *a keystone left
+   pinning a refusal the product no longer wants is a test asserting a bug* — and the
+   seam is not left unpinned: the pin changes from *"this is refused"* to *"this is
+   allowed, exactly this far."*
+5. **Add `p_decision_letter_document_id` to `set_ethics_decision_details` and forward
+   it from `src/lib/ethics/actions.ts`.** Conditions 1–4 as originally written were
+   **incomplete**: catalog-verified, `set_ethics_decision_details` takes **11
+   parameters and none is a document id**, and the TS action accepts
+   `decisionLetterDocumentId` in its input type then **silently drops it**
+   (`actions.ts:393`). Without this, condition 1 would give that column a real FK to
+   `documents(id)` while leaving it **unwritable at every layer** — trading "a column
+   pointing at nothing" for "a column pointing at documents nothing can create",
+   which is the same defect wearing a constraint.
+   ⚠ **This one is the mirror image of condition 2, and the asymmetry is the trap.**
+   Catalog-verified: `set_ethics_decision_details` has **11 args of which 10 carry
+   `DEFAULT NULL`**, so `CREATE OR REPLACE` **cannot** add a 12th — it mints an
+   **overload**, after which the live 11-arg call from the ethics screen becomes
+   **ambiguous (`42725`)**. Condition 5 therefore requires `DROP FUNCTION` +
+   `CREATE` **with an explicit re-GRANT**, because the DROP restores the Postgres
+   default ACL. Two ethics functions, opposite treatments, one migration — assert the
+   resulting ACL from `pg_proc.proacl`, never from the migration text.
+
+Ethics documents inherit Wave B's no-PHI stance: PHI-tier input on an ethics letter
+fails closed (D13).
+
+**Scope boundary — PO ruling 2026-08-13: plumbing to writable, NO UI.** DM3 makes
+both seams genuinely writable document-model citizens *through the API* and stops
+there. **No attach-a-decision-letter affordance is built in DM3**, and this is a
+decision, not an omission: no such affordance has ever existed (verified across the
+ethics dialogs, every `type="file"` site in the repo, and the absence of any reader
+of either field), and a decision letter is the archetypal `legal_privileged`
+document — the UI needs the ETH·E1 access spine, the D15 ceiling, and E2E coverage
+designed as a feature, not appended to a migration wave. Filed as **FUP-DM3-ETHICS-UI**.
+A later phase reading these columns as write-only must read this paragraph, not infer
+an oversight.
+
+⚠ **The ethics access shape is NOT the controlled-document access shape**, even
+though the lifecycle is. Ethics case reads are gated by the ADR 0072 / ETH·E1 spine
+(`case_access_grants` + `max_confidentiality` + recusal), and the D15 ceiling column
+is the mechanism that survives it. DM3 must prove the ethics arm against that spine
+with a negative twin — reusing Wave B's *lifecycle* machinery must not import Wave
+B's *reader set*.
+
+**The mechanism, ruled by the lead 2026-08-13 and catalog-verified twice
+independently: an ethics decision letter's core `documents` row homes on the `case`
+securable resource, NEVER on a `controlled_document` one.** This follows necessarily
+from the warning above rather than adding to it, and three catalog facts each force
+it alone:
+
+1. `app.can_read_document`'s dispatch resolves a `case` home through
+   `app.can_read_case` + `app.confidentiality_clearance_ok` — the ETH·E1 spine. It
+   has **no `controlled_document` arm today** (it falls to `else false`), so the arm
+   DM3 adds for Wave B is the commission-membership arm — i.e. *every ordinary
+   commission member*. That is the reader set ethics must not inherit.
+2. `app.guard_document_confidentiality` (BEFORE INSERT/UPDATE on `documents`,
+   `HC0D6`) refuses `legal_privileged` / `credentialing_sensitive` on any home whose
+   type is `not in ('case','interview')`. A controlled-document home would therefore
+   **silently delete the D15 ceiling** for the most sensitive material the platform
+   holds — and silently, because the refusal fires on the *label*, not on the read.
+3. The kernel resolves the clearance case as `case → itself`,
+   `interview → case_of_interview`, **`else null`**, and a null case fails closed. So
+   a controlled-document home cannot express the clearance plane at all.
+
+**D17's "same shape as a controlled document" is a statement about LIFECYCLE and must
+not be read as a schema instruction.** Read as one, it is an ethics-content leak. The
+negative twin (DM3 keystone K4) is accordingly written to fail on **widening** — it
+adds a membership arm to the `case` branch and requires red — because a twin that
+merely removed the ethics arm would prove nothing.

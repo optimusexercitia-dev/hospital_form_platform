@@ -7,8 +7,6 @@ import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { casesExtrasEnabled } from '@/lib/cases/extras-gate'
-import { featureEnabled } from '@/lib/queries/feature-flags'
-import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type { CaseDocumentType } from '@/lib/queries/case-documents'
 import { isCaseEventKind } from '@/lib/cases/registro-kinds'
 
@@ -164,7 +162,6 @@ export async function uploadCaseDocument(
   const caseId = String(formData.get('caseId') ?? '')
   const docType = String(formData.get('docType') ?? 'other')
   const title = String(formData.get('title') ?? '').trim()
-  const description = String(formData.get('description') ?? '').trim()
   const occurredAt = parseDate(String(formData.get('occurredAt') ?? ''))
   const file = formData.get('file')
 
@@ -192,54 +189,12 @@ export async function uploadCaseDocument(
   if (!(await casesExtrasEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
-  // Phase F2: case documents are `attachments` (owner_type='case') — gated by the
-  // `attachments` flag (in addition to cases_extras). Inert while the flag is OFF.
-  if (!(await featureEnabled('attachments'))) {
-    return { ok: false, error: MESSAGES.unavailable }
-  }
-
-  const supabase = await createClient()
-  const commissionId = await commissionOfCase(supabase, caseId)
-  if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-
-  // Owner-scoped immutable path `case/{caseId}/{uuid}.{ext}` (attachments_path_scope_ck);
-  // case documents default to the PHI tier → the attachments-phi bucket.
-  const tier = effectiveTier('case')
-  const bucket = bucketForTier(tier)
-  const path = `case/${caseId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (uploadError) return { ok: false, error: MESSAGES.uploadFailed }
-
-  // Record the row via the DEFINER write door (validates kind + tier, verifies the
-  // object exists in the tier bucket, inserts). Returns the single attachments row.
-  const { data, error } = await supabase.rpc('create_attachment', {
-    p_owner_type: 'case',
-    p_owner_id: caseId,
-    p_storage_path: path,
-    p_title: title,
-    p_kind: docType,
-    p_description: description || undefined,
-    p_occurred_on: occurredAt ?? undefined,
-    p_mime_type: file.type,
-    p_size_bytes: file.size,
-    p_sensitivity_tier: tier,
-  })
-
-  if (error || !data) {
-    // The row insert failed AFTER the object landed; the object is orphaned but
-    // never overwritten (Rule 6 — orphans are tolerated, no GC in v1).
-    return { ok: false, error: MESSAGES.generic }
-  }
-
-  revalidateCase()
-  return { ok: true, error: MESSAGES.documentAdded, documentId: data.id }
+  // PARKED (DM1, ADR 0114 D5): the F2 attachments substrate this uploaded into
+  // was dropped by 20260923000100 and the `attachments` flag is false
+  // everywhere, so this action fails closed until Wave A (DM2) rebuilds the
+  // flow on the document model (documents_wave_a). Field validation above is
+  // kept so the form contract stays stable.
+  return { ok: false, error: MESSAGES.unavailable }
 }
 
 /**
@@ -254,18 +209,8 @@ export async function deleteCaseDocument(
   if (!(await casesExtrasEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
-  if (!(await featureEnabled('attachments'))) {
-    return { ok: false, error: MESSAGES.unavailable }
-  }
-
-  // Phase F2: soft-delete via the DEFINER door (handles can_write_attachment authz +
-  // not-found itself; the object is retained — Rule 6).
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('soft_delete_attachment', { p_id: documentId })
-  if (error) return { ok: false, error: MESSAGES.generic }
-
-  revalidateCase()
-  return { ok: true, error: MESSAGES.documentRemoved }
+  // PARKED (DM1, ADR 0114 D5): substrate dropped; fails closed until Wave A.
+  return { ok: false, error: MESSAGES.unavailable }
 }
 
 // ---------------------------------------------------------------------------

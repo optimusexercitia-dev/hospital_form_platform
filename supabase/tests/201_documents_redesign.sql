@@ -90,10 +90,9 @@ reset role;
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 
-select public.set_document_version_file(
-  (select current_version_id from doc_a),
-  (select comm_x from k) || '/' || (select id from doc_a) || '/a.pdf',
-  'v1', null);
+-- DM3: `set_document_version_file` is gone (ADR 0114 D8). The has-a-file
+-- precondition on submit survived, so build the real chain.
+select test_helpers.attach_stub_file((select current_version_id from doc_a));
 
 -- submit with proposed_effective_date + approval_due_date, naming st_x + sa_y.
 select public.submit_document_for_approval(
@@ -183,9 +182,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table doc_a_v2 on commit drop as
   select * from public.supersede_document((select id from doc_a));
 grant select on doc_a_v2 to authenticated;
-select public.set_document_version_file(
-  (select id from doc_a_v2),
-  (select comm_x from k) || '/' || (select id from doc_a) || '/a2.pdf', 'v2', null);
+select test_helpers.attach_stub_file((select id from doc_a_v2));
 select public.submit_document_for_approval(
   (select id from doc_a_v2),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)),
@@ -214,9 +211,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table doc_b on commit drop as
   select * from public.create_controlled_document((select comm_x from k), 'POP B', 'sop', null);
 grant select on doc_b to authenticated;
-select public.set_document_version_file(
-  (select current_version_id from doc_b),
-  (select comm_x from k) || '/' || (select id from doc_b) || '/b.pdf', 'v1', null);
+select test_helpers.attach_stub_file((select current_version_id from doc_b));
 select public.submit_document_for_approval(
   (select current_version_id from doc_b),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)),
@@ -259,9 +254,7 @@ select test_helpers.claims_for((select sa_x from k));
 create temp table doc_c on commit drop as
   select * from public.create_controlled_document((select comm_x from k), 'Protocolo C', 'protocol', null);
 grant select on doc_c to authenticated;
-select public.set_document_version_file(
-  (select current_version_id from doc_c),
-  (select comm_x from k) || '/' || (select id from doc_c) || '/c.pdf', 'v1', null);
+select test_helpers.attach_stub_file((select current_version_id from doc_c));
 select public.submit_document_for_approval(
   (select current_version_id from doc_c),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)),
@@ -308,8 +301,7 @@ select is((select description from doc_d), 'Descrição do Manual D',
 
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
-select public.set_document_version_file((select current_version_id from doc_d),
-  (select comm_x from k) || '/' || (select id from doc_d) || '/d.pdf', 'v1', null);
+select test_helpers.attach_stub_file((select current_version_id from doc_d));
 select public.submit_document_for_approval((select current_version_id from doc_d),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)), null, null);
 reset role;

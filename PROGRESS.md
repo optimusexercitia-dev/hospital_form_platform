@@ -45,7 +45,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110 — see 22-v3) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main`. ✅ **PUSHED** — `81e1dc9` is an ancestor of `origin/main` (corrected 2026-08-12; the cell read "local only, NOT pushed", true when written) · graphify `dfc3e35` |
 | 22-v3 | **REG·KIND — one Registro vocabulary for cases and referrals** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ (tsc 0 · Vitest **1254** · eslint 0/0 first-party) | ⚠ **step 1 only** — pgTAP **183f/5857** (`322` 72→63, `298` 36→32 as the retired table's tests retired with it) · `ARM=census`/`hat`/`floor` HOLD · diff-scoped sweep 3 COVERED + 1 **pre-existing** `ERROR` · E2E **targeted 24/24** (`referral-registros` 16 + `cases-extras` 8) — **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | merge `9a20c8a` → `main`. ✅ **PUSHED** (`9a20c8a` is an ancestor of `origin/main`) and ✅ **remote `db push` DONE** — both `20260920000100`/`…000200` are registered on the linked project, `referral_note_types` is gone from the remote catalog. **Corrected 2026-08-12**; this cell previously read "local only, NOT pushed" + "`db push` NOT done", which had been true when written and was overtaken by a later push. ⚠ Verified against the REMOTE CATALOG, not the CLI: `supabase migration list --linked` showed a **blank Remote column for all 354** rows and the MCP `list_migrations` returned a **truncated 84** — both wrong. Only `select … from supabase_migrations.schema_migrations` on the linked project agreed with the objects actually present |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (supersedes [0063](docs/decisions/0063-centralized-attachments-substrate.md); plan [DM0–DM5](docs/plans/document-model-redesign.md)) | 🔜 **DM0 ✅ / DM1 not started** — ADR ratified by PO 2026-08-12; prod `attachments` flag **OFF** (flipped 2026-08-11, before ratification); DM4 serialization behind RDR/REG·KIND **RESOLVED** (both pushed 2026-08-12). **Plan audited + amended 2026-08-12** (lead QA vs live catalog): DM1 drop list corrected — naive `%attachment%` sweep would have dropped 2 live REFERRAL RPCs + 3 referral policies (now an explicit keystone allowlist, emptied at DM4); +3 missed `app.*` routines; `meeting-attachments` bucket absent from local catalog (drops made conditional); audit §14 items 14/15 dispositioned as pilot-deferred (no live users) via new DM5 step 4 | – | – | – | ✅ ADR ratified 2026-08-12 | – | ADR merge `3b1c68b` + renumber `3c6405c` (drafted as 0109, renumbered — 0109 taken by referral-registros) |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amdt 1** D15/D16, +**Amdt 2** D17 — ethics seams → Wave B; supersedes [0063](docs/decisions/0063-centralized-attachments-substrate.md)) · plan [DM0–DM5](docs/plans/document-model-redesign.md) | ✅ **DM0 + DM1 + DM2 + DM3 complete** — DM3 (Wave B: controlled documents) PO-approved **2026-08-14**. ⛔ **DM4 (Wave C: referrals) NOT started — HELD by the PO 2026-08-14.** It was authorized and opened that day and **stopped the same day, before any DM4 code, migration or plan was written**: the PO is **changing the Referrals feature first**, so DM4's target surface is about to move. The step-0 catalog/code re-verification was started and **cancelled mid-run; it produced no artifact** — do not look for one, and do not treat its absence as done. ⚠ **When DM4 does open, that re-verification is still owed and is now MORE load-bearing, not less** — the plan text was already stale via REG·KIND/[0110](docs/decisions/0110-shared-registro-kind-vocabulary.md), and the coming Referrals changes are a second layer of drift on the same surface. Derive the surface from the **live catalog** and diff *both* directions; this plan's drop list has been wrong 3× and every miss was caught by the catalog, never by the prose | ✅ DM3: **11 migrations** `20260925000100`–`001100` · pgTAP suite **330** · `328` K8c-only edit · ADR 0114 **Amdt 2** | ✅ fresh reset 0 · pgTAP **190f/6152 PASS** · tsc 0 · lint 5/5 · vitest 1258 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped sweep **BLIND 0** · `e2e:prod` **GATE GREEN** (0 failed, 0 did-not-run, accounting closes exactly) | ✅ **APPROVED (r2)** [review](docs/reviews/dm3-controlled-documents-review.md) — r1 ⛔ 1 MAJOR discharged; **no binding pre-merge condition** | ✅ **2026-08-14** | 2026-08-14 | ⚠ **branch `docs/dm1-plan-amendments` — NOT merged to `main`, nothing pushed** (standing PO directive; `main` = `f84c6b6`). **All DM flags ship OFF.** graphify refresh SKIPPED (fires post-merge). **Records:** [DM1](docs/progress/dm1-substrate-cutover.md) · [DM2](docs/progress/dm2-orchestration-wave-a.md) · [DM3](docs/progress/dm3-controlled-documents.md). **OPEN with the PO:** the **146-function census blind class** (unruled) · S1-O3 · O1/O2/O4 |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) (plan [Slices 0–6](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's own Slice 0 gate). Drafted 2026-08-12 from a 20-question PO grilling (D1–D20): first-class commission-scoped `deliberations` + explicit `deliberation_seatings`; versioned `commission_governance_policies` **subsumes `commission_meeting_settings`** (table dropped); append-only ballots with the vote arithmetic owned by Postgres; append-only `committee_decisions` with supersession; `meeting_cases.decision` dropped. Flag `deliberations` (prod OFF) covers everything **except Slice 1**, which replaces live meeting-settings plumbing and so must land flag-independent + regression-safe. Slice 6 (D14, resolution promotion) is conditional on the [0114](docs/decisions/0114-document-model-redesign.md) document substrate — that ADR is ratified but **unbuilt**, and the plan recommends shipping v1 without it | – | – | – | ⛔ **not ratified** | – | ADR merge `a68f179` + renumber `feab771` — drafted as 0112, renumbered because **0112 was already taken** by [case-event kind write authority](docs/decisions/0112-case-event-kind-write-authority.md). ⚠ **Differing filenames merge CLEANLY**, so an ADR-number collision announces itself nowhere — renumber at merge time, not draft time. Same commit retargeted the draft's stale `0109` cross-refs (both the ADR and the plan) → `0114`. ✅ **PUSHED** — verified against the server (`git ls-remote origin refs/heads/main` = `a68f179`), not a cached remote-tracking ref. ⚠ This cell first read "NOT pushed", true when written and overtaken by a push minutes later — the third row in this table to need that correction |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -95,16 +95,84 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-**No phase in flight.** Most recent: **REG·KIND** (ADR 0110) merged 2026-08-12 — one Registro
-vocabulary for cases and referrals. ⚠ **It ran gate step 1 ONLY** (no tester pass, no QA review, no
-`e2e:prod`) by PO direction. It is ✅ **pushed, and the remote `db push` IS done** (corrected
-2026-08-12) — but that changes nothing about the gate: treat it as
-merged-but-ungated, not as complete. Before it, **RDR** (referral detail redesign) completed, merged
-and rotated the same day — task detail, the final gate record and the method lessons are in
-[referral-detail-redesign.md](docs/progress/referral-detail-redesign.md) (⚠ its type-vocabulary
-sections are **history**: REG·KIND deleted `referral_note_types`); ETH·E4 before that is in
-[eth-e4-participant-seating.md](docs/progress/eth-e4-participant-seating.md). What is left before
-the pilot is § *Remaining pre-pilot work*.
+### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
+
+> ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**
+> (MAJOR-1 discharged, **no binding pre-merge condition**) after r1's ⛔ CHANGES REQUESTED
+> (0 P0 · 1 MAJOR · 4 MINOR · 5 INFO).
+> **Gate:** fresh `db reset` 0 · pgTAP **190f/6152 PASS** · tsc 0 · lint 5/5 · vitest 1258 ·
+> `ARM=census` (*has anything ever asked?*) / `ARM=hat` (*any door reading `memberships`
+> hatless?*) / `ARM=floor` (*is every door called?*) / `FROMFINDINGS=1 ARM=wrapper` — **all
+> HOLD** · **diff-scoped door sweep `BLIND: 0`** · `e2e:prod` **GATE GREEN** (1101 passed ·
+> 0 failed · **0 did-not-run**; accounting closes exactly, every batch `accounted N/N`).
+> **11 migrations** `20260925000100`–`001100` · pgTAP suite **`330`** (labels `DM3·<Sec><n>`) ·
+> `328` edited (**K8c only** — K8a/K8b survive for DM4/Wave D).
+> ⛔ **State:** branch `docs/dm1-plan-amendments` — **NOT merged to `main`, nothing pushed, no
+> `db push`** (standing PO directive). **All DM flags ship OFF.** graphify refresh deliberately
+> **SKIPPED** — it fires after a merge to `main`, which has not happened.
+>
+> **The three findings worth carrying forward:**
+> 1. ⭐ **P0-DM3-1** — M1 added the registry FK **and backfilled**, but never taught the CREATE
+>    path to satisfy it, so **since M1 every attempt to create a controlled document raised
+>    23503** — the product's wizard, not just `seed.sql`. **The backfill masked it from every
+>    incremental run**; only the mandatory fresh reset could see it. Fixed by M8 (door) + **M9,
+>    a `BEFORE INSERT` trigger**, after four more writers were found — *satisfying the FK by
+>    construction rather than at N hand-mirrored call sites*.
+> 2. ⭐ **QA MAJOR-1** — `documents_wave_b` gated the **last step** of the corridor, not the
+>    corridor: flag OFF still created the document, reserved a path, **PUT real bytes**, and
+>    finalized. **The one untested arm held the defect.** M11 moved the assert to
+>    `begin_document_upload` — *the first step that produces residue* — **scoped to the home
+>    type**, with `DM3·T3b` as the control against silently killing Wave A.
+> 3. ⭐ **The byte round trip is proven** — byte equality end to end (`Buffer.compare === 0`),
+>    with derivation proven by `DM3B-2` **declaring a lie at `begin`** and requiring the truth
+>    to win. Everything before it was a DB-layer proof or an **absence** proof.
+>
+> **Full detail rotated → [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md)**
+> (the P0, the QA MAJOR, the `supabase/` index incident, the census-domain edge, the stale
+> allowlist, all five lead errors, and every gate figure).
+>
+> **Open with the PO — do not assume:** the **146-function census blind class** (DEFINER,
+> composite-returning, auth-reachable — no arm can see them; DM3 added one, the class predates
+> it) is **STILL UNRULED**: schedule the domain widening or accept it as a recorded backlog.
+> Also open: **S1-O3**, ADR 0114 **O1/O2/O4**, **S2.8** `reclassify_document` (closed in DM2 —
+> do not re-open).
+
+### ✅ COMPLETE — **DM2: orchestration + Wave A** (opened + completed 2026-08-13)
+
+> ✅ **PO-APPROVED 2026-08-13 — all five §6 gate steps passed.** QA **r2 = APPROVED**
+> (0 P0 · 0 MAJOR · 1 MINOR · 4 INFO) after r1's ⛔ CHANGES REQUESTED (1 P0 · 3 MAJOR ·
+> 6 MINOR · 4 INFO) was fully discharged. The binding pre-merge condition **r2-1 is
+> closed** (`d46bb87` + `36deda5`).
+> **Gate:** pgTAP **189f/6097** · lint 5-gate · tsc 0 · vitest 86/1258 · `ARM=census`
+> (*has anything ever asked?*) / `ARM=hat` (*any door reading `memberships` hatless?*) /
+> `ARM=floor` (*is every door called?*) / `FROMFINDINGS=1 ARM=wrapper` — **all HOLD** ·
+> diff-scoped door sweep `app.can_read_document` **COVERED** (case list derived from the
+> diff; 1 case actually run) · `e2e:prod` **GREEN** (1091 passed · 0 did-not-run ·
+> coverage 1093/1099 = the 6 skips).
+> ⚠ **`open_document_version` is in NO authz arm's domain** (it returns `jsonb`) — that is
+> ADR 0118 §12's standing blind spot, not a DM2 regression. Its assurance is pgTAP `329`
+> P0a–P0f + the `308` 5.2s sentinel, **not** the sweep. Do not read the sweep as covering it.
+> ⚠ **`e2e:prod` run 1 was RED** on `pdf-printing.spec.ts:38` — ruled **not
+> phase-attributable** (outside the DM2 diff; three `RETRIES=0` passes), but the
+> **mechanism is UNPROVEN** and both evidence artifacts were destroyed by re-running →
+> **FUP-GATE-PDFP1-FLAKE**.
+> ⛔ **State:** branch `docs/dm1-plan-amendments` — **NOT merged to `main`, nothing
+> pushed, no `db push`** (standing PO directive; `main`/`origin/main` = `f84c6b6`).
+> **All five DM flags ship OFF** (migration `20260923000600`; `seed.sql` forces
+> `documents_foundation` + `documents_wave_a` ON for local/E2E only). graphify refresh
+> deliberately **SKIPPED** — it fires after a merge to `main`, which has not happened.
+>
+> **Full detail rotated →
+> [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)** (slice table
+> S1–S5, all three remediation sessions, the re-gate record, and the browser-verification
+> block). Program: plan [DM0–DM5](docs/plans/document-model-redesign.md) · ADR
+> [0114](docs/decisions/0114-document-model-redesign.md) +Amdt 1 · **0117** +Amdt 1
+> (interview ceiling) · **0118** (command layer; §10 predicate pin, §12 blind spot).
+>
+> **Open with the PO — do not assume:** ~~plan **Q1**~~ ✅ **RULED 2026-08-13 — Wave B
+> (DM3)**, ADR 0114 **Amdt 2 / D17** · **S1-O3** uploader visibility · ADR 0114
+> O1/O2/O4 · **S2.8** `reclassify_document_file` still has no legal expression on the DM1
+> substrate (no Wave A UI consumes it, so deferring stays legitimate).
 
 ### ⬛ Recently completed — rotated 2026-08-12; detail in `docs/progress/`
 
@@ -188,71 +256,16 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
-succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
-Found 2026-08-12 by `qa` during the same review; PRE-EXISTING, did not block that batch.
+ℹ️ **DM3 Wave B gate step 2 filed NO bug** (tester, 2026-08-13) — stated explicitly because a silent
+absence and a clean result look identical. All 9 baseline reds were **tester-owned**: 7 stale locators
+(the DM3 substrate/affordance move) and 2 worker interference. See the Test Run Summary row for the
+per-red triage and for the two non-regression observations (`open_document_version` refusals surface as
+**HTTP 500, not 404** — pre-existing DM2 transport behaviour; and **AC-13's Tab budget is coupled to
+register row count**, so a green AC-13 is only meaningful on a fresh reset).
 
-**Mechanism, catalog-verified:** a 16-value `CHECK` on the column, **zero triggers**, and **no `kind`
-arm in either INSERT policy**. The vocabulary's real authority was `src/lib/cases/registro-kinds.ts`
-— application code. A forged `kind='decision_issued'` insert **succeeded** as an ordinary committee
-writer, i.e. a user could mint an event the UI presents as a governance decision. This is the
-recorded *"a correct predicate ≠ correct policies"* family: the CHECK constrains the **domain** of
-`kind`; nothing constrained **who may write which value**.
-
-**The fix.** `app.is_manual_case_event_kind(text)` — the SQL mirror of the six-value manual
-vocabulary — is appended as a `kind` arm to **all four** user-role write policies. The ten system
-kinds stay writable only by the eleven `SECURITY DEFINER` RPCs that emit them: they are owned by
-`postgres`, which owns `case_events`, and the table is **not** `force row level security`, so they
-bypass RLS and are unaffected (`relowner`/`relforcerowsecurity`/`proowner` read from the catalog,
-not inferred). ⚠ **The arm is on both INSERTs AND both UPDATEs** — an INSERT-only arm is defeated by
-insert-then-update (`note` → `decision_issued`), the recorded *"an exclusion is only as strong as its
-weakest mutator"* shape. Policies were amended with `alter policy … with check (<existing catalog
-expr> and <arm>)`, never DROP+CREATE, so the E3a `coordinator_only` narrowing and the
-`is_case_excluded` arm survive verbatim.
-
-**Proved live as a real persona, `staff3.ccih@test.local`** (a plain `staff` holding a case write
-grant — the exact "ordinary committee writer" of the report), rolled back, with controls:
-
-| Check | Result |
-| --- | --- |
-| Control A — is the persona `staff_admin` of the case's commission? | `false` |
-| Control B — a MANUAL kind insert, same session | **succeeds** (capability genuinely intact) |
-| F — forged `kind='decision_issued'` INSERT | **refused `42501`** |
-| G — insert `note`, then UPDATE to `decision_issued` | **refused `42501`** |
-| Oracle — neutralize the arm (`… returns true`), re-run F and G | **both succeed again** |
-
-**Keystones:** `supabase/tests/111_case_docs_events.sql` grows 5 → 9 (forged INSERT refused ·
-manual-kind positive control · UPDATE-to-system-kind refused · all four policies carry the arm).
-Proved able to fail: neutralizing the helper reds tests 6 and 8. Full pgTAP **5886/5886 PASS** on a
-fresh reset; `lint` (5 gates) + `typecheck` clean; authz `ARM=census` / `ARM=hat` / `ARM=floor` all
-INVARIANT HOLDS.
-
-**NOT closed by this (deliberate, separate obligations, no minting path):** a case writer can still
-`DELETE` a procedural event, and no audit row distinguishes a forged kind from an authentic one.
-
-
-🟠 **FUP-AUTHZ-WP-SNAPSHOT — the write-path sweep's policy arm silently ran ZERO cases for a valid
-subset.** Filed 2026-08-12 while gating BUG-CASEKIND-001. A diff-scoped
-`CASES="case_events_writer_insert case_events_staff_admin_insert case_events_writer_update
-case_events_staff_admin_update" p0-authz-writepath-audit.sh` printed `BLIND: 0 ERROR: 0 SKIPPED: 0`
-and **exercised nothing** — its ARM-2 domain is the 33-row worklist hardcoded at
-`p0-authz-writepath-audit.sh:388`, embedded 2026-07-18 and never grown; it contains **zero**
-`case_events` rows. ADR 0079 Amendment 3 already names the stale snapshot as a structural gap; what
-is new is that a **subset run over policies outside it is indistinguishable from a clean pass**.
-The Phase-Gate step-1 "diff-scoped ARM=policy" is therefore a no-op for any policy the snapshot
-misses — the recorded *"a detector that finds nothing must be proven able to find something"* class.
-⚠ Also re-confirms hazard 1: the run **overwrote** `docs/reviews/authz-writepath-audit-findings.md`
-with its empty report (restored via `git checkout --`). Fix: derive ARM 2's worklist from
-`pg_policies` at run time, and make a subset that matches no case a non-zero exit.
-
-
-🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**
-`phi-remediation.spec.ts` REM-8 and REM-9 skip on every run — there is no seeded RCA for
-EV-0001, and the only CAPA has a NULL `source_event_id` (both catalog-verified). They are
-honest `test.skip()`s, not silent greens, so they are outside the vacuity property and the gate
-will never catch them. Closing them means new fixture work against `seed.sql`, which is a
-contract with ~900 tests — hence its own item rather than a drive-by.
-
+✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
+(pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
+[bug-log-archive.md](docs/progress/bug-log-archive.md).
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -316,9 +329,10 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
      rotates to docs/progress/test-run-archive.md at each §6 Record (full history, Phases 0 →
      ACT, already there). -->
 
-> **Live rows = TWO, deliberately:** the current **REG·KIND** step-1 row, and the 2026-08-11 FULL
-> `e2e:prod` gate — kept because it is the **last whole-suite green**, which the REG·KIND row
-> explicitly is *not*. Reading the top row alone would otherwise suggest the suite is passing.
+> **The last whole-suite green is now the 2026-08-13 DM1 row** (top). The **REG·KIND** step-1 row
+> stays live because it is *not* a whole-suite run and must not be read as one — REG·KIND remains
+> merged-but-ungated. The 2026-08-11 row, previously kept as the last whole-suite green, is
+> superseded by the DM1 row and rotates at the next Record.
 > Rotated **2026-08-12** → [test-run-archive.md](docs/progress/test-run-archive.md): the two RDR·4
 > tester rows, the ETH·E4 final-gate row, and all four ACT tester rows (all milestones complete +
 > recorded). Prior rotations: 2026-08-11 (ETH·E4 in-flight), 2026-08-10 (QO·B wave-1…5, QO·B, the
@@ -327,9 +341,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 
 | Date | Run | Result |
 | --- | --- | --- |
-| 2026-08-12 | **REFNOTE + ARM 5 · LEAD · FULL gate** (branch `authz-wrapper-refnote`, commits `297d3e2` + `f22ddab`). pgTAP + `e2e:prod` on a **fresh `supabase db reset`** | **GREEN.** `typecheck` **0 errors** (⚠ the lone `RouteContext` error in a fresh worktree is the absent `.next/types/routes.d.ts`, not a defect — it clears once `next build` runs; do not chase it) · vitest **1254/1254** · all **five** lint gates · pgTAP **5906 pass, 188 files** (+13 suite 326, +7 suite 327). **Authz: `ARM=census` HOLDS at 540 live gates** — up from 452, the +88 being the `public` INVOKER surface ARM 5 brought into the enumeration — **· `ARM=hat` HOLDS** (3 pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called, all allowlisted) **· the new `ARM=wrapper` HOLDS** (41 BLIND ⊆ allowlist). **No diff-scoped `ARM=policy` is owed**: the 23 rebuilt doors are `prosecdef` but **not** set-returning and **not** boolean, so they fall in no sweep's domain — verified against the three worklist queries, not assumed; no RLS policy and no boolean gate was touched. **`e2e:prod`: 1046 passed · 0 failed · 17 batches**, then **GATE RED (UNRUN)** — batch 4 (the four ethics specs) died `server_dead=1, conn_errors=5` **twice**, stranding 32 tests. ⚠ **Zero assertion failures anywhere in the run**; the gate is right to refuse green, because unrun ≠ passed. Batch 4 re-run standalone on a fresh server: **67 passed · 0 failed · 0 did-not-run · 68/68 accounted · GATE GREEN**, so every collected test now carries a result. ⚠ Method note: the background-task notice reported **"exit code 0"** for a run that exited **5** — `cmd > log; echo $?` makes the compound status `echo`'s. Read the printed code, never the notification |
-| 2026-08-12 | **REG·KIND · LEAD · gate step 1 ONLY.** ⚠ **NOT a tester pass and NOT `e2e:prod`** — no full-suite run was made, so this row is evidence for step 1 and for two targeted specs, nothing more. pgTAP on a **fresh `supabase db reset`**; E2E on a dev server, chromium, `--workers=1` | **Step 1 GREEN.** `typecheck` 0 errors · vitest **1254/1254** · eslint over `src`+`e2e` **0/0** + `lint:css-vars` · pgTAP **5857 pass, 183 files** (`322` re-planned 72→63 as §1 retired with the table; `298` 36→32 as GROUP G retired with its two policies). **Authz: `ARM=census` HOLDS** (452 live gates, all carry a verdict — the arm that catches a newcomer, and the two writers' signature change is what made it load-bearing here) **· `ARM=hat` HOLDS** (3 findings, all pre-existing allowlisted) **· `ARM=floor` HOLDS** (79 never-called doors, all allowlisted). **Diff-scoped door sweep** (`CASES="can_read/can_edit/can_manage_referral_internal_note referral_internal_notes_select"`) → 3 COVERED + 1 **pre-existing** `ERROR\|run-shape!=baseline` on `can_read_referral_internal_note`, verbatim the verdict it carried at HEAD — a harness class (§7.15), not a regression. The partial run TRUNCATED `docs/reviews/authz-door-audit-findings.md` (496 lines → 5); restored from HEAD, per lead-playbook §4. **E2E (targeted): `referral-registros` 16/16 · `cases-extras` 8/8.** New assertions pin the picker's **EXACT** six options on the case dialog AND on both referral sides (a subset assertion cannot catch the two surfaces drifting, which is the entire point of the change), the `note` default, the absence of the retired manage dialog **asserted for a coordinator** — the one viewer it was ever shown to, so its absence is attributable to removal and not to a permission gate — and a real `follow_up` round trip rendering "Acompanhamento". ⚠ Method note: browser-pane verification was ABANDONED, not skipped-silently — the pane was not compositing, so `getBoundingClientRect` returned zeros and programmatic clicks never reached React; Playwright against the dev server was used instead because it actually hydrates. ⚠ One self-inflicted red found and fixed in the loop: the new §2.6 default-kind probe inserted a note on `r1`, which pushed the concluded note past the index `4.18`'s open-before-concluded ordering contract asserts on — moved to `r2` rather than weakening the assertion |
-| 2026-08-11 | **LEAD · FULL `e2e:prod` GATE (`REBUILD=1`)** — the prod-standalone full-suite run for the branch closing BUG-ACT-EXPIRY-1 / BUG-ACT-ACL-1 / BUG-VACUOUS-ASSERT-1 / FUP-VACUOUS-AUDIT-1. 17 batches, fresh build + fresh server + fresh DB per batch. | **GREEN after triage. 1055 passed · 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 17 batches.** ✅ **COVERAGE IS COMPLETE — the summary's "accounted for 1058 of 1064" is NOT a hole:** 1055+1+2 = 1058 accounted, and the 6 skipped make up the difference exactly (batches 1r/2/4/8/15/17). Checked per the standing traps *before* trusting the number: **no `reset FAILED`**, **no batch-number gaps** (1–17 all present), denominator reconciled against `spec-counts.txt`. **The 1 failure — `phase7-cases.spec.ts` AC-HappyPath (batch 15) — is a NON-REPRODUCING FLAKE, not a regression.** Evidence, in order: (a) its two attempts failed at **different** lines — attempt 1 at L752 (`Concluído` badge), retry #1 at L564 (`Fase 2 recomendada`), and the retry failing EARLIER is the signature of attempt 1's own partial run having mutated the shared case, so the retry is not independent evidence; (b) `phase7-cases.spec.ts` alone on a fresh DB → **15/15**; (c) batch 15's **exact spec list in its original order** on a fresh DB → **67 passed / 2 skipped / 0 failed** (same 69 denominator); (d) re-run through the gate itself against the **prod standalone build** (`SPECS=… REBUILD=0`) → **GATE GREEN, 67/69**. Not in the blast radius either: the branch touches none of batch 15's four specs, and its only behavioural change (`can_manage_professional` expiry) gates 10 professional-identity/ethics-vocab write RPCs — `close_case` is not among them (catalog-derived). **Batch 1's first attempt (12 failed) was infra** — `ERR_CONNECTION_REFUSED`, the server not yet up; the gate auto-classified and re-ran it → 64 passed, 1 flaky. **The 2 flaky:** `act-role-assumption.spec.ts:157` (the hat switch) and `phase2-auth-shell.spec.ts:268` (logout redirect), both green on retry #1. Far below the documented ~18–27 flaky baseline. ⚠ The gate output also makes **FUP-VACUOUS-COVERAGE-1** visible: `phi-remediation` REM-8/REM-9 render as `-` (skipped) in every batch — they never run. |
+| 2026-08-13 | **DM3 Wave B · TESTER · quick-loop, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod`. 5 specs re-pointed onto the core model + new `dm3-wave-b-documents.spec.ts` | **GREEN — 47 collected / 47 ran / 47 passed / 0 skipped.** ⭐ Byte round trip proven (`Buffer.compare === 0`; derivation proven by declaring a lie at `begin`). **No bug filed — no application defect**: all 9 baseline reds tester-owned. Detail: [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md) |
 
 ## QA Verdicts
 
@@ -342,13 +354,9 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
-| **FUP batch 2026-08-12** (BUG-RDR-001 · FUP-ETH-A11Y-1 m3/m4 · FUP-ETH-KBD-1 · FUP-PDF-3 · narrative reorder 23505 · FUP-F2-BUCKETS · BUG-MIN-E2E-1 · BUG-BOOTSTRAP-001) **+ REG·KIND (ADR 0110), reviewed for the first time** | ✅ **APPROVED (r1)** — 0 BLOCKER; 6 findings, none in scope. Every claim re-derived from the **live catalog** (359 registered == 359 files) + rolled-back probes under `set local role` with real hats, never from migration text. FUP-PDF-3's DROP+CREATE doors diffed **property-by-property** — `prosecdef`/owner/volatility/leakproof/strict/`search_path`/**ACL** all intact, `returns` the only change; the `anon`-no-EXECUTE control is the right ACL-trap guard. Both "corrected premises" independently verified (**4** withheld columns, not 2; constraint was ALREADY `DEFERRABLE INITIALLY IMMEDIATE` — real cause is archived rows retaining a NOT NULL `position`). REG·KIND's table DROP is **clean: 0 orphaned policy/trigger/proc/grant/FK/type/constraint** across a full catalog sweep, 0 source refs. Bucket retirement leaves **0 reachable doors** (general `pg_policies` sweep, not by-name). §2.5's self-promotion-closure claim **tested and TRUE** (refused by `guard_profile_privileged_columns_trg`). ⚠ Two **CONFIRMED-LIVE but PRE-EXISTING** defects surfaced, outside both scopes → **FUP-REF-NOTE-1** (P2: `redact_referral_note`'s `[redigido]` masking is bypassed by 4 sibling DEFINER doors that `RETURNS referral_internal_notes` — proved as a plain `staff` **assignee**: read door serves `[redigido]`, `conclude_…` returns the real `body_md`, same txn/role/hat, plus a Rule 11 read-audit gap; the 2 doors REG·KIND rebuilt are NOT the exploitable ones) and **FUP-CASEEV-KIND-1** (P2: `case_events.kind` guarded only in TS — 16-value CHECK, no trigger, no `kind` arm in either INSERT policy; forged `decision_issued` insert **succeeded** live). Also **FUP-LINT-TEMP-1** (`npm run lint` exits 1 on gitignored-but-not-eslint-ignored `supabase/.temp/**`, so gates 2–5 **never run**; all five verified passing individually — `lint:vacuous` 178/0) + `FUP-PDF-3a` (the "can never diverge" invariant is prose-only; 323 pins today's names, not the composite ≡ GRANT set) + `FUP-RDR-001a` (all 6 alert-dialog sites structurally wired — verified each, and FocusScope's passive-effect timing confirmed in the installed source — but 3 confirm-path restores remain unmeasured, where the documented `isConnected` fall-through bites) | 2026-08-12 | [fup-batch-2026-08-12](docs/reviews/fup-batch-2026-08-12-review.md) |
-| **ETH·E4** — ethics participant seating & professional identity (ADR 0108) | ✅ **APPROVED (r3)** — the 3 r2 blockers verified closed **at the source**, not from commit messages. ⚠ **r2’s MAJOR-1 was WRONG and its remedy would have REGRESSED the UI:** the catalog shows **six doors raise `P0002` deliberately in pt-BR** ("papel inválido", "organização não informada") and the engine cannot reach it (zero `INTO STRICT` in `public`/`app`) — `error.message` KEPT there, the measured reason recorded in-file so it is not re-filed a third time. The real §8 leak was the arm r2 bundled with it: **23514 is MIXED** (measured live — the engine yields `new row for relation "…" violates check constraint "…"`) → constant always; nothing user-visible lost, both pt-BR raises are pre-empted before the RPC. Also closed: the new gate’s **400-byte fail-open** window (measured 0 live — an unanchored grep says 16, all comment mentions), **two vacuous E2E assertions** — one of which my own first fix left **DEAD**, since no caller passed `assertLinkageGating` on that arm — plus **m1** (a pure read published as a Server-Action endpoint without `authorizeOrg`) and **m10**. P0-1 re-verified from the catalog (12/17 granted, projection ≡ granted set). Open items filed as **FUP-ETH-A11Y-1** + **FUP-E2E-SERVER-DEAD-1**; m2/m5 → PO | 2026-08-11 | [eth-e4](docs/reviews/eth-e4-review.md) |
-| **ACT** — act-as role assumption, **STAGE 4** (D14 arm audit · standing `ARM=hat` sweep · reasoned hat-blind allowlist; ADR 0107) | ✅ **APPROVED (r1)** — 0 BLOCKER / 0 MAJOR / 6 MINOR / 3 INFO; completeness re-derived mechanically from `prosrc` as a property, both keystone mutation twins neutralized and observed red | 2026-08-10 | [act-as-stage-4](docs/reviews/act-as-stage-4-review.md) |
-| **ACT** — act-as role assumption, **STAGE 3 build review** (ADR 0106) | ✅ **APPROVED (r2)** — r1 was ⛔ on 1 BLOCKER + 2 MAJOR (hat-blind caller gates on the membership-grant door and `can_manage_professional`), fixed in `20260918002800` + keystone `318`; r2 re-derived the population **by property** (61 caller-bound pairs, no third member) rather than accepting the two-instance fix. MAJOR-2 promoted to the pilot-gate check (*Remaining pre-pilot work* item 0). Verbose row + the three lead errors it recorded → archive | 2026-08-10 | [act-as-stage-3 (r1+r2)](docs/reviews/act-as-stage-3-review.md) |
-| **ACT** — act-as role assumption, PRE-BUILD plan review (ADR 0106) | ✅ **APPROVED (r2)** — verbose row → archive | 2026-08-09 | [act-as-plan (r2)](docs/reviews/act-as-plan-review.md) |
-| ~~**ACT** — act-as role assumption, PRE-BUILD plan review, round 1~~ | ⛔ CHANGES REQUESTED — verbose row → archive | 2026-08-09 | [act-as-plan (r1)](docs/reviews/act-as-plan-review.md) |
-| _Phase 0 → Phase 16_ — **99 concluded rows** (81 rotated 2026-08-06 + 18 rotated 2026-08-10: QO·B · PDF·P2 · PDF·P1 · QO·FUP · QO·A · MIN · AFF · PCI · TV · Phase 16, incl. struck loop rows) | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
+| **DM3 — Wave B: controlled documents** (ADR 0114 Amdt 1 + **Amdt 2 / D17**) | ✅ **APPROVED (r2)** [review](docs/reviews/dm3-controlled-documents-review.md) — r1's 1 blocking MAJOR **discharged by M11** (`5b35003`). **r2: 0 P0 · 0 MAJOR · 3 MINOR carried · 5 INFO · 1 new INFO. No binding pre-merge condition.** The assert moved to `begin_document_upload`, scoped `if p_resource_type = 'controlled_document'` — the first residue-producing step; two doors now assert the gate. **QA re-verified the fix AND its invited failure mode by measurement, not by reading the scope:** with the flag OFF and home types **enumerated from `securable_resources`** (not a hand list), `case`/`meeting`/`interview`/`action_item` all **BEGIN ACCEPTED**, `controlled_document` **REFUSED HC0D7**; reserved controlled-home sessions **0**. **Twin re-run, all five types before AND after removing the assert — exactly ONE cell changes** (controlled: REFUSED→ACCEPTED; the four Wave-A arms ACCEPTED both ways), residue **0→1** with a minted session id ⇒ **Wave A is NOT narrowed** and "reds T3 and only T3" is corroborated structurally. Scoping proof against evasion: the assert keys on the declared `p_resource_type`, but the lookup `where s.id=… and s.resource_type=p_resource_type` makes a mis-declared type unreachable (P0002). Both false comments corrected **as retractions**, and `seed.sql` additionally records that "every door" is **not** the target state either — closing the loop a bare correction would leave open. **The lead's "sweep not re-run" scope decision UPHELD, with the reasoning restated on the catalog rather than on the diff** (a migration-file claim is stale by design here): post-M11 `ARM=census` **HOLDS at 548 live / 569 accounted** and `public` policies **275** — both identical to the pre-M11 measurements ⇒ M11 added zero gates and zero policies, and `can_read_document`'s controlled arm is byte-identical to the r1 audit. ⚠ Carried unchanged: `can_write_document`'s sweep verdict is still **ERROR**-resolved-by-runlog and **must not later be cited as COVERED**. **MINOR-1 CLOSED** — corrected at all four sites incl. **its origin in ADR 0118 §12**. **NEW INFO:** `act-role-assumption.spec.ts:157` + `phase2-auth-shell.spec.ts:268` flaked in **both** independent `e2e:prod` runs — a pattern, not noise; not DM3's, but recommend filing now while two runs' signal exists (re-running destroys flake evidence). Re-gate accepted not re-run: `e2e:prod` 1101p/0f/3flaky/0 did-not-run (1104+6 skipped = 1110 = collected), pgTAP 190f/6152 on a fresh reset, `ARM=hat`/`wrapper`/`floor`, tsc 0, lint 5/5 | 2026-08-13 | [dm3-controlled-documents](docs/reviews/dm3-controlled-documents-review.md) |
+| ~~**DM3 — Wave B: controlled documents**, round 1~~ | ⛔ **CHANGES REQUESTED (r1)** — **0 P0** · **1 MAJOR (blocking)** · 4 MINOR · 5 INFO. **MAJOR-1: `documents_wave_b` gates the LAST step of the corridor, not the corridor — and the tree asserts the opposite twice.** Catalog: **exactly one** function calls `app.assert_documents_wave_b_enabled` (`attach_controlled_document_version_file`). Probed live with the flag OFF: `create_controlled_document` **ACCEPTED**, `begin_document_upload` **ACCEPTED** — so a coordinator creates the doc, reserves a path, **PUTs real bytes into `documents-standard`** and finalizes; only the domain pointer refuses (HC0D7). Residue: orphaned bytes + orphaned core version + a draft whose file never appears. `documentsWaveBEnabled()` (added by DM3) is **called from nowhere** in `src/`; the UI gates on `controlled_docs` alone. Violates the phase's OWN stated contract (`seed.sql` "with it OFF every DM3 door answers HC0D7"; `documents/actions.ts:87` "every DM3 door calls (HC0D7), so a stale client cannot reach past this") and the Wave-A MIN pattern it cites ("ABSENT, not disabled"). **Not an authz hole** — authority unchanged and verified (approver reads/cannot write; plain member + outside approver both refused P0002/42501). Lands in the deploy's OWN expected interim state (plan §10: local vs prod flags "disagree"); the arm the Test Run Summary already records as **not exercised**. **Verified by QA, not accepted:** both R3 twins re-run (trigger-only → OK, door-only → OK, **both → 23503** — the two-sufficient-mechanisms finding reproduced) · the A4 widening twin genuinely reds · all **five** D17 conditions incl. the 12-arg identity with **no surviving 11-arg overload** and the re-GRANT read from `pg_proc.proacl` · D15 ceiling narrows on a case home and **fails closed** on a Wave-B home (HC0D6 + `else null`), incl. under `set local role authenticated` · zero `controlled-documents` Storage policies · `set_document_version_file`/`can_read_document_object`/`storage_path` all **0 rows** in the catalog · the trigger fix is unbypassable (BEFORE INSERT + `securable_type NOT NULL` + no INSERT policy → 42501) · DM3B-1 is real `Buffer.compare === 0` through the door-signed URL. **Gate figures independently reproduced:** tsc **0** · lint **5/5** · vitest **86f/1258** · `ARM=census` **HOLDS** (548 live/569 accounted; 273+275 re-derived exactly) · `ARM=hat` **HOLDS** · `FROMFINDINGS=1 ARM=wrapper` **HOLDS** (BLIND 41) · 385 files = 385 registered. **MINOR-1: "in no authz arm's domain" is false for ARM 2** (domain = every `public` prosecdef auth-EXECUTE fn, **411** sigs, contains both named functions) — the conclusion stands, the reason does not. Accepted not re-run: `e2e:prod`, the fresh-reset pgTAP run, `ARM=floor`, and the sweep's `can_write_document` **ERROR**-resolved-by-runlog (⚠ must not later be cited as COVERED) | 2026-08-13 | [dm3-controlled-documents](docs/reviews/dm3-controlled-documents-review.md) |
+| _Phase 0 → FUP batch 2026-08-12_ — **105 concluded rows** (81 rotated 2026-08-06 + 18 rotated 2026-08-10 + 6 rotated 2026-08-13: QO·B · PDF·P2 · PDF·P1 · QO·FUP · QO·A · MIN · AFF · PCI · TV · Phase 16, incl. struck loop rows) | — | — | [collapsed index](docs/progress/qa-verdicts-archive.md) |
 
 ## Decisions
 
@@ -356,6 +364,8 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-13 | **DM3 ethics depth RULED — plumbing to writable, NO UI** (PO). Raised because the four Q1 discharge conditions were **incomplete**: catalog-verified, `set_ethics_decision_details` takes **11 params, none a document id**, and `src/lib/ethics/actions.ts:393` accepts `decisionLetterDocumentId` then **silently drops it** — so an FK alone would have swapped "a column pointing at nothing" for "a column pointing at documents nothing can create". Adds **condition 5**: add `p_decision_letter_document_id` to the RPC + forward it from TS. ⚠ `issue_ethics_notification`'s `p_related_document_id` **still exists** (arg 7/8) — the refusal is in the **body**, so a body change, NOT a DROP+CREATE that would discard the ACL. **No attach-a-letter UI in DM3** — a decision, not an omission: none has ever existed (verified across the ethics dialogs, every `type="file"` site, and the absence of any reader of either field), and a decision letter is the archetypal `legal_privileged` document whose UI needs the ETH·E1 spine + D15 ceiling designed as a feature → **FUP-DM3-ETHICS-UI** | ADR [0114](docs/decisions/0114-document-model-redesign.md) **Amdt 2 / D17** |
+| 2026-08-13 | **Q1 RULED — the two orphaned ethics document seams join Wave B (DM3)** (PO). `ethics_decision_details.decision_letter_document_id` + `ethics_notifications.related_document_id` were a **scope gap, not a deferral**: ADR 0114 D13's four waves named ethics in none. A disciplinary decision letter is a *governed* document with an approval/effective lifecycle — the controlled-document shape — so it reuses Wave B's machinery. Wave A was foreclosed (DM2 closed + approved; adopting there = reopening a completed phase); a post-DM5 follow-up was rejected because it closes the retirement manifest with two columns pointing at nothing. **Four binding discharge conditions, partial ≠ discharged:** real FK to `documents(id)` · `issue_ethics_notification`'s `p_related_document_id` restored to working · fail-closed rejection removed · **keystone K8 removed** (a keystone pinning a refusal the product no longer wants is a test asserting a bug). ⚠ **Lifecycle is shared, the READER SET is not** — ethics reads run on the ADR 0072/ETH·E1 spine (`case_access_grants` + `max_confidentiality` + recusal); negative twin required | ADR [0114](docs/decisions/0114-document-model-redesign.md) **Amendment 2 / D17** · [plan DM3 step 5](docs/plans/document-model-redesign.md) |
 | 2026-08-12 | **The referral's "Registros internos" file under the CASE Registro vocabulary; `referral_note_types` is deleted** (PO, both calls taken explicitly: full replacement over keep-the-table, and REQUIRED-with-default-`note` over keep-optional). Adds `update`/`follow_up`, so the shared list is six. **No snapshot column replaces `type_label`** — it existed to survive a user rename, and a fixed platform-wide list cannot be renamed, so the label resolves at render from one source. That source (`src/lib/cases/registro-kinds.ts`) is import-free and side-effect-free **so a `"use client"` component and a server data-access module can both read it** — which is the only reason one source of truth is possible; it narrows `referrals/types.ts`'s "ZERO imports" contract to "one inert import", stated in both files. ⚠ The two writers changed SIGNATURE (`uuid`→`text`) ⇒ DROP+CREATE ⇒ **the ACL is discarded**; all four grants re-issued and re-verified against the catalog | ADR [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) D2) |
 | 2026-08-10 | **`document_printing` is ON PERMANENTLY in production; the Gotenberg Coolify resource is active** (PO). **Supersedes ADR [0104](docs/decisions/0104-pdf-document-printing-module.md)'s "Flag: `document_printing`, ships **OFF**" clause** — the flag was a deploy-sequencing guard for the missing renderer sidecar, and the sidecar now exists, so the guard has no remaining job. P3/P4 must not re-assert the OFF posture. ⚠ Recorded on the PO's operational confirmation — the renderer is external infrastructure, not something the catalog can attest. | [0104](docs/decisions/0104-pdf-document-printing-module.md) · [runbook](docs/deployment/pdf-renderer.md) |
 | 2026-08-10 | **ACT S3 — classify a hat-blind gate by CALL-SITE BINDING, not signature shape.** A gate that *receives* a caller uid can still be caller-bound; the population must be derived as a property (transitive caller-boundness over the call graph), never read off signatures | ADR [0079](docs/decisions/0079-authz-door-blindness-standing-invariant.md) Amendment 6 · [§7.17](docs/progress/authz-handoff.md) · [0106](docs/decisions/0106-act-as-role-assumption.md) |
@@ -395,6 +405,13 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progress/follow-ups.md)** — update BOTH (the body there, the line here) when an item changes state. Resolved items → [follow-ups-archive.md](docs/progress/follow-ups-archive.md). One line per item: severity · id · title · owner._
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
+- 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
+- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff — lead/tester
+- 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
+- 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling; needs a live DB + a diff base; one identifier held 3 truth values in 1 file). Keep the marker as an authoring convention + the deletion-discipline sweep — lead/PO
+- 🟡 **FUP-PGTAP-SAVEPOINT** — ⚠ **DOWNGRADED 🔴→🟡: the original claim was WRONG.** TAP output cannot be rolled back, so pg_prove counts it; real only in the degenerate all-assertions-inside case. Measured: 193 ok, 194 ok, 0 bad plans — lead
+- 🟡 **FUP-DM3-ETHICS-UI** — no affordance exists to attach an ethics decision letter; DM3 ships the seams **writable via the API only**. Deliberate (ADR 0114 Amdt 2 scope boundary), not an oversight — PO (a feature phase)
+- 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
 - 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators see ~only themselves in the CAPA assignee picker (`profiles` RLS has no operator arm; the hatless union used to mask it) — backend
 - 🟡 **FUP-ACT-HATLESS-AUDIT** — `audit_write` omits the `acting_as` KEY when hatless, so absence conflates *no hat* / *pre-ACT row* / *service-role path* (S4 QA MINOR-6; Rule 11 is met, this is legibility) — backend, travels with the A13 ruling
 - 🔴 **FUP-AFF-1** — the authz census is BLIND to write-path doors (ADR 0079 Amendment 5; AFF gate records must cite `302`'s keystones, not `ARM=census`) — backend/harness

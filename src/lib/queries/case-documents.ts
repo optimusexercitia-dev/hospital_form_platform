@@ -170,8 +170,6 @@ interface CaseEventRow {
   profiles: { full_name: string | null } | null
 }
 
-const SIGNED_URL_TTL_SECONDS = 3600
-
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -211,21 +209,16 @@ export async function listCaseDocuments(
 }
 
 /**
- * A fresh short-lived signed download URL for a single STANDARD-tier document path
- * (Phase F2: the `attachments` bucket). Returns `null` for a PHI-tier path (the
- * `attachments-phi` bucket has no authenticated SELECT) — use the audited
- * `openAttachment(attachmentId)` door for those. Preserved for the per-row download
- * of standard-tier artifacts.
+ * PARKED (DM1, ADR 0114 D5/D8): this signed the legacy `attachments` bucket
+ * with the cookie client; that bucket's SELECT policy was dropped (the bucket
+ * row survives, policy-less, until DM5's retirement manifest), so the sign
+ * could only ever fail. Zero callers exist (identifier sweep 2026-08-12).
+ * Document bytes are served ONLY by DM2's audited `open_document_version`.
  */
 export async function getCaseDocumentDownloadUrl(
-  storagePath: string,
+  _storagePath: string,
 ): Promise<string | null> {
-  if (!storagePath) return null
-  const supabase = await createClient()
-  const { data } = await supabase.storage
-    .from('attachments')
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
-  return data?.signedUrl ?? null
+  return null
 }
 
 /**

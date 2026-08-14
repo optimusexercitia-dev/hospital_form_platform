@@ -8,7 +8,7 @@ import {
   publishVersion,
   type PublishVersionOptions,
 } from "@/lib/forms/actions";
-import type { ApproverCandidate } from "@/lib/queries/documents";
+import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";

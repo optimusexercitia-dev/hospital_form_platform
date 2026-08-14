@@ -1,5 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 import { cachedSignIn } from "./helpers/auth"
+import { createDocumentFixture } from './helpers/document-model'
 
 /**
  * Ethics E1 — Access Spine (ADR 0072; build plan docs/phases/ethics-e1-access-spine.md
@@ -35,8 +36,11 @@ import { cachedSignIn } from "./helpers/auth"
  *   multi@test.local        (…008) — fresh throwaway grantee for the dynamic
  *                           grant→recusal→lift arc, the document-ceiling checks, and the
  *                           participant-write-authority negative. Cleared at the end.
- *   Documents: a7000000-…-e1 "Parecer jurídico (privilegiado)" (legal_privileged, gated)
- *              a7000000-…-e2 "Nota do processo ético" (ethics_investigation, ordinary — O2).
+ *   Documents: NOT seeded (DM1/ADR 0114 D5 dropped the old `attachments` fixtures;
+ *              DM2's `documents` table seeds zero rows) — the AC-4/AC-9 section below
+ *              creates its own two case-homed documents dynamically, real bytes, via
+ *              chefe.ccih's seeded clearance grant on this case: one `legal_privileged`
+ *              (gated) and one `ethics_investigation` (ordinary — O2).
  *   Participant registry: participant fa000000-…-e1 (Dra. Denunciada), role
  *              fc000000-…-e1 (respondent_doctor).
  *
@@ -95,10 +99,10 @@ const UID_STAFF4_RESPONDENT = '00000000-0000-0000-0000-00000000000a' // staff4.c
 const UID_MULTI = '00000000-0000-0000-0000-000000000008' // multi — dynamic-grant persona
 
 const RECUSAL_ID_SEEDED = 'fe000000-0000-0000-0000-0000000000e1'
-const DOC_LEGAL_ID = 'a7000000-0000-0000-0000-0000000000e1' // legal_privileged
-const DOC_LEGAL_TITLE = 'Parecer jurídico (privilegiado)'
-const DOC_ETHICS_ID = 'a7000000-0000-0000-0000-0000000000e2' // ethics_investigation
-const DOC_ETHICS_TITLE = 'Nota do processo ético'
+// The old a7000000-…-e1/e2 attachment fixtures were dropped with DM1 (ADR
+// 0114 D5) — AC-4/AC-9 below create their own two documents dynamically
+// (`ethicsLegalDocTitle`/`ethicsOrdinaryDocTitle`, module-scoped `let`s set in
+// that section's own `beforeAll`) rather than referencing fixed seed ids.
 const PARTICIPANT_RESPONDENT = 'fa000000-0000-0000-0000-0000000000e1'
 const ROLE_RESPONDENT = 'fc000000-0000-0000-0000-0000000000e1'
 
@@ -485,6 +489,57 @@ test('AC-3b + AC-8 dynamic recusal: record_recusal immediately revokes read + wr
 // AC-4 — Document confidentiality ceiling
 // ===========================================================================
 
+// RESTORED against the core document model (DM2 Wave A; ADR 0114 Amendment 1
+// D15) — FUP-DM1-CEILING / FUP-DM1-E2E. `open_attachment` and the seeded
+// `a7000000-…-e1/e2` fixtures were dropped with DM1 (ADR 0114 D5); DM2's
+// `documents` table seeds zero rows, so this creates its own two documents on
+// THIS ethics case — real bytes, through the real begin→PUT→finalize→verify
+// chain (see phase-f2-attachments.spec.ts for that contract in full) — ONCE,
+// shared by AC-4a/b, AC-4c/d and AC-9 below. chefe.ccih holds this case's
+// SEEDED clearance grant (max_confidentiality='legal_privileged'), so she is
+// the writer for both.
+//
+// ⚠ Ground truth, confirmed live against the catalog + a direct RPC probe
+// before writing these tests (never assumed from the retired shape):
+// `app.can_read_document` embeds the D15 ceiling as a ROW-level AND-conjunct
+// — an uncleared reader gets ZERO ROWS for the legal_privileged document
+// (RLS-filtered), not a visible-but-restricted row. This is the SAME shape
+// the pre-DM1 test already asserted for the old substrate ("O2: hidden from
+// the LIST" — preserved verbatim below, not reinvented). It also means the
+// document's own creator/coordinator would be denied it too WITHOUT the
+// case's seeded clearance grant (verified live: even chefe.ccih, uploading to
+// the plain commission_default case with no grant, could not read her own
+// upload back) — the S1 fail-closed backstop, "an enforcing label with no
+// clearance plane is readable by NO ONE," is why this suite uses the ETHICS
+// case specifically. See phase-f2-attachments.spec.ts DM2-BUG-2 (filed) for
+// the discrepancy between this row-level shape and `DocumentRow.tsx`'s own
+// comment claiming a "Restrito" badge — which cannot render given this shape.
+let ethicsLegalDocTitle: string
+let ethicsLegalDocVersionId: string
+let ethicsOrdinaryDocTitle: string
+let ethicsOrdinaryDocVersionId: string
+
+test.beforeAll(async ({ request }) => {
+  const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
+  ethicsLegalDocTitle = `Parecer jurídico E2E ${Date.now()}`
+  const legal = await createDocumentFixture(request, chefeToken, {
+    resourceType: 'case',
+    resourceId: CASE_ID,
+    title: ethicsLegalDocTitle,
+    confidentialityLevel: 'legal_privileged',
+  })
+  ethicsLegalDocVersionId = legal.documentVersionId
+
+  ethicsOrdinaryDocTitle = `Nota do processo ético E2E ${Date.now()}`
+  const ordinary = await createDocumentFixture(request, chefeToken, {
+    resourceType: 'case',
+    resourceId: CASE_ID,
+    title: ethicsOrdinaryDocTitle,
+    confidentialityLevel: 'ethics_investigation', // NOT enforcing — O2, visible to any case reader
+  })
+  ethicsOrdinaryDocVersionId = ordinary.documentVersionId
+})
+
 test('AC-4a/b ordinary reader: sees the ethics_investigation doc, NOT the legal_privileged doc (list + direct open both deny)', async ({
   page,
   request,
@@ -497,17 +552,24 @@ test('AC-4a/b ordinary reader: sees the ethics_investigation doc, NOT the legal_
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   const docsPanel = page.getByRole('region', { name: 'Documentos' })
   await expect(docsPanel).toBeVisible({ timeout: 10_000 })
-  await expect(docsPanel.getByText(DOC_ETHICS_TITLE)).toBeVisible()
-  await expect(docsPanel.getByText(DOC_LEGAL_TITLE)).toHaveCount(0) // O2: hidden from the LIST
+  await expect(docsPanel.getByText(ethicsOrdinaryDocTitle)).toBeVisible()
+  await expect(docsPanel.getByText(ethicsLegalDocTitle)).toHaveCount(0) // O2: hidden from the LIST
   await signOut(page)
 
-  // A known-id direct open is a distinct, explicit denial (HC0E6) — not just hidden.
-  const openResp = await callRpc(request, 'open_attachment', multiToken, { p_id: DOC_LEGAL_ID })
+  // A known-id direct open is a distinct, explicit denial — absence ≡ denial
+  // (oracle-kill): P0002, the SAME code a genuinely nonexistent version
+  // returns (`open_document_version`, read from pg_proc before writing this).
+  const openResp = await callRpc(request, 'open_document_version', multiToken, {
+    p_document_version_id: ethicsLegalDocVersionId,
+  })
   expect(openResp.ok()).toBeFalsy()
-  expect(JSON.stringify(await openResp.json())).toMatch(/HC0E6/i)
+  const openBody = (await openResp.json()) as { code?: string }
+  expect(openBody.code).toBe('P0002')
 
   // The ordinary ethics_investigation doc opens fine for the same reader (O2).
-  const openOk = await callRpc(request, 'open_attachment', multiToken, { p_id: DOC_ETHICS_ID })
+  const openOk = await callRpc(request, 'open_document_version', multiToken, {
+    p_document_version_id: ethicsOrdinaryDocVersionId,
+  })
   expect(openOk.ok()).toBeTruthy()
 
   await clearCaseAccess(CASE_ID, UID_MULTI)
@@ -522,16 +584,18 @@ test('AC-4c/d cleared reader (chefe): sees BOTH documents; direct open of the le
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   const docsPanel = page.getByRole('region', { name: 'Documentos' })
   await expect(docsPanel).toBeVisible({ timeout: 10_000 })
-  await expect(docsPanel.getByText(DOC_ETHICS_TITLE)).toBeVisible()
-  await expect(docsPanel.getByText(DOC_LEGAL_TITLE)).toBeVisible() // clearance covers it
+  await expect(docsPanel.getByText(ethicsOrdinaryDocTitle)).toBeVisible()
+  await expect(docsPanel.getByText(ethicsLegalDocTitle)).toBeVisible() // clearance covers it
   await signOut(page)
 
   const chefeToken = await getOwnerToken(request, 'chefe.ccih@test.local')
-  const openResp = await callRpc(request, 'open_attachment', chefeToken, { p_id: DOC_LEGAL_ID })
+  const openResp = await callRpc(request, 'open_document_version', chefeToken, {
+    p_document_version_id: ethicsLegalDocVersionId,
+  })
   expect(openResp.ok()).toBeTruthy()
-  const rows = (await openResp.json()) as { bucket: string; path: string }[]
-  expect(rows[0]?.bucket).toBeTruthy()
-  expect(rows[0]?.path).toBeTruthy()
+  const body = (await openResp.json()) as { title?: string; sensitivity_tier?: string }
+  expect(body.title).toBe(ethicsLegalDocTitle)
+  expect(body.sensitivity_tier).toBe('phi') // case home ⇒ server-derived phi tier
 })
 
 // ===========================================================================
@@ -651,9 +715,13 @@ test('AC-7 flag-ON regression spot-check: a granted READ member (multi) on this 
 // AC-9 — Keyboard-only: Meus Casos → case detail → the confidentiality-cleared document
 // ===========================================================================
 
-test('AC-9 keyboard-only: coordinator (chefe) tabs from Meus Casos into the case, then to the legal_privileged document link, and opens it', async ({
+test('AC-9 keyboard-only: coordinator (chefe) tabs from Meus Casos into the case, then to the legal_privileged document\'s download control, and opens it for real', async ({
   page,
 }) => {
+  // RESTORED against the core document model (DM2 Wave A; ADR 0114 Amendment
+  // 1 D15) — FUP-DM1-CEILING / FUP-DM1-E2E. Uses `ethicsLegalDocTitle`
+  // (created in `beforeAll` above, real bytes) rather than the retired
+  // `a7000000-…-e1` seed fixture.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/meus-casos`)
   await page.waitForURL(`${BASE}/meus-casos`)
@@ -672,34 +740,29 @@ test('AC-9 keyboard-only: coordinator (chefe) tabs from Meus Casos into the case
   await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByText(CASE_LABEL)).toBeVisible({ timeout: 10_000 })
 
-  // The document control renders as either a plain <a href> (pre-signed) or the
-  // audited OpenAttachmentButton <button> (click-time RPC signing) depending on
-  // whether listCaseDocuments could batch-sign it — accept either element shape.
-  // Plain substring match (not a RegExp built from the title): DOC_LEGAL_TITLE
-  // contains literal parentheses, which `new RegExp(...)` would otherwise parse
-  // as a capture group instead of literal characters.
-  const wantedLabel = `baixar ${DOC_LEGAL_TITLE}`.toLowerCase()
+  // The document model has exactly ONE byte corridor: `OpenDocumentButton`
+  // (a <button>, click-time RPC signing) — no inline <a href> fast path
+  // exists anywhere in the Wave-A UI (the projections carry no storage
+  // coordinates at all).
+  const wantedLabel = `baixar ${ethicsLegalDocTitle}`.toLowerCase()
   const reachedDoc = await tabUntil(
     page,
-    (i) =>
-      (i.tag === 'A' || i.tag === 'BUTTON') &&
-      (i.ariaLabel ?? '').toLowerCase().includes(wantedLabel),
+    (i) => i.tag === 'BUTTON' && (i.ariaLabel ?? '').toLowerCase() === wantedLabel,
     200,
   )
   expect(reachedDoc).toBe(true)
 
-  // Activate via keyboard alone. Seed-only documents have no real backing storage
-  // bytes (established convention — e2e/phase-f2-attachments.spec.ts
-  // `clickExpectingMintFailure`: a SQL seed cannot write real object bytes into the
-  // storage-api file backend, so `createSignedUrl` legitimately 404s even though the
-  // RPC authorizes the read — the confidentiality-ceiling authorization already
-  // proven directly in AC-4c/d). So the button surfaces the inline pt-BR failure
-  // message here rather than a popup; asserting it appears proves the keyboard
-  // activation reached and operated the control.
-  await page.keyboard.press('Enter')
-  await expect(
-    page.getByRole('alert').filter({ hasText: 'Não foi possível abrir o anexo.' }),
-  ).toBeVisible({ timeout: 10_000 })
+  // Activate via keyboard alone. Unlike the retired F2 seeded fixture (no
+  // backing storage bytes, so the door authorized-but-signing legitimately
+  // 404'd), this document has REAL bytes (created in `beforeAll` through the
+  // real begin→PUT→finalize→verify chain) — a genuinely successful
+  // keyboard-driven download, not merely "the control operated."
+  const downloadPromise = page.context().waitForEvent('download', { timeout: 8_000 }).catch(() => null)
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('Enter')])
+  const download = await downloadPromise
+  const openedUrl = download ? download.url() : popup.url()
+  await popup.close().catch(() => {})
+  expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
 
   await signOut(page)
 })

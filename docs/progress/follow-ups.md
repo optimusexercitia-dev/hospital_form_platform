@@ -6,6 +6,251 @@ owner) — **update BOTH when an item changes state**. Resolved items move to
 [follow-ups-archive.md](./follow-ups-archive.md), same as before; the parked backlog stays
 in [deferred-backlog.md](./deferred-backlog.md).
 
+### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
+
+### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
+
+Filed 2026-08-13 during DM3. Every one of the five gates in `npm run lint` was added **after**
+its class shipped a live defect (CLAUDE.md §8). This class qualifies twice over: **~6 instances
+in DM3 alone**, plus 4 historically, **one of which shipped a live bug**.
+
+**The class.** A deletion strands every comment that referenced it, and **no gate sees any of
+them** — not typecheck, not eslint, not the four custom gates. Worst DM3 specimen:
+`supersedeDocument`'s doc comment telling the frontend to upload *"via `addDocumentVersion`"* —
+**a deleted verb, named in the documentation of a verb the frontend actively calls**. Others:
+a page header claiming the storage SELECT policy carried the approver arm (false since M5 —
+different provenance, a *migration* rather than a deletion, same class), and a module header
+still advertising the signed-URL byte path M5 deleted.
+
+⚠ **The design tension that must be resolved BEFORE the gate is built — raised by `frontend`,
+ruled by the lead 2026-08-13.** Four comments in `src/app` + `src/components` deliberately
+name a dead symbol **as dead** ("`reviseChangesRequestedDocument` is gone"), which a naive
+implementation would flag as false positives:
+
+- `…/documentos/novo/page.tsx:40` · `…/nova-versao/page.tsx:27` · `…/revisar/page.tsx:33` ·
+  `components/controlled-documents/add-version-form.tsx:52`
+
+**RULING: tombstones are legitimate and stay.** A reader who remembers `supersedeAndSubmitDocument`
+and finds **silence** concludes they are in the wrong file; one who finds *"it is gone, and here
+is what replaced it"* is served. Deleting that information to satisfy a gate would make the
+codebase worse in order to make a check pass — the gate exists to serve the reader, not the
+reverse.
+
+**Therefore the gate's spec must include a machine-checkable tombstone convention** (an explicit
+marker token adjacent to the symbol, e.g. `@removed`), so a deliberate tombstone is
+distinguishable from a stale claim **without natural-language guessing**. Settle the exact token
+when the gate is built. ⛔ **Do not churn the sites now** for a gate that does not yet exist — a
+mid-phase rewrite for a hypothetical checker is cost with no coverage.
+
+**The tombstone population is SEVEN, and how it was established is the lesson.** Three
+successive lists (backend 6, frontend 3, lead 4) were each short, and **none was careless** —
+each was bounded by a different *unstated enumeration key*: "comments my deletion broke" / "the
+composite verbs" / "verbs + the RPC". `frontend` finally derived it **by construction** — the
+removal set from `git diff 5310358..HEAD -- src/lib` ∪ the `drop function|policy|column`
+statements in the DM3 migrations (**12 symbols**), swept across `src/app` + `src/components`:
+`novo/page.tsx:40` · `nova-versao/page.tsx:27` · `revisar/page.tsx:33` ·
+`add-version-form.tsx:52` · `version-compare-modal.tsx:23` ·
+`documentos-pendentes/[documentId]/page.tsx:43` · `open-controlled-version-button.tsx:20`.
+**A population is only well-defined once its key is stated**, and recall is keyed to whatever
+you were last looking at ([[enumeration-boundary-is-a-syntax-not-a-property]], three times in
+one thread).
+
+### ⛔ The gate CANNOT be keyed on identifier names — three live families prove it
+
+Lead sweep of all 12 removed symbols, 2026-08-13. Every hit below is **live, correct code** that
+a name-keyed gate would flag, and where the tempting "fix" edits a subsystem the rule has no
+business touching:
+
+1. ⭐ **`uploadDocumentFile` is simultaneously REMOVED and LIVE.** DM3 deleted a *private*
+   `async function uploadDocumentFile` from `src/lib/controlled-documents/actions.ts`, while
+   **`src/lib/documents/upload-client.ts:13` exports a live one** — imported and called by
+   `add-version-form.tsx:12,144`, `create-wizard.tsx:27,436` and
+   `documents/document-upload-dialog.tsx:18,216`. **This is decisive: a bare identifier is not a
+   key at all**, independent of scoping-by-family. A name-keyed gate would flag three live call
+   sites of a live function.
+2. **printed-documents (ADR 0104, retires DM5/Wave D)** — `src/app/api/documents/[id]/route.ts:46`
+   `.download(row.storage_path)`, downloading from the **`printed-documents`** bucket. A
+   different table's column that DM3 never dropped, under a URL that *reads* in-scope. Plan §1.2
+   named this exact hazard (two families sharing the `document` noun) and §1.3 warns the route's
+   URL is misleading while its body is not.
+3. **form-assets (ratified permanently separate, ADR 0114 D13)** — `storage_path` in
+   `components/forms/block-card.tsx:91,478` · `block-list.tsx:53` · `item-editor-dialog.tsx:281` ·
+   `read-only-blocks.tsx:52`.
+
+**Spec consequences (binding on whoever builds it):** resolve each symbol to its **owning module
+and family**, never its name; and the first dry-run must run against a **hand-classified
+control** containing all three families above as known-goods — *a detector that finds a lot needs
+proving too* ([[a-detector-that-finds-a-lot-needs-proving-too]]).
+
+### 🔻 LEAD RECOMMENDATION 2026-08-13: **do NOT build the gate.** Adopt the convention; keep the process step
+
+Four findings, in order of how much they cost the idea:
+
+1. **The same identifier holds THREE truth values inside ONE file.** Verified in
+   `src/lib/controlled-documents/actions.ts`: **`:119`** tombstone · **`:309` LIVE and
+   correct** (it names the live export *and its module*, `@/lib/documents/upload-client`) ·
+   **`:693`** tombstone. So **file scoping fails too**, not just name-keying. Classification
+   must be **per-occurrence**, and `:309` is separable from `:119` only by **adjacent prose** —
+   natural-language disambiguation, not resolution. It is also the occurrence a gate most needs
+   to get right: flagging it invites deleting the sentence that tells the next reader where the
+   live helper lives.
+2. **Module resolution reaches only 3 of the 7 tombstones (43%).** Sites 1–3 are TS module
+   bindings; site 4 names a **Postgres function + column**, site 5 a **TS property** (`hasFile`
+   — never a module binding), sites 6–7 a **Postgres policy**. The misses need two *further*
+   resolvers: a type-level property resolver and a catalog lookup.
+3. **The DB arm needs a RUNNING DATABASE, and that is not negotiable.** The standing rule is
+   that the **live catalog is the sole truth** for any schema/RLS/RPC question — never migration
+   text, which is stale by design (runtime `pg_get_functiondef()` + `replace()` + `execute`), and
+   which has already produced a confident **false P0** here. So the arm must query `pg_proc` /
+   `pg_policies`. All five current `npm run lint` gates are **stateless static checks that run in
+   a fresh worktree with no stack up**; a DB-dependent arm changes what the lint gate *is*, and
+   the shared-stack constraint makes it worse.
+4. ⚠ **The proposed convention-only gate does NOT work as specified**, and the error is
+   instructive. `frontend` suggested checking that *"mentions of removal-set symbols carry the
+   marker"*, arguing it would leave `actions.ts:309` alone *"because a live reference wouldn't
+   carry the marker."* That exemption is **inverted**: `uploadDocumentFile` **is** in the removal
+   set, so `:309` mentioning it **without** a marker is precisely what the rule flags. Rescuable
+   with per-occurrence suppression — but the authoring burden then lands exactly on the most
+   confusing case. **Also fatal to the "it's just a grep" claim:** the rule needs a *removal set*,
+   which needs a **diff base** — making it a CI check, not a stateless lint gate.
+
+**Recommendation (PO decides — it is a lint-gate change):** adopt the tombstone marker as an
+**authoring convention** (zero cost, helps every reader) and **do not build a checker**. Rely on
+the step that actually worked here: **at deletion time, derive the removal set from the diff
+(`git diff <base>..HEAD -- src/lib` ∪ the migrations' `drop function|policy|column` statements)
+and sweep it.** That is what found all seven; three prior lists built from recall found 6, 3 and
+4, each bounded by a different unstated key. **Encode it as a deletion-discipline step, not a
+script** — the knowledge lives with whoever removes the symbol, and no resolver reproduces it.
+
+**If the PO still wants a checker**, it must satisfy all of: per-occurrence classification ·
+family/module resolution · a catalog arm · a diff base · and a first dry-run against a
+**hand-classified control** containing `actions.ts:309`, `api/documents/[id]/route.ts:46` and the
+`components/forms/*` hits as **known-goods** — *a detector that finds a lot needs proving too*
+([[a-detector-that-finds-a-lot-needs-proving-too]],
+[[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
+
+### 🟡 FUP-PGTAP-SAVEPOINT — ⚠ **DOWNGRADED 2026-08-13 (🔴→🟡): the original claim was WRONG. No coverage is being lost** (owner: lead + backend)
+
+> ## ⛔ CORRECTION — read this before the original text below
+>
+> **Measured on a clean reset (the run this follow-up demanded): `193` → `ok`, `194` → `ok`,
+> ZERO bad plans across 190 files / 6149 tests, `Result: PASS`.** The two "affected" suites are
+> **not** losing assertions.
+>
+> **The true mechanism**, pinned by a two-assertion repro (one outside the savepoint, one inside):
+> ```
+> plan(2); ok(true,'A'); savepoint s; throws_ok(…,'B'); rollback to savepoint s; finish();
+>   → ok 1 - A          ← emitted to stdout
+>   → ok 2 - B          ← ALSO emitted; TAP output cannot be rolled back
+>   → # Looks like you planned 2 tests but ran 1
+> ```
+> **pg_prove parses the TAP stream, not pgTAP's internal table.** Both `ok` lines are emitted at
+> statement execution and survive the rollback, so **the gate's tally is correct and the
+> assertion does count**. Only pgTAP's *internal* counter under-counts, producing a `#`
+> **diagnostic** that pg_prove does not treat as a failure.
+>
+> **What IS real:** the **degenerate** case — when *every* assertion in the file sits inside the
+> rolled-back region, `finish()` raises `# No tests run!`, which **does** fail the file.
+>
+> ⚠ **My error, recorded because it is the more useful part: I generalized from the degenerate
+> case.** The original repro was `plan(1)` with its single assertion inside the savepoint — the
+> one shape where the internal under-count reaches zero and becomes an error. I proved that shape
+> and then asserted the general one, filing a 🔴 gate-integrity item on a mechanism I had not
+> tested in the configuration the live suites actually use.
+> [[the-proposal-you-author-is-the-one-you-dont-test]], again, and this time it was mine.
+>
+> **Residual value (why this stays open at 🟡, not closed):** the `finish()` diagnostic is
+> genuinely misleading to anyone reading it, and the degenerate shape is a real hazard worth not
+> writing. `330`'s captured-definition pattern remains the better style. But **nothing is
+> uncovered and no prior gate record is invalidated** — the earlier `194` "planned 8 but ran 0"
+> was the dirty-DB artifact, exactly as `backend` suspected and declined to attribute.
+>
+> The original text below is retained as written, so the correction is legible as a correction.
+
+### (original filing, superseded above) a pgTAP assertion inside a rolled-back savepoint PRINTS `ok` but is DISCARDED from the tally; 2 live suites use the shape
+
+Found by `backend` during DM3·M2 (2026-08-13) and **independently reproduced by the lead
+the same day**, twice, against the live DB.
+
+**The mechanism, proven — not inferred.** With `pgtap` installed, two runs differing only
+in the savepoint:
+
+```
+RUN A:  plan(1); savepoint s; select throws_ok($$ select 1/0 $$,'22012'); rollback to savepoint s; select * from finish();
+        → prints  "ok 1 - threw 22012"   then  ERROR: # No tests run!
+RUN B:  plan(1); select throws_ok($$ select 1/0 $$,'22012'); select * from finish();
+        → prints  "ok 1 - threw 22012"   then  finish() returns 0 rows (clean)
+```
+
+pgTAP keeps its results in transaction-local state, so `rollback to savepoint` unwinds its
+own bookkeeping along with the mutation. **The assertion still prints `ok`.** The file then
+reports `planned N but ran <N`, which a summary line can hide — this is the pgTAP twin of
+the class `lint:vacuous` gates for TypeScript, and there is **no equivalent gate for SQL**.
+
+**Live instances — a lead sweep of `supabase/tests/` found the shape in 4 files:**
+
+| File | Verdict |
+| --- | --- |
+| `193_schema_integrity.sql:89-99` | ⚠ **AFFECTED** — `throws_ok` at `:93` sits inside the window. **Missed by the original report, which flagged only 194.** The enclosed assertion is a *mutation twin* (drop the twin CHECK, assert the refusal still holds) — the kind whose silent non-counting matters most, because its whole job is to prove a barrier is independent |
+| `194_tenant_composite_fk.sql:87-95` | ⚠ **AFFECTED** — `throws_ok` at `:89` inside the window (its test 4.1) |
+| `330_dm3_controlled_documents.sql` | ✅ **CLEAN** — its 3 hits are *comments documenting the hazard*; the suite mutates without a savepoint and restores from a **captured** `pg_get_constraintdef`, so the restore cannot drift from the real definition |
+| `100_dashboard.sql:411-412` | ✅ clean — **and it already carried the explanation**: *"⛔ Deliberately NOT a savepoint. pgTAP keeps its test counter in transaction-local state, so `rollback to savepoint` after an `is()` would rewind the counter."* |
+
+**The most useful part of this finding is that last row.** The hazard was **already known and
+already written down** — as a comment in one file, where it protected that file and nothing
+else. Two other suites then shipped the shape. Knowledge that lives only in a local comment
+does not propagate; that is what `lint:vacuous` and the keystone discipline exist to fix, and
+this class had neither. Related: [a comment is an assertion that goes stale silently].
+
+**What is NOT yet established.** The per-suite blast radius. `194` was observed reporting
+`planned 8 but ran 0` on a **dirty** local DB, and that is *not* attributed to this mechanism —
+`194` is a tenant/commission-count suite and the stack carried E2E leftovers, a known
+spurious-red class. The suites cannot be run raw (`test_helpers` is harness-created), so the
+real numbers come from `npm run test:db` on a **fresh `supabase db reset`**.
+
+**Discharge:**
+1. On a fresh reset, capture `planned N / ran M` for `193` and `194`; if `M < N`, those
+   assertions have never contributed to any gate record, and the affected keystones' prior
+   green must be re-read as unproven.
+2. Rewrite both to `330`'s pattern — mutate without a savepoint, restore from a captured
+   definition, and keep the file-level `rollback` as the outer restore.
+3. **Add the missing gate.** A `lint:vacuous`-style check for pgTAP: flag any assertion
+   between `savepoint` and `rollback to savepoint`, and/or assert `planned == ran` per file
+   rather than trusting the summary. Without step 3 this recurs — it already did, twice,
+   after being documented once.
+
+### 🟡 FUP-DM3-ETHICS-UI — no UI can attach a decision letter to an ethics case; DM3 ships both seams writable via the API only (owner: PO, a feature phase)
+
+Filed 2026-08-13 at DM3 open, as the recorded half of a PO scope ruling. **This is a
+decision, not an omission** — a later reader finding two write-only columns must land here
+rather than infer neglect.
+
+**What DM3 does ship** (ADR 0114 Amendment 2 / D17, conditions 1–5): both
+`ethics_decision_details.decision_letter_document_id` and
+`ethics_notifications.related_document_id` get a real FK to `documents(id)`;
+`issue_ethics_notification`'s fail-closed rejection is removed and keystone K8 with it;
+and `set_ethics_decision_details` gains `p_decision_letter_document_id`, forwarded from
+`src/lib/ethics/actions.ts`. After DM3 the seams are genuinely writable document-model
+citizens **through the API**.
+
+**What it does not ship, and why.** No attach-a-letter affordance. None has ever existed —
+verified 2026-08-13 on five independent lines: no writer passes either field (the only
+callers are `ethics-decisions-panel.tsx`'s 10-key payload and
+`ethics-notifications-panel.tsx`'s 5-key payload); no form control exists in either dialog;
+`type="file"` appears in 7 components repo-wide and **none** under `src/components/ethics/`;
+nothing in `src/` *reads* either field off a value, so even a populated column would change
+no pixel; and `e2e/ethics-e2-procedure.spec.ts:55-56` already declares the Stage-E
+legal-privileged decision letter unbuilt.
+
+A decision letter is the **archetypal `legal_privileged` document**. Its UI is therefore not
+a form field — it needs the ADR 0072 / ETH·E1 access spine (`case_access_grants` +
+`max_confidentiality` + recusal), the D15 confidentiality ceiling, and E2E coverage that
+does not exist today. Appending that to a migration wave is how the most security-sensitive
+surface in the phase gets the least design attention.
+
+**Discharge = a feature phase that designs the affordance against the ETH·E1 spine**, with
+its own threat model and E2E. Until then the columns are write-only by design.
+
 ### 🟡 FUP-ETH-KBD-1 — the professional lane's `TypeaheadField` mount is keyboard-UNTESTED, so BUG-ETHE4-FOCUS-1's defect is not ruled out there (owner: frontend + tester)
 
 Carried out of **BUG-ETHE4-FOCUS-1** when that bug was rotated to

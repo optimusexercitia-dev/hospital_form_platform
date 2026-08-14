@@ -146,21 +146,19 @@ values ('00000000-0000-0000-0000-0000000a4060', (select comm_x from k), '0000000
 insert into public.case_interview_subjects (interview_id, external_name, external_org, relationship_to_case)
 values ('00000000-0000-0000-0000-0000000a4060', 'Dr. Fulano (denunciado)', 'Hospital A', 'respondent');
 
--- A case-document storage object under comm_x / c2 (the K4 byte-level case material).
--- Two anchors: the legacy `case-documents` (commission-anchored) proves A4 removed the
--- ORG arm there; the live `attachments` bucket (owner-anchored `case/{caseId}/…`, where
--- ALL product uploads land post-F2) is where the coordinator twin now reads (the legacy
--- `is_member_of` member arm was CLOSED by the Exclusion Perimeter Unit 1 — see 236).
+-- A case-document storage object under comm_x / c2 (the K4 byte-level case material)
+-- on the legacy `case-documents` bucket (still live until DM4 — its SELECT policy is
+-- the frozen-snapshot boundary), proving A4 removed the ORG arm there.
+-- DM1 (ADR 0114 D5/D8): the second anchor (the `attachments` store, where the
+-- coordinator twin read bytes) was dropped WITH its SELECT policy — and the document
+-- buckets deliberately have NO SELECT policy for anyone (D8), so "an entitled
+-- principal reads the bytes directly" is no longer a satisfiable twin ANYWHERE by
+-- design. K4's non-vacuity is asserted as a superuser census instead (below).
 insert into storage.buckets (id, name) values
-  ('case-documents','case-documents'),
-  ('attachments','attachments') on conflict (id) do nothing;
+  ('case-documents','case-documents') on conflict (id) do nothing;
 insert into storage.objects (bucket_id, name, owner)
 values ('case-documents',
         (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf',
-        (select sa_x from k));
-insert into storage.objects (bucket_id, name, owner)
-values ('attachments',
-        'case/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf',
         (select sa_x from k));
 
 -- ===========================================================================
@@ -263,13 +261,15 @@ select is((select count(*)::int from storage.objects
              and name = (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 0,
   'K4 ⭐ ROWS: the org_admin reads ZERO case-document BYTES — D4·2 is NOT "fixed for free" at the storage layer, and A4 fixes it');
 reset role;
-select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
-set local role authenticated;
+-- DM1 (ADR 0114 D8): the old twin (coordinator reads bytes in the live
+-- `attachments` store) died with that store's SELECT policy, and by design NO
+-- principal reads document-bucket bytes directly anymore (byte access = the
+-- audited door, DM2). Non-vacuity is therefore pinned as a superuser census:
+-- the object the org_admin reads ZERO of is REAL.
 select is((select count(*)::int from storage.objects
-           where bucket_id = 'attachments'
-             and name = 'case/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 1,
-  'K4 ⭐ POSITIVE TWIN: …and the coordinator STILL reads the bytes in the LIVE `attachments` store — the object is real and reachable (the zero above is not vacuous)');
-reset role;
+           where bucket_id = 'case-documents'
+             and name = (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 1,
+  'K4 ⭐ NON-VACUITY (superuser census): the case-document object is REAL — the org_admin zero above is a removed arm, not an empty bucket');
 
 -- ===========================================================================
 -- K5 — D4's own sentence, made live: an org_admin who ALSO holds a Committee role keeps

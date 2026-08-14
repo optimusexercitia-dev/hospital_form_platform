@@ -4,21 +4,21 @@ import { notFound } from "next/navigation";
 import { CalendarClock, Plus } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listDocuments } from "@/lib/queries/documents";
-import type { ControlledDocumentListItem } from "@/lib/documents/types";
+import { listDocuments } from "@/lib/queries/controlled-documents";
+import type { ControlledDocumentListItem } from "@/lib/controlled-documents/types";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
-import type { DerivedDocStatus } from "@/components/documents/document-badges";
+import type { DerivedDocStatus } from "@/components/controlled-documents/document-badges";
 import {
   DocumentKpiStrip,
   type DocumentKpis,
-} from "@/components/documents/document-kpi-strip";
-import { DocumentRegisterFilters } from "@/components/documents/document-register-filters";
+} from "@/components/controlled-documents/document-kpi-strip";
+import { DocumentRegisterFilters } from "@/components/controlled-documents/document-register-filters";
 import {
   DocumentRegisterTable,
   type ApprovalProgress,
   type RegisterItem,
-} from "@/components/documents/document-register-table";
+} from "@/components/controlled-documents/document-register-table";
 
 export const metadata: Metadata = {
   title: "Documentos controlados",

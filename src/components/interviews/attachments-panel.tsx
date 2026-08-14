@@ -1,34 +1,44 @@
-import { Download, ExternalLink, Paperclip } from "lucide-react";
+import { ExternalLink, Link2 } from "lucide-react";
 
 import type { InterviewAttachmentWithUrl } from "@/lib/queries/interviews";
 import { softDeleteInterviewAttachment } from "@/lib/interviews/actions";
-import { attachmentsEnabled } from "@/lib/attachments/actions";
-import { OpenAttachmentButton } from "@/components/attachments/open-attachment-button";
-import { AttachmentUpload } from "./attachment-upload";
+import { documentsWaveAEnabled } from "@/lib/documents/actions";
+import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { AttachmentLinkForm } from "./attachment-link-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
-import { ATTACHMENT_KIND_LABEL } from "./interview-labels";
 import { formatDate } from "./format";
 
 /**
- * Interview ATTACHMENTS panel (F3; the file side rewired onto the
- * centralized-attachments substrate in F2 — ADR 0063): unified evidence — stored
- * FILES (transcrição assinada, evidência, …) opened via the audited attachments
- * door, AND external LINKS (e.g. an audio-recording URL) opened directly. Newest-
- * first; the writer uploads files, adds links, and soft-deletes (Storage objects
- * retained — Rule 6). Server-Component shell — the data arrives as props; the
- * upload, add-link, and delete are client islands. Soft-deleted rows are already
- * filtered out by `listInterviewAttachments`.
+ * Interview evidence — RE-POINTED to the core document model (DM2·S3 Wave A;
+ * ADR 0114), and the one HYBRID surface in Wave A.
  *
- * The row discriminates file-vs-link WITHOUT guessing: exactly one of
- * `openUrl`/`externalUrl` is non-null. A LINK's `externalUrl` opens directly in a
- * new tab (unaudited — it is just a stored URL, never a blob). A FILE's `openUrl`
- * is always `null` (interviews default to the PHI tier), so files open via the
- * audited {@link OpenAttachmentButton} instead — never pre-fetched, only on click.
+ * Interviews carry two genuinely different things, and Wave A stops pretending
+ * they are one:
  *
- * Upload/add-link/delete AND the file-open door are gated on the `attachments`
- * feature flag; while off, existing rows render read-only and the file-open
- * control is disabled (list reads + link opens are never gated).
+ * 1. **Stored FILES** (transcrição assinada, evidência, …) — now `documents`
+ *    homed on the interview's `securable_resources` row, rendered by the shared
+ *    {@link DocumentsPanel} and opened through the single audited byte corridor.
+ * 2. **External LINKS** (e.g. an audio-recording URL) — these stay on
+ *    `case_interview_links` and OUTSIDE the document model. A link has no bytes,
+ *    no version, no file object and no disposal state; representing it as a
+ *    document would mean inventing all four.
+ *
+ * They are rendered as two sections rather than one mixed list because they are
+ * two substrates with two lifecycles — an availability state means something for
+ * a file and nothing for a URL.
+ *
+ * ## Why links ride `documents_wave_a`
+ *
+ * Lead ruling (DM2·S3): links are dark TODAY because F2 folded them behind the
+ * now-dead `attachments` flag, so riding the Wave-A flag is not a new
+ * restriction — it restores them coherently and keeps the interview surface from
+ * showing links with no files. Recorded as a deliberate INTERIM: a later slice
+ * may give links their own gate, and that decision should be made on its own
+ * merits rather than inherited from this one.
+ *
+ * Interview files may contain patient data (the case module is Class-1 under
+ * Rule 12) — their titles may not. The shared upload dialog carries that D12
+ * distinction.
  */
 export async function AttachmentsPanel({
   interviewId,
@@ -36,132 +46,99 @@ export async function AttachmentsPanel({
   canEdit,
 }: {
   interviewId: string;
+  /** Interview evidence rows; only the LINK half is consumed here (the file half
+   * now arrives through the document model). */
   attachments: InterviewAttachmentWithUrl[];
   canEdit: boolean;
 }) {
-  const flagOn = await attachmentsEnabled();
+  const flagOn = await documentsWaveAEnabled();
   const canEditNow = canEdit && flagOn;
-  return (
-    <section
-      aria-labelledby="interview-attachments-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Paperclip
-            aria-hidden="true"
-            className="size-4 text-muted-foreground"
-          />
-          <h2
-            id="interview-attachments-heading"
-            className="text-base font-semibold"
-          >
-            Anexos e gravações
-          </h2>
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">
-            {attachments.length}
-          </span>
-        </div>
-        {canEditNow && (
-          <div className="flex flex-wrap items-center gap-2">
-            <AttachmentLinkForm interviewId={interviewId} />
-            <AttachmentUpload interviewId={interviewId} />
-          </div>
-        )}
-      </div>
 
-      {attachments.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          {canEditNow
-            ? "Nenhum anexo. Envie a transcrição assinada ou vincule a gravação de áudio."
-            : "Nenhum anexo."}
-        </p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-border/70">
-          {attachments.map((att) => {
-            const isLink = att.externalUrl != null;
-            return (
+  // Discriminate WITHOUT guessing: a link is exactly a row carrying an
+  // `externalUrl`. The file half of this query is inert post-DM1 and is replaced
+  // by `DocumentsPanel` below, so anything else here is ignored rather than
+  // rendered as a broken file row.
+  const links = attachments.filter((a) => a.externalUrl != null);
+
+  return (
+    <>
+      <DocumentsPanel
+        home={{ type: "interview", id: interviewId }}
+        access={{ canWrite: canEdit, canDownload: true }}
+      />
+
+      <section
+        aria-labelledby="interview-links-heading"
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Link2 aria-hidden="true" className="size-4 text-muted-foreground" />
+            <h2 id="interview-links-heading" className="text-base font-semibold">
+              Gravações e links
+            </h2>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">
+              {links.length}
+            </span>
+          </div>
+          {canEditNow && <AttachmentLinkForm interviewId={interviewId} />}
+        </div>
+
+        {links.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+            {canEditNow
+              ? "Nenhuma gravação vinculada. Adicione o endereço da gravação de áudio."
+              : "Nenhuma gravação vinculada."}
+          </p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border/70">
+            {links.map((link, i) => (
               <li
-                key={att.id}
-                className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                key={link.id}
+                className="animate-rise-in flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                style={{ "--rise-delay": `${i * 60}ms` } as React.CSSProperties}
               >
                 <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {att.title}
-                    </span>
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-secondary-foreground uppercase">
-                      {ATTACHMENT_KIND_LABEL[att.kind]}
-                    </span>
-                    {isLink && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[0.6rem] font-medium tracking-wide text-muted-foreground uppercase">
-                        Link
-                      </span>
-                    )}
-                  </div>
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {link.title}
+                  </span>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    Adicionado em {formatDate(att.createdAt)}
-                    {att.uploadedByName ? ` por ${att.uploadedByName}` : ""}
+                    Adicionado em {formatDate(link.createdAt)}
+                    {link.uploadedByName ? ` por ${link.uploadedByName}` : ""}
                   </p>
                 </div>
 
                 <div className="flex shrink-0 items-start gap-0.5">
-                  {isLink ? (
-                    att.externalUrl && (
-                      <a
-                        href={att.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Abrir ${att.title}`}
-                        className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                      >
-                        <ExternalLink aria-hidden="true" className="size-4" />
-                      </a>
-                    )
-                  ) : att.openUrl ? (
-                    // Standard-tier file (not the default for interviews, but
-                    // possible after a future reclassification): direct inline URL.
+                  {link.externalUrl && (
+                    // A stored URL, never a blob: opened directly, unaudited,
+                    // because no platform-held bytes are involved.
                     <a
-                      href={att.openUrl}
+                      href={link.externalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={`Baixar ${att.title}`}
+                      aria-label={`Abrir ${link.title}`}
                       className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                     >
-                      <Download aria-hidden="true" className="size-4" />
+                      <ExternalLink aria-hidden="true" className="size-4" />
                     </a>
-                  ) : (
-                    // PHI-tier file (the default): audited open, on click only.
-                    <OpenAttachmentButton
-                      attachmentId={att.id}
-                      label={`Baixar ${att.title}`}
-                      disabled={!flagOn}
-                    />
                   )}
                   {canEditNow && (
                     <ConfirmDeleteButton
-                      // Bound server-action reference (NOT an inline closure):
-                      // this panel is a Server Component, and a closure — even one
-                      // wrapping a `"use server"` action — is not serializable
-                      // across the RSC→Client boundary into `ConfirmDeleteButton`
-                      // (`"use client"`), which crashes the page on this render
-                      // path (P11-001). `.bind(null, …)` IS serializable.
-                      action={softDeleteInterviewAttachment.bind(null, att.id)}
-                      label={`Remover ${att.title}`}
-                      title="Remover este anexo?"
-                      description={
-                        isLink
-                          ? `O link “${att.title}” deixará de aparecer.`
-                          : `O anexo “${att.title}” deixará de aparecer. O arquivo enviado é mantido por imutabilidade.`
-                      }
+                      // Bound server-action reference, NOT an inline closure: a
+                      // closure is not serializable across the RSC → Client
+                      // boundary and crashes this render path (P11-001).
+                      action={softDeleteInterviewAttachment.bind(null, link.id)}
+                      label={`Remover ${link.title}`}
+                      title="Remover esta gravação?"
+                      description={`O link “${link.title}” deixará de aparecer.`}
                     />
                   )}
                 </div>
               </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
   );
 }

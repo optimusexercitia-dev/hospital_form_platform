@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
-  Download,
   GitBranchPlus,
   History,
   Pencil,
@@ -15,11 +14,9 @@ import {
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   getDocument,
-  createSignedDownloadUrl,
   listApproverCandidates,
-} from "@/lib/queries/documents";
+} from "@/lib/queries/controlled-documents";
 import {
-  addDocumentVersion,
   submitDocumentForApproval,
   approveDocument,
   rejectDocument,
@@ -27,27 +24,26 @@ import {
   supersedeDocument,
   markDocumentObsolete,
   remindDocumentApprover,
-} from "@/lib/documents/actions";
+} from "@/lib/controlled-documents/actions";
 import {
   selectWorkingDraft,
   findMyApprovalForVersion,
-} from "@/lib/documents/version-select";
+} from "@/lib/controlled-documents/version-select";
 import { commissionHref } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { DocumentIdentityCard } from "@/components/documents/document-identity-card";
-import {
-  DocumentVersionHistory,
-  type VersionWithUrl,
-} from "@/components/documents/document-version-history";
-import { DocumentDetailRail } from "@/components/documents/document-detail-rail";
-import { DetailNotice } from "@/components/documents/detail-notice";
-import { ApprovalsPanel } from "@/components/documents/approvals-panel";
-import { ApprovalSignForm } from "@/components/documents/approval-sign-form";
-import { SubmitForApprovalForm } from "@/components/documents/submit-for-approval-form";
-import { AddVersionForm } from "@/components/documents/add-version-form";
-import { PublishDocumentDialog } from "@/components/documents/publish-document-dialog";
-import { DocumentActionsMenu } from "@/components/documents/document-actions-menu";
+import { DocumentIdentityCard } from "@/components/controlled-documents/document-identity-card";
+import { DocumentVersionHistory } from "@/components/controlled-documents/document-version-history";
+import { OpenControlledVersionButton } from "@/components/controlled-documents/open-controlled-version-button";
+import { DocumentDetailRail } from "@/components/controlled-documents/document-detail-rail";
+import { DetailNotice } from "@/components/controlled-documents/detail-notice";
+import { versionFileLabel } from "@/components/controlled-documents/format";
+import { ApprovalsPanel } from "@/components/controlled-documents/approvals-panel";
+import { ApprovalSignForm } from "@/components/controlled-documents/approval-sign-form";
+import { SubmitForApprovalForm } from "@/components/controlled-documents/submit-for-approval-form";
+import { AddVersionForm } from "@/components/controlled-documents/add-version-form";
+import { PublishDocumentDialog } from "@/components/controlled-documents/publish-document-dialog";
+import { DocumentActionsMenu } from "@/components/controlled-documents/document-actions-menu";
 
 export const metadata: Metadata = {
   title: "Documento controlado",
@@ -93,15 +89,10 @@ export default async function DocumentDetailPage({
 
   const { document, versions, approvals } = detail;
 
-  const versionsWithUrls: VersionWithUrl[] = await Promise.all(
-    versions.map(async (version) => ({
-      ...version,
-      downloadUrl: version.storagePath
-        ? await createSignedDownloadUrl(version.storagePath)
-        : null,
-    })),
-  );
-
+  // DM3·S2: no signed URLs are minted here any more. Rendering this page used to
+  // mint one PER VERSION — an authority check at render time, then a bearer URL
+  // valid for its whole TTL with no download-time re-check and no audit row.
+  // Bytes now move only through the audited on-click door.
   const currentVersion =
     versions.find((v) => v.id === document.currentVersionId) ?? versions[0] ?? null;
   const currentStatus = currentVersion?.status ?? document.status;
@@ -131,8 +122,6 @@ export default async function DocumentDetailPage({
   const hasPublishedInForce =
     currentVersion != null &&
     (currentVersion.status === "effective" || currentVersion.status === "obsolete");
-  const currentInForceDownloadUrl =
-    versionsWithUrls.find((v) => v.id === currentVersion?.id)?.downloadUrl ?? null;
 
   const listHref = commissionHref(org, commission, "manage", "documentos");
   const editHref = commissionHref(
@@ -160,17 +149,18 @@ export default async function DocumentDetailPage({
     "revisar",
   );
 
-  const downloadCurrentLink = currentInForceDownloadUrl ? (
-    <a
-      href={currentInForceDownloadUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-    >
-      <Download aria-hidden="true" className="size-4" />
-      Baixar versão vigente
-    </a>
-  ) : null;
+  // Offered only when the door would actually serve: `available` is the shared
+  // predicate's one servable state. A version whose bytes are still scanning,
+  // failed verification, or were disposed gets no control rather than one that
+  // can only refuse. The door re-checks on every call regardless (Rule 1) —
+  // this decides what is on screen, never what is permitted.
+  const downloadCurrentLink =
+    currentVersion != null && currentVersion.availability === "available" ? (
+      <OpenControlledVersionButton
+        versionId={currentVersion.id}
+        label="Baixar versão vigente"
+      />
+    ) : null;
 
   // --- Identity-card action cluster — STATE-DEPENDENT ----------------------
   let identityActions: React.ReactNode = null;
@@ -240,7 +230,6 @@ export default async function DocumentDetailPage({
           </Link>
           <div className="rounded-xl border border-border bg-muted/20 p-4">
             <AddVersionForm
-              action={addDocumentVersion}
               commissionId={document.commissionId}
               documentId={document.id}
               versionId={workingDraft.id}
@@ -249,7 +238,24 @@ export default async function DocumentDetailPage({
               submitLabel="Enviar arquivo"
             />
           </div>
-          {workingDraft.storagePath ? (
+          {/* Gated on `availability === "available"`, NOT on the pointer being
+              non-null (DM3·S2).
+
+              `coreDocumentVersionId != null` only says a file was BOUND. A bound
+              file is still unservable while its bytes are scanning (`pending`),
+              after they fail verification (`failed`), once the document leaves
+              `active` (`unavailable`), or after disposal (`disposed`). Offering
+              "enviar para aprovação" in any of those states invites a submit the
+              server would refuse — and hiding it whenever the pointer is null
+              would ALSO be wrong in the other direction once a re-upload is in
+              flight.
+
+              `available` is the one state that means a usable file is present:
+              it comes from `documentVersionAvailability`, the same predicate
+              Wave A uses, written to agree with `open_document_version` branch
+              for branch. Gating here therefore reads the same answer the door
+              would give rather than a parallel UI opinion of it. */}
+          {workingDraft.availability === "available" ? (
             <div className="rounded-xl border border-border bg-muted/20 p-4">
               <SubmitForApprovalForm
                 documentVersionId={workingDraft.id}
@@ -259,7 +265,9 @@ export default async function DocumentDetailPage({
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-              Envie o arquivo da versão para poder enviá-la para aprovação.
+              {workingDraft.coreDocumentVersionId == null
+                ? "Envie o arquivo da versão para poder enviá-la para aprovação."
+                : `${versionFileLabel(workingDraft)}. A versão poderá ser enviada para aprovação quando o arquivo estiver disponível.`}
             </p>
           )}
         </>
@@ -369,7 +377,7 @@ export default async function DocumentDetailPage({
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <DocumentVersionHistory
-          versions={versionsWithUrls}
+          versions={versions}
           currentVersionId={document.currentVersionId}
           activeDraftId={workingDraft?.id ?? null}
           activeDraftSlot={draftSlot}

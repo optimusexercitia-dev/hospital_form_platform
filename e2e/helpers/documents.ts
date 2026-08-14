@@ -137,6 +137,105 @@ export async function publishViaDialog(page: Page): Promise<string> {
   return effective
 }
 
+// ---------------------------------------------------------------------------
+// DM3 Wave B — the version→file substrate moved (ADR 0114/0118)
+//
+// `controlled_document_versions.storage_path` was DROPPED (migration M4). A
+// domain version now points at a core `document_versions` row
+// (`core_document_version_id`), which binds a `file_objects` row through
+// `document_version_files` (rendition `source`).
+//
+// Rule 6 (immutable storage) survives the move and is STRENGTHENED: the path is
+// minted per upload by `begin_document_upload`, and
+// `file_objects_bucket_path_uniq UNIQUE (storage_bucket, storage_path)` makes a
+// collision impossible rather than merely unobserved. What changed is the
+// LOCATOR, not the property — every spec that read `storage_path` off the domain
+// row reads these helpers instead.
+// ---------------------------------------------------------------------------
+
+/** The core-model file behind a DOMAIN `controlled_document_versions.id`, or
+ *  `null` while the version is fileless (no pointer, or a pointer to a
+ *  deliberately fileless backfilled core version). */
+export async function coreFileOfVersion(
+  page: Page,
+  domainVersionId: string,
+): Promise<{
+  coreVersionId: string
+  fileObjectId: string
+  storageBucket: string
+  storagePath: string
+  sizeBytes: number
+  mimeType: string | null
+  sha256: string | null
+  uploadState: string
+  sensitivityTier: string
+} | null> {
+  const [dv] = await serviceQuery<{ core_document_version_id: string | null }>(
+    page,
+    `controlled_document_versions?id=eq.${domainVersionId}&select=core_document_version_id`,
+  )
+  if (!dv?.core_document_version_id) return null
+
+  const binds = await serviceQuery<{ file_object_id: string }>(
+    page,
+    `document_version_files?document_version_id=eq.${dv.core_document_version_id}` +
+      `&rendition_kind=eq.source&select=file_object_id`,
+  )
+  if (binds.length === 0) return null
+
+  const [fo] = await serviceQuery<{
+    id: string
+    storage_bucket: string
+    storage_path: string
+    size_bytes: number
+    mime_type: string | null
+    sha256: string | null
+    upload_state: string
+    sensitivity_tier: string
+  }>(
+    page,
+    `file_objects?id=eq.${binds[0].file_object_id}` +
+      `&select=id,storage_bucket,storage_path,size_bytes,mime_type,sha256,upload_state,sensitivity_tier`,
+  )
+  if (!fo) return null
+  return {
+    coreVersionId: dv.core_document_version_id,
+    fileObjectId: fo.id,
+    storageBucket: fo.storage_bucket,
+    storagePath: fo.storage_path,
+    sizeBytes: Number(fo.size_bytes),
+    mimeType: fo.mime_type,
+    sha256: fo.sha256,
+    uploadState: fo.upload_state,
+    sensitivityTier: fo.sensitivity_tier,
+  }
+}
+
+/**
+ * Wait for a domain version to carry REAL, SERVABLE bytes. The upload chain is
+ * now client-orchestrated and asynchronous (begin → client PUT → finalize →
+ * verify), so a spec must wait on the end state, not on a form submission.
+ * Returns the resolved file facts.
+ */
+export async function waitForVersionFile(
+  page: Page,
+  domainVersionId: string,
+  timeout = 30_000,
+): Promise<NonNullable<Awaited<ReturnType<typeof coreFileOfVersion>>>> {
+  await expect
+    .poll(async () => (await coreFileOfVersion(page, domainVersionId))?.uploadState ?? null, {
+      timeout,
+      message: `version ${domainVersionId}: begin → PUT → finalize bound a verified file`,
+    })
+    .toBe('unscanned_accepted')
+  return (await coreFileOfVersion(page, domainVersionId))!
+}
+
+/** `true` when the version has bytes the audited door would serve. */
+export async function versionHasFile(page: Page, domainVersionId: string): Promise<boolean> {
+  return (await coreFileOfVersion(page, domainVersionId)) != null
+}
+
 const ownerTokenCache = new Map<string, string>()
 
 /** An owner (persona) JWT — RLS evaluated under it; used for owner-token RPC calls. */

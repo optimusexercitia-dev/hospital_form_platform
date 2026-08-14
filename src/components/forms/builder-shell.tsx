@@ -6,7 +6,7 @@ import Link from "next/link";
 import { History, Plus, Settings2 } from "lucide-react";
 
 import type { VersionTree } from "@/lib/queries/forms";
-import type { ApproverCandidate } from "@/lib/queries/documents";
+import type { ApproverCandidate } from "@/lib/queries/controlled-documents";
 import type { BlockLibraryEntry } from "@/lib/queries/block-library";
 import { addSection } from "@/lib/forms/actions";
 import { Button } from "@/components/ui/button";

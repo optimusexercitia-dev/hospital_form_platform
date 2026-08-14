@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import path from 'path'
-import fs from 'fs'
+// IV2-11's restored MIME-rejection block (DM2 Wave A) uses Playwright's inline
+// `setInputFiles({ name, mimeType, buffer })` — no `path`/`fs` needed.
 import { setDateTimeField } from './helpers/date-pickers'
 import { cachedSignIn } from "./helpers/auth"
 
@@ -530,7 +530,7 @@ test('IV2-3 — adding a follow-up session while em_andamento, then completing t
 // IV2-4 — conclude requires >=1 subject; single registry event; content lock
 // ---------------------------------------------------------------------------
 
-test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly one registry event, no duplicate on reopen+reconclude; content locks but attachments stay manageable', async ({ page }) => {
+test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly one registry event, no duplicate on reopen+reconclude; content locks but attachments stay manageable (ADR 0026, restored on the document model)', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
   const interviewId = await createInterviewRpc(page, chefeToken, {
     title: 'Entrevista IV2-4 Sem Sujeito',
@@ -597,16 +597,33 @@ test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly o
   expect(interviewEventsAfter).toBe(interviewEventsBefore)
 
   // Content is locked once concluded (canEditContent=false): no session/subject/
-  // interviewer "add" controls — but attachments stay manageable (ADR 0026).
+  // interviewer "add" controls.
   const sessionsSection = page.getByRole('region', { name: /Sessões/i })
   await expect(sessionsSection.getByRole('button', { name: /Agendar sessão/i })).not.toBeVisible()
   await expect(subjectsSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
   const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
   await expect(interviewersSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
 
-  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
-  await expect(attachmentsSection.getByRole('button', { name: /Enviar anexo/i })).toBeVisible()
-  await expect(attachmentsSection.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
+  // RESTORED against the core document model (DM2 Wave A; ADR 0114) —
+  // FUP-DM1-E2E. First draft of this restoration asserted the OPPOSITE and
+  // was caught by running it (count=1, not 0): the interview PAGE
+  // (`interviews/[interviewId]/page.tsx`) computes attachment write access
+  // SEPARATELY from content edits — `canManageAttachments = canWrite &&
+  // status !== 'cancelled'`, deliberately excluded from the
+  // conclusion content-freeze (ADR 0026, the page's own comment: "the
+  // signed transcript can be uploaded AFTER conclusion"). So on THIS
+  // concluded-not-cancelled interview, both write triggers stay VISIBLE —
+  // exactly the "attachments stay manageable post-conclude" contract this
+  // test originally asserted before the DM1 park. Now spans TWO independent
+  // sections (the old merged "Anexos e gravações" region is gone): the
+  // Documents/"Anexos" panel (the document model) and the sibling
+  // "Gravações e links" section (`case_interview_links`).
+  const filesSection = page.getByRole('region', { name: 'Anexos', exact: true })
+  const linksSection = page.getByRole('region', { name: /Gravações e links/i })
+  await expect(filesSection).toBeVisible({ timeout: 10_000 })
+  await expect(linksSection).toBeVisible({ timeout: 10_000 })
+  await expect(filesSection.getByRole('button', { name: 'Enviar anexo' })).toBeVisible()
+  await expect(linksSection.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
 
   await signOut(page)
 })
@@ -937,7 +954,7 @@ test('IV2-10 — security: foreign-commission user gets 404, no data leakage', a
 // IV2-11 — server-level negatives
 // ---------------------------------------------------------------------------
 
-test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https link CHECK, HC038 wrong-state, HC0B0 schedule precondition, MIME rejection', async ({ page }) => {
+test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https link CHECK, HC038 wrong-state, HC0B0 schedule precondition; MIME rejection on upload (restored on the document model)', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
   const interviewId = await createInterviewRpc(page, chefeToken, {
     title: 'Entrevista IV2-11 Negativos',
@@ -985,27 +1002,63 @@ test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https
   expect(scheduleAfterCancel.status).toBe(400)
   expect((scheduleAfterCancel.body as { code: string }).code).toBe('HC0B0')
 
-  // UI: MIME rejection on upload (fresh unlocked interview).
+  // RESTORED against the core document model (DM2 Wave A; ADR 0114) —
+  // FUP-DM1-E2E ("UI: MIME rejection on upload", IV2-11's own finding — not
+  // in the FUP's original per-file list). The upload dialog validates MIME
+  // CLIENT-SIDE before ever calling `beginDocumentUpload` (a genuine change
+  // from the old model's server-round-trip rejection): `DOCUMENT_ACCEPTED_
+  // MIME_TYPES` carries no audio type at all, so an `.mp3` file trips the
+  // inline "Este tipo de arquivo não é aceito." error immediately.
   const uploadInterviewId = await createInterviewRpc(page, chefeToken, {
     title: 'Entrevista IV2-11 Upload',
     category: 'other',
   })
   await signInAs(page, 'chefe.ccih@test.local')
   await goToInterview(page, uploadInterviewId)
-
-  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
-  await attachmentsSection.getByRole('button', { name: /Enviar anexo/i }).click()
-  const uploadDialog = page.getByRole('dialog', { name: /Enviar anexo/i })
+  const filesSection = page.getByRole('region', { name: 'Anexos', exact: true })
+  await filesSection.getByRole('button', { name: 'Enviar anexo' }).click()
+  const uploadDialog = page.getByRole('dialog').filter({ hasText: 'Enviar anexo' })
   await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
-
-  const tmpAudioPath = path.join(__dirname, '__tmp_iv2_test.mp3')
-  fs.writeFileSync(tmpAudioPath, Buffer.from([0xff, 0xfb, 0x90, 0x00]))
-  await uploadDialog.locator('input[type="file"]').setInputFiles(tmpAudioPath)
+  await uploadDialog.locator('input[type="file"]').setInputFiles({
+    name: 'iv2-11-audio.mp3',
+    mimeType: 'audio/mpeg',
+    buffer: Buffer.from([0xff, 0xfb, 0x90, 0x00]),
+  })
   await uploadDialog.locator('input[name="title"]').fill('Audio Upload Test')
-  await uploadDialog.getByRole('button', { name: /Enviar anexo/i }).click()
-  await expect(uploadDialog.locator('[role="alert"]').first()).toBeVisible({ timeout: 15_000 })
-  fs.unlinkSync(tmpAudioPath)
-  await uploadDialog.getByRole('button', { name: /Cancelar/i }).click()
+  await uploadDialog.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await expect(uploadDialog.getByRole('alert').filter({ hasText: 'Este tipo de arquivo não é aceito.' })).toBeVisible(
+    { timeout: 10_000 },
+  )
+  await uploadDialog.getByRole('button', { name: 'Cancelar' }).click()
+
+  // THE DOOR, not the button (same class as P0-1 — a UI-level assertion
+  // carrying a server-side claim): the dialog's client-side block above
+  // proves the AFFORDANCE is refused; it does not prove the RPC itself
+  // would refuse a caller who skips the dialog entirely. `begin_document_
+  // upload`'s own MIME check (HC0DG, read live from `pg_proc` before this
+  // probe was added) is what actually protects that path.
+  const mimeRejected = await callRPC(page, chefeToken, 'begin_document_upload', {
+    p_resource_type: 'interview',
+    p_resource_id: uploadInterviewId,
+    p_title: 'Server-side MIME probe (should be refused)',
+    p_declared_file_name: 'probe.mp3',
+    p_declared_mime: 'audio/mpeg',
+    p_declared_size: 4,
+  })
+  expect(mimeRejected.status).toBe(400)
+  expect((mimeRejected.body as { code: string }).code).toBe('HC0DG')
+
+  // Non-vacuous control: the SAME interview accepts an ALLOWED mime right
+  // after — proves this isn't a blanket refusal or a broken interview id.
+  const mimeAllowed = await callRPC(page, chefeToken, 'begin_document_upload', {
+    p_resource_type: 'interview',
+    p_resource_id: uploadInterviewId,
+    p_title: 'Server-side MIME probe (should succeed)',
+    p_declared_file_name: 'probe.pdf',
+    p_declared_mime: 'application/pdf',
+    p_declared_size: 4,
+  })
+  expect(mimeAllowed.status).toBe(200)
 
   await signOut(page)
 })

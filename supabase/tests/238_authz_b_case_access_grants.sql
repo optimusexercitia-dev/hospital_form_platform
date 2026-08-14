@@ -17,13 +17,14 @@
 -- door first, so a false "no PHI" cannot come from an empty patient fixture (§7.1 #3).
 -- =============================================================================
 begin;
-select plan(33);
+select plan(31);
 
 -- case_access is RETIRED (B4). The flags this suite needs are the ones that make the
--- PHI door and the attachment fence reachable — NOT case_access.
+-- PHI door reachable — NOT case_access. (DM1/ADR 0114 D5: 'attachments' left this
+-- list with the substrate; its fence probes K8a/K8b died with reclassify_attachment.)
 update app.feature_flags set enabled = true
   where key in ('case_patient', 'case_participants', 'cases_multi_phase',
-                'meetings', 'attachments', 'case_narratives');
+                'meetings', 'case_narratives');
 
 -- ⭐ B4 ASSERTION (§7.2 #1 / §7.3): the flag is GONE, not merely off. A reading is not
 -- a fact until pinned to the state claimed. `feature_enabled` reads coalesce(...,false).
@@ -240,19 +241,14 @@ select is(app.has_case_capability('00000000-0000-0000-0000-0000000b1001', (selec
   true, 'K7c: …and read_standard_phi by lattice (restricted ⇒ standard)');
 
 -- ===========================================================================
--- K8 · B3 FENCE — reclassify_attachment REJECTS the two ceiling labels pre-pilot.
+-- K8 · B3 FENCE — RETIRED WITH ITS DOOR (DM1, ADR 0114 D5). The
+-- reclassify_attachment RPC (whose ceiling-label rejection these two pinned)
+-- was dropped with the whole substrate — pgTAP 328 K1 pins zero surviving
+-- attachment RPCs, so the trap has no door to fire through. The successor
+-- contract is DM2's reclassify_document_file (copy→verify→commit→retire,
+-- D10), whose keystones MUST re-fence label ceilings when it lands — named in
+-- docs/progress/dm1-substrate-cutover.md §triage ledger.
 -- ===========================================================================
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select throws_ok(
-  $$select public.reclassify_attachment(gen_random_uuid(), 'phi', 'legal_privileged')$$,
-  '23514', null,
-  'K8a ⭐ B3: reclassify_attachment REJECTS legal_privileged (the data-destroying trap is fenced)');
-select throws_ok(
-  $$select public.reclassify_attachment(gen_random_uuid(), 'phi', 'credentialing_sensitive')$$,
-  '23514', null,
-  'K8b ⭐ B3: …and credentialing_sensitive');
-reset role;
 
 -- ===========================================================================
 -- K9 · ACTIVE PARTIAL-UNIQUE (lead D1) — NULLS NOT DISTINCT prevents a duplicate

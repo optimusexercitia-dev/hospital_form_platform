@@ -1541,3 +1541,178 @@ the read gating on bare `is_member_of(seg[1])`, the coarse rule F2 replaced.
    `case-documents` — in scope, or Stage E?") — answered in substance for the interview/meeting
    half (sealed + pinned / retired + pinned); the `case-documents` half stays open with the
    `getReferralDocumentUrl` item. Noted inline there.
+
+## Rotated from PROGRESS.md + follow-ups.md at the DM2 Record step (2026-08-13)
+
+Three DM1-handoff follow-ups, all DISCHARGED by DM2. Out of both live files per the
+lead-playbook §5 discipline. Each discharge was verified independently, not accepted
+from a report: DISPOSE from the live `pg_proc.prosrc`; E2E from the restored (and since
+strengthened) M8 assertion; CEILING from the S1 catalog probes + the S4 AC-4a–d/AC-9
+restoration.
+
+- 🟢 **FUP-DM1-CEILING** — **DB HALF DISCHARGED 2026-08-13 by DM2·S1** (`5dbeb76`; migrations `20260924000100`+`…000200`, ADR [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md), record [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)). The ceiling is live and **lead-verified against the catalog, not from the report**: on one case with one reader, label as the sole variable → plain `t` / `legal_privileged` `f` while `can_read_case` stays `t`, so the denial is the ceiling and not lost home access; the seam guard admits `ethics_investigation` on a meeting home and refuses `legal_privileged` (HC0D6, pt-BR). **Remaining to close:** pgTAP `228` **t40** + the two open-door pins (S1-O1) ride S2's `open_document_version`, and E2E **AC-4a–d / AC-9** ride S4. — **RULED 2026-08-13 (ADR [0114](docs/decisions/0114-document-model-redesign.md) Amendment 1 D15/D16)**: option 1 — re-express the ADR 0072 D7 ceiling as a nullable confidentiality column on `documents` + a `can_read_document` kernel arm, **interim**; the general access plane is **scheduled at Phase 19** (landing point `documents.access_policy_id`). No longer a blocker — now a **DM2 Wave A PREREQUISITE** (build before Wave A re-points any document). Option 3 rejected. Discharge = D15 shipped + pgTAP `228` t36–40 and E2E AC-4a–d/AC-9 restored as an ADR 0114 amendment — PO/lead → [body](docs/progress/follow-ups.md)
+- 🟢 **FUP-DM1-E2E** — ✅ **DISCHARGED 2026-08-13 by DM2·S4** (parking done 2026-08-12; rewrite done at S4). All 6+1 attachment-touching specs/blocks rewritten against the document model per ADR 0114 D5 (rewritten, never merely deleted). **Lead-verified at the source, not from the S4 report** (QA r1 MINOR-6 was that this row contradicted the S2/S4 rows it should agree with): the M8 bytes-cut assertion is live in `e2e/quality-oversight.spec.ts` and was since **strengthened past its original form** — it now calls `open_document_version` directly via REST rather than asserting the download button's absence (QA r1 P0-1; `56e3989`). ⚠ One residue, routed to tester: that file's **header comment at `:39` still reads `⛔ PARKED`** while the assertion below it is restored — the repo's own "a comment is an assertion that goes stale silently" class. — tester + DM2 ✅ → [body](docs/progress/follow-ups.md)
+- 🟢 **FUP-DM1-DISPOSE** — ✅ **DISCHARGED 2026-08-13 by DM2·S2**: `dispose_case_phi` carries its case-homed-document arm again (the DM1 substrate drop had cost it the attachment-redaction step — a PHI erasure path losing a step; no-op at the time, zero rows carried bytes). **Lead-verified from the live catalog** (`pg_proc.prosrc`, per the standing catalog-over-migration-text rule), not from a commit message. Discharged **before** Wave A's flags flip, as required — backend ✅ → [body](docs/progress/follow-ups.md)
+
+
+<!-- Bodies rotated from follow-ups.md at the DM2 Record step (2026-08-13):
+     FUP-DM1-CEILING, FUP-DM1-E2E, FUP-DM1-DISPOSE - all discharged by DM2. -->
+
+### 🟠 FUP-DM1-CEILING — **RULED 2026-08-13**; now a **DM2 Wave A PREREQUISITE**, no longer a blocker (owner: backend @ DM2; filed by backend, upgraded by lead 2026-08-12, ruled by PO 2026-08-13)
+
+> **PO ruling — option 1, recorded as [ADR 0114](../decisions/0114-document-model-redesign.md)
+> Amendment 1 (D15/D16).** **D15:** re-express the ceiling on `documents` — a nullable
+> confidentiality column + an arm in the `app.can_read_document` kernel — as an explicit
+> **interim**. **Build it BEFORE Wave A re-points any case / meeting / interview document**;
+> that is the phase in which a formerly gated document would otherwise silently become
+> readable by every ordinary case reader. Deliberately **not** built in DM1 (a new migration
+> would have reopened a closed gate). **D16:** the general access plane is **scheduled at
+> Phase 19** (Surveyor Access), must cover **both** widening and narrowing, and absorbs D15's
+> column; `documents.access_policy_id` is its declared landing point. Option 3 (ratify the
+> loss) was **rejected**. **Discharge:** D15 shipped + the parked pgTAP `228` t36–40 and the
+> AC-4a–d / AC-9 E2E contracts restored. The analysis below is the record of why.
+
+Escalated out of the DM1 triage (228 tests 36–40) and **upgraded by the lead
+from "retired coverage" to a blocking design input**: it is not a coverage
+loss, it is an authorization control with no home in the replacement substrate.
+
+**The control.** ADR **0072 D7 / ETH·E1** made `legal_privileged` +
+`credentialing_sensitive` **ENFORCING** per-document ceilings: a document so
+labeled is gated ABOVE ordinary case-read (clearance via
+`case_access_grants.max_confidentiality`), while `ethics_investigation`
+documents stay visible to ordinary case readers (the O2 pair). DM1 dropped its
+enforcement mechanism — `app.attachment_confidentiality_ok` + the label column
++ the `HC0E6` open-door arm — with the substrate (ADR 0116 §10).
+
+**Why the new model cannot express it (each verified against the catalog
+2026-08-12):**
+- `documents` / `document_versions` / `document_version_files` /
+  `file_objects` carry NO label column; the only sensitivity axis is
+  `file_objects.sensitivity_tier (standard|phi)`, which **selects a BUCKET —
+  it is not an access ceiling**.
+- ADR 0114 **D6 defers the audience plane as a WIDENING feature**
+  (share-with-user/group). This control **narrows below** home-resource
+  access — a different plane; D6's deferral does not cover it.
+- **ADR 0114 does not supersede ADR 0072**, so the D7 control is still the
+  ruled state of the platform.
+
+**The live contract that encodes it:** `e2e/ethics-e1-access-spine.spec.ts`
+**AC-4a/b/c/d** (two documents on the SAME ethics case; an ordinary case
+reader sees one and is denied the other) and **AC-9** (a keyboard-only path to
+the privileged one) — currently parked under FUP-DM1-E2E; plus the five
+retired pgTAP pins (228 tests 36–40: absent-from-list / refused-open /
+O2-stays-visible / clearance-admits-list / clearance-admits-open).
+
+**Why DM2, not later:** `cases.confidentiality_level` snapshots from the label
+vocabulary, and Wave A (DM2) re-points case / meeting / interview documents.
+If a wave re-points documents before this is resolved, a document that was
+gated above case-read becomes readable by every ordinary case reader — **a
+silent authorization regression introduced by a data-model migration.**
+Current real-world risk is zero (flag off, zero bytes), which is exactly why
+it would be easy to wave through.
+
+**Discharge condition: a PO ruling recorded as an ADR 0114 amendment. Wave A
+cannot start without it.** The ruling decides the ceiling's carrier in the
+document model (or explicitly retires the D7 control, superseding 0072); the
+implementation then restores all five pgTAP pins + AC-4/AC-9. 228's retired
+block stays retired until the control exists — the coverage returns WITH it,
+not before. Record only — the design is the PO/ADR decision, not backend's.
+
+### 🟢 FUP-DM1-E2E — ✅ DISCHARGED 2026-08-13 (DM2·S4) — six (+1 found) attachment-touching E2E specs were PARKED by the DM1 substrate drop; DM2 rewrote them against the document model, never merely deleted them (owner: tester [park — ✅ done 2026-08-12] + frontend/backend [DM2 rewrite — ✅ done 2026-08-13])
+
+Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
+dropped the centralized attachments substrate (ADR 0114 D5) and `seed.sql` no longer
+enables the `attachments` flag nor seeds attachment fixtures, so every spec that
+exercises the old attachment surface fails or asserts against removed fixtures.
+**ADR 0114 D5 is binding here: attachment specs are REWRITTEN against the new module
+in the same program (DM2 / Wave A) — a park with no named list is a deletion with
+extra steps.**
+
+**✅ Parking done 2026-08-12 (tester), verified by running every file to green on a
+fresh `db reset` — chromium, dev server.** The original per-file sweep (static, never
+run) got the *mechanism* right but the *boundary* wrong in three of six files, plus
+missed one test entirely. Corrected list, each verified live:
+
+1. **`e2e/phase-f2-attachments.spec.ts`** — parks ENTIRELY, as predicted (6/6 tests).
+   Wrapped the whole file in `test.describe.skip(...)` naming this FUP + the discharge
+   condition, body preserved verbatim for DM2's reference. **6 skipped, 0 run.**
+2. **`e2e/ethics-e1-access-spine.spec.ts`** — as predicted: AC-4a/b, AC-4c/d, and AC-9
+   each call the dropped `open_attachment` RPC against the removed seed fixtures
+   (`a7000000-…e1`/`…e2`), individually `test.skip(true, …)`'d in-body. The rest of
+   the spine stands. **10 passed, 4 skipped** (the 3 above + the pre-existing AC-6
+   skip) — matches the file's own 14-test count exactly.
+3. **`e2e/quality-oversight.spec.ts`** — CORRECTED MECHANISM, same two sites. Playwright
+   cannot skip mid-test, and the "Baixar Prescrição digitalizada" assertions sit inside
+   two otherwise-standing tests ("content renders…" and "no-lockout control…") that
+   cover unrelated write-affordance/sidebar/interview-omission contracts.
+   ⚠ **CORRECTED at QA r1 (MINOR-3): the four assertions were DELETED, not "preserved
+   as a comment"** as this item first claimed — the file's `expect()` count went
+   137→133 and zero commented-out expects remain (verified against the file
+   2026-08-13); what was preserved is the inline FUP-DM1-E2E annotations at both
+   sites + the corrected header "Ground truth" doc-comment. **The four carried the
+   M8 BYTES-CUT security contract** (the reviewer sees the doc title but the audited
+   download door renders for `canDownload` only / absent otherwise) — that contract
+   is now a NAMED DM2 obligation (dm1-substrate-cutover.md §obligations, item 2),
+   so its disappearance is tracked, not silent. **21/21 passed**, both host tests
+   intact for everything else they assert.
+4. **`e2e/phase11-interviews.spec.ts`** — CORRECTED BOUNDARY + ONE MISSED TEST.
+   - IV2-4: the FUP predicted "FILE gone, LINK remains" — **wrong**, verified by running
+     before parking. `attachments-panel.tsx` gates BOTH "Enviar anexo" (file) and
+     "Adicionar gravação" (link) behind the SAME `attachmentsEnabled()` flag
+     (`canEditNow = canEdit && flagOn`), and seed.sql now leaves that flag OFF by
+     default — so neither write control renders, not just the file one. Commented out
+     the whole "attachments stay manageable" assertion pair.
+   - IV2-11 — **NOT in the original list.** Its trailing "UI: MIME rejection on upload"
+     block also clicks "Enviar anexo" and hung to the 30s test timeout (same flag gate).
+     HC021 / the non-https-link CHECK / HC038 / HC0B0 earlier in the same test are
+     unrelated and stand — only the MIME-rejection sub-block parked.
+   Both test titles annotated inline. **13/13 passed.**
+5. **`e2e/cases-extras.spec.ts`** — CORRECTED SCOPE. The FUP framed this as "the
+   download assertion… parks with the panel dark" — **wrong**, verified by running
+   before parking: the "Anexar" UPLOAD TRIGGER itself is gated by
+   `canWriteNow = canWrite && attachmentsEnabled()` (`case-documents-panel.tsx`), so
+   the click on "Anexar" hangs to the 120s test timeout — the whole upload→list→
+   download flow parks, not just the download button. The test's separate "add a
+   free-text event" half is unrelated and stands. **8/8 passed** (fresh reset; a
+   same-run-twice collision on the event title during my own iterative re-runs was
+   NOT a DM1 regression — the "Reunião de revisão E2E" title has no per-run
+   uniqueness suffix, unlike the F2 tests' `Date.now()` pattern; confirmed clean on a
+   single fresh-reset run).
+6. **`e2e/meeting-audio-minutes.spec.ts`** — confirmed NO park needed, as predicted.
+   Its only reference is a comment (L124); no live dependency on the dropped
+   substrate. **10/10 passed** on a fresh reset. (BUG-MIN-E2E-1, flagged as a
+   possible pre-existing red to expect in this suite, did NOT reproduce — it was
+   already closed 2026-08-12, before this parking task, as a stale `.env.local`
+   `MINUTES_SERVICE_URL`, not a product defect; see the Bug Log archive.)
+
+Both `path`/`fs` imports in `phase11-interviews.spec.ts` and `cases-extras.spec.ts`
+were dropped where the parked blocks were their only remaining live use (kept the
+import list green, noted inline).
+
+**Discharge condition (unchanged):** DM2 (Wave A) lands rewritten specs covering the
+same contracts on the document model AND un-parks/restores the parked
+tests/assertion-blocks in the same change, with the corrected list above checked off
+item by item — including the IV2-11 MIME-rejection block this FUP's original filing
+missed. The DM1 phase gate runs the suite with these parked per the mechanism used
+(whole-file `test.describe.skip` for file 1; per-test `test.skip(true, …)` for file 2;
+commented-out assertion blocks with inline FUP-DM1-E2E annotations for files 3–5,
+since Playwright has no mid-test skip), not silently red.
+
+### 🟢 FUP-DM1-DISPOSE — ✅ DISCHARGED 2026-08-13 (DM2·S2) — `dispose_case_phi` lost its attachment-redaction step in DM1; DM2 wired case PHI erasure to document disposition, verified present in the live `pg_proc.prosrc` (owner: backend, DM2)
+
+Filed at DM1 build start (2026-08-12, lead condition 3). Migration `20260923000100`
+removed the F2 SEAM block from `public.dispose_case_phi` (it redacted
+title/description and stamped `phi_disposed_*` on live case-owned `attachments`
+rows) because the substrate it wrote to was dropped. **This is a PHI erasure path
+(LGPD Art. 18, ADR 0035/0038) losing a step.** It is a no-op TODAY — zero attachment
+rows carried bytes anywhere (production census 2026-08-11; the flag has been OFF
+since D1) — but it stops being a no-op the moment Wave A creates case-homed
+documents.
+
+**Discharge condition (DM2 / Wave A, before its flag flips ON):**
+`dispose_case_phi` triggers document disposition (ADR 0114 D10: fail-closed reads →
+verified byte deletion → `disposed`) — or the documented equivalent — for every
+document homed on the disposed case, WITH a keystone asserting it (a case with a
+live document → dispose → `open_document_version` refuses + bytes verified absent),
+mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_phi`
+(f) names this FUP; ADR 0116 records the decision.

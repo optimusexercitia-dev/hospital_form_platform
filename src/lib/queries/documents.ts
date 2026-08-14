@@ -1,552 +1,229 @@
-/**
- * Controlled-documents data-access (Phase 17 — Gestão de Documentos Controlados;
- * Architecture Rule 9 — all reads go through `src/lib/queries/`). Backs the
- * `manage/documentos/**` register, the document detail view, the per-user approval
- * queue, the review-due list, and the hospital-wide register rollup.
- *
- * The domain TYPES are the FROZEN contract the frontend builds against; they live
- * in the import-free, client-safe `@/lib/documents/types` (re-exported here for
- * convenience, mirroring the `queries/indicators.ts` re-export pattern).
- *
- * RLS (the security boundary — Rule 1):
- *  - `controlled_documents` + `controlled_document_versions`: member-READ (RLS
- *    SELECT policy) OR the APPROVER-READ arm (holds a pending/decided approval row
- *    on a version of this doc — the case_access-style OR-term, so an outside-
- *    commission same-hospital signer sees only the document they were named on) /
- *    DEFINER-RPC-only WRITE (posture (b) — no direct write grant).
- *  - `document_approvals`: sign-own-row (SELECT own rows + rows on readable docs;
- *    no broad write). The pending row is the grant.
- *  - The hospital tier reads ONLY via `hospital_document_register` (a PHI-free
- *    DEFINER rollup — counts/metadata, no bodies/paths), never the row.
- *  - Storage reads are signed-URL only, minted server-side (`createSignedDownloadUrl`).
- *
- * PHI-FREE: controlled documents are governance artifacts (ADR 0057).
- */
-
 import { createClient } from '@/lib/supabase/server'
 import type {
-  ApprovalDecision,
-  ControlledDocument,
-  ControlledDocumentDetail,
-  ControlledDocumentListItem,
-  ControlledDocumentVersion,
-  DocStatus,
-  DocType,
-  DocumentApproval,
-  HospitalDocumentRegisterRow,
-  ObsoleteKind,
-  PendingApprovalRow,
-  ReviewDueRow,
+  DocumentAvailability,
+  DocumentConfidentialityLevel,
+  DocumentDetail,
+  DocumentHomeResourceType,
+  DocumentListItem,
+  DocumentStatus,
+  DocumentVersionSummary,
 } from '@/lib/documents/types'
 
-// Re-export the client-safe contract so consumers can import types/labels from
-// the query module too (mirrors queries/indicators.ts).
-export type {
-  ApprovalDecision,
-  ControlledDocument,
-  ControlledDocumentDetail,
-  ControlledDocumentListItem,
-  ControlledDocumentVersion,
-  DocStatus,
-  DocType,
-  DocumentApproval,
-  HospitalDocumentRegisterRow,
-  ObsoleteKind,
-  PendingApprovalRow,
-  ReviewDueRow,
-} from '@/lib/documents/types'
-export {
-  APPROVAL_DECISION_LABELS,
-  DOC_STATUS_LABELS,
-  DOC_TYPE_LABELS,
-  OBSOLETE_KIND_LABELS,
-} from '@/lib/documents/types'
-
-const SIGNED_URL_TTL_SECONDS = 3600
-
-// ---------------------------------------------------------------------------
-// Row shapes + mappers
-// ---------------------------------------------------------------------------
-
-interface DocumentRow {
-  id: string
-  commission_id: string
-  code: string
-  title: string
-  doc_type: string
-  category: string | null
-  tags: string[] | null
-  description: string | null
-  review_cycle_months: number | null
-  status: string
-  current_version_id: string | null
-  created_at: string
-  updated_at: string
-  commission?: { hospital_id: string | null } | null
-}
-
-const DOCUMENT_SELECT =
-  'id, commission_id, code, title, doc_type, category, tags, description, review_cycle_months, status, ' +
-  'current_version_id, created_at, updated_at, ' +
-  'commission:commissions!controlled_documents_commission_id_fkey(hospital_id)'
-
-function mapDocument(r: DocumentRow): ControlledDocument {
-  return {
-    id: r.id,
-    commissionId: r.commission_id,
-    hospitalId: r.commission?.hospital_id ?? '',
-    code: r.code,
-    title: r.title,
-    docType: r.doc_type as DocType,
-    category: r.category,
-    tags: r.tags ?? [],
-    description: r.description,
-    reviewCycleMonths: r.review_cycle_months,
-    status: r.status as DocStatus,
-    currentVersionId: r.current_version_id,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  }
-}
-
-interface VersionRow {
-  id: string
-  document_id: string
-  version_number: number
-  storage_path: string | null
-  summary_of_changes_md: string | null
-  effective_date: string | null
-  review_due_date: string | null
-  expiry_date: string | null
-  proposed_effective_date: string | null
-  approval_due_date: string | null
-  obsolete_kind: string | null
-  status: string
-  created_at: string
-  updated_at: string
-  profiles?: { full_name: string | null } | null
-}
-
-const VERSION_SELECT =
-  'id, document_id, version_number, storage_path, summary_of_changes_md, ' +
-  'effective_date, review_due_date, expiry_date, proposed_effective_date, ' +
-  'approval_due_date, obsolete_kind, status, created_at, updated_at, ' +
-  'profiles:created_by(full_name)'
-
-function mapVersion(r: VersionRow): ControlledDocumentVersion {
-  return {
-    id: r.id,
-    documentId: r.document_id,
-    versionNumber: r.version_number,
-    storagePath: r.storage_path,
-    summaryOfChangesMd: r.summary_of_changes_md,
-    effectiveDate: r.effective_date,
-    reviewDueDate: r.review_due_date,
-    expiryDate: r.expiry_date,
-    proposedEffectiveDate: r.proposed_effective_date,
-    approvalDueDate: r.approval_due_date,
-    obsoleteKind: (r.obsolete_kind as ObsoleteKind | null) ?? null,
-    status: r.status as DocStatus,
-    createdByName: r.profiles?.full_name ?? null,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  }
-}
-
-interface ApprovalRow {
-  id: string
-  document_version_id: string
-  approver_id: string
-  approver_title: string | null
-  decision: string | null
-  decided_at: string | null
-  note: string | null
-  signature_hash: string | null
-  created_at: string
-  profiles?: { full_name: string | null } | null
-}
-
-const APPROVAL_SELECT =
-  'id, document_version_id, approver_id, approver_title, decision, decided_at, ' +
-  'note, signature_hash, created_at, profiles:approver_id(full_name)'
-
-function mapApproval(r: ApprovalRow): DocumentApproval {
-  return {
-    id: r.id,
-    documentVersionId: r.document_version_id,
-    approverId: r.approver_id,
-    approverName: r.profiles?.full_name ?? null,
-    approverTitle: r.approver_title,
-    decision: (r.decision as ApprovalDecision | null) ?? null,
-    decidedAt: r.decided_at,
-    note: r.note,
-    signatureHash: r.signature_hash,
-    createdAt: r.created_at,
-  }
-}
-
-/** Is `reviewDueDate` non-null and strictly before today (as of read)? */
-function isOverdue(reviewDueDate: string | null): boolean {
-  if (!reviewDueDate) return false
-  const today = new Date().toISOString().slice(0, 10)
-  return reviewDueDate < today
-}
-
-// ---------------------------------------------------------------------------
-// Approver candidates (the submit-for-approval picker source)
-// ---------------------------------------------------------------------------
-
 /**
- * A selectable approver for the submit-for-approval picker: "any active same-hospital
- * user" (ADR 0057). Minimum-necessary fields — `id` + display `name` + an optional
- * role `title` hint; NO email, NO PHI (the DEFINER RPC never selects them).
+ * Document model — READ data-access (DM2·S2; Rule 9).
+ *
+ * ⚠ This path previously held the Phase-17 CONTROLLED-document queries — those
+ * moved to `@/lib/queries/controlled-documents`. This module reads the CORE
+ * document model (ADR 0114).
+ *
+ * RLS is the authority on every row here: `documents_select` routes the
+ * kernel (incl. the D15 ceiling), the version/file rows route the chain
+ * doors, and `document_legal_holds` its own narrower audience. `canOpen`
+ * therefore needs NO door call — a version row being VISIBLE at all already
+ * proves the kernel admitted the caller; availability alone decides.
+ *
+ * Contract guarantees: `createdAt` DESC; excludes `soft_deleted`; disposal
+ * states remain listed (redacted titles — the D12 governance record).
+ * `underLegalHold`: `true` when a live hold row is visible to the caller;
+ * `null` otherwise (no hold, or not entitled — RLS makes the two
+ * indistinguishable here; flagged in the S2 record).
  */
-export interface ApproverCandidate {
-  id: string
-  name: string
-  title: string | null
-}
 
-// ---------------------------------------------------------------------------
-// Filters
-// ---------------------------------------------------------------------------
-
-/** Optional filters for the commission register list. */
-export interface DocumentListFilters {
-  docType?: DocType
-  status?: DocStatus
-  /** Restrict to documents whose review is overdue (as of read). */
-  reviewOverdueOnly?: boolean
-  /** Exact free-text category match (ADR 0081 B4). */
-  category?: string
-  /** Documents carrying ALL of these tags (array-contains; ADR 0081 B4). */
-  tags?: string[]
-}
-
-/** Optional filters for the hospital-wide register rollup. */
-export interface HospitalRegisterFilters {
-  docType?: DocType
-  status?: DocStatus
-  reviewOverdueOnly?: boolean
-}
-
-// ---------------------------------------------------------------------------
-// Document reads
-// ---------------------------------------------------------------------------
-
-/** A row of the `list_commission_documents` DEFINER register read (Wave 2.5a). */
-interface RegisterListRpcRow {
-  id: string
-  commission_id: string
-  hospital_id: string | null
-  code: string
-  title: string
-  doc_type: string
-  category: string | null
-  tags: string[] | null
-  description: string | null
-  review_cycle_months: number | null
-  status: string
-  current_version_id: string | null
-  created_at: string
-  updated_at: string
-  current_version_number: number | null
-  effective_date: string | null
-  review_due_date: string | null
-  obsolete_kind: string | null
-  has_open_revision: boolean
-  approvals_signed_count: number
-  approvals_total_count: number
-}
-
-/**
- * All controlled documents of a commission, newest-first, each with its current-
- * version summary + the register KPI/mini-bar facts (`hasOpenRevision`,
- * `approvalsSignedCount/TotalCount`) computed DB-side by the `list_commission_documents`
- * DEFINER read — no FE N+1 (Wave 2.5a). `[]` when out of scope. Optional filters are
- * applied in TS over the (per-commission, small) result set.
- */
-export async function listDocuments(
-  commissionId: string,
-  filters?: DocumentListFilters,
-): Promise<ControlledDocumentListItem[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .rpc('list_commission_documents', { p_commission: commissionId })
-    .returns<RegisterListRpcRow[]>()
-
-  let items: ControlledDocumentListItem[] = (data ?? []).map((r) => {
-    const reviewDueDate = r.review_due_date
-    return {
-      id: r.id,
-      commissionId: r.commission_id,
-      hospitalId: r.hospital_id ?? '',
-      code: r.code,
-      title: r.title,
-      docType: r.doc_type as DocType,
-      category: r.category,
-      tags: r.tags ?? [],
-      description: r.description,
-      reviewCycleMonths: r.review_cycle_months,
-      status: r.status as DocStatus,
-      currentVersionId: r.current_version_id,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      currentVersionNumber: r.current_version_number,
-      effectiveDate: r.effective_date,
-      reviewDueDate,
-      isReviewOverdue: isOverdue(reviewDueDate),
-      obsoleteKind: (r.obsolete_kind as ObsoleteKind | null) ?? null,
-      hasOpenRevision: r.has_open_revision,
-      approvalsSignedCount: r.approvals_signed_count,
-      approvalsTotalCount: r.approvals_total_count,
-    }
-  })
-
-  if (filters?.docType) items = items.filter((i) => i.docType === filters.docType)
-  if (filters?.status) items = items.filter((i) => i.status === filters.status)
-  if (filters?.category) items = items.filter((i) => i.category === filters.category)
-  if (filters?.tags && filters.tags.length > 0) {
-    const want = filters.tags
-    items = items.filter((i) => want.every((t) => i.tags.includes(t)))
-  }
-  if (filters?.reviewOverdueOnly) items = items.filter((i) => i.isReviewOverdue)
-
-  return items
-}
-
-/**
- * One controlled document by id — the header, its versions (newest first), and the
- * approvals of the current/under-approval version. `null` when out of scope. The
- * approver-read arm lets an outside-commission signer fetch exactly the document
- * they were named on.
- */
-export async function getDocument(id: string): Promise<ControlledDocumentDetail | null> {
-  const supabase = await createClient()
-  const { data: docRow } = await supabase
-    .from('controlled_documents')
-    .select(DOCUMENT_SELECT)
-    .eq('id', id)
-    .maybeSingle()
-    .returns<DocumentRow | null>()
-  if (!docRow) return null
-
-  const { data: versionRows } = await supabase
-    .from('controlled_document_versions')
-    .select(VERSION_SELECT)
-    .eq('document_id', id)
-    .order('version_number', { ascending: false })
-    .returns<VersionRow[]>()
-
-  const versions = (versionRows ?? []).map(mapVersion)
-
-  // Approvals of the version currently in the approval loop (in_approval), then a
-  // `changes_requested` version (so its rejected/pending roster loads for the card),
-  // then the current version. Approvers see their own rows via the sign-own-row arm.
-  const focusVersion =
-    versions.find((v) => v.status === 'in_approval') ??
-    versions.find((v) => v.status === 'changes_requested') ??
-    versions.find((v) => v.id === docRow.current_version_id) ??
-    versions[0]
-
-  let approvals: DocumentApproval[] = []
-  if (focusVersion) {
-    const { data: approvalRows } = await supabase
-      .from('document_approvals')
-      .select(APPROVAL_SELECT)
-      .eq('document_version_id', focusVersion.id)
-      .order('created_at', { ascending: true })
-      .returns<ApprovalRow[]>()
-    approvals = (approvalRows ?? []).map(mapApproval)
-  }
-
-  return { document: mapDocument(docRow), versions, approvals }
-}
-
-interface PendingApprovalQueryRow {
-  id: string
-  document_version_id: string
-  created_at: string
-  version: {
-    version_number: number
-    document: {
-      id: string
-      code: string
-      title: string
-      doc_type: string
-      commission_id: string
-      commission: { name: string | null } | null
-    } | null
-  } | null
-}
-
-/**
- * The caller's PENDING approval queue across ALL hospitals/commissions they were
- * named in ("pendentes de aprovação"), newest-submission first. Drives the org-
- * level approval queue (NOT commission-gated — an approver may be outside the
- * commission). `[]` when the caller has no pending approvals. The sign-own-row RLS
- * arm scopes this to the caller's own rows; the approver-read arm resolves the
- * embedded version/document/commission.
- */
-export async function listPendingApprovalsForUser(): Promise<PendingApprovalRow[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data } = await supabase
-    .from('document_approvals')
-    .select(
-      'id, document_version_id, created_at, ' +
-        'version:controlled_document_versions!document_approvals_document_version_id_fkey(' +
-        'version_number, document:controlled_documents!controlled_document_versions_document_id_fkey(' +
-        'id, code, title, doc_type, commission_id, ' +
-        'commission:commissions!controlled_documents_commission_id_fkey(name)))',
+const LIST_SELECT = `
+  id, home_resource_id, title, description, kind, occurred_on, status,
+  confidentiality_level, created_by, created_at,
+  securable_resources!documents_home_resource_id_fkey ( resource_type ),
+  profiles!documents_created_by_fkey ( full_name ),
+  document_versions (
+    id, version_number, created_at,
+    profiles!document_versions_created_by_fkey ( full_name ),
+    document_version_files (
+      rendition_kind,
+      file_objects ( sensitivity_tier, upload_state, disposal_state )
     )
-    .eq('approver_id', user.id)
-    .is('decision', null)
-    .order('created_at', { ascending: false })
-    .returns<PendingApprovalQueryRow[]>()
+  ),
+  document_legal_holds ( id, released_at )
+` as const
 
-  return (data ?? []).flatMap((r) => {
-    const doc = r.version?.document
-    if (!doc) return []
-    return [
-      {
-        approvalId: r.id,
-        documentId: doc.id,
-        documentVersionId: r.document_version_id,
-        code: doc.code,
-        title: doc.title,
-        docType: doc.doc_type as DocType,
-        versionNumber: r.version?.version_number ?? 0,
-        commissionId: doc.commission_id,
-        commissionName: doc.commission?.name ?? '',
-        submittedAt: r.created_at,
-      } satisfies PendingApprovalRow,
-    ]
+type VersionRow = {
+  id: string
+  version_number: number
+  created_at: string
+  profiles: { full_name: string | null } | null
+  document_version_files: Array<{
+    rendition_kind: string
+    file_objects: {
+      sensitivity_tier: string
+      upload_state: string
+      disposal_state: string
+    } | null
+  }>
+}
+
+type DocumentRow = {
+  id: string
+  home_resource_id: string
+  title: string
+  description: string | null
+  kind: string | null
+  occurred_on: string | null
+  status: string
+  confidentiality_level: string | null
+  created_by: string
+  created_at: string
+  securable_resources: { resource_type: string } | null
+  profiles: { full_name: string | null } | null
+  document_versions: VersionRow[]
+  document_legal_holds: Array<{ id: string; released_at: string | null }>
+}
+
+const SERVABLE = new Set(['clean', 'unscanned_accepted'])
+const FAILED = new Set(['failed', 'rejected', 'infected', 'abandoned'])
+
+/**
+ * The ONE availability predicate, shared by Wave A and Wave B
+ * (`src/lib/queries/controlled-documents.ts`) so the two projections cannot
+ * drift from each other — or, more importantly, from the door.
+ *
+ * ⚠ THIS MUST AGREE WITH `open_document_version` EXACTLY. `available` means
+ * "the door would serve these bytes right now": a `source` rendition is bound,
+ * its file object is `clean`/`unscanned_accepted`, nothing is disposed, and the
+ * document is `active`. Anything the door would refuse must NOT read as
+ * `available` here, and anything it would serve must not read as `pending` —
+ * the UI gates its submit/download affordances on this value, so a disagreement
+ * is a broken affordance in one direction and a false promise in the other.
+ * Pinned by pgTAP 330 DM3·X3 (projection ↔ door agreement).
+ */
+export function documentVersionAvailability(input: {
+  documentStatus: string
+  /** `file_objects.upload_state` of the bound `source` rendition; `null` when unbound. */
+  sourceUploadState: string | null
+  /** `file_objects.disposal_state` of that same rendition; `null` when unbound. */
+  sourceDisposalState: string | null
+}): DocumentAvailability {
+  const { documentStatus, sourceUploadState, sourceDisposalState } = input
+  if (documentStatus === 'disposal_pending' || documentStatus === 'disposed') return 'disposed'
+  if (sourceUploadState === null) return 'pending'
+  if (sourceDisposalState !== 'none') return 'disposed'
+  if (SERVABLE.has(sourceUploadState)) {
+    return documentStatus === 'active' ? 'available' : 'unavailable'
+  }
+  if (FAILED.has(sourceUploadState)) return 'failed'
+  return 'pending'
+}
+
+function versionAvailability(v: VersionRow, docStatus: string): DocumentAvailability {
+  const source = v.document_version_files.find((b) => b.rendition_kind === 'source')
+  const file = source?.file_objects
+  return documentVersionAvailability({
+    documentStatus: docStatus,
+    sourceUploadState: file?.upload_state ?? null,
+    sourceDisposalState: file?.disposal_state ?? null,
   })
 }
 
-interface ReviewDueRpcRow {
-  source_kind: string
-  document_id: string | null
-  form_version_id: string | null
-  code: string
-  title: string
-  commission_id: string
-  commission_name: string
-  review_due_date: string | null
-  is_overdue: boolean
+function toVersionSummary(v: VersionRow, docStatus: string): DocumentVersionSummary {
+  const availability = versionAvailability(v, docStatus)
+  return {
+    id: v.id,
+    versionNumber: v.version_number,
+    availability,
+    // Row visibility IS the kernel (incl. the D15 ceiling) — no door call.
+    canOpen: availability === 'available',
+    createdAt: v.created_at,
+    createdByName: v.profiles?.full_name ?? null,
+  }
 }
 
-/**
- * The review-due list for a commission: controlled documents whose `reviewDueDate`
- * has passed/approaches PLUS overdue published form versions (the form arm). Backed
- * by the `documents_due_for_review` DEFINER RPC. `[]` when out of scope.
- */
-export async function listDocumentsDueForReview(commissionId: string): Promise<ReviewDueRow[]> {
+function toListItem(row: DocumentRow, canDelete: boolean): DocumentListItem {
+  const versions = [...row.document_versions].sort((a, b) => b.version_number - a.version_number)
+  const latest = versions[0]
+  const latestSummary = latest ? toVersionSummary(latest, row.status) : null
+  const latestFile = latest?.document_version_files.find((b) => b.rendition_kind === 'source')
+    ?.file_objects
+  const homeType = (row.securable_resources?.resource_type ?? 'case') as DocumentHomeResourceType
+  const liveHold = row.document_legal_holds.some((h) => h.released_at === null)
+  return {
+    id: row.id,
+    homeResourceType: homeType,
+    homeResourceId: row.home_resource_id,
+    title: row.title,
+    description: row.description,
+    kind: row.kind,
+    occurredAt: row.occurred_on,
+    status: row.status as DocumentStatus,
+    confidentialityLevel: row.confidentiality_level as DocumentConfidentialityLevel | null,
+    // File tier when known; else the home rule (case/interview → phi bucket).
+    containsPhi: latestFile
+      ? latestFile.sensitivity_tier === 'phi'
+      : homeType === 'case' || homeType === 'interview',
+    latestVersion: latestSummary,
+    canDelete,
+    underLegalHold: liveHold ? true : null,
+    createdBy: row.created_by,
+    createdByName: row.profiles?.full_name ?? null,
+    createdAt: row.created_at,
+  }
+}
+
+/** One batched call to the server-computed delete-affordance door (the
+ * canOpen principle: never derived UI-side; holds accounted WITHOUT
+ * disclosure). Fail-closed: an error yields no affordances. */
+async function deleteAffordances(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  documentIds: string[],
+): Promise<Map<string, boolean>> {
+  if (documentIds.length === 0) return new Map()
+  const { data, error } = await supabase.rpc('document_delete_affordances', {
+    p_document_ids: documentIds,
+  })
+  if (error || !data) return new Map()
+  return new Map(
+    (data as Array<{ document_id: string; can_delete: boolean }>).map((r) => [
+      r.document_id,
+      r.can_delete,
+    ]),
+  )
+}
+
+/** Documents homed on one resource, for the Wave-A panels. */
+export async function listDocumentsForResource(
+  resourceType: DocumentHomeResourceType,
+  resourceId: string,
+): Promise<DocumentListItem[]> {
   const supabase = await createClient()
-  const { data } = await supabase
-    .rpc('documents_due_for_review', { p_commission: commissionId })
-    .returns<ReviewDueRpcRow[]>()
-
-  return (data ?? []).map((r) => ({
-    sourceKind: r.source_kind === 'form' ? 'form' : 'document',
-    documentId: r.document_id,
-    formVersionId: r.form_version_id,
-    code: r.code,
-    title: r.title,
-    commissionId: r.commission_id,
-    commissionName: r.commission_name,
-    reviewDueDate: r.review_due_date,
-    isOverdue: r.is_overdue,
-  }))
+  const { data, error } = await supabase
+    .from('documents')
+    .select(LIST_SELECT)
+    .eq('home_resource_id', resourceId)
+    .neq('status', 'soft_deleted')
+    .order('created_at', { ascending: false })
+  if (error || !data) return []
+  const rows = (data as unknown as DocumentRow[]).filter(
+    (row) => (row.securable_resources?.resource_type ?? resourceType) === resourceType,
+  )
+  const affordances = await deleteAffordances(
+    supabase,
+    rows.map((r) => r.id),
+  )
+  return rows.map((row) => toListItem(row, affordances.get(row.id) ?? false))
 }
 
-interface RegisterRpcRow {
-  document_id: string
-  commission_id: string
-  commission_name: string
-  code: string
-  title: string
-  doc_type: string
-  status: string
-  current_version_number: number | null
-  effective_date: string | null
-  review_due_date: string | null
-  is_review_overdue: boolean
-}
-
-/**
- * The PHI-FREE hospital-wide controlled-document register (metadata + review-due,
- * across the hospital's commissions). Backed by the `hospital_document_register`
- * DEFINER RPC (admin / hospital_admin / org_admin-gated); `[]` for a foreign
- * hospital_admin.
- */
-export async function getHospitalDocumentRegister(
-  hospitalId: string,
-  filters?: HospitalRegisterFilters,
-): Promise<HospitalDocumentRegisterRow[]> {
+/** One document with its version history (versionNumber DESC), or null when
+ * absent/not readable (absence and denial are indistinguishable by design). */
+export async function getDocument(documentId: string): Promise<DocumentDetail | null> {
   const supabase = await createClient()
-  const { data } = await supabase
-    .rpc('hospital_document_register', {
-      p_hospital: hospitalId,
-      p_doc_type: filters?.docType ?? undefined,
-      p_status: filters?.status ?? undefined,
-      p_review_overdue_only: filters?.reviewOverdueOnly ?? false,
-    })
-    .returns<RegisterRpcRow[]>()
-
-  return (data ?? []).map((r) => ({
-    documentId: r.document_id,
-    commissionId: r.commission_id,
-    commissionName: r.commission_name,
-    code: r.code,
-    title: r.title,
-    docType: r.doc_type as DocType,
-    status: r.status as DocStatus,
-    currentVersionNumber: r.current_version_number,
-    effectiveDate: r.effective_date,
-    reviewDueDate: r.review_due_date,
-    isReviewOverdue: r.is_review_overdue,
-  }))
-}
-
-interface ApproverCandidateRow {
-  id: string
-  name: string
-  title: string | null
-}
-
-/**
- * The selectable approvers for a commission's submit-for-approval picker: active
- * same-hospital users (ADR 0057), callable by a staff_admin/coordinator of the
- * commission (not necessarily a hospital_admin). Backed by the
- * `list_approver_candidates` DEFINER RPC; `[]` for a foreign-hospital caller.
- * Minimum-necessary — no email/PHI.
- */
-export async function listApproverCandidates(commissionId: string): Promise<ApproverCandidate[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .rpc('list_approver_candidates', { p_commission: commissionId })
-    .returns<ApproverCandidateRow[]>()
-
-  return (data ?? []).map((r) => ({ id: r.id, name: r.name, title: r.title }))
-}
-
-/**
- * Mint a short-lived signed download URL for a controlled-document storage object.
- * Server-side only (the `controlled-documents` bucket is private; SELECT is gated
- * by the DEFINER storage predicate incl. the approver arm). `null` when the object
- * is not readable by the caller / does not exist.
- */
-export async function createSignedDownloadUrl(storagePath: string): Promise<string | null> {
-  if (!storagePath) return null
-  const supabase = await createClient()
-  const { data } = await supabase.storage
-    .from('controlled-documents')
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
-  return data?.signedUrl ?? null
+  const { data, error } = await supabase
+    .from('documents')
+    .select(LIST_SELECT)
+    .eq('id', documentId)
+    .maybeSingle()
+  if (error || !data) return null
+  const row = data as unknown as DocumentRow
+  const affordances = await deleteAffordances(supabase, [row.id])
+  const item = toListItem(row, affordances.get(row.id) ?? false)
+  const versions = [...row.document_versions]
+    .sort((a, b) => b.version_number - a.version_number)
+    .map((v) => toVersionSummary(v, row.status))
+  return { ...item, versions }
 }

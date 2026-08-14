@@ -7,7 +7,6 @@ import {
   getMeetingSettings,
   listClosedSessions,
   listMeetingAgenda,
-  listMeetingAttachments,
   listMeetingAttendees,
   listMeetingCases,
   listMeetingSignatures,
@@ -112,7 +111,6 @@ export default async function MeetingDetailPage({
     attendees,
     caseLinks,
     signatures,
-    attachments,
     actionItems,
     actionItemsOn,
     closedSessions,
@@ -125,7 +123,6 @@ export default async function MeetingDetailPage({
     listMeetingAttendees(meetingId),
     listMeetingCases(meetingId),
     listMeetingSignatures(meetingId),
-    listMeetingAttachments(meetingId),
     listMeetingActionItems(meetingId),
     actionItemsEnabled(),
     // Reserved (closed) sessions + their tier-projected items (ADR 0078 C5). Read
@@ -268,11 +265,7 @@ export default async function MeetingDetailPage({
         actionItemsEnabled={actionItemsOn}
       />
 
-      <AttachmentsPanel
-        meetingId={meeting.id}
-        attachments={attachments}
-        canEdit={isCoordinator}
-      />
+      <AttachmentsPanel meetingId={meeting.id} canEdit={isCoordinator} />
 
       {/* Printed documents (PDF·P2; ADR 0104). The P1 components are reused
           unchanged — a new kind is a provider + a template + an RLS arm, and

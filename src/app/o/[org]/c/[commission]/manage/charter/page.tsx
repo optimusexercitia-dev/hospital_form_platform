@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { ArrowUpRight, CalendarClock, FilePlus2, ScrollText } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { chartersEnabled } from "@/lib/queries/feature-flags";
+import { chartersEnabled, controlledDocsEnabled } from "@/lib/queries/feature-flags";
 import { getCharter, getMeetingCadenceStatus } from "@/lib/queries/charters";
-import { listDocuments } from "@/lib/queries/documents";
+import { listDocuments } from "@/lib/queries/controlled-documents";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { CadenceStatusBadge } from "@/components/charters/cadence-status-badge";
@@ -15,7 +15,7 @@ import {
   MEETING_FREQUENCY_LABELS,
   MEETING_FREQUENCY_WINDOW_LABELS,
 } from "@/components/charters/labels";
-import { DocumentStatusChip } from "@/components/documents/document-badges";
+import { DocumentStatusChip } from "@/components/controlled-documents/document-badges";
 import { saveCharter } from "./actions";
 
 export const metadata: Metadata = {
@@ -49,6 +49,21 @@ function formatDateOnly(dateOnly: string): string {
  * regimento controlled document, and links out to the Phase-17 create flow
  * (`doc_type=bylaws` pre-filled — the B0-anglicized key for "regimento") to author a
  * new regimento. No PHI (Rule 12).
+ *
+ * ## Two flags, two different jobs (DM3, lead ruling Q6)
+ *
+ * The route is gated on `charters`. The regimento section additionally needs
+ * `controlled_docs`, because everything in it — the document list, the link
+ * picker's options, and the "Criar novo regimento" hand-off — is served by the
+ * controlled-documents module, whose own route area is gated on that flag. With
+ * `charters` ON and `controlled_docs` OFF this screen previously still called
+ * `listDocuments` and offered a CTA into an area that 404s. Cadence is
+ * independent and keeps working either way, so the flag degrades the section
+ * rather than the page.
+ *
+ * This is a BROKEN-AFFORDANCE gate, not a security one: `list_commission_documents`
+ * asserts the flag itself, and the kernel/RLS arms decide who may read what
+ * regardless of what this file renders.
  */
 export default async function CharterPage({
   params,
@@ -67,10 +82,16 @@ export default async function CharterPage({
   }
 
   const commissionId = access.commission.id;
+  const controlledDocsOn = await controlledDocsEnabled();
+
   const [charter, cadence, regimentoDocs] = await Promise.all([
     getCharter(commissionId),
     getMeetingCadenceStatus(commissionId),
-    listDocuments(commissionId, { docType: "bylaws" }),
+    // Not merely unrendered — not QUERIED. The RPC behind it asserts the same
+    // flag, so calling it with the flag off buys an error to swallow.
+    controlledDocsOn
+      ? listDocuments(commissionId, { docType: "bylaws" })
+      : Promise.resolve([]),
   ]);
 
   const linkedDoc = charter?.controlledDocumentId
@@ -176,6 +197,13 @@ export default async function CharterPage({
             code: d.code,
             title: d.title,
           }))}
+          pickerState={
+            !controlledDocsOn
+              ? "unavailable"
+              : regimentoDocs.length > 0
+                ? "available"
+                : "empty"
+          }
         />
       </section>
 
@@ -196,7 +224,13 @@ export default async function CharterPage({
           Documento do regimento
         </h2>
 
-        {linkedDoc ? (
+        {!controlledDocsOn ? (
+          <p className="max-w-prose text-sm text-muted-foreground text-pretty">
+            O módulo de documentos controlados não está ativo nesta instituição.
+            Quando ele for habilitado, será possível criar o regimento como
+            documento controlado e vinculá-lo a esta comissão.
+          </p>
+        ) : linkedDoc ? (
           <div className="flex flex-col gap-3 rounded-xl border border-border bg-background/40 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <DocumentStatusChip status={linkedDoc.status} />
@@ -237,14 +271,19 @@ export default async function CharterPage({
           </p>
         )}
 
-        <div>
-          <Button asChild size="lg" variant={linkedDoc ? "ghost" : "default"}>
-            <Link href={createNewHref}>
-              <FilePlus2 aria-hidden="true" className="size-4" />
-              Criar novo regimento
-            </Link>
-          </Button>
-        </div>
+        {/* The hand-off targets `/manage/documentos/novo`, whose layout gates on
+            the controlled-documents flag — offering it with the flag off would
+            walk the coordinator into a 404. */}
+        {controlledDocsOn ? (
+          <div>
+            <Button asChild size="lg" variant={linkedDoc ? "ghost" : "default"}>
+              <Link href={createNewHref}>
+                <FilePlus2 aria-hidden="true" className="size-4" />
+                Criar novo regimento
+              </Link>
+            </Button>
+          </div>
+        ) : null}
       </section>
     </div>
   );

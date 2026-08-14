@@ -7,7 +7,7 @@ import { CaseTemplateProvenance } from "@/components/cases/case-template-provena
 
 import type { CaseDetail } from "@/lib/queries/cases";
 import type { CaseActionItem } from "@/lib/queries/case-action-items";
-import type { CaseDocumentWithUrl, CaseEvent } from "@/lib/queries/case-documents";
+import type { CaseEvent } from "@/lib/queries/case-documents";
 import type { CaseTag } from "@/lib/queries/case-tags";
 import type { InterviewListItem } from "@/lib/queries/interviews";
 import type { MemberListItem } from "@/lib/queries/members";
@@ -112,7 +112,6 @@ export function CaseDetailView({
   slug,
   detail,
   members,
-  documents,
   events,
   tags,
   caseTags,
@@ -158,7 +157,6 @@ export function CaseDetailView({
   slug: string;
   detail: CaseDetail;
   members: MemberListItem[];
-  documents: CaseDocumentWithUrl[];
   events: CaseEvent[];
   tags: CaseTag[];
   caseTags: CaseTag[];
@@ -724,13 +722,16 @@ export function CaseDetailView({
             <div data-rise className="order-4 lg:order-none">
               <CaseDocumentsPanel
                 caseId={c.id}
-                documents={documents}
                 variant="rail"
                 canWrite={caps.canWriteContent}
-                // ADR 0100 — metadata yes, bytes no. See the panel's own note:
-                // after M8 a standard-tier row arrives with `signedUrl: null` for
-                // the reviewer, which without this would fall through to the
-                // audited service-role door on every document.
+                // ADR 0100 — metadata yes, bytes no. This hides the download
+                // affordance; it does NOT close the corridor, and saying it did
+                // was the P0-1 defect written down as a design. The boundary is
+                // `open_document_version`, which refuses case-homed BYTES to any
+                // caller without `read_case_deliberation` — the capability the
+                // S7 oversight arm alone does not confer (migration
+                // `20260924000700`; pinned by `329` P0a–P0f and the `308` 5.2s
+                // sentinel). This prop only keeps a dead control off the screen.
                 canDownload={!isOversight}
               />
             </div>

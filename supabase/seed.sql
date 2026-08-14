@@ -1362,18 +1362,18 @@ end $$;
 --     this exercises the participant write grant (a registered interviewer can
 --     edit/conclude even if not acting as staff_admin), and one EXTERNAL interviewer.
 --   * staff1.ccih as a REGISTERED subject + one EXTERNAL subject (free-text role).
---   * one `file` attachment (a signed-transcript metadata row — the object itself
---     is not seeded; the row is enough for the panel/list) and one `link`
---     attachment (an external https audio-recording URL — audio bytes are never
---     stored).
+--   * one `link` attachment (an external https audio-recording URL — audio bytes
+--     are never stored). The former stored-file metadata row lived on the F2
+--     attachments substrate, DROPPED by DM1 (ADR 0114 D5); Wave A (DM2) reseeds
+--     a document-model fixture when the rebuilt panel needs one.
 --
 -- The seed runs as superuser (RLS bypassed) and inserts DIRECTLY (like the cases /
 -- meetings fixtures) — it does NOT call the flag-gated RPCs. The interview-number
 -- minting trigger fires on the INSERT; the lifecycle/child-lock guards are
 -- UPDATE/DELETE-only (and the parent is em_andamento, not locked), so the direct
 -- inserts pass. app.guard_interview_links DOES fire on insert and passes
--- (commission_id matches Caso 0001's commission; no case_phase_id set). The
--- attachment XOR/https CHECKs fire and pass (each row sets exactly one source).
+-- (commission_id matches Caso 0001's commission; no case_phase_id set); its
+-- https CHECK fires and passes.
 do $$
 declare
   v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
@@ -1428,17 +1428,9 @@ begin
     (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null,
      'other_professional');
 
-  -- Attachments (F2 fold-in): one stored-file metadata row now lives in
-  -- public.attachments (owner_type='interview'); the external audio link now lives
-  -- in public.case_interview_links.
-  insert into public.attachments
-    (owner_type, owner_id, kind, title, storage_bucket, storage_path,
-     sensitivity_tier, confidentiality_label, mime_type, size_bytes, uploaded_by)
-  values
-    ('interview', v_itw, 'transcricao_assinada', 'Transcrição assinada (rascunho)',
-     'attachments-phi',
-     'interview/' || v_itw || '/00000000-0000-0000-0000-0000000000f1.pdf',
-     'phi', 'phi_standard', 'application/pdf', 12345, v_chefe_a);
+  -- DM1 (ADR 0114 D5): the F2 stored-file attachment fixture was removed with
+  -- the attachments substrate; the external audio link remains in
+  -- public.case_interview_links. Wave A (DM2) reseeds a document-model fixture.
   insert into public.case_interview_links
     (interview_id, title, external_url, created_by)
   values
@@ -1786,7 +1778,6 @@ declare
   v_gate_case uuid := 'dca00000-0000-0000-0000-0000000000a1';  -- a PHASE-CLEAN source for the HC076 close-gate
   v_tgt_case  uuid := 'dba00000-0000-0000-0000-0000000000b1';  -- a case B creates to link
   v_narr      uuid := 'a2200000-0000-0000-0000-0000000000a1';  -- a narrative to snapshot
-  v_doc       uuid := 'a3300000-0000-0000-0000-0000000000a1';  -- a document to snapshot
   v_type_par  uuid;                                            -- 'parecer' (reply-expected)
   v_outcome   uuid;                                            -- 'procede'
   v_ref1      uuid := 'efa00000-0000-0000-0000-0000000000a1';  -- ENC-0001 (concluida)
@@ -1807,15 +1798,11 @@ begin
     (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
      || E'parecer da farmácia sobre a conciliação medicamentosa.', v_chefe_a);
-  -- F2 fold-in: case_documents no longer exists; the row is now a case-owned
-  -- public.attachments row (owner_type='case').
-  insert into public.attachments
-    (id, owner_type, owner_id, kind, title, storage_bucket, storage_path,
-     sensitivity_tier, confidentiality_label, mime_type, uploaded_by)
-  values
-    (v_doc, 'case', v_src_case, 'digitalizacao', 'Prescrição digitalizada',
-     'attachments-phi', 'case/' || v_src_case || '/prescricao-seed.pdf',
-     'phi', 'phi_standard', 'application/pdf', v_chefe_a);
+  -- DM1 (ADR 0114 D5): the case-owned source attachment fixture was removed
+  -- with the attachments substrate. The FROZEN snapshot row below keeps its
+  -- frozen_storage_path (the case_documents_select_member boundary + pgTAP 325
+  -- t4 still exercise it); its source_document_id provenance pointer is NULL —
+  -- exactly the production drift shape DM4 reconciles (re-freeze or tombstone).
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
@@ -1848,7 +1835,7 @@ begin
   insert into public.referral_shared_item
     (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
   values
-    (v_ref1, 'document', v_doc, 'Prescrição digitalizada',
+    (v_ref1, 'document', null, 'Prescrição digitalizada',
      v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', 1);
 
   -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture. Phase 23 (ADR
@@ -2242,15 +2229,41 @@ end $ind$;
 --  state — prod ON intended. Phase 17 is not shipping yet, so we use the seed instead.)
 update app.feature_flags set enabled = true where key = 'controlled_docs';
 
--- LOCAL-ONLY FLAG FLIP (F2 / ADR 0063 — same convention as controlled_docs above).
--- After the F2 fold-in, the meeting / interview / case attachment features all sit
--- behind the `attachments` flag (their upload/delete/open paths assert it), so with it
--- OFF the EXISTING attachment E2E specs — not just F2's — would fail and the frontend
--- rewire can't be verified in the browser preview. The migration keeps it default OFF
--- (prod stays OFF until the deliberate pilot-cutover flip the lead owns); seed.sql runs
--- ONLY on `db reset`, so flipping it ON HERE yields a flag-ON LOCAL/E2E env. NOT under
--- the F1 m2 hard gate (that gate is case_participants/case_types only — real ethics data).
-update app.feature_flags set enabled = true where key = 'attachments';
+-- DM2 Wave A (ADR 0114/0118). Both flag rows ship DISABLED from 20260923000600
+-- and stay disabled in production until the DM2 gate closes with human
+-- approval (the S5 flag choreography); these lines force them ON for local/E2E
+-- only — the MIN (audio_minutes) pattern. Without them every Wave A spec would
+-- assert an inert surface and pass vacuously.
+-- ⚠ CONSEQUENCE (the MIN T3-spec-5 trap, verbatim relevant here): a spec that
+-- wants to pin the deliberate flag-OFF contract — the Wave A surface is
+-- ABSENT, not disabled (HC0D7 on every door; no panel affordance) — must turn
+-- the flag(s) OFF itself and restore them, because this seed hands them ON.
+-- (pgTAP 328 K9 pins exactly this seeded state: wave_c/d OFF,
+-- foundation + wave_a + wave_b ON locally.)
+--
+-- DM3 Wave B joins the same MIN pattern (2026-08-13). `documents_wave_b` is
+-- asserted by `begin_document_upload` for a `controlled_document` home and by
+-- `attach_controlled_document_version_file`; with it OFF the corridor refuses at
+-- BEGIN (HC0D7), so no path is reserved and no byte can land, and the Wave B
+-- keystones red on the gate rather than on a defect.
+-- Production stays OFF until the DM3 gate closes with human approval.
+-- ⚠ This note previously said "every DM3 door answers HC0D7", which was FALSE:
+-- until M11 the assert sat only on the final pointer write, so with the flag off
+-- a coordinator could still create, reserve a path, PUT real bytes and finalize
+-- — leaving orphaned bytes and an orphaned core version — and only the last step
+-- refused (QA MAJOR-1). Nor is "every door" the target state: the gate is scoped
+-- to the Wave B home so Wave A, which shares that door, keeps working.
+-- ⚠ This line and pgTAP 328 K9b/K9c are ONE artifact — K9b counts the flags
+-- that are OFF and K9c the ones that are ON, so flipping a flag here without
+-- moving it there reds 328. That coupling is deliberate: K9 exists to force
+-- the flag choreography to be an explicit, reviewed edit rather than a drift.
+update app.feature_flags set enabled = true
+ where key in ('documents_foundation', 'documents_wave_a', 'documents_wave_b');
+-- The legacy `attachments` flag key: seed-retired (DM2, plan item 5 — no flip,
+-- no reference; local matches production at false). The KEY ROW itself + the
+-- FeatureFlags interface entry are retired by the S5 choreography MIGRATION
+-- (prod-affecting, rides the push gate), not by seed surgery — a seed DELETE
+-- would fork local from production on the key's existence.
 
 -- BELT-AND-SUSPENDERS FLAG FLIP (SUP / ADR 0074): the companion migration
 -- 20260720000610_flag_response_correction_on.sql already flips
@@ -2564,31 +2577,75 @@ declare
   v_farm    uuid := '00000000-0000-0000-0000-000000000005';  -- chefe.farm (same hospital, NOT a CCIH member) — the E2E outside-commission approver
   v_farm2   uuid := '00000000-0000-0000-0000-000000000006';  -- Farmacêutico Um (same hospital, NOT a CCIH member) — DOC-0001's outside approver
   v_staff1  uuid := '00000000-0000-0000-0000-000000000003';  -- staff of A (in-commission approver)
-  v_doc_vig uuid;
-  v_ver_vig uuid;
-  v_doc_apr uuid;
-  v_ver_apr uuid;
+  v_doc_vig  uuid := 'd0c00000-0000-0000-0000-0000000000d1';
+  v_ver_vig  uuid := 'd0c00000-0000-0000-0000-00000000d101';
+  -- ⚠ DETERMINISTIC ids (DM3). These were `gen_random_uuid()` via `returning id`,
+  -- which made every suite that referenced a seeded controlled document depend on
+  -- ids that CHANGE on every `db reset` — pgTAP 330 hardcoded five of them and
+  -- went red the first time the DB was actually rebuilt. The regimento below
+  -- already used a fixed id for the same reason (its charter FK references it);
+  -- these now match that convention.
+  v_doc_apr  uuid := 'd0c00000-0000-0000-0000-0000000000d2';
+  v_ver_apr  uuid := 'd0c00000-0000-0000-0000-00000000d201';
+  -- DM3: the core-model counterparts each controlled document now owns.
+  v_core_doc_vig uuid;
+  v_core_ver_vig uuid;
+  v_core_doc_apr uuid;
+  v_core_ver_apr uuid;
 begin
   perform set_config('request.jwt.claims',
     jsonb_build_object('sub', v_chefe, 'role', 'authenticated')::text, true);
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
 
   -- 1) EFFECTIVE document with a PAST-DUE review_due_date.
-  insert into public.controlled_documents
-    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
-  values
-    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'policy', 12, 'effective', v_chefe)
-  returning id into v_doc_vig;
+  -- ⚠ DM3: a controlled document is now a SECURABLE RESOURCE. Its registry row
+  -- must exist BEFORE the insert (composite FK on (id, securable_type)), and it
+  -- needs a core `documents` row or it can never receive a file. These direct
+  -- inserts MIRROR `public.create_controlled_document`, which is the reference
+  -- implementation — the door is not callable here because the seed needs an
+  -- explicit `code`, a non-draft `status`, and specific dates that the door
+  -- (deliberately) does not accept. If the door changes, change this with it.
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_doc_vig, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_comm_a;
 
-  insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md,
-     effective_date, review_due_date, status, created_by)
-  -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
+  insert into public.controlled_documents
+    (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_doc_vig, 1, null,
+    (v_doc_vig, v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'policy', 12,
+     'effective', v_chefe);
+
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_doc_vig, 'Política de Higienização das Mãos', 'documento_controlado', 'active', v_chefe)
+  returning id into v_core_doc_vig;
+  update public.controlled_documents set core_document_id = v_core_doc_vig where id = v_doc_vig;
+
+  -- The FILELESS core version, 1:1 with the domain version — mirroring M3's
+  -- backfill exactly, so a fresh reset reproduces the post-backfill state that
+  -- pgTAP 330 DM3·X1 measures. (A fresh reset runs the backfill against an EMPTY
+  -- database, so it is the SEED that must produce this, not the migration.)
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_core_doc_vig, 1, v_chefe)
+  returning id into v_core_ver_vig;
+
+  -- ⚠ BORN DRAFT, WITH the pointer, THEN transitioned along the real edges.
+  -- `app.guard_controlled_core_binding` refuses to set the pointer on a version
+  -- that is already frozen (HC0DB) and — unlike its sibling — deliberately does
+  -- NOT honour `app.in_controlled_docs_rpc`, so the seed cannot buy its way past
+  -- it (that non-bypassability is pinned by pgTAP 330 DM3·P3). Rather than
+  -- weaken the guard for the seed's convenience, the seed follows the state
+  -- machine the product follows: draft → in_approval → effective.
+  insert into public.controlled_document_versions
+    (id, document_id, version_number, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by, core_document_version_id)
+  values
+    (v_ver_vig, v_doc_vig, 1,
      'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
-     'effective', v_chefe)
-  returning id into v_ver_vig;
+     'draft', v_chefe, v_core_ver_vig);
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_ver_vig;
+  update public.controlled_document_versions set status = 'effective'   where id = v_ver_vig;
 
   update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
 
@@ -2604,19 +2661,36 @@ begin
      encode(extensions.digest('' || ':' || v_farm2::text || ':approved', 'sha256'), 'hex'));
 
   -- 2) IN_APPROVAL document naming the OUTSIDE-commission approver 0005 (pending).
-  insert into public.controlled_documents
-    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
-  values
-    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'sop', 24, 'in_approval', v_chefe)
-  returning id into v_doc_apr;
+  -- Same DM3 obligations as (1) — registry row, core document, fileless core
+  -- version. See the note there.
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_doc_apr, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_comm_a;
 
-  insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md, status, created_by)
+  insert into public.controlled_documents
+    (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
-    (v_doc_apr, 1, null,
-     'Primeira versão para aprovação.', 'in_approval', v_chefe)
-  returning id into v_ver_apr;
+    (v_doc_apr, v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'sop', 24,
+     'in_approval', v_chefe);
+
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_doc_apr, 'POP de Isolamento de Contato', 'documento_controlado', 'active', v_chefe)
+  returning id into v_core_doc_apr;
+  update public.controlled_documents set core_document_id = v_core_doc_apr where id = v_doc_apr;
+
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_core_doc_apr, 1, v_chefe)
+  returning id into v_core_ver_apr;
+
+  -- Born draft with the pointer, then one legal edge to in_approval (see (1)).
+  insert into public.controlled_document_versions
+    (id, document_id, version_number, summary_of_changes_md, status, created_by,
+     core_document_version_id)
+  values
+    (v_ver_apr, v_doc_apr, 1, 'Primeira versão para aprovação.', 'draft', v_chefe, v_core_ver_apr);
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_ver_apr;
 
   update public.controlled_documents set current_version_id = v_ver_apr where id = v_doc_apr;
 
@@ -2660,10 +2734,10 @@ on conflict (commission_id, user_id, capability) do nothing;
 -- ETH·E1 (ADR 0072) — m2-gate E2E fixtures. The case_participants / case_types
 -- flags are flipped ON by migration 20260720001040 (local via db reset); these
 -- direct inserts (superuser ⇒ bypass RLS) give the tester the isolation-negative
--- scenarios: a respondent-doctor-who-IS-a-user, a granted-then-recused member, an
--- explicit_grants_only case (a plain member without a grant sees nothing), and a
--- legal_privileged document (gated above ordinary case-read) + an ordinary
--- ethics_investigation document (O2 — stays visible). All under CCIH (commission A)
+-- scenarios: a respondent-doctor-who-IS-a-user, a granted-then-recused member, and an
+-- explicit_grants_only case (a plain member without a grant sees nothing). The two
+-- confidentiality fixture documents were removed with the attachments substrate
+-- (DM1, ADR 0114 D5; Wave A reseeds them on the document model). All under CCIH (commission A)
 -- where the staff personas live. pt-BR labels (Rule 10).
 -- ---------------------------------------------------------------------------
 do $eth$
@@ -2769,7 +2843,9 @@ begin
   values ('fe000000-0000-0000-0000-0000000000e1', v_case, v_recu, 'coordinator', 'Conflito declarado', v_chefe)
   on conflict do nothing;
 
-  -- Coordinator clearance so the legal_privileged doc is openable by chefe.ccih.
+  -- Coordinator clearance (max_confidentiality ceiling). The legal_privileged
+  -- fixture doc it once gated was removed with the attachments substrate (DM1,
+  -- ADR 0114 D5); the grant row stays — it exercises the grant machinery itself.
   -- max_confidentiality is the orthogonal RESERVED ceiling (carried, not inferred).
   insert into public.case_access_grants
     (case_id, principal_id, source, read_case_content, read_case_deliberation,
@@ -2777,17 +2853,10 @@ begin
   values (v_case, v_chefe, 'manual_grant', true, true, 'legal_privileged', 'coordinator_grant', v_chefe)
   on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null do nothing;
 
-  -- A gated legal_privileged document + an ordinary ethics_investigation document (O2).
-  insert into public.attachments
-    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-  values ('a7000000-0000-0000-0000-0000000000e1', 'case', v_case, 'Parecer jurídico (privilegiado)',
-          'attachments', 'case/' || v_case || '/legal.pdf', 'standard', 'legal_privileged')
-  on conflict do nothing;
-  insert into public.attachments
-    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
-  values ('a7000000-0000-0000-0000-0000000000e2', 'case', v_case, 'Nota do processo ético',
-          'attachments', 'case/' || v_case || '/nota.pdf', 'standard', 'ethics_investigation')
-  on conflict do nothing;
+  -- DM1 (ADR 0114 D5): the two confidentiality-fixture documents (a gated
+  -- legal_privileged one + an ordinary ethics_investigation one, O2) were
+  -- removed with the attachments substrate. Wave A (DM2) reseeds their
+  -- document-model equivalents when confidentiality gating returns.
 
   -- ETH·E2 (ADR 0073) — mark the case ETHICS-TYPED (ethics_case_details is the canonical
   -- marker, Lead ruling 1) + the procedure catalogs the E2E acceptance flow needs. PHI-free
@@ -2853,6 +2922,8 @@ declare
   v_qualb_sa uuid := '00000000-0000-0000-0000-0000000000b2';  -- orgadmin.b (staff_admin of Qualidade B)
   v_reg_doc  uuid := 'd0c00000-0000-0000-0000-0000000000f1';  -- deterministic regimento doc id
   v_reg_ver  uuid;
+  v_reg_core_doc uuid;   -- DM3: the core `documents` row this regimento owns
+  v_reg_core_ver uuid;   -- DM3: its fileless core version (1:1 with the domain version)
 begin
   -- 1) Published bylaws controlled document for Farmácia (doc_type='bylaws' — the
   --    committee's "regimento" in pt-BR; the B0-anglicized key is 'bylaws').
@@ -2861,19 +2932,45 @@ begin
     jsonb_build_object('sub', v_farm_sa, 'role', 'authenticated')::text, true);
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
 
+  -- ⚠ DM3: registry row first (composite FK), then the core document + a fileless
+  -- core version 1:1 — mirroring `public.create_controlled_document` and M3's
+  -- backfill. This one CANNOT go through the door for an extra reason beyond the
+  -- explicit code/status: its id is DETERMINISTIC (`commission_charters`
+  -- references it), and the door mints its own.
+  insert into public.securable_resources
+    (id, resource_type, organization_id, hospital_id, commission_id)
+  select v_reg_doc, 'controlled_document', c.organization_id, c.hospital_id, c.id
+    from public.commissions c where c.id = v_farm;
+
   insert into public.controlled_documents
     (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
     (v_reg_doc, v_farm, 'REG-0001', 'Regimento Interno da Comissão de Farmácia',
      'bylaws', 12, 'effective', v_farm_sa);
 
+  insert into public.documents (home_resource_id, title, kind, status, created_by)
+  values (v_reg_doc, 'Regimento Interno da Comissão de Farmácia',
+          'documento_controlado', 'active', v_farm_sa)
+  returning id into v_reg_core_doc;
+  update public.controlled_documents set core_document_id = v_reg_core_doc where id = v_reg_doc;
+
+  insert into public.document_versions (document_id, version_number, created_by)
+  values (v_reg_core_doc, 1, v_farm_sa)
+  returning id into v_reg_core_ver;
+
+  -- Born draft with the pointer, then draft → in_approval → effective (see the
+  -- DOC-0001 note: the core-binding guard refuses a pointer on a frozen version
+  -- and does not honour the in-RPC bypass).
   insert into public.controlled_document_versions
-    (document_id, version_number, storage_path, summary_of_changes_md,
-     effective_date, review_due_date, status, created_by)
+    (document_id, version_number, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by, core_document_version_id)
   values
-    (v_reg_doc, 1, null, 'Versão inicial do regimento.',
-     current_date - 30, current_date + 335, 'effective', v_farm_sa)  -- review_due in the FUTURE
+    (v_reg_doc, 1, 'Versão inicial do regimento.',
+     current_date - 30, current_date + 335, 'draft', v_farm_sa, v_reg_core_ver)  -- review_due in the FUTURE
   returning id into v_reg_ver;
+
+  update public.controlled_document_versions set status = 'in_approval' where id = v_reg_ver;
+  update public.controlled_document_versions set status = 'effective'   where id = v_reg_ver;
 
   update public.controlled_documents set current_version_id = v_reg_ver where id = v_reg_doc;
 

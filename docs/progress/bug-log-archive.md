@@ -1805,3 +1805,179 @@ READ obligation is discharged by removal (no withheld column is served anymore);
 obligation already held (`trg_audit_referral_aiud` + direct `app.audit_write`, catalog-verified, not
 taken from body comments). ⚠ The durable defence is pgTAP 326 **t1–t3**, which pin composite ≡ GRANT
 — a column added to either side alone reds. Full record → the ADR.
+
+## Rotated from PROGRESS.md at the DM2 Record step (2026-08-13)
+
+Four closed bugs, verbatim, including the "as filed" bodies kept for the evidence trail.
+BUG-DM2-001/002/003 were found by the tester during DM2·S4 and fixed in-phase;
+BUG-CASEKIND-001 was a pre-existing defect found by QA on 2026-08-12.
+
+✅ **BUG-DM2-001 — FIXED 2026-08-13** (backend, migration `20260924000600`, 373 registered; lead-verified from `pg_proc`): the `p_verified = false` branch now **inserts the `document_version_files` binding** alongside marking the file `failed`, so the failure becomes part of the version's record, the chain policies make it reader-observable, and the projection derives **`failed`** rather than eternal `pending`. No UNIQUE collision is reachable — the proven retry contract is the **pre-finalize** one (re-PUT to the same reserved URL); a post-failure retry is `begin` again, minting a new version with its own binding slot. The immutable-binding guard is untouched. Keystones assert the **projection's substrate, not only the column**: B1 red-first (`have: 0 / want: 1`), **B2 reads the failed state through the chain under `set local role authenticated`** (pre-fix: invisible), B4 message-matches the corridor refusing on *state* rather than as merely-unbound.
+**Tester re-verification (2026-08-13):** un-pinned. `e2e/phase-f2-attachments.spec.ts`'s `test.fail()` pin (`DM2-BUG-1`) flipped to an unexpected PASS on the FIRST re-run after the fix (confirmed not a flake — 2 further isolated runs, same result), so it is rewritten as a positive regression pin, **`DM2-VERIFY-FAILED`**: asserts the DB truth (the binding + `upload_state='failed'`) before the UI text ("Falha no envio"). Green on a fresh reset alongside the other 5 restored files (77 collected / 76 passed / 1 pre-existing unrelated skip).
+
+<!-- original filing retained below -->
+🟠 **BUG-DM2-001 (as filed) — a verification FAILURE never binds `document_version_files`, so the row reads
+"Processando envio" (pending) forever instead of "Falha no envio" (failed).** Filed 2026-08-13
+(tester, DM2·S4 write-path testing). Severity: MAJOR (silent data-loss-adjacent UX — no path exists
+for the user to ever learn the upload failed, or to retry, once this branch is hit).
+**Repro:** `begin_document_upload` → PUT real bytes to Storage (succeeds) → `finalize_document_upload`
+(transitions `file_objects.upload_state` to `verifying`) → `complete_document_upload_verification`
+called with `p_verified: false` (the documented branch for "the service's own re-download of the
+just-uploaded object failed") → `file_objects.upload_state = 'failed'`, but **no**
+`document_version_files` row is ever inserted for that version (only the SUCCESS branch of
+`complete_document_upload_verification` inserts one). **Expected:** the row's availability reads
+`failed` (`AVAILABILITY_PRESENTATION.failed` — "Falha no envio... Remova este item e envie o arquivo
+novamente"), per `src/components/documents/document-labels.ts`. **Actual:** `versionAvailability`
+(`src/lib/queries/documents.ts`) finds no `document_version_files` binding for the version, so it
+falls through to `pending` regardless of the underlying `file_objects.upload_state` — the row is
+indistinguishable from a merely slow, still-in-flight upload, forever. **Violates:** the DM2 Wave-A
+5-state availability contract (task brief: "`failed` and `disposed` are deliberately distinct on
+four axes"); pinned RED via `test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-1`), which
+will flip to a hard failure the moment this is fixed. **Owner:** backend.
+
+✅ **BUG-DM2-002 — FIXED 2026-08-13** (frontend, `18d08e9`): the unreachable branch,
+`DocumentRestrictedBadge` and the `DOCUMENT_RESTRICTED` strings are removed, and the false comment is
+replaced in **both** files with the true mechanism — denial is *absence*, `app.can_read_document`
+behind the `documents_select` policy is why, an uncleared reader gets zero rows including the
+creator, this is **stricter** than the UI assumed, and **ADR 0114 D16** is the named trigger that
+would bring the affordance back. `canOpen` deliberately **left alone** (it is correct), and
+`version.canOpen` is deliberately **kept** in the `showOpen` condition despite being currently
+redundant — inlining today's equivalence would bake a coincidence into the UI, and D16 may tighten
+the definition. ⚠ **Its `test.fail()` pin must be REWRITTEN, not un-pinned** (unlike 001/003): the
+defect was a *false claim*, not broken behaviour, so nothing will ever flip that pin — a
+`test.fail()` that can never flip is a test asserting behaviour the product deliberately does not
+have, the same trap the plan's Q1 discharge condition warns about ("a keystone left pinning a
+rejection the product no longer wants is a test asserting a bug"). Row-absence is already covered by
+the restored AC-4a–d/AC-9.
+**Tester re-verification (2026-08-13):** rewritten, not un-pinned, per the lead's ruling — a
+`test.fail()` asserting the (now-removed) badge would sit as a permanent expected-failure forever, so
+that is not the right closure shape. `e2e/phase-f2-attachments.spec.ts`'s `DM2-BUG-2` is replaced with
+**`DM2-CEILING-NOONE`** (`test.fail()` removed): a positive, non-redundant pin — a case with **zero**
+`case_access_grants` rows denies an enforcing-labeled document to its own creator/coordinator too, not
+just a third-party grantee (AC-4a/b's scenario). Green on a fresh reset alongside the other 5 restored
+files.
+
+<!-- original filing retained below for the evidence trail -->
+🟡 **BUG-DM2-002 (as filed) — the D15 ceiling's "Restrito" badge is unreachable dead code; `canOpen` can never
+be `false` on a rendered document row.** Filed 2026-08-13 (tester, DM2·S4 ceiling testing). Severity:
+MINOR/documentation (the underlying SECURITY property is intact and arguably stronger — see below —
+this is a dead-code / stale-doc-comment finding, not an access-control hole).
+**Repro/evidence:** `app.can_read_document` (read live from `pg_proc`) embeds the D15 ceiling as a
+ROW-level AND-conjunct — an uncleared reader gets **zero rows** for an enforcing-labeled document (the
+`documents_select`/`document_versions_select` RLS policies both gate on this same predicate), not a
+visible row with `canOpen: false`. Confirmed live via a real `begin_document_upload` + PostgREST
+probe: even the document's own creator/coordinator got `[]` back for her own just-created
+`legal_privileged` document on a case with no `case_access_grants` clearance row (the S1 "fail-closed
+— readable by NO ONE" backstop, working as designed). Separately, `DocumentVersionSummary.canOpen`
+(`src/lib/queries/documents.ts`) is defined purely as `availability === 'available'`, with **no**
+separate door call — so for any row that DOES pass RLS, `canOpen` is unconditionally `true`.
+**Expected** (per `src/components/documents/document-row.tsx`'s own doc comment): "The interesting
+cell is `available && !canOpen` — the D15 ceiling denying an ordinary case reader. It renders a
+NON-INTERACTIVE 'Restrito' badge... E2E AC-9 asserts exactly that." **Actual:** that branch cannot be
+reached by any caller today — the denial is 100% row-absence, never a visible Restrito badge.
+**Violates:** `document-row.tsx`'s own doc comment (a false claim about observable behavior) and the
+original DM2 task brief's framing of the AC-9 contract. Pinned RED via `test.fail()` in
+`e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-2`). **Restored `e2e/ethics-e1-access-spine.spec.ts`
+AC-4a/b/AC-9 assert the TRUE (row-absence) shape**, matching the pre-DM1 test's own historical
+behavior ("O2: hidden from the LIST") — not blocked on this bug. **Owner:** backend/frontend (either
+fix the comment to describe row-absence, or wire a genuine row-visible-but-ceiling-denied state if
+Phase 19's general access plane wants one later).
+
+✅ **BUG-DM2-003 — FIXED 2026-08-13** (backend; lead-verified from `pg_proc`: the dead `update … set state = 'expired'` is gone from `finalize_document_upload`). The refusal stays **predicate-based** (`expires_at < now()`) — unchanged and still correct — and the **marking moved to reconciliation**, which now sweeps lapsed reserved sessions → `expired` and their still-reserved files → `abandoned`, both counted in its report. Rationale, worth keeping: *a refusal that must also persist state is fighting its own transaction*; reconciliation already existed to sweep exactly this. ⚠ **The sweep validated the bug with real data on first contact** — its smoke run caught **3** lapsed sessions: one planted, plus **two genuine reservations left by the tester's own E2E runs**, i.e. precisely the rows nothing would ever have marked before.
+**Tester re-verification (2026-08-13):** un-pinned, rewritten as **`DM2-RECONCILE-EXPIRY`** in
+`e2e/phase-f2-attachments.spec.ts` (`test.fail()` removed) — a deliberate choice between the two honest
+contracts the marking-moved fix admits (picked, not assumed): asserts `state` stays `reserved`
+immediately after the HC0DE refusal (no synchronous marking), then runs the REAL reconciliation script
+(`node scripts/document-reconciliation.mjs`, not simulated) and asserts `state='expired'` +
+`file_objects.upload_state='abandoned'` afterward. The script's own exit code / global drift count is
+deliberately NOT asserted (only this test's own entity is checked) — the pgTAP `329` F3 shared-fixture
+lesson the lead flagged applies equally to E2E: a bare count over an append-only/shared table is a
+fragility this file's own `auditRows` helper already avoids by always scoping to one `entity_id`
+(re-audited across all 5 touched files: every `audit_log` read is action+entity-scoped, none global).
+Green on a fresh reset alongside the other 5 restored files.
+
+<!-- original filing retained below -->
+🟡 **BUG-DM2-003 (as filed) — `upload_sessions.state` never actually becomes `'expired'`; the UPDATE is rolled
+back by its own `RAISE EXCEPTION` in the same statement.** Filed 2026-08-13 (tester, DM2·S4 expiry
+testing). Severity: MINOR (the functional refusal is correct and unaffected — only the persisted
+`state` column is wrong).
+**Repro:** `finalize_document_upload`'s expiry branch: `update public.upload_sessions set state =
+'expired' where id = v_s.id; raise exception … using errcode = 'HC0DE';` — no `BEGIN/EXCEPTION`
+block, no autonomous transaction; a single PostgREST RPC call is one implicit transaction, so the
+`UPDATE` is unconditionally undone when the `RAISE` aborts it. **Expected:** `upload_sessions.state =
+'expired'` after an expired-reservation retry attempt (the CHECK-enumerated vocabulary includes
+`'expired'` as a distinct member; pinned by pgTAP `329` U12 per the DM2·S2 record). **Actual:** the
+row is left in `state = 'reserved'` forever (confirmed by a live E2E run before this was filed — the
+functional HC0DE refusal and the UI's "Feche e comece o envio novamente" message both fire correctly
+on EVERY subsequent retry attempt, since the check re-evaluates `expires_at < now()` rather than
+`state`, but the column itself never reflects reality). **Impact:** any future code that queries
+`upload_sessions.state = 'expired'` directly (an abandoned-upload cleanup sweep, an admin report)
+will find nothing, even though the refusal-by-timestamp behavior keeps working. Pinned RED via
+`test.fail()` in `e2e/phase-f2-attachments.spec.ts` (`DM2-BUG-3`). **Owner:** backend.
+
+✅ **BUG-CASEKIND-001 — `case_events.kind` was enforced in TypeScript ONLY; a forged `kind` insert
+succeeded. FIXED 2026-08-12** (migration `20260921000400_case_events_kind_write_authority.sql`).
+Found 2026-08-12 by `qa` during the same review; PRE-EXISTING, did not block that batch.
+
+**Mechanism, catalog-verified:** a 16-value `CHECK` on the column, **zero triggers**, and **no `kind`
+arm in either INSERT policy**. The vocabulary's real authority was `src/lib/cases/registro-kinds.ts`
+— application code. A forged `kind='decision_issued'` insert **succeeded** as an ordinary committee
+writer, i.e. a user could mint an event the UI presents as a governance decision. This is the
+recorded *"a correct predicate ≠ correct policies"* family: the CHECK constrains the **domain** of
+`kind`; nothing constrained **who may write which value**.
+
+**The fix.** `app.is_manual_case_event_kind(text)` — the SQL mirror of the six-value manual
+vocabulary — is appended as a `kind` arm to **all four** user-role write policies. The ten system
+kinds stay writable only by the eleven `SECURITY DEFINER` RPCs that emit them: they are owned by
+`postgres`, which owns `case_events`, and the table is **not** `force row level security`, so they
+bypass RLS and are unaffected (`relowner`/`relforcerowsecurity`/`proowner` read from the catalog,
+not inferred). ⚠ **The arm is on both INSERTs AND both UPDATEs** — an INSERT-only arm is defeated by
+insert-then-update (`note` → `decision_issued`), the recorded *"an exclusion is only as strong as its
+weakest mutator"* shape. Policies were amended with `alter policy … with check (<existing catalog
+expr> and <arm>)`, never DROP+CREATE, so the E3a `coordinator_only` narrowing and the
+`is_case_excluded` arm survive verbatim.
+
+**Proved live as a real persona, `staff3.ccih@test.local`** (a plain `staff` holding a case write
+grant — the exact "ordinary committee writer" of the report), rolled back, with controls:
+
+| Check | Result |
+| --- | --- |
+| Control A — is the persona `staff_admin` of the case's commission? | `false` |
+| Control B — a MANUAL kind insert, same session | **succeeds** (capability genuinely intact) |
+| F — forged `kind='decision_issued'` INSERT | **refused `42501`** |
+| G — insert `note`, then UPDATE to `decision_issued` | **refused `42501`** |
+| Oracle — neutralize the arm (`… returns true`), re-run F and G | **both succeed again** |
+
+**Keystones:** `supabase/tests/111_case_docs_events.sql` grows 5 → 9 (forged INSERT refused ·
+manual-kind positive control · UPDATE-to-system-kind refused · all four policies carry the arm).
+Proved able to fail: neutralizing the helper reds tests 6 and 8. Full pgTAP **5886/5886 PASS** on a
+fresh reset; `lint` (5 gates) + `typecheck` clean; authz `ARM=census` / `ARM=hat` / `ARM=floor` all
+INVARIANT HOLDS.
+
+**NOT closed by this (deliberate, separate obligations, no minting path):** a case writer can still
+`DELETE` a procedural event, and no audit row distinguishes a forged kind from an authentic one.
+
+
+🟠 **FUP-AUTHZ-WP-SNAPSHOT — the write-path sweep's policy arm silently ran ZERO cases for a valid
+subset.** Filed 2026-08-12 while gating BUG-CASEKIND-001. A diff-scoped
+`CASES="case_events_writer_insert case_events_staff_admin_insert case_events_writer_update
+case_events_staff_admin_update" p0-authz-writepath-audit.sh` printed `BLIND: 0 ERROR: 0 SKIPPED: 0`
+and **exercised nothing** — its ARM-2 domain is the 33-row worklist hardcoded at
+`p0-authz-writepath-audit.sh:388`, embedded 2026-07-18 and never grown; it contains **zero**
+`case_events` rows. ADR 0079 Amendment 3 already names the stale snapshot as a structural gap; what
+is new is that a **subset run over policies outside it is indistinguishable from a clean pass**.
+The Phase-Gate step-1 "diff-scoped ARM=policy" is therefore a no-op for any policy the snapshot
+misses — the recorded *"a detector that finds nothing must be proven able to find something"* class.
+⚠ Also re-confirms hazard 1: the run **overwrote** `docs/reviews/authz-writepath-audit-findings.md`
+with its empty report (restored via `git checkout --`). Fix: derive ARM 2's worklist from
+`pg_policies` at run time, and make a subset that matches no case a non-zero exit.
+
+
+🟡 **FUP-VACUOUS-COVERAGE-1 — OPEN, spun out of the audit: two tests that NEVER RUN.**
+`phi-remediation.spec.ts` REM-8 and REM-9 skip on every run — there is no seeded RCA for
+EV-0001, and the only CAPA has a NULL `source_event_id` (both catalog-verified). They are
+honest `test.skip()`s, not silent greens, so they are outside the vacuity property and the gate
+will never catch them. Closing them means new fixture work against `seed.sql`, which is a
+contract with ~900 tests — hence its own item rather than a drive-by.
+
+

@@ -65,15 +65,20 @@ select lives_ok(
   format($$ delete from public.patient_safety_event where id = %L::uuid $$, (select id from ev2)),
   '1.2: a plain event with no RCA/CAPA deletes cleanly (positive control)');
 
--- (1c) the 6 FKs are RESTRICT (confdeltype 'r').
+-- (1c) the 5 FKs are RESTRICT (confdeltype 'r').
+-- DM1 (ADR 0114 D5): rca_evidence_cited_document_id_fkey left this census WITH
+-- its referenced table (the attachments substrate) — the parked column is held
+-- by rca_evidence_cited_document_parked (CHECK IS NULL) + the writer's HC0DM
+-- refusal (328 K8b) until Wave D re-points it at the document model, at which
+-- point the NEW FK re-enters this census.
 select is(
   (select count(*)::int from pg_constraint
    where conname in ('capa_plan_source_rca_id_fkey','capa_plan_source_event_id_fkey',
                      'capa_plan_source_meeting_id_fkey','rca_evidence_cited_interview_id_fkey',
-                     'rca_evidence_cited_meeting_id_fkey','rca_evidence_cited_document_id_fkey')
+                     'rca_evidence_cited_meeting_id_fkey')
      and confdeltype = 'r'),
-  6,
-  '1.3: all 6 shape-checked source/cited FKs are ON DELETE RESTRICT');
+  5,
+  '1.3: all 5 shape-checked source/cited FKs are ON DELETE RESTRICT (was 6 — the cited_document FK died with DM1''s substrate drop)');
 
 -- ============================================================================
 -- §2: D6-flip — an unlisted item_type FAILS the input-vs-display CHECK (ELSE false).

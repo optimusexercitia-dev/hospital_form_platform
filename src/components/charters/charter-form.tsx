@@ -35,6 +35,22 @@ interface RegimentoOption {
 }
 
 /**
+ * Why the regimento picker is (or is not) offering a choice. A three-member union
+ * rather than a boolean, because the two non-picker cases need DIFFERENT copy and
+ * arise for unrelated reasons — collapsing them would tell a coordinator whose
+ * tenant simply has the module switched off to go and create a document, in an
+ * area that 404s for them.
+ *
+ * - `available`   — options exist; render the select.
+ * - `empty`       — the controlled-documents module is ON, but this commission has
+ *                   no `bylaws` document yet. The fix is to create one.
+ * - `unavailable` — the module is OFF for this tenant (DM3 lead ruling Q6). There
+ *                   is nothing the coordinator can do here, so the copy says so
+ *                   instead of pointing at an action.
+ */
+export type RegimentoPickerState = "available" | "empty" | "unavailable";
+
+/**
  * The charter configuration form (CH-FE-1). One native `<form>` posting the
  * meeting frequency + the linked-regimento id to the `saveCharter` server action
  * (the sole write door — `upsert_commission_charter`, staff_admin authority) via
@@ -56,6 +72,7 @@ export function CharterForm({
   initialFrequency,
   initialDocId,
   regimentoOptions,
+  pickerState,
 }: {
   action: SaveAction;
   commissionId: string;
@@ -64,9 +81,10 @@ export function CharterForm({
   initialFrequency: MeetingFrequency | null;
   initialDocId: string | null;
   regimentoOptions: RegimentoOption[];
+  /** Why the picker is or is not offering a choice — see {@link RegimentoPickerState}. */
+  pickerState: RegimentoPickerState;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
-  const hasRegimentoDocs = regimentoOptions.length > 0;
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -125,7 +143,7 @@ export function CharterForm({
         <FieldLabel htmlFor="controlledDocumentId">
           Regimento vinculado
         </FieldLabel>
-        {hasRegimentoDocs ? (
+        {pickerState === "available" ? (
           <>
             <NativeSelect
               id="controlledDocumentId"
@@ -147,12 +165,26 @@ export function CharterForm({
           </>
         ) : (
           <>
-            {/* No regimento documents exist yet — post an explicit empty link so the
-                upsert keeps the row's `controlled_document_id` NULL. */}
-            <input type="hidden" name="controlledDocumentId" value="" />
+            {/* No picker is rendered, so the user cannot have CHANGED the link —
+                post the CURRENT value back, not an empty one.
+
+                This upholds the invariant stated at the top of this file ("changing
+                the frequency never drops the regimento link"), which a hardcoded ""
+                broke in two reachable ways: (1) with the module off (DM3 Q6), every
+                cadence save would silently unlink an existing regimento; and (2)
+                even with it on, a link whose document is not in the filtered list
+                would be cleared by a save the coordinator never aimed at it. The
+                FK is ON DELETE SET NULL, so a non-null id here always names a row
+                that still exists — echoing it back cannot resurrect a dead one. */}
+            <input
+              type="hidden"
+              name="controlledDocumentId"
+              value={initialDocId ?? ""}
+            />
             <FieldDescription id="controlledDocumentId-description">
-              Nenhum regimento controlado foi cadastrado nesta comissão ainda. Crie
-              um em “Documento do regimento” para poder vinculá-lo.
+              {pickerState === "unavailable"
+                ? "O módulo de documentos controlados não está ativo nesta instituição, portanto não é possível vincular um regimento no momento. A periodicidade continua sendo salva normalmente."
+                : "Nenhum regimento controlado foi cadastrado nesta comissão ainda. Crie um em “Documento do regimento” para poder vinculá-lo."}
             </FieldDescription>
           </>
         )}
