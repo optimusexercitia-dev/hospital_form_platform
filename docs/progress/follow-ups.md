@@ -1113,3 +1113,44 @@ owners kept live here).
 - [ ] **participant-roles M2M (ADR 0072 D7·4) deferred to E2** — no §4 gate criterion covers it and its shape
   depends on E2's decision model; QA verified nothing half-built was left behind. `backend`.
 
+
+### 🟠 FUP-DM5-FINALIZE-ATOMIC — the finalize path is FOUR round-trips, not one; a failure after byte-verification orphans the document (owner: backend + lead)
+
+Filed 2026-08-14 at DM5 S2 close. Found by `backend` while implementing the TS layer;
+**not a bug in what shipped** — it is a design gap the contract's single-argument
+signature makes invisible.
+
+**The real path.** `finalizeRcaEvidenceUpload(sessionId)` / `finalizeCapaEvidenceUpload`
+delegate to `finalizeDocumentUpload` (`src/lib/documents/actions.ts:158`) rather than
+re-deriving the D9 verifier — one verifier, no drift, which is right. The consequence is
+that finalize is **four DB round-trips**:
+
+1. `finalize_document_upload(sessionId)`
+2. service-role `storage.download` + sha256 → `complete_document_upload_verification`
+3. admin read `document_versions → documents` (the evidence title comes from
+   `documents.title`, and finalize returns no `document_id` — see the note below)
+4. `add_rca_evidence` / `add_capa_action_evidence` (`kind:'document'`)
+
+**The failure path, precisely.** Steps 1–3 commit independently of step 4. If step 4
+fails — e.g. `assert_rca_writable` raises `HC048` because the RCA was locked between
+begin and finalize — the outcome is a **verified, servable `file_object`, a
+`document_version`, a bound rendition and an `active` document, with NO evidence row**.
+The user sees the upload fail. A retry re-enters at `begin_document_upload`, which mints
+a **NEW** document: the orphan is never recovered, only accumulated. It is invisible to
+`scripts/document-reconciliation.mjs`, whose classifier judges `file_objects` against
+storage and would call this row perfectly healthy — because it is. The drift is at the
+DOMAIN layer, which nothing reconciles.
+
+**Why it is not fixed in S2.** Making it atomic needs a wrapping RPC that finalizes and
+creates the evidence row in one transaction — a **design change, not a bug fix**, and S2
+has already been reopened once. A partial mitigation IS shipped: an idempotency guard
+probes for a live evidence row on the same `document_id` before inserting, so a *retried
+finalize on the same session* recovers rather than duplicating. It does not help when the
+session is already consumed and the caller restarts at `begin`.
+
+⚠ **Related latent defect in the DM2 twin, not introduced here.**
+`finalize_document_upload` returns no `document_id` on either arm, so
+`finalizeDocumentUpload` yields `documentId: ''` on the idempotent re-call
+(`actions.ts:172`, `r.document_id ?? ''`). It propagates through
+`finalizeReferralReplyAttachmentUpload`, which returns that result straight to its
+caller. S2 routes around it by resolving from `documentVersionId`; the twin still has it.

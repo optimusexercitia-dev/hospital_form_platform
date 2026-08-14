@@ -461,11 +461,41 @@ export async function listRcaCitationTargets(
     })
   }
 
-  // PARKED (DM1, ADR 0114 D5): document citation candidates came from the
-  // dropped attachments substrate, and add_rca_evidence now refuses a document
-  // citation (HC0DM) until Wave D re-points cited_document_id at the document
-  // model. No document targets are offered meanwhile (the 'document' kind stays
-  // in the type for Wave D and for rendering any historical rows).
+  // DM5 S2 (20260927000130): the document arm is LIVE. The parked CHECK and the
+  // HC0DM refusal are both gone and `cited_document_id` carries a real FK.
+  //
+  // ⚠ RLS IS THE SCOPE, not a filter written here. `documents` is gated by
+  // `app.can_read_document`, so this select returns only what THIS caller may
+  // read — which is exactly the set the door will accept: the RPC re-checks
+  // `can_read_document` and refuses anything else with HC0D8 (a citation is an
+  // existence disclosure, so "no linking what you cannot read"). Offering a
+  // target the door would refuse is the failure mode this alignment avoids.
+  //
+  // ⚠ Scoped to the EVENT'S CASE, matching the interview/meeting arms above:
+  // the picker offers the case's artifacts, minimum-necessary. `home_resource_id`
+  // is the case's securable resource, so the join is on the resource id.
+  const { data: documents } = await supabase
+    .from('documents')
+    .select('id, title, occurred_on, created_at, securable_resources!inner(resource_type)')
+    .eq('home_resource_id', caseId)
+    .eq('securable_resources.resource_type', 'case')
+    .eq('status', 'active')
+    .returns<
+      {
+        id: string
+        title: string
+        occurred_on: string | null
+        created_at: string
+      }[]
+    >()
+  for (const d of documents ?? []) {
+    targets.push({
+      kind: 'document',
+      id: d.id,
+      label: d.title,
+      date: d.occurred_on ?? d.created_at,
+    })
+  }
 
   return targets
 }
