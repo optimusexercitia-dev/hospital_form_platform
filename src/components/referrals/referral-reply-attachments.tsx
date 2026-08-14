@@ -121,6 +121,14 @@ export function ReferralReplyAttachmentUpload({
   } | null>(null);
   /** Rows uploaded in THIS dialog session, newest last. */
   const [uploaded, setUploaded] = useState<AttachedRow[]>([]);
+  /**
+   * Remounts the file input after a successful attach. `<input type="file">` is
+   * uncontrolled — clearing the `file` STATE leaves the picker still displaying
+   * the consumed filename, so the control would read "Documento.pdf selected"
+   * while refusing the next click with "Escolha um arquivo para anexar". A key
+   * bump is the only way to clear a file input's own value.
+   */
+  const [pickerKey, setPickerKey] = useState(0);
 
   const isBusy = phase !== "idle";
 
@@ -180,6 +188,8 @@ export function ReferralReplyAttachmentUpload({
       setSession(null);
       setFile(null);
       setTitle("");
+      setPickerKey((k) => k + 1);
+      setFieldErrors({});
       setPhase("idle");
       setBanner(null);
     } catch {
@@ -290,6 +300,7 @@ export function ReferralReplyAttachmentUpload({
           Arquivo do anexo
         </label>
         <input
+          key={pickerKey}
           id="reply-attachment-file"
           type="file"
           accept={DOCUMENT_ACCEPTED_MIME_TYPES.join(",")}
