@@ -191,8 +191,39 @@
 > **self-labels DEGENERATE** (zero API-visible keys while bytes exist = the post-reset state) and
 > **must not be reused as S4 input**. Orphan counts, domains stated because they differ: **221 keys /
 > 6.93 MB / 15 PHI** over the 8 retirement buckets; **699 / 7.02 MB / 198 PHI** over all 12.
-> ~~S1 substrate amendment~~ ⛔ **WITHDRAWN** · S2 NSP RCA/CAPA evidence · S3 printed renditions
-> (D11; **no longer blocked**) · S4 retirement execution · S5 operational closure · S6 canon + sweep.
+> ~~S1 substrate amendment~~ ⛔ **WITHDRAWN** · **S2 🔵 IN PROGRESS** · S3 printed renditions
+> (D11/D12/D13; **no longer blocked**) · S4 retirement execution · S5 operational closure · S6 canon + sweep.
+>
+> **S2 progress (2026-08-14).** Contract posted **first** (`fec8a84f`) + amendment 1 (`6a3fbf2a`);
+> `frontend` spawned against it and building in parallel. **M1 applied** (`e386505f`), types
+> regenerated (`ca0b5ab5`, after the reset and **before** `test:db` installs `pgtap` — that
+> pollution has bitten this repo). Verified **against the applied migration, not the file text**:
+> registry **392 == 392** · both CHECKs carry `rca` + `capa_action` · `tenant_shape` carries **both
+> shapes** · `rca` registry commission = `event.reporting_commission_id` (D2) · `capa_action`
+> commission **NULL** (D14) · `hospital_of_capa_action` non-NULL (D16) · composite FKs present ·
+> **pgTAP 191f/6231 PASS — the DM4 baseline exactly, zero regressions.**
+> ⭐ **The D1 coupling is PROVEN, not assumed:** with only `type_check` widened, a **fully tenanted**
+> `rca` row is still rejected `23514` — fully tenanted *deliberately*, so the rejection can only come
+> from `tenant_shape`'s type list; a minimally-tenanted fixture would have proven nothing. All three
+> `tenant_shape` cases were shown to **discriminate before** being written as keystones.
+> **`capa_action.commission_id` is left NULL for EVERY row**, including the four sources where it is
+> derivable — *a half-populated column invites a future reader to treat it as authoritative*, so the
+> NULL is a deliberate signal rather than an absence.
+>
+> **Two lead errors this slice, both recorded because they are the same class as the phase's other
+> findings.** ① I told backend the upload ticket lacked `expiresAt`; it was at
+> `evidence-contract.ts:202` all along — **my grep pattern never contained the term**, so I reported
+> an absence from a search that could not have found it. ② My S2 task brief told `frontend` the new
+> availability states were `pending/failed/disposed/unavailable`; there are **three** new states and
+> `unavailable` is not among them. ⭐ Rule drawn: *the search that proves an absence must NAME the
+> thing* — quotable is not the same as capable. Same family as `\yname\y` failing before `_` and the
+> `.rpc('X')` sweep that missed a line-wrapped call site.
+> ⚠ **`unavailable` is correctly ABSENT from `NspEvidenceAvailability`** — both NSP projections
+> filter `.is('deleted_at', null)` (`rca.ts:258`, `capa.ts:366`) so it is unreachable, while
+> `documents.ts` has **no** such filter, which is why the twin carries five. Tied in the doc comment
+> to the **filter**, not to intent, so removing the filter makes the omission visibly wrong rather
+> than quietly stale. Adding it would have been dead vocabulary reading as live behaviour — the same
+> reasoning that keeps `HC0DM` out of the error map.
 >
 > ⛔ **State:** branch `main`, **NOT pushed**. All five DM flags ship **OFF**.
 > ✅ graphify refresh **discharged** `02cec1a0` (was owed since the DM0–DM3 merge).
