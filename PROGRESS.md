@@ -280,6 +280,67 @@
 > doors have **never been exercised at runtime**; everything so far is DB-layer, static-gate or
 > *absence* proof) → step 3 QA → step 4 human → step 5 Record.
 
+> ## ✅ GATE STEP 2 (Test pass) — **GREEN, LEAD-RUN** 2026-08-14 @ `5ac8d849`
+>
+> ```
+> batch 1 -> 69 passed · 0 failed · 0 flaky · 0 did-not-run · accounted 69/69
+> batch 2 -> 30 passed · 0 failed · 0 flaky · 0 did-not-run · accounted 30/30
+> GATE SUMMARY: 99 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 2 batches
+> COVERAGE: accounted for 99 of 99 collected tests          RESET=1 REBUILD=1 RETRIES=0
+> ```
+>
+> **No regressions:** the 4-spec baseline is **89/89**, identical to the pre-DM4 measurement taken
+> before a line of DM4 existed. **0 did-not-run** — the 9 tests hidden behind the earlier failure
+> all ran and passed.
+>
+> ### What the runtime pass proved that nothing before it could
+>
+> Everything prior was DB-layer, static-gate or **absence** proof. Now:
+> - ⭐ **Byte round trip** — real browser file input → client PUT → finalize → **click-time** door,
+>   `Buffer.compare(returned, sent) === 0`, sha256 match.
+> - ⭐ **Derivation** — a **lie declared at `begin`** (`declaredSize: 1`, `text/plain`) is discarded;
+>   the server's derived size / MIME / sha256 win. *A round trip that trusts the client's declared
+>   metadata proves far less than it appears to.*
+> - **Click-time doors survive a real ~125 s wait past the 120 s PHI TTL** — the regression that
+>   design exists to prevent, tested against the actual clock rather than a mock.
+> - **`canOpen: false`** renders visible + explained + non-interactive, and **route interception
+>   counted 0 calls** to either audited RPC — the UI does not call the door to learn the answer.
+> - **Flag-off refuses at `begin_document_upload` (`HC0D7`) before any `documents` row exists**
+>   (count unchanged) — the corridor gated at its FIRST residue-producing step, which is exactly
+>   the defect DM3 shipped.
+> - **DT admission + both negatives**; **R3** (`HC0DC` refuses an enforcing label, 0 rows created),
+>   **R4** (a later label does not retract), **R5** (soft-delete keeps, disposal refuses `HC0DD`).
+> - **Audit exactness** on the new `metadata->>'kind'` discriminator, exact counts, unweakened.
+>
+> ### 🐞 One real defect found and fixed — BUG-DM4-DUP-1 (`5ac8d849`)
+>
+> The reply-attachment list rendered the just-uploaded file **twice** (strict-mode violation, *not* a
+> timeout). `finalize` → `revalidatePath` → RSC refetch returns `initialDocuments` **already
+> containing** the new row, while the still-mounted dialog holds its optimistic copy of the same
+> `documentId`; the list **concatenated** the two. ⚠ **A race, not a condition** — it survived the
+> engineer's whole dev loop and surfaced only on **prod-standalone**; a green run had *lost* the
+> race, not avoided the bug. Fixed by merging through a `Map` keyed on `documentId`.
+> ⭐ **The engineer caught a SIBLING race the lead never asked about:** seeding the map from
+> `initialDocuments` would put a fresh upload at the END pre-refetch and the FRONT after (the query
+> returns newest-first) — a second timing-dependent DOM change of the same family. Optimistic rows
+> are seeded **first** so each already holds its final position. **It flagged this as a deviation
+> from the instruction rather than doing it silently.**
+> ⛔ **The spec was never weakened.** The tester refused to relax the locator and traced the cause
+> into a file it does not own without touching it. **Strict mode doing its job is the feature.**
+>
+> ### ⚠ Process record: 3 shared-stack collisions, 2 of them the lead's
+>
+> Multiple agents, **one worktree and one database, with no lock**. (1) A concurrent `git add` swept
+> a teammate's PROGRESS.md block into the lead's commit, whose message then understated its content.
+> (2) The lead resumed `backend` mid-batch; its migration restarted the DB under a running suite
+> (4 timeouts). (3) The lead told `tester` the stack was exclusively its, then ran its own gate on
+> it — producing a **contaminated GATE RED (3 failures)** that was discarded. **Every collision was
+> caught by artifacts** (container `StartedAt`, row counts, a strict-mode violation), **never by an
+> agent reporting it.** ⭐ `tester` refused to hand over a number it could not trust — *"I don't want
+> to give you a false green OR a false red"* — and that refusal is what prevented a false report.
+> Standing rule for the rest of the phase: **the lead runs every gate, alone; no teammate touches
+> the database.**
+
 ### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
 
 > ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**
