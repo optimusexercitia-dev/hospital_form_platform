@@ -247,7 +247,7 @@
 > | `FROMFINDINGS=1 ARM=wrapper` | **HOLDS** — BLIND set 41, all allowlisted |
 > | `ARM=floor` *(is every door called?)* | **HOLDS** — 74 never-called doors, all on the floor allowlist |
 > | diff-scoped door sweep | **2 cases run** (not 0 — the NO-OP trap did not bite): `can_read_document` **COVERED**; `can_write_document` **ERROR**, dispositioned below |
-> | neutralization matrix | **16/16 RED-PROVEN** (`supabase/tests/mutation/dm4-referral-doors-matrix.sh`) |
+> | neutralization matrix | ⛔ **the 16/16 recorded here was STALE — see the correction below**; now **18/18 RED-PROVEN at `f4d03f44`** |
 > | catalog left unmutated? | ✅ verified — neither kernel gate carries a blanket `return true` |
 > | findings file restored? | ✅ 594 lines, not the 28-line subset stub |
 >
@@ -292,8 +292,53 @@
 > both directions:** same tree, same reset discipline — with an 11-connection pool attached they
 > abort, with the stack exclusive they vanish. **No real finding behind them.**
 >
-> **Still owed:** frontend's Vitest pin of the BUG-DM4-DUP-1 merge invariant (an E2E assertion that
-> only fails when the race WINS is a weak pin) → step 3 QA → step 4 human → step 5 Record.
+> ## ⛔ GATE STEP 3 (QA) r1 — **CHANGES REQUESTED**: 0 P0 · 3 MAJOR (2 blocking) · 8 MINOR · 6 INFO
+> Review: [dm4-referrals-review.md](docs/reviews/dm4-referrals-review.md). **Both blockers
+> discharged in `f4d03f44`**; r2 pending.
+>
+> ⚠ **MAJOR-1 was the lead's error and is the phase's sharpest lesson.** I recorded "matrix 16/16
+> RED-PROVEN", then wrote "↻ Re-confirmed at HEAD" after re-running **pgTAP, the arms and the
+> build — but NOT the matrix**, carrying a stale verdict forward under a heading that claimed
+> otherwise. QA measured it: `N10b`'s `replace()` needle searched for the **pre-M5** `'{}'::jsonb`
+> call, and **M5 itself rewrote that body** to `jsonb_build_object(…)` ⇒ needle dead, N10b silently
+> degenerated into N10a, `[C11b]=ABSENT`, exit non-zero. ⭐ *A rename orphans a name-keyed verdict —
+> policies follow a rewrite by OID, **`prosrc` does not**.* **M5's own commit message cited that
+> lesson while breaking it.** QA bounded the blast radius by measurement (the other 13 needles still
+> matched), so the write seam's proofs survived.
+> **Structural fix, harness-wide, not just N10b:** every mutation now runs through a guarded `mut()`
+> — **a `replace()` matching nothing RAISES** (*"orphaned by a body rewrite — fix the needle against
+> the LIVE catalog"*) — and the verdict line now **prints its own HEAD**, because *a matrix verdict
+> is citable only with the commit it was measured at*.
+>
+> **MAJOR-2 — a false coverage claim standing over correctly-deleted proofs.** `u1-mutation-audit.sh`
+> asserted the deleted injections were matrix-covered by N10a/N10b/N11; the matrix contained **no
+> C10a, no C11d, no D4a — zero of four**, and only C11d carries ③TWIN's polarity (C10a reads as the
+> *source* coordinator, the wrong side). Closed by **N14a** (gate narrowed to source-only ⇒ **C11d
+> red while C10a stays GREEN**, with must-stay-green patterns so the polarity is *measured*, not
+> prose) and **N14b** (door welded shut). Comments now claim only what is measured; retirement pins
+> (D4a, 325-t4) are recorded as a **different category**, no longer counted as mutation coverage.
+>
+> **MAJOR-3 → PO ruling: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16**), which must
+> cover both widening and narrowing. `add_referral_shared_item` checks referral-**source** authority
+> but never `can_read_case` / `can_read_document`, so a **recused** coordinator can freeze a case's
+> PHI documents into a referral — QA demonstrated it live in a rolled-back txn (`can_read_case=false`
+> **and** `can_read_referral_phi=true` for the same user+case). ⚠ **The gap stands, behind a flag
+> that will eventually be turned on** — filed as **FUP-DM4-RECUSAL** and named in Phase 19's scope.
+> Not P0 (flag ships OFF). D4 reasoned about this seam for the D15 *clearance* plane and never
+> considered the *case-capability* plane.
+>
+> **Two records corrected by QA — both were mine, both reported to the PO as fact:**
+> 1. **Census delta resolved: neither figure reproduces.** The exact recorded definition yields
+>    **141** at HEAD (144 allowing `proretset`, 145 including `app`); DM4 removed one member ⇒ **142
+>    pre-DM4**. I had reported 150 vs a recorded 146 as "unexplained growth" — *the discrepancy was
+>    in the recording, not the population.*
+> 2. **N10a is NOT two independent locks.** `app._audit_access_authorized`'s `referral.viewed` arm
+>    **IS `can_read_referral_phi`** — **one predicate applied twice**. Same observable behaviour,
+>    far less security value: one predicate wrong breaks both checks. I recorded the engineer's
+>    reassuring reading without probing the second guard's predicate.
+>
+> **Still owed:** QA **r2** → step 4 human → step 5 Record (PROGRESS rotation · `docs/backend-state.md`
+> · **graphify refresh, outstanding since the DM0–DM3 merge**).
 
 > ## ✅ GATE STEP 2 (Test pass) — **GREEN, LEAD-RUN** 2026-08-14 @ `5ac8d849`
 >
@@ -693,6 +738,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans **TS spec files only** (180 files, 0 findings); the **~6152 pgTAP assertions are entirely unscanned**. Live specimen found + lead-confirmed in a **PHI-boundary suite**: `197` §4.1's `-> 0 ->> field IS NULL` passes on an **empty array**, asserting nothing. DM4 fixes only its own diff + adds a positive control; a repo-wide sweep is its own audit and must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-DM5-STORAGE-ORPHANS** — a DB reset wipes `storage.objects` but **NOT the bytes**, and the Storage API lists *from* that table, so orphans are invisible to it too. Lead-reproduced: **0 metadata rows vs 663 files / 16.5 MB, 162 of them PHI-tier**. **Blocks DM5 step 3** — its "prove empty via the API then delete the bucket" would prove emptiness against a truncated table and report success while PHI bytes persist. DM5 must enumerate at the **backend layer**. ⚠ remote behaviour is an INFERENCE, unverified — lead/backend
+- 🟠 **FUP-DM4-RECUSAL** — `add_referral_shared_item` checks referral-**source** authority but never `can_read_case` / `can_read_document`, so a **RECUSED** coordinator can freeze a case's PHI documents into a referral, around the ADR-0072/ETH·E1 exclusion perimeter. **QA-demonstrated live** (rolled-back txn: `can_read_case=false` **and** `can_read_referral_phi=true`, same user + case). **PO ruling 2026-08-14: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16** — must cover widening *and* narrowing). ⚠ **The gap STANDS behind a flag that will eventually be ON**; not P0 only because `documents_wave_c` ships OFF. Name it in Phase 19's scope — lead/PO/backend
 - 🟡 **FUP-DM4-PRODROW** — the 1 dangling frozen-snapshot PRODUCTION row + the 3 unreferenced controlled-doc objects: reconcile at the push/deploy step, NOT during DM4 (PO ruling R2). ⚠ **Amended same day: a REMOTE reset is available (no active users), which may close this outright** — but must NOT delete DM4's M3/M4 guards, which are correct independent of deploy strategy. 🔶 Open sub-question for **DM5**: a DB reset wipes `storage.objects` metadata but maybe not the BYTES — an emptiness proof from a truncated table is not an emptiness proof — lead/backend
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff — lead/tester
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
