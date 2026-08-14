@@ -8,6 +8,30 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+
+Filed 2026-08-14 at DM4 open, as the recorded half of **PO ruling R2**.
+
+The parent plan's DM4 step 2 requires that "the 1 dangling frozen production row is reconciled
+(re-freeze or explicit tombstone)". **DM4 does not do this.** At phase open, `main` sat **136
+commits ahead of `origin/main`** with nothing pushed and no `db push` — reconciling production
+then would move the DB ahead of the code that understands it, while the standing PO directive
+still forbids pushes.
+
+**What DM4 DOES owe:** build and prove the reconciliation path **locally**, so that the
+production step is an execution, not a design exercise.
+
+**What is deferred here**, from the 2026-08-11 production census (⚠ **stale by design — re-census
+before acting, never act on these figures**): 45 objects / ~0.5 MB · `attachments*` EMPTY ·
+**4 dangling attachment rows** · **3 controlled-doc objects unreferenced** · **1 dangling frozen
+referral path**. Note DM3's own scope carried a related discrepancy — prod had **3 objects but 0
+version rows** — with the standing instruction to *reconcile or quarantine explicitly, never
+invent success*. The same instruction binds here.
+
+⛔ **Do not query or mutate the linked project to close this while the no-push directive stands.**
+Closing it requires: the DM stack pushed, `db push` run, a fresh census, then an explicit
+re-freeze-or-tombstone decision per row, recorded.
+
 ### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
 
 Filed 2026-08-13 during DM3. Every one of the five gates in `npm run lint` was added **after**
