@@ -96,68 +96,56 @@ alter table public.securable_resources
   );
 
 -- -----------------------------------------------------------------------------
--- Self-verification, FROM THE CATALOG — "file and DB agree" is not "the file
--- works", so this block executes at apply time and fails the migration loudly.
--- It asserts the coupling in both directions rather than the presence of a
--- string in a constraint definition.
+-- Self-verification at apply time — STRUCTURAL ONLY, and the reason why is a
+-- finding worth keeping.
+--
+-- ⭐ THIS BLOCK ORIGINALLY INSERTED PROBE ROWS to prove both tenant-shape
+-- directions behaviourally. It passed `supabase migration up` (which runs
+-- against an already-seeded database) and was then **FALSIFIED BY A FRESH
+-- RESET**: migrations run BEFORE `seed.sql`, so `public.organizations`,
+-- `public.hospitals` and `public.commissions` are all EMPTY here, and
+-- `securable_resources`' three FKs make ANY probe insert impossible. The
+-- migration aborted the reset with its own `raise`.
+--
+-- ⚠ So the `migration up` green was a FALSE POSITIVE — the exact shape this
+-- phase already paid for once at `…000120`: **"file and DB agree" is not "the
+-- file works", and an assertion that has never executed in the real pre-state
+-- is unproven no matter how green it looks.** The lesson generalizes past
+-- migration text: NO migration in this repo can assert tenancy-dependent
+-- BEHAVIOUR, because there is no tenancy yet when it runs.
+--
+-- The split that follows from that: this block asserts what is true at apply
+-- time (both coupled CHECKs exist and both enumerate the new type — the
+-- half-widening catcher, the same shape as pgTAP 330 DM3·R2b), and the four
+-- BEHAVIOURAL cases live in pgTAP 342 block S3a, which runs against the seed.
 -- -----------------------------------------------------------------------------
 do $$
 declare
-  v_org uuid;
-  v_hospital uuid;
-  v_commission uuid;
-  v_probe uuid := gen_random_uuid();
-  v_rejected boolean;
+  v_named int;
 begin
-  -- Both CHECKs must name the new type. `pg_get_constraintdef` is structure
-  -- here, not free text: it is Postgres's own rendering of the parsed node.
+  -- `pg_get_constraintdef` is Postgres's own rendering of the PARSED node, not
+  -- the file's text, so this survives a reformat of this file. It is still a
+  -- substring test and is therefore deliberately NOT the whole assurance — it
+  -- catches a half-widening; 342 S3a proves the shapes discriminate.
+  select count(*) into v_named
+    from pg_constraint
+   where conrelid = 'public.securable_resources'::regclass
+     and conname in ('securable_resources_type_check',
+                     'securable_resources_tenant_shape')
+     and pg_get_constraintdef(oid) like '%form_response%';
+  if v_named <> 2 then
+    raise exception
+      'DM5 S3 M1: form_response is named by % of the 2 coupled CHECKs (half-widening)', v_named;
+  end if;
+
+  -- Shape B must still be present and must still be the ONLY relaxed shape:
+  -- exactly one disjunct mentions capa_action, and it is not this migration's.
   if (select count(*) from pg_constraint
        where conrelid = 'public.securable_resources'::regclass
-         and conname in ('securable_resources_type_check',
-                         'securable_resources_tenant_shape')
-         and pg_get_constraintdef(oid) like '%form_response%') <> 2 then
-    raise exception 'DM5 S3 M1: form_response missing from one of the two coupled CHECKs';
+         and conname = 'securable_resources_tenant_shape'
+         and pg_get_constraintdef(oid) like '%capa_action%') <> 1 then
+    raise exception 'DM5 S3 M1: tenant_shape lost the D14 capa_action shape';
   end if;
-
-  select c.organization_id, c.hospital_id, c.id
-    into v_org, v_hospital, v_commission
-  from public.commissions c limit 1;
-  if v_commission is null then
-    raise exception 'DM5 S3 M1: no commission available to verify the tenant shape';
-  end if;
-
-  -- (a) fully tenanted → ACCEPTED.
-  insert into public.securable_resources
-    (id, resource_type, organization_id, hospital_id, commission_id)
-  values (v_probe, 'form_response', v_org, v_hospital, v_commission);
-
-  -- (b) commission-less → REJECTED. Shape A must not have been relaxed.
-  v_rejected := false;
-  begin
-    insert into public.securable_resources
-      (id, resource_type, organization_id, hospital_id, commission_id)
-    values (gen_random_uuid(), 'form_response', v_org, v_hospital, null);
-  exception when check_violation then
-    v_rejected := true;
-  end;
-  if not v_rejected then
-    raise exception 'DM5 S3 M1: a commission-less form_response was ACCEPTED — shape A is a hole';
-  end if;
-
-  -- (c) capa_action without a hospital → still REJECTED (shape B intact).
-  v_rejected := false;
-  begin
-    insert into public.securable_resources
-      (id, resource_type, organization_id, hospital_id, commission_id)
-    values (gen_random_uuid(), 'capa_action', v_org, null, null);
-  exception when check_violation then
-    v_rejected := true;
-  end;
-  if not v_rejected then
-    raise exception 'DM5 S3 M1: a hospital-less capa_action was ACCEPTED — shape B is a hole';
-  end if;
-
-  delete from public.securable_resources where id = v_probe;
 end;
 $$;
 
