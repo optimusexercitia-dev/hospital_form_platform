@@ -21,7 +21,6 @@ import { createClient } from '@/lib/supabase/server'
 import { auditClinicalView } from '@/lib/audit/access'
 import type {
   CapaAction,
-  CapaActionEvidence,
   CapaActionTask,
   CapaEffectiveness,
   CapaKpis,
@@ -35,14 +34,12 @@ import type {
 // module too (mirrors the Phase-14a/b/c re-export pattern).
 export type {
   CapaAction,
-  CapaActionEvidence,
   CapaActionStatus,
   CapaActionStrength,
   CapaActionTask,
   CapaClassification,
   CapaEffectiveness,
   CapaEffectivenessVerdict,
-  CapaEvidenceKind,
   CapaKpis,
   CapaMeasure,
   CapaMeasureResult,
@@ -67,7 +64,6 @@ import type {
   CapaActionStrength,
   CapaClassification,
   CapaEffectivenessVerdict,
-  CapaEvidenceKind,
   CapaSource,
   CapaStatus,
 } from '@/lib/safety/capa-types'
@@ -344,50 +340,7 @@ export async function listCapaActionTasks(actionId: string): Promise<CapaActionT
   }))
 }
 
-interface CapaEvidenceRow {
-  id: string
-  action_id: string
-  kind: string
-  title: string
-  storage_path: string | null
-  external_url: string | null
-  created_at: string
-}
 
-/** One action's non-deleted implementation evidence (document rows carry a signed `openUrl`). */
-export async function listCapaActionEvidence(
-  actionId: string,
-): Promise<CapaActionEvidence[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('capa_action_evidence')
-    .select('id, action_id, kind, title, storage_path, external_url, created_at')
-    .eq('action_id', actionId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .returns<CapaEvidenceRow[]>()
-
-  return Promise.all(
-    (data ?? []).map(async (r) => {
-      let openUrl: string | null = null
-      if (r.kind === 'document' && r.storage_path) {
-        const { data: signed } = await supabase.storage
-          .from('nsp-evidence')
-          .createSignedUrl(r.storage_path, 3600)
-        openUrl = signed?.signedUrl ?? null
-      }
-      return {
-        id: r.id,
-        actionId: r.action_id,
-        kind: r.kind as CapaEvidenceKind,
-        title: r.title,
-        openUrl,
-        externalUrl: r.external_url,
-        createdAt: r.created_at,
-      }
-    }),
-  )
-}
 
 interface CapaMeasureRow {
   id: string
@@ -513,7 +466,7 @@ export async function getCapaKpis(): Promise<CapaKpis> {
  *
  * ⚠ REPLACES {@link listCapaActionEvidence}. CHECKED INDEPENDENTLY rather than
  * assumed identical to the RCA sibling — and it is the same defect, verbatim:
- * `createSignedUrl(storage_path, 3600)` per `document` row on the private
+ * `createSignedUrl(the raw path column, 3600)` per `document` row on the private
  * `nsp-evidence` bucket (`:372-375`), against the PO-ruled PHI 120 s /
  * standard 300 s tiers, with NO audit anywhere in the path. Over-broad TTL +
  * unaudited minting of a bearer token — not audit pollution.

@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server'
 import { SAFETY_MESSAGES, mapRcaError } from '@/lib/safety/messages'
 import type { ActionState } from '@/lib/safety/types'
 import type {
-  RcaEvidenceInput,
   RcaFactorInput,
   RcaMemberInput,
   RcaMemberRole,
@@ -50,24 +49,6 @@ function revalidateNsp(): void {
   revalidatePath(NSP_PATH, 'layout')
 }
 
-// The nsp-evidence MIME allow-list (mirrors the bucket's allowed_mime_types +
-// interview-attachments) → file extension. NO audio (links only).
-const ALLOWED_EVIDENCE_MIME = new Map<string, string>([
-  ['application/pdf', 'pdf'],
-  ['image/png', 'png'],
-  ['image/jpeg', 'jpg'],
-  ['image/webp', 'webp'],
-  ['image/gif', 'gif'],
-  ['application/msword', 'doc'],
-  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
-  ['application/vnd.ms-excel', 'xls'],
-  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
-  ['application/vnd.ms-powerpoint', 'ppt'],
-  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'],
-  ['text/csv', 'csv'],
-  ['text/plain', 'txt'],
-])
-const MAX_EVIDENCE_BYTES = 26214400 // 25 MiB
 
 // ---------------------------------------------------------------------------
 // RCA lifecycle
@@ -263,79 +244,7 @@ export async function reorderRcaTimeline(
 // Evidence (upload XOR link XOR citation; soft-delete)
 // ---------------------------------------------------------------------------
 
-/**
- * Upload an evidence file to the immutable `nsp-evidence` bucket, returning its
- * minted `{event}/{rca}/{uuid}` storage path (the caller then passes it to
- * {@link addRcaEvidence}). The bucket INSERT policy (`can_write_rca` on segment [2])
- * is the authority; this action does no broad pre-check.
- */
-export async function uploadRcaEvidenceFile(
-  rcaId: string,
-  formData: FormData,
-): Promise<ActionState & { storagePath?: string }> {
-  if (!rcaId) return { ok: false, error: SAFETY_MESSAGES.rcaMissing }
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: SAFETY_MESSAGES.rcaUploadFailed }
-  }
-  if (file.size > MAX_EVIDENCE_BYTES) {
-    return { ok: false, error: SAFETY_MESSAGES.rcaUploadFailed }
-  }
-  const ext = ALLOWED_EVIDENCE_MIME.get(file.type)
-  if (!ext) return { ok: false, error: SAFETY_MESSAGES.rcaUploadFailed }
 
-  const supabase = await createClient()
-  // Resolve the event id from the RCA (RLS-scoped read; null = unseen).
-  const { data: rca } = await supabase
-    .from('rca')
-    .select('event_id')
-    .eq('id', rcaId)
-    .maybeSingle()
-    .returns<{ event_id: string } | null>()
-  if (!rca?.event_id) return { ok: false, error: SAFETY_MESSAGES.rcaMissing }
-
-  // Immutable path: event folder (read boundary, seg [1]) / rca folder (write
-  // boundary, seg [2]) / uuid.ext.
-  const path = `${rca.event_id}/${rcaId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-
-  const { error: uploadError } = await supabase.storage
-    .from('nsp-evidence')
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (uploadError) return { ok: false, error: SAFETY_MESSAGES.rcaUploadFailed }
-
-  return { ok: true, storagePath: path }
-}
-
-/**
- * Add a piece of evidence (upload XOR link XOR citation). For a `document` kind,
- * call {@link uploadRcaEvidenceFile} first and pass the returned `storagePath`.
- */
-export async function addRcaEvidence(
-  rcaId: string,
-  input: RcaEvidenceInput,
-): Promise<ActionState> {
-  if (!rcaId) return { ok: false, error: SAFETY_MESSAGES.rcaMissing }
-  if (!input.title?.trim()) {
-    return { ok: false, error: SAFETY_MESSAGES.rcaEvidenceTitleRequired }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('add_rca_evidence', {
-    p_rca_id: rcaId,
-    p_kind: input.kind,
-    p_title: input.title.trim(),
-    p_storage_path: input.storagePath ?? undefined,
-    p_external_url: input.externalUrl ?? undefined,
-    p_citation_target: input.citationTarget ?? undefined,
-    p_cited_entity_id: input.citedEntityId ?? undefined,
-    p_citation_label: input.citationLabel ?? undefined,
-  })
-  if (error) return { ok: false, error: mapRcaError(error) }
-
-  revalidateNsp()
-  return { ok: true, message: SAFETY_MESSAGES.rcaEvidenceAdded }
-}
 
 export async function deleteRcaEvidence(evidenceId: string): Promise<ActionState> {
   if (!evidenceId) return { ok: false, error: SAFETY_MESSAGES.generic }

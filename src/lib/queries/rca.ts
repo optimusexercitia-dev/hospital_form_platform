@@ -23,7 +23,6 @@ import type {
   AssignableUser,
   Rca,
   RcaCitationTarget,
-  RcaEvidence,
   RcaFactor,
   RcaMember,
   RcaRootCause,
@@ -35,12 +34,9 @@ import type {
 // query module too (mirrors the Phase-14a/14b re-export pattern).
 export type {
   AssignableUser,
-  CitationTarget,
-  EvidenceKind,
   FishboneCategory,
   Rca,
   RcaCitationTarget,
-  RcaEvidence,
   RcaFactor,
   RcaMember,
   RcaMemberRole,
@@ -62,8 +58,6 @@ export {
 } from '@/lib/safety/rca-types'
 
 import type {
-  CitationTarget,
-  EvidenceKind,
   FishboneCategory,
   RcaMemberRole,
   RcaStatus,
@@ -227,77 +221,7 @@ export async function listRcaTimeline(rcaId: string): Promise<RcaTimelineEntry[]
   }))
 }
 
-interface RcaEvidenceRow {
-  id: string
-  rca_id: string
-  kind: string
-  title: string
-  storage_path: string | null
-  external_url: string | null
-  cited_interview_id: string | null
-  cited_meeting_id: string | null
-  cited_document_id: string | null
-  citation_label: string | null
-  created_at: string
-}
 
-/**
- * The non-deleted evidence rows. `document`-kind rows carry a signed `openUrl`
- * (resolved here from the `nsp-evidence` storage path); `link`/`citation` rows
- * carry their respective fields. Newest-first.
- */
-export async function listRcaEvidence(rcaId: string): Promise<RcaEvidence[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('rca_evidence')
-    .select(
-      'id, rca_id, kind, title, storage_path, external_url, cited_interview_id, ' +
-        'cited_meeting_id, cited_document_id, citation_label, created_at',
-    )
-    .eq('rca_id', rcaId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .returns<RcaEvidenceRow[]>()
-
-  const rows = data ?? []
-  return Promise.all(
-    rows.map(async (r) => {
-      let openUrl: string | null = null
-      if (r.kind === 'document' && r.storage_path) {
-        const { data: signed } = await supabase.storage
-          .from('nsp-evidence')
-          .createSignedUrl(r.storage_path, 3600)
-        openUrl = signed?.signedUrl ?? null
-      }
-      let citationTarget: CitationTarget | null = null
-      let citedEntityId: string | null = null
-      if (r.kind === 'citation') {
-        if (r.cited_interview_id) {
-          citationTarget = 'interview'
-          citedEntityId = r.cited_interview_id
-        } else if (r.cited_meeting_id) {
-          citationTarget = 'meeting'
-          citedEntityId = r.cited_meeting_id
-        } else if (r.cited_document_id) {
-          citationTarget = 'document'
-          citedEntityId = r.cited_document_id
-        }
-      }
-      return {
-        id: r.id,
-        rcaId: r.rca_id,
-        kind: r.kind as EvidenceKind,
-        title: r.title,
-        openUrl,
-        externalUrl: r.external_url,
-        citationTarget,
-        citationLabel: r.citation_label,
-        citedEntityId,
-        createdAt: r.created_at,
-      }
-    }),
-  )
-}
 
 interface RcaFactorRow {
   id: string
@@ -550,7 +474,7 @@ export async function listRcaCitationTargets(
  *
  * ⚠ REPLACES {@link listRcaEvidence}, which closes an OVER-BROAD-TTL +
  * UNAUDITED-MINTING hole (verified by reading the path, not inferred):
- *   - it mints `createSignedUrl(storage_path, 3600)` for EVERY `document` row
+ *   - it mints `createSignedUrl(the raw path column, 3600)` for EVERY `document` row
  *     at list time, on `nsp-evidence` — a private bucket holding patient-safety
  *     evidence;
  *   - 3600 s against the PO-ruled tiers of PHI 120 s / standard 300 s

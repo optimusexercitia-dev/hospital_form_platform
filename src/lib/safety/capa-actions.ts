@@ -9,7 +9,6 @@ import type {
   CapaActionInput,
   CapaActionStatus,
   CapaEffectivenessInput,
-  CapaEvidenceInput,
   CapaMeasureInput,
   CapaMeasureResultInput,
   OpenCapaInput,
@@ -42,23 +41,6 @@ function revalidateNsp(): void {
   revalidatePath(NSP_PATH, 'layout')
 }
 
-// The nsp-evidence MIME allow-list (mirrors the bucket) → file extension. NO audio.
-const ALLOWED_EVIDENCE_MIME = new Map<string, string>([
-  ['application/pdf', 'pdf'],
-  ['image/png', 'png'],
-  ['image/jpeg', 'jpg'],
-  ['image/webp', 'webp'],
-  ['image/gif', 'gif'],
-  ['application/msword', 'doc'],
-  ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx'],
-  ['application/vnd.ms-excel', 'xls'],
-  ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'],
-  ['application/vnd.ms-powerpoint', 'ppt'],
-  ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx'],
-  ['text/csv', 'csv'],
-  ['text/plain', 'txt'],
-])
-const MAX_EVIDENCE_BYTES = 26214400 // 25 MiB
 
 // ---------------------------------------------------------------------------
 // Plan lifecycle
@@ -285,64 +267,6 @@ export async function removeCapaActionTask(taskId: string): Promise<ActionState>
 
   revalidateNsp()
   return { ok: true, message: SAFETY_MESSAGES.capaTaskSaved }
-}
-
-// ---------------------------------------------------------------------------
-// Implementation evidence (upload XOR link; soft-delete) — reuses nsp-evidence
-// ---------------------------------------------------------------------------
-
-/**
- * Upload an implementation-evidence file to `nsp-evidence` (CAPA path
- * `{capa_id}/{action_id}/{uuid}`), returning its minted storage path. The bucket
- * INSERT policy (PQS-write on a CAPA-shaped path) is the authority.
- */
-export async function uploadCapaEvidenceFile(
-  capaId: string,
-  actionId: string,
-  formData: FormData,
-): Promise<ActionState & { storagePath?: string }> {
-  if (!capaId || !actionId) return { ok: false, error: SAFETY_MESSAGES.capaMissing }
-  const file = formData.get('file')
-  if (!(file instanceof File) || file.size === 0 || file.size > MAX_EVIDENCE_BYTES) {
-    return { ok: false, error: SAFETY_MESSAGES.capaUploadFailed }
-  }
-  const ext = ALLOWED_EVIDENCE_MIME.get(file.type)
-  if (!ext) return { ok: false, error: SAFETY_MESSAGES.capaUploadFailed }
-
-  const supabase = await createClient()
-  // Immutable path: capa folder (read boundary, seg [1]) / action folder / uuid.ext.
-  const path = `${capaId}/${actionId}/${crypto.randomUUID()}.${ext}`
-  const bytes = new Uint8Array(await file.arrayBuffer())
-
-  const { error: uploadError } = await supabase.storage
-    .from('nsp-evidence')
-    .upload(path, bytes, { contentType: file.type, upsert: false })
-  if (uploadError) return { ok: false, error: SAFETY_MESSAGES.capaUploadFailed }
-
-  return { ok: true, storagePath: path }
-}
-
-export async function addCapaActionEvidence(
-  actionId: string,
-  input: CapaEvidenceInput,
-): Promise<ActionState> {
-  if (!actionId) return { ok: false, error: SAFETY_MESSAGES.generic }
-  if (!input.title?.trim()) {
-    return { ok: false, error: SAFETY_MESSAGES.capaEvidenceTitleRequired }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('add_capa_action_evidence', {
-    p_action_id: actionId,
-    p_kind: input.kind,
-    p_title: input.title.trim(),
-    p_storage_path: input.storagePath ?? undefined,
-    p_external_url: input.externalUrl ?? undefined,
-  })
-  if (error) return { ok: false, error: mapCapaError(error) }
-
-  revalidateNsp()
-  return { ok: true, message: SAFETY_MESSAGES.capaEvidenceAdded }
 }
 
 export async function deleteCapaActionEvidence(evidenceId: string): Promise<ActionState> {
