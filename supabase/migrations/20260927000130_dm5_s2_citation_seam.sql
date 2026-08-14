@@ -174,11 +174,12 @@ $function$;
 do $$
 declare
   v_acl text;
+  v_raw aclitem[];
   v_cfg text;
   v_secdef boolean;
 begin
-  select array_to_string(p.proacl, ','), array_to_string(p.proconfig, ','), p.prosecdef
-    into v_acl, v_cfg, v_secdef
+  select array_to_string(p.proacl, ','), array_to_string(p.proconfig, ','), p.prosecdef, p.proacl
+    into v_acl, v_cfg, v_secdef, v_raw
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'add_rca_evidence';
 
@@ -193,7 +194,10 @@ begin
     raise exception 'add_rca_evidence lost the authenticated EXECUTE grant (got %)', v_acl;
   end if;
   -- GAINED-grant direction (the blindness 20260927000120 shipped)
-  if v_acl like '%=X/postgres%' and v_acl not like '%postgres=X/postgres%' then
+  -- ⚠ PUBLIC is an aclitem with an EMPTY GRANTEE — a substring test cannot see
+  -- it. See 20260927000120 for the full note; aclexplode grantee = 0 IS PUBLIC.
+  if exists (select 1 from aclexplode(v_raw) a
+              where a.grantee = 0 and a.privilege_type = 'EXECUTE') then
     raise exception 'add_rca_evidence gained a PUBLIC EXECUTE grant (got %)', v_acl;
   end if;
   if has_function_privilege('anon',

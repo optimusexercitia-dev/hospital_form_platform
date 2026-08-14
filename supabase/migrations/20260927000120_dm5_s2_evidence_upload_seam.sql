@@ -333,7 +333,7 @@ declare
 begin
   for r in
     select p.proname, p.prosecdef, array_to_string(p.proconfig, ',') cfg,
-           array_to_string(p.proacl, ',') acl,
+           array_to_string(p.proacl, ',') acl, p.proacl raw_acl,
            pg_get_function_identity_arguments(p.oid) args
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
@@ -359,8 +359,16 @@ begin
     end if;
     -- The OTHER direction: a rebuild does not only LOSE grants, it GAINS the
     -- PUBLIC default. Asserted explicitly so this can never regress silently.
-    if r.acl like '%=X/postgres%' then
-      raise exception '%: PUBLIC still holds EXECUTE after the rebuild (got %)', r.proname, r.acl;
+    -- ⚠ PUBLIC is an aclitem with an EMPTY GRANTEE, so a SUBSTRING test cannot
+    -- see it: `acl like '%=X/postgres%'` also matches `postgres=X/postgres`.
+    -- The first version of this fired on EVERY function (false positive, broke
+    -- the reset); the variant guarded with `and not like '%postgres=X/postgres%'`
+    -- could NEVER fire while postgres held a grant (vacuous, false negative).
+    -- Both wrong, in opposite directions. aclexplode gives the structural answer:
+    -- grantee = 0 IS PUBLIC.
+    if exists (select 1 from aclexplode(r.raw_acl) a
+                where a.grantee = 0 and a.privilege_type = 'EXECUTE') then
+      raise exception '%: PUBLIC holds EXECUTE after the rebuild (got %)', r.proname, r.acl;
     end if;
   end loop;
 

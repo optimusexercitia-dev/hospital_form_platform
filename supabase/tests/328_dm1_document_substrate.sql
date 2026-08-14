@@ -691,16 +691,22 @@ select is(
 -- artifact — this is the coordinated edit K9 exists to force. wave_c/d remain
 -- OFF (DM4/DM5 unbuilt); production defaults stay OFF for ALL of them until each
 -- wave's gate closes with human approval.
+-- ⚠ AMENDED BY DM5 (2026-08-14). Wave D shipped, so `documents_wave_d` moved
+-- from the OFF set to the ON set in seed.sql — the LAST of the five. K9b now
+-- asserts the OFF set is EMPTY rather than naming a flag, so it cannot go stale
+-- again; K9c counts all five. These two and that seed line are ONE artifact.
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_wave_d')
+    where key in ('documents_foundation','documents_wave_a','documents_wave_b',
+                  'documents_wave_c','documents_wave_d')
       and enabled = false),
-  1, 'K9b the still-unbuilt wave flag (d) is OFF');
+  0, 'K9b no DM wave flag remains OFF in the seeded local/E2E state (wave_d joined at DM5)');
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_foundation','documents_wave_a','documents_wave_b','documents_wave_c')
+    where key in ('documents_foundation','documents_wave_a','documents_wave_b',
+                  'documents_wave_c','documents_wave_d')
       and enabled = true),
-  4, 'K9c foundation + waves a/b/c are ON in the seeded local/E2E state (seed-forced; prod default OFF — wave_c joined at DM4, the coordinated K9 edit)');
+  5, 'K9c foundation + waves a/b/c/d are ON in the seeded local/E2E state (seed-forced; prod default OFF — wave_d joined at DM5, the coordinated K9 edit)');
 
 -- =============================================================================
 -- K10 — the D11 read-verb registry, post-S2 (FINDING 1a, DM2): attachment.read

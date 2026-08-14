@@ -2265,9 +2265,15 @@ update app.feature_flags set enabled = true where key = 'controlled_docs';
 -- add_referral_shared_item — both at their FIRST residue-producing step,
 -- home/arm-scoped (pgTAP 340 B9/C7 pin the scope). Production stays OFF until
 -- the DM4 gate closes with human approval. K9b/K9c move in the same edit.
+-- DM5 Wave D joins (2026-08-14; ADR 0120 D10). `documents_wave_d` gates the
+-- `document` ARM of add_rca_evidence / add_capa_action_evidence — the first
+-- residue-producing step, arm-scoped, never blanket (a blanket assert would
+-- kill the link/citation arms; pgTAP 341 F-block pins the scope). Production
+-- stays OFF until the DM5 gate closes with human approval. K9b/K9c move in the
+-- same edit — that coupling is what K9 exists to force.
 update app.feature_flags set enabled = true
  where key in ('documents_foundation', 'documents_wave_a', 'documents_wave_b',
-               'documents_wave_c');
+               'documents_wave_c', 'documents_wave_d');
 -- The legacy `attachments` flag key: seed-retired (DM2, plan item 5 — no flip,
 -- no reference; local matches production at false). The KEY ROW itself + the
 -- FeatureFlags interface entry are retired by the S5 choreography MIGRATION
