@@ -44,6 +44,59 @@ DM1 dropped it deliberately (ADR 0116 D1). **DM4 creates that constraint; it doe
   Filed as **FUP-DM4-PRODROW** so the obligation cannot be lost. Do **not** query or mutate the
   linked project during this phase.
 
+### 1b. Rulings added 2026-08-14 after backend's catalog pass (findings 4 + 5)
+
+Both seams were found by `backend` reading the catalog, and **neither is named in ADR 0114, the
+parent plan, or the step-0 verification**. An ADR is owed before the migrations land.
+
+- **R3 — the freeze REFUSES an enforcing label.** A source document carrying
+  `legal_privileged` / `credentialing_sensitive` **cannot** be frozen into a referral
+  (**SQLSTATE `HC0DC`**). Freezing copies bytes to another committee through a corridor with **no
+  clearance plane**, so allowing it would launder the D15 ceiling. Matches the DM3 precedent —
+  ethics letters home on `case`, never `controlled_document`, for exactly this reason.
+  **Accepted cost:** a privileged document cannot be shared without a deliberate de-label first.
+- **R4 — the freeze WINS over a later label.** A label applied to the source **after** a snapshot
+  is frozen does **not** retract committee B's access. The snapshot records a disclosure that
+  actually happened; retro-hiding it would contradict that record and make an immutable snapshot
+  effectively mutable. **The label governs future freezes only.**
+- **R5 — soft-delete keeps, disposal kills.** Source **soft-delete does NOT** close the snapshot
+  (B's disclosure record survives A's retraction). **D10 PHI disposal DOES** fail it closed —
+  LGPD erasure (ADR 0035) outranks the disclosure record. `dispose_referral_phi` tombstones the
+  referral-side binding.
+
+### 1c. Corrections to §0 from backend's catalog pass — §0 was WRONG twice
+
+⚠ Both were caught only by reading the catalog, continuing this program's unbroken record.
+
+1. **Mechanism error.** `authenticated` holds **full table-level DML** (`arwdDxtm`) on **both**
+   `referral_shared_item` and `referral_reply_attachment`; each has **SELECT-only** policies. The
+   write-deny is therefore *RLS-with-no-write-policy*, **not** an absent grant — so **one future
+   write policy silently opens the table**. Pin zero-write-policies as an assertion.
+2. **`referral_shared_item_shape` is load-bearing and unnamed anywhere.** It requires
+   `kind='document' ⇒ frozen_storage_path IS NOT NULL`, which **rejects every version-bound row**.
+   Without replacing it the phase fails on its first freeze.
+3. `get_referral_detail` is a third unnamed load-bearing surface — the detail pages read shared
+   items and reply attachments through its JSON projection; S1/S3 must extend it.
+
+⚠ **A production claim was mislabeled "verified" and the lead's own suggested inference was
+WRONG.** The reasoning "the document arm has failed closed since DM1, so no row can carry a value"
+**does not reach production, because DM1 was never pushed** — prod still runs the pre-DM1 arm whose
+column had an FK into the old `attachments` table, and the 4 dangling attachment rows persist
+there. So prod's `source_document_id` may be **non-NULL right now**, and a bare
+`ADD CONSTRAINT … REFERENCES documents(id)` would fail **23503 mid-push**. M3 therefore nulls any
+dead pointer *before* the constraint — semantics, not repair: the sibling FK
+`source_narrative_id → case_narratives` is **`ON DELETE SET NULL`** (lead-verified), and the only
+possible referent (`attachments`) is dropped earlier in the same chain. **Production is an
+assumption the design must survive being wrong about**, re-verified at `db push` under
+FUP-DM4-PRODROW — never a fact.
+
+⚠ **M4's `DROP TABLE referral_reply_attachment` is a KNOWN, INTENDED future-push failure mode.**
+A row-count guard **raises**. It passes every local reset (0 rows) and will **hard-fail `db push`**
+if production holds any row — which could only mean a writer nobody modeled (the RPC was always
+reachable by a direct PostgREST caller). Failing loudly beats destroying silently. Deliberate
+contrast with M3: **M3 nulls silently** because the correct semantics are fully determined;
+**M4 raises loudly** because rows there would *falsify an assumption*. Disposition: FUP-DM4-PRODROW.
+
 ## 2. Slices, owners, file ownership
 
 **Migration window: `20260926000100`+** (highest registered = `20260925001100`; disk 386 ==
