@@ -801,30 +801,24 @@ test('DM4-AUDIT-1: opening the shared-document snapshot audits exactly once per 
   }
 
   // ⭐ THE EXIT CRITERION, precisely: the file-open event must be
-  // DISTINGUISHABLE from the content-view event by a STRUCTURED field, not
-  // only by which of two free-text pt-BR sentences `log_audit_access` was
-  // handed (Rule 10 — user-facing prose is translatable/reworded and is a
-  // brittle place to pin a security-audit exit criterion). The last row in
-  // this sequence is the click's FILE open; the row before it (from the page
-  // navigation) is the CONTENT view.
+  // DISTINGUISHABLE from the content-view event by a STRUCTURED field, never
+  // by which of two free-text pt-BR sentences `log_audit_access` was handed
+  // (Rule 10 — user-facing prose is translatable/reworded and is a brittle
+  // place to pin a security-audit exit criterion).
   //
-  // ⛔ THIS MUST FAIL TODAY. `get_referral_detail` and
-  // `open_referral_snapshot_document` both call
-  // `log_audit_access('referral.viewed', 'referral', <id>, <commission>, '<pt-BR
-  // sentence>', '{}'::jsonb)` — identical action, entity, and EMPTY metadata;
-  // only the sentence differs. Routed to `backend` as a real finding (not a
-  // spec fault) to add a structured discriminator to the open door's metadata;
-  // this assertion is deliberately left RED until that lands, and must be
-  // re-pointed at whatever field backend designates — never at the sentence.
+  // Fixed by backend (migration `20260926000500_dm4_audit_kind_discriminator`,
+  // found while diagnosing this exact test): both writers now stamp a
+  // structured `kind` — `get_referral_detail` → `content_view`,
+  // `open_referral_snapshot_document` → `document_open` — and the OPEN row
+  // additionally carries `shared_item_id` / `document_version_id`, so the
+  // trail records WHICH document was opened, not merely that one was. Anchor
+  // on `kind`, never on the sentence.
   const fileOpenRow = rows[rows.length - 1]
   const contentViewRow = rows[rows.length - 2]
-  expect(
-    JSON.stringify(fileOpenRow.metadata ?? {}),
-    'a FILE OPEN and a CONTENT VIEW must be structurally distinguishable in metadata — ' +
-      'currently BOTH write empty metadata ({}), so a PHI-access-audit consumer cannot ' +
-      'tell "the file was downloaded" from "the referral page was viewed" without parsing ' +
-      'translatable pt-BR prose (Rule 10). See PROGRESS.md Bug Log.',
-  ).not.toEqual(JSON.stringify(contentViewRow.metadata ?? {}))
+  expect(contentViewRow.metadata?.kind, 'the page CONTENT view is stamped content_view').toBe('content_view')
+  expect(fileOpenRow.metadata?.kind, 'the FILE open is stamped document_open').toBe('document_open')
+  expect(fileOpenRow.metadata?.shared_item_id, 'the open row records WHICH shared item').toBe(item.id)
+  expect(fileOpenRow.metadata?.document_version_id, 'and WHICH document version').toBeTruthy()
 
   // Catalog-level: the retired bucket path serves NOTHING — because the doors
   // and policies that used to serve it are GONE, not merely unreachable.
