@@ -1,13 +1,14 @@
 import type { CSSProperties } from "react";
-import { EyeOff, MessageSquareReply, Paperclip } from "lucide-react";
+import { MessageSquareReply, Paperclip } from "lucide-react";
 
 import type { ReferralReply, ReferralReplyDocument } from "@/lib/referrals/types";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { AVAILABILITY_PRESENTATION } from "@/components/documents/document-labels";
 import { ReferralOpenFileButton } from "./referral-open-file-button";
+import { ReferralInertFileRow } from "./referral-inert-file-row";
 import {
   REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL,
-  REFERRAL_ATTACHMENT_NO_ACCESS_LABEL,
+  REFERRAL_FILE_NO_ACCESS_LABEL,
 } from "./referral-document-labels";
 import { ReferralTypeChip } from "./referral-chips";
 import { formatDateTime, formatFileSize } from "./format";
@@ -151,11 +152,12 @@ function ReplyDocumentRow({ document: doc }: { document: ReferralReplyDocument }
   if (doc.availability !== "available") {
     const presentation = AVAILABILITY_PRESENTATION[doc.availability];
     return (
-      <InertRow
+      <ReferralInertFileRow
         title={doc.title}
         size={size}
         badge={presentation.label}
         detail={presentation.detail}
+        reason="state"
       />
     );
   }
@@ -164,12 +166,12 @@ function ReplyDocumentRow({ document: doc }: { document: ReferralReplyDocument }
   // and never discovered by calling the door.
   if (!doc.canOpen) {
     return (
-      <InertRow
+      <ReferralInertFileRow
         title={doc.title}
         size={size}
-        badge={REFERRAL_ATTACHMENT_NO_ACCESS_LABEL}
+        badge={REFERRAL_FILE_NO_ACCESS_LABEL}
         detail={REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL}
-        locked
+        reason="authorization"
       />
     );
   }
@@ -196,41 +198,3 @@ function ReplyDocumentRow({ document: doc }: { document: ReferralReplyDocument }
   );
 }
 
-/**
- * A listed-but-not-openable attachment. Deliberately NOT a disabled button: a
- * greyed "Baixar" reads as "try again later", which is true for `pending` and
- * false for every other state here — most of all for `canOpen: false`, which is
- * a settled authorization answer, not a transient one. A badge plus a sentence
- * says which it is (icon + text + shape, never colour alone).
- */
-function InertRow({
-  title,
-  size,
-  badge,
-  detail,
-  locked = false,
-}: {
-  title: string;
-  size: string;
-  badge: string;
-  detail: string;
-  /** Authorization refusal rather than a file-state one — swaps the icon. */
-  locked?: boolean;
-}) {
-  const Icon = locked ? EyeOff : Paperclip;
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
-      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-medium">{title}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
-            {badge}
-          </span>
-          {size && <span className="text-xs tabular-nums">{size}</span>}
-        </span>
-        <span className="text-xs text-pretty">{detail}</span>
-      </span>
-    </div>
-  );
-}

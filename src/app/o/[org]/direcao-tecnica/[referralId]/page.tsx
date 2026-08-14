@@ -257,13 +257,19 @@ export default async function TechnicalDirectionReferralPage({
           canManageTarget
           canManageSource={false}
           replyOutcomes={replyOutcomes}
-          // DM4 (R1). The Diretor Técnico IS the target side of a DT referral, so
-          // the upload control is offered here on the same terms as a target
-          // coordinator's. Whether `can_write_document`'s referral arm admits the
-          // DT office is the DATABASE's call, not this page's — a refusal comes
-          // back as `not_target_coordinator` / `forbidden` and renders as a pt-BR
-          // sentence. Hiding the control would be UI-as-security (Rule 1) and
-          // would silently remove a capability the office may well hold.
+          // DM4 (R1). The DT office IS admitted — catalog-verified, not assumed:
+          // `app.can_manage_referral_target` carries an explicit
+          // `target_type = 'technical_director' AND is_technical_director_of_for(
+          // target_hospital_id, uid)` arm, which is the same predicate the retired
+          // RPC gated on. Correct by parity; no arm changed for DM4.
+          //
+          // ⚠ That arm is TARGET-TYPE-SCOPED: it admits the DT only on a
+          // `technical_director` referral, never on a commission-targeted one. This
+          // page cannot render for the latter — the guard above `notFound()`s on
+          // `detail.targetType !== "technical_director"` before any of this runs —
+          // so the scoping is enforced by that guard, not restated here. If that
+          // guard is ever loosened, this control must be re-gated with it.
+          // The `accepted`/`in_review` status window is the RPC's, as always.
           replyAttachments={{
             enabled: documentsWaveC,
             documents: replyDocuments,

@@ -102,36 +102,53 @@ export const REFERRAL_UPLOAD_TERMINAL_MESSAGE =
   "A verificação do arquivo falhou. Envie o arquivo novamente.";
 
 /**
- * Why a reply attachment is listed but cannot be opened by THIS reader.
- *
- * This is the two-tier referral asymmetry made visible (plan §3.2): row
- * visibility is `can_read_referral_metadata` (broad), byte access is
+ * Why a referral FILE is listed but cannot be opened by THIS reader — the
+ * two-tier asymmetry made visible (plan §3.2). Row visibility is
+ * `can_read_referral_metadata` (broad); byte access is
  * `can_read_referral_phi` (narrow). A metadata-tier reader legitimately sees
  * the row with `canOpen: false`, and the row must stay VISIBLE — hiding it
- * would misrepresent the referral's contents to someone entitled to know an
- * attachment exists. The sentence explains the gap instead of implying a
- * transient failure.
+ * would misrepresent the referral's contents to someone entitled to know the
+ * file exists. The sentences explain the gap rather than implying a transient
+ * failure.
+ *
+ * Both lanes use the SAME badge; only the noun differs, because "anexo" and
+ * "documento compartilhado" are different objects to the reader.
  */
 export const REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL =
   "Você pode ver que este anexo existe, mas não tem autorização para abrir arquivos com dados de paciente deste encaminhamento.";
 
-/** Short badge text paired with {@link REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL}
- * (icon + text + shape — never colour alone). */
-export const REFERRAL_ATTACHMENT_NO_ACCESS_LABEL = "Sem permissão para abrir";
+/** The snapshot lane's twin of {@link REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL}. */
+export const REFERRAL_SNAPSHOT_NO_ACCESS_DETAIL =
+  "Você pode ver que este documento foi compartilhado, mas não tem autorização para abrir arquivos com dados de paciente deste encaminhamento.";
+
+/** Short badge text paired with either no-access sentence (icon + text + shape
+ * — never colour alone). Named for the FILE, not the attachment: both lanes
+ * render it, and a constant whose name claims one lane while two consume it is
+ * the stale-assertion class. */
+export const REFERRAL_FILE_NO_ACCESS_LABEL = "Sem permissão para abrir";
 
 /**
- * Why a frozen snapshot DOCUMENT cannot be opened, per cause. Snapshot rows
- * carry no server-computed `canOpen` (see `referral-snapshot.tsx`), so these
- * three are the only non-servable states the projection lets the UI state
- * truthfully before a click.
+ * Why a frozen snapshot DOCUMENT cannot be opened, for the two causes that are
+ * NOT "this reader may not".
+ *
+ * ⚠ There is deliberately no `unbound` entry any more. A `document` row with a
+ * null `frozenDocumentVersionId` used to render "não está disponível", which
+ * was WRONG once the projection began PHI-gating that field: for a
+ * metadata-tier reader it is null even when a binding exists, so the copy
+ * reported a missing file to a reader whose only real problem was tier. The
+ * field is no longer an affordance input at all — `canOpen` is — and the copy
+ * that read it is removed rather than parked, because dead copy nobody can
+ * reach is how the last one survived long enough to be believed.
  */
 export const SNAPSHOT_UNAVAILABLE_DETAIL = {
-  /** `frozenTombstonedAt` set — reconciled away or its PHI disposed (plan R5). */
+  /** `frozenTombstonedAt` set — reconciled away or its PHI disposed (plan R5).
+   * Metadata-visible governance state BY DESIGN, so it is stated to every
+   * reader, including one the byte door would refuse anyway. */
   tombstoned:
     "O arquivo deste documento foi eliminado. O registro do compartilhamento permanece para auditoria.",
-  /** A `document` row with no `frozenDocumentVersionId` — legacy/never bound. */
-  unbound: "Este documento não está disponível para abertura.",
-  /** The `documents_wave_c` flag is off for this tenant. */
+  /** The `documents_wave_c` flag is off for this tenant. Distinct from
+   * `canOpen: false` — the flag is not in `canOpen`'s definition, so with it
+   * off a `canOpen: true` item still has no working door. */
   moduleOff:
     "A abertura de documentos compartilhados ainda não está disponível nesta comissão.",
 } as const;

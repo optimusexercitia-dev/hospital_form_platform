@@ -3,7 +3,12 @@ import { FileText, Paperclip } from "lucide-react";
 import type { SharedItem } from "@/lib/referrals/types";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { ReferralOpenFileButton } from "./referral-open-file-button";
-import { SNAPSHOT_UNAVAILABLE_DETAIL } from "./referral-document-labels";
+import { ReferralInertFileRow } from "./referral-inert-file-row";
+import {
+  REFERRAL_FILE_NO_ACCESS_LABEL,
+  REFERRAL_SNAPSHOT_NO_ACCESS_DETAIL,
+  SNAPSHOT_UNAVAILABLE_DETAIL,
+} from "./referral-document-labels";
 import { formatFileSize } from "./format";
 
 /**
@@ -31,27 +36,36 @@ import { formatFileSize } from "./format";
  * at CLICK time, which re-gates `can_read_referral_phi`, audits, and only then
  * signs.
  *
- * ## What this component may and may not decide
+ * ## What decides the affordance — and what must never touch it
  *
- * A `document` row carries no server-computed `canOpen` — the contract gives
- * one only for reply attachments (`ReferralReplyDocument.canOpen`). So the
- * three non-servable states below are the ONLY refusals stated before a click,
- * and each is read from a projection FACT, never derived from a permission
- * guess:
+ * `SharedItem.canOpen` is SERVER-computed and door-equivalent: *"the audited
+ * door would serve this item to this caller"* (PHI tier AND binding present AND
+ * not tombstoned AND source servable). The open control renders iff it is true.
+ * This component never re-derives it and never calls the door to discover it.
  *
- * - `frozenTombstonedAt` set → reconciled away or PHI-disposed (plan R5). The
- *   governance record survives without its bytes; that is the design.
- * - `frozenDocumentVersionId` null on a `document` row → never bound / legacy.
- *   The contract states this explicitly: "`null` on a `document` row means the
- *   snapshot is NOT servable — render the 'indisponível' state, never an open
- *   affordance."
- * - `documents_wave_c` off → the door answers `module_disabled` for everyone,
- *   so an open control here would be an affordance guaranteed to fail.
+ * ⚠ **`frozenDocumentVersionId` is NOT an affordance input**, and an earlier
+ * draft of this file used it as one. That was wrong the moment the projection
+ * began PHI-gating the field: a metadata-tier reader receives `null` even when
+ * a binding exists, so "no byte handle" is overloaded across THREE different
+ * meanings — withheld-by-tier, tombstoned, never-bound. Branching on it turned
+ * a tier gap into "este documento não está disponível", which is a false
+ * statement to that reader, and it was precisely the client-side authorization
+ * derivation `canOpen` exists to prevent.
  *
- * Any OTHER refusal — including an unentitled metadata-tier reader — is the
- * door's answer to a real click, surfaced as a pt-BR sentence under the row.
- * The row itself always renders: a reader entitled to the referral's metadata is
- * entitled to know the document was shared.
+ * Two states are still resolved locally, and both are read from a projection
+ * FACT rather than inferred:
+ *
+ * - `frozenTombstonedAt` → reconciled away or PHI-disposed (plan R5).
+ *   Metadata-visible governance state BY DESIGN, so it is named to every
+ *   reader. `canOpen` is already false here; this only picks better copy than
+ *   "sem permissão" for a file that is gone for everyone.
+ * - `documents_wave_c` off → the flag is NOT part of `canOpen`'s definition, so
+ *   a `canOpen: true` item can still have no working door. Checked separately
+ *   rather than assumed folded in.
+ *
+ * Everything else is the door's answer to a real click, surfaced as pt-BR under
+ * the row. The row itself ALWAYS renders: a reader entitled to the referral's
+ * metadata is entitled to know the document was shared.
  */
 export function ReferralSnapshot({
   sharedItems,
@@ -145,14 +159,27 @@ export function ReferralSnapshot({
               const title = d.frozenTitle ?? "Documento";
               const size = formatFileSize(d.frozenSizeBytes);
 
-              // Resolved in cause order, most specific first. `null` = servable
-              // as far as this projection can tell; the door decides the rest.
+              // Cause order, most specific first. Only the LAST branch is an
+              // authorization answer; the first two are true for every reader,
+              // so they must not be worded as "sem permissão".
               const blocked = d.frozenTombstonedAt
-                ? SNAPSHOT_UNAVAILABLE_DETAIL.tombstoned
+                ? {
+                    badge: "Indisponível",
+                    detail: SNAPSHOT_UNAVAILABLE_DETAIL.tombstoned,
+                    reason: "state" as const,
+                  }
                 : !canOpenDocuments
-                  ? SNAPSHOT_UNAVAILABLE_DETAIL.moduleOff
-                  : !d.frozenDocumentVersionId
-                    ? SNAPSHOT_UNAVAILABLE_DETAIL.unbound
+                  ? {
+                      badge: "Indisponível",
+                      detail: SNAPSHOT_UNAVAILABLE_DETAIL.moduleOff,
+                      reason: "state" as const,
+                    }
+                  : !d.canOpen
+                    ? {
+                        badge: REFERRAL_FILE_NO_ACCESS_LABEL,
+                        detail: REFERRAL_SNAPSHOT_NO_ACCESS_DETAIL,
+                        reason: "authorization" as const,
+                      }
                     : null;
 
               return (
@@ -178,20 +205,17 @@ export function ReferralSnapshot({
                       </span>
                     </ReferralOpenFileButton>
                   ) : (
-                    /* Visible, explained, non-interactive. The row is never
-                       hidden — its presence is part of the referral's record. */
-                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
-                      <Paperclip
-                        aria-hidden="true"
-                        className="mt-0.5 size-4 shrink-0"
-                      />
-                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate text-sm font-medium">
-                          {title}
-                        </span>
-                        <span className="text-xs text-pretty">{blocked}</span>
-                      </span>
-                    </div>
+                    /* Visible, explained, non-interactive — the SAME component
+                       the reply lane uses, so the two are identical on screen
+                       and the next fix lands in one place. The row is never
+                       hidden: its presence is part of the referral's record. */
+                    <ReferralInertFileRow
+                      title={title}
+                      size={size}
+                      badge={blocked.badge}
+                      detail={blocked.detail}
+                      reason={blocked.reason}
+                    />
                   )}
                 </li>
               );
