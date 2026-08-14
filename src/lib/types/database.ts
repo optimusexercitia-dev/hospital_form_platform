@@ -7558,6 +7558,8 @@ export type Database = {
           commission_id: string
           contains_phi: boolean
           content_hash: string
+          document_id: string
+          document_version_id: string
           id: string
           minted_at: string
           minted_by: string
@@ -7568,7 +7570,6 @@ export type Database = {
           source_id: string
           source_kind: string
           status: string
-          storage_path: string
           superseded_at: string | null
           template_key: string
           template_version: number
@@ -7579,6 +7580,8 @@ export type Database = {
           commission_id: string
           contains_phi?: boolean
           content_hash: string
+          document_id: string
+          document_version_id: string
           id?: string
           minted_at?: string
           minted_by: string
@@ -7589,7 +7592,6 @@ export type Database = {
           source_id: string
           source_kind: string
           status?: string
-          storage_path: string
           superseded_at?: string | null
           template_key: string
           template_version: number
@@ -7600,6 +7602,8 @@ export type Database = {
           commission_id?: string
           contains_phi?: boolean
           content_hash?: string
+          document_id?: string
+          document_version_id?: string
           id?: string
           minted_at?: string
           minted_by?: string
@@ -7610,7 +7614,6 @@ export type Database = {
           source_id?: string
           source_kind?: string
           status?: string
-          storage_path?: string
           superseded_at?: string | null
           template_key?: string
           template_version?: number
@@ -7626,6 +7629,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "printed_documents_document_fk"
+            columns: ["document_id"]
+            isOneToOne: true
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "printed_documents_minted_by_fkey"
             columns: ["minted_by"]
             isOneToOne: false
@@ -7638,6 +7648,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printed_documents_version_document_fk"
+            columns: ["document_version_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "document_versions"
+            referencedColumns: ["id", "document_id"]
           },
         ]
       }
@@ -13389,6 +13406,7 @@ export type Database = {
         Returns: {
           contains_phi: boolean
           status: string
+          storage_bucket: string
           storage_path: string
         }[]
       }

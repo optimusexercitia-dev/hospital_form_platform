@@ -21,7 +21,12 @@
 -- =============================================================================
 
 begin;
-select plan(73);
+-- 73 -> 75 (DM5·S3): +t51b (the column-list-grant mechanism, re-pointed at a
+-- column that still exists, so retiring storage_path does not silently drop
+-- this file's only coverage of it) and +t53pre (the non-vacuity control proving
+-- the print objects EXIST to be hidden — without it t53 counts zero rows in an
+-- empty bucket and passes while proving nothing).
+select plan(75);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -77,14 +82,100 @@ grant select on tk to authenticated;
 
 -- Upload-before-mint (D5 / Amendment B): objects pre-exist for every id that a
 -- mint may legitimately reach — INCLUDING the denial probes (see header).
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc1 || '.pdf' from d;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc2 || '.pdf' from d;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc3 || '.pdf' from d;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc5 || '.pdf' from d;
+--
+-- ⭐ FORCED FIXTURE CHANGE 1/2 (DM5·S3, migrations 20260927000310/000340) — the
+-- COORDINATE MOVED and `metadata` became load-bearing.
+--   was: ('printed-documents', 'std/<id>.pdf'), no metadata
+--   now: ('documents-standard', 'printed/<id>.pdf'), metadata REQUIRED
+-- Three things changed under this fixture, none of them optional:
+--   • ADR 0120 D7 retires `printed_documents.storage_path`; a print's bytes are
+--     a `file_objects` row, and `file_objects_bucket_check` admits ONLY
+--     `documents-standard` / `documents-phi`.
+--   • The tier stopped being a path prefix and became the BUCKET, CHECK-pinned
+--     by `file_objects_bucket_from_tier` — so the path lost its phi/std branch.
+--   • The mint now derives `size_bytes` / `mime_type` from
+--     `storage.objects.metadata` (the ADR 0114 D9 server-derived rule the
+--     `finalize_document_upload` corridor already follows), so an object with a
+--     NULL metadata is indistinguishable from an absent one and the mint
+--     refuses HC0D3.
+-- ⭐ The pre-move coordinate was an UNINTENDED POSITIVE CONTROL: left
+-- unmodified, this fixture made every mint raise exactly HC0D3, which is direct
+-- evidence that the coordinate really moved AND that the door really checks it.
+-- Recorded because it is stronger than a control I would have had to construct.
+-- Paths come from `app.printed_rendition_storage_path` — the single SQL
+-- derivation authority — never re-spelled here, so this fixture cannot drift
+-- from the door.
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc1),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc2),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc3),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc5),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+
+-- ⛔ WHY EXPECTED COORDINATES ARE PRECOMPUTED HERE, AS THE OWNER.
+-- `app.printed_rendition_storage_bucket/_path` are the single SQL derivation
+-- authority, and migration 20260927000310 REVOKES their EXECUTE from PUBLIC and
+-- grants it to `postgres` only — ADR 0120 D12 requires the resolver family to be
+-- unreachable by a client, enforced at the ACL and not merely by `app` not being
+-- exposed. So an assertion running under `set local role authenticated` CANNOT
+-- call them ("permission denied for function"), which is the correct behaviour
+-- and was observed. Expected values are therefore computed once here and read
+-- from a temp table inside the authenticated blocks.
+-- ⛔ The alternative — granting EXECUTE to `authenticated` — is rejected: that
+-- would be a testability requirement driving an authorization change, which is
+-- exactly what ADR 0120 D12 refused when it declined to widen the print arm.
+create temp table xp on commit drop as
+  select app.printed_rendition_storage_bucket(false) as std_bucket,
+         app.printed_rendition_storage_path(doc2) as p2
+  from d;
+grant select on xp to authenticated;
+
+-- ⭐ DM5·S3 — WHY THIS HELPER EXISTS, AND IT IS THE MOST IMPORTANT NOTE IN THIS
+-- FILE. Migration 20260927000310 adds `trg_guard_printed_document_binding`, a
+-- BEFORE INSERT trigger on `printed_documents` that refuses (HC0DA) unless the
+-- row's bound `printed_pdf` file object sits at the canonically derived
+-- coordinate. That trigger is a NEW SIBLING LOCK standing in front of every
+-- direct-DML probe in this file, and BEFORE INSERT triggers fire BEFORE
+-- constraint checks.
+--   So t73, which exists to prove that `printed_documents_one_active` is
+--   TABLE-LEVEL law, would now be answered by the TRIGGER instead of by the
+--   partial unique index — passing while measuring the wrong lock. That is the
+--   sibling-lock vacuity this phase keeps paying for, and it would have been
+--   invisible: the test still goes green, with the right SQLSTATE nowhere in
+--   sight but a plausible one in its place.
+-- This helper builds a VALID D11 chain so a probe can reach the lock it actually
+-- names. `p_path` exists so t65 can present a deliberately WRONG coordinate and
+-- reach the trigger ON PURPOSE.
+create or replace function pg_temp.pd_chain(
+  p_pd_id uuid, p_home uuid, p_uid uuid, p_path text default null
+) returns uuid                                  -- the document_version_id
+language plpgsql as $fn$
+declare
+  v_doc uuid := gen_random_uuid();
+  v_ver uuid := gen_random_uuid();
+  v_file uuid := gen_random_uuid();
+begin
+  insert into public.documents
+    (id, home_resource_id, title, kind, status, created_by)
+  values (v_doc, p_home, 'Documento emitido (PDF)', 'printed_rendition', 'active', p_uid);
+  insert into public.document_versions (id, document_id, version_number, created_by)
+  values (v_ver, v_doc, 1, p_uid);
+  insert into public.file_objects
+    (id, storage_bucket, storage_path, sensitivity_tier, created_by)
+  values (v_file, 'documents-standard',
+          coalesce(p_path, app.printed_rendition_storage_path(p_pd_id)),
+          'standard', p_uid);
+  insert into public.document_version_files
+    (document_version_id, file_object_id, rendition_kind)
+  values (v_ver, v_file, 'printed_pdf');
+  return v_ver;
+end $fn$;
 
 -- ── 0. Preconditions (asserted, never assumed — §7.3) ────────────────────────
 select is(app.feature_enabled('document_printing'), true,
@@ -134,10 +225,26 @@ select lives_ok(
       (select tok1 from tk), (select sc1 from tk), false)$$,
   't11 mint: the creator mints his own submitted response (mint right = source visibility, NOT admin-gated)');
 reset role;
+-- ⭐ FORCED FIXTURE CHANGE 2/2 (DM5·S3) — `printed_documents.storage_path` is
+-- RETIRED (ADR 0120 D7), so this assertion's subject moved into the substrate.
+-- The CLAIM is preserved verbatim — "the row is active and the coordinate is
+-- DERIVED from the row identity" — and is now stronger, because reaching the
+-- coordinate at all requires the whole D11 chain to exist:
+--   printed_documents -> document_version_id -> document_version_files
+--   (rendition_kind = 'printed_pdf') -> file_objects
+-- The expected value comes from `app.printed_rendition_storage_*`, the single
+-- derivation authority the door itself uses, so this cannot drift from it.
 select is(
-  (select status || '|' || storage_path from public.printed_documents where id = (select doc1 from d)),
-  'active|std/' || (select doc1 from d) || '.pdf',
-  't12 mint: row is active and the storage path is DERIVED from the row identity (deviation 2)');
+  (select p.status || '|' || f.storage_bucket || '|' || f.storage_path
+     from public.printed_documents p
+     join public.document_version_files vf
+       on vf.document_version_id = p.document_version_id
+      and vf.rendition_kind = 'printed_pdf'
+     join public.file_objects f on f.id = vf.file_object_id
+    where p.id = (select doc1 from d)),
+  'active|' || app.printed_rendition_storage_bucket(false) || '|'
+            || app.printed_rendition_storage_path((select doc1 from d)),
+  't12 mint: row is active and the coordinate is DERIVED from the row identity, reached through the D11 chain (deviation 2)');
 select is((select minted_by from public.printed_documents where id = (select doc1 from d)),
   (select st_x from k),
   't13 mint: minted_by records the actor');
@@ -218,11 +325,15 @@ select is((select status from public.printed_documents where id = (select doc2 f
 -- ── 5. Open door (serve = authorize + audit; no row, no audit on deny) ───────
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
+-- FORCED (DM5·S3): the door's return shape gained `storage_bucket` — bytes now
+-- live in the two CHECK-constrained document buckets, so the route needs the
+-- bucket as well as the key (ADR 0120 D7/D12). Both halves come from the single
+-- derivation authority, never re-spelled here.
 select is(
-  (select storage_path || '|' || status || '|' || contains_phi::text
+  (select storage_bucket || '|' || storage_path || '|' || status || '|' || contains_phi::text
      from public.open_printed_document((select doc2 from d))),
-  'std/' || (select doc2 from d) || '.pdf|active|false',
-  't25 open: an authorized caller gets (path, status, contains_phi) — the route''s streaming triple');
+  (select std_bucket from xp) || '|' || (select p2 from xp) || '|active|false',
+  't25 open: an authorized caller gets (bucket, path, status, contains_phi) — the route''s streaming tuple');
 reset role;
 select is((select count(*)::int from public.audit_log
             where action = 'document.downloaded' and entity_id = (select doc2 from d)
@@ -369,13 +480,19 @@ select throws_ok(
   't47 template coherence: a template key foreign to the kind is refused');
 
 -- ── 9. Write path: no authenticated DML exists (reader-non-writer probe) ─────
+-- FORCED (DM5·S3): `storage_path` retired, the two coordinate columns added
+-- (both NOT NULL). The uuids below are deliberately arbitrary — the privilege
+-- check fires before any FK or trigger, which is exactly the claim: a READER
+-- never reaches the row at all.
 select throws_ok(
   $$insert into public.printed_documents
       (id, source_kind, source_id, commission_id, template_key, template_version,
-       content_hash, storage_path, verification_token, verification_short_code, minted_by)
+       content_hash, verification_token, verification_short_code, minted_by,
+       document_id, document_version_id)
     select '00000000-0000-0000-0000-00000000daaa', 'form_response', r.resp_sub, k.comm_x,
        'form_response', 1, repeat('99', 32),
-       'std/00000000-0000-0000-0000-00000000daaa.pdf', 'RAWDMLTOKENAAAABBBBCCCCDDDDEEEEFFFF', 'GHJKLM2345', k.st_x
+       'RAWDMLTOKENAAAABBBBCCCCDDDDEEEEFFFF', 'GHJKLM2345', k.st_x,
+       gen_random_uuid(), gen_random_uuid()
     from r, k$$,
   '42501', null,
   't48 write path: direct INSERT by a READER is impossible — writes only through the doors (Rule 1)');
@@ -389,22 +506,61 @@ select throws_ok(
   't50 write path: direct DELETE denied (mints are permanent, D15)');
 
 -- ── 10. Column-list GRANT exclusions ─────────────────────────────────────────
+-- ⭐ FORCED, AND DELIBERATELY NOT DELETED (DM5·S3). t51 used to prove that
+-- `storage_path` was withheld from `authenticated` by the column-list GRANT.
+-- ADR 0120 D7 RETIRES the column, so the original assertion cannot run — and
+-- simply removing it would silently drop this file's only coverage of the
+-- column-list-grant MECHANISM, which is a live trap (`case_referral`: a new
+-- column without its own GRANT reads 42501). So it splits:
+--   t51  — the D7 retirement itself, asserted from the catalog. The old claim
+--          is now true STRUCTURALLY rather than by privilege, which is stronger:
+--          a column that does not exist cannot be under-withheld.
+--   t51b — the mechanism, re-pointed at a column that IS still withheld, so the
+--          grant list keeps being exercised by something.
+select is(
+  (select count(*)::int from pg_attribute
+    where attrelid = 'public.printed_documents'::regclass
+      and attname = 'storage_path' and not attisdropped),
+  0,
+  't51 D7: printed_documents.storage_path is RETIRED — the coordinate lives on file_objects, so it cannot be leaked from here at all');
 select throws_ok(
-  $$select storage_path from public.printed_documents where id = (select doc2 from d)$$,
+  $$select revoked_by from public.printed_documents where id = (select doc2 from d)$$,
   '42501', null,
-  't51 GRANT: storage_path is not readable by authenticated (D8 — bytes only through the route; Note C: defense-in-depth)');
+  't51b GRANT: the column-list grant still withholds — revoked_by is not readable by authenticated (the mechanism t51 used to cover)');
 select throws_ok(
   $$select verification_token from public.printed_documents where id = (select doc2 from d)$$,
   '42501', null,
   't52 GRANT: verification_token is not bulk-readable (resolution only through the lookup door)');
 
 -- ── 11. Storage isolation: zero policies = zero reach ────────────────────────
-select is((select count(*)::int from storage.objects where bucket_id = 'printed-documents'), 0,
-  't53 storage: authenticated reads ZERO printed-documents objects (bucket has NO policies — service-role only, D8)');
+-- ⭐⭐ FORCED, AND IT WAS ABOUT TO GO SILENTLY VACUOUS (DM5·S3). t53 proved that
+-- `authenticated` reads ZERO of the print objects — and its power came entirely
+-- from the fact that FOUR such objects existed in `printed-documents` when it
+-- ran. This slice moves those objects to `documents-standard`, so the ORIGINAL
+-- assertion would still have passed — counting zero rows in a bucket that is now
+-- genuinely empty. Green, unchanged, and proving nothing whatsoever.
+-- Re-pointed at the bucket the bytes actually occupy now. `documents-standard`
+-- carries NO SELECT policy (ADR 0114 D8 reserves it for the single audited
+-- door), so the claim is the same claim, against a populated bucket.
+-- The non-vacuity is pinned rather than asserted in prose: t53pre proves the
+-- rows are THERE to be hidden.
+-- The control must run as the OWNER: `authenticated` is precisely the role that
+-- cannot see these rows, so asserting their existence from inside the
+-- authenticated block would count 0 and "prove" the opposite.
+reset role;
+select is((select count(*)::int from storage.objects
+            where bucket_id = 'documents-standard'
+              and name like 'printed/%'), 4,
+  't53pre [CONTROL] the print objects EXIST in documents-standard — so t53 has something to fail to see');
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from storage.objects
+            where bucket_id = 'documents-standard'), 0,
+  't53 storage: authenticated reads ZERO documents-standard objects (bucket has NO SELECT policy — the single audited door only, D8)');
 select throws_ok(
-  $$insert into storage.objects (bucket_id, name) values ('printed-documents', 'std/smuggled.pdf')$$,
+  $$insert into storage.objects (bucket_id, name) values ('documents-standard', 'printed/smuggled.pdf')$$,
   '42501', null,
-  't54 storage: authenticated cannot upload into the bucket (mint uploads are server-side only)');
+  't54 storage: authenticated cannot upload to an arbitrary key — the INSERT policy admits only a RESERVED path (app.storage_upload_reserved)');
 
 -- ── 12. verification_lookups: single-door log, no client ACL ─────────────────
 select throws_ok(
@@ -450,18 +606,35 @@ select is(
   'revoked',
   't64 lookup: verification reports the CURRENT state of a revoked print (ink does not update; the QR does)');
 
--- ── 14. The derived-path CHECK holds against ANY writer ──────────────────────
+-- ── 14. The derived-coordinate pin holds against ANY writer ──────────────────
+-- ⭐ FORCED, AND THE PIN IS REPLACED RATHER THAN RETIRED (DM5·S3). ADR 0120 D7
+-- drops the CHECK `pd_storage_path_derived` along with the column it read, so
+-- migration 20260927000310 restores the SAME strength as
+-- `trg_guard_printed_document_binding` — a BEFORE INSERT trigger comparing the
+-- bound file object's (bucket, path) against the canonical derivation. The
+-- assertion's subject moved from a CHECK to a trigger; its CLAIM is unchanged
+-- and its SQLSTATE moves 23514 -> HC0DA accordingly.
+-- The fixture presents a chain whose file object sits at a FOREIGN coordinate —
+-- the direct analogue of the old "I point at someone else's bytes" path.
+create temp table ch65 on commit drop as
+  select pg_temp.pd_chain(
+    '00000000-0000-0000-0000-00000000dbbb'::uuid,
+    (select resp_sub from r), (select st_x from k),
+    'printed/i-point-at-someone-elses-bytes.pdf') as ver;
 select throws_ok(
   $$insert into public.printed_documents
       (id, source_kind, source_id, commission_id, template_key, template_version,
-       content_hash, storage_path, verification_token, verification_short_code, minted_by)
+       content_hash, verification_token, verification_short_code, minted_by,
+       document_id, document_version_id)
     select '00000000-0000-0000-0000-00000000dbbb', 'form_response', r.resp_sub, k.comm_x,
        'form_response', 1, repeat('77', 32),
-       'std/i-point-at-someone-elses-bytes.pdf',
-       'CHECKTOKENAAAABBBBCCCCDDDDEEEEFFFF', 'HJKLMN2345', k.st_x
+       'CHECKTOKENAAAABBBBCCCCDDDDEEEEFFFF', 'HJKLMN2345', k.st_x,
+       (select dv.document_id from public.document_versions dv
+         where dv.id = (select ver from ch65)),
+       (select ver from ch65)
     from r, k$$,
-  '23514', null,
-  't65 pd_storage_path_derived: even the OWNER cannot mint a row whose path is not its own identity (deviation 2, layer 2)');
+  'HC0DA', null,
+  't65 derived-coordinate pin: even the OWNER cannot mint a row whose bound bytes are not at its own derived coordinate (deviation 2, layer 2 — now a trigger, ADR 0120 D7)');
 
 -- ── 15. Flag OFF fails every door (restored after) ───────────────────────────
 update app.feature_flags set enabled = false where key = 'document_printing';
@@ -510,17 +683,33 @@ select throws_ok(
   't72 flag OFF: revoke fails with the house disabled-feature class too (QA MINOR-8a — the fourth door''s flag gate)');
 reset role;
 update app.feature_flags set enabled = true where key = 'document_printing';
+-- ⭐⭐ FORCED, AND THE REASON IS THE WHOLE POINT OF t73 (DM5·S3). This probe
+-- exists to prove the PARTIAL UNIQUE INDEX is the anchor — "not the door". The
+-- new BEFORE INSERT pin trigger (…000310) fires BEFORE constraint checks, so a
+-- probe carrying an invalid binding would now be refused by the TRIGGER with
+-- HC0DA and t73 would go green having measured a SIBLING LOCK instead of the
+-- index it names. The fixture therefore presents a VALID chain at the CORRECT
+-- derived coordinate, so the trigger passes and the index is what refuses —
+-- 23505, exactly as before. Neutralize each lock independently; a green test
+-- with a plausible-but-wrong refusal is the failure mode this file guards.
+create temp table ch73 on commit drop as
+  select pg_temp.pd_chain(
+    '00000000-0000-0000-0000-00000000dddd'::uuid,
+    (select resp_sub from r), (select sa_x from k)) as ver;
 select throws_ok(
   $$insert into public.printed_documents
       (id, source_kind, source_id, commission_id, template_key, template_version,
-       content_hash, storage_path, verification_token, verification_short_code, minted_by)
+       content_hash, verification_token, verification_short_code, minted_by,
+       document_id, document_version_id)
     select '00000000-0000-0000-0000-00000000dddd', 'form_response', r.resp_sub, k.comm_x,
        'form_response', 1, repeat('55', 32),
-       'std/00000000-0000-0000-0000-00000000dddd.pdf',
-       'DUPACTIVETOKENAAAABBBBCCCCDDDDEEEE', 'KLMNPQ2345', k.sa_x
+       'DUPACTIVETOKENAAAABBBBCCCCDDDDEEEE', 'KLMNPQ2345', k.sa_x,
+       (select dv.document_id from public.document_versions dv
+         where dv.id = (select ver from ch73)),
+       (select ver from ch73)
     from r, k$$,
   '23505', null,
-  't73 ⭐ one-active is TABLE-level law (QA MINOR-7): a second active row for the same (source, template) is impossible even for the OWNER — the partial unique index, not the door, is the anchor');
+  't73 ⭐ one-active is TABLE-level law (QA MINOR-7): a second active row for the same (source, template) is impossible even for the OWNER — the partial unique index, not the door and not the pin trigger, is the anchor');
 
 select * from finish();
 rollback;

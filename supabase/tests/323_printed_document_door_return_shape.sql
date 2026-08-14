@@ -43,8 +43,13 @@ insert into public.responses (id, form_version_id, commission_id, created_by, st
 select r.resp_sub, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r, k;
 
 -- Upload-before-mint (Amendment B): the object pre-exists at the derived path.
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc1 || '.pdf' from r;
+-- FORCED FIXTURE CHANGE (DM5·S3, migrations 20260927000310/000340): the
+-- coordinate moved to the CHECK-constrained document buckets and `metadata`
+-- became load-bearing (the mint derives size/mime from it). Path from the single
+-- SQL derivation authority, so this cannot drift from the door.
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc1),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from r;
 
 -- Door-result capture: ONE mint, ONE revoke — captured, then asserted on.
 create temp table res_mint (j jsonb) on commit drop;
@@ -77,8 +82,14 @@ reset role;
 
 select is((select j ? 'verification_token' from res_mint), false,
   't4 ⭐ mint return carries NO verification_token (the real widening — a direct PostgREST caller must not receive the public-verification credential)');
-select is((select j ?| array['storage_path', 'revoked_by', 'revoked_reason'] from res_mint), false,
-  't5 ⭐ mint return carries none of storage_path / revoked_by / revoked_reason (the other three ungranted columns)');
+-- ⭐ WIDENED, BECAUSE ONE MEMBER WENT DEAD (DM5·S3). `storage_path` is RETIRED
+-- from `printed_documents` (ADR 0120 D7), so its presence here can no longer
+-- fail — a name that cannot be found is not a test. It is KEPT (a future reader
+-- must see it was considered) and the two NEW coordinate columns are added: they
+-- are real table columns that the narrowed composite must continue to withhold.
+select is((select j ?| array['storage_path', 'revoked_by', 'revoked_reason',
+                             'document_id', 'document_version_id'] from res_mint), false,
+  't5 ⭐ mint return carries none of the ungranted/withheld columns — incl. the two NEW coordinate columns (storage_path itself is now retired, so it is a dead name kept for the record)');
 select is(
   (select (j->>'id') || '|' || (j->>'status') || '|' || (j->>'verification_short_code') from res_mint),
   (select doc1::text from r) || '|active|ABCDEF2345',
@@ -94,8 +105,9 @@ reset role;
 
 select is((select j ? 'verification_token' from res_revoke), false,
   't7 ⭐ revoke return carries NO verification_token');
-select is((select j ?| array['storage_path', 'revoked_by', 'revoked_reason'] from res_revoke), false,
-  't8 ⭐ revoke return carries none of storage_path / revoked_by / revoked_reason (the revoker supplied p_reason itself — no product information is lost)');
+select is((select j ?| array['storage_path', 'revoked_by', 'revoked_reason',
+                             'document_id', 'document_version_id'] from res_revoke), false,
+  't8 ⭐ revoke return carries none of the ungranted/withheld columns, incl. the two NEW coordinate columns (the revoker supplied p_reason itself — no product information is lost)');
 select is(
   (select (j->>'status') || '|' || (j->>'revoked_reason_class') || '|' || ((j->>'revoked_at') is not null)::text from res_revoke),
   'revoked|minted_in_error|true',

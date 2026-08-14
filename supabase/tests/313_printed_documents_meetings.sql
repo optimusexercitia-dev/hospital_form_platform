@@ -117,8 +117,14 @@ insert into public.case_participant_roles (id, organization_id, key, display_nam
 select mc.role_r, k.org_b, 'respondent_doctor', 'Médico respondente', array['professional'] from mc, k;
 insert into public.case_participants (id, case_id, participant_id, role_id)
 select mc.cp_r, cs.case_a, mc.part_r, mc.role_r from mc, cs;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'phi/' || doc_mc1 || '.pdf' from mc;
+-- FORCED FIXTURE CHANGE (DM5·S3, migrations 20260927000310/000340): the
+-- coordinate moved and `metadata` became load-bearing. ⭐ Note the phi/std split
+-- is now carried by the BUCKET, CHECK-pinned by `file_objects_bucket_from_tier`,
+-- instead of by a path prefix — so this PHI print goes to `documents-phi` while
+-- the three below go to `documents-standard`, and the path itself has no branch.
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-phi', app.printed_rendition_storage_path(doc_mc1),
+       jsonb_build_object('size', 2048, 'mimetype', 'application/pdf') from mc;
 
 -- Registry ids + credentials; objects pre-exist for EVERY id a mint may reach,
 -- including the denial probes (authority must be the only gate).
@@ -135,12 +141,33 @@ create temp table tk on commit drop as
          'NPQRST2345'::text as msc2,
          'PQRSTU2345'::text as msc3;
 grant select on tk to authenticated;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc_m1 || '.pdf' from d;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc_m2 || '.pdf' from d;
-insert into storage.objects (bucket_id, name)
-select 'printed-documents', 'std/' || doc_c1 || '.pdf' from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_m1),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_m2),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_c1),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d;
+
+-- ⛔ WHY EXPECTED COORDINATES ARE PRECOMPUTED HERE, AS THE OWNER.
+-- `app.printed_rendition_storage_bucket/_path` are the single SQL derivation
+-- authority, and migration 20260927000310 REVOKES their EXECUTE from PUBLIC and
+-- grants it to `postgres` only — ADR 0120 D12 requires the resolver family to be
+-- unreachable by a client, enforced at the ACL and not merely by `app` not being
+-- exposed. So an assertion running under `set local role authenticated` CANNOT
+-- call them ("permission denied for function"), which is the correct behaviour
+-- and was observed. Expected values are therefore computed once here and read
+-- from a temp table inside the authenticated blocks.
+-- ⛔ The alternative — granting EXECUTE to `authenticated` — is rejected: that
+-- would be a testability requirement driving an authorization change, which is
+-- exactly what ADR 0120 D12 refused when it declined to widen the print arm.
+create temp table xp on commit drop as
+  select app.printed_rendition_storage_bucket(false) as std_bucket,
+         app.printed_rendition_storage_path(doc_m2) as pm2
+  from d;
+grant select on xp to authenticated;
 
 -- ── 0. Preconditions (asserted, never assumed) ───────────────────────────────
 select is(app.feature_enabled('document_printing'), true,
@@ -196,11 +223,21 @@ select lives_ok(
       (select mtok1 from tk), (select msc1 from tk), false)$$,
   't14 mint: a commission member mints the ata of a commission_default meeting');
 reset role;
+-- FORCED (DM5·S3): `printed_documents.storage_path` is retired (ADR 0120 D7);
+-- the coordinate is reached through the D11 chain, so this assertion now also
+-- proves that chain exists. Expected value from the single derivation authority.
 select is(
-  (select status || '|' || storage_path || '|' || commission_id::text
-     from public.printed_documents where id = (select doc_m1 from d)),
-  'active|std/' || (select doc_m1 from d) || '.pdf|' || (select comm_x from k),
-  't15 mint: active, path derived, commission resolved via commission_of_meeting (per-kind CASE site 2)');
+  (select p.status || '|' || f.storage_bucket || '|' || f.storage_path || '|' || p.commission_id::text
+     from public.printed_documents p
+     join public.document_version_files vf
+       on vf.document_version_id = p.document_version_id
+      and vf.rendition_kind = 'printed_pdf'
+     join public.file_objects f on f.id = vf.file_object_id
+    where p.id = (select doc_m1 from d)),
+  'active|' || app.printed_rendition_storage_bucket(false) || '|'
+            || app.printed_rendition_storage_path((select doc_m1 from d))
+            || '|' || (select comm_x from k),
+  't15 mint: active, coordinate derived and reached through the D11 chain, commission resolved via commission_of_meeting (per-kind CASE site 2)');
 select is((select count(*)::int from public.audit_log
             where action = 'document.minted' and entity_id = (select doc_m1 from d)), 1,
   't16 audit: document.minted emitted');
@@ -256,11 +293,12 @@ select is((select count(*)::int from public.printed_documents
 -- ── 4. Open / RLS breadth / lookup on the meeting kind ───────────────────────
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
+-- FORCED (DM5·S3): the door returns `storage_bucket` too (ADR 0120 D7/D12).
 select is(
-  (select storage_path || '|' || status || '|' || contains_phi::text
+  (select storage_bucket || '|' || storage_path || '|' || status || '|' || contains_phi::text
      from public.open_printed_document((select doc_m2 from d))),
-  'std/' || (select doc_m2 from d) || '.pdf|active|false',
-  't23 open: an authorized member gets the streaming triple');
+  (select std_bucket from xp) || '|' || (select pm2 from xp) || '|active|false',
+  't23 open: an authorized member gets the streaming tuple (bucket, path, status, contains_phi)');
 reset role;
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
@@ -356,11 +394,25 @@ select lives_ok(
       'MEETTOKEN4AAAABBBBCCCCDDDDEEEEFFFF', 'QRSTUV2345', true)$$,
   't45 ⭐ A8: a masked-content ata mints with contains_phi=true (the per-kind PHI gate ACCEPTS the presence-derived label for meetings)');
 reset role;
+-- ⭐ FORCED, AND THE CLAIM GOT STRONGER (DM5·S3). t46 proved the PHI label
+-- drives the storage bifurcation, which used to be a `phi/` PATH PREFIX checked
+-- by `pd_storage_path_derived`. Under ADR 0120 D7 the bifurcation is the BUCKET,
+-- and `file_objects_bucket_from_tier` CHECK-pins bucket to tier — so the label
+-- now drives a constraint-enforced physical boundary rather than a naming
+-- convention. The assertion follows it there, and additionally pins the TIER,
+-- which is the column the CHECK actually constrains.
 select is(
-  (select contains_phi::text || '|' || storage_path
-     from public.printed_documents where id = (select doc_mc1 from mc)),
-  'true|phi/' || (select doc_mc1 from mc) || '.pdf',
-  't46 A8: the label drives the phi/ storage bifurcation (the A4 derived-path CHECK, phi arm)');
+  (select p.contains_phi::text || '|' || f.storage_bucket || '|' || f.sensitivity_tier
+           || '|' || f.storage_path
+     from public.printed_documents p
+     join public.document_version_files vf
+       on vf.document_version_id = p.document_version_id
+      and vf.rendition_kind = 'printed_pdf'
+     join public.file_objects f on f.id = vf.file_object_id
+    where p.id = (select doc_mc1 from mc)),
+  'true|' || app.printed_rendition_storage_bucket(true) || '|phi|'
+          || app.printed_rendition_storage_path((select doc_mc1 from mc)),
+  't46 A8: the label drives the storage bifurcation — now the BUCKET + tier, CHECK-pinned by file_objects_bucket_from_tier (was the phi/ path prefix)');
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.open_printed_document((select doc_mc1 from mc))), 0,
