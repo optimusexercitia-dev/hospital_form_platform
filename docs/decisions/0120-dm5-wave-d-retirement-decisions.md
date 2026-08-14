@@ -332,6 +332,36 @@ bytes.** If a print is reachable by someone who should not reach it, D18 hides t
 hole. So: **the byte door remains the whole answer** (D12's conjunction), and D18 must never be
 recorded as having narrowed anyone's access.
 
+### ⚠ AMENDMENT (2026-08-14, after implementation): the DETAIL half of D18 guards nothing reachable
+
+At S3 I extended D18 from the panel to the **document-detail projection** as well ("prints are not content
+documents, in one place"). Verified after the fact, and the extension **landed on an unreachable
+function** — the [[correct-door-that-nothing-can-reach]] shape:
+
+- `src/lib/queries/documents.ts` exports `getDocument` (the Wave-A core projection). The D18 filter went
+  there. **It has ZERO importers anywhere under `src/`** — confirmed by grep, by `tester`, then by the
+  lead independently.
+- Every `/manage/documentos/[documentId]{,/editar,/nova-versao,/revisar}` route and
+  `/o/[org]/documentos-pendentes/[documentId]` imports a **same-named** `getDocument` from
+  `src/lib/queries/controlled-documents.ts`. **Two exports, one name, and the reachable one is the other
+  one.**
+- ✅ **No behavioural gap.** The reachable `getDocument` selects `from('controlled_documents')`, and a
+  print has no `controlled_documents` row (its `documents` row is `kind='printed_rendition'`, homed on the
+  meeting/`form_response` securable). **Prints are excluded there STRUCTURALLY, by the schema, not by
+  D18.**
+
+**So the record must say that, and not the flattering version.** The detail projection is closed because
+a print is not a controlled document — a property of the data model that no future edit to a filter can
+undo, and which would survive someone deleting the `.is(…)` line. Citing D18 for it would be citing a
+filter in dead code, and would go stale the day a *reachable* detail route is mounted on the core
+projection.
+
+⚠ Two consequences worth carrying forward: **(1)** the D18 **list** half *is* reachable
+(`listDocumentsForResource`, exercised by the panel) and is the only half with real work to do; it now has
+E2E coverage with a twin proving a print would otherwise be listed. **(2)** a whole exported
+`getDocument` with no callers is a trap for the next reader — tracked as **FUP-DM5-DEAD-CORE-PROJECTION**.
+Same-name-different-module is how this hid: a grep for `getDocument` looks answered.
+
 ### The exclusion must be incapable of leaking a print — and `kind` is not trustworthy enough alone
 
 ⚠ **`documents.kind` has NO CHECK constraint** (0 constraints — that is exactly why the plan calls it

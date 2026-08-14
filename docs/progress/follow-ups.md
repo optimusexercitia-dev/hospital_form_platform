@@ -8,6 +8,32 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟡 FUP-DM5-DEAD-CORE-PROJECTION — `src/lib/queries/documents.ts`'s `getDocument` has ZERO importers, and a same-named export shadows it (owner: frontend + backend)
+
+Filed 2026-08-14 (lead) after `tester` found it and the lead re-verified by grep. **No behavioural
+defect — a legibility trap with a live cost already paid.**
+
+- `src/lib/queries/documents.ts:260` exports `getDocument` (Wave-A core `documents` projection). **Nothing
+  under `src/` imports it.**
+- `src/lib/queries/controlled-documents.ts:360` exports `getDocument` **too**, and *that* is the one all
+  five detail routes import.
+- **The cost already paid:** the lead's ADR-0120 **D18** ruling ("exclude prints from the detail projection
+  too") was implemented on the **unreachable** one. Harmless — the reachable projection selects
+  `from('controlled_documents')` and a print has no row there, so prints are excluded *structurally* — but
+  the ruling bought nothing, and the record briefly implied the detail path was protected by a filter when
+  it is protected by the schema. Recorded in ADR 0120's D18 amendment.
+
+**Why it hid:** two exports, one name, different modules. A grep for `getDocument` returns hits and
+*looks* answered; only `grep` for the **import site** distinguishes the reachable one. Same class as
+[[an-enumeration-s-boundary-must-be-the-property-not-a-syntax]] — the name is the syntax, "what the routes
+actually call" is the property.
+
+**Fix:** decide whether the core projection is (a) dead and should be deleted, or (b) intended for a
+detail route not yet mounted — and if (b), say so at the definition with what will mount it. **Do not
+simply delete the D18 filter from it**: if the function survives, the filter must survive with it, or a
+future route mounts an unfiltered projection. ⚠ Check for other same-name-different-module pairs in
+`src/lib/queries/` while there; this one was found by accident.
+
 ### 🟡 FUP-ACL-APP-POPULATION — no population assertion covers the **`app`** schema; its half is an 8-name allowlist (owner: backend)
 
 Filed 2026-08-14 (lead) while verifying S3's `DROP`+`CREATE` PUBLIC-EXECUTE find. **Defence-in-depth,
