@@ -1,27 +1,52 @@
-import { Download, MessageSquareReply, Paperclip } from "lucide-react";
+import type { CSSProperties } from "react";
+import { EyeOff, MessageSquareReply, Paperclip } from "lucide-react";
 
-import type { ReferralReply } from "@/lib/referrals/types";
+import type { ReferralReply, ReferralReplyDocument } from "@/lib/referrals/types";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
+import { AVAILABILITY_PRESENTATION } from "@/components/documents/document-labels";
+import { ReferralOpenFileButton } from "./referral-open-file-button";
+import {
+  REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL,
+  REFERRAL_ATTACHMENT_NO_ACCESS_LABEL,
+} from "./referral-document-labels";
 import { ReferralTypeChip } from "./referral-chips";
 import { formatDateTime, formatFileSize } from "./format";
 
 /**
  * The delivered reply A receives (Decision 10), shown on the referral detail once
- * `concluida`. A pure Server Component: `resultMd` is PHI-bearing clinical free
+ * concluded. A pure Server Component: `resultMd` is PHI-bearing clinical free
  * text (the audited detail door already gated it), rendered through the ONE
  * sanitizing Markdown renderer (Rule 7). The structured outcome label is a quiet
- * chip; attachments are download links (signed URLs minted server-side, passed in).
+ * chip.
  *
  * An acknowledgment-only conclusion (no-reply-expected referrals) carries no
  * result/outcome — we render a calm "concluído com ciência" line instead.
+ *
+ * ## DM4 (ADR 0114 Wave C / PO ruling R1) — attachments are real, and re-pointed
+ *
+ * The legacy `reply.attachments` lane is gone from this view. It was rendered
+ * from render-time signed URLs passed in as an `attachmentId → url` map, over a
+ * table that never had a single UI writer — so the list this component
+ * faithfully rendered was, for its whole life, guaranteed empty.
+ *
+ * What renders now is `ReferralReplyDocument[]`: referral-homed documents on the
+ * core document model, opened through the audited click-time byte door.
  */
 export function ReferralReplyView({
   reply,
-  attachmentUrls,
+  replyDocuments,
 }: {
   reply: ReferralReply;
-  /** `attachmentId → signed URL`, minted server-side; missing/`null` = unavailable. */
-  attachmentUrls: Record<string, string | null>;
+  /**
+   * DM4: the B-side attachments from `listReferralReplyDocuments`. Empty while
+   * `documents_wave_c` is off — the host does not query them, so the corridor
+   * has nothing to render rather than rows whose every open would refuse.
+   *
+   * Read from this prop rather than `reply.replyDocuments`: the audited detail
+   * door projects the reply, and the attachment lane is its own query, so the
+   * page names which one fed this list.
+   */
+  replyDocuments: ReferralReplyDocument[];
 }) {
   return (
     <section
@@ -48,7 +73,7 @@ export function ReferralReplyView({
         <p className="text-sm text-muted-foreground">Sem resultado registrado.</p>
       )}
 
-      {reply.attachments.length > 0 && (
+      {replyDocuments.length > 0 && (
         <div className="flex flex-col gap-2">
           <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
             <Paperclip
@@ -58,44 +83,15 @@ export function ReferralReplyView({
             Anexos
           </h3>
           <ul className="flex flex-col gap-2">
-            {reply.attachments.map((a) => {
-              const url = attachmentUrls[a.id] ?? null;
-              const size = formatFileSize(a.sizeBytes);
-              return (
-                <li key={a.id}>
-                  {url ? (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                    >
-                      <Download
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-primary"
-                      />
-                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {a.title}
-                        </span>
-                        {size && (
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {size}
-                          </span>
-                        )}
-                      </span>
-                    </a>
-                  ) : (
-                    <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
-                      <Paperclip aria-hidden="true" className="size-4 shrink-0" />
-                      <span className="truncate text-sm font-medium">
-                        {a.title}
-                      </span>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+            {replyDocuments.map((doc, i) => (
+              <li
+                key={doc.documentId}
+                className="animate-rise-in"
+                style={{ "--rise-delay": `${i * 60}ms` } as CSSProperties}
+              >
+                <ReplyDocumentRow document={doc} />
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -105,5 +101,136 @@ export function ReferralReplyView({
         {reply.repliedByName ? ` por ${reply.repliedByName}` : ""}
       </p>
     </section>
+  );
+}
+
+/**
+ * One reply attachment. TWO independent axes, resolved in this order — the same
+ * discipline as the Wave-A document row:
+ *
+ * 1. **Availability** — the state of the FILE. A non-servable file has nothing
+ *    to open regardless of who is asking, so it is answered first and its own
+ *    sentence explains why.
+ * 2. **`canOpen`** — SERVER-computed, obeyed verbatim. This component never
+ *    re-derives access, never inspects anything to guess it, and — the rule that
+ *    matters most here — **never calls the open door to find out**. Calling the
+ *    audited door to discover whether the reader may open a file would write an
+ *    audit row for a read that never happened, and would turn a permission
+ *    question into a PHI-corridor event.
+ *
+ * This is where the referral's deliberate two-tier asymmetry becomes visible
+ * (plan §3.2): the row is listed to a `can_read_referral_metadata` reader, while
+ * the bytes need `can_read_referral_phi`. A metadata-tier reader therefore sees
+ * `available` + `canOpen: false` — a legitimate, expected state, NOT an error.
+ *
+ * ⚠ Unlike Wave A, that state is REACHABLE here, so the row must render it.
+ * Wave A removed its equivalent branch because its clearance ceiling is an RLS
+ * predicate — a document above your clearance is absent from the list entirely,
+ * so "visible but restricted" was unreachable and the copy was dead. The
+ * referral lane is the opposite by design: visibility and byte access are gated
+ * by two DIFFERENT predicates, so hiding the row would tell a reader entitled to
+ * the referral's metadata that the reply had no attachments. It had one; they
+ * simply cannot open it, and the row says exactly that.
+ */
+function ReplyDocumentRow({ document: doc }: { document: ReferralReplyDocument }) {
+  const size = formatFileSize(doc.sizeBytes);
+
+  // Axis 1 — the FILE's state. Narrowed on the union member rather than read
+  // from `DOCUMENT_AVAILABILITY_ALLOWS_OPEN`, because narrowing is what makes
+  // the presentation lookup TOTAL without a cast: every state but `available`
+  // has an entry, by the type of that record. The two agree today (the map is
+  // `true` for `available` alone), and if a sixth availability is ever added,
+  // the contract's own `Record` stops compiling — the vocabulary catches it
+  // rather than this row silently mis-rendering.
+  //
+  // The one deliberate divergence from the Wave-A row: `pending` renders NO
+  // control here, not a disabled one. A reply attachment is uploaded by the
+  // committee that is about to answer, in a dialog that reports its own
+  // progress — by the time this list is read the wait is somebody else's, and a
+  // greyed button would promise bytes this reader cannot make arrive.
+  if (doc.availability !== "available") {
+    const presentation = AVAILABILITY_PRESENTATION[doc.availability];
+    return (
+      <InertRow
+        title={doc.title}
+        size={size}
+        badge={presentation.label}
+        detail={presentation.detail}
+      />
+    );
+  }
+
+  // Axis 2 — the SERVER's answer about THIS caller. Obeyed, never re-derived,
+  // and never discovered by calling the door.
+  if (!doc.canOpen) {
+    return (
+      <InertRow
+        title={doc.title}
+        size={size}
+        badge={REFERRAL_ATTACHMENT_NO_ACCESS_LABEL}
+        detail={REFERRAL_ATTACHMENT_NO_ACCESS_DETAIL}
+        locked
+      />
+    );
+  }
+
+  return (
+    <ReferralOpenFileButton
+      door={{ kind: "reply", documentVersionId: doc.documentVersionId }}
+      // Distinct prefix from the shared-document list — both render on a
+      // concluded referral, and two rows with the same title would otherwise
+      // share one accessible name.
+      label={`Baixar anexo da resposta ${doc.title}`}
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-sm font-medium text-foreground">
+          {doc.title}
+        </span>
+        {size && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {size}
+          </span>
+        )}
+      </span>
+    </ReferralOpenFileButton>
+  );
+}
+
+/**
+ * A listed-but-not-openable attachment. Deliberately NOT a disabled button: a
+ * greyed "Baixar" reads as "try again later", which is true for `pending` and
+ * false for every other state here — most of all for `canOpen: false`, which is
+ * a settled authorization answer, not a transient one. A badge plus a sentence
+ * says which it is (icon + text + shape, never colour alone).
+ */
+function InertRow({
+  title,
+  size,
+  badge,
+  detail,
+  locked = false,
+}: {
+  title: string;
+  size: string;
+  badge: string;
+  detail: string;
+  /** Authorization refusal rather than a file-state one — swaps the icon. */
+  locked?: boolean;
+}) {
+  const Icon = locked ? EyeOff : Paperclip;
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
+      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-medium">{title}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
+            {badge}
+          </span>
+          {size && <span className="text-xs tabular-nums">{size}</span>}
+        </span>
+        <span className="text-xs text-pretty">{detail}</span>
+      </span>
+    </div>
   );
 }

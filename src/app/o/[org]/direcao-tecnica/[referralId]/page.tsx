@@ -5,9 +5,8 @@ import { ArrowLeft, Building2, CalendarClock } from "lucide-react";
 
 import { getTechnicalDirectionAccessByOrg } from "@/lib/queries/session";
 import {
-  getReferralAttachmentUrl,
   getReferralDetail,
-  getReferralDocumentUrl,
+  listReferralReplyDocuments,
   listReplyOutcomes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
@@ -103,22 +102,21 @@ export default async function TechnicalDirectionReferralPage({
     notFound();
   }
 
-  const [replyOutcomes, documentUrlEntries, attachmentUrlEntries] =
-    await Promise.all([
-      listReplyOutcomes(),
-      Promise.all(
-        detail.sharedItems
-          .filter((i) => i.kind === "document")
-          .map(async (i) => [i.id, await getReferralDocumentUrl(i.id)] as const),
-      ),
-      Promise.all(
-        (detail.reply?.attachments ?? []).map(
-          async (a) => [a.id, await getReferralAttachmentUrl(a.id)] as const,
-        ),
-      ),
-    ]);
-  const documentUrls = Object.fromEntries(documentUrlEntries);
-  const attachmentUrls = Object.fromEntries(attachmentUrlEntries);
+  // DM4 (ADR 0114 Wave C) — same re-pointing as the commission-side detail: the
+  // render-time signed-URL maps for shared documents and reply attachments are
+  // GONE (F-14). A PHI signature lives 120 s, so a URL minted during render is
+  // expired before the Diretor Técnico reaches it; both corridors are now
+  // click-time audited actions and no storage coordinate leaves the server.
+  //
+  // `documents_wave_c` is read from the flags this page already loaded, so the
+  // gate costs no extra round trip. With it off the reply-document query is not
+  // MADE (not made-and-discarded) and the upload control is not rendered — the
+  // corridor is cut at `begin`, its first residue-producing step.
+  const documentsWaveC = flags.documents_wave_c === true;
+  const [replyOutcomes, replyDocuments] = await Promise.all([
+    listReplyOutcomes(),
+    documentsWaveC ? listReferralReplyDocuments(detail.id) : Promise.resolve([]),
+  ]);
 
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = `/o/${org}/direcao-tecnica`;
@@ -197,7 +195,7 @@ export default async function TechnicalDirectionReferralPage({
       <div data-rise>
         <ReferralSnapshot
           sharedItems={detail.sharedItems}
-          documentUrls={documentUrls}
+          canOpenDocuments={documentsWaveC}
         />
       </div>
 
@@ -234,7 +232,7 @@ export default async function TechnicalDirectionReferralPage({
         <div data-rise>
           <ReferralReplyView
             reply={detail.reply}
-            attachmentUrls={attachmentUrls}
+            replyDocuments={replyDocuments}
           />
         </div>
       )}
@@ -259,6 +257,17 @@ export default async function TechnicalDirectionReferralPage({
           canManageTarget
           canManageSource={false}
           replyOutcomes={replyOutcomes}
+          // DM4 (R1). The Diretor Técnico IS the target side of a DT referral, so
+          // the upload control is offered here on the same terms as a target
+          // coordinator's. Whether `can_write_document`'s referral arm admits the
+          // DT office is the DATABASE's call, not this page's — a refusal comes
+          // back as `not_target_coordinator` / `forbidden` and renders as a pt-BR
+          // sentence. Hiding the control would be UI-as-security (Rule 1) and
+          // would silently remove a capability the office may well hold.
+          replyAttachments={{
+            enabled: documentsWaveC,
+            documents: replyDocuments,
+          }}
         />
       </div>
     </SafetyMotion>

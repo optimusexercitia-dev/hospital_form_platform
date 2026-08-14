@@ -1,30 +1,70 @@
-import { Download, FileText, Paperclip } from "lucide-react";
+import { FileText, Paperclip } from "lucide-react";
 
 import type { SharedItem } from "@/lib/referrals/types";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
+import { ReferralOpenFileButton } from "./referral-open-file-button";
+import { SNAPSHOT_UNAVAILABLE_DETAIL } from "./referral-document-labels";
 import { formatFileSize } from "./format";
 
 /**
  * The frozen SNAPSHOT B reads on the referral detail (Decision 3/9). A pure
  * Server Component: it renders the point-in-time copies the source coordinator
  * curated — narratives as sanitized Markdown (Rule 7, the ONE renderer) and
- * documents as download links.
+ * documents through the audited click-time byte door.
  *
- * The snapshot is NOT A's live case — it's referral-owned frozen rows. Narrative
- * bodies (`frozenBodyMd`) are PHI-bearing clinical free text the audited detail
- * door already gated; documents reference A's existing object (Rule 6), and the
- * signed URL was minted SERVER-SIDE by the page via the DEFINER `getReferralDocumentUrl`
- * door (matches the `CaseDocumentWithUrl` pattern) and passed in as `documentUrls`.
- * A `null` URL (mint failed / out of scope) renders a disabled affordance, never
- * a broken link.
+ * The snapshot is NOT A's live case — it is referral-owned frozen rows.
+ *
+ * ## DM4 (ADR 0114 Wave C, F-14) — the document lane moved corridors
+ *
+ * Documents used to arrive here as a `sharedItemId → signed URL` map minted by
+ * the PAGE during render, one signature per item, rendered as an `<a href>`.
+ * That is retired for two independent reasons, and only the first is a bug:
+ *
+ * 1. **The credential outlived nothing.** PHI signatures live 120 s (ADR 0114
+ *    O4). A URL minted while the page streamed was expired before a reader
+ *    finished reading the referral — for the ENTITLED reader as much as anyone.
+ * 2. **Signing is an authorization event.** The audited door records who opened
+ *    what; pre-signing on render either records opens that never happened or
+ *    (as it did) hands out bytes with no open recorded at all.
+ *
+ * Documents now render as a trigger for `openReferralSnapshotDocument`, called
+ * at CLICK time, which re-gates `can_read_referral_phi`, audits, and only then
+ * signs.
+ *
+ * ## What this component may and may not decide
+ *
+ * A `document` row carries no server-computed `canOpen` — the contract gives
+ * one only for reply attachments (`ReferralReplyDocument.canOpen`). So the
+ * three non-servable states below are the ONLY refusals stated before a click,
+ * and each is read from a projection FACT, never derived from a permission
+ * guess:
+ *
+ * - `frozenTombstonedAt` set → reconciled away or PHI-disposed (plan R5). The
+ *   governance record survives without its bytes; that is the design.
+ * - `frozenDocumentVersionId` null on a `document` row → never bound / legacy.
+ *   The contract states this explicitly: "`null` on a `document` row means the
+ *   snapshot is NOT servable — render the 'indisponível' state, never an open
+ *   affordance."
+ * - `documents_wave_c` off → the door answers `module_disabled` for everyone,
+ *   so an open control here would be an affordance guaranteed to fail.
+ *
+ * Any OTHER refusal — including an unentitled metadata-tier reader — is the
+ * door's answer to a real click, surfaced as a pt-BR sentence under the row.
+ * The row itself always renders: a reader entitled to the referral's metadata is
+ * entitled to know the document was shared.
  */
 export function ReferralSnapshot({
   sharedItems,
-  documentUrls,
+  canOpenDocuments,
 }: {
   sharedItems: SharedItem[];
-  /** `sharedItemId → signed URL`, minted server-side; missing/`null` = unavailable. */
-  documentUrls: Record<string, string | null>;
+  /**
+   * DM4: whether the audited snapshot door is live for this tenant
+   * (`documents_wave_c`). Resolved by the SERVER page — a client island cannot
+   * read a flag, and no storage coordinate is passed to this component at all
+   * any more.
+   */
+  canOpenDocuments: boolean;
 }) {
   const narratives = sharedItems
     .filter((i) => i.kind === "narrative")
@@ -102,24 +142,33 @@ export function ReferralSnapshot({
           </h3>
           <ul className="flex flex-col gap-2">
             {documents.map((d) => {
-              const url = documentUrls[d.id] ?? null;
+              const title = d.frozenTitle ?? "Documento";
               const size = formatFileSize(d.frozenSizeBytes);
+
+              // Resolved in cause order, most specific first. `null` = servable
+              // as far as this projection can tell; the door decides the rest.
+              const blocked = d.frozenTombstonedAt
+                ? SNAPSHOT_UNAVAILABLE_DETAIL.tombstoned
+                : !canOpenDocuments
+                  ? SNAPSHOT_UNAVAILABLE_DETAIL.moduleOff
+                  : !d.frozenDocumentVersionId
+                    ? SNAPSHOT_UNAVAILABLE_DETAIL.unbound
+                    : null;
+
               return (
                 <li key={d.id}>
-                  {url ? (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  {blocked === null ? (
+                    <ReferralOpenFileButton
+                      door={{ kind: "snapshot", sharedItemId: d.id }}
+                      // Distinct prefix from the reply-attachment list: a
+                      // concluded referral renders BOTH lists on one page, so a
+                      // shared document and an attachment sharing a title would
+                      // otherwise produce two identical accessible names.
+                      label={`Baixar documento compartilhado ${title}`}
                     >
-                      <Download
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-primary"
-                      />
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-sm font-medium text-foreground">
-                          {d.frozenTitle ?? "Documento"}
+                          {title}
                         </span>
                         {size && (
                           <span className="text-xs text-muted-foreground tabular-nums">
@@ -127,15 +176,20 @@ export function ReferralSnapshot({
                           </span>
                         )}
                       </span>
-                    </a>
+                    </ReferralOpenFileButton>
                   ) : (
-                    <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
-                      <Paperclip aria-hidden="true" className="size-4 shrink-0" />
+                    /* Visible, explained, non-interactive. The row is never
+                       hidden — its presence is part of the referral's record. */
+                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-3 text-muted-foreground">
+                      <Paperclip
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0"
+                      />
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-sm font-medium">
-                          {d.frozenTitle ?? "Documento"}
+                          {title}
                         </span>
-                        <span className="text-xs">Indisponível no momento.</span>
+                        <span className="text-xs text-pretty">{blocked}</span>
                       </span>
                     </div>
                   )}

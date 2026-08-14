@@ -7,14 +7,14 @@ import { ArrowLeft } from "lucide-react";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   canDisposeReferralPhi,
-  getReferralAttachmentUrl,
   getReferralCaseAccessSummary,
   getReferralDetail,
-  getReferralDocumentUrl,
   listReferralInternalNotes,
+  listReferralReplyDocuments,
   listReplyOutcomes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
+import { featureEnabled } from "@/lib/queries/feature-flags";
 import { revealReferralPatient } from "@/lib/referrals/actions";
 import { synthesizeThreadEvents } from "@/lib/referrals/thread-events";
 import { patientXrefCount } from "@/lib/queries/patient-index";
@@ -130,25 +130,32 @@ export default async function ReferralDetailPage({
     access.role === "staff_admin" &&
     detail.sourceCommissionId === myCommissionId;
 
-  // Snapshot document signed URLs — minted SERVER-SIDE via the DEFINER door (the
-  // CaseDocumentWithUrl pattern; the plan's "Decided defaults"). Built as a map
-  // keyed by shared-item id for the snapshot component.
-  const documentItems = detail.sharedItems.filter((i) => i.kind === "document");
-  const documentUrlEntries = await Promise.all(
-    documentItems.map(
-      async (i) => [i.id, await getReferralDocumentUrl(i.id)] as const,
-    ),
-  );
-  const documentUrls = Object.fromEntries(documentUrlEntries);
-
-  // Reply attachment signed URLs (same door pattern).
-  const attachments = detail.reply?.attachments ?? [];
-  const attachmentUrlEntries = await Promise.all(
-    attachments.map(
-      async (a) => [a.id, await getReferralAttachmentUrl(a.id)] as const,
-    ),
-  );
-  const attachmentUrls = Object.fromEntries(attachmentUrlEntries);
+  // DM4 (ADR 0114 Wave C) — the document lane.
+  //
+  // ⚠ This page used to PRE-SIGN here, at render: one signed URL per shared
+  // document and one per reply attachment, handed down as `href` maps. Both are
+  // gone (F-14). A PHI signature lives 120 s (ADR 0114 O4), so a URL minted
+  // while the page streams is dead before the reader reaches it — and signing on
+  // render hands out bytes for files nobody asked for, with no audited open to
+  // show for it. Both corridors are now CLICK-time actions inside their own
+  // client islands; no storage coordinate leaves the server.
+  //
+  // `documents_wave_c` gates the CORRIDOR, not its last step:
+  //
+  //   | affordance                        | flag OFF                    |
+  //   | shared-document rows              | rendered, inert + explained |
+  //   | audited snapshot open             | ABSENT                      |
+  //   | `listReferralReplyDocuments` call | NOT MADE                    |
+  //   | reply-attachment list             | empty                       |
+  //   | upload control (begin → PUT)      | ABSENT — no trigger exists  |
+  //
+  // The query is skipped rather than called-and-ignored: with the flag off there
+  // is no reply-document lane to read, and asking anyway would be a read whose
+  // every row the byte door would then refuse.
+  const documentsWaveC = await featureEnabled("documents_wave_c");
+  const replyDocuments = documentsWaveC
+    ? await listReferralReplyDocuments(detail.id)
+    : [];
 
   // Reply vocab + linkable target cases — only meaningful for the target
   // coordinator while the referral is in review; skipped otherwise (no leak, no
@@ -369,7 +376,7 @@ export default async function ReferralDetailPage({
           <div data-rise className="order-6 lg:order-none">
             <ReferralSnapshot
               sharedItems={detail.sharedItems}
-              documentUrls={documentUrls}
+              canOpenDocuments={documentsWaveC}
             />
           </div>
 
@@ -434,7 +441,7 @@ export default async function ReferralDetailPage({
             <div data-rise className="order-12 lg:order-none">
               <ReferralReplyView
                 reply={detail.reply}
-                attachmentUrls={attachmentUrls}
+                replyDocuments={replyDocuments}
               />
             </div>
           ) : null}
@@ -458,6 +465,13 @@ export default async function ReferralDetailPage({
                 canManageTarget={canManageTarget}
                 canManageSource={canManageSource}
                 replyOutcomes={replyOutcomes}
+                // DM4 (R1): the reply dialog's upload control. `enabled` is the
+                // flag as the SERVER resolved it — with it false the control is
+                // not rendered, so `begin` has no trigger and no bytes can land.
+                replyAttachments={{
+                  enabled: documentsWaveC,
+                  documents: replyDocuments,
+                }}
                 // The Detalhes card below carries the deadline control, beside the
                 // deadline it changes — rendering it here too would double it.
                 showDeadlineControl={false}

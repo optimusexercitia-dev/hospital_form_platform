@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Paperclip, Send } from "lucide-react";
+import { Send } from "lucide-react";
 
 import { concludeReferral } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
-import type { ReplyOutcome } from "@/lib/referrals/types";
+import type { ReferralReplyDocument, ReplyOutcome } from "@/lib/referrals/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +18,24 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import { ReferralReplyAttachmentUpload } from "./referral-reply-attachments";
+
+/**
+ * Everything the reply dialog needs to offer attachments, as ONE prop rather
+ * than a boolean plus an array plus whatever the next slice adds. `enabled` is
+ * the `documents_wave_c` flag as the SERVER resolved it — a client component
+ * cannot read a flag, and must never be handed a server function that could.
+ *
+ * `enabled: false` means the control is not rendered at all, which is the whole
+ * flag gate on this side: with no control there is no `begin`, so the corridor
+ * is cut at its first residue-producing step rather than at its last.
+ */
+export interface ReferralReplyAttachmentAccess {
+  enabled: boolean;
+  /** Attachments already on the referral; `[]` whenever `enabled` is false
+   * (the host never queried them). */
+  documents: ReferralReplyDocument[];
+}
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -34,10 +52,14 @@ export function ReferralReplyButton({
   referralId,
   responseExpected,
   replyOutcomes,
+  attachments,
 }: {
   referralId: string;
   responseExpected: boolean;
   replyOutcomes: ReplyOutcome[];
+  /** DM4: the reply-attachment surface. Omitted (or `enabled: false`) leaves the
+   * dialog exactly as it was before Wave C — no upload control, no `begin`. */
+  attachments?: ReferralReplyAttachmentAccess;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -53,27 +75,53 @@ export function ReferralReplyButton({
         referralId={referralId}
         responseExpected={responseExpected}
         replyOutcomes={replyOutcomes}
+        attachments={attachments}
       />
     </>
   );
 }
 
-/** The structured reply form (Decision 10): required `result_md` + a
+/**
+ * The structured reply form (Decision 10): required `result_md` + a
  * `reply_outcomes` selection when a reply is expected; an acknowledgment-only
- * conclusion otherwise. The optional attachment field is present; the upload
- * action is wired when backend posts it. */
+ * conclusion otherwise.
+ *
+ * ## DM4 — the attachment lane is real here now (PO ruling R1)
+ *
+ * The dialog used to end with a disabled strip reading "Anexos da resposta
+ * poderão ser adicionados após concluir". It is replaced, not decorated: the
+ * sentence was false in both halves. Nothing could add attachments after
+ * concluding (the legacy RPC had zero UI callers for its entire life), and the
+ * write authority is `accepted`/`in_review` — so "após concluir" named the one
+ * window where the database refuses.
+ *
+ * Attachments therefore upload IN THIS DIALOG, before the conclusion, each one
+ * committing on its own "Anexar arquivo" rather than riding the submit. That is
+ * deliberate: an upload is a three-step transport with its own failure and
+ * retry semantics, and folding it into the conclude submit would mean a failed
+ * PUT either blocks a reply that is otherwise ready, or silently drops a file
+ * the coordinator believes they sent.
+ *
+ * A consequence worth stating plainly: a file attached and then "Cancelar"-ed
+ * still exists. It is a real referral-homed document from the moment finalize
+ * returns, and it appears in "Anexos" once the reply is delivered. Re-opening
+ * the dialog shows it in the list, so the coordinator sees what is already
+ * attached instead of uploading it twice.
+ */
 function ReplyDialog({
   open,
   onOpenChange,
   referralId,
   responseExpected,
   replyOutcomes,
+  attachments,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   referralId: string;
   responseExpected: boolean;
   replyOutcomes: ReplyOutcome[];
+  attachments?: ReferralReplyAttachmentAccess;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -187,12 +235,15 @@ function ReplyDialog({
                 />
               </label>
 
-              {/* Optional attachment — the upload action lands with backend's storage
-                  bucket; the field is present now so the layout is final. */}
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-card/50 px-3 py-2.5 text-xs text-muted-foreground">
-                <Paperclip aria-hidden="true" className="size-4" />
-                Anexos da resposta poderão ser adicionados após concluir.
-              </div>
+              {/* DM4 (R1): the real upload control. ABSENT — not disabled —
+                  while `documents_wave_c` is off, so no `begin` can be issued
+                  and no bytes can land behind a dark flag. */}
+              {attachments?.enabled && (
+                <ReferralReplyAttachmentUpload
+                  referralId={referralId}
+                  initialDocuments={attachments.documents}
+                />
+              )}
             </>
           )}
 

@@ -41,7 +41,10 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { canSetReferralDeadline } from "./deadline-gate";
 import { ReferralDeadlineButton } from "./referral-deadline-button";
-import { ReferralReplyButton } from "./referral-reply-dialog";
+import {
+  ReferralReplyButton,
+  type ReferralReplyAttachmentAccess,
+} from "./referral-reply-dialog";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -76,6 +79,7 @@ export function ReferralActions({
   canManageTarget,
   canManageSource,
   replyOutcomes,
+  replyAttachments,
   showDeadlineControl = true,
 }: {
   referralId: string;
@@ -89,6 +93,16 @@ export function ReferralActions({
   /** Viewer is a coordinator of the SOURCE commission (or an admin). */
   canManageSource: boolean;
   replyOutcomes: ReplyOutcome[];
+  /**
+   * DM4 (ADR 0114 Wave C): the reply-attachment surface, passed through to the
+   * reply dialog. ONE grouped prop rather than a `documentsWaveCEnabled`
+   * boolean beside a `replyDocuments` array — the two are meaningless apart
+   * (the array is always `[]` when the flag is off, because the host does not
+   * query it), and this panel already carries eight props.
+   *
+   * Omitted leaves the dialog pre-Wave-C: no upload control, no `begin`.
+   */
+  replyAttachments?: ReferralReplyAttachmentAccess;
   /**
    * Whether to render the deadline control HERE. `false` on any page whose "Detalhes"
    * card already carries it — rendering it in both places would give one referral two
@@ -213,6 +227,7 @@ export function ReferralActions({
             referralId={referralId}
             responseExpected={responseExpected}
             replyOutcomes={replyOutcomes}
+            attachments={replyAttachments}
           />
         )}
 
