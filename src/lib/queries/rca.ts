@@ -19,6 +19,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { auditClinicalView } from '@/lib/audit/access'
+import {
+  EVIDENCE_DOCUMENT_EMBED_BODY,
+  evidenceAvailability,
+} from '@/lib/queries/nsp-evidence'
+import type { EvidenceDocumentEmbed } from '@/lib/queries/nsp-evidence'
 import type {
   AssignableUser,
   Rca,
@@ -489,6 +494,70 @@ export async function listRcaCitationTargets(
  * door, so the list carries `documentId` + `availability` + a server-computed
  * `canOpen`, and the UI calls `openRcaEvidence(id)` on click.
  */
-export async function listRcaEvidenceViews(_rcaId: string): Promise<RcaEvidenceView[]> {
-  throw new Error('not implemented — DM5 S2')
+/**
+ * FK-HINTED deliberately: `rca_evidence` carries TWO foreign keys to
+ * `documents` (`document_id` and the un-parked `cited_document_id`), so an
+ * un-hinted embed is a PGRST201 ambiguity, not a preference.
+ */
+const EVIDENCE_DOCUMENT_EMBED =
+  'documents!rca_evidence_document_id_fkey' + EVIDENCE_DOCUMENT_EMBED_BODY
+
+interface RcaEvidenceRow {
+  id: string
+  rca_id: string
+  kind: string
+  title: string
+  document_id: string | null
+  external_url: string | null
+  cited_interview_id: string | null
+  cited_meeting_id: string | null
+  cited_document_id: string | null
+  citation_label: string | null
+  created_at: string
+  documents: EvidenceDocumentEmbed | null
+}
+
+export async function listRcaEvidenceViews(rcaId: string): Promise<RcaEvidenceView[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('rca_evidence')
+    .select(
+      'id, rca_id, kind, title, document_id, external_url, cited_interview_id, ' +
+        'cited_meeting_id, cited_document_id, citation_label, created_at, ' +
+        EVIDENCE_DOCUMENT_EMBED,
+    )
+    .eq('rca_id', rcaId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .returns<RcaEvidenceRow[]>()
+
+  return (data ?? []).map((r) => {
+    const { availability, canOpen } = evidenceAvailability(
+      r.kind === 'document' ? r.documents : null,
+    )
+    const citationTarget: RcaEvidenceView['citationTarget'] = r.cited_interview_id
+      ? 'interview'
+      : r.cited_meeting_id
+        ? 'meeting'
+        : r.cited_document_id
+          ? 'document'
+          : null
+    return {
+      id: r.id,
+      rcaId: r.rca_id,
+      kind: r.kind as RcaEvidenceView['kind'],
+      title: r.title,
+      documentId: r.document_id,
+      availability,
+      canOpen,
+      externalUrl: r.external_url,
+      citationTarget,
+      citationLabel: r.citation_label,
+      // Interview/meeting only — a document citation carries its id in
+      // `citedDocumentId`, per the contract's field split.
+      citedEntityId: r.cited_interview_id ?? r.cited_meeting_id ?? null,
+      citedDocumentId: r.cited_document_id,
+      createdAt: r.created_at,
+    }
+  })
 }

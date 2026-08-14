@@ -19,6 +19,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { auditClinicalView } from '@/lib/audit/access'
+import {
+  EVIDENCE_DOCUMENT_EMBED_BODY,
+  evidenceAvailability,
+} from '@/lib/queries/nsp-evidence'
+import type { EvidenceDocumentEmbed } from '@/lib/queries/nsp-evidence'
 import type {
   CapaAction,
   CapaActionTask,
@@ -471,8 +476,56 @@ export async function getCapaKpis(): Promise<CapaKpis> {
  * standard 300 s tiers, with NO audit anywhere in the path. Over-broad TTL +
  * unaudited minting of a bearer token — not audit pollution.
  */
+/**
+ * FK-hinted for the same reason as the RCA sibling, and CHECKED
+ * INDEPENDENTLY rather than assumed: `capa_action_evidence` has only ONE
+ * foreign key to `documents` today, so the hint is not strictly required here
+ * — it is written anyway so the two projections read alike and so a future
+ * second FK (a CAPA citation seam) cannot turn this into a live PGRST201.
+ */
+const CAPA_EVIDENCE_DOCUMENT_EMBED =
+  'documents!capa_action_evidence_document_id_fkey' + EVIDENCE_DOCUMENT_EMBED_BODY
+
+interface CapaActionEvidenceRow {
+  id: string
+  action_id: string
+  kind: string
+  title: string
+  document_id: string | null
+  external_url: string | null
+  created_at: string
+  documents: EvidenceDocumentEmbed | null
+}
+
 export async function listCapaActionEvidenceViews(
-  _actionId: string,
+  actionId: string,
 ): Promise<CapaActionEvidenceView[]> {
-  throw new Error('not implemented — DM5 S2')
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('capa_action_evidence')
+    .select(
+      'id, action_id, kind, title, document_id, external_url, created_at, ' +
+        CAPA_EVIDENCE_DOCUMENT_EMBED,
+    )
+    .eq('action_id', actionId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .returns<CapaActionEvidenceRow[]>()
+
+  return (data ?? []).map((r) => {
+    const { availability, canOpen } = evidenceAvailability(
+      r.kind === 'document' ? r.documents : null,
+    )
+    return {
+      id: r.id,
+      actionId: r.action_id,
+      kind: r.kind as CapaActionEvidenceView['kind'],
+      title: r.title,
+      documentId: r.document_id,
+      availability,
+      canOpen,
+      externalUrl: r.external_url,
+      createdAt: r.created_at,
+    }
+  })
 }

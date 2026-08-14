@@ -160,28 +160,30 @@ export type NspEvidenceActionState =
  * Servability of the file behind a `document`-kind evidence row, projected from
  * the core upload/scan/disposal state machine. The UI renders a state, never a
  * dead link.
+/**
+ * Servability of the file behind a `document`-kind evidence row, projected from
+ * the core upload/scan/disposal state machine. The UI renders a state, never a
+ * dead link.
  *
- * ⚠ FOUR members, and it must NOT be "harmonized" to five. `DocumentAvailability`
- * (`src/lib/documents/types.ts`) carries a fifth, `unavailable`, for a
- * soft-deleted row. Here that member would be **unreachable**, and the reason is
- * executable rather than intentional: both evidence projections filter the row
- * out of existence with `.is('deleted_at', null)` —
- * `src/lib/queries/rca.ts:258` and `src/lib/queries/capa.ts:366` — so a
- * soft-deleted evidence row never reaches the list to be labelled. The documents
- * twin has no such filter, which is why it needs the member; that is a
- * deliberate product difference, not an inconsistency.
+ * ⚠ FIVE members. An earlier version of this contract dropped `unavailable` on
+ * the justification that both projections filter `.is('deleted_at', null)`.
+ * **That filter is on the EVIDENCE row; `unavailable` derives from the
+ * DOCUMENT's status** — `soft_delete_document` reaches `status='soft_deleted'`
+ * independently of the evidence row, and `app.can_write_document` has arms for
+ * both `rca` and `capa_action`, so it is reachable on these homes. The stated
+ * fact was true and did not support the conclusion.
  *
- * Adding it would mint dead vocabulary that reads as live behaviour — the same
- * reason `HC0DM` is absent from {@link mapNspEvidenceErrorCode}. Tied here to
- * the FILTER, not to a claim about intent, because a comment is an assertion
- * that goes stale silently: if either `.is('deleted_at', null)` is ever removed,
- * this member becomes reachable and the union must grow in the same change.
+ * ⚠ It must NOT be collapsed into `failed`. `failed` tells the user the UPLOAD
+ * did not complete and to remove the item and send the file again. For a
+ * DELIBERATELY REMOVED document that is a false diagnosis pointing at a recovery
+ * action that cannot work. A wrong state is worse than a missing one.
  */
 export type NspEvidenceAvailability =
   | 'available' // clean | unscanned_accepted, not disposed — the status quo
   | 'pending' // reserved | uploaded | verifying | scan_pending  (NEW to this UI)
   | 'failed' // failed | abandoned | infected | rejected          (NEW to this UI)
   | 'disposed' // disposal_pending | disposed                     (NEW to this UI)
+  | 'unavailable'
 
 /**
  * One RCA evidence row, S2 shape.
@@ -258,8 +260,8 @@ export interface NspEvidenceUploadRequest {
  *     reservation ever needs one — the shape would have to break later.
  *
  * `expiresAt` rides INSIDE the credential rather than beside it (the twin's
- * layout). It is not decoration: at the PO-ruled TTLs of **PHI 120 s** /
- * standard 300 s (ADR 0114 O4), expiry is routine, and a client that cannot see
+ * layout). It is not decoration: the RESERVATION window is 15 minutes
+ * (`upload_sessions.expires_at`), so expiry is routine, and a client that cannot see
  * it cannot tell "your reservation expired, start again" from "the upload
  * failed". It is a display/timing input only, never an authorization input.
  */
@@ -281,4 +283,81 @@ export interface RcaEvidenceCitationInput {
   citationTarget: 'interview' | 'meeting' | 'document'
   citedEntityId: string
   citationLabel: string
+}
+
+// ---------------------------------------------------------------------------
+// The availability projection — a PURE, TOTAL function over the state machine
+// ---------------------------------------------------------------------------
+
+/**
+ * `file_objects.upload_state` × `file_objects.disposal_state` × `documents.status`
+ * → {@link NspEvidenceAvailability}.
+ *
+ * Lives here, in the pure client-safe contract, rather than inline in the two
+ * list projections, so the claim *"`scan_pending` projects as `pending`"* has an
+ * honest home: a three-line unit test instead of an E2E that boots a browser and
+ * mutates `upload_state` by direct service-role UPDATE. E2E then stays reserved
+ * for what only E2E can prove.
+ *
+ * ⚠ TOTAL over the real domain, not a chain of `if`s with an implicit
+ * fallthrough. `upload_state` has TEN CHECK-constrained values and
+ * `disposal_state` THREE.
+ *
+ * ⚠ PRECEDENCE IS LOAD-BEARING AND IS THE PART A REFACTOR WILL INVERT:
+ * disposal outranks upload. A `clean` file whose `disposal_state` is `disposed`
+ * projects as **disposed**, never `available` — bytes that are gone are not
+ * servable however healthy the upload looked.
+ *
+ * ⚠ THE DEFAULT ARM IS DELIBERATELY CONSERVATIVE. An unrecognised state must
+ * NEVER become `available`: that is the failure mode designed out here. A future
+ * `upload_state` this function has not been taught lands on `failed`, which is
+ * visible and wrong-in-the-safe-direction, rather than promising bytes the door
+ * will refuse.
+ *
+ * ⚠ `pending` IS NOT REACHABLE THROUGH THE REAL CORRIDOR TODAY — the evidence
+ * row is created at FINALIZE, and `complete_document_upload_verification` binds
+ * the rendition and moves `scan_pending → unscanned_accepted` inside ONE
+ * transaction, so no reader can observe an in-flight state. It is kept because
+ * ADR 0114 **O2 (scanner selection) is OPEN**: the moment a scanner lands,
+ * finalize stops collapsing and `scan_pending` becomes observable. This is
+ * forward-looking vocabulary, NOT covered behaviour — recorded as such in the
+ * slice's NOT COVERED section.
+ */
+export function nspEvidenceAvailability(input: {
+  uploadState: string | null
+  disposalState: string | null
+  documentStatus: string | null
+}): NspEvidenceAvailability {
+  const { uploadState, disposalState, documentStatus } = input
+
+  // Disposal outranks everything, on either the document or the file object.
+  if (disposalState === 'disposal_pending' || disposalState === 'disposed') return 'disposed'
+  if (documentStatus === 'disposal_pending' || documentStatus === 'disposed') return 'disposed'
+
+  // A soft-deleted document is permanently unservable — but it is REMOVED, not
+  // broken. `failed` would tell the user to re-upload, which cannot help.
+  if (documentStatus !== null && documentStatus !== 'active') return 'unavailable'
+
+  // No binding yet: begin ran, finalize has not. Unreachable via the corridor
+  // today (see the O2 note above); mapped anyway.
+  if (uploadState === null) return 'pending'
+
+  switch (uploadState) {
+    case 'reserved':
+    case 'uploaded':
+    case 'verifying':
+    case 'scan_pending':
+      return 'pending'
+    case 'failed':
+    case 'abandoned':
+    case 'infected':
+    case 'rejected':
+      return 'failed'
+    case 'clean':
+    case 'unscanned_accepted':
+      return 'available'
+    default:
+      // CONSERVATIVE by design — never `available`.
+      return 'failed'
+  }
 }

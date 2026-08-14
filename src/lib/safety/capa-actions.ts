@@ -2,8 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { finalizeDocumentUpload, openDocumentVersion } from '@/lib/documents/actions'
 import { SAFETY_MESSAGES, mapCapaError } from '@/lib/safety/messages'
+import { mapNspEvidenceErrorCode } from '@/lib/safety/evidence-contract'
+import { narrowDocumentEvidenceError } from '@/lib/safety/evidence-mapping'
 import type { ActionState } from '@/lib/safety/types'
 import type {
   CapaActionInput,
@@ -16,6 +20,7 @@ import type {
 } from '@/lib/safety/capa-types'
 import type {
   NspEvidenceActionState,
+  NspEvidenceErrorCode,
   NspEvidenceLinkInput,
   NspEvidenceUploadRequest,
   NspEvidenceUploadTicket,
@@ -391,6 +396,14 @@ export async function recordCapaEffectiveness(
 // ---------------------------------------------------------------------------
 
 /**
+ * SQLSTATE → contract code, CODE ALONE (Rule 10). Private helper: a
+ * `"use server"` module may export only async functions.
+ */
+function evidenceErrCode(error: { code?: string | null } | null): NspEvidenceErrorCode {
+  return mapNspEvidenceErrorCode(error?.code ?? null)
+}
+
+/**
  * Reserve an upload for a `document`-kind CAPA implementation-evidence file.
  *
  * ⚠ Replaces `uploadCapaEvidenceFile`, which is BROKEN TODAY for every user
@@ -400,30 +413,171 @@ export async function recordCapaEffectiveness(
  * CAPA and every persona. Fails closed — refused, never leaked.
  */
 export async function beginCapaEvidenceUpload(
-  _actionId: string,
-  _request: NspEvidenceUploadRequest,
+  actionId: string,
+  request: NspEvidenceUploadRequest,
 ): Promise<NspEvidenceActionState & { ticket?: NspEvidenceUploadTicket }> {
-  throw new Error('not implemented — DM5 S2')
+  if (!actionId || !request?.title?.trim() || !request.declaredFileName?.trim()) {
+    return { ok: false, code: 'invalid_input' }
+  }
+
+  // Home PINNED server-side on the `capa_action` securable (ADR 0114 D8 / ADR
+  // 0120 D14). `app.can_write_document`'s `capa_action` arm resolves the plan
+  // and defers to `app.can_write_capa` — the caller-minted `{capa}/{action}/…`
+  // path of the retired `uploadCapaEvidenceFile` (BUG-DM5-CAPA-1, which failed
+  // closed for every persona) has no successor here.
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('begin_document_upload', {
+    p_resource_type: 'capa_action',
+    p_resource_id: actionId,
+    p_title: request.title.trim(),
+    p_declared_file_name: request.declaredFileName,
+    p_declared_mime: request.declaredMime,
+    p_declared_size: request.declaredSize,
+  })
+  if (error || !data) return { ok: false, code: evidenceErrCode(error) }
+  const r = data as Record<string, string>
+
+  // Coordinates never cross PostgREST: the door returned IDS ONLY.
+  const admin = createAdminClient()
+  const { data: file, error: fileError } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path')
+    .eq('id', r.file_object_id)
+    .single()
+  if (fileError || !file) return { ok: false, code: 'unknown' }
+  const { data: signed, error: signError } = await admin.storage
+    .from(file.storage_bucket)
+    .createSignedUploadUrl(file.storage_path)
+  if (signError || !signed) return { ok: false, code: 'unknown' }
+
+  return {
+    ok: true,
+    ticket: {
+      uploadSessionId: r.upload_session_id,
+      upload: {
+        method: 'PUT',
+        url: signed.signedUrl,
+        headers: { 'x-upsert': 'false' },
+        expiresAt: r.expires_at,
+      },
+    },
+  }
 }
 
 /** Verify server-side and create the evidence row atomically. */
 export async function finalizeCapaEvidenceUpload(
-  _uploadSessionId: string,
+  uploadSessionId: string,
 ): Promise<NspEvidenceActionState & { evidenceId?: string }> {
-  throw new Error('not implemented — DM5 S2')
+  if (!uploadSessionId) return { ok: false, code: 'invalid_input' }
+
+  // Step 1 — the D9 verifier, REUSED not copied (see the RCA twin for the full
+  // reasoning): `finalize_document_upload` → service-role download → sha256 →
+  // `complete_document_upload_verification`. `terminal` is its ruling, relayed.
+  const finalized = await finalizeDocumentUpload(uploadSessionId)
+  if (!finalized.ok) {
+    const code = narrowDocumentEvidenceError(finalized.error)
+    return finalized.terminal ? { ok: false, code, terminal: true } : { ok: false, code }
+  }
+
+  // Step 2 — resolve the document from the VERSION id, never from
+  // `finalized.documentId`: the RPC's idempotent arm returns no `document_id`,
+  // so the twin yields `''` there. Structure, not authority (settled by the
+  // door above and again by `add_capa_action_evidence` below).
+  const admin = createAdminClient()
+  const { data: version } = await admin
+    .from('document_versions')
+    .select('documents!document_versions_document_id_fkey ( id, title, home_resource_id )')
+    .eq('id', finalized.documentVersionId)
+    .maybeSingle()
+    .returns<{ documents: { id: string; title: string; home_resource_id: string } } | null>()
+  const doc = version?.documents
+  if (!doc) return { ok: false, code: 'unknown' }
+
+  const supabase = await createClient()
+
+  // Step 3 — idempotency guard: a retried finalize must not mint a SECOND
+  // evidence row over the same document (no unique index forbids it).
+  const { data: existing } = await supabase
+    .from('capa_action_evidence')
+    .select('id')
+    .eq('document_id', doc.id)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle()
+    .returns<{ id: string } | null>()
+  if (existing) return { ok: true, evidenceId: existing.id }
+
+  // Step 4 — the evidence row. `p_action_id` is the document's OWN home, which
+  // the RPC re-verifies (`d.home_resource_id = p_action_id` AND
+  // `s.resource_type = 'capa_action'`).
+  const { data: evidence, error } = await supabase.rpc('add_capa_action_evidence', {
+    p_action_id: doc.home_resource_id,
+    p_kind: 'document',
+    p_title: doc.title,
+    p_document_id: doc.id,
+  })
+  if (error || !evidence) return { ok: false, code: evidenceErrCode(error) }
+
+  revalidateNsp()
+  return { ok: true, evidenceId: evidence.id }
 }
 
 /** Add a `link`-kind row (unchanged in behaviour; re-typed onto the union). */
 export async function addCapaEvidenceLink(
-  _actionId: string,
-  _input: NspEvidenceLinkInput,
+  actionId: string,
+  input: NspEvidenceLinkInput,
 ): Promise<NspEvidenceActionState> {
-  throw new Error('not implemented — DM5 S2')
+  if (!actionId || !input?.title?.trim() || !input.externalUrl?.trim()) {
+    return { ok: false, code: 'invalid_input' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('add_capa_action_evidence', {
+    p_action_id: actionId,
+    p_kind: 'link',
+    p_title: input.title.trim(),
+    p_external_url: input.externalUrl.trim(),
+  })
+  if (error) return { ok: false, code: evidenceErrCode(error) }
+
+  revalidateNsp()
+  return { ok: true }
 }
 
 /** Resolve a short-TTL signed URL through the single audited door. */
 export async function openCapaEvidence(
-  _evidenceId: string,
+  evidenceId: string,
 ): Promise<NspEvidenceActionState & { url?: string }> {
-  throw new Error('not implemented — DM5 S2')
+  if (!evidenceId) return { ok: false, code: 'invalid_input' }
+
+  // RLS-scoped: `capa_action_evidence_select` is `can_read_capa(plan)`, the
+  // same predicate `app.can_read_document`'s `capa_action` arm resolves to.
+  // Absence ≡ denial.
+  const supabase = await createClient()
+  const { data: ev } = await supabase
+    .from('capa_action_evidence')
+    .select('kind, document_id')
+    .eq('id', evidenceId)
+    .is('deleted_at', null)
+    .maybeSingle()
+    .returns<{ kind: string; document_id: string | null } | null>()
+  if (!ev || ev.kind !== 'document' || !ev.document_id) return { ok: false, code: 'not_found' }
+
+  const { data: version } = await supabase
+    .from('document_versions')
+    .select('id')
+    .eq('document_id', ev.document_id)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .returns<{ id: string } | null>()
+  if (!version) return { ok: false, code: 'unavailable' }
+
+  // THE audited byte door (`open_document_version`): kernel + D15 ceiling +
+  // servable-state checks, one Rule-11 `document.opened` row, then the command
+  // layer signs short-TTL (ADR 0114 O4). Replaces the retired list-time
+  // `createSignedUrl(path, 3600)`.
+  const opened = await openDocumentVersion(version.id)
+  if (!opened.ok) return { ok: false, code: narrowDocumentEvidenceError(opened.error) }
+  return { ok: true, url: opened.url }
 }
