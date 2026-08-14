@@ -162,10 +162,11 @@ declare
   v_vol "char";
   v_cfg text;
   v_acl text;
+  v_raw aclitem[];
 begin
   select p.prosecdef, p.provolatile, array_to_string(p.proconfig, ','),
-         array_to_string(p.proacl, ',')
-    into v_secdef, v_vol, v_cfg, v_acl
+         array_to_string(p.proacl, ','), p.proacl
+    into v_secdef, v_vol, v_cfg, v_acl, v_raw
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'app' and p.proname = 'can_read_document';
 
@@ -178,8 +179,19 @@ begin
   if v_cfg is distinct from 'search_path=app, public, pg_catalog' then
     raise exception 'can_read_document lost its search_path pin (got %)', v_cfg;
   end if;
-  if v_acl not like '%authenticated=X/postgres%' then
+  -- ⚠ STRUCTURAL, not substring (consistency fix, DM5 S2 close). PUBLIC is an
+  -- aclitem with an EMPTY grantee, so `like '%=X/postgres%'` also matches
+  -- `postgres=X/postgres`. The same habit produced a false positive in
+  -- 20260927000120 and a vacuous guard in …000130/…000150. This one was a
+  -- PRESENCE check, so its failure mode was a false ALARM rather than a false
+  -- pass — benign direction, same defective habit. aclexplode answers it.
+  if not exists (select 1 from aclexplode(v_raw) a
+                  where a.grantee = 'authenticated'::regrole::oid
+                    and a.privilege_type = 'EXECUTE') then
     raise exception 'can_read_document lost the authenticated EXECUTE grant (got %)', v_acl;
+  end if;
+  if exists (select 1 from aclexplode(v_raw) a where a.grantee = 0) then
+    raise exception 'can_read_document gained a PUBLIC grant (got %)', v_acl;
   end if;
 end $$;
 

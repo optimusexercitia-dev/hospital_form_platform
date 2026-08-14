@@ -287,3 +287,122 @@ its own success.
 > with genuinely distinct read/write predicates, so this is hardening, not an open door — but DM5
 > must not assume the RPC is the only writer when placing the `documents_wave_d` assert.
 
+
+---
+
+## S2 — NSP RCA/CAPA evidence onto the substrate: CLOSE
+
+Migrations `20260927000100`–`000150` (6) · pgTAP `341` · ADR 0120 D1/D2/D10/D14/D15/D16.
+
+### Gate figures (fresh `supabase db reset`)
+
+| check | figure |
+| --- | --- |
+| registry | **397 registered == 397 files** |
+| pgTAP | **192 files / 6272 tests PASS** |
+| reconciliation | `341`: 30 to 41 · repo: 6261 to 6272 · **both +11** |
+| tsc / lint / vitest | 0 · 5/5 · 1264/1264 |
+
+### The four authz arms — named as arms, not as the script
+
+| arm | the question it asks | result |
+| --- | --- | --- |
+| `ARM=census` | has anything **ever asked** about each live gate? | **HOLDS** — live 546 / verdicts 569 |
+| `ARM=hat` | does any door read `memberships` **without the caller's hat**? | **HOLDS** — 3, all reasoned-allowlisted |
+| `ARM=floor` | is every door **actually called**? | **HOLDS** — 74 never-called, all allowlisted |
+| `FROMFINDINGS=1 ARM=wrapper` | `prosecdef = f` invoker wrappers | **HOLDS** — BLIND 41, all allowlisted |
+
+**`ARM=census` stayed at 546 live, and that is correct, not an oversight.** No S2 function
+qualifies as a census door: `app.assert_documents_wave_d_enabled` is `prosecdef = f` returning
+`void`; `ensure_securable_resource_rca` / `_capa_action` return `trigger`; `add_rca_evidence` /
+`add_capa_action_evidence` are composite-returning — the **pre-existing** 141 blind class, not
+growth. `can_read_document` was already in the domain; the policy swap was net-zero. So **no new
+door needed to join the census domain or the findings file.**
+
+**Signature-keyed artifacts re-checked after the parameter change** — a signature change orphans a
+signature-keyed entry exactly as a rename does. `authz-neverclled-door-allowlist.txt:37` updated in
+the migration's own commit; findings file carries no entry for either door; line 41 deliberately
+untouched (DM4's retired surface, FUP-AUTHZ-ALLOWLIST-ROT's positive control).
+
+### Diff-scoped door sweep — 1 case COVERED, with its DOMAIN stated
+
+Gate list derived from the migration diff (8 gates).
+
+```
+PREDICATE ARM:  COVERED  app.can_read_document(p_document_id uuid, p_uid uuid)
+POLICY ARM:     (empty)
+BLIND: 0   ERROR(harness): 0        over a domain of ONE
+```
+
+WARNING: the first run executed **zero cases** and printed `BLIND: 0` — indistinguishable from
+clean. `CASES` matches bare `proname`, space-separated, exact; a pipe-delimited string is one token
+matching nothing. **Not cited.** The re-run's nonzero count is what makes the verdict citable.
+
+**4 of 5 requested gates are outside the harness's domain and were NOT swept** — recorded as
+unswept, never as clean: `add_rca_evidence` / `add_capa_action_evidence` (composite-returning),
+`hospital_of_capa_action` (uuid-returning), `capa_evidence_obj_insert_writable` (the policy arm
+enumerates `public.*`; this policy is on `storage.objects`). Their only coverage is `341`.
+
+Both runs overwrote `docs/reviews/authz-door-audit-findings.md`; restored with `git checkout --`
+and the tree verified clean each time.
+
+### The `…000120` REVOKE — FACT: falsified, then fixed
+
+**Not a confirmed inference.** The reset did not confirm the hand-applied delta — **it falsified
+the file.** That PUBLIC assertion had *never executed*: it was added while repairing an
+already-registered migration, so only the hand-applied REVOKE ever took effect, and the corrected
+file first ran at the reset, where it failed.
+
+**"File and DB agree" is not "the file works."** Both agreed, and both were checked. Recording the
+reproduction as fact then would have carried a broken migration into the gate with a green local
+stack agreeing with it.
+
+Now fact on a fresh reset: `anon_exec = false` on both doors; PUBLIC holds no EXECUTE
+(`aclexplode … grantee = 0` false); 0 first-party `public` functions anon-executable.
+
+### One habit, two opposite failures — the substring ACL test
+
+`acl like '%=X/postgres%'` matched **every** function (PUBLIC is an aclitem with an *empty*
+grantee, so it also matches `postgres=X/postgres`) — false positive in `…000120`. The variant
+guarded with `and not like '%postgres=X/postgres%'` was **structurally incapable of firing** while
+postgres held a grant — vacuous guard in `…000130`/`…000150`. *Asking a string a question only
+structure can answer.* All sites — plus `…000110`'s presence check and `341` D4d — now use
+`aclexplode`, with `D4e` added for the direction a presence check cannot see.
+
+### Durable mechanism fixes (not phase details)
+
+- **K9b asserts the OFF set is EMPTY** rather than naming a flag: it cannot go stale the next time
+  a wave ships. A fix to the coupling mechanism itself, better than the coupling as designed.
+- **`…000140` kept as its own migration** so BUG-DM5-CAPA-1's red was provable against the pre-fix
+  catalog, and re-measured at HEAD `3b51c20d` (tree clean) rather than inherited from step 0.
+
+### Recurring classes — counted, because the recurrence is the finding
+
+- **Syntax-bounded enumeration: THREE instances**, three different authors' contexts, one shape —
+  *the boundary was a syntax, not the property*: step 0's `.rpc('X')` sweep missing a line-wrapped
+  call; the lead's `expiresAt` grep whose pattern never contained the term; this slice's derivation
+  regex matching only `create or replace function` and missing a bare `create function`.
+- **Text-as-truth: THREE instances** — the substring ACL tests (two opposite directions) and
+  `prosrc like '%HC0DM%'` firing on the migration's own comment.
+- **Measured vs. reasoned** — every claim produced by measurement held; every claim produced by
+  reading and reasoning needed correction. That split, not authorship, is the phase's lesson.
+
+### A code-design decision to defend against future "improvement"
+
+`HC0D8` is raised for **both** absence and wrong-home/unreadable, deliberately: an error
+distinguishing *"does not exist"* from *"not yours"* is an **existence oracle**.
+
+Its cost, discovered live: **the ambiguity that blinds an attacker also blinds the test.** `341` F7
+asserted `HC0D8` and received `HC0D8` — from "no such document", not "you may not read it" —
+passing vacuously while F4/F6 went visibly red. **When a door answers one code for several causes,
+a test asserting that code proves nothing about which cause fired; the discriminating fact must be
+pinned separately, before the assertion runs.** `F5b` does that. The same shape applies to D12's
+conjunction in S3.
+
+### For `tester` — one seam a UI spec cannot reach
+
+The **direct-PostgREST-DML path**: both evidence tables carry table-wide `arwdDxtm` to
+`authenticated`, so a client can `POST /rest/v1/rca_evidence` without traversing the RPC. That is
+why the shape rules are CHECKs and the flag is an assert. A UI-driven spec always goes through the
+action and can never exercise the bypass — `341` F8 covers it in SQL. **A correctly-drawn boundary,
+not a coverage gap.**
