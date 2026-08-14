@@ -34,9 +34,9 @@
 -- since it proves the arm under the transition the product actually performs.
 -- =============================================================================
 begin;
--- 40 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:9. Count derived by block, not by eye —
+-- 41 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10. Count derived by block, not by eye —
 -- the first authoring pass said 29 because C5a/C5b were counted as one.
-select plan(40);
+select plan(41);
 
 -- ---------------------------------------------------------------------------
 -- P — preconditions (pgtap-fixture-flag-gaps: assert flags, never assume)
@@ -247,6 +247,116 @@ select ok(
     where n.nspname = 'app' and p.proname = 'hospital_of_capa_action')
   !~ 'event_of_capa',
   'DM5·S2 E2 ⭐ D16: it no longer routes through event_of_capa (NULL for 4 of 6 CAPA sources)');
+
+
+-- ---------------------------------------------------------------------------
+-- F — ADR 0120 D10 (the flag is ARM-SCOPED) + the citation seam's authorization.
+--
+-- ⭐ F3/F4 ARE THE POINT. A BLANKET assert at the head of add_rca_evidence would
+-- satisfy F2's refusal perfectly while silently killing the `link` and
+-- `citation` arms, which have nothing to do with Wave D. Only a POSITIVE
+-- control can tell those two implementations apart — the DM3 `DM3·T3b` shape.
+-- A refusal test alone is compatible with a kill switch.
+--
+-- ⭐ F6/F7 are a ONE-VARIABLE differential. Both writers can write the RCA
+-- (F5 pins that); they differ ONLY in whether they can READ the cited document.
+-- A citation is an EXISTENCE DISCLOSURE — label and id project to every reader
+-- of the RCA — so "no linking what you cannot read" is the property, and
+-- authority over the CONTAINER is not authority over the CONTENT
+-- (the FUP-DM4-RECUSAL shape, declined here rather than shipped again).
+-- ---------------------------------------------------------------------------
+select is((select enabled from app.feature_flags where key = 'documents_wave_d'), true,
+  'DM5·S2 F1 [CONTROL] documents_wave_d is ON in the seeded state (so F2''s OFF window is a real change)');
+
+-- ⚠ RESOLVED AS postgres INTO A TEMP TABLE, not inline in the probes.
+-- `public.documents` is RLS-gated by `can_read_document`, so an inline subquery
+-- is filtered BY THE CALLER: for the writer who cannot read the document it
+-- returned NO ROWS, `p_cited_entity_id` arrived NULL, and the SHAPE check fired
+-- (23514) before the authorization gate could. F7 would have been asserting the
+-- wrong refusal — the fixture disappearing, not the door working. A temp table
+-- is not RLS-filtered, so every persona sees the same id.
+create temp table f_doc on commit drop as
+  select d.id from public.documents d
+    join public.securable_resources s on s.id = d.home_resource_id
+   where s.commission_id = 'a0000000-0000-0000-0000-0000000000a1'
+     and s.resource_type = 'controlled_document' order by d.title limit 1;
+-- The probes run as `authenticated`; the temp table is owned by postgres.
+grant select on f_doc to authenticated;
+
+update app.feature_flags set enabled = false where key = 'documents_wave_d';
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+
+select throws_ok(
+  $q$ select public.add_rca_evidence('f3000000-0000-0000-0000-0000000000a3','document','flag off',
+        null, null, null, null, null) $q$,
+  'HC0D7', null,
+  'DM5·S2 F2 with wave_d OFF the DOCUMENT arm refuses at its first residue-producing step');
+select lives_ok(
+  $q$ select public.add_rca_evidence('f3000000-0000-0000-0000-0000000000a3','link','link arm',
+        null, 'https://example.org/dm5-f3', null, null, null) $q$,
+  'DM5·S2 F3 ⭐ POSITIVE CONTROL: with wave_d OFF the LINK arm still succeeds (the gate is Wave D''s, not a kill switch)');
+select lives_ok(
+  $q$ select public.add_rca_evidence('f3000000-0000-0000-0000-0000000000a3','citation','citation arm',
+        null, null, 'document', (select id from f_doc), 'rotulo F4') $q$,
+  'DM5·S2 F4 ⭐ POSITIVE CONTROL: with wave_d OFF the CITATION arm still succeeds');
+
+reset role;
+update app.feature_flags set enabled = true where key = 'documents_wave_d';
+
+select ok(
+  app.can_write_rca('f3000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-000000000002')
+  and app.can_write_rca('f3000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-0000000000c1'),
+  'DM5·S2 F5 [CONTROL] BOTH writers can write this RCA — so F6/F7 differ only in document readability');
+
+-- ⭐ F5b IS WHY F7 IS NOT VACUOUS. The first version of this block hardcoded a
+-- document id captured before a reset; the seed mints those with
+-- gen_random_uuid(), so after the next reset the id named NOTHING. F4/F6 went
+-- red (visibly), but **F7 stayed GREEN FOR THE WRONG REASON** — it asserts
+-- HC0D8 and got HC0D8 from "no such document" rather than from "you may not
+-- read it". A denial that cannot tell absence from refusal proves nothing.
+-- The id now resolves dynamically and this control pins BOTH sides of the
+-- differential before either arm is asserted.
+select ok(
+  (select d.id from public.documents d
+     join public.securable_resources s on s.id = d.home_resource_id
+    where s.commission_id = 'a0000000-0000-0000-0000-0000000000a1'
+      and s.resource_type = 'controlled_document' order by d.title limit 1) is not null
+  and app.can_read_document((select id from f_doc), '00000000-0000-0000-0000-000000000002')
+  and not app.can_read_document((select id from f_doc), '00000000-0000-0000-0000-0000000000c1'),
+  'DM5·S2 F5b [CONTROL] the cited document EXISTS, IS readable by chefe.ccih and is NOT readable by nspcoord.a');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $q$ select public.add_rca_evidence('f3000000-0000-0000-0000-0000000000a3','citation','pode ler',
+        null, null, 'document', (select id from f_doc), 'rotulo F6') $q$,
+  'DM5·S2 F6 ⭐ the citation seam is LIVE: a writer who CAN read the document may cite it (328 K8b discharged)');
+reset role;
+
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000c1'::uuid, false, 'nsp_coordinator');
+set local role authenticated;
+select throws_ok(
+  $q$ select public.add_rca_evidence('f3000000-0000-0000-0000-0000000000a3','citation','nao pode ler',
+        null, null, 'document', (select id from f_doc), 'rotulo F7') $q$,
+  'HC0D8', null,
+  'DM5·S2 F7 ⭐ ONE VARIABLE: the same-authority writer who CANNOT read the document is refused (no linking what you cannot read)');
+select throws_ok(
+  $q$ insert into public.rca_evidence (rca_id,kind,title,cited_document_id,citation_label,created_by)
+      values ('f3000000-0000-0000-0000-0000000000a3','citation','ghost',
+              '00000000-0000-0000-0000-0000000dead2','rot',auth.uid()) $q$,
+  '23503', null,
+  'DM5·S2 F8 ⭐ the FK holds the DIRECT-DML path: a citation cannot name a document that does not exist');
+reset role;
+
+select ok(
+  (select coalesce(with_check, qual) from pg_policies
+    where schemaname='storage' and tablename='objects'
+      and policyname='capa_evidence_obj_insert_writable') like '%can_write_capa%'
+  and (select coalesce(with_check, qual) from pg_policies
+        where schemaname='storage' and tablename='objects'
+          and policyname='capa_evidence_obj_insert_writable') not like '%hospital_of_event%',
+  'DM5·S2 F9 ⭐ BUG-DM5-CAPA-1: the CAPA insert arm reads segment 1 as a CAPA id (can_write_capa), not through an EVENT resolver');
 
 select * from finish();
 rollback;
