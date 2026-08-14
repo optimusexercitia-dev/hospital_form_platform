@@ -190,6 +190,37 @@
 >   not raw). Symmetry with `ReferralReplyDocument.canOpen` would close it.
 > - 🔶 **Open question**: the DT page offers the upload control (the DT *is* the target side);
 >   whether `can_write_document`'s referral arm admits the DT office is backend's to confirm.
+>
+> **S0–S3 + S5 (backend) — ✅ BUILT** 2026-08-14 (ADR [0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md);
+> M1–M4 lead-approved; both S4 🔶 items above are CLOSED — `SharedItem.canOpen` shipped
+> (`5788352e`, door-equivalent predicate, lane-consistent) and the DT office IS admitted
+> (catalog-verified: `can_manage_referral_target` carries the `technical_director` arm; the
+> legacy gate was predicate-identical — pinned by 340 B5b/B5c).
+> - **Migrations `20260926000100`–`000400`** (`72c6c49c`): registry + kernel arms + freeze
+>   seam + retirement. M5 DELETED (PO reset ruling — a reconciler no buildable DB needs is
+>   born caller-less); its semantics live inline in M3. `frozen_storage_path` DROPPED
+>   (21 refs/7 files swept by identifier; 197 §4 re-expressed deliberately, its
+>   pass-by-absence hole closed with a positive control).
+> - **Red-first record** (`ed759d15`, log `scratchpad/340-red-first-run.log`): 340 authored
+>   pre-migration; **44/44 ⭐ keystones observed RED for the right reason** (wrong SQLSTATE /
+>   wrong value / arm-denied — not mere object-absence: throws_ok code mismatches and
+>   value asserts, with `pg_temp` late-binding + guarded fixtures so the file RAN to
+>   completion, 68 executed / 44 red / 24 = only [CONTROL]+[MATRIX] greens).
+> - **Neutralization matrix `supabase/tests/mutation/dm4-referral-doors-matrix.sh`**
+>   (`66084b4f`): **16/16 RED-PROVEN, unmutated control green** — every excluded state
+>   opened independently (HC071 vs HC070 as separate barriers; both asymmetry halves;
+>   N10a discovery: `log_audit_access`'s own authz is a second live lock on the snapshot
+>   door — gate-open alone leaks nothing).
+> - **Gate numbers on a FRESH reset:** registry 390 == disk 390 (max `20260926000400`) ·
+>   pgTAP **191 files / 6203 tests — exactly ONE red: `236`** (its `case-documents`
+>   boundary + the u1 harness's injection target were retired by M4 — **stop-and-tell filed
+>   with the lead; 236/u1 deliberately NOT adapted unilaterally**) · tsc 0 · lint 5/5 ·
+>   vitest 1258. Authz arms + diff-scoped sweep: **not yet run — lead sequences them.**
+> - **Contract changes relayed:** `SharedItem.frozenStoragePath` REMOVED;
+>   `DocumentHomeResourceTypeDb` minted (API = 5 UI homes + `case_referral`) so per-home UI
+>   maps stay total; legacy `addReferralReplyAttachment` removed (RPC/table gone); both
+>   legacy signed-URL getters neutered to `null` until S4 removes their call sites.
+> - HC072's stale message text: NOT touched (outside the diff, per lead ruling).
 
 ### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
 
