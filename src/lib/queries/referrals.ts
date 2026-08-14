@@ -554,9 +554,14 @@ interface ReferralDetailJson {
     source_document_id: string | null
     frozen_title: string | null
     frozen_body_md: string | null
-    frozen_storage_path: string | null
+    /** Legacy; absent once DM4 M4's get_referral_detail rewrite lands. */
+    frozen_storage_path?: string | null
     frozen_mime_type: string | null
     frozen_size_bytes: number | null
+    /** DM4 (M4 rewrite): PHI-gated binding + tombstone + server-computed canOpen. */
+    frozen_document_version_id?: string | null
+    frozen_tombstoned_at?: string | null
+    can_open?: boolean
     position: number
   }[]
   resolutions: {
@@ -676,14 +681,15 @@ export async function getReferralDetail(
     sourceDocumentId: s.source_document_id,
     frozenTitle: s.frozen_title,
     frozenBodyMd: s.frozen_body_md,
-    frozenStoragePath: s.frozen_storage_path,
+    frozenStoragePath: s.frozen_storage_path ?? null,
     frozenMimeType: s.frozen_mime_type,
     frozenSizeBytes: s.frozen_size_bytes,
-    // DM4 S1: populated from the new `referral_shared_item` binding columns once
-    // `get_referral_detail` projects them; until then every live row is a
-    // narrative or a legacy document row, and `null` is the true value.
-    frozenDocumentVersionId: null,
-    frozenTombstonedAt: null,
+    // DM4: projected by the M4 get_referral_detail rewrite. The binding is
+    // PHI-gated server-side (197 §4); canOpen is the server-computed door
+    // affordance (lane-consistent with ReferralReplyDocument.canOpen).
+    frozenDocumentVersionId: s.frozen_document_version_id ?? null,
+    frozenTombstonedAt: s.frozen_tombstoned_at ?? null,
+    canOpen: s.can_open ?? false,
     position: s.position,
   }))
 

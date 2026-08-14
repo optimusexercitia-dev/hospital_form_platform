@@ -877,12 +877,22 @@ export interface SharedItem {
   frozenMimeType: string | null
   frozenSizeBytes: number | null
   /**
-   * DM4: the immutable `document_versions` binding frozen at share time
-   * (`null` for a `narrative`, and for a legacy/tombstoned document row).
-   * `null` on a `document` row means the snapshot is NOT servable — render the
-   * pt-BR "indisponível" state, never an open affordance.
+   * DM4: the immutable `document_versions` binding frozen at share time.
+   * PHI-GATED in the projection (the 197 §4 asymmetry pin): a metadata-tier
+   * reader receives `null` even when a binding exists. Never derive the open
+   * affordance from this field — that is {@link canOpen}'s job.
    */
   frozenDocumentVersionId: string | null
+  /**
+   * DM4 (lane-consistency ruling): SERVER-computed — the audited snapshot door
+   * (`openReferralSnapshotDocument`) would serve this item to the CURRENT
+   * caller (PHI tier AND binding present AND not tombstoned AND source
+   * servable). The exact twin of {@link ReferralReplyDocument.canOpen}: render
+   * the open affordance iff `true`; render "indisponível" iff
+   * {@link frozenTombstonedAt} is set. Always `false` for a `narrative`.
+   * Never derive this client-side.
+   */
+  canOpen: boolean
   /**
    * DM4: set when the snapshot was reconciled away (legacy dangling row) or its
    * PHI was disposed — the snapshot row survives as a governance record but its
