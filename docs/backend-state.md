@@ -11,6 +11,37 @@
 > is stale by design (CLAUDE.md graphify exception; this sentence said "the migrations
 > are the truth" until 2026-08-05).
 >
+> ⛔⛔ **CURRENCY STAMP — THIS FILE IS STALE BY ONE SLICE. Read this before quoting ANY document /
+> NSP / evidence line below.** Last content update: `bf1585ea` (2026-08-14), which landed **before every
+> DM5·S2 migration**. Registry was **391** then; it is **399** now. **8** migrations
+> (`20260927000100`–`000170`) changed this surface and are **NOT reflected anywhere below**:
+>
+> - `securable_resources_type_check` admits **8** types, not 6 — `rca` and `capa_action` were added, and
+>   `securable_resources_tenant_shape` carries a **second shape** for `capa_action` (org + hospital,
+>   **NULL commission** — ADR 0120 D14).
+> - **`app.can_read_document` AND `app.can_write_document`** both gained `rca` + `capa_action` arms.
+>   ⚠ **The write door was missed for a full slice and refused every user with `P0002`**
+>   (BUG-DM5-S2-WRITE-ARM-1) — *a new home type means enumerating EVERY dispatch on `resource_type`.*
+> - **`p_storage_path` is DEAD** on `begin_document_upload`, `add_rca_evidence` and
+>   `add_capa_action_evidence` — caller-supplied paths are gone (the ADR 0114 D8/D9 inversion).
+> - `begin_document_upload` + both evidence doors now assert **`app.assert_documents_wave_d_enabled()`**;
+>   `finalize_document_upload` deliberately does **not** (the flag gates the first step that produces
+>   residue, arm-scoped, ADR 0120 D10).
+> - `rca_evidence.cited_document_id` is **un-parked** (pgTAP `328` K8b discharged); `listRcaCitationTargets`
+>   offers document targets.
+>
+> ⚠ **Why this stamp exists, and it is not bookkeeping.** Line ~245's *"Still unbuilt: S2.8 … no legal
+> expression"* was written at DM2·S2 close and **never updated when S2.8 landed hours later**. It has now
+> misled **twice**: DM3's planner caught it; **DM5's lead did not, and it produced ADR 0120 D3/D4/D5 —
+> three decisions on a false premise, withdrawn before any SQL** (the mechanism was already built, under
+> another name, and DM2 had rejected the re-proposed shape *by name*). ⭐ *A durable surface map that lags
+> its own phase is a trap with a long fuse.* **Resolve the VALUE, not the noun**, and when this file and
+> the catalog disagree, **the catalog wins** — always, no exceptions. The full document-surface rewrite is
+> an explicit **DM5·S6** deliverable, not optional cleanup.
+>
+> ⚠ Also owed at S6: **`:205` says census 146; the reproducing figure is 141** — fix it with the deriving
+> query beside it.
+>
 > 🔤 **RENAMED 2026-08-09 (`20260917000200`): `app.is_commission_admin_of(_for)` →
 > `app.is_tenancy_admin_of(_for)`.** The old name is GONE — no shim. It always resolved
 > **org_admin / hospital_admin** (the TENANCY tier) and was FALSE for `staff_admin`, the

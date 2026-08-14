@@ -7,6 +7,37 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## ✅ RESUME AUDIT before S3 (lead, 2026-08-14, HEAD `e2af9790`) — the build is sound; **every defect was in the RECORDS**
+
+The PO asked for a consistency check on the DM5 work before continuing. **Nothing in the built system was
+wrong.** Every figure the handoff claimed reproduced exactly on a fresh reset — registry **399 == 399** ·
+pgTAP **192 files / 6284** · tsc **0** · lint **5/5** · vitest **1294** · all four arms **HOLD** (census
+546/569 · hat 3 · floor 74 · wrapper BLIND 41) · degenerate bodies **0** · tree clean · findings 594 lines.
+The catalog corroborated every S2 claim independently: 8 securable types, **both** kernel doors carrying
+`rca`+`capa_action` with `prosecdef = t`, `p_storage_path` dead on all three write doors, `wave_d` asserted
+at `begin` and deliberately not at `finalize`, `tenant_shape` carrying D14's shape-B, flags default `false`
+in migration and ON in the local seed only. **S2's one owed item — the four arms — is discharged.**
+
+⭐ **The finding is the shape of the finding.** A phase that spent six weeks learning *"text is not truth"*
+had produced, in its own status files, **eight** assertions that contradicted the catalog, git, or each
+other. **A build verified nine ways was being described by records nobody re-ran.**
+
+| # | inconsistency | disposition |
+| --- | --- | --- |
+| **1** | 🔴 **PROGRESS.md asserted `⛔⛔ S2 IS REOPENED — IT WAS NEVER FUNCTIONAL` as CURRENT STATE.** All three named defects are ✅ FIXED — contradicted by the **same file's own bug log**, by git, by 0 stub bodies, and by the live catalog. **This is the file every teammate spawn reads**: a `backend` spawned for S3 would have been briefed that S2 is broken. | ✅ rewritten; the lesson retained, explicitly re-framed as **history** |
+| **2** | 🔴 **PROGRESS.md's phase-status DM row said "No migrations/code written yet"** and quoted registry **391**. Eight migrations are registered; it is **399**. | ✅ corrected, with a pointer to the live section as the authority |
+| **3** | 🟠 **The "S2 … CLOSE" section here presented the VOID first close's figures** (397 / 6272 / 1264 / "6 migrations") **with no visible marker** — the reopen banner sits ~200 lines above under a different heading. ⭐ **This is ADR 0120's own withdrawal root-cause #3 repeating one file over:** *a supersession marker only a raw-file reader can see is not a marker* — and here it was worse, because the marker was merely **distant** rather than hidden. | ✅ loud in-section banner + the true figures beside the void ones |
+| **4** | 🟠 **`docs/backend-state.md` predates EVERY S2 migration** (last content `bf1585ea`) — no knowledge of the new types, either kernel arm, the dead `p_storage_path`, the `wave_d` assert, or the un-parked citation seam. ⛔ **This is the same file, in the same phase, that caused S1's withdrawal — and it would now have been consulted by S3, which touches exactly that surface. Third strike attempted.** | ✅ loud currency stamp at the head enumerating all 8 migrations' deltas; full rewrite stays an S6 deliverable |
+| **5** | 🆕 **The S3 trap-3 enumeration was bounded by two line numbers, not by the property** — **four** sites, two unnamed anywhere, one of them S2's own new code. And the recorded failure mode was wrong: it does not crash, it **silently misclassifies a fully-uploaded print as `pending` with `canOpen: false`**, forever. Full analysis + per-site reachability: handoff §4 trap 3. | ✅ corrected and sharpened; **reframed from "frontend's" to a joint resolution-seam fix + keystone** |
+| **6** | 🟡 **Two 🔴 follow-ups were in `follow-ups.md` but had ZERO mentions in PROGRESS.md** — FUP-AUTHZ-HARNESS-TRANSACTIONAL (a **live authz-harness hazard**) and FUP-DM5-FINALIZE-ATOMIC — against the stated "filed in BOTH" discipline. | ✅ both now in PROGRESS.md's Open list |
+| **7** | 🟡 **Two items lived only in handoff prose, filed nowhere:** `330` is BLIND to `can_write_document`, and the intermittent `pg_prove` worker deadlock (*will re-red a gate at random and read like a defect*). | ✅ named in PROGRESS.md as explicitly unfiled |
+| **8** | 🟡 **PROGRESS.md is 137 KB** against §7's "well under 60 KB" — it was rotated to 115 KB at `3b51c20d` and grew **22 KB in one slice**. Rotation is the lead's, and [[progress-md-record-step-rotation-is-chronically-skipped]] is a standing memory. | 🔶 **OPEN** — flagged to the PO, not yet done |
+
+⚠ **The one class this audit could NOT clear.** Every check above is static — catalog, git, counts, text.
+**S2's own history is that all of those were green while the feature did not work at all**, because *not one
+of them executes a page*. The E2E evidence for S2 is a **quick-loop** run (8/8 new + 36/36 pre-existing),
+never `e2e:prod`. **DM5 has no full-gate E2E result at any point**, and it must not close without one.
+
 ## ⚠ INCIDENT during S2 verification — an authz gate was LIVE-OPEN on the shared stack (2026-08-14)
 
 **Anyone auditing S2's results needs this window.** `app.can_write_document` — the gate for **every**
@@ -325,11 +356,29 @@ its own success.
 
 ## S2 — NSP RCA/CAPA evidence onto the substrate: CLOSE
 
+> ⛔⛔ **THE FIGURES IN THIS SECTION ARE THE FIRST CLOSE'S AND THEY ARE VOID.** This close was
+> **rejected** — S2 was reopened at `52242f26` because the feature **did not work at all** while every
+> figure below was green. **The section is retained verbatim as evidence of what a green close can
+> assert**, and because its sub-sections on the arms, the ACL habit and the recurring classes are still
+> accurate and durable. **Do not cite the gate-figures table.**
+>
+> ✅ **The REAL, current S2 figures** — re-measured by the lead on a fresh reset at HEAD `e2af9790`,
+> tree clean, 2026-08-14: **8** migrations `20260927000100`–`000170` (not 6) · registry **399 == 399**
+> (not 397) · pgTAP **192 files / 6284** (not 6272) · tsc **0** · lint **5/5** · vitest **1294** (not
+> 1264) · all four arms **HOLD** (census 546/569 · hat 3 · floor 74 · wrapper BLIND 41) ·
+> degenerate-body sweep **0** · diff-scoped sweep **COVERED / BLIND 0 / 1 case executed**.
+>
+> ⚠ **Why this banner is loud, and in prose rather than an HTML comment:** ADR 0120's own withdrawal
+> root-cause #3 was *"the superseded text was marked with an HTML comment — invisible in rendered
+> Markdown, so I quoted dead text as current. **A supersession marker only a raw-file reader can see is
+> not a marker.**"* The reopen banner sits ~200 lines above this heading, under a different one; a reader
+> who lands here by search or link would never see it. **That is the same failure, one file over.**
+
 Migrations `20260927000100`–`000150` (6) · pgTAP `341` · ADR 0120 D1/D2/D10/D14/D15/D16.
 
-### Gate figures (fresh `supabase db reset`)
+### Gate figures (fresh `supabase db reset`) — ⛔ VOID, see the banner above
 
-| check | figure |
+| check | figure (VOID) |
 | --- | --- |
 | registry | **397 registered == 397 files** |
 | pgTAP | **192 files / 6272 tests PASS** |

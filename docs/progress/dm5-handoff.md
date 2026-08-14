@@ -12,7 +12,7 @@
 | --- | --- |
 | **S0** manifest tool | ✅ complete (`0e85cbe7`, `9d37ad79`) — 8/8 self-test controls |
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
-| **S2** NSP RCA/CAPA evidence | ✅ **gate steps 1–2 COMPLETE** — sweep `COVERED` (§3). ⚠ Four arms not re-run; QA review (§6 step 3) not started |
+| **S2** NSP RCA/CAPA evidence | ✅ **gate steps 1–2 COMPLETE** — sweep `COVERED` (§3). ✅ **Four arms DISCHARGED 2026-08-14** (below). QA (§6 step 3) is a **phase-level** step, owed at DM5 close, not per-slice |
 | **S3** printed renditions | ⛔ **NOT STARTED — the pause point.** All rulings already made (§4) |
 | **S4** retirement (8 buckets) | ⬜ not started |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
@@ -64,9 +64,25 @@ not only here — because that row is what a future reader will trust:
 `rca_arm=t · capa_arm=t · prosecdef=t`, findings file restored to **594** lines with table integrity
 checked, **tree clean on `main`**.
 
-⚠ **Still owed for S2's §6 step 1: `ARM=census` / `hat` / `floor` / `wrapper` were NOT re-run** after the
-write-arm and `341` changes. No new gate or policy was added, so no new census entry is owed — **but that
-was reasoned, not verified.** Someone owns it before S2 is declared gate-complete.
+✅ **DISCHARGED 2026-08-14 (lead, on resume). All four arms re-run at HEAD `e2af9790` on a fresh reset —
+all HOLD**, and the reasoning above is now verified rather than asserted:
+
+| arm | the question it asks | result |
+| --- | --- | --- |
+| `ARM=census` | has anything **ever asked** about each live gate? | **HOLDS** — live **546** / verdicts 569 |
+| `ARM=hat` | does a door read `memberships` **without the caller's hat**? | **HOLDS** — 3, all reasoned-allowlisted (self-test 6/6) |
+| `ARM=floor` | is every door **actually called**? | **HOLDS** — 74 never-called, all allowlisted |
+| `FROMFINDINGS=1 ARM=wrapper` | the `prosecdef = f` half | **HOLDS** — BLIND 41, all allowlisted |
+
+**Census stayed at 546, confirming "no new census entry is owed."** Post-run safety checks, per §6:
+degenerate-body sweep **0**, both kernel doors still `prosecdef = t` with both new arms, tree **clean**,
+findings file back to **594** lines. ⭐ *The distance between "reasoned" and "verified" here was ~90
+seconds of compute; S2 already paid once for a gate that was reasoned about instead of executed.*
+
+**Whole baseline re-measured the same run, none of it inherited:** registry **399 == 399** · pgTAP
+**192 files / 6284 PASS** · tsc **0** · lint **5/5** · vitest **1294/1294**. Every figure reproduced the
+handoff's claim exactly. **The build is sound; the defects found on resume were all in the RECORDS** —
+see the resume audit in the phase record.
 
 ⛔ **Before running any sweep, read §6 — the harness left an authz gate OPEN on this stack today**, and
 its restore is still trap-dependent. **Run the degenerate-body query immediately after every run, every
@@ -101,8 +117,37 @@ time** (§6).
 1. **`printed_documents` uses COLUMN-LIST grants** — every new column needs its own GRANT or reads `42501`.
 2. **pgTAP `312`/`313`/`323` insert `storage.objects` rows for `printed-documents` without creating the
    bucket row** — fix those fixtures in S3, before S4 can delete the bucket.
-3. **`src/lib/queries/documents.ts:116,142`** do `.find(b => b.rendition_kind === 'source')` — a print-only
-   version yields `undefined`, so `containsPhi`/`availability` derive from a **missing source**. Frontend's.
+3. ⚠ **CORRECTED + SHARPENED 2026-08-14 (lead, resuming). The enumeration was bounded by two line
+   numbers; the property has FOUR sites — and the failure mode is not the one recorded.**
+   Every projection that resolves a version's bytes via `.find(b => b.rendition_kind === 'source')`:
+   `queries/documents.ts:116` · `:142` (**both named**) · **`queries/controlled-documents.ts:163`** ·
+   **`queries/nsp-evidence.ts:61`** (**neither named anywhere** — and the latter is S2's OWN new code,
+   shipped with the same shape). This is the phase's *fourth* instance of
+   [[enumeration-boundary-is-a-syntax-not-a-property]] — the plan text already counts three.
+
+   **It does NOT crash and it does NOT read as broken.** All four feed `documentVersionAvailability`,
+   whose first rule after disposal is `if (sourceUploadState === null) return 'pending'`. So a
+   print-only version (a `printed_pdf` binding and no `source`) resolves `file === undefined` →
+   `availability = 'pending'` → **`canOpen: false`**. A print whose bytes are fully present and
+   verified renders **forever as "aguardando envio"**, and no list projection will ever offer to open
+   it. **Fails soft, silent, and wrong** — no error boundary, no log, nothing for a gate to catch.
+
+   **Reachability, per site — the question the two-line version never asked:**
+   - `documents.ts` — the generic panel projection. Under **D13** a print is its **own `documents` row
+     homed on the source's securable resource**, so a case's/meeting's Documentos panel **will** meet it.
+     ⇒ **REACHABLE. This is the real defect, and D13 is what creates it.**
+   - `controlled-documents.ts:163` — reaches only `controlled_document`-homed docs, and
+     `printed_documents.source_kind` ∈ {`form_response`,`case`,`meeting`,`interview`} has **no
+     `controlled_document`** ⇒ **not reachable today.**
+   - `nsp-evidence.ts:61` — reaches only docs joined through `rca_evidence`/`capa_action_evidence`,
+     i.e. evidence uploads ⇒ **not reachable today.**
+
+   ⭐ **So do not "fix line 116 and 142".** Three facts make that the wrong shape: the defect is created
+   by a *product* decision (D13's own-row separation), the two unreachable sites become reachable the
+   instant anything binds a `printed_pdf` to a version they can see, and the bug is not in the shared
+   predicate — it is that **four callers independently equate "the bytes" with "the `source` rendition"
+   while the substrate now has two rendition kinds.** Fix the *resolution seam*, and **keystone the
+   invariant**, not the line numbers. Backend + frontend jointly, not "frontend's".
 4. **FUP-DM5-DVF-FILEOBJ** stops being latent if the print path binds a **pre-existing** `file_object`.
 5. ⚠ **A new home type means enumerating EVERY dispatch on `resource_type`** — `can_read_*` **and**
    `can_write_*`. S2 shipped the read arm and missed the write arm entirely.
