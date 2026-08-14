@@ -157,6 +157,37 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
 
+### ✅ DIFF-SCOPED DOOR SWEEP — `BLIND: 0`; the one `ERROR` resolved by reading the runlog
+
+Case list **derived from the migration diff, never by hand** (ADR 0079 Amdt 1 recipe over
+`4c6f7d9..HEAD`): exactly two gates, `can_read_document` and `can_write_document`; **no policies
+created** by the diff. Baseline green before mutating (`Files=190 Tests=6150 PASS`).
+
+| gate | verdict |
+| --- | --- |
+| `app.can_read_document` | **COVERED** — noticed by 9 suites (`144`,`171`,`228`,`229`,`311`,`314`,`328`,`329`,`330`) |
+| `app.can_write_document` | `ERROR run-shape!=baseline (Files=190 Tests=6109)` → **substantively COVERED** |
+
+⚠ **`ERROR` is not a pass (§6), so it was resolved rather than recorded.** Reading the runlog —
+per *[`ERROR|run-shape!=baseline` ≠ unswept — read the runlog]* — neutralizing
+`can_write_document` produced **14 failures across 5 suites**: `229` (48, 62, 67–68), `231`
+(57, 77), `314` (47), `328` (52–53), `329` (13–14, 59, 61, 72). **The suite noticed loudly.** The
+`ERROR` is a *harness classification* artifact: `329` **aborted** (`exit 3`, `Bad plan: planned
+115 but ran 74`), so the run shape differed from baseline and the harness could not compare
+like-for-like. Blindness was never in question — `BLIND: 0`.
+
+⚠ **New follow-up — `FUP-329-ABORT-SHAPE`:** `329` carries a keystone whose failure **ends the
+file**, dropping **41** subsequent assertions. It cost nothing here (the gate was still seen), but
+it is what makes a mutation run over these gates **unclassifiable** rather than COVERED, and it
+will do so on every future sweep. Same class as the B4 lesson the backend fixed in `330` — *a
+keystone whose red takes the rest of the suite with it is one you cannot read* — one suite over,
+and now with a measured cost.
+
+⚠ **The documented sweep hazard recurred and was handled:** the subset run **overwrote the
+committed findings md, truncating it 594 → 38 lines**. Restored via `git checkout --` per
+lead-playbook §4; tree verified clean afterwards. Every phase that skips that restore silently
+destroys the audit record and makes the next full sweep read as a mass regression.
+
 ### ⭐ THE BYTE ROUND TRIP IS PROVEN — the one thing DM3 had never established
 
 `DM3B-1` drives the **real browser corridor** and asserts **byte equality**, not "a file
@@ -757,6 +788,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
 - 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
+- 🟡 **FUP-329-ABORT-SHAPE** — `329_dm2_document_commands.sql` holds a keystone whose failure **aborts the file** (`exit 3`, `Bad plan: planned 115 but ran 74`), dropping **41** subsequent assertions. Measured in DM3's diff-scoped sweep: it is what turned `can_write_document`'s verdict into `ERROR run-shape!=baseline` instead of COVERED — the gate *was* noticed (14 reds across 5 suites), but the harness could not classify it. **Costs nothing in a green run; costs classifiability on every future mutation sweep over these gates.** Same class as the B4 fix already applied in `330` (route the door call through a catching wrapper so a refusal reads as a red assertion, not a transaction abort) — backend
 - 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — propose a **6th lint gate**: flag a comment naming an identifier that no longer exists. Every existing gate was added after its class shipped a live defect; this class hit **~6× in DM3 alone** (plus 4 historically, one shipping a live bug). Worst specimen: `supersedeDocument`'s doc telling the frontend to upload *"via `addDocumentVersion`"* — **a deleted verb, in the doc of a verb they actively call**. Invisible to typecheck, eslint and all five gates. ⚠ **Lead-ruled: deliberate TOMBSTONES stay** — silence sends a reader who remembers `X` to the wrong file. 🔻 **LEAD RECOMMENDATION: do NOT build the gate** (PO decides; it is a lint-gate change). Four findings killed it: the same identifier holds **three truth values in ONE file** (`actions.ts` `:119` tombstone · **`:309` LIVE** · `:693` tombstone), so **file scoping fails too** and classification must be per-occurrence, separable only by **adjacent prose** · module resolution reaches **3 of 7 (43%)** — the rest name a Postgres function/column, a TS *property*, and a Postgres policy · the DB arm needs a **running database** (live catalog is sole truth; migration text is stale by design), but all five current gates are **stateless** · and the proposed convention-only gate's exemption is **inverted** (it would flag `:309`, not spare it) and still needs a diff base, so it is a CI check, not a grep. **Instead: adopt the marker as an authoring convention and keep the DELETION-DISCIPLINE STEP that actually worked** — derive the removal set from the diff ∪ the migrations' `drop` statements and sweep it (that found 7; three recall-built lists found 6/3/4, each bounded by a different unstated key). Body: [follow-ups.md](docs/progress/follow-ups.md) — lead/PO
 - 🟡 **FUP-PGTAP-SAVEPOINT** — ⚠ **DOWNGRADED 🔴→🟡 2026-08-13: the original claim was WRONG.** Measured on the clean reset it demanded: **`193` ok · `194` ok · ZERO bad plans across 190 files / 6149 tests**. **pg_prove parses the TAP stream, and TAP output is emitted at execution and cannot be rolled back** — so the assertion **does** count and the gate's tally is correct; only pgTAP's *internal* counter under-counts, emitting a `#` diagnostic pg_prove ignores. Real only in the **degenerate** case (every assertion inside the rolled-back region → `finish()` raises `# No tests run!`, which fails the file). ⚠ **Lead error: I generalized from the degenerate case** — the original repro was `plan(1)` with its one assertion inside, the single shape where the under-count reaches zero, and I filed a 🔴 gate-integrity item on a configuration the live suites don't use. Stays open at 🟡 for the misleading diagnostic + the hazardous shape; **nothing is uncovered, no prior gate record is invalidated.** Full correction: [follow-ups.md](docs/progress/follow-ups.md) — lead
 - ~~🔴 FUP-PGTAP-SAVEPOINT (as originally filed)~~ — a pgTAP assertion between `savepoint` and `rollback to savepoint` **prints `ok` but is DISCARDED from the tally** (lead-reproduced twice: same assertion, `finish()` → `# No tests run!` with the savepoint, clean without). The pgTAP twin of the `lint:vacuous` class, with **no equivalent gate for SQL**. Lead sweep: **`193_schema_integrity.sql:89-99` AFFECTED** (a *mutation twin* — missed by the original report, which flagged only `194`) · **`194:87-95` AFFECTED** · `330` and `100_dashboard` clean. ⚠ **`100_dashboard.sql:411` already documented the hazard as a local comment** — and two suites shipped the shape anyway; knowledge in one file's comment does not propagate. Blast radius NOT yet measured (suites need the harness; `194`'s dirty-DB `planned 8 but ran 0` is **not** attributed to this). **Discharge = measure on a fresh reset · rewrite both to `330`'s captured-definition pattern · ADD the missing gate** — lead + backend
