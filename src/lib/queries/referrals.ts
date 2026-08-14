@@ -71,6 +71,7 @@ import type {
   ReferralPriority,
   ReferralReadReceipt,
   ReferralReply,
+  ReferralReplyDocument,
   ReferralRequestedAction,
   ReferralResolution,
   ReferralStatus,
@@ -678,6 +679,11 @@ export async function getReferralDetail(
     frozenStoragePath: s.frozen_storage_path,
     frozenMimeType: s.frozen_mime_type,
     frozenSizeBytes: s.frozen_size_bytes,
+    // DM4 S1: populated from the new `referral_shared_item` binding columns once
+    // `get_referral_detail` projects them; until then every live row is a
+    // narrative or a legacy document row, and `null` is the true value.
+    frozenDocumentVersionId: null,
+    frozenTombstonedAt: null,
     position: s.position,
   }))
 
@@ -691,6 +697,10 @@ export async function getReferralDetail(
         repliedById: d.reply.replied_by,
         repliedByName: d.reply.replied_by_name,
         repliedAt: d.reply.replied_at,
+        // DM4 S3: populated via `listReferralReplyDocuments` once the reply
+        // lane is re-pointed onto the document model; `[]` is the true value
+        // today (the legacy lane has zero rows and zero UI writers).
+        replyDocuments: [],
         attachments: (d.reply.attachments ?? []).map((a) => ({
           id: a.id,
           referralId: a.referral_id,
@@ -1086,6 +1096,11 @@ export async function getReferralPatient(
  * sign it with the NORMAL cookie client — the `case-documents` SELECT policy's
  * flag-gated snapshot OR-term grants the read (no service-role; RLS stays the
  * boundary). `null` when out of scope.
+ *
+ * @deprecated DM4 (ADR 0114 D8 explicitly REVERSES this cookie-client signing
+ * posture; F-14): retired in S1 with the `case-documents` signer. Successor:
+ * the click-time `openReferralSnapshotDocument` action
+ * (`@/lib/referrals/actions`). Removed once S4 lands.
  */
 export async function getReferralDocumentUrl(
   sharedItemId: string,
@@ -1108,6 +1123,11 @@ export async function getReferralDocumentUrl(
  * re-gates `can_read_referral_phi` + audits, returns the path; the bucket's own
  * SELECT policy also keys on `can_read_referral_phi`, so the cookie client signs it.
  * `null` when out of scope.
+ *
+ * @deprecated DM4 (ADR 0114 Wave C / PO ruling R1): the legacy lane dies in S3
+ * (RPC + storage policies dropped). Successor: the click-time
+ * `openReferralReplyAttachment` action over `listReferralReplyDocuments` rows.
+ * Removed once S4 lands.
  */
 export async function getReferralAttachmentUrl(
   attachmentId: string,
@@ -1122,6 +1142,21 @@ export async function getReferralAttachmentUrl(
     .from('referral-attachments')
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
   return signed?.signedUrl ?? null
+}
+
+/**
+ * DM4 S3 — the B-side reply attachments of a referral as referral-homed
+ * documents on the core document model (PO ruling R1), newest first.
+ * Projection only (no storage coordinates); row visibility is the METADATA
+ * tier (`can_read_referral_metadata` via the document kernel's referral arm),
+ * while `canOpen` reflects the caller's BYTE entitlement
+ * (`can_read_referral_phi`) — the preserved two-tier asymmetry. Contract-first
+ * stub: signature is the contract; the body lands with S3.
+ */
+export async function listReferralReplyDocuments(
+  referralId: string,
+): Promise<ReferralReplyDocument[]> {
+  throw new Error(`not implemented (DM4 S3) — listReferralReplyDocuments(${referralId})`)
 }
 
 // ---------------------------------------------------------------------------

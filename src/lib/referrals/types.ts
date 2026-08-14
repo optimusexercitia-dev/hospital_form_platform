@@ -3,9 +3,11 @@
  * (Phase 22 — `case_referrals`; ADR 0037).
  *
  * **Purity contract (the Phase-12 `event-model.ts` / Phase-14 `safety/types.ts`
- * discipline).** This module imports exactly ONE thing — the type of the shared
- * Registro vocabulary from `@/lib/cases/registro-kinds`, itself a zero-import,
- * side-effect-free module — and must otherwise stay import-free, because it has to
+ * discipline).** This module imports exactly TWO things — the type of the shared
+ * Registro vocabulary from `@/lib/cases/registro-kinds`, and (since DM4 / ADR 0114
+ * Wave C) the shared document-contract types from `@/lib/documents/types` — both
+ * themselves pure, side-effect-free, client-safe modules with zero server
+ * imports — and must otherwise stay import-free, because it has to
  * remain importable from CLIENT components (the send wizard, the hub tables, the
  * B-side detail, the QPS dashboard). It must NEVER import `@/lib/supabase/*`,
  * `next/headers`, `server-only`, or any data-access/action module. The server-only query
@@ -34,6 +36,10 @@
  */
 
 import type { CaseEventKind } from '@/lib/cases/registro-kinds'
+import type {
+  DocumentAvailability,
+  DocumentUploadCredential,
+} from '@/lib/documents/types'
 
 // ---------------------------------------------------------------------------
 // Domain unions — the FROZEN vocabulary (stored slugs; pt-BR via labels)
@@ -846,9 +852,11 @@ export type ReferralReceiptEvent = 'delivered' | 'read' | 'acknowledged'
 /**
  * One frozen snapshot row (`referral_shared_item`). For a `narrative`,
  * {@link frozenBodyMd} holds the point-in-time `body_md` copy (PHI-bearing,
- * sanitized Markdown). For a `document`, the storage REFERENCE is frozen
- * (Rule 6) and the actual object is fetched via {@link getReferralDocumentUrl}
- * — the `frozenStoragePath` is never exposed to the client directly as a URL.
+ * sanitized Markdown). For a `document` (DM4 / ADR 0114 Wave C), the freeze is a
+ * binding to one immutable document VERSION on the core document model
+ * ({@link frozenDocumentVersionId}); bytes are served only through the audited
+ * `openReferralSnapshotDocument` action — no storage coordinate ever reaches
+ * the client.
  */
 export interface SharedItem {
   id: string
@@ -860,11 +868,27 @@ export interface SharedItem {
   frozenTitle: string | null
   /** Narrative copy (PHI-bearing); `null` for a `document`. */
   frozenBodyMd: string | null
-  /** Document reference (Rule 6); `null` for a `narrative`. Resolved to a signed
-   * URL only via the DEFINER door — not a directly-usable client value. */
+  /**
+   * @deprecated DM4 (ADR 0114 Wave C): the legacy `case-documents` reference.
+   * Never client-usable; retired with the S1 read seam. Render from
+   * {@link frozenDocumentVersionId} / {@link frozenTombstonedAt} instead.
+   */
   frozenStoragePath: string | null
   frozenMimeType: string | null
   frozenSizeBytes: number | null
+  /**
+   * DM4: the immutable `document_versions` binding frozen at share time
+   * (`null` for a `narrative`, and for a legacy/tombstoned document row).
+   * `null` on a `document` row means the snapshot is NOT servable — render the
+   * pt-BR "indisponível" state, never an open affordance.
+   */
+  frozenDocumentVersionId: string | null
+  /**
+   * DM4: set when the snapshot was reconciled away (legacy dangling row) or its
+   * PHI was disposed — the snapshot row survives as a governance record but its
+   * bytes are permanently unservable.
+   */
+  frozenTombstonedAt: string | null
   position: number
 }
 
@@ -883,17 +907,28 @@ export interface ReferralReply {
    * referral expects a reply, `null` on an acknowledgment-only conclusion. */
   resultMd: string | null
   acknowledgedOnly: boolean
-  /** Optional B-side reply attachments (downloaded via the DEFINER door). */
+  /**
+   * @deprecated DM4 (ADR 0114 Wave C / PO ruling R1): the legacy
+   * `referral_reply_attachment` lane. Zero rows exist and the table is dropped
+   * in S3; always `[]` from then on. Render {@link replyDocuments} instead —
+   * removed once S4 lands.
+   */
   attachments: ReferralReplyAttachment[]
+  /**
+   * DM4: B-side reply attachments as referral-homed documents on the core
+   * document model. Populated by `listReferralReplyDocuments`; bytes open via
+   * `openReferralReplyAttachment` (audited door, short-TTL PHI credential).
+   */
+  replyDocuments: ReferralReplyDocument[]
   repliedById: string | null
   repliedByName: string | null
   repliedAt: string | null
 }
 
 /**
- * One B-side reply attachment (`referral_reply_attachment`). PHI-bearing.
- * Immutable, new path per upload (Rule 6); the object is fetched via
- * {@link getReferralAttachmentUrl}.
+ * @deprecated DM4 (ADR 0114 Wave C): the legacy `referral_reply_attachment`
+ * projection — the table is dropped in S3 and this type goes with it once S4
+ * stops rendering it. Successor: {@link ReferralReplyDocument}.
  */
 export interface ReferralReplyAttachment {
   id: string
@@ -1387,3 +1422,116 @@ export interface RecordReferralReceiptInput {
   messageId: string
   event: ReferralReceiptEvent
 }
+
+// ---------------------------------------------------------------------------
+// DM4 (ADR 0114 Wave C) — referral documents on the core document model
+// ---------------------------------------------------------------------------
+
+/**
+ * Machine-readable failure codes for the DM4 referral-document surface
+ * (`beginReferralReplyAttachmentUpload` / `finalizeReferralReplyAttachmentUpload` /
+ * `openReferralReplyAttachment` / `openReferralSnapshotDocument`).
+ *
+ * The DM2 contract discipline (`DocumentActionErrorCode` precedent): the server
+ * maps SQLSTATEs to these codes ON CODE ALONE — never message text — and the UI
+ * owns the pt-BR wording. Raw Postgres/Supabase errors never reach the UI
+ * (Rule 10). The legacy referral actions' pt-BR-string `ReferralActionState`
+ * pattern is NOT extended to this surface.
+ */
+export type ReferralDocumentErrorCode =
+  | 'module_disabled' // a gating flag is off (documents / documents_wave_c / case_referrals)
+  | 'not_found' // absence ≡ denial, deliberately indistinguishable
+  | 'forbidden' // authenticated but not authorized (incl. metadata-tier reader denied bytes)
+  | 'referral_wrong_state' // the referral's status refuses this action (e.g. upload after conclusion)
+  | 'not_target_coordinator' // reply attachments are B-side only
+  | 'snapshot_unavailable' // frozen snapshot tombstoned / legacy-dangling / never bound
+  | 'upload_expired' // the reservation lapsed; begin again
+  | 'upload_incomplete' // no verified object behind the session; retry the PUT
+  | 'file_too_large'
+  | 'file_type_not_allowed'
+  | 'invalid_input' // vocabulary/validation refusals
+  | 'unavailable' // the version is not servable right now
+  | 'disposed' // disposition requested/completed (file- or referral-PHI disposal)
+  | 'unknown'
+
+/**
+ * One B-side reply attachment as a referral-homed document (DM4 / PO ruling
+ * R1). Projection only — NO storage coordinates (ADR 0114 D8); bytes move
+ * exclusively through the short-TTL credential minted by
+ * `openReferralReplyAttachment`.
+ */
+export interface ReferralReplyDocument {
+  documentId: string
+  /** The version the open action serves (reply attachments are single-version
+   * by product shape; a re-upload is a NEW document). */
+  documentVersionId: string
+  title: string
+  mimeType: string | null
+  sizeBytes: number | null
+  availability: DocumentAvailability
+  /**
+   * SERVER-computed: the audited open door would serve this version to the
+   * CURRENT caller. This is where the two-tier referral asymmetry becomes
+   * visible in the UI: a metadata-tier reader sees the row with
+   * `canOpen: false`; only a `can_read_referral_phi` reader gets `true`.
+   * Never derive this client-side.
+   */
+  canOpen: boolean
+  uploadedById: string | null
+  uploadedByName: string | null
+  createdAt: string
+}
+
+/**
+ * Input to `beginReferralReplyAttachmentUpload`. Note the ABSENT fields —
+ * bucket, path, tier, hash, home resource type/id — ALL server-derived
+ * (ADR 0114 D8/D9): the home is resolved FROM the referral id server-side and
+ * the tier is pinned `phi`. Size/MIME caps mirror the document module —
+ * clients pre-check against `DOCUMENT_MAX_SIZE_BYTES` /
+ * `DOCUMENT_ACCEPTED_MIME_TYPES` from `@/lib/documents/types`.
+ */
+export interface BeginReferralReplyUploadInput {
+  referralId: string
+  /** Contractually non-PHI (ADR 0114 D12) — show the naming guidance. */
+  title: string
+  /** HINTS for validation caps only; finalize re-derives server-side (D9). */
+  declaredFileName: string
+  declaredMimeType: string
+  declaredSizeBytes: number
+}
+
+/** Result of `beginReferralReplyAttachmentUpload`. The credential contract is
+ * the document module's (`DocumentUploadCredential`): the client island PUTs
+ * the bytes via `uploadDocumentFile` from `@/lib/documents/upload-client`. */
+export type BeginReferralReplyUploadResult =
+  | {
+      ok: true
+      uploadSessionId: string
+      documentId: string
+      documentVersionId: string
+      upload: DocumentUploadCredential
+    }
+  | { ok: false; error: ReferralDocumentErrorCode }
+
+/** Result of `finalizeReferralReplyAttachmentUpload`. `terminal: true` mirrors
+ * the document module's MAJOR-3 contract: the object landed but failed byte
+ * verification — never offer "Tentar novamente"; only a new upload recovers. */
+export type FinalizeReferralReplyUploadResult =
+  | {
+      ok: true
+      documentId: string
+      documentVersionId: string
+      availability: DocumentAvailability
+    }
+  | { ok: false; error: ReferralDocumentErrorCode; terminal?: true }
+
+/**
+ * Result of the two DM4 byte doors (`openReferralReplyAttachment` /
+ * `openReferralSnapshotDocument`): a short-TTL signed download URL (PHI tier,
+ * 120 s — ADR 0114 O4), minted ONLY after the audited DEFINER door authorized
+ * the caller. Invoke at CLICK time — a render-time URL is expired before the
+ * user reaches it.
+ */
+export type OpenReferralFileResult =
+  | { ok: true; url: string; expiresAt: string; fileName: string | null }
+  | { ok: false; error: ReferralDocumentErrorCode }

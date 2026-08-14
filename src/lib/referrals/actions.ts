@@ -13,6 +13,10 @@ import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
   AddReplyAttachmentInput,
   AddSharedItemInput,
+  BeginReferralReplyUploadInput,
+  BeginReferralReplyUploadResult,
+  FinalizeReferralReplyUploadResult,
+  OpenReferralFileResult,
   AssignReferralReviewerInput,
   ConcludeReferralInput,
   CreateReferralInput,
@@ -421,8 +425,82 @@ export async function linkReferralCase(
   }
 }
 
-/** Record a B-side reply attachment reference (the file is uploaded to a fresh
- * immutable path first — Rule 6). Target coordinator only. */
+// ---------------------------------------------------------------------------
+// DM4 (ADR 0114 Wave C) — reply attachments + frozen snapshots on the core
+// document model. CONTRACT-FIRST STUBS (S0): signatures are the contract;
+// bodies land with S3. Errors are the SQLSTATE-keyed
+// `ReferralDocumentErrorCode` union (DM2 precedent), never pt-BR strings.
+// ---------------------------------------------------------------------------
+
+/**
+ * DM4 S3 — reserves a referral-homed document (+ file object + upload session,
+ * ALL coordinates server-derived, tier pinned `phi`) and returns the short-TTL
+ * signed PUT credential. Authority: TARGET coordinator while the referral is
+ * `accepted`/`in_review` (the legacy `add_referral_reply_attachment`
+ * semantics, enforced by `can_write_document`'s referral arm). Gated by
+ * `documents_wave_c` at this FIRST residue-producing step.
+ */
+export async function beginReferralReplyAttachmentUpload(
+  input: BeginReferralReplyUploadInput,
+): Promise<BeginReferralReplyUploadResult> {
+  throw new Error(
+    `not implemented (DM4 S3) — beginReferralReplyAttachmentUpload(${input.referralId})`,
+  )
+}
+
+/**
+ * DM4 S3 — confirms the PUT landed, verifies the bytes server-side (D9) and
+ * binds the `source` rendition. Idempotent; `terminal: true` on a failed byte
+ * verification (never retryable).
+ */
+export async function finalizeReferralReplyAttachmentUpload(
+  uploadSessionId: string,
+): Promise<FinalizeReferralReplyUploadResult> {
+  throw new Error(
+    `not implemented (DM4 S3) — finalizeReferralReplyAttachmentUpload(${uploadSessionId})`,
+  )
+}
+
+/**
+ * DM4 S3 — THE byte door for a reply attachment: the audited open corridor
+ * authorizes (metadata tier is NOT enough — bytes require
+ * `can_read_referral_phi`, the two-tier asymmetry), audits, then signs a
+ * short-TTL PHI credential (120 s). Invoke at CLICK time.
+ */
+export async function openReferralReplyAttachment(
+  documentVersionId: string,
+): Promise<OpenReferralFileResult> {
+  throw new Error(
+    `not implemented (DM4 S3) — openReferralReplyAttachment(${documentVersionId})`,
+  )
+}
+
+/**
+ * DM4 S1 — THE byte door for a frozen snapshot DOCUMENT item: the bespoke
+ * audited DEFINER door re-gates `can_read_referral_phi`, refuses
+ * tombstoned/legacy-dangling snapshots (`snapshot_unavailable`) and disposed
+ * bytes (`disposed`), emits EXACTLY ONE `referral.viewed` audit row, then this
+ * action signs short-TTL (120 s). Replaces `getReferralDocumentUrl` (which
+ * pre-signed at render time from the retired `case-documents` bucket — F-14).
+ */
+export async function openReferralSnapshotDocument(
+  sharedItemId: string,
+): Promise<OpenReferralFileResult> {
+  throw new Error(
+    `not implemented (DM4 S1) — openReferralSnapshotDocument(${sharedItemId})`,
+  )
+}
+
+/**
+ * Record a B-side reply attachment reference (the file is uploaded to a fresh
+ * immutable path first — Rule 6). Target coordinator only.
+ *
+ * @deprecated DM4 (ADR 0114 Wave C / PO ruling R1): the legacy lane — zero UI
+ * callers have ever existed and the `add_referral_reply_attachment` RPC + its
+ * table are dropped in S3, after which this THROWS at the RPC boundary.
+ * Successor: `beginReferralReplyAttachmentUpload` →
+ * `finalizeReferralReplyAttachmentUpload`. Removed once S4 lands.
+ */
 export async function addReferralReplyAttachment(
   input: AddReplyAttachmentInput,
 ): Promise<ReferralActionState> {
