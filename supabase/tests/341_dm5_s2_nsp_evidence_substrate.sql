@@ -34,9 +34,13 @@
 -- since it proves the arm under the transition the product actually performs.
 -- =============================================================================
 begin;
--- 41 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10. Count derived by block, not by eye —
--- the first authoring pass said 29 because C5a/C5b were counted as one.
-select plan(41);
+-- 53 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10 + G:12. Count derived by block, not by
+-- eye — the first authoring pass said 29 because C5a/C5b were counted as one. G's 12
+-- were derived twice and cross-checked: assertion CALL SITES
+-- (`^select (is|isnt|ok|throws_ok|lives_ok)\(` = 53) against description TAGS
+-- (`'DM5·S2 <Letter><n>` = 53). Two counts of different things agreeing is the check;
+-- one count repeated is not.
+select plan(53);
 
 -- ---------------------------------------------------------------------------
 -- P — preconditions (pgtap-fixture-flag-gaps: assert flags, never assume)
@@ -357,6 +361,141 @@ select ok(
         where schemaname='storage' and tablename='objects'
           and policyname='capa_evidence_obj_insert_writable') not like '%hospital_of_event%',
   'DM5·S2 F9 ⭐ BUG-DM5-CAPA-1: the CAPA insert arm reads segment 1 as a CAPA id (can_write_capa), not through an EVENT resolver');
+
+-- ---------------------------------------------------------------------------
+-- G — THE WRITE GATE: `app.can_write_document`'s rca / capa_action arms,
+-- asserted THROUGH `public.begin_document_upload` — the door those arms guard,
+-- and the door 328/329/330/340 each assert through.
+--
+-- ⛔ WHY THIS BLOCK EXISTS. Migration 20260927000160 added the two arms and
+-- measured them in a three-persona matrix — but that measurement lived in a
+-- commit message and a migration comment, and NEVER in a suite. This file
+-- named `can_write_document` zero times; it was the only DM suite that never
+-- called `begin_document_upload`. Forcing the gate to `return true` left all
+-- 41 assertions GREEN, so the write arm had no executable coverage anywhere in
+-- the repo. That is BLIND, and the diff-scoped door sweep was right to refuse
+-- it. Everything below is the coverage that was missing.
+--
+-- ⭐ RE-MEASURED, NOT COPIED FORWARD. Run against the live catalog in a
+-- rolled-back txn, in THIS suite's state (custody already moved by block C,
+-- documents_wave_d ON). Both halves — the predicates AND the door:
+--
+--   persona             read_evt write_rca read_capa write_capa | rca door  capa door
+--   staff1.farm (…006)    true    FALSE     true      FALSE     | REFUSED   REFUSED
+--   nspcoord.a  (…0c1)    true    true      true      true      | ACCEPTED  ACCEPTED
+--   chefe.ccih  (…002)    true    true      true      FALSE     | ACCEPTED  REFUSED
+--
+-- ⚠ staff1.farm's READ-YES IS CUSTODY-DEPENDENT. In the raw seed it reads
+-- neither home (false/false); it becomes the read-yes/write-no persona only
+-- after block C moves custody. G0 pins that, because a denial from a persona
+-- who cannot read either proves nothing about a WRITE arm — it is satisfied by
+-- the read gate. If this block is ever moved above block C it goes vacuous
+-- while staying green.
+--
+-- ⚠ P0002 IS DELIBERATELY AMBIGUOUS — the oracle-kill. `begin_document_upload`
+-- raises the SAME `P0002 recurso não encontrado` for "no such resource" and
+-- for "you may not write it" (its own comment: "absence ≡ denial"). A bare
+-- throws_ok('P0002') is therefore EXACTLY the shape that already shipped
+-- vacuous in this file — F7 asserting HC0D8 and receiving HC0D8 from "no such
+-- document" rather than from "you may not read it". Every denial below is
+-- bracketed in BOTH directions: a [CONTROL] that the registry row exists, AND
+-- a POSITIVE control making the IDENTICAL call against the IDENTICAL fixture
+-- as an authorized persona. If a fixture ever evaporates the positive goes
+-- red; the denial cannot absorb the loss silently.
+--
+-- ⭐ G9 IS THE LOAD-BEARING ROW. `capa_plan ca000000-…a3` carries
+-- source = 'rca' and source_rca_id = the very RCA chefe.ccih LEADS (G5 pins
+-- all three facts). So the likeliest error in this change — pasting the `rca`
+-- arm into the `capa_action` slot, or otherwise resolving CAPA write authority
+-- through the source RCA — would GRANT chefe.ccih. nspcoord.a (PQS operator,
+-- true either way) and staff1.farm (unrelated, false either way) both PASS
+-- that mistake. Only this row fails it.
+-- ---------------------------------------------------------------------------
+select is(
+  (select current_owner_commission_id from public.patient_safety_event
+    where id = 'e3000000-0000-0000-0000-0000000000a3'),
+  'b0000000-0000-0000-0000-0000000000b1'::uuid,
+  'DM5·S2 G0 [CONTROL] custody sits at Farmácia (block C ran) — so staff1.farm''s READ-YES below is real and G10/G11 are read-yes/write-no denials');
+select is(
+  (select count(*)::int from public.securable_resources
+    where id = 'f3000000-0000-0000-0000-0000000000a3' and resource_type = 'rca'),
+  1,
+  'DM5·S2 G1 [CONTROL] the rca registry row EXISTS — so a P0002 below is a REFUSAL, not an absence (the oracle-kill needs this)');
+select is(
+  (select count(*)::int from public.securable_resources
+    where id = 'caa00000-0000-0000-0000-0000000000a1' and resource_type = 'capa_action'),
+  1,
+  'DM5·S2 G2 [CONTROL] the capa_action registry row EXISTS — same reason, and this one is shape B (NULL commission)');
+select is((select enabled from app.feature_flags where key = 'documents_wave_d'), true,
+  'DM5·S2 G3 [CONTROL] documents_wave_d is ON here (block F restored it) — with it OFF every call below refuses HC0D7 and would measure the FLAG, not the gate');
+select ok(
+  app.can_read_event('e3000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-000000000006')
+  and app.can_read_capa('ca000000-0000-0000-0000-0000000000a3','00000000-0000-0000-0000-000000000006'),
+  'DM5·S2 G4 [CONTROL] staff1.farm READS both homes — the read-yes half a write arm needs and a read arm structurally cannot supply');
+select ok(
+  exists (select 1 from public.rca_members m
+           where m.rca_id = 'f3000000-0000-0000-0000-0000000000a3'
+             and m.user_id = '00000000-0000-0000-0000-000000000002'
+             and m.role <> 'observer')
+  and not app.is_pqs_operator_of_for('05000000-0000-0000-0000-00000000000a',
+                                     '00000000-0000-0000-0000-000000000002')
+  and (select source_rca_id from public.capa_plan
+        where id = 'ca000000-0000-0000-0000-0000000000a3')
+      = 'f3000000-0000-0000-0000-0000000000a3'::uuid,
+  'DM5·S2 G5 [CONTROL] chefe.ccih is a NON-OBSERVER member of the RCA that SOURCED this CAPA plan, and is NOT a PQS operator — the exact shape that makes G9 discriminating');
+
+-- nspcoord.a — the PQS operator: BOTH homes accept. These are the positives
+-- that make every denial below a refusal rather than an absence.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000c1'::uuid, false, 'nsp_coordinator');
+set local role authenticated;
+select lives_ok(
+  $q$ select public.begin_document_upload('rca','f3000000-0000-0000-0000-0000000000a3',
+        'G6 evidencia de RCA', null, null, null,
+        'g6.pdf','application/pdf',100,'evidencia',null) $q$,
+  'DM5·S2 G6 ⭐ POSITIVE: the PQS operator uploads onto an RCA home — the rca arm is LIVE and the fixture resolves');
+select lives_ok(
+  $q$ select public.begin_document_upload('capa_action','caa00000-0000-0000-0000-0000000000a1',
+        'G7 evidencia de CAPA', null, null, null,
+        'g7.pdf','application/pdf',100,'evidencia',null) $q$,
+  'DM5·S2 G7 ⭐ POSITIVE: the same operator uploads onto a CAPA_ACTION home — the capa_action arm is LIVE, and shape B (NULL commission) does not break the corridor');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- chefe.ccih — THE DIFFERENTIAL. One persona, two homes, opposite verdicts.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $q$ select public.begin_document_upload('rca','f3000000-0000-0000-0000-0000000000a3',
+        'G8 evidencia do lider da RCA', null, null, null,
+        'g8.pdf','application/pdf',100,'evidencia',null) $q$,
+  'DM5·S2 G8 ⭐ the rca_member arm carries the write: the RCA lead uploads — so G9 is not "chefe.ccih is refused everywhere"');
+select throws_ok(
+  $q$ select public.begin_document_upload('capa_action','caa00000-0000-0000-0000-0000000000a1',
+        'G9 tentativa na CAPA', null, null, null,
+        'g9.pdf','application/pdf',100,'evidencia',null) $q$,
+  'P0002', null,
+  'DM5·S2 G9 ⭐⭐ THE LOAD-BEARING ROW: the SAME writer who just wrote the SOURCE RCA is refused its CAPA — the two arms are independent, and the rca arm was not pasted into the capa_action slot');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- staff1.farm — READ-YES / WRITE-NO on both homes. The assertion a write arm
+-- needs and a read arm structurally cannot supply (G4 pins the read half).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000006'::uuid, false, 'staff');
+set local role authenticated;
+select throws_ok(
+  $q$ select public.begin_document_upload('rca','f3000000-0000-0000-0000-0000000000a3',
+        'G10 tentativa na RCA', null, null, null,
+        'g10.pdf','application/pdf',100,'evidencia',null) $q$,
+  'P0002', null,
+  'DM5·S2 G10 ⭐ READ-YES / WRITE-NO: the custody reader who CAN read the event is refused the RCA upload (G6/G8 prove the same call succeeds for others)');
+select throws_ok(
+  $q$ select public.begin_document_upload('capa_action','caa00000-0000-0000-0000-0000000000a1',
+        'G11 tentativa na CAPA', null, null, null,
+        'g11.pdf','application/pdf',100,'evidencia',null) $q$,
+  'P0002', null,
+  'DM5·S2 G11 ⭐ READ-YES / WRITE-NO on the second home too (G7 proves the same call succeeds for the operator)');
+reset role;
+select set_config('request.jwt.claims', '', true);
 
 select * from finish();
 rollback;
