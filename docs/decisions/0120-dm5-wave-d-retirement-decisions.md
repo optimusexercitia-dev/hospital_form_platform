@@ -302,6 +302,54 @@ paragraph exists to prevent.
 ⛔ **No `db push` and no remote reset are authorized by D17.** The standing no-push directive holds.
 Both require explicit PO authorization **at execution time**, separately, on the day.
 
+## D18 — printed renditions are FILTERED OUT of the Documentos panel (PO ruling, 2026-08-14)
+
+D13 gives every print event its **own `documents` row homed on the source's securable resource**, and
+`listDocuments` filters on `home_resource_id` with **no `kind` filter** (verified in
+`src/lib/queries/documents.ts:198`). So without a decision, generated PDFs would begin appearing in
+every case's *Documentos* panel beside uploaded files. **Ruled: they are excluded.** *Documentos* keeps
+meaning *"documents people put here"*; prints stay reachable through their existing print/verification
+surface and `open_printed_document`.
+
+**This selects the trap-3 fix shape.** With prints excluded from that projection, the reachable site
+becomes unreachable, so the fix is **"exclude, then keystone the exclusion"** rather than teaching
+`documentVersionAvailability` about print-only versions. ⚠ **But the other three
+`.find(rendition_kind === 'source')` sites still exist**, and the invariant — *a version with no
+`source` binding must never be rendered as `pending`/`canOpen:false` by a projection that can reach it*
+— must be keystoned so the two currently-unreachable sites cannot become live silently.
+
+### ⚠⚠ D18 IS PRESENTATION, NOT AN ACCESS CONTROL — Architecture Rule 1
+
+**Read this before citing D18 in any security context.** Rule 1: *never rely on UI hiding.* Excluding
+prints from a list is a **product** decision about what the panel means. It is **not** a boundary, and
+it does **not** answer the disclosure question that listing them would have raised.
+
+⭐ **The trap, stated plainly:** the reason inline listing was the riskiest option is that panel
+visibility would be governed by the **kernel arm + the D15 ceiling** rather than by
+`can_view_printed_document` — and prints of form responses can carry PHI
+(`printed_documents.contains_phi`). **Filtering the list does not change which door governs the
+bytes.** If a print is reachable by someone who should not reach it, D18 hides the row and leaves the
+hole. So: **the byte door remains the whole answer** (D12's conjunction), and D18 must never be
+recorded as having narrowed anyone's access.
+
+### The exclusion must be incapable of leaking a print — and `kind` is not trustworthy enough alone
+
+⚠ **`documents.kind` has NO CHECK constraint** (0 constraints — that is exactly why the plan calls it
+"available as a discriminator without a migration"). An unconstrained text column is a weak basis for an
+exclusion, and the two directions fail oppositely:
+
+- `where kind <> 'printed'` — a print with a NULL or misspelled `kind` **appears** in the panel. **Fails
+  OPEN.** Unacceptable for the deciding case.
+- `where kind in (<content kinds>)` — a content document with an unexpected `kind` **disappears**.
+  Fails closed, but that is an availability regression on ordinary documents.
+
+⭐ **Preferred, and this is the point:** discriminate on a **relational fact, not a string** — a print
+is *"a `documents` row referenced by `printed_documents`"*. A foreign key cannot be typo'd, cannot be
+NULL-by-accident, and cannot drift the way free text does. **Resolve the VALUE, not the noun.** Backend
+owns the mechanism; the binding requirements are (1) it cannot leak a print, (2) it does not hide
+ordinary content documents, and (3) the exclusion carries a keystone with a twin that proves a print
+would otherwise be listed — a filter nobody has ever seen fail is not a filter.
+
 ## Consequences
 
 - **The orphaned bytes are not servable, and that is a calibration, not a reprieve.** A
