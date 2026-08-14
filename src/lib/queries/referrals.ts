@@ -135,7 +135,8 @@ export {
   isReferralOverdue,
 } from '@/lib/referrals/types'
 
-const SIGNED_URL_TTL_SECONDS = 3600
+// (DM4 removed the module's cookie-client signing — the 3600 s TTL const died
+// with it; the successor doors sign service-side at 120 s, ADR 0114 O4.)
 
 // ---------------------------------------------------------------------------
 // Row shapes (PostgREST embeds) + mappers — PHI-FREE on the list path
@@ -554,8 +555,6 @@ interface ReferralDetailJson {
     source_document_id: string | null
     frozen_title: string | null
     frozen_body_md: string | null
-    /** Legacy; absent once DM4 M4's get_referral_detail rewrite lands. */
-    frozen_storage_path?: string | null
     frozen_mime_type: string | null
     frozen_size_bytes: number | null
     /** DM4 (M4 rewrite): PHI-gated binding + tombstone + server-computed canOpen. */
@@ -622,7 +621,8 @@ interface ReferralDetailJson {
     replied_by: string | null
     replied_by_name: string | null
     replied_at: string | null
-    attachments: {
+    /** Legacy; the DM4 RPC no longer emits it (table dropped). */
+    attachments?: {
       id: string
       referral_id: string
       title: string
@@ -633,6 +633,8 @@ interface ReferralDetailJson {
       uploaded_by_name: string | null
       created_at: string
     }[]
+    /** DM4: reply attachments as referral-homed documents. */
+    reply_documents?: ReplyDocumentJson[]
   } | null
   sent_at: string | null
   received_at: string | null
@@ -681,7 +683,6 @@ export async function getReferralDetail(
     sourceDocumentId: s.source_document_id,
     frozenTitle: s.frozen_title,
     frozenBodyMd: s.frozen_body_md,
-    frozenStoragePath: s.frozen_storage_path ?? null,
     frozenMimeType: s.frozen_mime_type,
     frozenSizeBytes: s.frozen_size_bytes,
     // DM4: projected by the M4 get_referral_detail rewrite. The binding is
@@ -703,10 +704,9 @@ export async function getReferralDetail(
         repliedById: d.reply.replied_by,
         repliedByName: d.reply.replied_by_name,
         repliedAt: d.reply.replied_at,
-        // DM4 S3: populated via `listReferralReplyDocuments` once the reply
-        // lane is re-pointed onto the document model; `[]` is the true value
-        // today (the legacy lane has zero rows and zero UI writers).
-        replyDocuments: [],
+        // DM4 S3: the document-model reply lane, projected by the rewritten
+        // get_referral_detail; the legacy attachments key is gone (always []).
+        replyDocuments: mapReplyDocuments(d.reply.reply_documents ?? []),
         attachments: (d.reply.attachments ?? []).map((a) => ({
           id: a.id,
           referralId: a.referral_id,
@@ -1109,18 +1109,13 @@ export async function getReferralPatient(
  * (`@/lib/referrals/actions`). Removed once S4 lands.
  */
 export async function getReferralDocumentUrl(
-  sharedItemId: string,
+  _sharedItemId: string,
 ): Promise<string | null> {
-  const supabase = await createClient()
-  const { data: path } = await supabase.rpc('get_referral_snapshot_document_path', {
-    p_shared_item_id: sharedItemId,
-  })
-  if (!path) return null
-
-  const { data: signed } = await supabase.storage
-    .from('case-documents')
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
-  return signed?.signedUrl ?? null
+  // DM4 S3: the RPC + bucket policy this signed against were DROPPED
+  // (migration 20260926000400). Neutered to its old out-of-scope shape so the
+  // detail pages keep compiling until S4 rewires them to the click-time
+  // openReferralSnapshotDocument action; the UI renders the no-URL branch.
+  return null
 }
 
 /**
@@ -1136,18 +1131,12 @@ export async function getReferralDocumentUrl(
  * Removed once S4 lands.
  */
 export async function getReferralAttachmentUrl(
-  attachmentId: string,
+  _attachmentId: string,
 ): Promise<string | null> {
-  const supabase = await createClient()
-  const { data: path } = await supabase.rpc('get_referral_attachment_path', {
-    p_attachment_id: attachmentId,
-  })
-  if (!path) return null
-
-  const { data: signed } = await supabase.storage
-    .from('referral-attachments')
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS)
-  return signed?.signedUrl ?? null
+  // DM4 S3: RPC + table + storage policies DROPPED (20260926000400); the
+  // legacy lane always had zero rows. Neutered until S4 removes the callers;
+  // successor: openReferralReplyAttachment over listReferralReplyDocuments.
+  return null
 }
 
 /**
@@ -1162,7 +1151,45 @@ export async function getReferralAttachmentUrl(
 export async function listReferralReplyDocuments(
   referralId: string,
 ): Promise<ReferralReplyDocument[]> {
-  throw new Error(`not implemented (DM4 S3) — listReferralReplyDocuments(${referralId})`)
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('list_referral_reply_documents', {
+    p_referral_id: referralId,
+  })
+  if (!data) return []
+  return mapReplyDocuments(data as unknown as ReplyDocumentJson[])
+}
+
+interface ReplyDocumentJson {
+  document_id: string
+  document_version_id: string | null
+  title: string
+  mime_type: string | null
+  size_bytes: number | null
+  availability: string
+  can_open: boolean
+  uploaded_by: string | null
+  uploaded_by_name: string | null
+  created_at: string
+}
+
+function mapReplyDocuments(rows: ReplyDocumentJson[]): ReferralReplyDocument[] {
+  return rows
+    // A version is minted at BEGIN, so null only for a hand-planted anomaly —
+    // an unopenable row is dropped rather than typed as openable.
+    .filter((r) => r.document_version_id !== null)
+    .map((r) => ({
+      documentId: r.document_id,
+      // Non-null by the filter above; the assertion is local and checked.
+      documentVersionId: r.document_version_id as string,
+      title: r.title,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+      availability: r.availability as ReferralReplyDocument['availability'],
+      canOpen: r.can_open,
+      uploadedById: r.uploaded_by,
+      uploadedByName: r.uploaded_by_name,
+      createdAt: r.created_at,
+    }))
 }
 
 // ---------------------------------------------------------------------------

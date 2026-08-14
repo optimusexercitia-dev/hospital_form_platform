@@ -44,6 +44,17 @@ export type DocumentHomeResourceType =
   | 'action_item'
   | 'controlled_document'
 
+/**
+ * The FULL `securable_resources.resource_type` vocabulary the document API
+ * accepts (DM4 / ADR 0119): the five UI homes above plus the referral home.
+ * `case_referral` is deliberately NOT in {@link DocumentHomeResourceType} —
+ * referral reply attachments have a BESPOKE surface (the referral actions pin
+ * the home server-side; no generic document panel or label config exists for
+ * them), so per-home UI maps stay total over the five without inventing dead
+ * pt-BR config for a home no panel renders.
+ */
+export type DocumentHomeResourceTypeDb = DocumentHomeResourceType | 'case_referral'
+
 /** Physical sensitivity tier (`file_objects.sensitivity_tier`). SERVER-derived
  * from the home resource (case/interview → phi; meeting/action_item →
  * standard) — never a caller input. */
@@ -85,7 +96,7 @@ export const ENFORCING_LABEL_HOMES: readonly DocumentHomeResourceType[] = ['case
  * both the picker and the badge). Keys are stored values; pt-BR labels live
  * in the UI layer.
  */
-export const DOCUMENT_KINDS: Record<DocumentHomeResourceType, readonly string[]> = {
+export const DOCUMENT_KINDS: Record<DocumentHomeResourceTypeDb, readonly string[]> = {
   case: ['ata', 'digitalizacao', 'registro', 'other'],
   meeting: ['pauta', 'apresentacao', 'literatura', 'lista_presenca', 'ata_assinada', 'outro'],
   interview: ['gravacao_audio', 'transcricao_assinada', 'evidencia', 'outro'],
@@ -94,6 +105,9 @@ export const DOCUMENT_KINDS: Record<DocumentHomeResourceType, readonly string[]>
   // `controlled_documents.doc_type` (policy/sop/protocol/bylaws/manual/other),
   // so the core `kind` carries only what the core model needs to know.
   controlled_document: ['documento_controlado'],
+  // Wave C (DM4): the single reply-attachment kind, pinned server-side by the
+  // referral actions — never picker-chosen.
+  case_referral: ['anexo_resposta'],
 }
 
 /**
@@ -255,7 +269,7 @@ export interface DocumentDetail extends DocumentListItem {
 /** Input to `beginDocumentUpload`. Note the ABSENT fields — bucket, path,
  * tier, hash — all server-derived (D8/D9). */
 export interface BeginDocumentUploadInput {
-  homeResourceType: DocumentHomeResourceType
+  homeResourceType: DocumentHomeResourceTypeDb
   homeResourceId: string
   /** Omitted = a NEW document; set = upload the next version of an existing
    * document (its home must match). */

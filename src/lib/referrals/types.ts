@@ -868,12 +868,6 @@ export interface SharedItem {
   frozenTitle: string | null
   /** Narrative copy (PHI-bearing); `null` for a `document`. */
   frozenBodyMd: string | null
-  /**
-   * @deprecated DM4 (ADR 0114 Wave C): the legacy `case-documents` reference.
-   * Never client-usable; retired with the S1 read seam. Render from
-   * {@link frozenDocumentVersionId} / {@link frozenTombstonedAt} instead.
-   */
-  frozenStoragePath: string | null
   frozenMimeType: string | null
   frozenSizeBytes: number | null
   /**

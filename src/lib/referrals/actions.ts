@@ -3,6 +3,16 @@
 import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  beginDocumentUpload,
+  finalizeDocumentUpload,
+  openDocumentVersion,
+} from '@/lib/documents/actions'
+import {
+  mapReferralDocumentError,
+  narrowDocumentError,
+} from '@/lib/referrals/errors'
 import { REFERRAL_MESSAGES, mapReferralError } from '@/lib/referrals/messages'
 import {
   getCaseSafetyEventPatientPrefill,
@@ -11,7 +21,6 @@ import {
 import type { CaseSafetyPrefill } from '@/lib/queries/referrals'
 import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
-  AddReplyAttachmentInput,
   AddSharedItemInput,
   BeginReferralReplyUploadInput,
   BeginReferralReplyUploadResult,
@@ -426,11 +435,43 @@ export async function linkReferralCase(
 }
 
 // ---------------------------------------------------------------------------
-// DM4 (ADR 0114 Wave C) — reply attachments + frozen snapshots on the core
-// document model. CONTRACT-FIRST STUBS (S0): signatures are the contract;
-// bodies land with S3. Errors are the SQLSTATE-keyed
+// DM4 (ADR 0114 Wave C / ADR 0119) — reply attachments + frozen snapshots on
+// the core document model. Errors are the SQLSTATE-keyed
 // `ReferralDocumentErrorCode` union (DM2 precedent), never pt-BR strings.
 // ---------------------------------------------------------------------------
+
+/** PHI signed-URL TTL (ADR 0114 O4): referral bytes are PHI-tier — 120 s. */
+const REFERRAL_PHI_TTL_SECONDS = 120
+
+const SNAPSHOT_MIME_EXT: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'text/csv': '.csv',
+  'text/plain': '.txt',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+}
+
+/** Private mirror of the documents module's download-name derivation (a
+ * `"use server"` module may export only async functions, so the sibling's
+ * helper cannot be imported). */
+function snapshotDownloadFileName(title: string, mime: string | null): string {
+  const base = title
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip combining marks
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 80)
+  return (base || 'documento') + (mime ? (SNAPSHOT_MIME_EXT[mime] ?? '') : '')
+}
 
 /**
  * DM4 S3 — reserves a referral-homed document (+ file object + upload session,
@@ -443,9 +484,23 @@ export async function linkReferralCase(
 export async function beginReferralReplyAttachmentUpload(
   input: BeginReferralReplyUploadInput,
 ): Promise<BeginReferralReplyUploadResult> {
-  throw new Error(
-    `not implemented (DM4 S3) — beginReferralReplyAttachmentUpload(${input.referralId})`,
-  )
+  if (!input.referralId || !input.title?.trim()) {
+    return { ok: false, error: 'invalid_input' }
+  }
+  // The DM2 corridor, home pinned server-side: resource type/id and the kind
+  // are never client inputs (ADR 0114 D8). The DB enforces authority
+  // (can_write_document's referral arm) and the wave-c gate at BEGIN.
+  const res = await beginDocumentUpload({
+    homeResourceType: 'case_referral',
+    homeResourceId: input.referralId,
+    title: input.title.trim(),
+    kind: 'anexo_resposta',
+    declaredFileName: input.declaredFileName,
+    declaredMimeType: input.declaredMimeType,
+    declaredSizeBytes: input.declaredSizeBytes,
+  })
+  if (!res.ok) return { ok: false, error: narrowDocumentError(res.error) }
+  return res
 }
 
 /**
@@ -456,9 +511,15 @@ export async function beginReferralReplyAttachmentUpload(
 export async function finalizeReferralReplyAttachmentUpload(
   uploadSessionId: string,
 ): Promise<FinalizeReferralReplyUploadResult> {
-  throw new Error(
-    `not implemented (DM4 S3) — finalizeReferralReplyAttachmentUpload(${uploadSessionId})`,
-  )
+  if (!uploadSessionId) return { ok: false, error: 'invalid_input' }
+  const res = await finalizeDocumentUpload(uploadSessionId)
+  if (!res.ok) {
+    return res.terminal
+      ? { ok: false, error: narrowDocumentError(res.error), terminal: true }
+      : { ok: false, error: narrowDocumentError(res.error) }
+  }
+  revalidateReferrals()
+  return res
 }
 
 /**
@@ -470,9 +531,13 @@ export async function finalizeReferralReplyAttachmentUpload(
 export async function openReferralReplyAttachment(
   documentVersionId: string,
 ): Promise<OpenReferralFileResult> {
-  throw new Error(
-    `not implemented (DM4 S3) — openReferralReplyAttachment(${documentVersionId})`,
-  )
+  if (!documentVersionId) return { ok: false, error: 'invalid_input' }
+  // THE audited open corridor (open_document_version): the kernel grants
+  // metadata; the referral BYTE arm (M2) additionally requires
+  // can_read_referral_phi — the two-tier asymmetry.
+  const res = await openDocumentVersion(documentVersionId)
+  if (!res.ok) return { ok: false, error: narrowDocumentError(res.error) }
+  return res
 }
 
 /**
@@ -486,47 +551,44 @@ export async function openReferralReplyAttachment(
 export async function openReferralSnapshotDocument(
   sharedItemId: string,
 ): Promise<OpenReferralFileResult> {
-  throw new Error(
-    `not implemented (DM4 S1) — openReferralSnapshotDocument(${sharedItemId})`,
-  )
-}
-
-/**
- * Record a B-side reply attachment reference (the file is uploaded to a fresh
- * immutable path first — Rule 6). Target coordinator only.
- *
- * @deprecated DM4 (ADR 0114 Wave C / PO ruling R1): the legacy lane — zero UI
- * callers have ever existed and the `add_referral_reply_attachment` RPC + its
- * table are dropped in S3, after which this THROWS at the RPC boundary.
- * Successor: `beginReferralReplyAttachmentUpload` →
- * `finalizeReferralReplyAttachmentUpload`. Removed once S4 lands.
- */
-export async function addReferralReplyAttachment(
-  input: AddReplyAttachmentInput,
-): Promise<ReferralActionState> {
-  if (!input.referralId) {
-    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
-  }
-  if (!input.title?.trim()) {
-    return { ok: false, error: REFERRAL_MESSAGES.attachmentTitleRequired }
-  }
-  if (!input.storagePath) {
-    return { ok: false, error: REFERRAL_MESSAGES.attachmentUploadFailed }
-  }
-
+  if (!sharedItemId) return { ok: false, error: 'invalid_input' }
+  // The bespoke DEFINER door authorizes (can_read_referral_phi), refuses
+  // tombstoned/disposed snapshots, audits EXACTLY ONCE (referral.viewed) and
+  // returns IDS ONLY; coordinates are resolved here with the service client
+  // and signed short-TTL (ADR 0118 topology; ADR 0114 D8 — the cookie-client
+  // signing posture is reversed).
   const supabase = await createClient()
-  const { error } = await supabase.rpc('add_referral_reply_attachment', {
-    p_referral_id: input.referralId,
-    p_title: input.title.trim(),
-    p_storage_path: input.storagePath,
-    p_mime_type: input.mimeType ?? undefined,
-    p_size_bytes: input.sizeBytes ?? undefined,
+  const { data, error } = await supabase.rpc('open_referral_snapshot_document', {
+    p_shared_item_id: sharedItemId,
   })
-  if (error) return { ok: false, error: mapReferralError(error) }
+  if (error) return { ok: false, error: mapReferralDocumentError(error.code) }
+  if (!data) return { ok: false, error: 'not_found' } // absence ≡ denial
+  const r = data as Record<string, string>
 
-  revalidateReferrals()
-  return { ok: true, message: REFERRAL_MESSAGES.attachmentAdded }
+  const admin = createAdminClient()
+  const { data: file, error: fileError } = await admin
+    .from('file_objects')
+    .select('storage_bucket, storage_path')
+    .eq('id', r.file_object_id)
+    .single()
+  if (fileError || !file) return { ok: false, error: 'unknown' }
+  const fileName = snapshotDownloadFileName(r.title ?? 'documento', r.mime_type ?? null)
+  const { data: signed, error: signError } = await admin.storage
+    .from(file.storage_bucket)
+    .createSignedUrl(file.storage_path, REFERRAL_PHI_TTL_SECONDS, { download: fileName })
+  if (signError || !signed) return { ok: false, error: 'unknown' }
+  return {
+    ok: true,
+    url: signed.signedUrl,
+    expiresAt: new Date(Date.now() + REFERRAL_PHI_TTL_SECONDS * 1000).toISOString(),
+    fileName,
+  }
 }
+
+// The legacy `addReferralReplyAttachment` action was REMOVED here (DM4 S3):
+// its RPC + table no longer exist (migration 20260926000400) and it never had
+// a UI caller. Successor: `beginReferralReplyAttachmentUpload` →
+// `finalizeReferralReplyAttachmentUpload` above.
 
 /**
  * Conclude a referral, delivering + freezing the reply (`in_review → completed`).
