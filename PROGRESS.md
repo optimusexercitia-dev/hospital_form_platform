@@ -210,6 +210,31 @@
 > derivable — *a half-populated column invites a future reader to treat it as authoritative*, so the
 > NULL is a deliberate signal rather than an absence.
 >
+> **M2 `…000110` applied** (`5fd60ff1`) — `can_read_document` kernel arms, custody-following.
+> registry **393 == 393** · `rca` arm resolves `can_read_event(event_of_rca(…))` at read time and a
+> catalog assertion pins that it does **NOT** use the registry commission · `capa_action` arm names
+> `can_read_capa` **explicitly** (it *would* fail closed reaching for the D14 NULL commission, but
+> fail-closed-by-accident is not a design) · pgTAP **191f/6231 unchanged**. Applied with
+> `migration up --local`, not a reset — non-destructive, `frontend` undisturbed.
+> ⭐ **Building the fixture BEFORE the keystone found two things a keystone-first order would have
+> hidden.** ① **The seed has no custody-moved event** — all five carry
+> `current_owner_commission_id` NULL — so **that arm of `can_read_event` has never been exercised by
+> any test in this repo**. A pre-existing coverage gap DM5 merely tripped over; `341` now pins it.
+> ② **A raw `UPDATE` cannot create the state** (`guard_event_status()` refuses edits past `triado`),
+> so a keystone written first would have failed **at fixture time and read as a defect in the arm
+> rather than in the fixture**. The differential runs through the real `transfer_event_custody` RPC,
+> which is also the more honest test — it proves the arm under the transition the product performs.
+> ⭐ **The persona was checked against all three arms, not assumed:** `multi@test.local` (both
+> commissions) and `pqsdual.a@test.local` (PQS of the hospital) would each have turned the
+> differential green while proving nothing — the two-locks shape. `staff1.farm` verified as *not*
+> PQS, *not* in the reporting commission, *in* the owner commission ⇒ only custody can make it true.
+> ⭐ **Technique to repeat in S3:** the `CREATE OR REPLACE` rebuild was **proven faithful by diffing
+> the rebuilt `pg_get_functiondef` against the captured original** (diff = exactly the 15 new arm
+> lines + 3 comments), plus a `DO` block re-asserting `prosecdef` / `STABLE` / the `search_path` pin
+> / the `authenticated` EXECUTE grant **from the catalog**. *Reading a body carefully is not the same
+> as proving you reproduced it* — this converts the silent-property-loss class
+> ([[guards-that-read-right-but-fail-open]]) into a loud failure at apply time.
+>
 > **S2 frontend ✅ COMPLETE** (`5793fd16`) — 13 files, +1129/−476. `openUrl` is gone, so rows render
 > **no `<a href>` at all**: there is no storage coordinate left in the projection to link to, and bytes
 > resolve one at a time through the audited door strictly on click (D8). `canOpen` is obeyed verbatim,
