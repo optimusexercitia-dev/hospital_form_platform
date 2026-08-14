@@ -33,10 +33,9 @@ import { ReferralResolutions } from "@/components/referrals/referral-resolutions
 import { ReferralLineageCard } from "@/components/referrals/referral-lineage";
 import { ReferralThread } from "@/components/referrals/referral-thread";
 import { ReferralComposer } from "@/components/referrals/referral-composer";
-import {
-  ReferralActions,
-  type LinkableTargetCase,
-} from "@/components/referrals/referral-actions";
+import { ReferralActions } from "@/components/referrals/referral-actions";
+import { canSetReferralDeadline } from "@/components/referrals/deadline-gate";
+import type { LinkableTargetCase } from "@/components/referrals/referral-link-case-button";
 import { ReferralPatientPanel } from "@/components/referrals/referral-patient-panel";
 import { ReferralAssignmentPanel } from "@/components/referrals/referral-assignment-panel";
 import { ReferralRelatedCasesPanel } from "@/components/referrals/referral-related-cases-panel";
@@ -61,11 +60,22 @@ export const metadata: Metadata = {
  * chips — over a two-column body:
  *  - main column: A's description (sanitized Markdown, Rule 7) → the frozen SNAPSHOT
  *    → the messenger-style Diálogo with its gated composer and interleaved system
- *    events → the delivered reply → the resolution history → "Registros internos";
- *  - rail: Ações → discard-draft → Detalhes → Responsáveis → the side's case card →
- *    Casos relacionados → lineage → the lazy audited PHI panel → LGPD disposal.
+ *    events → the resolution history → "Registros internos" → the delivered reply;
+ *  - rail: Ações → discard-draft → Detalhes → the lazy audited PHI panel →
+ *    Responsáveis → the side's case card → Casos relacionados → lineage → LGPD
+ *    disposal.
  * Every referral FACT the old header crammed into a `dl` now lives in the Detalhes
  * card; the direction chip is gone entirely.
+ *
+ * Two orderings are deliberate and easy to "fix" wrongly:
+ *  - the PHI panel sits DIRECTLY under Detalhes, because "who is this about" is read
+ *    together with "what is this" — not at the bottom of a long rail;
+ *  - "Resposta da análise" sits LAST, under "Registros internos". It only exists once
+ *    the referral is concluded, and by then it is the outcome the reader scrolls to,
+ *    not an interruption between the dialogue and the working notes.
+ * On mobile both column wrappers collapse to `contents` and the `order-N` classes
+ * interleave the two columns into one sequence, so an order change here is a change
+ * to BOTH layouts.
  *
  * Gating: `referralsEnabled` flag → 404; `getCommissionAccessByOrg(org, commission)` → 404 for a
  * foreign/unknown commission; `getReferralDetail` re-gates `can_read_referral` and
@@ -255,6 +265,18 @@ export default async function ReferralDetailPage({
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = commissionHref(org, commission, "encaminhamentos");
 
+  // The two coordinator controls that live on the card they act on rather than in
+  // "Ações". Both mirror an RPC gate exactly — `link_referral_case` accepts only the
+  // target coordinator while accepted/in-review (the same predicate that decided
+  // whether `linkableCases` was loaded at all), and the deadline gate is the shared
+  // `canSetReferralDeadline`, never a second hand-copied status list.
+  const canLinkCase = canManageTarget && inReview;
+  const canSetDeadline = canSetReferralDeadline({
+    status: detail.status,
+    canManageTarget,
+    canManageSource,
+  });
+
   // RV2 R3 lineage: a link back to the parent this referral was forwarded from
   // (RLS re-gates at the target), and — for the target coordinator who has linked a
   // case — an "Encaminhar adiante" deep-link that pre-opens the send wizard on that
@@ -331,7 +353,7 @@ export default async function ReferralDetailPage({
             <section
               data-rise
               aria-labelledby="referral-description-heading"
-              className="order-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs lg:order-none"
+              className="order-5 flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs lg:order-none"
             >
               <h2
                 id="referral-description-heading"
@@ -344,7 +366,7 @@ export default async function ReferralDetailPage({
           ) : null}
 
           {/* The frozen snapshot B reads. */}
-          <div data-rise className="order-5 lg:order-none">
+          <div data-rise className="order-6 lg:order-none">
             <ReferralSnapshot
               sharedItems={detail.sharedItems}
               documentUrls={documentUrls}
@@ -357,7 +379,7 @@ export default async function ReferralDetailPage({
               server-rendered (PHI-safe: a restricted body shows a placeholder, never
               the text); the composer is a client island shown only to an authorized
               side while the referral is non-terminal. */}
-          <div data-rise className="order-8 lg:order-none">
+          <div data-rise className="order-9 lg:order-none">
             <ReferralThread
               messages={detail.messages}
               events={threadEvents}
@@ -378,16 +400,6 @@ export default async function ReferralDetailPage({
               }
             />
           </div>
-
-          {/* The delivered reply, once concluded. */}
-          {detail.reply ? (
-            <div data-rise className="order-9 lg:order-none">
-              <ReferralReplyView
-                reply={detail.reply}
-                attachmentUrls={attachmentUrls}
-              />
-            </div>
-          ) : null}
 
           {/* RV2 R3: the append-only resolution history (renders nothing until the
               source first resolves). */}
@@ -414,6 +426,18 @@ export default async function ReferralDetailPage({
               />
             </div>
           ) : null}
+
+          {/* "Resposta da análise" — the delivered reply, once concluded. LAST, below
+              the registros: it is the outcome the reader ends on, not an interruption
+              between the dialogue and this side's working notes. */}
+          {detail.reply ? (
+            <div data-rise className="order-12 lg:order-none">
+              <ReferralReplyView
+                reply={detail.reply}
+                attachmentUrls={attachmentUrls}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* RAIL — the fact + control surfaces (RDR D1–D4). */}
@@ -434,8 +458,9 @@ export default async function ReferralDetailPage({
                 canManageTarget={canManageTarget}
                 canManageSource={canManageSource}
                 replyOutcomes={replyOutcomes}
-                linkableCases={linkableCases}
-                linkedCaseNumber={detail.targetCaseNumber}
+                // The Detalhes card below carries the deadline control, beside the
+                // deadline it changes — rendering it here too would double it.
+                showDeadlineControl={false}
               />
             </div>
           ) : null}
@@ -457,15 +482,29 @@ export default async function ReferralDetailPage({
             </div>
           ) : null}
 
-          {/* RDR D1: every fact the header shed. */}
+          {/* RDR D1: the referral's core facts, plus the deadline control. */}
           <div data-rise className="order-3 lg:order-none">
-            <ReferralDetailsCard detail={detail} />
+            <ReferralDetailsCard
+              detail={detail}
+              canSetDeadline={canSetDeadline}
+            />
+          </div>
+
+          {/* Lazy, audited isolated-PHI panel — directly under Detalhes: "who is this
+              about" belongs beside "what is this". The reveal is still a click, and
+              still the audited door. */}
+          <div data-rise className="order-4 lg:order-none">
+            <ReferralPatientPanel
+              hasPatient={detail.hasPatient}
+              onReveal={revealPatient}
+              appearsInCount={appearsInCount}
+            />
           </div>
 
           {/* RV2 R4 / RDR D2: WHO is responsible. PHI-free governance metadata
               visible to any reader; the coordinator of the viewer's side gets the
               write controls. */}
-          <div data-rise className="order-6 lg:order-none">
+          <div data-rise className="order-7 lg:order-none">
             <ReferralAssignmentPanel
               referralId={detail.id}
               assignments={detail.assignments}
@@ -479,7 +518,7 @@ export default async function ReferralDetailPage({
               opens it when `can_read_case` is true and otherwise names who can. Not
               rendered for a neither-side (QPS) reader, who has no "own" case here. */}
           {myNoteCommitteeId ? (
-            <div data-rise className="order-7 lg:order-none">
+            <div data-rise className="order-8 lg:order-none">
               <ReferralCaseCard
                 heading={isSourceSide ? "Caso de origem" : "Caso em análise"}
                 headingId="referral-side-case-heading"
@@ -488,8 +527,13 @@ export default async function ReferralDetailPage({
                 caseHref={sideCaseHref}
                 summary={caseAccessSummary}
                 emptyHint={
-                  canManageTarget
-                    ? 'Use "Vincular caso" em Ações para associar um caso desta comissão.'
+                  canLinkCase
+                    ? 'Use "Vincular caso" para associar um caso desta comissão.'
+                    : undefined
+                }
+                linkCase={
+                  canLinkCase
+                    ? { referralId: detail.id, cases: linkableCases }
                     : undefined
                 }
               />
@@ -517,15 +561,6 @@ export default async function ReferralDetailPage({
               />
             </div>
           ) : null}
-
-          {/* Lazy, audited isolated-PHI panel. */}
-          <div data-rise className="order-12 lg:order-none">
-            <ReferralPatientPanel
-              hasPatient={detail.hasPatient}
-              onReveal={revealPatient}
-              appearsInCount={appearsInCount}
-            />
-          </div>
 
           {/* LGPD-erasure control (ADR 0052 §6). Rendered only when the
               `canDisposeReferralPhi` probe (which mirrors the RPC gate exactly:

@@ -120,7 +120,9 @@ export function ReferralThreadItem({
     >
       <div
         className={cn(
-          "flex w-full max-w-[46ch] flex-col gap-1.5 rounded-2xl border p-3.5",
+          // ~20% wider than the original 46ch: long clinical replies were wrapping
+          // into a narrow ribbon on a rail-flanked page.
+          "flex w-full max-w-[55ch] flex-col gap-1.5 rounded-2xl border p-3.5",
           mine
             ? "rounded-br-md border-primary/25 bg-accent/60"
             : "rounded-bl-md border-border/70 bg-muted/25",

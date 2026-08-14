@@ -19,17 +19,10 @@ import {
   assignReferralNote,
   redactReferralNote,
   unassignReferralNote,
-  updateReferralInternalNote,
 } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
 import type { ReferralInternalNote } from "@/lib/referrals/types";
-import {
-  CASE_EVENT_KINDS,
-  CASE_EVENT_KIND_LABELS,
-  type CaseEventKind,
-} from "@/lib/cases/registro-kinds";
-import { SectionTextEditor } from "@/components/forms/section-text-editor";
-import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
+import { CASE_EVENT_KIND_LABELS } from "@/lib/cases/registro-kinds";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,29 +32,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NativeSelect } from "@/components/ui/native-select";
 import { FormBanner } from "@/components/auth/form-banner";
 import { cn } from "@/lib/utils";
 import { ReferralRedactDialog } from "./referral-redact-dialog";
+import { ReferralRegistroDialog } from "./referral-registro-dialog";
 import { REFERRAL_META_CHIP_BASE, referralTypeChipClass } from "./format";
 import { formatDateTime } from "./format";
 import type { AssignableMember } from "./referral-assignment-panel";
 
-const FIELD_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
-
 /**
  * One "Registro interno" (`referral_internal_notes`, promoted by RDR / ADR 0109) —
- * the referral-side mirror of {@link import('@/components/cases/case-narrative-card').CaseNarrativeCard}:
- * a titled, typed, assignable Markdown record with a one-way `open → concluded`
- * lifecycle.
+ * the referral-side mirror of the case detail's "Registros" row: a titled, typed,
+ * assignable free-text record with a one-way `open → concluded` lifecycle. Editing
+ * happens in {@link ReferralRegistroDialog}, the same dialog that creates one.
  *
- * 🔴 Rule 7 (stored-XSS) is enforced at RENDER, not at write: registro bodies are
- * stored VERBATIM (plan amendment A11 — the "write-time sanitizer" the plan referred
- * to does not exist). {@link MarkdownRenderer} (react-markdown + `rehype-sanitize`,
- * no `rehype-raw`) is therefore the ONLY thing standing between a pasted `<script>`
- * and execution. `bodyMd` must never be rendered as bare text into HTML-bearing
- * markup, through `dangerouslySetInnerHTML`, or through a second renderer.
+ * 🔴 Rule 7 (stored-XSS): registro bodies are stored VERBATIM (plan amendment A11 —
+ * the "write-time sanitizer" the plan referred to does not exist), so the RENDER is
+ * the only defense. This surface is now PLAIN TEXT: the body is interpolated as a
+ * React text child with `whitespace-pre-wrap`, which escapes it — markup is never
+ * parsed, so nothing can execute. That is strictly stronger than the `MarkdownRenderer`
+ * it replaced. Never route `bodyMd` through `dangerouslySetInnerHTML` or a Markdown
+ * renderer without restoring a sanitizing one.
  *
  * K-R5-1 is untouched: this card only ever receives notes the audited door already
  * scoped to the viewer's OWN committee side. Every control mirrors an RPC gate,
@@ -92,51 +83,15 @@ export function ReferralNoteCard({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [editing, setEditing] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [redactOpen, setRedactOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [title, setTitle] = useState(note.title ?? "");
-  const [body, setBody] = useState(note.bodyMd);
-  const [kind, setKind] = useState<CaseEventKind>(note.kind);
 
   const redacted = Boolean(note.redactedAt);
   const concluded = note.status === "concluded";
   const headingId = `referral-note-${note.id}-heading`;
   const kindLabel = CASE_EVENT_KIND_LABELS[note.kind];
   const heading = note.title || kindLabel;
-
-  function startEdit() {
-    setError(null);
-    setTitle(note.title ?? "");
-    setBody(note.bodyMd);
-    setKind(note.kind);
-    setEditing(true);
-  }
-
-  function save() {
-    setError(null);
-    if (!body.trim()) {
-      setError(REFERRAL_MESSAGES.noteBodyRequired);
-      return;
-    }
-    startTransition(async () => {
-      const result = await updateReferralInternalNote({
-        noteId: note.id,
-        title: title.trim() || null,
-        bodyMd: body.trim(),
-        kind,
-      });
-      if (!result.ok) {
-        setError(
-          result.fieldErrors?.bodyMd ?? result.error ?? REFERRAL_MESSAGES.generic,
-        );
-        return;
-      }
-      setEditing(false);
-      router.refresh();
-    });
-  }
 
   /** Run a one-shot lifecycle action, surfacing its pt-BR error on failure. */
   function run(thunk: () => Promise<{ ok: boolean; error?: string }>) {
@@ -191,13 +146,13 @@ export function ReferralNoteCard({
           </p>
         </div>
 
-        {!editing && canEdit && !redacted ? (
+        {canEdit && !redacted ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="shrink-0"
-            onClick={startEdit}
+            onClick={() => setEditOpen(true)}
             aria-label={`Editar o registro ${heading}`}
           >
             <Pencil aria-hidden="true" />
@@ -208,83 +163,7 @@ export function ReferralNoteCard({
 
       {error ? <FormBanner tone="error">{error}</FormBanner> : null}
 
-      {editing ? (
-        <div className="flex flex-col gap-3">
-          {/* Explicit `htmlFor`/`id` association: a `<label>` WRAPPING a `<select>`
-              absorbs every option's text into its own text content and corrupts the
-              computed accessible name. */}
-          <div className="flex flex-col gap-1.5 text-sm">
-            <label
-              htmlFor={`referral-note-title-${note.id}`}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Título <span className="font-normal">(opcional)</span>
-            </label>
-            <input
-              id={`referral-note-title-${note.id}`}
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={FIELD_CLASS}
-              disabled={isPending}
-              placeholder="Ex.: Alinhamento com a farmácia"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5 text-sm">
-            <label
-              htmlFor={`referral-note-type-${note.id}`}
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Tipo
-            </label>
-            <NativeSelect
-              id={`referral-note-type-${note.id}`}
-              value={kind}
-              onChange={(e) => setKind(e.target.value as CaseEventKind)}
-              disabled={isPending}
-              className="py-2"
-            >
-              {CASE_EVENT_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {CASE_EVENT_KIND_LABELS[k]}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-
-          {/* `SectionTextEditor` owns the textarea, so its label points at it by id
-              rather than wrapping it. */}
-          <label
-            htmlFor={`referral-note-body-${note.id}`}
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Registro
-          </label>
-          <SectionTextEditor
-            value={body}
-            onChange={setBody}
-            disabled={isPending}
-            textareaId={`referral-note-body-${note.id}`}
-            placeholder="Escreva este registro em Markdown… Visível apenas à sua comissão."
-          />
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(false)}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
-            <Button type="button" size="sm" onClick={save} disabled={isPending}>
-              {isPending ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
-        </div>
-      ) : redacted ? (
+      {redacted ? (
         <p className="inline-flex items-start gap-1.5 text-sm text-muted-foreground italic">
           <EyeOff aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           <span className="text-pretty">
@@ -293,13 +172,14 @@ export function ReferralNoteCard({
           </span>
         </p>
       ) : (
-        // 🔴 A11 — the ONLY sanitizing surface for a verbatim-stored body (Rule 7).
-        <div className="rounded-lg border border-border bg-card p-3">
-          <MarkdownRenderer content={note.bodyMd} />
-        </div>
+        // 🔴 Rule 7 — plain text, escaped by React. See the file header: nothing on
+        // this path parses the stored body as markup.
+        <p className="text-sm whitespace-pre-wrap text-foreground/90 text-pretty">
+          {note.bodyMd}
+        </p>
       )}
 
-      {!editing && (canAssign || canEdit || canRedact) ? (
+      {canAssign || canEdit || canRedact ? (
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           {canAssign ? (
             <AssignMenu
@@ -344,6 +224,17 @@ export function ReferralNoteCard({
           onOpenChange={setRedactOpen}
           kind="note"
           onRedact={(reason) => redactReferralNote({ noteId: note.id, reason })}
+        />
+      ) : null}
+
+      {canEdit && !redacted ? (
+        <ReferralRegistroDialog
+          mode="edit"
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          note={note}
+          members={members}
+          canAssign={canAssign}
         />
       ) : null}
     </li>

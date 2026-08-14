@@ -246,6 +246,11 @@ export default async function TechnicalDirectionReferralPage({
       )}
 
       <div data-rise>
+        {/* This page has no Detalhes / case card to host them, so "Ações" stays this
+            referral's only control surface and keeps the deadline control (the
+            default). "Vincular caso" is NOT missing: a technical-direction referral
+            has no target commission (ADR 0094 W4), so `link_referral_case` could
+            never accept one — the control was always dead here. */}
         <ReferralActions
           referralId={detail.id}
           status={detail.status}
@@ -254,8 +259,6 @@ export default async function TechnicalDirectionReferralPage({
           canManageTarget
           canManageSource={false}
           replyOutcomes={replyOutcomes}
-          linkableCases={[]}
-          linkedCaseNumber={null}
         />
       </div>
     </SafetyMotion>

@@ -4,27 +4,20 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
-  CalendarClock,
   CheckCircle2,
   CircleSlash,
   Inbox,
-  Link2,
   Microscope,
-  Paperclip,
   RotateCcw,
-  Send,
   Undo2,
 } from "lucide-react";
 
 import {
   acceptReferral,
-  concludeReferral,
   declineReferral,
-  linkReferralCase,
   receiveReferral,
   reopenReferral,
   resolveReferral,
-  setReferralDeadline,
   startReferralReview,
   withdrawReferral,
 } from "@/lib/referrals/actions";
@@ -46,35 +39,34 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
-import { formatCaseNumber } from "./format";
+import { canSetReferralDeadline } from "./deadline-gate";
+import { ReferralDeadlineButton } from "./referral-deadline-button";
+import { ReferralReplyButton } from "./referral-reply-dialog";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
-/** A case in B's commission the target coordinator may link (id + number + label). */
-export interface LinkableTargetCase {
-  id: string;
-  caseNumber: number;
-  label: string | null;
-}
-
 /**
- * The B-side referral action panel (Decisions 1, 4, 10): the lifecycle controls
- * the entitled coordinator drives, the link-case picker, and the structured reply
- * form. A `"use client"` component fed plain props by the Server detail page; the
- * page computes who-may-do-what from RLS-backed access (NOT this component — it's
- * a convenience gate; the RPC re-checks authority and raises HC071/HC072).
+ * The referral action panel (Decisions 1, 4, 10): the lifecycle transitions an
+ * entitled coordinator drives. A `"use client"` component fed plain props by the
+ * Server detail page; the page computes who-may-do-what from RLS-backed access (NOT
+ * this component — it's a convenience gate; the RPC re-checks authority and raises
+ * HC071/HC072).
  *
  * Which controls render:
  *  - TARGET coordinator (incoming, `canManageTarget`): receive (`enviada`),
- *    accept/decline (`recebida`), start review (`aceita`), link case + reply
- *    (`em_analise`).
- *  - SOURCE coordinator (outgoing, `canManageSource`): withdraw while in flight.
+ *    accept/decline (`recebida`), start review (`aceita`), reply (`em_analise`).
+ *  - SOURCE coordinator (outgoing, `canManageSource`): withdraw while in flight,
+ *    resolve once answered, reopen once resolved.
  *
- * The reply form requires `result_md` + a `reply_outcomes` selection when the
- * referral expects a reply; a no-reply-expected referral may conclude with an
- * acknowledgment only. Attachments upload to a fresh immutable path first (Rule 6)
- * — wired when backend posts the upload action; the optional field is present now.
+ * ⚠ TWO controls that used to live here have MOVED to the card that shows what they
+ * change, and are NOT rendered here on the commission-side detail:
+ *  - "Vincular caso" → the "Caso em análise" card (`ReferralCaseCard`);
+ *  - "Definir/Alterar prazo" → the "Detalhes" card, beside the deadline itself.
+ * The technical-direction page has no such cards — it renders this panel as its only
+ * control surface — so the deadline control stays here behind `showDeadlineControl`.
+ * The reply form is no longer inline either: it is a dialog behind "Responder e
+ * concluir", so the transitions above are not buried under a form.
  */
 export function ReferralActions({
   referralId,
@@ -84,8 +76,7 @@ export function ReferralActions({
   canManageTarget,
   canManageSource,
   replyOutcomes,
-  linkableCases,
-  linkedCaseNumber,
+  showDeadlineControl = true,
 }: {
   referralId: string;
   status: ReferralStatus;
@@ -98,20 +89,20 @@ export function ReferralActions({
   /** Viewer is a coordinator of the SOURCE commission (or an admin). */
   canManageSource: boolean;
   replyOutcomes: ReplyOutcome[];
-  /** Cases in B's commission available to link (already excludes the linked one). */
-  linkableCases: LinkableTargetCase[];
-  /** The currently linked target-case number, if any (for the read-back). */
-  linkedCaseNumber: number | null;
+  /**
+   * Whether to render the deadline control HERE. `false` on any page whose "Detalhes"
+   * card already carries it — rendering it in both places would give one referral two
+   * "Alterar prazo" buttons.
+   */
+  showDeadlineControl?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [linkOpen, setLinkOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
-  const [deadlineOpen, setDeadlineOpen] = useState(false);
 
   /** Run a no-arg transition action, surfacing its mapped pt-BR error. */
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
@@ -140,17 +131,10 @@ export function ReferralActions({
   const sourceCanResolve = canManageSource && status === "answered";
   const sourceCanReopen = canManageSource && status === "resolved";
   // RV2 R2: either coordinator may set/update the SLA deadline while the referral is
-  // in flight (non-terminal, post-draft). `answered` still counts — A owes the move.
+  // in flight. The status set lives with the control (one list, two call sites).
   const canSetDeadline =
-    (canManageTarget || canManageSource) &&
-    [
-      "sent",
-      "received",
-      "accepted",
-      "in_review",
-      "awaiting_information",
-      "answered",
-    ].includes(status);
+    showDeadlineControl &&
+    canSetReferralDeadline({ status, canManageTarget, canManageSource });
 
   if (
     !targetCanAct &&
@@ -222,18 +206,14 @@ export function ReferralActions({
           </Button>
         )}
 
-        {/* Link case — available to the target coordinator once accepted/in review. */}
-        {canManageTarget && ["accepted", "in_review"].includes(status) && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setLinkOpen(true)}
-            disabled={isPending}
-          >
-            <Link2 aria-hidden="true" />
-            {linkedCaseNumber != null ? "Alterar caso vinculado" : "Vincular caso"}
-          </Button>
+        {/* Reply + conclude — target coordinator, in review. The form itself is a
+            dialog (it used to sit inline below and dominate the card). */}
+        {canManageTarget && status === "in_review" && (
+          <ReferralReplyButton
+            referralId={referralId}
+            responseExpected={responseExpected}
+            replyOutcomes={replyOutcomes}
+          />
         )}
 
         {/* SOURCE resolve — confirm closure once the target has answered (RV2 R3). */}
@@ -263,18 +243,13 @@ export function ReferralActions({
           </Button>
         )}
 
-        {/* SLA deadline — either coordinator, while in flight (RV2 R2). */}
+        {/* SLA deadline — either coordinator, while in flight (RV2 R2). Only on a page
+            with no "Detalhes" card to host it (see `showDeadlineControl`). */}
         {canSetDeadline && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setDeadlineOpen(true)}
-            disabled={isPending}
-          >
-            <CalendarClock aria-hidden="true" />
-            {responseDueAt ? "Alterar prazo" : "Definir prazo"}
-          </Button>
+          <ReferralDeadlineButton
+            referralId={referralId}
+            responseDueAt={responseDueAt}
+          />
         )}
 
         {/* SOURCE withdraw — while the referral is still in flight. */}
@@ -292,40 +267,12 @@ export function ReferralActions({
         )}
       </div>
 
-      {linkedCaseNumber != null && (
-        <p className="text-xs text-muted-foreground">
-          Caso vinculado nesta comissão:{" "}
-          <span className="font-mono text-foreground">
-            {formatCaseNumber(linkedCaseNumber)}
-          </span>
-        </p>
-      )}
-
-      {/* The reply / conclusion form — only the target coordinator, only in review. */}
-      {canManageTarget && status === "in_review" && (
-        <ReplyForm
-          referralId={referralId}
-          responseExpected={responseExpected}
-          replyOutcomes={replyOutcomes}
-        />
-      )}
-
       {/* Decline-with-note dialog. */}
       {canManageTarget && (
         <DeclineDialog
           open={declineOpen}
           onOpenChange={setDeclineOpen}
           referralId={referralId}
-        />
-      )}
-
-      {/* Link-case dialog. */}
-      {canManageTarget && (
-        <LinkCaseDialog
-          open={linkOpen}
-          onOpenChange={setLinkOpen}
-          referralId={referralId}
-          cases={linkableCases}
         />
       )}
 
@@ -344,144 +291,7 @@ export function ReferralActions({
           referralId={referralId}
         />
       )}
-
-      {/* RV2 R2: set/update the SLA deadline (either coordinator). */}
-      <DeadlineDialog
-        open={deadlineOpen}
-        onOpenChange={setDeadlineOpen}
-        referralId={referralId}
-        current={responseDueAt}
-      />
     </section>
-  );
-}
-
-/** The structured reply form (Decision 10): required `result_md` + a
- * `reply_outcomes` selection when a reply is expected; an acknowledgment-only
- * conclusion otherwise. The optional attachment field is present; the upload
- * action is wired when backend posts it. */
-function ReplyForm({
-  referralId,
-  responseExpected,
-  replyOutcomes,
-}: {
-  referralId: string;
-  responseExpected: boolean;
-  replyOutcomes: ReplyOutcome[];
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  const [outcomeId, setOutcomeId] = useState("");
-  const [resultMd, setResultMd] = useState("");
-  // A no-reply-expected referral may conclude with an acknowledgment only.
-  const [acknowledgedOnly, setAcknowledgedOnly] = useState(!responseExpected);
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!acknowledgedOnly) {
-      if (!resultMd.trim())
-        return setError(REFERRAL_MESSAGES.replyResultRequired);
-      if (!outcomeId) return setError(REFERRAL_MESSAGES.replyOutcomeRequired);
-    }
-    startTransition(async () => {
-      const result = await concludeReferral({
-        referralId,
-        replyOutcomeId: acknowledgedOnly ? null : outcomeId,
-        resultMd: acknowledgedOnly ? null : resultMd.trim(),
-        acknowledgedOnly,
-      });
-      if (!result.ok) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  return (
-    <form
-      onSubmit={submit}
-      className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4"
-      noValidate
-    >
-      <h3 className="text-sm font-semibold">Responder e concluir</h3>
-
-      {error && <FormBanner tone="error">{error}</FormBanner>}
-
-      {!responseExpected && (
-        <label className="flex items-start gap-2.5 text-sm">
-          <input
-            type="checkbox"
-            checked={acknowledgedOnly}
-            onChange={(e) => setAcknowledgedOnly(e.target.checked)}
-            className="mt-0.5 size-4 rounded border-input accent-[var(--primary)] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-          />
-          <span className="flex flex-col gap-0.5">
-            <span className="font-medium">Concluir apenas com ciência</span>
-            <span className="text-xs text-muted-foreground text-pretty">
-              Este encaminhamento não exige resposta. Conclua sem registrar
-              resultado.
-            </span>
-          </span>
-        </label>
-      )}
-
-      {!acknowledgedOnly && (
-        <>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Desfecho da análise</span>
-            <NativeSelect
-              value={outcomeId}
-              onChange={(e) => setOutcomeId(e.target.value)}
-              required
-              className="py-2"
-            >
-              <option value="" disabled>
-                Selecione o desfecho…
-              </option>
-              {replyOutcomes.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Resultado</span>
-            <textarea
-              value={resultMd}
-              onChange={(e) => setResultMd(e.target.value)}
-              rows={5}
-              required
-              className={FIELD_CLASS}
-              placeholder="Descreva o resultado da análise para a comissão de origem. Aceita Markdown."
-            />
-          </label>
-
-          {/* Optional attachment — the upload action lands with backend's storage
-              bucket; the field is present now so the layout is final. */}
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-card/50 px-3 py-2.5 text-xs text-muted-foreground">
-            <Paperclip aria-hidden="true" className="size-4" />
-            Anexos da resposta poderão ser adicionados após concluir.
-          </div>
-        </>
-      )}
-
-      <div className="flex justify-end">
-        <Button type="submit" size="lg" disabled={isPending}>
-          <Send aria-hidden="true" />
-          {isPending
-            ? "Concluindo…"
-            : acknowledgedOnly
-              ? "Concluir com ciência"
-              : "Enviar resposta e concluir"}
-        </Button>
-      </div>
-    </form>
   );
 }
 
@@ -610,124 +420,6 @@ function DeclineDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-/** Link a case B created in its own commission (Decision 1). Mirrors the meetings
- * case-linker: a Dialog with a case `<select>`. The RPC validates the case is in
- * the target commission (HC079). */
-function LinkCaseDialog({
-  open,
-  onOpenChange,
-  referralId,
-  cases,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  referralId: string;
-  cases: LinkableTargetCase[];
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [caseId, setCaseId] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const [wasOpen, setWasOpen] = useState(false);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) {
-      setCaseId("");
-      setError(null);
-    }
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!caseId) return setError(REFERRAL_MESSAGES.targetCaseRequired);
-    startTransition(async () => {
-      const result = await linkReferralCase({ referralId, targetCaseId: caseId });
-      if (!result.ok) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      onOpenChange(false);
-      router.refresh();
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Vincular caso da comissão</DialogTitle>
-          <DialogDescription>
-            Vincule um caso desta comissão para conduzir a análise. O responsável
-            pelo caso vinculado passa a ter acesso à identificação do paciente
-            deste encaminhamento.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-          {error && <FormBanner tone="error">{error}</FormBanner>}
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Caso</span>
-            <NativeSelect
-              value={caseId}
-              onChange={(e) => setCaseId(e.target.value)}
-              required
-              className="py-2"
-            >
-              <option value="" disabled>
-                Selecione um caso…
-              </option>
-              {cases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {formatCaseNumber(c.caseNumber)}
-                  {c.label ? ` — ${c.label}` : ""}
-                </option>
-              ))}
-            </NativeSelect>
-            {cases.length === 0 && (
-              <span className="text-xs text-muted-foreground">
-                Nenhum caso disponível nesta comissão para vincular.
-              </span>
-            )}
-          </label>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" size="lg" disabled={isPending || cases.length === 0}>
-              {isPending ? "Vinculando…" : "Vincular"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** ISO timestamp → a `datetime-local` value (`YYYY-MM-DDTHH:mm`, local wall-clock);
- * `null`/unparseable → `""` (empty input). */
-function isoToLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return "";
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-}
-
-/** The current local wall-clock as a `datetime-local` value, for the input's `min`. */
-function nowLocalInput(): string {
-  return isoToLocalInput(new Date().toISOString());
 }
 
 /**
@@ -946,93 +638,3 @@ function ReopenDialog({
   );
 }
 
-/**
- * Deadline dialog (RV2 R2): either coordinator sets/updates/clears the SLA response
- * deadline while the referral is in flight. A past date is rejected by the RPC
- * (HC0A4); an empty value clears the deadline.
- */
-function DeadlineDialog({
-  open,
-  onOpenChange,
-  referralId,
-  current,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  referralId: string;
-  current: string | null;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [value, setValue] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const [wasOpen, setWasOpen] = useState(false);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) {
-      setValue(isoToLocalInput(current));
-      setError(null);
-    }
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const iso = value.trim() ? new Date(value).toISOString() : null;
-    startTransition(async () => {
-      const result = await setReferralDeadline({
-        referralId,
-        responseDueAt: iso,
-      });
-      if (!result.ok) {
-        setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      onOpenChange(false);
-      router.refresh();
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Prazo de resposta</DialogTitle>
-          <DialogDescription>
-            Defina a data-limite para a comissão de destino responder. Deixe em
-            branco para remover o prazo.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-          {error && <FormBanner tone="error">{error}</FormBanner>}
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Prazo</span>
-            <input
-              type="datetime-local"
-              value={value}
-              min={nowLocalInput()}
-              onChange={(e) => setValue(e.target.value)}
-              className={FIELD_CLASS}
-            />
-          </label>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
-              <CalendarClock aria-hidden="true" />
-              {isPending ? "Salvando…" : "Salvar prazo"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}

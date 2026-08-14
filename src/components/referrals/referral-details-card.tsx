@@ -8,28 +8,41 @@ import {
   ReferralOverdueChip,
   ReferralPriorityChip,
   ReferralStatusChip,
-  ResponseExpectedChip,
 } from "./referral-chips";
+import { ReferralDeadlineButton } from "./referral-deadline-button";
 import { formatDateTime } from "./format";
 
 /**
- * The rail "Detalhes" card — every referral FACT the minimal header no longer
- * carries (RDR D1). A quiet `dl` of label/value rows: the label and the value are
- * SEPARATE elements (no "Label: value" prose), so a value can be asserted without
- * dragging its label along.
+ * The rail "Detalhes" card — the referral's core FACTS, deliberately SHORT: origin,
+ * requested action, priority, created, response deadline, status. Nothing else.
  *
- * Null rows are hidden outright — a referral that was never decided shows no
- * "Decidido" row rather than an em dash. `targetCommissionId` is NULL on a
- * technical-direction referral, so "Para" reads the query layer's already-composed
- * {@link ReferralDetail.targetCommissionName} (the Diretor Técnico's display name)
- * and never dereferences the id.
+ * The long lifecycle-timestamp ledger this card used to carry (enviado / recebido /
+ * decidido / concluído / retirado, plus the destination and the "resposta esperada"
+ * chip) is gone: every one of those moments is already narrated, in order and with its
+ * actor, by the synthesized system rows interleaved into the Diálogo (RDR D7). Two
+ * renderings of the same timeline made the rail long without adding a fact.
+ *
+ * A quiet `dl` of label/value rows: the label and the value are SEPARATE elements (no
+ * "Label: value" prose), so a value can be asserted without dragging its label along.
+ * The deadline row is the one interactive one — the coordinator control that CHANGES it
+ * sits beside the value it changes, rather than in a distant action panel.
  *
  * PHI-FREE: governance metadata only (commission names, timestamps, the structured
- * decline reason code). Server-Component safe — no client hooks.
+ * decline reason code). A Server Component — `ReferralDeadlineButton` is the sole
+ * client island it renders.
  */
-export function ReferralDetailsCard({ detail }: { detail: ReferralDetail }) {
-  const inFlight = !detail.concludedAt && !detail.withdrawnAt;
-
+export function ReferralDetailsCard({
+  detail,
+  canSetDeadline = false,
+}: {
+  detail: ReferralDetail;
+  /**
+   * Whether THIS viewer may set/change the response deadline — decide it with
+   * `canSetReferralDeadline` rather than restating its status set here. When false the
+   * deadline is read-only, and the row hides entirely if none is set.
+   */
+  canSetDeadline?: boolean;
+}) {
   return (
     <section
       aria-labelledby="referral-details-heading"
@@ -44,42 +57,11 @@ export function ReferralDetailsCard({ detail }: { detail: ReferralDetail }) {
 
       <dl className="flex flex-col gap-2.5 text-sm">
         <Row label="De" value={detail.sourceCommissionName} />
-        <Row label="Para" value={detail.targetCommissionName} />
         <Row label="Ação solicitada" value={detail.requestedActionLabel} />
 
-        <Row label="Status">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <ReferralStatusChip status={detail.status} />
-            {detail.overdue ? <ReferralOverdueChip /> : null}
-          </span>
+        <Row label="Prioridade">
+          <ReferralPriorityChip priority={detail.priority} />
         </Row>
-
-        {detail.priority !== "routine" ? (
-          <Row label="Prioridade">
-            <ReferralPriorityChip priority={detail.priority} />
-          </Row>
-        ) : null}
-
-        {detail.responseExpected && inFlight ? (
-          <Row label="Resposta">
-            <ResponseExpectedChip />
-          </Row>
-        ) : null}
-
-        {detail.responseDueAt ? (
-          <Row label="Prazo de resposta">
-            <span
-              className={
-                detail.overdue
-                  ? "font-medium text-destructive tabular-nums"
-                  : "tabular-nums"
-              }
-            >
-              {formatDateTime(detail.responseDueAt)}
-              {detail.overdue ? " · vencido" : ""}
-            </span>
-          </Row>
-        ) : null}
 
         <Row
           label="Criado"
@@ -88,42 +70,50 @@ export function ReferralDetailsCard({ detail }: { detail: ReferralDetail }) {
           }`}
           numeric
         />
-        {detail.sentAt ? (
-          <Row label="Enviado" value={formatDateTime(detail.sentAt)} numeric />
+
+        {/* The deadline and the control that changes it, together. The row survives an
+            EMPTY deadline whenever the viewer may set one — otherwise "Definir prazo"
+            would have nowhere to live for the referral that most needs it. */}
+        {detail.responseDueAt || canSetDeadline ? (
+          <Row label="Prazo de resposta">
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              {detail.responseDueAt ? (
+                <span
+                  className={
+                    detail.overdue
+                      ? "font-medium text-destructive tabular-nums"
+                      : "tabular-nums"
+                  }
+                >
+                  {formatDateTime(detail.responseDueAt)}
+                  {detail.overdue ? " · vencido" : ""}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Sem prazo definido</span>
+              )}
+              {canSetDeadline ? (
+                <ReferralDeadlineButton
+                  referralId={detail.id}
+                  responseDueAt={detail.responseDueAt}
+                  size="xs"
+                />
+              ) : null}
+            </span>
+          </Row>
         ) : null}
-        {detail.receivedAt ? (
-          <Row
-            label="Recebido"
-            value={formatDateTime(detail.receivedAt)}
-            numeric
-          />
-        ) : null}
-        {detail.decidedAt ? (
-          <Row
-            label="Decidido"
-            value={formatDateTime(detail.decidedAt)}
-            numeric
-          />
-        ) : null}
-        {detail.concludedAt ? (
-          <Row
-            label="Concluído"
-            value={formatDateTime(detail.concludedAt)}
-            numeric
-          />
-        ) : null}
-        {detail.withdrawnAt ? (
-          <Row
-            label="Retirado"
-            value={formatDateTime(detail.withdrawnAt)}
-            numeric
-          />
-        ) : null}
+
+        <Row label="Status">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <ReferralStatusChip status={detail.status} />
+            {detail.overdue ? <ReferralOverdueChip /> : null}
+          </span>
+        </Row>
       </dl>
 
       {/* RV2 R2: the PHI-free STRUCTURED decline reason (distinct from the PHI-gated
-          decline note). Only a `rejected` referral carries one; the header status
-          chip already says "recusada", so this row supplies the why. */}
+          decline note). Only a `rejected` referral carries one; the status chip above
+          already says "recusada", so this block supplies the why — and it is the only
+          surface that carries it. */}
       {detail.status === "rejected" && detail.declineReasonCode ? (
         <div className="flex flex-col gap-1 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2">
           <dl>

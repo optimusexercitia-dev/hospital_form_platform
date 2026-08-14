@@ -7,13 +7,21 @@ import { FolderOpen, Lock, SquareArrowOutUpRight } from "lucide-react";
 import type { ReferralCaseAccessSummary } from "@/lib/referrals/types";
 import { Button } from "@/components/ui/button";
 import { ReferralCaseAccessDialog } from "./referral-case-access-dialog";
+import {
+  ReferralLinkCaseButton,
+  type LinkableTargetCase,
+} from "./referral-link-case-button";
 import { formatCaseNumber } from "./format";
 
 /**
  * The rail card for the CASE this referral is about, on the viewer's own side
  * (RDR D3): the sending side sees its originating case (`source_case_id`, always
  * present); the receiving side sees the case it linked (`target_case_id`), or an
- * empty state pointing at "Vincular caso" in Ações while none is linked.
+ * empty state while none is linked.
+ *
+ * The target coordinator's "Vincular caso" control lives in THIS card's header —
+ * mirroring how "Casos relacionados" carries its own "Relacionar caso" button — so the
+ * act of linking sits on the card that shows the link, not in a distant action panel.
  *
  * A referral case link is a POINTER — it grants no access (the case read predicates
  * never consult it). So the card has two states:
@@ -33,6 +41,7 @@ export function ReferralCaseCard({
   caseHref,
   summary,
   emptyHint,
+  linkCase,
 }: {
   /** pt-BR card heading ("Caso de origem" / "Caso em análise"). */
   heading: string;
@@ -45,8 +54,15 @@ export function ReferralCaseCard({
   caseHref: string | null;
   /** The audited access roster for `caseId`; `null` when unavailable/denied. */
   summary: ReferralCaseAccessSummary | null;
-  /** Shown in the empty state — e.g. the pointer to "Vincular caso" in Ações. */
+  /** Shown in the empty state — e.g. what to do to get a case linked. */
   emptyHint?: string;
+  /**
+   * The target coordinator's link affordance. Present ONLY for a viewer the
+   * `link_referral_case` RPC would accept in the current status; omitted entirely
+   * otherwise (the source side never links, and no status outside accepted/in_review
+   * may). The two fields travel together so a call site cannot supply half of one.
+   */
+  linkCase?: { referralId: string; cases: LinkableTargetCase[] };
 }) {
   const [accessOpen, setAccessOpen] = useState(false);
   const caseLabel = formatCaseNumber(caseNumber);
@@ -57,11 +73,23 @@ export function ReferralCaseCard({
       aria-labelledby={headingId}
       className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs"
     >
-      <div className="flex items-center gap-2">
-        <FolderOpen aria-hidden="true" className="size-4 text-muted-foreground" />
-        <h2 id={headingId} className="text-sm font-semibold">
-          {heading}
-        </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <FolderOpen
+            aria-hidden="true"
+            className="size-4 text-muted-foreground"
+          />
+          <h2 id={headingId} className="text-sm font-semibold">
+            {heading}
+          </h2>
+        </div>
+        {linkCase ? (
+          <ReferralLinkCaseButton
+            referralId={linkCase.referralId}
+            cases={linkCase.cases}
+            linked={caseId != null}
+          />
+        ) : null}
       </div>
 
       {caseId && caseHref ? (

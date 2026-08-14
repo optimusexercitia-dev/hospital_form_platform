@@ -1,26 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { EyeOff, Lock, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { EyeOff, Lock, MessageSquarePlus } from "lucide-react";
 
-import { createReferralInternalNote } from "@/lib/referrals/actions";
-import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
 import type { ReferralInternalNote } from "@/lib/referrals/types";
-import {
-  CASE_EVENT_KINDS,
-  CASE_EVENT_KIND_LABELS,
-  type CaseEventKind,
-} from "@/lib/cases/registro-kinds";
-import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { Button } from "@/components/ui/button";
-import { NativeSelect } from "@/components/ui/native-select";
-import { FormBanner } from "@/components/auth/form-banner";
 import { ReferralNoteCard } from "./referral-note-card";
+import { ReferralRegistroDialog } from "./referral-registro-dialog";
 import type { AssignableMember } from "./referral-assignment-panel";
-
-const FIELD_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * "Registros internos" — the PRIVATE per-committee record panel on the referral
@@ -39,9 +26,9 @@ const FIELD_CLASS =
  * sorts. A `.sort()` here would silently override the grouping the door computed.
  *
  * A registro files under the SAME fixed kinds as the case timeline's "Registros"
- * ({@link CASE_EVENT_KINDS}). The per-commission vocabulary RDR originally shipped
- * — and the manage dialog that maintained it — is gone: there is nothing to
- * configure, so the picker is always populated and the type is always set.
+ * (`CASE_EVENT_KINDS`), and is now WRITTEN the same way too: "Adicionar registro"
+ * opens {@link ReferralRegistroDialog} rather than expanding an inline form, so this
+ * panel mirrors the case detail's "Registros" card end to end.
  */
 export function ReferralInternalNotesPanel({
   referralId,
@@ -69,15 +56,7 @@ export function ReferralInternalNotesPanel({
   /** Whether the viewer may redact (a coordinator of the owning side). */
   canRedact: boolean;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [composing, setComposing] = useState(false);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [kind, setKind] = useState<CaseEventKind>("note");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   // A viewer who belongs to neither side (QPS) sees nothing here — the door already
   // returns [] for them (K-R5-1); render nothing so no misleading empty panel shows.
@@ -85,43 +64,6 @@ export function ReferralInternalNotesPanel({
 
   const open = notes.filter((n) => n.status !== "concluded");
   const concluded = notes.filter((n) => n.status === "concluded");
-
-  function reset() {
-    setTitle("");
-    setBody("");
-    setKind("note");
-    setAssignedTo("");
-    setFieldError(null);
-    setError(null);
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setFieldError(null);
-    if (!body.trim()) {
-      setFieldError(REFERRAL_MESSAGES.noteBodyRequired);
-      return;
-    }
-    startTransition(async () => {
-      const result = await createReferralInternalNote({
-        referralId,
-        committeeId: committeeId as string,
-        bodyMd: body.trim(),
-        title: title.trim() || null,
-        kind,
-        assignedTo: assignedTo || null,
-      });
-      if (!result.ok) {
-        if (result.fieldErrors?.bodyMd) setFieldError(result.fieldErrors.bodyMd);
-        else setError(result.error ?? REFERRAL_MESSAGES.generic);
-        return;
-      }
-      reset();
-      setComposing(false);
-      router.refresh();
-    });
-  }
 
   /** The UI mirror of `app.can_edit_referral_internal_note` (the RPC re-checks). */
   function canEditNote(note: ReferralInternalNote): boolean {
@@ -162,31 +104,12 @@ export function ReferralInternalNotesPanel({
             {notes.length}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canCreate ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                if (composing) reset();
-                setComposing((prev) => !prev);
-              }}
-              aria-expanded={composing}
-            >
-              {composing ? (
-                <>
-                  <X aria-hidden="true" />
-                  Cancelar
-                </>
-              ) : (
-                <>
-                  <Plus aria-hidden="true" />
-                  Adicionar registro
-                </>
-              )}
-            </Button>
-          ) : null}
-        </div>
+        {canCreate ? (
+          <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+            <MessageSquarePlus aria-hidden="true" />
+            Adicionar registro
+          </Button>
+        ) : null}
       </div>
 
       <p className="inline-flex items-start gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground text-pretty">
@@ -194,127 +117,6 @@ export function ReferralInternalNotesPanel({
         Registros internos — visíveis apenas à sua comissão. A outra comissão e o
         NSP não têm acesso.
       </p>
-
-      {canCreate && composing ? (
-        <form
-          onSubmit={submit}
-          noValidate
-          className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4"
-        >
-          <h3 className="text-sm font-semibold">Novo registro</h3>
-
-          {error ? <FormBanner tone="error">{error}</FormBanner> : null}
-
-          {/* Labels associate EXPLICITLY (`htmlFor`/`id`) rather than wrapping the
-              control: a `<label>` that wraps a `<select>` folds every option's text
-              into its own text content, which pollutes the computed accessible name
-              ("Tipo Nota Reunião Decisão …") and makes the field unaddressable by
-              its visible label. */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5 text-sm">
-              <label
-                htmlFor="referral-new-note-title"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Título <span className="font-normal">(opcional)</span>
-              </label>
-              <input
-                id="referral-new-note-title"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className={FIELD_CLASS}
-                placeholder="Ex.: Alinhamento com a farmácia"
-                disabled={isPending}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5 text-sm">
-              <label
-                htmlFor="referral-new-note-type"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Tipo
-              </label>
-              <NativeSelect
-                id="referral-new-note-type"
-                value={kind}
-                onChange={(e) => setKind(e.target.value as CaseEventKind)}
-                disabled={isPending}
-                className="py-2"
-              >
-                {CASE_EVENT_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {CASE_EVENT_KIND_LABELS[k]}
-                  </option>
-                ))}
-              </NativeSelect>
-            </div>
-          </div>
-
-          {canManage && members.length > 0 ? (
-            <div className="flex flex-col gap-1.5 text-sm">
-              <label
-                htmlFor="referral-new-note-assignee"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Responsável <span className="font-normal">(opcional)</span>
-              </label>
-              <NativeSelect
-                id="referral-new-note-assignee"
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                disabled={isPending}
-                className="py-2"
-              >
-                <option value="">Sem responsável</option>
-                {members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.fullName ?? "Membro"}
-                  </option>
-                ))}
-              </NativeSelect>
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-1.5">
-            {/* `SectionTextEditor` owns the textarea, so the field label must point
-                at it by id rather than wrap it. */}
-            <label
-              htmlFor="referral-new-note-body"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Registro
-            </label>
-            <SectionTextEditor
-              value={body}
-              onChange={setBody}
-              disabled={isPending}
-              textareaId="referral-new-note-body"
-              describedById={
-                fieldError ? "referral-internal-note-error" : undefined
-              }
-              placeholder="Escreva este registro em Markdown… Visível apenas à sua comissão."
-            />
-            {fieldError ? (
-              <span
-                id="referral-internal-note-error"
-                role="alert"
-                className="text-sm font-medium text-destructive"
-              >
-                {fieldError}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={isPending}>
-              <Plus aria-hidden="true" />
-              {isPending ? "Salvando…" : "Registrar"}
-            </Button>
-          </div>
-        </form>
-      ) : null}
 
       {notes.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
@@ -338,6 +140,18 @@ export function ReferralInternalNotesPanel({
           ) : null}
         </div>
       )}
+
+      {canCreate ? (
+        <ReferralRegistroDialog
+          mode="create"
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          referralId={referralId}
+          committeeId={committeeId}
+          members={members}
+          canAssign={canManage}
+        />
+      ) : null}
     </section>
   );
 }
