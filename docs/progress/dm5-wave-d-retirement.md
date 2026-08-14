@@ -7,6 +7,51 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## ⭐ The finding that justifies the whole "inference until reset" discipline (S2 `…000150`, 2026-08-14)
+
+**A fresh `supabase db reset` did not confirm the hand-applied `REVOKE` — it FALSIFIED the migration
+file.** `…000120`'s PUBLIC-grant assertion **had never executed**: it was added while repairing an
+already-registered migration, so only the hand-applied `REVOKE` ever took effect, and the corrected
+file first ran at the reset — where it **fired on every function and broke the reset**.
+
+⚠ **The lead had checked that the file and the live DB agreed, and they did.** Had that been recorded
+as fact rather than as an inference, a **broken migration would have carried into the gate with a
+green local stack agreeing with it**. The rule, in the words that matter:
+
+> **"File and DB agree" is NOT "the file works."** A migration that has never executed is unproven no
+> matter how exactly the database matches what it claims to do.
+
+**One habit, two OPPOSITE failures — the sharper half.** The assertions asked a *string* a question
+only *structure* can answer:
+
+| migration | test | failure |
+| --- | --- | --- |
+| `…000120` | `acl like '%=X/postgres%'` | **false positive on everything** — PUBLIC is an aclitem with an **empty grantee**, so the pattern also matches `postgres=X/postgres` |
+| `…000130`, `…000150` | `and not like '%postgres=X/postgres%'` | **vacuous** — structurally incapable of firing while `postgres` holds a grant |
+
+Fixed with `aclexplode(...) where grantee = 0`. **Third instance of this class in one slice** — the
+first was `prosrc like '%HC0DM%'` matching the author's own **comment**. `prosrc` includes comments;
+an ACL is not a string. Related: [[a-comment-is-an-assertion-that-goes-stale-silently]].
+
+⚠ **The near-miss is part of the finding.** The first diagnosis blamed
+`information_schema.column_privileges`, which was *plausible* — the column genuinely showed 0 rows —
+but only because **the failed reset never created it**. *A symptom observed in a broken end-state is
+not evidence about the cause.* Reproducing against the real pre-state gave the true error in one step.
+
+**Verified after the fix** (lead, independently): `anon_exec = f` and `public_holds_exec = f`
+(via `aclexplode`) on both doors, and **0 first-party `public` functions anon-executable** — the
+population assertion, not just the two touched.
+
+🔧 **Residual, benign, tracked:** `…000110:181` still uses
+`if v_acl not like '%authenticated=X/postgres%'`. That is a **presence** check, so it fails **loud**
+(false alarm, never false pass) — not worth re-opening a landed migration, but convert it when that
+file is next touched. *The habit is the defect, even where this instance is safe.*
+
+**Also durable, and better than the design it replaces:** `328` **K9b now asserts the OFF flag set is
+EMPTY** rather than naming a flag, so it cannot go stale the next time a wave ships. The K9b/K9c
+coupling exists to force flag choreography to be an explicit reviewed edit; this makes it survive
+its own success.
+
 ### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
 
 > **Plan:** [dm5-wave-d-retirement-plan.md](docs/plans/dm5-wave-d-retirement-plan.md) ·

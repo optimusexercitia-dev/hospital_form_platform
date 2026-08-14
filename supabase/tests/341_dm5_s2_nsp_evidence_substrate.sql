@@ -34,9 +34,9 @@
 -- since it proves the arm under the transition the product actually performs.
 -- =============================================================================
 begin;
--- 30 = P:3 + A:5 + B:4 + C:9 + D:7 + E:2. Count derived by block, not by eye —
+-- 40 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:9. Count derived by block, not by eye —
 -- the first authoring pass said 29 because C5a/C5b were counted as one.
-select plan(30);
+select plan(40);
 
 -- ---------------------------------------------------------------------------
 -- P — preconditions (pgtap-fixture-flag-gaps: assert flags, never assume)
@@ -216,10 +216,21 @@ select is((select array_to_string(proconfig, ',') from pg_proc p join pg_namespa
             where n.nspname = 'app' and p.proname = 'can_read_document'),
   'search_path=app, public, pg_catalog',
   'DM5·S2 D4c can_read_document kept its search_path pin');
-select ok((select array_to_string(proacl, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname = 'app' and p.proname = 'can_read_document')
-          like '%authenticated=X/postgres%',
-  'DM5·S2 D4d can_read_document kept the authenticated EXECUTE grant');
+-- ⚠ STRUCTURAL, not substring. PUBLIC is an aclitem with an EMPTY grantee, so
+-- `like '%=X/postgres%'` also matches `postgres=X/postgres` — one habit that
+-- produced BOTH a false positive and a vacuous guard across three DM5
+-- migrations. aclexplode answers the question the string cannot.
+select ok(exists(
+  select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+       aclexplode(p.proacl) a
+   where n.nspname = 'app' and p.proname = 'can_read_document'
+     and a.grantee = 'authenticated'::regrole::oid and a.privilege_type = 'EXECUTE'),
+  'DM5·S2 D4d can_read_document kept the authenticated EXECUTE grant (structural)');
+select ok(not exists(
+  select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+       aclexplode(p.proacl) a
+   where n.nspname = 'app' and p.proname = 'can_read_document' and a.grantee = 0),
+  'DM5·S2 D4e ⭐ can_read_document has NO PUBLIC grant (grantee 0 — the direction a presence check cannot see)');
 
 -- ---------------------------------------------------------------------------
 -- E — ADR 0120 D16: hospital_of_capa_action reads capa_plan.hospital_id.
