@@ -71,17 +71,20 @@ run_case () {  # $1 label · $2 mutation SQL · $3 expected-RED patterns (| sep)
   docker cp "$f" "$DB:/tmp/mut340.sql" >/dev/null
   out=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/mut340.sql 2>&1)
   local verdict="RED-PROVEN" bad="" IFS='|' pats gpats
+  # Patterns are BOUNDED (QA r2 MINOR-9: bare "B1" also matched "B10c", making
+  # one verdict right only by accident) — the keystone tag must be followed by
+  # a non-alphanumeric, so a tag is never a prefix of a longer tag.
   read -ra pats <<< "$expect"
   for pat in "${pats[@]}"; do
-    if   echo "$out" | grep -qE "^not ok [0-9]+ - .*$pat"; then :
-    elif echo "$out" | grep -qE "^ok [0-9]+ - .*$pat";     then bad="$bad [$pat]=STILL-GREEN"
+    if   echo "$out" | grep -qE "^not ok [0-9]+ - .*$pat[^0-9A-Za-z]"; then :
+    elif echo "$out" | grep -qE "^ok [0-9]+ - .*$pat[^0-9A-Za-z]";     then bad="$bad [$pat]=STILL-GREEN"
     else bad="$bad [$pat]=ABSENT(aborted?)"; fi
   done
   if [ -n "$expect_green" ]; then
     read -ra gpats <<< "$expect_green"
     for pat in "${gpats[@]}"; do
-      if   echo "$out" | grep -qE "^ok [0-9]+ - .*$pat"; then :
-      elif echo "$out" | grep -qE "^not ok [0-9]+ - .*$pat"; then bad="$bad [green:$pat]=WENT-RED"
+      if   echo "$out" | grep -qE "^ok [0-9]+ - .*$pat[^0-9A-Za-z]"; then :
+      elif echo "$out" | grep -qE "^not ok [0-9]+ - .*$pat[^0-9A-Za-z]"; then bad="$bad [green:$pat]=WENT-RED"
       else bad="$bad [green:$pat]=ABSENT(aborted?)"; fi
     done
   fi
@@ -218,5 +221,7 @@ else
 fi
 
 echo "-------------------------------------------------------------"
-echo "matrix: $pass proven / $fail vacuous-or-broken   (HEAD: $(git -C "$(dirname "$0")/../../.." rev-parse --short HEAD 2>/dev/null || echo unknown))"
+# --dirty (QA r2 MINOR-10): a verdict is citable only with the TREE it was
+# measured at — rev-parse reports the commit even over uncommitted changes.
+echo "matrix: $pass proven / $fail vacuous-or-broken   (HEAD: $(git -C "$(dirname "$0")/../../.." describe --always --dirty 2>/dev/null || echo unknown))"
 [ "$fail" -eq 0 ]

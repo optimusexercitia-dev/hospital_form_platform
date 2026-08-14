@@ -130,6 +130,19 @@ the field is total over all new rows. Historical rows lack `kind`; consumers
 treat absence as "pre-DM4 row", never a third event type. Consumer sweep at
 ruling time: nothing read `metadata` on this verb (catalog + repo).
 
+**Open security obligation — FUP-DM4-RECUSAL (QA r1 MAJOR-3, PO-deferred; the
+deferral's binding condition, recorded here so no D-number reads as closing
+it).** `add_referral_shared_item` checks source-coordinator authority but
+never `can_read_document`/`can_read_case`, so a RECUSED/respondent coordinator
+can freeze a case document and reach PHI bytes around the exclusion perimeter
+(QA-demonstrated live, rolled-back). Deferred, not accepted: **the deadline is
+the `documents_wave_c` flag-on date** — the flag ships OFF and this MUST be
+closed before it flips. ⚠ It must NEVER be absorbed into "Phase 19 delivered
+an access plane": a plane that only WIDENS access cannot close an
+under-inclusive gate; the fix is a narrowing check in the freeze corridor (or
+an equivalent PO-ruled shape), keystoned red-first like every other barrier in
+this file.
+
 ## Consequences
 
 - Both referral write doors return composites and the new read doors return jsonb —
