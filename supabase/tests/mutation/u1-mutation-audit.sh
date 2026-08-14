@@ -55,24 +55,12 @@ begin
     execute $p$ alter policy case_interviews_insert on public.case_interviews
       with check (app.is_staff_admin_of(commission_id)) $p$;
 
-  elsif p_what = 'restore_casedoc_member' then
-    -- Re-add the removed commission-anchored member arm (the leak).
-    execute $p$ alter policy case_documents_select_member on storage.objects
-      using ((bucket_id = 'case-documents')
-             and (app.is_member_of(((storage.foldername(name))[1])::uuid)
-                  or app.can_read_snapshot_document(name, auth.uid()))) $p$;
-
   elsif p_what = 'restore_interview_attach_policy' then
     -- Re-create the dropped interview-attachments member SELECT policy (the leak).
     execute $p$ create policy interview_attachments_obj_select_member on storage.objects
       for select to authenticated
       using ((bucket_id = 'interview-attachments')
              and app.is_member_of(((storage.foldername(name))[1])::uuid)) $p$;
-
-  elsif p_what = 'drop_snapshot_arm' then
-    -- Remove the load-bearing snapshot arm -> the referral recipient loses the read.
-    execute $p$ alter policy case_documents_select_member on storage.objects
-      using ((bucket_id = 'case-documents') and false) $p$;
 
   else
     raise exception 'unknown mutation %', p_what;
@@ -142,17 +130,17 @@ run_case "revert_interview_insert_policy -> direct-table DENY" \
   "select app._mut_u1('revert_interview_insert_policy');" \
   "direct-table INSERT: RECUSED coordinator DENIED"
 
-run_case "restore_casedoc_member -> storage leak (case-documents)" \
-  "select app._mut_u1('restore_casedoc_member');" \
-  "case-documents: EXCLUDED member reads 0|case-documents: even a CLEAN member reads 0"
-
+# DM4 (lead-ruled 2026-08-14): the two case-documents cases
+# (restore_casedoc_member, drop_snapshot_arm) were REMOVED — they ALTERed the
+# policy `case_documents_select_member`, which migration 20260926000400 dropped
+# with the F-14 boundary. A mutation that cannot mutate is worse than absent:
+# it reports success. Their keystones' successors live in pgTAP 340
+# (C10a/C11b/C11d/D4a) and are matrix-covered by
+# dm4-referral-doors-matrix.sh (N10a/N10b/N11). The harness was RE-PROVEN
+# after this edit: the surviving interview-attachments leak injection RED.
 run_case "restore_interview_attach_policy -> storage leak (interview)" \
   "select app._mut_u1('restore_interview_attach_policy');" \
   "interview-attachments: EXCLUDED member reads 0"
-
-run_case "drop_snapshot_arm -> snapshot twin (both directions)" \
-  "select app._mut_u1('drop_snapshot_arm');" \
-  "snapshot: the referral recipient STILL reads"
 
 echo
 echo "=== CONTROL — no mutation: every keystone GREEN (proves the harness is not a red-generator) ==="

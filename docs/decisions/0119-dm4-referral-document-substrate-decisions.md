@@ -98,6 +98,23 @@ truncated table; real proofs must enumerate at the backend layer. Remote
 behavior is the same mechanism class but is an **inference** — verify at deploy
 time.
 
+**D9 — reply-document ROW metadata is metadata-tier and NOT wave-c-gated at
+read time; a deliberate position, not an oversight** (lead question 2026-08-14;
+pinned executably by 340 E3a/E3b). `get_referral_detail`'s embedded
+`reply_documents` projection and `list_referral_reply_documents` serve
+title/mime/size/availability/`can_open` to any reader passing the METADATA
+tier — the exact authority the retired
+`referral_reply_attachment_select_readable` carried, and the same answer the
+kernel arm gives a direct PostgREST reader of `documents`. This is not the
+Rule-1 "UI hiding" shape: the ACCESS gate is SQL (`can_read_referral` /
+`can_read_referral_metadata`), `can_open` is server-computed truth, and bytes
+sit behind the PHI-gated doors which re-gate independently. The wave-c flag is
+a ROLLOUT switch gating residue CREATION (BEGIN + the freeze arm — the DM3
+lesson applied), never historical-row reads — matching Waves A/B exactly,
+whose kernel and `documents_select` carry no wave flag either. With the flag
+OFF no referral-homed row can come to exist; rows visible flag-OFF are only
+those legitimately minted while ON, served to the same readers entitled then.
+
 ## Consequences
 
 - Both referral write doors return composites and the new read doors return jsonb —
@@ -111,3 +128,16 @@ time.
 - Rows in `referral_shared_item`/`referral_reply_attachment` were guarded by RLS
   having no write policies, NOT by absent grants (`authenticated=arwdDxtm` on
   both) — the keystone suite now pins zero-write-policies explicitly.
+- ⭐ **A door may have more than one lock — neutralizing one and observing no
+  leak proves NOTHING about that lock** (matrix finding N10a, beside the
+  standing "a neutralization is valid only for its class" rule). Opening
+  `open_referral_snapshot_document`'s PHI gate alone leaked nothing, because
+  `log_audit_access` carries its OWN authorization and raised. A single-lock
+  neutralization would have reported "gate not load-bearing" — a false
+  negative that reads exactly like a clean result. The matrix proves each lock
+  alone (N10a: the audit raise IS the red) and both together (N10b: the
+  assertions flip). Corollary from the same session: **the matrix's own first
+  control went green having run nothing** (pgTAP absent → every case aborted →
+  zero `not ok` lines read as success); the committed harness now preflights
+  and fails loudly — the vacuity class bites inside the tools built to detect
+  it.

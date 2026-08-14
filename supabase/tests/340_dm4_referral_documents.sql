@@ -19,9 +19,16 @@
 -- ⚠ Both write doors return COMPOSITES and the read doors return JSONB — the
 -- unruled census blind class: ARM=census/hat/floor/wrapper pass for this file's
 -- surface NO MATTER WHAT. This file (+ the matrix) is the evidence.
+--
+-- ⭐ MULTI-LOCK RULE (matrix finding N10a — read this before "proving" a gate
+-- is not load-bearing): a door may carry MORE THAN ONE lock. Opening the
+-- snapshot door's PHI gate alone leaks nothing — log_audit_access has its own
+-- authorization and raises — so a single-lock neutralization that observes
+-- "no leak" proves nothing about that lock. Neutralize each lock alone AND
+-- all together (dm4-referral-doors-matrix.sh N10a/N10b).
 -- =============================================================================
 begin;
-select plan(70);
+select plan(72);
 
 -- ---------------------------------------------------------------------------
 -- Preconditions (fixture-flag-gaps: assert flags, never assume the seed)
@@ -625,6 +632,30 @@ select throws_ok(
           where s.referral_id = 'efa00000-0000-0000-0000-0000000000a1' and s.kind = 'document')) $q$,
   'HC0DS', null,
   'E2 ⭐ the door refuses the seeded specimen (HC0DS) even to a PHI reader');
+select set_config('request.jwt.claims', '', true);
+
+-- E3 — THE PROJECTION POSITION, pinned executably (ADR 0119 lead question,
+-- 2026-08-14): reply-document ROW metadata is METADATA-TIER by design — the
+-- exact authority the retired referral_reply_attachment_select_readable
+-- carried — and is NOT wave-c-gated at read time (matching Waves A/B: no wave
+-- flag gates kernel row reads; the flag gates residue CREATION). The row a
+-- metadata reader receives is title/mime/size/availability + a truthful
+-- can_open=false; bytes remain behind the PHI-gated door. A projection that
+-- leaked can_open=true here would be the DM3 class one layer over.
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000006'::uuid, false);
+create temp table e3meta on commit drop as
+  select public.get_referral_detail('efa00000-0000-0000-0000-0000000000a1') as j;
+select is(
+  (select (j->'reply'->'reply_documents'->0->>'can_open') from e3meta),
+  'false',
+  'E3a ⭐ a METADATA-tier reader receives the reply-document row (deliberate: legacy row-visibility authority) with a TRUTHFUL can_open=false');
+select set_config('request.jwt.claims', '', true);
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
+select is(
+  (select (public.get_referral_detail('efa00000-0000-0000-0000-0000000000a1')
+           ->'reply'->'reply_documents'->0->>'can_open')),
+  'true',
+  'E3b ⭐ …and the SAME row carries can_open=true for the PHI-tier reader (the pair that keeps E3a non-vacuous)');
 select set_config('request.jwt.claims', '', true);
 
 -- =============================================================================

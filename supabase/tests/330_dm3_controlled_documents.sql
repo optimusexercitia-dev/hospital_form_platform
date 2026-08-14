@@ -703,13 +703,20 @@ select hasnt_function('app', 'can_read_document_object',
 
 -- B3 — POSITIVE CONTROL for the derivation itself. B1 asserts a ZERO; a broken
 -- derivation also reports zero. This proves the same query still SEES a live
--- policy elsewhere. Mirrors 325 t4 — a detector that finds nothing must be
+-- policy elsewhere. Mirrors 325 t4/t5 — a detector that finds nothing must be
 -- proven able to find something.
+-- ⚠ DM4 re-anchored this control (2026-08-14): it originally pointed at the
+-- live case-documents snapshot policy, which DM4 deliberately retired with the
+-- F-14 boundary (migration 20260926000400; 325 t4 flipped in the same change).
+-- The control now anchors on the documents-phi reserved-upload door — correct
+-- BY DESIGN, not by an open defect or a retiring boundary
+-- ([[a-vacuity-control-anchored-on-a-defect]] — and its sibling lesson: a
+-- control anchored on a boundary another wave is scheduled to retire).
 select ok(
   (select count(*) >= 1 from pg_policies
     where schemaname = 'storage' and tablename = 'objects'
-      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%case-documents%'),
-  'DM3·B3 POSITIVE CONTROL: the same derivation still sees the live case-documents policy (B1''s zero is real)');
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%documents-phi%'),
+  'DM3·B3 POSITIVE CONTROL: the same derivation sees the live documents-phi reserved-upload policy (B1''s zero is real)');
 
 -- =============================================================================
 -- B4 / X3 — THE BYTE CORRIDOR: prior versions, and the projection↔door contract.

@@ -5,13 +5,20 @@
 -- WHAT THIS PROVES. The READ/ADMINISTER half of the exclusion perimeter is closed:
 -- a recused/respondent coordinator can no longer grant/revoke/list case access nor
 -- create an interview on the case she is excluded from (at the RPC AND the direct
--- table), and the legacy `case-documents` / `interview-attachments` storage member
--- arms no longer leak case bytes to a commission member.
+-- table), and NOTHING reads the legacy `case-documents` / `interview-attachments`
+-- buckets at all (DM4/ADR 0119 retired the last case-documents policy; the buckets
+-- are policy-less until DM5's retirement manifest).
 --
 -- ⛔ §7.7 — a NARROWING passes its negative BY CONSTRUCTION, so the POSITIVE TWIN is
 -- the review: every deny is paired with the legitimate principal that MUST still pass
--- (a clean coordinator still grants/creates; the referral-snapshot recipient still
--- reads the case-documents object via the OTHER arm, `can_read_snapshot_document`).
+-- (a clean coordinator still grants/creates).
+-- ⚠ DM4 (lead-ruled 2026-08-14): the referral-snapshot storage arm and its
+-- `can_read_snapshot_document` predicate were RETIRED with the F-14 signer. Their
+-- twin did not vanish — it MOVED: pgTAP 340 C10a (PHI reader served), C11b
+-- (metadata reader denied), C11d (the B-side recipient reads via the new audited
+-- door), D4a (this boundary is dead), 325 t4/t5. The ③ zero-counts below are
+-- POSITIVE-CONTROL-PAIRED (③CTL) because a zero-count over a mistyped predicate
+-- passes silently forever.
 --
 -- ⛔ §7.1 trap #3 — THE FIXTURE IS THE TRAP. No seeded persona is both EXCLUDED and
 -- AUTHORIZED, so an exclusion keystone on a seeded coordinator would die on authority
@@ -21,7 +28,7 @@
 -- truncates), so the referral-snapshot twin is built here, not borrowed from the seed.
 -- =============================================================================
 begin;
-select plan(21);
+select plan(22);
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'interviews', 'case_referrals', 'audit_trail', 'attachments');
@@ -98,9 +105,10 @@ insert into public.case_referral (id, source_case_id, source_commission_id, targ
    type_label, subject, status, response_expected, has_patient)
 values ('00000000-0000-0000-0000-0000000f7200', '00000000-0000-0000-0000-0000000f7001',
    (select comm_x from k), (select comm_y from k), 'x', 'x', 'completed', false, false);
-insert into public.referral_shared_item (id, referral_id, kind, position, frozen_storage_path)
+insert into public.referral_shared_item
+  (id, referral_id, kind, position, frozen_tombstoned_at, frozen_tombstone_reason)
 values ('00000000-0000-0000-0000-0000000f7201', '00000000-0000-0000-0000-0000000f7200', 'document', 0,
-   (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/shared.pdf');
+   now(), 'legacy_unreconciled');
 select set_config('app.in_referral_rpc', 'off', true);
 
 -- ===========================================================================
@@ -117,9 +125,8 @@ select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x2 from k
   'PRE ⭐ leg 2/2: st_x2 ALSO holds staff_admin');
 select is(app.is_case_excluded('00000000-0000-0000-0000-0000000f7001', (select sa_x from k)), false,
   'PRE: sa_x is a CLEAN coordinator (not excluded) — the positive twin');
-select is(app.can_read_snapshot_document(
-    (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/shared.pdf', (select sa_y from k)), true,
-  'PRE: sa_y (target coordinator, NOT a member of comm_x) is a referral-snapshot reader — the twin is real');
+select is(app.can_read_referral_phi('00000000-0000-0000-0000-0000000f7200', (select sa_y from k)), true,
+  'PRE: sa_y (target coordinator, NOT a member of comm_x) holds the referral PHI tier — the 340 door-twin premise is real here too');
 
 -- ===========================================================================
 -- ① GRANT / REVOKE / LIST — the recused/respondent coordinator is DENIED (HC0F1)
@@ -185,13 +192,23 @@ select lives_ok(
 reset role;
 
 -- ===========================================================================
--- ③ STORAGE — the legacy member arm is GONE (no member reads the bucket)
+-- ③ STORAGE — the legacy buckets serve NOBODY (DM4: zero policies at all).
+-- Each zero-count is PAIRED with a superuser control over the IDENTICAL
+-- predicate: a zero-count over a wrong catalog view / schema / mistyped name
+-- passes silently forever, so the deny must provably deny a PRESENT row.
 -- ===========================================================================
+select is((select count(*)::int from storage.objects
+   where bucket_id='case-documents' and name=(select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/probe.pdf'),
+  1, '③CTLa the case-documents probe row EXISTS under this exact predicate (superuser view)');
+select is((select count(*)::int from storage.objects
+   where bucket_id='interview-attachments' and name=(select comm_x from k)::text || '/ffffffff-0000-0000-0000-0000000f7001/probe.pdf'),
+  1, '③CTLb the interview-attachments probe row EXISTS under this exact predicate (superuser view)');
+
 select test_helpers.claims_for((select st_x2 from k), false);  -- excluded member
 set local role authenticated;
 select is((select count(*)::int from storage.objects
    where bucket_id='case-documents' and name=(select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/probe.pdf'),
-  0, '③a case-documents: EXCLUDED member reads 0 (member arm removed)');
+  0, '③a case-documents: EXCLUDED member reads 0 (NO policy remains on the bucket — DM4)');
 select is((select count(*)::int from storage.objects
    where bucket_id='interview-attachments' and name=(select comm_x from k)::text || '/ffffffff-0000-0000-0000-0000000f7001/probe.pdf'),
   0, '③b interview-attachments: EXCLUDED member reads 0 (policy dropped)');
@@ -201,16 +218,16 @@ select test_helpers.claims_for((select sa_x from k), false);  -- clean member (a
 set local role authenticated;
 select is((select count(*)::int from storage.objects
    where bucket_id='case-documents' and name=(select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/probe.pdf'),
-  0, '③c case-documents: even a CLEAN member reads 0 — loser set is empty (no legit member reader)');
+  0, '③c case-documents: even a CLEAN member reads 0 — the bucket serves nobody (DM4)');
 reset role;
 
--- ③ TWIN — the referral-snapshot arm SURVIVES: the recipient still reads via the OTHER arm.
-select test_helpers.claims_for((select sa_y from k), false);
-set local role authenticated;
-select is((select count(*)::int from storage.objects
-   where bucket_id='case-documents' and name=(select comm_x from k)::text || '/00000000-0000-0000-0000-0000000f7001/shared.pdf'),
-  1, '③TWIN snapshot: the referral recipient STILL reads via can_read_snapshot_document (load-bearing arm preserved)');
-reset role;
+-- ③ TWIN — RETIRED BY DM4 (lead-ruled): the byte corridor moved off this
+-- bucket entirely. Successors, each live: 340 C10a (PHI reader served by
+-- open_referral_snapshot_document) · C11b (metadata reader gets nothing) ·
+-- C11d (the B-side recipient reads — THIS twin's direct heir) · D4a (the
+-- old boundary is dead) · 325 t4/t5. The u1 mutation harness dropped its two
+-- case-documents injections in the same change (they ALTERed a policy that
+-- no longer exists — a mutation that cannot mutate reports success).
 
 -- Close-flow note (the lead's twin): close_case / the case-content RPCs are NOT touched
 -- by this unit; the two doors this unit guards (grant, create_interview) are proven above

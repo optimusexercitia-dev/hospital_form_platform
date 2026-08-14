@@ -32,12 +32,14 @@ alter table public.securable_resources
          and commission_id is not null);
 
 -- 2. The constant satellite column (participants dialect, roles inverted —
---    ADR 0116 #2). Column-list grant posture on case_referral (the
---    case_referral COLUMN-grants rule): the new column gets its own GRANT.
+--    ADR 0116 #2). DELIBERATELY NO client GRANT: nothing client-side reads a
+--    constant discriminator, and pgTAP 326 t1 pins grant-set ≡ the
+--    case_referral_public view — a column joins the client surface only with
+--    its own grant AND view column, consciously. (A precautionary grant was
+--    tried first and 326 t1 correctly refused it.)
 alter table public.case_referral
   add column securable_type text not null default 'case_referral'
   constraint case_referral_securable_type_pin check (securable_type = 'case_referral');
-grant select (securable_type) on public.case_referral to authenticated;
 
 -- 3. Registry population BY CONSTRUCTION (ADR 0116 #3; the DM3-P0 class —
 --    "an FK backfilled while the create path was never taught" — cannot arise:
