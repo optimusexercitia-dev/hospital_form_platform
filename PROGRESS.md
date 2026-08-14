@@ -159,6 +159,14 @@
 > kinds: `assignment`, `case_linked`, `decided_accepted`, `resolution`, `sent`). The old DET tests
 > touched `Recebido`/`Concluído`; that is the one thing genuinely thinner now.
 >
+> ⚠ **Attribution note:** this S4 block was written by `frontend` but was swept into the lead's
+> commit `e7b44bea` by a concurrent `git add` — that commit's message describes **only**
+> FUP-PGTAP-VACUOUS and understates what it carries. Content is correct; authorship is
+> misattributed. **Not amended** (frontend committed on top of it, and rewriting history under a
+> live teammate is how HEAD moves out from under someone). Recorded instead, per the standing
+> scar: *a commit's own message is not a report of what it committed* — blame by measuring the
+> commit, never by reading it. **Two agents sharing one worktree share one index.**
+>
 > **S4 (frontend) — ✅ BUILT** 2026-08-14, against `backend`'s S0 contract (`67c0fe04`); no
 > provisional local shapes. Bar: tsc 0 · lint **5/5** · vitest **1258** · `next build` EXIT=0.
 > ⚠ Runtime unproven by design — the S1/S3 action bodies still throw `not implemented`.
