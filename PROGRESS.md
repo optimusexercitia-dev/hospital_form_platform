@@ -115,7 +115,7 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S3b — full `e2e:prod` gate (lead-run) | lead | ✅ **GATE GREEN** — 1102 passed · 0 failed · 0 infra · 2 flaky · **0 did-not-run** · 18 batches; **accounting closes exactly**: 1102+0+2 = 1104 accounted, +6 skipped = **1110 = collected**, every batch `accounted N/N` |
 | S4 — QA review r1 | qa | ⛔ **CHANGES REQUESTED** — 0 P0 · **1 MAJOR (blocking)** · 4 MINOR · 5 INFO. [review](docs/reviews/dm3-controlled-documents-review.md) |
 | S4b — MAJOR-1 remediation (M11) | backend | ✅ landed (`5b35003`) — assert moved to `begin_document_upload`, **home-type-scoped**; `DM3·T3` **red-first** ("caught: no exception"), twin reds `T3` **and only** `T3`; `T3b` control keeps Wave A alive |
-| S4c — re-gate (lead) | lead | 🟢 in progress |
+| S4c — re-gate (lead) | lead | ✅ **step-1 half GREEN** — fresh reset 0 · pgTAP **190f/6152 PASS** (0 `not ok`, 0 bad plans) · `ARM=census`/`hat`/`FROMFINDINGS=1 wrapper`/`floor` **all INVARIANT HOLDS** (census 569 verdicts, wrapper BLIND 41 all allowlisted) · tsc 0 · lint 5/5. 🟢 `e2e:prod` re-running. **Diff-scoped sweep NOT re-run — reasoned:** the case list re-derived over `4c6f7d9..HEAD` incl. M11 is **unchanged** (M11 creates no `is_/can_/has_` gate and no policy) and neither swept gate was touched, so a re-run would re-test an unchanged substrate |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
 
