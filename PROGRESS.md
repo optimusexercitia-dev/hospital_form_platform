@@ -222,6 +222,64 @@
 >   legacy signed-URL getters neutered to `null` until S4 removes their call sites.
 > - HC072's stale message text: NOT touched (outside the diff, per lead ruling).
 
+> ## ✅ GATE STEP 1 (Build complete) — **GREEN, LEAD-VERIFIED** 2026-08-14 @ `48662f64`
+>
+> ⚠ **Every figure below was re-run by the lead**, not accepted from the teammate report — the
+> backend numbers were produced after a session of mutation runs and sweeps against the same
+> shared stack, and this project has previously left an authz gate OPEN that way.
+>
+> | check | result |
+> | --- | --- |
+> | fresh `supabase db reset --local` | **exit 0**, clean |
+> | `npm run test:db` | **Files=191 · Tests=6229 · Result: PASS**, 0 failing files |
+> | `npm run typecheck` | 0 |
+> | `npm run lint` (5 gates) | 5/5 · `lint:vacuous` 180 files / 0 findings |
+> | `npm run test` (vitest) | 86 files · **1258/1258** |
+> | `npx next build` | **EXIT=0** (frontend-run — the gate a client→server value-import aborts while tsc/lint/vitest stay green) |
+> | `ARM=census` *(has anything ever asked?)* | **HOLDS** — 569 gates carry a verdict, no unswept newcomer |
+> | `ARM=hat` *(any door reading `memberships` hatless?)* | **HOLDS** |
+> | `FROMFINDINGS=1 ARM=wrapper` | **HOLDS** — BLIND set 41, all allowlisted |
+> | `ARM=floor` *(is every door called?)* | **HOLDS** — 74 never-called doors, all on the floor allowlist |
+> | diff-scoped door sweep | **2 cases run** (not 0 — the NO-OP trap did not bite): `can_read_document` **COVERED**; `can_write_document` **ERROR**, dispositioned below |
+> | neutralization matrix | **16/16 RED-PROVEN** (`supabase/tests/mutation/dm4-referral-doors-matrix.sh`) |
+> | catalog left unmutated? | ✅ verified — neither kernel gate carries a blanket `return true` |
+> | findings file restored? | ✅ 594 lines, not the 28-line subset stub |
+>
+> **⭐ `ARM=floor` was VIOLATED on its first run — a genuine catch, not a formality.**
+> `list_referral_reply_documents` shipped with **no keystone caller**. Fixed with a **driving
+> keystone (340 E4a/E4b), NOT an allowlist entry** — allowlisting would have turned the arm green
+> while the door stayed uncalled, which is precisely the blindness the arm exists to detect.
+>
+> **The one sweep `ERROR` is dispositioned, not waved through.** `can_write_document`'s blanket
+> neutralization **was noticed** (DM1-era keystones M1·4b + DEVIATION-2 went red) but also aborted
+> a file (6188 < 6229) ⇒ `run-shape≠baseline`. §6 requires an ERROR be covered by the phase's
+> mutation audit: matrix **N4/N5** open its two referral barriers with **targeted** mutations,
+> both RED-PROVEN. The runlog was read rather than the verdict taken at face value.
+>
+> **Red-first evidence, classified rather than counted.** 340 ran against the *unmigrated* catalog:
+> **68 assertions, 44 red, 24 green — the 24 greens are exactly the labeled [CONTROL]/[MATRIX] set,
+> zero unexplained.** The 44 split into the **strong** class (ran against live code and returned the
+> *wrong answer* — registry probes, kernel `else false` arms, `get_referral_detail` missing successor
+> keys, `throws_ok` catching a *different* SQLSTATE) and the **weak** class (red merely by *absence*).
+> ⚠ Absence-red proves authorship-before, **not falsifiability** — which is why every one of those
+> was separately proven post-migration by opening its gate and requiring red.
+>
+> **Getting to zero surfaced 2 further DM4-caused reds, both fixed at the right layer:** `326 t1`
+> refused a precautionary `securable_type` column GRANT (grant-set ≡ view is the pinned invariant —
+> the **grant** was removed, the pin was not widened); and `330 DM3·B3`'s positive control had been
+> anchored on the very `case-documents` policy DM4 retires — re-anchored, the
+> [[vacuity-control-anchored-on-a-defect]] class.
+>
+> **E2E flag reachability confirmed:** `seed.sql` forces `documents_wave_c = true` for local/E2E
+> (prod ships OFF), and both detail pages **server-resolve** it. ⚠ Naming hazard for QA, briefly
+> fooled the lead: the dialog prop is named **`attachments`** and its `.enabled` carries
+> `documents_wave_c`, while a feature-flag key **literally named `attachments`** sits at `false`.
+> Confusing, not defective.
+>
+> **Still owed:** gate step 2 (tester/E2E — the reply-attachment corridor and the click-time byte
+> doors have **never been exercised at runtime**; everything so far is DB-layer, static-gate or
+> *absence* proof) → step 3 QA → step 4 human → step 5 Record.
+
 ### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
 
 > ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**
