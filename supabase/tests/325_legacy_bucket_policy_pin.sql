@@ -23,17 +23,17 @@
 --    policy as its injected leak INSIDE 236's rolled-back txn — neither is
 --    disturbed by this pin, and this pin never runs inside that audit (u1 runs
 --    236 only).
---  - `case-documents` (t4) is NOT retired: `getReferralDocumentUrl` still signs
---    from it (the separate open item in docs/progress/f2-attachments.md §Open
---    risks) and its snapshot-reader SELECT policy is live BY DESIGN. It serves
---    here as the positive control proving the derivation can see storage
---    policies at all ("a detector that finds nothing must be proven able to
---    find something"). When that bucket is retired, flip t4 into the zero-count
---    shape DELIBERATELY, in the same change.
+--  - `case-documents` (t4): RETIRED by DM4 (2026-08-14, ADR 0119 D6 /
+--    migration 20260926000400) — the F-14 signer died and the audited
+--    open_referral_snapshot_document door replaced the boundary. t4 was
+--    flipped to zero-count DELIBERATELY in that same change, per the
+--    instruction that used to sit on this line; its positive-control duty
+--    passed to t5 (documents-phi reserved-upload door). The bucket ROW stays
+--    until DM5's single retirement manifest.
 -- =============================================================================
 
 begin;
-select plan(4);
+select plan(5);
 
 -- Derived from pg_policies (qual + with_check), never transcribed from prose.
 select is(
@@ -55,12 +55,26 @@ select is(
   0,
   't3 ⭐ the meeting-attachments bucket row is gone (no writer, no objects, no doors)');
 
+-- t4 — FLIPPED DELIBERATELY by DM4 (2026-08-14; ADR 0119 D6, migration
+-- 20260926000400), exactly as this file's header demanded: the case-documents
+-- snapshot-reader boundary retired with the F-14 signer. The bucket ROW stays
+-- until DM5's single retirement manifest — this pin is about its POLICIES.
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and (coalesce(qual, '') || coalesce(with_check, '')) like '%case-documents%'),
+  0,
+  't4 case-documents storage policies retired DELIBERATELY by DM4 (was the positive control; successor control: t5)');
+
+-- t5 — the REPLACEMENT positive control (a detector that finds nothing must
+-- be proven able to find something): the derivation sees the live
+-- documents-phi reserved-upload door.
 select is(
   (select count(*) >= 1 from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
-     and (coalesce(qual, '') || coalesce(with_check, '')) like '%case-documents%'),
+     and (coalesce(qual, '') || coalesce(with_check, '')) like '%documents-phi%'),
   true,
-  't4 POSITIVE CONTROL: the derivation sees the still-live case-documents snapshot-reader policy (see header — retire deliberately, never by accident)');
+  't5 POSITIVE CONTROL: the derivation sees the live documents-phi reserved-upload policy');
 
 select * from finish();
 rollback;

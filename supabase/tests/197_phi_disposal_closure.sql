@@ -3,7 +3,7 @@
 -- The lock: this suite fails if any dispose_* stops erasing a PHI column in its graph, if
 -- the case-dispose retroactively wipes the institutional result, if meeting-minutes
 -- disposal over-redacts (a 2-case meeting losing its minutes on a single-case dispose),
--- or if get_referral_detail leaks frozen_storage_path / decline_note to a metadata reader.
+-- or if get_referral_detail leaks the frozen byte handle / decline_note to a metadata reader.
 --
 -- Covers:
 --   §1 dispose_case_phi COMPLETE — every PHI column/table in the case graph empty/redacted
@@ -12,11 +12,11 @@
 --      stored case_phases.result_id SURVIVES; HC056 on re-dispose.
 --   §2 dispose_meeting_minutes — minutes/agenda redacted + flag; over-redaction guard.
 --   §3 dispose_event_phi gap-fill — rca_evidence / rca_why_chains redacted.
---   §4 §6.4 — get_referral_detail hides frozen_storage_path + decline_note from a
+--   §4 §6.4 — get_referral_detail hides the frozen byte handle + decline_note from a
 --      metadata-only reader; a PHI reader still sees them.
 
 begin;
-select plan(23);
+select plan(24);
 
 update app.feature_flags set enabled = true where key in
   ('case_patient','patient_safety','meetings','case_referrals','cases_multi_phase','audit_trail');
@@ -222,15 +222,15 @@ select is((select root_text from public.rca_why_chains where id = (select why fr
   '3.2: dispose_event_phi redacts rca_why_chains.root_text (gap-fill)');
 
 -- ===========================================================================
--- §4: §6.4 — get_referral_detail hides frozen_storage_path + decline_note from a
+-- §4: §6.4 — get_referral_detail hides the frozen byte handle + decline_note from a
 -- metadata-only reader. (Uses the seed's referral personas via a hermetic mini-setup.)
--- Build a referral with a document shared item (has frozen_storage_path) + a decline_note,
+-- Build a referral with a VERSION-BOUND document shared item + a decline_note,
 -- then read as a NON-PHI reader (a plain member of neither endpoint) vs a PHI reader.
 -- ===========================================================================
 -- Minimal referral: source comm_x -> a fresh target commission; a document shared item.
 create temp table rf on commit drop as
   select gen_random_uuid() as ref, gen_random_uuid() as comm_t, gen_random_uuid() as item,
-         gen_random_uuid() as src_case;
+         gen_random_uuid() as src_case, gen_random_uuid() as doc, gen_random_uuid() as ver;
 grant select on rf to authenticated;
 insert into public.commissions (id, name, slug, created_by, hospital_id)
   values ((select comm_t from rf), 'Alvo', 'alvo-' || substr((select comm_t from rf)::text,1,8), (select admin from k), (select hosp_b from k));
@@ -240,15 +240,23 @@ insert into public.case_referral
   (id, code, source_case_id, source_commission_id, target_commission_id, status, subject, type_label, decline_note, created_by)
   values ((select ref from rf), 'ENC-D64', (select src_case from rf), (select comm_x from k), (select comm_t from rf), 'rejected',
           'ASSUNTO', 'Tipo', 'MOTIVO-RECUSA-PHI', (select sa_x from k));
--- The shared-content freeze guard blocks edits on a sent referral; set the referral
--- RPC bypass GUC (mirrors the referral write paths) to seed the frozen document item.
+-- DM4 re-expression (ADR 0119; lead-approved as a DELIBERATE edit, not a
+-- rename): the byte handle is now the VERSION BINDING, PHI-gated in the
+-- projection exactly as the retired storage path was. Plant the minimal
+-- document chain (the case's registry row exists via the DM1 trigger) and a
+-- version-bound frozen item; the freeze guard is bypassed via the referral
+-- RPC GUC as before.
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+  values ((select doc from rf), (select src_case from rf), 'DOC', 'digitalizacao', 'active', (select sa_x from k));
+insert into public.document_versions (id, document_id, version_number, created_by)
+  values ((select ver from rf), (select doc from rf), 1, (select sa_x from k));
 select set_config('app.in_referral_rpc','on',true);
-insert into public.referral_shared_item (id, referral_id, kind, frozen_title, frozen_storage_path, frozen_mime_type, frozen_size_bytes, position)
-  values ((select item from rf), (select ref from rf), 'document', 'DOC', 'bucket/path/secret.pdf', 'application/pdf', 100, 1);
+insert into public.referral_shared_item (id, referral_id, kind, source_document_id, frozen_document_version_id, frozen_title, frozen_mime_type, frozen_size_bytes, position)
+  values ((select item from rf), (select ref from rf), 'document', (select doc from rf), (select ver from rf), 'DOC', 'application/pdf', 100, 1);
 select set_config('app.in_referral_rpc','off',true);
 
 -- A NON-PHI reader: st_x is a plain member of comm_x (source) — can_read_referral (broad)
--- but NOT can_read_referral_phi. Read the detail; frozen_storage_path + decline_note must be null.
+-- but NOT can_read_referral_phi. Read the detail; the version BINDING + decline_note must be null.
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table meta_read on commit drop as
@@ -256,8 +264,14 @@ create temp table meta_read on commit drop as
 reset role;
 grant select on meta_read to authenticated;
 select ok(
-  (select (j -> 'shared_items' -> 0 ->> 'frozen_storage_path') from meta_read) is null,
-  '4.1: get_referral_detail returns NULL frozen_storage_path to a metadata-only reader (§6.4)');
+  (select (j -> 'shared_items' -> 0 ->> 'frozen_document_version_id') from meta_read) is null,
+  '4.1: get_referral_detail returns a NULL version binding to a metadata-only reader (§6.4, DM4 successor field)');
+-- POSITIVE CONTROL (added at the DM4 re-expression): 4.1 could previously go
+-- green on an EMPTY shared_items array — `-> 0 ->> field` of nothing is null.
+-- The deny-half must provably deny a row that EXISTS.
+select ok(
+  (select (j -> 'shared_items' -> 0 ->> 'id') from meta_read) is not null,
+  '4.1b POSITIVE CONTROL: the metadata reader DOES see the item row (4.1 denies a present row, not an empty array)');
 select ok(
   (select (j ->> 'decline_note') from meta_read) is null,
   '4.2: get_referral_detail returns NULL decline_note to a metadata-only reader (§6.4)');
@@ -271,9 +285,9 @@ create temp table phi_read on commit drop as
 reset role;
 grant select on phi_read to authenticated;
 select ok(
-  (select (j -> 'shared_items' -> 0 ->> 'frozen_storage_path') from phi_read) = 'bucket/path/secret.pdf'
+  (select (j -> 'shared_items' -> 0 ->> 'frozen_document_version_id') from phi_read) = (select ver::text from rf)
   and (select (j ->> 'decline_note') from phi_read) = 'MOTIVO-RECUSA-PHI',
-  '4.3: a PHI reader still sees frozen_storage_path + decline_note');
+  '4.3: a PHI reader still sees the version binding + decline_note');
 
 select * from finish();
 rollback;

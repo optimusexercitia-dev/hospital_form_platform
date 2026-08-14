@@ -71,11 +71,10 @@ insert into public.cases (id, commission_id, case_number, label, created_by) val
 insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'CORPO-SENSIVEL-DO-PACIENTE', (select sa_x from k));
--- DM1 (ADR 0114 D5): the attachments substrate was dropped, so there is no
--- source document row to share — the document arm of add_referral_shared_item
--- is PARKED (HC0DM) until DM4 re-points it at the document model. The frozen
--- document ITEM below is inserted directly (source_document_id NULL — exactly
--- the DM4 reconciliation shape) so the snapshot fixtures keep their two items.
+-- DM4 (ADR 0119): the document arm is OPEN on the document model. The frozen
+-- document ITEM below is inserted directly as a VERSION-BOUND row (the live
+-- shape) so the snapshot fixtures keep their two items; the freeze corridor
+-- itself is 340's to prove — this suite pins the referral LIFECYCLE.
 
 -- =========================================================================
 -- create_referral_draft: source coordinator only (HC071).
@@ -108,20 +107,25 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.add_referral_shared_item(
   (select id from r1), 'narrative', (select narr from cs), null);
--- DM1: the parked document arm refuses IN-FLOW (authority passes first — the
--- caller is the source coordinator; 328 K8a is the sibling pin).
+-- DM4 flip: the arm is OPEN and VALIDATING — a nonexistent document id is
+-- refused by the arm itself (HC077), never by the retired HC0DM park
+-- (authority still passes first; 328 K8a is the sibling pin; happy lane 340 C1).
 select throws_ok(
   format($$ select public.add_referral_shared_item(%L, 'document', null, %L) $$,
          (select id from r1), (select doc from cs)),
-  'HC0DM', null,
-  'DM1: the document share arm is PARKED (HC0DM) until DM4');
+  'HC077', null,
+  'DM4: the open document arm refuses a nonexistent source document (HC077)');
 reset role;
 select set_config('app.in_referral_rpc', 'on', true);
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+values ((select doc from cs), (select src_case from cs), 'Laudo', 'digitalizacao', 'active',
+        (select sa_x from k));
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('15000000-0000-0000-0000-0000000000d1'::uuid, (select doc from cs), 1, (select sa_x from k));
 insert into public.referral_shared_item
-  (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
-values ((select id from r1), 'document', null, 'Laudo',
-        (select comm_x from k) || '/' || (select src_case from cs) || '/laudo.pdf',
-        'application/pdf', 1);
+  (referral_id, kind, source_document_id, frozen_document_version_id, frozen_title, frozen_mime_type, position)
+values ((select id from r1), 'document', (select doc from cs),
+        '15000000-0000-0000-0000-0000000000d1'::uuid, 'Laudo', 'application/pdf', 1);
 select set_config('app.in_referral_rpc', 'off', true);
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

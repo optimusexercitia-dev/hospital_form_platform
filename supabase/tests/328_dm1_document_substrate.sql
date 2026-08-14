@@ -48,57 +48,47 @@ select is(app.feature_enabled('patient_safety'), true,
 -- because K8a and K8b still exercise those writers.)
 
 -- =============================================================================
--- K1 — the attachment door-sweep: zero surviving centralized-attachment
--- surface, minus the named referral-owned allowlist. Enumerated from the LIVE
--- catalog, never from prose.
+-- K1 — the attachment door-sweep at ZERO EXCEPTIONS (DM4 closure, ADR 0119):
+-- the DM1 allowlist is EMPTY. Enumerated from the LIVE catalog, never prose.
 -- =============================================================================
 
--- K1a: routines. Allowlist: the two referral-owned RPCs (DM4 retires them).
+-- K1a: routines. NO allowlist — DM4 retired both referral-owned RPCs.
 select is(
   (select count(*)::int
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('app', 'public')
-      and p.proname ilike '%attachment%'
-      and p.proname not in ('add_referral_reply_attachment',
-                            'get_referral_attachment_path')),
+      and p.proname ilike '%attachment%'),
   0,
-  'K1a zero %attachment% routines in app/public beyond the two referral-owned RPCs');
+  'K1a zero %attachment% routines in app/public — NO exceptions (DM4 closure)');
 
--- K1b: policies (ALL schemas — table policies + storage.objects). Allowlist:
--- the referral reply-attachment table policy + the two referral storage doors.
+-- K1b: policies (ALL schemas). NO allowlist — DM4 dropped all three.
 select is(
   (select count(*)::int
      from pg_policies
-    where (policyname ilike '%attachment%' or tablename ilike '%attachment%')
-      and policyname not in ('referral_reply_attachment_select_readable',
-                             'referral_attachments_obj_insert',
-                             'referral_attachments_obj_select')),
+    where policyname ilike '%attachment%' or tablename ilike '%attachment%'),
   0,
-  'K1b zero %attachment% policies beyond the three referral-owned ones');
+  'K1b zero %attachment% policies — NO exceptions (DM4 closure)');
 
--- K1c: relations. Allowlist: referral_reply_attachment (the referral module''s
--- own table, DM4''s to migrate).
+-- K1c: relations. NO allowlist — DM4 dropped the reply table (reply
+-- attachments are referral-homed documents now, ADR 0119 D6).
 select is(
   (select count(*)::int
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname in ('app', 'public')
       and c.relkind in ('r', 'v', 'm', 'p')
-      and c.relname ilike '%attachment%'
-      and c.relname <> 'referral_reply_attachment'),
+      and c.relname ilike '%attachment%'),
   0,
-  'K1c zero %attachment% relations beyond referral_reply_attachment');
+  'K1c zero %attachment% relations — NO exceptions (DM4 closure)');
 
--- K1d: routine EXECUTE grants reachable by client roles.
+-- K1d: routine EXECUTE grants reachable by client roles. NO allowlist.
 select is(
   (select count(*)::int
      from information_schema.role_routine_grants g
     where g.routine_schema in ('app', 'public')
       and g.routine_name ilike '%attachment%'
-      and g.routine_name not in ('add_referral_reply_attachment',
-                                 'get_referral_attachment_path')
       and g.grantee in ('authenticated', 'anon', 'PUBLIC')),
   0,
-  'K1d zero client EXECUTE grants on %attachment% routines beyond the allowlist');
+  'K1d zero client EXECUTE grants on %attachment% routines — NO exceptions');
 
 -- K1e: no SURVIVING function body references a dropped routine name
 -- (comment-stripped — §7.2; this is what catches an unpatched
@@ -145,51 +135,50 @@ select is(
   'K1g no storage.objects policy references the attachments / attachments-phi buckets');
 
 -- =============================================================================
--- K2 — the DM4 allowlist, pinned by NAME so DM4 cannot forget an entry.
--- Every row here is a live referral-owned boundary DM1 deliberately spares
--- (plan DM1 item 1 + the 2026-08-12 amendments). DM4 retires ALL of them and
--- flips these pins to zero-count DELIBERATELY, in the same change (the
--- 325-t4 discipline: retire deliberately, never by accident).
+-- K2 — the DM4 allowlist, RETIRED DELIBERATELY (ADR 0119; the 325-t4
+-- discipline). Every pin below flipped exists → not-exists in the same change
+-- that dropped its object (migration 20260926000400). The transition was real,
+-- not vacuous: all seven targets were catalog-verified alive at DM4 open.
 -- =============================================================================
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname = 'case_documents_select_member'),
-  'K2a case_documents_select_member survives DM1 (live frozen-snapshot boundary until DM4)');
+  'K2a case_documents_select_member RETIRED by DM4 (the F-14 cookie-signer boundary is dead)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'app' and p.proname = 'can_read_snapshot_document'),
-  'K2b app.can_read_snapshot_document survives DM1 (predicate of K2a, DM4 retires it)');
+  'K2b app.can_read_snapshot_document RETIRED by DM4 (successor: open_referral_snapshot_document)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'add_referral_reply_attachment'),
-  'K2c add_referral_reply_attachment survives DM1 (referral-owned, DM4 migrates it)');
+  'K2c add_referral_reply_attachment RETIRED by DM4 (successor: the begin/finalize corridor)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'get_referral_attachment_path'),
-  'K2d get_referral_attachment_path survives DM1 (referral-owned, DM4 migrates it)');
+  'K2d get_referral_attachment_path RETIRED by DM4 (successor: open_document_version)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_policies
    where schemaname = 'public' and tablename = 'referral_reply_attachment'
      and policyname = 'referral_reply_attachment_select_readable'),
-  'K2e referral_reply_attachment_select_readable survives DM1');
+  'K2e referral_reply_attachment_select_readable RETIRED by DM4 (table dropped; metadata tier lives in the kernel arm)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname = 'referral_attachments_obj_insert'),
-  'K2f referral_attachments_obj_insert survives DM1');
+  'K2f referral_attachments_obj_insert RETIRED by DM4 (uploads ride the reserved-path corridor)');
 
-select ok(exists(
+select ok(not exists(
   select 1 from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname = 'referral_attachments_obj_select'),
-  'K2g referral_attachments_obj_select survives DM1');
+  'K2g referral_attachments_obj_select RETIRED by DM4 (bytes flow only through the audited doors)');
 
 -- =============================================================================
 -- K3 — the securable-resource registry (M2). The anti-join was ALSO proven on
@@ -704,14 +693,14 @@ select is(
 -- wave's gate closes with human approval.
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_wave_c','documents_wave_d')
+    where key in ('documents_wave_d')
       and enabled = false),
-  2, 'K9b the two still-unbuilt wave flags (c/d) are OFF');
+  1, 'K9b the still-unbuilt wave flag (d) is OFF');
 select is(
   (select count(*)::int from app.feature_flags
-    where key in ('documents_foundation','documents_wave_a','documents_wave_b')
+    where key in ('documents_foundation','documents_wave_a','documents_wave_b','documents_wave_c')
       and enabled = true),
-  3, 'K9c foundation + wave_a + wave_b are ON in the seeded local/E2E state (seed-forced; prod default OFF)');
+  4, 'K9c foundation + waves a/b/c are ON in the seeded local/E2E state (seed-forced; prod default OFF — wave_c joined at DM4, the coordinated K9 edit)');
 
 -- =============================================================================
 -- K10 — the D11 read-verb registry, post-S2 (FINDING 1a, DM2): attachment.read
@@ -752,11 +741,11 @@ select ok(
   'K10d the registry dispatcher body carries no document arm (comment-stripped)');
 
 -- =============================================================================
--- K8 — parked-seam writers refuse their document arms (HC0DM), fail-closed
--- until the owning wave re-points them (referrals → DM4; RCA citation →
--- Wave D; ethics → open item Q1). Personas + fixtures from seed.sql; the
--- document-id arguments are never dereferenced post-M1 (the guards raise
--- first), so these keystones survive the seed losing its attachment rows.
+-- K8 — parked-seam writers. K8a (referrals) was DISCHARGED by DM4: its arm is
+-- open and validating, and the pin flipped from "refused (HC0DM)" to
+-- "allowed, exactly this far" (ADR 0114 Am. 2 rationale; happy lane in pgTAP
+-- 340 C1). K8b (RCA citation) stays parked until Wave D. Personas + fixtures
+-- from seed.sql.
 -- =============================================================================
 
 -- K8a fixture: a DRAFT referral from Caso 0001 (CCIH → Farmácia), direct
@@ -783,9 +772,9 @@ select throws_ok(
   $$ select public.add_referral_shared_item(
        '328e0000-0000-0000-0000-0000000000d1', 'document', null,
        'a3300000-0000-0000-0000-0000000000a1') $$,
-  'HC0DM',
-  'o compartilhamento de documentos do caso está temporariamente indisponível (migração do modelo de documentos)',
-  'K8a add_referral_shared_item refuses its document arm (parked until DM4)');
+  'HC077',
+  'documento não encontrado neste caso',
+  'K8a DM4 flip: the document arm is OPEN and VALIDATING — a nonexistent document id is refused by the arm itself (HC077), never by the retired HC0DM park (positive lane: pgTAP 340 C1)');
 reset role;
 
 -- K8b: the seeded in-progress RCA (chefe.ccih is its team lead) refuses a
