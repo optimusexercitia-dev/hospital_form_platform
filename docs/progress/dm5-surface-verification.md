@@ -67,9 +67,17 @@ undrifted DB. Next DM5 migration window opens **above 20260926000500**.
 | *(not named)* | **`scripts/document-reconciliation.mjs:58`** — the reconciliation command covers **only** `documents-standard` + `documents-phi`, and lists **from `storage.objects`**. It cannot see 10 of 12 buckets and cannot see any orphan (§5) | **UNNAMED-BY-PLAN** — load-bearing for step 3 |
 | *(not named)* | **pgTAP suites `312`/`313`/`323` insert `storage.objects` rows for `printed-documents` but never create the bucket row.** Deleting that bucket breaks all three suites on an FK violation | **UNNAMED-BY-PLAN** — a concrete step-3 blocker |
 
-**Count: 12 UNNAMED-BY-PLAN surfaces**, of which **2 are hard structural blockers**
+**Count: 13 UNNAMED-BY-PLAN surfaces**, of which **2 are hard structural blockers**
 (`securable_resources_type_check`, the rendition UNIQUE). DM4's step 0 found 6; this
 phase's blind spot is larger because Wave D spans two unrelated subsystems.
+
+> ⚠ **Corrected by the lead at the DM5 open, 2026-08-14.** This line said **12**, the
+> table above it carries **13** rows, and the hand-off message reported **14** — three
+> figures for one list. The measured value is **13**:
+> `grep -c 'UNNAMED-BY-PLAN'` yields 14, of which one is *this summary line itself*.
+> Same class as the census figure QA corrected twice in DM4 (146/150 recorded, **141**
+> measured): the error was in the **recording**, not the population. Keep the deriving
+> command beside any count in this program — a number without its query is a rumour.
 
 ---
 

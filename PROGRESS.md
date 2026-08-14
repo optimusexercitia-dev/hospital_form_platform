@@ -45,7 +45,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110 — see 22-v3) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main`. ✅ **PUSHED** — `81e1dc9` is an ancestor of `origin/main` (corrected 2026-08-12; the cell read "local only, NOT pushed", true when written) · graphify `dfc3e35` |
 | 22-v3 | **REG·KIND — one Registro vocabulary for cases and referrals** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ (tsc 0 · Vitest **1254** · eslint 0/0 first-party) | ⚠ **step 1 only** — pgTAP **183f/5857** (`322` 72→63, `298` 36→32 as the retired table's tests retired with it) · `ARM=census`/`hat`/`floor` HOLD · diff-scoped sweep 3 COVERED + 1 **pre-existing** `ERROR` · E2E **targeted 24/24** (`referral-registros` 16 + `cases-extras` 8) — **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | merge `9a20c8a` → `main`. ✅ **PUSHED** (`9a20c8a` is an ancestor of `origin/main`) and ✅ **remote `db push` DONE** — both `20260920000100`/`…000200` are registered on the linked project, `referral_note_types` is gone from the remote catalog. **Corrected 2026-08-12**; this cell previously read "local only, NOT pushed" + "`db push` NOT done", which had been true when written and was overtaken by a later push. ⚠ Verified against the REMOTE CATALOG, not the CLI: `supabase migration list --linked` showed a **blank Remote column for all 354** rows and the MCP `list_migrations` returned a **truncated 84** — both wrong. Only `select … from supabase_migrations.schema_migrations` on the linked project agreed with the objects actually present |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amdt 1** D15/D16, +**Amdt 2** D17) · per-phase ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md) / [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) / [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) / **[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)** · plan [DM0–DM5](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** — DM4 (Wave C: referrals) PO-approved **2026-08-14**. **DM5 (Wave D + retirement) OPENING — step 0 (read-only surface verification) ✅ COMPLETE**, [record](docs/progress/dm5-surface-verification.md) (`backend`, 2026-08-14): registry **391==391**; **2 hard structural blockers** found (`securable_resources_type_check` admits no NSP/print type; `document_version_files` UNIQUE allows one `printed_pdf` per version vs. many historical prints) · **12 UNNAMED-BY-PLAN surfaces** · the manifest is **8 buckets, not 9** (`meeting-attachments` already retired) · the verification-token satellite **does not exist yet** · FUP-DM5-STORAGE-ORPHANS **re-reproduced at HEAD: 0 metadata rows vs 699 files / 7.02 MB / 198 PHI-tier, Storage API returns `[]` for all 12 buckets** (bytes are NOT servable — data-at-rest, not access-control) · census blind class **141 at HEAD, query recorded**; **every door DM5 will add/modify is in a blind class ⇒ bespoke keystones mandatory**. No migrations/code written | ✅ DM4: **5 migrations** `20260926000100`–`000500` · pgTAP **`340`** · matrix `dm4-referral-doors-matrix.sh` · ADR 0119 D1–D10 | ✅ fresh reset · pgTAP **191f/6231 PASS** · registry **391==391** · tsc 0 · lint 5/5 · vitest **1264** · `next build` 0 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff sweep 2 cases (1 COVERED · 1 ERROR ⇒ matrix N4/N5) · matrix **18/18 RED-PROVEN** (`HEAD: 8588fe82`, clean, control green) · `e2e:prod` **99p/0f/0 did-not-run**, coverage 99/99, baseline **89/89 no regressions** | ✅ **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md) — **no binding pre-merge condition**; r1 ⛔ CHANGES REQUESTED (0 P0 · 3 MAJOR, 2 blocking · 8 MINOR · 6 INFO), both blockers discharged | ✅ **2026-08-14** | 2026-08-14 | `phase(DM4)` on **`main`** — ⛔ **NOT pushed** (`main` 173 ahead of `origin/main`), no `db push`. **All five DM flags OFF.** graphify refresh **owed** (last `dfc3e352`, pre-DM1). **Records:** [DM1](docs/progress/dm1-substrate-cutover.md) · [DM2](docs/progress/dm2-orchestration-wave-a.md) · [DM3](docs/progress/dm3-controlled-documents.md) · **[DM4](docs/progress/dm4-referrals.md)**. **OPEN:** 🟠 FUP-DM4-RECUSAL (security, deadline = flag-on) · 🔴 FUP-DM5-STORAGE-ORPHANS · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW · census blind class (⚠ **141** at HEAD, not 146/150) |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amdt 1** D15/D16, +**Amdt 2** D17) · per-phase ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md) / [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) / [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) / **[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)** · plan [DM0–DM5](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** — DM4 (Wave C: referrals) PO-approved **2026-08-14**. 🔵 **DM5 (Wave D + retirement) OPENED 2026-08-14** — the program's FINAL phase. **Step 0 ✅**, [record](docs/progress/dm5-surface-verification.md) (`backend`): registry **391==391**; **2 hard structural blockers** (`securable_resources_type_check` admits no NSP/print type — ⚠ **and `tenant_shape` re-enumerates the same list, so widening one CHECK alone fails every insert closed**; `document_version_files` UNIQUE allows one `printed_pdf` per version vs. many historical prints) · **13 UNNAMED-BY-PLAN surfaces** (⚠ **lead-corrected from 12/14 — three figures for one list; the deriving command now sits beside it**) · manifest is **8 buckets, not 9** · the verification-token satellite **does not exist** · FUP-DM5-STORAGE-ORPHANS **re-reproduced at HEAD: 0 metadata rows vs 699 files / 7.02 MB / 198 PHI-tier**, Storage API `[]` for all 12 buckets (bytes **NOT servable** — data-at-rest, not access-control) · census **141 at HEAD, query recorded**; **every door DM5 adds is in a blind class ⇒ bespoke keystones mandatory**. **All 4 load-bearing catalog claims re-verified by the LEAD directly, not accepted from the report.** → **ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) D1–D10 PO-ruled before any SQL** + [slice plan S0–S6](docs/plans/dm5-wave-d-retirement-plan.md). No migrations/code written yet | ✅ DM4: **5 migrations** `20260926000100`–`000500` · pgTAP **`340`** · matrix `dm4-referral-doors-matrix.sh` · ADR 0119 D1–D10 | ✅ fresh reset · pgTAP **191f/6231 PASS** · registry **391==391** · tsc 0 · lint 5/5 · vitest **1264** · `next build` 0 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff sweep 2 cases (1 COVERED · 1 ERROR ⇒ matrix N4/N5) · matrix **18/18 RED-PROVEN** (`HEAD: 8588fe82`, clean, control green) · `e2e:prod` **99p/0f/0 did-not-run**, coverage 99/99, baseline **89/89 no regressions** | ✅ **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md) — **no binding pre-merge condition**; r1 ⛔ CHANGES REQUESTED (0 P0 · 3 MAJOR, 2 blocking · 8 MINOR · 6 INFO), both blockers discharged | ✅ **2026-08-14** | 2026-08-14 | `phase(DM4)` on **`main`** — ⛔ **NOT pushed** (`main` 173 ahead of `origin/main`), no `db push`. **All five DM flags OFF.** graphify refresh ✅ **discharged** `02cec1a0` at the DM5 open. **Records:** [DM1](docs/progress/dm1-substrate-cutover.md) · [DM2](docs/progress/dm2-orchestration-wave-a.md) · [DM3](docs/progress/dm3-controlled-documents.md) · **[DM4](docs/progress/dm4-referrals.md)**. **OPEN:** 🟠 FUP-DM4-RECUSAL (security, deadline = flag-on) · 🔴 FUP-DM5-STORAGE-ORPHANS · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW · census blind class (⚠ **141** at HEAD, not 146/150) |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) (plan [Slices 0–6](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's own Slice 0 gate). Drafted 2026-08-12 from a 20-question PO grilling (D1–D20): first-class commission-scoped `deliberations` + explicit `deliberation_seatings`; versioned `commission_governance_policies` **subsumes `commission_meeting_settings`** (table dropped); append-only ballots with the vote arithmetic owned by Postgres; append-only `committee_decisions` with supersession; `meeting_cases.decision` dropped. Flag `deliberations` (prod OFF) covers everything **except Slice 1**, which replaces live meeting-settings plumbing and so must land flag-independent + regression-safe. Slice 6 (D14, resolution promotion) is conditional on the [0114](docs/decisions/0114-document-model-redesign.md) document substrate — that ADR is ratified but **unbuilt**, and the plan recommends shipping v1 without it | – | – | – | ⛔ **not ratified** | – | ADR merge `a68f179` + renumber `feab771` — drafted as 0112, renumbered because **0112 was already taken** by [case-event kind write authority](docs/decisions/0112-case-event-kind-write-authority.md). ⚠ **Differing filenames merge CLEANLY**, so an ADR-number collision announces itself nowhere — renumber at merge time, not draft time. Same commit retargeted the draft's stale `0109` cross-refs (both the ADR and the plan) → `0114`. ✅ **PUSHED** — verified against the server (`git ls-remote origin refs/heads/main` = `a68f179`), not a cached remote-tracking ref. ⚠ This cell first read "NOT pushed", true when written and overtaken by a push minutes later — the third row in this table to need that correction |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -95,30 +95,69 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### ✅ COMPLETE — **DM4: Wave C — referrals** (opened + completed; PO-approved 2026-08-14)
+### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
 
-> ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**, **no binding
-> pre-merge condition**, after r1 ⛔ CHANGES REQUESTED (0 P0 · 3 MAJOR, 2 blocking · 8 MINOR · 6 INFO).
-> **Gate:** fresh reset · pgTAP **191f/6231 PASS** · registry **391 == 391** · tsc 0 · lint 5/5 ·
-> vitest **1264** · `next build` 0 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** ·
-> diff-scoped sweep 2 cases (1 COVERED, 1 ERROR covered by matrix N4/N5) · neutralization matrix
-> **18/18 RED-PROVEN** (`HEAD: 8588fe82`, clean tree, control green) · `e2e:prod` **99 passed · 0
-> failed · 0 flaky · 0 did-not-run**, coverage 99/99, baseline **89/89 — no regressions**.
-> ⭐ **The byte round trip and the DERIVATION proof are the phase's real artifacts** — a lie declared
-> at `begin` loses to the server's truth; everything before them was DB-layer, static-gate or
-> *absence* proof.
-> ⛔ **State:** branch `main`, **NOT pushed** (`main` is 173 ahead of `origin/main`). All five DM
-> flags ship **OFF**. graphify refresh **still owed** (last: `dfc3e352`, 2026-08-12, pre-DM1).
+> **Plan:** [dm5-wave-d-retirement-plan.md](docs/plans/dm5-wave-d-retirement-plan.md) ·
+> **ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D10, PO-ruled
+> 2026-08-14 before any SQL) · **step 0:** [dm5-surface-verification.md](docs/progress/dm5-surface-verification.md)
+> (`005fe34d`). Window `20260927000100`+ · pgTAP **`341`** · flag `documents_wave_d`.
 >
-> **Full detail rotated → [dm4-referrals.md](docs/progress/dm4-referrals.md)** — step-0's diff table,
-> all three gate records, `BUG-DM4-DUP-1`, the QA rounds, the two records QA corrected, and the
-> three shared-stack collisions.
+> **Step 0 found two hard blockers the parent plan did not know about**, both re-verified by the
+> lead directly against the catalog before rulings were taken:
+> ① **`securable_resources` admits only 6 types** and its `tenant_shape` CHECK **re-enumerates the
+> same list**, so widening one CHECK alone fails every insert closed — Wave D evidence and
+> form-response prints have no home. ② **`UNIQUE (document_version_id, rendition_kind)`** permits one
+> `printed_pdf` per version, against `printed_documents_one_active`'s *partial* unique retaining many
+> historical prints. Plus **six places the plan describes a system that does not exist** — the
+> manifest is **8 buckets not 9**, the verification-token "satellite" is not a table, and
+> `rca_evidence`'s parked FK is **triple-locked**, not single.
 >
-> **Open with the PO — do not assume:** 🟠 **FUP-DM4-RECUSAL** (PO-deferred to Phase 19 D16; **an open
-> SECURITY obligation whose deadline is the FLAG-ON date** — a widening-only plane cannot close it) ·
-> 🔴 **FUP-DM5-STORAGE-ORPHANS** (blocks DM5 step 3) · 🔴 **FUP-PGTAP-VACUOUS** · FUP-DM4-PRODROW ·
-> the 146-function census blind class ruling (⚠ **the figure itself was wrong** — QA measured **141**
-> at HEAD / 142 pre-DM4; neither 146 nor 150 reproduces).
+> **PO rulings 2026-08-14 (ADR 0120):** **R1** three new securable types (`rca`, `capa_action`,
+> `form_response`), commission pinned to **reporting** with custody staying a read-time input ·
+> **R2** the rendition UNIQUE relaxes to **partial over live rows** — an explicit ratified amendment
+> to a DM1 invariant, not a side-effect widening · **R3** all four `source_kind` values migrate, so
+> the manifest closes at 8/8 · **R4** **S2.8 `reclassify_document_file` is un-parked and BUILT**,
+> since R2 already buys the guard exception it was waiting for.
+>
+> **Lead ruling, not a PO question:** the parent plan's retirement method — "prove empty via the
+> Storage API, then delete" — is **WITHDRAWN**. It proves emptiness against `storage.objects`, which
+> a reset truncates while the bytes survive: measured **0 metadata rows vs 699 objects / 7.0 MB, 198
+> PHI-tier**, `list` returning `[]` for all 12 buckets. Replaced by **manifest-first deletion**
+> (capture keys → delete by key → assert `deleted_count == manifest_count`). ⚠ **Calibration:** the
+> orphans are **not servable** (every read path resolves metadata first) — this is a data-at-rest /
+> disposal-assertion problem, not a live exposure. Closes the method half of **FUP-DM5-STORAGE-ORPHANS**.
+>
+> ⚠ **The assurance plan is WORSE than DM4's.** Every door DM5 adds sits in a census blind class, so
+> all four §6 arms pass **regardless of what is built** — bespoke keystones + mutation twins are
+> mandatory, and the record names the **arm**, not the script. Red-first is genuinely hard here: a
+> keystone against the un-parked `add_rca_evidence` **goes green on its first run**, satisfied by a
+> *sibling* lock (the table CHECK). **FUP-PGTAP-VACUOUS applies directly** — `lint:vacuous` does not
+> scan SQL and every DM5 keystone is SQL.
+>
+> **Slices:** S0 manifest tool (first, non-destructive) · S1 substrate amendment (liveness + partial
+> unique + guard exception + reclassify; **full plan review required**) · S2 NSP RCA/CAPA evidence ·
+> S3 printed renditions · S4 retirement execution · S5 operational closure · S6 canon + exit sweep.
+>
+> ⛔ **State:** branch `main`, **NOT pushed**. All five DM flags ship **OFF**.
+> ✅ graphify refresh **discharged** `02cec1a0` (was owed since the DM0–DM3 merge).
+>
+> **New this phase:** 🟡 **FUP-DM5-GRANTS** — `rca_evidence` / `capa_action_evidence` carry table-wide
+> `arwdDxtm` to `authenticated`, so their RPCs are **not single doors**. ⚠ Calibrated: RLS *is* on
+> with genuinely distinct read/write predicates, so this is hardening, not an open door — but DM5
+> must not assume the RPC is the only writer when placing the `documents_wave_d` assert.
+
+### ⬛ DM4 — Wave C: referrals — ✅ PO-approved 2026-08-14, rotated at the DM5 open
+
+> `phase(DM4)` = `7b6896eb`. Gate: pgTAP **191f/6231** · registry 391==391 · lint 5/5 · vitest 1264 ·
+> arms 4/4 HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f/0 did-not-run**, baseline 89/89 ·
+> QA **APPROVED r2**, no binding condition. ⭐ The byte round trip + the DERIVATION proof are the
+> phase's real artifacts. **Detail → [dm4-referrals.md](docs/progress/dm4-referrals.md)**.
+>
+> **Still open, do not assume closed:** 🟠 **FUP-DM4-RECUSAL** (an open SECURITY obligation whose
+> deadline is the `documents_wave_c` **FLAG-ON date**; PO-deferred to Phase 19 D16 — ⛔ a widening-only
+> plane cannot close it, and **DM5 does not close it either**) · 🔴 **FUP-PGTAP-VACUOUS** ·
+> 🟡 FUP-DM4-PRODROW. Census blind class: ⚠ the figure is **141** at HEAD / 142 pre-DM4 — **neither
+> 146 nor 150 reproduces**; cite the query beside the number.
 ### ⬛ DM3 + DM2 — rotated 2026-08-14 (the DM4 Record step); detail in `docs/progress/`
 
 > Both phases are ✅ COMPLETE and PO-approved; their summary blocks lived here after their own

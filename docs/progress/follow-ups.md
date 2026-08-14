@@ -70,6 +70,57 @@ assumed from the local finding**. ⚠ Note the remote has never received DM1+, s
 the 2026-08-11 production census (45 objects) — **a remote reset would orphan all of them**, which
 is a live input to [[FUP-DM4-PRODROW]]'s deploy decision, not a DM5-only concern.
 
+---
+
+**🟡 UPDATE 2026-08-14 — the METHOD half is RULED (ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) D9); the REMOTE half stays open.**
+
+Re-measured at the DM5 open on a HEAD stack: **`storage.objects` = 0 rows** against **699 objects /
+7,023,687 bytes**, **198 PHI-tier** (`attachments-phi` 6, `documents-phi` 183,
+`printed-documents/phi` 9); `list` returns `[]` for **all 12** buckets. Figures differ from the
+663/16.5 MB/162 above because that was a different stack state — **both are real; neither
+supersedes the other**, and the drift is itself the point.
+
+**Ruled:** the plan's Storage-API emptiness method is **WITHDRAWN**, replaced by **manifest-first
+deletion** — capture the authoritative key list *before* any destructive step, delete by key, assert
+`deleted_count == manifest_count` per bucket. This converts an unfalsifiable negative into a
+positive count comparison: a truncated table now yields a **visibly zero-length manifest** instead
+of a silent pass. Backend-agnostic, so it transfers to Cloud; the local volume walk is the
+**proof harness**, not the gate (it depends on `STORAGE_BACKEND=file`).
+
+**⚠ Calibration the original filing lacks — it lowers the severity but not the priority.** The
+orphans are **not servable**: a service-role `GET` on a known orphan key returns **400** and `sign`
+returns **404 not_found**, because every read path resolves metadata first. So this is a
+**data-at-rest / disposal-assertion** problem — Rule 12, LGPD erasure, the F-02 class — **not a live
+exposure**. It is also *why* API-based enumeration fails by construction, so the calibration and the
+method ruling are the same finding seen from two sides.
+
+**Still open (do NOT read D9 as closing this):** on Cloud there may be **no customer-accessible tool
+that can see an orphan** — dashboard, CLI and supabase-js all list from `storage.objects`, and the
+S3 endpoint is **UNVERIFIED** (the local probe needs SigV4; the remote is off-limits under the
+standing no-push directive). Also `scripts/document-reconciliation.mjs:58` covers only **2 of 12**
+buckets and lists *from* `storage.objects`, so it cannot see this class either — widened in DM5 S0.
+
+---
+
+### 🟡 FUP-DM5-GRANTS — `rca_evidence` / `capa_action_evidence` RPCs are NOT single doors (owner: backend; filed 2026-08-14 by ADR 0120)
+
+Both tables carry **table-wide `arwdDxtm` grants to `authenticated`**, so a client can
+`POST /rest/v1/rca_evidence` directly and never traverse `add_rca_evidence`.
+
+**⚠ Calibrated — this is hardening, NOT an open door.** RLS *is* enabled on both, with genuinely
+**distinct** read and write predicates — `app.can_read_event(app.event_of_rca(rca_id), auth.uid())`
+for SELECT versus `app.can_write_rca(rca_id, auth.uid())` for the `FOR ALL` write policy — so this is
+a real second lock, not [[a-door-can-have-two-locks]]'s same-predicate-twice trap. Verified against
+`pg_class.relacl` and `pg_policies` directly, at the DM5 open. What direct DML bypasses is the
+**RPC's flag gate and its fail-closed arms**, not row authorization.
+
+**Binding on DM5 S2:** do not assume the RPC is the only writer when placing the `documents_wave_d`
+assert (ADR 0120 D10). A flag gate that lives only in the RPC body is bypassable by exactly this
+path — the DM3 QA MAJOR-1 shape, where the gate sat on the last step of a corridor rather than the
+corridor. Note the parked CHECK `rca_evidence_cited_document_parked` **does** hold against direct
+DML, being a table constraint; that is the third of the three locks and the reason the citation seam
+is safe today.
+
 ### 🟠 FUP-DM4-RECUSAL — a RECUSED coordinator can freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline = the `documents_wave_c` flag-on date**)
 
 Filed 2026-08-14 at DM4 QA r1 (**MAJOR-3**). **Found by `qa`, demonstrated LIVE** in a rolled-back
