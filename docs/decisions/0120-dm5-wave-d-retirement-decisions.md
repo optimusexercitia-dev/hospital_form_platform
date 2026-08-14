@@ -212,6 +212,46 @@ latest-version-wins assumption and are safe **only** under this separation. **Ke
 separation itself**, not merely its consequences. `documents.kind` carries **no CHECK** (0
 constraints), so it is available as a discriminator without a migration.
 
+**D14 — `capa_action` tenants on organization + hospital; `commission_id` is NULL-permitted for
+that type alone.** (PO ruling 2026-08-14.) `securable_resources_tenant_shape` demands org **and**
+hospital **and** commission for all six current types, but `capa_plan` has **`hospital_id` NOT NULL
+and no commission column at all** — so for `source='manual'` no commission exists to derive, and
+`app.event_of_capa` resolves only `rca` / `event`, leaving 4 of 6 sources with a NULL hospital today
+(see D16). `capa_plan_source_check` admits `{rca, event, indicator, audit_finding, meeting, manual}`.
+
+**The commission costs nothing here, measured rather than assumed:**
+`select attnotnull from pg_attribute where attrelid='public.audit_log'::regclass and
+attname='commission_id'` → **`f`** (a commission-less audit row is already legal), and
+`select count(*) from pg_policies where tablename='documents' and
+coalesce(qual,'')||coalesce(with_check,'') like '%commission_id%'` → **0** (the registry commission
+is **not** a tenant-isolation input for `documents`). The read arm resolves through `can_read_capa`
+regardless — D2's principle that authority resolves at read time, never from the registry row.
+
+⚠ **`audit_finding` is NOT a dead value.** Its table does not exist yet
+(`information_schema.tables ilike '%audit_finding%'` → 0 rows, and `source_audit_finding_id` has no
+FK), but **internal audit / mock tracer is a roadmap module** whose non-conforming finding *opens a
+CAPA*. The value is anticipatory. Scoping S2 to the four currently-derivable sources would
+therefore have guaranteed a reopen when that module ships — which is why the narrower option lost.
+
+⚠ **The `tenant_shape` CHECK now carries TWO shapes**, so the D1 coupling keystone must cover both:
+widening `type_check` alone must still reject, *and* a `capa_action` row must still be rejected if
+it lacks org or hospital. A coupling keystone that only exercises the six-type shape would pass
+while the new shape admits anything.
+
+**D15 — the live CAPA-upload defect is fixed INSIDE S2** (lead ruling), as `BUG-DM5-CAPA-1`, and
+`tester` adds the upload-kind E2E the suite has never had. S2's migration edits that exact policy;
+leaving a known-broken upload path while rewriting its neighbour is not a defensible boundary. Its
+fix migration stays **separate** from the substrate migrations so its red is provable against
+today's catalog — folding it in would make that red impossible.
+
+**D16 — `app.hospital_of_capa_action` is corrected to read `capa_plan.hospital_id` directly** (lead
+ruling). It currently routes through `app.event_of_capa`, which resolves only `rca` and `event`, so
+it returns NULL for **4 of 6** sources despite `capa_plan.hospital_id` being NOT NULL and directly
+available. It has **zero callers** (`prosrc ~* 'hospital_of_capa_action'` excluding itself → 0), so
+this is latent, not live — but S2 adds arms in exactly this area and D14 makes the hospital
+load-bearing for `capa_action` tenancy. **A wrong function with no callers is a loaded gun**;
+correcting it costs three lines now against a silent NULL later.
+
 ## Consequences
 
 - **The orphaned bytes are not servable, and that is a calibration, not a reprieve.** A

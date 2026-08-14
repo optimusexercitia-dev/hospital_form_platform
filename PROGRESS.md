@@ -314,6 +314,36 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+### 🔴 BUG-DM5-CAPA-1 — CAPA evidence UPLOAD is broken for every user, and has been since it shipped (owner: `backend`, fixed in S2 per ADR 0120 D15)
+
+Filed 2026-08-14 (DM5 S2 planning). Found by `backend`, **independently re-verified by the lead**
+against the live catalog — not accepted from the report.
+
+**The defect.** `capa_evidence_obj_insert_writable` gates on
+`app.is_pqs_writer_of(app.hospital_of_event((storage.foldername(name))[1]::uuid))` — it resolves the
+path's **first segment through an EVENT resolver**. But that segment is a **CAPA id**: the SELECT
+policy on the *same bucket* reads it as `app.can_read_capa((storage.foldername(name))[1]::uuid, …)`,
+and `uploadCapaEvidenceFile` (`src/lib/safety/capa-actions.ts:308`) writes
+`{capa_id}/{action_id}/{uuid}.ext`. **Two policies on one bucket disagree about what segment 1 is.**
+
+**Universality proven, not inferred** — `app.hospital_of_event(<a real capa_plan id>)` → **NULL**,
+`app.is_pqs_writer_of(null)` → **`f`**, and
+`select count(*) from capa_plan c join patient_safety_event e on e.id=c.id` → **0**, so no CAPA id
+can ever collide with an event id. The predicate is `false` for **every** possible upload path.
+Differential measured in a rolled-back txn as `nspcoord.a`: rca-shaped path **ACCEPTED**, capa-shaped
+path **REFUSED (42501)**, same session.
+
+⚠ **Fails CLOSED — an availability defect, not a leak.** A user who can *read* CAPA evidence
+(`can_read_capa` → true) cannot upload it.
+
+**Why every gate missed it, and this is the transferable part:** E2E covers only the **`link`** kind
+(`e2e/phase14d-capa.spec.ts:267-273`, `p_external_url`) and never the upload kind; pgTAP `143:266-285`
+asserts the policies **exist**, never that they **admit** anything. *A policy-existence assertion is
+not a policy test* — the same class as [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]].
+⭐ **Backend's first probe reported the control failing too** — it wore `active_role='staff'`, so the
+`nsp_coordinator` membership was not worn and `can_write_rca` was false **for the wrong reason**. The
+control is what caught it; a bare subject-only probe would have filed a much wider, wrong bug.
+
 ### 🟠 BUG-DM4-DUP-1 — the reply-attachment list renders the just-uploaded file TWICE (owner: `frontend`)
 
 Filed 2026-08-14 (DM4 gate step 2). Surfaced as a **strict-mode violation, not a timeout** —
