@@ -42,8 +42,48 @@ const LIST_SELECT = `
       file_objects ( sensitivity_tier, upload_state, disposal_state )
     )
   ),
-  document_legal_holds ( id, released_at )
+  document_legal_holds ( id, released_at ),
+  printed_documents!printed_documents_document_fk ( id )
 ` as const
+
+/**
+ * ADR 0120 D18 — printed renditions are EXCLUDED from the content projections.
+ *
+ * D13 gives every print event its own `documents` row homed on the SOURCE's
+ * securable resource, so without this filter a generated PDF would appear in
+ * every case's and meeting's *Documentos* panel beside uploaded files.
+ * *Documentos* keeps meaning "documents people put here"; prints stay reachable
+ * through their own surface (`listPrintedDocuments` → `/api/documents/[id]`,
+ * gated by `open_printed_document`).
+ *
+ * ⚠⚠ D18 IS PRESENTATION, NOT AN ACCESS CONTROL (Architecture Rule 1: never
+ * rely on UI hiding). This filter must NEVER be cited as having narrowed
+ * anyone's access. What governs a print's BYTES is the D12 conjunction inside
+ * `open_printed_document`; what governs its metadata is the print arm in
+ * `app.can_read_document` (migration 20260927000320), which routes a print's
+ * authority to `app.can_view_printed_document` regardless of its home type —
+ * precisely so that hiding the row is not load-bearing.
+ *
+ * ⭐ THE DISCRIMINATOR IS RELATIONAL, NOT `documents.kind`. `kind` is unchecked
+ * text (0 CHECK constraints) and the two string-based directions fail
+ * oppositely: `kind <> 'printed_rendition'` lets a print with a NULL or
+ * misspelled kind through (fails OPEN — unacceptable), while an allowlist of
+ * content kinds hides ordinary documents with an unexpected kind (fails closed,
+ * but that is an availability regression). A print is instead *"a `documents`
+ * row referenced by `printed_documents`"* — `printed_documents.document_id` is
+ * NOT NULL + UNIQUE, so the discriminator cannot be typo'd, cannot be NULL by
+ * accident and cannot drift.
+ *
+ * The filter is applied by PostgREST server-side, not in JS. Verified against
+ * the live stack in both directions before being relied on: an embed-is-null
+ * filter kept 3 of 3 rows when the embed was empty and dropped 3 of 3 when it
+ * was populated — a probe that had to move in opposite directions, and did.
+ * The FK is `isOneToOne: true` in the generated types, so the embed is scalar.
+ *
+ * ⚠ If the embed is ever removed from LIST_SELECT this filter errors loudly
+ * rather than silently passing everything.
+ */
+const EXCLUDE_PRINTED_RENDITIONS = 'printed_documents' as const
 
 type VersionRow = {
   id: string
@@ -75,6 +115,10 @@ type DocumentRow = {
   profiles: { full_name: string | null } | null
   document_versions: VersionRow[]
   document_legal_holds: Array<{ id: string; released_at: string | null }>
+  /** ADR 0120 D18 discriminator — non-null iff this row IS a printed rendition.
+   * In the projection only so PostgREST can filter on it SERVER-side; never read
+   * in JS, because a JS-side check would be the weaker half of the filter. */
+  printed_documents: { id: string } | null
 }
 
 const SERVABLE = new Set(['clean', 'unscanned_accepted'])
@@ -197,6 +241,8 @@ export async function listDocumentsForResource(
     .select(LIST_SELECT)
     .eq('home_resource_id', resourceId)
     .neq('status', 'soft_deleted')
+    // ADR 0120 D18 — presentation, never a boundary. See EXCLUDE_PRINTED_RENDITIONS.
+    .is(EXCLUDE_PRINTED_RENDITIONS, null)
     .order('created_at', { ascending: false })
   if (error || !data) return []
   const rows = (data as unknown as DocumentRow[]).filter(
@@ -217,6 +263,11 @@ export async function getDocument(documentId: string): Promise<DocumentDetail | 
     .from('documents')
     .select(LIST_SELECT)
     .eq('id', documentId)
+    // ADR 0120 D18 (PO, extended to the DETAIL projection): a print is not a
+    // content document anywhere. No consumer needs it here — verification goes
+    // through `lookup_printed_document`, bytes through `open_printed_document`.
+    // Same discipline: presentation, not access.
+    .is(EXCLUDE_PRINTED_RENDITIONS, null)
     .maybeSingle()
   if (error || !data) return null
   const row = data as unknown as DocumentRow

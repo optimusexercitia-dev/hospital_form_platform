@@ -40,9 +40,16 @@ export async function GET(
     return new Response('Documento não encontrado', { status: 404 })
   }
 
+  // DM5 S3 (ADR 0120 D7/D12): the bucket now comes FROM THE DOOR. A print's
+  // bytes are a `file_objects` row in `documents-standard` / `documents-phi`
+  // (`file_objects_bucket_check`), and `open_printed_document` resolves the
+  // coordinate through the shared `app.resolve_document_version_bytes` — so the
+  // conjunction of the print check and the core kernel has already been applied
+  // by the time we get here. A bucket literal in this file would have been a
+  // third derivation of a coordinate that has exactly one authority.
   const admin = createAdminClient()
   const { data: blob, error: downloadError } = await admin.storage
-    .from('printed-documents')
+    .from(row.storage_bucket)
     .download(row.storage_path)
   if (downloadError || !blob) {
     return new Response('Documento indisponível no momento', { status: 503 })

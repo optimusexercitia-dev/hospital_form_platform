@@ -21,6 +21,10 @@ import {
 import { renderPdfViaGotenberg } from './gotenberg'
 import { PDF_PROVIDERS } from './providers'
 import { mintSemaphore } from './semaphore'
+import {
+  printedRenditionStorageBucket,
+  printedRenditionStoragePath,
+} from './storage-coordinates'
 
 /**
  * PDF minting write actions (PDF·P1; ADR 0104 D5/D6/D11 + lead Amendment A).
@@ -264,14 +268,17 @@ export async function mintPrintedDocument(
         error: error instanceof Error ? error.message : GENERIC_MINT_ERROR,
       }
     }
-    // The A4 derived path: the phi/ prefix keys off the SAME flag the door
-    // CHECK-pins (storage bifurcation, D9.4).
-    const storagePath = `${containsPhi ? 'phi' : 'std'}/${id}.pdf`
+    // DM5 S3 (ADR 0120 D7/D11): the coordinate moved onto the core document
+    // substrate. The tier is now the BUCKET — CHECK-pinned by
+    // `file_objects_bucket_from_tier` — instead of a `phi/`|`std/` path prefix,
+    // so the path itself has no branch left.
+    const bucket = printedRenditionStorageBucket(containsPhi)
+    const storagePath = printedRenditionStoragePath(id)
 
     // Upload BEFORE the registry RPC (Amendment B: the door verifies the
     // object exists); `upsert: false` — Rule 6, a path is written exactly once.
     const { error: uploadError } = await admin.storage
-      .from('printed-documents')
+      .from(bucket)
       .upload(storagePath, pdf, {
         contentType: 'application/pdf',
         upsert: false,
@@ -301,7 +308,7 @@ export async function mintPrintedDocument(
     }
 
     // ALL-OR-NOTHING (D5): the registry refused — the orphan object goes.
-    await admin.storage.from('printed-documents').remove([storagePath])
+    await admin.storage.from(bucket).remove([storagePath])
 
     if (rpcError?.code === 'HC0D4') {
       // Short-code collision: full-loop retry with fresh credentials.

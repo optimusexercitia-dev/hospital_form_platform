@@ -35,6 +35,10 @@ vi.mock('@/lib/supabase/server', () => ({
 
 // Imported AFTER the mock declaration (vitest hoists vi.mock above these).
 import { mintPrintedDocument } from '@/lib/pdf-mint/actions'
+import {
+  printedRenditionStorageBucket,
+  printedRenditionStoragePath,
+} from '@/lib/pdf-mint/storage-coordinates'
 import { lookupPrintedDocumentVerification } from '@/lib/queries/printed-documents'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -108,12 +112,24 @@ describe('PDF·P1 end-to-end mint smoke', () => {
     )
     expect(openError).toBeNull()
     expect(opened?.[0]?.status).toBe('active')
-    expect(opened?.[0]?.storage_path).toBe(`std/${doc.id}.pdf`)
+    // ⭐ THE SPANNING ASSERTION (DM5 S3). This is the one place in the repo
+    // where the SQL-derived coordinate and the TS-derived coordinate are
+    // compared IN ONE ASSERTION: `opened[0]` is what the SQL door resolved,
+    // the right-hand side is what `src/lib/pdf-mint/storage-coordinates.ts`
+    // derives for the same id. Two separate green tests about two separate
+    // constants would have proven nothing about their equality.
+    // ⚠ NOT GATE-RESIDENT: `grep -n smoke package.json` has no hits, so this
+    // file runs only when invoked by hand. The load-bearing pins are the
+    // production-path ones — `mint_printed_document`'s HC0D3 (which fires iff
+    // the two derivations disagree) and `trg_guard_printed_document_binding`.
+    // This is corroboration, and it is labelled as such on purpose.
+    expect(opened?.[0]?.storage_bucket).toBe(printedRenditionStorageBucket(false))
+    expect(opened?.[0]?.storage_path).toBe(printedRenditionStoragePath(doc.id))
 
     // ── Bytes: canonical download hash-matches the registry pin ─────────────
     const admin = createAdminClient()
     const { data: blob, error: dlError } = await admin.storage
-      .from('printed-documents')
+      .from(opened![0].storage_bucket)
       .download(opened![0].storage_path)
     expect(dlError).toBeNull()
     const bytes = new Uint8Array(await blob!.arrayBuffer())
@@ -253,18 +269,21 @@ describe('PDF·P1 end-to-end mint smoke', () => {
       // A8: presence-derived PHI label + phi/ bifurcation, bytes hash-faithful.
       expect(doc.containsPhi).toBe(true)
       const { data: blob, error: dlError } = await admin.storage
-        .from('printed-documents')
-        .download(`phi/${doc.id}.pdf`)
+        .from(printedRenditionStorageBucket(true))
+        .download(printedRenditionStoragePath(doc.id))
       expect(dlError).toBeNull()
       const bytes = new Uint8Array(await blob!.arrayBuffer())
       expect(String.fromCharCode(...bytes.slice(0, 5))).toBe('%PDF-')
       const { data: row } = await admin
         .from('printed_documents')
-        .select('content_hash, storage_path, contains_phi')
+        .select('content_hash, contains_phi, document_id, document_version_id')
         .eq('id', doc.id)
         .single()
       expect(row!.contains_phi).toBe(true)
-      expect(row!.storage_path).toBe(`phi/${doc.id}.pdf`)
+      // D7: `storage_path` is retired from the registry row; the coordinate is
+      // reached through the D11 chain, which these two columns anchor.
+      expect(row!.document_id).toBeTruthy()
+      expect(row!.document_version_id).toBeTruthy()
       expect(sha256(bytes)).toBe(row!.content_hash)
 
       // ── Respondent half (A7): staff1.ccih becomes the case's respondent ───

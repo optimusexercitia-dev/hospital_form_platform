@@ -88,9 +88,22 @@ const OUT_OF_SCOPE_BUCKETS = ['form-assets', 'meeting-audio']
 const CORE_BUCKETS = ['documents-standard', 'documents-phi']
 const ALL_KNOWN_BUCKETS = [...RETIREMENT_BUCKETS, ...CORE_BUCKETS, ...OUT_OF_SCOPE_BUCKETS]
 
-/** PHI-tier locations, for the report's PHI subtotal. `printed-documents` is
- *  mixed: `pd_storage_path_derived` puts PHI prints under `phi/` and the rest
- *  under `std/`, so it is classified by PREFIX, not by bucket. */
+/** PHI-tier locations, for the report's PHI subtotal.
+ *
+ *  ⚠ DM5 S3 UPDATE — the `printed-documents` prefix rule is now HISTORICAL, and
+ *  it is deliberately RETAINED rather than deleted. ADR 0120 D7 retired
+ *  `pd_storage_path_derived` and moved print bytes onto the core substrate,
+ *  where the PHI split is the BUCKET (`documents-phi`, CHECK-pinned to
+ *  `file_objects.sensitivity_tier` by `file_objects_bucket_from_tier`) instead of
+ *  a `phi/`|`std/` path prefix. New prints therefore land under `documents-phi`
+ *  and are counted by the bucket rule above.
+ *
+ *  The prefix entry stays because this tool's job is to enumerate what is
+ *  ACTUALLY ON THE VOLUME for S4's manifest-first retirement, and pre-cutover
+ *  objects with the old `phi/` prefix still exist there — a reset truncates
+ *  `storage.objects` and LEAVES the bytes (ADR 0120 D9, measured: 0 metadata rows
+ *  vs 699 objects). Dropping this rule would silently under-count the PHI
+ *  subtotal of exactly the orphans the manifest exists to catch. */
 const PHI_BUCKETS = new Set(['attachments-phi', 'documents-phi'])
 const PHI_PREFIXES = [{ bucket: 'printed-documents', prefix: 'phi/' }]
 
