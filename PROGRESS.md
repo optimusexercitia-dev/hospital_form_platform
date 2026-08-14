@@ -113,18 +113,27 @@
 >
 > ### 🔵 S3 — printed renditions onto the substrate (opened 2026-08-14, `backend` spawned, contract-first)
 >
-> Window **`20260927000300`–`000399`** · pgTAP `341`, labels `DM5·S3<n>`. **Preceded by a lead resume
-> audit** — baseline re-measured, S2's four owed arms discharged, 8 record defects fixed
-> (`8e0cd6ab`, `d6494e2f`); detail in the phase record's `RESUME AUDIT` section.
+> Window **`20260927000300`–`000399`** · pgTAP **`342_dm5_s3_printed_renditions.sql`** (49), labels
+> `DM5·S3<n>`. **Preceded by a lead resume audit** — baseline re-measured, S2's four owed arms
+> discharged, 8 record defects fixed (`8e0cd6ab`, `d6494e2f`); detail in the phase record's
+> `RESUME AUDIT` section. PO rulings **D17** (design for a reset remote) and **D18** (prints filtered
+> out of Documentos) recorded in ADR 0120 before any SQL was written.
 >
-> **Catalog facts pinned by the lead before spawning, so the slice does not re-derive them:**
-> `securable_resources_type_check` admits **8** types and **`form_response` is the single D1/D6
-> addition** — `printed_documents.source_kind` ∈ {`form_response`,`case`,`meeting`,`interview`} and the
-> other three are **already** securable types. `securable_resources_tenant_shape` re-enumerates the same
-> list and already carries **two** shapes, so `form_response` forces a **third** and the coupling
-> keystone must exercise all three. **`pd_storage_path_derived` is a CHECK constraint**, not a column.
-> `312`/`313`/`323` insert **11** `storage.objects` rows for `printed-documents` with **0** bucket rows —
-> fixed in this slice or S4 cannot delete the bucket.
+> ### ⛔⛔ THREE of the "catalog facts" the lead pinned here before spawning were WRONG — corrected in place
+>
+> Left uncorrected they would have misled every spawn, which is the exact trap this phase has been
+> fixing all day. What was pinned → what `backend` measured (and the lead re-verified):
+>
+> | pinned by the lead | truth | why the pin was wrong |
+> |---|---|---|
+> | pgTAP **`341`** | **`342`** — `341_dm5_s2_nsp_evidence_substrate.sql` is **S2's own suite** | the number was assumed free, never `ls`'d |
+> | `tenant_shape` carries 2 shapes so `form_response` forces a **third**, keystone all **three** | still **TWO** shapes — `responses.commission_id` is **NOT NULL**, so `form_response` joins the existing full-tenancy **arm 1** | the *decision* (which arm) was mistaken for a *new shape* |
+> | `312`/`313`/`323` insert **11** `storage.objects` rows | **9** persist — a 10th site (`312:405`) sits inside a `throws_ok` asserting the insert is **refused** | counted insert *statements*, not *persisting rows* |
+>
+> ✅ **Correct as pinned:** `type_check` admits 8 types and `form_response` is the single D1/D6 addition;
+> `pd_storage_path_derived` is a CHECK, not a column. Also false in the brief (and in ADR 0120 D17.1):
+> **`seed.sql` inserts ZERO `printed_documents` rows** — so there was no seed rewrite in this slice, only
+> the three pgTAP fixtures.
 >
 > ⭐ **The instruction carried into S3 from S2's failure:** *a new home type means enumerating EVERY
 > dispatch on `resource_type` — `can_read_*` **and** `can_write_*`* — derived from the catalog as a
@@ -133,6 +142,42 @@
 > ⚠ **D12's conjunction is a STRICT NARROWING** — the kernel arm *implies* the print check, so only
 > **one** refusal direction is reachable; pin the other **structurally** and do not fabricate a fixture
 > for an unreachable state, nor change the authorization to make it testable (that proposal was rejected).
+>
+> ### S3 gate status — step 1 ✅ · step 2 🔵 IN FLIGHT · steps 3–4 not started
+>
+> **Built** (`6ffd92ff` P0d · `859faa18` SQL cutover · `d964b61a` TS half · `e08cf4eb` smoke):
+> migrations `…000300`–`000350` (**6**) — `form_response` into both coupled CHECKs · `printed_documents`
+> becomes the **satellite** (`document_id`/`document_version_id` NOT NULL UNIQUE + a **composite FK** so
+> they cannot disagree; `storage_path` **and** `pd_storage_path_derived` retired) · the **print arm in
+> BOTH kernel doors** · `app.resolve_document_version_bytes` with `open_document_version` **and**
+> `open_printed_document` both moved onto it (D12) · the mint rebuilt onto the substrate atomically ·
+> four write guards. Fixtures rewritten in `312`/`313`/`323`; TS: D18 anti-join, moved coordinate,
+> serving route.
+>
+> | step 1 check | figure |
+> |---|---|
+> | registry · pgTAP | **405 == 405** · **193 files / 6336 PASS** (6284 + 1 + 2 + 49, reconciles exactly) |
+> | tsc · lint · vitest | 0 · **5/5** (eslint 0 warnings) · **1294** |
+> | `ARM=census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` | **all HOLD** (census live 546 unchanged) |
+> | diff-scoped door sweep | **BLIND 0 · ERROR 0**, 2 cases executed (nonzero), baseline asserted |
+> | degenerate-body sweep | **0**, after every mutation run |
+>
+> ⭐ **Step 2 — the corridor EXECUTES, which is the one thing no static gate could say.** Lead ran the
+> print specs against S3's code: **`pdf-printing` 9/9** and **`pdf-printing-meetings` 4/5** — real
+> `%PDF-` bytes, mint → download → public verify → revoke → overlay → re-verify, plus the restricted
+> (`participants_only`) meeting refusing a non-attendee. **S3 is not S2.** ⚠ Requires the **Gotenberg
+> sidecar** (`docker start gotenberg-pdf`, `/health` 200 on :3010) **and `--workers=1`** against
+> `next dev` — without those, 12 specs fail as uniform `/login` timeouts that read as product defects
+> (`curl` answered the same route in 73 ms).
+>
+> **Open, and NOT to be assumed:** the **full `e2e:prod` gate has never run for DM5** (lead-owned; needs
+> the :3000 dev server stopped or `next build` EBUSYs) · `tester-s3` is writing the **D18 twin** (a print
+> is absent from both projections **and** would otherwise be listed **and** still downloads) plus fixing
+> `pdf-printing-meetings.spec.ts:305`, which still selects the **retired** `printed_documents.storage_path`
+> · **QA (step 3) not started** · `case`/`interview` prints **UNTESTED because unmintable**
+> (`can_view_printed_document` has arms for `form_response`/`meeting` only) · `add_referral_shared_item`
+> never driven end-to-end · the D18 TS filter has **no automated twin yet** · `file_objects.sha256` for a
+> print is the minter's hash (server-side, verified — but not `finalize_document_upload`'s derivation).
 >
 > ### S2 ✅ — gate steps 1–2 COMPLETE. Baseline RE-MEASURED by the lead at HEAD `e2af9790` (2026-08-14)
 >
