@@ -32,6 +32,28 @@ invent success*. The same instruction binds here.
 Closing it requires: the DM stack pushed, `db push` run, a fresh census, then an explicit
 re-freeze-or-tombstone decision per row, recorded.
 
+**⚠ AMENDED 2026-08-14 — a second, much cheaper closure path exists.** The PO confirms **a full
+database reset is available on the REMOTE as well as locally (no active users)** — the standing
+pre-launch posture ([[prelaunch-db-reset-ok]]: design the correct schema rather than back-compat
+migrations). A remote reset removes the dangling row outright, so the per-row
+re-freeze-or-tombstone decision above **may never need to be made**. Both paths stay open; the
+choice belongs to the deploy step, not to DM4.
+
+⚠ **Do NOT let this delete DM4's guards.** M3's dead-pointer null and M4's raising `DROP TABLE`
+guard are correct **independent of the deploy strategy** — M3's is *semantics, not repair* (the
+sibling FK is `ON DELETE SET NULL`), and M4's value was never "prod probably has rows" but "if
+rows exist, an unmodeled writer exists." A reset makes them near-unreachable, which costs nothing.
+A guard removed because one deploy strategy makes it moot is a guard missing when that strategy
+changes.
+
+🔶 **OPEN, and it is DM5's problem rather than DM4's — flagged early because it is cheap to know
+now:** a DB reset wipes `storage.objects` **metadata**, but it is **not established** that it
+removes the underlying **bytes**. If it does not, a remote reset leaves orphaned objects with no
+metadata rows — which would quietly undermine **DM5's retirement manifest**, whose method is
+"prove zero DB references + zero product callers + zero policies, then empty and delete the bucket
+**via the Storage API only, never `storage.objects` DML**". *An emptiness proof derived from a
+table that was just truncated is not an emptiness proof.* Verify before DM5 relies on it.
+
 ### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
 
 Filed 2026-08-13 during DM3. Every one of the five gates in `npm run lint` was added **after**
