@@ -108,8 +108,31 @@
 > found real defects; baseline self-labels **DEGENERATE**, not S4 input) · ~~S1~~ ⛔ **WITHDRAWN,
 > never built** (D3/D4/D5 struck → **D11**; the mechanism was already built at DM2 and DM2 had
 > rejected the proposed shape **by name**) · **S2 ✅ gate steps 1–2 COMPLETE** NSP RCA/CAPA evidence ·
-> **S3 ⬜ NEXT — the pause point** printed renditions (D11/D12/D13, unblocked, every ruling made) ·
+> **S3 🔵 OPENED 2026-08-14** printed renditions (D6/D7/D11/D12/D13 + **D17**, every ruling made) ·
 > S4 retirement (**8** buckets, manifest-first per D9) · S5 operational closure · S6 canon + exit sweep.
+>
+> ### 🔵 S3 — printed renditions onto the substrate (opened 2026-08-14, `backend` spawned, contract-first)
+>
+> Window **`20260927000300`–`000399`** · pgTAP `341`, labels `DM5·S3<n>`. **Preceded by a lead resume
+> audit** — baseline re-measured, S2's four owed arms discharged, 8 record defects fixed
+> (`8e0cd6ab`, `d6494e2f`); detail in the phase record's `RESUME AUDIT` section.
+>
+> **Catalog facts pinned by the lead before spawning, so the slice does not re-derive them:**
+> `securable_resources_type_check` admits **8** types and **`form_response` is the single D1/D6
+> addition** — `printed_documents.source_kind` ∈ {`form_response`,`case`,`meeting`,`interview`} and the
+> other three are **already** securable types. `securable_resources_tenant_shape` re-enumerates the same
+> list and already carries **two** shapes, so `form_response` forces a **third** and the coupling
+> keystone must exercise all three. **`pd_storage_path_derived` is a CHECK constraint**, not a column.
+> `312`/`313`/`323` insert **11** `storage.objects` rows for `printed-documents` with **0** bucket rows —
+> fixed in this slice or S4 cannot delete the bucket.
+>
+> ⭐ **The instruction carried into S3 from S2's failure:** *a new home type means enumerating EVERY
+> dispatch on `resource_type` — `can_read_*` **and** `can_write_*`* — derived from the catalog as a
+> **property**, never from an expected list of names. And **posting a contract is not implementing it**:
+> S2's 11 placeholder bodies were left throwing and the slice was closed green.
+> ⚠ **D12's conjunction is a STRICT NARROWING** — the kernel arm *implies* the print check, so only
+> **one** refusal direction is reachable; pin the other **structurally** and do not fabricate a fixture
+> for an unreachable state, nor change the authorization to make it testable (that proposal was rejected).
 >
 > ### S2 ✅ — gate steps 1–2 COMPLETE. Baseline RE-MEASURED by the lead at HEAD `e2af9790` (2026-08-14)
 >
