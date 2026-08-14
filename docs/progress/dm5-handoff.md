@@ -229,6 +229,58 @@ catch a wrong sentence, a blocked popup, or a crash on an unmapped value.
 `citationTargets.length === 0` (pre-existing). So an RCA with **no interviews or meetings but ≥1 document**
 now shows a "Citar registro" button **that has never appeared for it before**.
 
+## 7b. ⚠ What S2's GREEN does NOT prove (from `tester`, at stand-down)
+
+**Every one of the 8 tests measures exactly what it claims. But the SUITE's coverage is narrower than
+"S2 evidence works" would suggest to someone who reads only the pass count.** In `tester`'s own ranking:
+
+- 🔴 **Audit trail (Rule 11) for this corridor is COMPLETELY UNVERIFIED.** DM4 has `DM4-AUDIT-1` proving
+  exact audit-row counts, a structured discriminator, and no coordinate/title leakage in metadata for its
+  open door. **There is no equivalent for `openRcaEvidence` / `openCapaEvidence`** — nobody knows whether
+  they emit a row, whether it is exactly-once, or whether the metadata is clean. ⚠ **The S2 contract's own
+  header names closing "the Rule 11 gap" as a goal of this redesign.** What was verified is that the
+  **mechanism works**, not that the **audit property holds**. Highest-value gap in the slice.
+- **No derivation-honesty test for this corridor** — DM4's pattern (declare a false size/MIME at `begin`,
+  prove `finalize` derives the truth from what actually landed). `finalizeDocumentUpload` is reused
+  verbatim from the Wave-A/B/C corridor where it **is** proven, so risk is low — but that guarantee was
+  **inherited by code-reuse reasoning, not re-measured here**.
+- **No UI-level "the buttons are ABSENT, not merely refused" test for a non-writer.** RPC-level refusal is
+  proven; whether `canEdit`/`canManage` actually hide *Enviar arquivo* / *Adicionar link* / *Citar registro*
+  for a read-only viewer is not. DM4 has this shape (`DM4-FLAG-OFF-1`'s absent-not-disabled check).
+- **No `documents_wave_d` flag-off test scoped to this corridor** — despite ADR 0120 **D10** calling the
+  arm-scoped-vs-blanket distinction load-bearing, and M6 having fixed exactly that once.
+- **Disposal-outranks-`unavailable` precedence is unit-tested only** (correct, per the `pending` reasoning)
+  — but the two separate `unavailable` / `disposed` E2E tests do **not** prove the overlap case.
+  `evidence-contract.test.ts` does.
+
+### Fixture facts the next `tester` needs before touching anything
+
+- ⚠ **`RCA_ID` is the ONLY seeded RCA and no RPC can mint another** (RCAs come only from the triage
+  pathway). **Both** `phase14c-rca.spec.ts` (serial, walks its whole status machine) **and**
+  `dm5-nsp-evidence.spec.ts` (`ensureRcaWritable`, forces it back to `in_progress`) mutate **the same row**.
+  Safe today **only because nothing runs them concurrently** — a full-suite run batching across workers
+  could interleave them into a **status race**. Anyone adding a third file touching `RCA_ID` must know this.
+- ⚠ **The citation picker is structurally unreachable for that RCA — for EVERY target kind**, not just the
+  new document seam: `listRcaCitationTargets` returns `[]` whenever the event's `case_id` is NULL, only
+  `EV-0001` has one, and no RCA is seeded against it. **And `phase14c-rca.spec.ts` R8, titled for citation,
+  never touches the picker** — it queries `case_interviews` directly and calls `add_rca_evidence`. **No test
+  in this repo, old or new, has ever driven the citation UI form through a real select-and-submit.** Do not
+  read "R8 covers citation" as UI coverage.
+- **`li.animate-rise-in` generalizes.** Any component where a list item is *itself* an `<li>` containing a
+  nested `<ul>/<li>` makes a bare `locator('li').filter({hasText})` match **both** outer and inner rows,
+  because `hasText` filters on **accumulated** text, not own text. CAPA action cards nesting evidence lists
+  are one instance; the case/action/task hierarchies likely hold others. Worth a sweep on any mysterious
+  strict-mode violation.
+- **Local `begin`/`finalize` wrappers live in the spec file** rather than widening
+  `e2e/helpers/document-model.ts`'s `DocumentHomeResourceType` union — deliberate, to avoid touching a
+  shared type. ⚠ **S3 faces the same choice point**: widen the shared union, or keep duplicating.
+- **All `getByLabel` calls are scoped to `dialog.getByLabel(...)`, never bare `page.getByLabel(...)`** —
+  "Arquivo" / "Título" are generic, and the scoping is **load-bearing** the moment two dialogs coexist.
+
+⚠ **Record correction:** `BUG-DM5-S2-WRITE-ARM-1`'s first probe is **not valid fix evidence** — it ran while
+`can_write_document` was neutralized by the lead's harness (§6). Kept as provenance only; the post-restore
+probe and the end-to-end upload tests are the clean confirmation. Already corrected in PROGRESS.md.
+
 ## 8. Teammates
 
 All stood down. `backend` (the original) is **context-exhausted (~712k)** — spawn fresh, do not resume it.
