@@ -276,9 +276,18 @@
 > `documents_wave_c`, while a feature-flag key **literally named `attachments`** sits at `false`.
 > Confusing, not defective.
 >
-> **Still owed:** gate step 2 (tester/E2E — the reply-attachment corridor and the click-time byte
-> doors have **never been exercised at runtime**; everything so far is DB-layer, static-gate or
-> *absence* proof) → step 3 QA → step 4 human → step 5 Record.
+> **↻ Re-confirmed at HEAD `91b8b842` after M5 + the E2E commits (backend, exclusive stack):**
+> fresh reset → **Files=191 · Tests=6231 · Result: PASS**, 0 failing files, **0 `# Failed test`,
+> 0 `deadlock detected`, 0 `Bad plan`**. Arithmetic closes exactly: **6229 + C10c + D8c = 6231**.
+> Registry **391 == 391** files on disk, max `20260926000500`. **All four arms HOLD** —
+> `ARM=census` re-run *specifically* because `5ac8d849`/`b121740e` landed after the previous arm
+> pass, and census is the arm that catches a gate nobody has asked about yet; confirmed, not assumed.
+> ⚠ **The earlier `test:db` deadlock aborts (7 then 10 files) are now proven to be contention, in
+> both directions:** same tree, same reset discipline — with an 11-connection pool attached they
+> abort, with the stack exclusive they vanish. **No real finding behind them.**
+>
+> **Still owed:** frontend's Vitest pin of the BUG-DM4-DUP-1 merge invariant (an E2E assertion that
+> only fails when the race WINS is a weak pin) → step 3 QA → step 4 human → step 5 Record.
 
 > ## ✅ GATE STEP 2 (Test pass) — **GREEN, LEAD-RUN** 2026-08-14 @ `5ac8d849`
 >
