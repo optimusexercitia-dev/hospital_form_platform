@@ -111,7 +111,34 @@
 > (D11/D12/D13, unblocked) · S4 retirement (**8** buckets, manifest-first per D9) · S5 operational
 > closure · S6 canon + exit sweep.
 >
-> **S2 state:** frontend ✅ (`5793fd16`) · migrations **4 of 6** — M1 types (`e386505f`) · M2 kernel
+> ⛔⛔ **S2 IS REOPENED — 2026-08-14. IT WAS NEVER FUNCTIONAL. The prior close's figures are VOID.**
+> `tester` drove the UI and found **three independent defects**; the lead verified two directly.
+> **`BUG-DM5-S2-STUB-1`** — **11 TS bodies still `throw 'not implemented — DM5 S2'`**
+> (`queries/rca.ts` 1 · `queries/capa.ts` 1 · `safety/rca-actions.ts` 5 · `safety/capa-actions.ts` 4);
+> both page Server Components await the list query in the **same `Promise.all`** as every other read,
+> so the **entire** RCA and CAPA workspace is unrenderable for every persona — and the **pre-existing**
+> `phase14c`/`phase14d` suite regressed (2 fail, 16 never ran on the serial cascade).
+> **`BUG-DM5-S2-WRITE-ARM-1`** — `app.can_write_document` dispatches on **six** types and has **no
+> `rca`/`capa_action` arm**, so `begin_document_upload` refuses **everyone** with `P0002`; **M2
+> extended only the READ counterpart.** **`BUG-DM5-S2-CITATION-TARGETS-1`** —
+> `listRcaCitationTargets` never queries `documents`, so the picker cannot offer the un-parked target.
+>
+> ⭐⭐ **THE LESSON, AND IT IS THE LEAD'S FAILURE.** S2 passed a fresh reset, **pgTAP 192f/6272**, tsc 0,
+> **lint 5/5**, vitest 1264, and **all four authz arms** — and the feature **did not work at all**.
+> **Not one of those gates can execute a page.** The lead recorded weeks earlier that the TS bodies
+> were outstanding, wrote it down as *"expected under contract-first"*, and then accepted a close that
+> never mentioned them; and steered backend exclusively toward `can_read_document`, never once asking
+> what the **write** side dispatches on. [[green-bar-misses-the-wired-seam]] in its purest form yet.
+> ⚠ **`ARM=floor` asks whether every door is CALLED and it HELD** — because it counts *doors*, not
+> *door-arms*: the doors existed and were called for other home types.
+> ⭐ **`tester` went a layer deeper than the first bug** — calling `begin_document_upload` by **raw RPC,
+> bypassing the stub layer**, which is the only reason defect 2 was found. Had it stopped at defect 1,
+> we would have wired the TS layer, re-run, and hit `P0002` with the "fix" already merged.
+>
+> **Fix order:** write arm (`…000160`) → the 11 TS bodies → citation targets → **full close re-run**,
+> not amended.
+>
+> **S2 state (superseded — retained to show what a green close asserted):** frontend ✅ (`5793fd16`) · migrations **4 of 6** — M1 types (`e386505f`) · M2 kernel
 > arms (`5fd60ff1`) · pgTAP `341` (`315821fc`) · M3 upload seam (`77b12001`) · M4 citation seam
 > (`e07e72fc`) · orphan deletion (`fc96514b`, −292 lines). **Registry 395 == 395 · pgTAP 192f/6261
 > PASS · tsc 0 · lint 5/5 · vitest 1264.** Remaining: `…000140` (BUG-DM5-CAPA-1) · `…000150` (flag
@@ -235,6 +262,150 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
+
+### 🔴 BUG-DM5-S2-STUB-1 — the RCA and CAPA NSP workspace pages 500 for EVERY user — the S2 query/action TS layer was never wired to the RPCs (owner: `backend`)
+
+Filed 2026-08-14 (`tester`, DM5 S2 gate step 2, before writing any new spec — the fixture-vs-defect
+check CLAUDE.md/the spawn brief calls for). Severity: **CRITICAL / phase-blocking** — this is not the
+upload-kind gap `BUG-DM5-CAPA-1` was about; it takes down the ENTIRE RCA and CAPA workspace page for
+every persona, including the pre-existing (pre-DM5) regression suite.
+
+**Repro:**
+1. Fresh-reset, seeded local stack; `npm run dev`.
+2. Sign in as `pqs.a@test.local`, navigate to `/o/rede-a/nsp/rca/f3000000-0000-0000-0000-0000000000a3`.
+3. Page returns HTTP 200 (Next streams past a `loading.tsx` boundary, so status alone hides this —
+   see memory `streamed-notfound-status-contract`) but renders only the top-level
+   `ErrorBoundaryHandler` fallback: **"Algo deu errado — Não foi possível carregar a análise de causa
+   raiz. Tente novamente em alguns instantes."** No workspace content of any kind renders — not the
+   problem statement, not factors, not root causes, not evidence.
+4. Server/browser console shows the underlying throw:
+   `Error: not implemented — DM5 S2` at `listRcaEvidenceViews`
+   (`src/lib/queries/rca.ts:492-494`), inside `NspRcaPage`.
+5. Identical shape for CAPA: `/o/rede-a/nsp/capa/ca000000-0000-0000-0000-0000000000a3` renders "Algo
+   deu errado — Não foi possível carregar o plano de ação", thrown from `listCapaActionEvidenceViews`
+   (`src/lib/queries/capa.ts:474-477`) inside `NspCapaPage`.
+
+**Mechanism:** `listRcaEvidenceViews` / `listCapaActionEvidenceViews` (reads) and every S2 write
+action — `beginRcaEvidenceUpload` / `finalizeRcaEvidenceUpload` / `addRcaEvidenceLink` /
+`addRcaEvidenceCitation` / `openRcaEvidence` (`src/lib/safety/rca-actions.ts:480-525`),
+`beginCapaEvidenceUpload` / `finalizeCapaEvidenceUpload` / `addCapaEvidenceLink` / `openCapaEvidence`
+(`src/lib/safety/capa-actions.ts:402-429`) — still literally `throw new Error('not implemented — DM5
+S2')`, the placeholder body posted with the contract (`fec8a84f`, `fec8a84f`/`fc96514b`). `git log
+--all -- src/lib/safety/rca-actions.ts src/lib/safety/capa-actions.ts` shows no commit after
+`fc96514b` (which deleted the OLD pre-S2 implementation) ever filled these bodies in — the migrations
+(M1–M6, the BUG-DM5-CAPA-1 fix, pgTAP `341`) built and keystoned the real RPCs/policies directly in
+SQL, but nobody wired the TS query/action layer the UI actually calls to invoke them.
+
+Because `NspRcaPage` / `NspCapaPage` (`src/app/o/[org]/nsp/rca/[rcaId]/page.tsx`,
+`.../capa/[capaId]/page.tsx`) await these calls inside the **same** `Promise.all(...)` as every other
+read on the page, one throw takes the WHOLE page down, not just an evidence section — there is no
+per-section error boundary here.
+
+**Not a fixture problem — proven against the pre-existing baseline.** Re-ran the already-passing
+`e2e/phase14c-rca.spec.ts` `R1` and `e2e/phase14d-capa.spec.ts` `C1` (both predate DM5) at current
+HEAD: **both now fail** — the seeded content (`compressa cirúrgica retida` / `dupla checagem
+padronizada`) never renders, 5 s timeout, same root cause. So DM5 S2 did not merely fail to add
+evidence coverage; it regressed the pre-existing RCA/CAPA workspace suite outright.
+
+**Expected (ADR 0120 / the S2 contract, `src/lib/safety/evidence-contract.ts`):** the workspace loads
+normally; the evidence panel lists rows with `availability`/`canOpen` per row; upload/link/citation
+writes go through begin→PUT→finalize or the direct RPC and return `NspEvidenceActionState`.
+
+**Actual:** the entire RCA/CAPA workspace page is unrenderable for every persona.
+
+**Violates:** PHASES.md's test contract for Phase 14c/14d (workspace loads, R1/C1) — a pre-existing
+acceptance criterion, not just the DM5 S2 acceptance surface — and ADR 0120's own S2 scope (evidence
+read/write functional).
+
+**Blocks:** all four items in this gate-step-2 task (upload-kind E2E for RCA+CAPA, the keyboard-only
+begin→PUT→finalize flow, the `pending`/`failed`/`disposed` availability states, and the `link`/
+`citation`/`document`-target regression) — none can be driven through the UI while the page cannot
+render. Full spec coverage is being written regardless (ready to validate once the bodies are wired);
+see the Test Run Summary entry below for the as-run (blocked) result.
+
+**Fix pattern already proven in this codebase:** `src/lib/documents/actions.ts` +
+`src/lib/queries/documents.ts` implement the equivalent begin/finalize/open/list wiring for the
+Wave-A/B/C document corridor against the same RPC family; `e2e/helpers/document-model.ts` has the
+matching E2E helpers (`beginUpload`, `finalizeUpload`, `openDocumentVersion`, `createDocumentFixture`)
+this suite reuses once the bodies land.
+
+### 🔴 BUG-DM5-S2-WRITE-ARM-1 — `app.can_write_document` has NO `rca`/`capa_action` case — the write corridor P0002s for EVERY user, independent of BUG-DM5-S2-STUB-1 (owner: `backend`)
+
+Filed 2026-08-14 (`tester`). Severity: **CRITICAL** — a distinct root cause from BUG-DM5-S2-STUB-1,
+one layer deeper: even a hand-written `beginRcaEvidenceUpload`/`beginCapaEvidenceUpload` that calls
+`begin_document_upload` correctly would still fail, because the SQL authority function it depends on
+has no branch for either new home type.
+
+**Mechanism (read from `pg_get_functiondef`, the live catalog — never migration text):**
+`app.can_write_document(p_document_id, p_uid)`'s dispatch is a `case v_type when 'case' … when
+'case_referral' … else return false end case` over `securable_resources.resource_type`. **`rca` and
+`capa_action` are absent from the case list**, so they fall through to the unconditional `else return
+false`. `git grep -l can_write_document supabase/migrations/*.sql` confirms the function was last
+touched by DM4's `20260926000200_dm4_document_kernel_referral_arms.sql` — no DM5 migration
+(`2026092[7-9]…`) ever added an `rca`/`capa_action` branch. M2 (`5fd60ff1`) added the **read** arms to
+`app.can_read_document` only; the **write** counterpart was never built.
+
+**Repro (empirical, direct RPC call — bypasses the still-stubbed TS layer entirely, service-role
+`apikey` + a real persona JWT):**
+```
+POST /rest/v1/rpc/begin_document_upload
+{ p_resource_type: 'rca', p_resource_id: 'f3000000-0000-0000-0000-0000000000a3',
+  p_title: 'probe', p_declared_file_name: 'probe.pdf', p_declared_mime: 'application/pdf',
+  p_declared_size: 128 }
+```
+→ `500 {"code":"P0002","message":"recurso não encontrado"}` for **every** persona tried:
+`chefe.ccih@test.local` (RCA lead, non-observer team member), `admin@test.local` (platform admin
+acting `pqs_member`), and `pqs.a@test.local` (PQS member) — including on `capa_action` with the
+seeded `caa00000-0000-0000-0000-0000000000a1`. **Absence ≡ denial by design elsewhere in this
+codebase, but here it is NOT a deliberate refusal** — `securable_resources` genuinely has both rows
+(catalog-verified: `resource_type='rca'` at the RCA_ID, `resource_type='capa_action'` at the seeded
+action id, both fully tenanted), so `begin_document_upload`'s earlier "resource not found" branch does
+not fire; the P0002 comes specifically from the `can_write_document` authority check, confirmed by
+elimination (every other precondition in the function body holds for these fixtures).
+
+**Fails closed — an availability defect, not a leak** (same shape as the original BUG-DM5-CAPA-1): a
+user who genuinely can write the RCA/CAPA (`app.can_write_rca`/`can_write_capa`) still cannot begin an
+upload, because the two authority functions were never connected for these two new home types.
+
+**Blocks:** upload for RCA + CAPA evidence at the SQL layer, in addition to and independent of
+BUG-DM5-S2-STUB-1. Fixing the TS stubs alone (BUG-DM5-S2-STUB-1) is **not sufficient** — this must
+also land, most likely as a small migration adding `when 'rca' then app.can_write_rca(v_resource,
+p_uid)` / `when 'capa_action' then app.can_write_capa(v_resource, p_uid)` arms (names inferred from
+the existing read-arm pattern in `can_read_document`; verify the actual write-authority function names
+against the catalog, not this line).
+
+### 🟠 BUG-DM5-S2-CITATION-TARGETS-1 — the RCA citation picker never offers a DOCUMENT target — `listRcaCitationTargets` was never updated when the seam was un-parked (owner: `backend`)
+
+Filed 2026-08-14 (`tester`). Severity: **MAJOR** — narrower than the two bugs above (citation is one of
+three evidence kinds, and link/interview/meeting citation are unaffected), but it directly blocks one
+of this gate step's four named acceptance items: *"the RCA citation form's new document target
+functions."* Independent of BUG-DM5-S2-STUB-1 — will reproduce even after that one is fixed.
+
+**Mechanism:** `src/lib/queries/rca.ts:459-465`, inside `listRcaCitationTargets`, still reads:
+```
+// PARKED (DM1, ADR 0114 D5): document citation candidates came from the
+// dropped attachments substrate, and add_rca_evidence now refuses a document
+// citation (HC0DM) until Wave D re-points cited_document_id at the document
+// model. No document targets are offered meanwhile …
+```
+— followed by `return targets` with **no query against `documents` at all**. This comment is now
+**stale** (`a-comment-is-an-assertion-that-goes-stale-silently`): DM5 M4 (`e07e72fc`) already dropped
+the `HC0DM` refusal and the `rca_evidence_cited_document_parked` CHECK, and `add_rca_evidence`'s
+signature already accepts `p_document_id` for a citation row (catalog-verified,
+`add_rca_evidence(p_rca_id, p_kind, p_title, p_document_id, p_external_url, p_citation_target,
+p_cited_entity_id, p_citation_label)`). The SQL-side seam is un-parked; the TS read that populates the
+UI picker (`EvidenceCitationForm`'s `targets` prop, sourced from `page.tsx`'s
+`listRcaCitationTargets(rca.eventId)`, no other merge point) was never told.
+
+**Effect:** `RcaEvidencePanel` only renders the "Citar registro" button when `citationTargets.length >
+0` (currently true only via seeded interviews/meetings), and even when it renders, the `<select>` it
+builds from `targets` can **never** contain a `kind: 'document'` option — there is no code path that
+would ever push one. A user cannot cite a document through the UI no matter how the RPC/table permit
+it underneath.
+
+**Fix:** `listRcaCitationTargets` needs a third query (documents homed on the event's case, or
+whichever scope ADR 0120/the citation contract intends) pushing `{ kind: 'document', id, label, date }`
+entries onto `targets`, mirroring the existing interview/meeting blocks.
 
 ### 🟢 BUG-DM5-CAPA-1 — ✅ **FIXED 2026-08-14** (`e938f36d`, DM5 S2 `…000140`) — CAPA evidence UPLOAD was broken for every user since it shipped (owner: `backend`)
 
@@ -400,6 +571,8 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 | Date | Run | Result |
 | --- | --- | --- |
 | 2026-08-13 | **DM3 Wave B · TESTER · quick-loop, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod`. 5 specs re-pointed onto the core model + new `dm3-wave-b-documents.spec.ts` | **GREEN — 47 collected / 47 ran / 47 passed / 0 skipped.** ⭐ Byte round trip proven (`Buffer.compare === 0`; derivation proven by declaring a lie at `begin`). **No bug filed — no application defect**: all 9 baseline reds tester-owned. Detail: [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md) |
+| 2026-08-14 | **DM5 S2 · TESTER · pre-check, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod` — a targeted re-run of the PRE-EXISTING `phase14c-rca.spec.ts` + `phase14d-capa.spec.ts` regression suite, before writing any new DM5 upload/keyboard/availability specs, to establish whether the fixture/app is in the state the task brief described | **RED — 4 failed / 16 did-not-run (serial-mode cascade from `phase14c-rca.spec.ts` R1) / 16 passed.** Root cause: **BUG-DM5-S2-STUB-1** (Bug Log) — `listRcaEvidenceViews`/`listCapaActionEvidenceViews` and every S2 write action still `throw new Error('not implemented — DM5 S2')`; both NSP workspace pages render only the top-level error boundary for every persona. R1/C1/C17/C18 (all `page.goto`-based) fail directly; phase14c's 16 remaining tests never ran because the file is `test.describe.configure({mode:'serial'})` and R1 failing first cascades — **not** independent evidence that each of the 16 is individually broken. C2–C16 (RPC-only, no `page.goto`) all still pass. **Blocks DM5 S2 gate step 2 entirely** — reported to lead before any new spec-writing |
+| 2026-08-14 | **DM5 S2 · TESTER · new spec, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod`. New `e2e/dm5-nsp-evidence.spec.ts` (8 tests) — covers all four gate-step-2 items (upload-kind E2E for RCA+CAPA, the keyboard-only begin→PUT→finalize flow, the 3 non-`available` availability states, link regression) against the real shipped component contracts, written to be ready the moment backend lands the fixes | **RED — 8/8 failed, cleanly split into TWO expected, distinct failure modes — no spec bug, no flake, no timeout ambiguity.** 5 UI-driven tests (upload ×2, keyboard, link ×2) fail fast (~1–2s) at page render: `BUG-DM5-S2-STUB-1`. 3 fixture-setup tests (the availability states, which build their fixture via the real `begin_document_upload` RPC directly, bypassing the still-stubbed TS layer) fail even faster (~170ms) with the SQL layer's own `500 P0002 "recurso não encontrado"` — a THIRD, independent, deeper defect found while writing this suite: **BUG-DM5-S2-WRITE-ARM-1** (`app.can_write_document` has no `rca`/`capa_action` case; confirmed empirically for 3 personas, not just read from source). A FOURTH, source-verified defect (**BUG-DM5-S2-CITATION-TARGETS-1** — the RCA citation picker can never offer a `document` target) blocks item 4's citation-regression half; not UI-tested (see the spec file's citation-scope comment — the only seeded RCA's event carries no `case_id`, a pre-existing, unrelated fixture gap no RPC can repair). All four bugs filed in the Bug Log with full repro. **No bug filed against the spec file itself** — every red traces to one of the four named defects, none to a fixture or locator mistake in this suite |
 
 ## QA Verdicts
 
