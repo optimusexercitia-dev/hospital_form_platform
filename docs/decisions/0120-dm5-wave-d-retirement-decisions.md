@@ -252,6 +252,56 @@ this is latent, not live — but S2 adds arms in exactly this area and D14 makes
 load-bearing for `capa_action` tenancy. **A wrong function with no callers is a loaded gun**;
 correcting it costs three lines now against a silent NULL later.
 
+## D17 — DM5 designs for a RESET remote (PO ruling, 2026-08-14)
+
+**The PO confirmed a full database reset is available on local *and* remote.** The project is
+pre-launch with no live users, so this is the standing pre-launch posture applied to DM5, not a new
+allowance: *design the correct schema, do not write back-compat migrations for data that may be
+discarded.*
+
+**What it changes.**
+
+1. **S3 drops the "copy → verify → switch" ceremony for production print objects.** S3 builds the
+   correct D7/D11/D13 shape directly. ⚠ **This is not "no data migration."** A fresh reset still
+   produces rows — the **seed** and the pgTAP fixtures both insert `printed_documents` — so the
+   migration must be correct against *those*, and the seed plus `312`/`313`/`323` must be rewritten
+   to the new shape in the same slice. What is dropped is only the ceremony for **pre-existing
+   remote/production bytes**.
+2. ⭐ **No backfill is a SAFETY property here, not just less work.** DM3's P0 was a migration that
+   *"added the FK and backfilled but never taught the CREATE path"* — and **the backfill is what
+   masked it from every incremental run** ([[a-backfill-masks-the-broken-write-path]]). With no
+   backfill, the create path is the only path, so a create path that was never taught fails
+   **immediately and loudly** instead of silently. Do **not** add a convenience backfill.
+3. **S4 is unblocked, but NOT for the reason it first appears** — see the correction below.
+
+### ⚠ CORRECTION, made before this ruling was recorded: a remote reset does NOT clear orphaned bytes — it CREATES them
+
+The lead's own framing when putting this option to the PO said a wiped remote *"dissolves"*
+FUP-DM5-STORAGE-ORPHANS. **That is wrong, and FUP-DM5-STORAGE-ORPHANS already says so in writing:**
+*"a remote reset would orphan all of them."* A reset truncates `storage.objects` and **leaves the
+bytes**; that is the finding's entire content (measured locally: **0 metadata rows vs 699 files /
+7.0 MB / 198 PHI-tier**, `list` returning `[]` for all 12 buckets). Reset-first would make retirement
+**unprovable**, because emptiness would then be asserted against a table that was just truncated.
+
+**Therefore the ordering is binding, and it is the reverse of the intuitive one:**
+
+> **delete-by-manifest through the Storage API FIRST — while `storage.objects` metadata still exists
+> and the keys are still enumerable — and only THEN reset.**
+
+This is exactly what D9's manifest-first ruling already requires, so **S0's manifest tool remains
+load-bearing and is not superseded by D17.** What D17 genuinely dissolves is the **DB-row** half:
+FUP-DM4-PRODROW's dangling frozen snapshot row, the 4 dangling attachment rows and the 3
+unreferenced controlled-document objects all stop being reconciliation problems.
+
+⛔ **D17 changes the DESIGN; it does not CLOSE any follow-up.** FUP-DM4-PRODROW and
+FUP-DM5-STORAGE-ORPHANS move from *"close by engineering"* to *"close by the documented
+manifest-then-reset sequence at deploy"* — they stay **OPEN** until that sequence actually runs.
+Marking them closed on the strength of a reset that has not happened is the precise failure this
+paragraph exists to prevent.
+
+⛔ **No `db push` and no remote reset are authorized by D17.** The standing no-push directive holds.
+Both require explicit PO authorization **at execution time**, separately, on the day.
+
 ## Consequences
 
 - **The orphaned bytes are not servable, and that is a calibration, not a reprieve.** A

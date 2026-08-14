@@ -93,10 +93,23 @@ Two things D11 makes S3's job, carried from the S1 analysis:
   picks what to **freeze into a referral snapshot** — appending print versions to a *content*
   document would silently change what a referral freezes. Keystone the separation.
 
-Production objects migrate **copy → verify → switch**. ⚠ Every new column on `printed_documents`
-needs its own **column GRANT** or it reads `42501`. ⚠ pgTAP `312`/`313`/`323` insert
-`storage.objects` rows for `printed-documents` **without creating the bucket row** — fix those
-fixtures here, before S4 can delete the bucket.
+~~Production objects migrate **copy → verify → switch**.~~ ⛔ **SUPERSEDED by ADR 0120 D17 (PO,
+2026-08-14): DM5 designs for a RESET remote.** Build the correct D7/D11/D13 shape directly; no
+ceremony for pre-existing remote bytes. ⚠ **This is not "no data migration"** — a fresh reset still
+produces `printed_documents` rows from the **seed** and from `312`/`313`/`323`, so the migration must
+be correct against those and **the seed + those three fixtures are rewritten to the new shape in this
+slice**. ⭐ **Do NOT add a convenience backfill:** with no backfill the create path is the only path,
+so an untaught create path fails loudly instead of being masked — DM3's P0 exactly.
+
+⚠ Every new column on `printed_documents` needs its own **column GRANT** or it reads `42501`.
+⚠ pgTAP `312`/`313`/`323` insert **11** `storage.objects` rows for `printed-documents` with **0**
+bucket rows (verified live 2026-08-14) — fix those fixtures here, before S4 can delete the bucket.
+
+⚠ **Trap 3 was mis-enumerated and its failure mode mis-recorded — read the corrected version in
+[dm5-handoff.md](../progress/dm5-handoff.md) §4 trap 3 before touching it.** Four
+`.find(rendition_kind === 'source')` sites, not two; it **silently renders a fully-uploaded print as
+`pending` / `canOpen: false` forever** rather than crashing; only `documents.ts` is reachable and
+**D13 is what makes it so**. Fix the resolution seam and keystone the invariant — not the line numbers.
 
 ### S4 — retirement execution (backend) — needs S2 + S3
 
@@ -104,6 +117,15 @@ D8 (**8** buckets) · D9 (manifest-first). Per bucket: prove zero DB references,
 callers, zero policies, then empty-by-manifest and delete via the **Storage API only** —
 never `storage.objects` DML. All deletions batch here deliberately: **one** manifest,
 nothing deleted early. `form-assets` and `meeting-audio` stay (ADR 0114 D13).
+
+⚠ **D17 (reset remote) does NOT relax D9 — the ordering is binding and counter-intuitive:**
+**delete-by-manifest through the Storage API FIRST, while `storage.objects` metadata still exists and
+the keys are enumerable; only THEN reset.** A reset truncates the metadata and **leaves the bytes**
+(measured: 0 rows vs 699 files / 7.0 MB / 198 PHI-tier), so a reset **creates** orphans rather than
+clearing them, and reset-first would make retirement **unprovable**. **S0's manifest tool stays
+load-bearing.** What D17 dissolves is only the **DB-row** half (FUP-DM4-PRODROW, the 4 dangling
+attachment rows, the 3 unreferenced controlled-document objects). ⛔ Neither follow-up is CLOSED by
+D17 — both move to *"close by the manifest-then-reset sequence at deploy"* and stay OPEN until it runs.
 
 ### S5 — operational closure (backend + lead)
 

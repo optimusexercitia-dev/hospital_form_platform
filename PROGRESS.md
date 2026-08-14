@@ -287,265 +287,21 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-### 🟢 BUG-DM5-S2-STUB-1 — ✅ **FIXED 2026-08-14** (`cbcabe7a`) — the RCA and CAPA NSP workspace pages 500'd for EVERY user — the S2 query/action TS layer was never wired to the RPCs (owner: `backend`)
+### Closed this phase → [bug-log-archive.md](docs/progress/bug-log-archive.md) (rotated 2026-08-14)
 
-> ✅ **Verified by `tester`, independently, not on the fix commit's say-so:** `grep -c "not implemented — DM5
-> S2"` → 0 across `rca-actions.ts` / `capa-actions.ts` / `queries/rca.ts` / `queries/capa.ts`; both
-> `EVID-RCA-UPLOAD-1` and `EVID-CAPA-UPLOAD-1` (new suite, `e2e/dm5-nsp-evidence.spec.ts`) drive a
-> real browser round trip through `NspRcaPage`/`NspCapaPage` end to end; the pre-existing
-> `phase14c-rca.spec.ts` + `phase14d-capa.spec.ts` return to their **exact prior baseline, 36/36**,
-> confirming the page-render regression is gone, not merely worked around.
+All five carried full repro + mechanism; the durable lessons also live in the phase records.
 
-Filed 2026-08-14 (`tester`, DM5 S2 gate step 2, before writing any new spec — the fixture-vs-defect
-check CLAUDE.md/the spawn brief calls for). Severity: **CRITICAL / phase-blocking** — this is not the
-upload-kind gap `BUG-DM5-CAPA-1` was about; it takes down the ENTIRE RCA and CAPA workspace page for
-every persona, including the pre-existing (pre-DM5) regression suite.
-
-**Repro:**
-1. Fresh-reset, seeded local stack; `npm run dev`.
-2. Sign in as `pqs.a@test.local`, navigate to `/o/rede-a/nsp/rca/f3000000-0000-0000-0000-0000000000a3`.
-3. Page returns HTTP 200 (Next streams past a `loading.tsx` boundary, so status alone hides this —
-   see memory `streamed-notfound-status-contract`) but renders only the top-level
-   `ErrorBoundaryHandler` fallback: **"Algo deu errado — Não foi possível carregar a análise de causa
-   raiz. Tente novamente em alguns instantes."** No workspace content of any kind renders — not the
-   problem statement, not factors, not root causes, not evidence.
-4. Server/browser console shows the underlying throw:
-   `Error: not implemented — DM5 S2` at `listRcaEvidenceViews`
-   (`src/lib/queries/rca.ts:492-494`), inside `NspRcaPage`.
-5. Identical shape for CAPA: `/o/rede-a/nsp/capa/ca000000-0000-0000-0000-0000000000a3` renders "Algo
-   deu errado — Não foi possível carregar o plano de ação", thrown from `listCapaActionEvidenceViews`
-   (`src/lib/queries/capa.ts:474-477`) inside `NspCapaPage`.
-
-**Mechanism:** `listRcaEvidenceViews` / `listCapaActionEvidenceViews` (reads) and every S2 write
-action — `beginRcaEvidenceUpload` / `finalizeRcaEvidenceUpload` / `addRcaEvidenceLink` /
-`addRcaEvidenceCitation` / `openRcaEvidence` (`src/lib/safety/rca-actions.ts:480-525`),
-`beginCapaEvidenceUpload` / `finalizeCapaEvidenceUpload` / `addCapaEvidenceLink` / `openCapaEvidence`
-(`src/lib/safety/capa-actions.ts:402-429`) — still literally `throw new Error('not implemented — DM5
-S2')`, the placeholder body posted with the contract (`fec8a84f`, `fec8a84f`/`fc96514b`). `git log
---all -- src/lib/safety/rca-actions.ts src/lib/safety/capa-actions.ts` shows no commit after
-`fc96514b` (which deleted the OLD pre-S2 implementation) ever filled these bodies in — the migrations
-(M1–M6, the BUG-DM5-CAPA-1 fix, pgTAP `341`) built and keystoned the real RPCs/policies directly in
-SQL, but nobody wired the TS query/action layer the UI actually calls to invoke them.
-
-Because `NspRcaPage` / `NspCapaPage` (`src/app/o/[org]/nsp/rca/[rcaId]/page.tsx`,
-`.../capa/[capaId]/page.tsx`) await these calls inside the **same** `Promise.all(...)` as every other
-read on the page, one throw takes the WHOLE page down, not just an evidence section — there is no
-per-section error boundary here.
-
-**Not a fixture problem — proven against the pre-existing baseline.** Re-ran the already-passing
-`e2e/phase14c-rca.spec.ts` `R1` and `e2e/phase14d-capa.spec.ts` `C1` (both predate DM5) at current
-HEAD: **both now fail** — the seeded content (`compressa cirúrgica retida` / `dupla checagem
-padronizada`) never renders, 5 s timeout, same root cause. So DM5 S2 did not merely fail to add
-evidence coverage; it regressed the pre-existing RCA/CAPA workspace suite outright.
-
-**Expected (ADR 0120 / the S2 contract, `src/lib/safety/evidence-contract.ts`):** the workspace loads
-normally; the evidence panel lists rows with `availability`/`canOpen` per row; upload/link/citation
-writes go through begin→PUT→finalize or the direct RPC and return `NspEvidenceActionState`.
-
-**Actual:** the entire RCA/CAPA workspace page is unrenderable for every persona.
-
-**Violates:** PHASES.md's test contract for Phase 14c/14d (workspace loads, R1/C1) — a pre-existing
-acceptance criterion, not just the DM5 S2 acceptance surface — and ADR 0120's own S2 scope (evidence
-read/write functional).
-
-**Blocks:** all four items in this gate-step-2 task (upload-kind E2E for RCA+CAPA, the keyboard-only
-begin→PUT→finalize flow, the `pending`/`failed`/`disposed` availability states, and the `link`/
-`citation`/`document`-target regression) — none can be driven through the UI while the page cannot
-render. Full spec coverage is being written regardless (ready to validate once the bodies are wired);
-see the Test Run Summary entry below for the as-run (blocked) result.
-
-**Fix pattern already proven in this codebase:** `src/lib/documents/actions.ts` +
-`src/lib/queries/documents.ts` implement the equivalent begin/finalize/open/list wiring for the
-Wave-A/B/C document corridor against the same RPC family; `e2e/helpers/document-model.ts` has the
-matching E2E helpers (`beginUpload`, `finalizeUpload`, `openDocumentVersion`, `createDocumentFixture`)
-this suite reuses once the bodies land.
-
-### 🟢 BUG-DM5-S2-WRITE-ARM-1 — ✅ **FIXED 2026-08-14** (`fc7a146d`, migration `20260927000160_dm5_s2_write_arm_nsp.sql`) — `app.can_write_document` had NO `rca`/`capa_action` case — the write corridor P0002'd for EVERY user, independent of BUG-DM5-S2-STUB-1 (owner: `backend`)
-
-> ✅ **Verified by `tester` — ONE clean confirmation, not two.** My first post-"fixes landed" probe
-> (`chefe.farm@test.local` / `staff1.farm@test.local` / `nspcoord.a@test.local` all **ACCEPTED**) is
-> **NOT valid evidence for this fix** — it is entangled with a separate, same-stack incident: a
-> lead-run mutation-testing harness had transactionlessly neutralized this exact function minutes
-> earlier (`app.can_write_document` → unconditional `return true`), and that probe caught the
-> neutralization, not the fix. Recorded here only as provenance for that incident, corrected after the
-> fact so it does not read as a fix check. **The clean confirmation is the probe run AFTER the harness
-> restored the function**: `chefe.farm@test.local` — zero relationship to the RCA — gets `500 P0002` on
-> `begin_document_upload('rca', …)`; `prosrc` diffed against the migration's intended body (both arms
-> present, zero `return true` residue); registry 399==399; siblings
-> `can_write_rca`/`can_write_capa`/`can_read_document` all non-degenerate. `EVID-RCA-UPLOAD-1` /
-> `EVID-CAPA-UPLOAD-1` completing the real corridor end to end is independent, clean confirmation on
-> top of that.
-
-Filed 2026-08-14 (`tester`). Severity: **CRITICAL** — a distinct root cause from BUG-DM5-S2-STUB-1,
-one layer deeper: even a hand-written `beginRcaEvidenceUpload`/`beginCapaEvidenceUpload` that calls
-`begin_document_upload` correctly would still fail, because the SQL authority function it depends on
-has no branch for either new home type.
-
-**Mechanism (read from `pg_get_functiondef`, the live catalog — never migration text):**
-`app.can_write_document(p_document_id, p_uid)`'s dispatch is a `case v_type when 'case' … when
-'case_referral' … else return false end case` over `securable_resources.resource_type`. **`rca` and
-`capa_action` are absent from the case list**, so they fall through to the unconditional `else return
-false`. `git grep -l can_write_document supabase/migrations/*.sql` confirms the function was last
-touched by DM4's `20260926000200_dm4_document_kernel_referral_arms.sql` — no DM5 migration
-(`2026092[7-9]…`) ever added an `rca`/`capa_action` branch. M2 (`5fd60ff1`) added the **read** arms to
-`app.can_read_document` only; the **write** counterpart was never built.
-
-**Repro (empirical, direct RPC call — bypasses the still-stubbed TS layer entirely, service-role
-`apikey` + a real persona JWT):**
-```
-POST /rest/v1/rpc/begin_document_upload
-{ p_resource_type: 'rca', p_resource_id: 'f3000000-0000-0000-0000-0000000000a3',
-  p_title: 'probe', p_declared_file_name: 'probe.pdf', p_declared_mime: 'application/pdf',
-  p_declared_size: 128 }
-```
-→ `500 {"code":"P0002","message":"recurso não encontrado"}` for **every** persona tried:
-`chefe.ccih@test.local` (RCA lead, non-observer team member), `admin@test.local` (platform admin
-acting `pqs_member`), and `pqs.a@test.local` (PQS member) — including on `capa_action` with the
-seeded `caa00000-0000-0000-0000-0000000000a1`. **Absence ≡ denial by design elsewhere in this
-codebase, but here it is NOT a deliberate refusal** — `securable_resources` genuinely has both rows
-(catalog-verified: `resource_type='rca'` at the RCA_ID, `resource_type='capa_action'` at the seeded
-action id, both fully tenanted), so `begin_document_upload`'s earlier "resource not found" branch does
-not fire; the P0002 comes specifically from the `can_write_document` authority check, confirmed by
-elimination (every other precondition in the function body holds for these fixtures).
-
-**Fails closed — an availability defect, not a leak** (same shape as the original BUG-DM5-CAPA-1): a
-user who genuinely can write the RCA/CAPA (`app.can_write_rca`/`can_write_capa`) still cannot begin an
-upload, because the two authority functions were never connected for these two new home types.
-
-**Blocks:** upload for RCA + CAPA evidence at the SQL layer, in addition to and independent of
-BUG-DM5-S2-STUB-1. Fixing the TS stubs alone (BUG-DM5-S2-STUB-1) is **not sufficient** — this must
-also land, most likely as a small migration adding `when 'rca' then app.can_write_rca(v_resource,
-p_uid)` / `when 'capa_action' then app.can_write_capa(v_resource, p_uid)` arms (names inferred from
-the existing read-arm pattern in `can_read_document`; verify the actual write-authority function names
-against the catalog, not this line).
-
-### 🟢 BUG-DM5-S2-CITATION-TARGETS-1 — ✅ **FIXED 2026-08-14** (`e307a979`) — the RCA citation picker never offered a DOCUMENT target — `listRcaCitationTargets` was never updated when the seam was un-parked (owner: `backend`)
-
-> ✅ **Verified by `tester` by reading the landed function** (source, not the commit message):
-> `listRcaCitationTargets` now queries `documents` scoped to the event's case
-> (`securable_resources.resource_type = 'case'`, `status = 'active'`), RLS-bounded rather than
-> hand-filtered — a real, offerable document candidate as of this fix. **Still not UI-tested**, for a
-> reason now confirmed to be entirely orthogonal to this bug: the fix is scoped by the event's
-> `case_id`, and the ONLY seeded RCA's event (EV-0003) has `case_id = NULL` — of the five seeded
-> events only EV-0001 carries one, and no RCA is seeded against it. No RPC exists to backfill an
-> event's `case_id`. This is a pre-existing fixture gap, not a residual defect; see the citation-scope
-> comment in `e2e/dm5-nsp-evidence.spec.ts`.
-
-Filed 2026-08-14 (`tester`). Severity: **MAJOR** — narrower than the two bugs above (citation is one of
-three evidence kinds, and link/interview/meeting citation are unaffected), but it directly blocks one
-of this gate step's four named acceptance items: *"the RCA citation form's new document target
-functions."* Independent of BUG-DM5-S2-STUB-1 — will reproduce even after that one is fixed.
-
-**Mechanism:** `src/lib/queries/rca.ts:459-465`, inside `listRcaCitationTargets`, still reads:
-```
-// PARKED (DM1, ADR 0114 D5): document citation candidates came from the
-// dropped attachments substrate, and add_rca_evidence now refuses a document
-// citation (HC0DM) until Wave D re-points cited_document_id at the document
-// model. No document targets are offered meanwhile …
-```
-— followed by `return targets` with **no query against `documents` at all**. This comment is now
-**stale** (`a-comment-is-an-assertion-that-goes-stale-silently`): DM5 M4 (`e07e72fc`) already dropped
-the `HC0DM` refusal and the `rca_evidence_cited_document_parked` CHECK, and `add_rca_evidence`'s
-signature already accepts `p_document_id` for a citation row (catalog-verified,
-`add_rca_evidence(p_rca_id, p_kind, p_title, p_document_id, p_external_url, p_citation_target,
-p_cited_entity_id, p_citation_label)`). The SQL-side seam is un-parked; the TS read that populates the
-UI picker (`EvidenceCitationForm`'s `targets` prop, sourced from `page.tsx`'s
-`listRcaCitationTargets(rca.eventId)`, no other merge point) was never told.
-
-**Effect:** `RcaEvidencePanel` only renders the "Citar registro" button when `citationTargets.length >
-0` (currently true only via seeded interviews/meetings), and even when it renders, the `<select>` it
-builds from `targets` can **never** contain a `kind: 'document'` option — there is no code path that
-would ever push one. A user cannot cite a document through the UI no matter how the RPC/table permit
-it underneath.
-
-**Fix:** `listRcaCitationTargets` needs a third query (documents homed on the event's case, or
-whichever scope ADR 0120/the citation contract intends) pushing `{ kind: 'document', id, label, date }`
-entries onto `targets`, mirroring the existing interview/meeting blocks.
-
-### 🟢 BUG-DM5-CAPA-1 — ✅ **FIXED 2026-08-14** (`e938f36d`, DM5 S2 `…000140`) — CAPA evidence UPLOAD was broken for every user since it shipped (owner: `backend`)
-
-> ✅ **Fix:** both policies in the CAPA pair now read path segment 1 as a **CAPA id** (they disagreed:
-> SELECT read it correctly, INSERT resolved it through an **event** resolver), gated on the existing
-> `app.can_write_capa`. Verified: capa-shaped insert **ACCEPTED** (was 42501) · rca-shaped **still
-> ACCEPTED** (RCA pair untouched) · **NEGATIVE** `staff1.farm` with no CAPA authority **REFUSED 42501**.
-> ⭐ **The negative arm is what makes it a fix rather than a widening** — without it, *"the insert now
-> works"* is equally consistent with having opened the bucket ([[no-regression-claim-needs-overgrant-twin]]).
-> Post-condition asserts the other three `nsp-evidence` policies survive and no UPDATE/DELETE policy
-> appeared (Rule 6).
-> ⚠ **Deliberate non-symmetry:** the fix mirrors the RCA pair's **shape** (read predicate on SELECT,
-> write on INSERT) but **NOT its segments** — the path conventions genuinely differ
-> (`{event}/{rca}/…` vs `{capa}/{action}/…`) and flattening them would have broken the RCA pair. That
-> was the trap step 0 flagged in this exact bucket.
-> ⭐ **Re-measured at HEAD before fixing, and it was not a formality.** `…000100` had altered CAPA
-> tenancy underneath this policy, so *"the red has moved"* was live. It **still reproduced** — because
-> the broken predicate calls `app.hospital_of_event`, **not** the `app.hospital_of_capa_action` that
-> D16 corrected. A near-miss that reads as *obviously unaffected* in hindsight and was only knowable
-> by measuring ([[a-rename-orphans-a-name-keyed-verdict]]).
-> **Still owed by `tester`:** the upload-kind E2E the suite has NEVER had — its absence is exactly why
-> this survived from ship to now — plus the keyboard-only path. ⚠ pgTAP `143` asserts these policies
-> **exist**, never that they **admit**; *a policy-existence assertion is not a policy test.*
-
-<details><summary>Original filing (retained — the diagnosis and universality proof)</summary>
-
-Filed 2026-08-14 (DM5 S2 planning). Found by `backend`, **independently re-verified by the lead**
-against the live catalog — not accepted from the report.
-
-**The defect.** `capa_evidence_obj_insert_writable` gates on
-`app.is_pqs_writer_of(app.hospital_of_event((storage.foldername(name))[1]::uuid))` — it resolves the
-path's **first segment through an EVENT resolver**. But that segment is a **CAPA id**: the SELECT
-policy on the *same bucket* reads it as `app.can_read_capa((storage.foldername(name))[1]::uuid, …)`,
-and `uploadCapaEvidenceFile` (`src/lib/safety/capa-actions.ts:308`) writes
-`{capa_id}/{action_id}/{uuid}.ext`. **Two policies on one bucket disagree about what segment 1 is.**
-
-**Universality proven, not inferred** — `app.hospital_of_event(<a real capa_plan id>)` → **NULL**,
-`app.is_pqs_writer_of(null)` → **`f`**, and
-`select count(*) from capa_plan c join patient_safety_event e on e.id=c.id` → **0**, so no CAPA id
-can ever collide with an event id. The predicate is `false` for **every** possible upload path.
-Differential measured in a rolled-back txn as `nspcoord.a`: rca-shaped path **ACCEPTED**, capa-shaped
-path **REFUSED (42501)**, same session.
-
-⚠ **Fails CLOSED — an availability defect, not a leak.** A user who can *read* CAPA evidence
-(`can_read_capa` → true) cannot upload it.
-
-**Why every gate missed it, and this is the transferable part:** E2E covers only the **`link`** kind
-(`e2e/phase14d-capa.spec.ts:267-273`, `p_external_url`) and never the upload kind; pgTAP `143:266-285`
-asserts the policies **exist**, never that they **admit** anything. *A policy-existence assertion is
-not a policy test* — the same class as [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]].
-⭐ **Backend's first probe reported the control failing too** — it wore `active_role='staff'`, so the
-`nsp_coordinator` membership was not worn and `can_write_rca` was false **for the wrong reason**. The
-control is what caught it; a bare subject-only probe would have filed a much wider, wrong bug.
-
-</details>
-
-### 🟠 BUG-DM4-DUP-1 — the reply-attachment list renders the just-uploaded file TWICE (owner: `frontend`)
-
-Filed 2026-08-14 (DM4 gate step 2). Surfaced as a **strict-mode violation, not a timeout** —
-`DM4-RT-1`'s row locator resolved to **2 elements** with identical title and size. Mechanism traced
-from source by `tester` and **independently verified by the lead**; it is a defect, not a locator fault:
-
-- `src/components/referrals/referral-reply-attachments.tsx:135` builds its row list as a **plain
-  concatenation with no dedup**: `[...initialDocuments.map(d => ({key: d.documentId, …})), ...uploaded]`.
-- `:181` appends the optimistic entry with `key: finalized.documentId` — **the same id** as the
-  server row it just created.
-- `src/lib/referrals/actions.ts:521` → `revalidateReferrals()` → `:80`
-  `revalidatePath(REFERRAL_DETAIL_PATH, 'page')` on **every** successful finalize.
-- `revalidatePath` on a mounted route makes Next refetch the RSC payload; `page.tsx` re-runs
-  `listReferralReplyDocuments`, which now **includes** the new attachment, and passes it down as
-  `initialDocuments`. The dialog does not unmount, so `uploaded` still holds its copy ⇒ **two `<li>`,
-  same React key** (React also logs a duplicate-key warning and renders both anyway).
-
-⚠ **Timing-sensitive, not conditional** — it depends on whether the refetch resolves before the
-assertion, which is exactly why it can differ between dev and prod-standalone. **The bug exists
-regardless of whether a given run reproduces it**; non-reproduction only means the race was lost.
-⛔ **Do NOT fix this by relaxing the locator** — `tester` correctly refused to. Fix is id-based dedup
-(merge by `documentId`, e.g. a `Map` with `uploaded` winning ties).
-
-ℹ️ **DM3 Wave B gate step 2 filed NO bug** (tester, 2026-08-13) — stated explicitly because a silent
-absence and a clean result look identical. All 9 baseline reds were **tester-owned**: 7 stale locators
-(the DM3 substrate/affordance move) and 2 worker interference. See the Test Run Summary row for the
-per-red triage and for the two non-regression observations (`open_document_version` refusals surface as
-**HTTP 500, not 404** — pre-existing DM2 transport behaviour; and **AC-13's Tab budget is coupled to
-register row count**, so a green AC-13 is only meaningful on a fresh reset).
+- 🟢 **BUG-DM5-S2-STUB-1** — 11 TS bodies still `throw 'not implemented'`; the entire RCA/CAPA
+  workspace 500'd for every persona. Fixed `cbcabe7a`.
+- 🟢 **BUG-DM5-S2-WRITE-ARM-1** — `app.can_write_document` had no `rca`/`capa_action` arm, so
+  `begin_document_upload` refused **everyone** with `P0002`. Fixed `fc7a146d` (`…000160`).
+  ⚠ Its first probe is **not** valid fix evidence — it ran while the gate was neutralized.
+- 🟢 **BUG-DM5-S2-CITATION-TARGETS-1** — the picker could never offer a document target. `e307a979`.
+- 🟢 **BUG-DM5-CAPA-1** — CAPA evidence upload had been broken for every user since it shipped.
+  Fixed `e938f36d` (`…000140`, kept as its own migration so the red was provable pre-fix).
+- 🟢 **BUG-DM4-DUP-1** — the reply-attachment list rendered the file twice. Fixed `5ac8d849`,
+  pinned `f8052575` (5/6 proven RED first). ⚠ **It was still marked 🟠 OPEN here until
+  2026-08-14** — *a fix commit is not a status edit.*
 
 ✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
 (pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
@@ -653,6 +409,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 
 | Date | Decision | Ref |
 | --- | --- | --- |
+| 2026-08-14 | **DM5 designs for a RESET remote — ADR 0120 D17** (PO). A full DB reset is available on local **and** remote, so S3 builds the correct D7/D11/D13 shape directly and drops the *copy → verify → switch* ceremony for production print objects. ⚠ **Not "no data migration"** — a fresh reset still produces `printed_documents` rows from the **seed** and `312`/`313`/`323`, which are rewritten to the new shape in-slice. ⭐ **No backfill is a SAFETY property:** with none, the create path is the only path, so an untaught create path fails **loudly** instead of being masked — DM3's P0 exactly. ⛔ **A CORRECTION the lead made to its own framing before recording it:** putting this to the PO, the lead said a wiped remote *"dissolves"* FUP-DM5-STORAGE-ORPHANS. **Wrong — and the follow-up already said so in writing:** a reset truncates `storage.objects` and **leaves the bytes**, so it **creates** orphans (measured: 0 rows vs 699 files / 7.0 MB / 198 PHI-tier). **Binding ordering, the reverse of the intuitive one: delete-by-manifest via the Storage API FIRST, while keys are still enumerable, and only THEN reset.** S0's manifest tool stays load-bearing. D17 dissolves only the **DB-row** half. ⛔ **D17 closes NO follow-up** — FUP-DM4-PRODROW + FUP-DM5-STORAGE-ORPHANS move to *"close by the manifest-then-reset sequence at deploy"* and stay OPEN until it runs. **No `db push` or remote reset is authorized by D17**; both need explicit PO go-ahead on the day. | ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) **D17** · [plan S3/S4](docs/plans/dm5-wave-d-retirement-plan.md) |
 | 2026-08-13 | **DM3 ethics depth RULED — plumbing to writable, NO UI** (PO). Raised because the four Q1 discharge conditions were **incomplete**: catalog-verified, `set_ethics_decision_details` takes **11 params, none a document id**, and `src/lib/ethics/actions.ts:393` accepts `decisionLetterDocumentId` then **silently drops it** — so an FK alone would have swapped "a column pointing at nothing" for "a column pointing at documents nothing can create". Adds **condition 5**: add `p_decision_letter_document_id` to the RPC + forward it from TS. ⚠ `issue_ethics_notification`'s `p_related_document_id` **still exists** (arg 7/8) — the refusal is in the **body**, so a body change, NOT a DROP+CREATE that would discard the ACL. **No attach-a-letter UI in DM3** — a decision, not an omission: none has ever existed (verified across the ethics dialogs, every `type="file"` site, and the absence of any reader of either field), and a decision letter is the archetypal `legal_privileged` document whose UI needs the ETH·E1 spine + D15 ceiling designed as a feature → **FUP-DM3-ETHICS-UI** | ADR [0114](docs/decisions/0114-document-model-redesign.md) **Amdt 2 / D17** |
 | 2026-08-13 | **Q1 RULED — the two orphaned ethics document seams join Wave B (DM3)** (PO). `ethics_decision_details.decision_letter_document_id` + `ethics_notifications.related_document_id` were a **scope gap, not a deferral**: ADR 0114 D13's four waves named ethics in none. A disciplinary decision letter is a *governed* document with an approval/effective lifecycle — the controlled-document shape — so it reuses Wave B's machinery. Wave A was foreclosed (DM2 closed + approved; adopting there = reopening a completed phase); a post-DM5 follow-up was rejected because it closes the retirement manifest with two columns pointing at nothing. **Four binding discharge conditions, partial ≠ discharged:** real FK to `documents(id)` · `issue_ethics_notification`'s `p_related_document_id` restored to working · fail-closed rejection removed · **keystone K8 removed** (a keystone pinning a refusal the product no longer wants is a test asserting a bug). ⚠ **Lifecycle is shared, the READER SET is not** — ethics reads run on the ADR 0072/ETH·E1 spine (`case_access_grants` + `max_confidentiality` + recusal); negative twin required | ADR [0114](docs/decisions/0114-document-model-redesign.md) **Amendment 2 / D17** · [plan DM3 step 5](docs/plans/document-model-redesign.md) |
 | 2026-08-12 | **The referral's "Registros internos" file under the CASE Registro vocabulary; `referral_note_types` is deleted** (PO, both calls taken explicitly: full replacement over keep-the-table, and REQUIRED-with-default-`note` over keep-optional). Adds `update`/`follow_up`, so the shared list is six. **No snapshot column replaces `type_label`** — it existed to survive a user rename, and a fixed platform-wide list cannot be renamed, so the label resolves at render from one source. That source (`src/lib/cases/registro-kinds.ts`) is import-free and side-effect-free **so a `"use client"` component and a server data-access module can both read it** — which is the only reason one source of truth is possible; it narrows `referrals/types.ts`'s "ZERO imports" contract to "one inert import", stated in both files. ⚠ The two writers changed SIGNATURE (`uuid`→`text`) ⇒ DROP+CREATE ⇒ **the ACL is discarded**; all four grants re-issued and re-verified against the catalog | ADR [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) D2) |
