@@ -298,14 +298,34 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     const { shortCode, downloadPath } = await mintViaDialog(page)
     const documentId = downloadPath.split('/').pop()!
 
-    // A8: presence-derived PHI label + phi/ storage bifurcation. The panel/
+    // A8: presence-derived PHI label + tier-pinned bucket bifurcation. DM5 D7
+    // retired `printed_documents.storage_path` — the row now binds a core
+    // `document_version_id`, and the bytes are that version's `printed_pdf`
+    // rendition on `file_objects` (D11). The bucket is not read-back trivia:
+    // `file_objects_bucket_from_tier` CHECKs it against `sensitivity_tier`, so
+    // asserting the bucket here still proves the PHI ata landed on the PHI
+    // tier — same property this assertion always checked, new coordinate
+    // (locator, not property; e2e/helpers/documents.ts:143-152). The panel/
     // dialog UI carries no PHI indicator to assert through, so this is DB truth.
-    const [row] = await serviceQuery<{ contains_phi: boolean; storage_path: string }>(
+    const [row] = await serviceQuery<{ contains_phi: boolean; document_version_id: string }>(
       page,
-      `printed_documents?id=eq.${documentId}&select=contains_phi,storage_path`,
+      `printed_documents?id=eq.${documentId}&select=contains_phi,document_version_id`,
     )
     expect(row?.contains_phi).toBe(true)
-    expect(row?.storage_path).toBe(`phi/${documentId}.pdf`)
+
+    const [binding] = await serviceQuery<{ file_object_id: string }>(
+      page,
+      `document_version_files?document_version_id=eq.${row!.document_version_id}` +
+        `&rendition_kind=eq.printed_pdf&select=file_object_id`,
+    )
+    expect(binding?.file_object_id, 'the printed version has a printed_pdf binding').toBeTruthy()
+
+    const [fileObject] = await serviceQuery<{ storage_bucket: string; storage_path: string }>(
+      page,
+      `file_objects?id=eq.${binding.file_object_id}&select=storage_bucket,storage_path`,
+    )
+    expect(fileObject?.storage_bucket).toBe('documents-phi')
+    expect(fileObject?.storage_path).toBe(`printed/${documentId}.pdf`)
 
     const coordinatorDownload = await page.request.get(downloadPath)
     expect(coordinatorDownload.status()).toBe(200)
@@ -340,5 +360,96 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     // already-minted document — the serving route answers 404, never bytes.
     const respondentDownload = await page.request.get(downloadPath)
     expect(respondentDownload.status()).toBe(404)
+  })
+
+  /**
+   * ADR 0120 D18 — a print's OWN `documents` row (D13: homed on its source,
+   * never appended to content) is filtered OUT of the Wave-A "Documentos"
+   * projection. D18 is PRESENTATION, never an access control (Architecture
+   * Rule 1) — the byte door (`open_printed_document`, D12's conjunction) is
+   * the whole answer to who may read a print; this filter only changes what
+   * a list means. Three things, deliberately in one test so the twin makes
+   * the absence mean something (a vacuous "not found" passes with no fixture
+   * at all):
+   *
+   *   1. the print's `documents` row genuinely EXISTS and is homed on this
+   *      meeting, and IS referenced by `printed_documents` — the D18
+   *      discriminator — so anything below is the FILTER's doing, not a
+   *      missing fixture;
+   *   2. the meeting's "Anexos" panel (`AttachmentsPanel` ->
+   *      `DocumentsPanel` -> `listDocumentsForResource('meeting', …)`,
+   *      `src/lib/queries/documents.ts`) never shows it — stays in its empty
+   *      state on a fixture meeting that has zero real attachments, and the
+   *      print's stable title never appears anywhere on the page;
+   *   3. the corridor stays alive regardless: the print still downloads
+   *      through its own route with real bytes. Two exclusions plus a
+   *      re-signatured byte door is exactly the shape where every static
+   *      gate is green and the feature is dead (see Task 1's storage_path
+   *      fix above) — this closes that gap for the presentation half.
+   *
+   * NOT COVERED here, named for the record (see tester's report):
+   * `form_response` is not in `DocumentHomeResourceType` at all — no product
+   * surface renders a Wave-A documents panel for that home, so there is
+   * nothing for a form_response print to leak into and nothing to assert.
+   * The document-DETAIL projection (`documents.ts`'s own `getDocument`,
+   * distinct from the Wave-B `controlled-documents.ts` one of the same
+   * name) has zero importers anywhere under `src/` — no route mounts it —
+   * so its half of D18 is unverifiable through the UI today.
+   */
+  test('D18: a meeting print is excluded from the Anexos panel, though its own row exists and would be listed without the filter, and its byte corridor still works', async ({
+    page,
+  }) => {
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 D18 — panel exclusion')
+    await markHeld(page, token, meetingId)
+    await signMeetingToSigned(page, token, meetingId, CHEFE_CCIH_ID)
+
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+
+    // Fresh meeting fixture: the Anexos panel starts genuinely empty.
+    const anexos = page.getByRole('region', { name: 'Anexos' })
+    await expect(anexos.getByText('Nenhum anexo.', { exact: false })).toBeVisible()
+
+    const { downloadPath } = await mintViaDialog(page)
+    // The download route's :id is the `printed_documents.id` (the satellite
+    // row), NOT `documents.id` — resolved separately below, exactly the
+    // distinction D7 turns the satellite on.
+    const printedDocId = downloadPath.split('/').pop()!
+
+    // The twin: the print's own `documents` row is real, homed on THIS
+    // meeting (D13), and referenced by `printed_documents` (D18's
+    // discriminator) — service-role, RLS bypassed, so this is DB truth
+    // independent of the panel's own query.
+    const [printedRow] = await serviceQuery<{ id: string; document_id: string }>(
+      page,
+      `printed_documents?id=eq.${printedDocId}&select=id,document_id`,
+    )
+    expect(printedRow?.document_id, 'referenced by printed_documents — would be listed without the filter').toBeTruthy()
+
+    const [docRow] = await serviceQuery<{
+      id: string
+      home_resource_id: string
+      title: string
+      kind: string | null
+    }>(page, `documents?id=eq.${printedRow!.document_id}&select=id,home_resource_id,title,kind`)
+    expect(docRow?.id, 'the print minted its own documents row').toBe(printedRow!.document_id)
+    expect(docRow?.home_resource_id, 'homed on the meeting itself, not appended to content (D13)').toBe(
+      meetingId,
+    )
+    expect(docRow?.kind).toBe('printed_rendition')
+
+    // The exclusion: reload and confirm the print's own row never surfaces in
+    // the Anexos panel — neither by title anywhere on the page, nor by the
+    // panel leaving its empty state.
+    await page.reload()
+    await expect(page.getByText(docRow!.title, { exact: true })).toHaveCount(0)
+    await expect(anexos.getByText('Nenhum anexo.', { exact: false })).toBeVisible()
+
+    // The corridor stays alive: invisible to the content panel, the print
+    // still downloads through its own route with real bytes.
+    const resp = await page.request.get(downloadPath)
+    expect(resp.status()).toBe(200)
+    expect((await resp.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
   })
 })
