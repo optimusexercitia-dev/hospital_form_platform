@@ -12,7 +12,7 @@
 | --- | --- |
 | **S0** manifest tool | ✅ complete (`0e85cbe7`, `9d37ad79`) — 8/8 self-test controls |
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
-| **S2** NSP RCA/CAPA evidence | ✅ build + E2E green; **close pending one sweep verdict** (§3) |
+| **S2** NSP RCA/CAPA evidence | ✅ **gate steps 1–2 COMPLETE** — sweep `COVERED` (§3). ⚠ Four arms not re-run; QA review (§6 step 3) not started |
 | **S3** printed renditions | ⛔ **NOT STARTED — the pause point.** All rulings already made (§4) |
 | **S4** retirement (8 buckets) | ⬜ not started |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
@@ -37,22 +37,40 @@ vitest 1294 · four arms **HOLD** · **E2E 8/8 new + 36/36 pre-existing at exact
 feature **did not work at all** — 11 TS bodies still threw, and `can_write_document` had no arm for the
 new types. **No gate in that list executes a page.** Detail: phase record + `green-bar-misses-the-wired-seam`.
 
-## 3. The ONE thing outstanding on S2
+## 3. S2 gate steps 1–2 are COMPLETE ✅ (resolved at the pause)
 
-**The diff-scoped door sweep verdict for `app.can_write_document`.** Everything else is green.
+**Sweep verdict: `COVERED`** — `BLIND: 0 · ERROR: 0 · cases executed: 1` (nonzero, checked before citing),
+exit 0, baseline `Files=192 Tests=6284`. **Lead-verified independently.** Commits: `eb863ce8` (`341` block
+G) · `22148ca1` (`329` guard) · `fa28ec19` (findings row).
 
-- The gate **is** now covered by `341` block G (12 assertions; proven red under neutralization — exactly
-  G9/G10/G11 fail, blocks P–F stay green).
-- The sweep previously reported **`ERROR`**, and the cause is **not** this gate: **`329` aborts** under
-  the neutralization, losing exactly 41 tests, because the unguarded raw statement at **`329:494`**
-  errors *outside* any pgTAP wrapper once R1 succeeds. ⚠ **`341`'s old plan was also 41 — pure
-  coincidence**, and that numeric collision produced a confident wrong diagnosis ("341 aborts") that two
-  people adopted. **It is falsified. Do not re-adopt it.**
-- A **guard for `329:494`** (the `340`-B7 `do $$ … exception when others …` idiom) was **tested**:
-  `329` then runs 115/115 under neutralization, run shape preserved ⇒ `FAIL` ⇒ **COVERED**.
-- **If the sweep verdict is not recorded below, it did not run.** Do not infer it.
+**The diagnosis held, and for the stated reason.** The earlier `ERROR` was **`329` aborting**, not this
+gate being blind: the unguarded raw statement at **`329:494`** errored *outside* any pgTAP wrapper once R1
+succeeded under neutralization, losing exactly 41 tests. ⚠ **`341`'s old plan was also 41 — pure
+coincidence**, and that collision produced a confident wrong diagnosis ("341 aborts") that two people
+adopted. **Falsified; do not re-adopt it.** Guarding `329:494` with the `340`-B7
+`do $$ … exception when others …` idiom preserved the run shape ⇒ `FAIL` ⇒ `COVERED`.
+**Corroboration:** the sweep's failing-file list now reads `229,231,314,328,329,340,341` — **`341` appears,
+which it could not have before block G.**
 
-⛔ **Before running that sweep, read §6 — the harness left an authz gate OPEN on the shared stack today.**
+⭐ **The stale-COVERED finding is recorded IN the findings row itself** (`authz-door-audit-findings.md:197`),
+not only here — because that row is what a future reader will trust:
+
+> **A gate keeps its name when its arms change.** The prior verdict was earned by DM1-era suites against
+> the **six old arms**; S2 added two more underneath the **same name**, and ARM 1, the census and that row
+> all kept reading `COVERED` while the new arms had **zero executable coverage anywhere in the repo**.
+> **The inverse of the rename hazard: a rename orphans a verdict loudly; this widens one silently.**
+
+**Stack verified clean at the pause:** degenerate bodies **0** (strict *and* whitespace-widened variants),
+`rca_arm=t · capa_arm=t · prosecdef=t`, findings file restored to **594** lines with table integrity
+checked, **tree clean on `main`**.
+
+⚠ **Still owed for S2's §6 step 1: `ARM=census` / `hat` / `floor` / `wrapper` were NOT re-run** after the
+write-arm and `341` changes. No new gate or policy was added, so no new census entry is owed — **but that
+was reasoned, not verified.** Someone owns it before S2 is declared gate-complete.
+
+⛔ **Before running any sweep, read §6 — the harness left an authz gate OPEN on this stack today**, and
+its restore is still trap-dependent. **Run the degenerate-body query immediately after every run, every
+time** (§6).
 
 ## 4. S3 — parked, with every ruling already made
 
@@ -280,6 +298,57 @@ now shows a "Citar registro" button **that has never appeared for it before**.
 ⚠ **Record correction:** `BUG-DM5-S2-WRITE-ARM-1`'s first probe is **not valid fix evidence** — it ran while
 `can_write_document` was neutralized by the lead's harness (§6). Kept as provenance only; the post-restore
 probe and the end-to-end upload tests are the clean confirmation. Already corrected in PROGRESS.md.
+
+## 7c. Two traps that will bite someone who was not here
+
+### HANDOFF-1 — an intermittent `pg_prove` worker deadlock that READS LIKE A DEFECT
+
+⚠ **Do not diagnose a red on these files as a regression without re-running first.**
+
+**What it looks like:** `npm run test:db` exits 1, `Result: FAIL`, two files reporting
+`Dubious, test returned 3 (wstat 768)` and `Bad plan. You planned N tests but ran 0`. The suite total
+comes in **below baseline by exactly the sum of those files' plans** — indistinguishable from a real
+regression in whatever they cover.
+
+**What was observed:** `100_dashboard.sql` (22) and `10_immutability.sql` (17) both died at
+`test_helpers.bootstrap()` line 61, `truncate table public.organizations cascade`, with
+`ERROR: deadlock detected` — two workers acquiring the cascade's locks in opposing orders. Totals
+`Files=192, Tests=6245` = 6284 − (22+17).
+
+**Ruled out:** not the change under test (`341` reported `ok` in the same run) · **not** the E2E-residue
+class §6 warns about (both files pass standalone via `psql`; the error is a **lock cycle**, not a count
+mismatch) · not an external session (`pg_stat_activity` showed only idle daemons) · **not persistent** —
+re-ran twice, `Tests=6284 PASS` both times.
+
+**Not known:** why it is intermittent, or whether a `--jobs 1` knob exists in this `supabase test db`
+invocation. **The tell is `Dubious` / `Bad plan … ran 0` plus `deadlock detected` — never a genuine
+assertion failure.**
+
+### HANDOFF-2 — `capa_action` coverage rests on ONE seeded source, but the risk is SMALLER than it looks
+
+**Live `capa_plan.source` CHECK values and what the seed actually holds:**
+
+| source | plans | capa_actions | reachable by `341` block G |
+| --- | --- | --- | --- |
+| `rca` | 1 | 2 | **yes — the only one exercised** |
+| `manual` | 14 | 14 | seeded, **never exercised** |
+| `event` | 1 | **0** | unreachable — no action exists |
+| `indicator` / `audit_finding` / `meeting` | 0 | 0 | **not seeded at all** |
+
+**1 of 6 sources exercised.** `manual` is the cheapest genuine second case — 14 actions already seeded,
+zero new fixtures needed.
+
+⭐ **Two facts that should stop anyone re-panicking about this.** `app.can_write_capa` is
+`is_pqs_operator_of_for(capa_plan.hospital_id, uid)` — it reads **only `hospital_id` and never branches on
+`source`**, so the write arm is **source-agnostic by construction**. And `capa_plan.hospital_id` is
+**`NOT NULL` at the column level**, so ADR 0120 **D14**'s shape-B (`org + hospital`, NULL commission) has a
+real backstop that an unseeded source cannot violate.
+
+⚠ **Where the residual risk actually lives — and it is not the write arm.** D16's "NULL for 4 of 6 sources"
+was about `app.hospital_of_capa_action` when it resolved `hospital_of_event(event_of_capa(...))`: only
+`rca` and `event` reach an event. `341` E2 pins that it no longer routes that way. **The open question is
+whether any OTHER resolver still reaches a CAPA's hospital via the event path** — that was not enumerated,
+and the three unseeded sources cannot be tested at all until fixtures exist.
 
 ## 8. Teammates
 
