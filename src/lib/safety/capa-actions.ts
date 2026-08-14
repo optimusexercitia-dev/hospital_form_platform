@@ -15,6 +15,12 @@ import type {
   OpenCapaInput,
   UpdateCapaInput,
 } from '@/lib/safety/capa-types'
+import type {
+  NspEvidenceActionState,
+  NspEvidenceLinkInput,
+  NspEvidenceUploadRequest,
+  NspEvidenceUploadTicket,
+} from '@/lib/safety/evidence-contract'
 
 // Result + input shapes live in the CLIENT-SAFE `@/lib/safety/{types,capa-types}`.
 // This module exports ONLY the action functions below.
@@ -453,4 +459,47 @@ export async function recordCapaEffectiveness(
 
   revalidateNsp()
   return { ok: true, message: SAFETY_MESSAGES.capaEffectivenessRecorded }
+}
+
+// ---------------------------------------------------------------------------
+// DM5 S2 CONTRACT — see src/lib/safety/evidence-contract.ts. CAPA has no
+// citation seam (`capa_action_evidence.kind` is document | link only).
+// ---------------------------------------------------------------------------
+
+/**
+ * Reserve an upload for a `document`-kind CAPA implementation-evidence file.
+ *
+ * ⚠ Replaces `uploadCapaEvidenceFile`, which is BROKEN TODAY for every user
+ * (BUG-DM5-CAPA-1): it writes `{capa_id}/{action_id}/…` while
+ * `capa_evidence_obj_insert_writable` resolves `foldername[1]` through
+ * `app.hospital_of_event`, an EVENT resolver, so the arm is false for every
+ * CAPA and every persona. Fails closed — refused, never leaked.
+ */
+export async function beginCapaEvidenceUpload(
+  _actionId: string,
+  _request: NspEvidenceUploadRequest,
+): Promise<NspEvidenceActionState & { ticket?: NspEvidenceUploadTicket }> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Verify server-side and create the evidence row atomically. */
+export async function finalizeCapaEvidenceUpload(
+  _uploadSessionId: string,
+): Promise<NspEvidenceActionState & { evidenceId?: string }> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Add a `link`-kind row (unchanged in behaviour; re-typed onto the union). */
+export async function addCapaEvidenceLink(
+  _actionId: string,
+  _input: NspEvidenceLinkInput,
+): Promise<NspEvidenceActionState> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Resolve a short-TTL signed URL through the single audited door. */
+export async function openCapaEvidence(
+  _evidenceId: string,
+): Promise<NspEvidenceActionState & { url?: string }> {
+  throw new Error('not implemented — DM5 S2')
 }

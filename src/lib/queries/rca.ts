@@ -70,6 +70,7 @@ import type {
   RootCauseClassification,
   RootCauseType,
 } from '@/lib/safety/rca-types'
+import type { RcaEvidenceView } from '@/lib/safety/evidence-contract'
 
 // ---------------------------------------------------------------------------
 // Row shapes + mappers
@@ -538,4 +539,23 @@ export async function listRcaCitationTargets(
   // in the type for Wave D and for rendering any historical rows).
 
   return targets
+}
+
+// ---------------------------------------------------------------------------
+// DM5 S2 CONTRACT — replaces listRcaEvidence's eager-signing projection.
+// ---------------------------------------------------------------------------
+
+/**
+ * Evidence rows for an RCA, S2 shape.
+ *
+ * ⚠ REPLACES {@link listRcaEvidence}. The old projection called
+ * `createSignedUrl` for EVERY `document` row while building the list
+ * (`openUrl`). Under ADR 0114 D8 bytes resolve one at a time through the
+ * audited door, so the list carries `documentId` + `availability` + a
+ * server-computed `canOpen`, and the UI calls `openRcaEvidence(id)` on click.
+ * Eager signing both widened reach and emitted a read-audit row for files
+ * nobody opened.
+ */
+export async function listRcaEvidenceViews(_rcaId: string): Promise<RcaEvidenceView[]> {
+  throw new Error('not implemented — DM5 S2')
 }

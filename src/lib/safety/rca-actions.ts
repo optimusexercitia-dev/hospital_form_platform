@@ -16,6 +16,13 @@ import type {
   RootCauseType,
   UpdateRcaInput,
 } from '@/lib/safety/rca-types'
+import type {
+  NspEvidenceActionState,
+  NspEvidenceLinkInput,
+  NspEvidenceUploadRequest,
+  NspEvidenceUploadTicket,
+  RcaEvidenceCitationInput,
+} from '@/lib/safety/evidence-contract'
 
 // Result + input shapes live in the CLIENT-SAFE `@/lib/safety/{types,rca-types}`
 // (a `"use server"` module may export only async functions, and the client binds its
@@ -544,4 +551,66 @@ export async function removeRcaRootCause(rootCauseId: string): Promise<ActionSta
 
   revalidateNsp()
   return { ok: true, message: SAFETY_MESSAGES.rcaRootCauseSaved }
+}
+
+// ---------------------------------------------------------------------------
+// DM5 S2 CONTRACT — posted before implementation (contract-first). Bodies land
+// with migrations 20260927000100-000299. Signatures are STABLE once posted.
+// Contract + error union: `src/lib/safety/evidence-contract.ts`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Reserve an upload for a `document`-kind RCA evidence file.
+ *
+ * Replaces `uploadRcaEvidenceFile`, which minted its own `{event}/{rca}/{uuid}`
+ * path and PUT straight to `nsp-evidence`. Bucket and path are now derived
+ * server-side from the `rca` securable resource (ADR 0114 D8/D9, ADR 0120 D1).
+ * Declared size/MIME are re-derived and re-verified at finalize; nothing the
+ * caller says about the bytes is trusted.
+ */
+export async function beginRcaEvidenceUpload(
+  _rcaId: string,
+  _request: NspEvidenceUploadRequest,
+): Promise<NspEvidenceActionState & { ticket?: NspEvidenceUploadTicket }> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Verify the uploaded bytes server-side and create the evidence row atomically. */
+export async function finalizeRcaEvidenceUpload(
+  _uploadSessionId: string,
+): Promise<NspEvidenceActionState & { evidenceId?: string }> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Add a `link`-kind row. No bytes; untouched by the substrate move — listed so
+ *  frontend sees the whole surface, not only the parts that change. */
+export async function addRcaEvidenceLink(
+  _rcaId: string,
+  _input: NspEvidenceLinkInput,
+): Promise<NspEvidenceActionState> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/**
+ * Add a `citation`-kind row.
+ *
+ * ⚠ The SECOND, INDEPENDENT seam: `cited_document_id` is the citation slot
+ * (`kind = 'citation'`, mutually exclusive with the uploaded byte). S2 un-parks
+ * it by dropping BOTH the `HC0DM` arm and the table CHECK
+ * `rca_evidence_cited_document_parked`, then adding the real FK. Passing
+ * `citationTarget: 'document'` is refused today and accepted after S2.
+ */
+export async function addRcaEvidenceCitation(
+  _rcaId: string,
+  _input: RcaEvidenceCitationInput,
+): Promise<NspEvidenceActionState> {
+  throw new Error('not implemented — DM5 S2')
+}
+
+/** Resolve a short-TTL signed URL through the single audited door. Emits the
+ *  Rule-11 read row; never called from a list. */
+export async function openRcaEvidence(
+  _evidenceId: string,
+): Promise<NspEvidenceActionState & { url?: string }> {
+  throw new Error('not implemented — DM5 S2')
 }

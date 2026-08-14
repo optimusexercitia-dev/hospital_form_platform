@@ -71,6 +71,7 @@ import type {
   CapaSource,
   CapaStatus,
 } from '@/lib/safety/capa-types'
+import type { CapaActionEvidenceView } from '@/lib/safety/evidence-contract'
 
 // ---------------------------------------------------------------------------
 // Row shapes + mappers
@@ -501,4 +502,16 @@ export async function getCapaKpis(): Promise<CapaKpis> {
     overdueActions: r.overdue_actions,
     closedYtd: r.closed_ytd,
   }
+}
+
+// ---------------------------------------------------------------------------
+// DM5 S2 CONTRACT — replaces listCapaActionEvidence's eager-signing projection.
+// ---------------------------------------------------------------------------
+
+/** Evidence rows for a CAPA action, S2 shape. ⚠ REPLACES
+ *  {@link listCapaActionEvidence}; same eager-signing removal as the RCA side. */
+export async function listCapaActionEvidenceViews(
+  _actionId: string,
+): Promise<CapaActionEvidenceView[]> {
+  throw new Error('not implemented — DM5 S2')
 }
