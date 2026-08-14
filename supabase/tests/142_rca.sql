@@ -178,11 +178,15 @@ select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 select public.add_rca_evidence((select rca_id from r), 'link', 'Protocolo', null, 'https://example.org/protocolo', null, null, null);
 select throws_ok(
-  $$ select public.add_rca_evidence((select rca_id from r), 'link', 'Misto', 'caminho/arquivo.pdf', 'https://x.org', null, null, null) $$,
-  '23514', null, 'a mixed evidence shape (link + storage_path) is rejected (check_violation)');
+  -- DM5 S2 (20260927000120): the 4th argument was `p_storage_path text` — a
+  -- caller-minted path — and is now `p_document_id uuid`, a binding the upload
+  -- commands produced. The PROPERTY under test is unchanged (a `link` row may
+  -- not also carry a file), so only the value's type moves.
+  $$ select public.add_rca_evidence((select rca_id from r), 'link', 'Misto', gen_random_uuid(), 'https://x.org', null, null, null) $$,
+  '23514', null, 'a mixed evidence shape (link + document_id) is rejected (check_violation)');
 select throws_ok(
   $$ select public.add_rca_evidence((select rca_id from r), 'document', 'Sem arquivo', null, null, null, null, null) $$,
-  '23514', null, 'a document evidence with no storage_path is rejected (check_violation)');
+  '23514', null, 'a document evidence with no document_id is rejected (check_violation)');
 reset role;
 select is(
   (select count(*)::int from public.rca_evidence where rca_id = (select rca_id from r) and kind = 'link'),

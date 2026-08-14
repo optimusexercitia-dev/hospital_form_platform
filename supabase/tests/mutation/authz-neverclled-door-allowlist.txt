@@ -34,7 +34,7 @@
 # case_viewer_capabilities, is_nsp_*/is_pqs_* of_self …) as they gain read keystones —
 # delete them from this file in the same commit as their keystone.
 action_items_enabled()
-add_capa_action_evidence(p_action_id uuid, p_kind text, p_title text, p_storage_path text, p_external_url text)
+add_capa_action_evidence(p_action_id uuid, p_kind text, p_title text, p_document_id uuid, p_external_url text)
 add_capa_action_task(p_action_id uuid, p_description text)
 add_capa_measure(p_capa_id uuid, p_name text, p_target text, p_definition text)
 add_rca_timeline_entry(p_rca_id uuid, p_occurred_at timestamp with time zone, p_description text)

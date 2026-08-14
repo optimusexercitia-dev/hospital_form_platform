@@ -1103,10 +1103,10 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          document_id: string | null
           external_url: string | null
           id: string
           kind: string
-          storage_path: string | null
           title: string
         }
         Insert: {
@@ -1115,10 +1115,10 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          document_id?: string | null
           external_url?: string | null
           id?: string
           kind: string
-          storage_path?: string | null
           title: string
         }
         Update: {
@@ -1127,10 +1127,10 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          document_id?: string | null
           external_url?: string | null
           id?: string
           kind?: string
-          storage_path?: string | null
           title?: string
         }
         Relationships: [
@@ -1153,6 +1153,13 @@ export type Database = {
             columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_evidence_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -8351,11 +8358,11 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          document_id: string | null
           external_url: string | null
           id: string
           kind: string
           rca_id: string
-          storage_path: string | null
           title: string
         }
         Insert: {
@@ -8367,11 +8374,11 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          document_id?: string | null
           external_url?: string | null
           id?: string
           kind: string
           rca_id: string
-          storage_path?: string | null
           title: string
         }
         Update: {
@@ -8383,11 +8390,11 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          document_id?: string | null
           external_url?: string | null
           id?: string
           kind?: string
           rca_id?: string
-          storage_path?: string | null
           title?: string
         }
         Relationships: [
@@ -8417,6 +8424,13 @@ export type Database = {
             columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
           {
@@ -10017,9 +10031,9 @@ export type Database = {
       add_capa_action_evidence: {
         Args: {
           p_action_id: string
+          p_document_id?: string
           p_external_url?: string
           p_kind: string
-          p_storage_path?: string
           p_title: string
         }
         Returns: {
@@ -10028,10 +10042,10 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          document_id: string | null
           external_url: string | null
           id: string
           kind: string
-          storage_path: string | null
           title: string
         }
         SetofOptions: {
@@ -10217,10 +10231,10 @@ export type Database = {
           p_citation_label?: string
           p_citation_target?: string
           p_cited_entity_id?: string
+          p_document_id?: string
           p_external_url?: string
           p_kind: string
           p_rca_id: string
-          p_storage_path?: string
           p_title: string
         }
         Returns: {
@@ -10232,11 +10246,11 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
+          document_id: string | null
           external_url: string | null
           id: string
           kind: string
           rca_id: string
-          storage_path: string | null
           title: string
         }
         SetofOptions: {
