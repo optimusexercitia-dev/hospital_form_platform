@@ -776,9 +776,17 @@ test('R3-1: target concludes a reply-expected referral → status becomes "answe
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r3ReferralId}`)
 
-  await page.getByLabel('Desfecho da análise').selectOption(r3ReplyOutcomeId)
-  await page.getByLabel('Resultado').fill('Análise concluída — resultado da comissão de destino (R3-1).')
-  await page.getByRole('button', { name: /enviar resposta e concluir/i }).click()
+  // ⚠ 87cd1ddb ("simplify the detail layout") turned "Responder e concluir" into a
+  // button that opens a DIALOG (`referral-reply-dialog.tsx`'s `ReplyDialog`) — it used
+  // to sit as an always-mounted inline form in "Ações". The dialog is closed by
+  // default, so `getByLabel('Desfecho da análise')` finds nothing until it is opened.
+  await page.getByRole('button', { name: 'Responder e concluir' }).click()
+  const replyDialog = page.getByRole('dialog')
+  await expect(replyDialog).toBeVisible()
+  await replyDialog.getByLabel('Desfecho da análise').selectOption(r3ReplyOutcomeId)
+  await replyDialog.getByLabel('Resultado').fill('Análise concluída — resultado da comissão de destino (R3-1).')
+  await replyDialog.getByRole('button', { name: /enviar resposta e concluir/i }).click()
+  await expect(replyDialog).toBeHidden({ timeout: 15_000 })
 
   await expect(page.locator('span').filter({ hasText: /^Respondida$/ }).first()).toBeVisible({
     timeout: 15_000,
@@ -904,9 +912,15 @@ test('R3-7: append-only — a second resolve cycle appends "Resolução 2" while
 }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r3ReferralId}`)
-  await page.getByLabel('Desfecho da análise').selectOption(r3ReplyOutcomeId)
-  await page.getByLabel('Resultado').fill('Segundo ciclo — resultado (R3-7).')
-  await page.getByRole('button', { name: /enviar resposta e concluir/i }).click()
+  // ⚠ 87cd1ddb — same dialog-first fix as R3-1: "Responder e concluir" opens a dialog
+  // rather than exposing an always-mounted inline form.
+  await page.getByRole('button', { name: 'Responder e concluir' }).click()
+  const replyDialog = page.getByRole('dialog')
+  await expect(replyDialog).toBeVisible()
+  await replyDialog.getByLabel('Desfecho da análise').selectOption(r3ReplyOutcomeId)
+  await replyDialog.getByLabel('Resultado').fill('Segundo ciclo — resultado (R3-7).')
+  await replyDialog.getByRole('button', { name: /enviar resposta e concluir/i }).click()
+  await expect(replyDialog).toBeHidden({ timeout: 15_000 })
   await expect(page.locator('span').filter({ hasText: /^Respondida$/ }).first()).toBeVisible({
     timeout: 15_000,
   })
@@ -1174,13 +1188,25 @@ test('R5-1: a committee member creates a private internal note on their own side
   })
   await expect(page.getByText(/visíveis apenas à sua comissão/i)).toBeVisible()
 
-  // The always-on textarea is gone: the composer is a Markdown editor behind an
-  // "Adicionar registro" toggle, and it is not in the DOM until that button is clicked.
+  // The always-on textarea is gone: the composer is a DIALOG (`ReferralRegistroDialog`,
+  // 87cd1ddb — it used to be an inline form) behind an "Adicionar registro" toggle, and
+  // it is not in the DOM until that button is clicked. The body field's label was
+  // renamed "Registro" → "Descrição" in the same commit; the submit button "Registrar"
+  // → "Adicionar" — `exact: true` keeps that from also matching the still-mounted
+  // "Adicionar registro" trigger button behind the dialog overlay.
+  //
+  // Scoped to the dialog itself, not just `exact: true` on the label — this referral's
+  // own `description_md` (every fixture here sets one) renders as a
+  // `<section aria-labelledby="referral-description-heading">`, and a live run proved
+  // `page.getByLabel('Descrição', { exact: true })` ALSO matches that section (a
+  // strict-mode violation), not only the dialog's textarea.
   await page.getByRole('button', { name: 'Adicionar registro' }).click()
-  await page
-    .getByLabel('Registro', { exact: true })
+  const noteDialog = page.getByRole('dialog')
+  await expect(noteDialog).toBeVisible()
+  await noteDialog
+    .getByLabel('Descrição', { exact: true })
     .fill('Nota interna da origem — só CCIH deve ver isto (R5-1).')
-  await page.getByRole('button', { name: 'Registrar' }).click()
+  await noteDialog.getByRole('button', { name: 'Adicionar', exact: true }).click()
 
   await expect(page.getByText('Nota interna da origem — só CCIH deve ver isto (R5-1).')).toBeVisible({
     timeout: 15_000,
@@ -1201,11 +1227,15 @@ test('R5-2: the OTHER committee never sees that note — creates its own instead
   const html = await page.content()
   expect(html).not.toContain('Nota interna da origem — só CCIH deve ver isto')
 
+  // Same 87cd1ddb rename + collision as R5-1: "Registro" → "Descrição", "Registrar" →
+  // "Adicionar", scoped to the dialog to avoid the referral's own description section.
   await page.getByRole('button', { name: 'Adicionar registro' }).click()
-  await page
-    .getByLabel('Registro', { exact: true })
+  const noteDialog = page.getByRole('dialog')
+  await expect(noteDialog).toBeVisible()
+  await noteDialog
+    .getByLabel('Descrição', { exact: true })
     .fill('Nota interna do destino — só Farmácia deve ver isto (R5-2).')
-  await page.getByRole('button', { name: 'Registrar' }).click()
+  await noteDialog.getByRole('button', { name: 'Adicionar', exact: true }).click()
   await expect(page.getByText('Nota interna do destino — só Farmácia deve ver isto (R5-2).')).toBeVisible({
     timeout: 15_000,
   })
@@ -1336,23 +1366,35 @@ test('R5-6: keyboard-only — open the registro composer and submit via Tab/Ente
   // is behind an "Adicionar registro" toggle and is absent from the DOM until it is
   // activated. Reaching it by Enter on the focused button is part of the a11y claim,
   // not setup — a toggle only openable by mouse would strand the whole panel.
+  //
+  // ⚠ 87cd1ddb promoted the composer from that inline form into a DIALOG
+  // (`ReferralRegistroDialog`) and renamed its body field "Registro" → "Descrição".
+  // Scoped via `page.getByRole('dialog')` rather than a label-based `.filter({has})`:
+  // this referral's own `description_md` renders its own "Descrição" section
+  // elsewhere on the page, and a live run proved that section ALSO satisfies
+  // `getByLabel('Descrição', { exact: true })` — the dialog is the only `<form>` on
+  // this page, so scoping to it sidesteps the collision entirely.
   const addBtn = page.getByRole('button', { name: 'Adicionar registro' })
   await expect(addBtn).toBeVisible({ timeout: 10_000 })
   await addBtn.focus()
   await expect(addBtn).toBeFocused()
   await page.keyboard.press('Enter')
 
-  const notesForm = page.locator('form').filter({
-    has: page.getByLabel('Registro', { exact: true }),
-  })
+  const notesForm = page.getByRole('dialog').locator('form')
   await expect(notesForm).toBeVisible({ timeout: 10_000 })
 
-  const textarea = notesForm.getByLabel('Registro', { exact: true })
+  const textarea = notesForm.getByLabel('Descrição', { exact: true })
   await textarea.focus()
   await expect(textarea).toBeFocused()
   await page.keyboard.type('Nota interna registrada só com teclado (R5-6).')
 
   const submitBtn = notesForm.locator('button[type="submit"]')
+  // The dialog's footer renders "Cancelar" BEFORE the submit button (DialogFooter,
+  // `referral-registro-dialog.tsx`) — a tab stop the old inline form never had (its
+  // own submit button was the very next focusable element after the body field). One
+  // Tab now lands on Cancelar; a second reaches the real submit button.
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'Cancelar' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(submitBtn).toBeFocused()
   await page.keyboard.press('Enter')

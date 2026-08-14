@@ -269,9 +269,23 @@ function registrosPanel(page: Page) {
   return page.getByRole('region', { name: 'Registros internos' })
 }
 
-/** The "Novo registro" composer form, scoped by its own body field. */
+/**
+ * The registro composer/editor form.
+ *
+ * ⚠ 87cd1ddb ("simplify the detail layout") promoted the composer from an inline
+ * panel form into `ReferralRegistroDialog` — one DIALOG serving both create AND
+ * edit — and renamed its body field's label from "Registro" to "Descrição". Scoping
+ * this by that label (as the pre-87cd1ddb helper did) turned out UNSAFE: every
+ * fixture referral here carries a `description_md` (`draftAndSend` always sets one),
+ * which the page renders as its own `<section aria-labelledby="referral-description-
+ * heading">` — and empirically `getByLabel('Descrição', { exact: true })` matches
+ * THAT section too (not just the dialog's textarea), a live strict-mode collision
+ * proven by a real run, not a theoretical one. Scoping to `page.getByRole('dialog')`
+ * first sidesteps it entirely: the dialog is the only `<form>` on this page, and the
+ * description section lives outside its portalled subtree.
+ */
 function registroForm(page: Page) {
-  return page.locator('form').filter({ has: page.getByLabel('Registro', { exact: true }) })
+  return page.getByRole('dialog').locator('form')
 }
 
 // ---------------------------------------------------------------------------
@@ -475,7 +489,15 @@ test('REG-1: the registro kind picker offers the SHARED case vocabulary, with no
   await expect(page.getByRole('button', { name: 'Tipos de registro' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Adicionar registro' }).click()
-  const tipo = registroForm(page).getByLabel('Tipo', { exact: true })
+  // ⚠ `exact: true` never matches here: `NativeSelect` wraps its `<select>` inside a
+  // `<div>` under an IMPLICIT (wrapping, no htmlFor/id) `<label>` — so the label's
+  // computed accessible name is its FULL text content, which includes every
+  // `<option>`'s text folded in ("TipoNotaReuniãoDecisão…", proven live). The
+  // pre-87cd1ddb inline form used explicit `htmlFor`/`id` and never hit this; the same
+  // fold already bit `technical-direction-referrals.spec.ts` DT-1 and R4-6's "Tipo de
+  // relação" select for the identical reason. `/^Tipo/` anchors on the one field this
+  // scope actually has.
+  const tipo = registroForm(page).getByLabel(/^Tipo/)
   await expect(tipo).toBeVisible()
 
   // The exact six manual kinds of the case timeline's "Registros", in picker order —
@@ -508,10 +530,20 @@ test('REG-2: the coordinator files a TYPED registro with an assignee', async ({ 
   await expect(form).toBeVisible()
 
   await form.getByLabel(/^Título/).fill(REG_TITLE)
-  await form.getByLabel('Tipo', { exact: true }).selectOption(KIND_VALUE)
+  // ⚠ `{ exact: true }` never matches "Tipo" here — see REG-1's comment: the wrapping
+  // `<label>`'s computed accessible name folds in every `<option>` text of the nested
+  // `NativeSelect`. `/^Tipo/` is the anchored, non-exact fix already used for the
+  // other selects in this same form.
+  await form.getByLabel(/^Tipo/).selectOption(KIND_VALUE)
   await form.getByLabel(/^Responsável/).selectOption(UID_STAFF1_A)
-  await form.getByLabel('Registro', { exact: true }).fill(REG_BODY)
-  await page.getByRole('button', { name: 'Registrar' }).click()
+  // ⚠ 87cd1ddb renamed the body field's label "Registro" → "Descrição" and its
+  // submit button "Registrar" → "Adicionar" (the DIALOG's create-mode label,
+  // `ReferralRegistroDialog`). `exact: true` — not scoping to `form` — is what keeps
+  // this from also matching the panel's "Adicionar registro" TRIGGER button, which
+  // stays mounted (behind the overlay) while the dialog is open and contains
+  // "Adicionar" as a substring.
+  await form.getByLabel('Descrição', { exact: true }).fill(REG_BODY)
+  await page.getByRole('button', { name: 'Adicionar', exact: true }).click()
 
   const card = panel.locator('li').filter({ hasText: REG_TITLE })
   await expect(card).toBeVisible({ timeout: 15_000 })
@@ -528,10 +560,17 @@ test('REG-2: the coordinator files a TYPED registro with an assignee', async ({ 
   await expect(
     card.getByRole('button', { name: `Responsável pelo registro ${REG_TITLE}` }),
   ).toContainText('Enfermeiro CCIH Um')
-  // Rule 7 / amendment A11: the body is stored VERBATIM and sanitized only at render,
-  // through MarkdownRenderer — so `**markdown**` must arrive as a <strong>, which is
-  // the observable proof the body took the renderer path and not a bare-text one.
-  await expect(card.locator('strong')).toHaveText('markdown')
+  // ⚠ 87cd1ddb REVERSED this claim, deliberately (commit bullet 1): "Registros
+  // internos" is now PLAIN TEXT end to end — the Markdown editor and
+  // MarkdownRenderer are GONE from this surface. The body is interpolated as a React
+  // text child with `whitespace-pre-wrap`, which ESCAPES it, so `**markdown**` must
+  // now arrive LITERALLY (asterisks and all) rather than parsed into a `<strong>`.
+  // Rule 7 (stored-XSS) is satisfied by a DIFFERENT mechanism than before — nothing
+  // on this path parses the body as markup at all, which the render-path proof below
+  // now inverts to match: the literal syntax stays inert text, and no `<strong>`
+  // element is ever created from it.
+  await expect(card.getByText(REG_BODY)).toBeVisible()
+  await expect(card.locator('strong')).toHaveCount(0)
 })
 
 test('REG-3: the ASSIGNEE (not a coordinator) may edit the registro body', async ({ page }) => {
@@ -545,8 +584,26 @@ test('REG-3: the ASSIGNEE (not a coordinator) may edit the registro body', async
   await expect(card.getByRole('button', { name: /^Atribuir$/ })).toHaveCount(0)
   // …but the assignee arm of the edit gate is hers.
   await card.getByRole('button', { name: `Editar o registro ${REG_TITLE}` }).click()
-  await card.getByLabel('Registro', { exact: true }).fill(REG_BODY_EDITED)
-  await card.getByRole('button', { name: 'Salvar' }).click()
+  // ⚠ 87cd1ddb: "Editar" no longer expands an inline form inside the card's own `<li>`
+  // — it opens `ReferralRegistroDialog` (mode="edit"), which Radix renders through a
+  // PORTAL appended outside this subtree. A `card`-scoped locator for the form fields
+  // or the "Salvar" button now matches ZERO elements; both must be scoped to the
+  // dialog instead. The body label is "Descrição" (renamed from "Registro" in the
+  // same commit); "Salvar" (edit mode) is unchanged.
+  //
+  // ⚠ `{ exact: true }` fails here specifically (though it works for the CREATE-mode
+  // composer elsewhere in this file) — proven live: the EDIT dialog pre-fills the
+  // textarea with the registro's EXISTING body, and a wrapping `<label>`'s computed
+  // accessible name folds in that pre-filled text too (the same class of issue as the
+  // `NativeSelect` option-folding above, but keyed on the field being non-empty, not
+  // on the element type). `/^Descrição/` anchors on the one field this scope has,
+  // regardless of what its current value folds in.
+  const editDialog = page.getByRole('dialog')
+  await expect(editDialog).toBeVisible()
+  await expect(editDialog.getByRole('heading', { name: 'Editar registro' })).toBeVisible()
+  await editDialog.getByLabel(/^Descrição/).fill(REG_BODY_EDITED)
+  await editDialog.getByRole('button', { name: 'Salvar' }).click()
+  await expect(editDialog).toBeHidden({ timeout: 15_000 })
 
   await expect(card.getByText(REG_BODY_EDITED)).toBeVisible({ timeout: 15_000 })
   await expect(card.getByText(REG_BODY)).toHaveCount(0)
@@ -622,7 +679,8 @@ test('REG-6: K-R5-1 — the OTHER committee sees none of it (title, body or type
   // The kinds are platform-wide, so the other side's picker offers the SAME six —
   // the mirror of REG-1, proving the vocabulary does not vary by commission.
   await page.getByRole('button', { name: 'Adicionar registro' }).click()
-  const tipo = registroForm(page).getByLabel('Tipo', { exact: true })
+  // Same `{ exact: true }` fold as REG-1 — see its comment.
+  const tipo = registroForm(page).getByLabel(/^Tipo/)
   await expect(tipo).toBeVisible()
   await expect(tipo.getByRole('option')).toHaveText([
     'Nota',
@@ -648,21 +706,34 @@ test('DET-1: the Detalhes card carries every fact the header shed, with real val
   await expect(details).toBeVisible({ timeout: 15_000 })
 
   await expect(detailsRow(page, 'De')).toContainText(COMM_A_NAME)
-  await expect(detailsRow(page, 'Para')).toContainText(COMM_B_NAME)
   // A10 — the requested action kept a home here after the header chip tail was cut.
   await expect(detailsRow(page, 'Ação solicitada')).toContainText(requestedAction.label)
   await expect(detailsRow(page, 'Status')).toContainText('Em análise')
   await expect(detailsRow(page, 'Criado')).toContainText('por Chefe CCIH')
   await expect(detailsRow(page, 'Criado')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
-  await expect(detailsRow(page, 'Enviado')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
-  await expect(detailsRow(page, 'Recebido')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
+  // ⚠ 87cd1ddb trimmed this card to EXACTLY De / Ação solicitada / Prioridade /
+  // Criado / Prazo de resposta / Status — "Para" and the Enviado/Recebido/Decidido/
+  // Concluído/Retirado timestamp rows are GONE from the component entirely (not
+  // conditionally hidden for THIS referral; the card no longer renders them for ANY
+  // referral). Every one of those moments is now narrated instead by the Diálogo's
+  // synthesized system rows (EVT-1 proves that surface), so this card-focused test no
+  // longer asserts on them here.
 
   // Null rows are HIDDEN outright rather than rendered as an em dash: this referral
-  // was never concluded/withdrawn/declined, and carries no deadline.
-  await expect(details.getByText('Concluído', { exact: true })).toHaveCount(0)
-  await expect(details.getByText('Retirado', { exact: true })).toHaveCount(0)
+  // was never concluded/withdrawn/declined or declined.
   await expect(details.getByText('Motivo da recusa', { exact: true })).toHaveCount(0)
-  await expect(details.getByText('Prazo de resposta', { exact: true })).toHaveCount(0)
+
+  // ⚠ 87cd1ddb: the deadline row now survives an EMPTY deadline whenever the VIEWER
+  // may set one — "otherwise 'Definir prazo' would have nowhere to live for the
+  // referral that most needs it" (`referral-details-card.tsx`). chefe.ccih is the
+  // SOURCE coordinator and regReferralId is `in_review` (a deadline-editable status
+  // — `deadline-gate.ts`), so `canSetDeadline` is true here: the row renders with
+  // "Sem prazo definido" plus the "Definir prazo" control, rather than being hidden.
+  // The pre-87cd1ddb "hidden because no value" premise only held when the row was
+  // keyed on the value alone.
+  await expect(details.getByText('Prazo de resposta', { exact: true })).toBeVisible()
+  await expect(detailsRow(page, 'Prazo de resposta')).toContainText('Sem prazo definido')
+  await expect(details.getByRole('button', { name: /definir prazo/i })).toBeVisible()
 
   // D1: the header keeps ONLY the code, subject and the Status + Type chips — the
   // facts above must NOT be duplicated back into it.
@@ -685,7 +756,9 @@ test('DET-2: a REJECTED referral shows "Motivo da recusa" in the card, PHI note 
   // "Motivo da recusa: <value>" shape cannot be reused.
   await expect(details.getByText('Motivo da recusa', { exact: true })).toBeVisible()
   await expect(detailsRow(page, 'Motivo da recusa')).toContainText('Informações insuficientes')
-  await expect(detailsRow(page, 'Decidido')).toContainText(/\d{2}\/\d{2}\/\d{4}/)
+  // ⚠ 87cd1ddb removed the "Decidido" row from this card along with the rest of the
+  // lifecycle-timestamp ledger (see DET-1) — the decline's timestamp is now carried
+  // only by the Diálogo's synthesized "decided_declined" event row, not here.
 
   // The structured reason is PHI-free and travels; the decline NOTE does not.
   expect(await page.content()).not.toContain('Observação PHI-gated da recusa')
@@ -699,10 +772,11 @@ test('DET-3: BOTH sides render side-correct content (the side-derivation regress
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${regReferralId}`)
   await expect(detailsCard(page)).toBeVisible({ timeout: 15_000 })
 
-  // "De"/"Para" are ABSOLUTE facts — identical on both sides, never relative to the
-  // viewer.
+  // "De" is an ABSOLUTE fact — identical on both sides, never relative to the viewer.
+  // ⚠ 87cd1ddb removed "Para" from this card entirely (see DET-1) — it is no longer
+  // assertable here on either side; the destination now surfaces only via the
+  // Diálogo's "Encaminhado para" event row (EVT-1 covers that surface).
   await expect(detailsRow(page, 'De')).toContainText(COMM_A_NAME)
-  await expect(detailsRow(page, 'Para')).toContainText(COMM_B_NAME)
 
   // The CASE CARD is what is side-derived (A12): the sending side is not "reviewing"
   // its own case, so it reads "Caso de origem" and shows its originating case.
@@ -715,7 +789,6 @@ test('DET-3: BOTH sides render side-correct content (the side-derivation regress
   await expect(detailsCard(page)).toBeVisible({ timeout: 15_000 })
 
   await expect(detailsRow(page, 'De')).toContainText(COMM_A_NAME)
-  await expect(detailsRow(page, 'Para')).toContainText(COMM_B_NAME)
 
   const targetCard = page.getByRole('region', { name: 'Caso em análise' })
   await expect(targetCard).toBeVisible()
@@ -723,11 +796,18 @@ test('DET-3: BOTH sides render side-correct content (the side-derivation regress
   // No case linked yet → the empty state points at the real control instead of
   // duplicating it.
   await expect(targetCard.getByText('Nenhum caso vinculado ainda.')).toBeVisible()
-  await expect(targetCard.getByText(/Vincular caso/)).toBeVisible()
+  // ⚠ 87cd1ddb moved "Vincular caso" FROM "Ações" INTO this very card's header (so the
+  // act of linking sits on the card that shows the link). The empty-state hint text
+  // below ALSO says '...Use "Vincular caso" para associar...', so a bare
+  // `getByText(/Vincular caso/)` now strict-mode-violates on 2 matches (the hint
+  // paragraph AND the button) — a collision this refactor introduced by putting the
+  // control where the hint used to stand alone. Scope to the BUTTON role, which the
+  // hint paragraph's `<p>` does not carry.
+  await expect(targetCard.getByRole('button', { name: 'Vincular caso' })).toBeVisible()
   await expect(targetCard.getByRole('link', { name: 'Abrir registro do caso' })).toHaveCount(0)
 })
 
-test('DET-4: a technical-direction referral composes "Para" and shows no target case card', async ({
+test('DET-4: a technical-direction referral composes its destination and shows no target case card', async ({
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
@@ -736,9 +816,15 @@ test('DET-4: a technical-direction referral composes "Para" and shows no target 
   const details = detailsCard(page)
   await expect(details).toBeVisible({ timeout: 15_000 })
   await expect(detailsRow(page, 'De')).toContainText(COMM_A_NAME)
-  // `target_commission_id` is NULL on an ADR 0094 W4 referral — "Para" reads the
-  // query layer's composed Diretor Técnico name and never dereferences the id.
-  await expect(detailsRow(page, 'Para')).toContainText(/Direção Técnica/)
+  // ⚠ 87cd1ddb removed "Para" from the Detalhes card entirely (see DET-1).
+  // `target_commission_id` is NULL on an ADR 0094 W4 referral; the query layer's
+  // composed Diretor Técnico name (never a dereference of the null id — see
+  // `src/lib/queries/referrals.ts`) now surfaces only through the Diálogo's
+  // synthesized "sent" event ("Encaminhado para …" — `thread-events.ts`'s
+  // `targetName` ← `targetCommissionName`, `referral-thread-event.tsx`'s `describe`).
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 15_000 })
+  await expect(thread.locator('li[data-thread-event="sent"]')).toContainText(/Direção Técnica/)
 
   await expect(page.getByRole('region', { name: 'Caso de origem' })).toBeVisible()
   await expect(page.getByRole('region', { name: 'Caso em análise' })).toHaveCount(0)
