@@ -7,6 +7,39 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## ⚠ INCIDENT during S2 verification — an authz gate was LIVE-OPEN on the shared stack (2026-08-14)
+
+**Anyone auditing S2's results needs this window.** `app.can_write_document` — the gate for **every**
+document write across all eight home types — sat live with the body `begin return true; end` (an
+**unconditional allow**) on the shared local stack, for an interval whose only lower bound is a
+`pg_get_functiondef` capture at **17:28**. ⚠ **`pg_proc` carries no mtime**, so the window cannot be
+dated from the catalog; **any document-write-path result produced in it must be RE-RUN, not re-read.**
+
+**Cause: a LEAD instruction.** I told a backend teammate to *"neutralize `can_write_document` and
+confirm your keystone block goes red"* **without saying transactionally**, on a stack two other
+teammates were live on. Not a product defect — the migration `20260927000160` is correct and its own
+self-verifying `DO` block passed at apply time. Full analysis + the structural fix:
+**FUP-AUTHZ-HARNESS-TRANSACTIONAL** in [follow-ups.md](./follow-ups.md).
+
+**Caught by `tester`, which verified its environment BEFORE executing an agreed plan** — everything it
+was about to run would have gone **green while proving nothing**, a false all-clear on the exact defect
+class this slice exists to close. It also **declined to hand-patch** the function despite having the
+correct body in front of it, because a second actor was mid-run.
+
+**Resolution, verified independently by three parties** (backend-assurance's differential, the lead's
+catalog sweep, `tester`'s own re-probe — each measured rather than relayed):
+`degenerate_bodies 0 · has_rca_arm t · has_capa_arm t · still_neutralized f · prosecdef t`, and
+`chefe.farm` → `begin_document_upload('rca', …)` → **REFUSED P0002**.
+
+⭐ **Blast radius was bounded by a PROPERTY query, not a name list** — sweep `app`+`public` for any body
+matching `^\s*begin\s+return\s+(true|false)\s*;\s*end`. **Exactly one hit.** ⚠ A left-open gate is
+**invisible to all four §6 authz arms**, because they test doors that *exist*; that query is the only
+thing that sees it.
+⭐ **The rollback was PROVEN before being relied on** — md5 of `pg_get_functiondef` before, gate replaced
+in-txn, probe, `rollback`, re-read: byte-identical, same md5. Postgres DDL is transactional, so a
+rolled-back `CREATE OR REPLACE` leaves no residue — now measured, not assumed
+([[mutation-harness-must-prove-its-rollback-first]]).
+
 ## ⭐ A deliberately uninformative error code is uninformative to the TEST too (S2 `341` F-block)
 
 ADR 0120 D-note: `add_rca_evidence`'s citation arm raises **`HC0D8` for both absence and
