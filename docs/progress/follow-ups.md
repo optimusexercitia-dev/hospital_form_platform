@@ -8,6 +8,36 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🔴 FUP-DM5-STORAGE-ORPHANS — a DB reset wipes `storage.objects` but NOT the bytes, and the Storage API cannot see what it left behind (owner: lead + backend; blocks DM5 step 3)
+
+Filed 2026-08-14 during DM4 planning. Found by `backend`, **independently reproduced by the lead**
+on the local stack — empirical, not inferred.
+
+**The measurement.** `storage.objects` held **0 rows** while the storage backend
+(`STORAGE_BACKEND=file`, `/mnt`) held **663 files / 16.5 MB**, of which **162 are PHI-tier**
+(`printed-documents/phi/*.pdf`, E2E residue). `supabase db reset --local` wipes the metadata and
+**does not touch the bytes**.
+
+**Why this is 🔴 and not a curiosity.** The Storage API **lists from `storage.objects`**. So
+orphaned bytes are invisible **to the API as well as to SQL** — there is no supported read path
+that sees them. DM5 step 3's method is: *"for each bucket, prove zero DB references + zero product
+callers + zero policies, then empty + delete the bucket (Storage API only — never
+`storage.objects` DML)."* Run after any reset, that procedure would **prove emptiness against a
+truncated table, delete nothing, and report success** while PHI-tier bytes persist backend-side.
+⭐ *An emptiness proof derived from a table that was just truncated is not an emptiness proof* —
+the same shape as [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]].
+
+**What DM5 must do instead:** enumerate at the **backend layer**, not the metadata layer — locally
+the volume; remotely whatever the platform exposes for the S3 store — and reconcile that
+enumeration against `storage.objects` in **both** directions before declaring a bucket empty.
+
+**⚠ Remote behaviour is an INFERENCE, explicitly not verified.** Nobody has queried or inspected
+the linked project. The remote reset is also a database-level reset and platform S3 bytes surviving
+it is the same mechanism class, but that **must be verified at deploy time or via vendor docs, never
+assumed from the local finding**. ⚠ Note the remote has never received DM1+, so its bytes include
+the 2026-08-11 production census (45 objects) — **a remote reset would orphan all of them**, which
+is a live input to [[FUP-DM4-PRODROW]]'s deploy decision, not a DM5-only concern.
+
 ### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
 
 Filed 2026-08-14 at DM4 open, as the recorded half of **PO ruling R2**.
