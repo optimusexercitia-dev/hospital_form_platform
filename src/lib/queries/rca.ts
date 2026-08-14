@@ -548,13 +548,22 @@ export async function listRcaCitationTargets(
 /**
  * Evidence rows for an RCA, S2 shape.
  *
- * ⚠ REPLACES {@link listRcaEvidence}. The old projection called
- * `createSignedUrl` for EVERY `document` row while building the list
- * (`openUrl`). Under ADR 0114 D8 bytes resolve one at a time through the
- * audited door, so the list carries `documentId` + `availability` + a
- * server-computed `canOpen`, and the UI calls `openRcaEvidence(id)` on click.
- * Eager signing both widened reach and emitted a read-audit row for files
- * nobody opened.
+ * ⚠ REPLACES {@link listRcaEvidence}, which closes an OVER-BROAD-TTL +
+ * UNAUDITED-MINTING hole (verified by reading the path, not inferred):
+ *   - it mints `createSignedUrl(storage_path, 3600)` for EVERY `document` row
+ *     at list time, on `nsp-evidence` — a private bucket holding patient-safety
+ *     evidence;
+ *   - 3600 s against the PO-ruled tiers of PHI 120 s / standard 300 s
+ *     (ADR 0114 O4, `src/lib/documents/actions.ts:38-41`) — 12x the standard
+ *     window, 30x the PHI window. A signed URL IS a bearer token; that
+ *     asymmetry was ruled deliberately and this path predates it;
+ *   - and it emits NO audit at all. `auditRcaView` (:164) covers the workspace
+ *     DETAIL open, never the evidence-signing path — so nothing records that a
+ *     bearer token was minted for those bytes. That is the Rule 11 gap.
+ *
+ * Under ADR 0114 D8 bytes resolve one at a time through the single audited
+ * door, so the list carries `documentId` + `availability` + a server-computed
+ * `canOpen`, and the UI calls `openRcaEvidence(id)` on click.
  */
 export async function listRcaEvidenceViews(_rcaId: string): Promise<RcaEvidenceView[]> {
   throw new Error('not implemented — DM5 S2')

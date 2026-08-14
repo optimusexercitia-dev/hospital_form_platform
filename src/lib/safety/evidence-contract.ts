@@ -31,9 +31,23 @@
  * 2. **Listing no longer returns a signed URL.** `openUrl` is GONE. The list
  *    projection carries `documentId` + `availability` + a server-computed
  *    `canOpen`, and bytes resolve on demand through the single audited door
- *    (ADR 0114 D8). Eagerly signing every row in a list both leaks reach and
- *    emits a `document.opened` audit row for files nobody opened.
+ *    (ADR 0114 D8).
+ *
+ *    ⚠ What that closes, stated accurately (both paths read, neither inferred —
+ *    `src/lib/queries/rca.ts:249-270` and `src/lib/queries/capa.ts:358-380`):
+ *    an **over-broad-TTL + unaudited-minting** hole, NOT audit pollution. Both
+ *    list paths mint `createSignedUrl(storage_path, 3600)` for every
+ *    `document` row on `nsp-evidence` — a private patient-safety bucket — at
+ *    **3600 s** against the PO-ruled tiers of **PHI 120 s / standard 300 s**
+ *    (ADR 0114 O4; `src/lib/documents/actions.ts:38-41`). That is 12x the
+ *    standard and 30x the PHI window, and a signed URL **is a bearer token**,
+ *    which is precisely why the split was ruled. Neither path emits any audit,
+ *    so nothing records that the token was minted — the Rule 11 gap.
+ *    (`auditRcaView`, `queries/rca.ts:164`, covers the workspace DETAIL open
+ *    only; it never sees the evidence-signing path.)
  */
+
+import type { DocumentUploadCredential } from '@/lib/documents/types'
 
 // ---------------------------------------------------------------------------
 // Failure codes — SQLSTATE-keyed, CODE ALONE, never message text
@@ -113,10 +127,30 @@ export function mapNspEvidenceErrorCode(
   }
 }
 
-/** Uniform result for every S2 evidence command. */
+/**
+ * Uniform result for every S2 evidence command.
+ *
+ * ⚠ `terminal` (amendment 1, `frontend` gap 1) mirrors
+ * `FinalizeDocumentUploadResult` (`src/lib/documents/types.ts:336-346`) and
+ * exists because **the error code cannot discriminate two outcomes** — DM2 QA
+ * r1 MAJOR-3. `upload_incomplete` covers both:
+ *   - no object landed; the reservation is intact and a retry works; and
+ *   - bytes LANDED and failed byte verification, leaving `file_objects` in
+ *     `failed` — a state the D9 machine has **no outbound arc from**, over
+ *     bytes that are immutable — so every retry re-enters the same dead end
+ *     forever.
+ * Without the marker the UI can only guess (retry once, treat a second
+ * consecutive `upload_incomplete` as terminal), which re-opens the closed
+ * defect class whenever landed-and-failed is the common case. Present and
+ * `true` = final for this reservation: offer "remover e enviar novamente",
+ * never "tentar novamente". Absent = retryable.
+ *
+ * Optional rather than a new error code, deliberately: the pt-BR label map
+ * stays closed over `NspEvidenceErrorCode`.
+ */
 export type NspEvidenceActionState =
   | { ok: true }
-  | { ok: false; code: NspEvidenceErrorCode }
+  | { ok: false; code: NspEvidenceErrorCode; terminal?: boolean }
 
 // ---------------------------------------------------------------------------
 // Projections (reads)
@@ -126,12 +160,28 @@ export type NspEvidenceActionState =
  * Servability of the file behind a `document`-kind evidence row, projected from
  * the core upload/scan/disposal state machine. The UI renders a state, never a
  * dead link.
+ *
+ * ⚠ FOUR members, and it must NOT be "harmonized" to five. `DocumentAvailability`
+ * (`src/lib/documents/types.ts`) carries a fifth, `unavailable`, for a
+ * soft-deleted row. Here that member would be **unreachable**, and the reason is
+ * executable rather than intentional: both evidence projections filter the row
+ * out of existence with `.is('deleted_at', null)` —
+ * `src/lib/queries/rca.ts:258` and `src/lib/queries/capa.ts:366` — so a
+ * soft-deleted evidence row never reaches the list to be labelled. The documents
+ * twin has no such filter, which is why it needs the member; that is a
+ * deliberate product difference, not an inconsistency.
+ *
+ * Adding it would mint dead vocabulary that reads as live behaviour — the same
+ * reason `HC0DM` is absent from {@link mapNspEvidenceErrorCode}. Tied here to
+ * the FILTER, not to a claim about intent, because a comment is an assertion
+ * that goes stale silently: if either `.is('deleted_at', null)` is ever removed,
+ * this member becomes reachable and the union must grow in the same change.
  */
 export type NspEvidenceAvailability =
-  | 'available' // clean | unscanned_accepted, not disposed
-  | 'pending' // reserved | uploaded | verifying | scan_pending
-  | 'failed' // failed | abandoned | infected | rejected
-  | 'disposed' // disposal_pending | disposed
+  | 'available' // clean | unscanned_accepted, not disposed — the status quo
+  | 'pending' // reserved | uploaded | verifying | scan_pending  (NEW to this UI)
+  | 'failed' // failed | abandoned | infected | rejected          (NEW to this UI)
+  | 'disposed' // disposal_pending | disposed                     (NEW to this UI)
 
 /**
  * One RCA evidence row, S2 shape.
@@ -193,13 +243,29 @@ export interface NspEvidenceUploadRequest {
   declaredSize: number
 }
 
-/** The reservation. `uploadUrl` is a short-TTL signed PUT target; the bucket and
- *  path behind it are server-derived and never exposed. */
+/**
+ * The reservation. The bucket and path behind the credential are server-derived
+ * and never exposed.
+ *
+ * ⚠ Amendment 1 (`frontend` gap 2): `upload` is the full
+ * `DocumentUploadCredential` (`{ method, url, headers, expiresAt }`), not a
+ * bare URL string. Two reasons, both concrete:
+ *   - the client-safe helper `uploadDocumentFile(credential, file)`
+ *     (`src/lib/documents/upload-client.ts:13`) takes exactly that shape, so a
+ *     bare string forces the UI to reimplement the PUT and hardcode
+ *     `method: 'PUT'` with no headers;
+ *   - a string can never carry a token, `x-upsert`, or content-length if the
+ *     reservation ever needs one — the shape would have to break later.
+ *
+ * `expiresAt` rides INSIDE the credential rather than beside it (the twin's
+ * layout). It is not decoration: at the PO-ruled TTLs of **PHI 120 s** /
+ * standard 300 s (ADR 0114 O4), expiry is routine, and a client that cannot see
+ * it cannot tell "your reservation expired, start again" from "the upload
+ * failed". It is a display/timing input only, never an authorization input.
+ */
 export interface NspEvidenceUploadTicket {
   uploadSessionId: string
-  uploadUrl: string
-  /** Echoed for the client's own progress UI only — NOT an authorization input. */
-  expiresAt: string
+  upload: DocumentUploadCredential
 }
 
 /** Add a `link` evidence row (no bytes, no substrate involvement). */

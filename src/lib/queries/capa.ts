@@ -508,8 +508,16 @@ export async function getCapaKpis(): Promise<CapaKpis> {
 // DM5 S2 CONTRACT — replaces listCapaActionEvidence's eager-signing projection.
 // ---------------------------------------------------------------------------
 
-/** Evidence rows for a CAPA action, S2 shape. ⚠ REPLACES
- *  {@link listCapaActionEvidence}; same eager-signing removal as the RCA side. */
+/**
+ * Evidence rows for a CAPA action, S2 shape.
+ *
+ * ⚠ REPLACES {@link listCapaActionEvidence}. CHECKED INDEPENDENTLY rather than
+ * assumed identical to the RCA sibling — and it is the same defect, verbatim:
+ * `createSignedUrl(storage_path, 3600)` per `document` row on the private
+ * `nsp-evidence` bucket (`:372-375`), against the PO-ruled PHI 120 s /
+ * standard 300 s tiers, with NO audit anywhere in the path. Over-broad TTL +
+ * unaudited minting of a bearer token — not audit pollution.
+ */
 export async function listCapaActionEvidenceViews(
   _actionId: string,
 ): Promise<CapaActionEvidenceView[]> {
