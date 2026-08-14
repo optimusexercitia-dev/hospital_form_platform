@@ -263,7 +263,14 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-### 🔴 BUG-DM5-S2-STUB-1 — the RCA and CAPA NSP workspace pages 500 for EVERY user — the S2 query/action TS layer was never wired to the RPCs (owner: `backend`)
+### 🟢 BUG-DM5-S2-STUB-1 — ✅ **FIXED 2026-08-14** (`cbcabe7a`) — the RCA and CAPA NSP workspace pages 500'd for EVERY user — the S2 query/action TS layer was never wired to the RPCs (owner: `backend`)
+
+> ✅ **Verified by `tester`, independently, not on the fix commit's say-so:** `grep -c "not implemented — DM5
+> S2"` → 0 across `rca-actions.ts` / `capa-actions.ts` / `queries/rca.ts` / `queries/capa.ts`; both
+> `EVID-RCA-UPLOAD-1` and `EVID-CAPA-UPLOAD-1` (new suite, `e2e/dm5-nsp-evidence.spec.ts`) drive a
+> real browser round trip through `NspRcaPage`/`NspCapaPage` end to end; the pre-existing
+> `phase14c-rca.spec.ts` + `phase14d-capa.spec.ts` return to their **exact prior baseline, 36/36**,
+> confirming the page-render regression is gone, not merely worked around.
 
 Filed 2026-08-14 (`tester`, DM5 S2 gate step 2, before writing any new spec — the fixture-vs-defect
 check CLAUDE.md/the spawn brief calls for). Severity: **CRITICAL / phase-blocking** — this is not the
@@ -329,7 +336,21 @@ Wave-A/B/C document corridor against the same RPC family; `e2e/helpers/document-
 matching E2E helpers (`beginUpload`, `finalizeUpload`, `openDocumentVersion`, `createDocumentFixture`)
 this suite reuses once the bodies land.
 
-### 🔴 BUG-DM5-S2-WRITE-ARM-1 — `app.can_write_document` has NO `rca`/`capa_action` case — the write corridor P0002s for EVERY user, independent of BUG-DM5-S2-STUB-1 (owner: `backend`)
+### 🟢 BUG-DM5-S2-WRITE-ARM-1 — ✅ **FIXED 2026-08-14** (`fc7a146d`, migration `20260927000160_dm5_s2_write_arm_nsp.sql`) — `app.can_write_document` had NO `rca`/`capa_action` case — the write corridor P0002'd for EVERY user, independent of BUG-DM5-S2-STUB-1 (owner: `backend`)
+
+> ✅ **Verified by `tester` — ONE clean confirmation, not two.** My first post-"fixes landed" probe
+> (`chefe.farm@test.local` / `staff1.farm@test.local` / `nspcoord.a@test.local` all **ACCEPTED**) is
+> **NOT valid evidence for this fix** — it is entangled with a separate, same-stack incident: a
+> lead-run mutation-testing harness had transactionlessly neutralized this exact function minutes
+> earlier (`app.can_write_document` → unconditional `return true`), and that probe caught the
+> neutralization, not the fix. Recorded here only as provenance for that incident, corrected after the
+> fact so it does not read as a fix check. **The clean confirmation is the probe run AFTER the harness
+> restored the function**: `chefe.farm@test.local` — zero relationship to the RCA — gets `500 P0002` on
+> `begin_document_upload('rca', …)`; `prosrc` diffed against the migration's intended body (both arms
+> present, zero `return true` residue); registry 399==399; siblings
+> `can_write_rca`/`can_write_capa`/`can_read_document` all non-degenerate. `EVID-RCA-UPLOAD-1` /
+> `EVID-CAPA-UPLOAD-1` completing the real corridor end to end is independent, clean confirmation on
+> top of that.
 
 Filed 2026-08-14 (`tester`). Severity: **CRITICAL** — a distinct root cause from BUG-DM5-S2-STUB-1,
 one layer deeper: even a hand-written `beginRcaEvidenceUpload`/`beginCapaEvidenceUpload` that calls
@@ -374,7 +395,17 @@ p_uid)` / `when 'capa_action' then app.can_write_capa(v_resource, p_uid)` arms (
 the existing read-arm pattern in `can_read_document`; verify the actual write-authority function names
 against the catalog, not this line).
 
-### 🟠 BUG-DM5-S2-CITATION-TARGETS-1 — the RCA citation picker never offers a DOCUMENT target — `listRcaCitationTargets` was never updated when the seam was un-parked (owner: `backend`)
+### 🟢 BUG-DM5-S2-CITATION-TARGETS-1 — ✅ **FIXED 2026-08-14** (`e307a979`) — the RCA citation picker never offered a DOCUMENT target — `listRcaCitationTargets` was never updated when the seam was un-parked (owner: `backend`)
+
+> ✅ **Verified by `tester` by reading the landed function** (source, not the commit message):
+> `listRcaCitationTargets` now queries `documents` scoped to the event's case
+> (`securable_resources.resource_type = 'case'`, `status = 'active'`), RLS-bounded rather than
+> hand-filtered — a real, offerable document candidate as of this fix. **Still not UI-tested**, for a
+> reason now confirmed to be entirely orthogonal to this bug: the fix is scoped by the event's
+> `case_id`, and the ONLY seeded RCA's event (EV-0003) has `case_id = NULL` — of the five seeded
+> events only EV-0001 carries one, and no RCA is seeded against it. No RPC exists to backfill an
+> event's `case_id`. This is a pre-existing fixture gap, not a residual defect; see the citation-scope
+> comment in `e2e/dm5-nsp-evidence.spec.ts`.
 
 Filed 2026-08-14 (`tester`). Severity: **MAJOR** — narrower than the two bugs above (citation is one of
 three evidence kinds, and link/interview/meeting citation are unaffected), but it directly blocks one
@@ -573,6 +604,7 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 | 2026-08-13 | **DM3 Wave B · TESTER · quick-loop, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod`. 5 specs re-pointed onto the core model + new `dm3-wave-b-documents.spec.ts` | **GREEN — 47 collected / 47 ran / 47 passed / 0 skipped.** ⭐ Byte round trip proven (`Buffer.compare === 0`; derivation proven by declaring a lie at `begin`). **No bug filed — no application defect**: all 9 baseline reds tester-owned. Detail: [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md) |
 | 2026-08-14 | **DM5 S2 · TESTER · pre-check, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod` — a targeted re-run of the PRE-EXISTING `phase14c-rca.spec.ts` + `phase14d-capa.spec.ts` regression suite, before writing any new DM5 upload/keyboard/availability specs, to establish whether the fixture/app is in the state the task brief described | **RED — 4 failed / 16 did-not-run (serial-mode cascade from `phase14c-rca.spec.ts` R1) / 16 passed.** Root cause: **BUG-DM5-S2-STUB-1** (Bug Log) — `listRcaEvidenceViews`/`listCapaActionEvidenceViews` and every S2 write action still `throw new Error('not implemented — DM5 S2')`; both NSP workspace pages render only the top-level error boundary for every persona. R1/C1/C17/C18 (all `page.goto`-based) fail directly; phase14c's 16 remaining tests never ran because the file is `test.describe.configure({mode:'serial'})` and R1 failing first cascades — **not** independent evidence that each of the 16 is individually broken. C2–C16 (RPC-only, no `page.goto`) all still pass. **Blocks DM5 S2 gate step 2 entirely** — reported to lead before any new spec-writing |
 | 2026-08-14 | **DM5 S2 · TESTER · new spec, chromium, `--workers=1`, fresh reset.** ⚠ NOT `e2e:prod`. New `e2e/dm5-nsp-evidence.spec.ts` (8 tests) — covers all four gate-step-2 items (upload-kind E2E for RCA+CAPA, the keyboard-only begin→PUT→finalize flow, the 3 non-`available` availability states, link regression) against the real shipped component contracts, written to be ready the moment backend lands the fixes | **RED — 8/8 failed, cleanly split into TWO expected, distinct failure modes — no spec bug, no flake, no timeout ambiguity.** 5 UI-driven tests (upload ×2, keyboard, link ×2) fail fast (~1–2s) at page render: `BUG-DM5-S2-STUB-1`. 3 fixture-setup tests (the availability states, which build their fixture via the real `begin_document_upload` RPC directly, bypassing the still-stubbed TS layer) fail even faster (~170ms) with the SQL layer's own `500 P0002 "recurso não encontrado"` — a THIRD, independent, deeper defect found while writing this suite: **BUG-DM5-S2-WRITE-ARM-1** (`app.can_write_document` has no `rca`/`capa_action` case; confirmed empirically for 3 personas, not just read from source). A FOURTH, source-verified defect (**BUG-DM5-S2-CITATION-TARGETS-1** — the RCA citation picker can never offer a `document` target) blocks item 4's citation-regression half; not UI-tested (see the spec file's citation-scope comment — the only seeded RCA's event carries no `case_id`, a pre-existing, unrelated fixture gap no RPC can repair). All four bugs filed in the Bug Log with full repro. **No bug filed against the spec file itself** — every red traces to one of the four named defects, none to a fixture or locator mistake in this suite |
+| 2026-08-14 | **DM5 S2 · TESTER · GREEN re-run, chromium, `--workers=1`, freshly-reset stack, all 3 fixes landed + independently re-verified.** ⚠ NOT `e2e:prod` — quick-loop per the fix-loop protocol. `e2e/dm5-nsp-evidence.spec.ts` rebuilt against the landed implementation: the `pending` E2E claim RETIRED (mapping now pinned exhaustively by `evidence-contract.test.ts`'s 30 vitest assertions, read and confirmed by `tester`, not merely trusted); `EVID-RCA-AVAIL-UNAVAILABLE-1` added (the reinstated 5th state, contrasted with `disposed` per the lead's ask); a `page.route()` terminal-failure companion was attempted twice and RETIRED with a measured reason (the fault-injection point sits between two server-to-Supabase calls inside one Next.js server action, invisible to any browser-network-layer interception — see the spec's retirement comment) rather than forced; two real locator bugs found and fixed (`li` matched both a CAPA action card and its nested evidence row — `li.animate-rise-in` scopes correctly) | **GREEN — 8/8 passed.** Byte round trips proven both ways (RCA + CAPA, `Buffer.compare === 0`); BUG-DM5-CAPA-1's fix validated through the UI, not only the RPC on which it was originally proven; keyboard-only begin→PUT→finalize→open proven end to end; `unavailable` proven distinct from `disposed` (remove offered vs. not). **Pre-existing suite diffed against its PRIOR baseline, not "green"** (`phase14c-rca.spec.ts` + `phase14d-capa.spec.ts`): **36/36 passed — exact match, zero delta**. No bug filed against this run. Residual, reported not silently closed: the live in-dialog terminal-failure UX (`EvidenceUploadDialog`'s `terminal` branch, DM2 QA r1 MAJOR-3) remains unexercised by any test in this repo — the fixture-built `EVID-CAPA-AVAIL-FAILED-1` covers the list-rendering side only. Citation-document-target regression not UI-tested — orthogonal pre-existing fixture gap (see BUG-DM5-S2-CITATION-TARGETS-1) |
 
 ## QA Verdicts
 
