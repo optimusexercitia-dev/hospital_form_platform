@@ -8,6 +8,29 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟡 FUP-ACL-APP-POPULATION — no population assertion covers the **`app`** schema; its half is an 8-name allowlist (owner: backend)
+
+Filed 2026-08-14 (lead) while verifying S3's `DROP`+`CREATE` PUBLIC-EXECUTE find. **Defence-in-depth,
+not a leak path** — `config.toml` exposes only `public`, so an `app` function with PUBLIC EXECUTE is
+not PostgREST-reachable. Recorded because the mechanism has now fired **three times** (TV, DM5·S2,
+DM5·S3) and the `app` side has no generic net.
+
+- `100_dashboard` **t19** — *"no FIRST-PARTY public function is anon-executable"* — is bounded by
+  `nspname = 'public'`. Correct and well-built (it has control **t19c** proving the detector moves
+  0→1, and it uses `has_function_privilege`, which **resolves** a default ACL).
+- `320:170-180` — the only `app`-side check — is bounded by **8 hard-coded function names**. That is
+  the "remembered-doors allowlist" that [[guards-that-read-right-but-fail-open]] itself warns is blind
+  in precisely the case that matters, and a new `app` DEFINER door (e.g. S3's
+  `app.resolve_document_version_bytes`, on a PHI byte path) inherits no coverage from it.
+
+**Fix:** generalize `320`'s uniformity assertion from the 8 names to **all `app` functions**, keeping
+its existing `p.proacl is null or exists(… grantee = 0)` shape (⚠ that `is null` arm is load-bearing —
+`aclexplode(NULL)` returns **no rows**, so dropping it makes the check blind to exactly the default-ACL
+case it exists for). Give it a **control** in t19c's style, and expect the first run to be **RED with a
+list** — `app` almost certainly holds legitimate PUBLIC-executable helpers, and the real work is
+triaging that list, not writing the query. Pair with the over-revoke twin (`authenticated`/`postgres`
+retain EXECUTE) or a fix that over-reaches will pass the security half while breaking the app.
+
 ### 🟠 FUP-DM5-SIBLING-GUARD-DIFF — **no authz arm can see a door that OMITS a check its sibling doors all make** (owner: lead + backend; a gate-coverage gap, not a defect)
 
 Filed 2026-08-14 (lead) on confirming **BUG-DM5-S3-INACTIVE-PRINT-1** (PROGRESS.md).
