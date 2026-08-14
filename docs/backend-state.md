@@ -127,7 +127,12 @@ for case / meeting / interview / action-item homes. ⛔ On branch `docs/dm1-plan
 `documents_foundation` + `documents_wave_a` ON for local/E2E only).
 
 **Three things to know before touching this surface:**
-1. **`open_document_version` is the byte boundary, and it is in NO authz arm's domain** — it
+1. **`open_document_version` is the byte boundary, and it is in no BLINDNESS-DETECTING arm's
+   domain** — ⚠ *corrected 2026-08-13 (DM3 QA MINOR-1, lead-verified from the catalog): the
+   earlier wording "in NO authz arm's domain" is **measurably false**. `ARM=floor`'s domain is
+   every `public` `prosecdef` function EXECUTE-able by `authenticated` — **411 signatures** —
+   and it contains this door. But ARM 2 asks only whether a door is **called**, never whether
+   anything **notices when it is opened**, so the substantive point is unchanged.* It
    returns `jsonb`, and every arm bounds itself on `prosecdef` boolean / `proretset` /
    invoker-wrapper shapes. That is ADR 0118 **§12**'s standing blind spot (536 pre-existing
    functions share the class), not a DM2 regression. Its assurance is pgTAP `329` P0a–P0f +
