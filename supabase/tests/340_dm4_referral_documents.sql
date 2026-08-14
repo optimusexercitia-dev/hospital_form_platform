@@ -28,7 +28,7 @@
 -- all together (dm4-referral-doors-matrix.sh N10a/N10b).
 -- =============================================================================
 begin;
-select plan(72);
+select plan(74);
 
 -- ---------------------------------------------------------------------------
 -- Preconditions (fixture-flag-gaps: assert flags, never assume the seed)
@@ -656,6 +656,23 @@ select is(
            ->'reply'->'reply_documents'->0->>'can_open')),
   'true',
   'E3b ⭐ …and the SAME row carries can_open=true for the PHI-tier reader (the pair that keeps E3a non-vacuous)');
+select set_config('request.jwt.claims', '', true);
+
+-- E4 — the STANDALONE list door (ARM=floor caught it uncalled — this is its
+-- driving keystone, same D9 position as E3: metadata-tier rows, truthful
+-- can_open, denial ≡ empty).
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000006'::uuid, false);
+select is(
+  (select public.list_referral_reply_documents('efa00000-0000-0000-0000-0000000000a1')
+          ->0->>'can_open'),
+  'false',
+  'E4a ⭐ list_referral_reply_documents serves the metadata-tier reader the row with can_open=false');
+select set_config('request.jwt.claims', '', true);
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0'::uuid, true);
+select is(
+  (select public.list_referral_reply_documents('efa00000-0000-0000-0000-0000000000a1')::text),
+  '[]',
+  'E4b ⭐ …and a reader with NO referral standing (platform_admin — the noun rule) gets the empty array (denial ≡ empty)');
 select set_config('request.jwt.claims', '', true);
 
 -- =============================================================================
