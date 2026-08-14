@@ -12,13 +12,18 @@
 -- ⛔ §7.7 — a NARROWING passes its negative BY CONSTRUCTION, so the POSITIVE TWIN is
 -- the review: every deny is paired with the legitimate principal that MUST still pass
 -- (a clean coordinator still grants/creates).
--- ⚠ DM4 (lead-ruled 2026-08-14): the referral-snapshot storage arm and its
--- `can_read_snapshot_document` predicate were RETIRED with the F-14 signer. Their
--- twin did not vanish — it MOVED: pgTAP 340 C10a (PHI reader served), C11b
--- (metadata reader denied), C11d (the B-side recipient reads via the new audited
--- door), D4a (this boundary is dead), 325 t4/t5. The ③ zero-counts below are
--- POSITIVE-CONTROL-PAIRED (③CTL) because a zero-count over a mistyped predicate
--- passes silently forever.
+-- ⚠ DM4 (lead-ruled 2026-08-14; wording corrected at QA r1 MAJOR-2): the
+-- referral-snapshot storage arm and its `can_read_snapshot_document` predicate
+-- were RETIRED with the F-14 signer. The twin's POLARITY (over-narrowing must
+-- be DETECTED) moved to pgTAP 340 **C11d** — the B-side recipient reading via
+-- the new audited door — proven able to fail by the matrix's NARROWING cases
+-- (dm4-referral-doors-matrix.sh N14a: gate narrowed to source-only ⇒ C11d
+-- red while C10a stays green, measured; N14b: welded shut ⇒ every serve-half
+-- red). C10a is the SOURCE-side serve (N14b-covered), C11b the deny half
+-- (N10b-covered), and D4a/325-t4 are retirement pins — catalog assertions, a
+-- different category from mutation coverage. The ③ zero-counts below are
+-- POSITIVE-CONTROL-PAIRED (③CTL) because a zero-count over a mistyped
+-- predicate passes silently forever.
 --
 -- ⛔ §7.1 trap #3 — THE FIXTURE IS THE TRAP. No seeded persona is both EXCLUDED and
 -- AUTHORIZED, so an exclusion keystone on a seeded coordinator would die on authority
@@ -221,13 +226,16 @@ select is((select count(*)::int from storage.objects
   0, '③c case-documents: even a CLEAN member reads 0 — the bucket serves nobody (DM4)');
 reset role;
 
--- ③ TWIN — RETIRED BY DM4 (lead-ruled): the byte corridor moved off this
--- bucket entirely. Successors, each live: 340 C10a (PHI reader served by
--- open_referral_snapshot_document) · C11b (metadata reader gets nothing) ·
--- C11d (the B-side recipient reads — THIS twin's direct heir) · D4a (the
--- old boundary is dead) · 325 t4/t5. The u1 mutation harness dropped its two
--- case-documents injections in the same change (they ALTERed a policy that
--- no longer exists — a mutation that cannot mutate reports success).
+-- ③ TWIN — RETIRED BY DM4 (lead-ruled; coverage claim corrected at QA r1
+-- MAJOR-2): the byte corridor moved off this bucket entirely. The direct heir
+-- of THIS twin's polarity is 340 **C11d** (the B-side recipient reads via the
+-- new audited door), proven able to fail by the matrix NARROWING cases N14a
+-- (source-only gate ⇒ C11d red, C10a measured-green) + N14b (welded shut).
+-- C10a is the source-side serve (N14b), C11b the deny half (N10b), and
+-- D4a/325-t4 are retirement pins (catalog assertions — not mutation
+-- coverage). The u1 mutation harness dropped its two case-documents
+-- injections in the same change (they ALTERed a policy that no longer
+-- exists — a mutation that cannot mutate reports success).
 
 -- Close-flow note (the lead's twin): close_case / the case-content RPCs are NOT touched
 -- by this unit; the two doors this unit guards (grant, create_interview) are proven above

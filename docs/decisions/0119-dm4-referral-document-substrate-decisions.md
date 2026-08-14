@@ -143,16 +143,25 @@ ruling time: nothing read `metadata` on this verb (catalog + repo).
 - Rows in `referral_shared_item`/`referral_reply_attachment` were guarded by RLS
   having no write policies, NOT by absent grants (`authenticated=arwdDxtm` on
   both) — the keystone suite now pins zero-write-policies explicitly.
-- ⭐ **A door may have more than one lock — neutralizing one and observing no
-  leak proves NOTHING about that lock** (matrix finding N10a, beside the
-  standing "a neutralization is valid only for its class" rule). Opening
-  `open_referral_snapshot_document`'s PHI gate alone leaked nothing, because
-  `log_audit_access` carries its OWN authorization and raised. A single-lock
-  neutralization would have reported "gate not load-bearing" — a false
-  negative that reads exactly like a clean result. The matrix proves each lock
-  alone (N10a: the audit raise IS the red) and both together (N10b: the
-  assertions flip). Corollary from the same session: **the matrix's own first
-  control went green having run nothing** (pgTAP absent → every case aborted →
-  zero `not ok` lines read as success); the committed harness now preflights
-  and fails loudly — the vacuity class bites inside the tools built to detect
-  it.
+- ⭐ **A guard may be APPLIED at more than one point — neutralizing one
+  application and observing no leak proves NOTHING about that application**
+  (matrix finding N10a; *corrected at QA r1 MINOR-2*: the first record called
+  this "two independent locks", which overstated it — `_audit_access_authorized`'s
+  `referral.viewed` arm is `can_read_referral_phi`, i.e. the SAME predicate
+  applied twice, in the door and in the audit registry). Opening the door's
+  own gate alone leaked nothing because the second application raised; a
+  single-application neutralization would have reported "gate not
+  load-bearing" — a false negative that reads exactly like a clean result.
+  The matrix bypasses each application alone (N10a: the registry raise IS the
+  red — it proves the audit layer refuses, nothing about the door's gate) and
+  both together (N10b: the deny assertions flip). Do not upgrade a second
+  application into an "independent lock" without reading its predicate.
+  Corollary from the same session: **the matrix's own first control went
+  green having run nothing** (pgTAP absent → every case aborted → zero
+  `not ok` lines read as success); the committed harness now preflights and
+  fails loudly — the vacuity class bites inside the tools built to detect it.
+  Second corollary, from QA r1 MAJOR-1: **M5's body rewrite orphaned the
+  matrix's own N10b needle** ("a rename orphans a name-keyed verdict" —
+  `prosrc` does not follow a rewrite), in the same commit whose message cited
+  that lesson; every matrix mutation now carries a no-match guard that RAISES,
+  and a matrix verdict is only citable with the HEAD it was measured at.

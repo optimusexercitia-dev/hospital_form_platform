@@ -20,12 +20,17 @@
 -- unruled census blind class: ARM=census/hat/floor/wrapper pass for this file's
 -- surface NO MATTER WHAT. This file (+ the matrix) is the evidence.
 --
--- ⭐ MULTI-LOCK RULE (matrix finding N10a — read this before "proving" a gate
--- is not load-bearing): a door may carry MORE THAN ONE lock. Opening the
--- snapshot door's PHI gate alone leaks nothing — log_audit_access has its own
--- authorization and raises — so a single-lock neutralization that observes
--- "no leak" proves nothing about that lock. Neutralize each lock alone AND
--- all together (dm4-referral-doors-matrix.sh N10a/N10b).
+-- ⭐ MULTI-APPLICATION RULE (matrix finding N10a; wording corrected at QA r1
+-- MINOR-2 — read this before "proving" a gate is not load-bearing): a guard
+-- may be APPLIED at more than one point. Opening the snapshot door's PHI gate
+-- alone leaks nothing — log_audit_access's referral.viewed registry arm
+-- re-checks the SAME can_read_referral_phi predicate and raises. That is one
+-- predicate applied twice, NOT two independent locks; bypassing one
+-- application proves nothing about the other, and observing "no leak" after
+-- a single-application bypass proves nothing at all. Bypass each application
+-- alone AND both together (dm4-referral-doors-matrix.sh N10a/N10b), and
+-- prove the door can OVER-NARROW too (N14a/N14b — the positive-twin
+-- polarity).
 -- =============================================================================
 begin;
 select plan(76);

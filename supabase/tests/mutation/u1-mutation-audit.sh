@@ -134,10 +134,22 @@ run_case "revert_interview_insert_policy -> direct-table DENY" \
 # (restore_casedoc_member, drop_snapshot_arm) were REMOVED — they ALTERed the
 # policy `case_documents_select_member`, which migration 20260926000400 dropped
 # with the F-14 boundary. A mutation that cannot mutate is worse than absent:
-# it reports success. Their keystones' successors live in pgTAP 340
-# (C10a/C11b/C11d/D4a) and are matrix-covered by
-# dm4-referral-doors-matrix.sh (N10a/N10b/N11). The harness was RE-PROVEN
-# after this edit: the surviving interview-attachments leak injection RED.
+# it reports success.
+# Successor coverage, stated EXACTLY (corrected at QA r1 MAJOR-2 — the first
+# version of this note claimed matrix coverage that did not exist):
+#   - drop_snapshot_arm's POLARITY (over-narrowing detected by the positive
+#     twin) → 340 C11d (the B-side recipient reads via the new door), proven
+#     able to fail by dm4-referral-doors-matrix.sh N14a (gate narrowed to
+#     source-only ⇒ C11d red, C10a measured-green) and N14b (welded shut).
+#   - the serve-half generally → 340 C10a/C14, proven by N14b.
+#   - the deny-half → 340 C11b, proven by N10b (both applications of the PHI
+#     predicate bypassed).
+#   - restore_casedoc_member's LEAK direction → the boundary itself is gone
+#     (340 D4a + 325 t4 pin the retirement — catalog pins, not
+#     mutation-coverable and not claimed as such); the live leak-shaped
+#     mutations for the successor corridor are N1/N3/N10b.
+# The harness was RE-PROVEN after this edit: the surviving
+# interview-attachments leak injection RED; control 22 ok / 0 not ok.
 run_case "restore_interview_attach_policy -> storage leak (interview)" \
   "select app._mut_u1('restore_interview_attach_policy');" \
   "interview-attachments: EXCLUDED member reads 0"
