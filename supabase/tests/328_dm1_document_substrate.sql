@@ -782,14 +782,26 @@ reset role;
 select test_helpers.claims_for(
   '00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 set local role authenticated;
-select throws_ok(
-  $$ select public.add_rca_evidence(
-       'f3000000-0000-0000-0000-0000000000a3', 'citation',
-       'Citação de documento (K8b)', null, null, 'document',
-       'a3300000-0000-0000-0000-0000000000a1', 'Rótulo K8b') $$,
-  'HC0DM',
-  'a citação de documento como evidência está temporariamente indisponível (migração do modelo de documentos)',
-  'K8b add_rca_evidence refuses a document citation (parked until Wave D)');
+-- ⭐ K8b DISCHARGED BY DM5 S2 (migration 20260927000130). The refusal it pinned
+-- is GONE: `cited_document_id` now carries a real FK to `documents(id)`, the
+-- parked CHECK is dropped, and the RPC's HC0DM arm is replaced by an
+-- authorization gate (you may cite only what you may READ). A keystone left
+-- pinning a refusal the product no longer wants is a test asserting a bug —
+-- the same reasoning DM3 applied when it removed K8c.
+--
+-- The pin INVERTS rather than disappears: it now asserts the seam is LIVE.
+-- Behavioural coverage moved to 341 (DM5·S2 F-block), where the accept and
+-- refuse arms are a one-variable differential — two writers who can BOTH write
+-- the RCA, differing only in whether they can read the cited document.
+--
+-- ⚠ K8a STAYS. It is DM4's REFERRAL seam, a different object; "remove keystone
+-- K8" once named something that is not one.
+select ok(
+  exists(select 1 from pg_constraint
+          where conname = 'rca_evidence_cited_document_id_fkey' and contype = 'f')
+  and not exists(select 1 from pg_constraint
+                  where conname = 'rca_evidence_cited_document_parked'),
+  'K8b DISCHARGED: the rca citation seam is live — real FK present, parked CHECK gone (DM5 S2)');
 reset role;
 
 -- K8c — REMOVED BY DM3 (2026-08-13; ADR 0114 Amendment 2 / D17, discharge

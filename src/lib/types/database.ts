@@ -8399,6 +8399,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "rca_evidence_cited_document_id_fkey"
+            columns: ["cited_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rca_evidence_cited_interview_id_fkey"
             columns: ["cited_interview_id"]
             isOneToOne: false
