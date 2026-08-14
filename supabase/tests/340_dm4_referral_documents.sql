@@ -28,7 +28,7 @@
 -- all together (dm4-referral-doors-matrix.sh N10a/N10b).
 -- =============================================================================
 begin;
-select plan(74);
+select plan(76);
 
 -- ---------------------------------------------------------------------------
 -- Preconditions (fixture-flag-gaps: assert flags, never assume the seed)
@@ -434,7 +434,9 @@ select lives_ok(
 
 -- The bespoke door: PHI reader gets the binding + EXACTLY ONE referral.viewed.
 create temp table c10pre on commit drop as
-  select count(*)::int as n from public.audit_log
+  select count(*)::int as n,
+         count(*) filter (where metadata->>'kind' = 'document_open')::int as n_kind
+    from public.audit_log
    where action = 'referral.viewed'
      and entity_id = '34de0000-0000-0000-0000-0000000000d1';
 select is(
@@ -447,6 +449,16 @@ select is(
       and entity_id = '34de0000-0000-0000-0000-0000000000d1')
   - (select n from c10pre),
   1, 'C10b ⭐ …with EXACTLY ONE referral.viewed audit row (exit criterion 2)');
+-- DM4-AUDIT-1 ruling (ADR 0119 D10): the byte-open is discriminated from a
+-- detail-page view by a STRUCTURED field, never by translatable prose. The
+-- exact count above stays; this pins the kind on the same single row.
+select is(
+  (select count(*) filter (where metadata->>'kind' = 'document_open')::int
+     from public.audit_log
+    where action = 'referral.viewed'
+      and entity_id = '34de0000-0000-0000-0000-0000000000d1')
+  - (select n_kind from c10pre),
+  1, 'C10c ⭐ …and that one row carries metadata.kind = document_open (the structured discriminator)');
 
 -- D5 first half: source SOFT-DELETE does NOT kill the snapshot (ADR 0119 D5).
 select set_config('request.jwt.claims', '', true);
@@ -600,6 +612,11 @@ select is(
 
 -- get_referral_detail projects the SUCCESSOR shape (asymmetry re-expressed;
 -- the full §4 twin lives in 197 — this is the structural pin).
+create temp table d8pre on commit drop as
+  select count(*) filter (where metadata->>'kind' = 'content_view')::int as n_kind
+    from public.audit_log
+   where action = 'referral.viewed'
+     and entity_id = 'efa00000-0000-0000-0000-0000000000a1';
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000005'::uuid, false, 'staff_admin');
 create temp table d8 on commit drop as
   select public.get_referral_detail('efa00000-0000-0000-0000-0000000000a1') as j;
@@ -609,6 +626,16 @@ select ok(
 select ok(
   (select j->'shared_items'->0 ? 'frozen_document_version_id' from d8),
   'D8b ⭐ shared items project the binding field (the byte handle''s successor)');
+-- The symmetric half of the D10 discriminator: a PHI detail-page view is
+-- kind=content_view — so 'opened patient document' vs 'loaded the referral
+-- page' differ by a FIELD, never by a pt-BR sentence (Rule 10/11).
+select is(
+  (select count(*) filter (where metadata->>'kind' = 'content_view')::int
+     from public.audit_log
+    where action = 'referral.viewed'
+      and entity_id = 'efa00000-0000-0000-0000-0000000000a1')
+  - (select n_kind from d8pre),
+  1, 'D8c ⭐ the detail-page PHI view carries metadata.kind = content_view (exactly one, the symmetric marker)');
 select set_config('request.jwt.claims', '', true);
 
 -- =============================================================================

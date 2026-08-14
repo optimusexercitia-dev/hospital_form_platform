@@ -115,6 +115,21 @@ whose kernel and `documents_select` carry no wave flag either. With the flag
 OFF no referral-homed row can come to exist; rows visible flag-OFF are only
 those legitimately minted while ON, served to the same readers entitled then.
 
+**D10 — `referral.viewed` stays ONE verb; the event class is a STRUCTURED
+metadata field, never prose** (DM4-AUDIT-1 ruling, 2026-08-14; migration
+`20260926000500`; pins 340 C10c/D8c, both observed red first). Two materially
+different PHI accesses — opening a patient document's bytes vs loading the
+referral detail — shared verb, entity, commission and an empty `metadata`,
+distinguishable only by a translatable pt-BR sentence; that made exit
+criterion 2 assertable only by prose-regexing a Rule-10 string. The verb stays
+coarse deliberately (a new verb would enter the K10 read-verb registry and
+fragment the QPS/audit count surfaces and 150's count pins); both emitters now
+stamp `metadata.kind` — `document_open` (with `shared_item_id` +
+`document_version_id`: references, never payloads) and `content_view` — so
+the field is total over all new rows. Historical rows lack `kind`; consumers
+treat absence as "pre-DM4 row", never a third event type. Consumer sweep at
+ruling time: nothing read `metadata` on this verb (catalog + repo).
+
 ## Consequences
 
 - Both referral write doors return composites and the new read doors return jsonb —
