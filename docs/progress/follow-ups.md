@@ -102,6 +102,42 @@ buckets and lists *from* `storage.objects`, so it cannot see this class either �
 
 ---
 
+### 🔴 FUP-AUTHZ-HARNESS-TRANSACTIONAL — the door-audit harness neutralizes OUTSIDE a transaction, so process death leaves an authz gate OPEN (owner: lead + backend; filed 2026-08-14, DM5 S2, after it happened)
+
+**It happened.** During DM5 S2, `app.can_write_document` — the gate for **every** document write across all
+eight home types — sat live with the body `begin return true; end` on the shared stack. **An
+unconditional allow.** Found by `tester`, which halted all E2E rather than produce green results against
+it; independently confirmed by `backend-assurance`; and traced to a **lead instruction** that said
+*"neutralize and confirm your block goes red"* **without saying transactionally**, on a stack two other
+teammates were live on.
+
+**The structural defect, which outlives the incident.** `p0-authz-door-audit.sh` restores via an **`EXIT`
+trap** plus a re-fetch/byte-compare. That is good design and it is **not enough**: the trap **does not fire
+when a subagent's turn ends and the process is killed** — which is the documented failure mode for the
+heavy sweep. Because the harness neutralizes **outside** a transaction, **process death = gate left open**,
+silently, with no marker in the catalog.
+
+**The fix (not built): make neutralize → probe → restore a single rolled-back transaction.** Postgres DDL
+is transactional, so a `CREATE OR REPLACE FUNCTION` inside a rolled-back `begin` leaves **no residue** —
+`backend-assurance` proved this rather than assuming it: md5 of `pg_get_functiondef` before, gate replaced
+in-txn, probe run, `rollback`, re-read → **byte-identical, same md5**. That makes the failure mode
+**structurally impossible** instead of trap-dependent.
+
+⚠ **Two forensic properties worth knowing before the next incident:**
+- **`pg_proc` carries no mtime**, so a neutralization **cannot be dated from the catalog**. The only lower
+  bound here was a `pg_get_functiondef` capture the sweep happened to leave in a scratchpad. **Any result
+  produced in the unknown window must be RE-RUN, not re-read.**
+- **The detector that found it is worth keeping**: sweep `app` + `public` for any body matching
+  `^\s*begin\s+return\s+(true|false)\s*;\s*end` — it is the *property* (a degenerate always-true/false
+  door) rather than a list of names. It returned **exactly one** hit, which is also how the blast radius
+  was bounded to a single function. ⭐ **Consider making it a standing gate step** — it is one query, and
+  a left-open gate is otherwise invisible to every arm, since all four arms test doors that *exist*.
+
+⛔ **Do not read this as "the harness is unsafe to run."** It is safe when its process completes; the gap
+is process death mid-run, which subagent turn boundaries make routine. Related:
+[[mutation-harness-must-prove-its-rollback-first]] — the same class, previously recorded, where a sweep
+left a gate open and `| tail` masked exit 2 as 0.
+
 ### 🟡 FUP-AUTHZ-ALLOWLIST-ROT — nothing validates that floor-allowlist entries name a LIVE door (owner: lead + backend; filed 2026-08-14, DM5 S2)
 
 `supabase/tests/mutation/authz-neverclled-door-allowlist.txt` keys entries on the **full identity
