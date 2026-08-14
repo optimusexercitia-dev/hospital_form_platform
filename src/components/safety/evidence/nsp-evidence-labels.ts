@@ -37,24 +37,32 @@ import {
 // Availability — the states a caller-minted path could never produce
 // ---------------------------------------------------------------------------
 
-/** The three non-servable states an NSP evidence row can actually reach. */
+/** The non-servable states an NSP evidence row can reach. */
 export type NspEvidenceNonServable = Exclude<NspEvidenceAvailability, "available">;
 
 /**
- * Presentation per non-servable state — THREE members, not the document twin's
- * four.
+ * Presentation per non-servable state — FOUR members, matching the document
+ * twin.
  *
- * ⚠ `unavailable` is deliberately ABSENT, and its absence is a verified
- * property rather than an oversight. It exists on `DocumentAvailability`
- * because `src/lib/queries/documents.ts` does not filter soft-deleted rows out
- * of its projection, so a document can be visible-but-not-servable. Both NSP
- * projections DO filter (`rca.ts` / `capa.ts`, `.is('deleted_at', null)`), so a
- * soft-deleted evidence row never reaches a reader and the state cannot occur.
- * Copy for a state that cannot occur is copy nobody can ever check.
+ * ⚠ `unavailable` was ABSENT here until S2 was reopened, on the ruling that
+ * both NSP projections filter `.is('deleted_at', null)` so the state could
+ * never occur. **That reasoning was wrong, and the way it was wrong is worth
+ * keeping:** the filter is on the EVIDENCE row, while `unavailable` derives
+ * from the backing DOCUMENT's status, which `soft_delete_document` reaches
+ * independently. Two different rows, two different lifecycles — the filter was
+ * real, it just never bounded the thing it was cited for. A predicate quoted at
+ * the wrong GRAIN reads exactly like a proof.
  *
- * `unavailable` survives in {@link NSP_EVIDENCE_ERROR_MESSAGE} — as the `HC0D8`
- * refusal from the open door, which IS reachable: the row was servable when the
- * page rendered and stopped being so before the click.
+ * ⚠⚠ The state was not merely missing, it was COLLAPSING TO `failed` — worse
+ * than absent. A deliberately removed document was telling the reader the
+ * upload had broken and to send the file again: a false diagnosis prescribing a
+ * recovery that cannot work, since re-uploading meets the same wall. That is
+ * why the two must never share wording.
+ *
+ * `unavailable` ALSO appears in {@link NSP_EVIDENCE_ERROR_MESSAGE} as the
+ * `HC0D8` open-door refusal, and the two are deliberately worded differently:
+ * this one is "this row's document is gone", that one is "you clicked and it
+ * was gone by the time the door answered".
  */
 export const NSP_EVIDENCE_AVAILABILITY: Record<
   NspEvidenceNonServable,
@@ -69,6 +77,20 @@ export const NSP_EVIDENCE_AVAILABILITY: Record<
     ...AVAILABILITY_PRESENTATION.failed,
     detail:
       "O envio deste arquivo não foi concluído. Remova esta evidência e envie o arquivo novamente.",
+  },
+  /**
+   * The backing DOCUMENT was removed through a governance action — not a
+   * transfer that broke. Register is deliberately `disposed`'s (a completed,
+   * legitimate outcome, calmly stated), never `failed`'s, and it must NOT
+   * suggest sending the file again: that is precisely the action that cannot
+   * work. It differs from `disposed` on CAUSE — removed by someone, versus
+   * destroyed under the retention policy — which is the distinction a committee
+   * reconstructing the analysis later actually needs.
+   */
+  unavailable: {
+    ...AVAILABILITY_PRESENTATION.unavailable,
+    detail:
+      "O documento desta evidência foi removido e não pode mais ser aberto. A evidência permanece registrada na análise.",
   },
   disposed: {
     ...AVAILABILITY_PRESENTATION.disposed,
@@ -88,6 +110,9 @@ export const NSP_EVIDENCE_ALLOWS_OPEN: Record<NspEvidenceAvailability, boolean> 
   available: true,
   pending: false,
   failed: false,
+  // The document behind it is gone; there is nothing to open, and no disabled
+  // "promise" control either — unlike `pending`, no bytes are on the way.
+  unavailable: false,
   disposed: false,
 };
 
@@ -99,6 +124,12 @@ export const NSP_EVIDENCE_ALLOWS_WRITE: Record<NspEvidenceAvailability, boolean>
   available: true,
   pending: true,
   failed: true,
+  // TRUE, unlike `disposed`, and the asymmetry is the point: the EVIDENCE row
+  // is still live here — only the document behind it went away — so removing a
+  // row that can no longer show anything is a legitimate tidy-up. A disposed
+  // row is itself the tombstone, and offering to delete a tombstone is not.
+  // Matches `DOCUMENT_AVAILABILITY_ALLOWS_WRITE`, which rules the same way.
+  unavailable: true,
   disposed: false,
 };
 
