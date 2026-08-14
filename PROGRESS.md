@@ -236,7 +236,30 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-### 🔴 BUG-DM5-CAPA-1 — CAPA evidence UPLOAD is broken for every user, and has been since it shipped (owner: `backend`, fixed in S2 per ADR 0120 D15)
+### 🟢 BUG-DM5-CAPA-1 — ✅ **FIXED 2026-08-14** (`e938f36d`, DM5 S2 `…000140`) — CAPA evidence UPLOAD was broken for every user since it shipped (owner: `backend`)
+
+> ✅ **Fix:** both policies in the CAPA pair now read path segment 1 as a **CAPA id** (they disagreed:
+> SELECT read it correctly, INSERT resolved it through an **event** resolver), gated on the existing
+> `app.can_write_capa`. Verified: capa-shaped insert **ACCEPTED** (was 42501) · rca-shaped **still
+> ACCEPTED** (RCA pair untouched) · **NEGATIVE** `staff1.farm` with no CAPA authority **REFUSED 42501**.
+> ⭐ **The negative arm is what makes it a fix rather than a widening** — without it, *"the insert now
+> works"* is equally consistent with having opened the bucket ([[no-regression-claim-needs-overgrant-twin]]).
+> Post-condition asserts the other three `nsp-evidence` policies survive and no UPDATE/DELETE policy
+> appeared (Rule 6).
+> ⚠ **Deliberate non-symmetry:** the fix mirrors the RCA pair's **shape** (read predicate on SELECT,
+> write on INSERT) but **NOT its segments** — the path conventions genuinely differ
+> (`{event}/{rca}/…` vs `{capa}/{action}/…`) and flattening them would have broken the RCA pair. That
+> was the trap step 0 flagged in this exact bucket.
+> ⭐ **Re-measured at HEAD before fixing, and it was not a formality.** `…000100` had altered CAPA
+> tenancy underneath this policy, so *"the red has moved"* was live. It **still reproduced** — because
+> the broken predicate calls `app.hospital_of_event`, **not** the `app.hospital_of_capa_action` that
+> D16 corrected. A near-miss that reads as *obviously unaffected* in hindsight and was only knowable
+> by measuring ([[a-rename-orphans-a-name-keyed-verdict]]).
+> **Still owed by `tester`:** the upload-kind E2E the suite has NEVER had — its absence is exactly why
+> this survived from ship to now — plus the keyboard-only path. ⚠ pgTAP `143` asserts these policies
+> **exist**, never that they **admit**; *a policy-existence assertion is not a policy test.*
+
+<details><summary>Original filing (retained — the diagnosis and universality proof)</summary>
 
 Filed 2026-08-14 (DM5 S2 planning). Found by `backend`, **independently re-verified by the lead**
 against the live catalog — not accepted from the report.
@@ -265,6 +288,8 @@ not a policy test* — the same class as [[a-detector-that-finds-nothing-must-be
 ⭐ **Backend's first probe reported the control failing too** — it wore `active_role='staff'`, so the
 `nsp_coordinator` membership was not worn and `can_write_rca` was false **for the wrong reason**. The
 control is what caught it; a bare subject-only probe would have filed a much wider, wrong bug.
+
+</details>
 
 ### 🟠 BUG-DM4-DUP-1 — the reply-attachment list renders the just-uploaded file TWICE (owner: `frontend`)
 
