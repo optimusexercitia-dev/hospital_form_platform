@@ -56,6 +56,39 @@ if (!url || !key) {
 const admin = createClient(url, key, { auth: { persistSession: false } })
 
 const BUCKETS = ['documents-standard', 'documents-phi']
+
+/**
+ * DM5 S0 (ADR 0120 D9) — the LEGACY half.
+ *
+ * Until DM5 this script covered 2 of 12 buckets, which meant a CLEAN verdict
+ * said nothing at all about the ten buckets holding the platform's remaining
+ * bytes. It cannot classify these the way it classifies the core two: legacy
+ * objects have no `file_objects` row to be judged against, so there is no
+ * (upload_state, disposal_state) pair to reason from. What it CAN assert — and
+ * what the retirement actually needs — is the census: after S4 every one of
+ * these must list ZERO objects, and any object appearing in one afterwards is
+ * drift by definition.
+ *
+ * ⚠ This half sees only what `storage.objects` knows, exactly like the rest of
+ * this script. Orphaned bytes are INVISIBLE here by construction — that is the
+ * whole finding behind FUP-DM5-STORAGE-ORPHANS. The out-of-band proof lives in
+ * `scripts/storage-manifest.mjs walk`, and only on the local file backend.
+ * A clean report from this script is NOT evidence that a bucket holds no bytes.
+ */
+const LEGACY_BUCKETS = [
+  'attachments',
+  'attachments-phi',
+  'case-documents',
+  'interview-attachments',
+  'nsp-evidence',
+  'referral-attachments',
+  'controlled-documents',
+  'printed-documents',
+]
+/** Out of scope for retirement (ADR 0114 D13) but censused so the report covers
+ *  every live bucket — a coverage claim with two silent exclusions is the class
+ *  of claim this widening exists to end. */
+const RETAINED_BUCKETS = ['form-assets', 'meeting-audio']
 /** Paths are {org}/{file_object_id}/{generation}: walk exactly three levels.
  *
  * MINOR-1 (QA r1): pages are ACCUMULATED — the old loop returned only the
@@ -290,13 +323,73 @@ for (const bucket of BUCKETS) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// LEGACY + RETAINED census (DM5 S0). Depth-agnostic: the legacy buckets do NOT
+// share the core `{org}/{file_object_id}/{generation}` shape — measured at DM5
+// step 0, their depths run from 2 (`printed-documents/std/<id>.pdf`) to 4
+// (`attachments/meeting/<id>/<uuid>.pdf`). Reusing the fixed three-level walk
+// above would report an EMPTY set for every bucket whose depth it guessed
+// wrong, which is precisely a false "already retired".
+// ---------------------------------------------------------------------------
+async function listKeysRecursive(bucket) {
+  const keys = []
+  const listDir = async (prefix) => {
+    const entries = []
+    let offset = 0
+    for (;;) {
+      const { data, error } = await admin.storage
+        .from(bucket)
+        .list(prefix, { limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } })
+      if (error) throw new Error(error.message)
+      if (!data || data.length === 0) return entries
+      entries.push(...data)
+      if (data.length < 1000) return entries
+      offset += data.length
+    }
+  }
+  const recurse = async (prefix, depth) => {
+    if (depth > 12) throw new Error(`exceeded depth 12 at "${prefix}"`)
+    for (const e of await listDir(prefix)) {
+      const full = prefix ? `${prefix}/${e.name}` : e.name
+      if (e.id) keys.push(full)
+      else await recurse(full, depth + 1)
+    }
+  }
+  await recurse('', 0)
+  return keys
+}
+
+report.legacyCensus = {}
+report.legacyResidue = []
+for (const bucket of [...LEGACY_BUCKETS, ...RETAINED_BUCKETS]) {
+  try {
+    const keys = await listKeysRecursive(bucket)
+    const retained = RETAINED_BUCKETS.includes(bucket)
+    report.legacyCensus[bucket] = { objects: keys.length, retained }
+    // A retained bucket legitimately holds objects; a legacy one must be empty
+    // once S4 has run, and before S4 its contents are the manifest's input.
+    if (!retained && keys.length > 0) {
+      report.legacyResidue.push({ bucket, objects: keys.length, sample: keys.slice(0, 5) })
+    }
+  } catch (e) {
+    // A missing bucket is the RETIRED end state, not an error — but it must be
+    // recorded as absent rather than as zero (the same absent-vs-empty
+    // conflation `storage-manifest.mjs` selftest C5 exists to catch).
+    report.legacyCensus[bucket] = { absent: true, reason: String(e.message ?? e) }
+  }
+}
+report.legacyCensusNote =
+  'Storage-API census only: it lists from storage.objects and is BLIND to orphaned bytes ' +
+  '(FUP-DM5-STORAGE-ORPHANS). Out-of-band proof: scripts/storage-manifest.mjs walk (local file backend only).'
+
 console.log(JSON.stringify(report, null, 2))
 const drift =
   report.missing.length +
   report.missingDelete.length +
   report.orphans.length +
   report.undisposed.length +
-  report.unclassified.length
+  report.unclassified.length +
+  report.legacyResidue.length
 console.log(drift === 0 ? 'RECONCILIATION CLEAN' : `DRIFT: ${drift} finding(s)`)
 // `process.exitCode`, NOT `process.exit()`: the hard exit during supabase-js
 // teardown intermittently trips libuv's UV_HANDLE_CLOSING assertion on
