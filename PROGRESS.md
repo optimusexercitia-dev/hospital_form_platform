@@ -130,17 +130,34 @@
 > disabled placeholder ("Anexos da resposta poderão ser adicionados após concluir"). The reply
 > path is inert in the product today, which makes it cheap for DM4 to re-point.
 >
-> **Baseline E2E: 🔴 RED before DM4 writes a line** — `SPECS`=4 referral specs, `RESET=1 REBUILD=1
-> RETRIES=0`: `51 passed · 2 failed · 0 infra · 0 flaky · 36 did-not-run`, coverage **89/89**.
-> ⚠ **2 is a FLOOR, not a total** — batches abort at first failure, so 36 tests never ran.
-> Both reds are **attributable to `87cd1ddb`** (DM3's `e2e:prod` was green across these specs;
-> it is the only change since) and both are **locator/label drift, no authz or data defect**:
-> (1) R3-1 — the reply form moved into a default-closed `ReplyDialog`, so the spec targets
-> `Desfecho da análise` before opening it; (2) REG-1 — the registro body field was **renamed
-> "Registro" → "Descrição"** (PO confirms intended), breaking `registroForm()`, a helper **4 tests**
-> depend on. Tester re-pointing the specs; evidence preserved before any re-run.
-> **DM4 does not open its build until this baseline is green — DM4's own exit criterion is
-> "referral E2E green", which is unmeasurable on an inherited red.**
+> **Baseline E2E: 🔴 RED → ✅ GREEN, and DM4 wrote none of it.** Before DM4's build opened, the
+> 4 referral specs ran `51 passed · 2 failed · 36 did-not-run` (coverage 89/89) — ⚠ *2 was a
+> FLOOR, not a total*; batches abort at first failure. Both reds **attributable to `87cd1ddb`**
+> (DM3's `e2e:prod` was green across these specs; it is the only change since) and both
+> **locator/label drift — no authz or data defect, no `.sql`, no `src/lib/**`**. Fixed by
+> `9b0a8d85` (tester, **specs only**). **Lead-verified independently**, `RESET=1 RETRIES=0`:
+> `89 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run`, coverage **89/89** · lint 5/5
+> (`lint:vacuous` 0 findings / 180 spec files) · tsc 0.
+> ⚠ **The check that matters: 89 collected BEFORE and AFTER** — a suite can be made green by
+> deleting tests; this one was not. Net assertions **+6**.
+>
+> ⭐ **The reusable lesson — a UI-only commit red-lined the suite and every static gate stayed
+> green.** No SQL, no `src/lib/**`; a default-closed dialog plus one renamed pt-BR label
+> ("Registro" → "Descrição", PO-confirmed intended) was enough, and `registroForm()` was shared by
+> 4 tests. tsc + lint 5/5 were green throughout. Three collisions surfaced that nobody predicted:
+> the new `Descrição` label collides with the referral's own description `<section>`;
+> `NativeSelect` folds **every `<option>`'s text** into the wrapping `<label>`'s accessible name,
+> so `exact: true` can *never* match (use `/^Tipo/`); and "Vincular caso" matches both the button
+> and its own empty-state hint.
+> ⚠ **Assertions were removed against a component DOC COMMENT** (the Detalhes card's "Nothing
+> else" note). The comment was accurate *this time* — verified against `thread-events.ts`, which
+> genuinely synthesizes `sent`/`received`/`decided_accepted`/`concluded`/`withdrawn` with 11 unit
+> tests, and `referral-thread-event.tsx:45` emits `data-thread-event`. **The verification, not the
+> comment, is what made the removals safe** ([[a-comment-is-an-assertion-that-goes-stale-silently]]).
+> 🔶 **Residual gap, recorded not blocked:** `received` / `concluded` / `withdrawn` have unit
+> coverage for *synthesis* but **no E2E assertion that they reach the screen** (E2E asserts 5
+> kinds: `assignment`, `case_linked`, `decided_accepted`, `resolution`, `sent`). The old DET tests
+> touched `Recebido`/`Concluído`; that is the one thing genuinely thinner now.
 
 ### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
 
