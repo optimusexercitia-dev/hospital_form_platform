@@ -45,7 +45,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110 — see 22-v3) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ (tsc 0 · lint 0/0 · Vitest **1254**) | ✅ pgTAP **183f/5870** · `ARM=census`/`hat`/`floor` HOLD · e2e:prod **1074p/1f** (sole failure = pre-existing BUG-MIN-E2E-1, outside the branch; referral batch 62/62, 0 did-not-run) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2 MINOR/3 INFO) | ✅ 2026-08-12 | 2026-08-12 | merge `81e1dc9` → `main`. ✅ **PUSHED** — `81e1dc9` is an ancestor of `origin/main` (corrected 2026-08-12; the cell read "local only, NOT pushed", true when written) · graphify `dfc3e35` |
 | 22-v3 | **REG·KIND — one Registro vocabulary for cases and referrals** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ (tsc 0 · Vitest **1254** · eslint 0/0 first-party) | ⚠ **step 1 only** — pgTAP **183f/5857** (`322` 72→63, `298` 36→32 as the retired table's tests retired with it) · `ARM=census`/`hat`/`floor` HOLD · diff-scoped sweep 3 COVERED + 1 **pre-existing** `ERROR` · E2E **targeted 24/24** (`referral-registros` 16 + `cases-extras` 8) — **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | merge `9a20c8a` → `main`. ✅ **PUSHED** (`9a20c8a` is an ancestor of `origin/main`) and ✅ **remote `db push` DONE** — both `20260920000100`/`…000200` are registered on the linked project, `referral_note_types` is gone from the remote catalog. **Corrected 2026-08-12**; this cell previously read "local only, NOT pushed" + "`db push` NOT done", which had been true when written and was overtaken by a later push. ⚠ Verified against the REMOTE CATALOG, not the CLI: `supabase migration list --linked` showed a **blank Remote column for all 354** rows and the MCP `list_migrations` returned a **truncated 84** — both wrong. Only `select … from supabase_migrations.schema_migrations` on the linked project agreed with the objects actually present |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amdt 1** D15/D16, +**Amdt 2** D17 — ethics seams → Wave B; supersedes [0063](docs/decisions/0063-centralized-attachments-substrate.md)) · plan [DM0–DM5](docs/plans/document-model-redesign.md) | ✅ **DM0 + DM1 + DM2 + DM3 complete** — DM3 (Wave B: controlled documents) PO-approved **2026-08-14**. 🔵 **DM4 (Wave C: referrals) RE-OPENED 2026-08-14** after a same-day hold (the PO shipped referral layout commit `87cd1ddb` first, then released it). **DM0–DM3 are now MERGED to `main`** — merge `17b1516b`, `--no-ff` so the program has one revertable landing point; tree byte-identical to the branch; **still NOT pushed** (`main` is 136 ahead of `origin/main`). Step 0 (the plan's mandatory re-verification) is **✅ DONE** → [dm4-surface-verification.md](docs/progress/dm4-surface-verification.md). **No DM4 code, migration or plan exists yet** | ✅ DM3: **11 migrations** `20260925000100`–`001100` · pgTAP suite **330** · `328` K8c-only edit · ADR 0114 **Amdt 2** | ✅ fresh reset 0 · pgTAP **190f/6152 PASS** · tsc 0 · lint 5/5 · vitest 1258 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff-scoped sweep **BLIND 0** · `e2e:prod` **GATE GREEN** (0 failed, 0 did-not-run, accounting closes exactly) | ✅ **APPROVED (r2)** [review](docs/reviews/dm3-controlled-documents-review.md) — r1 ⛔ 1 MAJOR discharged; **no binding pre-merge condition** | ✅ **2026-08-14** | 2026-08-14 | ⚠ **branch `docs/dm1-plan-amendments` — NOT merged to `main`, nothing pushed** (standing PO directive; `main` = `f84c6b6`). **All DM flags ship OFF.** graphify refresh SKIPPED (fires post-merge). **Records:** [DM1](docs/progress/dm1-substrate-cutover.md) · [DM2](docs/progress/dm2-orchestration-wave-a.md) · [DM3](docs/progress/dm3-controlled-documents.md). **OPEN with the PO:** the **146-function census blind class** (unruled) · S1-O3 · O1/O2/O4 |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+**Amdt 1** D15/D16, +**Amdt 2** D17) · per-phase ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md) / [0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md) / [0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md) / **[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)** · plan [DM0–DM5](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** — DM4 (Wave C: referrals) PO-approved **2026-08-14**. **DM5 (Wave D + retirement) NOT started** | ✅ DM4: **5 migrations** `20260926000100`–`000500` · pgTAP **`340`** · matrix `dm4-referral-doors-matrix.sh` · ADR 0119 D1–D10 | ✅ fresh reset · pgTAP **191f/6231 PASS** · registry **391==391** · tsc 0 · lint 5/5 · vitest **1264** · `next build` 0 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** · diff sweep 2 cases (1 COVERED · 1 ERROR ⇒ matrix N4/N5) · matrix **18/18 RED-PROVEN** (`HEAD: 8588fe82`, clean, control green) · `e2e:prod` **99p/0f/0 did-not-run**, coverage 99/99, baseline **89/89 no regressions** | ✅ **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md) — **no binding pre-merge condition**; r1 ⛔ CHANGES REQUESTED (0 P0 · 3 MAJOR, 2 blocking · 8 MINOR · 6 INFO), both blockers discharged | ✅ **2026-08-14** | 2026-08-14 | `phase(DM4)` on **`main`** — ⛔ **NOT pushed** (`main` 173 ahead of `origin/main`), no `db push`. **All five DM flags OFF.** graphify refresh **owed** (last `dfc3e352`, pre-DM1). **Records:** [DM1](docs/progress/dm1-substrate-cutover.md) · [DM2](docs/progress/dm2-orchestration-wave-a.md) · [DM3](docs/progress/dm3-controlled-documents.md) · **[DM4](docs/progress/dm4-referrals.md)**. **OPEN:** 🟠 FUP-DM4-RECUSAL (security, deadline = flag-on) · 🔴 FUP-DM5-STORAGE-ORPHANS · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW · census blind class (⚠ **141** at HEAD, not 146/150) |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) (plan [Slices 0–6](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's own Slice 0 gate). Drafted 2026-08-12 from a 20-question PO grilling (D1–D20): first-class commission-scoped `deliberations` + explicit `deliberation_seatings`; versioned `commission_governance_policies` **subsumes `commission_meeting_settings`** (table dropped); append-only ballots with the vote arithmetic owned by Postgres; append-only `committee_decisions` with supersession; `meeting_cases.decision` dropped. Flag `deliberations` (prod OFF) covers everything **except Slice 1**, which replaces live meeting-settings plumbing and so must land flag-independent + regression-safe. Slice 6 (D14, resolution promotion) is conditional on the [0114](docs/decisions/0114-document-model-redesign.md) document substrate — that ADR is ratified but **unbuilt**, and the plan recommends shipping v1 without it | – | – | – | ⛔ **not ratified** | – | ADR merge `a68f179` + renumber `feab771` — drafted as 0112, renumbered because **0112 was already taken** by [case-event kind write authority](docs/decisions/0112-case-event-kind-write-authority.md). ⚠ **Differing filenames merge CLEANLY**, so an ADR-number collision announces itself nowhere — renumber at merge time, not draft time. Same commit retargeted the draft's stale `0109` cross-refs (both the ADR and the plan) → `0114`. ✅ **PUSHED** — verified against the server (`git ls-remote origin refs/heads/main` = `a68f179`), not a cached remote-tracking ref. ⚠ This cell first read "NOT pushed", true when written and overtaken by a push minutes later — the third row in this table to need that correction |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -95,391 +95,48 @@
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### 🔵 IN PROGRESS — **DM4: Wave C — referrals** (opened 2026-08-14)
+### ✅ COMPLETE — **DM4: Wave C — referrals** (opened + completed; PO-approved 2026-08-14)
 
-> **Step 0 ✅ — the plan's mandatory surface re-verification is DONE.** Full evidence:
-> [dm4-surface-verification.md](docs/progress/dm4-surface-verification.md). Derived from the
-> **live catalog**, then diffed against the plan text in *both* directions — the second
-> direction is where all three of this program's historical drop-list misses lived.
+> ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**, **no binding
+> pre-merge condition**, after r1 ⛔ CHANGES REQUESTED (0 P0 · 3 MAJOR, 2 blocking · 8 MINOR · 6 INFO).
+> **Gate:** fresh reset · pgTAP **191f/6231 PASS** · registry **391 == 391** · tsc 0 · lint 5/5 ·
+> vitest **1264** · `next build` 0 · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** ·
+> diff-scoped sweep 2 cases (1 COVERED, 1 ERROR covered by matrix N4/N5) · neutralization matrix
+> **18/18 RED-PROVEN** (`HEAD: 8588fe82`, clean tree, control green) · `e2e:prod` **99 passed · 0
+> failed · 0 flaky · 0 did-not-run**, coverage 99/99, baseline **89/89 — no regressions**.
+> ⭐ **The byte round trip and the DERIVATION proof are the phase's real artifacts** — a lie declared
+> at `begin` loses to the server's truth; everything before them was DB-layer, static-gate or
+> *absence* proof.
+> ⛔ **State:** branch `main`, **NOT pushed** (`main` is 173 ahead of `origin/main`). All five DM
+> flags ship **OFF**. graphify refresh **still owed** (last: `dfc3e352`, 2026-08-12, pre-DM1).
 >
-> **Everything the plan names is CONFIRMED live** (DM1's deliberately-spared referral surfaces
-> have not drifted), with **one rename**: the plan's `getReferralReplyAttachmentUrl` does not
-> exist; the live function is **`getReferralAttachmentUrl`** (`src/lib/queries/referrals.ts:1112`).
+> **Full detail rotated → [dm4-referrals.md](docs/progress/dm4-referrals.md)** — step-0's diff table,
+> all three gate records, `BUG-DM4-DUP-1`, the QA rounds, the two records QA corrected, and the
+> three shared-stack collisions.
 >
-> **6 UNNAMED-BY-PLAN surfaces.** None match `%attachment%`, so the sweep style that built the
-> plan's list could not have found them — the same blind spot that missed
-> `case_documents_select_member` the first time. The two load-bearing ones:
-> **`get_referral_snapshot_document_path`** (the actual RPC behind `getReferralDocumentUrl` — the
-> read seam) and **`add_referral_shared_item`'s `document` arm** (fails closed on `HC0DM` today —
-> this *is* the write seam plan step 1 must un-park). Retiring either without naming it leaves
-> the seam half-migrated.
-> ⚠ **`referral_shared_item.source_document_id` carries NO FK** (verified `NONE`, nullable) —
-> DM1 dropped it deliberately (ADR 0116 D1). DM4 **creates** that constraint, it does not migrate one.
->
-> 🔴 **NEW, and it changes DM4's assurance plan: both DM4 write seams sit in the UNRULED census
-> blind class.** `add_referral_shared_item` and `add_referral_reply_attachment` are both
-> `prosecdef=true` returning **composite** types and auth-reachable — so **no §6 step-1 arm can
-> see them**; `census`/`hat`/`floor`/`wrapper` will all pass no matter what DM4 does to that door.
-> DM4 therefore needs **bespoke pgTAP keystones** for these two, exactly as DM2 did for
-> `open_document_version` (blind for returning `jsonb`; ADR 0118 §12). Measured class size **150**
-> against the recorded **146** — ⚠ delta **unreconciled**, treat as unexplained, not as growth.
-> This turns the long-parked "146-function census blind class" open item from abstract into
-> directly load-bearing for the next phase.
->
-> ℹ️ `add_referral_reply_attachment` has **zero UI callers** — `referral-reply-dialog.tsx` ships a
-> disabled placeholder ("Anexos da resposta poderão ser adicionados após concluir"). The reply
-> path is inert in the product today, which makes it cheap for DM4 to re-point.
->
-> **Baseline E2E: 🔴 RED → ✅ GREEN, and DM4 wrote none of it.** Before DM4's build opened, the
-> 4 referral specs ran `51 passed · 2 failed · 36 did-not-run` (coverage 89/89) — ⚠ *2 was a
-> FLOOR, not a total*; batches abort at first failure. Both reds **attributable to `87cd1ddb`**
-> (DM3's `e2e:prod` was green across these specs; it is the only change since) and both
-> **locator/label drift — no authz or data defect, no `.sql`, no `src/lib/**`**. Fixed by
-> `9b0a8d85` (tester, **specs only**). **Lead-verified independently**, `RESET=1 RETRIES=0`:
-> `89 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run`, coverage **89/89** · lint 5/5
-> (`lint:vacuous` 0 findings / 180 spec files) · tsc 0.
-> ⚠ **The check that matters: 89 collected BEFORE and AFTER** — a suite can be made green by
-> deleting tests; this one was not. Net assertions **+6**.
->
-> ⭐ **The reusable lesson — a UI-only commit red-lined the suite and every static gate stayed
-> green.** No SQL, no `src/lib/**`; a default-closed dialog plus one renamed pt-BR label
-> ("Registro" → "Descrição", PO-confirmed intended) was enough, and `registroForm()` was shared by
-> 4 tests. tsc + lint 5/5 were green throughout. Three collisions surfaced that nobody predicted:
-> the new `Descrição` label collides with the referral's own description `<section>`;
-> `NativeSelect` folds **every `<option>`'s text** into the wrapping `<label>`'s accessible name,
-> so `exact: true` can *never* match (use `/^Tipo/`); and "Vincular caso" matches both the button
-> and its own empty-state hint.
-> ⚠ **Assertions were removed against a component DOC COMMENT** (the Detalhes card's "Nothing
-> else" note). The comment was accurate *this time* — verified against `thread-events.ts`, which
-> genuinely synthesizes `sent`/`received`/`decided_accepted`/`concluded`/`withdrawn` with 11 unit
-> tests, and `referral-thread-event.tsx:45` emits `data-thread-event`. **The verification, not the
-> comment, is what made the removals safe** ([[a-comment-is-an-assertion-that-goes-stale-silently]]).
-> 🔶 **Residual gap, recorded not blocked:** `received` / `concluded` / `withdrawn` have unit
-> coverage for *synthesis* but **no E2E assertion that they reach the screen** (E2E asserts 5
-> kinds: `assignment`, `case_linked`, `decided_accepted`, `resolution`, `sent`). The old DET tests
-> touched `Recebido`/`Concluído`; that is the one thing genuinely thinner now.
->
-> ⚠ **Attribution note:** this S4 block was written by `frontend` but was swept into the lead's
-> commit `e7b44bea` by a concurrent `git add` — that commit's message describes **only**
-> FUP-PGTAP-VACUOUS and understates what it carries. Content is correct; authorship is
-> misattributed. **Not amended** (frontend committed on top of it, and rewriting history under a
-> live teammate is how HEAD moves out from under someone). Recorded instead, per the standing
-> scar: *a commit's own message is not a report of what it committed* — blame by measuring the
-> commit, never by reading it. **Two agents sharing one worktree share one index.**
->
-> **S4 (frontend) — ✅ BUILT** 2026-08-14, against `backend`'s S0 contract (`67c0fe04`); no
-> provisional local shapes. Bar: tsc 0 · lint **5/5** · vitest **1258** · `next build` EXIT=0.
-> ⚠ Runtime unproven by design — the S1/S3 action bodies still throw `not implemented`.
-> - **R1 discharged**: the disabled placeholder is gone; `referral-reply-attachments.tsx` is a real
->   begin → PUT → finalize control (reusing Wave A/B's `uploadDocumentFile` credential transport,
->   incl. its MAJOR-3 `terminal` no-retry contract). It lives INSIDE the reply dialog because the
->   write authority is `accepted`/`in_review` — the old copy ("após concluir") named the one window
->   the DB refuses.
-> - **F-14 discharged**: both detail pages stopped pre-signing at render (a 120 s PHI credential is
->   dead before the reader reaches it, and signing on render hands out bytes with no audited open).
->   Opens are now click-time via `referral-open-file-button.tsx`.
-> - **Corridor gate, not last-step**: the whole three-step corridor lives in ONE component with ONE
->   mount site, behind `attachments.enabled` — grep-verifiable. Flag OFF ⇒ no control, no `begin`,
->   no reservation, no bytes; `listReferralReplyDocuments` is **not called**.
-> - **`canOpen: false` renders visible + explained + non-interactive** (badge + sentence, never a
->   hidden row, never a probe of the open door). ⚠ Deliberately UNLIKE Wave A, which deleted that
->   branch as unreachable — here visibility and bytes are two DIFFERENT predicates by design, so
->   the state is reachable and hiding the row would misreport the reply's contents.
-> - 🔶 **Contract gap for the lead**: `SharedItem` has no `canOpen` twin, so a metadata-tier reader
->   still gets an open affordance on a frozen document that refuses at click time (pt-BR mapped,
->   not raw). Symmetry with `ReferralReplyDocument.canOpen` would close it.
-> - 🔶 **Open question**: the DT page offers the upload control (the DT *is* the target side);
->   whether `can_write_document`'s referral arm admits the DT office is backend's to confirm.
->
-> **S0–S3 + S5 (backend) — ✅ BUILT** 2026-08-14 (ADR [0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md);
-> M1–M4 lead-approved; both S4 🔶 items above are CLOSED — `SharedItem.canOpen` shipped
-> (`5788352e`, door-equivalent predicate, lane-consistent) and the DT office IS admitted
-> (catalog-verified: `can_manage_referral_target` carries the `technical_director` arm; the
-> legacy gate was predicate-identical — pinned by 340 B5b/B5c).
-> - **Migrations `20260926000100`–`000400`** (`72c6c49c`): registry + kernel arms + freeze
->   seam + retirement. M5 DELETED (PO reset ruling — a reconciler no buildable DB needs is
->   born caller-less); its semantics live inline in M3. `frozen_storage_path` DROPPED
->   (21 refs/7 files swept by identifier; 197 §4 re-expressed deliberately, its
->   pass-by-absence hole closed with a positive control).
-> - **Red-first record** (`ed759d15`, log `scratchpad/340-red-first-run.log`): 340 authored
->   pre-migration; **44/44 ⭐ keystones observed RED for the right reason** (wrong SQLSTATE /
->   wrong value / arm-denied — not mere object-absence: throws_ok code mismatches and
->   value asserts, with `pg_temp` late-binding + guarded fixtures so the file RAN to
->   completion, 68 executed / 44 red / 24 = only [CONTROL]+[MATRIX] greens).
-> - **Neutralization matrix `supabase/tests/mutation/dm4-referral-doors-matrix.sh`** —
->   ⛔ the original "16/16 (`66084b4f`)" verdict was ORPHANED by M5's body rewrite (QA r1
->   MAJOR-1, the a-rename-orphans-a-name-keyed-verdict class). **Rebuilt + re-run at HEAD
->   `f8052575`: 18/18 RED-PROVEN, control green** — every mutation now carries a no-match
->   guard that RAISES; N10b re-pointed at the live M5 body; NEW narrowing cases N14a
->   (source-only gate ⇒ C11d red, C10a measured-green — the ③TWIN polarity, QA MAJOR-2)
->   + N14b (welded shut ⇒ every serve-half red). N10a corrected per QA MINOR-2: ONE
->   predicate (`can_read_referral_phi`) applied at TWO points, not two independent
->   locks — the registry raise proves the audit layer refuses, nothing about the door's
->   gate; N10b bypasses both applications. A matrix verdict is citable only with the
->   HEAD it was measured at.
-> - **Gate numbers on a FRESH reset:** registry 390 == disk 390 (max `20260926000400`) ·
->   pgTAP **191 files / 6203 tests — exactly ONE red: `236`** (its `case-documents`
->   boundary + the u1 harness's injection target were retired by M4 — **stop-and-tell filed
->   with the lead; 236/u1 deliberately NOT adapted unilaterally**) · tsc 0 · lint 5/5 ·
->   vitest 1258. Authz arms + diff-scoped sweep: **not yet run — lead sequences them.**
-> - **Contract changes relayed:** `SharedItem.frozenStoragePath` REMOVED;
->   `DocumentHomeResourceTypeDb` minted (API = 5 UI homes + `case_referral`) so per-home UI
->   maps stay total; legacy `addReferralReplyAttachment` removed (RPC/table gone); both
->   legacy signed-URL getters neutered to `null` until S4 removes their call sites.
-> - HC072's stale message text: NOT touched (outside the diff, per lead ruling).
+> **Open with the PO — do not assume:** 🟠 **FUP-DM4-RECUSAL** (PO-deferred to Phase 19 D16; **an open
+> SECURITY obligation whose deadline is the FLAG-ON date** — a widening-only plane cannot close it) ·
+> 🔴 **FUP-DM5-STORAGE-ORPHANS** (blocks DM5 step 3) · 🔴 **FUP-PGTAP-VACUOUS** · FUP-DM4-PRODROW ·
+> the 146-function census blind class ruling (⚠ **the figure itself was wrong** — QA measured **141**
+> at HEAD / 142 pre-DM4; neither 146 nor 150 reproduces).
+### ⬛ DM3 + DM2 — rotated 2026-08-14 (the DM4 Record step); detail in `docs/progress/`
 
-> ## ✅ GATE STEP 1 (Build complete) — **GREEN, LEAD-VERIFIED** 2026-08-14 @ `48662f64`
+> Both phases are ✅ COMPLETE and PO-approved; their summary blocks lived here after their own
+> Record steps and are rotated now that DM4 has closed. **The linked records are the authority.**
 >
-> ⚠ **Every figure below was re-run by the lead**, not accepted from the teammate report — the
-> backend numbers were produced after a session of mutation runs and sweeps against the same
-> shared stack, and this project has previously left an authz gate OPEN that way.
+> - **DM3 — Wave B: controlled documents** · PO-approved 2026-08-14 · `phase(DM3)` = `1f5156e` ·
+> 11 migrations `20260925000100`–`001100` · pgTAP `330` · gate: pgTAP **190f/6152** · all four arms
+> HOLD · `e2e:prod` GREEN · QA **APPROVED r2** → [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md)
+> - **DM2 — orchestration + Wave A** · PO-approved 2026-08-13 · `phase(DM2)` = `4c6f7d9` ·
+> migrations `20260924000100`–`000800` · ADRs **0117** (+Amdt 1) / **0118** · gate: pgTAP **189f/6097** ·
+> `e2e:prod` GREEN · QA **APPROVED r2** → [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)
 >
-> | check | result |
-> | --- | --- |
-> | fresh `supabase db reset --local` | **exit 0**, clean |
-> | `npm run test:db` | **Files=191 · Tests=6229 · Result: PASS**, 0 failing files |
-> | `npm run typecheck` | 0 |
-> | `npm run lint` (5 gates) | 5/5 · `lint:vacuous` 180 files / 0 findings |
-> | `npm run test` (vitest) | 86 files · **1258/1258** |
-> | `npx next build` | **EXIT=0** (frontend-run — the gate a client→server value-import aborts while tsc/lint/vitest stay green) |
-> | `ARM=census` *(has anything ever asked?)* | **HOLDS** — 569 gates carry a verdict, no unswept newcomer |
-> | `ARM=hat` *(any door reading `memberships` hatless?)* | **HOLDS** |
-> | `FROMFINDINGS=1 ARM=wrapper` | **HOLDS** — BLIND set 41, all allowlisted |
-> | `ARM=floor` *(is every door called?)* | **HOLDS** — 74 never-called doors, all on the floor allowlist |
-> | diff-scoped door sweep | **2 cases run** (not 0 — the NO-OP trap did not bite): `can_read_document` **COVERED**; `can_write_document` **ERROR**, dispositioned below |
-> | neutralization matrix | ⛔ **the 16/16 recorded here was STALE — see the correction below**; now **18/18 RED-PROVEN at `f4d03f44`** |
-> | catalog left unmutated? | ✅ verified — neither kernel gate carries a blanket `return true` |
-> | findings file restored? | ✅ 594 lines, not the 28-line subset stub |
->
-> **⭐ `ARM=floor` was VIOLATED on its first run — a genuine catch, not a formality.**
-> `list_referral_reply_documents` shipped with **no keystone caller**. Fixed with a **driving
-> keystone (340 E4a/E4b), NOT an allowlist entry** — allowlisting would have turned the arm green
-> while the door stayed uncalled, which is precisely the blindness the arm exists to detect.
->
-> **The one sweep `ERROR` is dispositioned, not waved through.** `can_write_document`'s blanket
-> neutralization **was noticed** (DM1-era keystones M1·4b + DEVIATION-2 went red) but also aborted
-> a file (6188 < 6229) ⇒ `run-shape≠baseline`. §6 requires an ERROR be covered by the phase's
-> mutation audit: matrix **N4/N5** open its two referral barriers with **targeted** mutations,
-> both RED-PROVEN. The runlog was read rather than the verdict taken at face value.
->
-> **Red-first evidence, classified rather than counted.** 340 ran against the *unmigrated* catalog:
-> **68 assertions, 44 red, 24 green — the 24 greens are exactly the labeled [CONTROL]/[MATRIX] set,
-> zero unexplained.** The 44 split into the **strong** class (ran against live code and returned the
-> *wrong answer* — registry probes, kernel `else false` arms, `get_referral_detail` missing successor
-> keys, `throws_ok` catching a *different* SQLSTATE) and the **weak** class (red merely by *absence*).
-> ⚠ Absence-red proves authorship-before, **not falsifiability** — which is why every one of those
-> was separately proven post-migration by opening its gate and requiring red.
->
-> **Getting to zero surfaced 2 further DM4-caused reds, both fixed at the right layer:** `326 t1`
-> refused a precautionary `securable_type` column GRANT (grant-set ≡ view is the pinned invariant —
-> the **grant** was removed, the pin was not widened); and `330 DM3·B3`'s positive control had been
-> anchored on the very `case-documents` policy DM4 retires — re-anchored, the
-> [[vacuity-control-anchored-on-a-defect]] class.
->
-> **E2E flag reachability confirmed:** `seed.sql` forces `documents_wave_c = true` for local/E2E
-> (prod ships OFF), and both detail pages **server-resolve** it. ⚠ Naming hazard for QA, briefly
-> fooled the lead: the dialog prop is named **`attachments`** and its `.enabled` carries
-> `documents_wave_c`, while a feature-flag key **literally named `attachments`** sits at `false`.
-> Confusing, not defective.
->
-> **↻ Re-confirmed at HEAD `91b8b842` after M5 + the E2E commits (backend, exclusive stack):**
-> fresh reset → **Files=191 · Tests=6231 · Result: PASS**, 0 failing files, **0 `# Failed test`,
-> 0 `deadlock detected`, 0 `Bad plan`**. Arithmetic closes exactly: **6229 + C10c + D8c = 6231**.
-> Registry **391 == 391** files on disk, max `20260926000500`. **All four arms HOLD** —
-> `ARM=census` re-run *specifically* because `5ac8d849`/`b121740e` landed after the previous arm
-> pass, and census is the arm that catches a gate nobody has asked about yet; confirmed, not assumed.
-> ⚠ **The earlier `test:db` deadlock aborts (7 then 10 files) are now proven to be contention, in
-> both directions:** same tree, same reset discipline — with an 11-connection pool attached they
-> abort, with the stack exclusive they vanish. **No real finding behind them.**
->
-> ## ⛔ GATE STEP 3 (QA) r1 — **CHANGES REQUESTED**: 0 P0 · 3 MAJOR (2 blocking) · 8 MINOR · 6 INFO
-> Review: [dm4-referrals-review.md](docs/reviews/dm4-referrals-review.md). **Both blockers
-> discharged in `f4d03f44`**; r2 pending.
->
-> ⚠ **MAJOR-1 was the lead's error and is the phase's sharpest lesson.** I recorded "matrix 16/16
-> RED-PROVEN", then wrote "↻ Re-confirmed at HEAD" after re-running **pgTAP, the arms and the
-> build — but NOT the matrix**, carrying a stale verdict forward under a heading that claimed
-> otherwise. QA measured it: `N10b`'s `replace()` needle searched for the **pre-M5** `'{}'::jsonb`
-> call, and **M5 itself rewrote that body** to `jsonb_build_object(…)` ⇒ needle dead, N10b silently
-> degenerated into N10a, `[C11b]=ABSENT`, exit non-zero. ⭐ *A rename orphans a name-keyed verdict —
-> policies follow a rewrite by OID, **`prosrc` does not**.* **M5's own commit message cited that
-> lesson while breaking it.** QA bounded the blast radius by measurement (the other 13 needles still
-> matched), so the write seam's proofs survived.
-> **Structural fix, harness-wide, not just N10b:** every mutation now runs through a guarded `mut()`
-> — **a `replace()` matching nothing RAISES** (*"orphaned by a body rewrite — fix the needle against
-> the LIVE catalog"*) — and the verdict line now **prints its own HEAD**, because *a matrix verdict
-> is citable only with the commit it was measured at*.
->
-> **MAJOR-2 — a false coverage claim standing over correctly-deleted proofs.** `u1-mutation-audit.sh`
-> asserted the deleted injections were matrix-covered by N10a/N10b/N11; the matrix contained **no
-> C10a, no C11d, no D4a — zero of four**, and only C11d carries ③TWIN's polarity (C10a reads as the
-> *source* coordinator, the wrong side). Closed by **N14a** (gate narrowed to source-only ⇒ **C11d
-> red while C10a stays GREEN**, with must-stay-green patterns so the polarity is *measured*, not
-> prose) and **N14b** (door welded shut). Comments now claim only what is measured; retirement pins
-> (D4a, 325-t4) are recorded as a **different category**, no longer counted as mutation coverage.
->
-> **MAJOR-3 → PO ruling: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16**), which must
-> cover both widening and narrowing. `add_referral_shared_item` checks referral-**source** authority
-> but never `can_read_case` / `can_read_document`, so a **recused** coordinator can freeze a case's
-> PHI documents into a referral — QA demonstrated it live in a rolled-back txn (`can_read_case=false`
-> **and** `can_read_referral_phi=true` for the same user+case). ⚠ **The gap stands, behind a flag
-> that will eventually be turned on** — filed as **FUP-DM4-RECUSAL** and named in Phase 19's scope.
-> Not P0 (flag ships OFF). D4 reasoned about this seam for the D15 *clearance* plane and never
-> considered the *case-capability* plane.
->
-> **Two records corrected by QA — both were mine, both reported to the PO as fact:**
-> 1. **Census delta resolved: neither figure reproduces.** The exact recorded definition yields
->    **141** at HEAD (144 allowing `proretset`, 145 including `app`); DM4 removed one member ⇒ **142
->    pre-DM4**. I had reported 150 vs a recorded 146 as "unexplained growth" — *the discrepancy was
->    in the recording, not the population.*
-> 2. **N10a is NOT two independent locks.** `app._audit_access_authorized`'s `referral.viewed` arm
->    **IS `can_read_referral_phi`** — **one predicate applied twice**. Same observable behaviour,
->    far less security value: one predicate wrong breaks both checks. I recorded the engineer's
->    reassuring reading without probing the second guard's predicate.
->
-> **Still owed:** QA **r2** → step 4 human → step 5 Record (PROGRESS rotation · `docs/backend-state.md`
-> · **graphify refresh, outstanding since the DM0–DM3 merge**).
-
-> ## ✅ GATE STEP 2 (Test pass) — **GREEN, LEAD-RUN** 2026-08-14 @ `5ac8d849`
->
-> ```
-> batch 1 -> 69 passed · 0 failed · 0 flaky · 0 did-not-run · accounted 69/69
-> batch 2 -> 30 passed · 0 failed · 0 flaky · 0 did-not-run · accounted 30/30
-> GATE SUMMARY: 99 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 2 batches
-> COVERAGE: accounted for 99 of 99 collected tests          RESET=1 REBUILD=1 RETRIES=0
-> ```
->
-> **No regressions:** the 4-spec baseline is **89/89**, identical to the pre-DM4 measurement taken
-> before a line of DM4 existed. **0 did-not-run** — the 9 tests hidden behind the earlier failure
-> all ran and passed.
->
-> ### What the runtime pass proved that nothing before it could
->
-> Everything prior was DB-layer, static-gate or **absence** proof. Now:
-> - ⭐ **Byte round trip** — real browser file input → client PUT → finalize → **click-time** door,
->   `Buffer.compare(returned, sent) === 0`, sha256 match.
-> - ⭐ **Derivation** — a **lie declared at `begin`** (`declaredSize: 1`, `text/plain`) is discarded;
->   the server's derived size / MIME / sha256 win. *A round trip that trusts the client's declared
->   metadata proves far less than it appears to.*
-> - **Click-time doors survive a real ~125 s wait past the 120 s PHI TTL** — the regression that
->   design exists to prevent, tested against the actual clock rather than a mock.
-> - **`canOpen: false`** renders visible + explained + non-interactive, and **route interception
->   counted 0 calls** to either audited RPC — the UI does not call the door to learn the answer.
-> - **Flag-off refuses at `begin_document_upload` (`HC0D7`) before any `documents` row exists**
->   (count unchanged) — the corridor gated at its FIRST residue-producing step, which is exactly
->   the defect DM3 shipped.
-> - **DT admission + both negatives**; **R3** (`HC0DC` refuses an enforcing label, 0 rows created),
->   **R4** (a later label does not retract), **R5** (soft-delete keeps, disposal refuses `HC0DD`).
-> - **Audit exactness** on the new `metadata->>'kind'` discriminator, exact counts, unweakened.
->
-> ### 🐞 One real defect found and fixed — BUG-DM4-DUP-1 (`5ac8d849`)
->
-> The reply-attachment list rendered the just-uploaded file **twice** (strict-mode violation, *not* a
-> timeout). `finalize` → `revalidatePath` → RSC refetch returns `initialDocuments` **already
-> containing** the new row, while the still-mounted dialog holds its optimistic copy of the same
-> `documentId`; the list **concatenated** the two. ⚠ **A race, not a condition** — it survived the
-> engineer's whole dev loop and surfaced only on **prod-standalone**; a green run had *lost* the
-> race, not avoided the bug. Fixed by merging through a `Map` keyed on `documentId`.
-> ⭐ **The engineer caught a SIBLING race the lead never asked about:** seeding the map from
-> `initialDocuments` would put a fresh upload at the END pre-refetch and the FRONT after (the query
-> returns newest-first) — a second timing-dependent DOM change of the same family. Optimistic rows
-> are seeded **first** so each already holds its final position. **It flagged this as a deviation
-> from the instruction rather than doing it silently.**
-> ⛔ **The spec was never weakened.** The tester refused to relax the locator and traced the cause
-> into a file it does not own without touching it. **Strict mode doing its job is the feature.**
->
-> ### ⚠ Process record: 3 shared-stack collisions, 2 of them the lead's
->
-> Multiple agents, **one worktree and one database, with no lock**. (1) A concurrent `git add` swept
-> a teammate's PROGRESS.md block into the lead's commit, whose message then understated its content.
-> (2) The lead resumed `backend` mid-batch; its migration restarted the DB under a running suite
-> (4 timeouts). (3) The lead told `tester` the stack was exclusively its, then ran its own gate on
-> it — producing a **contaminated GATE RED (3 failures)** that was discarded. **Every collision was
-> caught by artifacts** (container `StartedAt`, row counts, a strict-mode violation), **never by an
-> agent reporting it.** ⭐ `tester` refused to hand over a number it could not trust — *"I don't want
-> to give you a false green OR a false red"* — and that refusal is what prevented a false report.
-> Standing rule for the rest of the phase: **the lead runs every gate, alone; no teammate touches
-> the database.**
-
-### ✅ COMPLETE — **DM3: Wave B — controlled documents** (opened + completed; PO-approved 2026-08-14)
-
-> ✅ **PO-APPROVED 2026-08-14 — all five §6 gate steps passed.** QA **r2 = APPROVED**
-> (MAJOR-1 discharged, **no binding pre-merge condition**) after r1's ⛔ CHANGES REQUESTED
-> (0 P0 · 1 MAJOR · 4 MINOR · 5 INFO).
-> **Gate:** fresh `db reset` 0 · pgTAP **190f/6152 PASS** · tsc 0 · lint 5/5 · vitest 1258 ·
-> `ARM=census` (*has anything ever asked?*) / `ARM=hat` (*any door reading `memberships`
-> hatless?*) / `ARM=floor` (*is every door called?*) / `FROMFINDINGS=1 ARM=wrapper` — **all
-> HOLD** · **diff-scoped door sweep `BLIND: 0`** · `e2e:prod` **GATE GREEN** (1101 passed ·
-> 0 failed · **0 did-not-run**; accounting closes exactly, every batch `accounted N/N`).
-> **11 migrations** `20260925000100`–`001100` · pgTAP suite **`330`** (labels `DM3·<Sec><n>`) ·
-> `328` edited (**K8c only** — K8a/K8b survive for DM4/Wave D).
-> ⛔ **State:** branch `docs/dm1-plan-amendments` — **NOT merged to `main`, nothing pushed, no
-> `db push`** (standing PO directive). **All DM flags ship OFF.** graphify refresh deliberately
-> **SKIPPED** — it fires after a merge to `main`, which has not happened.
->
-> **The three findings worth carrying forward:**
-> 1. ⭐ **P0-DM3-1** — M1 added the registry FK **and backfilled**, but never taught the CREATE
->    path to satisfy it, so **since M1 every attempt to create a controlled document raised
->    23503** — the product's wizard, not just `seed.sql`. **The backfill masked it from every
->    incremental run**; only the mandatory fresh reset could see it. Fixed by M8 (door) + **M9,
->    a `BEFORE INSERT` trigger**, after four more writers were found — *satisfying the FK by
->    construction rather than at N hand-mirrored call sites*.
-> 2. ⭐ **QA MAJOR-1** — `documents_wave_b` gated the **last step** of the corridor, not the
->    corridor: flag OFF still created the document, reserved a path, **PUT real bytes**, and
->    finalized. **The one untested arm held the defect.** M11 moved the assert to
->    `begin_document_upload` — *the first step that produces residue* — **scoped to the home
->    type**, with `DM3·T3b` as the control against silently killing Wave A.
-> 3. ⭐ **The byte round trip is proven** — byte equality end to end (`Buffer.compare === 0`),
->    with derivation proven by `DM3B-2` **declaring a lie at `begin`** and requiring the truth
->    to win. Everything before it was a DB-layer proof or an **absence** proof.
->
-> **Full detail rotated → [dm3-controlled-documents.md](docs/progress/dm3-controlled-documents.md)**
-> (the P0, the QA MAJOR, the `supabase/` index incident, the census-domain edge, the stale
-> allowlist, all five lead errors, and every gate figure).
->
-> **Open with the PO — do not assume:** the **146-function census blind class** (DEFINER,
-> composite-returning, auth-reachable — no arm can see them; DM3 added one, the class predates
-> it) is **STILL UNRULED**: schedule the domain widening or accept it as a recorded backlog.
-> Also open: **S1-O3**, ADR 0114 **O1/O2/O4**, **S2.8** `reclassify_document` (closed in DM2 —
-> do not re-open).
-
-### ✅ COMPLETE — **DM2: orchestration + Wave A** (opened + completed 2026-08-13)
-
-> ✅ **PO-APPROVED 2026-08-13 — all five §6 gate steps passed.** QA **r2 = APPROVED**
-> (0 P0 · 0 MAJOR · 1 MINOR · 4 INFO) after r1's ⛔ CHANGES REQUESTED (1 P0 · 3 MAJOR ·
-> 6 MINOR · 4 INFO) was fully discharged. The binding pre-merge condition **r2-1 is
-> closed** (`d46bb87` + `36deda5`).
-> **Gate:** pgTAP **189f/6097** · lint 5-gate · tsc 0 · vitest 86/1258 · `ARM=census`
-> (*has anything ever asked?*) / `ARM=hat` (*any door reading `memberships` hatless?*) /
-> `ARM=floor` (*is every door called?*) / `FROMFINDINGS=1 ARM=wrapper` — **all HOLD** ·
-> diff-scoped door sweep `app.can_read_document` **COVERED** (case list derived from the
-> diff; 1 case actually run) · `e2e:prod` **GREEN** (1091 passed · 0 did-not-run ·
-> coverage 1093/1099 = the 6 skips).
-> ⚠ **`open_document_version` is in NO authz arm's domain** (it returns `jsonb`) — that is
-> ADR 0118 §12's standing blind spot, not a DM2 regression. Its assurance is pgTAP `329`
-> P0a–P0f + the `308` 5.2s sentinel, **not** the sweep. Do not read the sweep as covering it.
-> ⚠ **`e2e:prod` run 1 was RED** on `pdf-printing.spec.ts:38` — ruled **not
-> phase-attributable** (outside the DM2 diff; three `RETRIES=0` passes), but the
-> **mechanism is UNPROVEN** and both evidence artifacts were destroyed by re-running →
-> **FUP-GATE-PDFP1-FLAKE**.
-> ⛔ **State:** branch `docs/dm1-plan-amendments` — **NOT merged to `main`, nothing
-> pushed, no `db push`** (standing PO directive; `main`/`origin/main` = `f84c6b6`).
-> **All five DM flags ship OFF** (migration `20260923000600`; `seed.sql` forces
-> `documents_foundation` + `documents_wave_a` ON for local/E2E only). graphify refresh
-> deliberately **SKIPPED** — it fires after a merge to `main`, which has not happened.
->
-> **Full detail rotated →
-> [dm2-orchestration-wave-a.md](docs/progress/dm2-orchestration-wave-a.md)** (slice table
-> S1–S5, all three remediation sessions, the re-gate record, and the browser-verification
-> block). Program: plan [DM0–DM5](docs/plans/document-model-redesign.md) · ADR
-> [0114](docs/decisions/0114-document-model-redesign.md) +Amdt 1 · **0117** +Amdt 1
-> (interview ceiling) · **0118** (command layer; §10 predicate pin, §12 blind spot).
->
-> **Open with the PO — do not assume:** ~~plan **Q1**~~ ✅ **RULED 2026-08-13 — Wave B
-> (DM3)**, ADR 0114 **Amdt 2 / D17** · **S1-O3** uploader visibility · ADR 0114
-> O1/O2/O4 · **S2.8** `reclassify_document_file` still has no legal expression on the DM1
-> substrate (no Wave A UI consumes it, so deferring stays legitimate).
-
+> ⚠ Two DM3 findings that are **not** DM4-superseded and must not be re-learned: the M1 **backfill
+> that masked a broken CREATE path** (every create raised 23503 for a whole phase, invisible to every
+> incremental run — only the mandatory fresh reset saw it), and the flag that **gated the last step
+> of a corridor instead of the corridor** (flag OFF still PUT real bytes). ⚠ **Ethics letters home on
+> the `case` securable resource, NEVER `controlled_document`** — else `HC0D6` refuses the enforcing
+> label and the D15 ceiling silently vanishes.
 ### ⬛ Recently completed — rotated 2026-08-12; detail in `docs/progress/`
 
 One line each. Gate numbers live in the **Phase Status** table above; the linked record carries the
