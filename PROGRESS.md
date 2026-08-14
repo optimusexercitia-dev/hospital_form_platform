@@ -210,6 +210,36 @@
 > derivable — *a half-populated column invites a future reader to treat it as authoritative*, so the
 > NULL is a deliberate signal rather than an absence.
 >
+> **S2 frontend ✅ COMPLETE** (`5793fd16`) — 13 files, +1129/−476. `openUrl` is gone, so rows render
+> **no `<a href>` at all**: there is no storage coordinate left in the projection to link to, and bytes
+> resolve one at a time through the audited door strictly on click (D8). `canOpen` is obeyed verbatim,
+> never re-derived — it decides what to **draw**, the door decides what to **serve** (Rule 1).
+> Contract amendment 1 landed *before* ship, so the `terminal` heuristic was **deleted, never
+> shipped**; `credential.expiresAt` pre-empts a lapsed reservation so "expired" never reads as
+> "broken" at the 120 s PHI TTL. Gates: tsc 0 · lint **5/5**, eslint 0 warnings · vitest 1264/1264.
+> **Fork ledger** (recorded so the duplication reads as *chosen*, not accumulated): reused outright —
+> `DocumentAvailabilityBadge`, `AVAILABILITY_PRESENTATION`, the MIME/size constants,
+> `uploadDocumentFile`; forked deliberately — the open-button **shell** (~25 lines: its contract is
+> *"every Wave-A byte moves through THIS control"*, so injecting a different door would falsify the
+> one sentence that makes it meaningful) and the upload dialog (Wave-A's carries kind /
+> confidentiality / occurredOn that NSP evidence has none of; only the **transport choreography** is
+> genuinely shared). `CapaEvidenceList` / `RcaEvidencePanel` were **NOT** forked — re-pointed.
+> ⭐ **`unavailable` handled by NARROWING THE REFERENCE, not widening the type:** the
+> `DocumentAvailability` import is deleted, the badge map is keyed
+> `Exclude<NspEvidenceAvailability,'available'>`, and the `unavailable` **badge entry is deleted** so
+> no dead branch can render — the word survives only in the error map, where `HC0D8` genuinely is
+> reachable (servable at render, gone by the click). A green typecheck would have been satisfied by
+> *either* resolution; only asking which one distinguishes them.
+> ⚠ **Runtime-unverified by design** — every action/query signature still throws
+> `not implemented — DM5 S2`, so both pages 500 on the list queries until backend lands the bodies.
+> Expected under contract-first; **`tester` must not read it as a frontend red.**
+> 🔧 **History repair:** `e1557179` shipped with a mangled message (PowerShell here-string in the
+> Bash tool — the commit *succeeds*, only the message is wrong, so nothing fails loudly). Frontend
+> **correctly refused to `--amend`**: the lead had committed on top, so the reflex fix would have
+> rewritten the LEAD's commit — the exact documented failure mode, and the prohibition earned its
+> keep. Lead rewrote both commits via safety-branch + `reset --soft` + separate restage;
+> **tree hash `abbe887c…` identical on both sides**, verified independently by frontend afterwards.
+>
 > **Two lead errors this slice, both recorded because they are the same class as the phase's other
 > findings.** ① I told backend the upload ticket lacked `expiresAt`; it was at
 > `evidence-contract.ts:202` all along — **my grep pattern never contained the term**, so I reported
