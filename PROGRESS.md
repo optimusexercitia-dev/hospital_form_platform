@@ -193,10 +193,13 @@
 > (**blocks S4**; method half ruled, remote half open) · 🔴 FUP-PGTAP-VACUOUS · 🟠 FUP-DM4-RECUSAL
 > (**DM5 does NOT close it**) · 🟠 FUP-DM5-FINALIZE-ATOMIC (**binding input to S5**) ·
 > 🟡 FUP-DM5-GRANTS · 🟡 FUP-AUTHZ-ALLOWLIST-ROT · 🟡 FUP-DM5-DVF-FILEOBJ · 🟡 FUP-DM4-PRODROW.
-> **Not filed anywhere but prose — file or act before S3 closes:** `330` is **BLIND** to
-> `can_write_document` (calls `begin_document_upload`, notices nothing when the gate opens; covered by
-> `341`, so not a blocker) · the intermittent **`pg_prove` worker deadlock** (HANDOFF-1 in the phase
-> record — *it will re-red a gate at random and read like a defect*).
+> **✅ Both prose-only items FILED 2026-08-14 (lead), no longer untracked** → 🟠 **FUP-DM5-330-WRITE-BLIND**
+> and 🟡 **FUP-PGTAP-WORKER-DEADLOCK** in [follow-ups.md](docs/progress/follow-ups.md).
+> ⚠ On filing, the reassurance in the original note did not survive: it said `330`'s blindness is
+> "covered by `341`, so not a blocker" — **`341` is S2's own suite**
+> (`341_dm5_s2_nsp_evidence_substrate.sql`), which makes the claim *plausible but unverified*, and §6
+> step 1 does not accept "another suite covers it" for a BLIND door. It is also **STALE-COVERED-shaped**:
+> `can_write_document`'s body changed twice after that note (S2's arms, then `fc7a146d`).
 
 ### ⬛ DM4 — Wave C: referrals — ✅ PO-approved 2026-08-14, rotated at the DM5 open
 
@@ -329,6 +332,30 @@ All five carried full repro + mechanism; the durable lessons also live in the ph
 ✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
 (pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
 [bug-log-archive.md](docs/progress/bug-log-archive.md).
+
+🟠 **BUG-DM5-S3-INACTIVE-PRINT-1 — a DEACTIVATED user keeps print-download authority; the same
+user is refused every content document.** Filed 2026-08-14 (lead) during the S3 contract review.
+**Latent, not live:** `document_printing` **ships OFF** (only `seed.sql:2401` forces it on), so
+nothing is exposed in production today — it goes live the day printing is enabled.
+**Mechanism:** `app.can_read_document` guards `app.is_active(p_uid)` **above** its type dispatch,
+so every content document refuses a deactivated caller. `app.can_view_printed_document` has **no
+`is_active` term anywhere in its transitive closure that bites** — its `form_response` arm's
+**first disjunct is the bare column comparison `v_resp.created_by = p_uid`**, so no callee can
+supply the check (`is_staff_admin_of_for` does carry it, but it sits behind an `or`).
+`public.open_printed_document` is `SECURITY DEFINER` — RLS never runs — and its only authorization
+is that one call, so the print's bytes are reachable at `POST /rest/v1/rpc/open_printed_document`
+with a still-valid JWT (`EXECUTE` is granted to `authenticated`; verified from `proacl`).
+**Evidence** (one rolled-back transaction, `7aa170bf`): control with the creator **active** →
+print door `t` (so the probe is not vacuous); deactivate that one profile, change nothing else →
+print door **still `t`**; the core door for the same uid → `f`. Rollback verified afterwards —
+`00000000-…-003` back to `is_active = t`, and the single remaining inactive profile is the seed's
+own `desativado.conta@test.local`. Degenerate-body sweep `0` after the run.
+⭐ **Why it was invisible:** the gap is a *missing* term, and every authz arm asks whether a gate
+is reached or noticed — none asks whether a door omits a check its siblings all make. It is not a
+BLIND-door finding and no arm would ever have raised it.
+**Fix:** ADR 0120 **D12**'s composition (byte door = core door **AND** print door) closes it, which
+is why D12's "strict narrowing" claim is load-bearing rather than decorative. Owned by DM5·S3
+(migration `…000340`); keystone **S3c** is exactly this probe, and it must be **red-first**.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -474,6 +501,9 @@ see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are 
 _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progress/follow-ups.md)** — update BOTH (the body there, the line here) when an item changes state. Resolved items → [follow-ups-archive.md](docs/progress/follow-ups-archive.md). One line per item: severity · id · title · owner._
 
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has **no UI route** (authorized set ∩ reachable set = ∅); **PILOT-GATE CHECK, item 0 of Remaining pre-pilot work** — PO (mount point)
+- 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make.** All five arms test a gate that *is there*; a missing term is invisible to every one, because neutralizing nothing changes nothing. Specimen: BUG-DM5-S3-INACTIVE-PRINT-1. Proposed fix is a catalog **guard-set diff** across each door family, resolved **transitively**, treating a term reached only through an `or` as absent, with a positive control — and sized as **periodic vs standing before it is written** — lead/backend
+- 🟠 **FUP-DM5-330-WRITE-BLIND** — pgTAP `330` notices nothing when `app.can_write_document` is neutralized. Was prose-only; the "covered by `341`" reassurance is unverified (`341` is **S2's** suite) and STALE-COVERED-shaped, since the body changed twice after that note. BLIND blocks a phase (§6 step 1) and this door is a write authority, so **keystone it, never allowlist** — backend
+- 🟡 **FUP-PGTAP-WORKER-DEADLOCK** — `npm run test:db` intermittently deadlocks a `pg_prove` worker; impact is **assurance, not correctness** (a dropped suite is not a passed suite). Until diagnosed, read file/assertion totals against the last known-good run and never pipe the run through `tail`; diagnosis wants `pg_stat_activity` + `pg_locks` at hang time — backend
 - 🟢 ~~FUP-DM1-CEILING · FUP-DM1-E2E · FUP-DM1-DISPOSE~~ — all three ✅ **DISCHARGED by DM2** (S1 / S4 / S2), each verified independently rather than accepted from a report → rotated out of both live files to [follow-ups-archive.md](docs/progress/follow-ups-archive.md)
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans **TS spec files only** (180 files, 0 findings); the **~6152 pgTAP assertions are entirely unscanned**. Live specimen found + lead-confirmed in a **PHI-boundary suite**: `197` §4.1's `-> 0 ->> field IS NULL` passes on an **empty array**, asserting nothing. DM4 fixes only its own diff + adds a positive control; a repo-wide sweep is its own audit and must be **proven able to fail** first — lead/backend
 - 🔴 **FUP-DM5-STORAGE-ORPHANS** — a DB reset wipes `storage.objects` but **NOT the bytes**, and the Storage API lists *from* that table, so orphans are invisible to it too. Lead-reproduced: **0 metadata rows vs 663 files / 16.5 MB, 162 of them PHI-tier**. **Blocks DM5 step 3** — its "prove empty via the API then delete the bucket" would prove emptiness against a truncated table and report success while PHI bytes persist. DM5 must enumerate at the **backend layer**. ⚠ remote behaviour is an INFERENCE, unverified — lead/backend

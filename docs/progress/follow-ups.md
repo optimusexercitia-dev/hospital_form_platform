@@ -8,6 +8,59 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟠 FUP-DM5-SIBLING-GUARD-DIFF — **no authz arm can see a door that OMITS a check its sibling doors all make** (owner: lead + backend; a gate-coverage gap, not a defect)
+
+Filed 2026-08-14 (lead) on confirming **BUG-DM5-S3-INACTIVE-PRINT-1** (PROGRESS.md).
+
+**The gap.** ADR 0079's standing gate has five arms and **none of them can detect this class**:
+`floor` asks *is the door called*; diff-scoped `policy` asks *does anything notice when a gate is
+opened*; `census` asks *has anything ever asked*; `hat` asks *does it read `memberships` without
+the caller's hat*; `wrapper` covers the `prosecdef = f` half. **Every arm tests a gate that is
+there.** A *missing* term is invisible to all five, because neutralizing nothing changes nothing —
+and it is invisible to review too, since the door reads perfectly sensibly on its own.
+
+**The specimen.** `app.can_read_document` guards `app.is_active(p_uid)` **above** its type dispatch;
+`app.can_view_printed_document` has no effective `is_active` term, because its `form_response` arm's
+first disjunct is the bare column comparison `v_resp.created_by = p_uid`, behind an `or`. Confirmed
+by probe, not by reading. Latent only because `document_printing` ships OFF.
+
+**Proposed check** (cheap, and it is a *comparison*, not a new mutation arm): for each family of
+doors guarding one resource class, diff their guard sets from the catalog — `is_active`, tenancy,
+flag assert, PHI gate, disposal, status — and require every asymmetry to be either fixed or
+**recorded as deliberate**. Two design constraints learned the hard way:
+1. Resolve each term **transitively**, and treat a term reached only through an `or` as **absent** —
+   a callee cannot rescue a disjunction. (Bare structural `prosrc ~ 'is_active'` would have called
+   `is_staff_admin_of_for` sufficient and **cleared this door**.)
+2. It must carry a **positive control**: assert the door returns `true` for an *active* principal
+   before flipping the bit, or the `false` afterwards proves nothing.
+
+⚠ **Do not fold this into `p0-authz-invariant.sh` as a sixth arm without sizing it** — the four
+phase-step arms are 2 s / 10 s / 1 min / 2 s precisely because they are cheap; a full-closure guard
+diff over every door family is a periodic audit, like `ARM=wrapper`'s ~100 min sweep. Decide which
+it is *before* writing it, and if it lands as periodic, say so in §6 rather than calling it standing —
+"standing in prose alone" is what let three weeks pass before a sweep that then found 15 BLIND gates.
+
+### 🟠 FUP-DM5-330-WRITE-BLIND — pgTAP `330` does not notice when `app.can_write_document` is neutralized (owner: backend)
+
+Filed 2026-08-14 (lead), carried out of the DM5 handoff where it existed **only in prose** and so was
+in no tracked place. Surfaced when `can_write_document` was re-swept for the S2 arms (`fa28ec19`) —
+it had been **STALE-COVERED**: a verdict recorded against the door under its pre-S2 body, which the
+S2 `rca`/`capa_action` arms then changed. Per §6 step 1 a BLIND door **blocks a phase**, so this must
+be keystoned (not allowlisted — `can_write_document` is a write authority, never an unreachable
+backstop). ⚠ Re-derive whether it is *still* blind from the live catalog before writing the keystone:
+`BUG-DM5-S2-WRITE-ARM-1`'s fix (`fc7a146d`) changed the body afterwards, and
+[[a-rename-orphans-a-name-keyed-verdict]] applies — a name-keyed verdict does not follow a body edit.
+
+### 🟡 FUP-PGTAP-WORKER-DEADLOCK — `npm run test:db` intermittently deadlocks a `pg_prove` worker (owner: backend)
+
+Filed 2026-08-14 (lead), also carried out of prose. Non-deterministic; observed during DM5 gate runs.
+Impact is **assurance, not correctness**: a hung/aborted worker can drop a suite from the run, and a
+suite that never ran is not a suite that passed — the same shape as
+[[gate-summary-can-hide-unrun-tests]]. **Mitigation until diagnosed:** always read the file/assertion
+totals (`192 files / 6284`) against the previous known-good run, never a trailing summary line, and
+never pipe the run through `tail`. Diagnosis wants the lock graph at hang time
+(`pg_stat_activity` + `pg_locks`), which nobody has captured yet.
+
 ### 🔴 FUP-PGTAP-VACUOUS — `lint:vacuous` scans TS spec files ONLY; ~6000+ pgTAP assertions are entirely unscanned, and a live specimen was found (owner: lead + backend; a program-level audit, NOT a phase side quest)
 
 Filed 2026-08-14 during DM4. **Found by `backend` while re-reading a suite it had to edit, and
