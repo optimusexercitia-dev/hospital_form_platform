@@ -70,6 +70,43 @@ assumed from the local finding**. ⚠ Note the remote has never received DM1+, s
 the 2026-08-11 production census (45 objects) — **a remote reset would orphan all of them**, which
 is a live input to [[FUP-DM4-PRODROW]]'s deploy decision, not a DM5-only concern.
 
+### 🟠 FUP-DM4-RECUSAL — a RECUSED coordinator can freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline = the `documents_wave_c` flag-on date**)
+
+Filed 2026-08-14 at DM4 QA r1 (**MAJOR-3**). **Found by `qa`, demonstrated LIVE** in a rolled-back
+transaction — not inferred from reading code.
+
+**The gap.** `add_referral_shared_item` checks referral-**source** authority
+(`can_manage_referral_source`) but **never `can_read_case` or `can_read_document`**. So for one
+user and one case, simultaneously:
+
+```
+can_read_case(caseA, u)                     = false      ← recused / excluded
+can_manage_referral_source(ref on caseA, u) = true
+can_read_referral_phi(ref on caseA, u)      = true        ← reaches the PHI bytes
+```
+
+A coordinator **recused** under the ADR-0072 / ETH·E1 exclusion perimeter can therefore freeze that
+case's PHI documents into a referral and read them through the referral corridor. ⚠ **Two
+authorization planes that were each individually correct**: ADR 0119 **D4** reasoned about exactly
+this seam for the D15 **clearance** plane and never considered the **case-capability** plane.
+Same shape as [[exclusion-only-as-strong-as-weakest-mutator]] — the excluded party reaches the
+content by a route the exclusion never modelled.
+
+**PO ruling 2026-08-14: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16**, which must
+cover **both widening and narrowing**). Legitimate: not P0 because `documents_wave_c` **ships OFF**,
+so the path is unreachable in production today. The other options offered and not taken were fixing
+it inside DM4 with a keystone + negative twin, or ratifying source-authority-is-enough in ADR 0119.
+
+⛔ **QA's standing caveat, binding on how this may close.** This is an open **security** obligation,
+not a backlog item, and **its deadline is the flag-on date, not Phase 19's delivery date**. It must
+**never** be absorbed into *"Phase 19 delivered an access plane"* — **a plane that only WIDENS would
+not close it.** Closure requires a **narrowing** arm that refuses a recused coordinator at the
+freeze door, **proven by a negative twin**, and the FUP is closed only against that evidence.
+
+⚠ **Before `documents_wave_c` is ever enabled in production, this must be resolved or explicitly
+re-ratified by the PO.** Name it in Phase 19's scope in
+[accreditation-track.md](../phases/accreditation-track.md) so D16 cannot land without meeting it.
+
 ### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
 
 Filed 2026-08-14 at DM4 open, as the recorded half of **PO ruling R2**.
