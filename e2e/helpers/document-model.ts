@@ -30,6 +30,14 @@ if (!SUPABASE_SERVICE_KEY) {
  * controlled document's bytes ride the SAME begin/PUT/finalize/open corridor as
  * every Wave-A home. Kept in sync with `DocumentHomeResourceType` in
  * `src/lib/documents/types.ts` — this is the E2E mirror, not the source.
+ *
+ * DM4 Wave C (ADR 0119) added `case_referral` — reply attachments are
+ * referral-homed documents on this SAME corridor (`begin_document_upload`
+ * with `p_kind: 'anexo_resposta'`). It is deliberately absent from the app's
+ * OWN `DocumentHomeResourceType` (see `src/lib/documents/types.ts`'s
+ * `DocumentHomeResourceTypeDb` split — no generic document panel renders it),
+ * but this E2E helper drives the RPC directly, so it belongs in the wider set
+ * here.
  */
 export type DocumentHomeResourceType =
   | 'case'
@@ -37,6 +45,7 @@ export type DocumentHomeResourceType =
   | 'interview'
   | 'action_item'
   | 'controlled_document'
+  | 'case_referral'
 
 export interface BeginUploadResult {
   upload_session_id: string
