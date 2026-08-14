@@ -40,7 +40,19 @@ diff over every door family is a periodic audit, like `ARM=wrapper`'s ~100 min s
 it is *before* writing it, and if it lands as periodic, say so in §6 rather than calling it standing —
 "standing in prose alone" is what let three weeks pass before a sweep that then found 15 BLIND gates.
 
-### 🟠 FUP-DM5-330-WRITE-BLIND — pgTAP `330` does not notice when `app.can_write_document` is neutralized (owner: backend)
+### 🟠 FUP-DM5-330-WRITE-BLIND — `330` does not notice a neutralized `app.can_write_document`; ⚠ **S3 will lift the DOOR-level finding without covering the arm `330` was watching** (owner: backend)
+
+> **Re-scoped 2026-08-14 (lead) after `backend` correctly declined to fix it inside S3.** Its reasoning
+> is right and is retained: the door sweep's unit is the **suite set**, not one file, so `342` noticing a
+> neutralized `can_write_document` is what lifts BLIND — and folding S3 keystones into DM3's suite is the
+> same objection that moved S3's own suite off `341`, one file over.
+>
+> ⛔ **The distinction that keeps this open: door-level BLIND lifting ≠ arm-level coverage.** Once `342`
+> covers the **print** arm, neutralizing the whole door is noticed and the finding lifts — while the
+> `controlled_document` arm `330` was supposed to be watching stays uncovered, now wearing a COVERED
+> status. That is **STALE-COVERED reappearing as a *status* change rather than a *body* change**, which no
+> existing check looks for. Do **not** close this on `342`'s coverage. `330`'s own hygiene is a separate
+> labelled commit, deliberately not in S3.
 
 Filed 2026-08-14 (lead), carried out of the DM5 handoff where it existed **only in prose** and so was
 in no tracked place. Surfaced when `can_write_document` was re-swept for the S2 arms (`fa28ec19`) —
