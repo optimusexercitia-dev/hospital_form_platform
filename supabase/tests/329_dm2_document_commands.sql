@@ -491,8 +491,35 @@ select lives_ok(
   'R2b hold released for the happy path');
 
 -- R3 happy begin: append-only successor minted.
-create temp table rr on commit drop as
-  select public.reclassify_document((select (r->>'document_id')::uuid from u6), 'standard') as r;
+--
+-- ⚠ GUARDED FIXTURE. The guard is load-bearing for the AUTHZ DOOR SWEEP, not
+-- for this suite's own green run — unguarded, this file is green either way.
+--
+-- This is a raw `create temp table … as select <door>()`, outside any pgTAP
+-- wrapper. When the sweep neutralizes `app.can_write_document`, R1 above STOPS
+-- refusing (exactly the coverage we want it to have), the document is
+-- reclassified early, and this call then raises `arquivo indisponível para
+-- reclassificação` with nothing to catch it. The transaction aborted and the
+-- file's LAST 41 ASSERTIONS NEVER RAN — measured: 74 of 115. So the harness
+-- scored the gate `ERROR (run-shape != baseline)` rather than COVERED, because
+-- "a run that did not happen is not evidence" (ADR 0079). A file that NOTICES a
+-- neutralization and then dies of noticing scores worse than one that ignores it.
+--
+-- ⚠ That 41 also collided numerically with 341's old plan of 41 and produced a
+-- confident, wrong "341 aborts" diagnosis that two people adopted. The abort was
+-- always here.
+--
+-- The guard catches the error; it does NOT stop the statement mattering. On
+-- failure `rr` carries a NULL row, so R3/R3b — which assert over it — still
+-- FAIL. The file then reports 115/115 with real failures instead of aborting.
+-- Idiom: the 340 B7 `do $$ … exception when others …` fixture guard.
+do $g$ begin
+  create temp table rr on commit drop as
+    select public.reclassify_document((select (r->>'document_id')::uuid from u6), 'standard') as r;
+exception when others then
+  create temp table rr on commit drop as select null::jsonb as r;
+  raise notice '329 R3 fixture guarded (R3/R3b below still evaluate): %', sqlerrm;
+end $g$;
 select is(
   (select count(*)::int from rr where (r->>'new_document_version_id') is not null
       and (r->>'old_file_object_id') is not null),
