@@ -111,7 +111,8 @@ Window `20260925000100`–`000800` (8 migrations); new pgTAP suite **`330`**, pl
 | S2 — frontend: upload + download cutover, field swap, charter gate, dead-component removal | frontend | ✅ landed (`ef62e1b` + `de21b87`) — all 3 wizard modes orchestrate client-side; lint 5/5, vitest **1258/1258**. ⚠ **`createDraftOnly` SURVIVES** (minus its `if (hasFile)` block) — it is the wizard's step 1 and the only verb returning `{documentId, versionId}`; **3 verbs die, not 4** |
 | S1e — P0 remediation: M8/M9/M10 + `DM3·R3` twins + repo-wide removal sweep | backend | ✅ landed (`5a7c684`) — pgTAP **190f/6150 PASS** |
 | S1f — register the 4 new DEFINER doors (census domain + findings file) | backend | 🟢 in progress — **lead runs the arms**, not the registrar (an arm run by the hand that registered the door is not independent) |
-| S3 — tester: the BYTE ROUND TRIP + lifecycle + prior-version E2E | tester | 🟢 in progress |
+| S3 — tester: the BYTE ROUND TRIP + lifecycle + prior-version E2E | tester | ✅ **GREEN** (`0c10b9b`+`ce85b4c`, ancestors verified) — **47 collected / 47 ran / 47 passed / 0 skipped** on a fresh reset; **NO bug filed, no application defect found** (all 9 baseline reds tester-owned: 7 stale locators + 2 worker interference) |
+| S4 — QA review | qa | ⬜ next |
 | S4 — QA review | qa | ⬜ not started |
 | S5 — gate + approval | lead | ⬜ not started |
 
@@ -155,6 +156,46 @@ standard-tier open. Contract: non-creator → 1, creator → **0 deliberately**,
 - **M3 failed first run on `HC089`** — a migration runs *outside* the RPC corridor, so the sibling guard was armed against the backfill. The bypass the backfill must use is the one the new freeze trigger **deliberately refuses to inherit**; that reads like an inconsistency and is the whole design. A future "harmonizing" edit would silently reopen D10.
 - ⚠ `seed.sql`'s `documents_wave_b` line and `328` K9b/K9c are **one artifact**. K8a/K8b **survive** for DM4/Wave D with their reasoning left in place. `app.can_write_document` diverges between session claims and a literal uid (act-as, ADR 0106/0107) — a manual psql probe is **not** representative of `test_helpers.claims_for`.
 - ⚠ The M7 trigger fix was hand-applied to local, then re-applied byte-exact from the migration file. **A fresh `supabase db reset` at gate step 1 is still required** to prove the chain end-to-end — it is also where `193`/`194` get measured for FUP-PGTAP-SAVEPOINT.
+
+### ⭐ THE BYTE ROUND TRIP IS PROVEN — the one thing DM3 had never established
+
+`DM3B-1` drives the **real browser corridor** and asserts **byte equality**, not "a file
+downloads": an object exists at the reserved coordinate with `storage.objects` metadata size ==
+the uploaded length → `finalize` **derived** `size_bytes`/`mime_type`/`sha256` from what landed
+(`unscanned_accepted`, `standard` tier, `documents-standard`) → the door signs it back →
+**`Buffer.compare(returned, uploaded) === 0`** plus sha256 and a unique marker.
+
+**Derivation is proven, not assumed:** `DM3B-2` **declares a lie at `begin`** (1 byte,
+`text/plain`), PUTs a real PDF, and requires the truth to win. Everything before this slice was a
+DB-layer proof or an **absence** proof; this is the first evidence the replacement corridor
+*works* rather than that the old one is gone.
+
+**Where the tester refused a green** (the standard this phase has held throughout):
+- ⚠ **`DM3B-8` first passed for the WRONG reason** — a `created_by` NOT NULL fired **before** the
+  UNIQUE ever ran. The insert now copies every other column from the incumbent row, so the
+  duplicated coordinate is the only thing wrong with it, and it names
+  `file_objects_bucket_path_uniq`. (*wanted X, caught `<code>` ⇒ chase the fixture.*)
+- **`DM3B-4` takes a BEFORE-SHOT**: the same non-member is refused `P0002` **before** being named
+  approver and served **after** — which makes the arm the *cause* rather than a coincidence. Its
+  negative twin (approver on a *different* document) pins exact SQLSTATE + message and asserts
+  no leakage; her own document refuses with a **different** code (`HC0D8`), proving the first
+  denial was authorization and not a generic no.
+- **AC-7 re-pointed but labelled in-file as green BY CONSTRUCTION**; the falsifiable version is
+  `DM3B-8`. **AC-11 kept but NOT credited** — its `storage_path` clause is now vacuous on the new
+  door.
+
+**Two observations, neither a DM3 regression:** `open_document_version` refusals surface as
+**HTTP 500, not 404** (measured `{"code":"P0002"}` / `HTTP_STATUS=500`) — pre-existing DM2
+transport behaviour, so the spec pins code+message and only `status >= 400`, since encoding 500
+would make a PostgREST detail into a DM3 contract. And **AC-13's keyboard assertion is a
+positional Tab count coupled to REGISTER ROW COUNT** — red at 56 accumulated documents against a
+60-press budget; raised to 240, but **a green AC-13 is meaningful only on a fresh reset** and will
+drift again the moment the seed gains a document.
+
+**Gaps the tester stated rather than reported around:** the **`documents_wave_b`-OFF arm** of the
+charter affordance (Q6) was not exercised (flipping a shared-stack flag mid-run would have raced
+the other specs) · the 47 are a **scoped quick loop, not the gate** (`e2e:prod` is lead-run) ·
+the new spec adds **~14 documents per run** to commission A, feeding the AC-13 accumulation.
 
 ### ✅ AUTHZ ARMS — all four HOLD (lead-run 2026-08-13, registration by backend: the split was deliberate)
 
