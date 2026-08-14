@@ -441,6 +441,29 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
+### 🟠 BUG-DM4-DUP-1 — the reply-attachment list renders the just-uploaded file TWICE (owner: `frontend`)
+
+Filed 2026-08-14 (DM4 gate step 2). Surfaced as a **strict-mode violation, not a timeout** —
+`DM4-RT-1`'s row locator resolved to **2 elements** with identical title and size. Mechanism traced
+from source by `tester` and **independently verified by the lead**; it is a defect, not a locator fault:
+
+- `src/components/referrals/referral-reply-attachments.tsx:135` builds its row list as a **plain
+  concatenation with no dedup**: `[...initialDocuments.map(d => ({key: d.documentId, …})), ...uploaded]`.
+- `:181` appends the optimistic entry with `key: finalized.documentId` — **the same id** as the
+  server row it just created.
+- `src/lib/referrals/actions.ts:521` → `revalidateReferrals()` → `:80`
+  `revalidatePath(REFERRAL_DETAIL_PATH, 'page')` on **every** successful finalize.
+- `revalidatePath` on a mounted route makes Next refetch the RSC payload; `page.tsx` re-runs
+  `listReferralReplyDocuments`, which now **includes** the new attachment, and passes it down as
+  `initialDocuments`. The dialog does not unmount, so `uploaded` still holds its copy ⇒ **two `<li>`,
+  same React key** (React also logs a duplicate-key warning and renders both anyway).
+
+⚠ **Timing-sensitive, not conditional** — it depends on whether the refetch resolves before the
+assertion, which is exactly why it can differ between dev and prod-standalone. **The bug exists
+regardless of whether a given run reproduces it**; non-reproduction only means the race was lost.
+⛔ **Do NOT fix this by relaxing the locator** — `tester` correctly refused to. Fix is id-based dedup
+(merge by `documentId`, e.g. a `Map` with `uploaded` winning ties).
+
 ℹ️ **DM3 Wave B gate step 2 filed NO bug** (tester, 2026-08-13) — stated explicitly because a silent
 absence and a clean result look identical. All 9 baseline reds were **tester-owned**: 7 stale locators
 (the DM3 substrate/affordance move) and 2 worker interference. See the Test Run Summary row for the
