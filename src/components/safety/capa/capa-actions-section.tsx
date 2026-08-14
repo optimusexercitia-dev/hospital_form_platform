@@ -5,11 +5,11 @@ import { ListTodo, Plus } from "lucide-react";
 
 import type {
   CapaAction,
-  CapaActionEvidence,
   CapaActionTask,
   CapaPlan,
 } from "@/lib/safety/capa-types";
 import type { AssignableUser, RcaRootCause } from "@/lib/safety/rca-types";
+import type { CapaActionEvidenceView } from "@/lib/safety/evidence-contract";
 import { Button } from "@/components/ui/button";
 import { canAdvanceAction } from "./capa-derive";
 import { CapaActionCard } from "./capa-action-card";
@@ -34,7 +34,7 @@ export function CapaActionsSection({
   plan: CapaPlan;
   actions: CapaAction[];
   tasksByAction: Map<string, CapaActionTask[]>;
-  evidenceByAction: Map<string, CapaActionEvidence[]>;
+  evidenceByAction: Map<string, CapaActionEvidenceView[]>;
   /** root cause id → statement text (for the "Vinculado à causa raiz: …" line). */
   rootCauseTextById: Map<string, string>;
   users: AssignableUser[];

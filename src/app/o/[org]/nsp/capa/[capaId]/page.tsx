@@ -7,17 +7,17 @@ import {
   getCapaPlan,
   getCapaEffectiveness,
   listCapaActions,
-  listCapaActionEvidence,
+  listCapaActionEvidenceViews,
   listCapaActionTasks,
   listCapaMeasureResults,
   listCapaMeasures,
 } from "@/lib/queries/capa";
 import { listAssignableUsers, listRcaRootCauses } from "@/lib/queries/rca";
 import type {
-  CapaActionEvidence,
   CapaActionTask,
   CapaMeasureResult,
 } from "@/lib/safety/capa-types";
+import type { CapaActionEvidenceView } from "@/lib/safety/evidence-contract";
 import {
   CapaWorkspace,
   type CapaWorkspaceData,
@@ -72,7 +72,9 @@ export default async function NspCapaPage({
   // root causes (only when RCA-sourced), and each measure's results.
   const [tasksLists, evidenceLists, resultLists, rootCauses] = await Promise.all([
     Promise.all(actions.map((a) => listCapaActionTasks(a.id))),
-    Promise.all(actions.map((a) => listCapaActionEvidence(a.id))),
+    // DM5·S2 — the views projection: `availability` + a server-computed
+    // `canOpen`, never a signed URL (ADR 0114 D8).
+    Promise.all(actions.map((a) => listCapaActionEvidenceViews(a.id))),
     Promise.all(measures.map((m) => listCapaMeasureResults(m.id))),
     plan.source === "rca" && plan.sourceId
       ? listRcaRootCauses(plan.sourceId)
@@ -81,7 +83,7 @@ export default async function NspCapaPage({
 
   const tasksByAction = new Map<string, CapaActionTask[]>();
   actions.forEach((a, i) => tasksByAction.set(a.id, tasksLists[i]));
-  const evidenceByAction = new Map<string, CapaActionEvidence[]>();
+  const evidenceByAction = new Map<string, CapaActionEvidenceView[]>();
   actions.forEach((a, i) => evidenceByAction.set(a.id, evidenceLists[i]));
   const measureResults: CapaMeasureResult[] = resultLists.flat();
 

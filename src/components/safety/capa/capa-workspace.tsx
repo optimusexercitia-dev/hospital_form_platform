@@ -1,6 +1,5 @@
 import type {
   CapaAction,
-  CapaActionEvidence,
   CapaActionTask,
   CapaEffectiveness,
   CapaMeasure,
@@ -8,6 +7,7 @@ import type {
   CapaPlan,
 } from "@/lib/safety/capa-types";
 import type { AssignableUser, RcaRootCause } from "@/lib/safety/rca-types";
+import type { CapaActionEvidenceView } from "@/lib/safety/evidence-contract";
 import { SafetyMotion } from "../safety-motion";
 import { CapaHeader } from "./capa-header";
 import { PdcaWheel } from "./pdca-wheel";
@@ -28,7 +28,9 @@ export interface CapaWorkspaceData {
   plan: CapaPlan;
   actions: CapaAction[];
   tasksByAction: Map<string, CapaActionTask[]>;
-  evidenceByAction: Map<string, CapaActionEvidence[]>;
+  /** DM5·S2 — `listCapaActionEvidenceViews`; carries `availability` + `canOpen`,
+   *  never a signed URL (ADR 0114 D8). */
+  evidenceByAction: Map<string, CapaActionEvidenceView[]>;
   measures: CapaMeasure[];
   measureResults: CapaMeasureResult[];
   effectiveness: CapaEffectiveness | null;

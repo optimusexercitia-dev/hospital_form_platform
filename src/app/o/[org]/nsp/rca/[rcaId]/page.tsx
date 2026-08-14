@@ -8,7 +8,7 @@ import {
   getRcaById,
   listAssignableUsers,
   listRcaCitationTargets,
-  listRcaEvidence,
+  listRcaEvidenceViews,
   listRcaFactors,
   listRcaMembers,
   listRcaRootCauses,
@@ -76,7 +76,10 @@ export default async function NspRcaPage({
     getSafetyEvent(rca.eventId),
     listRcaMembers(rcaId),
     listRcaTimeline(rcaId),
-    listRcaEvidence(rcaId),
+    // DM5·S2 — the views projection: `availability` + a server-computed
+    // `canOpen`, never a signed URL. Bytes resolve one at a time, on click,
+    // through the audited door (ADR 0114 D8).
+    listRcaEvidenceViews(rcaId),
     listRcaFactors(rcaId),
     listRcaWhyChains(rcaId),
     listRcaRootCauses(rcaId),

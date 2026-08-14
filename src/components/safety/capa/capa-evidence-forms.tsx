@@ -4,11 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LinkIcon, Upload } from "lucide-react";
 
-import type { CapaEvidenceInput } from "@/lib/safety/capa-types";
-import type { ActionState } from "@/lib/safety/types";
+import type {
+  NspEvidenceErrorCode,
+  NspEvidenceUploadRequest,
+} from "@/lib/safety/evidence-contract";
 import {
-  addCapaActionEvidence,
-  uploadCapaEvidenceFile,
+  addCapaEvidenceLink,
+  beginCapaEvidenceUpload,
+  finalizeCapaEvidenceUpload,
 } from "@/lib/safety/capa-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,36 +23,34 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { EvidenceUploadDialog } from "@/components/safety/evidence/evidence-upload-dialog";
+import {
+  NSP_EVIDENCE_TITLE_GUIDANCE,
+  nspEvidenceErrorMessage,
+} from "@/components/safety/evidence/nsp-evidence-labels";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60";
 
-const ACCEPT = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/csv",
-  "text/plain",
-].join(",");
-
 /**
- * Upload an implementation-evidence FILE for a CAPA action to the immutable
- * `nsp-evidence` bucket, then register the row. Two-step (the contract's
- * `uploadCapaEvidenceFile` mints the path; we pass it to `addCapaActionEvidence`
- * with `kind:'document'`). Mirrors the RCA evidence upload.
+ * Upload an implementation-evidence FILE for a CAPA action (DM5·S2).
+ *
+ * ⚠ The path this replaces (`uploadCapaEvidenceFile`) was BROKEN FOR EVERY USER
+ * — `BUG-DM5-CAPA-1`, ADR 0120 D15. It wrote `{capa_id}/{action_id}/…` while the
+ * Storage policy `capa_evidence_obj_insert_writable` resolved `foldername[1]`
+ * through `app.hospital_of_event`, an EVENT resolver, so the arm was false for
+ * every CAPA and every persona. It failed CLOSED — refused, never leaked — which
+ * is why it went unnoticed: the suite has never had an upload-kind E2E here.
+ *
+ * Backend fixes the policy in its own migration, deliberately separate from the
+ * substrate migrations so its red is provable against today's catalog. Nothing
+ * in this component works around it, and nothing here should: a UI that
+ * compensated for a broken write policy would hide the fix's own evidence.
+ *
+ * ⚠ CAPA has NO citation seam — `capa_action_evidence.kind` is `document | link`
+ * only. There is deliberately no "Citar registro" affordance here.
  */
-export function CapaEvidenceUpload({
-  capaId,
-  actionId,
-}: {
-  capaId: string;
-  actionId: string;
-}) {
+export function CapaEvidenceUpload({ actionId }: { actionId: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -62,132 +63,20 @@ export function CapaEvidenceUpload({
         <Upload aria-hidden="true" />
         Enviar arquivo
       </Button>
-      <UploadDialog
-        capaId={capaId}
-        actionId={actionId}
+      <EvidenceUploadDialog
         open={open}
         onOpenChange={setOpen}
+        idPrefix={`capa-evidence-${actionId}`}
+        dialogTitle="Enviar evidência de implementação"
+        fileGuidance="Anexe a evidência de que a ação foi executada. Não anexe arquivos com dados de paciente: o plano de ação é um registro de processo, não um módulo de dados de paciente."
+        titleGuidance={NSP_EVIDENCE_TITLE_GUIDANCE}
+        titlePlaceholder="Ex.: Protocolo publicado"
+        begin={(request: NspEvidenceUploadRequest) =>
+          beginCapaEvidenceUpload(actionId, request)
+        }
+        finalize={finalizeCapaEvidenceUpload}
       />
     </>
-  );
-}
-
-function UploadDialog({
-  capaId,
-  actionId,
-  open,
-  onOpenChange,
-}: {
-  capaId: string;
-  actionId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const router = useRouter();
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const [wasOpen, setWasOpen] = useState(false);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) {
-      setFileName(null);
-      setTitle("");
-      setError(null);
-    }
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    const formData = new FormData(e.currentTarget);
-    startTransition(async () => {
-      const up = await uploadCapaEvidenceFile(capaId, actionId, formData);
-      if (!up.ok || !up.storagePath) {
-        setError(up.error ?? "Não foi possível enviar o arquivo.");
-        return;
-      }
-      const input: CapaEvidenceInput = {
-        kind: "document",
-        title: title.trim(),
-        storagePath: up.storagePath,
-        externalUrl: null,
-      };
-      const result = await addCapaActionEvidence(actionId, input);
-      if (!result.ok) {
-        setError(result.error ?? "Não foi possível registrar a evidência.");
-        return;
-      }
-      onOpenChange(false);
-      router.refresh();
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Enviar evidência de implementação</DialogTitle>
-          <DialogDescription>
-            Anexe a evidência de que a ação foi executada. Nunca inclua dados de
-            paciente.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-          {error && <FormBanner tone="error">{error}</FormBanner>}
-          <div className="flex flex-col gap-1.5 text-sm">
-            <label htmlFor="capa-evidence-file" className="font-medium">
-              Arquivo
-            </label>
-            <input
-              id="capa-evidence-file"
-              type="file"
-              name="file"
-              accept={ACCEPT}
-              required
-              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-              aria-describedby="capa-evidence-hint"
-              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium file:text-secondary-foreground hover:file:bg-muted focus-visible:outline-none"
-            />
-            {fileName && (
-              <span className="text-xs text-muted-foreground">{fileName}</span>
-            )}
-            <span
-              id="capa-evidence-hint"
-              className="text-xs text-muted-foreground"
-            >
-              PDF, imagem, Word, Excel, CSV ou texto, até 25 MB.
-            </span>
-          </div>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Título</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className={FIELD_CLASS}
-              placeholder="Ex.: Protocolo publicado"
-            />
-          </label>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
-              {isPending ? "Enviando…" : "Enviar arquivo"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -197,7 +86,7 @@ export function CapaEvidenceLinkForm({ actionId }: { actionId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  const [state, setState] = useState<ActionState | null>(null);
+  const [error, setError] = useState<NspEvidenceErrorCode | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const [wasOpen, setWasOpen] = useState(false);
@@ -206,24 +95,27 @@ export function CapaEvidenceLinkForm({ actionId }: { actionId: string }) {
     if (open) {
       setTitle("");
       setUrl("");
-      setState(null);
+      setError(null);
     }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const input: CapaEvidenceInput = {
-      kind: "link",
-      title: title.trim(),
-      storagePath: null,
-      externalUrl: url.trim(),
-    };
+    setError(null);
     startTransition(async () => {
-      const result = await addCapaActionEvidence(actionId, input);
-      setState(result);
-      if (result.ok) {
+      try {
+        const result = await addCapaEvidenceLink(actionId, {
+          title: title.trim(),
+          externalUrl: url.trim(),
+        });
+        if (!result.ok) {
+          setError(result.code);
+          return;
+        }
         setOpen(false);
         router.refresh();
+      } catch {
+        setError("unknown");
       }
     });
   }
@@ -248,8 +140,8 @@ export function CapaEvidenceLinkForm({ actionId }: { actionId: string }) {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-            {state && !state.ok && (
-              <FormBanner tone="error">{state.error}</FormBanner>
+            {error && (
+              <FormBanner tone="error">{nspEvidenceErrorMessage(error)}</FormBanner>
             )}
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Título</span>

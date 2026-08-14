@@ -11,12 +11,9 @@ import {
   UserRound,
 } from "lucide-react";
 
-import type {
-  CapaAction,
-  CapaActionEvidence,
-  CapaActionTask,
-} from "@/lib/safety/capa-types";
+import type { CapaAction, CapaActionTask } from "@/lib/safety/capa-types";
 import type { AssignableUser, RcaRootCause } from "@/lib/safety/rca-types";
+import type { CapaActionEvidenceView } from "@/lib/safety/evidence-contract";
 import {
   advanceCapaAction,
   completeCapaAction,
@@ -55,7 +52,7 @@ export function CapaActionCard({
   capaId: string;
   action: CapaAction;
   tasks: CapaActionTask[];
-  evidence: CapaActionEvidence[];
+  evidence: CapaActionEvidenceView[];
   /** Resolved root-cause statement text (when `action.rootCauseId` is set). */
   rootCauseText: string | null;
   users: AssignableUser[];
@@ -188,7 +185,6 @@ export function CapaActionCard({
       <div className="grid gap-4 border-t border-border/60 pt-3 sm:grid-cols-2">
         <CapaTaskList actionId={action.id} tasks={tasks} canEdit={canAdvance} />
         <CapaEvidenceList
-          capaId={capaId}
           actionId={action.id}
           evidence={evidence}
           canEdit={canAdvance}

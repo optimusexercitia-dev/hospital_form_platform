@@ -7,7 +7,6 @@ import type {
   AssignableUser,
   Rca,
   RcaCitationTarget,
-  RcaEvidence,
   RcaFactor,
   RcaMember,
   RcaRootCause,
@@ -15,6 +14,7 @@ import type {
   RcaWhyChain,
 } from "@/lib/safety/rca-types";
 import type { CapaPlan } from "@/lib/safety/capa-types";
+import type { RcaEvidenceView } from "@/lib/safety/evidence-contract";
 import {
   completeRca,
   reopenRca,
@@ -51,7 +51,9 @@ export interface RcaWorkspaceData {
   commissionName: string | null;
   members: RcaMember[];
   timeline: RcaTimelineEntry[];
-  evidence: RcaEvidence[];
+  /** DM5·S2 — `listRcaEvidenceViews`; carries `availability` + `canOpen`, never
+   *  a signed URL (ADR 0114 D8). */
+  evidence: RcaEvidenceView[];
   factors: RcaFactor[];
   whyChains: RcaWhyChain[];
   rootCauses: RcaRootCause[];
