@@ -70,6 +70,17 @@ idiom)**: each print event mints a `document_version`, binds its bytes as that v
 `printed_pdf`, records supersession on `printed_documents`, and retires superseded bytes via
 `file_objects.disposal_state`. **Zero schema change to `document_version_files`.**
 
+**D12 (byte door, PO-ruled)** — `open_printed_document` keeps `can_view_printed_document`, the
+revoked/superseded overlay, the token path and its `document.downloaded` audit, and **delegates
+byte resolution to the core door**, because `open_document_version` hardcodes
+`rendition_kind = 'source'` and D8 reserves the two document buckets for **one** signing door.
+⚠ The shared resolver is **`app`-scoped, never `public`**, and effective authority is the
+**conjunction** — keystone **both** refusals (print-check-pass / document-check-fail, and the
+reverse). **D13 (lead)** — a print mints its version on its **own `documents` row**, homed on the
+source's securable resource, **never appended to a content document**; otherwise
+`add_referral_shared_item` freezes a printed PDF into a referral snapshot instead of source content.
+**Keystone the separation itself.**
+
 Two things D11 makes S3's job, carried from the S1 analysis:
 - ⚠ **`src/lib/queries/documents.ts:116` and `:142` do `.find(b => b.rendition_kind === 'source')`.**
   A print document whose only binding is `printed_pdf` yields `latestFile === undefined`, so

@@ -159,12 +159,35 @@
 > *sibling* lock (the table CHECK). **FUP-PGTAP-VACUOUS applies directly** — `lint:vacuous` does not
 > scan SQL and every DM5 keystone is SQL.
 >
-> **Slices:** **S0 ✅ COMPLETE** (`0e85cbe7`) — `scripts/storage-manifest.mjs`, **7/7 self-test
-> controls**, baseline for the 8 buckets, `document-reconciliation.mjs` widened 2→**12** buckets.
-> ⭐ **Two controls found real defects on first run**: `find` on a *missing* directory emits the same
+> **Later rulings 2026-08-14 — D12 (PO) + D13 (lead), both gating S3.** **D12:** printed bytes are
+> served by **composition** — `open_printed_document` keeps `can_view_printed_document`, the
+> revoked/superseded overlay and the token path, and **delegates byte resolution to the core door**.
+> Forced by two facts: `open_document_version` hardcodes `rendition_kind = 'source'` (so a
+> print-only version is unopenable through it) and `file_objects` may only live in the two document
+> buckets, which carry **no SELECT policy** because ADR 0114 **D8** reserves them for *"the **single**
+> audited door … (the F-01 class dies structurally)"*. ⚠ The shared resolver must be **`app`-scoped,
+> never `public`**, authority the **conjunction**, and **both** refusal directions keystoned.
+> **D13:** a print mints its version on its **OWN `documents` row**, never appended to a content
+> document — else `add_referral_shared_item`, which picks latest-version-desc, would silently
+> **freeze a printed PDF into a referral snapshot instead of the source content**. Invisible to every
+> static gate; keystone the separation itself.
+>
+> ✅ **S2.8's three DM2 conditions re-verified as ALL DISCHARGED** (by behaviour, not by name —
+> because withdrawing D5 on an unverified completion would have been the same error twice). Condition
+> 1 was **exceeded**: QA r1 found R6/R7/R8 all stayed green under a `live` relaxation that kills the
+> invariant for two simultaneously-pending duplicates, so R10a/R10s pin the exact
+> `disposal_state = 'none'` spelling. Nothing from S2.8 becomes a DM5 item.
+>
+> **Slices:** **S0 ✅ COMPLETE** (`0e85cbe7`, `9d37ad79`) — `scripts/storage-manifest.mjs`, **8/8
+> self-test controls**, baseline for the 8 buckets, `document-reconciliation.mjs` widened 2→**12**.
+> ⭐ **C8 was added unprompted and is the discipline generalizing**: C2 proved the tool *refuses* a
+> bad manifest, but *a tool hardwired to refuse everything passes C2 and is useless* — C8 is the
+> permissive twin. That is the both-polarities rule applied to the harness itself.
+> ⭐ **Three of the eight controls found real defects**: `find` on a *missing* directory emits the same
 > empty output as an *empty* one, so an absent bucket read as verified-empty (now `—` vs `0` vs `?`);
-> and `storage.protect_delete()` **blocks `storage.objects` DML on this stack** — a platform guard
-> absent from the step-0 model, so the harness plants bytes directly. ⚠ The committed baseline
+> `storage.protect_delete()` **blocks `storage.objects` DML on this stack** — a platform guard
+> absent from the step-0 model, so the harness plants bytes directly; and C8 was the missing
+> permissive half. ⚠ The committed baseline
 > **self-labels DEGENERATE** (zero API-visible keys while bytes exist = the post-reset state) and
 > **must not be reused as S4 input**. Orphan counts, domains stated because they differ: **221 keys /
 > 6.93 MB / 15 PHI** over the 8 retirement buckets; **699 / 7.02 MB / 198 PHI** over all 12.

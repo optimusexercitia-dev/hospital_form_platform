@@ -172,6 +172,46 @@ killing an earlier wave (the DM3 `DM3·T3b` control). pgTAP `328` K9b/K9c count 
 flags and **move in the same edit**; that coupling is deliberate. Production stays OFF until
 the DM5 gate closes with human approval.
 
+**D12 — printed bytes are served by COMPOSITION: `open_printed_document` keeps its own authority
+and delegates byte resolution to the core door.** (PO ruling 2026-08-14.) D11 leaves a print's
+version carrying only a `printed_pdf` binding, but `open_document_version` resolves bytes with a
+**hardcoded `rendition_kind = 'source'`** — so a print would be unopenable through it — and
+`file_objects` may only live in `documents-standard` / `documents-phi`
+(`file_objects_bucket_check`), which carry **no SELECT policy** precisely because ADR 0114 **D8**
+reserves them for *"the **single** audited `open_document_version` door … (the F-01 class dies
+structurally)"*.
+
+`open_printed_document` therefore retains what is genuinely its own — `can_view_printed_document`
+authority, the revoked/superseded overlay, the verification-token path, its `document.downloaded`
+audit — and obtains coordinates through the core resolver. **D8 stays literally true: one door
+signs.** Rejected: amending D8 to admit a second door (its singularity is the stated mechanism, not
+a stylistic preference); parameterizing the core door by rendition kind (widens a function every
+document read traverses); leaving prints on their own bucket (forfeits Wave D's scan/disposal
+machinery, contradicts D6, reopens the manifest at 7/8).
+
+⚠ **Binding constraint on the composition — the two authority checks must be reconciled EXPLICITLY,
+and the reconciliation must not widen either.** `can_view_printed_document` and `can_read_document`
+are different predicates; a delegation that authorizes with only the print check could let a caller
+who fails `can_read_document` reach bytes, and a delegation that authorizes with only the document
+check could break the verification-token flow. **Required shape:** the shared resolver is
+**`app`-scoped, never `public`** (so it is unreachable by a direct PostgREST caller — the corridor
+lesson), and effective authority is the **conjunction**. Keystone **both directions**: a caller
+passing the print check but failing `can_read_document` is refused, and a caller passing
+`can_read_document` but failing the print check is refused. A composition proven in only one
+direction is a widening nobody measured — the same discipline the withdrawn D4 was to be held to.
+
+**D13 — a print mints its version on its OWN `documents` row, never appended to a content document.**
+(Lead ruling; not a product tradeoff.) The print's document homes on its **source's** securable
+resource. This is forced, not stylistic: **`add_referral_shared_item` selects
+`order by dv.version_number desc, vf.created_at desc limit 1` to choose what to FREEZE into a
+referral snapshot.** If prints appended versions to a content document, a referral would silently
+freeze a **printed PDF instead of the source content** — a correctness defect invisible to every
+static gate. Two further consumers (`app._referral_reply_documents`,
+`public.reclassify_document`) and two TS readers (`documents.ts:139`, `:226`) share the
+latest-version-wins assumption and are safe **only** under this separation. **Keystone the
+separation itself**, not merely its consequences. `documents.kind` carries **no CHECK** (0
+constraints), so it is available as a discriminator without a migration.
+
 ## Consequences
 
 - **The orphaned bytes are not servable, and that is a calibration, not a reprieve.** A
@@ -210,7 +250,40 @@ the DM5 gate closes with human approval.
   creating the bucket row**, so deleting that bucket breaks three suites on an FK violation.
   D8's manifest must sequence the fixture fix before the deletion.
 
+## S2.8's three DM2 conditions — ALL DISCHARGED (verified 2026-08-14, by behaviour not by name)
+
+Checked because D5 was withdrawn on the claim that S2.8 was complete, and a withdrawal resting on
+an unverified completion would be the same error twice.
+
+1. **Last-copy invariant as a differential pair — DISCHARGED, and exceeded.**
+   `supabase/tests/329_dm2_document_commands.sql:539-577`: R6 `lives_ok` (old copy retires while a
+   live same-sha sibling survives) vs R7 `throws_ok … HC0DR` (sibling disposed ⇒ last copy
+   protected) — same door, one variable. ⭐ It went *past* the condition: QA r1 found R6/R7/R8 **all
+   stay green** under a relaxation of `live` from `disposal_state = 'none'` to `<> 'disposed'`,
+   which kills the invariant for two simultaneously-pending duplicates. **R10a/R10s pin that exact
+   spelling**, falsifiability recorded. Live body re-read from `pg_get_functiondef` still spells it
+   `f2.disposal_state = 'none'`.
+2. **Narrowed to the reclassify path OR a non-duplicated-file pin — DISCHARGED via the second
+   branch, deliberately.** ADR 0118 §10: *"the guardrail is the EVIDENCE, never caller provenance —
+   a provenance marker would be a claim, strictly weaker than the sha verification."* Pinned at
+   `329:579-604` R8. The "wider than its use case and symmetric" flag closes on three sides: R8 (no
+   sibling ⇒ refused), R7 (last copy ⇒ refused), R10 (both pending ⇒ both refused — the case
+   symmetry would actually break).
+3. **Landed as an ADR decision — DISCHARGED.** ADR 0118 numbered decision **10**
+   (`0118-dm2-s2-command-layer-decisions.md:73-123`), under `## Decisions`, not a state-only note.
+
+**Nothing from S2.8 becomes a DM5 item.**
+
 ## Open / deferred
+
+- **FUP-DM5-DVF-FILEOBJ (new, latent, low severity):** `document_version_files` has **no unique on
+  `file_object_id`** — only the PK and the version/rendition unique. So one `file_object` could be
+  bound to versions of **two different documents**, and `complete_document_disposal` derives its
+  document with `limit 1` from the bindings, running the duplicate-evidence probe against an
+  arbitrary one. **Not reachable today** — both existing writers insert exactly one binding for a
+  freshly *reserved* file. ⚠ **D11/D12 add a third writer**, so this stops being latent the moment
+  a print path binds an existing `file_object`. Keep it in view in S3; do not let the print path
+  bind a pre-existing file object without ruling this first.
 
 - **FUP-DM5-GRANTS (new, filed by this ADR):** `rca_evidence` and `capa_action_evidence` carry
   table-wide `arwdDxtm` to `authenticated`, so their RPCs are **not single doors** — direct
