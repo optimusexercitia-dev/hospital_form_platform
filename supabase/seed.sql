@@ -2241,10 +2241,18 @@ update app.feature_flags set enabled = true where key = 'controlled_docs';
 -- (pgTAP 328 K9 pins exactly this seeded state: wave_c/d OFF,
 -- foundation + wave_a + wave_b ON locally.)
 --
--- DM3 Wave B joins the same MIN pattern (2026-08-13). `documents_wave_b` gates
--- attach_controlled_document_version_file; with it OFF every DM3 door answers
--- HC0D7 and the Wave B keystones red on the gate rather than on a defect.
+-- DM3 Wave B joins the same MIN pattern (2026-08-13). `documents_wave_b` is
+-- asserted by `begin_document_upload` for a `controlled_document` home and by
+-- `attach_controlled_document_version_file`; with it OFF the corridor refuses at
+-- BEGIN (HC0D7), so no path is reserved and no byte can land, and the Wave B
+-- keystones red on the gate rather than on a defect.
 -- Production stays OFF until the DM3 gate closes with human approval.
+-- ⚠ This note previously said "every DM3 door answers HC0D7", which was FALSE:
+-- until M11 the assert sat only on the final pointer write, so with the flag off
+-- a coordinator could still create, reserve a path, PUT real bytes and finalize
+-- — leaving orphaned bytes and an orphaned core version — and only the last step
+-- refused (QA MAJOR-1). Nor is "every door" the target state: the gate is scoped
+-- to the Wave B home so Wave A, which shares that door, keeps working.
 -- ⚠ This line and pgTAP 328 K9b/K9c are ONE artifact — K9b counts the flags
 -- that are OFF and K9c the ones that are ON, so flipping a flag here without
 -- moving it there reds 328. That coupling is deliberate: K9 exists to force

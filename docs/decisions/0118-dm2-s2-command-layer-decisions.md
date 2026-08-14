@@ -140,7 +140,22 @@ drawn on a return-type SYNTAX cannot enforce a PROPERTY.** All four authz
 arms ran green over P0-1 (the oversight reviewer served PHI bytes) because
 the M8 byte cut used to live in a **storage policy** — inside `ARM=census`'s
 domain — and D8 deliberately moved that boundary into a **`jsonb`-returning
-DEFINER** (`open_document_version`), which is in **no** arm's domain. The
+DEFINER** (`open_document_version`), which is in no **blindness-detecting**
+arm's domain.
+
+> ⚠ **Corrected 2026-08-13 (DM3 QA MINOR-1, catalog-verified).** This sentence
+> originally read *"in **no** arm's domain"*, and that is **measurably false**:
+> `ARM=floor`'s domain is every `public` `prosecdef` function EXECUTE-able by
+> `authenticated` — **411** signatures — and it contains `open_document_version`
+> (and DM3's `attach_controlled_document_version_file`). The conclusion is right
+> and only the reason was wrong: ARM 2 asks solely *"is the door called?"*, never
+> *"does anything notice when it is opened?"*. It is the arms that answer the
+> second question — `census`/`policy`/`wrapper` — whose domains are bounded by
+> return type and therefore cannot see this door. Keep the precise form: the
+> overstated version invites a reader to disprove it in one query and dismiss the
+> real gap with it.
+
+The
 census's clause 2 was widened after BUG-AUTHZ-002 on the stated principle
 that *"a DEFINER's gate REPLACES RLS, so the internal gate IS the entire
 boundary"* — a **property** — but the implementation bounds it by

@@ -83,9 +83,21 @@ export async function documentsWaveAEnabled(): Promise<boolean> {
 
 /**
  * Wave B (DM3 — controlled documents on the core model). Mirrors
- * {@link documentsWaveAEnabled}. UI-gating only: the DB gate is
- * `app.assert_documents_wave_b_enabled()`, which every DM3 door calls (HC0D7),
- * so a stale client cannot reach past this.
+ * {@link documentsWaveAEnabled}. UI-gating only.
+ *
+ * The DB gate is `app.assert_documents_wave_b_enabled()`, asserted by
+ * `begin_document_upload` for a `controlled_document` home (HC0D7) and by
+ * `attach_controlled_document_version_file`. Because BEGIN refuses, a stale
+ * client cannot reserve a path or land bytes — which is the property that
+ * matters; the flag gates the corridor, not merely what gets recorded.
+ *
+ * ⚠ This comment previously claimed "every DM3 door calls it", and that was
+ * FALSE: until M11 the assert lived only on the final pointer write, so with the
+ * flag off a caller could still create, reserve, PUT and finalize — leaving
+ * orphaned bytes behind — and only the last step refused (QA MAJOR-1). It is NOT
+ * true today either that every door asserts it, and it should not be: the gate
+ * is deliberately scoped to the `controlled_document` home so Wave A, which
+ * shares this door, is unaffected. Keep the claim narrow enough to stay true.
  */
 export async function documentsWaveBEnabled(): Promise<boolean> {
   return featureEnabled('documents_wave_b')

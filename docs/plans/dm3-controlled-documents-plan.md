@@ -690,7 +690,7 @@ Signing:   src/lib/documents/actions.ts — the coordinate-resolving module exce
 | Concern | Gate | Domain predicate |
 | --- | --- | --- |
 | Metadata reach | `documents_select` RLS + `app.can_read_document` | `prosecdef = t`; a DEFINER gate *replaces* RLS, so this body **is** the boundary |
-| Byte reach | `open_document_version` (`prosecdef = t`, returns `jsonb`) | ⚠ **In NO authz arm's domain** — ADR 0118 §12: `ARM=census` clause 2 bounds by `proretset`, a *syntax*; this door returns scalar `jsonb`. It is covered by pgTAP keystones only. Stated, not glossed. |
+| Byte reach | `open_document_version` (`prosecdef = t`, returns `jsonb`) | ⚠ **In no BLINDNESS-DETECTING arm's domain** — corrected per QA MINOR-1, catalog-verified. It **is** in `ARM=floor`'s domain (every `public` `prosecdef` function EXECUTE-able by `authenticated` — **411** signatures, containing both this door and `attach_controlled_document_version_file`). But ARM 2 asks only *"is the door called?"*, never *"does anything notice when it is opened?"*. The arms that would answer the second question — `census`/`policy`/`wrapper` — bound their function clauses by RETURN TYPE (`bool`, `proretset`, public INVOKER plpgsql), and this door returns scalar `jsonb`. So the conclusion stands and only the reason was wrong: byte reach is covered by pgTAP keystones alone. |
 | New DEFINER doors (M4, M7) | `ARM=census` | must be added to the census domain **and** the committed findings file in the same phase (ADR 0079 Am. 3 + Am. 7) |
 | INVOKER wrappers | `FROMFINDINGS=1 ARM=wrapper` | DM3 adds none; if that changes, the new wrapper must enter the findings file or it passes vacuously by absence |
 
@@ -1215,9 +1215,15 @@ code**: they are deletion candidates for the frontend slice, not rewrite targets
    today and DM3 deletes one. K3 is the guard; if K3 is ever green on first run,
    stop.
 3. **Q1 unresolved ⇒ M7 cannot be written safely.** It is the only true blocker.
-4. **`open_document_version` is in no authz arm's domain** (ADR 0118 §12). DM3's
-   byte-path coverage is pgTAP-only. This is a standing platform gap, not a DM3
-   regression, but DM3 inherits it and should not report arm-green as byte coverage.
+4. **`open_document_version` is in no BLINDNESS-DETECTING arm's domain** (ADR 0118 §12,
+   as corrected by QA MINOR-1). It *is* in `ARM=floor`'s domain — 411 signatures, and
+   `attach_controlled_document_version_file` is in there too — but ARM 2 only asks
+   whether a door is **called**, never whether anything **notices when it is opened**.
+   The arms that answer the second question bound themselves by return type and cannot
+   see a `jsonb`- or composite-returning door. DM3's byte-path coverage is therefore
+   pgTAP-only. A standing platform gap, not a DM3 regression — but DM3 inherits it, and
+   arm-green must never be reported as byte coverage. **Do not restate this as "no arm's
+   domain": that is measurably false and makes the real gap easy to dismiss.**
 5. **New doors must enter the census domain *and* the committed findings file in the
    same phase**, or `ARM=census` / `ARM=wrapper` pass vacuously by absence
    (ADR 0079 Am. 3 / Am. 7).

@@ -47,7 +47,7 @@
 -- =============================================================================
 
 begin;
-select plan(55);
+select plan(57);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -643,6 +643,43 @@ select is(
     where f.id = (select (r->>'file_object_id')::uuid from t2_begin)),
   'documents-standard|standard',
   'DM3·T2 the upload door derives the STANDARD tier/bucket for a controlled-document home');
+
+-- ---------------------------------------------------------------------------
+-- T3 — QA MAJOR-1: THE FLAG GATES THE CORRIDOR, NOT ONLY ITS LAST STEP.
+--
+-- `documents_wave_b` was asserted by exactly ONE function —
+-- `attach_controlled_document_version_file`, the final pointer write. With the
+-- flag OFF a coordinator could still create the document, RESERVE a server-side
+-- path, PUT real bytes into `documents-standard`, and finalize; only the domain
+-- pointer refused. Residue: orphaned bytes + an orphaned core version + a draft
+-- whose file never appears. Not an authz hole (authority was unchanged) — a
+-- FLAG-CONTRACT defect, which two comments in this tree asserted the opposite of.
+--
+-- The refusal belongs at `begin_document_upload`, because RESERVING THE PATH is
+-- the first step that produces residue. Gating the last step means the flag
+-- controls what gets recorded, not what happens.
+-- ---------------------------------------------------------------------------
+update app.feature_flags set enabled = false where key = 'documents_wave_b';
+
+select throws_ok(
+  format($q$ select public.begin_document_upload(
+               'controlled_document', %L, 'Fixture T3', null, null, %L) $q$,
+         'd0c00000-0000-0000-0000-0000000000d1',
+         (select core_document_id from public.controlled_documents
+           where id = 'd0c00000-0000-0000-0000-0000000000d1')),
+  'HC0D7', null,
+  'DM3·T3 ⭐ with documents_wave_b OFF the corridor refuses at BEGIN — before any path is reserved or any byte can land');
+
+-- T3b — POSITIVE CONTROL, and the reason the gate is scoped rather than global:
+-- `begin_document_upload` serves every home. Wave A must be UNAFFECTED by Wave
+-- B's flag, so the same call on a CASE home still succeeds with wave_b OFF. A
+-- blanket assert at the top of the door would pass T3 and silently kill Wave A.
+select lives_ok(
+  $q$ select public.begin_document_upload(
+        'case', 'd0000000-0000-0000-0000-0000000000c2', 'Fixture T3b') $q$,
+  'DM3·T3b POSITIVE CONTROL: with wave_b OFF a CASE-homed upload still begins (the gate is Wave B''s, not a kill switch for Wave A)');
+
+update app.feature_flags set enabled = true where key = 'documents_wave_b';
 
 select set_config('request.jwt.claims', '', true);
 
