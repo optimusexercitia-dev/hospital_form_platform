@@ -7,6 +7,48 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## ⭐ A deliberately uninformative error code is uninformative to the TEST too (S2 `341` F-block)
+
+ADR 0120 D-note: `add_rca_evidence`'s citation arm raises **`HC0D8` for both absence and
+unreadability, deliberately**, so a caller cannot use the error to probe which documents exist — an
+error code that distinguishes *"not found"* from *"not yours"* is an **existence oracle**. That
+design decision is correct and stays.
+
+⚠ **But the same ambiguity that blinds an attacker blinds the assertion.** Three fixture defects in
+the F-block, each caught by a red, each a different class — and the middle one is the specimen:
+
+1. **A hardcoded id captured before the reset.** The seed mints document ids with
+   `gen_random_uuid()`, so the captured id named nothing afterwards. F4/F6 went **visibly red** —
+   **but F7 stayed GREEN for the wrong reason**: it asserts `HC0D8` and received `HC0D8` from *"no
+   such document"* rather than *"you may not read it"*. A vacuous pass hiding inside the assertion
+   its author was most confident about.
+2. **The fixture was RLS-filtered by the caller.** Resolving the id inline read `public.documents`,
+   gated by `can_read_document`, which returned **no rows** for the very writer who cannot read it —
+   so `p_cited_entity_id` arrived NULL and the **shape** check fired (`23514`) *before* the
+   authorization gate could. F7 would have been asserting **the fixture vanishing**, not the door
+   working. Fixed by resolving as `postgres` into a temp table (not RLS-filtered).
+3. **The temp table needed an explicit grant** — probes run as `authenticated`, `postgres` owns it.
+
+**The rule this yields:**
+
+> When a door answers **one code for several causes** — by design, to avoid an oracle — a test
+> asserting that code proves **nothing about which cause fired**. The discriminating fact must be
+> established **separately, before the assertion runs**.
+
+`F5b` now pins both sides first: the document **exists**, `chefe.ccih` **can** read it, `nspcoord.a`
+**cannot** — so F7's `HC0D8` can only mean unreadability. ⚠ **Two of the three defects would have
+left a GREEN suite asserting nothing**, which is [[FUP-PGTAP-VACUOUS]] in its natural habitat:
+`lint:vacuous` scans TS only, and every one of these is SQL.
+
+`341`'s `D4d` was also converted from a substring ACL test to `aclexplode`, and **`D4e` added for the
+direction a presence check structurally cannot see** (`grantee = 0` is PUBLIC) — the same habit that
+produced a false positive *and* a vacuous guard across three migrations, now removed from the suite
+as well as the migrations.
+
+Suite `341`: **plan(41), 41 assertions** (30 → 41); repo total **192 files / 6272** (6261 → 6272).
+Both deltas are **+11** — stated with the reconciliation because a bare "41" beside a "+11" reads as
+a discrepancy, and this phase has already mis-recorded three counts.
+
 ## ⭐ The finding that justifies the whole "inference until reset" discipline (S2 `…000150`, 2026-08-14)
 
 **A fresh `supabase db reset` did not confirm the hand-applied `REVOKE` — it FALSIFIED the migration
