@@ -23,10 +23,13 @@
 begin;
 -- 73 -> 75 (DM5·S3): +t51b (the column-list-grant mechanism, re-pointed at a
 -- column that still exists, so retiring storage_path does not silently drop
--- this file's only coverage of it) and +t53pre (the non-vacuity control proving
+-- this file's only coverage of it), +t51c/+t51d (QA r1 MAJOR-2: the coordinate is
+-- DERIVABLE and always was, and what really protects the bytes is the absent SELECT
+-- policy — both now executable so the corrected claim cannot rot back)
+-- and +t53pre (the non-vacuity control proving
 -- the print objects EXIST to be hidden — without it t53 counts zero rows in an
 -- empty bucket and passes while proving nothing).
-select plan(75);
+select plan(77);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -517,16 +520,60 @@ select throws_ok(
 --          a column that does not exist cannot be under-withheld.
 --   t51b — the mechanism, re-pointed at a column that IS still withheld, so the
 --          grant list keeps being exercised by something.
+-- ⛔ CORRECTED AT QA r1 (MAJOR-2). The first version of this assertion said the
+-- retirement made the old claim "true STRUCTURALLY rather than by privilege, which
+-- is STRONGER: a column that does not exist cannot be under-withheld", and titled
+-- itself "it cannot be leaked from here at all". **That was true of the COLUMN and
+-- false of the PROPERTY**, and shipping it would have been a third comment in this
+-- phase asserting a property that does not hold.
+--
+-- ⭐ THE MEASURED TRUTH, which is neither the old text NOR the r1 report's premise:
+-- the coordinate was ALREADY derivable before S3 and still is, so nothing was
+-- gained and nothing was lost. `id` and `contains_phi` are BOTH granted to
+-- `authenticated` and always were; the retired CHECK `pd_storage_path_derived`
+-- pinned `storage_path` to `(case when contains_phi then 'phi/' else 'std/' end ||
+-- id || '.pdf')` — a PURE FUNCTION OF TWO READABLE COLUMNS. So the column-list
+-- withholding of `storage_path` was ALREADY VACUOUS: any legitimate viewer could
+-- compute it. Post-S3 it is `printed/<id>.pdf` in a bucket keyed off the same
+-- `contains_phi`. EXACTLY as derivable. t51c records that executably so the false
+-- claim cannot grow back.
+--
+-- What actually protects the bytes is NOT withholding a coordinate — it is that
+-- the two document buckets carry NO SELECT POLICY (ADR 0114 D8: the F-01 class
+-- dies structurally). t51d asserts that, and t53 below asserts its behavioural
+-- consequence.
 select is(
   (select count(*)::int from pg_attribute
     where attrelid = 'public.printed_documents'::regclass
       and attname = 'storage_path' and not attisdropped),
   0,
-  't51 D7: printed_documents.storage_path is RETIRED — the coordinate lives on file_objects, so it cannot be leaked from here at all');
+  't51 D7: printed_documents.storage_path is RETIRED (the column is gone — this is a RELOCATION, NOT a withholding improvement; see t51c)');
 select throws_ok(
   $$select revoked_by from public.printed_documents where id = (select doc2 from d)$$,
   '42501', null,
   't51b GRANT: the column-list grant still withholds — revoked_by is not readable by authenticated (the mechanism t51 used to cover)');
+-- t51c — THE NON-PROPERTY, ASSERTED EXECUTABLY. A comment saying "the coordinate
+-- is derivable" would rot; this cannot. Both inputs to the derivation are readable
+-- by the print's legitimate viewer, so no reader can later claim the coordinate is
+-- hidden and build on it.
+select is(
+  (select (id is not null)::text || '|' || (contains_phi is not null)::text
+     from public.printed_documents where id = (select doc2 from d)),
+  'true|true',
+  't51c ⭐ the coordinate is DERIVABLE by any legitimate viewer from two GRANTED columns (id + contains_phi) — it was equally derivable pre-S3 via pd_storage_path_derived, so S3 neither strengthened nor weakened this');
+-- t51d — WHAT ACTUALLY PROTECTS THE BYTES, structural half. Knowing the key buys
+-- nothing without a SELECT policy, and there is none for either document bucket.
+reset role;
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and cmd in ('SELECT', 'ALL')
+      and coalesce(qual, '') || coalesce(with_check, '')
+          like any (array['%documents-standard%', '%documents-phi%'])),
+  0,
+  't51d ⭐ ZERO SELECT policies on storage.objects name either document bucket — the coordinate being derivable costs nothing because the BYTES have no client read path (ADR 0114 D8)');
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
 select throws_ok(
   $$select verification_token from public.printed_documents where id = (select doc2 from d)$$,
   '42501', null,

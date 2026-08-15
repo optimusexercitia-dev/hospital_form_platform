@@ -20,8 +20,11 @@
 begin;
 -- 44 = 3 preconditions + 5 coupling + 6 mint + 4 separation + 7 inactive-print
 -- + 2 positive control + 2 structural direction-2 + 3 D18 + 7 write guards
--- + 2 core-door premise + 3 ACL/population + 5 meeting-print narrowing (S3j).
-select plan(49);
+-- + 2 core-door premise + 3 ACL/population + 5 meeting-print narrowing (S3j)
+-- + 1 guard-5 twin (r1 MINOR-3) + 3 guard-4 sibling-open (r1 MAJOR-1, S3k)
+-- + 3 can_write_document print arm (r1 MINOR-2, S3l)
+-- + 3 unique-violation attribution (r1 MINOR-4, S3n — incl. its restore control).
+select plan(59);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -39,7 +42,11 @@ create temp table r on commit drop as
   select '00000000-0000-0000-0000-00000000f101'::uuid as resp_sub,
          '00000000-0000-0000-0000-00000000f201'::uuid as pd1,
          'S3TOKEN1AAAABBBBCCCCDDDDEEEEFFFFGGGG'::text as tok1,
-         'RSTUVW2345'::text as sc1;
+         'RSTUVW2345'::text as sc1,
+         -- r1 MINOR-4: a THIRD id, so the short-code collision can be probed
+         -- without a coordinate collision confounding it.
+         '00000000-0000-0000-0000-00000000f203'::uuid as pd3,
+         'S3TOKEN3AAAABBBBCCCCDDDDEEEEFFFFGGGG'::text as tok3;
 grant select on r to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
 select r.resp_sub, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r, k;
@@ -59,6 +66,9 @@ select cs.case_a, k.comm_x, 942001, 'Caso fixture 342', 'in_review', k.sa_x from
 -- size/mime from it — ADR 0114 D9 server-derived facts).
 insert into storage.objects (bucket_id, name, metadata)
 select 'documents-standard', app.printed_rendition_storage_path(pd1),
+       jsonb_build_object('size', 4096, 'mimetype', 'application/pdf') from r;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(pd3),
        jsonb_build_object('size', 4096, 'mimetype', 'application/pdf') from r;
 
 -- ⭐ A MEETING PRINT, and it is the most load-bearing fixture in this file.
@@ -401,12 +411,20 @@ select ok(
     where n.nspname = 'app' and p.proname = 'can_read_document')
     ~ 'can_view_printed_document',
   'DM5·S3d1 the kernel''s print arm delegates to can_view_printed_document — so the kernel CONTAINS the print check and direction 2 cannot occur');
+-- ⛔ CORRECTED AT QA r1 (MINOR-1). The first version asserted only
+-- `position(is_active) < position(printed_documents)`. `position()` returns 0 when
+-- the needle is ABSENT, and `0 < N` is TRUE — so deleting the `is_active` guard
+-- entirely would have made this assertion PASS. A vacuous assertion guarding the
+-- one ordering property the migration header calls binding. Both terms must be
+-- PRESENT and then ordered.
 select ok(
-  (select position('is_active' in regexp_replace(p.prosrc, '--[^\n]*', '', 'g'))
-        < position('printed_documents' in regexp_replace(p.prosrc, '--[^\n]*', '', 'g'))
-     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname = 'can_read_document'),
-  'DM5·S3d2 ⭐ and the print arm sits BELOW app.is_active — hoisting it above would silently drop the account check and re-open S3c');
+  (select position('is_active' in src) > 0
+      and position('printed_documents' in src) > 0
+      and position('is_active' in src) < position('printed_documents' in src)
+     from (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') as src
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'app' and p.proname = 'can_read_document') q),
+  'DM5·S3d2 ⭐ both terms PRESENT and the print arm sits BELOW app.is_active — hoisting it above (or deleting the guard) would silently drop the account check and re-open S3c');
 
 -- =============================================================================
 -- S3e — ADR 0120 D18: the exclusion, and the TWIN that proves it would otherwise
@@ -472,12 +490,19 @@ select throws_ok(
 select throws_ok(
   $$select public.begin_document_upload('form_response', (select resp_sub from r), 'Upload proibido')$$,
   'P0002', null,
-  'DM5·S3f4 GUARD 4: form_response is a PRINT-ONLY home — a user upload there would be readable and writable by nobody');
+  'DM5·S3f4 GUARD 4 (both locks closed): form_response is a PRINT-ONLY home. ⚠ TWO INDEPENDENT LOCKS refuse here — guard 4 AND can_write_document''s fail-closed else, both with P0002 — so this assertion alone cannot attribute the refusal; S3k2 is the discriminating one. Do not simplify either away');
 select is(
   (select can_delete from public.document_delete_affordances(
      array[(select document_id from public.printed_documents where id = (select pd1 from r))])),
   false,
   'DM5·S3f5 GUARD 5: the delete affordance does not promise what guard 2 refuses (server-computed, never derived UI-side)');
+-- MINOR-3 (QA r1): guard 5 had no over-binding twin. A guard with no twin passes
+-- while breaking ordinary documents — and this one is a projection the UI reads.
+select is(
+  (select can_delete from public.document_delete_affordances(
+     array[(select (j->>'document_id')::uuid from cd)])),
+  true,
+  'DM5·S3f5t [TWIN] an ORDINARY document is still deletable by the same caller — guard 5 removed exactly prints and nothing else');
 reset role;
 
 -- GUARD 3's positive twin: once the print is no longer active, disposition is
@@ -571,6 +596,144 @@ select is(app.can_read_document(
             (select document_id from public.printed_documents where id = (select pd2 from mt)),
             (select st_x from k)), true,
   'DM5·S3j5 [POSITIVE TWIN] the ATTENDEE still reads it — the arm narrows exactly ONE class and does not deny everyone (a narrowing that denies all passes its negative keystone by construction)');
+
+-- =============================================================================
+-- S3k — ⛔ QA r1 MAJOR-1: GUARD 4's KEYSTONE WAS VACUOUS. This block is the fix.
+--
+-- S3f4 asserts `begin_document_upload('form_response', …)` raises P0002. QA proved
+-- by neutralization that with GUARD 4 DELETED the same call still raises the SAME
+-- P0002 — from `can_write_document`'s fail-closed `else` (line 95), not from guard 4
+-- (line 38). Two independent locks refuse, so the assertion could not fail on the
+-- property it names. Behaviour was always correct; the KEYSTONE was the defect.
+--
+-- ⭐ [[a-door-can-have-two-locks]], and this is the prescription verbatim: OPEN EACH
+-- LOCK INDEPENDENTLY AND TOGETHER, AND VERIFY THEY DIFFER. So the sibling is opened
+-- here — `can_write_document` gains a permissive `form_response` arm inside this
+-- transaction — and guard 4 must STILL refuse. Now only guard 4 can be the cause.
+-- ⛔ NOT fixed by giving guard 4 its own SQLSTATE: P0002 is this door's deliberate
+-- absence≡denial idiom, and changing a production error code to make a test
+-- discriminate is the tail wagging the dog.
+-- S3f4 above is KEPT as the both-closed case; its label now says two locks refuse,
+-- so nobody 'simplifies' one away.
+-- =============================================================================
+create temp table _saved_cwd on commit drop as
+  select pg_get_functiondef(p.oid) as def
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'app' and p.proname = 'can_write_document';
+do $open$
+declare d text;
+begin
+  select def into d from _saved_cwd;
+  -- Insert a permissive form_response arm ABOVE the rca arm: the sibling lock is
+  -- now OPEN for exactly this home type and nothing else.
+  execute replace(d, 'when ''rca'' then',
+                     'when ''form_response'' then return true;' || chr(10) || '    when ''rca'' then');
+end $open$;
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_write_document')
+    ~ 'when ''form_response'' then return true',
+  'DM5·S3k1 [PRECONDITION] the SIBLING lock is genuinely OPEN — can_write_document now grants form_response, so a refusal below can only be guard 4');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.begin_document_upload('form_response', (select resp_sub from r), 'Upload proibido')$$,
+  'P0002', null,
+  'DM5·S3k2 ⭐ GUARD 4 REFUSES ON ITS OWN, with the sibling lock open — the discriminating assertion S3f4 could not make');
+reset role;
+select set_config('request.jwt.claims', '', true);
+do $restore$
+declare d text;
+begin
+  select def into d from _saved_cwd;
+  execute d;
+end $restore$;
+select ok(
+  (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_write_document')
+    !~ 'when ''form_response'' then return true',
+  'DM5·S3k3 [RESTORE CONTROL] the sibling lock is closed again — later blocks and any sweep measure the real gate, not this block''s residue');
+
+-- =============================================================================
+-- S3l — QA r1 MINOR-2: `can_write_document`'s PRINT ARM had no keystone at all.
+-- ⛔ This does NOT close FUP-DM5-330-WRITE-BLIND: door-level BLIND lifting is not
+-- arm-level coverage, which is precisely why the lead re-scoped that follow-up to
+-- the arm-level claim. This covers the PRINT arm only.
+-- =============================================================================
+select is(app.can_write_document(
+            (select document_id from public.printed_documents where id = (select pd1 from r)),
+            (select sa_x from k)), true,
+  'DM5·S3l1 the print arm GRANTS the commission staff_admin — mirroring revoke_printed_document''s authority, which is what makes D11''s retirement path reachable at all');
+select is(app.can_write_document(
+            (select document_id from public.printed_documents where id = (select pd1 from r)),
+            (select st_x from k)), false,
+  'DM5·S3l2 ⭐ ...and REFUSES the print''s own creator — a print is not writable by whoever emitted it (revocation is a governance act, not undo)');
+select is(app.can_write_document(
+            (select document_id from public.printed_documents where id = (select pd2 from mt)),
+            (select st_x2 from k)), false,
+  'DM5·S3l3 [CROSS-ARM CONTROL] a plain commission member gets no write on a MEETING print either — the arm is the print''s commission admin chain, not its home-type arm');
+
+-- =============================================================================
+-- S3n — QA r1 MINOR-4: the mint's `unique_violation` handler must ATTRIBUTE.
+-- Migration …000360 made it read `constraint_name` and re-raise anything that is
+-- not one of the two credential uniques. Both directions are asserted, because a
+-- handler that maps everything to HC0D4 and a handler that maps nothing to it are
+-- indistinguishable from one assertion.
+-- =============================================================================
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+-- Direction 1: a genuine CREDENTIAL collision (short code already minted) is still
+-- HC0D4 — the code the server action loops on to re-mint with fresh credentials.
+select throws_ok(
+  $$select public.mint_printed_document(
+      (select pd3 from r), 'form_response', (select resp_sub from r),
+      'form_response', 1, repeat('cd', 32),
+      (select tok3 from r), (select sc1 from r), false)$$,
+  'HC0D4', null,
+  'DM5·S3n1 a real CREDENTIAL collision still maps to HC0D4 — the action''s re-mint path stays alive');
+-- Direction 2 — and getting here HONESTLY took two attempts, recorded because the
+-- first one was vacuous in exactly the way MAJOR-1 was.
+--
+-- ⛔ THE VACUOUS VERSION: re-mint an already-minted id and assert 23505. MEASURED —
+-- that collides on `file_objects_bucket_path_uniq`, which fires BEFORE the
+-- printed_documents insert and therefore OUTSIDE the exception block. The error
+-- never reaches the handler, so the assertion passed identically with the OLD broad
+-- handler and proved nothing. (It also falsified this fix's first rationale: no
+-- caller-reachable unique was ever MISreported, because none reached the handler.)
+--
+-- ⭐ SO THE LOCK THAT HIDES THE PATH IS OPENED — the same prescription as S3k: a
+-- non-credential unique on `printed_documents` is unreachable at the handler today
+-- (pkey is shadowed by the coordinate unique; document/version uniques take fresh
+-- uuids; one_active is pre-empted by supersession). Dropping the coordinate unique
+-- inside this transaction lets the SAME re-mint reach the printed_documents insert
+-- and trip `printed_documents_pkey` — which the handler DOES see. With …000360 it
+-- re-raises 23505; with the old broad handler it would have answered HC0D4.
+create temp table _saved_fo on commit drop as
+  select pg_get_constraintdef(oid) as def
+    from pg_constraint where conname = 'file_objects_bucket_path_uniq';
+reset role;
+alter table public.file_objects drop constraint file_objects_bucket_path_uniq;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$select public.mint_printed_document(
+      (select pd1 from r), 'form_response', (select resp_sub from r),
+      'form_response', 1, repeat('cd', 32),
+      'S3TOKEN9AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'VWXYZ23456', false)$$,
+  '23505', null,
+  'DM5·S3n2 ⭐ with the shadowing unique OPENED, a NON-credential violation (printed_documents_pkey) reaches the handler and keeps its OWN SQLSTATE — it is not absorbed as a credential collision');
+reset role;
+do $restore_fo$
+declare d text;
+begin
+  select def into d from _saved_fo;
+  execute format('alter table public.file_objects add constraint file_objects_bucket_path_uniq %s', d);
+end $restore_fo$;
+select ok(
+  exists (select 1 from pg_constraint where conname = 'file_objects_bucket_path_uniq'),
+  'DM5·S3n3 [RESTORE CONTROL] the coordinate unique is back — nothing after this block, and no sweep, measures a relaxed file_objects');
 
 select * from finish();
 rollback;
