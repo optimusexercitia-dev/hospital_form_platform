@@ -62,6 +62,18 @@ following, **not** a commission bound at upload time (step 0 named this the most
 silent authz regression in DM5). ⚠ `nsp-evidence` has **four** policies in two pairs, with
 the RCA insert reading `foldername[2]` and the RCA select `foldername[1]`.
 
+### S3 — Wave D pt.2: printed renditions — ✅ **BUILT, steps 1–2 GREEN; step 3 QA r2 OWED**
+
+> **Delivered 2026-08-14.** 6 migrations `20260927000300`–`000350` + `af9a894e` (r1) · pgTAP **`342`** (59) ·
+> fixtures rewritten in `312`/`313`/`323`. **`frontend` was never needed** — every TS signature stayed
+> stable and D18 removed the only new surface, so no UI was built for this slice.
+> Gate: registry **406==406** · pgTAP **193f/6348** · tsc 0 · lint 5/5 · vitest 1294 · four ARMs **HOLD** ·
+> `e2e:prod` **1120p/0f/0 did-not-run/3 flaky** · print corridor **executed** (9/9 + 6/6, real `%PDF-`).
+> ⏳ **QA r1 = CHANGES REQUESTED, fixes landed, r2 NOT yet run — S3 is not closed.**
+> Full record + the r2 brief: [dm5-handoff.md](../progress/dm5-handoff.md) §§9–10.
+
+<details><summary>Original S3 plan (kept for provenance)</summary>
+
 ### S3 — Wave D pt.2: printed renditions (backend + frontend) — **no longer blocked**
 
 D1 (`form_response`) · D6 (all four `source_kind` values) · D7 (`printed_documents` becomes
@@ -111,7 +123,15 @@ bucket rows (verified live 2026-08-14) — fix those fixtures here, before S4 ca
 `pending` / `canOpen: false` forever** rather than crashing; only `documents.ts` is reachable and
 **D13 is what makes it so**. Fix the resolution seam and keystone the invariant — not the line numbers.
 
-### S4 — retirement execution (backend) — needs S2 + S3
+</details>
+
+### S4 — retirement execution (backend) — needs S2 + S3, and **PO authorization on the day**
+
+> ⛔ **IRREVERSIBLE. Do not start before S3 has an `APPROVED`** — S4 removes the buckets S3's corridor was
+> proven against. Authorization gate, binding ordering, and the **corrected** remote premise (the CLI's
+> reset/orphan line was **reverted**; verified absent at v2.105.0 with a positive control):
+> [dm5-handoff.md](../progress/dm5-handoff.md) §11. ⚠ **The committed manifest baseline self-labels
+> DEGENERATE and must not be reused as S4 input** — a fresh `capture` + `walk` is required and was not run.
 
 D8 (**8** buckets) · D9 (manifest-first). Per bucket: prove zero DB references, zero product
 callers, zero policies, then empty-by-manifest and delete via the **Storage API only** —

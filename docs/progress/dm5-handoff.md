@@ -1,10 +1,22 @@
-# DM5 — handoff (paused 2026-08-14, before S3)
+# DM5 — handoff (paused 2026-08-14, **after S3's build, before its QA r2**)
 
 > **Read this first, then `docs/progress/dm5-wave-d-retirement.md`** (the phase record) and
-> **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D16, all PO-ruled).
+> **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–**D18**, all PO-ruled).
 > Plan: [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md).
 > Written for someone who was **not here**. Where it says *verify*, verify — this phase punished
-> inherited claims repeatedly.
+> inherited claims repeatedly, **including six times in the session that built S3** (§9).
+
+## 0. ⭐ START HERE — the two things to do first, in this order
+
+1. **Run the QA r2 re-review of S3.** QA returned **CHANGES REQUESTED (r1)**
+   ([dm5-s3-review.md](../reviews/dm5-s3-review.md)); `backend` discharged both blocking MAJORs and four
+   MINORs in `af9a894e` and re-passed §6 step 1 in full — but **nobody has re-reviewed the fixes, so there
+   is no `APPROVED` and step 3 is unsatisfied.** S3 is **built and verified, NOT closed.** Brief: §10.
+2. **Then S4 — and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.** It needs explicit PO authorization *on the
+   day*, separately from any earlier approval. Binding ordering and its one corrected premise: §11.
+
+⛔ **Do not start S4 before S3 has an `APPROVED`.** S4 removes the buckets S3's corridor was proven
+against; an S3 defect found afterwards is unrecoverable evidence.
 
 ## 1. Where things stand
 
@@ -12,14 +24,31 @@
 | --- | --- |
 | **S0** manifest tool | ✅ complete (`0e85cbe7`, `9d37ad79`) — 8/8 self-test controls |
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
-| **S2** NSP RCA/CAPA evidence | ✅ **gate steps 1–2 COMPLETE** — sweep `COVERED` (§3). ✅ **Four arms DISCHARGED 2026-08-14** (below). QA (§6 step 3) is a **phase-level** step, owed at DM5 close, not per-slice |
-| **S3** printed renditions | ⛔ **NOT STARTED — the pause point.** All rulings already made (§4) |
-| **S4** retirement (8 buckets) | ⬜ not started |
+| **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
+| **S3** printed renditions | ✅ **BUILT + steps 1–2 GREEN** · ⏳ **step 3 = QA r2 OWED** · ⏳ step 4 PO. Detail §9 |
+| **S4** retirement (8 buckets) | ⬜ not started — **irreversible; PO authorization on the day** (§11) |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
-| **S6** canon + exit sweep | ⬜ not started |
+| **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
-⛔ **Branch `main`, NOTHING PUSHED, no `db push`. All DM flags ship OFF** (`documents_wave_d` is ON
-in the local seed only). Registry **399 == 399** at last check; re-verify before trusting any catalog claim.
+⛔ **Branch `main`, NOTHING PUSHED, no `db push`, no remote reset. All DM flags ship OFF**
+(`documents_wave_d` **and** `document_printing` are ON in the local seed only — and **both must be flipped
+together at deploy**, ADR 0120 D5/S3). Registry **406 == 406** at HEAD `1513c094`; **re-verify before
+trusting any catalog claim in this file.**
+
+### Environment facts that will otherwise cost you an hour
+
+- ⚠ **The print corridor needs the Gotenberg sidecar.** `docker start gotenberg-pdf`, then
+  `curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/health` → **200**. Without it the 15 print
+  specs fail as uniform pt-BR "indisponível"/timeout errors that **read exactly like product defects**.
+  `PDF_RENDERER_URL=http://localhost:3010` is already in `.env.local`. Recipe:
+  `docs/deployment/pdf-renderer.md:24`. **`e2e:prod` neither starts nor checks it.**
+- ⚠ **Pass `--workers=1`** when driving specs against `next dev`. Default workers gave **12 failures, every
+  one a 30 s `page.goto` timeout on `/login`**, while `curl` answered the same route in **73 ms**.
+  Serialized: 9/9 and 4/5.
+- ⚠ **A green `e2e:prod` ALWAYS leaves residue.** `RESET=1` resets *before* each batch and nothing resets
+  *after the last one*, so **any `test:db` immediately after a gate runs on a contaminated DB** — that is
+  what reddened `252_authz_p0_isolation` with a `(commission_id, position)` collision against
+  `VIEWS-E2E` rows from batch 18. Always `supabase db reset --local` between a gate and pgTAP.
 
 ## 2. What S2 delivered
 
@@ -403,3 +432,128 @@ All stood down. `backend` (the original) is **context-exhausted (~712k)** — sp
 
 ⚠ **Shared local stack = one owner.** Two agents on one DB caused today's incident. Announce a reset
 **before**, not after.
+
+---
+
+## 9. S3 — what was BUILT, and the six times this session paid the phase's own lesson again
+
+**6 migrations `20260927000300`–`000350`** + `af9a894e` (r1) · pgTAP **`342_dm5_s3_printed_renditions.sql`**
+(59) · fixtures rewritten in `312`/`313`/`323` · TS: D18 anti-join, moved coordinate, serving route.
+Commits `6ffd92ff` `859faa18` `d964b61a` `e08cf4eb` `af9a894e` (+ `02b2218d` from `tester`) — all verified
+**ancestors of HEAD**.
+
+**What it does.** `form_response` joins **both** coupled CHECKs · `printed_documents` becomes a **satellite**
+(`document_id`/`document_version_id` NOT NULL UNIQUE + a **composite FK** so they cannot disagree;
+`storage_path` **and** `pd_storage_path_derived` retired) · a **print arm in BOTH kernel doors**, positioned
+**below `app.is_active`** · new `app.resolve_document_version_bytes` with `open_document_version` **and**
+`open_printed_document` both delegating to it (**D12**) · the mint rebuilt onto the substrate atomically ·
+**five** write guards. Full surface delta: the currency stamp at the head of
+[backend-state.md](../backend-state.md).
+
+### Gate figures (lead-verified from the catalog, not accepted from reports)
+
+`registry 406 == 406` · pgTAP **193 files / 6348 PASS** · tsc 0 · lint **5/5** · vitest **1294** ·
+`ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** (census live 546, unchanged) ·
+diff-scoped sweep **BLIND 0 · ERROR 0** · degenerate bodies **0** · findings file **595**.
+**`e2e:prod`: 1120 passed · 0 failed · 0 did-not-run · 3 flaky · 18 batches**, every batch's own
+`accounted N/N` reconciling. `next build` compiled — **S3's first production build**.
+
+⭐ **The corridor was EXECUTED, which S2's never was:** `pdf-printing` **9/9** and
+`pdf-printing-meetings` **6/6** against real `%PDF-` bytes — mint → download → public verify → revoke →
+overlay → re-verify, plus a `participants_only` meeting refusing a non-attendee, plus tester's new **D18**
+test. **S2 passed every static gate while its feature did not work at all. S3 has been run.**
+
+### One live bug found and fixed: BUG-DM5-S3-INACTIVE-PRINT-1
+
+A **deactivated** user kept print-download authority while being refused every content document.
+`can_read_document` guards `is_active` above its dispatch; `can_view_printed_document` does not — and its
+`form_response` arm's **first disjunct is the bare `v_resp.created_by = p_uid`, behind an `or`**, so no
+callee could supply the check. **Latent only because `document_printing` ships OFF.** Closed by D12's
+conjunction — which is why "strict narrowing" is load-bearing rather than decorative. ⚠ **No authz ARM can
+see this class** (all five test a gate that *is* there; a *missing* term is invisible) →
+**FUP-DM5-SIBLING-GUARD-DIFF**.
+
+### The six repeats of "the enumeration's boundary must be the property" — all in one session
+
+Recorded because the phase's dominant failure mode fired six more times, **four of them by the lead**:
+
+1. The inherited record named **2** `source`-rendition sites; the lead corrected it to **4**; `backend`
+   found a **5th** — the lead's four were bounded by `.find(`, the fifth writes it as `.eq(`.
+2. `342` was first assigned to pgTAP **`341`** — which is **S2's own suite**. The number was never `ls`'d.
+3. `tenant_shape` was pinned as gaining a **third** shape; it stays at **two** (`responses.commission_id`
+   is NOT NULL). *Which arm it joins* was mistaken for *a new shape*.
+4. `312`/`313`/`323` were pinned at **11** `storage.objects` rows; **9** persist — the 10th sits inside a
+   `throws_ok` asserting refusal. Insert **statements** counted, not persisting **rows**.
+5. The smoke file's print-coordinate property had **four** sites; `backend` updated **one**. The stale
+   `afterAll` deleted from the emptied bucket, i.e. **leaked orphans into the new ones**.
+6. `printed_documents.storage_path` was swept in `supabase/tests` and `src` but **not `e2e/`** — one spec
+   still selected it. ⚠ Every *other* `storage_path` hit in `e2e/` is `file_objects.storage_path`, which
+   **still exists**, so a sweep-replace would have been wrong.
+
+### Two true-sounding claims that were false — both corrected in place
+
+- **ADR 0120 D17's remote half.** "A remote reset creates orphans" generalised a **local** measurement by
+  *"the same mechanism class."* The remote mechanism was **one line** in the CLI's `drop.sql`, added
+  [cli#3083](https://github.com/supabase/cli/pull/3083), **reverted [cli#3359](https://github.com/supabase/cli/pull/3359)**
+  (Mar 2025). Grep-verified **absent** in the shipped **v2.105.0** binary with an `auth` **positive
+  control** (storage → 0 hits, auth → 3). ⭐ **A correctness property can live in a DEPENDENCY's source and
+  regress on `npm update`** — `package.json` pins `^2.105.0`, a caret range. Re-run the grep on any bump.
+- **D18's detail half.** The filter landed on `queries/documents.ts`'s `getDocument`, which **no route
+  imports**; the reachable same-named export in `queries/controlled-documents.ts` selects
+  `from('controlled_documents')`, so prints are excluded **structurally, by the schema, not by D18**.
+  Two exports, one name — a grep for the symbol *looks* answered; only the **import site** discriminates.
+
+## 10. §6 step 3 — the QA r2 brief (do this first)
+
+Artifact exists: [dm5-s3-review.md](../reviews/dm5-s3-review.md), **r1 = CHANGES REQUESTED**
+(0 P0 · 2 MAJOR blocking · 6 MINOR · 2 INFO). r2 decides **only** whether the fixes discharge it.
+
+| r1 item | what `backend` did | what r2 must check |
+| --- | --- | --- |
+| **MAJOR-1** `342 S3f4` vacuous — with guard 4 deleted the same `P0002` still came from `can_write_document`'s fail-closed `else` | new **`S3k`** opens the **sibling** in-transaction (a permissive `form_response` arm) and requires guard 4 to still refuse; `S3f4` kept as the both-closed case | that `S3k2` goes **RED** with guard 4 removed while `S3f4` stays **GREEN** — the pair now discriminates. **No production SQLSTATE was changed** (deliberate: `P0002` is the door's absence≡denial idiom) |
+| **MAJOR-2** `312 t51` claimed the retirement was *"stronger … cannot be leaked from here at all"* | `t51` retitled *"a RELOCATION, not a withholding improvement"*; **`t51c`** asserts derivability executably; **`t51d`** asserts **0 SELECT policies** on `storage.objects` for either document bucket. **REVOKE declined on evidence** | that the new text is true. ⚠ **QA's premise was wrong and the lead corrected it:** `id` **and** `contains_phi` are both granted and always were, and the old CHECK made `storage_path` a **pure function of those two** — so the withholding was **already vacuous**. `backend`'s probe then showed the `documents` row reachable via `home_resource_id` **alone**, so revoking closes no capability |
+| 4 MINORs | all taken, each **proven RED first** (`S3d2`, `S3l1`, `S3f5t`, `S3n2`) | that `S3d2` now fails when `is_active` is **absent** — its old `0 < N` form passed vacuously |
+
+⛔ **Do not close FUP-DM5-330-WRITE-BLIND on `342`.** `S3l` covers the **print arm only**; door-level BLIND
+lifting ≠ arm-level coverage, which is the whole reason that follow-up was re-scoped.
+
+**Do not re-run** `e2e:prod` or `next build` for r2: r1 is pgTAP plus one migration touching only an
+exception handler's attribution — no page-serving path, no app code.
+
+## 11. S4 — the authorization gate, and its one corrected premise
+
+S4 retires **8 buckets** and is the first **irreversible** slice. **PO authorization is required on the day,
+separately from any earlier approval.**
+
+- **Binding ordering (ADR 0120 D9 + D17), the reverse of the intuitive one:** **delete-by-manifest through
+  the Storage API FIRST**, while `storage.objects` metadata still exists and keys are enumerable — **and
+  only THEN reset.** Reset-first makes emptiness **unprovable**, asserted against a just-truncated table.
+  **S0's manifest tool stays load-bearing.**
+- ✅ **The local rationale makes that binding, and it stands**: a local reset recreates the DB while the
+  **Docker volume survives** (measured **0 metadata rows vs 699 objects / 7.02 MB / 198 PHI-tier**).
+- ⛔ **The remote rationale does NOT** — see §9. `FUP-DM5-STORAGE-ORPHANS` is amended 🔴→🟠 and its Cloud
+  half is **residual, not a blocker**.
+- ⚠ **The committed manifest baseline self-labels DEGENERATE** and per the S0 record **must not be reused as
+  S4 input** — S4 needs a fresh `capture` + `walk`. `backend` explicitly did **not** run one.
+- ⭐ **A free S4 input arrives from S3:** every object still in `printed-documents` is now referenced by **no**
+  `file_objects` row, so `document-reconciliation.mjs` classifies them all as unaccounted. Prints moved out;
+  `printed-documents` correctly stays in `RETIREMENT_BUCKETS` while `documents-standard`/`documents-phi` are
+  **CORE**, so S4's delete **cannot reach** the new print bytes.
+
+### Open items S4/S5/S6 must not assume away
+
+🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — D11 asserts superseded print bytes retire via
+`file_objects.disposal_state`; **measured, both stay `none` and nothing schedules it.** Either build it or
+amend D11 — a 20-yr-retention LGPD/ANVISA record asserting a control no code performs is worse than one
+admitting the gap. 🟡 **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — a print of a *draft* response outlives
+the deleted response: dangling `securable_resources` row, reachable by **no UI surface**; **6 of 9** local
+prints are `form_response`, which renders no panel at all. 🟡 **FUP-DM5-DEAD-CORE-PROJECTION** ·
+🟠 **FUP-DM5-SIBLING-GUARD-DIFF** · 🟠 **FUP-DM5-330-WRITE-BLIND** · 🟡 **FUP-ACL-APP-POPULATION** ·
+🟡 **FUP-PGTAP-WORKER-DEADLOCK**. Bodies in [follow-ups.md](./follow-ups.md).
+
+**Never verified for S3, and must not be claimed:** `case`/`interview` prints are **unmintable** (D6 is
+satisfied at the *type* level only) · `add_referral_shared_item` never driven end-to-end · a print's
+`file_objects.sha256` is the minter's hash (server-side, verified — but **not**
+`finalize_document_upload`'s derivation, and it feeds `complete_document_disposal`'s duplicate-evidence
+probe) · the smoke file is **not gate-resident** · `ARM=policy` was **not applicable** to this diff
+(recorded as such, never as clean).

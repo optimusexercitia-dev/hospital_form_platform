@@ -4,6 +4,25 @@
 > changes. The lead owns the Phase Status table; each teammate owns their own
 > rows in the other sections. Never report status that isn't written here.
 
+> ### ⛔ OWED, FIRST THING, BEFORE SPAWNING A TEAM: this file is **152 KB** against §7's "well under 60 KB"
+>
+> Declared rather than quietly carried, because **every teammate spawn reads this file** and pays for it.
+> It was rotated 139 → 120 KB during the DM5·S3 resume audit and then grew back while S3 was recorded.
+> **The lead who picks this up owns the rotation before spawning anyone.**
+>
+> The safe cuts, in order — all three are **duplicated elsewhere already**, so this is rotation, not loss:
+> 1. **DM5·S3's detail** in `## Current Phase Tasks` → now fully carried by
+>    [dm5-handoff.md](docs/progress/dm5-handoff.md) **§§9–11** and
+>    [dm5-wave-d-retirement.md](docs/progress/dm5-wave-d-retirement.md). Leave a pointer + the gate figures.
+> 2. **`## Phase Status`** (~30 KB) — verbose cell text for phases 0–23/MT/DM4 and earlier. ⚠ **Rows never
+>    leave** (many docs point at them); only cell prose rotates.
+> 3. **Closed follow-ups** still carrying full bodies → `follow-ups-archive.md`.
+>
+> ⚠ **Derive the boundary by the PROPERTY (is this item CLOSED?), never by heading syntax.** The last
+> rotation attempt here was bounded by `### ` headings and would have archived **BUG-BOOTSTRAP-001**, an
+> open production blocker, because open bugs use **bold** markers rather than headings. Assert in **both
+> directions** before writing: no open id leaves, every closed id lands.
+
 ## Phase Status
 
 <!-- THE INDEX: every phase keeps a row here, forever. What rotates out is verbose cell text, not
@@ -143,7 +162,43 @@
 > **one** refusal direction is reachable; pin the other **structurally** and do not fabricate a fixture
 > for an unreachable state, nor change the authorization to make it testable (that proposal was rejected).
 >
-> ### S3 gate status — steps 1 ✅ · 2 ✅ · 3 🔵 QA next · 4 awaiting PO
+> ### ✅ S3 BUILD COMPLETE — steps 1 ✅ · 2 ✅ · 3 ⏳ **QA r2 re-review OWED** · 4 ⏳ PO
+>
+> **⛔ S3 IS NOT CLOSED.** QA returned **CHANGES REQUESTED (r1)**; `backend` discharged both blockers and
+> four MINORs (`af9a894e`) and re-passed step 1 in full — but **QA has not re-reviewed the fixes**, so
+> there is no `APPROVED` verdict and §6 step 3 is unsatisfied. **Next session: run the QA r2 re-review
+> first** (brief in [dm5-handoff.md](docs/progress/dm5-handoff.md)), then take S3 to the PO.
+>
+> #### r1 gate re-run — fresh reset, lead-verified from the catalog (2026-08-14, HEAD `1513c094`)
+>
+> | check | figure |
+> |---|---|
+> | registry · pgTAP | **406 == 406** · **193 files / 6348 PASS** |
+> | tsc · lint · vitest | 0 · **5/5** (0 warnings) · **1294** |
+> | four ARMs | `census` **HOLDS** (live 546) · `hat` **HOLDS** · `floor` **HOLDS** · `FROMFINDINGS=1 wrapper` **HOLDS** |
+> | degenerate bodies · findings file | **0** · **595** untouched |
+>
+> **Lead-verified directly, not accepted from the report:** `securable_resources_type_check` admits **9**
+> types · `app.resolve_document_version_bytes` exists and **`authenticated` cannot EXECUTE it** (D12's
+> scope requirement standing at the ACL) · the print arm is present in **both** kernel doors ·
+> `printed_documents.storage_path` is **dropped** · degenerate bodies **0** · all six teammate commits are
+> **ancestors of HEAD**.
+>
+> ⚠ **`backend` predicted 6346 and the suite said 6348 — its own arithmetic slip, reconciled against the
+> in-file plan lines** (`312` 75→77, `342` 49→59, `6336 + 12 = 6348`) rather than restated. Worth keeping:
+> *a prediction restated instead of reconciled is how a wrong number becomes a record.*
+>
+> #### r1's own lesson — the fix for MAJOR-1 was committed in MAJOR-1's shape
+>
+> `backend`'s MINOR-4 fix claimed a live misreport (a duplicate `p_id` answered `HC0D4`). **Measured,
+> false:** the coordinate is a pure function of `p_id`, so a duplicate collides on
+> `file_objects_bucket_path_uniq` **before** the `printed_documents` insert — *outside* the handler — and
+> the keystone passed identically with the old broad handler. Relabelled **latent hardening**, and
+> keystoned by **opening the lock that hides it** (dropping the coordinate unique in-transaction so the
+> re-mint reaches `printed_documents_pkey`). ⭐ Two bugs in its own red-first harness were caught by the
+> harness's **controls**, not by reading it.
+>
+> #### The step-1/2 detail that produced it
 >
 > #### ✅ GATE GREEN — the FIRST full `e2e:prod` run in DM5, at any point in the phase (lead, 2026-08-14)
 >

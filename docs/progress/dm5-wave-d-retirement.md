@@ -7,6 +7,34 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## ✅ S3 — printed renditions onto the substrate: BUILT, steps 1–2 GREEN, **step 3 (QA r2) OWED**
+
+> **This is the current head of the phase.** Full narrative, the six enumeration-boundary repeats, the two
+> corrected true-sounding claims, the **QA r2 brief**, and S4's authorization gate live in
+> **[dm5-handoff.md](./dm5-handoff.md) §§9–11** — written for a session that was not here. Not duplicated
+> here on purpose: two copies of a status is how this phase produced eight record defects.
+
+**Delivered** (all ancestors of HEAD `1513c094`): `6ffd92ff` `859faa18` `d964b61a` `e08cf4eb` `af9a894e`
+(backend) + `02b2218d` (tester). 6 migrations `20260927000300`–`000350`, pgTAP **`342`** (59), fixtures
+rewritten in `312`/`313`/`323`. **`frontend` was never spawned** — every TS signature stayed stable and D18
+removed the only new surface, so S3 needed no UI.
+
+**Gate, lead-verified from the catalog:** registry **406 == 406** · pgTAP **193 files / 6348 PASS** · tsc 0 ·
+lint **5/5** · vitest **1294** · `ARM=census`/`hat`/`floor`/`FROMFINDINGS=1 wrapper` **all HOLD** ·
+diff sweep **BLIND 0 · ERROR 0** · degenerate bodies **0** · findings **595** · `e2e:prod` **1120 passed ·
+0 failed · 0 did-not-run · 3 flaky · 18 batches**, `next build` compiled.
+
+⭐ **The corridor was executed** — `pdf-printing` 9/9, `pdf-printing-meetings` 6/6, real `%PDF-` bytes,
+mint → download → verify → revoke → overlay → re-verify. **S2 passed every static gate while its feature did
+not work at all; S3 has been run.** ⚠ Requires the **Gotenberg sidecar** on :3010 and `--workers=1` against
+`next dev` — see the handoff's environment section.
+
+🔒 **One live bug found and fixed: BUG-DM5-S3-INACTIVE-PRINT-1** — a deactivated user kept print-download
+authority. Closed by D12's conjunction. **No authz ARM can see that class** → FUP-DM5-SIBLING-GUARD-DIFF.
+
+⛔ **S3 IS NOT CLOSED.** QA r1 = **CHANGES REQUESTED**; both blockers + four MINORs discharged and step 1
+re-passed, but **no r2 verdict exists**. Next session: r2 first, then the PO, then S4 (**irreversible**).
+
 ## ✅ RESUME AUDIT before S3 (lead, 2026-08-14, HEAD `e2af9790`) — the build is sound; **every defect was in the RECORDS**
 
 The PO asked for a consistency check on the DM5 work before continuing. **Nothing in the built system was

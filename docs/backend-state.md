@@ -11,10 +11,59 @@
 > is stale by design (CLAUDE.md graphify exception; this sentence said "the migrations
 > are the truth" until 2026-08-05).
 >
-> ⛔⛔ **CURRENCY STAMP — THIS FILE IS STALE BY ONE SLICE. Read this before quoting ANY document /
-> NSP / evidence line below.** Last content update: `bf1585ea` (2026-08-14), which landed **before every
-> DM5·S2 migration**. Registry was **391** then; it is **399** now. **8** migrations
-> (`20260927000100`–`000170`) changed this surface and are **NOT reflected anywhere below**:
+> ⛔⛔ **CURRENCY STAMP — THIS FILE IS NOW STALE BY *TWO* SLICES (S2 **and** S3). Read this before
+> quoting ANY document / NSP / evidence / **printed-document** line below.** Last content update:
+> `bf1585ea` (2026-08-14), which landed **before every DM5·S2 migration**. Registry was **391** then; it
+> is **405** now. **14** migrations (`20260927000100`–`000170` = S2, `…000300`–`000350` = S3) changed this
+> surface and are **NOT reflected anywhere below**.
+>
+> ### DM5·S3 — printed renditions moved onto the core substrate (`…000300`–`000350`, 6 migrations)
+>
+> ⚠ **Every `printed_documents` line below this stamp is wrong.** The table is now a **satellite**, not a
+> self-contained registry:
+>
+> - **`printed_documents` gained `document_id` + `document_version_id`** (both **NOT NULL UNIQUE**, plus a
+>   **composite FK** `(document_version_id, document_id) → document_versions(id, document_id)` so the two
+>   can never disagree). **`storage_path` is DROPPED and the `pd_storage_path_derived` CHECK is GONE.**
+>   Column-list grants: **17 of 20** columns to `authenticated`; **withheld = `verification_token`,
+>   `revoked_reason`, `revoked_by`**. ⚠ `id` and `contains_phi` **are** granted, so the coordinate remains
+>   **derivable** — it always was, via that CHECK. What protects the bytes is that `storage.objects` has
+>   **no SELECT policy** for either document bucket (pgTAP `312` t51d asserts this).
+> - **A print gets its OWN `documents` row** (ADR 0120 D13), `kind = 'printed_rendition'`,
+>   `confidentiality_level = NULL`, homed on the **source's** securable resource. ⚠ `documents.kind` is
+>   **nullable, unconstrained `text`** — **decorative; nothing may branch on it.** The D18 exclusion keys
+>   off the **`printed_documents` FK**, never `kind`.
+> - **`securable_resources_type_check` admits 9 types** (`form_response` added). `tenant_shape` still
+>   carries **TWO** shapes — `responses.commission_id` is NOT NULL, so `form_response` joins the existing
+>   full-tenancy arm. A trigger on `responses` mints/drops its securable.
+> - ⭐ **`app.can_read_document` AND `app.can_write_document` each gained a PRINT ARM**, dispatched on the
+>   `printed_documents` reference **before** the home-type dispatch and **below `app.is_active`**. Read
+>   delegates to `app.can_view_printed_document`; write mirrors `revoke_printed_document`'s authority. This
+>   exists because D13's own-`documents`-row would otherwise route a **meeting** print's metadata through
+>   the wider `is_member_of_for` arm — a widening D18 cannot fix, since PostgREST ignores our projections.
+> - ⭐ **NEW: `app.resolve_document_version_bytes(uuid, text, uuid)`** — the shared byte resolver
+>   (DEFINER, STABLE, pinned `search_path`, **EXECUTE to `postgres` ONLY**). **Both**
+>   `open_document_version` (`'source'`) and `open_printed_document` (`'printed_pdf'`) delegate to it
+>   (ADR 0120 **D12**), and it is **authorization-complete on its own**.
+> - **`open_printed_document`'s return shape changed** → `(storage_bucket, storage_path, status,
+>   contains_phi)`, and it now has **three** refusal outcomes: 0 rows (print-check denial) **or** a raised
+>   `42501`/`P0002`/`HC0DD`/`HC0D8` from the resolver. The route maps every one to the same pt-BR 404.
+> - **`mint_printed_document` rebuilt onto the substrate, atomically** — same signature, **no path
+>   parameter**: it derives `printed/<id>.pdf` in `documents-standard`/`documents-phi` from
+>   `contains_phi` and refuses `HC0D3` unless the object is already there. The **tier is the BUCKET now**
+>   (CHECK-pinned by `file_objects_bucket_from_tier`), not a `phi/`|`std/` prefix.
+> - **FIVE write guards** (not four): a `document_versions` BEFORE-INSERT trigger (**`HC0DK`**),
+>   `soft_delete_document` (**`HC0DL`**), `request_document_disposition` (**`HC0DN`**),
+>   `begin_document_upload` refusing `form_response` (`P0002`), + `trg_guard_printed_document_binding`
+>   pinning the coordinate to its derivation (the replacement for the retired CHECK).
+> - 🔒 **BUG-DM5-S3-INACTIVE-PRINT-1 fixed here.** A **deactivated** user previously kept print-download
+>   authority: `can_read_document` guards `is_active` above its dispatch, `can_view_printed_document` does
+>   not, and its `form_response` arm's first disjunct is the bare `v_resp.created_by = p_uid` **behind an
+>   `or`** — so no callee could supply the check. D12's conjunction closes it, which is why "strict
+>   narrowing" is load-bearing rather than decorative.
+> - Prints no longer write to **`printed-documents`**; that bucket is emptied and retires in **S4**.
+>
+> ### DM5·S2 — NSP RCA/CAPA evidence (`…000100`–`000170`, 8 migrations)
 >
 > - `securable_resources_type_check` admits **8** types, not 6 — `rca` and `capa_action` were added, and
 >   `securable_resources_tenant_shape` carries a **second shape** for `capa_action` (org + hospital,
