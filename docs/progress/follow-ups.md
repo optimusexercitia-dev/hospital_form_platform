@@ -8,6 +8,41 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟠 FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES — D11's "superseded bytes retire via `disposal_state`" is **not performed, and nothing can perform it** (owner: PO decision, then backend)
+
+Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-4. **Not an S3 bug — an ADR-0120 D11 claim that the
+implementation cannot honour**, so it must be either built or struck from D11.
+
+**Measured:** re-minting supersedes the prior print (`status='superseded'`, `superseded_at` set), but **both
+the old and new `file_objects.disposal_state` stay `none`**. Nothing schedules retirement, and retirement is
+operator-initiated — so a superseded print's bytes persist indefinitely. The **SUBSTITUÍDO overlay** on
+download depends on that lifecycle, and ADR 0114 **O1** is the same open question one layer up.
+
+**Why it matters beyond tidiness:** this is a **20-year-retention, LGPD/ANVISA** system where "the superseded
+copy is retired" is the kind of sentence an auditor reads as a control. An ADR asserting a control that no code
+performs is worse than an ADR that admits the gap. Two honest resolutions, and the PO picks:
+**(a)** implement retirement (scheduler or an explicit operator action) — then D11 is true; or **(b)** amend
+D11 to say superseded bytes are **retained** and the overlay is the only distinction — then the record is true.
+⛔ Do **not** resolve it by adding a comment saying retirement "should" happen.
+
+### 🟡 FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — a print of a DRAFT response outlives its response, invisible to every UI (owner: PO decision, then backend)
+
+Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-5. **CONFIRMED by probe, not reasoned.**
+
+Mint a print from a **draft** response, then delete the response: the `responses` row goes, its
+`securable_resources` row is left **dangling**, and the print becomes reachable by **no UI surface at all**
+(0 rows in every projection) while its bytes and registry row persist. `revoke → dispose` still works **at the
+door**, so it is recoverable by someone who already knows the id — which in practice is nobody.
+
+Note the interaction with **D18** and `DocumentHomeResourceType`: `form_response` homes render **no panel**, so
+even without deletion a `form_response` print has no surface — deletion just makes it permanent. **6 of 9
+prints in the local DB are that kind**, so this is the common case, not the exotic one.
+
+**Options:** refuse a mint from a non-`submitted` response (narrowest, and arguably right — a draft is not a
+document of record); or cascade the print's disposal when its source is deleted; or surface orphaned prints in
+an admin view. ⚠ Whichever is chosen, the **`securable_resources` dangling row** needs handling either way —
+a securable with no subject is a latent authorization question, since every kernel arm joins through it.
+
 ### 🟡 FUP-DM5-DEAD-CORE-PROJECTION — `src/lib/queries/documents.ts`'s `getDocument` has ZERO importers, and a same-named export shadows it (owner: frontend + backend)
 
 Filed 2026-08-14 (lead) after `tester` found it and the lead re-verified by grep. **No behavioural
