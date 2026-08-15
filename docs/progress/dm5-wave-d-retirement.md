@@ -516,3 +516,248 @@ The **direct-PostgREST-DML path**: both evidence tables carry table-wide `arwdDx
 why the shape rules are CHECKs and the flag is an assert. A UI-driven spec always goes through the
 action and can never exercise the bypass — `341` F8 covers it in SQL. **A correctly-drawn boundary,
 not a coverage gap.**
+
+## Rotated from PROGRESS.md 2026-08-14 (the size rotation) — the live DM5 section, verbatim
+
+> PROGRESS.md had grown back to **154 KB** against CLAUDE.md §7's "well under 60 KB". The live
+> `## Current Phase Tasks` DM5 block (S3 + S2, lines 117-352) is preserved here **byte-for-byte**;
+> the live file keeps the status, the gate figures and the resume point. ⚠ Two items in it were
+> **NOT** duplicated anywhere before this rotation — the "three catalog facts were WRONG" table and
+> the S2 close-then-reopen history — which is why the block is copied whole rather than summarized.
+
+### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
+
+> **Full detail → [dm5-wave-d-retirement.md](docs/progress/dm5-wave-d-retirement.md)** (rotated
+> mid-phase 2026-08-14: the live file had hit **128 KB** against §7's "well under 60 KB", and every
+> spawn reads it). Plan: [dm5-wave-d-retirement-plan.md](docs/plans/dm5-wave-d-retirement-plan.md) ·
+> ADR **[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D16) · step 0:
+> [dm5-surface-verification.md](docs/progress/dm5-surface-verification.md).
+> Window `20260927000100`+ · pgTAP **`341`** · flag `documents_wave_d`.
+>
+> **Slices:** **S0 ✅** manifest tool (`0e85cbe7`, `9d37ad79` — 8/8 self-test controls, 3 of which
+> found real defects; baseline self-labels **DEGENERATE**, not S4 input) · ~~S1~~ ⛔ **WITHDRAWN,
+> never built** (D3/D4/D5 struck → **D11**; the mechanism was already built at DM2 and DM2 had
+> rejected the proposed shape **by name**) · **S2 ✅ gate steps 1–2 COMPLETE** NSP RCA/CAPA evidence ·
+> **S3 🔵 OPENED 2026-08-14** printed renditions (D6/D7/D11/D12/D13 + **D17**, every ruling made) ·
+> S4 retirement (**8** buckets, manifest-first per D9) · S5 operational closure · S6 canon + exit sweep.
+>
+> ### 🔵 S3 — printed renditions onto the substrate (opened 2026-08-14, `backend` spawned, contract-first)
+>
+> Window **`20260927000300`–`000399`** · pgTAP **`342_dm5_s3_printed_renditions.sql`** (49), labels
+> `DM5·S3<n>`. **Preceded by a lead resume audit** — baseline re-measured, S2's four owed arms
+> discharged, 8 record defects fixed (`8e0cd6ab`, `d6494e2f`); detail in the phase record's
+> `RESUME AUDIT` section. PO rulings **D17** (design for a reset remote) and **D18** (prints filtered
+> out of Documentos) recorded in ADR 0120 before any SQL was written.
+>
+> ### ⛔⛔ THREE of the "catalog facts" the lead pinned here before spawning were WRONG — corrected in place
+>
+> Left uncorrected they would have misled every spawn, which is the exact trap this phase has been
+> fixing all day. What was pinned → what `backend` measured (and the lead re-verified):
+>
+> | pinned by the lead | truth | why the pin was wrong |
+> |---|---|---|
+> | pgTAP **`341`** | **`342`** — `341_dm5_s2_nsp_evidence_substrate.sql` is **S2's own suite** | the number was assumed free, never `ls`'d |
+> | `tenant_shape` carries 2 shapes so `form_response` forces a **third**, keystone all **three** | still **TWO** shapes — `responses.commission_id` is **NOT NULL**, so `form_response` joins the existing full-tenancy **arm 1** | the *decision* (which arm) was mistaken for a *new shape* |
+> | `312`/`313`/`323` insert **11** `storage.objects` rows | **9** persist — a 10th site (`312:405`) sits inside a `throws_ok` asserting the insert is **refused** | counted insert *statements*, not *persisting rows* |
+>
+> ✅ **Correct as pinned:** `type_check` admits 8 types and `form_response` is the single D1/D6 addition;
+> `pd_storage_path_derived` is a CHECK, not a column. Also false in the brief (and in ADR 0120 D17.1):
+> **`seed.sql` inserts ZERO `printed_documents` rows** — so there was no seed rewrite in this slice, only
+> the three pgTAP fixtures.
+>
+> ⭐ **The instruction carried into S3 from S2's failure:** *a new home type means enumerating EVERY
+> dispatch on `resource_type` — `can_read_*` **and** `can_write_*`* — derived from the catalog as a
+> **property**, never from an expected list of names. And **posting a contract is not implementing it**:
+> S2's 11 placeholder bodies were left throwing and the slice was closed green.
+> ⚠ **D12's conjunction is a STRICT NARROWING** — the kernel arm *implies* the print check, so only
+> **one** refusal direction is reachable; pin the other **structurally** and do not fabricate a fixture
+> for an unreachable state, nor change the authorization to make it testable (that proposal was rejected).
+>
+> ### ✅ S3 BUILD COMPLETE — steps 1 ✅ · 2 ✅ · 3 ⏳ **QA r2 re-review OWED** · 4 ⏳ PO
+>
+> **⛔ S3 IS NOT CLOSED.** QA returned **CHANGES REQUESTED (r1)**; `backend` discharged both blockers and
+> four MINORs (`af9a894e`) and re-passed step 1 in full — but **QA has not re-reviewed the fixes**, so
+> there is no `APPROVED` verdict and §6 step 3 is unsatisfied. **Next session: run the QA r2 re-review
+> first** (brief in [dm5-handoff.md](docs/progress/dm5-handoff.md)), then take S3 to the PO.
+>
+> #### r1 gate re-run — fresh reset, lead-verified from the catalog (2026-08-14, HEAD `1513c094`)
+>
+> | check | figure |
+> |---|---|
+> | registry · pgTAP | **406 == 406** · **193 files / 6348 PASS** |
+> | tsc · lint · vitest | 0 · **5/5** (0 warnings) · **1294** |
+> | four ARMs | `census` **HOLDS** (live 546) · `hat` **HOLDS** · `floor` **HOLDS** · `FROMFINDINGS=1 wrapper` **HOLDS** |
+> | degenerate bodies · findings file | **0** · **595** untouched |
+>
+> **Lead-verified directly, not accepted from the report:** `securable_resources_type_check` admits **9**
+> types · `app.resolve_document_version_bytes` exists and **`authenticated` cannot EXECUTE it** (D12's
+> scope requirement standing at the ACL) · the print arm is present in **both** kernel doors ·
+> `printed_documents.storage_path` is **dropped** · degenerate bodies **0** · all six teammate commits are
+> **ancestors of HEAD**.
+>
+> ⚠ **`backend` predicted 6346 and the suite said 6348 — its own arithmetic slip, reconciled against the
+> in-file plan lines** (`312` 75→77, `342` 49→59, `6336 + 12 = 6348`) rather than restated. Worth keeping:
+> *a prediction restated instead of reconciled is how a wrong number becomes a record.*
+>
+> #### r1's own lesson — the fix for MAJOR-1 was committed in MAJOR-1's shape
+>
+> `backend`'s MINOR-4 fix claimed a live misreport (a duplicate `p_id` answered `HC0D4`). **Measured,
+> false:** the coordinate is a pure function of `p_id`, so a duplicate collides on
+> `file_objects_bucket_path_uniq` **before** the `printed_documents` insert — *outside* the handler — and
+> the keystone passed identically with the old broad handler. Relabelled **latent hardening**, and
+> keystoned by **opening the lock that hides it** (dropping the coordinate unique in-transaction so the
+> re-mint reaches `printed_documents_pkey`). ⭐ Two bugs in its own red-first harness were caught by the
+> harness's **controls**, not by reading it.
+>
+> #### The step-1/2 detail that produced it
+>
+> #### ✅ GATE GREEN — the FIRST full `e2e:prod` run in DM5, at any point in the phase (lead, 2026-08-14)
+>
+> ```
+> GATE SUMMARY: 1120 passed · 0 failed · 0 infra · 3 flaky · 0 did-not-run · 18 batches
+> COVERAGE:     accounted for 1123 of 1129 collected      (1120 + 3 flaky; the other 6 are skips)
+> ```
+>
+> **Read the accounting, not the verdict:** every one of the 18 batches reported `0 failed`,
+> `0 did-not-run` **and** its own `accounted N/N` reconciling — so no batch dropped out of the
+> denominator (the way a reset-failed batch does). The 6 "unaccounted" are the **6 skipped** tests
+> (`phi-remediation` REM-8/REM-9, `user-registration` AC2 invite-mode, +3), all pre-existing and
+> unrelated to S3: `1120 + 3 + 6 = 1129` collected, so the accounting is complete.
+>
+> ⭐ **`next build` ran and compiled** (`building standalone (next build)… ✓ Compiled successfully`) —
+> **S3's first production build**, which is the only gate that catches a client value-import from a
+> server query module (it aborts `next build` while tsc, lint and vitest all stay green).
+>
+> ⭐ **All 15 print tests ran and passed IN THE PROD BUILD** (batch 9), including the new
+> `pdf-printing-meetings.spec.ts:399` **D18 test** — *"a meeting print is excluded from the Anexos panel,
+> though its own row exists and would be listed without the filter, and its byte corridor still works"* —
+> and `pdf-printing.spec.ts:38`'s full mint→download→verify→revoke→overlay→re-verify lifecycle. The
+> latter was RED for `tester` on the shared stack; it passes here under `RESET=1`, which **confirms
+> BUG-DM5-S3-ENV-FIXTURE-POOL-1 as category (c) environment** rather than a defect.
+>
+> **3 flaky, and 2 of them are the known pair** — `act-role-assumption:157` and `phase2-auth-shell:268`,
+> i.e. FUP-E2E-REPEAT-FLAKY exactly. The third is **new**: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1, a
+> keyboard-only test in **DM5's own S2 spec** (passed on retry #1) — S3 did not touch that file, and the
+> shape matches the standing *"`.focus()` is not auto-waiting; it races RSC streaming"* class. Added to
+> FUP-E2E-REPEAT-FLAKY as a third member. ⚠ Total flaky **3** against a historical baseline of ~18–27,
+> which is better than baseline and therefore **not** evidence that flakiness is fixed — one green run
+> does not establish a new baseline.
+>
+> #### The step-1/2 detail that produced it
+>
+> **Built** (`6ffd92ff` P0d · `859faa18` SQL cutover · `d964b61a` TS half · `e08cf4eb` smoke):
+> migrations `…000300`–`000350` (**6**) — `form_response` into both coupled CHECKs · `printed_documents`
+> becomes the **satellite** (`document_id`/`document_version_id` NOT NULL UNIQUE + a **composite FK** so
+> they cannot disagree; `storage_path` **and** `pd_storage_path_derived` retired) · the **print arm in
+> BOTH kernel doors** · `app.resolve_document_version_bytes` with `open_document_version` **and**
+> `open_printed_document` both moved onto it (D12) · the mint rebuilt onto the substrate atomically ·
+> four write guards. Fixtures rewritten in `312`/`313`/`323`; TS: D18 anti-join, moved coordinate,
+> serving route.
+>
+> | step 1 check | figure |
+> |---|---|
+> | registry · pgTAP | **405 == 405** · **193 files / 6336 PASS** (6284 + 1 + 2 + 49, reconciles exactly) |
+> | tsc · lint · vitest | 0 · **5/5** (eslint 0 warnings) · **1294** |
+> | `ARM=census` / `hat` / `floor` / `FROMFINDINGS=1 wrapper` | **all HOLD** (census live 546 unchanged) |
+> | diff-scoped door sweep | **BLIND 0 · ERROR 0**, 2 cases executed (nonzero), baseline asserted |
+> | degenerate-body sweep | **0**, after every mutation run |
+>
+> ⭐ **Step 2 — the corridor EXECUTES, which is the one thing no static gate could say.** Lead ran the
+> print specs against S3's code: **`pdf-printing` 9/9** and **`pdf-printing-meetings` 4/5** — real
+> `%PDF-` bytes, mint → download → public verify → revoke → overlay → re-verify, plus the restricted
+> (`participants_only`) meeting refusing a non-attendee. **S3 is not S2.** ⚠ Requires the **Gotenberg
+> sidecar** (`docker start gotenberg-pdf`, `/health` 200 on :3010) **and `--workers=1`** against
+> `next dev` — without those, 12 specs fail as uniform `/login` timeouts that read as product defects
+> (`curl` answered the same route in 73 ms).
+>
+> **✅ Discharged since:** the full `e2e:prod` gate ran GREEN (above) · `tester` landed `02b2218d` — the
+> retired-column re-point **and** the D18 twin, so the filter now **does** have an automated twin for the
+> list half.
+>
+> **Still open, and NOT to be assumed:** **QA (step 3) not started** · `case`/`interview` prints
+> **UNTESTED because unmintable** (`can_view_printed_document` has arms for `form_response`/`meeting`
+> only — D6 is satisfied at the *type* level; two of four kinds have never produced a print) ·
+> `add_referral_shared_item` never driven end-to-end (S3b pins both of its exclusions structurally, but no
+> referral was created and no freeze attempted) · `file_objects.sha256` for a print is the minter's hash —
+> server-side and verified as such, but **not** `finalize_document_upload`'s derivation, and it feeds
+> `complete_document_disposal`'s duplicate-evidence probe · the smoke file is **not gate-resident**
+> (`grep -n smoke package.json` → no hits) · `storage.objects` orphan behaviour on **Cloud** remains
+> **no longer an S4 blocker — FUP-DM5-STORAGE-ORPHANS' remote half was a stale inference, amended: the
+> orphaning line was reverted in the CLI (cli#3359) and is lead-verified ABSENT at the pinned v2.105.0,
+> with an `auth` positive control** · `ARM=policy` was **not applicable** to this diff (it
+> adds `prosecdef` gates, no RLS policy) — recorded as *not applicable*, never as clean.
+>
+> ⚠ **Two D18 half-truths corrected after implementation, both mine:** the **detail** half's filter landed
+> on `queries/documents.ts`'s `getDocument`, which **no route imports** — the reachable same-named export
+> in `queries/controlled-documents.ts` selects `from('controlled_documents')`, so prints are excluded
+> **structurally, by the schema, not by D18** (ADR 0120 D18 amendment; FUP-DM5-DEAD-CORE-PROJECTION). And
+> `form_response` prints have **no panel to leak into at all** — `DocumentHomeResourceType` does not
+> include `form_response` — so the exclusion is untestable there for want of a surface, not for want of a
+> test. **6 of 9 prints in the DB are that kind.**
+>
+> ### S2 ✅ — gate steps 1–2 COMPLETE. Baseline RE-MEASURED by the lead at HEAD `e2af9790` (2026-08-14)
+>
+> Migrations `20260927000100`–`000170` (**8**) · pgTAP **`341`** · the TS layer (11 stubs filled) · the
+> S2 UI · 8 new E2E. **Every figure below was re-run on a fresh `supabase db reset`, not inherited from
+> the closing report** — and every one reproduced the handoff's claim exactly:
+>
+> | check | figure |
+> | --- | --- |
+> | registry | **399 registered == 399 files** |
+> | pgTAP | **192 files / 6284 PASS** |
+> | tsc · lint · vitest | **0** · **5/5** · **1294/1294** (88 files) |
+> | `ARM=census` — has anything ever *asked* about each live gate? | **HOLDS** — live 546 / verdicts 569 |
+> | `ARM=hat` — does a door read `memberships` without the caller's hat? | **HOLDS** — 3, all reasoned-allowlisted |
+> | `ARM=floor` — is every door actually *called*? | **HOLDS** — 74 never-called, all allowlisted |
+> | `FROMFINDINGS=1 ARM=wrapper` — the `prosecdef = f` half | **HOLDS** — BLIND 41, all allowlisted |
+> | degenerate-body sweep (§ the incident) | **0 hits** — no gate left open |
+> | E2E (quick loop, not `e2e:prod`) | 8/8 new + **36/36 pre-existing at exact prior baseline** |
+>
+> ⭐ **The four arms were the ONE item S2 left owed.** The handoff recorded them as *"reasoned, not
+> verified"* — no new gate or policy was added, so no new census entry *should* be owed. Now **run**:
+> all four HOLD and census stayed 546, confirming the reasoning. *An unverified inference about a gate
+> is not a gate result.*
+> **Diff-scoped door sweep: `COVERED` · BLIND 0 · ERROR 0 · 1 case executed** — lead-verified at the
+> pause (`eb863ce8`/`22148ca1`/`fa28ec19`); **inherited here, not re-run today.** The findings row and
+> both kernel arms WERE re-verified against the catalog at HEAD.
+>
+> ⚠ **HISTORY — not current state. S2 was closed ONCE, WRONGLY, and reopened** (`b9e7dc7d` close →
+> `52242f26` reopen). Retained because the lesson is the phase's most valuable artifact; all three
+> defects are ✅ **FIXED** and re-verified (catalog + 0 stub bodies + green E2E):
+> **`BUG-DM5-S2-STUB-1`** 11 TS bodies still `throw 'not implemented — DM5 S2'`, taking down the entire
+> RCA/CAPA workspace for every persona · **`BUG-DM5-S2-WRITE-ARM-1`** `app.can_write_document` had no
+> `rca`/`capa_action` arm, so `begin_document_upload` refused **everyone** with `P0002` (M2 extended only
+> the READ counterpart) · **`BUG-DM5-S2-CITATION-TARGETS-1`** `listRcaCitationTargets` never queried
+> `documents`.
+>
+> ⭐⭐ **THE LESSON, AND IT IS THE LEAD'S FAILURE.** S2 passed a fresh reset, **pgTAP 192f/6272**, tsc 0,
+> **lint 5/5**, vitest 1264, and **all four authz arms** — and the feature **did not work at all**.
+> **Not one of those gates can execute a page.** The lead recorded weeks earlier that the TS bodies
+> were outstanding, wrote it down as *"expected under contract-first"*, and then accepted a close that
+> never mentioned them; and steered backend exclusively toward `can_read_document`, never once asking
+> what the **write** side dispatches on. [[green-bar-misses-the-wired-seam]] in its purest form yet.
+> ⚠ **`ARM=floor` asks whether every door is CALLED and it HELD** — because it counts *doors*, not
+> *door-arms*: the doors existed and were called for other home types.
+> ⭐ **`tester` went a layer deeper than the first bug** — calling `begin_document_upload` by **raw RPC,
+> bypassing the stub layer**, which is the only reason defect 2 was found. Had it stopped at defect 1,
+> we would have wired the TS layer, re-run, and hit `P0002` with the "fix" already merged.
+>
+> ✅ **Resolved since the reopen:** the `…000120` `REVOKE` was **falsified by the reset, then fixed** —
+> that PUBLIC assertion had never executed. Now fact on a fresh reset (`anon_exec = false` on both
+> doors). *"File and DB agree" is not "the file works."*
+>
+> ⛔ **State:** branch `main`, **NOT pushed**, no `db push`. All DM flags ship **OFF** (`documents_wave_d`
+> is ON in the **local seed only** — catalog-verified: migration default `false`, seed enables a–d).
+> graphify ✅ `02cec1a0`.
+> **Open:** 🔴 FUP-AUTHZ-HARNESS-TRANSACTIONAL (**a live authz gate was left OPEN on the shared stack**
+> — read the phase record's incident section before running any mutation harness) · 🔴 FUP-DM5-STORAGE-ORPHANS
+> (**blocks S4**; method half ruled, remote half open) · 🔴 FUP-PGTAP-VACUOUS · 🟠 FUP-DM4-RECUSAL
+> (**DM5 does NOT close it**) · 🟠 FUP-DM5-FINALIZE-ATOMIC (**binding input to S5**) ·
+> 🟡 FUP-DM5-GRANTS · 🟡 FUP-AUTHZ-ALLOWLIST-ROT · 🟡 FUP-DM5-DVF-FILEOBJ · 🟡 FUP-DM4-PRODROW.
+> **✅ Both prose-only items FILED 2026-08-14 (lead), no longer untracked** → 🟠 **FUP-DM5-330-WRITE-BLIND**
+> and 🟡 **FUP-PGTAP-WORKER-DEADLOCK** in [follow-ups.md](docs/progress/follow-ups.md).
+> ⚠ On filing, the reassurance in the original note did not survive: it said `330`'s blindness is
+> "covered by `341`, so not a blocker" — **`341` is S2's own suite**
+> (`341_dm5_s2_nsp_evidence_substrate.sql`), which makes the claim *plausible but unverified*, and §6
+> step 1 does not accept "another suite covers it" for a BLIND door. It is also **STALE-COVERED-shaped**:
+> `can_write_document`'s body changed twice after that note (S2's arms, then `fc7a146d`).

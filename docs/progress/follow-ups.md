@@ -1389,3 +1389,60 @@ emptiness proof narrower than the thing it claims to prove (the Storage API list
 `storage.objects`, so it cannot see bytes that table has forgotten). Two layers, one
 defect shape: **the reconciler's domain is narrower than the drift it is trusted to
 rule out.**
+
+## Bodies moved here 2026-08-14 (the PROGRESS.md size rotation) — items whose ONLY record was the live line
+
+> ⚠ **Found during the rotation, and it changes what the rotation was allowed to do:** these OPEN
+> follow-ups had **no body in this file at all**, and `FUP-ACT-DISPOSE-UI`'s live line even pointed
+> *here* for its "full mechanism". PROGRESS.md is supposed to carry a one-line index only
+> (lead-playbook §5) — so compressing those lines to `severity · id · title · owner` would have
+> **destroyed the item**, not rotated it. Bodies below are the live text, verbatim.
+
+### 🔴 FUP-ACT-DISPOSE-UI — LGPD Art. 18 referral-erasure has no UI route (owner: PO — mount point)
+
+_Verbatim from PROGRESS.md § "Remaining pre-pilot work" item 0, where it was carried as a **pilot-gate
+check** rather than a follow-up-list entry. It stays item 0 of that list; this is its body._
+
+**0. 🔴 PILOT-GATE CHECK — the LGPD Art. 18 referral-erasure path must have a working UI route
+(FUP-ACT-DISPOSE-UI).** Placed here, as a **gate check rather than a follow-up-list entry**, on the
+Stage-3 QA reviewer's explicit recommendation — *"this program's own record shows 'standing in prose
+alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 was written about).
+**The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
+hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
+persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the
+`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](docs/progress/follow-ups.md)). Until one does,
+subject-erasure is API-only. **Decision owner: PO** —
+*where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
+tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this
+non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
+un-strand this same obligation after QO·B cut it — the platform has already ruled once.
+
+### 🟡 FUP-E2E-REPEAT-FLAKY — three focus/navigation-timing specs flaking across independent gates (owner: lead + tester)
+
+- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff. **Both flaked again in DM5·S3's gate (3rd + 4th occurrence) — the pattern is now established, not suspected.** ⭐ **Third member added 2026-08-14: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1** — a keyboard-only test in DM5's **own** S2 spec (passed on retry #1; S3 touched no part of that file). All three are focus/navigation-timing shaped, matching the standing *"`.focus()` is not auto-waiting — it races RSC streaming"* class, which suggests **one** root cause rather than three flaky tests — lead/tester
+
+### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
+
+- 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
+
+### 🟡 FUP-329-ABORT-SHAPE — a `329` keystone whose failure ABORTS the file, dropping 41 assertions (owner: backend)
+
+- 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
+
+### 🟡 FUP-ACT-CAPA-ASSIGN — NSP operators see ~only themselves in the CAPA assignee picker (owner: backend)
+
+- 🟡 **FUP-ACT-CAPA-ASSIGN** — NSP operators see ~only themselves in the CAPA assignee picker (`profiles` RLS has no operator arm; the hatless union used to mask it) — backend
+
+### 🔴 FUP-ETH-ROLES-1 — no production bootstrap of `case_participant_roles` (owner: product + backend)
+
+- 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
+
+### 🟡 FUP-DM5-DVF-FILEOBJ — latent: the mint creates a FRESH `file_object` and never binds a pre-existing one (owner: backend)
+
+⚠ **This item had no live bullet of its own** — it was named only inside the DM5 phase section's
+"Open:" list and inside the DM5·S3 QA verdict. Both were rotated on 2026-08-14, so without this body
+and the new live index line it would have disappeared entirely. Substance, from the QA r1 report:
+the S3 mint **creates a fresh `file_object`** rather than binding a pre-existing one, which is what
+ADR 0120 required S3 to ensure, so the concern **stays latent** — it becomes live only if a future
+slice binds an existing `file_objects` row into `document_version_files`. Re-check at S4/S5.
+

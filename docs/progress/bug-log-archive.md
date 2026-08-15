@@ -2252,3 +2252,71 @@ per-red triage and for the two non-regression observations (`open_document_versi
 **HTTP 500, not 404** — pre-existing DM2 transport behaviour; and **AC-13's Tab budget is coupled to
 register row count**, so a green AC-13 is only meaningful on a fresh reset).
 
+
+## Rotated from PROGRESS.md 2026-08-14 (the size rotation) — the live Bug Log's two CLOSED blocks
+
+> ⚠ The five bug records themselves were **already archived above** (§ *Archived 2026-08-14 (DM5 resume
+> audit)*, BUG-DM5-S2-STUB-1 / -WRITE-ARM-1 / -CITATION-TARGETS-1 / BUG-DM5-CAPA-1 / BUG-DM4-DUP-1) —
+> what follows is the live file's summary + pointer prose, kept because it carries the "read this before
+> touching X" navigation hooks. The live Bug Log now holds **OPEN bugs only**, per lead-playbook §5.
+
+### Closed this phase → [bug-log-archive.md](docs/progress/bug-log-archive.md) (rotated 2026-08-14)
+
+All five carried full repro + mechanism; the durable lessons also live in the phase records.
+
+- 🟢 **BUG-DM5-S2-STUB-1** — 11 TS bodies still `throw 'not implemented'`; the entire RCA/CAPA
+  workspace 500'd for every persona. Fixed `cbcabe7a`.
+- 🟢 **BUG-DM5-S2-WRITE-ARM-1** — `app.can_write_document` had no `rca`/`capa_action` arm, so
+  `begin_document_upload` refused **everyone** with `P0002`. Fixed `fc7a146d` (`…000160`).
+  ⚠ Its first probe is **not** valid fix evidence — it ran while the gate was neutralized.
+- 🟢 **BUG-DM5-S2-CITATION-TARGETS-1** — the picker could never offer a document target. `e307a979`.
+- 🟢 **BUG-DM5-CAPA-1** — CAPA evidence upload had been broken for every user since it shipped.
+  Fixed `e938f36d` (`…000140`, kept as its own migration so the red was provable pre-fix).
+- 🟢 **BUG-DM4-DUP-1** — the reply-attachment list rendered the file twice. Fixed `5ac8d849`,
+  pinned `f8052575` (5/6 proven RED first). ⚠ **It was still marked 🟠 OPEN here until
+  2026-08-14** — *a fix commit is not a status edit.*
+
+✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
+(pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
+[bug-log-archive.md](docs/progress/bug-log-archive.md).
+
+_(⚠ A truncated first line of **BUG-DM5-S3-INACTIVE-PRINT-1** was copied here by an over-wide line
+range during the 2026-08-14 rotation and removed immediately. That bug is **OPEN and lives in
+PROGRESS.md** — nothing about it is archived here.)_
+
+### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+
+All closed rows (incl. the one-line table, the 2026-08-03 batch’s method notes, and the
+earlier-era pointers) rotated 2026-08-06; each bug’s full entry — repro, fix, lessons — is in
+the archive. ⚠ Before touching `buildAnswerMaps`, read BUG-FF4-001 there (the obvious one-line
+fix breaks Rule 3 SQL↔TS evaluator parity).
+
+**Rotated 2026-08-12 (the FUP batch):** **BUG-MIN-E2E-1** — closed as **NOT a product defect**: a
+stale per-worktree `.env.local` `MINUTES_SERVICE_URL` (`:8000` vs the spec stub's `127.0.0.1:8891`),
+left over from the `FUP-MIN-CUTOVER` T5 smoke flip. ⚠ Read it before diagnosing any minutes E2E
+failure — the durable fix is the mutation-proven `beforeAll` precondition guard, not the value. ·
+**BUG-RDR-001** — fixed at the shared layer for **both** dialog primitives
+(`dialog-focus-restore.tsx`). ⚠ Read it before touching Radix dialog focus: it records that
+`onCloseAutoFocus`'s `preventDefault()` **also cancels `FocusScope`'s own restore**, so the two
+halves must be replaced together — and it carries the honest per-call-site count (1 measured, 3
+structural, 1 tester-measured, **1 that was never broken**), which is not six.
+
+**Rotated 2026-08-12:** **BUG-ETHE4-FOCUS-1** (ETH·E4, fixed `8e5ebcd`) → the archive's closing
+section. ⚠ Before touching `TypeaheadField` or any Radix dialog focus behaviour, read it there:
+it carries the only written record of the `@radix-ui/react-focus-scope` `handleMutations`
+mechanism behind the 3-element tab loop, and of why a bubble-phase `stopPropagation()` cannot
+beat `DismissableLayer`'s capture-phase Escape. Its untested residual is live as **FUP-ETH-KBD-1**.
+
+**Also 2026-08-12:** the **BUG-VACUOUS-ASSERT-1 · BUG-ACT-EXPIRY-1 · BUG-ACT-ACL-1** summary block
+— a residual duplicate; the record itself was rotated at closure 2026-08-10 and every claim in the
+summary was verified present in the archive before deletion. ⚠ **BUG-ACT-ACL-1 closed one instance,
+not the population** — that population is now swept: **AUDIT-INVOKER-WRAPPER closed 2026-08-12**
+(ARM 5; *Completed work* above → [authz-invoker-wrapper.md](docs/progress/authz-invoker-wrapper.md)),
+and `FROMFINDINGS=1 ARM=wrapper` is a standing §6 step-1 gate over it.
+
+**Also 2026-08-12:** **FUP-VACUOUS-AUDIT-1** (closed 2026-08-10) → closing line in
+[follow-ups-archive.md](docs/progress/follow-ups-archive.md); its full record was already
+[docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md) and the live
+block duplicated it. ⚠ Its output, `lint:vacuous`, is a **standing member of `npm run lint`** —
+see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are honest
+`test.skip()`s, outside the vacuity property, so this gate will never catch them.
