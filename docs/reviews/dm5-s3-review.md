@@ -467,3 +467,228 @@ that claim.
 **None of the eight blocks S4 on behaviour.** If the lead prefers to run S4 first and discharge the
 two MAJORs in the same window, I have no behavioural objection — the substrate is sound; say so
 explicitly in the record rather than letting the verdict be read as satisfied.
+
+---
+---
+
+# r2 re-review — the discharge of r1
+
+- **Verdict: ✅ APPROVED** — r1's two blocking MAJORs and its six MINORs/two INFOs are discharged.
+  **New at r2: 0 P0 · 0 MAJOR · 1 MINOR · 3 INFO**, none blocking, all record-level.
+- **Reviewer:** `qa` (r2; **a different reviewer from r1**) · **Date:** 2026-08-14 · **HEAD reviewed:**
+  `d0e6af03`, tree clean. Fixes under audit: **`af9a894e`** (migration `20260927000360`, pgTAP `312`
+  75→77, `342` 49→59).
+- **Scope, narrow on purpose:** r2 decides **only whether the fixes discharge r1**. r1's §4 ("what I
+  checked and found clean") **stands and was not redone**. Where I noticed something new while
+  probing, it is filed below as **r2-**.
+- **Method: measurement, not reading.** Every blocking item was settled by **neutralizing the guard
+  and observing the red**, each in **one transaction that ROLLBACKed**. The live catalog (`pg_proc`
+  incl. `prosecdef`, `pg_policies`, `pg_constraint`, `pg_attribute` ACLs via
+  `has_column_privilege`) is the only authority used for present-tense claims; the one **historical**
+  claim (the retired CHECK) is sourced from git, and that limit is stated where it is used.
+
+> ### ⭐ The headline
+> **Both MAJORs are genuinely discharged, and I proved each one rather than reading it.** The
+> guard-4 keystone now discriminates — **with guard 4 deleted `S3k2` goes RED while `S3f4` stays
+> GREEN**, exactly the pair r1 asked for, and no production SQLSTATE was changed. `S3d2` now fails
+> when `is_active` is **absent** (old form: `t`, new form: `f`, measured side by side on the same
+> mutated body). **All five of `backend`'s "proven RED first" claims reproduce exactly**, including
+> the incidental co-reds it reported.
+>
+> ⚠ **The MAJOR-2 correction is the important part of this review, and it goes against r1.** r1's
+> *premise* was **false** and `backend`'s corrected record is **true** — I verified it independently
+> from the catalog, from git, and by applying the declined REVOKE and measuring that it closes
+> **nothing**. A lead ruling was not accepted as evidence; it happens to be right.
+
+## r2·1 — Safety record of my own probing
+
+**Eight mutation-bearing runs** (five on `342`, three on `312`) plus three read-only probes. **Every
+mutation lived inside a single transaction that ROLLBACKed** — the mutation prefix is applied, the
+suite's own `rollback;` reverts it, and no mutation was ever committed. Every prefix **refuses to run
+as a no-op** (`if nd = d then raise`), so a silently-unmatched pattern cannot be mistaken for a pass.
+
+| check | result |
+| --- | --- |
+| degenerate-body sweep (`prosrc ~* 'begin\s+return\s+(true\|false)\s*;\s*end'`, `app`+`public`) | **0** — after every run and at close |
+| `md5(pg_get_functiondef)` of all 5 mutated functions, before vs. after | **byte-identical**; `prosecdef = true` on all five. `public.begin_document_upload` = `aedac0b01f2ad0a594b75eede6671fb0`, **the same md5 r1 recorded** |
+| column ACLs restored | `contains_phi`, `document_id` → `SELECT` for `authenticated` = **true** |
+| `storage.objects` policies | **8**, unchanged; **0** policies named `qa_r2%` remain |
+| fixture residue | `printed_documents` **0** · `storage.objects` **0** · `form_response` securables **0** · inactive profiles **1** (the seed's `desativado.conta`) |
+| registry | **406 == 406** (files vs. `schema_migrations`), before and after |
+| stack left as found | `pgtap` extension **dropped** (I installed it in `public` to run single files through `psql`; `supabase test db` does not leave it behind, and neither did I) |
+
+⚠ **One environment note, stated because it is the only thing I changed outside a transaction:**
+`supabase db reset --local` first (per the standing rule that a green `e2e:prod` leaves residue), then
+`create extension pgtap` / `drop extension pgtap`. Nothing else was committed to the shared stack.
+
+## r2·2 — Discharge table
+
+| r1 item | verdict | the evidence I **observed** |
+| --- | --- | --- |
+| **MAJOR-1** `342 S3f4` is a vacuous keystone | ✅ **DISCHARGED** | **Guard 4 deleted from the live `public.begin_document_upload` body** (`guard4_still_present=false` printed before the suite ran): run shape **`1..59`, 58 ok, 1 not ok, 0 aborts** — and the single red is **`not ok 52 — DM5·S3k2`**, diagnosed `caught: no exception / wanted: P0002`. **`S3f4` (test 37) stayed GREEN**, reproducing r1's finding in the same run. So the pair discriminates: `S3f4` is the both-closed case, `S3k2` attributes the refusal to guard 4 alone. `S3k1` (sibling genuinely open) and `S3k3` (sibling closed again) were green in every run. **No production SQLSTATE changed** — verified from the catalog: guard 4 still raises `P0002`, the door's absence≡denial idiom, and the fix lives entirely in the test. |
+| **MAJOR-2** `312 t51`'s rationale is false | ✅ **DISCHARGED — and r1's premise was wrong; see r2·3** | The new text is **true**, in all three of its parts, each measured (r2·3). The declined REVOKE was **applied in-transaction and shown to close no capability**. |
+| **MINOR-1** `S3d2` passes when `is_active` is absent | ✅ **DISCHARGED** | With the `is_active` guard **deleted** from `app.can_read_document`: `1..59`, **`not ok 29 — DM5·S3d2`** (+ `not ok 22 — S3c4`, the behavioural twin, correctly). And the vacuity is reproduced *in the same transaction*: against the mutated body, `pos_active=0 · pos_print=643`, **OLD form verdict `t`** (would have passed) vs **NEW form verdict `f`**. ⭐ The one surviving `is_active` occurrence is **inside a comment** (1 raw hit, 0 after comment-stripping) — so the assertion's `regexp_replace` of `--` comments is load-bearing, not decorative. |
+| **MINOR-2** `can_write_document`'s print arm had no keystone | ✅ **DISCHARGED** | Print arm removed from `app.can_write_document`: `1..59`, **`not ok 54 — S3l1`** plus `S3f2`/`S3f3`/`S3f3t` — the exact red set `backend` reported. ⛔ **FUP-DM5-330-WRITE-BLIND is still OPEN** in `docs/progress/follow-ups.md:127` with its "do not close on `342`'s coverage" note intact — verified, not assumed. |
+| **MINOR-3** guard 5 had no ordinary twin | ✅ **DISCHARGED** | Guard 5 made to over-bind (its `printed_documents` sub-select widened to `where true`): `1..59`, **`not ok 39 — S3f5t`** alone; **`S3f5` stayed GREEN** — the twin, not the original, is what notices over-binding. |
+| **MINOR-6** the mint's `HC0D4` handler misses the unique that fires first | ✅ **DISCHARGED, and more strongly than r1 asked** | r1 offered "correct the comment **or** widen the handler"; migration `…000360` instead makes the handler **attribute** — `get stacked diagnostics constraint_name`, `raise;` for anything outside the two credential uniques (verified from `pg_proc`, not the file). Old broad handler restored in-transaction: `1..59`, **`not ok 58 — S3n2`**, `S3n1` GREEN. ⭐ `S3n2` earns its keystone by **opening the lock that hides the path** (dropping `file_objects_bucket_path_uniq` in-transaction), which is the same prescription as MAJOR-1 — and `backend` recording that **its own first version of this fix was vacuous in exactly MAJOR-1's way** is the single best sign in this commit that the lesson took. |
+| **MINOR-4** D11's retirement is "not performed and cannot be" | 🟡 **SUBSTANTIALLY discharged — one line short**; see **r2-MINOR-1** | Filed as **🟠 FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** (`follow-ups.md:11`) with the measurement, the owner (**PO decision, then backend**), both honest resolutions, and an explicit *"do not resolve it by adding a comment saying retirement 'should' happen."* That is exactly what r1 asked for **except** that ADR 0120 D11's own text still asserts the control with no marker. |
+| **MINOR-5** dangling print on a deleted draft | ✅ **DISCHARGED** | Filed as **🟡 FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** (`follow-ups.md:28`), labelled *"CONFIRMED by probe, not reasoned"*, and it carries the part r1 flagged as the one that must not be assumed away — *"the `securable_resources` dangling row needs handling either way … every kernel arm joins through it."* |
+| **INFO-1** `PROGRESS.md` reads `S3 ⬜ NEXT` | ✅ **DISCHARGED** | `PROGRESS.md:74` now reads **`S3 built, QA r2 OWED`**, and the QA-Verdicts row states *"r2 NOT YET RUN, so S3 has no APPROVED verdict."* |
+| **INFO-2** `kind = 'printed_rendition'` in English | ✅ n/a — r1 did not file it as a finding; the ruling still holds. |
+
+**Independent corroboration of the gate figure, since it cost 50 seconds:** full `npm run test:db` on
+a fresh reset = **`Files=193, Tests=6348 … Result: PASS`**, matching the recorded step-1 figure
+exactly. So `312`'s 75→77 and `342`'s 49→59 broke no sibling suite.
+
+## r2·3 — MAJOR-2 in detail: r1's premise was FALSE, and the correction is TRUE
+
+r1 blocked on the claim that S3 **relocated** a coordinate that had previously been **withheld**. The
+brief told me a lead had corrected that premise and told me **not** to accept the correction from the
+lead. I did not. Four measurements:
+
+**(a) The historical half — the only claim in this review that the live catalog cannot answer.**
+`pd_storage_path_derived` no longer exists, so its definition comes from git
+(`e453c8d9`, the ADR-0104 P1 migration):
+
+```sql
+constraint pd_storage_path_derived check (
+  storage_path = (case when contains_phi then 'phi/' else 'std/' end) || id::text || '.pdf'
+)
+```
+
+and the same migration's column-list grant:
+
+```sql
+grant select (
+  id, source_kind, source_id, commission_id, template_key, template_version,
+  content_hash, contains_phi, status, verification_short_code, ...
+) on public.printed_documents to authenticated;
+```
+
+`id` **and** `contains_phi` are both in it. So pre-S3 `storage_path` was a **pure function of two
+columns the viewer could already read**, and the column-list withholding of it was **already
+vacuous**. ⚠ **Stated as the limit it is:** this rests on migration text, which this repo treats as
+stale by design. It is sound *here* only because a `CHECK` constraint's definition is not among the
+things rewritten at runtime by `pg_get_functiondef()`+`replace()`, and because both statements are
+from the migration that **created** the table. **r1's contrary premise was not measured at all** — it
+was inferred from the *present* ACL and never tested against the pre-S3 shape.
+
+**(b) The present half, measured as the print's legitimate viewer** (`authenticated`, hat present —
+`active_role` in the claims, the trap r1 itself documented): both derivation inputs readable
+(`id | contains_phi` → `…f201 | false`), and the derived coordinate **equals** the real one
+(`printed/<id>.pdf` == `file_objects.storage_path`, `match=true`). **Exactly as derivable as before.**
+Neither strengthened nor weakened — `backend`'s sentence, confirmed.
+
+**(c) The declined REVOKE closes nothing — applied and measured, not argued.** In one rolled-back
+transaction, as the legitimate viewer (`can_read_document = true` asserted first):
+
+```
+C1 PRE-REVOKE   home_resource_id-only walk -> documents-standard | printed/…f201.pdf
+D0 revoke select (document_id, document_version_id) … from authenticated  -> grant now false
+D1 POST-REVOKE  home_resource_id-only walk -> documents-standard | printed/…f201.pdf
+D2 POST-REVOKE  select document_version_id …  -> ERROR: permission denied for table printed_documents
+```
+
+`D2` is the control that makes `D1` mean something: the revoke **is** effective, and the walk
+`documents.home_resource_id → document_versions → document_version_files → file_objects` **never
+touches `printed_documents`**. So the REVOKE would have closed **no capability** — declining it on
+evidence is correct, and shipping it would have been a third comment asserting a property that does
+not hold.
+
+**(d) What actually protects the bytes, and both new assertions PROVEN ABLE TO FAIL.** ⭐ `backend`'s
+commit proves five keystones red-first but **not** `t51c`/`t51d`, the two it added for MAJOR-2. So I
+did:
+
+- **`t51d`** — a SELECT policy on `storage.objects` for `documents-standard` created in-transaction:
+  `1..77`, **`not ok 54 — t51d`** *and* **`not ok 57 — t53`** (the behavioural half). Both
+  discriminate. Restored: **8** policies, `0` probe policies left.
+- **`t51c`** — revoking `SELECT (contains_phi)` makes `312` fail **loudly** (the file aborts at an
+  earlier read, 19 ok then abort, i.e. never green), so the *property* is covered — but see
+  **r2-INFO-1**: `t51c` is not the assertion that reds, and its `is not null` form is weaker than its
+  label.
+
+I re-enumerated all **8** `storage.objects` policies: **three SELECT** (`nsp-evidence` ×2,
+`form-assets`), **five INSERT**, and **every one is bucket-literal-scoped**. No SELECT policy names
+either document bucket. ADR 0114 D8 holds.
+
+## r2·4 — New at r2
+
+### 🟡 r2-MINOR-1 (non-blocking) — ADR 0120 **D11 still asserts the control it does not perform**, with no marker
+
+`docs/decisions/0120-dm5-wave-d-retirement-decisions.md:61-66` still reads *"…and **retires superseded
+bytes through `file_objects.disposal_state`**"* as a plain statement of what D11 does. The measurement
+says both `disposal_state` values stay `none` and nothing schedules it. The follow-up is filed and
+well-written, but **it is not where an auditor reads D11**, and nothing in D11 points at it.
+
+I am **not** asking for the ADR to be amended — that would pre-empt the PO's choice between
+*(a)* build retirement and *(b)* strike the claim, which is exactly what the follow-up reserves.
+**Fix: one inline marker in D11** — e.g. `⏳ CONTESTED: not performed today — see
+FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` — which pre-empts nothing and costs a line. In a 20-year
+LGPD/ANVISA record, the gap between "the ADR asserts a control" and "the control exists" is the whole
+reason r1 filed this.
+
+### 🔵 r2-INFO-1 — `312 t51c` is a weaker pin than its label claims
+
+`t51c` asserts `(id is not null) || '|' || (contains_phi is not null) = 'true|true'`. It **does**
+traverse the column-list grant (it runs as `authenticated`), so it cannot go green with the columns
+revoked — but the failure lands as an **earlier abort**, never as `not ok t51c`. And its form is
+satisfied by any visible row: it does **not** assert that the derivation reproduces the live
+coordinate. That part is pinned elsewhere (`342 S3m4` compares against
+`app.printed_rendition_storage_path`), so the property is covered — but a future reader will
+over-read the label *"the coordinate is DERIVABLE"* as a coordinate-equality assertion. **Not worth a
+change on its own;** worth knowing if `t51c` is ever cited as the pin.
+
+### 🔵 r2-INFO-2 — `342`'s plan-arithmetic comment declares **44** for a plan of **59**
+
+`342:21-27` reads `-- 44 = 3 preconditions + 5 coupling + …`. The enumerated terms now sum to **59**
+(`3+5+6+4+7+2+2+3+7+2+3+5+1+3+3+3`), and `select plan(59)` is right. The `44` was already stale before
+r1 (it excludes S3j's 5) and r1's four new blocks widened the gap to 15. The comment is the only place
+a reader can reconcile the plan count against the file's shape, and this project's own recorded lesson
+is that *a comment is an assertion that goes stale silently*. **Fix: `44` → `59`.**
+
+### 🔵 r2-INFO-3 — the in-suite restore controls pin less than the transaction guarantees (and the transaction is fine)
+
+`S3k3` asserts the sibling lock is closed again by **regex on `prosrc`**; `S3n3` asserts the unique is
+back by **`exists(conname)`**. Neither pins `prosecdef`, the ACL, or the constraint *definition* — and
+this repo has been bitten by a rebuild that read right and lost a property. **I measured it: the
+property holds.** Running `S3k`'s exact open/restore cycle:
+`def_identical=true · prosecdef_same=true · acl_same=true · volatility_same=true`
+(`acl = {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}` throughout) —
+`pg_get_functiondef` carries `SECURITY DEFINER` + the pinned `search_path`, and `CREATE OR REPLACE`
+preserves the ACL. **The real guarantee is the rollback**, not the controls, and that is sound. ⚠ One
+adjacent note for whoever owns **FUP-PGTAP-WORKER-DEADLOCK**: `S3n` takes an **ACCESS EXCLUSIVE** lock
+on `public.file_objects` (`drop constraint`) for the remainder of `342`'s transaction, which is new
+lock surface for a parallel `pg_prove` worker. Not observed to fire — `test:db` passed 193/193 — but
+it is the kind of thing that shows up as an intermittent.
+
+## r2·5 — What r2 did **NOT** re-verify
+
+1. **r1's §4 in its entirety** — D12's conjunction, the exhaustive `kernel ⇒ print` implication over
+   39 profiles, the ACL sweep of all 17 touched functions, Rule 12 / tier-forging, D13's double
+   exclusion, the no-direct-DML-seam finding, the 404 mapping, the residual-reference sweep. **Not
+   re-probed by design** — r2's remit is the discharge. If r1's §4 is wrong, r2 does not catch it.
+2. **`e2e:prod`, `next build`, and every authz ARM / door sweep** — instructed not to run them, and
+   `af9a894e` touches only pgTAP plus one exception handler's attribution. **`ARM=census` was not
+   re-run**, and `…000360` **rewrites a `prosecdef = t` body** — I accept `backend`'s re-pass of step 1
+   as reported rather than as verified.
+3. **Whether `…000360`'s new `raise;` path can surface a raw `23505` to a user.** The re-raise is
+   reachable only with a unique that today cannot fire (`S3n2` had to drop one to reach it), and r1's
+   §4.7 already established that the serving route maps everything to a pt-BR 404 — but I did not
+   re-walk the action's error mapping for the **mint** path at r2.
+4. **No UI, no a11y, no keyboard flow, no vitest, no TypeScript.** `af9a894e` touches none.
+5. **The ~180 other assertions in `312`** — I read the `t51`/`t53` block and ran the file; I did not
+   audit the rest, and `t51b`'s `doc2` visibility I took from the green run rather than probing.
+6. **Remote / Cloud** — nothing pushed; D17 forbids it. Zero coverage, by design.
+7. **`FUP-DM5-330-WRITE-BLIND`'s substance** — I verified only that it is **still open** with its
+   scoping note. Whether `330`'s `controlled_document` arm is now STALE-COVERED is not an r2 question.
+
+## r2·6 — Bottom line for the gate
+
+**§6 step 3 is satisfied: APPROVED.** Nothing found at r2 blocks S3's closure or S4's start.
+**r2-MINOR-1** is a one-line marker in ADR 0120 D11 and can travel with S4's record commit or the
+PO's D11 ruling, whichever comes first; **r2-INFO-2** is a one-character fix in a comment. Neither is
+worth a step-1 loop on its own.
+
+⛔ **Two things this verdict does NOT say.** It is a **slice** verdict — **DM5 phase QA is still owed
+at S6**, as r1 stated. And it does **not** authorize S4: S4 is irreversible and needs **PO
+authorization on the day**, separately.
