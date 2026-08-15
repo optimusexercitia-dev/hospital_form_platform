@@ -7,10 +7,10 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
-## ✅ S3 — printed renditions onto the substrate: BUILT, steps 1–2 GREEN, **step 3 (QA r2) OWED**
+## ✅ S3 — printed renditions onto the substrate: **COMPLETE, all four gate steps (2026-08-14)**
 
 > **This is the current head of the phase.** Full narrative, the six enumeration-boundary repeats, the two
-> corrected true-sounding claims, the **QA r2 brief**, and S4's authorization gate live in
+> corrected true-sounding claims, S3's record, and S4's authorization gate live in
 > **[dm5-handoff.md](./dm5-handoff.md) §§9–11** — written for a session that was not here. Not duplicated
 > here on purpose: two copies of a status is how this phase produced eight record defects.
 
@@ -32,8 +32,70 @@ not work at all; S3 has been run.** ⚠ Requires the **Gotenberg sidecar** on :3
 🔒 **One live bug found and fixed: BUG-DM5-S3-INACTIVE-PRINT-1** — a deactivated user kept print-download
 authority. Closed by D12's conjunction. **No authz ARM can see that class** → FUP-DM5-SIBLING-GUARD-DIFF.
 
-⛔ **S3 IS NOT CLOSED.** QA r1 = **CHANGES REQUESTED**; both blockers + four MINORs discharged and step 1
-re-passed, but **no r2 verdict exists**. Next session: r2 first, then the PO, then S4 (**irreversible**).
+**Lead-verified from the catalog, not accepted from any report** (moved here at the S3-closure rotation —
+these are **current facts**, and the byte-for-byte archive lower down is marked *superseded*, so they must
+not live only there): `securable_resources_type_check` admits **9** types · `app.resolve_document_version_bytes`
+exists and **`authenticated` cannot EXECUTE it** · the print arm is present in **both** kernel doors ·
+`printed_documents.storage_path` is **dropped** · all six teammate commits are **ancestors of HEAD**.
+
+**Still open after S3, and NOT to be assumed** — ⚠ **an `APPROVED` slice is not an absence of gaps**, and
+r2 restated this as its own "not re-verified" list: `case`/`interview` prints **UNTESTED because
+unmintable** (`can_view_printed_document` has arms for `form_response`/`meeting` only — **D6 is satisfied at
+the *type* level**; two of four kinds have never produced a print) · `add_referral_shared_item` never driven
+end-to-end · a print's `file_objects.sha256` is the **minter's** hash, not `finalize_document_upload`'s
+derivation, **and it feeds `complete_document_disposal`'s duplicate-evidence probe** · the smoke file is
+**not gate-resident** (`grep -n smoke package.json` → no hits) · `ARM=policy` was **not applicable** to this
+diff (it adds `prosecdef` gates, no RLS policy) — recorded as *not applicable*, **never as clean**.
+
+⚠ **D18, corrected after implementation:** the detail half's filter landed on `queries/documents.ts`'s
+`getDocument`, which **no route imports**; the reachable same-named export in
+`queries/controlled-documents.ts` selects `from('controlled_documents')`, so prints are excluded
+**structurally, by the schema, not by D18**. `form_response` prints have **no panel to leak into at all**
+(`DocumentHomeResourceType` excludes them) and **6 of 9** local prints are that kind — so the exclusion is
+untestable there for want of a *surface*, not for want of a test. (ADR 0120 D18 amendment;
+FUP-DM5-DEAD-CORE-PROJECTION.)
+
+### ✅ Step 3 — QA **APPROVED (r2)**, 2026-08-14 (`801a2589`, [review](../reviews/dm5-s3-review.md))
+
+r1 = **CHANGES REQUESTED** (0 P0 · 2 MAJOR blocking · 6 MINOR · 2 INFO) → all discharged at `af9a894e` →
+**r2 = APPROVED**. New at r2: **0 P0 · 0 MAJOR · 1 MINOR · 3 INFO**, all record-level.
+
+⭐ **What makes this r2 worth more than a second reading: it re-proved every blocking item by
+neutralization.** With guard 4 deleted from the *live* body (`guard4_still_present=false` printed before the
+suite ran), the new **`S3k2` went RED — `caught: no exception / wanted: P0002` — while `S3f4` stayed
+GREEN.** That is MAJOR-1's exact complaint, now discriminating. `S3d2`'s vacuity was reproduced
+**side-by-side on the same mutated body**: `pos_active=0`, old form `t`, new form `f`.
+
+⭐ **r2 declined to inherit the lead's own correction.** The lead had overturned r1's MAJOR-2 premise; r2
+re-derived it from the retired CHECK and the same migration's column grants, then **applied the declined
+`REVOKE` in-transaction** and showed the `home_resource_id`-only walk yields the coordinate **before and
+after** — effective, and closing nothing. It also proved red-first the two assertions `backend` had not
+(`t51c`/`t51d`). ⚠ One r2 claim rests on **migration text** (a retired CHECK's definition) and says so;
+sound only because a CHECK is not among the things this repo rewrites at runtime.
+
+**Safety record:** fresh reset first · **8 mutation-bearing runs, every one a single rolled-back
+transaction**, each prefix refusing to run as a no-op · degenerate bodies **0** after every run ·
+`md5(pg_get_functiondef)` byte-identical on all five mutated functions, `begin_document_upload` =
+`aedac0b01f2ad0a594b75eede6671fb0`, **the same md5 r1 recorded** · `prosecdef=true` on all five · column
+ACLs restored · `storage.objects` back to **8** policies, 0 probe policies · registry 406==406 · `pgtap`
+dropped. **Lead-verified independently after the agent stood down**, because the standing rule is that a
+mutation harness proves its own rollback (this stack has been left with a gate OPEN before).
+
+**Lead-closed r2's one stated gap.** r2 wrote that it had **not** re-run `ARM=census` and that
+`…000360` *does* rewrite a `prosecdef = t` body — accepting step 1 as reported. Since **`ARM=census` is
+precisely the arm that catches a gate you just added**, the lead re-ran all four at `801a2589`:
+**census** live **546** / verdicts **570** · **hat** 3 reasoned-allowlisted (self-test 6/6) · **floor**
+74 never-called, allowlisted · **`FROMFINDINGS=1` wrapper** BLIND 41 ⊆ allowlist — **all HOLD**, exit 0,
+output never piped (`| tail` once masked an exit 2 as 0).
+
+### ✅ Step 4 — PO, 2026-08-14
+
+Instruction: *"run the QA and conclude S3."* Approval **delegated in advance, contingent on an APPROVED
+r2** — had r2 reddened, this looped to step 1 rather than closing. Recorded this way, not as a review of
+the evidence, because the PO gave it **before** the verdict existed.
+
+⛔ **This is a SLICE verdict.** DM5's phase QA is still owed at **S6**, and r2 **authorizes no part of
+S4** — S4 deletes storage objects irreversibly and needs PO authorization **on the day**.
 
 ## ✅ RESUME AUDIT before S3 (lead, 2026-08-14, HEAD `e2af9790`) — the build is sound; **every defect was in the RECORDS**
 
@@ -518,6 +580,13 @@ action and can never exercise the bypass — `341` F8 covers it in SQL. **A corr
 not a coverage gap.**
 
 ## Rotated from PROGRESS.md 2026-08-14 (the size rotation) — the live DM5 section, verbatim
+
+> ⛔ **SUPERSEDED SNAPSHOT — do not read the block below as current state.** It is preserved
+> **byte-for-byte** as it stood at the rotation, which is *before* S3's step 3, so it still says
+> **"S3 IS NOT CLOSED"** and *"QA r2 re-review OWED"*. **S3 closed 2026-08-14 with an APPROVED r2** — the
+> live status is the **§ "S3 … COMPLETE"** section at the head of this file. Left unedited deliberately:
+> an archive that gets quietly corrected stops being evidence of what was believed when. ⚠ A `grep` for
+> `S3 IS NOT CLOSED` **will** hit here — check which section you landed in.
 
 > PROGRESS.md had grown back to **154 KB** against CLAUDE.md §7's "well under 60 KB". The live
 > `## Current Phase Tasks` DM5 block (S3 + S2, lines 117-352) is preserved here **byte-for-byte**;

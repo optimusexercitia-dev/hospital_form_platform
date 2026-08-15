@@ -157,6 +157,22 @@ totals (`192 files / 6284`) against the previous known-good run, never a trailin
 never pipe the run through `tail`. Diagnosis wants the lock graph at hang time
 (`pg_stat_activity` + `pg_locks`), which nobody has captured yet.
 
+⭐ **First concrete lock-surface lead, from DM5·S3 QA r2 (2026-08-14):** `342`'s **`S3n` takes ACCESS
+EXCLUSIVE on `file_objects`** — a table that many suites touch. That is a *candidate* for the contended
+object, not a diagnosis: the hang was never reproduced under observation, and naming a plausible lock is
+how a real cause gets closed early. Whoever picks this up should start by checking whether the observed
+hangs correlate with `342` being in flight at all.
+
+### 🔵 FUP-DM5-342-PLAN-COMMENT — `342`'s header comment declares plan **44** while the suite runs `plan(59)` (owner: backend)
+
+Filed 2026-08-14 from DM5·S3 QA **r2** (INFO). `supabase/tests/342_dm5_s3_printed_renditions.sql:21-27`
+documents a plan of 44; the executable `plan(59)` is correct and the suite passes. **Cosmetic today** —
+filed anyway because it is a pure instance of [[a-comment-is-an-assertion-that-goes-stale-silently]], the
+class that has been hit repeatedly in this repo and **shipped a live bug once**. The header is the first
+thing a reader trusts when deciding whether assertions went missing, which is precisely the judgement
+`pg_prove`'s plan line exists to support. **Fix:** make the comment cite the plan or drop the number.
+⚠ Lead did **not** fix it inline — `342` is `backend`'s file and file ownership is binding (CLAUDE.md §4).
+
 ### 🔴 FUP-PGTAP-VACUOUS — `lint:vacuous` scans TS spec files ONLY; ~6000+ pgTAP assertions are entirely unscanned, and a live specimen was found (owner: lead + backend; a program-level audit, NOT a phase side quest)
 
 Filed 2026-08-14 during DM4. **Found by `backend` while re-reading a suite it had to edit, and

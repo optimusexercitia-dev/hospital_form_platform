@@ -1,4 +1,4 @@
-# DM5 — handoff (paused 2026-08-14, **after S3's build, before its QA r2**)
+# DM5 — handoff (paused 2026-08-14, **S3 CLOSED; the resume point is S4, which is IRREVERSIBLE**)
 
 > **Read this first, then `docs/progress/dm5-wave-d-retirement.md`** (the phase record) and
 > **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–**D18**, all PO-ruled).
@@ -6,17 +6,19 @@
 > Written for someone who was **not here**. Where it says *verify*, verify — this phase punished
 > inherited claims repeatedly, **including six times in the session that built S3** (§9).
 
-## 0. ⭐ START HERE — the two things to do first, in this order
+## 0. ⭐ START HERE — the resume point is **S4**, and it is the irreversible one
 
-1. **Run the QA r2 re-review of S3.** QA returned **CHANGES REQUESTED (r1)**
-   ([dm5-s3-review.md](../reviews/dm5-s3-review.md)); `backend` discharged both blocking MAJORs and four
-   MINORs in `af9a894e` and re-passed §6 step 1 in full — but **nobody has re-reviewed the fixes, so there
-   is no `APPROVED` and step 3 is unsatisfied.** S3 is **built and verified, NOT closed.** Brief: §10.
-2. **Then S4 — and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.** It needs explicit PO authorization *on the
-   day*, separately from any earlier approval. Binding ordering and its one corrected premise: §11.
+✅ **S3 is CLOSED** (2026-08-14, all four gate steps; QA **APPROVED r2** at `801a2589`). The prerequisite
+this section used to name is discharged — §10 now records the *outcome* instead of the brief.
 
-⛔ **Do not start S4 before S3 has an `APPROVED`.** S4 removes the buckets S3's corridor was proven
-against; an S3 defect found afterwards is unrecoverable evidence.
+1. **S4 is next, and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.** It needs explicit PO authorization **on
+   the day**, separately from S3's approval and from anything in this file. Binding ordering, the fresh
+   manifest requirement, and its one corrected premise: **§11**. ⛔ **Do not infer authorization from
+   S3's closure** — the PO approved a *slice*, and the r2 verdict says in its own words that it authorizes
+   no part of S4.
+2. **Before spawning anyone**, re-verify the catalog claims in this file (registry, census, flags). Where
+   it says *verify*, verify: this phase punished inherited claims repeatedly, **including six times in the
+   session that built S3, four of them by the lead** (§9).
 
 ## 1. Where things stand
 
@@ -25,14 +27,14 @@ against; an S3 defect found afterwards is unrecoverable evidence.
 | **S0** manifest tool | ✅ complete (`0e85cbe7`, `9d37ad79`) — 8/8 self-test controls |
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
-| **S3** printed renditions | ✅ **BUILT + steps 1–2 GREEN** · ⏳ **step 3 = QA r2 OWED** · ⏳ step 4 PO. Detail §9 |
-| **S4** retirement (8 buckets) | ⬜ not started — **irreversible; PO authorization on the day** (§11) |
+| **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
+| **S4** retirement (8 buckets) | ⬜ **THE RESUME POINT** — **irreversible; PO authorization on the day** (§11) |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
 ⛔ **Branch `main`, NOTHING PUSHED, no `db push`, no remote reset. All DM flags ship OFF**
 (`documents_wave_d` **and** `document_printing` are ON in the local seed only — and **both must be flipped
-together at deploy**, ADR 0120 D5/S3). Registry **406 == 406** at HEAD `1513c094`; **re-verify before
+together at deploy**, ADR 0120 D5/S3). Registry **406 == 406** at HEAD `801a2589`; **re-verify before
 trusting any catalog claim in this file.**
 
 ### Environment facts that will otherwise cost you an hour
@@ -503,22 +505,46 @@ Recorded because the phase's dominant failure mode fired six more times, **four 
   `from('controlled_documents')`, so prints are excluded **structurally, by the schema, not by D18**.
   Two exports, one name — a grep for the symbol *looks* answered; only the **import site** discriminates.
 
-## 10. §6 step 3 — the QA r2 brief (do this first)
+## 10. §6 step 3 — ✅ **DISCHARGED: QA APPROVED (r2)**, 2026-08-14
 
-Artifact exists: [dm5-s3-review.md](../reviews/dm5-s3-review.md), **r1 = CHANGES REQUESTED**
-(0 P0 · 2 MAJOR blocking · 6 MINOR · 2 INFO). r2 decides **only** whether the fixes discharge it.
+[dm5-s3-review.md](../reviews/dm5-s3-review.md) now carries both rounds. r1 = **CHANGES REQUESTED**
+(0 P0 · 2 MAJOR blocking · 6 MINOR · 2 INFO) → all discharged at `af9a894e` → **r2 = ✅ APPROVED**
+(`801a2589`). New at r2: **0 P0 · 0 MAJOR · 1 MINOR · 3 INFO**, all record-level.
 
-| r1 item | what `backend` did | what r2 must check |
-| --- | --- | --- |
-| **MAJOR-1** `342 S3f4` vacuous — with guard 4 deleted the same `P0002` still came from `can_write_document`'s fail-closed `else` | new **`S3k`** opens the **sibling** in-transaction (a permissive `form_response` arm) and requires guard 4 to still refuse; `S3f4` kept as the both-closed case | that `S3k2` goes **RED** with guard 4 removed while `S3f4` stays **GREEN** — the pair now discriminates. **No production SQLSTATE was changed** (deliberate: `P0002` is the door's absence≡denial idiom) |
-| **MAJOR-2** `312 t51` claimed the retirement was *"stronger … cannot be leaked from here at all"* | `t51` retitled *"a RELOCATION, not a withholding improvement"*; **`t51c`** asserts derivability executably; **`t51d`** asserts **0 SELECT policies** on `storage.objects` for either document bucket. **REVOKE declined on evidence** | that the new text is true. ⚠ **QA's premise was wrong and the lead corrected it:** `id` **and** `contains_phi` are both granted and always were, and the old CHECK made `storage_path` a **pure function of those two** — so the withholding was **already vacuous**. `backend`'s probe then showed the `documents` row reachable via `home_resource_id` **alone**, so revoking closes no capability |
-| 4 MINORs | all taken, each **proven RED first** (`S3d2`, `S3l1`, `S3f5t`, `S3n2`) | that `S3d2` now fails when `is_active` is **absent** — its old `0 < N` form passed vacuously |
+| r1 item | how r2 settled it — **measured, not read** |
+| --- | --- |
+| **MAJOR-1** `342 S3f4` was a vacuous keystone (with guard 4 deleted the same `P0002` still came from `can_write_document`'s fail-closed `else`) | ✅ The new **`S3k`** pair discriminates. Guard 4 deleted from the **live** body (`guard4_still_present=false` printed *before* the suite ran): **`S3k2` RED — `caught: no exception / wanted: P0002` — with `S3f4` GREEN in the same run.** No production SQLSTATE changed; `P0002` remains the door's absence≡denial idiom |
+| **MAJOR-2** `312 t51` recorded the retirement as *"stronger … cannot be leaked from here at all"* | ✅ Retitled *"a RELOCATION, not a withholding improvement"*, `t51c`/`t51d` added. ⭐ **r2 refused to inherit the lead's correction of r1's premise and re-derived it**: the retired CHECK made `storage_path` a pure function of `id` + `contains_phi`, both granted by the same migration ⇒ **already vacuous pre-S3**. It then **applied the declined `REVOKE` in-transaction**: the `home_resource_id`-only walk yields the coordinate **before and after**, while the column itself 42501s — *effective, and closing nothing.* Declining it was right |
+| 4 MINORs | ✅ All five red-first claims reproduce **exactly**, incidental co-reds included. `S3d2`'s old vacuity shown **side-by-side on the same mutated body**: `pos_active=0`, old form `t`, new form `f`. ⭐ r2 also proved red-first the two assertions `backend` had **not** (`t51c`/`t51d`) |
 
-⛔ **Do not close FUP-DM5-330-WRITE-BLIND on `342`.** `S3l` covers the **print arm only**; door-level BLIND
-lifting ≠ arm-level coverage, which is the whole reason that follow-up was re-scoped.
+⭐ **The lead closed r2's one stated gap.** r2 wrote that it had **not** re-run `ARM=census`, and that
+`…000360` *does* rewrite a `prosecdef = t` body — i.e. it accepted step 1 as *reported*. Since
+**`ARM=census` is exactly the arm that catches a gate you just added**, all four were re-run at
+`801a2589`: census live **546** / verdicts **570** · hat **3** reasoned-allowlisted (self-test 6/6) ·
+floor **74** never-called, allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist — **all HOLD**,
+exit 0, never piped. ⚠ **570 > 546 is the invariant satisfied, not a discrepancy**: the surplus is verdicts
+for gates no longer live (FUP-AUTHZ-ALLOWLIST-ROT). The *live* figure is unchanged.
 
-**Do not re-run** `e2e:prod` or `next build` for r2: r1 is pgTAP plus one migration touching only an
-exception handler's attribution — no page-serving path, no app code.
+**Still owed / still true after r2:**
+- 🟡 **r2-MINOR-1 — ✅ taken**: ADR 0120 **D11** now carries an inline `⏳ CONTESTED` pointer to
+  FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES. Left a **pointer, not an amendment**, on purpose — build-it-or-strike-it
+  is the PO's call and pre-writing either outcome would take it away.
+- 🔵 r2 INFO: `t51c` is a weaker pin than its label · `342:21-27` declares plan **44** for `plan(59)`
+  (→ FUP-DM5-342-PLAN-COMMENT) · `S3n` takes **ACCESS EXCLUSIVE** on `file_objects` (→ recorded on
+  FUP-PGTAP-WORKER-DEADLOCK).
+- ⛔ **`FUP-DM5-330-WRITE-BLIND` stays OPEN** — verified still open with its "do not close on `342`" note
+  intact. `S3l` covers the **print arm only**; door-level BLIND lifting ≠ arm-level coverage.
+- ⛔ **r2 is a SLICE verdict.** DM5's phase QA is owed at **S6**, and r2 authorizes **no part of S4**.
+
+**r2's own not-re-verified list** (an APPROVED slice is not an absence of gaps): r1's entire §4 · the mint
+path's error mapping for the new `raise;` · the other ~180 assertions in `312` · anything remote.
+
+**Safety record, lead-verified after the agent stood down** — because the standing rule is that a mutation
+harness proves its own rollback, and *this* stack has been left with a gate OPEN before: fresh reset first ·
+**8 mutation-bearing runs, every one a single rolled-back transaction** · degenerate bodies **0** after each ·
+all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_document_upload` =
+`aedac0b01f2ad0a594b75eede6671fb0` (**the md5 r1 recorded**) · `prosecdef=true` ×5 · column ACLs restored ·
+`storage.objects` back to **8** policies · registry 406==406 · `pgtap` dropped.
 
 ## 11. S4 — the authorization gate, and its one corrected premise
 

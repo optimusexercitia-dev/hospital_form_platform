@@ -62,15 +62,18 @@ following, **not** a commission bound at upload time (step 0 named this the most
 silent authz regression in DM5). ⚠ `nsp-evidence` has **four** policies in two pairs, with
 the RCA insert reading `foldername[2]` and the RCA select `foldername[1]`.
 
-### S3 — Wave D pt.2: printed renditions — ✅ **BUILT, steps 1–2 GREEN; step 3 QA r2 OWED**
+### S3 — Wave D pt.2: printed renditions — ✅ **COMPLETE (all four gate steps, 2026-08-14)**
 
 > **Delivered 2026-08-14.** 6 migrations `20260927000300`–`000350` + `af9a894e` (r1) · pgTAP **`342`** (59) ·
 > fixtures rewritten in `312`/`313`/`323`. **`frontend` was never needed** — every TS signature stayed
 > stable and D18 removed the only new surface, so no UI was built for this slice.
 > Gate: registry **406==406** · pgTAP **193f/6348** · tsc 0 · lint 5/5 · vitest 1294 · four ARMs **HOLD** ·
 > `e2e:prod` **1120p/0f/0 did-not-run/3 flaky** · print corridor **executed** (9/9 + 6/6, real `%PDF-`).
-> ⏳ **QA r1 = CHANGES REQUESTED, fixes landed, r2 NOT yet run — S3 is not closed.**
-> Full record + the r2 brief: [dm5-handoff.md](../progress/dm5-handoff.md) §§9–10.
+> ✅ **QA r1 = CHANGES REQUESTED → all discharged at `af9a894e` → r2 = APPROVED** (`801a2589`), every
+> blocking item **re-proved by neutralization** (guard 4 deleted ⇒ `S3k2` RED / `S3f4` GREEN). Four ARMs
+> **re-measured by the lead at `801a2589`** to close r2's one stated gap. PO closed the slice the same day.
+> ⛔ **A slice verdict — DM5's phase QA is still owed at S6, and it authorizes no part of S4.**
+> Full record: [dm5-wave-d-retirement.md](../progress/dm5-wave-d-retirement.md) · handoff §§9–11.
 
 <details><summary>Original S3 plan (kept for provenance)</summary>
 

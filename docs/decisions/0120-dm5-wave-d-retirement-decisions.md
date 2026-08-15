@@ -65,6 +65,15 @@ NOT touched.** Each print event mints a `document_version`, binds its bytes as t
 `file_objects.disposal_state`. **Zero schema change** to `document_version_files`, **no** guard
 exception, **no** DM1-invariant amendment.
 
+> ⏳ **CONTESTED, as of 2026-08-14 (S3 measured) — `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES`.** The clause
+> *"retires superseded bytes through `file_objects.disposal_state`"* is **enabled, not performed**: both
+> the superseded and the active print measure `disposal_state = 'none'`, and **no code schedules the
+> transition.** D11's other claims are satisfied and S3 shipped on them. Left as an **inline pointer
+> rather than an amendment on purpose** — build-it-or-strike-it is the PO's ruling to make, and
+> pre-writing either outcome here would take that choice away. ⚠ Recorded because this is a **20-yr
+> LGPD/ANVISA retention record**: one asserting a control no code performs is worse than one admitting
+> the gap. (Raised as r2-MINOR-1 — the follow-up existed, but *this* is where an auditor reads D11.)
+
 **Why D3–D5 were wrong — four catalog facts, each verified live before the re-ruling:**
 
 0. ⭐ **DM2 CONSIDERED D3+D4 AND REJECTED THEM BY NAME.**
