@@ -143,7 +143,41 @@
 > **one** refusal direction is reachable; pin the other **structurally** and do not fabricate a fixture
 > for an unreachable state, nor change the authorization to make it testable (that proposal was rejected).
 >
-> ### S3 gate status — step 1 ✅ · step 2 🔵 IN FLIGHT · steps 3–4 not started
+> ### S3 gate status — steps 1 ✅ · 2 ✅ · 3 🔵 QA next · 4 awaiting PO
+>
+> #### ✅ GATE GREEN — the FIRST full `e2e:prod` run in DM5, at any point in the phase (lead, 2026-08-14)
+>
+> ```
+> GATE SUMMARY: 1120 passed · 0 failed · 0 infra · 3 flaky · 0 did-not-run · 18 batches
+> COVERAGE:     accounted for 1123 of 1129 collected      (1120 + 3 flaky; the other 6 are skips)
+> ```
+>
+> **Read the accounting, not the verdict:** every one of the 18 batches reported `0 failed`,
+> `0 did-not-run` **and** its own `accounted N/N` reconciling — so no batch dropped out of the
+> denominator (the way a reset-failed batch does). The 6 "unaccounted" are the **6 skipped** tests
+> (`phi-remediation` REM-8/REM-9, `user-registration` AC2 invite-mode, +3), all pre-existing and
+> unrelated to S3: `1120 + 3 + 6 = 1129` collected, so the accounting is complete.
+>
+> ⭐ **`next build` ran and compiled** (`building standalone (next build)… ✓ Compiled successfully`) —
+> **S3's first production build**, which is the only gate that catches a client value-import from a
+> server query module (it aborts `next build` while tsc, lint and vitest all stay green).
+>
+> ⭐ **All 15 print tests ran and passed IN THE PROD BUILD** (batch 9), including the new
+> `pdf-printing-meetings.spec.ts:399` **D18 test** — *"a meeting print is excluded from the Anexos panel,
+> though its own row exists and would be listed without the filter, and its byte corridor still works"* —
+> and `pdf-printing.spec.ts:38`'s full mint→download→verify→revoke→overlay→re-verify lifecycle. The
+> latter was RED for `tester` on the shared stack; it passes here under `RESET=1`, which **confirms
+> BUG-DM5-S3-ENV-FIXTURE-POOL-1 as category (c) environment** rather than a defect.
+>
+> **3 flaky, and 2 of them are the known pair** — `act-role-assumption:157` and `phase2-auth-shell:268`,
+> i.e. FUP-E2E-REPEAT-FLAKY exactly. The third is **new**: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1, a
+> keyboard-only test in **DM5's own S2 spec** (passed on retry #1) — S3 did not touch that file, and the
+> shape matches the standing *"`.focus()` is not auto-waiting; it races RSC streaming"* class. Added to
+> FUP-E2E-REPEAT-FLAKY as a third member. ⚠ Total flaky **3** against a historical baseline of ~18–27,
+> which is better than baseline and therefore **not** evidence that flakiness is fixed — one green run
+> does not establish a new baseline.
+>
+> #### The step-1/2 detail that produced it
 >
 > **Built** (`6ffd92ff` P0d · `859faa18` SQL cutover · `d964b61a` TS half · `e08cf4eb` smoke):
 > migrations `…000300`–`000350` (**6**) — `form_response` into both coupled CHECKs · `printed_documents`
@@ -170,14 +204,28 @@
 > `next dev` — without those, 12 specs fail as uniform `/login` timeouts that read as product defects
 > (`curl` answered the same route in 73 ms).
 >
-> **Open, and NOT to be assumed:** the **full `e2e:prod` gate has never run for DM5** (lead-owned; needs
-> the :3000 dev server stopped or `next build` EBUSYs) · `tester-s3` is writing the **D18 twin** (a print
-> is absent from both projections **and** would otherwise be listed **and** still downloads) plus fixing
-> `pdf-printing-meetings.spec.ts:305`, which still selects the **retired** `printed_documents.storage_path`
-> · **QA (step 3) not started** · `case`/`interview` prints **UNTESTED because unmintable**
-> (`can_view_printed_document` has arms for `form_response`/`meeting` only) · `add_referral_shared_item`
-> never driven end-to-end · the D18 TS filter has **no automated twin yet** · `file_objects.sha256` for a
-> print is the minter's hash (server-side, verified — but not `finalize_document_upload`'s derivation).
+> **✅ Discharged since:** the full `e2e:prod` gate ran GREEN (above) · `tester` landed `02b2218d` — the
+> retired-column re-point **and** the D18 twin, so the filter now **does** have an automated twin for the
+> list half.
+>
+> **Still open, and NOT to be assumed:** **QA (step 3) not started** · `case`/`interview` prints
+> **UNTESTED because unmintable** (`can_view_printed_document` has arms for `form_response`/`meeting`
+> only — D6 is satisfied at the *type* level; two of four kinds have never produced a print) ·
+> `add_referral_shared_item` never driven end-to-end (S3b pins both of its exclusions structurally, but no
+> referral was created and no freeze attempted) · `file_objects.sha256` for a print is the minter's hash —
+> server-side and verified as such, but **not** `finalize_document_upload`'s derivation, and it feeds
+> `complete_document_disposal`'s duplicate-evidence probe · the smoke file is **not gate-resident**
+> (`grep -n smoke package.json` → no hits) · `storage.objects` orphan behaviour on **Cloud** remains
+> unverified (FUP-DM5-STORAGE-ORPHANS' remote half) · `ARM=policy` was **not applicable** to this diff (it
+> adds `prosecdef` gates, no RLS policy) — recorded as *not applicable*, never as clean.
+>
+> ⚠ **Two D18 half-truths corrected after implementation, both mine:** the **detail** half's filter landed
+> on `queries/documents.ts`'s `getDocument`, which **no route imports** — the reachable same-named export
+> in `queries/controlled-documents.ts` selects `from('controlled_documents')`, so prints are excluded
+> **structurally, by the schema, not by D18** (ADR 0120 D18 amendment; FUP-DM5-DEAD-CORE-PROJECTION). And
+> `form_response` prints have **no panel to leak into at all** — `DocumentHomeResourceType` does not
+> include `form_response` — so the exclusion is untestable there for want of a surface, not for want of a
+> test. **6 of 9 prints in the DB are that kind.**
 >
 > ### S2 ✅ — gate steps 1–2 COMPLETE. Baseline RE-MEASURED by the lead at HEAD `e2af9790` (2026-08-14)
 >
@@ -579,7 +627,7 @@ _Full bodies of OPEN items rotated 2026-08-08 → **[follow-ups.md](docs/progres
 - 🔴 **FUP-DM5-STORAGE-ORPHANS** — a DB reset wipes `storage.objects` but **NOT the bytes**, and the Storage API lists *from* that table, so orphans are invisible to it too. Lead-reproduced: **0 metadata rows vs 663 files / 16.5 MB, 162 of them PHI-tier**. **Blocks DM5 step 3** — its "prove empty via the API then delete the bucket" would prove emptiness against a truncated table and report success while PHI bytes persist. DM5 must enumerate at the **backend layer**. ⚠ remote behaviour is an INFERENCE, unverified — lead/backend
 - 🟠 **FUP-DM4-RECUSAL** — `add_referral_shared_item` checks referral-**source** authority but never `can_read_case` / `can_read_document`, so a **RECUSED** coordinator can freeze a case's PHI documents into a referral, around the ADR-0072/ETH·E1 exclusion perimeter. **QA-demonstrated live** (rolled-back txn: `can_read_case=false` **and** `can_read_referral_phi=true`, same user + case). **PO ruling 2026-08-14: DEFER to the Phase 19 access plane** (ADR 0114 Amdt 1 **D16** — must cover widening *and* narrowing). ⚠ **The gap STANDS behind a flag that will eventually be ON**; not P0 only because `documents_wave_c` ships OFF. Name it in Phase 19's scope. ⛔ **QA's standing caveat, binding on how this closes: it is an open SECURITY obligation whose deadline is the FLAG-ON date, and it must NEVER be absorbed into "Phase 19 delivered an access plane" — a plane that only WIDENS would not close it.** Closure requires a narrowing arm that refuses a recused coordinator, proven — lead/PO/backend
 - 🟡 **FUP-DM4-PRODROW** — the 1 dangling frozen-snapshot PRODUCTION row + the 3 unreferenced controlled-doc objects: reconcile at the push/deploy step, NOT during DM4 (PO ruling R2). ⚠ **Amended same day: a REMOTE reset is available (no active users), which may close this outright** — but must NOT delete DM4's M3/M4 guards, which are correct independent of deploy strategy. 🔶 Open sub-question for **DM5**: a DB reset wipes `storage.objects` metadata but maybe not the BYTES — an emptiness proof from a truncated table is not an emptiness proof — lead/backend
-- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff — lead/tester
+- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff. **Both flaked again in DM5·S3's gate (3rd + 4th occurrence) — the pattern is now established, not suspected.** ⭐ **Third member added 2026-08-14: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1** — a keyboard-only test in DM5's **own** S2 spec (passed on retry #1; S3 touched no part of that file). All three are focus/navigation-timing shaped, matching the standing *"`.focus()` is not auto-waiting — it races RSC streaming"* class, which suggests **one** root cause rather than three flaky tests — lead/tester
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
 - 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling; needs a live DB + a diff base; one identifier held 3 truth values in 1 file). Keep the marker as an authoring convention + the deletion-discipline sweep — lead/PO
 - 🟡 **FUP-PGTAP-SAVEPOINT** — ⚠ **DOWNGRADED 🔴→🟡: the original claim was WRONG.** TAP output cannot be rolled back, so pg_prove counts it; real only in the degenerate all-assertions-inside case. Measured: 193 ok, 194 ok, 0 bad plans — lead
