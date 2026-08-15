@@ -189,7 +189,42 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 **proven able to fail** before its count is believed
 ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
-### 🔴 FUP-DM5-STORAGE-ORPHANS — a DB reset wipes `storage.objects` but NOT the bytes, and the Storage API cannot see what it left behind (owner: lead + backend; blocks DM5 step 3)
+### 🟠 FUP-DM5-STORAGE-ORPHANS — a **LOCAL** DB reset wipes `storage.objects` but NOT the bytes; ⚠ **the REMOTE half was a stale inference and is now demoted to residual** (owner: lead + backend; blocks DM5 step 3 **locally**)
+
+> ### ⛔ AMENDMENT 2026-08-14 — the remote half's premise was WRONG. Severity 🔴 → 🟠.
+>
+> This filing reasoned from the local measurement to remote by *"the same mechanism class."* **The
+> mechanisms are different**, and the remote one does not exist at the CLI version this repo pins.
+>
+> - **Local — still true, and structural:** the database is recreated wholesale while the **Docker
+>   volume survives**. Measured: `storage.objects` **0 rows vs 699 objects / 7.02 MB / 198 PHI-tier**.
+>   Everything below about the local mechanism stands, and it is what blocks S4's *"prove empty via the
+>   API, then delete the bucket"*.
+> - **Remote — gone:** the orphaning came from **one line** in the CLI's
+>   `pkg/migration/queries/drop.sql` truncate loop
+>   (`or c.relnamespace::regnamespace::name = 'storage' and c.relname != 'migrations'`), added by
+>   [cli#3083](https://github.com/supabase/cli/pull/3083) 2025-01-30 and **reverted by
+>   [cli#3359](https://github.com/supabase/cli/pull/3359) 2025-03-27** — *"causing too much confusion
+>   and accidental deletes to be worthwhile."*
+>
+> **Verified at OUR version against the artifact, not the PR title** — grepping the embedded SQL in
+> `node_modules/@supabase/cli-windows-x64/bin/supabase-go.exe` (**v2.105.0**), lead-reproduced:
+> `name = 'storage'` → **0 hits**; `name = 'auth'` → **3 hits**. The `auth` sibling is the adjacent
+> line of the same loop, untouched by the revert — it is the **positive control** proving the SQL is
+> greppable here and the pattern shape right, so 0 means *absent*, not *unfindable*.
+>
+> **Consequences:** a `db:reset:linked` would **not** orphan the remote's objects — which also reverses
+> a live warning feeding **FUP-DM4-PRODROW**'s deploy decision. **The Cloud orphan-*detector* question
+> drops from S4 blocker to residual**, since a detector matters only for orphans something can create.
+> ⚠ **The manifest-then-reset ordering still STANDS** on the local rationale alone (ADR 0120 D17's
+> second correction) — this is not licence to reset first.
+>
+> ⭐ **A correctness property can live in a DEPENDENCY's source and regress on `npm update`.** This one
+> went true → false → true across CLI versions, and `package.json` pins **`^2.105.0`** — a caret range,
+> so a routine update can silently re-arm it. Record it as *"true at v2.105.0 because that line is
+> absent,"* never as *"Supabase behaves this way,"* and **re-run the grep-with-control on any CLI bump**.
+> ⚠ Bounds one mechanism in the shipped binary: not a runtime observation, and not proof that no other
+> code path clears storage.
 
 Filed 2026-08-14 during DM4 planning. Found by `backend`, **independently reproduced by the lead**
 on the local stack — empirical, not inferred.

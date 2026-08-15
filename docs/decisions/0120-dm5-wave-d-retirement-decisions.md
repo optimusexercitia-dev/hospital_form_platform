@@ -293,6 +293,48 @@ load-bearing and is not superseded by D17.** What D17 genuinely dissolves is the
 FUP-DM4-PRODROW's dangling frozen snapshot row, the 4 dangling attachment rows and the 3
 unreferenced controlled-document objects all stop being reconciliation problems.
 
+### ⚠⚠ SECOND CORRECTION (2026-08-14, later the same day): the correction above is right for LOCAL and **WRONG FOR REMOTE**
+
+The section above generalised a **locally measured** finding to remote by *"the same mechanism class."*
+**The mechanisms are different**, and the remote one no longer exists at the CLI version this repo pins:
+
+| | mechanism | status |
+|---|---|---|
+| **local** (`supabase db reset --local`) | the database is recreated wholesale while the **Docker volume survives**, so bytes outlive the metadata | ✅ **structural, still true** — measured `storage.objects` **0 rows vs 699 objects / 7.02 MB / 198 PHI-tier** |
+| **remote** (`db:reset:linked`) | came from **one line** in the CLI's `pkg/migration/queries/drop.sql` per-schema truncate loop: `or c.relnamespace::regnamespace::name = 'storage' and c.relname != 'migrations'` | ⛔ **added [cli#3083](https://github.com/supabase/cli/pull/3083) 2025-01-30, REVERTED by [cli#3359](https://github.com/supabase/cli/pull/3359) 2025-03-27** (*"causing too much confusion and accidental deletes"*) |
+
+**Verified at our version against the artifact, not the PR title** — grepping the embedded SQL in
+`node_modules/@supabase/cli-windows-x64/bin/supabase-go.exe` (**v2.105.0**, `package.json` pins
+`^2.105.0`):
+
+```
+name = 'storage'  → 0 hits
+name = 'auth'     → 3 hits     ← POSITIVE CONTROL: the adjacent line of the same loop, which the
+                                 revert never touched. It proves the SQL is greppable in this
+                                 binary and the pattern shape is right, so 0 means absent —
+                                 not "my grep couldn't see it".
+```
+
+**What changes, and what does not:**
+
+- ✅ **The binding ordering above STANDS — but on the local rationale alone**, which is sufficient:
+  S4's retirement is performed and proven **locally** first, and reset-first would make emptiness
+  unprovable against a just-truncated table. The manifest stays load-bearing. **Do not read this
+  correction as licence to reset first.**
+- ⛔ **The claim "a remote reset creates orphans" must not be repeated.** At v2.105.0 a
+  `db:reset:linked` would **not** orphan the remote's objects, which also reverses a live warning
+  feeding FUP-DM4-PRODROW's deploy decision.
+- **FUP-DM5-STORAGE-ORPHANS' remote half is demoted from S4 blocker to residual** — a Cloud
+  orphan *detector* matters only for orphans something can create.
+
+⭐ **The durable lesson, which is bigger than this ADR: a correctness property can live in a
+DEPENDENCY's source and regress on `npm update`.** This one went true → false → true across CLI
+versions. So it is recorded as *"true at CLI v2.105.0 because that line is absent"*, **never** as
+*"Supabase behaves this way"* — and the grep-with-control must be re-run on any CLI bump. A caret
+range (`^2.105.0`) means a routine `npm update` can silently re-arm it.
+⚠ Bounds **one** mechanism in the shipped binary. It is not a runtime observation, and not proof
+that no other code path clears storage.
+
 ⛔ **D17 changes the DESIGN; it does not CLOSE any follow-up.** FUP-DM4-PRODROW and
 FUP-DM5-STORAGE-ORPHANS move from *"close by engineering"* to *"close by the documented
 manifest-then-reset sequence at deploy"* — they stay **OPEN** until that sequence actually runs.
