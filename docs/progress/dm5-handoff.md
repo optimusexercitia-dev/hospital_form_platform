@@ -1,33 +1,37 @@
-# DM5 — handoff (paused 2026-08-17, **S4 BUILT + both QA blockers fixed; the resume point is ONE clean `e2e:prod`, then QA r2 — read §12 FIRST**)
+# DM5 — handoff (paused 2026-08-17, **S4 ✅ CLOSED · S5 ✅ BUILT + QA-APPROVED with gate step 2 PO-DEFERRED · the resume point is THE FOLLOW-UPS — read §13 FIRST**)
 
-> **Read this first, then `docs/progress/dm5-wave-d-retirement.md`** (the phase record) and
-> **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–**D18**, all PO-ruled).
-> Plan: [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md).
+> **Read this first, then `docs/progress/dm5-wave-d-retirement.md`** (the phase record),
+> **`docs/progress/dm5-s5-operational-closure.md`** (the S5 record — the most detailed artifact in the
+> phase) and **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–**D18**, all
+> PO-ruled). Plan: [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md).
 > Written for someone who was **not here**. Where it says *verify*, verify — this phase punished
 > inherited claims repeatedly, **including six times in the session that built S3** (§9).
 
-## 0. ⭐ START HERE — the resume point is **S4**, and it is the irreversible one
+## 0. ⭐ START HERE — **§13 is the resume point.** Everything in §§11–12 is discharged history.
 
-✅ **S3 is CLOSED** (2026-08-14, all four gate steps; QA **APPROVED r2** at `801a2589`). The prerequisite
-this section used to name is discharged — §10 now records the *outcome* instead of the brief.
+✅ **S3 CLOSED** 2026-08-14 · ✅ **S4 CLOSED** 2026-08-17 (all five gate steps, QA **APPROVED r3**,
+PO-approved, `phase(DM5·S4)` = `f06ebea5`) · ✅ **S5 BUILT and QA-APPROVED r2** 2026-08-17.
 
-1. ~~**S4 is next, and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.**~~ ✅ **S4 RAN 2026-08-16** — PO
-   authorized it explicitly on the day, as this section required. **⛔ CORRECTED 2026-08-17: step 2 is
-   NOT green.** QA r1 returned **CHANGES REQUESTED** (build sound; both blockers were record/coverage
-   defects, now fixed in code), and **four subsequent gate attempts produced no usable E2E figure —
-   with zero assertion failures in any of them.** So: step 1 ✅ · **step 2 ⛔ UNESTABLISHED** ·
-   step 3 owed (r2) · step 4 owed. **The resume point is §12.**
-   ⛔ **And the headline is the opposite of what this section anticipated: S4 deleted ZERO BYTES.**
-   All 221 retirement-bucket files were already metadata-less orphans, so the Storage API — the D9
-   *gate* — could not address any of them; `delete --execute` never ran. What S4 retired is the
-   **bucket rows + policies**, via migration `20260927000400`, and that half now survives `db reset`.
-   **The deploy-time byte sequence therefore remains UNREHEARSED.** Detail: §11 + the phase record.
-   ✅ **The rehearsal is OWNED as of 2026-08-17 — PO directed it into S5 as `S5.R`**
-   ([plan](../plans/dm5-wave-d-retirement-plan.md) § S5.R). ⚠ It is still unrehearsed: S5.R is scope,
-   not a result.
-2. **Before spawning anyone**, re-verify the catalog claims in this file (registry, census, flags). Where
-   it says *verify*, verify: this phase punished inherited claims repeatedly, **including six times in the
-   session that built S3, four of them by the lead** (§9).
+⛔ **S5 IS NOT CLOSED, and the reason is a deliberate PO decision, not an oversight.** Gate step 2
+(`npm run e2e:prod`) is **DEFERRED** — the PO ruled that the open follow-ups should be resolved first,
+so an E2E run now would be discarded. State: **step 1 ✅ · step 2 ⏸ DEFERRED · step 3 ✅ APPROVED (r2)
+· step 4 owed.** Do not "fix" the missing E2E figure by running it before the follow-ups; and do not
+record step 2 as failed — nothing failed.
+
+**Your resume point is therefore the FOLLOW-UPS, then `e2e:prod`, then PO step 4, then S6.**
+§13 carries the prioritised list, the recipe, and the traps.
+
+⚠ **Before spawning anyone, re-verify the catalog claims in this file** (registry, flags, policy and
+trigger counts). Where it says *verify*, verify: **every blocking item across six QA rounds in S4 and
+S5 was a RECORD defect, never a code defect** — the builds were repeatedly sound while the documents
+describing them were wrong. Two lessons from this session that generalise past DM5:
+
+- **A slice's closing status must be written into every file the NEXT slice reads, not only the
+  tracker.** At S4's step 5 the lead updated PROGRESS.md's three markers in one edit and did not sweep
+  outward; the *plan* then still said S4's gate was owed, and **S6 reads the plan.**
+- **`git log` cannot show you a teammate's uncommitted work.** A stopped agent's last commit looks
+  like a clean stopping point while `git status` holds the real state — and one such artifact carried
+  a defect (`plan(11)` against 12 assertions) that nobody had reviewed.
 
 ## 1. Where things stand
 
@@ -37,9 +41,9 @@ this section used to name is discharged — §10 now records the *outcome* inste
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
 | **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
-| **S4** retirement (8 buckets) | 🔵 **BUILT · steps 1+2 ✅ GREEN · QA r2 is the ONLY outstanding item.** ✅ `e2e:prod` re-run 2026-08-17: **1121p / 0f / 0 infra / 2 flaky / 6 skipped / 0 did-not-run / 18 batches** (~~1118~~ superseded); pgTAP **193/6351, 0 deadlocks**; `pdf-printing` 9/9 + `pdf-printing-meetings` 6/6. The 4 dead attempts were **all environmental** — a reboot cleared every one. ⚠ Byte half was a NO-OP (**rehearsal now owned as S5.R**), **and the 221 orphans were destroyed outside the gate** (PO ruled the local volume disposable 2026-08-17) — §11 · §12 |
-| **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
-| **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
+| **S4** retirement (8 buckets) | ✅ **CLOSED 2026-08-17 — all FIVE gate steps.** QA r1 ⛔ → r2 ⛔ → **r3 ✅ APPROVED**; PO-approved; `phase(DM5·S4)` = `f06ebea5`. `e2e:prod` **1121p / 0f / 0 infra / 2 flaky / 6 skipped / 0 did-not-run / 18 batches** (~~1118~~ superseded, and it reconciles to it exactly); pgTAP **193/6351**; `pdf-printing` 9/9 + `pdf-printing-meetings` 6/6 with `printed-documents` DELETED. ⭐ Every blocking item across the three rounds was a **RECORD** defect — no code change was ever requested. ⚠ Byte half was a NO-OP; 221 orphans destroyed outside the gate (PO ratified the local volume disposable) — §11 · §12 |
+| **S5** operational closure | ✅ **BUILT + QA APPROVED (r2)** 2026-08-17 — ⏸ **step 2 `e2e:prod` DEFERRED BY PO, step 4 owed. NOT closed.** Delivered: **S5.R** byte-path rehearsal (rehearse **22/22**, selftest **18/18**) · **S5.D** disposal runbook + the gap pinned on **both** sides · backup/restore drill · EXPLAIN baselines. Record: [`dm5-s5-operational-closure.md`](./dm5-s5-operational-closure.md). **§13 is the resume point** |
+| **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable, and **Rule 9 currently contradicts accepted practice** (it admits no exception; QA accepted the documents module's coordinate-resolving one) |
 
 ⛔ **Branch `main`, NOTHING PUSHED, no `db push`, no remote reset. All DM flags ship OFF**
 (`documents_wave_d` **and** `document_printing` are ON in the local seed only — and **both must be flipped
@@ -741,3 +745,135 @@ machine before drawing any conclusion**, and check the count against the plan
 5. Spawn `qa` for **r2** on B1 + B2 only ([r1 review](../reviews/dm5-s4-review.md)). r1's own
    NOT-RE-VERIFIED list: it never re-ran `e2e:prod`, and B2 lives in that layer.
 6. Then PO step 4.
+
+---
+
+## 13. ⭐⭐ START HERE IF YOU ARE RESUMING DM5 (written 2026-08-17, for a session that was not here)
+
+**Everything above this section is history.** §12's recipe is discharged (S4 closed). Read §0, this
+section, then the S5 record. The PO's instruction at stand-down: **resolve the follow-ups, in a new
+session; `e2e:prod` runs after them.**
+
+### 13.1 Exact state
+
+| | state |
+| --- | --- |
+| HEAD | `main`, tree clean. ⛔ **96+ commits ahead of `origin/main` — NOTHING PUSHED, no `db push`, remote never touched by DM1–DM5** |
+| S4 | ✅ CLOSED, all five gate steps, PO-approved (`f06ebea5`) |
+| S5 | ✅ BUILT + QA **APPROVED r2** · **step 1 ✅ · step 2 ⏸ PO-DEFERRED · step 3 ✅ · step 4 owed** |
+| S6 | ⬜ not started |
+| flags | all five `documents_*` ship **OFF**. They read `true` locally **only because `seed.sql:2275` enables them for E2E** — verified; do not mistake the local DB for the shipped default |
+
+**Gate figures, all lead-verified independently at HEAD** (not inherited): registry **407 == 407** ·
+pgTAP **194 files / 6363 PASS** on a fresh reset · lint **5/5, 0 errors 0 warnings** · tsc **0** ·
+vitest **89 files / 1304 passed** · `next build` **exit 0, 19/19 pages** · rehearse **22/22** ·
+selftest **18/18** · `storage.buckets` = the 4 survivors · policies **274** · non-internal triggers
+**235** · volume **245 files / 2,456,666 bytes** (apparent; `du -sb` gives 4,394,074 — *state the
+method beside any byte figure*).
+
+**Authz for S5: the diff-scoped sweep and all four standing ARMs are `NOT APPLICABLE`, argued and
+recorded as that — never as "clean".** S5 touched no migration, no RLS policy and no `prosecdef`
+gate; subject provably identical (`dm5_s5%` procs **0**, policies 274).
+
+### 13.2 The follow-ups, in the order I would take them
+
+**1 · 🟠 `FUP-DM4-RECUSAL` — take this first, and scheduling cannot defer it.**
+`add_referral_shared_item` checks referral-**source** authority but never `can_read_case`, so a
+**recused** coordinator reaches PHI bytes (QA-demonstrated live). **Its deadline is the
+`documents_wave_c` flag-on date** — it comes due exactly when the document model goes live.
+⛔ **It cannot be folded into Phase 19's access plane: a widening-only plane CANNOT close an
+under-inclusive gate.** Shipping the flags with this open ships a known PHI hole.
+
+**2 · 🔴 `FUP-DM5-NO-ANSWER-VS-NOTHING` — one class, six instances, the most productive lens in the
+phase.** Statement: **an observable proxy is substituted for the property that matters, and it always
+fails in the reassuring direction.** Instances: `--allow-orphans` conflation · `.list('')` returning
+`[]` for an absent bucket · **`disposed` meaning "metadata row gone", not "bytes gone" (🔴 — a
+persisted record asserting a fact to a regulator)** · destruction ("unlinked" ≠ "unrecoverable") · a
+`tar` failure yielding a valid *empty* encrypted backup · **"I looked at the wrong thing"** (`capture`
+calling a destroyed-bytes bucket CLEAN). ⭐ Instances 4, 5 and 6 were each found **inside the fix for
+an earlier one** — expect the next one in whatever you write to close this.
+
+**3 · 🔴 `FUP-DM5-BACKUP-IS-PHI-EXPORT`** — the runbook's backup half produces **68 PHI-tier files**.
+Rule 12 / LGPD. The PO-decided values (owner = PO, monthly, ≤30 days, 7z-AES encrypted **at
+creation**, key-first destruction) are **in** the runbook; what remains is the literal destination
+path, deliberately unfilled because it is per-machine.
+
+**4 · 🟠 `FUP-DM5-DISPOSAL-JOB`** — **the disposal job does not exist.** `complete_document_disposal`'s
+only production caller is `reclassifyDocument`. PO ruled *runbook now, automate later*; this is the
+"later", and it is **blocking pre-pilot**. Overturning ADR **0099 D10** ("no new cron infrastructure")
+needs its own ADR — ⭐ and D10's rationale (*"a stale row nobody looks at harms nobody"*) **inverts for
+PHI**: a `disposal_pending` row that never completes means bytes that should have been destroyed
+still exist.
+
+**5 · 🟠 `FUP-DM5-CLOUD-ORPHAN-SURFACE` + `FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT` — the pair
+that decides whether the deploy path can be certified at all.** Measured at S5.R / QA r2: with no
+local volume proof, `delete --execute` over a **both-ways-diverged** bucket reports `deleted=5
+manifest=5 MATCH` / *"ALL BUCKETS MATCHED"* — **and leaves a real byte behind.** So the one control
+that survives on Cloud is **provably blind** to a divergence constructible in four commands. **The S3
+endpoint is UNPROBED, and probing it is the single measurement that could change this.** ⚠ ADR 0120 D9
+carries an **open PO question for S6**: amend D9 with a Cloud-specific verification step, or
+explicitly ratify the under-count class as unverified.
+
+**6 · the rest, roughly by severity:** 🟠 `STACK-CYCLE-DESTROYS-BYTES` (mechanism still undetermined) ·
+🟠 `STORAGE-ORPHANS` (**Cloud half only** — the local half closed *empty by measurement*) · 🟠
+`SETLOCAL-MIGRATION` (`20260921000300` still carries the unsafe idiom) · 🟠 `FINALIZE-ATOMIC` · 🟠
+`SIBLING-GUARD-DIFF` · 🟠 `330-WRITE-BLIND` (⛔ **do not close on `342`'s coverage**) · 🟠
+`D11-SUPERSEDED-NEVER-RETIRES` · 🔴 `PGTAP-VACUOUS` · 🔴 `AUTHZ-HARNESS-TRANSACTIONAL` (**read the
+incident section before running any mutation harness**) · 🟡 `MANIFEST-FLAG`, `GRANTS`,
+`DVF-FILEOBJ`, `DEAD-CORE-PROJECTION`, `DANGLING-PRINT-ON-DELETED-DRAFT`,
+`Q1-OPEN-BYTES-CUT-BROKEN`, `DM4-PRODROW` (deferred to deploy).
+
+**Also owed and easy to lose:** ADR 0114 **O1** (retention values), **O2** (scanner +
+`unscanned_accepted` expiry), **O4** (signed-URL TTL), **S1-O3** (uploader visibility), and
+**`FUP-DM5-D11`** ("decide later") — all PO decisions, none of which S5 was permitted to invent.
+
+### 13.3 Then, in order: `e2e:prod` → PO step 4 → S6
+
+**`npm run e2e:prod`** — the last figure was **1121p / 0f / 0 infra / 2 flaky / 6 skipped / 0
+did-not-run / 18 batches** at `52ab70a8` (S4). S5 changed **no runtime code** (`actions.ts` is
+comment-only — verified by stripping comment lines; the only other `src/` change is a new vitest
+file), so a run is a **regression check**, not a validation of new behaviour. Recipe:
+
+1. `Get-Process node` **empty** · `:3000` **no LISTENER** · `docker start gotenberg-pdf` and
+   `/health` = **200** (without it 15 print specs fail as uniform pt-BR errors that read exactly like
+   product defects).
+2. `supabase db reset --local` **unpiped** (a pipe SIGPIPE-kills it mid-flight → half-built DB), then
+   **poll for readiness** — `storage.buckets does not exist` right after a reset is a container
+   restart race, misread three times in this phase as a corrupt database.
+3. Run **redirected to a file, never piped.** Reconcile **per-batch** `accounted N/N` against **0
+   did-not-run**; the summary's `COVERAGE` line **excludes skips** and will look short.
+4. ⛔ **Bound any log analysis by the paths the runner names in `(log: …)`.** `/tmp/e2e-prod-gate/`
+   retains logs from dead runs — including a `batch-29.log` from an 18-batch run, and an **old vacuous
+   R15 at `:650`**. A `batch-*.log` glob will "confirm" a retired pin as passing.
+5. ⛔ **`TaskStop` does NOT reap the gate's process tree.** After stopping it expect survivors: a
+   `db reset`, a `.next/standalone/server.js`, a Playwright runner, a worker. **Kill the
+   `bash scripts/e2e-prod-gate.sh` parent, not the children** — and **never kill a `db reset`
+   mid-flight.** ⚠ A process filter matching on command line **will match the command doing the
+   filtering** (the lead killed its own shell that way).
+
+**Then PO step 4**, then **S6** — canon rewrite + exit sweep. S6's non-obvious content: **Rule 9
+currently contradicts accepted practice** (it admits no exception; QA accepted the documents module's
+coordinate-resolving one), `backend-state.md:205` still says census **146** where the reproducing
+figure is **141**, and the **exit sweep must be bounded by IDENTIFIER** (`storage_path`,
+`storage_bucket`, bucket literals, `createSignedUrl`) — never by directory, never by call syntax.
+⚠ **DM5's PHASE QA is owed at S6.** S4's and S5's verdicts are **slice** verdicts and authorise
+nothing beyond themselves.
+
+### 13.4 What this session learned that will save you time
+
+- ⭐ **Every blocking item across six QA rounds (S4 r1–r3, S5 r1–r2) was a RECORD defect. Not one code
+  change was ever requested.** The builds were sound; the documents describing them were wrong. Budget
+  review effort for records, not only code.
+- ⭐ **Construct the state nobody has constructed.** Both S5 blockers, and the S5 finding that matters
+  most, came from building an unbuilt state. When asked to enumerate, **the domain itself was wrong** —
+  nine verdicts, where QA said seven, the lead said eight, and nobody had derived it.
+- ⭐ **Diff a fixed branch against its siblings.** Fixing one branch and not its sibling two lines away
+  hid a defect three reviews had walked past.
+- ⭐ **A control that passes BEFORE your fix is an over-reach bound; one that only passes after is a
+  companion assertion.** Keep both, and say which is which.
+- ⚠ **An exit code is a CLASS assertion, never an IDENTITY one** — six of nine verdict swaps leave the
+  exit code unchanged. Assert the verdict name.
+- ⚠ **A detector can detect itself** (`pg_temp` helpers are ordinary `pg_proc` rows; a process filter
+  matches its own command line). The tempting "fix" is to relax the assertion until green.
+- ⚠ **Verifying a teammate's functional claims is not verifying its gate claims.** The lead reported a
+  slice "green" having checked its selftest and catalog but not `npm run lint` — which was red.
