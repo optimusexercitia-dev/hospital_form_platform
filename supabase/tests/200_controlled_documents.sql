@@ -390,16 +390,30 @@ select is(
   'obsolete', 'the prior effective version is retired → obsolete (retained, not deleted)');
 
 -- ===========================================================================
--- 7 · IMMUTABLE STORAGE BUCKET (no update/delete policy)
+-- 7 · STORAGE BUCKET — ⛔ RETIRED by DM5·S4 (was: "IMMUTABLE … no update/delete
+--     policy"). The bucket ROW and every policy naming it are gone; the two pins
+--     below now assert its RETIREMENT, not its immutability.
+-- ⚠ Corrected 2026-08-17 (QA r2 MINOR-8) — and note HOW it was missed. The
+--   eight-bucket sweep that found the same defect in 142/143 was bounded twice
+--   over: by a COMMENT PREFIX and by a BUCKET NAME. This header names the
+--   property without the noun, and the label below is an assertion STRING, not a
+--   comment — so the miss escaped through both bounds at once. The property is
+--   "text asserting a retired bucket as current", and it lives in comments,
+--   section headers AND assertion labels.
 -- ===========================================================================
 
+-- ⚠ This count went VACUOUS at retirement rather than red: zero policies satisfy
+-- it forever, because the bucket they named no longer exists. Kept (plan
+-- stability) but relabelled to what it now actually pins. The load-bearing
+-- eight-bucket pin, WITH a positive control that proves the derivation can still
+-- see live doors, is `325` t6/t7/t8 — that is the one to trust.
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and cmd in ('UPDATE', 'DELETE')
      and (qual like '%controlled-documents%' or with_check like '%controlled-documents%'
           or policyname like '%controlled_documents%')),
-  0, 'the controlled-documents bucket has NO update/delete policy (Rule 6)');
+  0, 'no update/delete policy names the RETIRED controlled-documents bucket (DM5·S4 — was: "the bucket has NO update/delete policy (Rule 6)", which is now vacuous; the real 8-bucket pin is 325 t6/t7 with t8 as its control)');
 
 -- ⭐ SUCCESSOR ASSERTION — DM5·S4 (migration 20260927000400) retired the bucket
 -- ROW, so the old form (`select public … = false`) degrades to `is(NULL, false)`.

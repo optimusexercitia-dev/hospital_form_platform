@@ -592,13 +592,22 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 >   production path works.**
 >
 > 🔒 **One defect found and fixed, and it was aimed at the REMOTE:** the first version used
-> `set local storage.allow_delete_query = 'true'` (copying `20260921000300`) and passed a standalone
-> reset, pgTAP, all four arms and the catalog check — then the E2E gate's reset emitted
-> **`WARNING (25P01): SET LOCAL can only be used in transaction blocks`**, i.e. a **silent no-op**,
-> against a step whose refusal (`42501` from `storage.protect_delete`) was probe-confirmed as real.
-> Fixed by moving the opt-in and the DELETE into **one `do` block**. ⭐ **`db push` is a different
-> invocation from `db reset`.** → **FUP-DM5-SETLOCAL-MIGRATION**; `20260921000300` still carries the
-> old idiom.
+> `set local storage.allow_delete_query = 'true'` (copying `20260921000300`), which is a **silent
+> no-op** — `WARNING (25P01): SET LOCAL can only be used in transaction blocks` — against a step whose
+> refusal (`42501` from `storage.protect_delete`) was probe-confirmed as real. Fixed by moving the
+> opt-in and the DELETE into **one `do` block**. → **FUP-DM5-SETLOCAL-MIGRATION**; `20260921000300`
+> still carries the old idiom.
+>
+> ⛔ **CAUSAL STORY CORRECTED (QA r1 MINOR-1/MINOR-2, restated here at r2 because this file is what a
+> new session reads first).** This paragraph used to say the warning appeared only when *"the E2E
+> gate's reset"* ran, after *"a standalone reset"* had passed — i.e. that the path mattered.
+> **It does not: a plain `supabase db reset` emits SIX of these, one of them from
+> `20260921000300`.** The bug was never e2e-specific, so nothing about *which* reset found it is
+> load-bearing. ⚠ And the *"the opt-in is load-bearing"* probe behind the original write-up was taken
+> **at the wrong grain** — against a post-reset live DB rather than at migration-apply time. **The fix
+> stands and is correct; only its explanation was wrong** — which is why the fix is stated above as a
+> property of `set local` in a migration, not as a property of a runner.
+> → [[a-predicate-quoted-at-the-wrong-grain]], [[set-local-in-a-migration-is-not-guaranteed-transactional]].
 >
 > **New follow-ups:** 🟠 FUP-DM5-SETLOCAL-MIGRATION · 🟡 FUP-DM5-MANIFEST-FLAG (`capture` takes
 > `--out`; passing `delete`'s `--manifest` silently overwrote the committed S0 baseline).

@@ -709,30 +709,61 @@ test('R14: non-team non-PQS user (chefe.farm, no observer membership) gets 0 row
 // prove the exact bytes are still there — the one fact no ambiguous status
 // code can fake.
 //
-// ⭐ What actually guards the bytes, verified live (2026-08-17, tester) —
-// NOT only the missing RLS policy assumed above. Adding a temporary
-// PERMISSIVE `for delete to authenticated using (bucket_id=
-// 'documents-standard')` RLS policy to the live catalog did NOT make the
-// attempted delete succeed — a direct raw-SQL probe (`set local role
-// authenticated`, `delete from storage.objects …`) hit
-// `storage.protect_objects_delete` (`BEFORE DELETE … FOR EACH STATEMENT
-// EXECUTE FUNCTION storage.protect_delete()`) BEFORE RLS row-filtering was
-// even reached, refusing unconditionally unless the session sets
-// `storage.allow_delete_query = 'true'` — the exact same guard the DM5·S4
-// migration itself uses for its own controlled retirement delete. The temp
-// policy was dropped immediately (catalog re-verified back to the original 4
-// policies) — it was inert the whole time, so nothing was ever actually
-// opened by it.
+// ⛔ WHAT GUARDS THE BYTES — RE-CORRECTED 2026-08-17 (QA r2 MAJOR-3).
+// A note here previously claimed the missing RLS policy was NOT the operative
+// guard and that `storage.protect_objects_delete` was. **That is inverted on
+// the path this test actually attacks.** The absent policies ARE the lock.
+//
+// `storage.protect_delete()` (body read from `pg_proc`) tests exactly one
+// thing and is entirely ROLE-AGNOSTIC — whether
+// `storage.allow_delete_query = 'true'`. ⭐ Its own HINT reads "Use the
+// Storage API instead": the API sets that GUC on its own connection, so the
+// trigger NEVER FIRES on an HTTP delete, for ANY caller. It guards direct SQL
+// DML only — which is the context the DM5·S4 migration needs it for.
+//
+// The operative locks on the HTTP path are TWO absent policies, both ours:
+// no SELECT policy (Postgres needs the row visible for the DELETE's WHERE)
+// and no DELETE policy. Opening BOTH on `documents-standard` made the same
+// authenticated HTTP DELETE this test issues return
+// `200 {"message":"Successfully deleted"}` — the object was destroyed.
+//
+// ⭐ Why the earlier note went wrong, and it is worth reading before writing
+// the next such experiment. It opened ONE of the two locks (delete policy, no
+// select policy) AND probed at the raw-SQL layer — the one path where the
+// trigger IS unconditional, hence the only path that CANNOT observe the RLS
+// lock. It then read the survival as proof of the trigger. It even had the
+// decisive datum below (the API sets the GUC) and scoped it to the service
+// role, from a guard that does not look at roles at all.
+//
+// ⚠ So this test's protection is exactly ONE permissive policy wide, and
+// `storage.objects` grants `arwdDxtm` to `authenticated` AND `anon` — there is
+// no grant-level fallback. If anyone ever adds a read policy to
+// `documents-standard` (a natural request: "let members download their own
+// documents"), they must add no DELETE policy with it, and this test is what
+// notices. Domain: LOCAL stack, both paths; NOT verified against Cloud.
 //
 // Proven able to FAIL, not merely written to pass — this exact test,
 // unmodified except for the one line naming the attacker's bearer token,
-// swapped to the SERVICE ROLE key (empirically proven live via curl to be
-// the one caller for whom the Storage API DOES set the bypass GUC and
-// perform a real delete: PUT 200 → DELETE 200 "Successfully deleted" → GET
-// 400). Run that way, R15 went RED — `expect(attackResp.status()).not.toBe(200)`
-// failed with `Expected: not 200`, before the discriminating GET/byte-compare
-// even ran. Reverted immediately back to the real actor token afterward and
-// re-run to confirm GREEN. Full transcript in the tester's report.
+// swapped to the SERVICE ROLE key (verified live via curl: PUT 200 → DELETE
+// 200 "Successfully deleted" → GET 400). Run that way, R15 went RED —
+// `expect(attackResp.status()).not.toBe(200)` failed with `Expected: not 200`,
+// before the discriminating GET/byte-compare even ran. Reverted immediately
+// back to the real actor token afterward and re-run to confirm GREEN.
+//
+// ⚠ CORRECTED 2026-08-17 (QA r2): this note used to explain the service role's
+// success as it being "the one caller for whom the Storage API sets the bypass
+// GUC". Wrong mechanism. The API sets that GUC for EVERY caller (the guard
+// does not look at roles). The service role succeeds because it **bypasses
+// RLS**, and RLS is the only thing refusing the others. Same observation,
+// right red, wrong cause — and the wrong cause is what made the note above
+// invert the guard.
+//
+// ⚠ NOTE (QA r2 INFO-7): the GET/byte-compare is a BELT, not a second
+// independent lock. If the DELETE ever succeeds, R15 reds at `not.toBe(200)`
+// first, so the byte compare would only become the failing assertion if a
+// delete succeeded while returning a non-2xx status — no such combination is
+// known to be reachable. Keep it (it is cheap and it is the fact no status
+// code can fake), but do not count it as independent coverage.
 test('R15: RCA evidence bytes on the document substrate reject DELETE from an authenticated actor — the object survives the attempt', async ({
   request,
 }) => {

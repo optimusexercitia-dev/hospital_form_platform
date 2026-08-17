@@ -228,8 +228,11 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >
 > ✅ **RULED 2026-08-17 (later the same day), on a measurement taken at decision time.** The orphan
 > question was re-put to the PO as QA r1's B1 required. Re-measured first, on a freshly-rebooted stack
-> after a clean `db reset`: **0 files in all eight retired buckets**; **166 files / 2,970,290 B in the
-> four survivors**. **The PO ratified the local volume as non-durable, disposable test residue** — no
+> after a clean `db reset`: **0 files in all eight retired buckets**; 166 files / 2,970,290 B in the
+> four survivors *at that moment* — ⛔ **a timestamped observation, not a count: it read 245 files after
+> the same session's `e2e:prod` gate** (QA r2 INFO-5), because every gate run writes bytes and every
+> reset orphans them. ⭐ **The PO therefore ratified a CLASS, not a number**, which is what makes the
+> ruling durable: **the local volume is non-durable, disposable test residue** — no
 > cleanup step, no gate, no local manifest discipline. The retirement-scope orphan question therefore
 > closes **empty by measurement**, not by disposal and not by the `01:06:02Z` destruction, which stays
 > charged to FUP-DM5-STACK-CYCLE-DESTROYS-BYTES.

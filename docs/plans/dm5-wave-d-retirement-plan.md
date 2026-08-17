@@ -200,11 +200,23 @@ re-capture → verify empty → and D9's ordering property, that the retirement 
 4. The retirement guard REFUSES while any `storage.objects` row survives and admits only after —
    S4 pinned this at the catalog layer; here it runs against real rows.
 
-⚠ **Probe the platform guard; do not reason about it.** `storage.protect_delete()` blocks
-`storage.objects` DML on this stack, and `storage.protect_objects_delete` fires **before** RLS,
-refusing unless the session sets `storage.allow_delete_query` (found at S4 B2, `140ffd8c`). The
-rehearsal goes through the **Storage API**, not SQL DML, so it plausibly never meets that guard —
-but *plausibly* is the word this phase keeps paying for.
+✅ **The platform-guard question is SETTLED for this path — measured at QA r2, not reasoned.** This
+note said the rehearsal *"plausibly never meets"* `storage.protect_delete`; *plausibly* is now
+*confirmed*, and in the process the surrounding claim turned out to be **inverted** (r2 MAJOR-3).
+`protect_delete()` is **role-agnostic** — it tests only `storage.allow_delete_query` — and **the
+Storage API sets that GUC itself**, so on the API path the trigger **never fires, for any caller**
+(its own HINT: *"Use the Storage API instead"*). It guards **direct SQL DML only**, which is exactly
+the context migration `20260927000400` needs it for.
+
+⭐ **What that means for S5.R specifically, and it is not a footnote:** the rehearsal's deletes run
+through the API, so **nothing platform-level will stop them.** The only things standing between
+`delete --execute` and a byte are the manifest comparison and the tool's own refusals — the controls
+S5.R exists to test. There is no backstop underneath them. (Correspondingly, on the API path the
+operative Rule-6 lock for `documents-standard`/`-phi` is the pair of **absent SELECT and DELETE
+policies**, both ours; `storage.objects` grants `arwdDxtm` to `authenticated` *and* `anon`, so there
+is no grant-level fallback either.) ⚠ Domain: LOCAL stack. **Re-probe before the Cloud run** — D17's
+whole lesson is that local was reasoned to remote by *"the same mechanism class"* and the mechanisms
+differed.
 
 ⛔ **A green local rehearsal does NOT license the Cloud sequence.** D17's remote half was wrong
 precisely because local was reasoned to remote by *"the same mechanism class"*, and the mechanisms

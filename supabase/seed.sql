@@ -2213,7 +2213,7 @@ end $ind$;
 -- permit the direct transitions.
 --
 -- BUG-DOC-002 (storage_path is NULL on purpose): a SQL seed CANNOT put real object
--- BYTES into the controlled-documents bucket — the local storage-api serves from its
+-- BYTES into a storage bucket — the local storage-api serves from its
 -- own file backend (container /mnt volume), unreachable from Postgres — and a
 -- storage.objects row with no bytes 404s on download (worse than an honest empty
 -- state). So the seed leaves storage_path NULL and the detail page shows "Sem arquivo"

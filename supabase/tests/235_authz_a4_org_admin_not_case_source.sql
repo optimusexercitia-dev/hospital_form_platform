@@ -147,8 +147,12 @@ insert into public.case_interview_subjects (interview_id, external_name, externa
 values ('00000000-0000-0000-0000-0000000a4060', 'Dr. Fulano (denunciado)', 'Hospital A', 'respondent');
 
 -- A case-document storage object under comm_x / c2 (the K4 byte-level case material)
--- on the legacy `case-documents` bucket (still live until DM4 — its SELECT policy is
--- the frozen-snapshot boundary), proving A4 removed the ORG arm there.
+-- on the legacy `case-documents` bucket — ⛔ RETIRED: DM4 re-pointed the referral
+-- snapshot boundary onto the document substrate and DM5·S4 deleted the bucket row
+-- itself, so this fixture is a bare `storage.objects` insert naming a bucket that no
+-- longer exists (it still exercises the A4 assertion, which is about the ORG arm, not
+-- about the bucket). Was: "still live until DM4 — its SELECT policy is the
+-- frozen-snapshot boundary". Corrected 2026-08-17, QA r2 MINOR-4.
 -- DM1 (ADR 0114 D5/D8): the second anchor (the `attachments` store, where the
 -- coordinator twin read bytes) was dropped WITH its SELECT policy — and the document
 -- buckets deliberately have NO SELECT policy for anyone (D8), so "an entitled

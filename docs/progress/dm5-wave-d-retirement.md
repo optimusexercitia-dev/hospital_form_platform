@@ -75,7 +75,13 @@ meaningful **there** because production *has* metadata rows (census 2026-08-11: 
 > | scope | files | bytes |
 > | --- | --- | --- |
 > | the **8 retired** buckets | **0** | 0 |
-> | the **4 surviving** buckets | **166** | 2,970,290 |
+> | the **4 surviving** buckets | **166** *(at 03:45Z — see below)* | 2,970,290 |
+>
+> ⛔ **The survivor row is a timestamped observation, not a count, and it went stale within the session**
+> (QA r2 INFO-5): **245 files / 4,394,074 B** after the gate, and 245 / 4,402,266 B half an hour later
+> with nothing deliberately writing. ⭐ **Which is exactly why the PO ratified a CLASS, not a number** —
+> every gate run writes bytes and every reset orphans them. The retired buckets' **0** is the durable
+> half; nothing writes to a bucket that does not exist. **Quote the mechanism, never refresh the figure.**
 >
 > **PO ruling: the local volume is ratified as non-durable, disposable test residue** — no cleanup step,
 > no gate, no local manifest discipline. Two live alternatives were declined: clearing the volume inside

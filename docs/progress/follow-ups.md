@@ -389,7 +389,16 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 > | scope | files | bytes |
 > | --- | --- | --- |
 > | the **8 retired** buckets | **0** | 0 |
-> | the **4 surviving** buckets (`documents-standard`/`-phi`, `form-assets`, `meeting-audio`) | **166** | 2,970,290 |
+> | the **4 surviving** buckets (`documents-standard`/`-phi`, `form-assets`, `meeting-audio`) | **166** *(at 03:45Z)* | 2,970,290 |
+>
+> ⛔ **The survivor row is a TIMESTAMPED OBSERVATION, not a count — and it went stale inside the same
+> session** (QA r2 INFO-5). After the `e2e:prod` gate it read **245 files / 4,394,074 B** (QA, ~04:55Z)
+> and **245 / 4,402,266 B** ~30 min later with nothing deliberately writing —
+> `documents-phi` **68** · `documents-standard` **156** · `form-assets` **12** · `meeting-audio` **9**,
+> against **0** `storage.objects` rows, so all 245 are orphans. ⭐ **This is why the PO ratified a CLASS
+> and not a number:** every gate run writes bytes and every reset orphans them, so any survivor count is
+> obsolete before it is committed. **Do not "refresh" this figure — quote the mechanism.** The retired
+> buckets' **0** is the durable half: nothing writes to a bucket that does not exist.
 >
 > **PO ruling: the local volume is RATIFIED as non-durable, disposable test residue.** No cleanup step,
 > no gate, no local manifest discipline. The two rejected options are recorded because they were live:

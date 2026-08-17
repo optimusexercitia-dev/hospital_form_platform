@@ -288,21 +288,41 @@ select is(
 -- must provably SEE the two live insert-reserved doors. A zero-count alone
 -- would pass against a mistyped bucket name forever.
 --
--- ⚠ LABEL CORRECTED 2026-08-17 (DM5·S4, from `tester`'s R15 work). This pin
--- previously read as though the ABSENT update/delete policy were *the* Rule 6
--- mechanism. It is not the operative one. Measured live: adding a PERMISSIVE
--- `for delete to authenticated` policy on `documents-standard` did **not** make
--- a delete succeed — `storage.protect_objects_delete` (a BEFORE DELETE trigger
--- running `storage.protect_delete()`) refuses unconditionally, BEFORE RLS row
--- filtering is reached, unless the session sets `storage.allow_delete_query`.
--- That is the same platform guard migration 20260927000400 must opt out of for
--- its own controlled retirement delete.
+-- ⛔ LABEL RE-CORRECTED 2026-08-17 (QA r2 MAJOR-3). An earlier edit today
+-- demoted this pin to "our own lock, not the operative one" and named
+-- `storage.protect_delete` as the real guard. THAT WAS INVERTED on the path
+-- that matters, and this assertion is THE lock. Restoring its substance.
 --
--- So this assertion is TRUE and worth keeping — an absent policy is a real
--- second lock, and the one WE own — but the sentence must not claim the work
--- the trigger is doing. ⭐ Two locks, and the documented one is not the one
--- that stops this attack; a label that names the wrong mechanism survives
--- review because reviewers rule on the label.
+-- `storage.protect_delete()`'s body (read from `pg_proc`) tests exactly one
+-- thing and is entirely ROLE-AGNOSTIC:
+--     if coalesce(current_setting('storage.allow_delete_query', true),'false')
+--        != 'true' then raise ... errcode 42501
+-- ⭐ Its own HINT says "Use the Storage API instead" — i.e. the API path sets
+-- that GUC itself, so the trigger NEVER FIRES on an HTTP delete, for anybody.
+-- Measured at the HTTP layer: a service-role API DELETE returns 200 and the
+-- `storage.objects` row goes 1 -> 0.
+--
+-- The operative locks on the API path are BOTH ABSENT POLICIES, and both are
+-- ours: no SELECT policy (Postgres needs the row visible for the DELETE's
+-- WHERE) and no DELETE policy. With both opened on `documents-standard`, the
+-- same authenticated HTTP DELETE that test R15 issues returned
+-- `200 {"message":"Successfully deleted"}` and destroyed the object.
+--
+-- ⭐ Why the earlier "measurement" missed it — two errors compounding, both
+-- classes this phase has a name for. It opened ONE of the two locks (a delete
+-- policy, no select policy) AND it ran at the raw-SQL layer, which is the one
+-- path where the trigger IS unconditional. So it was the single path that
+-- could not observe the RLS lock, and the survival it saw was attributed to
+-- the trigger. Two locks, and BOTH are ours; the trigger is neither.
+--
+-- `storage.protect_delete` guards DIRECT SQL DML only — which is precisely the
+-- context migration 20260927000400 needs it for when it opts out.
+-- ⚠ Domain: measured on the LOCAL stack, HTTP path and SQL path. Not verified
+-- against Supabase Cloud (same service, but this phase has already been burned
+-- once reasoning local -> remote by "same mechanism class" — ADR 0120 D17).
+-- ⚠ And `storage.objects` grants `arwdDxtm` to `authenticated` AND `anon`:
+-- there is no grant-level fallback. RLS is the entire boundary (Rule 1), so
+-- every storage protection here is exactly ONE permissive policy wide.
 select ok(
   (select count(*)::int from pg_policies
     where schemaname = 'storage' and tablename = 'objects' and cmd in ('UPDATE', 'DELETE')
@@ -310,7 +330,7 @@ select ok(
   and (select count(*)::int from pg_policies
         where schemaname = 'storage' and tablename = 'objects' and cmd = 'INSERT'
           and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '''documents-(standard|phi)''') = 2,
-  'the document buckets carry NO update/delete policy (our own lock; the OPERATIVE guard is storage.protect_delete, see header) and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
+  'the document buckets carry NO update/delete policy — THIS IS the operative Rule 6 lock on the Storage-API path, together with the equally absent SELECT policy (storage.protect_delete guards direct SQL DML only; the API sets its bypass GUC itself — see header) — and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
 
 -- =========================================================================
 -- PHI-free audit: capa rows carry status/verdict only — no *_md body.
