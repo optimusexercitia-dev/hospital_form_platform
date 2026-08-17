@@ -34,13 +34,14 @@
 -- since it proves the arm under the transition the product actually performs.
 -- =============================================================================
 begin;
--- 53 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10 + G:12. Count derived by block, not by
--- eye — the first authoring pass said 29 because C5a/C5b were counted as one. G's 12
--- were derived twice and cross-checked: assertion CALL SITES
--- (`^select (is|isnt|ok|throws_ok|lives_ok)\(` = 53) against description TAGS
--- (`'DM5·S2 <Letter><n>` = 53). Two counts of different things agreeing is the check;
--- one count repeated is not.
-select plan(53);
+-- 57 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10 + G:12 + H:4. Count derived by block,
+-- not by eye — the first authoring pass said 29 because C5a/C5b were counted as one. G's
+-- 12 were derived twice and cross-checked: assertion CALL SITES
+-- (`^select (is|isnt|ok|throws_ok|lives_ok)\(`) against description TAGS
+-- (`'DM5·S2 <Letter><n>`). Two counts of different things agreeing is the check;
+-- one count repeated is not. H (+4, FUP-DM5-GRANTS, 2026-08-17) re-derived the same
+-- way: 2 `table_privs_are` + 2 `throws_ok` = 4 call sites, tags H1–H4 = 4.
+select plan(57);
 
 -- ---------------------------------------------------------------------------
 -- P — preconditions (pgtap-fixture-flag-gaps: assert flags, never assume)
@@ -345,12 +346,36 @@ select throws_ok(
         null, null, 'document', (select id from f_doc), 'rotulo F7') $q$,
   'HC0D8', null,
   'DM5·S2 F7 ⭐ ONE VARIABLE: the same-authority writer who CANNOT read the document is refused (no linking what you cannot read)');
+-- ⭐ F8 — THE ACTOR MOVED, 2026-08-17 (FUP-DM5-GRANTS). Exactly F9's lesson one
+-- assertion earlier, in a different key: F9 was keyed to a policy NAME that got
+-- retired; F8 was keyed to a CAPABILITY — `authenticated` holding direct INSERT —
+-- and migration 20260928000200 revoked it. The assertion then caught 42501
+-- (permission denied) while wanting 23503, i.e. it stopped reaching the FK at all.
+--
+-- ⚠ The failure was the honest outcome and worth keeping in view: a test whose
+-- SUBJECT is "the direct-DML path" cannot survive that path being closed for its
+-- actor. It did NOT go vacuously green — it went red, because `throws_ok` pins the
+-- SPECIFIC sqlstate. Had it been written as a bare "this raises something" it would
+-- have passed while proving nothing, which is the [[a-silent-return-hides-a-live-defect]]
+-- shape. Two counts of different things again: the errcode is the second count.
+--
+-- The PROPERTY is unchanged and still load-bearing, so it is re-pointed at a
+-- principal that still HAS the bypass: `service_role` holds INSERT and
+-- `rolbypassrls = t` (both measured), so neither the grant nor RLS can be what
+-- refuses it — the FK is the only thing left standing, which is precisely the
+-- claim. This is now a STRONGER test than before: it proves the constraint holds
+-- for the one principal that can defeat every other lock on this table.
+-- `created_by` is passed explicitly rather than via `auth.uid()`, which would be
+-- NULL here and would have made the row's shape depend on claims state.
+reset role;
+set local role service_role;
 select throws_ok(
   $q$ insert into public.rca_evidence (rca_id,kind,title,cited_document_id,citation_label,created_by)
       values ('f3000000-0000-0000-0000-0000000000a3','citation','ghost',
-              '00000000-0000-0000-0000-0000000dead2','rot',auth.uid()) $q$,
+              '00000000-0000-0000-0000-0000000dead2','rot',
+              '00000000-0000-0000-0000-000000000002') $q$,
   '23503', null,
-  'DM5·S2 F8 ⭐ the FK holds the DIRECT-DML path: a citation cannot name a document that does not exist');
+  'DM5·S2 F8 ⭐ the FK holds against the RLS-BYPASSING writer: service_role cannot cite a document that does not exist (re-pointed from authenticated, whose direct-DML path 20260928000200 closed)');
 reset role;
 
 -- ⭐ F9 — THE PIN MOVED, DM5·S4. This was keyed to the policy NAME
@@ -508,6 +533,55 @@ select throws_ok(
   'DM5·S2 G11 ⭐ READ-YES / WRITE-NO on the second home too (G7 proves the same call succeeds for the operator)');
 reset role;
 select set_config('request.jwt.claims', '', true);
+
+-- ---------------------------------------------------------------------------
+-- H — FUP-DM5-GRANTS: the RPCs are the ONLY writers (migration 20260928000200)
+--
+-- ⚠ CALIBRATION: hardening, not a breach. RLS was always enabled here with
+-- genuinely DISTINCT read/write predicates, so direct DML was never
+-- unauthorized at the ROW level. What it bypassed is the RPC's flag gate and
+-- fail-closed arms — a gate on the last step of a corridor rather than across it.
+--
+-- ⭐ WHY `table_privs_are` AND NOT a has_table_privilege pair: it pins the
+-- COMPLETE privilege set, so it fails in BOTH directions from one assertion —
+-- a re-grant of INSERT reds it, and so does an over-revoke that strips SELECT.
+-- SELECT must survive: six call sites read these tables directly under RLS
+-- (queries/rca.ts:553, queries/capa.ts:505, safety/capa-actions.ts:501,558,
+-- safety/rca-actions.ts:592,694). Over-revoking would break them at RUNTIME
+-- with a 42501 that no migration-time check would catch.
+--
+-- RED-FIRST, and it is a run not a prediction: against the pre-migration
+-- catalog `authenticated` held arwdDxtm on both tables, so H1/H2 were RED and
+-- the H3/H4 inserts SUCCEEDED. Re-provable by reverting 20260928000200.
+--
+-- ⚠ These four are the ONLY thing standing between this fix and a silent
+-- regression: `ALTER DEFAULT PRIVILEGES FOR supabase_admin IN SCHEMA public`
+-- still grants arwdDxtm to `authenticated` on every NEW table, and a re-dumped
+-- baseline would restore it here. Invisible to lint, typecheck and every other
+-- green bar — cf. [[guards-that-read-right-but-fail-open]].
+-- ---------------------------------------------------------------------------
+select table_privs_are('public', 'rca_evidence', 'authenticated', array['SELECT'],
+  'DM5·S2 H1 ⭐ rca_evidence: authenticated holds SELECT and NOTHING else — writes must traverse add_/delete_rca_evidence');
+select table_privs_are('public', 'capa_action_evidence', 'authenticated', array['SELECT'],
+  'DM5·S2 H2 ⭐ capa_action_evidence: authenticated holds SELECT and NOTHING else');
+
+-- Behavioural twins. The privilege bit is the property, but a privilege that
+-- no one has tried to exercise is a claim about the catalog only; these prove
+-- the refusal actually ARRIVES at a client doing the bypass the FUP describes
+-- (`POST /rest/v1/rca_evidence`). 42501 fires before RLS, so no claims are set
+-- on purpose — this is the privilege plane, not the row plane.
+set local role authenticated;
+select throws_ok(
+  $q$ insert into public.rca_evidence (rca_id, kind, title)
+      values ('00000000-0000-0000-0000-0000000000ff', 'link', 'H3 direct-DML probe') $q$,
+  '42501', null,
+  'DM5·S2 H3 ⭐⭐ the bypass the FUP names is REFUSED: a direct INSERT as authenticated gets insufficient_privilege, not a row');
+select throws_ok(
+  $q$ insert into public.capa_action_evidence (action_id, kind, title)
+      values ('00000000-0000-0000-0000-0000000000ff', 'link', 'H4 direct-DML probe') $q$,
+  '42501', null,
+  'DM5·S2 H4 ⭐ the same bypass refused on the CAPA table — proven independently, not inferred from H3');
+reset role;
 
 select * from finish();
 rollback;

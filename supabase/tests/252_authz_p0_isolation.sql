@@ -64,6 +64,49 @@ create temp table k on commit drop as select
 grant select on k to authenticated;
 
 -- ============================================================================
+-- ⭐⭐ IN-TRANSACTION GRANT RESTORE — read this before touching the two evidence
+-- assertions below. Added 2026-08-17 with migration 20260928000200
+-- (FUP-DM5-GRANTS), which REVOKED insert/update/delete on `rca_evidence` and
+-- `capa_action_evidence` from `authenticated` so the add_/delete_ RPCs are the
+-- only writers.
+--
+-- That revoke and THIS SUITE are in direct tension, and the tension is the whole
+-- reason this block exists:
+--
+--   * This suite's contract (header, and `p0b-isolation-mutation-audit.sh:146,154`)
+--     is that OPENING the policy — `alter policy ... using(true) with check(true)` —
+--     must REDDEN the matching `*_write DENY` assertion. That is what keeps
+--     `rca_evidence_write` / `capa_action_evidence_write` COVERED in
+--     docs/reviews/authz-door-audit-findings.md:324,436.
+--   * After the revoke, the reader-non-writer's INSERT fails at the GRANT (42501,
+--     "permission denied for table") BEFORE RLS is ever consulted. The DENY would
+--     still pass — for an entirely different reason — and opening the policy would
+--     change nothing. Both policies would go silently BLIND while their recorded
+--     verdict still read COVERED.
+--
+-- ⚠ That is STALE-COVERED arriving as a STATUS change rather than a BODY change —
+-- exactly the defect FUP-DM5-330-WRITE-BLIND is open about. Shipping the revoke
+-- without this block would have INTRODUCED an instance of it.
+--
+-- So the grant is restored HERE, inside this suite's own transaction (the file is
+-- `begin; … rollback;`), for one purpose: to let the assertions reach the RLS
+-- policy that is the subject under test. It never leaves the transaction.
+--
+-- ⭐ The RLS policies are NOT dead weight after the revoke — they are the second
+-- lock, and the one that matters most. `ALTER DEFAULT PRIVILEGES FOR supabase_admin
+-- IN SCHEMA public` still grants arwdDxtm to `authenticated` on every new table, and
+-- `20260620000000_baseline.sql` is a pg_dump that already restored these grants once.
+-- A re-dump silently re-arms the direct-DML path; if RLS had been retired as
+-- "unreachable" the tables would then be defended by nothing. Keeping the policy AND
+-- keeping it mutation-proven is what makes the revoke safe to rely on.
+--
+-- The PRODUCTION grant state is pinned separately and must stay pinned: suite 341
+-- H1/H2 (`table_privs_are` = {SELECT} exactly) + H3/H4 (direct INSERT → 42501). If
+-- this block is ever read as "the grant is fine", those four are the contradiction.
+grant insert, update, delete on public.rca_evidence to authenticated;
+grant insert, update, delete on public.capa_action_evidence to authenticated;
+
+-- ============================================================================
 -- RCA family — FOR ALL `_write` gates on can_write_rca(rca_id). Writer = chefe.ccih
 -- (rca member-lead); reader-non-writer = staff2.ccih (reads event, cannot write).
 -- ============================================================================

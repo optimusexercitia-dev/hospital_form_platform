@@ -1166,7 +1166,67 @@ is only about the rot the mechanism cannot see.
 run as part of `ARM=floor` — turning silent rot into the same loud failure the live half already
 gets. ⚠ Prove it able to fail before trusting it: line 41 is a ready-made positive control.
 
-### 🟡 FUP-DM5-GRANTS — `rca_evidence` / `capa_action_evidence` RPCs are NOT single doors (owner: backend; filed 2026-08-14 by ADR 0120)
+### ⬛ FUP-DM5-GRANTS — ✅ **CLOSED 2026-08-17.** The RPCs are now the only writers — and closing it nearly INTRODUCED a stale-COVERED policy (owner: backend; filed 2026-08-14 by ADR 0120)
+
+**Fix:** migration `20260928000200_evidence_tables_revoke_direct_write.sql` revokes
+`insert, update, delete, truncate, references, trigger` on both tables from `authenticated`.
+**SELECT is deliberately kept** — six measured call sites read these tables directly under RLS
+(`queries/rca.ts:553`, `queries/capa.ts:505`, `safety/capa-actions.ts:501,558`,
+`safety/rca-actions.ts:592,694`), all `.select()`, zero direct writes. The migration is
+self-verifying (asserts the write privileges are gone, that SELECT survived, and that the owner
+can still write).
+
+**Safe because the authorization moved WITH the path, verified from the live catalog:** all four
+doors are `prosecdef = t` owned by `postgres`, and each gates on the *same* predicate the RLS policy
+used — `add_rca_evidence` → `app.assert_rca_writable` → `app.can_write_rca` (HC048);
+`add_capa_action_evidence` → `app.assert_capa_writable` → `app.can_write_capa` (42501).
+⚠ **A first pass concluded there was NO gate**, because it grepped for `can_write_rca|can_write_capa`
+and the call is named `assert_rca_writable` — [[enumeration-boundary-is-a-syntax-not-a-property]]
+inside the verification of a security change. **The body was read; the regex was not believed.**
+
+**Evidence:** pgTAP `341` block **H**, plan 53→57 — H1/H2 `table_privs_are(...) = {SELECT}` exactly
+(fails in BOTH directions: a re-grant reds it, so does an over-revoke that strips SELECT), H3/H4
+behavioural twins proving the FUP's own bypass (`POST /rest/v1/rca_evidence`) now gets 42501.
+`table_privs_are` was **red-proven** by re-granting inside a throwaway suite.
+
+### ⭐⭐ The finding: this fix would have made TWO P0 policies silently BLIND
+
+The revoke closes the direct-DML path — which is the **subject under test** of two keystones in
+`252_authz_p0_isolation.sql`, an ADR-0078 P0 suite whose contract
+(`p0b-isolation-mutation-audit.sh:146,154`) is *"opening the policy must redden the DENY"*. With the
+grant gone the reader-non-writer's INSERT fails at the **grant** (42501) before RLS is consulted, so:
+
+| | before | after the naive revoke |
+|---|---|---|
+| `*_write POS` (authorized writer inserts) | passes | **FAILS** — loud, catchable |
+| `*_write DENY` (reader-non-writer refused) | passes *because RLS refused* | **passes because the GRANT refused** — green, and testing nothing |
+
+The DENY half is the dangerous one: `rca_evidence_write` and `capa_action_evidence_write` would have
+gone **BLIND** while `docs/reviews/authz-door-audit-findings.md:324,436` still recorded them
+**COVERED**. That is *STALE-COVERED arriving as a status change rather than a body change* — the exact
+defect **FUP-DM5-330-WRITE-BLIND** is open about. Found by asking which OTHER suites do direct DML on
+these tables, not by running the suite and reacting; `341`'s own F8 failed first and was the prompt.
+
+**Resolution — keep both properties.** `252` restores the grant **inside its own rolled-back
+transaction**, solely to reach the policy under test; production keeps the revoke, pinned by `341`
+H1–H4. **Mutation-proven, not asserted:** re-running `252` with both policies opened to
+`using(true) with check(true)` fails **tests 1 and 14 — exactly those two and nothing else**. Verified
+afterwards that neither policy was left open and grants are SELECT-only (the shared-stack hazard from
+[[mutation-harness-must-prove-its-rollback-first]]).
+
+⭐ **Why the RLS policies are KEPT rather than retired as unreachable.** They are now the second lock,
+and the one that matters: `ALTER DEFAULT PRIVILEGES FOR supabase_admin IN SCHEMA public` still grants
+`arwdDxtm` to `authenticated` on **every new table**, and `20260620000000_baseline.sql:22989,23088`
+is a pg_dump that already restored these grants once. A re-dump silently re-arms direct DML — and if
+RLS had been dropped as "unreachable", the tables would then be defended by nothing. **A protection
+that a routine re-dump disarms, while its keystone reads COVERED, is worse than the one it replaced.**
+
+⚠ **Generalises past this item:** that default-privilege posture means **any new table in `public`
+starts with full `authenticated` grants**. The narrow idiom this project uses elsewhere
+(`grant select on public.X to authenticated`) only holds where someone remembered to write it.
+
+<details><summary>Original filing (2026-08-14) — retained</summary>
+
 
 Both tables carry **table-wide `arwdDxtm` grants to `authenticated`**, so a client can
 `POST /rest/v1/rca_evidence` directly and never traverse `add_rca_evidence`.
@@ -1184,6 +1244,7 @@ path — the DM3 QA MAJOR-1 shape, where the gate sat on the last step of a corr
 corridor. Note the parked CHECK `rca_evidence_cited_document_parked` **does** hold against direct
 DML, being a table constraint; that is the third of the three locks and the reason the citation seam
 is safe today.
+</details>
 
 ### 🟠 FUP-DM4-RECUSAL — a RECUSED coordinator can freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline = the `documents_wave_c` flag-on date**)
 
