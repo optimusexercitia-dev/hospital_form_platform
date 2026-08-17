@@ -12,7 +12,9 @@
 --   * source_indicator_id accepts NULL + is FK-LESS / deferred-safe for Phase 15;
 --   * the close->event-closure side effect (fires only when fully settled);
 --   * RCA-sourced + event-sourced + manual open_capa_plan all work;
---   * the CAPA + RCA nsp-evidence object policies are MUTUALLY EXCLUSIVE by construction;
+--   * the CAPA + RCA nsp-evidence object doors are RETIRED together (DM5·S4) — was:
+--     "MUTUALLY EXCLUSIVE by construction"; the pair was pinned together, so it is
+--     retired together (see the block at :267);
 --   * cancel HC053 on a terminal plan;
 --   * PHI-free capa audit rows (status/verdict only — no *_md body).
 

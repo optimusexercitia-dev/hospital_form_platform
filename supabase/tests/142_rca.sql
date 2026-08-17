@@ -9,7 +9,10 @@
 --     ≤5 steps) -> root cause; the why-chain drops when a factor is un-keyed;
 --   * evidence three-way XOR (document/link/citation) — valid shapes insert, mixed
 --     shapes are rejected (check_violation);
---   * the immutable nsp-evidence bucket rejects UPDATE/DELETE (no policy);
+--   * the nsp-evidence bucket doors are RETIRED (DM5·S4) — was: "the immutable
+--     nsp-evidence bucket rejects UPDATE/DELETE (no policy)", which went VACUOUS
+--     when the bucket row died; the write authority now lives in
+--     app.can_write_document's rca arm (see the block at :262);
 --   * rca_root_causes PK is FK-ready for capa_action (a FK can reference it);
 --   * PHI-free rca audit rows (status only — no *_md body in the diff).
 --
