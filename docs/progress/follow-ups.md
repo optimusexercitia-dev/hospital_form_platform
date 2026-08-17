@@ -2143,7 +2143,32 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 
 - 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
 
-### 🟡 FUP-DM5-DVF-FILEOBJ — latent: the mint creates a FRESH `file_object` and never binds a pre-existing one (owner: backend)
+### 🟡 FUP-DM5-DVF-FILEOBJ — latent: the mint creates a FRESH `file_object` and never binds a pre-existing one — ⚠ **and the RECHECK found latency rests on CALLER DISCIPLINE ALONE** (owner: backend)
+
+> **RE-CHECKED 2026-08-17 (the item's own "re-check at S4/S5" instruction).**
+> ✅ **Still latent, for the stated reason:** `mint_printed_document` is the only door that
+> both inserts into `document_version_files` **and** mints its own `file_objects` row, so the
+> S3 property held.
+>
+> ⚠ **What the recheck ADDED, and it changes who must care.** The item reads as though the
+> schema were holding the line. It is not: `document_version_files`'s only unique constraint
+> is **`(document_version_id, rendition_kind)`** — there is **no uniqueness on
+> `file_object_id`**. So one `file_object` bound to many versions is **structurally
+> permitted**, `ON DELETE RESTRICT` is the only backstop, and nothing would notice a slice
+> that started sharing bytes.
+>
+> ⛔ **This is a BINDING input to ADR 0121's disposal lifecycle, which is the slice that makes
+> it live.** Disposing a shared `file_object` would retire bytes still bound to another
+> version, and `complete_document_disposal`'s "all versions disposed" check walks
+> `document_id`, not the sharing graph. Whoever builds the outflow must either add the
+> uniqueness, or make disposal sharing-aware, or record the assumption executably.
+>
+> ⚠ A first pass at this recheck asked "does any door bind a pre-existing `file_object`" and
+> got **two** hits (`complete_document_upload_verification`, `complete_document_reclassification`)
+> — both false positives: they bind a row created moments earlier in the same corridor, which
+> is not the sharing the item means. *The predicate was quoted at the wrong grain*
+> ([[a-predicate-quoted-at-the-wrong-grain]]); the discriminating question was about the
+> CONSTRAINT, not the callers.
 
 ⚠ **This item had no live bullet of its own** — it was named only inside the DM5 phase section's
 "Open:" list and inside the DM5·S3 QA verdict. Both were rotated on 2026-08-14, so without this body
