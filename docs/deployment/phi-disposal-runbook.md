@@ -300,7 +300,10 @@ controls, the two byte-side ones do not survive the loss of local proof.
 **(c) A bucket whose bytes are gone while its metadata survives.** ⛔ Until
 2026-08-17 this verdicted `CONSISTENT_EMPTY` → **CAPTURE CLEAN → exit 0**, and it
 was **non-monotonic**: losing *some* of a bucket's bytes was dirty (exit 1), losing
-*all* of them was clean (exit 0) — the worse state reported better. That is what a
+*all* of them was clean (exit 0) — the worse state reported better. ⚠ *Both halves
+of that comparison are now measured — R7 (total loss) and R9 (partial loss); until
+QA r2 the partial half was asserted here and observed by nobody, which is half a
+claim in the sentence that justified the fix.* That is what a
 storage-volume loss with the database intact produces. **Fixed** (it is now
 `MISSING_BYTES`, dirty) and pinned by rehearsal **R7** with its permissive twin,
 plus selftest **C14/C15**. Named here because it is the direction an operator is

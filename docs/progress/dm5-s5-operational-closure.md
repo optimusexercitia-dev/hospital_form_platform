@@ -130,7 +130,7 @@ refusal whose own numbers look benign is how a STOP gets ignored.
 
 | check | result |
 | --- | --- |
-| `rehearse` | at this point **16/16, exit 0** — the **14 pre-existing arms all still pass**, plus R3c and R3d. **Now 19/19** after QA r1 added R7 + R7-twin and the enumeration added R8 (§6d, §6e) |
+| `rehearse` | at this point **16/16, exit 0** — the **14 pre-existing arms all still pass**, plus R3c and R3d. **Now 22/22** after QA r1 added R7/R7-twin, the enumeration added R8, and QA r2 added R6-residual/R9/R9-monotonic (§6d, §6e, §6f) |
 | `selftest` | at this point **13/13, exit 0** — all originals intact (lead-requested re-check). **Now 18/18** after QA r1 added C14/C15/C16/C17 and the enumeration added C18 (§6d, §6e) |
 | storage volume | **byte-identical to step 0: 245 files / 2,456,666 bytes**, `phi_tier_keys=68`, zero `dm5-%` buckets left |
 
@@ -175,30 +175,82 @@ stated.
 Executed: dumped, then **replayed into a fresh database** in the same container
 (nothing existing touched), then compared catalogs.
 
-| | source `postgres` | bare-DB restore | + 3 empty schemas & 2 stub fns |
+| | source `postgres` | bare-DB restore (ARM A) | + 3 empty schemas & 2 stub fns (ARM B) |
 | --- | --- | --- | --- |
 | `psql` exit code | — | **0** | **0** |
 | true error count | — | **490** | **10** |
 | tables (`public`) | 165 | **161** | 165 |
 | **RLS policies (`public`)** | **274** | **⛔ 90** | **274** |
-| triggers | 235 | 216 | — |
+| DEFINER functions | 773 | — | 773 |
+| **triggers** | **235** | 216 | **⛔ 227 — NOT parity** |
 
 **`supabase db dump`'s output is not a standalone restore artifact.** Replayed onto
 a bare Postgres it produces 490 errors (193 × `schema "X" does not exist`, 281 ×
 `relation "X" does not exist`) and yields a database that *looks* restored — 161
 tables with RLS enabled — while **two thirds of the security boundary is missing.**
 Diagnosis confirmed by a second measurement: pre-creating empty `auth`, `storage`,
-`extensions` plus stub `auth.uid()`/`auth.role()` took errors 490 → 10 and both
-tables and policies to **full parity**. The supported restore target is therefore a
-**Supabase-initialized** database (locally `supabase db reset` first; on Cloud
-PITR / `db push` + seed).
+`extensions` plus stub `auth.uid()`/`auth.role()` took errors 490 → 10. The supported
+restore target is therefore a **Supabase-initialized** database (locally
+`supabase db reset` first; on Cloud PITR / `db push` + seed).
+
+⛔ **CORRECTED at QA r2 — ARM B does NOT reach "full parity", and my saying so was
+the same defect one layer out.** I measured tables and policies, saw both match, and
+generalised to "full parity" without checking the other columns. Re-measured
+independently (I re-ran ARM B rather than inherit QA's figure): **triggers 227 vs
+235 — eight missing, with only 10 errors reported.** Parity holds on tables (165),
+policies (274) and DEFINER functions (773); it does **not** hold on triggers.
+
+**Which eight, because it changes the conclusion** — diffed by name from
+`pg_trigger`:
+
+```
+auth.users.on_auth_user_created            storage.buckets.protect_buckets_delete
+auth.users.on_auth_user_email_changed      storage.objects.protect_objects_delete
+auth.users.on_auth_user_email_confirmed    storage.objects.update_objects_updated_at
+realtime.subscription.tr_check_filters     storage.buckets.enforce_bucket_name_length_trigger
+```
+
+All eight are on **platform-managed tables** that my empty stub schemas never
+created — hence exactly 8 `relation "X" does not exist` errors. So they are not
+application triggers that failed to restore; they are the **platform surface my
+diagnostic never built.**
+
+⛔ **Two of them are `protect_buckets_delete` / `protect_objects_delete`** — the very
+guards ADR 0120 D9 and this whole phase rely on to stop a raw metadata delete — and
+one is `on_auth_user_created`, the profile-provisioning hook. So the honest statement
+is: **ARM B was a DIAGNOSTIC that isolated a cause, never a valid restore.** Calling
+it "full parity" invited a reader to treat hand-stubbed schemas as a restore
+procedure, which would produce a database with **no storage delete protection and no
+profile provisioning** — and 10 errors, exit 0, tables and policies all matching.
+
+⭐ **This strengthens the drill's conclusion rather than weakening it, and it is the
+strongest argument for the runbook's own comparison query** (§"VERIFIED GOOD"), which
+includes `triggers` and would therefore **correctly refuse** this restore. The rule
+was written to catch exactly the class its own author had just fallen into.
 
 ⛔ **Two false signals aligned to nearly produce a confident wrong conclusion, and
 I am recording my own error because it is the transferable part:** `psql` without
 `ON_ERROR_STOP` **exits 0 while statements fail**, and my first error count used
-`grep -c '^ERROR'` — which matches nothing, because psql prefixes errors with
-`psql:file:line:`. I briefly held "restore succeeded, 0 errors". Only the
-**catalog comparison** exposed it. *An operator who replays a dump and checks the
+`grep -c '^ERROR'`, which matched **0**. I briefly held "restore succeeded, 0
+errors". Only the **catalog comparison** exposed it.
+
+⚠ **CORRECTED at QA r2 — my explanation of the anchor was stated as a property of
+`psql` and it is a property of the INVOCATION.** Re-measured both ways on this stack
+with a two-error script:
+
+| invocation | `grep -c '^ERROR'` | `grep -c 'ERROR:'` | first line |
+| --- | --- | --- | --- |
+| `psql -f file.sql` (**what the drill used**) | **0** | 2 | `psql:/tmp/errs.sql:1: ERROR:  division by zero` |
+| `psql < file.sql` (**stdin**) | **2** | 2 | `ERROR:  division by zero` |
+
+So the record's *"psql prefixes errors with `psql:file:line:`"* is true **only for
+`-f`**; on stdin there is no prefix and `^ERROR` works perfectly. My measurement of
+0 was correct for my invocation; the **generalisation** was not. ⭐ **The lesson
+survives and is strengthened:** the correctness of a count depends on **how you
+invoked the thing you are counting with** — an anchored pattern is a bet on an output
+format that the same binary changes between invocations. `grep -c 'ERROR:'`
+(unanchored) is right in both. *A detector validated under one invocation is not
+validated.* *An operator who replays a dump and checks the
 exit code will believe the restore worked.* Same family as this program's
 ["Nothing failed ≠ nothing ran"](../../.claude/…) lesson and the enumeration-boundary
 class — the bound was a syntax, not the property.
@@ -350,7 +402,7 @@ All run unpiped, exit codes captured.
 | `npm run lint` (5 chained) | **exit 0** — eslint 0 errors **0 warnings**, css-vars, memberships-door (10/10 self-test), client-server-imports (481 client / 124 server modules, 0 findings), vacuous (42/42 self-test, 185 spec files, 0 findings) | ⚠ see below |
 | `npm run typecheck` | **exit 0** | 0 |
 | **`next build`** | **exit 0** — compiled successfully, **19/19** static pages | ⚠ **Added at QA r1 (MINOR-1).** This phase's plan names it in gate step 1 and the first version of this table simply **omitted** it — neither run nor listed as NOT COVERED, *which is the one shape a reader cannot detect.* It is also the **only** gate that catches the BUG-FBE-005 class (a client value-import from a server module aborts `next build` while tsc/lint/vitest stay green) — precisely the exposure a new file under `src/lib/` creates. An omission that happened to be harmless is still the omission. QA ran it independently: exit 0. |
-| `storage-manifest.mjs rehearse` | **19/19, exit 0** | was 16/16 → **+R7 +R7-twin** (QA MAJOR-1) **+R8** (the verdict enumeration, §6e); the **16 pre-existing arms all still pass** |
+| `storage-manifest.mjs rehearse` | **22/22, exit 0** | was 16/16 → **+R7 +R7-twin** (QA r1 MAJOR-1) **+R8** (the ninth verdict) **+R6-residual +R9 +R9-monotonic** (QA r2); the **16 pre-existing arms all still pass** |
 | `storage-manifest.mjs selftest` | **18/18, exit 0** | was 13/13 → **+C14 +C15 +C16** (MAJOR-1 and the sibling gap the guard-set diff found) **+C17** (MAJOR-2's affinity guard) **+C18** (the ninth verdict); **all 13 originals intact** |
 | stack state after everything | volume **245 files / 2,456,666 bytes**, `buckets=4`, `dm5_buckets=0`, `dm5_drill*` databases **0** | byte-identical to step 0 |
 
@@ -447,12 +499,22 @@ A delivered slice is not an absence of gaps.
     files. A caller added under `e2e/`, in a test file, or outside those roots is
     invisible to it. The pgTAP half is bounded to non-temp schemas.
 13. **The three follow-ups are filed, not fixed** — per the lead's ruling.
-14. ✅ **`DIVERGED_BOTH_WAYS` is now constructed** (QA 8.7, ruled into r2 rather than
-    filed) — **R8** end to end plus **C18** direct. The full nine-verdict enumeration
-    is §6e. ⚠ **The enumeration bounds one function's RETURN DOMAIN and nothing
-    more**, and QA's closing warning stands verbatim: **both blocking items came from
-    building a state nobody had built, so I make no claim that the remaining
-    unconstructed states are safe.**
+14. ✅ **`DIVERGED_BOTH_WAYS` is now constructed** (R8 + C18), and ✅ **`MISSING_BYTES`
+    via PARTIAL loss** (R9 + R9-monotonic, QA r2) — the path that carried half the
+    non-monotonicity claim. The enumeration is **nine verdicts over eleven paths**
+    (§6e). ⚠ **It bounds one function's RETURN DOMAIN and nothing more**, and QA's
+    closing warning stands verbatim: **both blocking items came from building a state
+    nobody had built, so I make no claim that the remaining unconstructed states are
+    safe.**
+19. **Surplus version files read CLEAN** (QA r2) — 5 keys / 6 files verdicts
+    `CONSISTENT`, exit 0, because the verdict is key-set based. Recorded as a
+    residual, **not** made dirty, because no supported operation on this Storage
+    version produces it. ⛔ **It becomes a real defect the moment any Storage version
+    retains object versions** — the trigger condition is named in the code. Not fixed,
+    by decision.
+20. **The C16 ↔ `volumeCensus` coupling is unpinned** (QA r2) — C16 asserts the
+    mapping for the shape the catch block produces today, but nothing asserts the
+    producer keeps producing it. A hand-maintained assumption between two places.
 15. **`UNVERIFIED_PROOF_ERROR` is pinned only at the `verdictFor` grain** (C16), not
     end to end — forcing a real per-bucket `docker exec` failure would need stubbing,
     which the rehearsal avoids on principle. The mapping is proven; the plumbing
@@ -696,7 +758,26 @@ configuration**, and it was stated as *measured*.
 | **INFO-5** | the drill's 68 PHI-tier files noted as **PHI-by-bucket, from seed/E2E artifacts, not real patient data** — the 🔴 grades the mechanism as applied to production |
 | **INFO-1** | ⚠ **NOT taken — lead-owned.** `docs/plans/dm5-wave-d-retirement-plan.md:131` still contradicts PROGRESS on S4's status, and S6 will read the plan |
 
-## 6e · The verdict enumeration — every outcome of `verdictFor`, and whether anything has ever produced it
+## 6e · The verdict enumeration — NINE verdicts over ELEVEN PATHS
+
+> ⚠ **Restated at QA r2: the first version of this section enumerated NAMES and
+> called itself complete.** It was complete on names and incomplete on **paths** —
+> several verdicts are reachable by more than one route, and *"every verdict has a
+> control"* is a weaker statement than it sounds. The count that matters is
+> **9 verdicts over 11 reachable paths.** Enumerating the wrong denominator is the
+> same defect as an underived count, one level up — and it hid the specific gap below.
+>
+> **The path that had no control:** `MISSING_BYTES` via **PARTIAL** byte loss
+> (directory present, some keys missing). R7 constructs only the **total**-loss route.
+> ⛔ That mattered because **the entire justification for the MAJOR-1 fix is the
+> non-monotonicity claim** — *"lose SOME bytes ⇒ dirty exit 1; lose ALL ⇒ clean exit
+> 0; the worse state reported better"* — and while the `lose ALL` half was measured
+> (R7, observed red pre-fix), the `lose SOME` half was **asserted by the code comment
+> and by runbook §6(c) and observed by nobody.** A comparative claim with one measured
+> half is half a claim. ✅ **Now constructed: R9** (partial loss ⇒ `MISSING_BYTES`,
+> exit 1, directory present, 4 of 5 volume keys) **plus R9-monotonic**, which asserts
+> the convergence itself — both paths now yield the same verdict and the same exit,
+> so the claim the fix rests on is an assertion rather than a sentence.
 
 Ruled into r2 rather than filed, on the grounds that **both r1 blocking items came
 from someone constructing a state nobody had constructed** — 2 for 2 for that
@@ -720,7 +801,8 @@ lines**, so it was constructed, not filed.
 | 2 | `CONSISTENT_EMPTY` | ✅ clean | both sides empty | **R1x** (e2e, post-delete re-capture) · **C15** (direct) |
 | 3 | `BUCKET_ABSENT` | ✅ clean | row gone, nothing on the volume | **R5** (e2e, verified teardown) · **C10** (direct) |
 | 4 | `ORPHANED_BYTES` | ⛔ dirty | volume key the API cannot see | **R2** (e2e) · **C6** (direct) |
-| 5 | `MISSING_BYTES` | ⛔ dirty | API key whose bytes are gone | **R7** (e2e — QA MAJOR-1) · **C14** (direct) |
+| 5a | `MISSING_BYTES` | ⛔ dirty | **TOTAL** loss — directory removed | **R7** (e2e — QA MAJOR-1) · **C14** (direct) |
+| 5b | `MISSING_BYTES` | ⛔ dirty | **PARTIAL** loss — directory present, key missing | ✅ **NOW R9 + R9-monotonic** — previously **no control** |
 | 6 | `BUCKET_ABSENT_ORPHANED_BYTES` | ⛔ dirty | row gone, bytes survive | **C9** (direct); e2e via R3d's delete-path twin |
 | 7 | `UNVERIFIED_NO_LOCAL_PROOF` | ⛔ dirty | no proof obtainable | **R6-capture** (e2e, `docker` off `PATH`) |
 | 8 | `UNVERIFIED_PROOF_ERROR` | ⛔ dirty | the measurement **failed** | **C16** (direct only — see below) |
@@ -766,6 +848,18 @@ than one wrong in one.**
   by removing `docker` from `PATH`, never by stubbing). So the *mapping* is pinned
   and the *plumbing* from a genuine docker failure to that verdict is not. Recorded
   as NOT COVERED item 15 rather than papered over.
+  ⚠ **Wording corrected at QA r2:** the claim is *"no route we are willing to
+  construct safely"*, **not** *"no non-stubbing route exists"* — the latter was never
+  established and is a stronger statement than anything I measured. A per-bucket
+  permission change or a mid-run container stop might well reach it; I did not try,
+  because both are riskier on a shared stack than the coverage is worth.
+  ⚠ **And a coupling nobody pins** (QA r2): C16 asserts the mapping for an input
+  shaped `{present:false, error:'…'}` — the shape `volumeCensus`'s catch *actually*
+  produces — but **nothing asserts that the producer keeps producing that shape.**
+  If the catch block were changed to, say, omit `error` or set `present: true`, C16
+  would keep passing while the real path stopped reaching the verdict. That coupling
+  is a hand-maintained assumption between two places, which is the class this whole
+  slice is about; it is recorded rather than fixed.
 - **#6's end-to-end arm** exists on the delete path (R3d) rather than the capture
   path, because constructing it for `capture` means dropping a bucket row while its
   bytes survive — which R3d already does, and doing it twice in one rehearsal adds
@@ -779,6 +873,63 @@ remaining unconstructed states are safe.* What the table bounds is one function'
 COVERED item 5), the `catch` arm of the delete classifier is still untested (item 4),
 and QA's own closing note applies unchanged: both blocking items came from building
 a state nobody had built.
+
+## 6f · QA r2 (✅ APPROVED, 0 P0 · 0 MAJOR · 6 MINOR · 6 INFO) — the four MINORs taken now
+
+Report `docs/reviews/dm5-s5-review-r2.md` @ `3363cc8e`. The remediation was re-proved
+by neutralization; N1's R7 line came back **character-identical** to my pre-fix
+observation, and **C15 passed with the fix reverted**, confirming it as an over-reach
+bound rather than a companion assertion. ⛔ **S5 is not closable:** `e2e:prod` is
+PO-deferred until the follow-ups are scoped, so gate step 2 is **owed, not passed.**
+
+**MINOR-1 — the tool printed a reassurance about the one control that is blind, in
+the situation where it is blind, on a destructive path.** The no-local-proof residual
+ended *"The count-comparison gate still holds."* R6 measures that exact situation:
+`deleted=5 manifest=5 MATCH`, *"ALL BUCKETS MATCHED THEIR MANIFEST COUNT"*, exit 0 —
+**with a real file surviving.** *"Still holds"* is true of the comparison **executing**
+and false of the assurance a reader takes from it.
+
+⭐ **This slice's own class, one layer up, inside the remediation written for it.** The
+message now states the bound with the capability: the comparison **runs**, it is the
+**only** control that survives without local proof, and it **cannot** detect an
+under-count or a two-way divergence — it refuses only an **over-count**. And the
+**wording is pinned** by new arm **R6-residual**, which requires the bound to be
+stated *and* forbids the old sentence returning: an unpinned message proven wrong once
+comes back.
+
+**MINOR — nine verdicts over ELEVEN paths**, and the unobserved path constructed. See
+§6e: `MISSING_BYTES` via **partial** loss had no control, and it was the half of the
+non-monotonicity claim that justified the MAJOR-1 fix. **R9 + R9-monotonic** now
+measure it and assert the convergence directly. Runbook §6(c) updated to say both
+halves are measured.
+
+**MINOR — the tail-branch sibling: surplus version files read CLEAN.** QA measured 5
+API keys / 5 volume keys / **6 volume files** → `CONSISTENT`, `orphan_files=0`, exit 0,
+because `verdictFor` compares **key sets** and a surplus version file adds no key.
+**Recorded as a residual rather than made dirty**, because QA measured reachability
+both ways and on this Storage version an API upsert **replaces** the version file — so
+no supported operation currently produces a surplus, and reddening it would make the
+tool refuse an impossible state. Verified the residual does **not** fire on the real
+volume today (files == keys on all four buckets: 156/156, 68/68, 12/12, 9/9).
+
+⛔ **The escalation trigger is named in the code, per the lead's instruction, so a
+future upgrade surfaces it instead of silently promoting it:** *if any Storage version
+begins **retaining object versions*** (upsert keeping the prior file, versioning or
+soft-delete enabled, a multipart remnant), surplus files become routine — and they are
+**bytes no key can address**, undeletable through the API and invisible to a key-set
+comparison. Under Rule 12 that is **undisposable PHI**. At that point the residual
+must become a dirty verdict. *Re-read this the next time `supabase` is upgraded.*
+
+**MINOR — two corrections to the drill record**, both applied above: the `^ERROR`
+anchor is **invocation-dependent** and my explanation stated it as a property of
+`psql` (re-measured both ways: `-f` → 0 matches, stdin → 2 matches), and **ARM B does
+not reach full parity — triggers 227 vs 235**, which I re-ran rather than inherit, and
+whose eight missing triggers include `protect_buckets_delete`,
+`protect_objects_delete` and `on_auth_user_created`.
+
+**Left alone, per QA:** `UNVERIFIED_PROOF_ERROR`'s structural reason stands, with its
+wording softened to *"no route we are willing to construct safely"*, and the
+C16-anchoring coupling is now recorded (§6e).
 
 ## 7 · Doubts handed over, not just conclusions
 
@@ -798,7 +949,7 @@ a state nobody had built.
    The lead ratified it afterwards. I still flag that accumulated changes to one
    operational tool in one slice is where a regression hides — which is why
    `selftest` and `rehearse` are always reported with "originals intact" rather
-   than only the new totals (now **18/18** with 13 originals intact, and **19/19**
+   than only the new totals (now **18/18** with 13 originals intact, and **22/22**
    with 16 originals intact). ⭐ **QA r1 vindicated the worry in the sharpest
    possible way**: the accumulated changes were fine, but the *fix itself* left its
    own sibling branch two lines below untouched. The regression risk was not in the
