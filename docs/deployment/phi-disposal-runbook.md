@@ -72,6 +72,20 @@ happens.
   anything: delete the Storage object **first**, call the door **second**. In the
   other order the door raises `HC0D9`.
 
+> ⛔ **DO NOT CYCLE THE LOCAL STACK DURING A RUN — `supabase stop` followed by
+> `supabase start` SILENTLY DESTROYS THE STORAGE VOLUME.** Measured, not suspected:
+> this is how this program lost **221 files, 15 of them PHI-tier**. There is no
+> warning, no prompt and no error; `docker ps` afterwards shows a healthy stack, and
+> `storage.objects` still lists every row, so the loss is invisible to every SQL-side
+> check — the metadata survives and the bytes do not, which is the orphan class in
+> §4 arriving from the opposite direction.
+>
+> ⚠ **The mechanism is still undetermined** (`FUP-DM5-STACK-CYCLE-DESTROYS-BYTES`),
+> so treat this as a rule, not a diagnosis to reason around. If the stack must be
+> cycled, take the §6b backup **first** and verify it catalog-compared afterwards.
+> ⚠ A restart of individual containers is not the same operation and has not been
+> shown to do this — but it has not been shown safe either.
+
 ## 3 · The procedure
 
 ### Step A — enumerate the pending work
@@ -110,11 +124,54 @@ buckets). **Go through the Storage API, never raw SQL against
 unreachable orphans, and `storage.protect_objects_delete` blocks the raw route
 anyway.
 
+> ⛔ **TWO WAYS `supabase storage rm` LIES TO YOU. Both were hit in one hour on
+> 2026-08-17, on the remote, and they fail in OPPOSITE directions.**
+>
+> **1 · Without `--yes` it deletes NOTHING and still exits 0.** The command hits an
+> interactive `[y/N]` prompt, reads EOF in any non-interactive context (a loop, a
+> script, an agent), and returns success having done nothing. A loop over 38 paths
+> reported clean and removed zero objects. **Always pass `--yes`, and always
+> re-`ls` before believing a deletion happened** — the exit code is not evidence.
+>
+> **2 · `-r ss:///<bucket>` deletes the BUCKET ITSELF, not just its contents.** The
+> `-r` reads as "recursive into the contents"; it is not. The bucket was destroyed
+> and had to be restored from `baseline.sql`. ⚠ **And the wreckage is invisible to
+> the obvious audit**: the bucket's RLS policies live on `storage.objects`, so they
+> SURVIVE the bucket's deletion and `pg_policies` still shows a complete, healthy
+> policy set for a bucket that no longer exists. To delete contents, enumerate the
+> paths from step A and delete them individually.
+>
+> Neither hazard is theoretical and neither is caught by any gate — this runbook is
+> the only place they are recorded before an operator meets them.
+
 ### Step C — complete the disposal
 
+⚠ **The signature changed on 2026-08-17 (ADR 0121 D4, migration `20260928000400`).**
+The door is now `complete_document_disposal(p_file_object_id uuid, p_byte_proof text)`
+and it **records what it actually verified** beside the state it writes. Passing one
+argument still works — the default is `not_attempted` — but that default is the
+**honest** value, not a convenient one, and using it throws away a byte proof you may
+have just performed. **Pass the proof explicitly.**
+
 ```sql
-select public.complete_document_disposal('<file_object_id>'::uuid);
+-- LOCAL, and you ran the volume walk in step D and it showed the bytes gone:
+select public.complete_document_disposal('<file_object_id>'::uuid, 'local_volume_verified');
+
+-- CLOUD, where no orphan-visible surface has been found (§4):
+select public.complete_document_disposal('<file_object_id>'::uuid, 'unavailable_on_platform');
+
+-- You did not attempt a byte proof at all:
+select public.complete_document_disposal('<file_object_id>'::uuid, 'not_attempted');
 ```
+
+The vocabulary is **closed** — exactly those three values, enforced in the body. An
+unconstrained free-text field would let an operator write anything into a
+regulator-facing record, which is the same defect one layer up. Anything else raises
+`check_violation` (*"prova de exclusão de bytes inválida"*).
+
+⭐ **This does not manufacture a proof that does not exist.** On Cloud there still is
+none. It stops the record from CLAIMING one — read §4, which is the whole reason this
+parameter exists.
 
 On success the row becomes `disposed` with `disposed_at = now()`, and **if every
 file of the document is disposed** the document itself is marked `disposed`, its
@@ -148,6 +205,19 @@ select count(*) from public.file_objects where disposal_state = 'disposal_pendin
 # LOCAL ONLY — the byte-level proof. Compare against the count you recorded.
 node scripts/storage-manifest.mjs walk
 ```
+
+```sql
+-- ⭐ READ THE EVIDENCE, NEVER THE STATE ALONE (ADR 0121 D4). `disposed` means
+-- "the metadata row is absent"; what was verified about the BYTES is here.
+select id, disposal_state, disposal_evidence
+  from public.file_objects
+ where id = '<file_object_id>';
+```
+
+`disposal_evidence.byte_proof` is the field a regulator-facing export must carry.
+A run where every row reads `unavailable_on_platform` is a **valid** run — it is
+an honest record of a Cloud disposal — but it is *not* a record that the bytes
+were destroyed, and it must never be summarised as one.
 
 ## 4 · ⛔ What "verified deletion" does NOT prove
 
@@ -522,7 +592,24 @@ unless the operator makes one. Keep, per run: the date, the executor, the step-A
 row count, the per-row outcome (including any `HC0DR` escalation), the step-D
 count, — explicitly — **whether the byte half was verified or only asserted**
 (§4), and **if any Storage backup was taken: where it was written, who could read
-it, and when it was destroyed** (§6b). A backup with no destruction record is an
+it, and when it was destroyed** (§6b).
+
+**The template, with the one slot this document cannot fill for you:**
+
+```
+run date / executor:
+step-A pending count:
+per-row outcome (id → byte_proof value passed in step C):
+step-D pending count (must be 0):
+byte half:  local_volume_verified | unavailable_on_platform | not_attempted
+BACKUP DESTINATION (absolute path):  ______________________________________
+    ⛔ MUST be filled at first execution and MUST have passed phi_backup_dir_ok
+       (§6b). Deliberately blank here: it is per-machine, and a path invented by
+       this document is a path nobody checked. An empty slot is a blocked run,
+       NOT an optional field — the §6b decision "Location: exact path recorded in
+       the run log at first execution" is discharged HERE or nowhere.
+backup destroyed (key first, then archive) — date + what each act proves:
+``` A backup with no destruction record is an
 open PHI export, not a completed step. The database's own audit trail records `document.disposed` and
 `document.retention_override`, which covers *that* a disposal completed and
 *who*; it does not record that the bytes were proven gone.
