@@ -267,7 +267,13 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 > - ⛔ **What remains open, and why this item is NOT resolved:** the 221 local orphan files are still on the
 >   volume. They are unreachable through the D9 gate **by definition**, so closing this needs either a
 >   filesystem action (a method D9 deliberately excludes) or acceptance that local dev volumes accumulate
->   orphans across resets. **Pending PO decision.**
+>   orphans across resets.
+>   **✅ PO RULED 2026-08-17: LEAVE THEM; this follow-up stays OPEN.** Rationale accepted: they are
+>   unservable (every Storage read path resolves metadata first) and are local dev artifacts, so a
+>   filesystem deletion would buy tidiness at the cost of using a method D9 excludes — and would make the
+>   gap *look* closed while the real, production-facing question (an orphan-visible tool on Cloud) is
+>   untouched. ⭐ **Keeping the item open is the point: it is the honest record of a gap, not a task
+>   nobody did.**
 > - ⚠ **`delete --execute` has still never run against a populated bucket.** Its correctness rests on S0's
 >   8/8 self-test, not on an S4 execution — so **the production sequence remains unrehearsed end-to-end**,
 >   even though production is where it is actually meaningful (it has metadata rows: 45 objects at the

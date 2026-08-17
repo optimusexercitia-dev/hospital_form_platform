@@ -569,8 +569,9 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 > definition**, `capture` returned `DEGENERATE BASELINE`, and **`delete --execute` was never run.**
 > - ✅ Closed: the metadata/schema half, durably (six historical migrations recreate the rows on every
 >   reset; the migration + `325` t6/t7 are what make retirement survive that).
-> - ⛔ **NOT closed:** 221 files / 6.93 MB / 15 PHI still on the local volume — **PO decision pending**,
->   because clearing them needs the filesystem, a method D9 deliberately excludes from the gate.
+> - ⛔ **NOT closed:** 221 files / 6.93 MB / 15 PHI still on the local volume. **✅ PO RULED 2026-08-17:
+>   LEAVE THEM; FUP-DM5-STORAGE-ORPHANS stays OPEN.** Clearing them needs the filesystem (a method D9
+>   excludes) and would make the gap *look* closed while the production-facing question is untouched.
 > - ⛔ **NOT rehearsed:** the deploy-time byte sequence has still never run against a populated bucket.
 >   Its correctness rests on **S0's 8/8 self-test**, not on S4. ADR 0120 **D9 now carries an inline
 >   EXECUTION NOTE** saying exactly this. **Do not let S5/S6 read S4's completion as evidence that the

@@ -175,8 +175,10 @@ tool should reject unknown flags.* → **FUP-DM5-MANIFEST-FLAG** (filed).
   run. **The production sequence is therefore still unrehearsed end-to-end.**
 - **Nothing remote was touched**, verified or otherwise. FUP-DM5-STORAGE-ORPHANS' Cloud half stays
   residual.
-- **The 221 local orphan files were left in place** pending a PO decision — removing them needs the
-  filesystem, a method D9 deliberately excludes from the gate.
+- **The 221 local orphan files were left in place — ✅ PO-RULED 2026-08-17, and FUP-DM5-STORAGE-ORPHANS
+  stays OPEN.** Removing them needs the filesystem, a method D9 deliberately excludes; they are
+  unservable dev artifacts, and deleting them would make the gap *look* closed while the real
+  production-facing question (an orphan-visible tool on Cloud) is untouched.
 - `235`/`236` still **create** `case-documents` / `interview-attachments` bucket rows inside their own
   rolled-back transactions. Left deliberately: they are self-sufficient, `u1-mutation-audit.sh` runs
   inside `236`'s transaction, and rewriting an authz fixture to chase a cosmetic is the riskier change.

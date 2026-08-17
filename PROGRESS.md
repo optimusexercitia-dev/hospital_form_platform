@@ -260,8 +260,8 @@
 > mutation harness**) · 🟠 **FUP-DM5-STORAGE-ORPHANS** (⚠ **NOT closed by S4** — S4 demonstrated the local
 > half rather than clearing it: the manifest-first delete was a **no-op** because all 221 retirement-bucket
 > files are already metadata-less orphans, unreachable through the D9 gate **by definition**; **221 files /
-> 6.93 MB / 15 PHI still on the local volume**, pending a PO call, and `delete --execute` has still never run
-> against a populated bucket) · 🟠 **FUP-DM5-SETLOCAL-MIGRATION** (**new, S4** — `set local` in a migration is
+> 6.93 MB / 15 PHI still on the local volume — ✅ PO-RULED 2026-08-17 to LEAVE them, and this item stays
+> OPEN by design**, and `delete --execute` has still never run against a populated bucket) · 🟠 **FUP-DM5-SETLOCAL-MIGRATION** (**new, S4** — `set local` in a migration is
 > not guaranteed transactional; `20260921000300` still relies on it) · 🟡 **FUP-DM5-MANIFEST-FLAG** (**new,
 > S4** — `capture` takes `--out`; passing `delete`'s `--manifest` silently overwrote the committed S0
 > baseline) · 🔴 FUP-PGTAP-VACUOUS · 🟠 FUP-DM4-RECUSAL (**DM5 does NOT close it**) · 🟠
