@@ -28,7 +28,8 @@
     "sweep:embeds": "node scripts/extract-embeds.mjs . .embed-sweep && node scripts/probe-embeds.mjs . .embed-sweep",
     "storage:manifest": "node scripts/storage-manifest.mjs",
     "storage:walk": "node scripts/storage-manifest.mjs walk",
-    "storage:selftest": "node scripts/storage-manifest.mjs selftest"
+    "storage:selftest": "node scripts/storage-manifest.mjs selftest",
+    "storage:rehearse": "node scripts/storage-manifest.mjs rehearse"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

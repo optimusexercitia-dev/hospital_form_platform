@@ -56,8 +56,20 @@
  *             orphan it must find, and a deliberate mismatch it must refuse.
  *             Creates and destroys its OWN scratch bucket; touches no project
  *             data. Requires local docker (it must manufacture the orphan).
+ *   rehearse  DM5 S5.R — run the REAL deploy sequence end to end against a
+ *             purpose-made disposable bucket populated THROUGH the Storage API,
+ *             so `storage.objects` rows exist. See cmdRehearse's header for why
+ *             the with-metadata condition is the whole point.
  *
  * Exit codes: 0 clean · 1 drift/mismatch (a verdict, not a crash) · 2 error.
+ *
+ * ⚠ Flags are REJECTED when unrecognised, and a value-taking flag with no value
+ * is an error rather than a silent fallback. FUP-DM5-MANIFEST-FLAG: `capture`
+ * takes `--out`, `delete`/`verify` take `--manifest`, and passing the wrong one
+ * used to fall through to DEFAULT_MANIFEST and OVERWRITE the committed baseline
+ * — the authoritative record of what existed immediately before an irreversible
+ * deletion. A tool whose failure mode on a typo is to destroy the previous
+ * authoritative record must be hostile to wrong-but-plausible input.
  *
  * Env: NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (read from
  * `.env.local` when present), same contract as
@@ -66,7 +78,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 
 // ---------------------------------------------------------------------------
@@ -330,7 +343,24 @@ function isPhi(bucket, key) {
  * reported success. It must be loud and it must be a non-zero exit.
  */
 function verdictFor({ exists, apiKeys, proof }) {
-  if (!exists) return 'BUCKET_ABSENT'
+  if (!exists) {
+    // ⭐ DM5 S5 FIX — this used to `return 'BUCKET_ABSENT'` unconditionally, on
+    // the very first line, BEFORE consulting the volume proof. Because
+    // BUCKET_ABSENT is a CLEAN verdict, a bucket whose row is gone while its
+    // bytes are still on the volume produced `CAPTURE CLEAN` and exit 0 — the
+    // orphan reached `totals.orphanKeys` and the residuals text, but neither
+    // the exit code nor the headline, so anything gating on the success signal
+    // could not learn about it. REPRODUCED before fixing (S5 record): a
+    // manufactured row-absent/bytes-present bucket reported `orphan_keys=1`
+    // and `CAPTURE CLEAN`, exit 0.
+    //
+    // This is the same shape as the defect the whole tool exists to kill —
+    // "prove emptiness against a table that no longer knows" — one layer up, in
+    // the tool's OWN success signal. Dropping a bucket row does not delete a
+    // byte; a verdict that treats a missing row as proof of a missing object is
+    // exactly the withdrawn method wearing the tool's badge.
+    return proof && proof.present && proof.keys.length > 0 ? 'BUCKET_ABSENT_ORPHANED_BYTES' : 'BUCKET_ABSENT'
+  }
   if (!proof || !proof.present) {
     return proof === null ? 'UNVERIFIED_NO_LOCAL_PROOF' : 'CONSISTENT_EMPTY'
   }
@@ -344,6 +374,11 @@ function verdictFor({ exists, apiKeys, proof }) {
   return apiKeys.length === 0 ? 'CONSISTENT_EMPTY' : 'CONSISTENT'
 }
 
+// `BUCKET_ABSENT_ORPHANED_BYTES` is deliberately NOT here: a dropped bucket row
+// over surviving bytes is the loudest thing this tool can find, not a clean one.
+// `BUCKET_ABSENT` (row gone AND nothing on the volume) stays clean — that is the
+// post-retirement steady state the eight S4 buckets are in, and reddening it
+// would make the tool useless for confirming a completed retirement.
 const CLEAN_VERDICTS = new Set(['CONSISTENT', 'CONSISTENT_EMPTY', 'BUCKET_ABSENT'])
 
 // ---------------------------------------------------------------------------
@@ -771,6 +806,40 @@ async function cmdSelftest() {
     // C6 alone would pass if verdictFor always said ORPHANED_BYTES.
     const clean = verdictFor({ exists: true, apiKeys: ['k'], proof: { present: true, keys: ['k'], files: 1, bytes: 1 } })
     check('C7 the same verdict function returns CONSISTENT on agreeing inputs', clean === 'CONSISTENT', `verdict=${clean}`)
+
+    // ---- C9: a DROPPED BUCKET ROW does not launder surviving bytes ---------
+    // ⭐ DM5 S5. `verdictFor` used to return BUCKET_ABSENT unconditionally on
+    // its first line, before consulting the volume proof — and BUCKET_ABSENT is
+    // a CLEAN verdict, so this state produced `CAPTURE CLEAN` and exit 0.
+    // Reproduced live before the fix. It is the tool's own success signal
+    // committing the error the tool exists to prevent: treating a missing
+    // METADATA row as proof of a missing OBJECT. All eight S4-retired buckets
+    // sit in the row-absent state permanently, so this is the state the tool
+    // will be pointed at for the rest of the program.
+    const ghostBytes = verdictFor({ exists: false, apiKeys: [], proof: { present: true, keys: ['left/behind.bin'], files: 1, bytes: 9 } })
+    check('C9 bucket row ABSENT with bytes still on the volume is NOT clean', ghostBytes === 'BUCKET_ABSENT_ORPHANED_BYTES' && !CLEAN_VERDICTS.has(ghostBytes), `verdict=${ghostBytes}`)
+
+    // ---- C10: the permissive twin for C9 -----------------------------------
+    // Without this, C9 is satisfied by a tool that calls every absent bucket
+    // dirty — which would red the completed S4 retirement forever.
+    const ghostEmpty = verdictFor({ exists: false, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+    check('C10 bucket row absent AND no bytes stays BUCKET_ABSENT and CLEAN (the completed-retirement state)', ghostEmpty === 'BUCKET_ABSENT' && CLEAN_VERDICTS.has(ghostEmpty), `verdict=${ghostEmpty}`)
+
+    // ---- C11/C12/C13: flag hostility (FUP-DM5-MANIFEST-FLAG) ---------------
+    // The filed incident, as an executable assertion. C12 is its permissive
+    // twin: a validator that rejected everything would pass C11 and C13 and
+    // make the tool unusable.
+    const wrongFlag = flagErrors('capture', ['--manifest', '/tmp/x.json'])
+    check('C11 capture REJECTS delete\'s --manifest flag instead of falling back to the committed baseline',
+      wrongFlag.some((e) => e.includes('unknown flag "--manifest"') && e.includes('"delete"')),
+      wrongFlag.join(' | ') || 'accepted silently')
+    const rightFlags = flagErrors('capture', ['--out', '/tmp/x.json', '--buckets', 'a,b', '--allow-orphans'])
+    check('C12 capture ACCEPTS its own full flag set (the permissive twin)', rightFlags.length === 0, rightFlags.join(' | '))
+    const danglingValue = flagErrors('capture', ['--out'])
+    const flagAsValue = flagErrors('capture', ['--out', '--allow-orphans'])
+    check('C13 a value-taking flag with no value is an ERROR, not a silent fallback to the default path',
+      danglingValue.length === 1 && flagAsValue.length === 1,
+      `--out alone → ${danglingValue.length} error(s); --out --allow-orphans → ${flagAsValue.length} error(s)`)
   } catch (e) {
     console.error(`\nselftest error: ${String(e)}`)
     process.exitCode = 2
@@ -804,12 +873,484 @@ async function cmdSelftest() {
 }
 
 // ---------------------------------------------------------------------------
+// rehearse — DM5 S5.R: run the REAL sequence against real bytes WITH METADATA
+//
+// ## Why this exists, and why it is not `selftest`
+//
+// S4 retired the eight bucket rows, but its byte half was a NO-OP: every
+// retirement byte was a metadata-less orphan, so `delete --execute` had nothing
+// to delete and has therefore NEVER run against a populated bucket. The
+// sequence's correctness rested entirely on `selftest` — controls the tool runs
+// against itself — plus zero execution against real bytes.
+//
+// ⭐ The trap this command is shaped to avoid: metadata-less orphans are the ONE
+// condition under which the manifest sequence has nothing to do, because the
+// Storage API lists *from* `storage.objects`. Production is in the opposite
+// condition. A rehearsal that reproduced S4's setup would re-prove the no-op and
+// read as coverage. So the with-metadata precondition is asserted FIRST, in the
+// tool's own vocabulary and in two independent ways: the capture verdict must be
+// `CONSISTENT` with `keyCount > 0` (S4's was `BUCKET_ABSENT` over a degenerate
+// zero-key manifest), and `storage.objects` must independently show the rows.
+//
+// ## Both polarities, always
+//
+// Every control here runs beside an opposite-polarity twin against the SAME
+// subject in the SAME run: accept vs refuse, orphan-found vs orphan-gone,
+// guard-refuses vs guard-admits. A harness that only ever observes PASS cannot
+// distinguish a working sequence from a hardwired one.
+//
+// ## Safety
+//
+// The target bucket is ALLOWLISTED by prefix (fails CLOSED on a typo, a null,
+// or any bucket added later) and additionally denylisted against every known
+// project bucket. The four survivors — `documents-standard`, `documents-phi`,
+// `form-assets`, `meeting-audio` — back the seed and ~900 E2E tests and are
+// never in a delete path here. Cleanup is verified, not assumed: a rehearsal of
+// a disposal that leaves orphans behind refutes itself.
+// ---------------------------------------------------------------------------
+const REHEARSAL_PREFIX = 'dm5-s5-rehearsal-'
+const REHEARSAL_NAME_RE = /^dm5-s5-rehearsal-[0-9a-f]{8}$/
+const RETIREMENT_MIGRATION = 'supabase/migrations/20260927000400_dm5_s4_retire_legacy_buckets.sql'
+
+/**
+ * Fail-CLOSED target check. An allowlist, per the D18 lesson that an exclusion's
+ * two directions fail oppositely: a denylist (`name is not one of ours`) admits
+ * anything not on the list — a new bucket, a typo, a null — while an allowlist
+ * admits only what it recognises. The denylist is kept as well; defence in depth
+ * is nearly free and the failure mode here is byte loss with no backstop.
+ */
+function assertDisposableBucket(name) {
+  if (typeof name !== 'string' || !REHEARSAL_NAME_RE.test(name)) {
+    throw new Error(`refusing to operate on "${name}": not a rehearsal-prefixed disposable bucket (${REHEARSAL_PREFIX}xxxxxxxx)`)
+  }
+  if (ALL_KNOWN_BUCKETS.includes(name)) {
+    throw new Error(`refusing to operate on "${name}": it is a known project bucket`)
+  }
+  return name
+}
+
+function dbContainer() {
+  const name = docker(['ps', '--filter', 'name=supabase_db', '--format', '{{.Names}}'])
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)[0]
+  if (!name) throw new Error('no running supabase_db container — the rehearsal needs the local stack')
+  return name
+}
+
+/** Run SQL in the local DB container. Returns the outcome rather than throwing,
+ *  because "this statement RAISED" is a result the rehearsal asserts on. */
+function dbExec(container, sql) {
+  try {
+    const out = execFileSync('docker', ['exec', container, 'psql', '-U', 'postgres', '-d', 'postgres', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    return { ok: true, stdout: out.trim(), stderr: '' }
+  } catch (e) {
+    return { ok: false, stdout: String(e.stdout ?? '').trim(), stderr: String(e.stderr ?? e.message ?? '').trim() }
+  }
+}
+
+/**
+ * The retirement guard, EXTRACTED FROM THE MIGRATION AT RUN TIME rather than
+ * transcribed.
+ *
+ * ⭐ Transcribing it would mean rehearsing my copy of the guard, which is the
+ * "a comment is an assertion that goes stale silently" class one level up: the
+ * copy would keep passing after the original changed. Reading the file is
+ * legitimate HERE, specifically, and the distinction matters — this repo's rule
+ * is that migration TEXT is stale because some migrations rewrite FUNCTION
+ * BODIES at runtime via pg_get_functiondef()+replace()+execute, so `pg_proc` is
+ * truth. A `do $$ … $$` block leaves NO catalog artifact at all: there is no
+ * `pg_proc` row to consult, the file is the only form it has, and we are not
+ * making a claim ABOUT the migration — we are executing its own text.
+ */
+function retirementGuardSql(buckets) {
+  if (!existsSync(RETIREMENT_MIGRATION)) throw new Error(`retirement migration not found: ${RETIREMENT_MIGRATION}`)
+  const src = readFileSync(RETIREMENT_MIGRATION, 'utf8')
+  const block = src.match(/do \$\$[\s\S]*?\$\$;/)
+  if (!block) throw new Error(`could not extract a "do $$ … $$;" block from ${RETIREMENT_MIGRATION}`)
+  const literal = buckets.map((b) => `'${assertDisposableBucket(b)}'`).join(', ')
+  const sql = block[0].replace(/(v_retired constant text\[\] := array\[)[\s\S]*?(\];)/, `$1${literal}$2`)
+  if (!sql.includes(literal)) throw new Error('bucket-array substitution did not apply — refusing to run the guard against its real target list')
+  // Fail closed: after substitution NO project bucket name may survive in the SQL.
+  const leaked = ALL_KNOWN_BUCKETS.filter((b) => sql.includes(`'${b}'`))
+  if (leaked.length) throw new Error(`guard SQL still names project bucket(s) after substitution: ${leaked.join(', ')}`)
+  if (!/select count\(\*\)[\s\S]*from storage\.objects/.test(sql)) {
+    throw new Error('extracted block does not read storage.objects — wrong block extracted')
+  }
+  return sql
+}
+
+async function cmdRehearse() {
+  const { admin } = adminClient()
+  const loc = locateVolume()
+  if (!loc.available) {
+    console.error(`rehearse requires the local file backend (${loc.reason})`)
+    process.exit(2)
+  }
+  const db = dbContainer()
+  const bucket = assertDisposableBucket(`${REHEARSAL_PREFIX}${randomUUID().slice(0, 8)}`)
+  const planted = ['r1.bin', 'a/r2.bin', 'a/b/r3.bin', 'a/b/c/r4.bin', 'z/r5.bin']
+  const results = []
+  const check = (name, pass, detail) => {
+    results.push({ name, pass, detail })
+    console.log(`${pass ? '  ok  ' : ' NOT OK '} ${name}${detail ? ` — ${detail}` : ''}`)
+  }
+  const tmp = (label) => join(tmpdir(), `${bucket}-${label}.json`)
+  const runCapture = async (out, extra = []) => {
+    const saved = process.exitCode
+    await cmdCapture(['--buckets', bucket, '--out', out, ...extra])
+    const exit = process.exitCode ?? 0
+    process.exitCode = saved
+    return { exit, manifest: JSON.parse(readFileSync(out, 'utf8')) }
+  }
+  const runDelete = async (manifestPath, exec = true) => {
+    const saved = process.exitCode
+    await cmdDelete(['--manifest', manifestPath, ...(exec ? ['--execute'] : [])])
+    const exit = process.exitCode ?? 0
+    process.exitCode = saved
+    return exit
+  }
+  const volOf = () => volumeCensus(loc, [bucket])[bucket]
+  const metadataRows = () => Number(dbExec(db, `select count(*) from storage.objects where bucket_id = '${bucket}';`).stdout)
+  const replant = async () => {
+    const left = await listBucketKeys(admin, bucket)
+    if (left.length) await admin.storage.from(bucket).remove(left)
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf ${loc.root}/${bucket}`])
+    for (const k of planted) {
+      const { error } = await admin.storage.from(bucket).upload(k, new Blob([`rehearsal-${k}-${randomUUID()}`]))
+      if (error) throw new Error(`upload ${k}: ${error.message}`)
+    }
+  }
+
+  console.log(`disposable bucket: ${bucket}   db: ${db}   volume: ${loc.container}:${loc.root}\n`)
+
+  try {
+    const { error: ce } = await admin.storage.createBucket(bucket, { public: false })
+    if (ce) throw new Error(`createBucket: ${ce.message}`)
+    await replant()
+
+    // ---- R0: the WITH-METADATA precondition — the whole point ---------------
+    // Two independent measurements. If either is zero, this run is reproducing
+    // S4's conditions and everything after it would be vacuous.
+    const apiSeen = await listBucketKeys(admin, bucket)
+    const rows = metadataRows()
+    const volSeen = volOf()
+    check(
+      'R0 populated THROUGH the Storage API: metadata rows exist (this is what S4 lacked)',
+      apiSeen.length === planted.length && rows === planted.length && volSeen.files === planted.length,
+      `api=${apiSeen.length} storage.objects=${rows} volume_files=${volSeen.files}`,
+    )
+    if (rows === 0) throw new Error('REFUSING TO CONTINUE: zero metadata rows — this run would re-prove S4\'s no-op')
+
+    // ---- R1: capture is CONSISTENT with keyCount > 0 ------------------------
+    // ⭐ The discriminator against S4, stated in the tool's own vocabulary:
+    // S4's capture was BUCKET_ABSENT over a degenerate zero-key manifest.
+    const cap1 = await runCapture(tmp('cap1'))
+    const b1 = cap1.manifest.buckets[bucket]
+    check(
+      'R1 capture verdict CONSISTENT with keyCount>0 (S4 captured BUCKET_ABSENT / zero keys)',
+      cap1.exit === 0 && b1.verdict === 'CONSISTENT' && b1.keyCount === planted.length &&
+        planted.every((k) => b1.keys.includes(k)) && b1.proof.orphanKeys.length === 0,
+      `exit=${cap1.exit} verdict=${b1.verdict} keys=${b1.keyCount} orphans=${b1.proof.orphanKeys.length}`,
+    )
+
+    // ---- R4a: the retirement guard REFUSES while metadata rows survive ------
+    const guard1 = dbExec(db, retirementGuardSql([bucket]))
+    check(
+      'R4a retirement guard REFUSES while storage.objects rows survive, naming bucket and count',
+      !guard1.ok && guard1.stderr.includes(bucket) && /still holds 5 storage\.objects row/.test(guard1.stderr),
+      guard1.ok ? 'guard ADMITTED a populated bucket' : guard1.stderr.split('\n')[0].slice(0, 150),
+    )
+
+    // ---- R2: a manufactured extra orphan is FOUND ---------------------------
+    // A key on the VOLUME that is absent from the manifest and invisible to the
+    // API. R1 above is its negative control (same detector, orphans=0).
+    const orphanKey = 'sneaky/extra.bin'
+    docker(['exec', loc.container, 'sh', '-c',
+      `mkdir -p '${loc.root}/${bucket}/${orphanKey}' && printf 'orphan' > '${loc.root}/${bucket}/${orphanKey}/${randomUUID()}'`])
+    const cap2 = await runCapture(tmp('cap2'))
+    const b2 = cap2.manifest.buckets[bucket]
+    check(
+      'R2 a manufactured extra orphan (volume key absent from the manifest) is FOUND',
+      cap2.exit === 1 && b2.verdict === 'ORPHANED_BYTES' && b2.proof.orphanKeys.includes(orphanKey),
+      `exit=${cap2.exit} verdict=${b2.verdict} orphanKeys=[${b2.proof.orphanKeys.join(', ')}]`,
+    )
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf '${loc.root}/${bucket}/sneaky'`])
+    const cap3 = await runCapture(tmp('cap3'))
+    check(
+      'R2b the orphan detector is NOT a constant — removing the orphan restores CONSISTENT',
+      cap3.exit === 0 && cap3.manifest.buckets[bucket].verdict === 'CONSISTENT',
+      `exit=${cap3.exit} verdict=${cap3.manifest.buckets[bucket].verdict}`,
+    )
+
+    // ---- R3a: an OVER-COUNT manifest is REFUSED -----------------------------
+    // manifest 6 > reality 5. The count comparison catches it. API-only.
+    const over = JSON.parse(readFileSync(tmp('cap3'), 'utf8'))
+    over.buckets[bucket].keys = [...planted, 'ghost/never-existed.bin']
+    over.buckets[bucket].keyCount = planted.length + 1
+    writeFileSync(tmp('over'), JSON.stringify(over), 'utf8')
+    const overExit = await runDelete(tmp('over'))
+    check(
+      'R3a delete REFUSES an OVER-COUNT manifest (deleted < manifest ⇒ COUNT MISMATCH)',
+      overExit === 1,
+      `exit=${overExit}`,
+    )
+
+    // ---- R3b: an UNDER-COUNT manifest — the control that actually matters ---
+    // ⭐ manifest 4 < reality 5. The count comparison MATCHES (4 deleted == 4
+    // manifested) and the run prints "ALL BUCKETS MATCHED THEIR MANIFEST COUNT"
+    // while a real file SURVIVES. Only the LOCAL VOLUME PROOF turns this into a
+    // non-zero exit — and the local volume proof does not exist on Cloud. This
+    // is the 221-file shape: a manifest captured against an incomplete reality,
+    // a deletion that reports success, and bytes left behind.
+    await replant()
+    const cap4 = await runCapture(tmp('cap4'))
+    const under = JSON.parse(readFileSync(tmp('cap4'), 'utf8'))
+    const missed = under.buckets[bucket].keys.pop()
+    under.buckets[bucket].keyCount = under.buckets[bucket].keys.length
+    writeFileSync(tmp('under'), JSON.stringify(under), 'utf8')
+    const underExit = await runDelete(tmp('under'))
+    const survivorsApi = await listBucketKeys(admin, bucket)
+    const survivorsVol = volOf()
+    check(
+      'R3b delete REFUSES an UNDER-COUNT manifest — count MATCHES, bytes survive, exit is still 1',
+      cap4.exit === 0 && underExit === 1 && survivorsVol.files === 1,
+      `exit=${underExit} surviving_volume_files=${survivorsVol.files} surviving_api_keys=${survivorsApi.length}`,
+    )
+    check(
+      'R3b-diagnosis the survivor is still API-VISIBLE — it is a MISSED key, not a pre-existing orphan',
+      survivorsApi.length === 1 && survivorsApi[0] === missed,
+      `missed="${missed}" api=[${survivorsApi.join(', ')}]`,
+    )
+
+    // ---- R1x: the PERMISSIVE TWIN — the real sequence, end to end ----------
+    await replant()
+    const cap5 = await runCapture(tmp('cap5'))
+    const dryExit = await runDelete(tmp('cap5'), false)
+    const rowsBefore = metadataRows()
+    const execExit = await runDelete(tmp('cap5'), true)
+    const cap6 = await runCapture(tmp('cap6'))
+    const b6 = cap6.manifest.buckets[bucket]
+    const rowsAfter = metadataRows()
+    check(
+      'R1x THE SEQUENCE: capture → dry-run → delete --execute → re-capture reads EMPTY',
+      cap5.exit === 0 && dryExit === 0 && execExit === 0 && cap6.exit === 0 &&
+        b6.verdict === 'CONSISTENT_EMPTY' && b6.keyCount === 0 && b6.proof.files === 0 &&
+        rowsBefore === planted.length && rowsAfter === 0,
+      `capture=${cap5.exit} dry=${dryExit} exec=${execExit} recapture=${cap6.exit} verdict=${b6.verdict} ` +
+        `vol_files=${b6.proof.files} storage.objects ${rowsBefore}→${rowsAfter}`,
+    )
+
+    // ---- R4b: the guard ADMITS once the rows are gone -----------------------
+    const guard2 = dbExec(db, retirementGuardSql([bucket]))
+    check('R4b the same guard ADMITS once storage.objects rows are gone', guard2.ok,
+      guard2.ok ? 'no exception' : guard2.stderr.split('\n')[0].slice(0, 150))
+
+    // ---- R6: WHICH CONTROLS SURVIVE WITHOUT THE LOCAL VOLUME PROOF ---------
+    //
+    // ⭐ The most consequential thing this rehearsal produces, and NOT what it
+    // was chartered to find. R3b showed that an under-count manifest passes the
+    // count comparison and is caught ONLY by the local volume proof. The local
+    // volume proof is `locateVolume()`, whose preconditions are a running
+    // `supabase_storage` DOCKER CONTAINER on the operator's own machine and
+    // `STORAGE_BACKEND=file`. Neither can hold for a Supabase Cloud project.
+    //
+    // So the controls are re-run here with `locateVolume()` forced down its
+    // ALREADY-EXISTING unavailable branch — by removing `docker` from PATH, not
+    // by stubbing anything — and the exit codes are compared arm to arm. The two
+    // arms differ in exactly ONE variable: whether the proof is available.
+    //
+    // ⚠ WHAT THIS DOES AND DOES NOT ESTABLISH. It establishes a property of THIS
+    // TOOL's code: with no local proof, an under-count `delete --execute` exits
+    // 0 while bytes survive. It does NOT establish anything about Supabase
+    // Cloud's storage internals, and nothing here was run against Cloud (it must
+    // not be). The bridge is the absence of a precondition readable in the
+    // source, not "the same mechanism class" — which is the reasoning D17's
+    // remote half got wrong. Whether Cloud offers some OTHER orphan-visible
+    // surface (the S3 endpoint is UNPROBED) stays unsettled.
+    const noDocker = join(tmpdir(), 'dm5-s5-no-docker-on-path')
+    const realPath = process.env.PATH
+    await replant()
+    const cap7 = await runCapture(tmp('cap7'))
+    const under2 = JSON.parse(readFileSync(tmp('cap7'), 'utf8'))
+    under2.buckets[bucket].keys.pop()
+    under2.buckets[bucket].keyCount = under2.buckets[bucket].keys.length
+    writeFileSync(tmp('under2'), JSON.stringify(under2), 'utf8')
+    const over2 = JSON.parse(readFileSync(tmp('cap7'), 'utf8'))
+    over2.buckets[bucket].keys = [...over2.buckets[bucket].keys, 'ghost/never-existed.bin']
+    over2.buckets[bucket].keyCount = over2.buckets[bucket].keys.length
+    writeFileSync(tmp('over2'), JSON.stringify(over2), 'utf8')
+
+    let blindUnderExit, blindOverExit, blindCapture
+    try {
+      process.env.PATH = noDocker
+      if (locateVolume().available) throw new Error('could not force the no-local-proof branch — the arm would be vacuous')
+      blindCapture = await runCapture(tmp('cap8'))
+      blindUnderExit = await runDelete(tmp('under2'))
+    } finally {
+      process.env.PATH = realPath
+    }
+    const survivedBlind = volOf()
+    check(
+      'R6 ⛔ WITHOUT the local proof an UNDER-COUNT delete reports SUCCESS (exit 0) while a real file SURVIVES',
+      blindUnderExit === 0 && survivedBlind.files === 1,
+      `exit=${blindUnderExit} (R3b, same manifest shape WITH the proof, exited 1) surviving_volume_files=${survivedBlind.files}`,
+    )
+    check(
+      'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 1',
+      blindCapture.exit === 1 && blindCapture.manifest.buckets[bucket].verdict === 'UNVERIFIED_NO_LOCAL_PROOF',
+      `exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict}`,
+    )
+    // The other direction — the control that DOES survive. Without this, R6
+    // reads as "nothing works on Cloud", which is false and would be its own
+    // vacuity: the count comparison is Storage-API-only and transfers intact.
+    await replant()
+    try {
+      process.env.PATH = noDocker
+      blindOverExit = await runDelete(tmp('over2'))
+    } finally {
+      process.env.PATH = realPath
+    }
+    check(
+      'R6b the OVER-COUNT refusal SURVIVES without the local proof (the count comparison is API-only)',
+      blindOverExit === 1,
+      `exit=${blindOverExit}`,
+    )
+  } catch (e) {
+    console.error(`\nrehearsal error: ${String(e)}`)
+    check('REHEARSAL COMPLETED WITHOUT ERROR', false, String(e))
+  } finally {
+    // ---- R5: cleanup, and VERIFY it — a disposal rehearsal that leaves
+    // orphans behind refutes itself.
+    let cleanupDetail = ''
+    let cleanupOk = false
+    try {
+      const left = await listBucketKeys(admin, bucket)
+      if (left.length) await admin.storage.from(bucket).remove(left)
+      await admin.storage.deleteBucket(bucket)
+      docker(['exec', loc.container, 'sh', '-c', `rm -rf ${loc.root}/${assertDisposableBucket(bucket)}`])
+      const rowGone = Number(dbExec(db, `select count(*) from storage.buckets where id = '${bucket}';`).stdout) === 0
+      const objGone = Number(dbExec(db, `select count(*) from storage.objects where bucket_id = '${bucket}';`).stdout) === 0
+      const volGone = volOf().present === false
+      // Verified through the tool's OWN eyes as well, exercising the S5 verdict
+      // fix: row absent + no bytes must read BUCKET_ABSENT and CLEAN.
+      const capZ = await runCapture(tmp('cleanup'))
+      const vz = capZ.manifest.buckets[bucket].verdict
+      cleanupOk = rowGone && objGone && volGone && capZ.exit === 0 && vz === 'BUCKET_ABSENT'
+      cleanupDetail = `bucket_row_gone=${rowGone} objects_gone=${objGone} volume_dir_absent=${volGone} recapture=${vz}/exit${capZ.exit}`
+    } catch (e) {
+      cleanupDetail = `cleanup error: ${String(e)}`
+    }
+    check('R5 CLEANUP VERIFIED: bucket row gone, metadata gone, volume directory ABSENT', cleanupOk, cleanupDetail)
+  }
+
+  const failed = results.filter((r) => !r.pass)
+  console.log(`\n${results.length - failed.length}/${results.length} rehearsal controls passed`)
+  console.log(
+    '\nDOMAIN: LOCAL stack only. A green rehearsal here does NOT license the Cloud sequence — R2 and the\n' +
+      'byte-side half of R3b depend on the local volume proof (STORAGE_BACKEND=file + a docker container on\n' +
+      'the operator\'s machine), neither of which exists against Supabase Cloud. See the S5 record.',
+  )
+  if (failed.length) {
+    console.log('⛔ REHEARSAL FAILED — the deploy-time byte path is NOT rehearsed.')
+    process.exitCode = 1
+    return
+  }
+  console.log('✅ REHEARSAL PASSED — capture → delete --execute → re-capture ran against real bytes WITH metadata rows.')
+  process.exitCode = 0
+}
+
+// ---------------------------------------------------------------------------
+// flag validation — FUP-DM5-MANIFEST-FLAG
+//
+// ⭐ The filed incident: `capture --manifest <path>` (the flag `delete` takes,
+// not the one `capture` takes) did not error. `argFlag` found no `--out`,
+// returned undefined, `?? DEFAULT_MANIFEST` took over, and the run OVERWROTE
+// `supabase/manifests/dm5-retirement-baseline.json` — the committed, authoritative
+// enumeration of what existed immediately before an irreversible deletion.
+// Reproduced deliberately at S5 before this fix (exit 0, scratch path never
+// written, baseline blob hash changed c4cf429→217e55e, restored with
+// `git checkout` and re-verified byte-identical). The diff showed what was at
+// stake: the S0 baseline's 221 enumerated orphan keys replaced by an
+// all-BUCKET_ABSENT post-retirement capture — not merely a clobbered file, the
+// destruction of the only record of WHICH files existed.
+//
+// ⚠ A SECOND instance of the same footgun, found while fixing the first and not
+// named in the follow-up: `argFlag` returns `argv[i + 1]` blindly, so
+// `capture --out` (value omitted, flag last) and `capture --out --allow-orphans`
+// (next token is another flag) BOTH resolve wrong — the first silently falls
+// back to DEFAULT_MANIFEST, the second writes a manifest to a file literally
+// named `--allow-orphans`. A value-taking flag with no value is therefore an
+// error here, not a fallback.
+// ---------------------------------------------------------------------------
+const FLAG_SPEC = {
+  capture: { value: ['--out', '--buckets'], boolean: ['--allow-orphans'] },
+  verify: { value: ['--manifest'], boolean: [] },
+  walk: { value: ['--buckets'], boolean: [] },
+  delete: { value: ['--manifest'], boolean: ['--execute'] },
+  selftest: { value: [], boolean: [] },
+  rehearse: { value: [], boolean: [] },
+}
+
+/**
+ * Returns an array of human-readable errors; empty means the argv is acceptable.
+ * Exported shape (pure, argv in / errors out) so `selftest` can assert BOTH
+ * polarities directly rather than shelling out.
+ */
+function flagErrors(cmd, argv) {
+  const spec = FLAG_SPEC[cmd]
+  if (!spec) return [`unknown command: ${cmd}`]
+  const known = new Set([...spec.value, ...spec.boolean])
+  const errors = []
+  for (let i = 0; i < argv.length; i += 1) {
+    const tok = argv[i]
+    if (!tok.startsWith('--')) {
+      errors.push(`unexpected positional argument "${tok}" — this tool takes flags only`)
+      continue
+    }
+    if (!known.has(tok)) {
+      const alt = Object.entries(FLAG_SPEC)
+        .filter(([c, s]) => c !== cmd && [...s.value, ...s.boolean].includes(tok))
+        .map(([c]) => c)
+      errors.push(
+        `unknown flag "${tok}" for "${cmd}"` +
+          (alt.length ? ` — that is ${alt.map((c) => `"${c}"`).join('/')}'s flag` : '') +
+          `. Accepted: ${[...known].join(' ') || '(none)'}`,
+      )
+      continue
+    }
+    if (spec.value.includes(tok)) {
+      const v = argv[i + 1]
+      if (v === undefined || v.startsWith('--')) {
+        errors.push(`flag "${tok}" requires a value${v === undefined ? '' : ` (got the flag "${v}")`}`)
+        continue
+      }
+      i += 1 // consume the value so it is not parsed as a token
+    }
+  }
+  return errors
+}
+
 function argFlag(argv, name) {
   const i = argv.indexOf(name)
   return i >= 0 ? argv[i + 1] : undefined
 }
 
 const [, , cmd, ...argv] = process.argv
+if (FLAG_SPEC[cmd]) {
+  const errors = flagErrors(cmd, argv)
+  if (errors.length) {
+    for (const e of errors) console.error(`⛔ ${e}`)
+    console.error(
+      '\nRefusing to run. This tool writes the authoritative pre-deletion record; a ' +
+        'wrong-but-plausible flag must not silently fall back to a default path (FUP-DM5-MANIFEST-FLAG).',
+    )
+    process.exit(2)
+  }
+}
 switch (cmd) {
   case 'capture':
     await cmdCapture(argv)
@@ -825,6 +1366,9 @@ switch (cmd) {
     break
   case 'selftest':
     await cmdSelftest()
+    break
+  case 'rehearse':
+    await cmdRehearse(argv)
     break
   default:
     console.log(readFileSync(new URL(import.meta.url)).toString().split('*/')[0].replace(/^#!.*\n/, ''))
