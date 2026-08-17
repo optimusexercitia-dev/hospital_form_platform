@@ -2790,9 +2790,29 @@ tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that 
 non-negotiable: migration `20260917000400` restored this door's tenancy-admin arm specifically to
 un-strand this same obligation after QO·B cut it — the platform has already ruled once.
 
-### 🟡 FUP-E2E-REPEAT-FLAKY — three focus/navigation-timing specs flaking across independent gates (owner: lead + tester)
+### 🟡 FUP-E2E-REPEAT-FLAKY — ⭕ **DOWN TO TWO members 2026-08-17, and the "one root cause" hypothesis is now EVIDENCED, not merely suspected** (owner: lead + tester)
 
-- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff. **Both flaked again in DM5·S3's gate (3rd + 4th occurrence) — the pattern is now established, not suspected.** ⭐ **Third member added 2026-08-14: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1** — a keyboard-only test in DM5's **own** S2 spec (passed on retry #1; S3 touched no part of that file). All three are focus/navigation-timing shaped, matching the standing *"`.focus()` is not auto-waiting — it races RSC streaming"* class, which suggests **one** root cause rather than three flaky tests — lead/tester
+- 🟡 **FUP-E2E-REPEAT-FLAKY** — `act-role-assumption:157` + `phase2-auth-shell:268` flaked in **BOTH** DM3 `e2e:prod` runs ⇒ a pattern, not noise; outside the DM3 diff. **Both flaked again in DM5·S3's gate (3rd + 4th occurrence) — the pattern is now established, not suspected.** Both flaked again at DM5·S6's green gate. ~~Third member added 2026-08-14: `dm5-nsp-evidence.spec.ts:347` EVID-KBD-1~~ — **REMOVED 2026-08-17: root-caused and fixed (BUG-DM5-S6-EVID-KBD-1), so it was never a flake.** All were focus/navigation-timing shaped, matching the standing *"`.focus()` is not auto-waiting — it races RSC streaming"* class, which suggested **one** root cause rather than three flaky tests — lead/tester
+
+> **⭐ 2026-08-17 — the hypothesis in the last sentence above got its first real test, and it held.**
+> EVID-KBD-1 was pursued as a *defect* rather than accepted as a flake, and it had a precise
+> mechanism: a readiness helper treated the **ancestor layout's `<main>`** as proof of rendered
+> content, but that `<main>` persists across the `loading.tsx` → `page.tsx` Suspense swap, so a
+> fixed-budget `focusByTabbing` could start counting Tab presses against a near-inert skeleton.
+> Load-dependent, hence "flaky"-looking. It is exactly the predicted family — **one layer above where
+> the class was being looked for** (the check that decides *when it is safe to start*, not the
+> `.focus()` call itself).
+>
+> **What this changes for the surviving two:** they are no longer "two tests that flake". There is now
+> a **named, reproducible mechanism** to test them against, and a working method: reproduce at
+> **batch composition** (they pass in isolation — the isolated run is the trap), run at `RETRIES=0`,
+> and fix the *precondition* rather than the budget.
+> ⭐ **Concrete unverified lead, from the tester, worth writing down before it is lost:**
+> `phase2-auth-shell.spec.ts` calls a **bare `.focus()` shortly after a navigation** — the same
+> anti-pattern, in one of the two survivors. **Not investigated and not confirmed** (it is unknown
+> whether that route even has a `loading.tsx` boundary). *A lead, not a finding.*
+> ⚠ **Do not close this FUP on EVID-KBD-1's fix** — one member's root cause is evidence about the
+> class, not a closure of the other two.
 
 ### 🟡 FUP-GATE-PDFP1-FLAKE — `pdf-printing.spec.ts:38` pre-mint empty-state flake, mechanism UNPROVEN (owner: lead + tester)
 

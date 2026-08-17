@@ -190,11 +190,38 @@ async function ensureRcaWritable(request: APIRequestContext, token: string): Pro
 /** Waits for the RCA workspace to render REAL content, distinguishing the
  *  three ways "the page did not show what we wanted" can happen — the
  *  top-level error boundary (BUG-DM5-S2-STUB-1), a genuine 404/access denial,
- *  or something else — instead of a bare timeout that reads as "flaky". */
+ *  or something else — instead of a bare timeout that reads as "flaky".
+ *
+ *  ⚠ BUG-DM5-S6-EVID-KBD-1 root cause, fixed here: `main` alone is NOT proof
+ *  of real content. `<main>` is rendered by the ANCESTOR layout
+ *  (`src/app/o/[org]/nsp/layout.tsx`), which persists across the Next.js
+ *  `loading.tsx` → `page.tsx` Suspense swap for this route — so `main` is
+ *  already visible while `NspRcaLoading`'s bare `<Skeleton>` placeholders
+ *  (no text, almost nothing focusable) are still showing, before
+ *  `RcaWorkspace`'s real content — a `Promise.all` of ~10 server-side
+ *  queries, one of them a dependent second wave over `capaPlans` — has
+ *  streamed in. A caller that starts counting keyboard Tabs the instant this
+ *  resolved could burn its whole fixed budget racing the skeleton instead of
+ *  the real page: composition/load-dependent, because the race is only lost
+ *  when the data fetch is slow enough to still be pending (measured: green
+ *  alone and paired with one other file, red once four more files joined the
+ *  same run — the DOM this function must wait for never changed, only the
+ *  ambient load that determines whether it has arrived yet). Mouse-driven
+ *  tests never hit this because `.click()` auto-retries until its target is
+ *  actionable; `focusByTabbing` has no such retry — it is a fixed count of
+ *  blind Tab presses, so its precondition must be honest. Wait for a signal
+ *  the skeleton cannot produce — the evidence panel's own heading — racing
+ *  it against the error boundary so a genuine stub/error regression still
+ *  fails fast with the message below instead of a generic timeout. */
 async function expectRcaWorkspaceRendered(page: Page): Promise<void> {
   const errorBoundary = page.getByText('Não foi possível carregar a análise de causa raiz')
   const main = page.getByRole('main')
   await expect(main, 'the RCA workspace main region mounts').toBeVisible({ timeout: 15_000 })
+  const evidenceHeading = page.getByRole('heading', { name: /Evidências/ }).first()
+  await expect(
+    evidenceHeading.or(errorBoundary),
+    'real content — the evidence panel — has replaced the loading skeleton (a visible <main> alone proves only that the ANCESTOR layout mounted, not this route\'s Suspense content)',
+  ).toBeVisible({ timeout: 15_000 })
   if (await errorBoundary.isVisible().catch(() => false)) {
     throw new Error(
       'RCA workspace rendered the top-level error boundary instead of content — ' +
@@ -203,10 +230,24 @@ async function expectRcaWorkspaceRendered(page: Page): Promise<void> {
   }
 }
 
+/** CAPA counterpart — identical loading.tsx/ancestor-`<main>` race as
+ *  `expectRcaWorkspaceRendered` above (same layout, same Suspense boundary
+ *  shape at `src/app/o/[org]/nsp/capa/[capaId]/loading.tsx`), fixed the same
+ *  way. Not the test that reproduced BUG-DM5-S6-EVID-KBD-1 (no CAPA keyboard
+ *  test exists yet — every current CAPA caller is mouse-driven and so was
+ *  masked by `.click()`'s auto-retry, same as this file's own RCA mouse
+ *  tests were), but the identical mechanism, fixed alongside it rather than
+ *  left as a landmine for the next keyboard test. `.first()`: a CAPA plan
+ *  can have more than one action, each with its own "Evidências" heading. */
 async function expectCapaWorkspaceRendered(page: Page): Promise<void> {
   const errorBoundary = page.getByText('Não foi possível carregar o plano de ação')
   const main = page.getByRole('main')
   await expect(main, 'the CAPA workspace main region mounts').toBeVisible({ timeout: 15_000 })
+  const evidenceHeading = page.getByRole('heading', { name: /Evidências/ }).first()
+  await expect(
+    evidenceHeading.or(errorBoundary),
+    "real content — an action's evidence list — has replaced the loading skeleton (a visible <main> alone proves only that the ANCESTOR layout mounted, not this route's Suspense content)",
+  ).toBeVisible({ timeout: 15_000 })
   if (await errorBoundary.isVisible().catch(() => false)) {
     throw new Error(
       'CAPA workspace rendered the top-level error boundary instead of content — ' +

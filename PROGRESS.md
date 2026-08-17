@@ -163,7 +163,7 @@
 > (`496fd135`). Build work **done**; **step 3 QA ✅ r2 APPROVED 2026-08-17** (r1 ⛔ → fixes → r2);
 > gate steps 2 + 4 **owed**.
 >
-> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done · step 3 QA ✅ r2 APPROVED · ⛔ step 2 RED · step 4 OWED**
+> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done · step 1 ✅ · step 2 ✅ GREEN · step 3 slice-QA ✅ r2 APPROVED · step 4 OWED · DM5 PHASE QA OWED**
 >
 > **Preceded by a pre-S6 follow-up batch (`496fd135`)** — census re-scoped, P4 measured, 478 links
 > repointed. Detail in the follow-ups register and the S5 record.
@@ -246,22 +246,28 @@
 > the live catalog (all reproduced; census table in the review). ⚠ **The r2 APPROVED is the S6
 > SLICE verdict only.**
 >
-> ⛔ **Gate step 2 — RUN, and RED.** `e2e:prod` full run (`REBUILD=1`, 2026-08-17): **1120 passed ·
-> 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, the parts summing to **1129
-> collected** — so **no unrun tests**; the [[gate-summary-can-hide-unrun-tests]] shape was looked for
-> and is absent, and batch 8 (exit 127 with 40 tests unrun last time) ran **40/40**. The single
-> failure is **🔴 BUG-DM5-S6-EVID-KBD-1** (Bug Log): `e2e/dm5-nsp-evidence.spec.ts:347` EVID-KBD-1,
-> *"target element was never focused within the tab budget"*, which **failed through its retry**.
-> ⭐ **Characterised in 4 runs at `RETRIES=0`: reproducible 2/2 at the gate's batch-4 composition,
-> green alone (8/8) and as a pair (18/18)** — so it is **composition-dependent, not the flake** its
-> `FUP-E2E-REPEAT-FLAKY` membership claims. ⛔ **Not an S6 regression, measured:** 0 `src/` files and
-> 0 migrations separate the last green run from this red one.
-> ⚠⚠ **The harness exit code was a trap worth recording:** the background job reported **exit 0**
-> because the invocation ended in an `echo`, while the gate itself printed **GATE RED** and
-> `E2E_PROD_EXIT=1`. *Read the gate's own verdict, never the wrapper's status* — the same family as
-> [[gate-summary-can-hide-unrun-tests]], one layer further out.
+> **Gate step 2 — ✅ GREEN 2026-08-17** (second full `e2e:prod`, `REBUILD=1`, after the fix):
+> **1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, the parts
+> summing to exactly **1129 collected** — reconciled **per batch** (`accounted N/N`, `0 did-not-run`
+> in all 18), so **no unrun tests**; the [[gate-summary-can-hide-unrun-tests]] shape was looked for and
+> is absent. **Batch 4 = 64 passed / 0 failed** (was 63/1) and `ok 13 … dm5-nsp-evidence.spec.ts:388:5
+> › EVID-KBD-1`. The **2 flaky are exactly the two remaining `FUP-E2E-REPEAT-FLAKY` members**
+> (`act-role-assumption:157`, `phase2-auth-shell:268`) — EVID-KBD-1 is **not** among them, so it did
+> not merely degrade from failed to flaky. 3 INFRA re-runs, final **0 infra**.
 >
-> ⛔ **Steps 2 + 4 OWED (step 2 is RED, not merely unrun); DM5's PHASE QA not run** — and
+> ⛔ **The FIRST full run was RED, and that is kept rather than overwritten** — 1120p / **1f** /
+> 2 flaky / 0 did-not-run, failing on **BUG-DM5-S6-EVID-KBD-1** (Bug Log, now ⬛ closed with its root
+> cause). It was characterised over 4 runs at `RETRIES=0` — reproducible **2/2** at batch-4
+> composition, green alone (8/8) and paired (18/18) — which is what proved it a real
+> composition-dependent defect rather than the flake it was filed as. **Not an S6 regression:** 0
+> `src/` files and 0 migrations separated that red run from the preceding green one.
+> ⚠⚠ **Two traps from this step, both worth keeping.** (1) **The harness exit code lied**: the
+> background job reported **exit 0** because the invocation ended in an `echo`, while the gate printed
+> **GATE RED** with `E2E_PROD_EXIT=1` — *read the gate's own verdict, never the wrapper's status.*
+> (2) **A line-keyed grep went stale mid-slice**: the fix moved the test `:347` → `:388`, so searching
+> `:347` in the green log returns **nothing**, which reads exactly like *"the test did not run."*
+>
+> ⛔ **Step 4 OWED; DM5's PHASE QA not run** — and
 > S3/S4/S5/**S6** verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
 > binds and S6 may not close over it.** 🔴 The supersede-serving collision is **deferred, not
 > closed**. **ADR 0120 D9's Cloud question was PO-deferred "to when S6 reaches it" — S6 has now
@@ -533,8 +539,51 @@ this obligation after QO·B cut it. Mechanism → [follow-ups.md](docs/progress/
 
 ### 🔴 OPEN — the live bugs
 
-**🔴 BUG-DM5-S6-EVID-KBD-1 — `EVID-KBD-1` fails REPRODUCIBLY at batch composition; it is no longer a
-flake, and the "known flaky" label is now wrong** (filed 2026-08-17, S6 gate step 2; owner: `tester`)
+**⬛ BUG-DM5-S6-EVID-KBD-1 — ✅ FIXED + VERIFIED GREEN 2026-08-17** (filed and closed the same day,
+S6 gate step 2; `tester`) — *it was never a flake; the readiness helper was lying one layer above the test*
+
+> **Root cause — a readiness check that could not distinguish the skeleton from the page.**
+> `expectRcaWorkspaceRendered` / `expectCapaWorkspaceRendered` (local to the spec) treated
+> `getByRole('main')` as proof the workspace had rendered. But `<main>` is rendered by the
+> **ancestor layout** ([`nsp/layout.tsx:108`](src/app/o/[org]/nsp/layout.tsx)), which **persists
+> across the `loading.tsx` → `page.tsx` Suspense swap** — so it is already visible while the route
+> still shows bare `<Skeleton>` placeholders with almost nothing focusable. `focusByTabbing` has
+> **no auto-retry** (it is a fixed count of blind Tab presses), so it began counting against a
+> skeleton and exhausted its budget. Every *other* caller in the file is mouse-driven and was
+> immune, because `.click()` auto-retries until its target is actionable — which is why exactly one
+> keyboard-only test was ever hit.
+> ⭐ **This explains all four measurements**: the race is lost only when the data fetch is still
+> pending, so it is load-dependent, not random — green alone, green paired, red once four more files
+> shared the run. The spec's own comment already warned *"never `.focus()` — races RSC streaming"*;
+> the identical race sat one layer up, inside the check that decides when it is safe to start.
+> → [[playwright-focus-is-not-auto-waiting]]
+>
+> **Fix** (`e2e/dm5-nsp-evidence.spec.ts` only — `e2e/helpers/documents.ts` has **zero** net diff):
+> both helpers now also wait for the evidence panel's own heading — a signal the skeleton cannot
+> produce — raced via `.or()` against the existing error boundary so a genuine stub regression still
+> fails fast with its specific message instead of a generic timeout.
+> ⛔ **It strengthens a PRECONDITION; it does not weaken an assertion.** `focusByTabbing`, the tab
+> budget, and the keyboard-reachability contract are untouched. **Measured before changing anything:
+> real tab counts were 34 / 1 / 2 / 36 against a budget of 60** — so "the budget was too tight" was
+> *excluded by measurement*, not assumed, and the budget was deliberately not raised. The CAPA twin
+> got the same fix: identical mechanism, no keyboard test yet to expose it, and leaving it is a
+> landmine for whoever writes one.
+>
+> **Verified — lead-run, not accepted from the report.** Diff inspected (one file); the three
+> structural claims re-checked independently (`<main>` is in the layout; both `loading.tsx`
+> boundaries exist; the skeleton renders **no** `<main>` of its own); the **five-gate** `npm run
+> lint` run — the tester had only run `npx eslint` + `tsc`, and *that exact gap has produced a false
+> green in this project before*. Then the full `e2e:prod`: **GATE GREEN**, batch 4 **64 passed / 0
+> failed** (was 63/1), `ok 13 … dm5-nsp-evidence.spec.ts:388:5 › EVID-KBD-1`.
+> ⚠ **The test moved `:347` → `:388`** (the fix added helper lines above it), so a line-keyed grep
+> for `:347` returns nothing — which reads exactly like *"the test did not run."*
+>
+> **`FUP-E2E-REPEAT-FLAKY`: EVID-KBD-1 is REMOVED** — it has an identified, fixed root cause, not an
+> unexplained flake. The other two members remain, and this run's 2 flaky are exactly those two
+> (`act-role-assumption:157`, `phase2-auth-shell:268`), so EVID-KBD-1 did not merely degrade from
+> failed to flaky. ⭐ **New lead, explicitly unverified:** `phase2-auth-shell.spec.ts` calls a bare
+> `.focus()` shortly after a navigation — the same anti-pattern, and `:268` is one of the two
+> survivors. Possibly the same root cause; **not investigated, offered as a lead, not a finding.**
 
 - **Spec:** `e2e/dm5-nsp-evidence.spec.ts:347` — *"EVID-KBD-1: keyboard-only — Tab to «Enviar
   arquivo», fill the dialog by keyboard, submit with Enter, and Tab+Enter to open the result"*.
