@@ -159,6 +159,81 @@ sight rather than shipped as a command, and the runbook now carries both the wor
 **mandatory** count-vs-census verification step. **Not filed as a 5th open instance — it never
 reached the document.**
 
+### 🟠 FUP-DM5-REMOTE-STATE-MEASURED — the remote was measured for the first time; **the "flags ship OFF" grading premise is WRONG at the grain it was used**, and 7 objects are stranded in two retiring buckets (owner: lead; **blocks the next `db push`**)
+
+Filed 2026-08-17 (lead), from the first **read-only** contact with the linked project
+(`azkbbhskturikxpgmafq`). The handoff banner named this the next session's first action precisely
+because so many severities rested on it. Every figure below is a `select`, not an inference.
+
+**1 · The remote holds ZERO application data.** `organizations` **0** · `profiles` **0** ·
+`commissions` **0** · `cases` **0** · `documents` **0** · `document_versions` **0** ·
+`document_version_files` **0** · `file_objects` **0** · `printed_documents` **0** ·
+`controlled_documents` **0**. There are **no production users and no production rows**. This is the
+true reason there is no production exposure, and it is *stronger* than the reason the record has been
+giving — but it is a **different** reason, and the difference is the finding:
+
+**2 · ⛔ The "flags ship OFF so the path is unreachable in production" grading is WRONG AT ITS GRAIN.**
+Measured: all six document flags **are** off on the remote (`documents_foundation`,
+`documents_wave_a`..`_d`, `document_printing` — all `enabled = false`; 31 other flags are on). But of
+the **52** document-model functions in `app`/`public`, **51 do not read the flag at all** — exactly
+**one** does (`app.compute_due_document_review_notifications`), and **no RLS policy** on any document
+table consults it either. The flag is an **application-layer** gate. It does **not** make a DEFINER
+door or a policy unreachable to anything holding a JWT and speaking PostgREST.
+
+> ⭐ This is [[a-predicate-quoted-at-the-wrong-grain]] again, and it is the third time this phase: a
+> **real** control (the flag genuinely is off) cited for a conclusion it does not bound (DB-level
+> reachability). It reads exactly like a proof. **Re-grade on "the remote has no data", never on
+> "the flags are off"** — and when the pilot loads data, the flag will *still* not be the boundary.
+
+**3 · 7 objects are stranded in two retiring buckets, with nothing governing them.**
+`printed-documents` **4** (`std/…pdf` ×1 + **`phi/…pdf` ×3**, 103–109 KB each, minted 2026-08-10,
+`owner_id` NULL = service-role) and `controlled-documents` **3** (2 `.docx`, 1 `.txt`,
+2026-07-21 → 2026-08-05). The two **core** document buckets are clean (`documents-standard` 0,
+`documents-phi` 0). Separately `form-assets` holds **38** objects against **0** commissions — same
+shape, outside DM scope, noted so it is not rediscovered as new.
+
+*Inference, flagged as such:* one cause fits all of it — the remote DB was reset at some point and
+**storage was not**, which is the mechanism in [[remote-reset-storage-orphan-is-cli-version-dependent]].
+Not needed for anything below; the counts stand on their own.
+
+**Reachability — measured, not reasoned.** `storage.objects` has RLS **enabled** with **8** policies,
+and **none** of them grants SELECT on `printed-documents` or `controlled-documents` (the only
+document-bucket policies are `documents_{phi,std}_obj_insert_reserved`, INSERT-only). So no tenant
+JWT can read these bytes; they are reachable only by service-role, which is the app's own print path
+(`open_printed_document`), and that path finds **no `printed_documents` row** to authorise. **Not an
+exposure.** What they are is **permanently outside the disposal lifecycle**: every disposal path keys
+off `file_objects`, and there is no row — so nothing can ever mark, complete, or evidence their
+destruction. PHI-tier bytes that the platform's own retirement machinery cannot see.
+
+**4 · ✅ The S4 guard will fire, and that is the designed outcome — but it BLOCKS the next `db push`.**
+`20260927000400_dm5_s4_retire_legacy_buckets.sql` Block 1 counts `storage.objects` per bucket and
+`raise exception`s naming the bucket and count. It is one of only **two** local-only migrations, so
+the next `db push` **will abort** on `printed-documents (4)` and `controlled-documents (3)`. Nothing to
+fix — the guard is correct and my measurement says exactly when it fires. **Ordering owed (ADR 0120
+D9, byte-first):** `scripts/storage-manifest.mjs capture` → `delete --execute` **against the remote**,
+then push. ⚠ And per the D9 Cloud half above, `locateVolume()` now **refuses** on a Cloud URL, so that
+deletion runs **without** byte-level proof — the API-only over-count refusal survives, the byte-side
+controls do not.
+
+**5 · `scripts/document-reconciliation.mjs` would have caught #3 and has never been pointed at the
+remote.** Checked rather than assumed: `BUCKETS` walks only the core two, **but** line 368 censuses
+`[...LEGACY_BUCKETS, ...RETAINED_BUCKETS]` — `printed-documents` and `controlled-documents` are both
+in `LEGACY_BUCKETS`. The tool is **correct and sufficient**; the gap is that it has only ever run
+against local. ⚠ Its comment *"DM5 S4 retired 8 of those 12 — only `documents-standard`,
+`documents-phi`, `form-assets` and `meeting-audio` still exist"* is **true locally and FALSE on the
+remote** (12 buckets live) — [[a-comment-is-an-assertion-that-goes-stale-silently]] in the narrow form
+where the subject is another system. Fixed in the same commit.
+
+**⛔ What this does NOT settle.** It does **not** touch **FUP-DM5-CLOUD-ORPHAN-SURFACE**, and the
+distinction is the whole point of that item's promotion ruling. **Two different "orphans":** what I
+found are **reconciler-orphans** — a `storage.objects` row with no `file_objects` row, *visible* to a
+metadata query, which is how I found them. That item asks about **byte-orphans** — bytes in the
+backing store with **no `storage.objects` row**, invisible to every query I ran. I read the metadata
+side only; **the S3 endpoint remains UNPROBED** and that item's severity is unchanged. Recording this
+explicitly because that section's own ruling is *"a buried obligation gets discharged by association
+the moment its parent looks resolved"* — remote contact having been made is exactly the kind of event
+that would otherwise be misread as having settled it.
+
 ### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
 
 Filed 2026-08-17 (backend, S5.D). Filed explicitly so it **cannot become settled by silence** — the

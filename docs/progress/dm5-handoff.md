@@ -45,10 +45,24 @@ describing them were wrong. Two lessons from this session that generalise past D
 | **S5** operational closure | ✅ **BUILT + QA APPROVED (r2)** 2026-08-17 — ⏸ **step 2 `e2e:prod` DEFERRED BY PO, step 4 owed. NOT closed.** Delivered: **S5.R** byte-path rehearsal (rehearse **22/22**, selftest **18/18**) · **S5.D** disposal runbook + the gap pinned on **both** sides · backup/restore drill · EXPLAIN baselines. Record: [`dm5-s5-operational-closure.md`](./dm5-s5-operational-closure.md). **§13 is the resume point** |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable, and **Rule 9 currently contradicts accepted practice** (it admits no exception; QA accepted the documents module's coordinate-resolving one) |
 
-⛔ **Branch `main`, NOTHING PUSHED, no `db push`, no remote reset. All DM flags ship OFF**
-(`documents_wave_d` **and** `document_printing` are ON in the local seed only — and **both must be flipped
-together at deploy**, ADR 0120 D5/S3). Registry **406 == 406** at HEAD `801a2589`; **re-verify before
-trusting any catalog claim in this file.**
+⛔⛔ **THIS PARAGRAPH WAS FALSE — CORRECTED 2026-08-17, MEASURED.** It read *"Branch `main`, NOTHING
+PUSHED, no `db push`, no remote reset."* **All three are wrong.** `origin/main` is `23b1d9cf` (itself a
+DM5·S5 commit); the remote carries **every migration through `20260927000360`** (DM1–DM5·S3 **live**),
+only `20260927000400` (S4) + `20260928000100` (recusal) are local-only; and the remote **has been
+reset** — it holds **0** orgs / profiles / commissions / cases. ⚠ **It was corrected at §13.1 first and
+left standing HERE**, which is the same defect one file-position later — see
+[[progress-md-record-step-rotation-is-chronically-skipped]]. **Nothing may rely on the old claim.**
+
+✅ **DM flags OFF on the remote — MEASURED 2026-08-17**, all six (`documents_foundation`,
+`documents_wave_a`..`_d`, `document_printing`). `documents_wave_d` **and** `document_printing` are ON in
+the local seed only — and **both must be flipped together at deploy** (ADR 0120 D5/S3).
+⛔ **But do NOT grade severities on that.** Of 52 document-model functions, **51 never read the flag**
+(one does) and **no** RLS policy does: the flag is an **application-layer** gate and does not make a
+DEFINER door or policy unreachable. The real reason there is no production exposure is that **the
+remote holds no data and no users**. Full measurement + the 7 stranded objects that will **block the
+next `db push`**: `follow-ups.md` → **FUP-DM5-REMOTE-STATE-MEASURED**.
+
+Registry **406 == 406** at HEAD `801a2589`; **re-verify before trusting any catalog claim in this file.**
 
 ### Environment facts that will otherwise cost you an hour
 
@@ -764,12 +778,21 @@ machine before drawing any conclusion**, and check the count against the plan
 > pushed" statement anywhere in this file or PROGRESS.md.** Three consequences, and two of
 > them outrank the whole batch:
 > 1. **Applied migrations may NOT be edited in place** — that is the drift that blocks `db push`.
-> 2. **S4's retirement never reached the remote**, so the 8 buckets still exist there and ADR
->    0120 **D9**'s "delete bytes by manifest FIRST" ordering is owed against a **LIVE REMOTE**.
->    `FUP-DM5-CLOUD-ORPHAN-SURFACE` is no longer theoretical.
-> 3. ⭐ **Every follow-up graded on *"the flags ship OFF so the path is unreachable in
->    production"* now rests on the REMOTE flag state — which NOBODY HAS MEASURED.**
->    **Start the next session by measuring it.**
+> 2. **S4's retirement never reached the remote** — ✅ **now quantified.** All 12 bucket rows are
+>    live there and **two hold objects**: `printed-documents` **4** (three PHI-tier) +
+>    `controlled-documents` **3**. The S4 migration's Block-1 data guard will therefore
+>    **abort the next `db push`**, naming both — correct by design, not a bug. ADR 0120 **D9**'s
+>    byte-first ordering is owed against a **LIVE REMOTE**: manifest `capture` → `delete --execute`
+>    against the remote, **then** push. ⚠ `locateVolume()` refuses on a Cloud URL, so that deletion
+>    runs **without** byte-level proof.
+> 3. ⭐ **✅ MEASURED 2026-08-17 — and the premise was WRONG at its grain.** The flags *are* all off
+>    on the remote, but **51 of 52** document functions and **zero** RLS policies read a flag: it is
+>    an **app-layer** gate, not a DB boundary. **Re-grade on "the remote holds no data and no
+>    users"** (0 orgs / profiles / commissions / cases) — a stronger reason, and a different one that
+>    **expires the moment the pilot loads data**. Full record: **FUP-DM5-REMOTE-STATE-MEASURED**.
+>    ⛔ This did **not** settle `FUP-DM5-CLOUD-ORPHAN-SURFACE`: I read `storage.objects`, so I found
+>    **reconciler**-orphans (metadata row, no `file_objects` row). That item is about **byte**-orphans
+>    (no metadata row at all) — invisible to every query run here. **S3 endpoint still UNPROBED.**
 >
 > ## ✅ CLOSED in this batch
 > **FUP-DM4-RECUSAL** (`32054942`, ADR **0122** — PO overturned the Phase-19 deferral; guard

@@ -62,10 +62,16 @@ const BUCKETS = ['documents-standard', 'documents-phi']
  *
  * Until DM5 this script covered 2 of 12 buckets, which meant a CLEAN verdict
  * said nothing at all about the ten buckets holding the platform's remaining
- * bytes. (⚠ Historical: DM5 S4 retired 8 of those 12 — only `documents-standard`,
- * `documents-phi`, `form-assets` and `meeting-audio` still exist. The "12" below
- * describes the pre-S4 world this widening was written for; the retired names are
- * kept deliberately so a stale bucket resurfacing is still classified, not ignored.)
+ * bytes. (⚠ DM5 S4 retired 8 of those 12 — but ONLY WHERE IT HAS BEEN APPLIED.
+ * "Only `documents-standard`, `documents-phi`, `form-assets` and `meeting-audio`
+ * still exist" is true LOCALLY and **false on the linked remote**, where the S4
+ * migration has never been pushed: measured 2026-08-17, all 12 bucket rows are
+ * live there and two of them hold objects — `printed-documents` 4 (three
+ * PHI-tier) and `controlled-documents` 3. A claim about which buckets "exist" is
+ * a claim about a PARTICULAR stack, and this script is the tool you point at the
+ * one you have not checked. The "12" below is therefore not merely historical.
+ * The retired names are kept deliberately so a stale bucket resurfacing — or a
+ * stack that never retired them — is still classified, not ignored.)
  * It cannot classify these the way it classifies the core two: legacy
  * objects have no `file_objects` row to be judged against, so there is no
  * (upload_state, disposal_state) pair to reason from. What it CAN assert — and
