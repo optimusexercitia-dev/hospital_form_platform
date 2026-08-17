@@ -524,6 +524,33 @@ async function cmdCapture(argv) {
       manifest.totals.orphanFiles += p.files
       manifest.totals.orphanBytes += p.bytes
     }
+    // ⚠ QA r2 — SURPLUS VERSION FILES: more files on the volume than KEYS, while
+    // every key set agrees. `verdictFor` compares KEY SETS, so this verdicts
+    // CONSISTENT with `orphan_files=0` and exit 0 — QA measured 5 API keys /
+    // 5 volume keys / **6 volume files** reading clean.
+    //
+    // Left as a RESIDUAL rather than a dirty verdict, deliberately: QA measured
+    // reachability in both directions and on this Storage version an API upsert
+    // REPLACES the version file, so a surplus is not currently produced by any
+    // supported operation, and reddening it would make the tool refuse a state
+    // that cannot occur.
+    //
+    // ⛔ THE TRIGGER CONDITION, NAMED so a future upgrade surfaces it instead of
+    // silently promoting it: **if any Storage version begins RETAINING object
+    // versions** (an upsert keeping the prior version file, versioning/soft-delete
+    // enabled, or a multipart remnant), then surplus files become routine, they are
+    // BYTES NO KEY CAN ADDRESS — undeletable through the API and invisible to a
+    // key-set comparison — and this residual must be promoted to a dirty verdict.
+    // Under Rule 12 those are undisposable PHI bytes. Re-read this the next time
+    // `supabase` is upgraded.
+    if (p && p.present && p.files > p.keys.length) {
+      manifest.residuals.push(
+        `${b}: ${p.files} volume FILES for ${p.keys.length} volume KEYS (surplus ${p.files - p.keys.length}). ` +
+          'Verdict is key-set based, so this reads CONSISTENT. Not dirty on this Storage version (an ' +
+          'upsert replaces the version file), but surplus version files are bytes NO KEY CAN ADDRESS. ' +
+          'If a Storage upgrade starts retaining versions, this must become a dirty verdict.',
+      )
+    }
   }
 
   // The out-of-scope buckets are censused but never captured for deletion.
@@ -536,10 +563,28 @@ async function cmdCapture(argv) {
   }
 
   if (!loc.available) {
+    // ⛔ QA r2 MINOR-1. This used to end with "The count-comparison gate still
+    // holds." — a REASSURANCE about the one control that is blind, printed in the
+    // exact situation where it is blind, on a path that precedes a destructive
+    // run. Rehearsal R6 measures that situation directly: `deleted=5 manifest=5
+    // MATCH`, "ALL BUCKETS MATCHED THEIR MANIFEST COUNT", exit 0 — with a real
+    // file surviving. "Still holds" is true of the comparison EXECUTING and false
+    // of the assurance a reader takes from it.
+    //
+    // ⭐ This slice's own class (FUP-DM5-NO-ANSWER-VS-NOTHING), one layer up, in
+    // the remediation written for it: a signal that reads reassuring about a
+    // subject it did not examine. So the sentence now states the bound with the
+    // capability, and R6 pins the WORDING — an unpinned message proven wrong once
+    // comes back.
     manifest.residuals.push(
       `LOCAL PROOF UNAVAILABLE (${loc.reason}). Orphaned bytes CANNOT be detected from here. ` +
         'On Cloud this is expected and UNVERIFIED: dashboard, CLI and supabase-js all list from ' +
-        'storage.objects, and the S3 endpoint is unprobed. The count-comparison gate still holds.',
+        'storage.objects, and the S3 endpoint is unprobed. ⛔ The count comparison still RUNS and is ' +
+        'the only control that survives without local proof — but it compares the manifest against ' +
+        'ITSELF AS EXECUTED, never against reality, so it CANNOT detect an UNDER-COUNT manifest ' +
+        '(deleted==manifest while a real file survives) nor a TWO-WAY DIVERGENCE (equal counts, ' +
+        'disjoint sets). It refuses only an OVER-COUNT. Do not read a MATCH here as byte-level ' +
+        'assurance.',
     )
   }
   // ⭐ The degenerate case, stated in the artifact rather than left to be
@@ -1486,6 +1531,22 @@ async function cmdRehearse() {
       `blind: exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict} | ` +
         `sighted: exit=${cap7.exit} verdict=${cap7.manifest.buckets[bucket].verdict}`,
     )
+    // ⭐ QA r2 MINOR-1 — the WORDING of the no-proof residual is a pinned property,
+    // not just its presence. It used to end "The count-comparison gate still holds",
+    // a reassurance about the one control R6 (immediately above) proves blind. The
+    // assertion requires the bound to be stated AND forbids the old sentence coming
+    // back, because that is the failure mode: a message corrected once, unpinned,
+    // reverting in a later edit.
+    const blindResiduals = (blindCapture.manifest.residuals ?? []).join(' ')
+    check(
+      'R6-residual the no-proof residual STATES the count comparison\'s bound (under-count + divergence) and does NOT reassure',
+      /LOCAL PROOF UNAVAILABLE/.test(blindResiduals) &&
+        /UNDER-COUNT/.test(blindResiduals) && /TWO-WAY DIVERGENCE/.test(blindResiduals) &&
+        /only an OVER-COUNT/.test(blindResiduals) &&
+        !/gate still holds/.test(blindResiduals),
+      `residual_states_bound=${/UNDER-COUNT/.test(blindResiduals)} ` +
+        `reassurance_absent=${!/gate still holds/.test(blindResiduals)}`,
+    )
     // The other direction — the control that DOES survive. Without this, R6
     // reads as "nothing works on Cloud", which is false and would be its own
     // vacuity: the count comparison is Storage-API-only and transfers intact.
@@ -1592,6 +1653,45 @@ async function cmdRehearse() {
       `exit=${cap9.exit} verdict=${b9.verdict} keys=${b9.keyCount}`,
     )
     // Leave the bucket in a state R5's verified teardown can handle normally.
+    await replant()
+
+    // ---- R9: MISSING_BYTES via PARTIAL loss — the unobserved half of the
+    // ---- non-monotonicity claim (QA r2)
+    //
+    // ⛔ THE POINT: `MISSING_BYTES` is reachable by TWO paths, and R7 only
+    // constructs one. R7 removes the whole directory (total loss). This removes
+    // ONE key and LEAVES the directory (partial loss).
+    //
+    // ⭐ Why that matters more than an extra arm: the entire justification for the
+    // MAJOR-1 fix is the NON-MONOTONICITY — "lose SOME bytes ⇒ dirty, exit 1; lose
+    // ALL ⇒ clean, exit 0; the worse state reported better." The `lose ALL` half
+    // was measured (R7, observed red pre-fix). The `lose SOME` half was asserted
+    // by the code comment and by runbook §6(c) and had been **observed by nobody**.
+    // A comparative claim with one measured half is half a claim, and this is the
+    // claim the fix was justified by — so the enumeration is over PATHS, not names.
+    await replant()
+    const keyToLose = planted[1]
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf ${loc.root}/${assertDisposableBucket(bucket)}/${keyToLose}`])
+    const volPartial = volOf()
+    const cap12 = await runCapture(tmp('cap12'))
+    const b12 = cap12.manifest.buckets[bucket]
+    check(
+      'R9 PARTIAL byte loss (one key gone, directory PRESENT) is MISSING_BYTES and exit 1 — the other half of the non-monotonicity claim',
+      b12.verdict === 'MISSING_BYTES' && cap12.exit === 1 &&
+        volPartial.present === true && volPartial.keys.length === planted.length - 1 &&
+        b12.keyCount === planted.length && !volPartial.keys.includes(keyToLose),
+      `verdict=${b12.verdict} exit=${cap12.exit} volume_present=${volPartial.present} ` +
+        `api_keys=${b12.keyCount} volume_keys=${volPartial.keys.length} lost="${keyToLose}"`,
+    )
+    // ⭐ And now the comparison itself is an ASSERTION rather than a sentence: the
+    // two paths that used to disagree must now agree. Before the MAJOR-1 fix these
+    // were MISSING_BYTES/exit-1 and CONSISTENT_EMPTY/exit-0 respectively; the fix's
+    // whole content is that they converge. R7 supplies the total-loss half.
+    check(
+      'R9-monotonic PARTIAL and TOTAL byte loss now yield the SAME verdict and the SAME exit — the non-monotonicity is closed, measured on both halves',
+      b12.verdict === 'MISSING_BYTES' && b10.verdict === 'MISSING_BYTES' && cap12.exit === cap10.exit && cap12.exit === 1,
+      `partial=${b12.verdict}/exit${cap12.exit} total=${b10.verdict}/exit${cap10.exit}`,
+    )
     await replant()
 
     // ---- R8: DIVERGED_BOTH_WAYS — the last unconstructed verdict ------------
