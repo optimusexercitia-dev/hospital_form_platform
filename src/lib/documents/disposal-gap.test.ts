@@ -338,7 +338,17 @@ describe('DM5 S5.D — the disposal-completion gap (TS half)', () => {
     // dispose_*_phi wrapper, reaches the completion door. Asserting the absence
     // of these NAMES (rather than only the total) means a second call site added
     // to the disposition path is reported as such, not merely as "2 ≠ 1".
-    const onDispositionPath = callSites.filter((r) => /disposition|dispose/i.test(r.enclosing))
+    //
+    // ⛔ `/dispos/i`, NOT `/dispose/i` — QA MINOR-1 caught this by measurement.
+    // `/dispose/` does not match `Disposal`, and QA's red-first probe was named
+    // `scheduledDisposalSweep` — the single most plausible name a disposal job
+    // would carry, and the same name the record's own probe used. So this arm
+    // stayed GREEN through the exact mutation it advertises catching, while only
+    // the total-count assertion reddened. The property was still caught, by the
+    // other assertion; the arm was not doing its stated job.
+    // ⭐ That is *the enumeration boundary is a syntax, not a property* — in the
+    // file that pins that class. `/dispos/i` covers dispose/disposal/disposition.
+    const onDispositionPath = callSites.filter((r) => /dispos/i.test(r.enclosing))
     expect(render(onDispositionPath)).toBe('(none)')
   })
 

@@ -85,42 +85,40 @@
 -- now stands in tension with); Rule 12 / LGPD / ANVISA-RDC / CFM 1821.
 -- =============================================================================
 begin;
--- ⚠ DELIBERATE DEVIATION: this is the only file of 195 in supabase/tests that
--- uses `no_plan()` instead of `plan(N)`. Reason, and it is this file's own
--- history: it arrived declaring `plan(11)` with 12 assertions. pg_prove's report
--- for that state was `Failed tests: 2-3, 5, 12` — test 12 is listed as failed
--- purely because of the bad plan, and the report leads with a PARSE ERROR
--- ("Bad plan"). On a file whose entire job is to go red at ONE named assertion,
--- a hand-maintained count beside the assertions is a second thing that can go
--- red for a reason that is not the property — the same class as the stale
--- comment this file exists to make executable. `no_plan()` derives the count
--- from what actually ran, so adding a K9 cannot desynchronise it.
+-- ⚠ THE PLAN COUNT: `plan(12)`, restored from `no_plan()` after QA r1 — and the
+-- reasoning that put `no_plan()` here was WRONG IN THE RISK DIRECTIONS, which is
+-- worth recording because it is a subtle error, not a typo.
 --
--- The property this gives up was MEASURED, not assumed (2026-08-17, this stack):
--- a `no_plan()` file that ABORTS mid-run still FAILS — pg_prove reports
--- "Parse errors: No plan found in TAP output" + "Non-zero exit status: 3",
--- Result: FAIL, exit 1 — so a truncated run is NOT mistaken for a smaller
--- passing suite. Its clean twin passed with exit 0 in the same session. Do not
--- "restore convention" here without re-running both halves of that check.
+-- History. The file arrived declaring `plan(11)` with 12 assertions; pg_prove
+-- reported `Failed tests: 2-3, 5, 12` with a leading PARSE ERROR ("Bad plan"),
+-- and test 12 was listed as failed purely because of the count. That looked like
+-- "the count is a second thing that can go red for a reason that is not the
+-- property", so it was replaced with `no_plan()`.
 --
--- ⚠ WHAT `no_plan()` GENUINELY COSTS, disclosed rather than left to be
--- discovered: `plan(N)` catches SILENT ASSERTION LOSS — delete a `select ok(…)`
--- and it says "planned 12, ran 11". `no_plan()` does NOT: a deleted assertion
--- just makes this file smaller, with no complaint from the file itself. The
--- compensating control is the phase gate's SUITE-WIDE total — measured on a fresh
--- reset 2026-08-17: **193 files / 6351 PASS before this file, 194 / 6363 with it**
--- (+1 file, +12 assertions, which is exactly this file) — a figure that moves if
--- an assertion vanishes anywhere. ⚠ The first version of this very comment said
--- "194 files / 6351 … before this file", a hybrid true of NEITHER state: the
--- defect this file exists to pin, committed inside the file that pins it, caught
--- by re-deriving the numbers instead of re-reading the sentence. But
--- that is a LEAD-SIDE FIGURE compared by a human at gate time, NOT an in-file
--- guard, and it is weaker than a per-file plan. The trade accepted here is:
--- protect the file's ability to go red for ONE named reason (its whole purpose)
--- at the cost of per-file protection against quiet shrinkage. If that trade ever
--- looks wrong, the fix is `plan(N)` with the count re-derived and re-verified in
--- the same change — not a half-migration that leaves a stale number behind.
-select no_plan();
+-- ⛔ The comparison was against the wrong alternative. Both failure modes are
+-- real, but they fail in OPPOSITE directions:
+--   * a wrong `plan(N)` fails **SAFE** — a noisier red on a run that was ALREADY
+--     failing and already exiting 1. It never produced a false green. The
+--     "masking" it was accused of was a *reporting* artifact of a correct failure.
+--   * silent assertion loss under `no_plan()` fails **OPEN** — delete a
+--     `select ok(…)` and the file simply becomes smaller, with no complaint from
+--     the file itself. `plan(N)` says "planned 12, ran 11"; `no_plan()` says
+--     nothing.
+-- So the change traded a fail-safe failure mode for a fail-open one, and
+-- described that as protecting the file's ability to go red. The assertion set is
+-- stable at 12, so the count is restored.
+--
+-- ⚠ IF YOU ADD OR REMOVE AN ASSERTION, RE-DERIVE THIS NUMBER IN THE SAME EDIT.
+-- The count is 12 top-level assertion calls: K1, K2, K3a, K3b, K4, K5, K6a, K6b,
+-- K7a, K7b, K8, K8b. Derive it, do not trust this list — the list is prose and
+-- prose goes stale, which is the whole subject of this file.
+--
+-- (Recorded for completeness, since it was measured and someone may re-litigate
+-- this: a `no_plan()` file that ABORTS mid-run does still FAIL — pg_prove reports
+-- "Parse errors: No plan found in TAP output" + "Non-zero exit status: 3", exit 1.
+-- That measurement was correct; it just answered a question that was not the
+-- deciding one.)
+select plan(12);
 
 -- ---------------------------------------------------------------------------
 -- The detector. Comment-stripped, so a mention is not mistaken for a call.
