@@ -167,6 +167,53 @@ list / open / sign as the pilot's comparison point. Production-volume perf testi
 rollout stay deferred to the pilot (PO-accepted). O1/O2 values remain with the PO — S5 names
 owners, it does not invent values.
 
+#### S5.R — REHEARSE the deploy-time byte path (PO-directed 2026-08-17)
+
+**Why it is here.** S4 retired the eight bucket rows, but its byte half was a **NO-OP**: every
+retirement byte was a metadata-less orphan, so `delete --execute` never ran. The sequence's
+correctness rests entirely on S0's 8/8 self-test — controls the tool runs against *itself* — and
+on **no execution against real bytes at all**. Production is where it matters, because production
+**has metadata rows** (45 objects at the 2026-08-11 census).
+
+⭐ **Rehearse the WITH-METADATA path specifically.** S4's no-op was not incidental: metadata-less
+orphans are the one condition under which the manifest sequence has nothing to do, because the
+Storage API lists *from* `storage.objects`. Production takes the opposite path. **A rehearsal that
+reproduces S4's conditions would re-prove the no-op and read as coverage** — the phase's own
+vacuity class, applied to its own deploy runbook.
+
+⛔ **It cannot be run on the retired scope** (QA r1 MINOR-5): post-migration `capture` returns
+`BUCKET_ABSENT` for all eight, and they now hold **0 bytes** — measured 2026-08-17. The rehearsal
+needs a scope it can populate: a purpose-made disposable bucket, created, populated **through the
+Storage API so the rows exist**, and disposed by the real sequence. ⛔ **Never the four
+survivors** — their bytes back the seed and ~900 E2E tests.
+
+**The sequence, end to end, in order:** capture manifest → compare → `delete --execute` →
+re-capture → verify empty → and D9's ordering property, that the retirement migration still
+**refuses** a bucket holding `storage.objects` rows.
+
+**Acceptance — each proven able to FAIL, never merely observed passing:**
+1. `delete --execute` removes exactly the manifest's keys from a **populated** bucket **with
+   metadata rows**, and the re-capture reads empty.
+2. A **manufactured extra orphan** — a key on the volume absent from the manifest — is FOUND.
+3. A **deliberate count mismatch** is REFUSED: the run aborts rather than reporting success over
+   surviving files. (This is the control that did not exist when 221 files died.)
+4. The retirement guard REFUSES while any `storage.objects` row survives and admits only after —
+   S4 pinned this at the catalog layer; here it runs against real rows.
+
+⚠ **Probe the platform guard; do not reason about it.** `storage.protect_delete()` blocks
+`storage.objects` DML on this stack, and `storage.protect_objects_delete` fires **before** RLS,
+refusing unless the session sets `storage.allow_delete_query` (found at S4 B2, `140ffd8c`). The
+rehearsal goes through the **Storage API**, not SQL DML, so it plausibly never meets that guard —
+but *plausibly* is the word this phase keeps paying for.
+
+⛔ **A green local rehearsal does NOT license the Cloud sequence.** D17's remote half was wrong
+precisely because local was reasoned to remote by *"the same mechanism class"*, and the mechanisms
+differed ([cli#3083](https://github.com/supabase/cli/pull/3083) / reverted
+[#3359](https://github.com/supabase/cli/pull/3359)). State the domain the rehearsal covers.
+**FUP-DM5-STORAGE-ORPHANS' Cloud half stays OPEN until something runs there**, and
+FUP-DM5-STACK-CYCLE-DESTROYS-BYTES is not discharged by this either — S5.R governs the
+*deliberate* path; the accidental one remains ungoverned.
+
 ### S6 — canon rewrite + program exit sweep (lead + backend)
 
 ARCHITECTURE.md §2 + Rule updates: the D8 Rule-1 sharpening **and** — the obligation that

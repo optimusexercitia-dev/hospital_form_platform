@@ -22,6 +22,9 @@ this section used to name is discharged — §10 now records the *outcome* inste
    *gate* — could not address any of them; `delete --execute` never ran. What S4 retired is the
    **bucket rows + policies**, via migration `20260927000400`, and that half now survives `db reset`.
    **The deploy-time byte sequence therefore remains UNREHEARSED.** Detail: §11 + the phase record.
+   ✅ **The rehearsal is OWNED as of 2026-08-17 — PO directed it into S5 as `S5.R`**
+   ([plan](../plans/dm5-wave-d-retirement-plan.md) § S5.R). ⚠ It is still unrehearsed: S5.R is scope,
+   not a result.
 2. **Before spawning anyone**, re-verify the catalog claims in this file (registry, census, flags). Where
    it says *verify*, verify: this phase punished inherited claims repeatedly, **including six times in the
    session that built S3, four of them by the lead** (§9).

@@ -237,6 +237,11 @@
 > **stays** closed across `db reset` — which six historical migrations would otherwise undo.
 > ⚠ **So the deploy-time byte sequence remains UNREHEARSED end-to-end** (ADR 0120 D9 now carries an
 > inline EXECUTION NOTE saying so); its correctness still rests on S0's 8/8 self-test.
+> ✅ **OWNED 2026-08-17 — PO directed the rehearsal into S5 as `S5.R`**
+> ([plan](docs/plans/dm5-wave-d-retirement-plan.md) § S5.R): the **with-metadata** path (the condition
+> production is in, and the one S4's no-op skipped) on a purpose-made disposable bucket, all four
+> acceptance items proven able to FAIL. ⚠ **Still UNREHEARSED until S5.R runs** — naming an owner is not
+> a rehearsal.
 >
 > | gate step 1 | figure |
 > |---|---|

@@ -250,7 +250,12 @@ tool should reject unknown flags.* → **FUP-DM5-MANIFEST-FLAG** (filed).
 - **The byte deletion path was never EXECUTED against a populated bucket** in S4. `delete --execute`
   was not run at all, because the manifest was empty by construction. Its correctness rests on S0's
   self-test (8/8, including a manufactured orphan and a deliberate count mismatch), **not** on an S4
-  run. **The production sequence is therefore still unrehearsed end-to-end.**
+  run. **The production sequence is therefore still unrehearsed end-to-end.** ✅ **OWNED 2026-08-17 —
+  PO directed the rehearsal into S5 as `S5.R`** ([plan](../plans/dm5-wave-d-retirement-plan.md) § S5.R),
+  scoped to the **with-metadata** path on a purpose-made disposable bucket, since the eight retired ones
+  now return `BUCKET_ABSENT` (QA r1 MINOR-5). ⚠ **This bullet does not move until S5.R runs** — an owner
+  is not a rehearsal, and it stays under this binding heading precisely so a reader cannot mistake the
+  two.
 - **Nothing remote was touched**, verified or otherwise. FUP-DM5-STORAGE-ORPHANS' Cloud half stays
   residual.
 - ⛔ **The 221 local orphan files were DESTROYED, outside the gate, by my own stack recovery** — see the

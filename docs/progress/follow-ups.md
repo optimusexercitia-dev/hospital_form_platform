@@ -416,7 +416,12 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 > - ⚠ **`delete --execute` has still never run against a populated bucket.** Its correctness rests on S0's
 >   8/8 self-test, not on an S4 execution — so **the production sequence remains unrehearsed end-to-end**,
 >   even though production is where it is actually meaningful (it has metadata rows: 45 objects at the
->   2026-08-11 census).
+>   2026-08-11 census). ✅ **OWNED 2026-08-17 — the PO directed the rehearsal into S5 as `S5.R`**
+>   ([plan](../plans/dm5-wave-d-retirement-plan.md) § S5.R): the **with-metadata** path, on a
+>   purpose-made disposable bucket (the eight retired ones now return `BUCKET_ABSENT` and hold 0 bytes),
+>   with all four acceptance items proven able to FAIL. ⚠ **Naming an owner is not a rehearsal** — this
+>   bullet stands until S5.R runs, and a green *local* rehearsal still does not license the Cloud
+>   sequence, which is what keeps this follow-up open.
 >
 > ### ⛔ AMENDMENT 2026-08-14 — the remote half's premise was WRONG. Severity 🔴 → 🟠.
 >

@@ -197,6 +197,13 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >    **not** on any S4 execution. Do not let S5/S6 read S4's completion as evidence that the
 >    deploy-time byte path has been run. It has not.
 >
+>    ✅ **OWNED as of 2026-08-17: the PO directed the rehearsal into S5 scope as `S5.R`**
+>    ([plan](../plans/dm5-wave-d-retirement-plan.md) § S5.R). It must rehearse the
+>    **with-metadata** path — the condition production is in and the one S4's no-op skipped —
+>    on a purpose-made disposable bucket, because `capture` now returns `BUCKET_ABSENT` for all
+>    eight retired buckets (QA r1 MINOR-5) and they hold 0 bytes. ⚠ Until S5.R runs, this
+>    paragraph stands unchanged: **naming an owner is not a rehearsal.**
+>
 > The bucket ROWS and their policies were retired by migration `20260927000400`, which deletes
 > **zero bytes** by design and **refuses** to retire a bucket still holding `storage.objects`
 > rows — D9's ordering encoded executably rather than as prose. Detail:
