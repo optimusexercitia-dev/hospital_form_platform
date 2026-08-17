@@ -162,11 +162,49 @@
 >   stack recovery); I reported them as present and had the PO rule on them **3h11m after they were
 >   gone**. A disposal without evidence inside the slice that ratified D9. → corrected everywhere +
 >   **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**.
-> - **B2** — `e2e/phase14c-rca.spec.ts:650-671` (R15) DELETEs `nsp-evidence` and asserts only
->   `not 200 / not 204`; the retired bucket, `documents-phi` **and** `form-assets` all answer
->   `400 {"statusCode":"404"}` — **indistinguishable**. A green security pin naming a bucket that does
->   not exist, counting toward the 1118. **`tester` is fixing it + re-running the gate** (PO-directed);
->   the 1118 figure is **suspended until restated**.
+> - **B2 — ✅ CODE FIX LANDED** (`140ffd8c`), **but the gate figure is NOT re-established (see below).**
+>   R15 DELETEd `nsp-evidence` and asserted only `not 200 / not 204`; the retired bucket,
+>   `documents-phi` **and** `form-assets` all answer `400 {"statusCode":"404"}` — **indistinguishable**.
+>   Rewritten to plant a REAL object via the product corridor and make the discriminating fact the
+>   object's **survival** (service-role re-fetch + byte compare), status codes demoted to "weak signal
+>   only". **Proven able to fail** (service-role bearer ⇒ RED). ⭐ It also corrected a codebase-wide
+>   assumption: a PERMISSIVE `for delete` policy did **not** let the delete through —
+>   `storage.protect_objects_delete` fires **before RLS** and is the operative guard, the same one
+>   `…000400` opts out of. `143`'s Rule 6 label corrected accordingly (assertion unchanged, 38 == 38).
+>
+> ### ⛔ S4 STOPPED HERE 2026-08-17 03:30 — the E2E figure is UNESTABLISHED, and that is the ONLY thing blocking r2
+>
+> ⛔ **Do NOT quote 1118.** It predates the R15 fix and no run since has reproduced it. **FOUR gate
+> attempts, ZERO usable figures, and not one of them produced an assertion failure:**
+> | attempt | result | cause |
+> |---|---|---|
+> | tester's full gate | 46 "failures" in batch 17, 28 unrun | **resource exhaustion** — `0xC0000142 STATUS_DLL_INIT_FAILED`, workers never initialised, **zero assertions ran** |
+> | lead isolation #1 | 134 UNRUN | launched into a stack still restarting **+ the tester's gate process tree still alive** |
+> | lead isolation #2 | 66 UNRUN | same concurrent gate, still alive |
+> | lead full gate | died mid-batch-1, `EXIT=1`, no error output | abrupt termination, unexplained |
+>
+> ⭐ **All three lead attempts were self-inflicted, and the cause was one habit: trusting a status
+> report instead of measuring.** The harness said the tester's task "completed"; its `npm run e2e:prod`
+> tree was **still running** and holding `:3000` and the DB — the *shared-local-stack-single-owner* rule
+> I had quoted into both agents' briefs, broken by me twice in twenty minutes. **`TaskStop` does not
+> reap the gate's process tree; verify with `Get-Process`, never from the notification.**
+>
+> **pgTAP at the stop point: 193 files / 5900 — `FAIL`, and it is NOT a regression.** 17 suites report
+> `Bad plan … ran 0` with `deadlock detected` at `test_helpers.bootstrap()`, and **`Failed: 0` on every
+> one — zero assertion failures anywhere in the run.** That is exactly **HANDOFF-1**, the documented
+> intermittent `pg_prove` worker deadlock, at unusual scale (17 files vs the recorded 2) on a machine
+> that had been hammered all night. ⚠ The 6351 figure from `19dd3124` stands as the last clean
+> measurement; this run neither confirms nor refutes it.
+>
+> ⚠ **Two more lead self-inflicted breakages, both the SAME class as the gate ones:** piping
+> `supabase db reset` through `grep | head` **SIGPIPE-killed the reset mid-flight** (the "never pipe a
+> gate through head/tail" rule, applied to a reset), and I read "`storage.buckets` does not exist"
+> **three times** as a broken stack when it was a race against the post-reset container restart.
+> **After a reset, poll for readiness before querying.**
+>
+> **Resume: re-run `npm run e2e:prod` ONCE on a clean machine** (verify `Get-Process node` is empty and
+> `:3000` has no LISTENER first; start `gotenberg-pdf` and check `/health` = 200), reconcile per-batch
+> `accounted N/N` with 0 did-not-run, then **QA r2** on B1 + B2. Nothing else is outstanding.
 > - QA also **solved** the `SET LOCAL` puzzle I had recorded as unexplained, and **corrected two of my
 >   claims about it**: it is *not* e2e-path-specific (a plain reset emits **six** `25P01`; I had read my
 >   own run through `tail -25`), and my "the guard refuses" probe was taken at the **wrong grain**

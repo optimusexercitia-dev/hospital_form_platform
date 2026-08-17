@@ -32,7 +32,7 @@ this section used to name is discharged — §10 now records the *outcome* inste
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
 | **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
-| **S4** retirement (8 buckets) | 🔵 **BUILT; steps 1 ✅ 2 ✅, step 3 ⛔ CHANGES REQUESTED (r1), step 4 owed.** Build sound; **both blocking items are RECORD defects.** ⚠ Byte half was a NO-OP, **then the 221 orphans were destroyed outside the gate** — §11 |
+| **S4** retirement (8 buckets) | 🔵 **BUILT + both QA blockers FIXED in code. THE ONLY THING OUTSTANDING IS A CLEAN `e2e:prod` RUN, then QA r2.** ⛔ **Do not quote 1118** — 4 gate attempts, 0 usable figures, 0 assertion failures in any of them (all environmental; 3 self-inflicted). ⚠ Byte half was a NO-OP, **then the 221 orphans were destroyed outside the gate** — §11 · §12 |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
@@ -631,3 +631,78 @@ satisfied at the *type* level only) · `add_referral_shared_item` never driven e
 `finalize_document_upload`'s derivation, and it feeds `complete_document_disposal`'s duplicate-evidence
 probe) · the smoke file is **not gate-resident** · `ARM=policy` was **not applicable** to this diff
 (recorded as such, never as clean).
+
+---
+
+## 12. ⭐ START HERE IF YOU ARE RESUMING S4 (2026-08-17 03:30)
+
+**S4's build and both QA r1 blockers are DONE in code.** Exactly one thing is outstanding: **a clean
+`npm run e2e:prod` run**, and then **QA r2** on B1 + B2. Nothing else.
+
+Commits (all on `main`, ⛔ **nothing pushed**): `19dd3124` (retirement) · `7977cd32` (B1 + record
+corrections) · `11bfdd39` (MINOR-3/4/5/7 + 2 new FUPs) · `140ffd8c` (B2 R15 rewrite + `143` label).
+
+### ⛔ Do NOT quote the 1118 figure
+
+It predates the R15 fix and **no run since has reproduced it**. Four gate attempts produced **zero
+usable figures — and, importantly, zero assertion failures in any of them:**
+
+| attempt | result | cause |
+| --- | --- | --- |
+| tester's full gate | 46 "failures" in batch 17 + 28 unrun | **resource exhaustion**: `worker process exited unexpectedly (code=3221225794)` = `0xC0000142 STATUS_DLL_INIT_FAILED`, plus `browserContext.newPage` timeouts. **Workers never initialised; no assertion ran.** Every other batch was clean |
+| lead isolation #1 | 134 UNRUN | stack still restarting **+ the tester's gate still alive** |
+| lead isolation #2 | 66 UNRUN | same concurrent gate |
+| lead full gate | died mid-batch-1, `EXIT=1`, **no error output at all** | unexplained abrupt termination — **no mechanism invented for it** |
+
+⭐ **The gate's own wording is what prevented a wrong call, and it is worth internalising:**
+> *GATE RED (UNRUN) — N test(s) never executed; zero assertion failures were observed. NOT a green run
+> and NOT a regression signal: those tests were never given a chance to fail.*
+
+**"Nothing failed" and "nothing ran" are different facts.** The lead nearly reported "isolation
+confirms infra" from a run in which zero assertions executed.
+
+### ⚠ The five environment traps that cost this session ~3 hours — ALL self-inflicted, ONE habit
+
+**Trusting a status report instead of measuring the thing.**
+
+1. **`TaskStop` / a completion notification does NOT mean the gate is gone.** The tester's task was
+   reported *completed*; its `npm run e2e:prod` tree was still running, holding `:3000` and resetting
+   the DB under two subsequent runs. **Before launching any gate: `Get-Process node` must be empty and
+   `:3000` must have no LISTENING socket.** (`shared-local-stack-single-owner`, quoted into both
+   agents' briefs and then broken by the lead twice in 20 minutes.)
+2. **Piping a `supabase db reset` through `grep | head` SIGPIPE-kills the reset mid-flight**, leaving a
+   half-built DB. The "never pipe a gate through `head`/`tail`" rule applies to **resets** too.
+   Redirect to a file, then grep the file.
+3. **After a reset the containers RESTART.** Querying immediately yields
+   `relation "storage.buckets" does not exist` / `42P13 cannot change name of input parameter` — which
+   read exactly like a corrupt database. **The lead misread this three times.** Poll for readiness:
+   `until docker exec … psql -c 'select 1' ; do sleep 8; done`.
+4. **A `supabase stop` + `start` recovery DESTROYS the storage volume** (reports `"backup":true` while
+   doing it). This is how the 221 orphan files died — see §11 and FUP-DM5-STACK-CYCLE-DESTROYS-BYTES.
+5. **`REBUILD=0` reuses `.next/standalone`.** Fine, but if a stale server holds `:3000` the batch
+   servers collide and tests hit `ERR_CONNECTION_REFUSED` that reads like a product defect.
+
+### The pgTAP result at the stop point, and why it is NOT a regression
+
+**193 files / 5900 · `FAIL`.** 17 suites report `Bad plan … ran 0` with **`deadlock detected`** at
+`test_helpers.bootstrap()`'s `truncate … cascade`, and **`Failed: 0` on every one — zero assertion
+failures anywhere in the run.** That is **HANDOFF-1** (§7c) at unusual scale — 17 files vs the
+recorded 2 — on a machine that had run three gates that night. **The last clean pgTAP measurement is
+193 files / 6351 PASS at `19dd3124`;** this run neither confirms nor refutes it. **Re-run on a rested
+machine before drawing any conclusion**, and check the count against the plan
+(`a neutralization that makes a suite ABORT is indistinguishable from a smaller suite`).
+
+### The exact resume recipe
+
+1. `Get-Process node` empty · `:3000` no LISTENER · `docker start gotenberg-pdf` · `/health` = **200**
+   (without it 15 print specs fail as uniform pt-BR errors that read as product defects).
+2. `supabase db reset --local` **unpiped**, then **poll for readiness**, then confirm registry
+   **407 == 407** and `storage.buckets` = the **4** survivors.
+3. `npm run test:db` → expect **193 / 6351**. A `Bad plan … ran 0` + `deadlock` shortfall is HANDOFF-1;
+   re-run before diagnosing.
+4. `npm run e2e:prod` **redirected to a file, never piped.** Reconcile **per-batch** `accounted N/N`
+   with **0 did-not-run** — the summary's `COVERAGE` line excludes skips and will look short.
+   Verify `pdf-printing` **9/9** + `pdf-printing-meetings` **6/6** explicitly.
+5. Spawn `qa` for **r2** on B1 + B2 only ([r1 review](../reviews/dm5-s4-review.md)). r1's own
+   NOT-RE-VERIFIED list: it never re-ran `e2e:prod`, and B2 lives in that layer.
+6. Then PO step 4.
