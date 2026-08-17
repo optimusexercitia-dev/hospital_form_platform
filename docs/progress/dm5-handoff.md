@@ -750,6 +750,65 @@ machine before drawing any conclusion**, and check the count against the plan
 
 ## 13. ⭐⭐ START HERE IF YOU ARE RESUMING DM5 (written 2026-08-17, for a session that was not here)
 
+> # 📌 SESSION UPDATE 2026-08-17 (later) — A FOLLOW-UP BATCH RAN. READ THIS BEFORE §13.1.
+>
+> The PO ruled the follow-ups be grouped into **ONE gate**, riding S5's already-owed
+> `e2e:prod` (step 2). That gate has **NOT been run** — the batch is partially built. Six
+> commits landed on `main`, none pushed:
+> `32054942` · `4102149b` · `24cee179` · `2d6f41a0` · `974d13e0` · ADR 0121.
+>
+> ## ⛔⛔ FIRST: §13.1's HEAD row was FALSE IN BOTH HALVES. DM1–DM5·S3 ARE LIVE ON THE REMOTE.
+> Measured (`supabase migration list --linked`): the remote carries everything through
+> **`20260927000360`**. Only **two** migrations are local-only — S4's retirement
+> `20260927000400` and the recusal fix `20260928000100`. **Do not rely on any "nothing
+> pushed" statement anywhere in this file or PROGRESS.md.** Three consequences, and two of
+> them outrank the whole batch:
+> 1. **Applied migrations may NOT be edited in place** — that is the drift that blocks `db push`.
+> 2. **S4's retirement never reached the remote**, so the 8 buckets still exist there and ADR
+>    0120 **D9**'s "delete bytes by manifest FIRST" ordering is owed against a **LIVE REMOTE**.
+>    `FUP-DM5-CLOUD-ORPHAN-SURFACE` is no longer theoretical.
+> 3. ⭐ **Every follow-up graded on *"the flags ship OFF so the path is unreachable in
+>    production"* now rests on the REMOTE flag state — which NOBODY HAS MEASURED.**
+>    **Start the next session by measuring it.**
+>
+> ## ✅ CLOSED in this batch
+> **FUP-DM4-RECUSAL** (`32054942`, ADR **0122** — PO overturned the Phase-19 deferral; guard
+> ABOVE the dispatch, **both** arms, `340` plan 76→82 all green, red-first proven) ·
+> **FUP-AUTHZ-ALLOWLIST-ROT** (six stale entries, not one) · **FUP-DM5-DEAD-CORE-PROJECTION**
+> (deleted) · **FUP-DM5-342-PLAN-COMMENT** · **FUP-DM5-MANIFEST-FLAG** (**no code change — it
+> was ALREADY fixed in S5 and never marked**).
+>
+> ## ⚠ PARTIAL / RE-SCOPED — read the reasons, they are not schedule slips
+> - **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — the filed remedy is **UNBUILDABLE**: a rolled-back
+>   txn is invisible to `run_suite` (a separate process), so every case would classify COVERED
+>   — 100% green, 100% **vacuous**. Shipped detection instead. ⭐ And the detector this item
+>   recorded was **blind to 2 of the 3** neutralization forms.
+> - **FUP-DM5-SETLOCAL-MIGRATION** — three enumerations, three answers: filed **1**, filename
+>   grep **11**, the reset's own `25P01` warnings **4 files / 6 sites** (only the third is the
+>   defect set, and they do **not** share a severity). ⛔ The in-place fix is **blocked** — all
+>   four are remote-applied. Remaining remedy = the **lint gate** = **a PO decision**.
+> - **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — fail-open half fixed; arm still a no-op pending a
+>   **NAMED** successor.
+> - **FUP-DM5-DVF-FILEOBJ** — still latent, but latency rests on **caller discipline, not the
+>   schema**: nothing makes `file_object_id` unique. **Binding input to ADR 0121.**
+>
+> ## ⏸ BLOCKED on PO ratification — **ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) is PROPOSED**
+> The PO ruled *build* D11's inflow **and** the disposal job **and** include FINALIZE-ATOMIC.
+> ADR 0121 records that, and needs **D2** (mechanism) + **D4** (what `disposed` asserts)
+> ratified before any migration lands. ⛔ **D2's obvious design does not work**:
+> `complete_document_disposal` *verifies* absence and raises `HC0D9`; it never deletes, and the
+> Storage API is unreachable from SQL — so a pure-SQL `pg_cron` job automates only the half
+> that was never the gap. ⛔ **D4 is not optional**: automating the outflow **industrialises**
+> `FUP-DM5-NO-ANSWER-VS-NOTHING` instance 3 (🔴) from hand-produced-and-latent to
+> systematically generated.
+>
+> ## ⬜ NOT STARTED in the batch
+> **330-WRITE-BLIND keystone + 320 app-ACL population** (expect **RED with a list** to triage) ·
+> **FUP-DM5-GRANTS** · the **record riders** (D9 Cloud half, stack-cycle hazard, backup path) ·
+> tasks 3/4/5 (blocked above) · **the gate itself** (step 1 re-run + `e2e:prod`).
+> ⚠ Because FINALIZE-ATOMIC is in scope, that `e2e:prod` is a **VALIDATION** run, not the pure
+> regression check S5 would have been.
+
 **Everything above this section is history.** §12's recipe is discharged (S4 closed). Read §0, this
 section, then the S5 record. The PO's instruction at stand-down: **resolve the follow-ups, in a new
 session; `e2e:prod` runs after them.**
