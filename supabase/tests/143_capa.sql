@@ -285,6 +285,22 @@ select is(
 -- positive control: the same derivation that reports zero UPDATE/DELETE doors
 -- must provably SEE the two live insert-reserved doors. A zero-count alone
 -- would pass against a mistyped bucket name forever.
+--
+-- ⚠ LABEL CORRECTED 2026-08-17 (DM5·S4, from `tester`'s R15 work). This pin
+-- previously read as though the ABSENT update/delete policy were *the* Rule 6
+-- mechanism. It is not the operative one. Measured live: adding a PERMISSIVE
+-- `for delete to authenticated` policy on `documents-standard` did **not** make
+-- a delete succeed — `storage.protect_objects_delete` (a BEFORE DELETE trigger
+-- running `storage.protect_delete()`) refuses unconditionally, BEFORE RLS row
+-- filtering is reached, unless the session sets `storage.allow_delete_query`.
+-- That is the same platform guard migration 20260927000400 must opt out of for
+-- its own controlled retirement delete.
+--
+-- So this assertion is TRUE and worth keeping — an absent policy is a real
+-- second lock, and the one WE own — but the sentence must not claim the work
+-- the trigger is doing. ⭐ Two locks, and the documented one is not the one
+-- that stops this attack; a label that names the wrong mechanism survives
+-- review because reviewers rule on the label.
 select ok(
   (select count(*)::int from pg_policies
     where schemaname = 'storage' and tablename = 'objects' and cmd in ('UPDATE', 'DELETE')
@@ -292,7 +308,7 @@ select ok(
   and (select count(*)::int from pg_policies
         where schemaname = 'storage' and tablename = 'objects' and cmd = 'INSERT'
           and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '''documents-(standard|phi)''') = 2,
-  'Rule 6 immutability followed the evidence bytes onto the core substrate: the document buckets carry NO update/delete policy, and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
+  'the document buckets carry NO update/delete policy (our own lock; the OPERATIVE guard is storage.protect_delete, see header) and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
 
 -- =========================================================================
 -- PHI-free audit: capa rows carry status/verdict only — no *_md body.

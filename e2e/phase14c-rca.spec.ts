@@ -1,5 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { createHash } from 'node:crypto'
 import { cachedSignIn, accessToken } from "./helpers/auth"
+import { putBytesServiceRole, finalizeUpload, verifyUploadServiceRole } from './helpers/document-model'
 
 /**
  * Phase 14c — RCA Workspace (Análise de Causa Raiz)
@@ -25,7 +27,15 @@ import { cachedSignIn, accessToken } from "./helpers/auth"
  *   R12 Assigned non-observer staff SME CAN write the RCA (update_rca succeeds).
  *   R13 Observer member CANNOT write the RCA (HC048).
  *   R14 Non-team non-PQS user gets 0 rows on SELECT from rca table (RLS isolates).
- *   R15 nsp-evidence bucket rejects UPDATE/DELETE from any authenticated user.
+ *   R15 RCA evidence bytes on the document substrate (documents-standard/-phi)
+ *       reject DELETE from an authenticated actor (Rule 6 immutability, HTTP layer).
+ *       Re-pointed 2026-08-17 (DM5·S4 QA finding B2): the ORIGINAL R15 targeted
+ *       the now-retired `nsp-evidence` bucket with a DELETE on a NONEXISTENT
+ *       object — QA proved live that a retired bucket and a surviving one are
+ *       indistinguishable under that request (both return the identical
+ *       `HTTP 400 {"statusCode":"404"}`), so the pin could not fail. The
+ *       property moved onto the core substrate; see the test body for the
+ *       corrected proof shape (existing object, survival re-checked after).
  *
  * Keyboard-only (R16): add factor → flag key → add a 5-Why step (RPC path).
  *
@@ -190,6 +200,30 @@ async function ensureRcaStatus(
     }
   }
   expect(await rcaStatus(req), `could not drive the RCA to ${target}`).toBe(target)
+}
+
+/**
+ * `begin_document_upload` for the `rca` home type — mirrors
+ * `beginEvidenceUpload` in `dm5-nsp-evidence.spec.ts`, kept LOCAL rather than
+ * imported (specs do not import each other in this repo). Only what R15
+ * needs: a real reservation on the actual product corridor, so the bytes it
+ * proves-immutable land exactly where a genuine RCA evidence upload would.
+ */
+async function beginRcaEvidenceUpload(
+  req: APIRequestContext,
+  token: string,
+  input: { title: string; declaredFileName?: string; declaredMime?: string; declaredSize?: number },
+): Promise<{ ok: boolean; status: number; body: { file_object_id: string; upload_session_id: string; document_id: string } | { code?: string; message?: string } }> {
+  const resp = await rpc(req, 'begin_document_upload', token, {
+    p_resource_type: 'rca',
+    p_resource_id: RCA_ID,
+    p_title: input.title,
+    p_declared_file_name: input.declaredFileName ?? 'evidencia.pdf',
+    p_declared_mime: input.declaredMime ?? 'application/pdf',
+    p_declared_size: input.declaredSize ?? 256,
+  })
+  const body = await resp.json()
+  return { ok: resp.ok(), status: resp.status(), body }
 }
 
 // ---------------------------------------------------------------------------
@@ -644,30 +678,132 @@ test('R14: non-team non-PQS user (chefe.farm, no observer membership) gets 0 row
 })
 
 // ---------------------------------------------------------------------------
-// R15 — nsp-evidence bucket rejects UPDATE/DELETE from any authenticated user
+// R15 — RCA evidence bytes on the document substrate reject DELETE from an
+// authenticated actor (Rule 6 immutability, HTTP layer)
 // ---------------------------------------------------------------------------
-
-test('R15: nsp-evidence bucket rejects DELETE from admin (immutable bucket)', async ({
+//
+// DM5·S4 retired `nsp-evidence` — the bucket row AND every policy naming it
+// are gone. The ORIGINAL R15 issued a DELETE for a NONEXISTENT object on that
+// (now-absent) bucket and asserted only "not 200/204". QA (dm5-s4-review.md
+// finding B2) probed live with the real service key: a retired bucket, and
+// the SURVIVING `documents-phi` / `form-assets` buckets, all return the
+// IDENTICAL `HTTP 400 {"statusCode":"404"}` for that same request shape — the
+// assertion could not tell "refused" from "absent", and it stayed green
+// through the whole retirement.
+//
+// The property did not disappear: RCA/CAPA evidence bytes now land on the
+// core document substrate. Verified live against `begin_document_upload`
+// (2026-08-17): `rca`/`capa_action` resolve to tier='standard' →
+// `documents-standard`, which — per the live catalog, re-checked in this same
+// run — carries exactly ONE policy (`documents_std_obj_insert_reserved`,
+// INSERT-only) and NO SELECT/UPDATE/DELETE policy at all.
+//
+// A DELETE against a REAL, EXISTING object on that bucket is STILL
+// response-ambiguous for the same reason B2 named — the status code alone
+// cannot be trusted — so the discriminating fact is never the DELETE's own
+// status; it is what happens to the OBJECT. This test creates a real
+// evidence file through the actual product corridor (begin → PUT → finalize
+// → verify, the same path `dm5-nsp-evidence.spec.ts`'s EVID-RCA-UPLOAD-1
+// exercises), attempts the DELETE as an ordinary authenticated actor, and
+// then re-fetches the SAME object via the SERVICE ROLE (RLS bypassed) to
+// prove the exact bytes are still there — the one fact no ambiguous status
+// code can fake.
+//
+// ⭐ What actually guards the bytes, verified live (2026-08-17, tester) —
+// NOT only the missing RLS policy assumed above. Adding a temporary
+// PERMISSIVE `for delete to authenticated using (bucket_id=
+// 'documents-standard')` RLS policy to the live catalog did NOT make the
+// attempted delete succeed — a direct raw-SQL probe (`set local role
+// authenticated`, `delete from storage.objects …`) hit
+// `storage.protect_objects_delete` (`BEFORE DELETE … FOR EACH STATEMENT
+// EXECUTE FUNCTION storage.protect_delete()`) BEFORE RLS row-filtering was
+// even reached, refusing unconditionally unless the session sets
+// `storage.allow_delete_query = 'true'` — the exact same guard the DM5·S4
+// migration itself uses for its own controlled retirement delete. The temp
+// policy was dropped immediately (catalog re-verified back to the original 4
+// policies) — it was inert the whole time, so nothing was ever actually
+// opened by it.
+//
+// Proven able to FAIL, not merely written to pass — this exact test,
+// unmodified except for the one line naming the attacker's bearer token,
+// swapped to the SERVICE ROLE key (empirically proven live via curl to be
+// the one caller for whom the Storage API DOES set the bypass GUC and
+// perform a real delete: PUT 200 → DELETE 200 "Successfully deleted" → GET
+// 400). Run that way, R15 went RED — `expect(attackResp.status()).not.toBe(200)`
+// failed with `Expected: not 200`, before the discriminating GET/byte-compare
+// even ran. Reverted immediately back to the real actor token afterward and
+// re-run to confirm GREEN. Full transcript in the tester's report.
+test('R15: RCA evidence bytes on the document substrate reject DELETE from an authenticated actor — the object survives the attempt', async ({
   request,
 }) => {
-  // The bucket is configured as immutable (no UPDATE/DELETE policies).
-  // We attempt a DELETE on a non-existent object and expect a non-204 response.
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL, undefined, 'pqs_member')
+  await ensureRcaStatus(request, adminToken, 'in_progress')
 
-  const resp = await request.delete(
-    `${SUPABASE_URL}/storage/v1/object/nsp-evidence/fake-object-immutability-test`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${adminToken}`,
-      },
-    },
+  const marker = `r15-immutability-${Date.now()}`
+  const bytes = Buffer.from(`%PDF-1.4\n% R15 immutability marker ${marker}\n%%EOF\n`)
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+
+  // Real corridor: begin -> PUT (service role, planting the bytes) -> finalize
+  // -> verify. Lands a genuine `file_objects` row on the substrate, exactly as
+  // a real RCA evidence upload would.
+  const begun = await beginRcaEvidenceUpload(request, adminToken, {
+    title: `Evidência imutabilidade ${marker}`,
+    declaredSize: bytes.length,
+  })
+  expect(begun.ok, `begin_document_upload(rca): ${JSON.stringify(begun.body)}`).toBeTruthy()
+  const reservation = begun.body as { file_object_id: string; upload_session_id: string; document_id: string }
+
+  await putBytesServiceRole(request, reservation.file_object_id, bytes, 'application/pdf')
+  const finalized = await finalizeUpload(request, adminToken, reservation.upload_session_id)
+  expect(finalized.ok, `finalize_document_upload: ${JSON.stringify(finalized.body)}`).toBeTruthy()
+  const verified = await verifyUploadServiceRole(request, reservation.upload_session_id, sha256, true)
+  expect(verified.ok, `complete_document_upload_verification: ${JSON.stringify(verified.body)}`).toBeTruthy()
+
+  // Close the loop as genuine RCA evidence (not merely "a document") —
+  // matches the property's own name.
+  const evResp = await rpc(request, 'add_rca_evidence', adminToken, {
+    p_rca_id: RCA_ID,
+    p_kind: 'document',
+    p_title: `Evidência imutabilidade ${marker}`,
+    p_document_id: reservation.document_id,
+  })
+  expect(evResp.ok(), `add_rca_evidence: ${await evResp.text()}`).toBeTruthy()
+
+  // Ground truth BEFORE the attack — service-role read (RLS bypassed): the
+  // object is real, verified, and on one of the two buckets the property
+  // moved to (never the retired one).
+  const [fo] = await restGet<{ storage_bucket: string; storage_path: string; upload_state: string }>(
+    request,
+    `file_objects?id=eq.${reservation.file_object_id}&select=storage_bucket,storage_path,upload_state`,
+    SUPABASE_SERVICE_KEY,
   )
-  // Immutable bucket: either 403/400 (no delete policy) or 404 (not found — acceptable
-  // because the object doesn't exist, meaning no data was changed either way).
-  // What must NOT happen is a 200/204 success on a delete.
-  expect(resp.status()).not.toBe(200)
-  expect(resp.status()).not.toBe(204)
+  expect(fo, 'the evidence file_objects row exists').toBeTruthy()
+  expect(fo.upload_state, 'the real PUT was verified before the attack').toBe('unscanned_accepted')
+  expect(['documents-standard', 'documents-phi']).toContain(fo.storage_bucket)
+
+  const objectPath = `${SUPABASE_URL}/storage/v1/object/${fo.storage_bucket}/${encodeURI(fo.storage_path)}`
+
+  // The attack: an ordinary authenticated actor (never service role) attempts
+  // to DELETE a real, existing evidence object.
+  const attackResp = await request.delete(objectPath, {
+    headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${adminToken}` },
+  })
+  // Weak signal only — recorded for context, never the sole proof (this is
+  // exactly the status shape B2 showed is ambiguous between "refused" and
+  // "absent"). What must not happen is a bare success.
+  expect(attackResp.status(), 'a DELETE must never report bare success').not.toBe(200)
+  expect(attackResp.status()).not.toBe(204)
+
+  // The DISCRIMINATING fact: fetch the SAME object back via SERVICE ROLE
+  // (RLS bypassed) and prove the exact bytes are still sitting at that path.
+  // If the DELETE above had actually succeeded, this returns 404 and the
+  // byte comparison below never runs.
+  const afterResp = await request.get(objectPath, {
+    headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+  })
+  expect(afterResp.status(), 'the object must still be downloadable after the attack (service role, RLS bypassed)').toBe(200)
+  const afterBytes = await afterResp.body()
+  expect(Buffer.compare(afterBytes, bytes), 'byte-for-byte unchanged — the attempted DELETE altered nothing').toBe(0)
 })
 
 // ---------------------------------------------------------------------------
