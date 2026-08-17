@@ -771,7 +771,34 @@ simply delete the D18 filter from it**: if the function survives, the filter mus
 future route mounts an unfiltered projection. ⚠ Check for other same-name-different-module pairs in
 `src/lib/queries/` while there; this one was found by accident.
 
-### 🟡 FUP-ACL-APP-POPULATION — no population assertion covers the **`app`** schema; its half is an 8-name allowlist (owner: backend)
+### 🟡 FUP-ACL-APP-POPULATION — ⭕ **RE-SCOPED 2026-08-17: the assertion is BUILT; the 237-function triage is what remains** (owner: backend + PO)
+
+> **✅ The blind spot is closed.** `320` block U (+4, plan 10 → 14) replaces the 8-name
+> allowlist with a **schema-bounded** population pin, so a new `app` door with a default
+> ACL reds immediately instead of inheriting no coverage. U2/U2b are the t19c-style
+> control: creating one probe function moves the count 237 → 238 and dropping it returns
+> it to baseline — the detector is **shown to move**, not assumed to
+> ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
+>
+> **⛔ What the first measurement actually found, and why it is NOT a mass revoke.**
+> **237 of 454** `app` functions are PUBLIC-executable — 228 by default ACL (**159 of
+> them SECURITY DEFINER**) plus 9 by an explicit PUBLIC grant — and `anon` resolves
+> EXECUTE on all 237. The nine explicit ones name the hazard: `is_admin`,
+> `is_member_of`, `is_staff_admin_of`, `is_org_admin_of`, `eval_condition`, `answer_map`,
+> `latest_published_version`, `commission_of_version`, `can_read_correction_response`.
+> **These are evaluated INSIDE RLS policies, which run as whatever role is reading —
+> including `anon` on auth-flow paths.** Their PUBLIC grant is a decision, not drift, and
+> a blanket revoke would break policy evaluation platform-wide. U3 pins that: a
+> schema-wide revoke now reds in `320` rather than in production.
+>
+> **⬜ REMAINS OPEN — the triage, which is the real work and was never the query.** Walk
+> the 159 default-ACL DEFINER functions and decide each: legitimately PUBLIC (RLS-
+> evaluated) vs. should be revoked. Drive the baseline down as each batch lands.
+> Calibration unchanged: `config.toml` exposes only `public`, so none of these is
+> PostgREST-reachable — **defence-in-depth, not a leak path**, which is why the ratchet
+> was the right increment and a rushed mass revoke was not.
+
+<details><summary>Original filing (2026-08-14) — retained</summary>
 
 Filed 2026-08-14 (lead) while verifying S3's `DROP`+`CREATE` PUBLIC-EXECUTE find. **Defence-in-depth,
 not a leak path** — `config.toml` exposes only `public`, so an `app` function with PUBLIC EXECUTE is
@@ -793,6 +820,8 @@ case it exists for). Give it a **control** in t19c's style, and expect the first
 list** — `app` almost certainly holds legitimate PUBLIC-executable helpers, and the real work is
 triaging that list, not writing the query. Pair with the over-revoke twin (`authenticated`/`postgres`
 retain EXECUTE) or a fix that over-reaches will pass the security half while breaking the app.
+
+</details>
 
 ### 🟠 FUP-DM5-SIBLING-GUARD-DIFF — **no authz arm can see a door that OMITS a check its sibling doors all make** (owner: lead + backend; a gate-coverage gap, not a defect)
 
@@ -826,7 +855,38 @@ diff over every door family is a periodic audit, like `ARM=wrapper`'s ~100 min s
 it is *before* writing it, and if it lands as periodic, say so in §6 rather than calling it standing —
 "standing in prose alone" is what let three weeks pass before a sweep that then found 15 BLIND gates.
 
-### 🟠 FUP-DM5-330-WRITE-BLIND — `330` does not notice a neutralized `app.can_write_document`; ⚠ **S3 will lift the DOOR-level finding without covering the arm `330` was watching** (owner: backend)
+### ⬛ FUP-DM5-330-WRITE-BLIND — ✅ **RESOLVED 2026-08-17** (owner: backend)
+
+> **✅ RESOLVED** by `330` block W (+5, plan 57 → 62), a labelled commit of its own as the
+> re-scoping required.
+>
+> ⭐ **The blindness was RE-DERIVED, not inherited — and it was still real.** The filing
+> warned that `BUG-DM5-S2-WRITE-ARM-1`'s fix (`fc7a146d`) changed the body after the
+> verdict was recorded, and [[a-rename-orphans-a-name-keyed-verdict]] applies to a body
+> edit too. Measured against the live catalog: rewriting the `controlled_document` arm to
+> `return true` and re-running the file gave **All tests successful across all 57**. The
+> keystone was then authored *against that open gate*, so its red is a **run, not a
+> prediction** — W2 and W3 fail, the three positive controls stay green, and after
+> restoring the gate all 62 pass.
+>
+> **W3 is the discriminating one.** `staff1.farm` is an approver of this document and A3
+> (same file) already proves he READS it. The write arm deliberately has no approver half
+> — *"an approver reads the artifact he reviews; he does not replace its bytes"*, the
+> body's own comment. Same persona, same document, opposite answers: the asymmetry is now
+> pinned as a **decision** rather than surviving as an oversight nobody could distinguish
+> from one.
+>
+> ⚠ **The distinction that kept this open was correct and is worth keeping:** door-level
+> BLIND lifting ≠ arm-level coverage. `342` covering the print arm would have lifted the
+> door's finding while this arm stayed uncovered **wearing a COVERED status** — STALE-
+> COVERED as a *status* change rather than a *body* change, which no existing check looks
+> for. It was right not to close this on `342`.
+>
+> ⛔ **The gate restore was verified against `prosrc`, not assumed** — the shared local
+> stack has had an authz gate left open by a sweep before
+> ([[mutation-harness-must-prove-its-rollback-first]]).
+
+<details><summary>Original filing + re-scoping (2026-08-14) — retained</summary>
 
 > **Re-scoped 2026-08-14 (lead) after `backend` correctly declined to fix it inside S3.** Its reasoning
 > is right and is retained: the door sweep's unit is the **suite set**, not one file, so `342` noticing a
@@ -848,6 +908,8 @@ be keystoned (not allowlisted — `can_write_document` is a write authority, nev
 backstop). ⚠ Re-derive whether it is *still* blind from the live catalog before writing the keystone:
 `BUG-DM5-S2-WRITE-ARM-1`'s fix (`fc7a146d`) changed the body afterwards, and
 [[a-rename-orphans-a-name-keyed-verdict]] applies — a name-keyed verdict does not follow a body edit.
+
+</details>
 
 ### 🟡 FUP-PGTAP-WORKER-DEADLOCK — `npm run test:db` intermittently deadlocks a `pg_prove` worker (owner: backend)
 

@@ -47,7 +47,10 @@
 -- =============================================================================
 
 begin;
-select plan(57);
+-- W (+5, FUP-DM5-330-WRITE-BLIND, 2026-08-17): 4 `is` + 1 `ok` = 5 call sites,
+-- against tags W1 · W1b · W2 · W2b · W3 = 5. Two counts of different things
+-- agreeing is the check; one count repeated is not.
+select plan(62);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3). A missing
 -- flag SILENTLY SKIPS keystones — never trust a self-reported total.
@@ -959,6 +962,63 @@ select throws_ok(
   'HC0DJ', null,
   'DM3·E4 ⭐ a coordinator who cannot READ the letter cannot LINK it either (no leak by reference)');
 select set_config('request.jwt.claims', '', true);
+
+-- ---------------------------------------------------------------------------
+-- W — FUP-DM5-330-WRITE-BLIND: the `controlled_document` arm of
+--     `app.can_write_document`, which this suite has never noticed.
+--
+-- ⛔ THE BLINDNESS WAS RE-DERIVED FROM THE LIVE CATALOG, not inherited. The
+-- filing warned that `BUG-DM5-S2-WRITE-ARM-1`'s fix (fc7a146d) changed the body
+-- after the verdict was recorded, and a name-keyed verdict does not follow a
+-- body edit ([[a-rename-orphans-a-name-keyed-verdict]]). Measured 2026-08-17:
+-- rewriting the arm to `return true` and re-running this file gave **All tests
+-- successful** across all 57. Still blind. The keystone below was authored
+-- against that open gate, so its red is a RUN, not a prediction.
+--
+-- ⚠ WHY THIS IS NOT CLOSED BY `342`'s COVERAGE. Once `342` covers the PRINT
+-- arm, neutralizing the whole door is noticed and the door-level BLIND finding
+-- lifts — while THIS arm stays uncovered, now wearing a COVERED status. That is
+-- STALE-COVERED reappearing as a *status* change rather than a *body* change,
+-- which no existing check looks for. The door-audit unit is the suite SET; arm
+-- coverage is a separate obligation and this block is it.
+--
+-- ⭐ W3 is the discriminating assertion. `staff1.farm` is an APPROVER of this
+-- document and A3 (above) proves he READS it. The write arm deliberately has no
+-- approver half — "an approver reads the artifact he reviews; he does not
+-- replace its bytes" (the body's own comment). So the same persona, the same
+-- document, opposite answers: that pins the asymmetry as a DECISION rather than
+-- an oversight, and it cannot pass while the arm is open.
+-- ---------------------------------------------------------------------------
+select is(
+  app.can_write_document('dd300000-0000-0000-0000-0000000000c1',
+                         '00000000-0000-0000-0000-000000000002'),
+  true,
+  'DM3·W1 a staff_admin of the owning commission WRITES the controlled-document-homed document');
+
+select is(
+  app.is_staff_admin_of_for('a0000000-0000-0000-0000-0000000000a1',
+                            '00000000-0000-0000-0000-000000000002'),
+  true,
+  'DM3·W1b POSITIVE CONTROL: chefe.ccih genuinely holds staff_admin on the owning commission');
+
+select is(
+  app.can_write_document('dd300000-0000-0000-0000-0000000000c1',
+                         '00000000-0000-0000-0000-000000000003'),
+  false,
+  'DM3·W2 ⭐ a plain MEMBER does not write it — the arm is is_staff_admin_of_for, not membership');
+
+select ok(
+  app.is_member_of_for('a0000000-0000-0000-0000-0000000000a1',
+                       '00000000-0000-0000-0000-000000000003')
+  and not app.is_staff_admin_of_for('a0000000-0000-0000-0000-0000000000a1',
+                                    '00000000-0000-0000-0000-000000000003'),
+  'DM3·W2b POSITIVE CONTROL: staff1.ccih IS a member and is NOT a staff_admin — so W2 measures the admin gate, not an unrelated persona');
+
+select is(
+  app.can_write_document('dd300000-0000-0000-0000-0000000000c1',
+                         '00000000-0000-0000-0000-000000000006'),
+  false,
+  'DM3·W3 ⭐⭐ the cross-commission APPROVER who READS this document (A3) cannot WRITE it — the deliberately absent approver arm, pinned as a decision');
 
 select * from finish();
 rollback;

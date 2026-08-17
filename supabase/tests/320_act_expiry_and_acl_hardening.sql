@@ -16,7 +16,9 @@
 -- this codebase. Both claims are needed; neither implies the other.
 
 begin;
-select plan(10);
+-- U (+4, FUP-ACL-APP-POPULATION, 2026-08-17): 3 `is` + 1 `ok` = 4 call sites,
+-- against tags U1 · U2 · U2b · U3 = 4.
+select plan(14);
 
 -- `create_case_assignment_role` (one of the 10 gated doors) opens with
 -- `app.assert_ethics_enabled()`. Without this the RPC raises on the FLAG, not the
@@ -178,6 +180,82 @@ select is(
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
   0,
   'ACL uniformity: NONE of the 8 Stage-2 rebased gates carries a default/PUBLIC EXECUTE ACL');
+
+-- ---------------------------------------------------------------------------
+-- U — FUP-ACL-APP-POPULATION: the `app` schema's POPULATION, not an allowlist.
+--
+-- The assertion above is bounded by 8 hard-coded names — the "remembered-doors
+-- allowlist" that is blind in exactly the case that matters: a NEW `app`
+-- DEFINER door (S3's `app.resolve_document_version_bytes`, on a PHI byte path)
+-- inherits no coverage from it. U1 is bounded by the SCHEMA instead, so a new
+-- door joins the measured set the moment it is created.
+--
+-- ⚠ THE `is null` ARM IS LOAD-BEARING. `aclexplode(NULL)` returns NO ROWS, so
+-- an EXISTS-only test is blind to precisely the default-ACL case this exists
+-- for. Both arms, always.
+--
+-- ── The measured baseline, and why it is a RATCHET and not 0 ────────────────
+--
+-- Measured 2026-08-17 against the live catalog: **237 of 454** `app` functions
+-- are PUBLIC-executable (228 by default ACL — 159 of them SECURITY DEFINER —
+-- plus 9 by an explicit PUBLIC grant), and `anon` resolves EXECUTE on all 237.
+--
+-- ⛔ A blanket revoke would BREAK THE DATABASE, and the explicit nine say why:
+-- `is_admin`, `is_member_of`, `is_staff_admin_of`, `is_org_admin_of`,
+-- `eval_condition`, `answer_map`, `latest_published_version`,
+-- `commission_of_version`, `can_read_correction_response`. These are evaluated
+-- INSIDE RLS policies, which run as whatever role is reading — including `anon`
+-- on the auth-flow paths. Their PUBLIC grant is a decision, not drift. That is
+-- the over-revoke twin from this file's own header, at schema scale: a fix that
+-- over-reaches passes the security half while breaking every policy that calls
+-- one of them.
+--
+-- Calibration, so this number is not read as an open door: `config.toml`
+-- exposes ONLY the `public` schema, so an `app` function with PUBLIC EXECUTE is
+-- not PostgREST-reachable. This is defence-in-depth. Driving 237 down is a
+-- separate, triage-first work item (FUP-ACL-APP-POPULATION, re-scoped) —
+-- pinning it here stops the set GROWING while that triage is pending, which is
+-- the specific hole the allowlist left open.
+-- ---------------------------------------------------------------------------
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and (p.proacl is null
+           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
+  237,
+  'ACL population U1 ⭐ the `app` PUBLIC-executable set is EXACTLY its measured baseline — a new app door with a default ACL reds this, where the 8-name allowlist saw nothing');
+
+-- U2 — the control, in t19c's style. A population assertion that has never been
+-- shown to MOVE is a number, not a detector; and this one is the shape most at
+-- risk of silently measuring nothing, because `aclexplode(NULL)` yields no rows.
+create function app.zz_acl_population_control() returns boolean
+  language sql immutable as $ctl$ select true $ctl$;
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and (p.proacl is null
+           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
+  238,
+  'ACL population U2 ⭐ CONTROL: creating ONE app function with the default ACL moves the count 237 → 238 — the detector demonstrably finds what it claims to look for');
+
+drop function app.zz_acl_population_control();
+
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and (p.proacl is null
+           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
+  237,
+  'ACL population U2b CONTROL RESTORED: dropping the probe returns the count to baseline, so U1 above measured the real population and not a leftover');
+
+-- U3 — the over-revoke twin at SCHEMA scale. Without it, a future migration that
+-- "fixes" U1 by revoking PUBLIC across `app` would pass the security half of this
+-- file while breaking every RLS policy that evaluates one of these helpers.
+select ok(
+  has_function_privilege('authenticated', 'app.is_member_of(uuid)', 'EXECUTE')
+  and has_function_privilege('anon', 'app.is_member_of(uuid)', 'EXECUTE'),
+  'ACL population U3 ⭐ an RLS-EVALUATED helper retains EXECUTE for both authenticated AND anon — policies run as the reading role, so a schema-wide revoke must red HERE rather than in production');
 
 select * from finish();
 rollback;
