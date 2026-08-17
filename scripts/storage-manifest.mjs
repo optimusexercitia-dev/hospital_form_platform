@@ -221,6 +221,35 @@ function docker(args) {
  * is the "a comment is an assertion that goes stale silently" class; a path
  * confirmed against the bucket names cannot drift silently.
  */
+/**
+ * Is the Storage client pointed at a LOCAL stack?
+ *
+ * ⛔ DM5 S5 QA MAJOR-2. `locateVolume()` finds its container by NAME PATTERN via
+ * `docker ps` and derives the root from that container's env. It is never given
+ * the project URL, and nothing anywhere asserted that the volume being walked
+ * belongs to the project the Storage API is talking to. The manifest prints
+ * `supabaseUrl` and `localProof.container` side by side and cross-checked
+ * neither.
+ *
+ * ⭐ So the Cloud risk is NOT "you lose the local proof" — it is a **FAKE local
+ * proof**. An operator running this tool against Cloud from a machine with a
+ * local stack up (the normal state for anyone who can run this repo's gates)
+ * gets `available: true`, a census of the WRONG project's volume, and a printed
+ * byte-level assurance for a deletion that was never checked. *No proof refuses
+ * visibly; a proof about the wrong bytes passes.* That is strictly worse than
+ * losing it, and it is the reassuring-signal class this whole follow-up family
+ * is about.
+ */
+function isLocalOrigin(url) {
+  try {
+    const h = new URL(url).hostname.toLowerCase()
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]' ||
+      h.endsWith('.localhost') || h === 'host.docker.internal' || h === 'kong'
+  } catch {
+    return false
+  }
+}
+
 function locateVolume() {
   let name
   try {
@@ -232,6 +261,32 @@ function locateVolume() {
     return { available: false, reason: 'docker is not available on PATH' }
   }
   if (!name) return { available: false, reason: 'no running supabase_storage container' }
+
+  // ⛔ PROJECT AFFINITY, checked BEFORE the container is inspected (QA MAJOR-2).
+  // A running local container plus a Cloud client URL is the dangerous
+  // combination, and it is the LIKELY one — so the proof is downgraded to
+  // unavailable rather than being computed against unrelated bytes. This makes
+  // the "DOMAIN: LOCAL stack only" banner enforceable instead of advisory, and it
+  // lives HERE so every caller (`capture`, `delete`, `walk`, `selftest`,
+  // `rehearse`) inherits it from one place rather than each re-deriving it.
+  loadEnvLocal()
+  const clientUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (clientUrl && !isLocalOrigin(clientUrl)) {
+    let origin = '(unparseable)'
+    try {
+      origin = new URL(clientUrl).origin
+    } catch {
+      /* keep the placeholder — never interpolate an unparsed URL into output */
+    }
+    return {
+      available: false,
+      reason:
+        `the Storage client points at ${origin}, which is not a local origin, while a local ` +
+        `supabase_storage container is running. REFUSING to attribute this machine's volume to ` +
+        `that project: the container is found by name via \`docker ps\` and has NO project ` +
+        `affinity, so the census would be a byte-level proof about the WRONG bytes.`,
+    }
+  }
 
   let env
   try {
@@ -362,7 +417,43 @@ function verdictFor({ exists, apiKeys, proof }) {
     return proof && proof.present && proof.keys.length > 0 ? 'BUCKET_ABSENT_ORPHANED_BYTES' : 'BUCKET_ABSENT'
   }
   if (!proof || !proof.present) {
-    return proof === null ? 'UNVERIFIED_NO_LOCAL_PROOF' : 'CONSISTENT_EMPTY'
+    // ⛔ DM5 S5 QA MAJOR-1 — THE SIBLING OF THE BRANCH ABOVE, and it was left in
+    // place by the same commit that fixed its sibling. This branch consulted
+    // ONLY `proof === null`: never `apiKeys`, never `proof.error`. So it read a
+    // MISSING DIRECTORY as proof of a missing object — the comment above says a
+    // verdict treating a missing ROW as proof of a missing object is "the
+    // withdrawn method wearing the tool's badge", and this was the same sentence
+    // with the nouns swapped.
+    //
+    // Found by QA by CONSTRUCTING the state (3 API keys, volume directory
+    // removed): the tool answered CONSISTENT_EMPTY — a CLEAN verdict — so
+    // `capture` printed CAPTURE CLEAN and exited 0 over a bucket whose PHI bytes
+    // were gone. Reproduced here before fixing: selftest C14 and rehearsal R7
+    // were both observed RED (`api_keys=5 volume_present=false exit=0
+    // verdict=CONSISTENT_EMPTY`).
+    //
+    // ⛔ It was NON-MONOTONIC IN SEVERITY: lose SOME of a bucket's bytes and the
+    // directory survives ⇒ MISSING_BYTES, dirty, exit 1; lose ALL of them and the
+    // directory goes ⇒ clean, exit 0. **The worse state reported better.** That
+    // is precisely what a storage-volume loss with the database intact produces
+    // (FUP-DM5-STACK-CYCLE-DESTROYS-BYTES, which has already fired once in this
+    // phase) — and under Rule 12 it is worse than an orphan, because the metadata
+    // still advertises the PHI file as present and servable.
+    //
+    // Guard sets, stated so the next sibling is checked rather than assumed:
+    //   !exists branch      → exists · proof.present · proof.keys
+    //   this branch (fixed) → proof===null · proof.error · apiKeys
+    //   tail branches       → apiKeys · proof.keys (both directions)
+    if (proof === null) return 'UNVERIFIED_NO_LOCAL_PROOF'
+    // A FAILED measurement is not an empty one. `volumeCensus`'s catch returns
+    // `{present:false, error}` when the docker exec fails; mapping that to
+    // CONSISTENT_EMPTY was "I could not look" recorded as "there is nothing" —
+    // FUP-DM5-NO-ANSWER-VS-NOTHING instance 1, inside `verdictFor` itself.
+    if (proof.error) return 'UNVERIFIED_PROOF_ERROR'
+    // No directory, but the API still lists keys ⇒ the bytes are gone and the
+    // metadata is not. Same verdict as the partial-loss case, which is the point.
+    if (apiKeys.length > 0) return 'MISSING_BYTES'
+    return 'CONSISTENT_EMPTY'
   }
   const apiSet = new Set(apiKeys)
   const volSet = new Set(proof.keys)
@@ -908,6 +999,66 @@ async function cmdSelftest() {
     const ghostEmpty = verdictFor({ exists: false, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
     check('C10 bucket row absent AND no bytes stays BUCKET_ABSENT and CLEAN (the completed-retirement state)', ghostEmpty === 'BUCKET_ABSENT' && CLEAN_VERDICTS.has(ghostEmpty), `verdict=${ghostEmpty}`)
 
+    // ---- C14/C15/C16: the SIBLING BRANCH of C9, found by QA (MAJOR-1) -------
+    // ⭐ NUMBERED BY INSERTION, like C8 before them. And they exist because of a
+    // method, not a hunch: C9 fixed the `!exists` branch, so the next question is
+    // what the ADJACENT branch consults. Diffing the two guard sets found the
+    // `!proof.present` branch reading ONLY `proof === null` — never `apiKeys`,
+    // never `proof.error`. Two missing guards in the branch two lines below the
+    // one this slice had just fixed.
+    //
+    // C14 is the state QA built to find it: metadata says three live files, the
+    // volume directory is GONE. The old code returned CONSISTENT_EMPTY — a CLEAN
+    // verdict — so `capture` printed CAPTURE CLEAN and exited 0 over a bucket
+    // whose PHI bytes had been destroyed.
+    //
+    // ⛔ And it was NON-MONOTONIC: lose SOME of a bucket's bytes (directory
+    // present, fewer files) → MISSING_BYTES, dirty, exit 1; lose ALL of them
+    // (directory removed) → clean, exit 0. The worse state reported better.
+    // That is the state a storage-volume loss with the DB intact produces —
+    // FUP-DM5-STACK-CYCLE-DESTROYS-BYTES, which has already fired once here.
+    const bytesGoneRowsLive = verdictFor({ exists: true, apiKeys: ['a', 'b', 'c'], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+    check('C14 volume directory GONE while the API still lists keys is NOT clean (MISSING_BYTES)',
+      bytesGoneRowsLive === 'MISSING_BYTES' && !CLEAN_VERDICTS.has(bytesGoneRowsLive), `verdict=${bytesGoneRowsLive}`)
+
+    // ---- C15: the permissive twin for C14 ----------------------------------
+    // Without it, C14 is satisfied by a tool that calls every absent directory
+    // dirty — which would red every genuinely empty bucket forever.
+    const bothEmpty = verdictFor({ exists: true, apiKeys: [], proof: { present: false, keys: [], files: 0, bytes: 0 } })
+    check('C15 no directory AND no API keys stays CONSISTENT_EMPTY and CLEAN (a genuinely empty bucket)',
+      bothEmpty === 'CONSISTENT_EMPTY' && CLEAN_VERDICTS.has(bothEmpty), `verdict=${bothEmpty}`)
+
+    // ---- C16: the THIRD missing guard in the same branch --------------------
+    // `volumeCensus`'s catch returns `{present: false, error}` when the docker
+    // exec FAILS for a bucket. The same branch mapped that to CONSISTENT_EMPTY —
+    // i.e. "I could not look" recorded as "there is nothing there", which is
+    // instance 1 of FUP-DM5-NO-ANSWER-VS-NOTHING appearing inside `verdictFor`
+    // itself. A failed measurement must never be a clean verdict.
+    const proofBroke = verdictFor({ exists: true, apiKeys: [], proof: { present: false, error: 'docker exec failed', keys: [], files: 0, bytes: 0 } })
+    check('C16 a FAILED volume measurement is UNVERIFIED, never CONSISTENT_EMPTY',
+      proofBroke === 'UNVERIFIED_PROOF_ERROR' && !CLEAN_VERDICTS.has(proofBroke), `verdict=${proofBroke}`)
+
+    // ---- C18: the ninth verdict, so every outcome has a direct mapping ------
+    // `DIVERGED_BOTH_WAYS` was referenced by exactly ONE line in this file — its
+    // own `return`. R8 constructs it end to end; this pins the mapping itself and
+    // that it is NOT clean.
+    const bothWays = verdictFor({ exists: true, apiKeys: ['gone.bin', 'ok.bin'], proof: { present: true, keys: ['ok.bin', 'ghost.bin'], files: 2, bytes: 2 } })
+    check('C18 wrong in BOTH directions at once is DIVERGED_BOTH_WAYS and NOT clean',
+      bothWays === 'DIVERGED_BOTH_WAYS' && !CLEAN_VERDICTS.has(bothWays), `verdict=${bothWays}`)
+
+    // ---- C17: the project-affinity guard, BOTH directions (QA MAJOR-2) ------
+    // A guard that answered "not local" to everything would make the tool refuse
+    // on every machine; one that answered "local" to everything is the defect.
+    // Both polarities are asserted, and the negative cases include the exact
+    // shape that matters — a real Supabase Cloud project URL.
+    const localOrigins = ['http://127.0.0.1:54321', 'http://localhost:54321', 'https://kong:8443', 'http://host.docker.internal:54321']
+    const remoteOrigins = ['https://azkbbhskturikxpgmafq.supabase.co', 'https://example.supabase.co', 'https://db.example.com', 'not a url', '']
+    const localVerdicts = localOrigins.map((u) => isLocalOrigin(u))
+    const remoteVerdicts = remoteOrigins.map((u) => isLocalOrigin(u))
+    check('C17 project-affinity guard: every LOCAL origin is local AND every remote/malformed one is NOT',
+      localVerdicts.every(Boolean) && remoteVerdicts.every((v) => v === false),
+      `local=[${localVerdicts.join(',')}] remote=[${remoteVerdicts.join(',')}]`)
+
     // ---- C11/C12/C13: flag hostility (FUP-DM5-MANIFEST-FLAG) ---------------
     // The filed incident, as an executable assertion. C12 is its permissive
     // twin: a validator that rejected everything would pass C11 and C13 and
@@ -1397,6 +1548,93 @@ async function cmdRehearse() {
     // erroring on a missing bucket and reporting a cleanup failure that isn't one.
     const { error: rce } = await admin.storage.createBucket(bucket, { public: false })
     if (rce) throw new Error(`R3d could not restore the bucket row for teardown: ${rce.message}`)
+
+    // ---- R7: BYTES GONE, METADATA ALIVE — the state QA had to BUILD ---------
+    //
+    // ⭐ The end-to-end twin of selftest C14/C15, and the reason it exists is a
+    // method rather than a hunch: R3d/C9 fixed the `!exists` branch of
+    // `verdictFor`, so the next question is what the ADJACENT branch consults.
+    // It consulted neither `apiKeys` nor `proof.error`. Diff the guard sets of
+    // sibling branches — a fix applied to one arm is a question asked of the rest.
+    //
+    // ⛔ THE DIRECTION THAT MATTERS: this is a volume loss with the database
+    // INTACT — `supabase stop`/`start` without a `db reset`, i.e. exactly
+    // FUP-DM5-STACK-CYCLE-DESTROYS-BYTES. Under Rule 12 it is the *worse*
+    // direction than an orphan: the metadata says the PHI file is present and
+    // servable, `disposal_state` says nothing is owed, and
+    // `document-reconciliation.mjs` lists from the same API and cannot see it
+    // either. The tool called that CAPTURE CLEAN, exit 0.
+    //
+    // Constructed exactly as QA constructed it: real objects through the Storage
+    // API (so real `storage.objects` rows), then the volume directory removed
+    // underneath them. The permissive twin runs FIRST, on the same bucket in the
+    // same state minus the deletion, so the two differ in ONE variable.
+    await replant()
+    const cap9 = await runCapture(tmp('cap9'))
+    const b9 = cap9.manifest.buckets[bucket]
+    const rowsIntactBefore = metadataRows()
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf ${loc.root}/${assertDisposableBucket(bucket)}`])
+    const volAfterLoss = volOf()
+    const rowsIntactAfter = metadataRows()
+    const apiAfterLoss = await listBucketKeys(admin, bucket)
+    const cap10 = await runCapture(tmp('cap10'))
+    const b10 = cap10.manifest.buckets[bucket]
+    check(
+      'R7 ⛔ volume bytes DESTROYED while metadata survives ⇒ MISSING_BYTES and exit 1 (was CONSISTENT_EMPTY / CAPTURE CLEAN / exit 0)',
+      rowsIntactAfter === planted.length && apiAfterLoss.length === planted.length &&
+        volAfterLoss.present === false && cap10.exit === 1 && b10.verdict === 'MISSING_BYTES',
+      `storage.objects ${rowsIntactBefore}→${rowsIntactAfter} api_keys=${apiAfterLoss.length} ` +
+        `volume_present=${volAfterLoss.present} exit=${cap10.exit} verdict=${b10.verdict}`,
+    )
+    check(
+      'R7-twin the SAME bucket one step earlier — directory present, sets agreeing — is CONSISTENT and exit 0',
+      cap9.exit === 0 && b9.verdict === 'CONSISTENT' && b9.keyCount === planted.length,
+      `exit=${cap9.exit} verdict=${b9.verdict} keys=${b9.keyCount}`,
+    )
+    // Leave the bucket in a state R5's verified teardown can handle normally.
+    await replant()
+
+    // ---- R8: DIVERGED_BOTH_WAYS — the last unconstructed verdict ------------
+    //
+    // ⭐ Built because of an ENUMERATION, not a hunch. `verdictFor` returns NINE
+    // distinct verdicts (derived from its body, not counted by eye — QA said
+    // seven, the lead said eight). Eight of the nine were referenced by at least
+    // one control; `DIVERGED_BOTH_WAYS` was referenced by exactly one line in the
+    // whole file — its own `return`. Nothing had ever produced it.
+    //
+    // That mattered because both QA r1 blocking items came from someone
+    // constructing a state nobody had constructed. A verdict no control reaches
+    // is a verdict whose behaviour is asserted rather than observed.
+    //
+    // The state: the API lists a key whose bytes are gone AND the volume holds a
+    // key the API never knew about — simultaneously. Both single-direction
+    // verdicts already have controls (MISSING_BYTES → R7, ORPHANED_BYTES → R2);
+    // this is the one where they overlap, and it must be DIRTY, because a bucket
+    // that is wrong in both directions is not less broken than one wrong in one.
+    const divergeKey = planted[0]
+    docker(['exec', loc.container, 'sh', '-c', `rm -rf ${loc.root}/${assertDisposableBucket(bucket)}/${divergeKey}`])
+    docker(['exec', loc.container, 'sh', '-c',
+      `mkdir -p '${loc.root}/${bucket}/ghostdiverge/x.bin' && printf 'diverge' > '${loc.root}/${bucket}/ghostdiverge/x.bin/${randomUUID()}'`])
+    const volDiverged = volOf()
+    const cap11 = await runCapture(tmp('cap11'))
+    const b11 = cap11.manifest.buckets[bucket]
+    // ⭐ THE DETAIL THAT MAKES THIS ARM WORTH MORE THAN ITS VERDICT: one key was
+    // removed from the volume and one was added, so the COUNTS are equal (5 API,
+    // 5 volume) while the SETS are disjoint in both directions. Any check built
+    // on counts — including this tool's own `deleted === keyCount` comparison,
+    // which is the only control that survives on Cloud — calls this state fine.
+    // Only a set comparison sees it. Asserted explicitly so the equality is
+    // recorded as deliberate rather than read as a coincidence.
+    check(
+      'R8 wrong in BOTH directions at once (API key without bytes + volume key without metadata) is DIVERGED_BOTH_WAYS, exit 1 — while the COUNTS match',
+      b11.verdict === 'DIVERGED_BOTH_WAYS' && cap11.exit === 1 &&
+        b11.keyCount === planted.length && b11.proof.keyCount === planted.length &&
+        b11.proof.orphanKeys.includes('ghostdiverge/x.bin') &&
+        !volDiverged.keys.includes(divergeKey),
+      `verdict=${b11.verdict} exit=${cap11.exit} api_keys=${b11.keyCount} volume_keys=${b11.proof.keyCount} ` +
+        `(counts EQUAL, sets disjoint) orphans=[${b11.proof.orphanKeys.join(', ')}] volume_missing="${divergeKey}"`,
+    )
+    await replant()
   } catch (e) {
     console.error(`\nrehearsal error: ${String(e)}`)
     check('REHEARSAL COMPLETED WITHOUT ERROR', false, String(e))
