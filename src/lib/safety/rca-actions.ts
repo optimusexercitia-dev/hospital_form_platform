@@ -554,14 +554,40 @@ export async function finalizeRcaEvidenceUpload(
 
   // Step 1 — the D9 verifier, REUSED not copied: `finalizeDocumentUpload` runs
   // `finalize_document_upload` → service-role download → sha256 →
-  // `complete_document_upload_verification`. Re-implementing it here would put
+  // `complete_evidence_upload_verification`. Re-implementing it here would put
   // two copies of the byte verifier in the tree; `terminal` is its ruling,
   // relayed unchanged (`failed` has no outbound arc in the D9 machine).
-  const finalized = await finalizeDocumentUpload(uploadSessionId)
+  //
+  // FUP-DM5-FINALIZE-ATOMIC: `evidenceCorridor` makes the last round-trip mint
+  // the evidence row in the SAME transaction as the verification, and — the
+  // half that actually fixes it — moves the writability check AHEAD of the
+  // verification. A locked RCA now refuses before any bytes are made servable,
+  // instead of after.
+  const finalized = await finalizeDocumentUpload(uploadSessionId, { evidenceCorridor: true })
   if (!finalized.ok) {
-    const code = narrowDocumentEvidenceError(finalized.error)
+    // The atomic door raises the evidence corridor's OWN codes (HC048 a locked
+    // RCA, 42501 a non-NSP writer), which have no member in the document
+    // vocabulary — mapping them through `narrowDocumentEvidenceError` would
+    // report a locked RCA as `unknown`. `mapNspEvidenceErrorCode` is a superset
+    // for this corridor (it also carries HC0D9/HC0D8/HC0D7/check_violation), so
+    // the raw SQLSTATE is preferred whenever the door supplied one.
+    const code = finalized.sqlstate
+      ? mapNspEvidenceErrorCode(finalized.sqlstate)
+      : narrowDocumentEvidenceError(finalized.error)
     return finalized.terminal ? { ok: false, code, terminal: true } : { ok: false, code }
   }
+
+  // The atomic path already did steps 2–4 inside one transaction.
+  if (finalized.evidenceId) {
+    revalidateNsp()
+    return { ok: true, evidenceId: finalized.evidenceId }
+  }
+
+  // ⚠ Falling through here means the IDEMPOTENT arm fired — a retry after a
+  // previous call had already verified and committed. The bytes are long since
+  // servable, so there is nothing left to make atomic; what follows is the
+  // RECOVERY path, and it is exactly right for that: probe for the evidence row
+  // and create it if a prior attempt died between the two commits.
 
   // Step 2 — resolve the document behind the reservation.
   // ⚠ NOT from `finalized.documentId`: on the RPC's IDEMPOTENT arm

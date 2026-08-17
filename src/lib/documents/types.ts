@@ -330,10 +330,32 @@ export type FinalizeDocumentUploadResult =
       documentId: string
       documentVersionId: string
       availability: DocumentAvailability
+      /**
+       * FUP-DM5-FINALIZE-ATOMIC: set only when called with
+       * `{ evidenceCorridor: true }` AND the verification actually ran in this
+       * call — the atomic door minted the evidence row in the SAME transaction
+       * as the byte verification.
+       *
+       * ⚠ ABSENT on the idempotent arm (a retry after a previous successful
+       * verification), because that arm short-circuits before any completion
+       * RPC. Absence there means "unknown, go and look", NOT "no evidence row"
+       * — the evidence caller must fall back to its probe-and-create recovery.
+       */
+      evidenceId?: string
     }
   | {
       ok: false
       error: DocumentActionErrorCode
+      /**
+       * The RAW SQLSTATE from the completion step, exposed for ONE reason: the
+       * evidence corridor's refusals (`HC048` a locked RCA, `42501` a non-NSP
+       * writer) have no member in `DocumentActionErrorCode` at all, so mapping
+       * them here would degrade a locked RCA to `unknown`. The evidence caller
+       * re-maps this through its own closed vocabulary
+       * (`mapNspEvidenceErrorCode`). A code, never a message — the standing
+       * rule that raw Postgres errors must not reach the UI is unaffected.
+       */
+      sqlstate?: string | null
       /**
        * QA r1 MAJOR-3: present (`true`) when the failure is FINAL for this
        * reservation — the object landed but failed byte verification

@@ -154,9 +154,19 @@ export async function beginDocumentUpload(
 }
 
 /** Confirms the PUT landed (server-derived size/MIME), then verifies the
- * bytes (sha256, service role) and binds the version file. Idempotent. */
+ * bytes (sha256, service role) and binds the version file. Idempotent.
+ *
+ * `evidenceCorridor` (FUP-DM5-FINALIZE-ATOMIC) swaps the completion RPC for
+ * `complete_evidence_upload_verification`, which does the identical byte
+ * verification (it DELEGATES to the same function — one verifier, no drift)
+ * and additionally mints the NSP evidence row in the SAME transaction. That
+ * closes the window in which bytes were verified and servable while the domain
+ * row was absent — an orphan `document-reconciliation.mjs` is structurally
+ * blind to, because at the storage layer the row is healthy.
+ */
 export async function finalizeDocumentUpload(
   uploadSessionId: string,
+  opts?: { evidenceCorridor?: boolean },
 ): Promise<FinalizeDocumentUploadResult> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('finalize_document_upload', {
@@ -202,11 +212,17 @@ export async function finalizeDocumentUpload(
     sha = sha256Hex(await blob.arrayBuffer())
     verified = true
   }
-  const { data: done, error: doneError } = await admin.rpc(
-    'complete_document_upload_verification',
-    { p_upload_session_id: uploadSessionId, p_sha256: sha, p_verified: verified },
-  )
-  if (doneError || !done) return { ok: false, error: errCode(doneError) }
+  const args = { p_upload_session_id: uploadSessionId, p_sha256: sha, p_verified: verified }
+  // Branched rather than a variable RPC name: the generated types overload
+  // `rpc()` per name, so a union would erase the argument checking.
+  const { data: done, error: doneError } = opts?.evidenceCorridor
+    ? await admin.rpc('complete_evidence_upload_verification', args)
+    : await admin.rpc('complete_document_upload_verification', args)
+  // `sqlstate` rides along ONLY for the evidence corridor's own refusals, which
+  // `DocumentActionErrorCode` cannot express (see the type's comment).
+  if (doneError || !done) {
+    return { ok: false, error: errCode(doneError), sqlstate: doneError?.code ?? null }
+  }
   const d = done as Record<string, string>
   if (d.upload_state !== 'unscanned_accepted') {
     // The verifier just ruled: the file is now `failed` — terminal from the
@@ -218,6 +234,7 @@ export async function finalizeDocumentUpload(
     documentId: d.document_id,
     documentVersionId: d.document_version_id,
     availability: 'available' satisfies DocumentAvailability,
+    ...(d.evidence_id ? { evidenceId: d.evidence_id } : {}),
   }
 }
 

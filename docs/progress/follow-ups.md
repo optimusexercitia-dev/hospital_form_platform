@@ -2289,7 +2289,56 @@ owners kept live here).
   depends on E2's decision model; QA verified nothing half-built was left behind. `backend`.
 
 
-### 🟠 FUP-DM5-FINALIZE-ATOMIC — the finalize path is FOUR round-trips, not one; a failure after byte-verification orphans the document (owner: backend + lead)
+### ⬛ FUP-DM5-FINALIZE-ATOMIC — ✅ **RESOLVED 2026-08-17** (owner: backend + lead)
+
+> **✅ RESOLVED** by migration `20260928000500` + `341` block J (+10, plan 57 → 67).
+> `public.complete_evidence_upload_verification` **delegates** to the existing byte
+> verifier (one verifier, no drift) and mints the evidence row in the SAME transaction.
+> Both evidence actions now pass `{ evidenceCorridor: true }`; the old four-round-trip
+> sequence survives ONLY as the idempotent-retry recovery path, where the bytes are
+> already committed and there is nothing left to make atomic.
+>
+> ⭐ **The keystone I first wrote would have been VACUOUS, and the near-miss is the
+> transferable part.** "Call the door with an unwritable actor, assert the file is still
+> `verifying`" passes **whatever order the checks are in** — one RPC call is one
+> transaction, so any raise rolls everything back. It asserts Postgres, not the
+> migration; no reordering of the function could redden it. The property only becomes
+> observable as the **difference between one round-trip and two**, so J2 CONSTRUCTS the
+> orphan on the old path (`unscanned_accepted/0` — verified servable bytes, zero domain
+> rows) and J4 shows the identical fixture cannot reach it (`verifying/0`). Same shape as
+> [[construct-the-state-nobody-constructed]]: the assertion had to build the state the
+> defect lives in before it could measure anything.
+>
+> **Mutation-proven, not asserted:** neutralizing `can_write_rca` in the door reddens
+> **exactly J3 and J4** and nothing else. Restored from the migration file afterwards and
+> the restore VERIFIED against `prosrc` ([[mutation-harness-must-prove-its-rollback-first]]).
+>
+> ⛔ **Two designs were rejected, and the reasons are load-bearing.** (1) *Grant the
+> verification door to `authenticated` and wrap it* — its measured ACL is postgres +
+> service_role, never authenticated, and it takes `p_sha256`/`p_verified`, an
+> **attestation by the server that downloaded the bytes**. Exposed to `authenticated`,
+> any JWT holder could mark its own upload verified under a fabricated hash, defeating D9
+> on a PHI-adjacent corridor. J7 now pins BOTH doors closed. (2) *Impersonate the
+> uploader so `add_rca_evidence` could be reused unmodified* — `auth.uid()` is
+> `coalesce(request.jwt.claim.sub, request.jwt.claims->>'sub')` (catalog-read): **two**
+> GUCs behind a coalesce, so setting the one you thought of leaves the other winning.
+> [[guards-that-read-right-but-fail-open]]. The actor is instead read from
+> `upload_sessions.reserved_by` — written by the user-scoped `begin_document_upload`,
+> never supplied by the caller — and passed explicitly to the `(id, uid)` predicates.
+>
+> ⚠ **The document arm's validation is DUPLICATED in the new door, deliberately.**
+> Extracting a shared helper would rewrite the bodies of `add_rca_evidence` and
+> `add_capa_action_evidence` — two live DEFINER doors — and a body edit **orphans a
+> name-keyed door verdict** ([[a-rename-orphans-a-name-keyed-verdict]]). The duplication
+> is pinned executably instead: J3/J5/J8 assert the new door refuses and accepts on the
+> same terms, so drift reddens rather than accumulating.
+>
+> ⬜ **NOT closed by this:** the ⭐ blind-class half below. `document-reconciliation.mjs`
+> still cannot see a domain-layer orphan — J2c demonstrates one it would call healthy.
+> The corridor can no longer MINT one, but pre-existing rows and the other three
+> corridors are untouched. **That remains a binding input to S5.**
+
+<details><summary>Original filing (2026-08-14) — retained</summary>
 
 Filed 2026-08-14 at DM5 S2 close. Found by `backend` while implementing the TS layer;
 **not a bug in what shipped** — it is a design gap the contract's single-argument
@@ -2344,6 +2393,8 @@ emptiness proof narrower than the thing it claims to prove (the Storage API list
 `storage.objects`, so it cannot see bytes that table has forgotten). Two layers, one
 defect shape: **the reconciler's domain is narrower than the drift it is trusted to
 rule out.**
+
+</details>
 
 ## Bodies moved here 2026-08-14 (the PROGRESS.md size rotation) — items whose ONLY record was the live line
 

@@ -11384,6 +11384,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      complete_evidence_upload_verification: {
+        Args: {
+          p_sha256: string
+          p_upload_session_id: string
+          p_verified: boolean
+        }
+        Returns: Json
+      }
       complete_minutes_job: {
         Args: {
           p_draft?: Json

@@ -472,12 +472,29 @@ export async function finalizeCapaEvidenceUpload(
 
   // Step 1 — the D9 verifier, REUSED not copied (see the RCA twin for the full
   // reasoning): `finalize_document_upload` → service-role download → sha256 →
-  // `complete_document_upload_verification`. `terminal` is its ruling, relayed.
-  const finalized = await finalizeDocumentUpload(uploadSessionId)
+  // `complete_evidence_upload_verification`. `terminal` is its ruling, relayed.
+  //
+  // FUP-DM5-FINALIZE-ATOMIC: same contract as the RCA twin — the evidence row
+  // is minted in the verification's own transaction, and `can_write_capa` is
+  // checked BEFORE the bytes become servable rather than after.
+  const finalized = await finalizeDocumentUpload(uploadSessionId, { evidenceCorridor: true })
   if (!finalized.ok) {
-    const code = narrowDocumentEvidenceError(finalized.error)
+    // Prefer the raw SQLSTATE: the atomic door's 42501 (non-NSP writer) maps to
+    // `forbidden` here, where the document vocabulary would have lost it.
+    const code = finalized.sqlstate
+      ? mapNspEvidenceErrorCode(finalized.sqlstate)
+      : narrowDocumentEvidenceError(finalized.error)
     return finalized.terminal ? { ok: false, code, terminal: true } : { ok: false, code }
   }
+
+  // The atomic path already did steps 2–4 in one transaction.
+  if (finalized.evidenceId) {
+    revalidateNsp()
+    return { ok: true, evidenceId: finalized.evidenceId }
+  }
+
+  // ⚠ Reaching here is the IDEMPOTENT arm — a retry after a previous call had
+  // already verified. Nothing is left to make atomic; this is the RECOVERY path.
 
   // Step 2 — resolve the document from the VERSION id, never from
   // `finalized.documentId`: the RPC's idempotent arm returns no `document_id`,

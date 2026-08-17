@@ -34,14 +34,16 @@
 -- since it proves the arm under the transition the product actually performs.
 -- =============================================================================
 begin;
--- 57 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10 + G:12 + H:4. Count derived by block,
+-- 67 = P:3 + A:5 + B:4 + C:9 + D:8 + E:2 + F:10 + G:12 + H:4 + J:10. Count derived by block,
 -- not by eye — the first authoring pass said 29 because C5a/C5b were counted as one. G's
 -- 12 were derived twice and cross-checked: assertion CALL SITES
 -- (`^select (is|isnt|ok|throws_ok|lives_ok)\(`) against description TAGS
 -- (`'DM5·S2 <Letter><n>`). Two counts of different things agreeing is the check;
 -- one count repeated is not. H (+4, FUP-DM5-GRANTS, 2026-08-17) re-derived the same
--- way: 2 `table_privs_are` + 2 `throws_ok` = 4 call sites, tags H1–H4 = 4.
-select plan(57);
+-- way: 2 `table_privs_are` + 2 `throws_ok` = 4 call sites, tags H1–H4 = 4. J (+10,
+-- FUP-DM5-FINALIZE-ATOMIC, 2026-08-17): call sites 1 `ok` + 3 `lives_ok` + 3 `throws_ok`
+-- + 3 `is` = 10, against tags J1 · J2a/b/c · J3 · J4 · J5 · J6 · J7 · J8 = 10.
+select plan(67);
 
 -- ---------------------------------------------------------------------------
 -- P — preconditions (pgtap-fixture-flag-gaps: assert flags, never assume)
@@ -582,6 +584,151 @@ select throws_ok(
   '42501', null,
   'DM5·S2 H4 ⭐ the same bypass refused on the CAPA table — proven independently, not inferred from H3');
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- J — FUP-DM5-FINALIZE-ATOMIC (migration 20260928000500):
+--     the bytes and the domain row commit TOGETHER, or neither does.
+--
+-- ⭐⭐ THE OBVIOUS KEYSTONE HERE WOULD HAVE BEEN VACUOUS, and that is worth
+-- stating because it nearly shipped. "Call the door with an unwritable actor,
+-- assert the file is still `verifying`" passes **whatever order the checks are
+-- in** — a single RPC call is one transaction, so ANY raise rolls the whole
+-- thing back. It asserts Postgres's transaction semantics, not this migration.
+-- Reordering the function could not redden it.
+--
+-- What is actually load-bearing is the DIFFERENCE between one round-trip and
+-- two, so this block CONSTRUCTS BOTH and compares them. J2 runs the OLD app
+-- sequence — verify, then add evidence — and demonstrates the orphan live:
+-- verified, servable bytes with no domain row, which is exactly the state
+-- `scripts/document-reconciliation.mjs` classifies as healthy. J3/J4 run the
+-- new door over an identical fixture and show the state cannot be reached.
+--
+-- ⚠ J2 is a DEMONSTRATION OF THE DEFECT, not a regression pin. It must keep
+-- passing: `complete_document_upload_verification` is still the right door for
+-- the three NON-evidence corridors, where there is no second commit to orphan.
+-- ---------------------------------------------------------------------------
+create temp table j on commit drop as
+  select 'f3000000-0000-0000-0000-0000000000a3'::uuid as rca,
+         '00000000-0000-0000-0000-000000000004'::uuid as nonwriter, -- staff2.ccih
+         '00000000-0000-0000-0000-000000000002'::uuid as writer,    -- chefe.ccih
+         '00000000-0000-0000-0000-00000000ad01'::uuid as doc_a,
+         '00000000-0000-0000-0000-00000000ad02'::uuid as doc_b,
+         '00000000-0000-0000-0000-00000000ad03'::uuid as doc_c,
+         '00000000-0000-0000-0000-00000000ae01'::uuid as ver_a,
+         '00000000-0000-0000-0000-00000000ae02'::uuid as ver_b,
+         '00000000-0000-0000-0000-00000000ae03'::uuid as ver_c,
+         '00000000-0000-0000-0000-00000000af01'::uuid as file_a,
+         '00000000-0000-0000-0000-00000000af02'::uuid as file_b,
+         '00000000-0000-0000-0000-00000000af03'::uuid as file_c,
+         '00000000-0000-0000-0000-00000000ab01'::uuid as sess_a,
+         '00000000-0000-0000-0000-00000000ab02'::uuid as sess_b,
+         '00000000-0000-0000-0000-00000000ab03'::uuid as sess_c;
+grant select on j to authenticated;
+
+-- Three identical reservations, mid-flight: session `consumed`, bytes
+-- `verifying` — the exact instant the app has hashed and is about to complete.
+insert into public.documents (id, home_resource_id, title, kind, status, created_by)
+select v.d, j.rca, 'J evidencia ' || v.d::text, 'documento_controlado', 'active', j.writer
+  from j, lateral (values (j.doc_a), (j.doc_b), (j.doc_c)) v(d);
+insert into public.document_versions (id, document_id, version_number, created_by)
+select v.ver, v.doc, 1, j.writer
+  from j, lateral (values (j.ver_a, j.doc_a), (j.ver_b, j.doc_b), (j.ver_c, j.doc_c)) v(ver, doc);
+-- ⚠ WALKED, not inserted at rest. `guard_file_object_transition` refuses any
+-- INSERT whose state is not `reserved` (HC0D1) and then only permits the named
+-- D9 arcs, so the fixture must traverse reserved → uploaded → verifying. A
+-- fixture that could be conjured directly into `verifying` would be testing a
+-- state the product cannot produce.
+insert into public.file_objects (id, storage_bucket, storage_path, sensitivity_tier,
+                                 upload_state, created_by)
+select v.f, 'documents-standard', 'j/' || v.f::text || '.pdf', 'standard', 'reserved', j.writer
+  from j, lateral (values (j.file_a), (j.file_b), (j.file_c)) v(f);
+update public.file_objects set upload_state = 'uploaded', uploaded_at = now()
+ where id in (select file_a from j union all select file_b from j union all select file_c from j);
+update public.file_objects set upload_state = 'verifying'
+ where id in (select file_a from j union all select file_b from j union all select file_c from j);
+insert into public.upload_sessions (id, file_object_id, document_version_id, reserved_by,
+                                    state, expires_at)
+select v.s, v.f, v.ver, v.who, 'consumed', now() + interval '1 hour'
+  from j, lateral (values (j.sess_a, j.file_a, j.ver_a, j.nonwriter),
+                          (j.sess_b, j.file_b, j.ver_b, j.nonwriter),
+                          (j.sess_c, j.file_c, j.ver_c, j.writer)) v(s, f, ver, who);
+
+select ok(
+  not app.can_write_rca((select rca from j), (select nonwriter from j))
+  and app.can_write_rca((select rca from j), (select writer from j)),
+  'DM5·S2 J1 [CONTROL] the two reservers differ in exactly one property: staff2.ccih cannot write this RCA, chefe.ccih can');
+
+-- ── J2: the OLD two-round-trip path, and the orphan it leaves ──────────────
+select lives_ok(
+  $q$ select public.complete_document_upload_verification(
+        (select sess_a from j), repeat('a', 64), true) $q$,
+  'DM5·S2 J2a [FIXTURE] the standalone byte verifier accepts session A — this is app round-trip 2 of 4');
+
+select test_helpers.claims_for((select nonwriter from j), false);
+set local role authenticated;
+select throws_ok(
+  $q$ select public.add_rca_evidence((select rca from j), 'document', 'J2 orfao',
+        (select doc_a from j), null, null, null, null) $q$,
+  'HC048', null,
+  'DM5·S2 J2b [FIXTURE] app round-trip 4 then refuses: the RCA is not writable by this reserver');
+reset role;
+
+select is(
+  (select f.upload_state || '/' || coalesce(
+     (select count(*)::text from public.rca_evidence e
+       where e.document_id = (select doc_a from j) and e.deleted_at is null), '?')
+     from public.file_objects f where f.id = (select file_a from j)),
+  'unscanned_accepted/0',
+  'DM5·S2 J2c ⭐⭐ THE ORPHAN, CONSTRUCTED: bytes VERIFIED and servable, evidence rows ZERO — and document-reconciliation.mjs calls this file perfectly healthy, because at the storage layer it is');
+
+-- ── J3/J4: the same refusal through the atomic door ────────────────────────
+select throws_ok(
+  $q$ select public.complete_evidence_upload_verification(
+        (select sess_b from j), repeat('b', 64), true) $q$,
+  'HC048', null,
+  'DM5·S2 J3 the atomic door refuses the identical fixture with the SAME sqlstate — authority is resolved from upload_sessions.reserved_by, never from the caller');
+
+select is(
+  (select f.upload_state || '/' || (
+     select count(*)::text from public.rca_evidence e
+      where e.document_id = (select doc_b from j) and e.deleted_at is null)
+     from public.file_objects f where f.id = (select file_b from j)),
+  'verifying/0',
+  'DM5·S2 J4 ⭐⭐ NO ORPHAN: the bytes never became servable. Compare J2c on the identical fixture — that difference IS the fix, and it is the one an in-function reordering could not fake');
+
+-- ── J5–J6: the positive control. A refusal test alone is a kill switch. ────
+select lives_ok(
+  $q$ select public.complete_evidence_upload_verification(
+        (select sess_c from j), repeat('c', 64), true) $q$,
+  'DM5·S2 J5 ⭐ POSITIVE CONTROL: a WRITABLE reserver passes — the door is an authorization gate, not a door that refuses everything');
+
+select is(
+  (select f.upload_state || '/' || e.created_by::text
+     from public.file_objects f
+     join public.rca_evidence e on e.document_id = (select doc_c from j)
+    where f.id = (select file_c from j) and e.deleted_at is null),
+  'unscanned_accepted/00000000-0000-0000-0000-000000000002',
+  'DM5·S2 J6 ⭐ ONE round-trip produced BOTH: verified bytes and the evidence row, attributed to the RESERVER (not to the service role that called the door)');
+
+-- ── J7: the security argument the migration rests on, asserted ─────────────
+-- The door takes `p_sha256`/`p_verified` — an ATTESTATION by the server that
+-- downloaded the bytes. Reachable by `authenticated`, it would let any JWT
+-- holder mark its own upload verified under a fabricated hash, defeating D9 on
+-- a PHI-adjacent corridor. Both doors are pinned, because the new one delegates
+-- to the old and inherits nothing.
+select ok(
+  not has_function_privilege('authenticated',
+        'public.complete_evidence_upload_verification(uuid, text, boolean)', 'EXECUTE')
+  and not has_function_privilege('authenticated',
+        'public.complete_document_upload_verification(uuid, text, boolean)', 'EXECUTE'),
+  'DM5·S2 J7 ⭐ NEITHER verification door is executable by authenticated — the byte attestation stays a server claim');
+
+-- ── J8: the new door is not a SECOND, WIDER verification door ──────────────
+select throws_ok(
+  $q$ select public.complete_evidence_upload_verification(
+        '00000000-0000-0000-0000-0000000000ff'::uuid, repeat('d', 64), true) $q$,
+  'HC0D9', null,
+  'DM5·S2 J8 an unknown session is refused before anything is resolved — the door never falls through to a permissive default');
 
 select * from finish();
 rollback;
