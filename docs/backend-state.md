@@ -43,16 +43,43 @@
 > service-role client. "No read policy" here means *the door is the boundary*, *not* "unreadable".
 > Written into the canon at S6 as ARCHITECTURE.md Rule 1's **fourth** pattern (ADR 0114 D8).
 >
-> ⚠ **Flags are an APP-LAYER gate, not a security boundary** — measured: of the 52 document-model
-> functions in `app`/`public`, **51 do NOT read a flag — exactly one does**
-> (`app.compute_due_document_review_notifications`), and **ZERO** RLS policies consult one
-> (`select count(*) from pg_policies where coalesce(qual,'')||coalesce(with_check,'') ~
-> 'feature_enabled';` → 0). Source: **FUP-DM5-REMOTE-STATE-MEASURED** (follow-ups.md), which this
-> block transcribed **INVERTED** ("51 of 52 … read a flag") until the S6 QA — the third writer to
-> describe this control wrong while citing it ([[a-control-described-wrong-by-three-writers-running]]);
-> the conclusion (app-layer gate) only follows from the corrected direction. Local `seed.sql` turns
-> all six DM flags ON; `db push` never applies the seed, so the remote measured all-OFF. Do not cite
-> "ships OFF" as containment.
+> ⚠ **Flags are an APP-LAYER gate, not a security boundary.** Re-derived 2026-08-17 at the DM5
+> **phase** QA (R1) — **local 75 functions / 6 read a flag; remote 74 / 6** — and **ZERO** RLS
+> policies consult one. Both halves now carry their query, because the half that did not was wrong
+> for three writers running:
+>
+> ```sql
+> -- the function half (this is the figure that kept going wrong)
+> select count(*) as total,
+>        count(*) filter (where pg_get_functiondef(p.oid) ~ 'feature_enabled') as read_a_flag
+> from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+> where n.nspname in ('app','public') and p.prokind = 'f'
+>   and p.proname ~ '(document|printed|disposal|dispose|evidence_upload|file_object|placement|legal_hold|retention)';
+> -- the policy half
+> select count(*) from pg_policies
+>  where coalesce(qual,'')||coalesce(with_check,'') ~ 'feature_enabled';   -- 0
+> ```
+>
+> The six are `app.assert_document{s,_printing}_enabled` + `assert_documents_wave_{b,c,d}_enabled` +
+> `app.compute_due_document_review_notifications`. ⭐ **Five of the six are the `assert_*` gates the
+> byte doors call at their top** (verified: `begin_document_upload`, `open_document_version`,
+> `open_printed_document` all call one; `open_referral_snapshot_document` does not — it is the
+> bespoke door outside the byte kernel). So the flag check is **concentrated in five assert
+> functions**, not scattered — which supports the app-layer conclusion **more strongly** than the
+> figure that used to sit here.
+>
+> ⛔⛔ **FOUR writers described this control wrong, and the fourth was the FIX for the third.**
+> It began as **"51 of 52 … read a flag"** — inverted — and propagated into three records at once.
+> The S6 QA (F1) caught the **inversion** and corrected the *direction* to *"51 do NOT read a flag,
+> exactly one does"* — **but never re-derived the FIGURE**, which reproduces on neither catalog under
+> any bound. ⭐ **The lesson worth more than the number: correcting a claim's DIRECTION is not
+> verifying its MAGNITUDE.** A half-fixed figure is more dangerous than the original, because it now
+> carries a correction note that reads as evidence someone checked it.
+> → [[a-control-described-wrong-by-three-writers-running]], [[your-own-measurement-goes-stale-like-any-other]].
+> Source of the original claim: **FUP-DM5-REMOTE-STATE-MEASURED** (follow-ups.md).
+>
+> Local `seed.sql` turns all six DM flags ON; `db push` never applies the seed, so the remote
+> measured all-OFF. Do not cite "ships OFF" as containment.
 >
 > **Still not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5 (which
 > changed no runtime surface — it was operational closure).** Their records are

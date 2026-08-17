@@ -480,9 +480,19 @@ same doors. ⚠ **Not run**, deliberately: they mutate the shared stack, and thi
 program has already had a sweep leave an authz gate open. QA independently reached
 the same N/A conclusion and also did not run them, for the same reason.
 
-## 6 · ⛔ NOT TESTED / NOT COVERED — binding
+## 6 · ⛔ NOT TESTED / NOT COVERED — binding — **20 items** (⭕ corrected 2026-08-17, phase QA R2)
 
 A delivered slice is not an absence of gaps.
+
+> ⚠ **This list holds 20 items; every pointer to it said "13" until the DM5 phase QA counted them.**
+> The 13 was right when written and was never updated as QA r2 residuals were appended — and because
+> the appends landed **out of numeric order** (1–14, then **19, 20**, then 15–18), the tail does not
+> even look like a tail. Item **18** names itself *"the first thing to check in the first
+> rehearsal"*, so the undercount was hiding the item most likely to be needed first.
+> ⭐ **A pointer's COUNT is a claim like any other, and it is the one nobody re-derives** — it had
+> already propagated into the phase QA's own task assignment, i.e. the undercount was being used to
+> scope the review that found it. Re-derive rather than cite:
+> `awk '/NOT COVERED/,/^## 6b/' docs/progress/dm5-s5-operational-closure.md | grep -cE '^[0-9]+\. '`
 
 1. ⬛ **P4 `open_document_version` has no baseline** (§4) — **CLOSED 2026-08-17 (pre-S6)**: the
    named prerequisite was met via the real finalize corridor, giving **8.2 ms cold / 3.8–4.0 ms

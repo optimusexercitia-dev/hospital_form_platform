@@ -311,8 +311,21 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      against `file_objects_upload_state_check`); with no scanner
      integrated, user uploads rest at the auditable interim state **`unscanned_accepted`**
      (ADR 0114 **O2** is the open PO item to close that). `disposal_state` is the ADR 0121
-     lifecycle. ⚠ **`disposed` asserts "metadata row gone", NOT "bytes gone"** — the two are
-     different facts and only one of them is a claim to a regulator (FUP-DM5-NO-ANSWER-VS-NOTHING).
+     lifecycle (`none` → `disposal_pending` → `disposed`). ⚠ **`disposed` asserts "metadata row
+     gone", NOT "bytes gone"** — the two are different facts and only one of them is a claim to a
+     regulator (FUP-DM5-NO-ANSWER-VS-NOTHING).
+     ⛔ **AND THE OPERATIONAL HALF, which belongs in the canon because the sharp fact above reads as
+     reassuring without it** (added at the DM5 **phase** QA, R4, where the DM5 plan had required it
+     since S5.D.4): **NOTHING COMPLETES A DISPOSAL AUTOMATICALLY.** `complete_document_disposal`
+     exists, but the scheduled job that would call it **does not** — ADR 0121 **D2**, unbuilt, and
+     its obvious design does not work because the Storage API is unreachable from SQL, so a pure-SQL
+     `pg_cron` job would automate only the half that was never the gap. The program therefore ships
+     with a **known, runbook-mitigated PHI-disposal gap**: a row can sit `disposal_pending`
+     indefinitely, and **bytes that should have been destroyed still exist** until a human executes
+     `docs/deployment/phi-disposal-runbook.md` — which is owner-assigned but **UNREHEARSED**.
+     ⭐ This **inverts** ADR 0099 **D10**'s *"a stale row nobody looks at harms nobody"*: for PHI the
+     stale row **is** the harm. `disposal_state` records an **intent**, not a destruction guarantee;
+     only the runbook discharges it.
    - `upload_sessions(id, file_object_id, reserved_by, state, expires_at, created_at,`
      `document_version_id)` — the reservation. **Size/MIME/hash are derived server-side at
      finalize; caller-supplied values are hints and are never trusted** (F-04).

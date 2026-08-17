@@ -349,7 +349,9 @@
 > nothing here says how it scales. · 🔒 **The runbook sequence is UNREHEARSED — STILL BINDING, S6
 > may NOT close over it.** *Naming an owner is not a rehearsal, and writing a runbook is not running
 > it* — it needs the PO (its owner) plus service-role reach, so it was never the lead's to discharge.
-> ⛔ **13 NOT-COVERED items** are enumerated in the record under its binding heading — **read them
+> ⛔ **20 NOT-COVERED items** (⭕ **not 13 — recounted at the phase QA 2026-08-17; the "13" was right
+> when written, never updated as r2 residuals were appended, and the appends landed out of numeric
+> order so the tail does not look like a tail**) are enumerated in the record under its binding heading — **read them
 > before S6**, because a close that omits them reads as completeness.
 >
 > ⭐ **The three findings worth more than the slice**, kept here because they are cross-phase and the
@@ -529,6 +531,30 @@ such persona exists** — the two sets are disjoint (catalog-verified), so subje
 **Decision owner: PO** — *where* it mounts is a product call; *whether* it must work before pilot is
 not. ⚠ Precedent: `20260917000400` restored this door's tenancy-admin arm specifically to un-strand
 this obligation after QO·B cut it. Mechanism → [follow-ups.md](docs/progress/follow-ups.md).
+
+**1. 🔴 PILOT-GATE CHECK — DM5 exits with a KNOWN, runbook-mitigated PHI-DISPOSAL GAP, and it must be
+carried here, not only in the phase record.** ⭕ **Added 2026-08-17 at the DM5 phase QA (R4): the DM5
+plan (S5.D.4) required this to appear "in S6's canon sweep AND in the pilot gate, never only here",
+and it was absent from both.** This section read *"All complete … What is actually left:"* followed by
+a single item, so two PHI-tier obligations were invisible at exactly the place a pilot decision is made.
+
+- 🟠 **FUP-DM5-DISPOSAL-JOB — nothing completes a disposal automatically.** `complete_document_disposal`
+  exists but its only production caller is `reclassifyDocument`; **the job does not exist.** Filed by
+  the plan (S5.D.3) as *"a 🔴 BLOCKING pre-pilot follow-up — not a nice-to-have."* A
+  `disposal_pending` row that never completes means **bytes that should have been destroyed still
+  exist** — ⭐ which is why ADR 0099 **D10**'s rationale (*"a stale row nobody looks at harms nobody"*)
+  **inverts for PHI**, and overturning D10 needs its own ADR. ⚠ D2's obvious design does not work: the
+  Storage API is unreachable from SQL, so a pure-SQL `pg_cron` job automates only the half that was
+  never the gap.
+- 🔴 **FUP-DM5-BACKUP-IS-PHI-EXPORT** — the runbook's backup half produces **68 PHI-tier files**
+  (Rule 12 / LGPD). The PO-decided values are in the runbook; what remains is the per-machine
+  destination path.
+- 🔒 **The runbook sequence is UNREHEARSED** — a binding DM5 gap, still open. *Naming an owner is not
+  a rehearsal, and writing a runbook is not running it.*
+
+**Decision owner: PO** — whether the pilot may proceed over a manual-only disposal path is a risk
+acceptance, not an engineering call. Detail → [S5 record](docs/progress/dm5-s5-operational-closure.md)
+§ 6 (**20** NOT-COVERED items) + the [disposal runbook](docs/deployment/phi-disposal-runbook.md).
 
 ---
 
@@ -728,6 +754,8 @@ the archive. The navigation hooks worth keeping live:
 
 | Date | Run | Result |
 | --- | --- | --- |
+| 2026-08-17 | **DM5 S6 · LEAD · `npm run e2e:prod`** (`REBUILD=1`) — the DECLARING-GREEN run, after the EVID-KBD-1 fix. ⭕ **Added at the phase QA (R5): this table's rule is "most recent gate only" and BOTH 2026-08-17 gates were missing — including the run the phase QA itself rests on** | **GATE GREEN — 1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches.** Parts sum to **1129 collected**, reconciled **per batch** (`accounted N/N`), so no unrun tests. Batch 4 = **64/0** (was 63/1). The 2 flaky are exactly the two remaining `FUP-E2E-REPEAT-FLAKY` members |
+| 2026-08-17 | **DM5 S6 · LEAD · `npm run e2e:prod`** (`REBUILD=1`) — the FIRST full run, kept because it is why the fix exists | ⛔ **GATE RED — 1120 passed · 1 failed** · 2 flaky · 6 skipped · 0 did-not-run · 18 batches. Failure: **BUG-DM5-S6-EVID-KBD-1**, which **failed through its retry**; characterised over 4 runs at `RETRIES=0` as **composition-dependent (2/2), not the flake it was filed as**. ⚠ The harness reported **exit 0** while the gate printed **GATE RED** — *read the gate's verdict, never the wrapper's* |
 | 2026-08-14 | **DM5 S3 · LEAD · `npm run e2e:prod`** — prod-standalone, fresh reset, batched. The **FIRST** full gate run in DM5, at any point in the phase | **GATE GREEN — 1120 passed · 0 failed · 0 infra · 3 flaky · 0 did-not-run · 18 batches.** Accounted **1123 of 1129** collected; the other 6 are pre-existing skips. **Read the accounting, not the verdict:** every batch reported `0 failed`, `0 did-not-run` **and** its own `accounted N/N`, so none dropped out of the denominator the way a reset-failed batch does. ⭐ `next build` compiled — S3's first production build, the only gate that catches a client value-import from a server query module. ⭐ **All 15 print tests passed IN THE PROD BUILD** (batch 9), incl. the new D18 test and the full mint→download→verify→revoke→overlay→re-verify lifecycle — RED for `tester` on the shared stack, green here under `RESET=1`, confirming **BUG-DM5-S3-ENV-FIXTURE-POOL-1** as environment. 3 flaky = **FUP-E2E-REPEAT-FLAKY**. ⚠ 3 against a baseline of ~18–27 is **better than baseline and therefore NOT evidence flakiness is fixed** |
 
 ## QA Verdicts
@@ -741,6 +769,8 @@ the archive. The navigation hooks worth keeping live:
 
 | Phase / Feature | Verdict | Date | Report |
 | --- | --- | --- | --- |
+| **DM5 — PHASE QA** (Wave D + retirement; ADRs [0114](docs/decisions/0114-document-model-redesign.md)+Amdt 1/2 · [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)/[0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md)/[0122](docs/decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md)) — ⚠ **the PHASE verdict; S3/S4/S5/S6 slice verdicts authorize no part of it** | ⛔ **CHANGES REQUESTED (r1)** — 0 P0 · 4 BLOCKING · 4 MINOR · 7 INFO, **all record defects, no code change requested** (the 7th such round). ⭐ **R1 is the S6 QA's own F1 defect recurring INSIDE F1's fix**: the flag census reproduces on neither catalog (**75/6** local, **74/6** remote vs *"52 / exactly one"*), carrying no query in the block that promises one — *correcting a claim's DIRECTION is not verifying its MAGNITUDE*. Build sound: retirement clean at every executing layer on a **wider** bound than S6 used; PHI unreachable at the **ACL** layer, not merely RLS | 2026-08-17 | [dm5-phase-review](docs/reviews/dm5-phase-review.md) |
+| **DM5 · S6 — canon rewrite + program exit sweep** — ⚠ **SLICE review; superseded in scope by the PHASE QA above** | ✅ **APPROVED (r2)** — r1 ⛔ six findings, **all record defects**; the blocking pair were an END-STATE block that **INVERTED its source measurement** into three records at once, and a §2 `upload_state` (`active`) that **does not exist** in the CHECK — a state borrowed from `documents.status`, in the slice whose purpose was canon-vs-catalog fidelity. QA re-measured gate step 1 in full rather than arguing it unaffected | 2026-08-17 | [dm5-s6-review](docs/reviews/dm5-s6-review.md) |
 | **DM5 · S5 — operational closure** — ⚠ **SLICE review; DM5 phase QA still owed at S6** | ✅ **APPROVED (r2)** — 0 P0 · 0 MAJOR · 6 MINOR · 6 INFO; r1's 2 MAJOR re-proved by neutralization. ⭐ **Both claims QA was asked to test HOLD, and the Cloud position is WORSE than r1 concluded**: the count comparison — the only control surviving on Cloud — **passed over a both-ways-diverged bucket and left a real byte behind** | 2026-08-17 | [r2](docs/reviews/dm5-s5-review-r2.md) · [r1](docs/reviews/dm5-s5-review.md) |
 | **DM5 · S4 — legacy storage-bucket retirement** ([0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) D8/D9) — ⚠ **SLICE review** | ✅ **APPROVED (r3)** — 0 P0 · 0 MAJOR · 4 MINOR · 3 INFO; r1 ⛔ → r2 ⛔ → r3 ✅, every blocking item a RECORD defect (no code change ever requested). ⛔ **Cloud UNVERIFIED in all three rounds; the deploy-time byte path UNREHEARSED** | 2026-08-17 | [r3](docs/reviews/dm5-s4-review-r3.md) · [r2](docs/reviews/dm5-s4-review-r2.md) · [r1](docs/reviews/dm5-s4-review.md) |
 | **DM5 · S3 — printed renditions onto the core substrate** ([0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) D1/D6/D7/D11/D12/D13/D17/D18) — ⚠ **SLICE review** | ✅ **APPROVED (r2)** — 0 P0 · 0 MAJOR · 1 MINOR · 3 INFO; r1's blockers each **re-proved by neutralization** (guard 4 deleted ⇒ `S3k2` RED / `S3f4` GREEN). ⚠ r1's MAJOR-2 premise was FALSE and the correction verified independently | 2026-08-14 | [dm5-s3-review](docs/reviews/dm5-s3-review.md) |
@@ -788,6 +818,16 @@ FUP-AUTHZ-ALLOWLIST-ROT · FUP-DM5-GRANTS · FUP-DM5-FINALIZE-ATOMIC · FUP-DM5-
 FUP-VACUOUS-COVERAGE-1 — each was OPEN but named **only** inside the DM5 phase section or a Bug Log
 pointer, so compressing those would have dropped it from the index entirely.
 
+⚠ **Two MORE lines added 2026-08-17 (phase QA R3), and the 2026-08-14 warning above was written and
+then immediately re-earned — this time by the highest-severity item in the phase.** Both were
+announced as new by the follow-up batch, given full bodies in `follow-ups.md`, and named repeatedly in
+the phase narrative — **but neither ever got an index line**, so the next rotation would have dropped
+them. ⭐ *A body plus a narrative mention is not an index entry; the index is what a reader greps.*
+
+- 🟠 **FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED** — `complete_document_disposal`'s `p_byte_proof` DEFAULTs to `'not_attempted'` and its **only** production caller (`reclassifyDocument`) omits it — **three lines after successfully deleting the bytes**. The one lane that can honestly claim a byte proof is the one that disclaims it, in the ADR 0121 D4 evidence a regulator reads. Errs conservatively, so no gate catches it. Nothing pins what any lane writes — backend
+- 🟡 **FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT** — `src/lib/attachments/` survives the retirement phase with 6 dead `'use server'` exports whose comments say *"until DM2 retires it"*. Dead app code, **not** a live byte path (catalog clean: 0/0/0/0). ⭐ Invisible to the S6 exit sweep because that sweep is bounded by **identifier** — *"does anything still point at the retired thing?"* and *"is the thing that pointed at it gone?"* are different questions, and DM5 only asked the first — frontend + backend
+- 🔴 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — marking a superseded print's bytes for disposal makes the print UNSERVABLE (`resolve_document_version_bytes` refuses on ANY non-`none` `disposal_state`); two ratified ADR 0121 decisions collide. ⏸ **PO-RULED 2026-08-17: decide later, the D11 inflow STAYS REVERTED.** ⛔ A deferral is not a closure — **D11 cannot be rebuilt until decided, and DM5·S6 may not close over it** — PO
+- 🟠 **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — `ARM=census`'s DEFINER clause is bounded to `bool`/set-returning, so **407** reachable non-trigger command doors (326 RPC-callable) sit outside **every** arm's domain. ⭕ Re-scoped 2026-08-17: a 3-door neutralization sample found all three **COVERED**, so the class is **covered-but-UNPINNED, not blind** — nothing records the coverage, so nothing notices if it regresses and a NEW door passes by absence. Sizing the 407-door triage is a **PO decision** — lead + backend
 - 🔴 **FUP-ACT-DISPOSE-UI** — LGPD Art. 18 referral-erasure has no UI route (authorized ∩ reachable = ∅); **PILOT-GATE CHECK, item 0 above** — PO
 - 🟠 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** — the door-audit harness neutralizes OUTSIDE a transaction, so process death leaves an authz gate OPEN. ⚠ **PARTIALLY RESOLVED 2026-08-17 (`4102149b`); the filed remedy was WITHDRAWN as unbuildable** (a rolled-back txn is invisible to `run_suite` — a separate process — so every case would classify COVERED: 100% green, 100% vacuous). Shipped a degenerate-gate preflight instead; the guards *detect*, nothing *repairs*. ⛔ **Read the incident section before running ANY mutation harness** — lead/backend
 - 🔴 **FUP-PGTAP-VACUOUS** — `lint:vacuous` scans TS specs only; ~6348 pgTAP assertions unscanned, live specimen in a PHI-boundary suite. The sweep must be **proven able to fail** first — lead/backend

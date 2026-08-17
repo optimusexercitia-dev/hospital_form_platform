@@ -1345,7 +1345,8 @@ literally the source text rather than a reflow of it.
 >   - **Two drill-record corrections, both re-measured not inherited:** the `^ERROR` anchor is **invocation-dependent** and I had stated it as a property of `psql` (`-f` → 0 matches; **stdin → 2**) — *the lesson strengthens: a detector validated under one invocation is not validated* · ⛔ **ARM B does NOT reach "full parity" — triggers 227 vs 235.** I measured tables+policies, saw parity, and generalised — the same defect one layer out. The 8 missing are all on **platform** tables my stubs never created, and include **`protect_buckets_delete`, `protect_objects_delete`** (the guards this phase relies on) and **`on_auth_user_created`**. So ARM B was a **diagnostic, never a valid restore** — and this is the strongest argument for the runbook's own comparison query, which includes `triggers` and would **correctly refuse** it.
 > - 📋 **Filed, not fixed:** 🔴 **FUP-DM5-NO-ANSWER-VS-NOTHING** (a **CLASS**; 🟠→🔴 on instance 3) ·
 >   🔴 **FUP-DM5-BACKUP-IS-PHI-EXPORT** · 🟠 **FUP-DM5-CLOUD-ORPHAN-SURFACE** (a **promotion**, kept
->   promoted) · 🟠 **FUP-DM5-DISPOSAL-JOB**. ⛔ **13 NOT-COVERED items** in the record — read before S6.
+>   promoted) · 🟠 **FUP-DM5-DISPOSAL-JOB**. ⛔ **20 NOT-COVERED items** (⭕ recounted at the phase QA
+>   2026-08-17 — this line said **13**) in the record — read before S6.
 > - ⚖️ **Three lead rulings recorded 2026-08-17** (record §6b): ① the door's metadata-only absence check
 >   **IS** the NO-ANSWER class and **escalates to 🔴** — on Cloud `disposed` is not merely unchecked but
 >   **unverifiable**, so it can never mean more than "metadata gone" there; filing it *undecided* was

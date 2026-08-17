@@ -863,6 +863,57 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
+### 🟠 FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED — the disposal evidence records `not_attempted` from the ONE lane that actually deleted the bytes (owner: backend)
+
+Filed 2026-08-17 at the DM5 **phase** QA (M4), catalog-verified by the lead before filing.
+
+**Measured.** `public.complete_document_disposal(p_file_object_id uuid, p_byte_proof text DEFAULT
+'not_attempted')`. Its **only production caller** is `reclassifyDocument`
+(`src/lib/documents/actions.ts`), which calls it **without `p_byte_proof`** — *three lines after*
+performing `admin.storage.remove([oldFile.storage_path])` and checking `rmError`. So the row records
+**"byte deletion not attempted"** for a deletion that **was attempted and succeeded**.
+
+⛔ **Why this is more than cosmetic.** `disposal_evidence` is the ADR **0121 D4** artifact — the thing
+that says what a disposal actually did, for a regulator. This is the one code path in the product that
+*can* honestly claim a byte proof, and it is the one that disclaims it. ⚠ It errs **conservatively**
+(claims less than it did), which is why nothing catches it: no gate fails, and the record merely looks
+modest. But it is still a **false statement in a PHI evidence trail**, and it makes the strongest
+available evidence indistinguishable from the weakest.
+
+⭐ **Shape:** [[declared-param-no-caller-blind-spot]] — a parameter exists, carries a safe-looking
+default, and the only caller never passes it, so the default *is* the behaviour and the parameter reads
+as unused. Related: [[a-backfill-masks-the-broken-write-path]] (the write path was never taught).
+
+**Fix:** pass the real outcome from the lane that knows it. ⚠ Decide deliberately what the value means
+when `remove()` succeeds against Cloud — the S5 finding stands that a Storage-API success is **not**
+proof of byte destruction there (`FUP-DM5-CLOUD-ORPHAN-SURFACE`), so the honest value may be
+lane-dependent rather than a flat "attempted". **Needs a pgTAP pin either way** — today nothing asserts
+what any lane writes into `byte_proof`.
+
+### 🟡 FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT — the legacy module the retirement phase was named for is still in the tree (owner: frontend + backend)
+
+Filed 2026-08-17 at the DM5 **phase** QA (M3).
+
+`src/lib/attachments/` survives DM5 with **6 dead `'use server'` exports** whose own comments say
+*"until DM2 retires it"*. The **buckets** are retired and the catalog is clean — the S6 exit sweep
+measured **0 functions / 0 policies / 0 constraints / 0 defaults** referencing any of the 8 retired
+names — so this is **dead application code, not a live byte path**, which is why it is 🟡 and not
+higher.
+
+⭐ **Why the S6 exit sweep could not see it, and this is the transferable part:** that sweep was bounded
+by **identifier** (`storage_path`, `storage_bucket`, bucket literals, `createSignedUrl`) — deliberately,
+because bounding by directory had failed before. A module that no longer *references* a retired bucket
+but still *exists* matches none of those identifiers. **Both bounds are right and both are incomplete:**
+"does anything still point at the retired thing?" and "is the thing that pointed at it gone?" are
+different questions, and DM5 only ever asked the first.
+→ [[enumeration-boundary-is-a-syntax-not-a-property]], [[cutting-a-table-does-not-cut-its-doors]].
+
+**Before deleting:** verify by identifier that nothing imports these exports (a dead `'use server'`
+export is still a live RPC surface if any client references it), and check the `attachments`
+**feature-flag key** separately — it is still read live at `attachments/actions.ts:35` and
+`interviews/actions.ts:798`/`:834`, and it is a *flag key*, **not** a bucket name (the `case_patient`
+name-collision class).
+
 ### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one, and the class is COVERED-BUT-UNPINNED, not blind** (owner: lead + backend)
 
 Filed 2026-08-17 (lead) on measuring, rather than trusting, a green `ARM=census`. Re-scoped

@@ -7,6 +7,23 @@
 > **PO ruling this document implements:** *document the gap, do NOT build the job.*
 > No `pg_cron`, no scheduled sweep, no second execution context with service-role
 > reach.
+>
+> ## ⛔⛔ THIS PROCEDURE HAS NEVER BEEN EXECUTED END-TO-END
+>
+> **Status: UNREHEARSED — a BINDING open gap of DM5, not a caveat.** Added 2026-08-17 at the DM5
+> phase QA (M1), which found the document carried only a *Cloud-scoped* disclaimer further down —
+> so a reader of this header would reasonably assume the sequence had been run. It has not.
+> *Naming an owner is not a rehearsal, and writing a runbook is not running it.*
+>
+> **What this means for the first operator: you are the rehearsal.** Expect to find defects in
+> *these instructions*, not only in the data. Before starting, read the **20** NOT-COVERED items in
+> [the S5 record](../progress/dm5-s5-operational-closure.md) § 6 — **item 18 names itself as the
+> first thing to check in the first rehearsal**, and it sits in the out-of-order tail that a
+> pointer-count undercount was hiding until the same review.
+>
+> ⚠ Rehearse locally first (`node scripts/storage-manifest.mjs rehearse`, **22 controls**) — and
+> note that a green local rehearsal does **not** license the Cloud sequence; the domain limits are
+> in § "Practical consequence for a Cloud disposal run".
 
 ## 0 · Why this document exists, and what it IS
 
@@ -383,7 +400,11 @@ see it either.
 
 **Practical consequence for a Cloud disposal run:** treat the byte half as
 *asserted, not verified*, and record it that way. Rehearse the sequence locally
-(`node scripts/storage-manifest.mjs rehearse` — **18 controls**) before running it
+(`node scripts/storage-manifest.mjs rehearse` — **22 controls**; ⭕ this line said **18** until the
+DM5 phase QA, which is the **`selftest`** count, not `rehearse`'s — *citing a sibling command's total
+means an operator who sees 22 pass cannot tell whether the doc is stale or the tool changed*. Verified
+by running it: `R0 R1 R1x R2 R2b R3a R3b R3b-diagnosis R3c R3d R4a R4b R5 R6 R6-capture R6-residual
+R6b R7 R7-twin R8 R9 R9-monotonic` = 22; `selftest` is `C1`–`C18`) before running it
 against Cloud. ⚠ And note what the local rehearsal does **not** cover: it runs
 against a local stack by construction, so it cannot exercise the Cloud paths above
 — the guard in (a) is what makes the "LOCAL stack only" domain enforceable rather
