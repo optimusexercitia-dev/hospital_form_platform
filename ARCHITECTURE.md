@@ -7,8 +7,13 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 
 ## Architecture Rules
 
-1. **RLS is the security boundary.** Every table has Row Level Security enabled
-   (146/146 as of 2026-07-27). The frontend never relies on UI hiding for access
+1. **RLS is the security boundary.** Every table has Row Level Security enabled —
+   **165/165, measured 2026-08-17** (DM5·S6). ⚠ This line read *"146/146 as of
+   2026-07-27"* until S6 and was **stale by 19 tables**; a count with a date is a
+   measurement that expires, so **re-derive it rather than cite it**:
+   `select count(*) filter (where c.relrowsecurity)||'/'||count(*) from pg_class c
+   join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r';`
+   The frontend never relies on UI hiding for access
    control. Service-role keys are used ONLY in server-side route handlers that
    genuinely need to bypass RLS (e.g., user invitations) and never shipped to
    the client. With PHI in scope (Rule 12), RLS is also the **minimum-necessary**
@@ -35,6 +40,23 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      implication rules: **content-read never implies PHI, and PHI never implies
      content-write.** `app.is_active` is the universal outer gate.
      `app.can_read_case_or_admin` is **retired** — do not reintroduce it.
+   - **Document BYTES — DEFINER-door-only, no SELECT policy at all** (ADR
+     [0114](./docs/decisions/0114-document-model-redesign.md) **D8**, written into the
+     canon here at DM5·S6 as that decision required). **RLS remains the boundary for
+     document METADATA tables; for BYTES it is not the boundary at all.** The private
+     buckets `documents-standard` / `documents-phi` carry **INSERT policies only** —
+     accepting only paths reserved by `begin_document_upload` — and **no SELECT policy
+     for any tier**. Every protected byte flows through the single audited
+     `open_document_version` door, which authorizes *first* and then signs a short-TTL
+     URL with the service-role client. ⚠ **A policy-shaped audit reads this as "no read
+     policy ⇒ unreadable", which is exactly backwards** — the bytes are readable, and
+     the door is the whole boundary. Two supersessions ride on this: referral snapshot
+     signing no longer uses the cookie client with "RLS as the boundary" (**reversed** —
+     all protected document bytes adopt the PHI pattern), and the F-01 class dies
+     structurally rather than by review. Bucket is derived from `sensitivity_tier`,
+     **never caller-chosen**; paths are server-generated
+     `{organization_id}/{file_object_id}/{generation_uuid}` — no filenames, titles or
+     identifiers.
 
    **Standing invariant (ADR 0079):** `supabase/tests/mutation/p0-authz-invariant.sh` is a
    permanent regression gate, not a one-off audit — a door-audit sweep (BLIND ⊆ allowlist)
@@ -250,6 +272,48 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    ADR 0085 (case corrections) then extends the same column to case-phase-bound corrections
    (`case_phases.current_response_id` tip pointer, `case_correction_requests`, append-only
    `case_narrative_revisions`); flag `case_corrections`.
+
+   **Document model — the unified substrate (DM program; ADRs 0114 / 0116–0122).** Added to
+   this section at **DM5·S6**; before that the canonical schema **did not mention the document
+   model at all**, though the program had shipped it. Columns below are derived from the **live
+   catalog** (`pg_attribute`), not from migration text — per CLAUDE.md's binding exception,
+   migration files are stale by design for anything schema-shaped.
+   - `securable_resources(id, resource_type, organization_id, hospital_id, commission_id,`
+     `created_at)` — the **polymorphic home**. Every document hangs off one of these rather
+     than off a per-feature FK, which is what lets one substrate serve cases, meetings,
+     referrals, NSP evidence and controlled documents without eight parallel tables.
+   - `documents(id, home_resource_id → securable_resources, title, description, kind, status,`
+     `access_policy_id, created_by, created_at, updated_at, deleted_at, confidentiality_level,`
+     `occurred_on)` — the identity row. `deleted_at` is a soft delete; **`status = 'active'`
+     plus `deleted_at is null` is the servable predicate**, and the two are not redundant.
+   - `document_versions(id, document_id, version_number, created_by, created_at)` — deliberately
+     thin. A version is an *identity*, not a payload; the bytes hang off it.
+   - `document_version_files(id, document_version_id, file_object_id, rendition_kind,`
+     `created_at)` — the binding, and the reason a version can carry a `source` **and** a
+     printed rendition without either being privileged. ⚠ **Nothing makes `file_object_id`
+     unique** — latency rests on caller discipline, not the schema (FUP-DM5-DVF-FILEOBJ).
+   - `file_objects(id, storage_bucket, storage_path, sensitivity_tier, upload_state,`
+     `disposal_state, size_bytes, mime_type, sha256, created_by, created_at, uploaded_at,`
+     `verified_at, disposed_at, disposed_by, disposal_reason_category, disposal_evidence)` —
+     byte metadata. **`storage_bucket` is derived from `sensitivity_tier`, never caller-chosen**
+     (Rule 1's fourth pattern). `upload_state` is the D9 fail-closed machine
+     (`reserved → uploaded → verifying → scan_pending → clean → active`, with
+     `abandoned/failed` reconcilable and `infected/rejected` terminal); with no scanner
+     integrated, user uploads rest at the auditable interim state **`unscanned_accepted`**
+     (ADR 0114 **O2** is the open PO item to close that). `disposal_state` is the ADR 0121
+     lifecycle. ⚠ **`disposed` asserts "metadata row gone", NOT "bytes gone"** — the two are
+     different facts and only one of them is a claim to a regulator (FUP-DM5-NO-ANSWER-VS-NOTHING).
+   - `upload_sessions(id, file_object_id, reserved_by, state, expires_at, created_at,`
+     `document_version_id)` — the reservation. **Size/MIME/hash are derived server-side at
+     finalize; caller-supplied values are hints and are never trusted** (F-04).
+   - Feature layers on the same substrate: `controlled_documents` + `controlled_document_versions`
+     (DM3 lifecycle), `document_approvals`, `document_legal_holds`, `document_retention`,
+     `document_placements`, `printed_documents` (the PDF corridor).
+
+   ⚠ **Every one of these 13 tables carries exactly ONE policy** — verify with
+   `select relname, count(*) from pg_class c join pg_policy p on p.polrelid=c.oid …`, and read
+   it together with Rule 1's fourth pattern: **one policy is not thin coverage here**, because
+   the byte boundary is the DEFINER door, not the policy.
 3. **Response lifecycle & resume:**
    - `unique (form_version_id, created_by) where status = 'in_progress'` —
      one resumable draft per user per version. Wizard navigation upserts the
@@ -303,6 +367,48 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    centralize in single helpers: "answerable questions of a version" (filter
    `item_type` to input types) and "dashboard-countable responses" (filter
    `status = 'submitted'`).
+
+   **Sanctioned exception — the coordinate-resolving SIGNERS** (added DM5·S6; the
+   obligation was raised as DM2 QA r1 INFO-4 and carried across four slices). **A module
+   that signs document bytes MAY read `file_objects` / `document_version_files` inline
+   with the service-role client.** Rationale, per ADR
+   [0118](./docs/decisions/0118-dm2-s2-command-layer-decisions.md) §1: the DB doors
+   authorize, validate and audit but return **IDs only**, so coordinate resolution has to
+   happen somewhere server-side; routing it through `src/lib/queries/` would either spread
+   resolution across modules or push a service-role client into the shared query layer.
+   A direct PostgREST caller of any door therefore gets authorization semantics and
+   *nothing signable*.
+
+   **There are exactly TWO such modules — verify by identifier, not by memory:**
+   - `src/lib/documents/actions.ts` — the core corridor, behind `open_document_version`.
+   - `src/lib/referrals/actions.ts` — the frozen-snapshot corridor, behind
+     `open_referral_snapshot_document` (DM4·S1, 120 s TTL). Its own header carries the
+     justification.
+
+   ⚠⚠ **This said "ONE module … and a second would break ADR 0114 D8's singularity" when
+   first drafted at S6, and the S6 exit sweep falsified it within the hour.** Both halves
+   were wrong, and the reason is worth keeping: **D8's singularity is a DB-KERNEL property,
+   not a TS-module one.** Measured from the catalog — `open_document_version` **and**
+   `open_printed_document` both delegate to `app.resolve_document_version_bytes`; that
+   kernel is what "one door signs" names, and ADR 0120 D12 refused to amend *it*.
+   `open_referral_snapshot_document` deliberately does **not** call that kernel — it is a
+   bespoke door re-gating `can_read_referral_phi` with its own disposed/tombstoned
+   refusals. So a second *signer* never contradicted D8; conflating the two layers is what
+   produced a false sentence. → Two consequences that bind: a **third** signer needs a
+   ruling (this list is exhaustive by intent), and the referral door being outside the
+   kernel means **kernel-level byte gates do not automatically cover it** — relevant to
+   `FUP-DM5-SUPERSEDE-SERVING-COLLISION`, which is a `resolve_document_version_bytes`
+   finding.
+
+   The exception is bounded by the **property** — *resolving coordinates in order to sign* —
+   not by a directory, and it does not license inline supabase-js elsewhere in either
+   feature. `src/app/api/documents/[id]/route.ts` is **not** an instance: it takes
+   coordinates from `open_printed_document`'s return value and reads no table.
+   ⛔ **Until S6 this rule admitted no exception at all, so the canon and the QA-accepted
+   practice contradicted each other** — a reviewer reading only Rule 9 would have been
+   right to red the module. Naming it is the fix; the practice was never the defect.
+   Deliberately stated without line numbers: the review that raised it cited
+   `:110/:159/:204/:305/:310`, which had already drifted to ~`:130/:199/:253/:374`.
 10. All user-facing text in **Brazilian Portuguese (pt-BR)**; code, comments,
     commits, and docs in English. Keep strings centralized enough that i18n
     could be added later without a rewrite.

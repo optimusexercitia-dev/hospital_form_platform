@@ -11,11 +11,49 @@
 > is stale by design (CLAUDE.md graphify exception; this sentence said "the migrations
 > are the truth" until 2026-08-05).
 >
-> ⛔⛔ **CURRENCY STAMP — THIS FILE IS NOW STALE BY *THREE* SLICES (S2, S3 **and** S4). Read this before
-> quoting ANY document / NSP / evidence / **printed-document** / **storage-bucket** line below.** Last
-> content update: `bf1585ea` (2026-08-14), which landed **before every DM5·S2 migration**. Registry was
-> **391** then; it is **407** now. **16** migrations (`20260927000100`–`000170` = S2, `…000300`–`000360`
-> = S3, `…000400` = S4) changed this surface and are **NOT reflected anywhere below**.
+> ## ⭐ DM — END STATE (the document model), measured 2026-08-17 at DM5·S6
+>
+> _(This block replaces the currency stamp that read **"STALE BY THREE SLICES (S2, S3 and S4)…
+> registry was 391 then; it is 407 now."** Partly overtaken — the DM5 batch and S4 sections landed
+> below it — and its registry figure had itself gone stale, which is the failure the stamp existed
+> to warn about, one level up. Every figure here carries the query that produces it.)_
+>
+> **Read this instead of reconstructing the surface from five chronological slice sections.**
+> The per-slice DM1–DM5 sections below remain the detail; this is what the surface **is**.
+>
+> | fact | measured | query |
+> | --- | --- | --- |
+> | migration registry | **411 == 411** (DB == files on disk) | `select count(*) from supabase_migrations.schema_migrations;` vs `ls supabase/migrations/*.sql \| wc -l` |
+> | document-model tables | **13**, and **all 13 carry exactly ONE policy** | `pg_class` ⋈ `pg_policy`, `relname ~ '^(document\|file_object\|securable\|upload_session\|controlled_document\|printed_document)'` |
+> | document-surface doors | **38**, of which **5 are service-role-only** (`complete_document_disposal` · `complete_document_reclassification` · `complete_document_upload_verification` · `complete_evidence_upload_verification` · `lookup_printed_document`) | `pg_proc` ⋈ `pg_namespace`, `proname ~ '(document\|printed\|disposal\|dispose\|evidence_upload\|file_object\|placement\|legal_hold\|retention)'` + `has_function_privilege('authenticated', …)` |
+> | storage buckets | **4**: `documents-standard` · `documents-phi` (core) + `form-assets` · `meeting-audio` (out of scope, D13) | `select id from storage.buckets;` |
+> | `storage.objects` policies | **4** — **3 INSERT** (`documents_phi_obj_insert_reserved`, `documents_std_obj_insert_reserved`, `form_assets_insert_staff_admin`) **+ 1 SELECT** (`form_assets_select_member`) | `pg_policy` on `storage.objects`, read `polcmd` — ⚠ `'a'`=INSERT, `'r'`=SELECT |
+> | RLS on `public` tables | **165 / 165** | see ARCHITECTURE.md Rule 1 |
+>
+> ⚠ **The registry is 411, not the 412 the follow-up-batch gate recorded.** That is not drift: the
+> D11 disposal-inflow migration `20260928000300` was **reverted** (`5b40d62b`), so the file is gone.
+> A reader comparing the two numbers should stop here rather than suspect the stack.
+>
+> ⛔ **The one thing to carry away, because a policy-shaped audit gets it exactly backwards:**
+> **RLS is NOT the boundary for document bytes.** The two **document** buckets carry **INSERT
+> policies only, no SELECT policy for any tier** — a bound that must be stated per-bucket, because
+> the one SELECT policy on `storage.objects` (`form_assets_select_member`) belongs to `form-assets`,
+> which is **out of the document model's scope** (D13). Every protected document byte flows through the single audited
+> `open_document_version` DEFINER door, which authorizes first and then signs short-TTL with the
+> service-role client. "No read policy" here means *the door is the boundary*, *not* "unreadable".
+> Written into the canon at S6 as ARCHITECTURE.md Rule 1's **fourth** pattern (ADR 0114 D8).
+>
+> ⚠ **Flags are an APP-LAYER gate, not a security boundary** — measured: **51 of 52** document
+> functions and **ZERO** RLS policies read a flag. Local `seed.sql` turns all six DM flags ON;
+> `db push` never applies the seed, so the remote measured all-OFF. Do not cite "ships OFF" as
+> containment.
+>
+> **Still not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5 (which
+> changed no runtime surface — it was operational closure).** Their records are
+> [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) and
+> [dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md). Named here rather
+> than left to be discovered, because *an omission that is not listed is the one shape a reader
+> cannot detect.*
 >
 > ### DM5·S4 — the eight legacy storage buckets are RETIRED (`…000400`, 1 migration)
 >
@@ -136,8 +174,12 @@
 > the catalog disagree, **the catalog wins** — always, no exceptions. The full document-surface rewrite is
 > an explicit **DM5·S6** deliverable, not optional cleanup.
 >
-> ⚠ Also owed at S6: **`:205` says census 146; the reproducing figure is 141** — fix it with the deriving
-> query beside it.
+> ⬛ **Also owed at S6 — DONE 2026-08-17**, with two corrections to the note itself:
+> **(a)** the figure was never at `:205` (it had drifted to `:387`) — *a line-number pointer is a
+> claim that goes stale silently, exactly like the figure it points at*; **(b)** "146 vs 141" was
+> not an error in either number but a **missing schema bound** — it is **141 in `public`, 145
+> across `app`+`public`**. Both now carry the deriving SQL inline. *A count without its query is
+> not a measurement.*
 >
 > 🔤 **RENAMED 2026-08-09 (`20260917000200`): `app.is_commission_admin_of(_for)` →
 > `app.is_tenancy_admin_of(_for)`.** The old name is GONE — no shim. It always resolved
@@ -384,10 +426,33 @@ controlled-document surface.**
   but ARM 2 asks only *"is the door called?"*, never *"does anything notice when it is
   opened?"*. Its own `app.is_staff_admin_of` check **is** the entire boundary; assurance is
   pgTAP keystones (`330 DM3·P1/P1b/P1c`, `314 §10.3`), **not** any arm.
-- ⚠ **Standing, unruled:** **146** DEFINER composite-returning auth-reachable functions sit
-  outside the census domain (273 signatures). Predates DM3; DM3 added one. All six DM3
-  functions are in **`authz-unswept-backlog.txt`** (*"never swept, so we do not know"*), **not**
-  the BLIND allowlist (*"swept, nothing noticed"*).
+- ⚠ **Standing, unruled — ⭕ RE-DERIVED 2026-08-17 (DM5·S6), and the old figure had no
+  predicate.** DEFINER composite-returning auth-reachable functions outside the census domain:
+  **141 in `public`, 145 across `app`+`public`.** ⭐ **That is the whole story of the "146 vs
+  141" disagreement this file carried: the two numbers differed by their SCHEMA BOUND, and
+  neither one said which schema it meant.** Re-derive rather than cite:
+  ```sql
+  select n.nspname, count(*)
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  join pg_type    t on t.oid = p.prorettype
+  where n.nspname in ('app','public') and p.prosecdef and p.prokind = 'f'
+    and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    and t.typname <> 'bool' and not p.proretset   -- = outside ARM=census's DEFINER clause
+    and t.typtype = 'c'                            -- composite-returning
+  group by 1;   -- app -> 4, public -> 141
+  ```
+  ⛔ **The old "(273 signatures)" does NOT reproduce** under any bound that yields 141 or 145,
+  and the predicate behind it was never written down — so it is retired rather than carried
+  forward. *A count without its query is not a measurement; it is a rumour with a number.*
+  Predates DM3; DM3 added one. All six DM3 functions are in **`authz-unswept-backlog.txt`**
+  (*"never swept, so we do not know"*), **not** the BLIND allowlist (*"swept, nothing noticed"*).
+- ⭐ **Wider context, measured the same day:** this composite-returning set is a **subset** of a
+  larger class — **407** `authenticated`-reachable non-trigger DEFINER command doors sit outside
+  **every** arm's domain (262 pseudo + 145 composite + 131 base = 538, minus 131 triggers = 407;
+  the parts sum). A 3-door neutralization sample found all three **COVERED**, so the class is
+  **covered-but-unpinned, not blind**. Full statement: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` in
+  [follow-ups.md](./progress/follow-ups.md).
 
 **Full record:** [dm3-controlled-documents.md](./progress/dm3-controlled-documents.md).
 

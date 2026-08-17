@@ -159,8 +159,73 @@
 > sides), the backup/restore drill and the EXPLAIN baselines. **Step 2 ✅ discharged** by the follow-up
 > batch's `e2e:prod`, which the PO ruled would ride S5's owed run; **step 4 ✅ PO-RULED 2026-08-17 —
 > the batch's approval closes S5 too** · **FOLLOW-UP BATCH ✅ gate green, PO-approved 2026-08-17**
-> (`fd69d4be`) · **S6** canon + exit sweep, **not started — and not to be started yet** (PO direction
-> 2026-08-17: finish the PROGRESS.md rotation first).
+> (`fd69d4be`) · **S6 🔵 IN PROGRESS** — opened 2026-08-17 after the pre-S6 follow-up batch
+> (`496fd135`). Build work **done**; gate steps 2–4 **owed**.
+>
+> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done, gate steps 2–4 OWED**
+>
+> **Preceded by a pre-S6 follow-up batch (`496fd135`)** — census re-scoped, P4 measured, 478 links
+> repointed. Detail in the follow-ups register and the S5 record.
+>
+> **Built:**
+> - **ARCHITECTURE.md Rule 1** — the RLS count read *"146/146 as of 2026-07-27"* and was **stale by
+>   19 tables**; now **165/165 measured**, with the deriving SQL inline. Plus **D8's Rule-1
+>   sharpening** as the rule's **fourth** pattern (ADR 0114 D8, owed to the canon since DM1):
+>   **RLS is the boundary for document METADATA; for BYTES it is not the boundary at all** — the two
+>   document buckets carry INSERT policies only, and `open_document_version` is the whole boundary.
+>   *A policy-shaped audit reads "no read policy ⇒ unreadable", which is exactly backwards.*
+> - **ARCHITECTURE.md §2** — the **document model was entirely absent from the canonical schema**
+>   though the program had shipped it. 13 tables added, columns derived from `pg_attribute`, not
+>   migration text.
+> - **ARCHITECTURE.md Rule 9** — the missing documents-module exception, owed since **DM2 QA r1
+>   INFO-4** and carried across four slices. Until now the canon and QA-accepted practice
+>   **contradicted each other**.
+> - **`docs/backend-state.md`** — the currency stamp (*"stale by three slices … registry 391→407"*,
+>   itself stale) replaced by a measured **DM END STATE** block: registry **411==411**, 13 tables /
+>   1 policy each, **38** document doors (5 service-role-only), 4 buckets, `storage.objects` **3
+>   INSERT + 1 SELECT**. The **"census 146 vs 141"** disagreement is resolved — it was a **missing
+>   SCHEMA BOUND**, not a wrong number (**141** `public`, **145** `app`+`public`); the old
+>   *"(273 signatures)"* does not reproduce and is retired. Every figure carries its query.
+>
+> **Exit sweep — bounded by IDENTIFIER (`storage_path`, `storage_bucket`, bucket literals,
+> `createSignedUrl`), never by directory or call syntax: ✅ CLEAN.** All 28 retired-bucket literals
+> in `src/`+`e2e/` are **comments**; the one apparent live hit is `domId: "interview-attachments"`,
+> an HTML anchor, not a bucket. The only live hardcoded bucket literal is `.from('form-assets')`×2 —
+> surviving and out of scope (D13). Every document-model bucket reference is **derived** from
+> `storage_bucket`. ⛔ **Not covered:** `supabase/` SQL was not swept by this pass.
+>
+> ⭐⭐ **THE SWEEP'S REAL YIELD — it falsified a canon sentence I had written an hour earlier.**
+> Rule 9's first draft said the exception was **ONE** module and that *"a second would break ADR 0114
+> D8's singularity"*. **Both halves were false.** There are **TWO** signers — `documents/actions.ts`
+> and `referrals/actions.ts` (DM4, ADR-cited in its own header) — and **D8's singularity is a
+> DB-KERNEL property, not a TS-module one**: `open_document_version` and `open_printed_document`
+> both delegate to `app.resolve_document_version_bytes` (D12 composition), while
+> `open_referral_snapshot_document` deliberately does **not**. Conflating the two layers is what
+> produced the false sentence. ⚠ **Consequence that outlives S6:** the referral door sits **outside
+> the byte kernel**, so kernel-level gates do **not** automatically cover it — directly relevant to
+> 🔴 `FUP-DM5-SUPERSEDE-SERVING-COLLISION`, which is a `resolve_document_version_bytes` finding.
+> A **third** signer now needs a ruling; the list is exhaustive by intent.
+>
+> **Gate step 1 — ✅ GREEN (2026-08-17), on a fresh `db reset`:**
+>
+> | check | result |
+> |---|---|
+> | pgTAP | **194 files / 6392 PASS**, exit 0 |
+> | vitest | **89 files / 1304 passed**, exit 0 |
+> | lint (5 chained) | **exit 0** — eslint 0/0, css-vars, memberships-door, client-server-imports, vacuous (185 spec files, 0 findings) |
+> | typecheck | **exit 0** |
+> | `next build` | **exit 0** — compiled, **19/19** static pages |
+> | authz, **named by ARM** | `ARM=census` *has anything ever asked?* **546 live / 570 verdicts** · `ARM=hat` *does a door read `memberships` hatless?* **3, all reasoned-allowlisted** · `ARM=floor` *is every door called?* **74 never-called, all allowlisted, every entry resolves** · `FROMFINDINGS=1 ARM=wrapper` **BLIND 41 ⊆ allowlist** — all four **HOLD** |
+> | diff-scoped `ARM=policy` | **NOT APPLICABLE — measured, not asserted**: **0** migrations, **0** policy statements, **0** `prosecdef` changes in the S6 diff |
+>
+> ⚠ **S6 changed ZERO `src/` files** (diff = `ARCHITECTURE.md` · `PROGRESS.md` · `docs/backend-state.md`),
+> so `next build` could not be affected — **it was run anyway rather than argued away**, because
+> *an omission that happens to be harmless is still an omission* (the S5 QA r1 MINOR-1 lesson).
+>
+> ⛔ **Steps 2–4 OWED.** `e2e:prod` not run; **DM5's PHASE QA not run** — and
+> S3/S4/S5 verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
+> binds and S6 may not close over it.** 🔴 The supersede-serving collision is **deferred, not
+> closed**. **ADR 0120 D9's Cloud question is PO-deferred to when S6 reaches it.**
 >
 > ### ✅ FOLLOW-UP BATCH — gate GREEN, PO-approved 2026-08-17 (`fd69d4be`) — **added here 2026-08-17; the section had no record of it at all**
 >
