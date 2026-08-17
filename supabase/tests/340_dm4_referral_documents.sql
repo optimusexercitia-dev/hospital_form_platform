@@ -33,7 +33,7 @@
 -- polarity).
 -- =============================================================================
 begin;
-select plan(76);
+select plan(82);
 
 -- ---------------------------------------------------------------------------
 -- Preconditions (fixture-flag-gaps: assert flags, never assume the seed)
@@ -729,6 +729,101 @@ select throws_ok(
   $q$ delete from public.case_referral where id = '34de0000-0000-0000-0000-0000000000d4' $q$,
   '23503', null,
   'F1 ⭐ deleting a DRAFT referral that OWNS documents fails 23503 (RESTRICT, fail-safe)');
+
+-- =============================================================================
+-- R — FUP-DM4-RECUSAL (ADR 0122). Referral-SOURCE authority is NOT case-read
+-- authority. QA demonstrated live at DM4 r1 (MAJOR-3) that a coordinator
+-- recused under the ADR-0072 / ETH·E1 exclusion perimeter could freeze that
+-- case's PHI documents into a referral and read them through the referral
+-- corridor. PO overturned the Phase-19 deferral on 2026-08-17: the deadline was
+-- always the `documents_wave_c` flag-on date, and a plane that only WIDENS
+-- could never have closed an under-inclusive gate.
+--
+-- ⛔ §7.7 — a NARROWING passes its negative BY CONSTRUCTION, so the POSITIVE
+-- TWIN is the review. R1/R2 run BEFORE the recusal and require HC077, i.e. the
+-- call reached the p_kind dispatch and died on the bogus id. R5/R6 repeat them
+-- VERBATIM after the recusal and require HC0DM. Same call, same bogus id, one
+-- fact changed.
+--
+-- ⚠⚠ THE FIXTURE IS THE TRAP (236 §7.1 #3): a refusal proves nothing unless the
+-- refused principal still holds the OTHER authority. R4 is therefore the
+-- load-bearing assertion, not R5/R6 — it pins that `can_manage_referral_source`
+-- is STILL true for the recused coordinator, because it reduces to
+-- `is_staff_admin_of_for(source_commission_id, uid)`, a purely COMMISSION-scoped
+-- term with no case arm. Without R4, an HC0DM below could be any upstream gate.
+--
+-- ⚠ R6 is not a duplicate of R5. The guard sits ABOVE the p_kind dispatch, so
+-- the document arm refuses with HC0DM rather than the HC077 its own lookup
+-- would raise — that difference is what pins the PLACEMENT. A guard added
+-- inside the document arm (where the item was filed) would leave the narrative
+-- arm open; it freezes `case_narratives.body_md` from the same case with the
+-- same omission. Sibling-arm class: FUP-DM5-SIBLING-GUARD-DIFF.
+--
+-- ⚠ HC0DM is DISCRIMINATING on purpose. This program has already paid for an
+-- ambiguous code being ambiguous to the TEST too (HC0D8 for both absence and
+-- unreadability). Nothing else in app/public raises HC0DM.
+-- =============================================================================
+-- ⚠ Its OWN draft referral, not `…d1`. The R block first used d1 and every
+-- throws_ok came back HC070 ("não está em rascunho") — d1 is advanced out of
+-- draft earlier in this file. A keystone that depends on another test's
+-- leftover status is one reorder away from asserting nothing.
+insert into public.case_referral
+  (id, source_case_id, source_commission_id, target_commission_id, referral_type_id,
+   type_label, subject, response_expected, created_by, status)
+select '34de0000-0000-0000-0000-0000000000f9', 'd0000000-0000-0000-0000-0000000000c1',
+       'a0000000-0000-0000-0000-0000000000a1', 'b0000000-0000-0000-0000-0000000000b1',
+       rt.id, 'Parecer', '340 fixture — recusal keystone (draft)', true,
+       '00000000-0000-0000-0000-000000000002', 'draft'
+  from public.referral_types rt where rt.key = 'parecer';
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.add_referral_shared_item(
+        '34de0000-0000-0000-0000-0000000000f9', 'narrative',
+        '34de0000-0000-0000-0000-00000000ffff', null) $q$,
+  'HC077', null,
+  'R1 ⭐ POSITIVE TWIN (narrative): a NON-recused coordinator reaches the dispatch');
+select throws_ok(
+  $q$ select public.add_referral_shared_item(
+        '34de0000-0000-0000-0000-0000000000f9', 'document', null,
+        '34de0000-0000-0000-0000-00000000ffff') $q$,
+  'HC077', null,
+  'R2 ⭐ POSITIVE TWIN (document): a NON-recused coordinator reaches the dispatch');
+select set_config('request.jwt.claims', '', true);
+
+insert into public.case_recusals (case_id, user_id, source)
+values ('d0000000-0000-0000-0000-0000000000c1',
+        '00000000-0000-0000-0000-000000000002', 'coordinator');
+
+select is(
+  app.can_read_case('d0000000-0000-0000-0000-0000000000c1',
+                    '00000000-0000-0000-0000-000000000002'),
+  false,
+  'R3 ⭐ PRE: the recusal actually flipped can_read_case — the state IS constructed');
+select is(
+  app.can_manage_referral_source('34de0000-0000-0000-0000-0000000000f9',
+                                 '00000000-0000-0000-0000-000000000002'),
+  true,
+  'R4 ⭐⭐ PRE: source authority SURVIVES the recusal (commission-scoped, no case arm) — so R5/R6 can only be the new case-read guard');
+
+select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
+select throws_ok(
+  $q$ select public.add_referral_shared_item(
+        '34de0000-0000-0000-0000-0000000000f9', 'narrative',
+        '34de0000-0000-0000-0000-00000000ffff', null) $q$,
+  'HC0DM', null,
+  'R5 ⭐ the recused coordinator can no longer freeze a NARRATIVE from the excluded case');
+select throws_ok(
+  $q$ select public.add_referral_shared_item(
+        '34de0000-0000-0000-0000-0000000000f9', 'document', null,
+        '34de0000-0000-0000-0000-00000000ffff') $q$,
+  'HC0DM', null,
+  'R6 ⭐ …nor a DOCUMENT — and HC0DM (not the arm''s own HC077) pins that the guard sits ABOVE the dispatch');
+select set_config('request.jwt.claims', '', true);
+
+delete from public.case_recusals
+ where case_id = 'd0000000-0000-0000-0000-0000000000c1'
+   and user_id = '00000000-0000-0000-0000-000000000002';
 
 select * from finish();
 rollback;
