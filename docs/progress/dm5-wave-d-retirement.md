@@ -594,9 +594,9 @@ its own success.
 
 ### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
 
-> **Plan:** [dm5-wave-d-retirement-plan.md](docs/plans/dm5-wave-d-retirement-plan.md) ·
-> **ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D10, PO-ruled
-> 2026-08-14 before any SQL) · **step 0:** [dm5-surface-verification.md](docs/progress/dm5-surface-verification.md)
+> **Plan:** [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md) ·
+> **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D10, PO-ruled
+> 2026-08-14 before any SQL) · **step 0:** [dm5-surface-verification.md](../progress/dm5-surface-verification.md)
 > (`005fe34d`). Window `20260927000100`+ · pgTAP **`341`** · flag `documents_wave_d`.
 >
 > **Step 0 found two hard blockers the parent plan did not know about**, both re-verified by the
@@ -940,11 +940,11 @@ not a coverage gap.**
 
 ### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
 
-> **Full detail → [dm5-wave-d-retirement.md](docs/progress/dm5-wave-d-retirement.md)** (rotated
+> **Full detail → [dm5-wave-d-retirement.md](../progress/dm5-wave-d-retirement.md)** (rotated
 > mid-phase 2026-08-14: the live file had hit **128 KB** against §7's "well under 60 KB", and every
-> spawn reads it). Plan: [dm5-wave-d-retirement-plan.md](docs/plans/dm5-wave-d-retirement-plan.md) ·
-> ADR **[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D16) · step 0:
-> [dm5-surface-verification.md](docs/progress/dm5-surface-verification.md).
+> spawn reads it). Plan: [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md) ·
+> ADR **[0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D16) · step 0:
+> [dm5-surface-verification.md](../progress/dm5-surface-verification.md).
 > Window `20260927000100`+ · pgTAP **`341`** · flag `documents_wave_d`.
 >
 > **Slices:** **S0 ✅** manifest tool (`0e85cbe7`, `9d37ad79` — 8/8 self-test controls, 3 of which
@@ -991,7 +991,7 @@ not a coverage gap.**
 > **⛔ S3 IS NOT CLOSED.** QA returned **CHANGES REQUESTED (r1)**; `backend` discharged both blockers and
 > four MINORs (`af9a894e`) and re-passed step 1 in full — but **QA has not re-reviewed the fixes**, so
 > there is no `APPROVED` verdict and §6 step 3 is unsatisfied. **Next session: run the QA r2 re-review
-> first** (brief in [dm5-handoff.md](docs/progress/dm5-handoff.md)), then take S3 to the PO.
+> first** (brief in [dm5-handoff.md](../progress/dm5-handoff.md)), then take S3 to the PO.
 >
 > #### r1 gate re-run — fresh reset, lead-verified from the catalog (2026-08-14, HEAD `1513c094`)
 >
@@ -1168,7 +1168,7 @@ not a coverage gap.**
 > (**DM5 does NOT close it**) · 🟠 FUP-DM5-FINALIZE-ATOMIC (**binding input to S5**) ·
 > 🟡 FUP-DM5-GRANTS · 🟡 FUP-AUTHZ-ALLOWLIST-ROT · 🟡 FUP-DM5-DVF-FILEOBJ · 🟡 FUP-DM4-PRODROW.
 > **✅ Both prose-only items FILED 2026-08-14 (lead), no longer untracked** → 🟠 **FUP-DM5-330-WRITE-BLIND**
-> and 🟡 **FUP-PGTAP-WORKER-DEADLOCK** in [follow-ups.md](docs/progress/follow-ups.md).
+> and 🟡 **FUP-PGTAP-WORKER-DEADLOCK** in [follow-ups.md](../progress/follow-ups.md).
 > ⚠ On filing, the reassurance in the original note did not survive: it said `330`'s blindness is
 > "covered by `341`, so not a blocker" — **`341` is S2's own suite**
 > (`341_dm5_s2_nsp_evidence_substrate.sql`), which makes the claim *plausible but unverified*, and §6
@@ -1178,6 +1178,19 @@ not a coverage gap.**
 ---
 
 ## ↩ Rotated from PROGRESS.md 2026-08-17 (the §6-step-5 size rotation) — S5 / S4 / S3 detail, VERBATIM
+
+> ⛔ **SUPERSESSION MARKER — added 2026-08-17 (pre-S6). The block below is NOT edited; it is
+> evidence of what was believed at `fd69d4be`, and correcting it would destroy that.** Two of its
+> statements have since been overtaken:
+>
+> | the block below says | current state | where the truth lives |
+> |---|---|---|
+> | *"**P4 `open_document_version` NOT MEASURED**"* (≈ the perf paragraph) | ⬛ **MEASURED 2026-08-17** — 8.2 ms cold / 3.8–4.0 ms warm, 121 buf warm, via the real finalize corridor | [S5 record](./dm5-s5-operational-closure.md) § 4 |
+> | *"two gaps adopted as BINDING"* | **ONE** still binds — the **UNREHEARSED runbook**; P4 is discharged | same record, § "Two of §7's doubts" |
+>
+> ⭐ **The greps that will land here falsely:** `P4.*NOT MEASURED` · `open_document_version.*NOT
+> MEASURED` · `Two gaps adopted as BINDING`. All three hit this archive first, and this note is the
+> only thing standing between a reader and a stale answer.
 
 PROGRESS.md was **152 KB** against CLAUDE.md §7's "well under 60 KB" target, and every teammate
 spawn pays for it. The rotation had been recorded as OWED since the follow-up batch and deliberately

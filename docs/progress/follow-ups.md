@@ -863,34 +863,94 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — `ARM=census` cannot see a new DEFINER door that is not a boolean predicate (owner: lead + backend)
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one, and the class is COVERED-BUT-UNPINNED, not blind** (owner: lead + backend)
 
-Filed 2026-08-17 (lead) on measuring, rather than trusting, a green `ARM=census`.
+Filed 2026-08-17 (lead) on measuring, rather than trusting, a green `ARM=census`. Re-scoped
+the same day, before opening S6, by measuring the two things the filing had *inferred*.
 
-**The measurement.** `public.complete_evidence_upload_verification` (new,
-FUP-DM5-FINALIZE-ATOMIC, `prosecdef = t`) is **absent from
-`docs/reviews/authz-door-audit-findings.md`**, and `ARM=census` reported *"every live authz
-gate carries a verdict (no unswept newcomer)"* — 546 live / 570 verdicts — **and passed.**
+**What still holds.** `public.complete_evidence_upload_verification` (new,
+FUP-DM5-FINALIZE-ATOMIC, `prosecdef = t`) is absent from every findings file, and
+`ARM=census` reported *"every live authz gate carries a verdict (no unswept newcomer)"* —
+546 live / 570 verdicts — **and passed.** The census's DEFINER clause is bounded by
+`t.typname = 'bool' or (p.proretset and has_function_privilege('authenticated', …))`; the door
+returns **`jsonb`** and is not set-returning, so it is outside the census domain entirely.
 
-**Why.** The census's DEFINER clause is bounded by
-`t.typname = 'bool' or (p.proretset and has_function_privilege('authenticated', …))`. The new
-door returns **`jsonb`**, is not set-returning, and is service-role-only, so it is **outside
-the census domain entirely**. The *door sweep's* domain is wider — `complete_document_upload_verification`
-(also jsonb, also service-role-only) **is** in the findings, which is what makes this a gap
-rather than a definition. `mint_printed_document` is missing too, so this is a **population,
-not a one-off.**
+⛔ **The supporting claim was FALSE, and it understated the finding.** The filing argued this
+was *"a gap rather than a definition"* because the door sweep's domain is wider —
+`complete_document_upload_verification` *"**is** in the findings"*. **Measured: it is not.**
+That name occurs in `authz-door-audit-findings.md` **only inside a prose paragraph stating
+that the ten S2 command doors are excluded by definition**, and `verdicts_from_findings`
+scrapes **markdown table rows only** (`^| `). Same for `mint_printed_document` in
+`authz-rowdoor-audit-findings.md:38` — prose, inside a `>` blockquote. **No jsonb/void command
+door carries a verdict anywhere.** The door sweep's PRED domain is in fact *narrower* on the
+bool axis (it adds a `^(is_|can_|has_|…)` name regex the census deliberately omits).
+⭐ So this is not one newcomer slipping through a boundary that covers its siblings — **the
+entire population sits outside every arm's domain**, and the one document that mentions it
+does so where no scraper reads. → [[a-predicate-quoted-at-the-wrong-grain]].
 
-⚠ **The claim the arm prints is wider than the property it checks.** *"No unswept newcomer"*
-reads as a statement about authz gates; it is a statement about **boolean predicates**. Same
-family as [[enumeration-boundary-is-a-syntax-not-a-property]] and
-[[a-census-whose-parts-dont-sum-is-wrong]] — and note the 570 > 546 asymmetry means stale
-verdicts are tolerated while the *domain* is what is narrow.
+**The measured population** (live catalog, 2026-08-17, post-`db reset`):
 
-**Calibration — this is coverage, not a vulnerability.** The new door is service_role +
-postgres only (`341` J7 pins that, and pins the door it delegates to), so it is not part of
-the `authenticated` attack surface. **Fix:** widen the census's DEFINER clause to match the
-door sweep's domain, then re-run and expect **RED with a list** to triage — the same shape
-ADR 0079 Amendment 7 used when `ARM=wrapper`'s census domain was widened.
+| | count |
+|---|---|
+| `prosecdef` functions in `app`+`public` | **774** |
+| in `ARM=census`'s domain — `bool` | 135 |
+| in its domain — set-returning + `authenticated`-reachable | 49 |
+| **outside every arm's domain** | **590** |
+| ↳ `authenticated`-reachable, `prokind='f'`, non-trigger = **real command doors** | **407** |
+| ↳↳ of which in `public` (PostgREST RPC-callable) | **326** |
+
+`create_case`, `assume_role` and `add_referral_shared_item` appear in **no** findings file, **no**
+allowlist and **not** in `authz-unswept-backlog.txt`. Each is a DEFINER, so by CLAUDE.md's own
+standing rule its internal gate *replaces* RLS — it **is** the boundary.
+
+**⭐ THE SAMPLE — and it inverted the expectation.** Rather than infer blindness from "no arm has
+asked", three doors were neutralized (guard condition → `false`) and the full pgTAP suite run
+against each. **All three went RED. The class is COVERED, not blind:**
+
+| door | neutralized | suite | failing assertion | verdict |
+|---|---|---|---|---|
+| `add_referral_shared_item` | `can_read_case` recusal check | 194f / **6392** / FAIL | `340` R5–R6 *"the recused coordinator can no longer freeze a NARRATIVE…"* | **COVERED** |
+| `create_case` | `is_staff_admin_of ∨ is_admin ∨ member_can` | 194f / **6392** / FAIL | `177`:13, `205`:45 *"a plain staff … is denied (42501)"* | **COVERED** |
+| `assume_role` | `if not v_holds` (holds-the-role check) | 194f / **6377** / FAIL | `315`:5 *"sa_x CANNOT assume a role he does not hold"* | **COVERED**, ⚠ ERROR-shaped |
+
+⚠ **`assume_role` is not a clean COVERED and is not recorded as one.** Its run shape differs
+from baseline — `315_act_stage3_hat_condition.sql` failed tests 5–6 and then **aborted**
+(*"Bad plan. You planned 22 tests but ran 7"*, exit 3), which is exactly the 6392 → 6377 delta.
+Per the door-audit convention a shape change is **ERROR**, and CLAUDE.md is explicit that
+`ERROR` is not a pass. The *first* failure is nevertheless a true authorization assertion, so
+"something noticed" is established; "the suite is clean about it" is not.
+`add_referral_shared_item` doubled as the **positive control** (the ADR 0122 keystone was built
+for exactly this) — it went RED, proving the harness can find something
+([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
+
+**⭐ Calibration, corrected in BOTH directions.** Not a vulnerability — but also **not a
+coverage hole**, which is what "unswept" implied. The coverage is real; what is missing is the
+**verdict**. Consequences, which are the actual finding:
+1. **The coverage is unpinned.** Nothing records that these 407 doors are covered, so nothing
+   detects if that coverage regresses. A keystone deleted tomorrow reds nothing.
+2. **A NEW door in this class inherits no arm at all** — it is absent from every findings file,
+   so it passes every arm *by absence*. Precisely the ADR 0079 Amendment 7 shape.
+3. **`ARM=census` prints a claim wider than its domain** — *"every live authz gate carries a
+   verdict"* over a domain excluding the application's entire command layer.
+   → [[enumeration-boundary-is-a-syntax-not-a-property]], [[a-census-whose-parts-dont-sum-is-wrong]].
+
+**Fix (unchanged in shape, re-sized).** Widen the census's DEFINER clause to admit reachable
+non-trigger command doors, re-run, expect **RED with ~407 entries**, and triage — as ADR 0079
+Amendment 7 did for `ARM=wrapper`. ⚠ **407 is too many to classify honestly in one pass**, and a
+backlog filled with generic reasons is itself a vacuous act; sizing that triage is a **PO
+decision**, not an implementer's. ⛔ **Do not close this on the 3-door sample** — three COVERED
+results are evidence about three doors, not about 407 ([[a-detector-that-finds-a-lot-needs-proving-too]]).
+
+**Harness safety, for whoever runs the full triage.** The suite runs in a **separate
+connection**, so an in-transaction neutralization is invisible to it and cannot be used
+(FUP-AUTHZ-HARNESS-TRANSACTIONAL). What was used instead, and worked: exact
+`pg_get_functiondef` captured as the restore artifact · an **EXIT trap** restoring on any abort ·
+an assertion that the neutralization **landed** (md5 must change — a silent no-apply would make
+the run PASS *"having asserted nothing"*, which it did catch: `docker cp` + `psql -f` fails
+silently on Windows because MSYS rewrites the container-side `/tmp` path to `C:\tmp`; use
+`docker exec -i … < file`) · md5 re-verified after restore · the property sweep
+`^\s*begin\s+return\s+(true|false)\s*;\s*end` clean before **and** after · and the suite
+re-run to **194f/6392 PASS** to prove the stack was returned to baseline.
 
 ### 🟡 FUP-ACL-APP-POPULATION — ⭕ **RE-SCOPED 2026-08-17: the assertion is BUILT; the 237-function triage is what remains** (owner: backend + PO)
 

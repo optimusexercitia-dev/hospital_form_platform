@@ -340,7 +340,7 @@ rolled back.
 | **P1** list (register) | RPC `list_commission_documents(commission)` | 3.699 ms (1069 buf) | 0.736 ms (27 buf) |
 | **P2** list (per-resource panel) | `.from('documents').eq('home_resource_id', …)` | 1.312 ms (343 buf) | **363.925 ms (24 201 buf)** |
 | **P3** open (detail projection) | `.from('controlled_documents').eq('id', …)` | 0.050 ms | 0.019 ms |
-| **P4** open/sign (bytes) | RPC `open_document_version(dv)` | **NOT MEASURED** — see below | — |
+| **P4** open/sign (bytes) | RPC `open_document_version(dv)` | ✅ **8.2 ms cold · 3.8–4.0 ms warm** (1562 → 121 buf) — measured 2026-08-17 | **not taken** — see below |
 
 ⚠ **P1's two numbers are NOT a volume curve, and reporting them as one would be
 false.** It returned `rows=2` at **both** volumes — `list_commission_documents`
@@ -377,18 +377,52 @@ distribution.** Candidate responses (not decided here): an index on
 `(home_resource_id) WHERE deleted_at IS NULL`, pagination in the panel, or a
 cheaper read predicate.
 
-**P4 — NOT MEASURED, with the exact blocker.** `file_objects` holds **0 rows** on a
-fresh reset, so the byte door has nothing to resolve, and a synthetic row cannot be
-minted by hand: the write path is guarded (`objeto de arquivo deve nascer
-reservado`), and the follow-on transition was also rejected (`transição de estado de
-upload inválida (reserved → verifying)`). **Two attempts, then stopped** rather
-than guessing at a state machine — a fabricated row risks measuring a different
-branch of the door and reporting it as the real path. ⭐ The guard chain is
-*correct behaviour*: byte metadata cannot be fabricated by hand. **Prerequisite to
-finish this:** populate `file_objects` through the real finalize path (an E2E slice
-that uploads a document, or the demo seed), then re-run. Step 0 named
-`open_document_version` the highest-leverage target because every open/sign surface
-funnels through it, so **this gap is worth closing** — it is listed in §6.
+**P4 — ✅ MEASURED 2026-08-17 (pre-S6), by meeting the prerequisite this section named.**
+
+_(Original entry, kept because the refusal was right: `file_objects` holds **0 rows** on a
+fresh reset, and a synthetic row **cannot be minted by hand** — the write path is guarded
+(`objeto de arquivo deve nascer reservado`) and the follow-on transition was rejected too
+(`transição de estado de upload inválida (reserved → verifying)`). **Two attempts, then
+stopped** rather than guessing at a state machine. ⭐ The guard chain is *correct behaviour*,
+and a fabricated row would have measured a different branch of the door while reporting it as
+the real path.)_
+
+**What closed it:** not a fabricated row, but the **real finalize corridor** — the same door
+sequence `329_dm2_document_commands.sql` § U drives:
+`begin_document_upload` → *(PUT)* → `finalize_document_upload` (→ `verifying`) →
+`complete_document_upload_verification` (→ `unscanned_accepted`) → `open_document_version`.
+Run inside **one rolled-back transaction**, same protocol as P1–P3.
+
+⚠ **The one step that is a fixture, stated rather than implied:** SQL cannot PUT bytes, so the
+`storage.objects` row the Storage API would write on the client PUT is inserted directly. That
+is the fixture the committed pgTAP suite already uses — it is **not** a hand-minted
+`file_objects` row, and the three state transitions above are all real RPC calls.
+
+**N at measurement:** `documents=3` · `document_versions=3` · `file_objects` **0 → 1** ·
+`document_version_files` **0 → 1**. Actor: an **entitled non-creator** (`staff`), i.e. 329 O1's
+actor, not the uploader. Sanity-checked as a *serving* path — `version_number=1` was actually
+returned, so these are not the timings of a refusal.
+
+| call | actual time | buffers |
+| --- | --- | --- |
+| **cold** (1st — includes plpgsql compilation) | **8.16 / 8.27 ms** | shared hit **1562**, dirtied 2 |
+| **warm** (2nd) | **4.02 ms** | shared hit **121** |
+| **warm** (3rd) | **3.82 ms** | shared hit **121** |
+
+- ⭐ **The cold/warm split is reported because P1's was not, and reporting one number would
+  repeat P1's error** (its 3.699 → 0.736 ms drop was compilation, read at the time as a volume
+  curve). Three calls were run precisely so the warm figure is corroborated, not a single sample.
+- **~3.9 ms and 121 buffers to serve ONE version is the durable finding.** Step 0 named this the
+  highest-leverage RPC because every open/sign surface funnels through it, so this is a
+  per-open floor on every byte-serving screen in the product.
+- `dirtied=2` on the cold call is the `document.opened` audit write — the door is a **writer**,
+  which is why it cannot be cached away.
+
+⛔ **NOT COVERED, and this does not become a volume curve by implication: no N=2003 arm was
+taken for P4.** P1's volume arm was misleading for exactly this reason, and building one here
+needs synthetic `file_objects` rows the write-path guards deliberately refuse. What is claimed
+is a **single-row baseline at the stated N**, nothing about how it scales. Residue: none —
+`rollback` verified (`file_objects=0`, `storage.objects=0`, 0 `document.opened` rows).
 
 ## 5 · Gate results
 
@@ -450,8 +484,10 @@ the same N/A conclusion and also did not run them, for the same reason.
 
 A delivered slice is not an absence of gaps.
 
-1. **P4 `open_document_version` has no baseline** (§4) — the highest-leverage RPC,
-   blocked on an empty `file_objects`. Named prerequisite; not done.
+1. ⬛ **P4 `open_document_version` has no baseline** (§4) — **CLOSED 2026-08-17 (pre-S6)**: the
+   named prerequisite was met via the real finalize corridor, giving **8.2 ms cold / 3.8–4.0 ms
+   warm, 121 buf warm** at the stated N. ⚠ **A single-row baseline only — still no volume arm**,
+   which is item 2's defect and is not cured here.
 2. **P1's volume curve does not exist** — the synthetic arm did not touch its
    population. Its numbers are cold/warm at 2 rows only.
 3. **`--allow-orphans` is unfixed** — the remaining surface of
@@ -618,13 +654,20 @@ the reason, and a **mandatory** count-vs-census verification. Not filed as a 5th
 never reached the document.
 
 ### Two of §7's doubts adopted as BINDING named gaps — S6 may not close over them
+### ⭕ Updated 2026-08-17 (pre-S6): the FIRST is discharged, the SECOND still binds
 
-- **P4 `open_document_version` NOT MEASURED.** Lead-ruled: stopping after two attempts rather than
-  guessing at a state machine was correct — **a fabricated baseline is worse than a missing one.**
-  Stays open as a named gap, not a footnote.
-- **The runbook sequence is UNREHEARSED.** It is a procedure, not a proven one. Lead's framing, which
-  is the S4 lesson repeating one layer up: *naming an owner is not a rehearsal, and writing a runbook
-  is not running it.*
+- ⬛ **P4 `open_document_version` NOT MEASURED — DISCHARGED 2026-08-17.** The original ruling
+  stands and is why this closed cleanly: stopping after two attempts rather than guessing at a
+  state machine was correct — **a fabricated baseline is worse than a missing one** — so the gap
+  was closed by *meeting the prerequisite* (drive the real `begin → finalize →
+  complete_verification` corridor) rather than by fabricating the row that was refused. Result in
+  §4: **8.2 ms cold / 3.8–4.0 ms warm, 121 buffers warm**, single-row, rolled back, no residue.
+  ⚠ **Discharged for the baseline, NOT for scaling** — no volume arm exists.
+- 🔒 **The runbook sequence is UNREHEARSED — STILL BINDING, unchanged.** It is a procedure, not a
+  proven one. Lead's framing, which is the S4 lesson repeating one layer up: *naming an owner is
+  not a rehearsal, and writing a runbook is not running it.* ⛔ **S6 may not close over this one.**
+  It needs the PO (its named owner) plus whoever holds service-role reach — it was never mine to
+  discharge, and no amount of pre-S6 work changes that.
 
 ### The gate lesson, in the lead's words as well as mine
 

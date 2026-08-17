@@ -227,10 +227,15 @@
 > **[dm5-s5-operational-closure.md](docs/progress/dm5-s5-operational-closure.md)**; QA r2 review
 > `docs/reviews/dm5-s5-review-r2.md`.
 >
-> 🔒 **Two gaps adopted as BINDING — S6 may NOT close over them:**
-> **P4 `open_document_version` NOT MEASURED** (stopping rather than guessing at a state machine was
-> ruled correct — *a fabricated baseline is worse than a missing one*) · **the runbook sequence is
-> UNREHEARSED** (*naming an owner is not a rehearsal, and writing a runbook is not running it*).
+> 🔒 **Two gaps were adopted as BINDING — ⭕ 2026-08-17 (pre-S6) ONE IS DISCHARGED, ONE STILL BINDS:**
+> ⬛ **P4 `open_document_version` — MEASURED 2026-08-17**, by *meeting* the prerequisite rather than
+> fabricating the row the write path refused: the real `begin → finalize → complete_verification`
+> corridor, then EXPLAIN in a rolled-back transaction. **8.2 ms cold · 3.8–4.0 ms warm · 121 buffers
+> warm**, single-row at stated N, no residue. The original ruling (*a fabricated baseline is worse
+> than a missing one*) is what made this close cleanly. ⚠ **Baseline only — NO volume arm**, so
+> nothing here says how it scales. · 🔒 **The runbook sequence is UNREHEARSED — STILL BINDING, S6
+> may NOT close over it.** *Naming an owner is not a rehearsal, and writing a runbook is not running
+> it* — it needs the PO (its owner) plus service-role reach, so it was never the lead's to discharge.
 > ⛔ **13 NOT-COVERED items** are enumerated in the record under its binding heading — **read them
 > before S6**, because a close that omits them reads as completeness.
 >
@@ -303,8 +308,16 @@
 > automates only the half that was never the gap) · **FUP-DM5-CLOUD-ORPHAN-SURFACE** +
 > **FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT** (the pair deciding whether the deploy path can be
 > certified at all; **the S3 endpoint is UNPROBED and probing it is the single measurement that could
-> change this**) · **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** (**new** — `ARM=census` is bounded to `bool`
-> returns) · FUP-DM5-STACK-CYCLE-DESTROYS-BYTES (mechanism still undetermined) · FUP-DM5-STORAGE-ORPHANS
+> change this**) · **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** (⭕ **RE-SCOPED 2026-08-17 pre-S6 — its filed
+> premise was FALSE and the finding is bigger than filed.** No jsonb/void command door carries a
+> verdict *anywhere*: the two names cited as proof of a "wider door-sweep domain" occur only in
+> **prose**, which `verdicts_from_findings` — a **table-row** scraper — never reads. Measured:
+> **407** reachable non-trigger command doors sit outside **every** arm's domain, **326** of them
+> RPC-callable. ⭐ **A 3-door neutralization sample found all three COVERED**, so the class is
+> **covered-but-UNPINNED, not blind** — the coverage is real, nothing records it, so nothing
+> notices if it regresses and a NEW door in the class passes by absence. `ARM=census`'s printed
+> claim was narrowed to its true domain. **Sizing the 407-door triage is a PO decision**; ⛔ the
+> 3-door sample may NOT be used to close it) · FUP-DM5-STACK-CYCLE-DESTROYS-BYTES (mechanism still undetermined) · FUP-DM5-STORAGE-ORPHANS
 > (**Cloud half only** — local closed *empty by measurement*) · FUP-DM5-SETLOCAL-MIGRATION (⛔ in-place
 > fix **blocked**, the files are remote-applied; remaining remedy = a lint gate = **a PO decision**) ·
 > FUP-DM5-SIBLING-GUARD-DIFF · FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES (**superseded by** the collision

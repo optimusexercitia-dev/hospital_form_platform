@@ -337,7 +337,9 @@ run_arm_floor () {
 # ARM 3 — CENSUS CLOSURE (the sixteenth-stopper)
 # ════════════════════════════════════════════════════════════════════════════════
 run_arm_census () {
-  echo "=== ARM 3: census closure — every live authz gate carries a verdict ==="
+  echo "=== ARM 3: census closure — every gate IN THIS ARM'S DOMAIN carries a verdict ==="
+  echo "    domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER plpgsql | all RLS policies"
+  echo "    NOT in domain: prosecdef scalar non-bool command doors (407 reachable) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
   local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
 
   # LIVE domain, from the catalog and nothing else (never migration text). Deliberately
@@ -419,7 +421,14 @@ run_arm_census () {
     echo "  $UNSWEPT under 'helper:' WITH the reason."
     RC=1
   else
-    echo "  OK: every live authz gate carries a verdict (no unswept newcomer)."
+    # ⚠ Scoped deliberately (2026-08-17, FUP-AUTHZ-COMMAND-DOOR-UNSWEPT). This USED to read
+    # "every live authz gate carries a verdict", which is wider than what was checked: the
+    # DEFINER clause above admits `bool` and set-returning returns only, so 407 reachable
+    # non-trigger COMMAND doors (326 of them public/RPC-callable — create_case, assume_role,
+    # add_referral_shared_item …) are in no arm's domain at all. A 3-door neutralization
+    # sample found all three COVERED by real keystones, so the class is covered-but-UNPINNED,
+    # not blind — but nothing here records that, and a NEW door in the class passes by absence.
+    echo "  OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN (see the domain lines above)."
   fi
 
   # Hygiene (non-fatal): a backlog line with no live gate behind it — the gate was
