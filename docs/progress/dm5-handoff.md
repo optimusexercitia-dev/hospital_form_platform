@@ -893,6 +893,36 @@ session; `e2e:prod` runs after them.**
 | S6 | ⬜ not started |
 | flags | all five `documents_*` ship **OFF**. They read `true` locally **only because `seed.sql:2275` enables them for E2E** — verified; do not mistake the local DB for the shipped default |
 
+> ### ✅ FOLLOW-UP BATCH GATE — RUN 2026-08-17 at `4f16ea5f`, all steps lead-verified
+>
+> **Step 1** — fresh `db reset` · registry **412 == 412** · pgTAP **194 files / 6392 PASS** ·
+> lint **5/5** · tsc **0** · vitest **89 files / 1304**. Authz: `ARM=census` **546 live / 570
+> verdicts, no unswept newcomer** · `ARM=hat` **3 findings, all reasoned-allowlisted** ·
+> `ARM=floor` **74 never-called doors, all on the floor allowlist, every entry resolves** ·
+> `FROMFINDINGS=1 ARM=wrapper` **BLIND 41 ⊆ allowlist**. Diff-scoped `ARM=policy` is
+> **NOT APPLICABLE — argued and MEASURED, never recorded as "clean"**: policies **274**
+> (unchanged) and no migration in the diff contains a policy statement.
+> ⚠ **`ARM=census` passed while a NEW DEFINER door was absent from the findings md** — see
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`. Its domain is `bool` returns; the door returns `jsonb`.
+>
+> **Step 2** — `npm run e2e:prod` **GATE GREEN**: **1118 passed · 0 failed · 0 infra · 5 flaky
+> · 0 did-not-run · 18 batches**.
+> ⭐ **The coverage line read `1123 of 1129` and that was checked, not accepted.** All 18
+> batches reconcile `accounted N/N` and their totals sum to **1129**; the 6 are `skipped`,
+> which the summary's pass/fail/flaky tally excludes. **No unrun tests** — the
+> [[gate-summary-can-hide-unrun-tests]] shape was looked for and is absent.
+> ⚠ **4 INFRA re-runs**, and one is a NEW shape worth a name: **batch 8 CRASHED with exit 127
+> and no summary at all — 40 tests unrun**, classified INFRA and re-run to `40/40`. Exit 127
+> is *command not found*, not a test failure. Batches 2/4/7 were the familiar `server_dead=1`.
+> ⚠ The 5 flakes are the **established** focus/navigation-timing family (`FUP-E2E-REPEAT-FLAKY`,
+> now its **5th** gate): `act-role-assumption:157` · `phase2-auth-shell:268` ·
+> `dm5-nsp-evidence:347` (EVID-KBD-1) · `referral-registros:838`. **This run was the
+> VALIDATION run for FINALIZE-ATOMIC**, and `dm5-nsp-evidence` — the spec that exercises the
+> rewritten corridor — passed.
+>
+> **Steps 3–5**: QA review not run (this is a follow-up batch, not a slice); **step 4, human
+> approval, is OWED**.
+
 **Gate figures, all lead-verified independently at HEAD** (not inherited): registry **407 == 407** ·
 pgTAP **194 files / 6363 PASS** on a fresh reset · lint **5/5, 0 errors 0 warnings** · tsc **0** ·
 vitest **89 files / 1304 passed** · `next build` **exit 0, 19/19 pages** · rehearse **22/22** ·
