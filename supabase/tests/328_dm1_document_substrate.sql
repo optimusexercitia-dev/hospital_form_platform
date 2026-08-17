@@ -1141,15 +1141,23 @@ select is(
   0,
   'K16s1 documents_wave_a is consulted by ZERO database functions (UI-only, by pin not prose)');
 
--- The existing door census: every one of the 12 public DEFINER doors asserts
+-- The existing door census: every one of the 13 public DEFINER doors asserts
 -- the foundation flag. Catches a removed assert; grows consciously with DM3.
+--
+-- ⭐ 12 → 13 on 2026-08-17, and this is the census EARNING ITS KEEP rather than
+-- an inconvenience: `public.complete_evidence_upload_verification`
+-- (FUP-DM5-FINALIZE-ATOMIC, migration 20260928000500) was written, tested and
+-- committed, and THIS assertion is what announced that a new public DEFINER
+-- document door had joined the platform. It does assert the flag — verified in
+-- its body, not assumed from the count moving — so the correct response is to
+-- widen the census by one, deliberately, with the door named here.
 select is(
   (select count(*)::int from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'assert_documents_enabled'),
-  12,
-  'K16s2 all 12 public DEFINER document doors assert documents_foundation (exact census — update consciously when DM3 adds doors)');
+  13,
+  'K16s2 all 13 public DEFINER document doors assert documents_foundation (exact census — update consciously when a door is added)');
 
 select * from finish();
 rollback;

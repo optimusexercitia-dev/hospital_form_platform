@@ -67,7 +67,11 @@ select is(has_function_privilege('authenticated', 'public.open_document_version(
 select is(has_function_privilege('authenticated',
   'public.complete_document_upload_verification(uuid,text,boolean)', 'EXECUTE'),
   false, 'S4 the verification completion door is SERVICE-ROLE ONLY');
-select is(has_function_privilege('authenticated', 'public.complete_document_disposal(uuid)', 'EXECUTE'),
+-- ⚠ SIGNATURE, not just a name: `(uuid, text)` since ADR 0121 D4 added
+-- `p_byte_proof` (migration 20260928000400). `has_function_privilege` RAISES on a
+-- signature that does not resolve, which ABORTS this file — 7 of 116 assertions
+-- ran. A stale signature here is not a soft failure.
+select is(has_function_privilege('authenticated', 'public.complete_document_disposal(uuid,text)', 'EXECUTE'),
   false, 'S5 the disposal completion door is SERVICE-ROLE ONLY');
 select is(has_function_privilege('anon',
   'public.begin_document_upload(text,uuid,text,text,text,uuid,text,text,bigint,text,date)', 'EXECUTE'),
