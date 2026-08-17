@@ -225,10 +225,24 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >
 >    ⚠ **Strength of inference, stated because it is as much the artifact as the finding.** This is a
 >    property of the **tool's code**, established by forcing its **already-existing** no-local-proof
->    branch (the branch predates the change — lead-verified). The bridge to Cloud is *the absence of a
->    precondition readable in the source*: `locateVolume()` requires a `supabase_storage` container
->    plus `STORAGE_BACKEND=file`, neither of which can hold for a Cloud project. **That is weaker than
->    a Cloud measurement and is not dressed up as one.** Nothing remote was touched. **Unsettled:**
+>    branch (the branch predates the change — lead-verified).
+>
+>    ⛔⛔ **CORRECTED 2026-08-17 by QA (S5 review MAJOR-2) — the bridge stated here was the WRONG
+>    BRIDGE, and the correction makes the Cloud risk worse, not milder.** This paragraph said
+>    `locateVolume()` requires a `supabase_storage` container plus `STORAGE_BACKEND=file`, *"neither of
+>    which can hold for a Cloud project."* **That is false at the predicate grain, and it is the lead's
+>    error.** Those preconditions are properties of the **operator's machine**, not of the project —
+>    and `locateVolume()` (verified: `scripts/storage-manifest.mjs:224`) **takes no arguments at all**
+>    and has **no project affinity whatsoever**; it matches *any* running container named
+>    `supabase_storage` via `docker ps --filter`.
+>
+>    ⭐ **So the reachable Cloud failure is not "no local proof" — it is a FAKE local proof.** An
+>    operator running `capture` against a **Cloud** project from a machine that happens to have a local
+>    Supabase stack up gets a volume proof computed **against entirely unrelated bytes**, presented with
+>    the same confidence as a real one. *No proof* fails visibly and refuses; *a proof about the wrong
+>    bytes* passes. **The original wording made the safer reading the recorded one** — precisely the
+>    failure mode this ADR keeps cataloguing. Cloud consequence is labelled inference; nothing remote
+>    was touched. **Unsettled:**
 >    whether Cloud exposes any *other* orphan-visible surface — the **S3 endpoint is UNPROBED**, and
 >    probing it is the one measurement that could change this verdict.
 >
