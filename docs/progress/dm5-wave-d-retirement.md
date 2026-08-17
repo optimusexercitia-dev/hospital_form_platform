@@ -105,34 +105,62 @@ floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist · dege
 domain is empty. *A dropped policy has no gate to open.* (S3 recorded the same distinction; per its
 precedent, "not applicable" must never be written up as "clean".)
 
-### ⛔ Gate step 2 — `e2e:prod` — **UNESTABLISHED (superseded 2026-08-17). This section used to read "✅ GATE GREEN".**
+### ✅ Gate step 2 — `e2e:prod` — **ESTABLISHED 2026-08-17. GATE GREEN, and the figure is RESTATED at 1121.**
 
-> ⛔⛔ **THE 1118 FIGURE BELOW IS SUPERSEDED AND MUST NOT BE QUOTED.** It was measured **before** QA
-> found B2 and before the R15 fix (`140ffd8c`) changed that spec — so it counted a **vacuous security
-> pin** among its passes. **Four gate attempts since produced no usable figure, and not one of them
-> produced a single assertion failure:** resource exhaustion (`0xC0000142`, workers never initialised),
-> then two runs invalidated by a **concurrent gate process the lead failed to reap**, then an
-> unexplained abrupt exit. Full table + the resume recipe: **[dm5-handoff.md](./dm5-handoff.md) §12**.
+> ✅ **RE-RUN AND RESTATED 2026-08-17 on a freshly-rebooted machine.** The 1118 figure was suspended
+> because it predated the R15 fix (`140ffd8c`) and therefore **counted a vacuous security pin among its
+> passes**, and because four attempts since had produced no usable figure — resource exhaustion
+> (`0xC0000142`, workers never initialised), two runs invalidated by a **concurrent gate process the
+> lead failed to reap**, and one unexplained abrupt exit. **None of the four produced a single
+> assertion failure.** The suspension is now discharged by measurement, not by argument.
 >
-> ⚠ **Left in place, struck rather than deleted, deliberately.** The reconciliation method below is
-> still correct and worth reusing; only the *numbers* are dead. And the defect worth remembering is
-> structural: this heading said **GATE GREEN** while the same phase's records said "do not quote 1118"
-> — the S2 reopen-banner defect repeating, *in the file that documents the S2 reopen-banner defect.*
+> ⭐ **The handoff's diagnosis was right and is now confirmed, not assumed:** the machine, not the
+> code. Uptime **0.0 h** at the start of this run; the same suite that had been unrunnable four times
+> completed **18/18 batches** with 0 failed and 0 did-not-run, and the pgTAP deadlock storm
+> (17 suites, `Bad plan … ran 0`) likewise vanished — **193 / 6351 PASS, 0 deadlocks.**
+>
+> ⚠ **Kept rather than deleted:** the reconciliation *method* below was always correct, and the
+> structural defect this section recorded — a heading reading **GATE GREEN** while the same file said
+> "do not quote 1118", the S2 reopen-banner defect repeating *in the file documenting it* — is why the
+> heading is now edited **in the same commit** as the figure it reports.
 
-**1118 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 18 batches**, `next build` compiled,
-2 infra re-runs. Gotenberg verified **200** on :3010 before the run — without it 15 print specs fail
+**1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, `next build`
+compiled, **2 infra re-runs** (batches 6 and 11, both classified `server_dead`/`conn_errors` and both
+clean on re-run). Gotenberg verified **200** on :3010 before the run — without it 15 print specs fail
 as uniform pt-BR errors that read exactly like product defects.
 
-**The accounting reconciles against S3 exactly, and the summary line needed checking to see it.**
-The gate prints `COVERAGE: accounted for 1123 of 1129` — **6 short**, which is the shape
-[[gate-summary-can-hide-unrun-tests]] warns about. Resolved: the per-batch lines sum to
-**1129 / 1129 accounted with 0 did-not-run in every batch**; the summary's "accounted" simply
-excludes skips. Full reconciliation, and the comparison that matters:
+**The accounting reconciles, and the summary line again needed checking to see it.** The gate prints
+`COVERAGE: accounted for 1123 of 1129` — **6 short**, the shape
+[[gate-summary-can-hide-unrun-tests]] warns about. Resolved identically to S4: the per-batch lines sum
+to **1129 / 1129 accounted, with 0 did-not-run in every one of the 18 batches**; the summary's
+"accounted" simply excludes skips. Verified by re-summing the per-batch lines independently of the
+summary: `passed 1121 · flaky 2 · skipped 6 · did-not-run 0`, and 1121 + 2 + 6 = **1129**.
 
 | run | passed | flaky | skipped | collected |
 | --- | --- | --- | --- | --- |
 | S3 (2026-08-14) | 1120 | 3 | 6 | **1129** |
-| **S4 (2026-08-16)** | **1118** | **5** | **6** | **1129** |
+| ~~S4 (2026-08-16)~~ *superseded* | ~~1118~~ | ~~5~~ | ~~6~~ | ~~**1129**~~ |
+| **S4 re-run (2026-08-17)** | **1121** | **2** | **6** | **1129** |
+
+⭐ **The restatement reconciles to the suspended figure exactly, which is the point of restating rather
+than replacing.** Collected is **unchanged at 1129** across all three runs, and skips are unchanged at
+6 — so the +3 against S4 is precisely the **three tests that were flaky then and are clean passes now**
+(5 flaky → 2). **The R15 rewrite was one test replaced by one test**, which is why the collected total
+did not move despite the spec growing 176 lines. Had collected moved, that would have needed its own
+explanation before this figure could be quoted.
+
+**Three claims verified individually, not inferred from the aggregate**, bounded by the 18 log paths
+**the runner itself named** (`(log: …)`) rather than by a glob — `/tmp/e2e-prod-gate/` still holds
+stale logs from the previous session's dead attempts, including a `batch-29.log` from an 18-batch run
+and the **old vacuous R15 at `:650`**, and a glob sweep silently mixes them in:
+
+- `pdf-printing` **9/9** and `pdf-printing-meetings` **6/6** — the print corridor still mints real
+  `%PDF-` bytes with `printed-documents` deleted. **This is the check S4 owed most**, now independently
+  re-confirmed after the retirement migration.
+- **Zero `not ok` lines** across all 18 authoritative logs.
+- **R15 appears only as the new test** (`phase14c-rca.spec.ts:736` — *"the object survives the
+  attempt"*). The retired `:650` pin appears **nowhere** in this run. B2's fix is therefore proven to
+  have *executed*, not merely to have been committed.
 
 **Identical collected total and identical skip count** — the only movement is **two tests shifting
 from `passed` to `flaky`** (failed once, passed on retry). That is flakiness, not regression: 0 failed,

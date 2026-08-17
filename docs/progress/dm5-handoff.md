@@ -37,7 +37,7 @@ this section used to name is discharged — §10 now records the *outcome* inste
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
 | **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
-| **S4** retirement (8 buckets) | 🔵 **BUILT + both QA blockers FIXED in code. THE ONLY THING OUTSTANDING IS A CLEAN `e2e:prod` RUN, then QA r2.** ⛔ **Do not quote 1118** — 4 gate attempts, 0 usable figures, 0 assertion failures in any of them (all environmental; 3 self-inflicted). ⚠ Byte half was a NO-OP, **then the 221 orphans were destroyed outside the gate** — §11 · §12 |
+| **S4** retirement (8 buckets) | 🔵 **BUILT · steps 1+2 ✅ GREEN · QA r2 is the ONLY outstanding item.** ✅ `e2e:prod` re-run 2026-08-17: **1121p / 0f / 0 infra / 2 flaky / 6 skipped / 0 did-not-run / 18 batches** (~~1118~~ superseded); pgTAP **193/6351, 0 deadlocks**; `pdf-printing` 9/9 + `pdf-printing-meetings` 6/6. The 4 dead attempts were **all environmental** — a reboot cleared every one. ⚠ Byte half was a NO-OP (**rehearsal now owned as S5.R**), **and the 221 orphans were destroyed outside the gate** (PO ruled the local volume disposable 2026-08-17) — §11 · §12 |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
@@ -564,10 +564,11 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 > door-less). pgTAP **`325` 5 → 8**, red-first against the real pre-migration catalog. Gate: registry
 > **407 == 407** · pgTAP **193f/6351** · tsc 0 · lint 5/5 · vitest 1294 · four arms **HOLD**
 > (census **546**/570, unchanged) · `ARM=policy` **not applicable** (the diff only *drops* policies) ·
-> ~~`e2e:prod` **1118p / 0f / 0 did-not-run / 5 flaky / 18 batches**~~ ⛔ **SUPERSEDED — see §12. That
-> run PREDATES the R15 fix and counted a vacuous pin among its passes; four attempts since produced no
-> usable figure. Do not quote it.** (`pdf-printing` 9/9 + `pdf-printing-meetings` 6/6 with
-> `printed-documents` deleted was real at that HEAD, but is likewise unre-measured since.)
+> ~~`e2e:prod` **1118p / 0f / 0 did-not-run / 5 flaky / 18 batches**~~ ⛔ SUPERSEDED (predated the R15
+> fix, counted a vacuous pin) → ✅ **RE-RUN AND ESTABLISHED 2026-08-17: `e2e:prod` 1121p / 0f / 0 infra /
+> 2 flaky / 6 skipped / **0 did-not-run** / 18 batches**, per-batch 1129/1129 accounted. Reconciles to
+> 1118 exactly (collected + skips unchanged ⇒ +3 = the 3 formerly-flaky). `pdf-printing` **9/9** +
+> `pdf-printing-meetings` **6/6** with `printed-documents` deleted, **re-measured**, not inherited.
 >
 > ⛔ **THE BYTE HALF WAS A NO-OP — and this is the single most important line in the section.** The
 > stack was already in the degenerate post-reset state this file's own §11 warned about: **0
@@ -643,13 +644,31 @@ probe) · the smoke file is **not gate-resident** · `ARM=policy` was **not appl
 
 ## 12. ⭐ START HERE IF YOU ARE RESUMING S4 (2026-08-17 03:30)
 
-**S4's build and both QA r1 blockers are DONE in code.** Exactly one thing is outstanding: **a clean
-`npm run e2e:prod` run**, and then **QA r2** on B1 + B2. Nothing else.
+> ## ✅ §12 IS DISCHARGED — 2026-08-17 04:49. Do not follow the recipe below as if it were pending.
+>
+> The one outstanding item — a clean `npm run e2e:prod` — **ran GREEN on a freshly-rebooted machine**:
+> **1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, per-batch
+> 1129/1129 accounted. pgTAP **193 / 6351 PASS, 0 deadlocks**. `pdf-printing` **9/9** +
+> `pdf-printing-meetings` **6/6**, verified individually. **The five environment traps below were the
+> whole story — every one was a machine/process condition, none was code**, and a reboot cleared all of
+> them. Remaining: **QA r2** on B1 + B2, then PO step 4.
+>
+> ⚠ Two things this section did NOT anticipate, both worth carrying: (1) `142_rca.sql:12` — one of
+> B2's three named locations — **was still open**, and its unnamed sibling `143_capa.sql:15` with it;
+> fixed at `c88f578c`. (2) `/tmp/e2e-prod-gate/` **retains stale logs from the dead attempts**,
+> including a `batch-29.log` and the old vacuous R15 at `:650`. **Bound any log sweep by the paths the
+> runner names in `(log: …)`**, never by a glob.
+
+**S4's build and both QA r1 blockers are DONE in code.** ~~Exactly one thing is outstanding: a clean
+`npm run e2e:prod` run, and then **QA r2** on B1 + B2.~~ → **the gate has run; QA r2 is the only
+outstanding item.**
 
 Commits (all on `main`, ⛔ **nothing pushed**): `19dd3124` (retirement) · `7977cd32` (B1 + record
-corrections) · `11bfdd39` (MINOR-3/4/5/7 + 2 new FUPs) · `140ffd8c` (B2 R15 rewrite + `143` label).
+corrections) · `11bfdd39` (MINOR-3/4/5/7 + 2 new FUPs) · `140ffd8c` (B2 R15 rewrite + `143` label) ·
+`c88f578c` (B2 residue: the two suite headers) · `5d6d785b` (B1: orphan question re-put + PO ruling) ·
+`a45d39c7` (S5.R byte-path rehearsal into S5 scope).
 
-### ⛔ Do NOT quote the 1118 figure
+### ⛔ Do NOT quote the 1118 figure — ✅ superseded by **1121**, see the banner above
 
 It predates the R15 fix and **no run since has reproduced it**. Four gate attempts produced **zero
 usable figures — and, importantly, zero assertion failures in any of them:**

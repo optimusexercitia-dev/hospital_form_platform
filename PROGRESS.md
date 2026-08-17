@@ -172,10 +172,20 @@
 >   `storage.protect_objects_delete` fires **before RLS** and is the operative guard, the same one
 >   `…000400` opts out of. `143`'s Rule 6 label corrected accordingly (assertion unchanged, 38 == 38).
 >
-> ### ⛔ S4 STOPPED HERE 2026-08-17 03:30 — the E2E figure is UNESTABLISHED, and that is the ONLY thing blocking r2
+> ### ✅ RESOLVED 2026-08-17 04:49 — the E2E figure is ESTABLISHED at **1121**; this block is now HISTORY
 >
-> ⛔ **Do NOT quote 1118.** It predates the R15 fix and no run since has reproduced it. **FOUR gate
-> attempts, ZERO usable figures, and not one of them produced an assertion failure:**
+> ✅ **The blocker below is discharged.** Re-run on a **freshly-rebooted** machine (uptime 0.0 h):
+> **`1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches`**, and pgTAP
+> **193 / 6351 PASS with 0 deadlocks** — the 17-suite `Bad plan … ran 0` storm gone too. ⭐ **The
+> diagnosis below (the machine, not the code) is now CONFIRMED BY MEASUREMENT rather than inferred**;
+> the same suite that was unrunnable four times completed 18/18 batches untouched. Restatement +
+> the three individually-verified claims: the DM5 record § "Gate step 2".
+>
+> ⛔ **The ~~1118~~ figure remains SUPERSEDED** — it predated the R15 fix and counted a vacuous
+> security pin. It is replaced by 1121, not revived. The table below is kept because *"nothing failed"
+> and *"nothing ran"* being different facts is the lesson, not the attempt count:
+>
+> ~~**FOUR gate attempts, ZERO usable figures, and not one of them produced an assertion failure:**~~
 > | attempt | result | cause |
 > |---|---|---|
 > | tester's full gate | 46 "failures" in batch 17, 28 unrun | **resource exhaustion** — `0xC0000142 STATUS_DLL_INIT_FAILED`, workers never initialised, **zero assertions ran** |
@@ -249,7 +259,7 @@
 > | tsc · lint · vitest | 0 · **5/5** · **1294** (unchanged — the removed TS had no test, which is *why* it was removable) |
 > | four ARMs, exit codes captured **unpiped** | **all HOLD** — census live **546** / verdicts **570** (identical to S3's close: S4 added no gate, so no census entry is owed) · hat 3 allowlisted, self-test 6/6 · floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist |
 > | diff-scoped `ARM=policy` | **NOT APPLICABLE — recorded as that, never as clean.** The diff *drops* 4 policies, adds/modifies none, touches no `prosecdef` body ⇒ empty domain. *A dropped policy has no gate to open.* |
-> | **step 2 — `e2e:prod`** | ⛔ **UNESTABLISHED — see the STOPPED block below. This row previously claimed `GATE GREEN — 1118 passed`; that figure is SUPERSEDED and must not be quoted.** It was measured **before** the R15 fix (`140ffd8c`), and four attempts since produced no usable figure — with **zero assertion failures in any of them**. ⚠ *Kept as a struck claim rather than deleted, because the defect worth remembering is that this row and the "do NOT quote 1118" warning sat ~70 lines apart in this same file — the S2 reopen-banner defect exactly* |
+> | **step 2 — `e2e:prod`** | ✅ **GATE GREEN, RESTATED 2026-08-17: `1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches`** (2 infra re-runs, batches 6+11, both clean on re-run). Per-batch **1129/1129 accounted, 0 did-not-run in every batch**; 1121+2+6 = 1129 collected — the summary's `1123 of 1129` excludes skips. ⭐ Reconciles to the suspended 1118 **exactly**: collected and skips unchanged, so +3 = the 3 tests flaky then and clean now (5→2 flaky); R15 was one test replaced by one test. `pdf-printing` **9/9** + `pdf-printing-meetings` **6/6** verified individually; **0 `not ok`** across the 18 logs the runner itself named. The ~~1118~~ figure is SUPERSEDED, not merely unquotable |
 >
 > ⭐ **The check S4 owed the most, because it deleted the bucket S3's corridor was proven against:**
 > `pdf-printing` **9/9** + `pdf-printing-meetings` **6/6**, identical to S3, **zero** non-ok in any
