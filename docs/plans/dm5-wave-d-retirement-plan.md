@@ -167,6 +167,47 @@ list / open / sign as the pilot's comparison point. Production-volume perf testi
 rollout stay deferred to the pilot (PO-accepted). O1/O2 values remain with the PO — S5 names
 owners, it does not invent values.
 
+#### ⛔ S5.D — the disposal job DOES NOT EXIST. PO ruled 2026-08-17: document the gap + a manual runbook.
+
+**Step 0 finding, lead-verified** (`docs/progress/dm5-s5-surface-verification.md`): S5's parent scope
+says *"name the operational owner and execution mechanism for the disposal job"* — **there is no
+disposal job to name an owner for.** `public.complete_document_disposal` exists (`prosecdef = t`) but
+its **only** production caller is `src/lib/documents/actions.ts:377`, inside `reclassifyDocument` — an
+unrelated workflow. **Nothing reaches it** from `request_document_disposition` / `dispose_case_phi` /
+`dispose_referral_phi`. Nothing is scheduled anywhere: `pg_cron` is **not installed** (it *is* in
+`shared_preload_libraries`, so one `CREATE EXTENSION` away), no cron schema, no CI cron.
+
+⛔ **And `src/lib/documents/actions.ts:277-278` asserts the opposite in the PRESENT TENSE** — *"the
+disposal job + service-only completion door do the verified deletion."* Fifth instance of this class in
+DM5 and **the first in live source rather than a record.**
+
+⭐ **The precedent that had to be found, and the reason it does not settle it.** ADR **0099 D10** is an
+already-shipped, PO-ratified **"No new cron infrastructure"** decision for exactly this class:
+*"Rejected: pg_cron sweeper — a stale row nobody is looking at harms nobody until they look."* It is
+cited **nowhere** in this plan, and step 0's section F found it. **But its rationale inverts here:** a
+stale audio row harms nobody; a `disposal_pending` row that never completes means **PHI bytes that
+should have been destroyed still exist**, under LGPD / ANVISA / CFM 1821. ADR 0099 itself anticipates
+this (`:218-227`) and says *"recordings are case-PHI — that last one alone should force the cron
+conversation."*
+
+**PO ruling — S5.D delivers, in this order:**
+1. A **manual runbook** for disposal + reconciliation, with a **named human owner** and a stated
+   **periodicity**. ⚠ Owner and periodicity are **values**: propose them, flag them, do **not** invent
+   them silently — the same rule that keeps O1/O2 with the PO.
+2. **Correct the false present-tense comment**, and ⭐ **encode the gap EXECUTABLY rather than as
+   prose** — this phase's own lesson is that a comment is an assertion that goes stale silently. A
+   pgTAP keystone asserting the gap (no wiring from the disposition path to the completion door) goes
+   **RED the day someone builds the job**, forcing the runbook and the follow-up to be revisited.
+   *A gap documented only in prose is a gap that will be documented wrongly later.*
+3. File the **automated** job as a **🔴 BLOCKING pre-pilot follow-up** — not a nice-to-have. It carries
+   ADR 0099 D10's tension and will need its own ADR to overturn it.
+
+⛔ **What S5.D does NOT do:** build the completion path, install `pg_cron`, or stand up a second
+execution context with service-role reach. Those were the rejected options and the rejection is
+recorded so the next reader knows it was a choice. **DM5 therefore exits with a KNOWN,
+runbook-mitigated PHI-disposal gap** — that is the accepted consequence, and it must appear in S6's
+canon sweep and in the pilot gate, never only here.
+
 #### S5.R — REHEARSE the deploy-time byte path (PO-directed 2026-08-17)
 
 **Why it is here.** S4 retired the eight bucket rows, but its byte half was a **NO-OP**: every
