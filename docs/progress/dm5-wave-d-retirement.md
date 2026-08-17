@@ -116,6 +116,41 @@ floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist · dege
 domain is empty. *A dropped policy has no gate to open.* (S3 recorded the same distinction; per its
 precedent, "not applicable" must never be written up as "clean".)
 
+### The four dead gate attempts, and the environment lessons they cost (~3 h, one habit)
+
+*Copied here at step-5 rotation from PROGRESS.md, which was their only durable home — the handoff §12
+also carries them, but the handoff dies with DM5 and these outlive it. Not summarized: copied.*
+
+Before the run below, **four attempts produced zero usable figures and — the fact that matters —
+not one assertion failure in any of them:**
+
+| attempt | result | cause |
+| --- | --- | --- |
+| tester's full gate | 46 "failures" in batch 17, 28 unrun | **resource exhaustion** — `0xC0000142 STATUS_DLL_INIT_FAILED`, workers never initialised, **zero assertions ran** |
+| lead isolation #1 | 134 UNRUN | launched into a stack still restarting **+ the tester's gate process tree still alive** |
+| lead isolation #2 | 66 UNRUN | same concurrent gate, still alive |
+| lead full gate | died mid-batch-1, `EXIT=1`, no error output | abrupt termination, unexplained — **no mechanism invented for it** |
+
+⭐ **All three lead attempts were self-inflicted and share ONE habit: trusting a status report instead
+of measuring the thing.** The harness reported the tester's task *"completed"*; its `npm run e2e:prod`
+tree was **still running**, holding `:3000` and resetting the DB under two later runs — the
+single-owner rule the lead had quoted into both agents' briefs, then broken twice in twenty minutes.
+**`TaskStop` does not reap the gate's process tree. Verify with `Get-Process`, never from the
+notification.**
+
+⚠ **Two more breakages of the same class:** piping `supabase db reset` through `grep | head`
+**SIGPIPE-killed the reset mid-flight** (the "never pipe a gate through `head`/`tail`" rule applies to
+resets too — redirect, then grep the file); and `storage.buckets does not exist` was read **three
+times** as a corrupt database when it was a race against the post-reset container restart —
+**after a reset, poll for readiness before querying.**
+
+**pgTAP at that stop point: 193 files / 5900, `FAIL` — and NOT a regression.** 17 suites reported
+`Bad plan … ran 0` with `deadlock detected` at `test_helpers.bootstrap()`, and **`Failed: 0` on every
+one.** That is **HANDOFF-1**, the documented intermittent `pg_prove` worker deadlock, at unusual scale
+(17 files vs the recorded 2) on a machine hammered all night. ⭐ **Every one of these was a machine or
+process condition; none was code — a reboot cleared all of them**, and the run below is the proof.
+⚠ *"Nothing failed" and "nothing ran" are different facts.*
+
 ### ✅ Gate step 2 — `e2e:prod` — **ESTABLISHED 2026-08-17. GATE GREEN, and the figure is RESTATED at 1121.**
 
 > ✅ **RE-RUN AND RESTATED 2026-08-17 on a freshly-rebooted machine.** The 1118 figure was suspended

@@ -83,7 +83,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ Vitest 1254 | ✅ pgTAP **183f/5870** · 3 ARMs HOLD · e2e:prod **1074p/1f** (pre-existing, outside the branch) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2m/3i) | ✅ 2026-08-12 | 2026-08-12 | `81e1dc9` → `main`, ✅ **PUSHED** |
 | 22-v3 | **REG·KIND — one Registro vocabulary** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ Vitest 1254 | ⚠ **step 1 only** — pgTAP **183f/5857** · 3 ARMs HOLD · E2E targeted 24/24, **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | `9a20c8a` → `main`, ✅ PUSHED · ✅ remote `db push` DONE. ⚠ Verified against the **remote catalog** — `migration list --linked` and MCP `list_migrations` were **both wrong** |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** · [plan](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** · 🔵 **DM5 OPEN** (S0 ✅ · ~~S1~~ WITHDRAWN · S2 ✅ · **S3 ✅ COMPLETE, r2 APPROVED** · **S4 🔵 IN PROGRESS** — PO-authorized 2026-08-16, buckets retired; steps 1 ✅ 2 ✅, **step 3 ⛔ CHANGES REQUESTED r1** (2 blocking, both RECORD defects — the build is sound), step 4 owed; ⚠ **the byte half was a NO-OP, and the 221 orphan bytes were then DESTROYED OUTSIDE THE GATE by a stack recovery** · S5–S6 remain) — ⚠ **the IN-PROGRESS section below is the authority** | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | ✅ DM4: pgTAP **191f/6231** · 391==391 · vitest 1264 · 4 ARMs HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f** | ✅ DM4 **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md), no binding condition | ✅ **2026-08-14** (DM4) | 2026-08-14 | `phase(DM4)` on `main` — ⛔ **NOT pushed**, no `db push`. **All five DM flags OFF.** Records: [DM1](docs/progress/dm1-substrate-cutover.md)·[DM2](docs/progress/dm2-orchestration-wave-a.md)·[DM3](docs/progress/dm3-controlled-documents.md)·[DM4](docs/progress/dm4-referrals.md)·**[DM5](docs/progress/dm5-wave-d-retirement.md)**. Open: 🟠 FUP-DM4-RECUSAL · 🟠 FUP-DM5-STORAGE-ORPHANS (**S4 has run — no longer blocks it**; the manifest-first delete was a NO-OP and the 221 orphans were then destroyed OUTSIDE the gate; now centred on the Cloud half) · 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW. Census blind class = **141** at HEAD (not 146/150) — cite the query beside the number |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** · [plan](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** · 🔵 **DM5 OPEN** (S0 ✅ · ~~S1~~ WITHDRAWN · S2 ✅ · **S3 ✅ COMPLETE, r2 APPROVED** · **S4 ✅ COMPLETE 2026-08-17 — all 5 gate steps, QA APPROVED r3** (r1 ⛔ → r2 ⛔ → r3 ✅; every blocking item across three rounds was a RECORD defect — no code change was ever requested); ⚠ **the byte half was a NO-OP** (rehearsal now owned as **S5.R**, still UNREHEARSED) **and the 221 orphan bytes were DESTROYED OUTSIDE THE GATE by a stack recovery** (PO ratified the local volume disposable 2026-08-17; FUP-DM5-STACK-CYCLE-DESTROYS-BYTES stays open) · **S5–S6 remain, S5 NOT authorized** ) — ⚠ **DM5's phase QA is still owed at S6; S4's is a SLICE verdict** | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | ✅ DM4: pgTAP **191f/6231** · 391==391 · vitest 1264 · 4 ARMs HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f** | ✅ DM4 **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md), no binding condition | ✅ **2026-08-14** (DM4) | 2026-08-14 | `phase(DM4)` on `main` — ⛔ **NOT pushed**, no `db push`. **All five DM flags OFF.** Records: [DM1](docs/progress/dm1-substrate-cutover.md)·[DM2](docs/progress/dm2-orchestration-wave-a.md)·[DM3](docs/progress/dm3-controlled-documents.md)·[DM4](docs/progress/dm4-referrals.md)·**[DM5](docs/progress/dm5-wave-d-retirement.md)**. Open: 🟠 FUP-DM4-RECUSAL · 🟠 FUP-DM5-STORAGE-ORPHANS (**S4 has run — no longer blocks it**; the manifest-first delete was a NO-OP and the 221 orphans were then destroyed OUTSIDE the gate; now centred on the Cloud half) · 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW. Census blind class = **141** at HEAD (not 146/150) — cite the query beside the number |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's Slice 0 gate). Flag `deliberations` covers all but Slice 1, which replaces live meeting-settings plumbing | – | – | – | ⛔ **not ratified** | – | `a68f179` + renumber `feab771` (drafted as 0112 — **taken**; ⚠ differing filenames merge CLEANLY, so renumber at merge time). ✅ PUSHED (server-verified) |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -147,11 +147,20 @@
 >
 > **Slices:** **S0 ✅** manifest tool (`0e85cbe7`, `9d37ad79`; baseline self-labels **DEGENERATE**, not
 > S4 input) · ~~S1~~ ⛔ **WITHDRAWN, never built** (D3/D4/D5 struck → **D11**) · **S2 ✅** NSP RCA/CAPA
-> evidence · **S3 ✅ COMPLETE — all four gate steps** (2026-08-14) · **S4 🔵 IN PROGRESS**
-> (2026-08-16, **PO-authorized on the day**) — buckets retired; steps 1 ✅ 2 ✅, **step 3 ⛔ CHANGES
-> REQUESTED (r1)**, step 4 owed · S5 operational closure · S6 canon + exit sweep.
+> evidence · **S3 ✅ COMPLETE — all four gate steps** (2026-08-14) · **S4 ✅ COMPLETE — all five gate
+> steps** (built 2026-08-16 **PO-authorized on the day**, closed 2026-08-17; QA r1 ⛔ → r2 ⛔ → **r3 ✅**)
+> · **S5 operational closure — NOT authorized yet**, and it now carries **S5.R**, the byte-path
+> rehearsal (PO-directed 2026-08-17) · S6 canon + exit sweep.
 >
-> ### 🔵 S4 — legacy bucket retirement (2026-08-16) — **steps 1 ✅ · 2 ✅ · 3 ⛔ CHANGES REQUESTED (r1) · 4 OWED**
+> ### ✅ S4 CLOSED 2026-08-17 — legacy bucket retirement — steps 1 ✅ · 2 ✅ · 3 ✅ **APPROVED (r3)** · 4 ✅ PO
+>
+> **All five gate steps closed.** QA r1 ⛔ → r2 ⛔ → **r3 ✅ APPROVED** (0 P0 · 0 MAJOR); PO approved the
+> slice 2026-08-17. ⚠ **A SLICE verdict — DM5's phase QA is still owed at S6, and it authorizes no part
+> of S5.** Detail rotated to **[the DM5 record](docs/progress/dm5-wave-d-retirement.md) § S4** and
+> **[the handoff](docs/progress/dm5-handoff.md) §§11–12**; reviews:
+> [r3](docs/reviews/dm5-s4-review-r3.md) · [r2](docs/reviews/dm5-s4-review-r2.md) ·
+> [r1](docs/reviews/dm5-s4-review.md). ⛔ **Not relieved by the approval: Cloud is UNVERIFIED in all
+> three rounds, and the deploy-time byte path is UNREHEARSED (owned as S5.R).**
 
 > **QA r1 verdict 2026-08-17: ⛔ CHANGES REQUESTED** — 0 P0 · **2 MAJOR (both blocking)** · 7 MINOR ·
 > 4 INFO. [review](docs/reviews/dm5-s4-review.md). ⭐ **The BUILD is sound — no code change requested**:
@@ -196,36 +205,13 @@
 > security pin. It is replaced by 1121, not revived. The table below is kept because *"nothing failed"
 > and *"nothing ran"* being different facts is the lesson, not the attempt count:
 >
-> ~~**FOUR gate attempts, ZERO usable figures, and not one of them produced an assertion failure:**~~
-> | attempt | result | cause |
-> |---|---|---|
-> | tester's full gate | 46 "failures" in batch 17, 28 unrun | **resource exhaustion** — `0xC0000142 STATUS_DLL_INIT_FAILED`, workers never initialised, **zero assertions ran** |
-> | lead isolation #1 | 134 UNRUN | launched into a stack still restarting **+ the tester's gate process tree still alive** |
-> | lead isolation #2 | 66 UNRUN | same concurrent gate, still alive |
-> | lead full gate | died mid-batch-1, `EXIT=1`, no error output | abrupt termination, unexplained |
->
-> ⭐ **All three lead attempts were self-inflicted, and the cause was one habit: trusting a status
-> report instead of measuring.** The harness said the tester's task "completed"; its `npm run e2e:prod`
-> tree was **still running** and holding `:3000` and the DB — the *shared-local-stack-single-owner* rule
-> I had quoted into both agents' briefs, broken by me twice in twenty minutes. **`TaskStop` does not
-> reap the gate's process tree; verify with `Get-Process`, never from the notification.**
->
-> **pgTAP at the stop point: 193 files / 5900 — `FAIL`, and it is NOT a regression.** 17 suites report
-> `Bad plan … ran 0` with `deadlock detected` at `test_helpers.bootstrap()`, and **`Failed: 0` on every
-> one — zero assertion failures anywhere in the run.** That is exactly **HANDOFF-1**, the documented
-> intermittent `pg_prove` worker deadlock, at unusual scale (17 files vs the recorded 2) on a machine
-> that had been hammered all night. ⚠ The 6351 figure from `19dd3124` stands as the last clean
-> measurement; this run neither confirms nor refutes it.
->
-> ⚠ **Two more lead self-inflicted breakages, both the SAME class as the gate ones:** piping
-> `supabase db reset` through `grep | head` **SIGPIPE-killed the reset mid-flight** (the "never pipe a
-> gate through head/tail" rule, applied to a reset), and I read "`storage.buckets` does not exist"
-> **three times** as a broken stack when it was a race against the post-reset container restart.
-> **After a reset, poll for readiness before querying.**
->
-> **Resume: re-run `npm run e2e:prod` ONCE on a clean machine** (verify `Get-Process node` is empty and
-> `:3000` has no LISTENER first; start `gotenberg-pdf` and check `/health` = 200), reconcile per-batch
-> `accounted N/N` with 0 did-not-run, then **QA r2** on B1 + B2. Nothing else is outstanding.
+> **Rotated at step 5** — the four-attempt table, the five environment traps, and the `193 files / 5900`
+> HANDOFF-1 deadlock analysis were **copied verbatim** into
+> **[the DM5 record](docs/progress/dm5-wave-d-retirement.md) § "The four dead gate attempts"** before
+> being cut here. ⚠ They were also in the handoff, but the handoff **dies with DM5** and these outlive
+> it — so the record, not the handoff, is the destination. The two lessons in one line:
+> **`TaskStop` does not reap the gate's process tree — verify with `Get-Process`, never from a
+> notification**, and **"nothing failed" is not "nothing ran."**
 > - QA also **solved** the `SET LOCAL` puzzle I had recorded as unexplained, and **corrected two of my
 >   claims about it**: it is *not* e2e-path-specific (a plain reset emits **six** `25P01`; I had read my
 >   own run through `tail -25`), and my "the guard refuses" probe was taken at the **wrong grain**
@@ -278,14 +264,20 @@
 > deleted** — independent confirmation that S3's re-pointing onto the core substrate is real.
 >
 > 🔒 **The defect S4 nearly shipped to the REMOTE.** The first version used `set local
-> storage.allow_delete_query = 'true'` (copying `20260921000300`) and passed a standalone reset, pgTAP,
-> all four arms and the catalog check. The E2E gate's own reset then printed **`WARNING (25P01): SET
-> LOCAL can only be used in transaction blocks`** against it — a **silent no-op**, while the opt-in is
-> genuinely load-bearing (probed: without it the delete raises **42501** from `storage.protect_delete`).
-> Fixed by moving opt-in + DELETE into **one `do` block** (always transactional). ⭐ **`db push` is a
-> different invocation from `db reset`** — a green local gate would have certified a destructive step
-> conditional on an undocumented property of the tool applying it. → **FUP-DM5-SETLOCAL-MIGRATION**
-> (`20260921000300` still carries the old idiom).
+> storage.allow_delete_query = 'true'` (copying `20260921000300`), which is a **silent no-op** —
+> `WARNING (25P01): SET LOCAL can only be used in transaction blocks` — against a step whose refusal
+> (`42501` from `storage.protect_delete`) is real. Fixed by moving opt-in + DELETE into **one `do`
+> block**. → **FUP-DM5-SETLOCAL-MIGRATION** (`20260921000300` still carries the old idiom).
+>
+> ⛔ **This paragraph carried BOTH of QA r1's MINOR-1 and MINOR-2 errors until 2026-08-17, and three QA
+> rounds did not catch this copy** — it surfaced only while rotating the block at step 5. It claimed the
+> warning appeared when *"the E2E gate's own reset"* ran after *"a standalone reset"* passed (**false —
+> a plain `db reset` emits SIX, one from `20260921000300`; the path was never load-bearing**), and that
+> the opt-in was *"probed"* as load-bearing (**that probe was taken at the wrong grain** — a post-reset
+> live DB, not migration-apply time). r2 recorded MINOR-1 closed in two files with a residual in the
+> handoff; **this was a sixth location nobody enumerated.** ⭐ *The fix stands; only its explanation was
+> wrong — so state it as a property of `set local` in a migration, never of a runner.*
+> → [[a-predicate-quoted-at-the-wrong-grain]].
 >
 > ⭐⭐ **Two lessons worth more than the slice.** (1) **My reference sweep was bounded by ONE property
 > and the breakage lived in another** — I swept `storage.buckets` reads and `storage.objects` inserts,

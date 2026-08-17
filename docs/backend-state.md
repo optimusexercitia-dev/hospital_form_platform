@@ -37,6 +37,17 @@
 >   migrations (baseline · controlled_docs_core · attachments_storage · audio_minutes_schema ·
 >   printed_documents_storage · dm1_document_buckets) recreate all twelve bucket rows on **every**
 >   `db reset`. Retirement living only in a script would be silently undone by the next reset.
+> - ⭐ **What actually enforces Rule 6 on the surviving buckets — settled at QA r3 after being written
+>   WRONG twice.** On the **Storage-API path** the operative lock is the **pair of ABSENT policies,
+>   SELECT *and* DELETE**, and both are ours. `storage.protect_delete()` is **role-agnostic** (it tests
+>   only `storage.allow_delete_query`) and **the API sets that GUC itself**, so the trigger never fires
+>   on an HTTP delete — it guards **direct SQL DML only**, which is the context `…000400` needs it for.
+>   Measured: opening both policies on `documents-standard` made an ordinary authenticated HTTP DELETE
+>   return `200 Successfully deleted`. ⚠ `storage.objects` grants `arwdDxtm` to `authenticated` **and
+>   `anon`**, so there is **no grant-level fallback**: every storage protection here is exactly **one
+>   permissive policy wide**. Anyone adding a read policy to `documents-standard`/`-phi` must add no
+>   DELETE policy with it. Pins: `143` (update/delete half) + `312` t51d/t53pre (the SELECT half).
+>   Domain: LOCAL stack, both paths; **Cloud unverified**. Full record: `docs/reviews/dm5-s4-review-r2.md` §4.
 > - **The migration REFUSES to retire a bucket that still holds `storage.objects` rows**, naming the
 >   bucket and the count. That is ADR 0120 D9's byte-first ordering encoded executably rather than as
 >   prose in a header — the failure mode FUP-F2-BUCKETS was filed for.
