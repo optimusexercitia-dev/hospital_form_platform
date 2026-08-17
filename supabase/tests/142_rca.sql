@@ -258,18 +258,28 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- Immutable nsp-evidence bucket: NO update/delete policy (only select + insert).
+-- ⛔ RETIRED BY DM5·S4 (migration 20260927000400).
+-- This block pinned the `nsp-evidence` bucket doors — the RCA evidence
+-- boundary until DM5·S2 re-pointed evidence onto the document substrate. S4
+-- dropped those doors with the bucket row, which broke the two pins in
+-- OPPOSITE directions: "exactly 2 policies" went RED (loudly), while
+-- "no update/delete policy" went VACUOUS — zero policies satisfies it
+-- forever, silently. Only one of those two failures announces itself, which
+-- is why both are replaced rather than just the red one.
+-- Full 8-bucket retirement pin: 325 t6/t7, with t8 as its positive control.
 -- =========================================================================
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
-     and policyname like 'nsp_evidence_obj_%' and cmd in ('UPDATE', 'DELETE')),
-  0, 'the nsp-evidence bucket has NO update/delete policy (immutable, Rule 6)');
-select is(
-  (select count(*)::int from pg_policies
-   where schemaname = 'storage' and tablename = 'objects'
-     and policyname like 'nsp_evidence_obj_%' and cmd in ('SELECT', 'INSERT')),
-  2, 'the nsp-evidence bucket has exactly select + insert policies');
+     and policyname like 'nsp_evidence_obj_%'),
+  0, 'the nsp-evidence RCA bucket doors are RETIRED (DM5·S4 — was: "NO update/delete policy", now vacuous)');
+-- ⚠ `app.can_write_rca(` — the CALL. The body's header comment names
+-- `can_write_rca` in prose, so a bare-name LIKE would pass on the comment alone
+-- even if the dispatch arm were deleted.
+select ok(
+  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_write_document') like '%app.can_write_rca(%',
+  'the RCA write authority those doors carried now lives in app.can_write_document''s rca arm (a dropped or renamed door makes this NULL, and ok(NULL) FAILS — so the successor cannot go vacuous the way its predecessor did)');
 
 -- =========================================================================
 -- rca_root_causes PK is FK-ready for Phase-14d capa_action: it has a single-column

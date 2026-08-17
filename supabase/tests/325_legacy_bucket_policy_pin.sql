@@ -33,7 +33,7 @@
 -- =============================================================================
 
 begin;
-select plan(5);
+select plan(8);
 
 -- Derived from pg_policies (qual + with_check), never transcribed from prose.
 select is(
@@ -75,6 +75,44 @@ select is(
      and (coalesce(qual, '') || coalesce(with_check, '')) like '%documents-phi%'),
   true,
   't5 POSITIVE CONTROL: the derivation sees the live documents-phi reserved-upload policy');
+
+-- ===========================================================================
+-- DM5 · S4 — THE SINGLE RETIREMENT MANIFEST this file has deferred to twice
+-- (migration 20260927000400). t1–t5 pinned one bucket at a time as each door
+-- died; t6–t8 close the whole set.
+--
+-- t6/t7 report the SURVIVORS BY NAME rather than a bare zero-count: a count
+-- tells you the pin broke, a name tells you which bucket resurrected. t8 is the
+-- control that makes t7 non-vacuous in the direction that matters — a migration
+-- which deleted *every* bucket row would satisfy t7 perfectly.
+-- ===========================================================================
+
+select is(
+  (select coalesce(string_agg(policyname, ',' order by policyname), '')
+     from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, ''))
+          ~ '''(attachments|attachments-phi|case-documents|interview-attachments|nsp-evidence|referral-attachments|controlled-documents|printed-documents)'''),
+  '',
+  't6 ⭐ NO storage.objects policy references any of the 8 retired buckets (nsp-evidence was the last, dropped by DM5·S4)');
+
+select is(
+  (select coalesce(string_agg(id, ',' order by id), '')
+     from storage.buckets
+    where id in ('attachments', 'attachments-phi', 'case-documents', 'interview-attachments',
+                 'nsp-evidence', 'referral-attachments', 'controlled-documents', 'printed-documents')),
+  '',
+  't7 ⭐ all 8 retired bucket ROWS are gone (DM5·S4 — six historical migrations recreate them on every reset, so this pin is what makes retirement survive `db reset`)');
+
+-- t8 — POSITIVE CONTROL for t7, in the direction t7 cannot fail in: the four
+-- buckets that must SURVIVE. documents-standard/documents-phi are the core
+-- substrate (ADR 0114 D8); form-assets/meeting-audio are out of scope (D13).
+select is(
+  (select coalesce(string_agg(id, ',' order by id), '')
+     from storage.buckets
+    where id in ('documents-standard', 'documents-phi', 'form-assets', 'meeting-audio')),
+  'documents-phi,documents-standard,form-assets,meeting-audio',
+  't8 ⭐ POSITIVE CONTROL: the 4 surviving buckets are all still present — a sweep that retired everything would satisfy t7 and fail here');
 
 select * from finish();
 rollback;

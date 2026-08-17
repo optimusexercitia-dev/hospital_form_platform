@@ -175,6 +175,34 @@ instead of a silent pass. Backend-agnostic, so it transfers to Cloud; the volume
 sees today's 699 is the local **proof**, not the gate, because it depends on
 `STORAGE_BACKEND=file`.
 
+> **⏳ EXECUTION NOTE — S4, 2026-08-16. The ruling STANDS; this records what happened when it
+> ran, because "the method is ruled" and "the method has been exercised" are different claims
+> and only one of them was true.**
+>
+> S4 ran D9 against the local stack and the manifest came back **EMPTY**: `storage.objects` held
+> **0 rows in all 12 buckets** while the volume carried **866 files / 9.9 MB / 235 PHI-tier**
+> (**221 / 6.93 MB / 15 PHI** in the eight retirement buckets). Every retirement-bucket byte is
+> already an orphan with **no metadata row**, so the Storage-API gate cannot address any of them.
+> `capture` returned its `DEGENERATE BASELINE` verdict exactly as designed, and **`delete
+> --execute` was never run** — there was nothing it could legally delete.
+>
+> Three consequences, none of which weaken D9:
+> 1. **The count-comparison design is vindicated, not contradicted.** An empty manifest is
+>    *visible*; the withdrawn method would have proved "zero objects" against the truncated table
+>    and reported success over 221 surviving PHI-bearing files.
+> 2. **D9 is meaningful where metadata exists — i.e. production** (census 2026-08-11: 45 objects).
+>    It is *not* exercisable on a local stack that has been reset since the objects were written.
+> 3. ⛔ **So the sequence remains UNREHEARSED end-to-end.** Its correctness rests on S0's 8/8
+>    self-test (a manufactured orphan it must find; a deliberate count mismatch it must refuse),
+>    **not** on any S4 execution. Do not let S5/S6 read S4's completion as evidence that the
+>    deploy-time byte path has been run. It has not.
+>
+> The bucket ROWS and their policies were retired by migration `20260927000400`, which deletes
+> **zero bytes** by design and **refuses** to retire a bucket still holding `storage.objects`
+> rows — D9's ordering encoded executably rather than as prose. Detail:
+> [dm5-wave-d-retirement.md](../progress/dm5-wave-d-retirement.md) § S4; open orphan question:
+> **FUP-DM5-STORAGE-ORPHANS**.
+
 **D10 — `documents_wave_d` joins the MIN flag pattern at the FIRST residue-producing step.**
 Home/arm-scoped, never blanket — a blanket assert satisfies the new keystone while silently
 killing an earlier wave (the DM3 `DM3·T3b` control). pgTAP `328` K9b/K9c count the OFF and ON

@@ -62,14 +62,18 @@ export type PhiDisposalReason =
   | 'duplicate'
   | 'other'
 
-/** The two physically-tiered private buckets. */
-export const ATTACHMENTS_BUCKET = 'attachments' as const
-export const ATTACHMENTS_PHI_BUCKET = 'attachments-phi' as const
-
-/** Bucket for a tier (bucket↔tier consistency, `attachments_bucket_tier_ck`). */
-export function bucketForTier(tier: AttachmentTier): string {
-  return tier === 'phi' ? ATTACHMENTS_PHI_BUCKET : ATTACHMENTS_BUCKET
-}
+/* ⛔ RETIRED by DM5·S4 (migration 20260927000400): `ATTACHMENTS_BUCKET`,
+ * `ATTACHMENTS_PHI_BUCKET` and `bucketForTier()` lived here until the
+ * `attachments` / `attachments-phi` bucket ROWS were retired. They had been
+ * dead since DM1 dropped the substrate — verified zero callers across `src/`,
+ * `e2e/`, `scripts/` and the catalog before removal.
+ *
+ * Do not reintroduce a tier→bucket helper here. Bucket choice is now a
+ * SERVER-SIDE derivation on the core substrate: `file_objects_bucket_from_tier`
+ * CHECK-pins `file_objects.sensitivity_tier` to `documents-standard` /
+ * `documents-phi`, and `begin_document_upload` is the only thing that names a
+ * bucket. A client-side constant naming a bucket is how the tier and the
+ * storage location drift apart. */
 
 /**
  * Allowed `kind` values per owner_type — the union of today's per-table CHECKs,

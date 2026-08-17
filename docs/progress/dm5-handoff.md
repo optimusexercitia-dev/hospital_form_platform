@@ -11,11 +11,15 @@
 ✅ **S3 is CLOSED** (2026-08-14, all four gate steps; QA **APPROVED r2** at `801a2589`). The prerequisite
 this section used to name is discharged — §10 now records the *outcome* instead of the brief.
 
-1. **S4 is next, and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.** It needs explicit PO authorization **on
-   the day**, separately from S3's approval and from anything in this file. Binding ordering, the fresh
-   manifest requirement, and its one corrected premise: **§11**. ⛔ **Do not infer authorization from
-   S3's closure** — the PO approved a *slice*, and the r2 verdict says in its own words that it authorizes
-   no part of S4.
+1. ~~**S4 is next, and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.**~~ ✅ **S4 RAN 2026-08-16** — PO
+   authorized it explicitly on the day, as this section required. **Gate steps 1 and 2 are GREEN;
+   steps 3 (QA) and 4 (PO sign-off) are OWED, so S4 is NOT closed.** The resume point is now
+   **S4 step 3**.
+   ⛔ **And the headline is the opposite of what this section anticipated: S4 deleted ZERO BYTES.**
+   All 221 retirement-bucket files were already metadata-less orphans, so the Storage API — the D9
+   *gate* — could not address any of them; `delete --execute` never ran. What S4 retired is the
+   **bucket rows + policies**, via migration `20260927000400`, and that half now survives `db reset`.
+   **The deploy-time byte sequence therefore remains UNREHEARSED.** Detail: §11 + the phase record.
 2. **Before spawning anyone**, re-verify the catalog claims in this file (registry, census, flags). Where
    it says *verify*, verify: this phase punished inherited claims repeatedly, **including six times in the
    session that built S3, four of them by the lead** (§9).
@@ -28,7 +32,7 @@ this section used to name is discharged — §10 now records the *outcome* inste
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
 | **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
-| **S4** retirement (8 buckets) | ⬜ **THE RESUME POINT** — **irreversible; PO authorization on the day** (§11) |
+| **S4** retirement (8 buckets) | 🔵 **BUILT; gate steps 1 ✅ + 2 ✅ GREEN, steps 3 (QA) + 4 (PO) OWED.** PO-authorized 2026-08-16. ⚠ **The byte half was a NO-OP** — see §11 |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
@@ -546,10 +550,47 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 `aedac0b01f2ad0a594b75eede6671fb0` (**the md5 r1 recorded**) · `prosecdef=true` ×5 · column ACLs restored ·
 `storage.objects` back to **8** policies · registry 406==406 · `pgtap` dropped.
 
-## 11. S4 — the authorization gate, and its one corrected premise
+## 11. S4 — ✅ AUTHORIZED AND RUN 2026-08-16 (steps 1–2 green; 3–4 owed)
 
-S4 retires **8 buckets** and is the first **irreversible** slice. **PO authorization is required on the day,
-separately from any earlier approval.**
+> ### 📌 OUTCOME — read this before the (still accurate) planning text below
+>
+> **PO authorized S4 on the day, as this section required.** Migration **`20260927000400`** retired the
+> **8 bucket rows + the last 4 policies** (all `nsp-evidence`; the other seven buckets were already
+> door-less). pgTAP **`325` 5 → 8**, red-first against the real pre-migration catalog. Gate: registry
+> **407 == 407** · pgTAP **193f/6351** · tsc 0 · lint 5/5 · vitest 1294 · four arms **HOLD**
+> (census **546**/570, unchanged) · `ARM=policy` **not applicable** (the diff only *drops* policies) ·
+> `e2e:prod` **1118p / 0f / 0 did-not-run / 5 flaky / 18 batches**, reconciling to S3's 1129 collected
+> exactly. **`pdf-printing` 9/9 + `pdf-printing-meetings` 6/6 with `printed-documents` deleted.**
+>
+> ⛔ **THE BYTE HALF WAS A NO-OP — and this is the single most important line in the section.** The
+> stack was already in the degenerate post-reset state this file's own §11 warned about: **0
+> `storage.objects` rows in all 12 buckets** against 866 files on the volume. So all 221
+> retirement-bucket files are orphans with no metadata row, **unreachable through the D9 gate by
+> definition**, `capture` returned `DEGENERATE BASELINE`, and **`delete --execute` was never run.**
+> - ✅ Closed: the metadata/schema half, durably (six historical migrations recreate the rows on every
+>   reset; the migration + `325` t6/t7 are what make retirement survive that).
+> - ⛔ **NOT closed:** 221 files / 6.93 MB / 15 PHI still on the local volume — **PO decision pending**,
+>   because clearing them needs the filesystem, a method D9 deliberately excludes from the gate.
+> - ⛔ **NOT rehearsed:** the deploy-time byte sequence has still never run against a populated bucket.
+>   Its correctness rests on **S0's 8/8 self-test**, not on S4. ADR 0120 **D9 now carries an inline
+>   EXECUTION NOTE** saying exactly this. **Do not let S5/S6 read S4's completion as evidence that the
+>   production path works.**
+>
+> 🔒 **One defect found and fixed, and it was aimed at the REMOTE:** the first version used
+> `set local storage.allow_delete_query = 'true'` (copying `20260921000300`) and passed a standalone
+> reset, pgTAP, all four arms and the catalog check — then the E2E gate's reset emitted
+> **`WARNING (25P01): SET LOCAL can only be used in transaction blocks`**, i.e. a **silent no-op**,
+> against a step whose refusal (`42501` from `storage.protect_delete`) was probe-confirmed as real.
+> Fixed by moving the opt-in and the DELETE into **one `do` block**. ⭐ **`db push` is a different
+> invocation from `db reset`.** → **FUP-DM5-SETLOCAL-MIGRATION**; `20260921000300` still carries the
+> old idiom.
+>
+> **New follow-ups:** 🟠 FUP-DM5-SETLOCAL-MIGRATION · 🟡 FUP-DM5-MANIFEST-FLAG (`capture` takes
+> `--out`; passing `delete`'s `--manifest` silently overwrote the committed S0 baseline).
+
+The planning text below is retained because S5/S6 still depend on its reasoning. S4 retires **8
+buckets** and was the first **irreversible** slice. **PO authorization was required on the day,
+separately from any earlier approval** — and was given.
 
 - **Binding ordering (ADR 0120 D9 + D17), the reverse of the intuitive one:** **delete-by-manifest through
   the Storage API FIRST**, while `storage.objects` metadata still exists and keys are enumerable — **and

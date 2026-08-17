@@ -353,14 +353,26 @@ select throws_ok(
   'DM5·S2 F8 ⭐ the FK holds the DIRECT-DML path: a citation cannot name a document that does not exist');
 reset role;
 
+-- ⭐ F9 — THE PIN MOVED, DM5·S4. This was keyed to the policy NAME
+-- `capa_evidence_obj_insert_writable`; migration 20260927000400 retired that
+-- door with the `nsp-evidence` bucket, so both subqueries went NULL and the
+-- assertion failed as "(test result was NULL)". A name-keyed verdict does not
+-- follow its subject — and note the luck: written with a coalesce(..., true)
+-- default this would have gone SILENTLY GREEN on a pin whose subject no longer
+-- existed. The PROPERTY is unchanged and still load-bearing, so it is re-keyed
+-- to the live home of the same authority: `app.can_write_document`'s
+-- capa_action arm, which resolves capa_action.capa_id → can_write_capa.
+-- Same like/not-like shape, so a dropped or renamed function still yields
+-- ok(NULL) and FAILS rather than passing vacuously.
+-- ⚠ Matched as `app.can_write_capa(` — the CALL, not the bare name. The body's
+-- own header comment says "`can_write_capa` takes the ...", so a bare-name LIKE
+-- is satisfied by the COMMENT and would survive deletion of the actual call.
 select ok(
-  (select coalesce(with_check, qual) from pg_policies
-    where schemaname='storage' and tablename='objects'
-      and policyname='capa_evidence_obj_insert_writable') like '%can_write_capa%'
-  and (select coalesce(with_check, qual) from pg_policies
-        where schemaname='storage' and tablename='objects'
-          and policyname='capa_evidence_obj_insert_writable') not like '%hospital_of_event%',
-  'DM5·S2 F9 ⭐ BUG-DM5-CAPA-1: the CAPA insert arm reads segment 1 as a CAPA id (can_write_capa), not through an EVENT resolver');
+  (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app' and p.proname = 'can_write_document') like '%app.can_write_capa(%'
+  and (select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'app' and p.proname = 'can_write_document') not like '%hospital_of_event%',
+  'DM5·S2 F9 ⭐ BUG-DM5-CAPA-1 (re-keyed at S4): CAPA write authority resolves capa_action.capa_id -> can_write_capa in app.can_write_document, never through an EVENT resolver');
 
 -- ---------------------------------------------------------------------------
 -- G — THE WRITE GATE: `app.can_write_document`'s rca / capa_action arms,

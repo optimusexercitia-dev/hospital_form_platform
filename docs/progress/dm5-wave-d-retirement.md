@@ -7,6 +7,184 @@
 > ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) · step 0:
 > [dm5-surface-verification.md](./dm5-surface-verification.md).
 
+## 🔵 S4 — legacy bucket retirement (2026-08-16) — **PO-authorized on the day**, per §11's gate
+
+**Authorization:** the PO authorized S4 explicitly on 2026-08-16, separately from S3's approval, after
+being shown the eight buckets, the survivors, and that the run is **local-only** (the no-push directive
+stands). The parked **FUP-DM5-D11** ruling was deferred in the same exchange — *decide later*, and
+nothing in S4 depends on it.
+
+**Delivered:** migration **`20260927000400_dm5_s4_retire_legacy_buckets.sql`** (drops the last 4
+retirement-bucket policies + the 8 bucket rows, behind an executable byte-first guard) · pgTAP **`325`
+5 → 8** (t6/t7 retirement pins + **t8**, the survivor positive control) · successor assertions in
+**`200`**, **`142`**, **`143`**, **`341`** · dead bucket constants removed from
+`src/lib/attachments/constants.ts`. Surface delta: the **DM5·S4** block at the head of
+[backend-state.md](../backend-state.md).
+
+### ⭐ The finding that defines S4: the byte half was a NO-OP, and the records must say so
+
+Measured at S4 start, before touching anything: **`storage.objects` = 0 rows across all 12 buckets**
+while the volume held **866 files / 9.9 MB / 235 PHI-tier**. For the 8 retirement buckets that is
+**221 files / 6.93 MB / 15 PHI-tier** — reproducing S0's recorded figure **exactly**, independently.
+
+**Every one of those bytes is already an orphan with no metadata row, so the Storage API — the D9
+GATE — cannot address a single one.** A `capture` yields an empty manifest and a `delete` deletes
+nothing. This is not a defect in the tool; it is the tool's own `DEGENERATE BASELINE` verdict firing
+exactly as S0 designed it to.
+
+⛔ **So S4 completed the METADATA/SCHEMA half and did NOT perform the byte half locally — it could
+not.** Recorded as such, never as "retirement proven". What *is* proven: the bucket rows and doors are
+gone, and they **stay** gone across `db reset`, which is the half that six historical migrations would
+otherwise silently undo. The deploy-time byte path remains D9's manifest-first sequence, and it is
+meaningful **there** because production *has* metadata rows (census 2026-08-11: 45 objects). The 221
+local orphans stay with **FUP-DM5-STORAGE-ORPHANS**; they are a data-at-rest/disposal-assertion
+problem (Rule 12), not a live exposure — every Storage read path resolves metadata first.
+
+### Gate step 1
+
+Fresh `supabase db reset` (announced; single-owner stack) · registry **407 == 407** · pgTAP
+**193 files / 6351 PASS** (S3's 6348 + the 3 new `325` pins) · tsc **0** · lint **5/5** · vitest
+**1294** (unchanged — the removed TS had no test, which is *why* it was removable) · four arms
+**ALL HOLD**, exit codes captured unpiped: census live **546** / verdicts **570** (identical to S3's
+close — S4 added no gate, so no census entry is owed) · hat **3** reasoned-allowlisted, self-test 6/6 ·
+floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist · degenerate bodies **0**.
+
+**Diff-scoped `ARM=policy`: NOT APPLICABLE, and recorded as that rather than as clean.** S4's diff
+**drops** 4 policies and adds/modifies none, and touches **no** `prosecdef` body — so the sweep's
+domain is empty. *A dropped policy has no gate to open.* (S3 recorded the same distinction; per its
+precedent, "not applicable" must never be written up as "clean".)
+
+### ✅ Gate step 2 — `e2e:prod` **GATE GREEN**
+
+**1118 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 18 batches**, `next build` compiled,
+2 infra re-runs. Gotenberg verified **200** on :3010 before the run — without it 15 print specs fail
+as uniform pt-BR errors that read exactly like product defects.
+
+**The accounting reconciles against S3 exactly, and the summary line needed checking to see it.**
+The gate prints `COVERAGE: accounted for 1123 of 1129` — **6 short**, which is the shape
+[[gate-summary-can-hide-unrun-tests]] warns about. Resolved: the per-batch lines sum to
+**1129 / 1129 accounted with 0 did-not-run in every batch**; the summary's "accounted" simply
+excludes skips. Full reconciliation, and the comparison that matters:
+
+| run | passed | flaky | skipped | collected |
+| --- | --- | --- | --- | --- |
+| S3 (2026-08-14) | 1120 | 3 | 6 | **1129** |
+| **S4 (2026-08-16)** | **1118** | **5** | **6** | **1129** |
+
+**Identical collected total and identical skip count** — the only movement is **two tests shifting
+from `passed` to `flaky`** (failed once, passed on retry). That is flakiness, not regression: 0 failed,
+0 did-not-run. The 3 unique skips are conditional and unrelated to storage (`phi-remediation` REM-8/9,
+`user-registration` AC2 invite-mode). The 5 flaky are keyboard/timing shapes
+(`act-role-assumption`, `bulk-case-creation` kbd grid, `phase2-auth-shell` logout, `ff3-validations`,
+`dm5-nsp-evidence` EVID-KBD-1).
+
+⭐ **The check worth doing, because S4 deleted the bucket S3's corridor was proven against:**
+`pdf-printing` **9/9** and `pdf-printing-meetings` **6/6** — identical to S3 — with **zero** non-ok in
+any print / document / evidence spec. **The print corridor still mints real `%PDF-` bytes after
+`printed-documents` was deleted**, which is independent confirmation that S3's re-pointing onto the
+core substrate is real rather than merely asserted.
+
+### 🔒 The defect S4 nearly shipped to the REMOTE: `SET LOCAL` in a migration is not guaranteed to be in a transaction
+
+The first version of `…000400` copied `20260921000300`'s idiom verbatim — a bare
+`set local storage.allow_delete_query = 'true'` followed by the `DELETE`. It passed a standalone
+`supabase db reset`, pgTAP, all four arms and the catalog check: **4 bucket rows, exactly right.**
+
+Then the E2E gate's own reset printed this against that very file:
+
+```
+Applying migration 20260927000400_dm5_s4_retire_legacy_buckets.sql...
+WARNING (25P01): SET LOCAL can only be used in transaction blocks
+```
+
+**`SET LOCAL` outside a transaction is a silent no-op**, so in that path the platform opt-in was never
+set. And the opt-in is genuinely load-bearing — probed directly, in a rolled-back transaction:
+
+| probe | result |
+| --- | --- |
+| `delete from storage.buckets` **without** the opt-in | **`ERROR 42501: Direct deletion from storage tables is not allowed`** — `storage.protect_delete()` |
+| the same delete with `set_config(..., is_local => true)` **inside a `do` block** | `deleted=1`, clean rollback |
+
+**Fixed** by moving the opt-in and the `DELETE` into **one `do` block**: a `do` block always executes
+inside a transaction (its own, if none is open), so the local setting is guaranteed to be in scope for
+the delete beside it and to die with it. Re-verified: the migration now applies with **no warning**,
+registry **407 == 407**, 4 bucket rows, pgTAP **193f/6351**, four arms HOLD.
+
+⭐ **Why this was worth stopping a running E2E gate for.** The bug is invisible wherever the runner
+happens to wrap the file, and `db push` to the remote is a *different* invocation from
+`supabase db reset`. A green local gate would have certified a migration whose destructive step is
+conditional on an undocumented property of the tool that applies it. **The fix removes the dependency
+rather than betting on it.**
+
+⚠ **One thing I could NOT explain, recorded as unexplained rather than rationalised:** in that e2e-path
+run the migration **did not error** after the warning — the log goes straight on to `Seeding data`,
+and the batch's actual failure was an unrelated 502 during container restart. Given probe A, a delete
+matching ≥1 row without the opt-in *must* raise, so either the delete matched **0 rows** in that path
+or the session already carried the GUC. I did not reproduce it (the fix removed the code path), and I
+am not going to invent a mechanism for it — this phase has been burned by confident mechanism stories.
+⚠ **`20260921000300` still carries the original `set local` idiom** and has the same latent
+fragility; it is applied history and was left alone. → **FUP-DM5-SETLOCAL-MIGRATION** (filed).
+
+### Five ways this slice tried to go wrong — all of them the phase's own recurring classes
+
+1. ⭐ **My reference sweep was bounded by ONE property and the breakage lived in another.** I swept
+   for *reads of `storage.buckets`* and for *`storage.objects` inserts*, proved exactly one breakage
+   (`200:405`), and shipped it — then pgTAP returned **4 reds** in `142`/`143`/`341`, every one an
+   assertion that the **policies I was dropping still EXIST**. Two properties; I enumerated one.
+   [[enumeration-boundary-is-a-syntax-not-a-property]] again — *the sweep ran, it just wasn't
+   sweeping the thing.*
+2. ⭐⭐ **The five broken assertions failed in OPPOSITE directions, and only one direction announces
+   itself.** Three went **RED** (`want 2, have 0`). Two — `142`'s and `143`'s *"NO update/delete
+   policy"* Rule 6 pins — went **VACUOUS**: zero policies satisfies them forever, silently, and they
+   sat in the "passing" column of a green suite. **The red ones were the lucky ones.** Both kinds were
+   replaced; had I fixed only what the suite reported, S4 would have left two dead pins reading as
+   coverage. Same shape at `200:405`, where `is(NULL, false)` **failed** only because pgTAP treats a
+   NULL result as failure — written as a zero-count it would have flipped silently green too.
+3. ⭐ **I nearly shipped a vacuity while fixing a vacuity.** `341`'s F9 pins BUG-DM5-CAPA-1 and was
+   keyed to the retired policy's NAME, so it went NULL — a name-keyed verdict does not follow its
+   subject ([[a-rename-orphans-a-name-keyed-verdict]]). I re-keyed it to `app.can_write_document`'s
+   live capa arm via `prosrc like '%can_write_capa%'` — **but that body's own header COMMENT names
+   `can_write_capa` in prose**, so the bare-name form is satisfied by the comment and would survive
+   deletion of the actual call. Tightened to the CALL form `app.can_write_capa(`, then **proved** it:
+   neutralizing the call in a rolled-back txn gives `bare_name = t` (the vacuity, demonstrated) and
+   `call_form = f` (falsifiable). Same fix and proof for `142`'s twin. md5 of `can_write_document`
+   **identical** before and after; degenerate bodies **0**.
+   → [[a-comment-is-an-assertion-that-goes-stale-silently]], now as a *test's* blind spot.
+4. ⚠ **Two tooling traps that each read like a real result.** (a) `ARM=census` reported
+   **INVARIANT VIOLATED**, flagging `public.type_owner_is` / `view_owner_is` — **pgTAP's own
+   functions**, from an extension I had installed by hand to run a single suite. Dropping pgtap
+   cleared it. (b) The `exit=$?` I printed beside it was **`tail`'s** status, not the script's —
+   the exact `| tail` masking that once hid an exit 2. All four arms were re-run unpiped, to files.
+   → [[a-detector-that-finds-a-lot-needs-proving-too]], [[mutation-harness-must-prove-its-rollback-first]].
+
+### One lead error, recorded because the near-miss was a committed artifact
+
+`storage-manifest.mjs capture` takes **`--out`**; **`--manifest`** is `delete`'s flag. I passed
+`--manifest`, and the capture silently wrote to the **default committed path**, overwriting S0's
+baseline. `git status` caught it and it was restored with `git checkout`. ⭐ **The accident was also a
+free verification:** the diff showed the retirement-bucket figures **byte-identical** to S0's, with
+only the timestamp and the core-bucket census moving — an independent reproduction of the
+221/6.93 MB/15 PHI claim. *An unknown flag that falls back to a default destination is a footgun; the
+tool should reject unknown flags.* → **FUP-DM5-MANIFEST-FLAG** (filed).
+
+### NOT TESTED / NOT COVERED (binding heading — a close that omits it reads as completeness)
+
+- **The byte deletion path was never EXECUTED against a populated bucket** in S4. `delete --execute`
+  was not run at all, because the manifest was empty by construction. Its correctness rests on S0's
+  self-test (8/8, including a manufactured orphan and a deliberate count mismatch), **not** on an S4
+  run. **The production sequence is therefore still unrehearsed end-to-end.**
+- **Nothing remote was touched**, verified or otherwise. FUP-DM5-STORAGE-ORPHANS' Cloud half stays
+  residual.
+- **The 221 local orphan files were left in place** pending a PO decision — removing them needs the
+  filesystem, a method D9 deliberately excludes from the gate.
+- `235`/`236` still **create** `case-documents` / `interview-attachments` bucket rows inside their own
+  rolled-back transactions. Left deliberately: they are self-sufficient, `u1-mutation-audit.sh` runs
+  inside `236`'s transaction, and rewriting an authz fixture to chase a cosmetic is the riskier change.
+  ⚠ But it means those suites now assert against buckets that exist **only inside the test**.
+- ⚠ The Supabase CLI offered **v2.114.0** (pinned/installed **v2.105.0**). **Not taken.** D17's remote
+  half was grep-verified against the v2.105.0 binary; a bump must re-run that grep.
+  → [[remote-reset-storage-orphan-is-cli-version-dependent]].
+
 ## ✅ S3 — printed renditions onto the substrate: **COMPLETE, all four gate steps (2026-08-14)**
 
 > **This is the current head of the phase.** Full narrative, the six enumeration-boundary repeats, the two

@@ -8,7 +8,54 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟠 FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+
+Filed 2026-08-16 (lead) from a live near-miss in DM5·S4. `supabase db reset` **as invoked by
+`scripts/e2e-prod-gate.sh`** emitted `WARNING (25P01): SET LOCAL can only be used in transaction blocks`
+against `20260927000400`, whose destructive `delete from storage.buckets` is gated on
+`set local storage.allow_delete_query = 'true'`. **`SET LOCAL` outside a transaction is a silent no-op.**
+
+**The opt-in is genuinely load-bearing** — probed in a rolled-back txn: without it,
+`delete from storage.buckets` raises **`42501` from `storage.protect_delete()`**; with
+`set_config(..., is_local => true)` inside a `do` block, it succeeds.
+
+- ✅ **S4's own migration is FIXED** — opt-in and DELETE moved into one `do` block, which always runs
+  inside a transaction (its own, if none is open). Applies with no warning; catalog re-verified.
+- ⛔ **`20260921000300_retire_meeting_attachments_bucket.sql` still carries the original idiom.** It is
+  applied history and was deliberately left alone. It is fine wherever the runner wraps the file — which
+  is exactly the problem: *the correctness is conditional on an undocumented property of the tool that
+  applies it*, and **`db push` to the remote is a different invocation from `supabase db reset`.**
+- **Worth a lint gate:** flag `set local` at migration top level (outside `do $$`/explicit `begin`).
+  Cheap, and it is the same class as the four existing non-eslint gates — each added after the class
+  shipped a live defect.
+
+⚠ **Unexplained, recorded as such:** in the observed e2e-path run the migration did **not** error after
+the warning (the log continues to `Seeding data`; that batch failed later on an unrelated 502). Given the
+probe, a delete matching ≥1 row without the opt-in must raise — so either it matched 0 rows there or the
+session already held the GUC. **Not reproduced, and no mechanism invented for it.**
+
+### 🟡 FUP-DM5-MANIFEST-FLAG — `storage-manifest.mjs` silently ignores an unknown flag and falls back to the COMMITTED default path (owner: backend)
+
+Filed 2026-08-16 (lead) from a live near-miss during S4. `capture` takes **`--out`**; **`--manifest`** is
+`delete`'s flag. Passing `--manifest <scratch-path>` to `capture` did not error — `argFlag` returned nothing
+and the code took `?? DEFAULT_MANIFEST`, **overwriting the committed S0 baseline**
+(`supabase/manifests/dm5-retirement-baseline.json`). Caught by `git status`, restored with `git checkout`.
+
+**Why it is worth fixing rather than remembering:** this is a tool whose entire purpose is to be the
+authoritative record immediately *before* an irreversible deletion, and its failure mode on a typo is to
+**silently overwrite the previous authoritative record**. A wrong-but-plausible flag is exactly the input it
+must be hostile to. Fix: reject unrecognised `--flags` with exit 2, and/or refuse to write the default
+manifest path unless `--out` is given explicitly.
+
+⭐ **The accident was also a free verification, worth keeping:** the diff showed the retirement-bucket
+figures **byte-identical** to S0's (only `capturedAt` and the core-bucket census moved) — an independent
+reproduction of the 221 files / 6.93 MB / 15 PHI-tier orphan census, four days apart.
+
 ### 🟠 FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES — D11's "superseded bytes retire via `disposal_state`" is **not performed, and nothing can perform it** (owner: PO decision, then backend)
+
+> **PO 2026-08-16: DECIDE LATER.** Asked directly at S4 authorization; the PO chose to leave the inline
+> `⏳ CONTESTED` pointer in ADR 0120 D11 and keep this open. Nothing in S4 depended on it. **Still owed
+> before DM5's phase QA at S6** — build it or strike it; do not let S6 close over it silently.
 
 Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-4. **Not an S3 bug — an ADR-0120 D11 claim that the
 implementation cannot honour**, so it must be either built or struck from D11.
@@ -207,6 +254,25 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 
 ### 🟠 FUP-DM5-STORAGE-ORPHANS — a **LOCAL** DB reset wipes `storage.objects` but NOT the bytes; ⚠ **the REMOTE half was a stale inference and is now demoted to residual** (owner: lead + backend; blocks DM5 step 3 **locally**)
 
+> ### 📌 S4 OUTCOME 2026-08-16 — the local half is now DEMONSTRATED, not predicted, and it is **not closed**
+>
+> S4 ran. Measured before touching anything: **`storage.objects` = 0 rows across all 12 buckets** against
+> **866 files / 9.9 MB / 235 PHI-tier** on the volume — **221 / 6.93 MB / 15 PHI** in the 8 retirement
+> buckets, reproducing S0's figure exactly. **The manifest-first delete was therefore a NO-OP:** every one
+> of those bytes is an orphan with no metadata row, so the Storage API cannot address it, and
+> `capture` returned the `DEGENERATE BASELINE` verdict by design.
+>
+> - ✅ **What S4 did close:** the metadata/schema half — 8 bucket rows + the last 4 policies retired by
+>   migration `20260927000400`, pinned by `325` t6/t7 (+t8 control) so it survives `db reset`.
+> - ⛔ **What remains open, and why this item is NOT resolved:** the 221 local orphan files are still on the
+>   volume. They are unreachable through the D9 gate **by definition**, so closing this needs either a
+>   filesystem action (a method D9 deliberately excludes) or acceptance that local dev volumes accumulate
+>   orphans across resets. **Pending PO decision.**
+> - ⚠ **`delete --execute` has still never run against a populated bucket.** Its correctness rests on S0's
+>   8/8 self-test, not on an S4 execution — so **the production sequence remains unrehearsed end-to-end**,
+>   even though production is where it is actually meaningful (it has metadata rows: 45 objects at the
+>   2026-08-11 census).
+>
 > ### ⛔ AMENDMENT 2026-08-14 — the remote half's premise was WRONG. Severity 🔴 → 🟠.
 >
 > This filing reasoned from the local measurement to remote by *"the same mechanism class."* **The

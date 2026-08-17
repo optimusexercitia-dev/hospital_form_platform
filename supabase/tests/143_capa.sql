@@ -263,26 +263,36 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- nsp-evidence: the CAPA + RCA object policies are mutually exclusive by construction.
--- A CAPA object policy + an RCA object policy each exist; neither matches the other's
--- path shape. We assert BOTH policy pairs are present (select + insert each).
+-- ⛔ RETIRED BY DM5·S4 (migration 20260927000400).
+-- This block pinned the CAPA + RCA `nsp-evidence` object policies as a
+-- coexisting, mutually-exclusive pair. DM5·S2 re-pointed NSP evidence onto the
+-- document substrate and S4 dropped both pairs with the bucket row. The two
+-- "policies exist" pins went RED; the Rule 6 "no update/delete" pin went
+-- VACUOUS (zero policies satisfies it forever). Successors below assert the
+-- retirement itself and follow Rule 6 to where the bytes actually went.
 -- =========================================================================
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname like 'capa_evidence_obj_%'),
-  2, 'the CAPA nsp-evidence object policies (select + insert) exist');
+  0, 'the CAPA nsp-evidence object doors are RETIRED (DM5·S4 — was: "select + insert exist")');
 select is(
   (select count(*)::int from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname like 'nsp_evidence_obj_%'),
-  2, 'the RCA nsp-evidence object policies (select + insert) still exist (coexist)');
-select is(
+  0, 'the RCA nsp-evidence object doors are RETIRED with them (DM5·S4 — the pair retired together, as it was pinned together)');
+-- Rule 6 FOLLOWS THE BYTES. Written as a conjunction so it carries its own
+-- positive control: the same derivation that reports zero UPDATE/DELETE doors
+-- must provably SEE the two live insert-reserved doors. A zero-count alone
+-- would pass against a mistyped bucket name forever.
+select ok(
   (select count(*)::int from pg_policies
-   where schemaname = 'storage' and tablename = 'objects'
-     and (policyname like 'nsp_evidence_obj_%' or policyname like 'capa_evidence_obj_%')
-     and cmd in ('UPDATE', 'DELETE')),
-  0, 'no update/delete policy on nsp-evidence for either RCA or CAPA (immutable, Rule 6)');
+    where schemaname = 'storage' and tablename = 'objects' and cmd in ('UPDATE', 'DELETE')
+      and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '''documents-(standard|phi)''') = 0
+  and (select count(*)::int from pg_policies
+        where schemaname = 'storage' and tablename = 'objects' and cmd = 'INSERT'
+          and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '''documents-(standard|phi)''') = 2,
+  'Rule 6 immutability followed the evidence bytes onto the core substrate: the document buckets carry NO update/delete policy, and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
 
 -- =========================================================================
 -- PHI-free audit: capa rows carry status/verdict only — no *_md body.

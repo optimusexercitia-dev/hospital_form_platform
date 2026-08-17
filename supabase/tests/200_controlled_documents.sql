@@ -401,9 +401,15 @@ select is(
           or policyname like '%controlled_documents%')),
   0, 'the controlled-documents bucket has NO update/delete policy (Rule 6)');
 
+-- ⭐ SUCCESSOR ASSERTION — DM5·S4 (migration 20260927000400) retired the bucket
+-- ROW, so the old form (`select public … = false`) degrades to `is(NULL, false)`.
+-- That FAILS, which is the lucky direction: had this been written as a
+-- zero-count it would have flipped to a silently PASSING vacuity instead. The
+-- property left to pin is retirement itself; the full eight-bucket pin,
+-- with its positive control, lives in 325.
 select is(
-  (select public from storage.buckets where id = 'controlled-documents'),
-  false, 'the controlled-documents bucket is private');
+  (select count(*)::int from storage.buckets where id = 'controlled-documents'),
+  0, 'the controlled-documents bucket ROW is retired (DM5·S4 — was: "is private")');
 
 -- ===========================================================================
 -- 8 · hospital_document_register — scope + PHI-free projection

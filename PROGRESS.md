@@ -83,7 +83,7 @@
 | 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110) · [record](docs/progress/referral-detail-redesign.md) | ✅ complete | ✅ Vitest 1254 | ✅ pgTAP **183f/5870** · 3 ARMs HOLD · e2e:prod **1074p/1f** (pre-existing, outside the branch) | ✅ [APPROVED](docs/reviews/referral-detail-redesign-review.md) (0B/2m/3i) | ✅ 2026-08-12 | 2026-08-12 | `81e1dc9` → `main`, ✅ **PUSHED** |
 | 22-v3 | **REG·KIND — one Registro vocabulary** [0110](docs/decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](docs/decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ⚠ **merged, gates 2–4 UNRUN** | ✅ Vitest 1254 | ⚠ **step 1 only** — pgTAP **183f/5857** · 3 ARMs HOLD · E2E targeted 24/24, **no `e2e:prod`** | ⛔ **not run** (PO direction) | ⛔ not sought | 2026-08-12 | `9a20c8a` → `main`, ✅ PUSHED · ✅ remote `db push` DONE. ⚠ Verified against the **remote catalog** — `migration list --linked` and MCP `list_migrations` were **both wrong** |
-| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** · [plan](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** · 🔵 **DM5 OPEN** (S0 ✅ · ~~S1~~ WITHDRAWN · S2 ✅ · **S3 ✅ COMPLETE, r2 APPROVED** · **S4 = resume point, IRREVERSIBLE** · S5–S6 remain) — ⚠ **the IN-PROGRESS section below is the authority** | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | ✅ DM4: pgTAP **191f/6231** · 391==391 · vitest 1264 · 4 ARMs HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f** | ✅ DM4 **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md), no binding condition | ✅ **2026-08-14** (DM4) | 2026-08-14 | `phase(DM4)` on `main` — ⛔ **NOT pushed**, no `db push`. **All five DM flags OFF.** Records: [DM1](docs/progress/dm1-substrate-cutover.md)·[DM2](docs/progress/dm2-orchestration-wave-a.md)·[DM3](docs/progress/dm3-controlled-documents.md)·[DM4](docs/progress/dm4-referrals.md)·**[DM5](docs/progress/dm5-wave-d-retirement.md)**. Open: 🟠 FUP-DM4-RECUSAL · 🟠 FUP-DM5-STORAGE-ORPHANS (**demoted 🔴→🟠 2026-08-14** — the remote half was a stale inference; the LOCAL half still blocks S4) · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW. Census blind class = **141** at HEAD (not 146/150) — cite the query beside the number |
+| DM | **Document Model Redesign** [0114](docs/decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](docs/decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](docs/decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](docs/decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](docs/decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md)** · [plan](docs/plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** · 🔵 **DM5 OPEN** (S0 ✅ · ~~S1~~ WITHDRAWN · S2 ✅ · **S3 ✅ COMPLETE, r2 APPROVED** · **S4 🔵 IN PROGRESS** — PO-authorized 2026-08-16, buckets retired; **gate steps 1 + 2 GREEN** (pgTAP 193f/6351 · `e2e:prod` 1118p/0f/0 did-not-run), **steps 3–4 owed**; ⚠ **the byte half was a NO-OP, recorded as such** · S5–S6 remain) — ⚠ **the IN-PROGRESS section below is the authority** | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | ✅ DM4: pgTAP **191f/6231** · 391==391 · vitest 1264 · 4 ARMs HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f** | ✅ DM4 **APPROVED (r2)** [review](docs/reviews/dm4-referrals-review.md), no binding condition | ✅ **2026-08-14** (DM4) | 2026-08-14 | `phase(DM4)` on `main` — ⛔ **NOT pushed**, no `db push`. **All five DM flags OFF.** Records: [DM1](docs/progress/dm1-substrate-cutover.md)·[DM2](docs/progress/dm2-orchestration-wave-a.md)·[DM3](docs/progress/dm3-controlled-documents.md)·[DM4](docs/progress/dm4-referrals.md)·**[DM5](docs/progress/dm5-wave-d-retirement.md)**. Open: 🟠 FUP-DM4-RECUSAL · 🟠 FUP-DM5-STORAGE-ORPHANS (**demoted 🔴→🟠 2026-08-14** — the remote half was a stale inference; the LOCAL half still blocks S4) · 🔴 FUP-PGTAP-VACUOUS · FUP-DM4-PRODROW. Census blind class = **141** at HEAD (not 146/150) — cite the query beside the number |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | ⛔ **ADR PROPOSED — NOT ratified; nothing built and nothing may start** (the plan's Slice 0 gate). Flag `deliberations` covers all but Slice 1, which replaces live meeting-settings plumbing | – | – | – | ⛔ **not ratified** | – | `a68f179` + renumber `feab771` (drafted as 0112 — **taken**; ⚠ differing filenames merge CLEANLY, so renumber at merge time). ✅ PUSHED (server-verified) |
 | MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
@@ -147,9 +147,68 @@
 >
 > **Slices:** **S0 ✅** manifest tool (`0e85cbe7`, `9d37ad79`; baseline self-labels **DEGENERATE**, not
 > S4 input) · ~~S1~~ ⛔ **WITHDRAWN, never built** (D3/D4/D5 struck → **D11**) · **S2 ✅** NSP RCA/CAPA
-> evidence · **S3 ✅ COMPLETE — all four gate steps** (2026-08-14) · **S4 = THE RESUME POINT, and it is
-> IRREVERSIBLE** (retirement; **8** buckets, manifest-first per D9) ·
-> S5 operational closure · S6 canon + exit sweep.
+> evidence · **S3 ✅ COMPLETE — all four gate steps** (2026-08-14) · **S4 🔵 IN PROGRESS**
+> (2026-08-16, **PO-authorized on the day**) — buckets retired; **gate steps 1 ✅ and 2 ✅ GREEN,
+> steps 3 (QA) + 4 (PO) OWED** · S5 operational closure · S6 canon + exit sweep.
+>
+> ### 🔵 S4 — legacy bucket retirement (2026-08-16) — **step 1 ✅ · step 2 ✅ GREEN · steps 3–4 OWED**
+>
+> **PO authorized S4 explicitly on the day** (separately from S3's approval, per the handoff §11 gate);
+> **FUP-DM5-D11 deferred — "decide later"**, and nothing in S4 depended on it. Full detail:
+> [the record](docs/progress/dm5-wave-d-retirement.md) § S4.
+>
+> **Built:** migration **`20260927000400`** — drops the last 4 retirement-bucket policies (all
+> `nsp-evidence`) + the **8** bucket rows, behind a guard that **refuses** to retire a bucket still
+> holding `storage.objects` rows (D9's byte-first ordering encoded executably) · pgTAP **`325` 5 → 8**
+> (t6/t7 retirement pins **proved RED-FIRST against the real pre-migration catalog**, naming every
+> survivor; **t8** = the survivor positive control, because a sweep that retired *everything* would
+> satisfy t7) · successor assertions in `200`/`142`/`143`/`341` · dead bucket constants removed from
+> `src/lib/attachments/constants.ts`. Survivors: `documents-standard`/`documents-phi` (core, D8) +
+> `form-assets`/`meeting-audio` (out of scope, D13).
+>
+> ⛔ **THE BYTE HALF WAS A NO-OP, AND IS RECORDED AS THAT — NOT AS "RETIREMENT PROVEN".** Measured
+> first: `storage.objects` **0 rows in all 12 buckets** vs **866 files / 9.9 MB / 235 PHI** on the
+> volume (**221 / 6.93 MB / 15 PHI** in the 8 retirement buckets — reproducing S0's figure exactly).
+> Every retirement-bucket byte is **already an orphan with no metadata row**, so the Storage API — the
+> D9 *gate* — cannot address one of them; `capture` returned its `DEGENERATE BASELINE` verdict by
+> design and **`delete --execute` never ran**. What S4 closed is the metadata/schema half, and it
+> **stays** closed across `db reset` — which six historical migrations would otherwise undo.
+> ⚠ **So the deploy-time byte sequence remains UNREHEARSED end-to-end** (ADR 0120 D9 now carries an
+> inline EXECUTION NOTE saying so); its correctness still rests on S0's 8/8 self-test.
+>
+> | gate step 1 | figure |
+> |---|---|
+> | registry · pgTAP | **407 == 407** · **193 files / 6351 PASS** (S3's 6348 + 3 new `325` pins) |
+> | tsc · lint · vitest | 0 · **5/5** · **1294** (unchanged — the removed TS had no test, which is *why* it was removable) |
+> | four ARMs, exit codes captured **unpiped** | **all HOLD** — census live **546** / verdicts **570** (identical to S3's close: S4 added no gate, so no census entry is owed) · hat 3 allowlisted, self-test 6/6 · floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist |
+> | diff-scoped `ARM=policy` | **NOT APPLICABLE — recorded as that, never as clean.** The diff *drops* 4 policies, adds/modifies none, touches no `prosecdef` body ⇒ empty domain. *A dropped policy has no gate to open.* |
+> | **step 2 — `e2e:prod`** | ✅ **GATE GREEN — 1118 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 18 batches**; `next build` compiled. Accounting reconciles to S3 **exactly**: same **1129** collected, same **6** skips; the only movement is 2 tests `passed`→`flaky`. ⚠ The summary line reads `accounted 1123 of 1129` — **6 short** — but per-batch lines sum to **1129/1129, 0 did-not-run**; the summary just excludes skips |
+>
+> ⭐ **The check S4 owed the most, because it deleted the bucket S3's corridor was proven against:**
+> `pdf-printing` **9/9** + `pdf-printing-meetings` **6/6**, identical to S3, **zero** non-ok in any
+> print/document/evidence spec. **The corridor still mints real `%PDF-` bytes with `printed-documents`
+> deleted** — independent confirmation that S3's re-pointing onto the core substrate is real.
+>
+> 🔒 **The defect S4 nearly shipped to the REMOTE.** The first version used `set local
+> storage.allow_delete_query = 'true'` (copying `20260921000300`) and passed a standalone reset, pgTAP,
+> all four arms and the catalog check. The E2E gate's own reset then printed **`WARNING (25P01): SET
+> LOCAL can only be used in transaction blocks`** against it — a **silent no-op**, while the opt-in is
+> genuinely load-bearing (probed: without it the delete raises **42501** from `storage.protect_delete`).
+> Fixed by moving opt-in + DELETE into **one `do` block** (always transactional). ⭐ **`db push` is a
+> different invocation from `db reset`** — a green local gate would have certified a destructive step
+> conditional on an undocumented property of the tool applying it. → **FUP-DM5-SETLOCAL-MIGRATION**
+> (`20260921000300` still carries the old idiom).
+>
+> ⭐⭐ **Two lessons worth more than the slice.** (1) **My reference sweep was bounded by ONE property
+> and the breakage lived in another** — I swept `storage.buckets` reads and `storage.objects` inserts,
+> found exactly one breakage, and pgTAP then returned **4 reds**, every one an assertion that the
+> *policies I was dropping* still exist. (2) **Those broken assertions failed in OPPOSITE directions
+> and only one direction announces itself:** three went RED, but two Rule 6 *"NO update/delete policy"*
+> pins went **VACUOUS** — zero policies satisfies them forever, silently, sitting in the passing column
+> of a green suite. **Had I fixed only what the suite reported, S4 would have left two dead pins
+> reading as coverage.** Both replaced; `341`'s BUG-DM5-CAPA-1 pin re-keyed off the retired policy NAME
+> onto the live `can_write_document` arm — and tightened to the **call** form after neutralization
+> showed the bare-name form was satisfied by the body's own **comment**.
 >
 > ### ✅ S3 CLOSED 2026-08-14 — steps 1 ✅ · 2 ✅ · 3 ✅ **APPROVED (r2)** · 4 ✅ PO
 >
@@ -198,8 +257,14 @@
 >
 > **Open follow-ups this phase must NOT assume closed:** 🔴 **FUP-AUTHZ-HARNESS-TRANSACTIONAL** (**a live
 > authz gate was left OPEN on the shared stack — read the record's incident section before running any
-> mutation harness**) · 🟠 **FUP-DM5-STORAGE-ORPHANS** (**blocks S4 LOCALLY**; method half ruled, remote half
-> amended) · 🔴 FUP-PGTAP-VACUOUS · 🟠 FUP-DM4-RECUSAL (**DM5 does NOT close it**) · 🟠
+> mutation harness**) · 🟠 **FUP-DM5-STORAGE-ORPHANS** (⚠ **NOT closed by S4** — S4 demonstrated the local
+> half rather than clearing it: the manifest-first delete was a **no-op** because all 221 retirement-bucket
+> files are already metadata-less orphans, unreachable through the D9 gate **by definition**; **221 files /
+> 6.93 MB / 15 PHI still on the local volume**, pending a PO call, and `delete --execute` has still never run
+> against a populated bucket) · 🟠 **FUP-DM5-SETLOCAL-MIGRATION** (**new, S4** — `set local` in a migration is
+> not guaranteed transactional; `20260921000300` still relies on it) · 🟡 **FUP-DM5-MANIFEST-FLAG** (**new,
+> S4** — `capture` takes `--out`; passing `delete`'s `--manifest` silently overwrote the committed S0
+> baseline) · 🔴 FUP-PGTAP-VACUOUS · 🟠 FUP-DM4-RECUSAL (**DM5 does NOT close it**) · 🟠
 > FUP-DM5-FINALIZE-ATOMIC (**binding input to S5**) · 🟠 **FUP-DM5-330-WRITE-BLIND** (⚠ **do not close it
 > on `342`'s coverage** — door-level lifting ≠ arm-level coverage, and the "covered by `341`"
 > reassurance pointed at **S2's own suite**) · 🟠 FUP-DM5-SIBLING-GUARD-DIFF · 🟡 FUP-DM5-GRANTS ·

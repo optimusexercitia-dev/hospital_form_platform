@@ -11,11 +11,42 @@
 > is stale by design (CLAUDE.md graphify exception; this sentence said "the migrations
 > are the truth" until 2026-08-05).
 >
-> ⛔⛔ **CURRENCY STAMP — THIS FILE IS NOW STALE BY *TWO* SLICES (S2 **and** S3). Read this before
-> quoting ANY document / NSP / evidence / **printed-document** line below.** Last content update:
-> `bf1585ea` (2026-08-14), which landed **before every DM5·S2 migration**. Registry was **391** then; it
-> is **405** now. **14** migrations (`20260927000100`–`000170` = S2, `…000300`–`000350` = S3) changed this
-> surface and are **NOT reflected anywhere below**.
+> ⛔⛔ **CURRENCY STAMP — THIS FILE IS NOW STALE BY *THREE* SLICES (S2, S3 **and** S4). Read this before
+> quoting ANY document / NSP / evidence / **printed-document** / **storage-bucket** line below.** Last
+> content update: `bf1585ea` (2026-08-14), which landed **before every DM5·S2 migration**. Registry was
+> **391** then; it is **407** now. **16** migrations (`20260927000100`–`000170` = S2, `…000300`–`000360`
+> = S3, `…000400` = S4) changed this surface and are **NOT reflected anywhere below**.
+>
+> ### DM5·S4 — the eight legacy storage buckets are RETIRED (`…000400`, 1 migration)
+>
+> ⚠ **Every bucket name below this stamp other than the four survivors is now a DEAD NOUN.** Retired
+> rows *and* doors: `attachments` · `attachments-phi` · `case-documents` · `interview-attachments` ·
+> `nsp-evidence` · `referral-attachments` · `controlled-documents` · `printed-documents`.
+> **Surviving: `documents-standard` · `documents-phi` (core, ADR 0114 D8) and `form-assets` ·
+> `meeting-audio` (out of scope, D13).** Catalog-verified after a fresh reset: 4 bucket rows, and
+> `storage.objects` carries exactly **4** policies (`documents_{std,phi}_obj_insert_reserved`,
+> `form_assets_{insert_staff_admin,select_member}`).
+>
+> - **`nsp-evidence` was the LAST retirement bucket still carrying policies** — 4 of them
+>   (`nsp_evidence_obj_{select_member,insert_writable}`, `capa_evidence_obj_{select_member,insert_writable}`),
+>   dropped here. The other seven were retired door-first by DM1/DM3/DM4/S3. The four predicates those
+>   policies called (`app.can_write_capa` / `can_read_capa` / `can_write_rca` / `can_read_event`) are
+>   **NOT dropped** — unlike DM3's `app.can_read_document_object`, whose only caller was its policy, these
+>   have 4 / 6 / 4 / 13 other callers. *Dropping the door is not dropping the lock.*
+> - ⚠ **Retirement is a MIGRATION, not an operational script, and that is load-bearing:** six historical
+>   migrations (baseline · controlled_docs_core · attachments_storage · audio_minutes_schema ·
+>   printed_documents_storage · dm1_document_buckets) recreate all twelve bucket rows on **every**
+>   `db reset`. Retirement living only in a script would be silently undone by the next reset.
+> - **The migration REFUSES to retire a bucket that still holds `storage.objects` rows**, naming the
+>   bucket and the count. That is ADR 0120 D9's byte-first ordering encoded executably rather than as
+>   prose in a header — the failure mode FUP-F2-BUCKETS was filed for.
+> - ⛔ **It deletes ZERO BYTES, by design.** Byte removal is D9's manifest-first Storage-API path.
+>   See the S4 entry in [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) for what that
+>   did and did not achieve locally.
+> - **Dead TS surface removed:** `ATTACHMENTS_BUCKET` / `ATTACHMENTS_PHI_BUCKET` / `bucketForTier()` in
+>   `src/lib/attachments/constants.ts` (verified zero callers). **No client-side constant names a bucket
+>   any more** — `begin_document_upload` is the only thing that does, and `file_objects_bucket_from_tier`
+>   CHECK-pins the tier→bucket mapping server-side.
 >
 > ### DM5·S3 — printed renditions moved onto the core substrate (`…000300`–`000350`, 6 migrations)
 >
@@ -61,7 +92,9 @@
 >   not, and its `form_response` arm's first disjunct is the bare `v_resp.created_by = p_uid` **behind an
 >   `or`** — so no callee could supply the check. D12's conjunction closes it, which is why "strict
 >   narrowing" is load-bearing rather than decorative.
-> - Prints no longer write to **`printed-documents`**; that bucket is emptied and retires in **S4**.
+> - Prints no longer write to **`printed-documents`**; ✅ **that bucket's row and doors were RETIRED by
+>   S4** (`…000400`) — see the DM5·S4 block above. Its 87 remaining volume files are pre-existing
+>   orphans with no metadata row, unreachable by the Storage API (FUP-DM5-STORAGE-ORPHANS).
 >
 > ### DM5·S2 — NSP RCA/CAPA evidence (`…000100`–`000170`, 8 migrations)
 >
