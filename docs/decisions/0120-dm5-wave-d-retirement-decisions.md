@@ -204,7 +204,9 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >    eight retired buckets (QA r1 MINOR-5) and they hold 0 bytes. ⚠ Until S5.R runs, this
 >    paragraph stands unchanged: **naming an owner is not a rehearsal.**
 >
->    ✅ **S5.R HAS RUN — 2026-08-17, `e5a1418e`, 14 controls green** against a purpose-made bucket
+>    ✅ **S5.R HAS RUN — 2026-08-17, `e5a1418e`, 14 controls green** *(the rehearsal is **18/18** at
+>    HEAD after S5.D added R3c/R3d and QA r1 added R7/R7-twin — cited here so a reader comparing the
+>    two figures does not conclude the tool shrank)* against a purpose-made bucket
 >    populated **through the Storage API so metadata rows exist**. The local rehearsal passes. ⛔ **But
 >    it produced a finding that bears directly on D9's assurance ON CLOUD, and D9 should not be read as
 >    rehearsed there.**

@@ -12,23 +12,38 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 > # ⭐ THE CLASS, IN ONE SENTENCE
 >
-> ## **An ACTION PERFORMED is recorded as the STATE ACHIEVED.**
+> ## **An observable PROXY is substituted for the property that actually matters — and it always fails in the REASSURING direction.**
 >
-> Every instance substitutes an **observable proxy** for the **property that actually matters**, and
-> every one fails in the **reassuring** direction. Reframed by lead ruling 2026-08-17 once the fourth
-> instance made the shape unmistakable — *four scattered instances are four bugs; one sentence is a
-> thing you can recognise in a design review, **before** someone builds the fifth.*
+> ⛔ **Corrected at QA r1.** The previous headline was *"an action performed is recorded as the state
+> achieved"*. QA was right that it fits instances 3/4/5 and **not 1/2**: *"I could not look"* is not an
+> action performed, and the table's own first column contradicted its own header. The sentence that
+> covers **all** of them was already sitting one line below, so it is promoted; *action → state* is
+> kept as a **named sub-class**. This matters because the entire point of the reframe was
+> recognisability in review — **a class that mis-describes two of its own instances will mis-train the
+> next reader.**
 >
-> | # | the action performed | recorded as the state achieved |
-> | --- | --- | --- |
-> | 1 | `--allow-orphans` — *I could not look* | *I looked and found nothing* |
-> | 2 | `.list('')` — absence of a **bucket** | absence of **keys** |
-> | 3 | `complete_document_disposal` — **metadata row** gone | **bytes** gone |
-> | 4 | destruction — file **unlinked** | bytes **unrecoverable** |
+> ### Three variants, six instances
+>
+> | # | variant | the proxy actually observed | the property it was recorded as |
+> | --- | --- | --- | --- |
+> | 1 | **"I could not look"** | `--allow-orphans` — proof unavailable | *I looked and found nothing* |
+> | 2 | **"I could not look"** | `.list('')` — absence of a **bucket** | absence of **keys** |
+> | 3 | **action → state** | `complete_document_disposal` — **metadata row** gone | **bytes** gone |
+> | 4 | **action → state** | destruction — file **unlinked** | bytes **unrecoverable** |
+> | 5 | **action → state** *(caught pre-ship)* | backup pipeline **ran, exit 0** | a backup **exists** |
+> | 6 | **"I looked at the WRONG THING"** | `verdictFor` — no volume **directory** | the bucket is **consistent and empty** |
+>
+> ⭐ **Instance 6 is QA's MAJOR-1 and it is a THIRD distinct variant** — not "I could not look" and not
+> "an action recorded as a state", but **"I looked at the wrong thing."** The tool consulted the volume
+> and reported honestly about it, while never consulting the API set that contradicted it. That variant
+> is the hardest of the three to spot in review, because the measurement genuinely happened.
 >
 > **Severity 🔴** (lead ruling 2026-08-17, escalated from 🟠 on instance 3): the class heading carries
 > the severity of its worst instance. Instances 1–2 are 🟠 — tool output an operator reads and can
-> second-guess. **Instance 3 is 🔴**: a *persisted record asserting a fact to a regulator*.
+> second-guess. **Instance 3 is 🔴**: a *persisted record asserting a fact to a regulator*. ⚠ Bound it
+> precisely, per QA: instance 3 is a **latent** false assertion — it says the record *can assert more
+> than it verifies*, not that it *asserts falsely today*; it becomes false only where an API delete
+> removed metadata while bytes survived.
 
 Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as two bugs.** Two
 independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
@@ -53,8 +68,46 @@ branch — *"PRE-EXISTING METADATA-LESS ORPHANS … not a failure of this deleti
 ⭐ **How instance 2 was found is the part worth keeping.** Step 0 named the state *"bucket row absent
 + bytes present"* as never observed, with **no control anywhere in the tool**. It surfaced only
 because a control was built for a state nobody had seen — not by review, and not by any run of the
-existing 15 controls. And per the lead's ruling it is **not a corner case: it is the state all eight
-retired buckets are in**, and the state a Cloud retirement migration produces by construction.
+existing 15 controls.
+
+⚠ **Correcting the frequency claim, which was wrong in the present tense** (QA MINOR-6; the lead's
+ruling that prompted it is withdrawn on this point). *"It is the state all eight retired buckets are
+in"* is **false as of today** — measured, the eight retired buckets hold **0 bytes** and have **no
+directory on the volume**; the volume root holds only the four survivors. They **were** in that state
+between the retirement migration and the stack recovery that destroyed the 221 files, and a **Cloud**
+retirement produces it **by construction**. So: true historically, true for Cloud, false now. ⭐ And
+the frequency argument was never the load-bearing one — **R3d's own reason is sufficient and needs no
+appeal to how common the state is**: the classifier printed the reassuring arm, with no
+`DO NOT PROCEED`, **on the destructive path, for a bucket it had never interrogated.**
+
+**Instance 6 — 🟠 `verdictFor` read a missing volume DIRECTORY as "consistent and empty". Found by QA
+(MAJOR-1) by CONSTRUCTING the state. ✅ FIXED.** Three API-visible keys plus a removed volume
+directory verdicted `CONSISTENT_EMPTY` — a member of `CLEAN_VERDICTS` — so `capture` printed **CAPTURE
+CLEAN and exited 0** over a bucket whose PHI bytes were gone.
+
+- ⛔ **Non-monotonic in severity:** lose *some* of a bucket's bytes (directory survives) ⇒
+  `MISSING_BYTES`, dirty, exit 1. Lose **all** of them (directory removed) ⇒ clean, exit 0. **The
+  worse state reported better.**
+- ⛔ **It is the state a volume loss with the DB intact produces** — `supabase stop`/`start` without a
+  `db reset`, i.e. **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**, which has already fired once in this phase
+  in the *other* direction. Under Rule 12 this is the worse direction: the metadata still advertises
+  the PHI file as present and servable, `disposal_state` says nothing is owed, and
+  `document-reconciliation.mjs` lists from the same API and cannot see it either.
+- ⭐ **It was the SIBLING of the branch this slice had just fixed**, two lines below it, in the same
+  function, in the same commit. The fixed branch's own comment says *"a verdict that treats a missing
+  ROW as proof of a missing object is the withdrawn method wearing the tool's badge"* — and the next
+  branch did it with a missing **directory**. **The transferable rule: a fix applied to one arm is a
+  question asked of every sibling arm — diff their guard sets.**
+- **Fixed** in `verdictFor`, pinned red-first by rehearsal **R7** (+ permissive twin R7-twin) and
+  selftest **C14/C15**, both observed RED before the fix (`api_keys=5 volume_present=false exit=0
+  verdict=CONSISTENT_EMPTY`).
+
+**Instance 6b — 🟠 the same branch also read a FAILED measurement as emptiness. Found by doing the
+guard-set diff the fix implies. ✅ FIXED.** `volumeCensus`'s catch returns `{present:false, error}`
+when its `docker exec` fails for a bucket, and that mapped to `CONSISTENT_EMPTY` — **variant 1 ("I
+could not look") living inside `verdictFor` itself.** Now `UNVERIFIED_PROOF_ERROR`, non-clean, pinned
+by selftest **C16**. ⭐ *The guard-set diff was asked for and it found a second gap the reviewer had
+not seen* — which is the argument for doing the diff rather than fixing the reported instance.
 
 **Instance 3 — 🔴 `complete_document_disposal` persists the confusion as a REGULATORY ASSERTION.
 LEAD-RULED 2026-08-17: it IS this class, and it is the worst instance of the three.** The door's
@@ -132,6 +185,35 @@ FUP-DM5-STORAGE-ORPHANS (Cloud half). Consumer → **FUP-DM5-NO-ANSWER-VS-NOTHIN
 which is *blocked on this measurement*: until it is settled, `disposal_state = 'disposed'` cannot mean
 more than "metadata gone" on Cloud.
 
+### ⛔ The question was framed WRONG, and QA r1 corrected it: the Cloud risk is not a MISSING proof — it is a FAKE one
+
+Added 2026-08-17 from QA MAJOR-2. This item, ADR 0120 D9 and the runbook all rested on *"on Cloud you
+lose the local volume proof"*. **Source-level fact:** `locateVolume()` finds its container **by name
+pattern via `docker ps`** and takes the root from that container's env — it is **never given the
+project URL**, and nothing cross-checked the two. The two preconditions are at **different grains**:
+`STORAGE_BACKEND=file` is a property of the **project**, a running `supabase_storage` container is a
+property of the **operator's machine**. A developer machine with `supabase start` up — the normal state
+for anyone who can run this repo's gates — satisfies the container half **while the client points at
+Cloud**.
+
+**Inference, NOT executed against Cloud (and it must not be recorded as though it were):** such a run
+would get `localProof.available = true`, a census of the **wrong project's volume**, and — for any
+manifest bucket absent locally — a printed **byte-level assurance for a Cloud deletion that was never
+checked**. *No proof refuses visibly; a proof about the wrong bytes passes.* **Strictly worse than
+losing the proof**, and the runbook previously told the operator it was impossible.
+
+✅ **GUARDED IN THE TOOL** (not left to discipline): `locateVolume()` now refuses when
+`NEXT_PUBLIC_SUPABASE_URL` is not a local origin while a local container is running, downgrading the
+proof to unavailable and printing the reason. Measured with a Cloud URL against a running local stack.
+The guard sits in `locateVolume()` so **every** subcommand inherits it from one place, and both
+polarities are pinned by selftest **C17**. This makes the "DOMAIN: LOCAL stack only" banner
+**enforceable rather than advisory**.
+
+⚠ **What this does NOT settle, and why the item stays open:** the guard prevents the fake proof; it
+does not create a real one. On Cloud there is still **no** byte-level proof, so the S3-endpoint
+measurement above remains the thing that would change what a Cloud run can be trusted to have proved.
+And the composite Cloud consequence above is **still an inference** — no remote contact has been made.
+
 **What IS established** (measured, local, S5.R): every byte-side control in `storage-manifest.mjs`
 depends on `locateVolume()`, whose preconditions are `STORAGE_BACKEND=file` **plus** a
 `supabase_storage` Docker container on the operator's own machine. Neither can hold for a Cloud
@@ -165,6 +247,9 @@ verified**, and say so in the disposal record — which
 Filed 2026-08-17 (backend, S5.D) **on lead ruling — filing was ruled not optional.** ⛔ **Not
 hypothetical: the S5 drill created one.** A `docker cp` of the live storage volume produced **245
 files / 2,456,666 bytes including 68 PHI-tier files, in plaintext, outside every platform control** —
+⚠ *those 68 are PHI-tier **by bucket**, from local seed/E2E artifacts, not real patient data* (QA
+INFO-5): the drill itself was **not** a live PHI incident. The 🔴 grades the **mechanism as it applies
+to production**, where the same command over `documents-phi` yields real records —
 no RLS, no `open_document_version` door, no PHI-access audit row, no signed-URL TTL, no encryption
 beyond whatever the host filesystem provides. That copy was deleted after verification; **the
 mechanism that made it remains, undocumented.**
@@ -275,6 +360,18 @@ fire is not a guard.
 
 Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-5. **Scoped to the new half only** —
 FUP-DM5-STORAGE-ORPHANS is separately open and not re-litigated here.
+
+> ⭐ **UPDATE 2026-08-17 (DM5·S5, QA r1 INFO-3) — the LOCAL half of this item is now materially
+> better; the CLOUD half is untouched and the item does NOT close.** Two `verdictFor` fixes landed in
+> S5 and both redden states that previously printed `CAPTURE CLEAN` with exit 0 *locally*:
+> **`BUCKET_ABSENT_ORPHANED_BYTES`** (bucket row gone, bytes still on the volume) and
+> **`MISSING_BYTES`** (volume directory gone, metadata still listing keys — QA MAJOR-1), plus
+> **`UNVERIFIED_PROOF_ERROR`** so a failed measurement is no longer read as emptiness. So the sentence
+> below — *"post-migration `capture` prints CAPTURE CLEAN"* — **no longer holds for a retired bucket
+> whose bytes survived**, which is the case that mattered. ⛔ **What has NOT changed:** on Cloud there
+> is still no byte-visible arm at all, and S5 additionally established that a local proof run against a
+> Cloud client would attest to the **wrong project's** bytes (now guarded — see
+> FUP-DM5-CLOUD-ORPHAN-SURFACE). The Cloud half is the whole remaining item.
 
 Post-migration, `storage-manifest.mjs capture` over the retired scope prints **`CAPTURE CLEAN`**. The
 tool is honest — its volume proof *did* fire for absent buckets in the committed S4 manifest — but two

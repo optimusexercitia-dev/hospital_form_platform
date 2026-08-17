@@ -69,7 +69,16 @@ predicted, observed.
 - An unverifiable **"FIVE instances"** count was softened to "repeated". An
   unverified number in a comment is precisely the defect that file exists to pin.
 
-### 1c · `plan(N)` → `no_plan()`, with the trade-off disclosed
+### 1c · `plan(N)` → `no_plan()` — ⛔ REVERSED AT QA r1, see §6d correction 1
+
+> **This section records a decision that was WRONG and has been undone.** `plan(12)`
+> is restored. Kept rather than deleted because the error was in the *reasoning*, not
+> a typo, and the reasoning is the transferable part: the comparison below weighs
+> `no_plan()` against a *wrong* `plan(N)` without noticing that the two fail in
+> **opposite directions** — a wrong plan fails **safe** (a noisier red on a run
+> already exiting 1; it never produced a false green), while silent assertion loss
+> under `no_plan()` fails **open**. The trade-off "disclosure" below is accurate about
+> the cost and wrong about which side to take. Full correction: **§6d**.
 
 Measured both halves on this stack rather than assuming: a `no_plan()` file that
 **aborts mid-run FAILS** (`Parse errors: No plan found in TAP output`,
@@ -98,10 +107,20 @@ nothing"* were the same value, and the classifier printed the **reassuring** arm
 `DO NOT PROCEED`** — on the **destructive path**, for a bucket it had never
 interrogated. Now gated on `getBucket`, which does error.
 
-**Lead's ruling adds the stronger reason, recorded here as instructed:** *"bucket
-row absent + bytes present" is exactly the state all eight retired buckets are in.*
-Not a corner case — the shape of the real retirement scope, and on Cloud after a
-retirement migration the dangerous state by construction.
+⚠ **The frequency reason recorded here was WRONG IN THE PRESENT TENSE, and is
+withdrawn** (QA MINOR-6). It read: *"bucket row absent + bytes present is exactly
+the state all eight retired buckets are in."* **Measured today, the eight retired
+buckets hold 0 bytes and have no directory on the volume** — the volume root holds
+only the four survivors. They **were** in that state between the retirement
+migration and the stack recovery that destroyed the 221 files, and a **Cloud**
+retirement produces it **by construction**. True historically, true for Cloud,
+**false as written.** In a phase whose recurring defect is a present-tense claim
+about a state that has moved, that sentence was the defect.
+
+⭐ **And it was never the load-bearing reason.** R3d's own justification is
+sufficient and appeals to no frequency at all: *the classifier printed the
+reassuring arm, with no `DO NOT PROCEED`, **on the destructive path, for a bucket it
+had never interrogated.*** That is the reason to lead with.
 
 The refusal summary was also rewritten: the indeterminate-only case previously
 printed *"0 key(s) survived that the manifest did not list"* **inside a STOP**. A
@@ -111,8 +130,8 @@ refusal whose own numbers look benign is how a STOP gets ignored.
 
 | check | result |
 | --- | --- |
-| `rehearse` | **16/16, exit 0** — the **14 pre-existing arms all still pass**, plus R3c and R3d |
-| `selftest` | **13/13, exit 0** — all originals intact (lead-requested re-check) |
+| `rehearse` | at this point **16/16, exit 0** — the **14 pre-existing arms all still pass**, plus R3c and R3d. **Now 19/19** after QA r1 added R7 + R7-twin and the enumeration added R8 (§6d, §6e) |
+| `selftest` | at this point **13/13, exit 0** — all originals intact (lead-requested re-check). **Now 18/18** after QA r1 added C14/C15/C16/C17 and the enumeration added C18 (§6d, §6e) |
 | storage volume | **byte-identical to step 0: 245 files / 2,456,666 bytes**, `phi_tier_keys=68`, zero `dm5-%` buckets left |
 
 ## 2 · S5.D — the disposal gap, pinned on both sides
@@ -330,8 +349,9 @@ All run unpiped, exit codes captured.
 | `npm run test` (vitest) | **89 files / 1304 passed, exit 0** | 88 / 1294 → **+1 file / +10 tests = exactly `disposal-gap.test.ts`**; pre-existing unchanged |
 | `npm run lint` (5 chained) | **exit 0** — eslint 0 errors **0 warnings**, css-vars, memberships-door (10/10 self-test), client-server-imports (481 client / 124 server modules, 0 findings), vacuous (42/42 self-test, 185 spec files, 0 findings) | ⚠ see below |
 | `npm run typecheck` | **exit 0** | 0 |
-| `storage-manifest.mjs rehearse` | **16/16, exit 0** (re-run after the lint fix) | 14 pre-existing arms intact + R3c + R3d |
-| `storage-manifest.mjs selftest` | **13/13, exit 0** (re-run after the lint fix) | all originals intact |
+| **`next build`** | **exit 0** — compiled successfully, **19/19** static pages | ⚠ **Added at QA r1 (MINOR-1).** This phase's plan names it in gate step 1 and the first version of this table simply **omitted** it — neither run nor listed as NOT COVERED, *which is the one shape a reader cannot detect.* It is also the **only** gate that catches the BUG-FBE-005 class (a client value-import from a server module aborts `next build` while tsc/lint/vitest stay green) — precisely the exposure a new file under `src/lib/` creates. An omission that happened to be harmless is still the omission. QA ran it independently: exit 0. |
+| `storage-manifest.mjs rehearse` | **19/19, exit 0** | was 16/16 → **+R7 +R7-twin** (QA MAJOR-1) **+R8** (the verdict enumeration, §6e); the **16 pre-existing arms all still pass** |
+| `storage-manifest.mjs selftest` | **18/18, exit 0** | was 13/13 → **+C14 +C15 +C16** (MAJOR-1 and the sibling gap the guard-set diff found) **+C17** (MAJOR-2's affinity guard) **+C18** (the ninth verdict); **all 13 originals intact** |
 | stack state after everything | volume **245 files / 2,456,666 bytes**, `buckets=4`, `dm5_buckets=0`, `dm5_drill*` databases **0** | byte-identical to step 0 |
 
 ⚠ **The lint baseline handed to me was stale: the gate was ALREADY RED before this
@@ -353,17 +373,26 @@ anything. R6-capture now pins both sides of the single variable the arm claims t
 isolate (`cap7.exit === 0 && verdict === 'CONSISTENT'` beside the blind assertions).
 Fixed by making the binding load-bearing, not by renaming it to `_cap7`.
 
-**Authz sweep: NOT APPLICABLE — recorded as that, never as "clean".** This slice
-touched **no RLS policy and no `prosecdef` boolean gate**: the changes are one
-Node script, one pgTAP file, one vitest file, one TS comment, and Markdown. No
-migration was added or edited, so there is no migration diff from which to derive
-a gate list.
+**Authz sweep: NOT APPLICABLE — recorded as that, never as "clean".** (This
+paragraph appeared **twice, verbatim** until QA r1 — MINOR-8. Deleted the copy.)
 
-**Authz sweep: NOT APPLICABLE — recorded as that, never as "clean".** This slice
-touched **no RLS policy and no `prosecdef` boolean gate**: the changes are one
-Node script, one pgTAP file, one vitest file, one TS comment, and Markdown. No
-migration was added or edited, so there is no migration diff from which to derive
-a gate list.
+**The DIFF-SCOPED sweep is N/A** because the slice touched **no RLS policy and no
+`prosecdef` boolean gate**: the changes are one Node script, one pgTAP file, one
+vitest file, one TS comment, and Markdown. No migration was added or edited, so
+there is no migration diff from which to derive a gate list.
+
+**The FOUR STANDING ARMS are also N/A — and that argument has to be made, not
+left as silence** (QA MINOR-9; the record previously argued only the conditional
+sweep and said nothing about `ARM=census` / `ARM=hat` / `ARM=floor` /
+`FROMFINDINGS=1 ARM=wrapper`, which CLAUDE.md §6 step 1 lists as **unconditional**).
+The argument: **their subject is provably identical to the pre-slice catalog.** The
+slice adds no `pg_proc` row, no policy, and no grant — `343` runs inside
+`begin … rollback`, so its probe functions never persist (`pg_proc` holds no
+`dm5_s5%` row after a run; verified), and the policy count is unchanged at **274**.
+With the subject bit-identical, each arm would re-derive the same census over the
+same doors. ⚠ **Not run**, deliberately: they mutate the shared stack, and this
+program has already had a sweep leave an authz gate open. QA independently reached
+the same N/A conclusion and also did not run them, for the same reason.
 
 ## 6 · ⛔ NOT TESTED / NOT COVERED — binding
 
@@ -379,10 +408,22 @@ A delivered slice is not an absence of gaps.
    *bucket-absent* route into INDETERMINATE; the route where `listBucketKeys`
    genuinely **throws** is still untested (I could not force a listing error
    without stubbing, which the rehearsal avoids on principle).
-5. **A bucket with API-visible keys but ZERO volume files is never examined** by
-   the new classifier — the `left` filter selects buckets with `files > 0`. A
-   metadata row with no bytes (`MISSING_BYTES` shape) after a matched delete would
-   not be classified. Pre-existing scope, not a regression; not fixed.
+5. ⛔ **CORRECTED AT QA r1 — this item was WRONG, and its wrongness was the
+   understatement QA blocked on as much as the code.** It said a bucket with
+   API-visible keys and zero volume files *"is never examined … not classified"*,
+   scoped to the **delete** classifier. **It was classified — as CLEAN.** On the
+   **`capture`** path, `verdictFor`'s `!proof.present` branch returned
+   `CONSISTENT_EMPTY`, a member of `CLEAN_VERDICTS`, so the verdict column, the
+   **CAPTURE CLEAN headline** and the **exit code** all said clean over a bucket
+   the API said held live files — and `capture` is what S4/S6 and the deploy
+   runbook gate on. It was also **non-monotonic**: partial byte loss was dirty,
+   *total* byte loss was clean. *"Not classified"* would have let a future reader
+   believe the state merely went unexamined. **✅ Now FIXED** (`MISSING_BYTES`),
+   pinned red-first by **R7 / R7-twin / C14 / C15**, plus **C16** for the
+   `proof.error` sibling the guard-set diff found. Residual, genuinely still open:
+   the **`left` filter in `cmdDelete`** does select only `files > 0`, so on the
+   *delete* path a metadata-row-without-bytes bucket is still not examined —
+   narrower than the original claim, and unfixed.
 6. **The runbook has never been executed end to end** — there is no
    `disposal_pending` specimen locally (`file_objects=0`). Its steps are
    catalog-verified individually; the *sequence* is unrehearsed, and the Cloud
@@ -406,6 +447,30 @@ A delivered slice is not an absence of gaps.
     files. A caller added under `e2e/`, in a test file, or outside those roots is
     invisible to it. The pgTAP half is bounded to non-temp schemas.
 13. **The three follow-ups are filed, not fixed** — per the lead's ruling.
+14. ✅ **`DIVERGED_BOTH_WAYS` is now constructed** (QA 8.7, ruled into r2 rather than
+    filed) — **R8** end to end plus **C18** direct. The full nine-verdict enumeration
+    is §6e. ⚠ **The enumeration bounds one function's RETURN DOMAIN and nothing
+    more**, and QA's closing warning stands verbatim: **both blocking items came from
+    building a state nobody had built, so I make no claim that the remaining
+    unconstructed states are safe.**
+15. **`UNVERIFIED_PROOF_ERROR` is pinned only at the `verdictFor` grain** (C16), not
+    end to end — forcing a real per-bucket `docker exec` failure would need stubbing,
+    which the rehearsal avoids on principle. The mapping is proven; the plumbing
+    from a genuine docker failure to that verdict is not.
+16. **The project-affinity guard is proven at both polarities and in one live run,
+    but never against Cloud** — no remote contact was made, deliberately. It is a
+    guard derived from a source-level fact, and its Cloud consequence remains an
+    inference (QA 8.4 makes the same point and I am not overriding it).
+17. **QA did not re-measure the drill's numbers or the EXPLAIN baselines** (QA
+    8.2 / 8.3) — the 490/10 error counts, 90-of-274, 161-of-165, the `docker cp`
+    timing, and P1/P2/P3's timings are **still single-sourced to me.** What is
+    independently confirmed is the durable half: `public.documents` holds only
+    `documents_pkey`, and the live policy count is 274.
+18. **The runbook's `7z a -si -p` combination is untested in a piped, non-tty
+    context** (QA 8.5) — `-p` prompts on the console while data arrives on stdin.
+    If it fails it lands in the same "reports success over an empty archive" region
+    §6b now warns about. **Named as the first thing to check in the first
+    rehearsal.**
 
 ## 6b · Lead rulings on the handed-over doubts (2026-08-17) — all three recorded
 
@@ -516,6 +581,205 @@ satisfied by a tool that exits 1 and verdicts UNVERIFIED for *every* input, i.e.
 longer judge anything at all. **That is the argument for why lint is a phase gate and not a formatting
 preference:** an unused binding is frequently a control someone wrote and forgot to assert.
 
+## 6d · QA r1 remediation (2026-08-17) — `docs/reviews/dm5-s5-review.md` @ `2677e9a4`
+
+Verdict was **CHANGES REQUESTED**: 0 P0 · 2 MAJOR blocking · 9 MINOR · 5 INFO, with
+*"nothing in S5.R's or S5.D's design is asked to change."* Both blocking items were
+defects **in the artifact this slice modified** and **in the runbook this slice
+shipped**.
+
+### MAJOR-1 — `capture` called a destroyed-bytes bucket CLEAN. Fixed, red-first.
+
+`verdictFor`'s `!proof.present` branch consulted **only** `proof === null` — never
+`apiKeys`. A bucket with 3 API-visible keys and no volume directory verdicted
+`CONSISTENT_EMPTY` ∈ `CLEAN_VERDICTS` ⇒ **CAPTURE CLEAN, exit 0.**
+
+- ⛔ **Non-monotonic in severity:** partial byte loss ⇒ `MISSING_BYTES`, exit 1;
+  **total** byte loss ⇒ clean, exit 0. *The worse state reported better.*
+- ⛔ **It is the state FUP-DM5-STACK-CYCLE-DESTROYS-BYTES produces** (volume loss,
+  DB intact) — the worse Rule-12 direction, because the metadata still advertises
+  the PHI file as present and servable and `document-reconciliation.mjs` reads the
+  same API.
+- ⭐ **It was the SIBLING of the branch this slice had just fixed** — two lines
+  below, same function, same commit. The fixed branch's comment reads *"a verdict
+  that treats a missing ROW as proof of a missing object is the withdrawn method
+  wearing the tool's badge"*; the next branch did it with a missing **directory**.
+
+**Observed RED before the fix** (a green first run would have been vacuous):
+selftest **C14** `verdict=CONSISTENT_EMPTY`; rehearsal **R7**
+`storage.objects 5→5 api_keys=5 volume_present=false exit=0 verdict=CONSISTENT_EMPTY`.
+Then fixed → `MISSING_BYTES`. **C15 / R7-twin are the permissive twins** (a
+genuinely empty bucket must stay `CONSISTENT_EMPTY`/clean, else the fix reddens
+every empty bucket forever) — and C15 **passed before the fix**, which is what makes
+it a real guard against over-reach rather than a companion assertion.
+
+⭐ **The guard-set diff the lead asked for found a SECOND gap in the same branch
+that QA had not reported.** `volumeCensus`'s catch returns `{present:false, error}`
+when its `docker exec` fails, and the branch mapped that to `CONSISTENT_EMPTY` — *"I
+could not look"* recorded as *"there is nothing there"*, i.e. **variant 1 of the
+NO-ANSWER class living inside `verdictFor` itself.** Now `UNVERIFIED_PROOF_ERROR`,
+non-clean, pinned by **C16** (also observed RED). The guard sets are now written
+into the code so the next sibling is checked rather than assumed:
+
+| branch | consults |
+| --- | --- |
+| `!exists` | `exists` · `proof.present` · `proof.keys` |
+| `!proof.present` (fixed) | `proof === null` · **`proof.error`** · **`apiKeys`** |
+| tail | `apiKeys` · `proof.keys`, both directions |
+
+**Record §6 item 5 corrected** — it had said this state was *"never examined … not
+classified"*. It was classified **CLEAN, by name, in the headline, with a zero
+exit**, on the path S4/S6 and the deploy runbook gate on. QA blocked on that
+understatement as much as on the code, and was right to.
+
+### MAJOR-2 — the Cloud risk was framed backwards. Runbook restated; tool guarded.
+
+Not *"on Cloud you lose the local proof"* but *"on Cloud you may get a **fake**
+one"*. `locateVolume()` finds its container **by name pattern via `docker ps`** and
+is never given the project URL; nothing cross-checked them. The two preconditions
+are at **different grains** — file backend is a property of the **project**, a
+running container is a property of the **operator's machine** — so the sentence
+*"neither can hold for a Cloud project"* was **false in the most likely operator
+configuration**, and it was stated as *measured*.
+
+- **Runbook §6 rewritten with per-claim provenance:** (b) measured; (a)'s
+  exit-code behaviour measured; (a)'s **Cloud consequence labelled an INFERENCE**,
+  never executed remotely. The blanket *"measured, not inferred"* header is gone.
+- **Tool guarded (I judged this a fix, not a follow-up):** `locateVolume()` refuses
+  when `NEXT_PUBLIC_SUPABASE_URL` is not a local origin while a local container is
+  running, downgrading the proof to unavailable **with the reason printed**.
+  **Why a fix:** the failure mode is a *silent, confident, wrong* byte-level
+  assurance on a destructive path — the one class this entire follow-up family is
+  about — and the remedy is one condition. **Why in `locateVolume()`:** every
+  subcommand inherits it from one place, rather than each re-deriving it (*a new
+  door must inherit every sibling arm*). Measured with a Cloud URL against a running
+  local stack; both polarities pinned by **C17**. It converts the "DOMAIN: LOCAL
+  stack only" banner from advisory to **enforceable**.
+- **Folded into FUP-DM5-CLOUD-ORPHAN-SURFACE**, which stays open: the guard
+  prevents a fake proof, it does not create a real one.
+
+### The four corrections to the lead's own rulings — all four applied
+
+1. **`no_plan()` → `plan(12)` restored.** The acceptance reasoned from the wrong
+   comparison: a wrong `plan(N)` fails **safe** (a noisier red on an
+   already-failing, already-exit-1 run — it never produced a false green), while
+   silent assertion loss under `no_plan()` fails **open**. The file traded the safe
+   direction for the open one. Count **re-derived from the file** (12), not copied
+   from the prose, and the in-file note now tells the next editor to re-derive.
+2. **Class headline replaced** — see §6b / the follow-up. The promoted sentence
+   covers all six instances; *action → state* is kept as a sub-class. **MAJOR-1
+   added as instance 6 and a third variant: "I looked at the wrong thing."**
+3. **The frequency claim withdrawn** (§1d) — the eight retired buckets hold 0 bytes
+   and no directory *today*; the claim was true historically and is true for Cloud
+   by construction. R3d's own reason never needed it.
+4. **MINOR-3 key custody specified** — the mandated *"key destroyed"* line had **no
+   verifiable referent**, which re-instantiated the class one level down. The
+   runbook now forces a choice between three custody modes (**passphrase never
+   persisted** / **keyfile at a stated path** / **password-manager entry**) with
+   **the exact log wording each one permits** — including *"no key copy existed to
+   destroy"* for the passphrase case, because *"key destroyed"* for something never
+   written down is itself an action-recorded-as-state.
+
+### MINORs and INFOs taken
+
+| item | action |
+| --- | --- |
+| **MINOR-1** | `next build` **run (exit 0, 19/19 pages)** and added to the gate table with why its omission mattered |
+| **MINOR-4** | sync-root check rewritten as a **function** — `exit 1` in a pasted snippet kills the operator's shell; the git half only **echoed** (advisory where OneDrive was fatal, with no visible difference); patterns were **case-sensitive**. Now `return 1`, case-insensitive over `pwd -P`, 12 providers, and an explicit note that the list **cannot** be exhaustive |
+| **MINOR-5** | archive verification no longer compares against `walk`'s TOTAL (different denominator — `ALL_KNOWN_BUCKETS` vs everything under `/mnt/stub`; equal today **only** because the root holds just the four survivors). Now `find /mnt/stub -type f \| wc -l`, same denominator by construction. Verified: **245** both ways |
+| **MINOR-7** | `/dispose/i` → **`/dispos/i`**. `/dispose/` cannot match `Disposal`, so the arm stayed **green** through `scheduledDisposalSweep` — the most plausible name a disposal job would carry, and the name both red-first probes used. **Verified the fix fires:** with the probe present, **2 assertions** now red where **1** was before. *The enumeration boundary is a syntax, not a property — in the file that pins that class.* |
+| **MINOR-8** | duplicated *"Authz sweep: NOT APPLICABLE"* paragraph deleted |
+| **MINOR-9** | the **four standing ARMs** are now argued N/A rather than unmentioned, with the reason (subject provably identical: no `pg_proc` row, no policy, no grant added; `343` rolls back — verified `dm5_s5%` procs **0**, policies **274**) and with the explicit note that they were **not run** because they mutate the shared stack |
+| **INFO-2** | ADR 0120 D9's "14 controls" annotated with the HEAD figure so a reader does not conclude the tool shrank |
+| **INFO-3** | FUP-DM5-D9-NO-ARM's **local** half updated — the S5 `verdictFor` work is exactly the arm that now reddens that state locally; its **Cloud** half stands and the item does not close |
+| **INFO-4** | the "restore loses 67% of RLS" headline given its precondition (**bare** Postgres target; misuse, not a `supabase db dump` defect) |
+| **INFO-5** | the drill's 68 PHI-tier files noted as **PHI-by-bucket, from seed/E2E artifacts, not real patient data** — the 🔴 grades the mechanism as applied to production |
+| **INFO-1** | ⚠ **NOT taken — lead-owned.** `docs/plans/dm5-wave-d-retirement-plan.md:131` still contradicts PROGRESS on S4's status, and S6 will read the plan |
+
+## 6e · The verdict enumeration — every outcome of `verdictFor`, and whether anything has ever produced it
+
+Ruled into r2 rather than filed, on the grounds that **both r1 blocking items came
+from someone constructing a state nobody had constructed** — 2 for 2 for that
+method on this artifact.
+
+⛔ **First finding: the domain is NINE verdicts, not eight.** QA counted seven, the
+lead eight, I had not counted at all. Derived from the function body rather than by
+eye — `awk '/^function verdictFor/,/^}/' | grep -oE "'[A-Z_]+'" | sort -u` → 9.
+*A count nobody derived is not a bound*, and the whole point of an enumeration is
+that its denominator is real.
+
+**Second finding, from mapping references rather than reasoning:** eight of the nine
+were referenced by at least one control. `DIVERGED_BOTH_WAYS` had **exactly one
+reference in the entire file — its own `return` statement.** No control, no
+rehearsal arm, no assertion had ever produced it. It was **constructible in four
+lines**, so it was constructed, not filed.
+
+| # | verdict | clean? | construction | control |
+| --- | --- | --- | --- | --- |
+| 1 | `CONSISTENT` | ✅ clean | API and volume agree, keys > 0 | **R1, R2b, R7-twin** (e2e) · **C7** (direct) |
+| 2 | `CONSISTENT_EMPTY` | ✅ clean | both sides empty | **R1x** (e2e, post-delete re-capture) · **C15** (direct) |
+| 3 | `BUCKET_ABSENT` | ✅ clean | row gone, nothing on the volume | **R5** (e2e, verified teardown) · **C10** (direct) |
+| 4 | `ORPHANED_BYTES` | ⛔ dirty | volume key the API cannot see | **R2** (e2e) · **C6** (direct) |
+| 5 | `MISSING_BYTES` | ⛔ dirty | API key whose bytes are gone | **R7** (e2e — QA MAJOR-1) · **C14** (direct) |
+| 6 | `BUCKET_ABSENT_ORPHANED_BYTES` | ⛔ dirty | row gone, bytes survive | **C9** (direct); e2e via R3d's delete-path twin |
+| 7 | `UNVERIFIED_NO_LOCAL_PROOF` | ⛔ dirty | no proof obtainable | **R6-capture** (e2e, `docker` off `PATH`) |
+| 8 | `UNVERIFIED_PROOF_ERROR` | ⛔ dirty | the measurement **failed** | **C16** (direct only — see below) |
+| 9 | `DIVERGED_BOTH_WAYS` | ⛔ dirty | wrong in **both** directions at once | ✅ **NOW R8** (e2e) · **C18** (direct) — previously **nothing** |
+
+**R8 constructs #9 for real**, not synthetically: five objects uploaded through the
+Storage API, then one key's volume directory removed (⇒ the API lists a key with no
+bytes) **and** a ghost directory added (⇒ the volume holds a key with no metadata),
+simultaneously. Measured:
+
+```
+R8 … verdict=DIVERGED_BOTH_WAYS exit=1 api_keys=5 volume_keys=5
+      (counts EQUAL, sets disjoint) orphans=[ghostdiverge/x.bin] volume_missing="r1.bin"
+```
+
+⭐ **And constructing it produced a finding the verdict alone does not carry.**
+Removing one key and adding another leaves the **counts equal** — 5 API, 5 volume —
+while the sets are disjoint **in both directions**. So **any count-based check calls
+this state healthy**, including this tool's own `deleted === keyCount` comparison,
+which is *the only control that survives on Cloud* (R6b). Only a set comparison sees
+it. The equality is now asserted explicitly, so a later reader cannot mistake it for
+a coincidence of the fixture.
+
+**Proven able to fail, by neutralization:** with
+`if (onlyVolume.length && onlyApi.length) return 'DIVERGED_BOTH_WAYS'` disabled, the
+state falls through to `ORPHANED_BYTES` and **R8 reddens alone** (18/19); the tool
+file was restored byte-identically afterwards (sha256 compared). ⚠ Note what that
+mutation reveals: the **exit code stayed 1**, because `ORPHANED_BYTES` is also dirty.
+Only the **verdict-name** assertion discriminated. An arm asserting nothing but the
+exit code would have passed the mutation — which is the same lesson as `cap7`, one
+layer along.
+
+Both single-direction verdicts already had controls (#4, #5); this is the overlap,
+and it must be dirty because **a bucket wrong in both directions is not less broken
+than one wrong in one.**
+
+**Structural reasons, for the two that are pinned at the `verdictFor` grain only:**
+
+- **#8 `UNVERIFIED_PROOF_ERROR`** is reachable only when `volumeCensus`'s
+  `docker exec` **throws** for a bucket. Forcing that for one bucket while leaving
+  the others intact would mean stubbing `docker()` — and the rehearsal's whole
+  premise is that it drives the **real** code paths (it forces the no-proof branch
+  by removing `docker` from `PATH`, never by stubbing). So the *mapping* is pinned
+  and the *plumbing* from a genuine docker failure to that verdict is not. Recorded
+  as NOT COVERED item 15 rather than papered over.
+- **#6's end-to-end arm** exists on the delete path (R3d) rather than the capture
+  path, because constructing it for `capture` means dropping a bucket row while its
+  bytes survive — which R3d already does, and doing it twice in one rehearsal adds
+  teardown risk for no new information.
+
+⚠ **This enumeration is NOT a claim of completeness, and this sentence is here
+verbatim by instruction because it is the honest part:** *I make no claim the
+remaining unconstructed states are safe.* What the table bounds is one function's
+**return domain**. It says nothing about the state space *reaching* that function —
+`cmdDelete`'s `left` filter still examines only buckets with `files > 0` (NOT
+COVERED item 5), the `catch` arm of the delete classifier is still untested (item 4),
+and QA's own closing note applies unchanged: both blocking items came from building
+a state nobody had built.
+
 ## 7 · Doubts handed over, not just conclusions
 
 1. **Is the door's metadata-only absence check part of the NO-ANSWER class, or its
@@ -531,10 +795,14 @@ preference:** an unused binding is frequently a control someone wrote and forgot
    divergent bodies is its own failure mode. Both bodies say to merge downward if
    the lead prefers one item.
 3. **The 4th fix to `storage-manifest.mjs` was mine to judge, and I judged it.**
-   The lead ratified it afterwards. I still flag that four accumulated changes to
-   one operational tool in one slice is where a regression hides — which is why
-   `selftest` 13/13 and `rehearse` 16/16 are reported with "originals intact"
-   rather than only the new totals.
+   The lead ratified it afterwards. I still flag that accumulated changes to one
+   operational tool in one slice is where a regression hides — which is why
+   `selftest` and `rehearse` are always reported with "originals intact" rather
+   than only the new totals (now **18/18** with 13 originals intact, and **19/19**
+   with 16 originals intact). ⭐ **QA r1 vindicated the worry in the sharpest
+   possible way**: the accumulated changes were fine, but the *fix itself* left its
+   own sibling branch two lines below untouched. The regression risk was not in the
+   count of changes — it was in the **scope of the reasoning behind one of them.**
 4. **P2's 364 ms may not describe any real hospital.** I do not know the realistic
    documents-per-resource distribution, and I did not guess one. If the answer is
    "tens", this is a non-finding; if it is "thousands for a busy commission over 20

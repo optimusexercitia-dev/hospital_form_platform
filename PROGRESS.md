@@ -204,10 +204,38 @@
 >   in the state that needs it.** `.list('')` on a bucket whose **row is gone** returns
 >   `{data: [], error: null}` — so *"I could not ask"* and *"I asked and there is nothing"* were the
 >   same value, and the classifier printed the **reassuring** arm (no `DO NOT PROCEED`) **on the
->   destructive path** for a bucket it never interrogated. Per the lead: **that is the state all eight
->   retired buckets are in** — not a corner case. Found only because a control (R3d) was built for a
->   state nobody had observed. `rehearse` **16/16** (14 originals intact), `selftest` **13/13**.
-> - ⛔ **Drill finding — a restore can report SUCCESS and silently lose 67% of RLS.** Replaying
+>   destructive path** for a bucket it never interrogated. ⚠ **The "state all eight retired buckets are
+>   in" reason is WITHDRAWN — false in the present tense** (QA MINOR-6): measured, those eight hold **0
+>   bytes and no volume directory**; it was their state *historically* and is a **Cloud** retirement's
+>   state *by construction*. R3d's own reason above needs no frequency claim. Found only because a
+>   control was built for a state nobody had observed.
+> - ⛔ **QA r1 MAJOR-1 — the SIBLING of that fix, two lines below it in the same function, in the same
+>   commit, was the same defect with the nouns swapped.** `verdictFor`'s `!proof.present` branch read a
+>   missing volume **directory** as `CONSISTENT_EMPTY` — a **CLEAN** verdict — so `capture` printed
+>   **CAPTURE CLEAN, exit 0** over a bucket the API said held live files, and it was
+>   **non-monotonic**: partial byte loss dirty, **total** byte loss clean. That is a volume loss with
+>   the DB intact — **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**, the worse Rule-12 direction (metadata still
+>   advertises the PHI file as servable; the reconciler reads the same API and is equally blind).
+>   ✅ Fixed, red-first (**R7/R7-twin/C14/C15**, observed RED at `api_keys=5 volume_present=false exit=0
+>   verdict=CONSISTENT_EMPTY`). ⭐ **The guard-set diff QA asked for found a SECOND gap in the same
+>   branch:** a **failed** `docker exec` measurement also became `CONSISTENT_EMPTY` — now
+>   `UNVERIFIED_PROOF_ERROR` (**C16**). **A fix applied to one arm is a question asked of every sibling
+>   arm.** `rehearse` **18/18** (16 originals intact), `selftest` **17/17** (13 originals intact).
+> - ⛔ **QA r1 MAJOR-2 — the Cloud risk was framed backwards: not a MISSING proof but a FAKE one.**
+>   `locateVolume()` finds its container **by name via `docker ps`** and is never given the project
+>   URL, so a machine with `supabase start` up while the client points at Cloud would compute a
+>   byte-level proof **against the wrong project's bytes** — *no proof refuses visibly; a proof about
+>   the wrong bytes passes.* ✅ **Guarded in the tool** (refuses a non-local `NEXT_PUBLIC_SUPABASE_URL`
+>   while a local container runs; measured), placed in `locateVolume()` so **every** subcommand inherits
+>   it, both polarities pinned by **C17** — which makes the "LOCAL stack only" domain **enforceable
+>   rather than advisory**. Runbook §6 restated with **per-claim provenance**; the false
+>   *"neither can hold for a Cloud project"* sentence and the blanket *"measured, not inferred"* header
+>   are corrected — the Cloud consequence is labelled an **inference**, no remote contact was made.
+> - ⛔ **Drill finding — a restore ONTO A BARE POSTGRES can report SUCCESS and silently lose 67% of
+>   RLS.** ⚠ Precondition stated up front (QA INFO-4): this is a **misuse** of `supabase db dump`, not a
+>   defect in it — the supported target is a **Supabase-initialized** database, and pre-creating
+>   `auth`/`storage`/`extensions` + stub `auth.uid()`/`auth.role()` restores **full parity**. The
+>   transferable finding is the **false-signal pair**, not the dump. Replaying
 >   `supabase db dump` into a bare Postgres: `psql` **exit 0**, **490** true errors, **90 of 274
 >   policies** restored, 161 of 165 tables — a database that *looks* restored, missing two thirds of
 >   the security boundary. Confirmed by a 2nd measurement (pre-create 3 empty schemas + 2 stub fns ⇒
