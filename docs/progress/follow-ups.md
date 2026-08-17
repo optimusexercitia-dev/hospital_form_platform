@@ -771,6 +771,72 @@ simply delete the D18 filter from it**: if the function survives, the filter mus
 future route mounts an unfiltered projection. ⚠ Check for other same-name-different-module pairs in
 `src/lib/queries/` while there; this one was found by accident.
 
+### 🔴 FUP-DM5-SUPERSEDE-SERVING-COLLISION — marking superseded bytes for disposal makes the print UNSERVABLE; two ratified ADRs collide at one value (owner: **PO**, then backend)
+
+Filed 2026-08-17 (lead), **found by the Phase Gate, not by review**, after the D11 inflow was
+built, keystoned, red-proven and committed. `312` t38 — *"a revoked document still SERVES"* —
+died with `documento descartado`. The inflow was reverted (`5b40d62b`); this item is the
+decision that has to be made before it can be rebuilt.
+
+**Mechanism, catalog-read.** `app.resolve_document_version_bytes:72` refuses on
+`disposal_state <> 'none'` — **any** non-`none` state, not just `disposed`. So marking a
+superseded print `disposal_pending` means **the previous PDF stops opening the instant a
+document is re-issued.** ADR 0120 **D6/D8** rules the opposite: a print's states change what
+the overlay **stamps**, never its **reachability**.
+
+**⭐ The collision is exactly one value wide, and both sides are right.** Refusing to serve
+`disposal_pending` bytes is CORRECT for `subject_request` and `retention_expired` — a subject
+asked for erasure, so serving stops before the bytes are destroyed. It is WRONG for
+`superseded`, where an auditor must still be able to open what was previously issued. The
+whole disagreement lives at `disposal_reason_category = 'superseded'`.
+
+**The decision, stated so it can be taken:** either
+**(a)** widen `app.resolve_document_version_bytes` to pass `disposal_pending` bytes whose
+reason is `superseded` — a change to a **PHI byte-serving gate**, needing its own keystone and
+a diff-scoped door sweep; or
+**(b)** amend ADR 0121 D3/D5 so supersession does not mark bytes at supersession time (e.g.
+marking on retention expiry instead), leaving the serving gate untouched.
+⛔ **Not lead-decidable.** (a) widens a PHI serving gate; (b) reinterprets a PO-ratified
+decision. A narrowing can be wrong and stay safe; a widening cannot — which is why this
+reverted rather than patched.
+
+⚠ **What the D11 keystones did NOT catch, and this generalises.** `342`'s S3p block was
+mutation-proven in both directions and green throughout — because it asserted **the inflow**
+(bytes get marked) and never asked whether anything **downstream** still worked. The blast
+radius was one join away and no assertion in the slice looked there.
+[[a-predicate-quoted-at-the-wrong-grain]]: the check ran, it just was not checking the thing.
+**When a change writes a new value into an existing state column, sweep every READER of that
+column before believing the keystone.**
+
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — `ARM=census` cannot see a new DEFINER door that is not a boolean predicate (owner: lead + backend)
+
+Filed 2026-08-17 (lead) on measuring, rather than trusting, a green `ARM=census`.
+
+**The measurement.** `public.complete_evidence_upload_verification` (new,
+FUP-DM5-FINALIZE-ATOMIC, `prosecdef = t`) is **absent from
+`docs/reviews/authz-door-audit-findings.md`**, and `ARM=census` reported *"every live authz
+gate carries a verdict (no unswept newcomer)"* — 546 live / 570 verdicts — **and passed.**
+
+**Why.** The census's DEFINER clause is bounded by
+`t.typname = 'bool' or (p.proretset and has_function_privilege('authenticated', …))`. The new
+door returns **`jsonb`**, is not set-returning, and is service-role-only, so it is **outside
+the census domain entirely**. The *door sweep's* domain is wider — `complete_document_upload_verification`
+(also jsonb, also service-role-only) **is** in the findings, which is what makes this a gap
+rather than a definition. `mint_printed_document` is missing too, so this is a **population,
+not a one-off.**
+
+⚠ **The claim the arm prints is wider than the property it checks.** *"No unswept newcomer"*
+reads as a statement about authz gates; it is a statement about **boolean predicates**. Same
+family as [[enumeration-boundary-is-a-syntax-not-a-property]] and
+[[a-census-whose-parts-dont-sum-is-wrong]] — and note the 570 > 546 asymmetry means stale
+verdicts are tolerated while the *domain* is what is narrow.
+
+**Calibration — this is coverage, not a vulnerability.** The new door is service_role +
+postgres only (`341` J7 pins that, and pins the door it delegates to), so it is not part of
+the `authenticated` attack surface. **Fix:** widen the census's DEFINER clause to match the
+door sweep's domain, then re-run and expect **RED with a list** to triage — the same shape
+ADR 0079 Amendment 7 used when `ARM=wrapper`'s census domain was widened.
+
 ### 🟡 FUP-ACL-APP-POPULATION — ⭕ **RE-SCOPED 2026-08-17: the assertion is BUILT; the 237-function triage is what remains** (owner: backend + PO)
 
 > **✅ The blind spot is closed.** `320` block U (+4, plan 10 → 14) replaces the 8-name

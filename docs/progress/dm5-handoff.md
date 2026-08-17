@@ -794,25 +794,44 @@ machine before drawing any conclusion**, and check the count against the plan
 >    **reconciler**-orphans (metadata row, no `file_objects` row). That item is about **byte**-orphans
 >    (no metadata row at all) — invisible to every query run here. **S3 endpoint still UNPROBED.**
 >
-> ## ⛔⛔ OPEN OBLIGATION — ADR 0121 **D1 IS CURRENTLY VIOLATED IN-TREE**. READ FIRST.
+> ## ⬛ DISCHARGED 2026-08-17 — the D11 inflow was **REVERTED**, and for a SECOND reason
 >
-> **The D11 INFLOW SHIPPED WITHOUT THE OUTFLOW.** `20260928000300` now marks a superseded
-> print's bytes `disposal_pending / superseded`, and **`20260928000400`** gives `disposed`
-> its evidence contract — but **the D2 job that actually deletes bytes DOES NOT EXIST YET.**
+> _(Was: "⛔⛔ OPEN OBLIGATION — ADR 0121 D1 IS CURRENTLY VIOLATED IN-TREE". The choice it
+> posed — build the job or revert the inflow — was taken as **revert**, `5b40d62b`.)_
 >
-> ADR 0121 **D1** is explicit that these ship together *"or neither ships"*, for the exact
-> reason now live in the tree: an inflow with no outflow converts silent retention into a
-> **growing pile of `disposal_pending` rows nothing can clear**, while D11 reads as honoured.
-> The FUP's own words: *"Fixing D11 alone would make things look better and destroy nothing."*
+> The D1 violation is gone: the tree no longer carries an inflow with no outflow. But the
+> reason the revert happened is **not** the D1 argument, and it is the more important find.
 >
-> **Contained, for now, and only by circumstance** — nothing is pushed, `document_printing`
-> and every `documents_*` flag are OFF on the remote (measured), and the remote holds no data.
-> ⚠ That containment is **not** a design property and expires the moment either changes.
+> ⭐ **THE GATE CAUGHT WHAT REVIEW DID NOT: the inflow made every superseded print
+> UNSERVABLE.** `312` t38 — *"a revoked document still SERVES"* — died with `documento
+> descartado`. Mechanism, read from the catalog rather than inferred:
+> **`app.resolve_document_version_bytes:72` refuses on `disposal_state <> 'none'` — ANY
+> non-`none` state, not just `disposed`.** The inflow set `disposal_pending` at
+> supersession, so **from the moment a document was re-issued, its previous PDF stopped
+> opening.** That collides head-on with ADR 0120 **D6/D8**: a print's states change what the
+> overlay STAMPS, never its reachability.
 >
-> ⛔ **BLOCKING: `20260928000300` must NOT reach the remote before the D2 job exists.**
-> Either build the job (ADR 0121 D2, **PO-RATIFIED** — `pg_cron` → `pg_net` → HMAC-authenticated
-> route in the existing app, ADR 0099 D10 pattern) **or revert the inflow.** Do not push a
-> half-lifecycle.
+> ⚠ **Both sides are right, and they collide at exactly one value.** Refusing to serve
+> `disposal_pending` bytes is CORRECT for `subject_request` and `retention_expired` — a
+> subject asked for erasure, so you stop serving before the bytes are gone. It is WRONG for
+> `superseded`, where an auditor must still be able to open what was previously issued.
+> **The collision point is `disposal_reason_category = 'superseded'`, and nothing else.**
+>
+> ⛔ **THE OPEN PO DECISION (this replaces the old blocker).** Resolving it means either
+> (a) widening `app.resolve_document_version_bytes` — a **PHI byte-serving gate** — to pass
+> `disposal_pending` bytes whose reason is `superseded`, or (b) reinterpreting ADR 0121
+> D3/D5's ratified *"superseding marks bytes"*. Both are PO calls. ⭐ **Widening a PHI
+> serving gate is not a change to make unilaterally**, which is why this reverted rather
+> than patched: a narrowing can be wrong and safe, a widening cannot.
+>
+> ⚠ **Note what the D11 keystones did NOT catch.** `342`'s S3p block was red-proven both
+> ways and green — because it asserted the INFLOW (bytes get marked) and never asked
+> whether anything downstream still worked. The blast radius was one join away and no
+> assertion in the slice looked there. Same shape as
+> [[a-predicate-quoted-at-the-wrong-grain]]: the check ran, it just was not checking the
+> thing.
+>
+> **`20260928000400` (D4) is KEPT** — independently correct and purely additive.
 >
 > **Also owed on what already shipped:** a keystone for D4. Its behaviour is verified only by
 > a rolled-back **probe** recorded in the commit (`STATE=disposed
