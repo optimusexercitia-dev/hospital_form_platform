@@ -228,7 +228,7 @@ hold for a Cloud project, so **every** bucket verdicts
 project. The only route to exit 0 is `--allow-orphans`, and that flag **also
 silences genuine orphan verdicts**: it conflates *"I could not look"* with *"I
 looked and found something"*, so buying a green exit code buys blindness to the
-finding you actually care about (FUP-DM5-NO-ANSWER-VS-ANSWER-IS-NOTHING). **Read
+finding you actually care about (FUP-DM5-NO-ANSWER-VS-NOTHING). **Read
 `manifest.residuals` and the per-bucket verdict column. Never automate on the
 exit code or the "CAPTURE CLEAN" headline.**
 

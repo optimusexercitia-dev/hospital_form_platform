@@ -667,8 +667,9 @@ async function cmdDelete(argv) {
         // version of this classifier reported "PRE-EXISTING METADATA-LESS
         // ORPHANS … not a failure of this deletion" — the REASSURING arm — for a
         // bucket it could not interrogate at all. "I could not ask" and "I asked
-        // and there is nothing" are the same value here, which is the same
-        // conflation FUP-DM5-ALLOW-ORPHANS-CONFLATION describes one layer up.
+        // and there is nothing" are the same value here — the second instance of
+        // the class filed as FUP-DM5-NO-ANSWER-VS-NOTHING (the first being
+        // `--allow-orphans`, which mutes the same two facts one layer up).
         // So existence is established FIRST, with `getBucket`, which DOES error.
         if (!(await bucketExists(admin, b))) {
           indeterminate += 1

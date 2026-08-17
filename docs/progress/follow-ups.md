@@ -8,6 +8,120 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟠 FUP-DM5-NO-ANSWER-VS-NOTHING — `storage-manifest.mjs` does not consistently distinguish *"I could not look"* from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+
+Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as two bugs.** Two
+independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
+as two items each gets fixed once and the shape stays open; filed as a class it gets a design answer.
+
+**Instance 1 — `--allow-orphans` (unfixed, the remaining surface).** One flag mutes two different
+facts. On Cloud the local volume proof cannot exist, so every bucket verdicts
+`UNVERIFIED_NO_LOCAL_PROOF` and `capture` exits **1 on a perfectly healthy project**; the only route
+to exit 0 is `--allow-orphans`, which **also** silences genuine `ORPHANED_BYTES` verdicts. An operator
+who wants a usable exit code must buy blindness to the finding the tool exists to produce. Fixing it
+needs new operator-facing semantics (a distinct flag, or distinct exit codes for "unproven" vs
+"proven dirty") — deliberately **out of S5 scope**, which is why this is filed rather than patched.
+
+**Instance 2 — `.list('')` on an absent bucket (FIXED in `d2b19808`, kept here as evidence).**
+`admin.storage.from(b).list('')` on a bucket whose **row is gone** returns `{data: [], error: null}` —
+an empty list, **not** an error. So "the bucket does not exist" and "the bucket has no objects" were
+literally the same value, and `delete --execute`'s post-deletion classifier took the **reassuring**
+branch — *"PRE-EXISTING METADATA-LESS ORPHANS … not a failure of this deletion"*, with no
+`DO NOT PROCEED` — for a bucket it had never interrogated, **on the destructive path**. Now gated on
+`getBucket`, which does error, and pinned by rehearsal arm **R3d**.
+
+⭐ **How instance 2 was found is the part worth keeping.** Step 0 named the state *"bucket row absent
++ bytes present"* as never observed, with **no control anywhere in the tool**. It surfaced only
+because a control was built for a state nobody had seen — not by review, and not by any run of the
+existing 15 controls. And per the lead's ruling it is **not a corner case: it is the state all eight
+retired buckets are in**, and the state a Cloud retirement migration produces by construction.
+
+⚠ **An adjacent third instance, and I am NOT asserting it belongs to this class** — the lead should
+rule. `public.complete_document_disposal`'s absence check reads **`storage.objects`** (metadata), so
+`disposed` proves the metadata row is gone and **not** that the bytes are gone
+(`docs/deployment/phi-disposal-runbook.md` §4). That is arguably a different shape — *"the metadata
+view is not the substrate"* rather than *"no answer read as nothing"* — but the operator-visible
+consequence is identical: a reassuring state reached without the evidence its name implies. If the two
+are one class, the design answer should cover both; if not, the door's half needs its own item.
+
+### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
+
+Filed 2026-08-17 (backend, S5.D). Filed explicitly so it **cannot become settled by silence** — the
+current state of knowledge is *"we do not know"*, and that is not the same as *"there is none"*.
+
+⚠ **NOT A NEW QUESTION — a PROMOTION, and it must not be treated as a second copy.** The parenthetical
+*"(no customer-accessible tool may be able to SEE an orphan; S3-protocol endpoint UNPROBED)"* already
+lives inside **FUP-DM5-STORAGE-ORPHANS**' open **Cloud half**. It is promoted to its own id for one
+reason: buried in a parenthetical of an item whose headline reads *"closes empty by measurement"*, it
+is exactly the kind of obligation that gets discharged by association when the parent looks resolved.
+**Neither item is closed by closing the other**; FUP-DM5-STORAGE-ORPHANS keeps its local half and its
+`npm update`/dependency-source lesson, and this item owns the Cloud measurement. If the PO or a
+reviewer would rather keep one item, **merge downward into FUP-DM5-STORAGE-ORPHANS and delete this
+one** — do not leave both alive with divergent bodies.
+
+**What IS established** (measured, local, S5.R): every byte-side control in `storage-manifest.mjs`
+depends on `locateVolume()`, whose preconditions are `STORAGE_BACKEND=file` **plus** a
+`supabase_storage` Docker container on the operator's own machine. Neither can hold for a Cloud
+project. With the proof forced unavailable, an under-count `delete --execute` exits **0 while a real
+file survives** (arm R6); the over-count refusal survives, being API-only (R6b). So **two of ADR 0120
+D9's four controls do not survive the loss of local proof, and both lost ones are the byte-side ones.**
+
+**What is NOT established, and must not be inferred:** that Cloud therefore has *no* way to see an
+orphan. That step is exactly the reasoning D17's remote half got wrong — "same mechanism class" is
+not evidence (see [[a-remote-reset-orphaning-storage-was-a-CLI-VERSION-window]]). The bridge we do
+have is the absence of a precondition readable in the source, which bounds **this tool**, not the
+platform.
+
+**The specific measurement that would settle it:** Supabase Cloud exposes an **S3-compatible
+endpoint** for Storage (`https://<ref>.supabase.co/storage/v1/s3`, with S3 access keys issued from the
+dashboard). An S3 `ListObjectsV2` enumerates the *backing store* rather than `storage.objects`, so **if
+it lists an object whose metadata row is gone, Cloud has an orphan-visible surface and D9's byte-side
+controls are recoverable there**; if it lists from the same metadata, it does not and the byte half is
+structurally unverifiable on Cloud. **It has not been probed** — probing it needs (a) PO
+authorization to touch the linked project, and (b) an orphan to look for, which means deliberately
+manufacturing one on Cloud, which is its own decision. Secondary, cheaper probes worth the same run:
+whether the dashboard's Storage explorer reads metadata or the store, and whether
+`supabase storage ls --linked --experimental` differs from a `storage.objects` query.
+
+⚠ Until this is settled the deploy runbook must treat the Cloud byte half as **asserted, not
+verified**, and say so in the disposal record — which
+`docs/deployment/phi-disposal-runbook.md` §§4, 6 now does.
+
+### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** (owner: PO decision, then backend)
+
+Filed 2026-08-17 (backend, S5.D), recording the **PO's deliberate deferral** rather than an
+undiscovered defect: at S5.D authorization the PO ruled *document the gap, do NOT build the job* — no
+`pg_cron`, no scheduled sweep, no second execution context with service-role reach. This item is where
+that deferral lives so S6/QA cannot close over it silently.
+
+**Measured, live catalog:** `request_document_disposition`, `dispose_case_phi` and
+`dispose_referral_phi` all write `disposal_state = 'disposal_pending'`. `complete_document_disposal`
+is the only door that can write `disposed`, its EXECUTE is granted to `postgres`/`service_role` only
+(never `authenticated` — it was **built** expecting an operational caller), and it has **exactly one
+caller in the repository**: `src/lib/documents/actions.ts:377`, inside `reclassifyDocument` — an
+unrelated copy-then-retire lane. Nothing on the disposition path reaches it. `pg_cron` is not
+installed, the `cron` schema does not exist, there is no `.github/workflows/`, and the Dockerfile runs
+a single process with no scheduler.
+
+**Mitigation shipped instead of a job:** `docs/deployment/phi-disposal-runbook.md` (manual procedure +
+reconciliation), whose **owner and periodicity are still PROPOSED and owed by the PO** — until those
+are named, the procedure exists but the mitigation does not. The gap is pinned executably on both
+sides so it cannot rot: `supabase/tests/343_dm5_s5_disposal_gap.sql` (catalog) and
+`src/lib/documents/disposal-gap.test.ts` (TS, where the job would most plausibly be built and where
+pgTAP is blind). Both were observed RED against real mutations before being trusted green.
+
+⭐ **Composition with FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES, which is the other half of the same
+lifecycle and must not be resolved in isolation.** D11's gap is that nothing ever *marks* superseded
+bytes for disposal (no inflow); this gap is that nothing ever *completes* a marking (no outflow).
+**Fixing D11 alone would make things look better and destroy nothing** — it would convert silent
+retention into a growing pile of `disposal_pending` rows that no code path can clear, while the D11
+claim reads as honoured. Whichever is scheduled first, the other must be named in the same decision.
+
+⚠ Also note the reconciler interaction: `scripts/document-reconciliation.mjs` classifies
+`disposal_pending` as permanently `indeterminate` — *never* drift — on the stated assumption that "the
+completion door is its owner". That assumption was false until the runbook existed, and it is only as
+true as the runbook is actually executed.
+
 ### 🟡 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — a mutation-audit arm has been silently erroring since DM1, and its no-op guard FAILS OPEN (owner: backend)
 
 Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-3. **Pre-existing — NOT S4's doing**, and
