@@ -204,6 +204,44 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >    eight retired buckets (QA r1 MINOR-5) and they hold 0 bytes. ⚠ Until S5.R runs, this
 >    paragraph stands unchanged: **naming an owner is not a rehearsal.**
 >
+>    ✅ **S5.R HAS RUN — 2026-08-17, `e5a1418e`, 14 controls green** against a purpose-made bucket
+>    populated **through the Storage API so metadata rows exist**. The local rehearsal passes. ⛔ **But
+>    it produced a finding that bears directly on D9's assurance ON CLOUD, and D9 should not be read as
+>    rehearsed there.**
+>
+>    ⛔⛔ **THE UNDER-COUNT CLASS IS NOT CAUGHT BY THE COUNT COMPARISON.** A manifest listing 4 of the
+>    5 keys actually present yields `deleted=4 manifest=4 MATCH` — **the comparison passes** — and only
+>    the **local volume proof** turns it into a failure. Proven single-variable: with the volume proof
+>    the run exits 1 on surviving bytes (R3b); with that proof unavailable the identical scenario exits
+>    **0**, reports *"ALL BUCKETS MATCHED THEIR MANIFEST COUNT"*, and a real file survives (R6). The
+>    **over**-count refusal transfers intact (R6b) — this is not "nothing works remotely".
+>
+>    **Of D9's four controls, two do not survive the loss of local proof, and both lost ones are the
+>    byte-side ones:** a manufactured extra orphan is **not** found (it depends entirely on the volume
+>    walk); a count mismatch is refused only in the **over**-count direction. "Re-capture reads empty"
+>    degrades to ***metadata*-empty** — which is the exact assurance D9 exists because we could not
+>    trust. The retirement guard still refuses, but it counts **metadata rows**, so it is blind to
+>    orphaned bytes by construction.
+>
+>    ⚠ **Strength of inference, stated because it is as much the artifact as the finding.** This is a
+>    property of the **tool's code**, established by forcing its **already-existing** no-local-proof
+>    branch (the branch predates the change — lead-verified). The bridge to Cloud is *the absence of a
+>    precondition readable in the source*: `locateVolume()` requires a `supabase_storage` container
+>    plus `STORAGE_BACKEND=file`, neither of which can hold for a Cloud project. **That is weaker than
+>    a Cloud measurement and is not dressed up as one.** Nothing remote was touched. **Unsettled:**
+>    whether Cloud exposes any *other* orphan-visible surface — the **S3 endpoint is UNPROBED**, and
+>    probing it is the one measurement that could change this verdict.
+>
+>    **Consequence for this decision, and it is an S6 / deploy-runbook input, not a slice detail:**
+>    D9's *ordering* stands — bytes first, then the row. What is newly known is that D9's
+>    **verification** is materially weaker on Cloud than the local rehearsal demonstrates, so a Cloud
+>    run **must not gate on the count comparison alone**, and `capture`'s exit code is unusable there
+>    as a gate (every bucket verdicts `UNVERIFIED_NO_LOCAL_PROOF` ⇒ exit 1; the only route to exit 0 is
+>    `--allow-orphans`, which also silences genuine orphan verdicts). ⚠ **Whether D9 needs a formal
+>    amendment — a Cloud-specific verification step, or an explicit ratification that the under-count
+>    class is accepted as unverified — is a PO decision at S6. It is recorded here, unresolved, rather
+>    than resolved silently in a runbook.** Full record: `docs/progress/dm5-s5-operational-closure.md`.
+>
 > The bucket ROWS and their policies were retired by migration `20260927000400`, which deletes
 > **zero bytes** by design and **refuses** to retire a bucket still holding `storage.objects`
 > rows — D9's ordering encoded executably rather than as prose. Detail:
