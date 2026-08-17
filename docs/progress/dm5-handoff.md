@@ -758,7 +758,7 @@ session; `e2e:prod` runs after them.**
 
 | | state |
 | --- | --- |
-| HEAD | `main`, tree clean. ⛔ **96+ commits ahead of `origin/main` — NOTHING PUSHED, no `db push`, remote never touched by DM1–DM5** |
+| HEAD | `main`, tree clean. ⛔⛔ **THIS ROW WAS FALSE IN BOTH HALVES — CORRECTED 2026-08-17, MEASURED.** It read *"96+ commits ahead of `origin/main` — NOTHING PUSHED, no `db push`, remote never touched by DM1–DM5"*. **Git: pushed** — `origin/main` is `23b1d9cf`, itself a DM5·S5 commit; HEAD was **11** ahead, not 96+. **`db push`: also done** — `supabase migration list --linked` shows the remote carrying every migration through **`20260927000360`**, i.e. **DM1–DM5·S3 are LIVE ON THE REMOTE**. Only **two** migrations are local-only: S4's bucket retirement `20260927000400` and the recusal fix `20260928000100`. ⚠ **Nothing may rely on the old claim.** Three consequences: (1) **applied migrations may not be edited in place** — that is the drift that blocks `db push` (see FUP-DM5-SETLOCAL-MIGRATION, re-scoped); (2) **S4's retirement never reached the remote**, so ADR 0120 **D9**'s "delete bytes by manifest FIRST" ordering is still owed against a **live remote**, and FUP-DM5-CLOUD-ORPHAN-SURFACE is no longer theoretical; (3) every follow-up resting on *"the flags ship OFF so the path is unreachable in production"* now depends on the **remote** flag state, **which no one has measured** |
 | S4 | ✅ CLOSED, all five gate steps, PO-approved (`f06ebea5`) |
 | S5 | ✅ BUILT + QA **APPROVED r2** · **step 1 ✅ · step 2 ⏸ PO-DEFERRED · step 3 ✅ · step 4 owed** |
 | S6 | ⬜ not started |

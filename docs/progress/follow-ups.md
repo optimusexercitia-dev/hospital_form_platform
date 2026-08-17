@@ -449,6 +449,50 @@ one "should" capture first** — that is the failure mode this phase has now pai
 > ⭐ *A probe answers the question at the grain you took it; "the guard refuses" and "the guard refuses
 > **at apply time**" are different claims.* → [[a-predicate-quoted-at-the-wrong-grain]]
 
+> ## ⛔ RE-SCOPED 2026-08-17 — THREE different enumerations, and the REMEDY IS BLOCKED
+>
+> **The count, measured three ways, giving three answers:**
+> | method | answer |
+> | --- | --- |
+> | this item, as filed (one specimen someone noticed) | **1** migration |
+> | `grep -l 'set local' supabase/migrations/` (bounded by a SYNTAX) | **11** migrations |
+> | ⭐ **the reset's own `25P01` warnings** (bounded by the BEHAVIOUR) | **4 migrations, 6 sites** |
+>
+> Only the third is the defect set. The other seven `set local` uses are already inside a
+> `do $$` block or an explicit transaction and never warn. Sites, triaged — **they do not
+> share a severity**, which the single-specimen framing hid:
+> - 🔵 `20260710000000_nsp_per_hospital:40` — `check_function_bodies = false`. **Benign**: a
+>   no-op here makes `CREATE FUNCTION` fail **loudly**, and it is a validation setting, not a
+>   security bypass.
+> - 🟠 `20260711000200_answers_form_fk:68,73` · 🟠 `20260925000300_dm3_domain_core_binding:100,118`
+>   — **the dangerous class**: a GUC that bypasses an immutability guard, wrapped around a
+>   **data-dependent backfill**. On a fresh local reset the backfill matches **0 rows**, so the
+>   guard never fires and the no-op is invisible; on a data-bearing target it is not.
+>   Exactly [[backfill-guard-wrap-data-dependent-migration]].
+> - 🟠 `20260921000300_retire_meeting_attachments_bucket:58` — the originally-filed site.
+>
+> ### ⛔⛔ AND THE IN-PLACE FIX IS NOT AVAILABLE: all four are APPLIED ON THE REMOTE
+> Measured with `supabase migration list --linked`: the remote carries every migration through
+> **`20260927000360`**, i.e. **DM1–DM5·S3 have been pushed**. Only **two** are local-only
+> (S4's `…000400` and the recusal fix `20260928000100`). Editing applied history creates the
+> drift that blocks `db push` — *restore, don't repair*.
+>
+> ⚠ **This contradicts `dm5-handoff.md` §13.1, which states "NOTHING PUSHED, no `db push`, no
+> remote reset … remote never touched by DM1–DM5". BOTH halves of that sentence are false** —
+> `origin/main` is also a DM5·S5 commit. **Nothing downstream may rely on either claim.**
+>
+> **Past state is fine and this is not an incident:** all four applied successfully, and
+> `answers_form_fk`'s following `alter column … set not null` would have failed had its backfill
+> silently skipped rows. The residual risk is **future invocations**, so the remaining remedy is
+> the **lint gate** below — a gate change, and therefore a PO decision, not a mid-batch edit.
+>
+> ⚠ **Two consequences that outrank this item.** S4's bucket retirement (`…000400`) has **never
+> reached the remote**, so ADR 0120 **D9**'s binding "delete bytes by manifest FIRST" ordering is
+> still owed against a **live remote** — and `FUP-DM5-CLOUD-ORPHAN-SURFACE` stops being
+> theoretical. And every follow-up resting on *"the flags ship OFF so the path is unreachable in
+> production"* now depends on the **remote** flag state, which **no one in this record has
+> measured**.
+
 Filed 2026-08-16 (lead) from a live near-miss in DM5·S4. `supabase db reset` **as invoked by
 `scripts/e2e-prod-gate.sh`** emitted `WARNING (25P01): SET LOCAL can only be used in transaction blocks`
 against `20260927000400`, whose destructive `delete from storage.buckets` is gated on
