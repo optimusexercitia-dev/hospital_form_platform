@@ -228,9 +228,44 @@ CLI `ls -r` → `printed-documents` **0**, `controlled-documents` **0**; and `st
 only bucket with rows anywhere is `form-assets` (**38**). ⇒ **all EIGHT S4 retirement buckets are
 empty**, so the Block-1 data guard now passes and `20260927000400` can be pushed.
 
-**Still open, deliberately not swept up:** `form-assets` holds **38** objects against **0**
-commissions — equally stranded, but a RETAINED bucket (ADR 0114 D13), outside the document model,
-and not blocking anything. Deleting it was not authorized by scope and is a separate decision.
+**`form-assets` — ✅ ALSO CLEARED, PO-authorized separately.** It held **38** objects against **0**
+commissions: equally stranded, but a RETAINED bucket (ADR 0114 D13) outside the document model and
+blocking nothing, so it was deliberately left out of the first pass and raised as its own decision.
+The PO then authorized it. Remote storage is now **12 buckets / 0 objects** total.
+
+### ⛔ INCIDENT — `supabase storage rm -r ss:///<bucket>` DELETES THE BUCKET, not just its contents
+
+Hit live on the remote, 2026-08-17, clearing `form-assets`. The flag reads
+`--recursive, -r  Recursively remove a directory`, and the object paths are `{org}/{file}`, so `-r` on
+the bucket root is the natural way to say *"remove everything inside"*. It is not. The output ends:
+
+```
+Deleting objects: [ …38 paths… ]
+Deleting bucket: form-assets          ← NOT asked for
+Successfully deleted
+```
+
+**Blast radius, measured rather than assumed:** the `storage.buckets` row was gone (12 → 11); the RLS
+policies `form_assets_insert_staff_admin` / `form_assets_select_member` **survived**, because they live
+on `storage.objects` and are not tied to the bucket row. So the failure mode is a bucket that no longer
+exists while every policy still references it — uploads would fail at runtime with nothing in
+`pg_policies` looking wrong.
+
+**Restored** from the authoritative definition — `20260620000000_baseline.sql:24962`, cross-checked
+against the live LOCAL row, which agrees exactly: `public=false`, `file_size_limit=5242880`,
+`allowed_mime_types={image/png,image/jpeg,image/webp,image/gif}`. Verified after: 12 buckets, 0 objects,
+`form-assets` present. ⚠ The pre-deletion REMOTE row was never captured, so the restore is to the
+**migration's intent**, not to a measured prior state — if the remote had drifted, that drift is gone.
+*Capture the row before deleting anything that owns rows.*
+
+⚠ **Binding on the ADR 0120 D9 byte-deletion runbook**, which sends an operator to do exactly this
+against a live project: **delete by explicit object path, never `-r` on a bucket root.** The project's
+own `scripts/storage-manifest.mjs delete --execute` is safe here — it calls `remove()` with an explicit
+path list — which is another reason to prefer it over ad-hoc CLI.
+
+⭐ The same shape as the confirmation-prompt miss two steps earlier: **the tool did what it was told,
+not what was meant, and reported "Successfully deleted" either way.** Read what a destructive command
+*enumerated*, not just its exit line.
 
 ⭐ **A cheap CLOUD-ORPHAN-SURFACE sub-probe fell out of this for free.** That item names
 *"whether `supabase storage ls --linked --experimental` differs from a `storage.objects` query"* as a
