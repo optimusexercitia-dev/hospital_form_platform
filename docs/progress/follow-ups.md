@@ -380,9 +380,39 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 >   to rule on a state that no longer existed. ⭐ **A decision brief must carry a measurement taken at
 >   decision time, not the one that motivated the question.**
 >
-> - **This item stays OPEN**, and its centre of gravity has moved: the remaining question was never the
->   local bytes, it is that **on Cloud there may be no customer-accessible tool that can SEE an orphan**
->   (the S3-protocol endpoint is still UNPROBED). See also the new **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**.
+> #### ✅ RE-PUT AND RULED 2026-08-17 — this time on a measurement taken AT decision time
+>
+> B1 required the question be re-put to the PO. It was, carrying a **fresh** measurement rather than the
+> one that motivated it — the discipline this entry's own ⭐ demands, applied to itself. Measured on a
+> freshly-rebooted stack immediately after a clean `db reset`, minutes before asking:
+>
+> | scope | files | bytes |
+> | --- | --- | --- |
+> | the **8 retired** buckets | **0** | 0 |
+> | the **4 surviving** buckets (`documents-standard`/`-phi`, `form-assets`, `meeting-audio`) | **166** | 2,970,290 |
+>
+> **PO ruling: the local volume is RATIFIED as non-durable, disposable test residue.** No cleanup step,
+> no gate, no local manifest discipline. The two rejected options are recorded because they were live:
+> clearing the volume as part of `db reset` (declined — it changes shared tooling every session depends
+> on, and destroys evidence a future incident may need), and holding the 166 to full manifest discipline
+> (declined — right discipline, wrong scope).
+>
+> ⭐ **What the fresh measurement changed about the question.** The 166 are **not** retirement residue.
+> They are ordinary E2E/print artifacts that **the reset orphaned as it ran** — so local orphan
+> accumulation is not an S4 artifact at all, it is a **standing byproduct of `db reset` on any stack that
+> has written bytes**. That is D17's correcting insight, no longer an argument but a measurement. Had the
+> question been re-put on the old 221-file framing, the PO would have ruled a second time on a state that
+> no longer existed — the exact failure B1 was filed for.
+>
+> **What this closes:** the *retirement-scope* orphan question — and it closes **EMPTY BY MEASUREMENT**,
+> zero bytes in all eight retired buckets. Not by disposal, not by argument, and not by the destruction
+> of 2026-08-17 `01:06:02Z`, which remains an unevidenced disposal and is charged to
+> **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**, not discharged here.
+>
+> - **This item stays OPEN on its Cloud half ONLY**, and its centre of gravity has moved: the remaining
+>   question was never the local bytes, it is that **on Cloud there may be no customer-accessible tool
+>   that can SEE an orphan** (the S3-protocol endpoint is still UNPROBED). See also
+>   **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**.
 > - ⚠ **`delete --execute` has still never run against a populated bucket.** Its correctness rests on S0's
 >   8/8 self-test, not on an S4 execution — so **the production sequence remains unrehearsed end-to-end**,
 >   even though production is where it is actually meaningful (it has metadata rows: 45 objects at the

@@ -66,6 +66,30 @@ meaningful **there** because production *has* metadata rows (census 2026-08-11: 
 >    carried forward for three hours. The whole of this phase's discipline is "don't inherit claims" —
 >    and the claim I failed to re-check was **my own**, which is the one that never looks like an
 >    inheritance.
+>
+> #### ✅ RE-PUT AND RULED 2026-08-17 — B1's remaining requirement, discharged
+>
+> Point 2 above named the failure; this is it corrected in practice. The question was re-put to the PO
+> **after** re-measuring, on a freshly-rebooted stack following a clean `db reset`:
+>
+> | scope | files | bytes |
+> | --- | --- | --- |
+> | the **8 retired** buckets | **0** | 0 |
+> | the **4 surviving** buckets | **166** | 2,970,290 |
+>
+> **PO ruling: the local volume is ratified as non-durable, disposable test residue** — no cleanup step,
+> no gate, no local manifest discipline. Two live alternatives were declined: clearing the volume inside
+> `db reset` (changes shared tooling every session depends on, and destroys evidence a future incident
+> may need) and applying full manifest discipline to the 166 (right discipline, wrong scope).
+>
+> ⭐ **And re-measuring did not merely refresh the numbers — it changed the question.** The 166 are not
+> retirement residue; they are ordinary E2E/print artifacts that **the reset orphaned as it ran**. Local
+> orphan accumulation is therefore a **standing byproduct of `db reset` on any stack that has written
+> bytes**, not an S4 artifact — D17's correcting insight, now measured rather than argued. Had I re-put
+> the question on the 221-file framing, the PO would have ruled a *second* time on a state that no
+> longer existed. **The retirement-scope orphan question closes empty by measurement**; the `01:06:02Z`
+> destruction stays charged to FUP-DM5-STACK-CYCLE-DESTROYS-BYTES, undischarged, and the deploy-time
+> byte path remains **UNREHEARSED**.
 
 ### Gate step 1
 

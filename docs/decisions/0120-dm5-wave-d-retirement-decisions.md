@@ -218,6 +218,21 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 > **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** — and it is a live question for the Cloud deploy, where
 > `npm run db:reset:linked` exists and a 20-yr LGPD/ANVISA retention posture makes *"bytes vanished
 > and we cannot say which or when"* a compliance statement rather than a tidiness one.
+>
+> ✅ **RULED 2026-08-17 (later the same day), on a measurement taken at decision time.** The orphan
+> question was re-put to the PO as QA r1's B1 required. Re-measured first, on a freshly-rebooted stack
+> after a clean `db reset`: **0 files in all eight retired buckets**; **166 files / 2,970,290 B in the
+> four survivors**. **The PO ratified the local volume as non-durable, disposable test residue** — no
+> cleanup step, no gate, no local manifest discipline. The retirement-scope orphan question therefore
+> closes **empty by measurement**, not by disposal and not by the `01:06:02Z` destruction, which stays
+> charged to FUP-DM5-STACK-CYCLE-DESTROYS-BYTES.
+>
+> ⭐ **The re-measurement changed the question, which is the whole point of B1.** The 166 survivors are
+> not retirement residue — they are ordinary E2E/print artifacts that **the reset orphaned as it ran**.
+> So local orphan accumulation is not an S4 artifact but a **standing byproduct of `db reset` on any
+> stack that has written bytes**. Re-putting the question on the original 221-file framing would have
+> had the PO rule a second time on a state that no longer existed — the precise failure B1 was filed
+> for. **None of this relieves the paragraph above: the deploy-time byte path remains UNREHEARSED.**
 
 **D10 — `documents_wave_d` joins the MIN flag pattern at the FIRST residue-producing step.**
 Home/arm-scoped, never blanket — a blanket assert satisfies the new keystone while silently
