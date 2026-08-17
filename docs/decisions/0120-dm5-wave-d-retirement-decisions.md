@@ -585,5 +585,8 @@ an unverified completion would be the same error twice.
 - **FUP-DM4-RECUSAL** remains open with the `documents_wave_c` flag-on date as its deadline;
   DM5 does not close it and must not be read as closing it.
 - ADR 0114 **O1** (retention values) and **O2** (scanner selection + the `unscanned_accepted`
-  expiry condition) stay with the PO. S4 names the operational owner and mechanism; it does not
-  invent the values.
+  expiry condition) stay with the PO. **S5** names the operational owner and mechanism; it does not
+  invent the values. ⚠ **Corrected 2026-08-17: this line said "S4".** S4 has now closed (all five
+  gate steps) **without** naming either, and the plan has always scoped operational closure to
+  **S5** — so the assignment here was pointing at a slice that was never going to do it. *A
+  deliverable assigned to the wrong slice disappears when that slice closes cleanly.*
