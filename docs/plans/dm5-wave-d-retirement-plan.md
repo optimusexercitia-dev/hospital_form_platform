@@ -128,7 +128,15 @@ bucket rows (verified live 2026-08-14) — fix those fixtures here, before S4 ca
 
 </details>
 
-### S4 — retirement execution (backend) — needs S2 + S3, and **PO authorization on the day**
+### S4 — retirement execution (backend) — ✅ **RAN 2026-08-16/17; steps 1 ✅ · 2 ⛔ UNESTABLISHED · 3 r1 ⛔ (fixed, r2 owed) · 4 owed**
+
+> ✅ **STATUS 2026-08-17 — this section is now a PLAN RECORD, not a brief.** PO authorized on the day;
+> migration `20260927000400` retired the 8 bucket rows + the last 4 policies. ⛔ **The byte half was a
+> NO-OP** — every retirement byte was already a metadata-less orphan, so the D9 gate could not address
+> one and `delete --execute` never ran; **the deploy-time sequence remains UNREHEARSED.** The fresh
+> `capture` + `walk` this section demanded **were** run (they returned the `DEGENERATE BASELINE`
+> verdict, which is the finding). ⚠ The 221 orphans were then destroyed **outside the gate** by a stack
+> recovery. **Current state + resume recipe: [dm5-handoff.md](../progress/dm5-handoff.md) §11–§12.**
 
 > ⛔ **IRREVERSIBLE. Do not start before S3 has an `APPROVED`** — S4 removes the buckets S3's corridor was
 > proven against. Authorization gate, binding ordering, and the **corrected** remote premise (the CLI's

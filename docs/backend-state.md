@@ -93,8 +93,12 @@
 >   `or`** — so no callee could supply the check. D12's conjunction closes it, which is why "strict
 >   narrowing" is load-bearing rather than decorative.
 > - Prints no longer write to **`printed-documents`**; ✅ **that bucket's row and doors were RETIRED by
->   S4** (`…000400`) — see the DM5·S4 block above. Its 87 remaining volume files are pre-existing
->   orphans with no metadata row, unreachable by the Storage API (FUP-DM5-STORAGE-ORPHANS).
+>   S4** (`…000400`) — see the DM5·S4 block above. ⛔ **CORRECTED 2026-08-17:** this line said "its 87
+>   remaining volume files are pre-existing orphans". They are **gone** — all 221 retirement-bucket
+>   files were destroyed by a `supabase stop`/`start` stack recovery at `01:06:02Z`, **outside the D9
+>   gate, with no manifest and no audit** (FUP-DM5-STACK-CYCLE-DESTROYS-BYTES). `walk` now reports
+>   *"(no directory on the volume)"* for all eight. FUP-DM5-STORAGE-ORPHANS stays open on its **Cloud**
+>   half.
 >
 > ### DM5·S2 — NSP RCA/CAPA evidence (`…000100`–`000170`, 8 migrations)
 >

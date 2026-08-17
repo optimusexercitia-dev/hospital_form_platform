@@ -81,7 +81,19 @@ floor allowlisted · `FROMFINDINGS=1` wrapper BLIND **41** ⊆ allowlist · dege
 domain is empty. *A dropped policy has no gate to open.* (S3 recorded the same distinction; per its
 precedent, "not applicable" must never be written up as "clean".)
 
-### ✅ Gate step 2 — `e2e:prod` **GATE GREEN**
+### ⛔ Gate step 2 — `e2e:prod` — **UNESTABLISHED (superseded 2026-08-17). This section used to read "✅ GATE GREEN".**
+
+> ⛔⛔ **THE 1118 FIGURE BELOW IS SUPERSEDED AND MUST NOT BE QUOTED.** It was measured **before** QA
+> found B2 and before the R15 fix (`140ffd8c`) changed that spec — so it counted a **vacuous security
+> pin** among its passes. **Four gate attempts since produced no usable figure, and not one of them
+> produced a single assertion failure:** resource exhaustion (`0xC0000142`, workers never initialised),
+> then two runs invalidated by a **concurrent gate process the lead failed to reap**, then an
+> unexplained abrupt exit. Full table + the resume recipe: **[dm5-handoff.md](./dm5-handoff.md) §12**.
+>
+> ⚠ **Left in place, struck rather than deleted, deliberately.** The reconciliation method below is
+> still correct and worth reusing; only the *numbers* are dead. And the defect worth remembering is
+> structural: this heading said **GATE GREEN** while the same phase's records said "do not quote 1118"
+> — the S2 reopen-banner defect repeating, *in the file that documents the S2 reopen-banner defect.*
 
 **1118 passed · 0 failed · 0 infra · 5 flaky · 0 did-not-run · 18 batches**, `next build` compiled,
 2 infra re-runs. Gotenberg verified **200** on :3010 before the run — without it 15 print specs fail

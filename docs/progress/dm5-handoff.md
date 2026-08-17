@@ -561,8 +561,10 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 > door-less). pgTAP **`325` 5 → 8**, red-first against the real pre-migration catalog. Gate: registry
 > **407 == 407** · pgTAP **193f/6351** · tsc 0 · lint 5/5 · vitest 1294 · four arms **HOLD**
 > (census **546**/570, unchanged) · `ARM=policy` **not applicable** (the diff only *drops* policies) ·
-> `e2e:prod` **1118p / 0f / 0 did-not-run / 5 flaky / 18 batches**, reconciling to S3's 1129 collected
-> exactly. **`pdf-printing` 9/9 + `pdf-printing-meetings` 6/6 with `printed-documents` deleted.**
+> ~~`e2e:prod` **1118p / 0f / 0 did-not-run / 5 flaky / 18 batches**~~ ⛔ **SUPERSEDED — see §12. That
+> run PREDATES the R15 fix and counted a vacuous pin among its passes; four attempts since produced no
+> usable figure. Do not quote it.** (`pdf-printing` 9/9 + `pdf-printing-meetings` 6/6 with
+> `printed-documents` deleted was real at that HEAD, but is likewise unre-measured since.)
 >
 > ⛔ **THE BYTE HALF WAS A NO-OP — and this is the single most important line in the section.** The
 > stack was already in the degenerate post-reset state this file's own §11 warned about: **0
