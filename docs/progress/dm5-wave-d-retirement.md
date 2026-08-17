@@ -78,8 +78,13 @@ meaningful **there** because production *has* metadata rows (census 2026-08-11: 
 > | the **4 surviving** buckets | **166** *(at 03:45Z — see below)* | 2,970,290 |
 >
 > ⛔ **The survivor row is a timestamped observation, not a count, and it went stale within the session**
-> (QA r2 INFO-5): **245 files / 4,394,074 B** after the gate, and 245 / 4,402,266 B half an hour later
-> with nothing deliberately writing. ⭐ **Which is exactly why the PO ratified a CLASS, not a number** —
+> (QA r2 INFO-5): **245 files / 4,394,074 B** after the gate. ⛔ **A second claim here — that it "moved
+> again half an hour later with nothing writing" — was WRONG (QA r3 MINOR-11):** that was
+> `du -sb /mnt` vs `du -sb /mnt/stub/stub`, two 4 KiB wrapper inodes apart, **a scope difference read as
+> a time series** ([[a-predicate-quoted-at-the-wrong-grain]]). Both figures reproduce simultaneously.
+> **State the method beside any byte figure** — `du -sb` (allocated) and `stat -c %s` (apparent) differ
+> by 1.94 MB here. The real, measured drift is **166 → 245 across the gate**, and it is enough:
+> ⭐ **which is exactly why the PO ratified a CLASS, not a number** —
 > every gate run writes bytes and every reset orphans them. The retired buckets' **0** is the durable
 > half; nothing writes to a bucket that does not exist. **Quote the mechanism, never refresh the figure.**
 >

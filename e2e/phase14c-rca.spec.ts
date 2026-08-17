@@ -716,10 +716,13 @@ test('R14: non-team non-PQS user (chefe.farm, no observer membership) gets 0 row
 //
 // `storage.protect_delete()` (body read from `pg_proc`) tests exactly one
 // thing and is entirely ROLE-AGNOSTIC — whether
-// `storage.allow_delete_query = 'true'`. ⭐ Its own HINT reads "Use the
-// Storage API instead": the API sets that GUC on its own connection, so the
-// trigger NEVER FIRES on an HTTP delete, for ANY caller. It guards direct SQL
-// DML only — which is the context the DM5·S4 migration needs it for.
+// `storage.allow_delete_query = 'true'`. Its exception MESSAGE ends "Use the
+// Storage API instead." (the HINT is a different string — corrected per QA r3
+// MINOR-10; treat the quote as corroboration, never as the proof): the API sets
+// that GUC on its own connection, so the trigger NEVER FIRES on an HTTP delete.
+// It guards direct SQL DML only — the context the DM5·S4 migration needs it for.
+// ⚠ Measured for `service_role` and `authenticated`; `anon` is INFERRED from the
+// role-agnostic body, not measured (QA r3 INFO-9).
 //
 // The operative locks on the HTTP path are TWO absent policies, both ours:
 // no SELECT policy (Postgres needs the row visible for the DELETE's WHERE)

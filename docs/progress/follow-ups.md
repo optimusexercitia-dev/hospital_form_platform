@@ -393,7 +393,14 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 >
 > ⛔ **The survivor row is a TIMESTAMPED OBSERVATION, not a count — and it went stale inside the same
 > session** (QA r2 INFO-5). After the `e2e:prod` gate it read **245 files / 4,394,074 B** (QA, ~04:55Z)
-> and **245 / 4,402,266 B** ~30 min later with nothing deliberately writing —
+> — ⛔ **and the "moved AGAIN 30 min later" claim that stood here was WRONG (QA r3 MINOR-11).** I read
+> `du -sb /mnt` = 4,402,266 against QA's `du -sb /mnt/stub/stub` = 4,394,074 and called it drift. Both
+> re-run at the same instant reproduce **both** numbers: the 8,192 B is two 4 KiB wrapper-directory
+> inodes, i.e. **my measurement scope, not elapsed change.** ⭐ *Two measurements at different grains
+> compared as a time series* — [[a-predicate-quoted-at-the-wrong-grain]]. **State the method beside any
+> byte figure**; note `du -sb` (allocated, 4,394,074) and `stat -c %s` (apparent, 2,456,666) differ by
+> 1.94 MB on this same volume. The conclusion below is unaffected: it rests on the **166 → 245 drift
+> across the gate**, measured at both ends —
 > `documents-phi` **68** · `documents-standard` **156** · `form-assets` **12** · `meeting-audio` **9**,
 > against **0** `storage.objects` rows, so all 245 are orphans. ⭐ **This is why the PO ratified a CLASS
 > and not a number:** every gate run writes bytes and every reset orphans them, so any survivor count is
@@ -750,8 +757,14 @@ business touching:
    `documents/document-upload-dialog.tsx:18,216`. **This is decisive: a bare identifier is not a
    key at all**, independent of scoping-by-family. A name-keyed gate would flag three live call
    sites of a live function.
-2. **printed-documents (ADR 0104, retires DM5/Wave D)** — `src/app/api/documents/[id]/route.ts:46`
-   `.download(row.storage_path)`, downloading from the **`printed-documents`** bucket. A
+2. **printed-documents (ADR 0104, retires DM5/Wave D)** — ✅ **RESOLVED by DM5·S3, corrected here
+   2026-08-17 (QA r3 MINOR-13).** `src/app/api/documents/[id]/route.ts` now calls
+   `.from(row.storage_bucket)` — **the bucket comes FROM THE DOOR** (D7/D12: a print's bytes are a
+   `file_objects` row in `documents-standard`/`-phi`, resolved through
+   `app.resolve_document_version_bytes`), and the file says so in a comment. There is no bucket
+   literal in it. ⚠ This line was reported closed **twice** while open (r2, r3) — *the small item
+   reported closed repeatedly is itself the finding.* Was: `.download(row.storage_path)`, downloading
+   from the **`printed-documents`** bucket. A
    different table's column that DM3 never dropped, under a URL that *reads* in-scope. Plan §1.2
    named this exact hazard (two families sharing the `document` noun) and §1.3 warns the route's
    URL is misleading while its body is not.

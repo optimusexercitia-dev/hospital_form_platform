@@ -297,8 +297,13 @@ select is(
 -- thing and is entirely ROLE-AGNOSTIC:
 --     if coalesce(current_setting('storage.allow_delete_query', true),'false')
 --        != 'true' then raise ... errcode 42501
--- ⭐ Its own HINT says "Use the Storage API instead" — i.e. the API path sets
--- that GUC itself, so the trigger NEVER FIRES on an HTTP delete, for anybody.
+-- ⭐ Its own exception MESSAGE ends "Use the Storage API instead." (the HINT is
+-- a different string: "This prevents accidental data loss from orphaned
+-- objects.") — i.e. the API path sets that GUC itself, so the trigger NEVER
+-- FIRES on an HTTP delete, for anybody.
+-- ⚠ The quote is corroboration, NOT the proof: the proof is the measurement
+-- below. (Attributed to the HINT here until QA r3 MINOR-10 corrected it — a
+-- misquote in the one clause offered as independent support.)
 -- Measured at the HTTP layer: a service-role API DELETE returns 200 and the
 -- `storage.objects` row goes 1 -> 0.
 --
@@ -330,7 +335,7 @@ select ok(
   and (select count(*)::int from pg_policies
         where schemaname = 'storage' and tablename = 'objects' and cmd = 'INSERT'
           and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~ '''documents-(standard|phi)''') = 2,
-  'the document buckets carry NO update/delete policy — THIS IS the operative Rule 6 lock on the Storage-API path, together with the equally absent SELECT policy (storage.protect_delete guards direct SQL DML only; the API sets its bypass GUC itself — see header) — and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
+  'the document buckets carry NO update/delete policy — THIS IS the operative Rule 6 lock on the Storage-API path, together with the equally absent SELECT policy, which THIS predicate does NOT test (it is pinned by 312 t51d, control t53pre — QA r3 MINOR-14; storage.protect_delete guards direct SQL DML only, the API sets its bypass GUC itself — see header) — and the SAME derivation provably sees their 2 insert-reserved doors (self-control)');
 
 -- =========================================================================
 -- PHI-free audit: capa rows carry status/verdict only — no *_md body.

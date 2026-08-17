@@ -13,7 +13,8 @@
 --     foreign/inactive approver (HC091);
 --   * approver read arm is VERSION-scoped (an approver on doc A gains NO read of an
 --     unrelated doc B; no broad grant) + document_approvals sign-own-row RLS;
---   * immutable storage bucket (no update/delete policy);
+--   * the RETIRED controlled-documents bucket (DM5·S4 dropped the row + its policies;
+--     was: "immutable storage bucket (no update/delete policy)" — see §7);
 --   * review-due computation: review_due = effective-base + cycle, override wins;
 --   * hospital_document_register scope (admin/hospital-admin/org-admin only; PHI-free —
 --     no markdown/path columns) + list_approver_candidates same-hospital-only, no
@@ -393,13 +394,19 @@ select is(
 -- 7 · STORAGE BUCKET — ⛔ RETIRED by DM5·S4 (was: "IMMUTABLE … no update/delete
 --     policy"). The bucket ROW and every policy naming it are gone; the two pins
 --     below now assert its RETIREMENT, not its immutability.
--- ⚠ Corrected 2026-08-17 (QA r2 MINOR-8) — and note HOW it was missed. The
+-- ⚠ Corrected 2026-08-17 (QA r2 MINOR-8) — and note HOW it was missed, because
+--   the diagnosis needed one correction of its own (QA r3 MINOR-12). The
 --   eight-bucket sweep that found the same defect in 142/143 was bounded twice
---   over: by a COMMENT PREFIX and by a BUCKET NAME. This header names the
---   property without the noun, and the label below is an assertion STRING, not a
---   comment — so the miss escaped through both bounds at once. The property is
---   "text asserting a retired bucket as current", and it lives in comments,
---   section headers AND assertion labels.
+--   over: by a COMMENT PREFIX and by a BUCKET NAME. Neither miss escaped both
+--   bounds individually — this header is a comment WITHOUT the noun, the label
+--   below is a STRING WITH it. It is the **conjunction** that let the pair
+--   through, so an OR-bounded sweep catches both. The property is "text
+--   asserting a retired bucket as current", and it lives in comments, section
+--   headers AND assertion labels.
+-- ⚠⚠ THIRD iteration of that same boundary: r3 then found the file's own
+--   `Covers:` index at the top STILL contradicting this section, 377 lines away
+--   — fixed in the same commit. A relabel is not done until the file's own
+--   index agrees with it.
 -- ===========================================================================
 
 -- ⚠ This count went VACUOUS at retirement rather than red: zero policies satisfy
