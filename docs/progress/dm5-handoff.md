@@ -1,4 +1,4 @@
-# DM5 — handoff (paused 2026-08-14, **S3 CLOSED; the resume point is S4, which is IRREVERSIBLE**)
+# DM5 — handoff (paused 2026-08-17, **S4 BUILT + both QA blockers fixed; the resume point is ONE clean `e2e:prod`, then QA r2 — read §12 FIRST**)
 
 > **Read this first, then `docs/progress/dm5-wave-d-retirement.md`** (the phase record) and
 > **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–**D18**, all PO-ruled).
@@ -12,9 +12,11 @@
 this section used to name is discharged — §10 now records the *outcome* instead of the brief.
 
 1. ~~**S4 is next, and S4 DELETES STORAGE OBJECTS IRREVERSIBLY.**~~ ✅ **S4 RAN 2026-08-16** — PO
-   authorized it explicitly on the day, as this section required. **Gate steps 1 and 2 are GREEN;
-   steps 3 (QA) and 4 (PO sign-off) are OWED, so S4 is NOT closed.** The resume point is now
-   **S4 step 3**.
+   authorized it explicitly on the day, as this section required. **⛔ CORRECTED 2026-08-17: step 2 is
+   NOT green.** QA r1 returned **CHANGES REQUESTED** (build sound; both blockers were record/coverage
+   defects, now fixed in code), and **four subsequent gate attempts produced no usable E2E figure —
+   with zero assertion failures in any of them.** So: step 1 ✅ · **step 2 ⛔ UNESTABLISHED** ·
+   step 3 owed (r2) · step 4 owed. **The resume point is §12.**
    ⛔ **And the headline is the opposite of what this section anticipated: S4 deleted ZERO BYTES.**
    All 221 retirement-bucket files were already metadata-less orphans, so the Storage API — the D9
    *gate* — could not address any of them; `delete --execute` never ran. What S4 retired is the
