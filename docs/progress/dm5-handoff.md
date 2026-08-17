@@ -920,8 +920,17 @@ session; `e2e:prod` runs after them.**
 > VALIDATION run for FINALIZE-ATOMIC**, and `dm5-nsp-evidence` — the spec that exercises the
 > rewritten corridor — passed.
 >
-> **Steps 3–5**: QA review not run (this is a follow-up batch, not a slice); **step 4, human
-> approval, is OWED**.
+> **Step 3** — ⚠ **QA review NOT RUN.** Stated to the PO *before* the approval was given, not
+> discovered afterwards. §6 calls the steps mandatory and in order, so this batch carries four
+> of five with the gap on the record rather than a "gate passed" that means something narrower
+> than it reads.
+>
+> **Step 4** — ✅ **PO-APPROVED 2026-08-17**, with the step-3 deviation explicitly accepted.
+>
+> **Step 5** — ✅ recorded. `docs/backend-state.md` gained a DM5-follow-up-batch section (the
+> backend surface DID change: new DEFINER door, changed `complete_document_disposal`
+> signature, revoked evidence-table grants). ⚠ **PROGRESS.md is 143 KB against the <60 KB
+> target — a rotation is OWED** and was deliberately not folded in here.
 
 **Gate figures, all lead-verified independently at HEAD** (not inherited): registry **407 == 407** ·
 pgTAP **194 files / 6363 PASS** on a fresh reset · lint **5/5, 0 errors 0 warnings** · tsc **0** ·
