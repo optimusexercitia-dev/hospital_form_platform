@@ -284,8 +284,15 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      referrals, NSP evidence and controlled documents without eight parallel tables.
    - `documents(id, home_resource_id → securable_resources, title, description, kind, status,`
      `access_policy_id, created_by, created_at, updated_at, deleted_at, confidentiality_level,`
-     `occurred_on)` — the identity row. `deleted_at` is a soft delete; **`status = 'active'`
-     plus `deleted_at is null` is the servable predicate**, and the two are not redundant.
+     `occurred_on)` — the identity row. `deleted_at` is the soft-delete **stamp**: the CHECK
+     `documents_soft_delete_stamped` forces it non-null when `status = 'soft_deleted'`, and no
+     constraint forbids the reverse corner (`active` with `deleted_at` set). ⚠ **The predicate
+     the byte path actually enforces is `status = 'active'` alone** (plus file-grain
+     `disposal_state = 'none'`) — measured at S6 QA: neither `app.resolve_document_version_bytes`
+     nor either serve door nor any documents-module query reads `deleted_at`. Until that QA this
+     sentence called the *pair* "the servable predicate"; the `deleted_at` half was enforced
+     nowhere. Whether any writer can construct the `active`+stamped corner is unmeasured — if
+     that corner matters, pin it with a CHECK, not this sentence.
    - `document_versions(id, document_id, version_number, created_by, created_at)` — deliberately
      thin. A version is an *identity*, not a payload; the bytes hang off it.
    - `document_version_files(id, document_version_id, file_object_id, rendition_kind,`
@@ -297,8 +304,11 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      `verified_at, disposed_at, disposed_by, disposal_reason_category, disposal_evidence)` —
      byte metadata. **`storage_bucket` is derived from `sensitivity_tier`, never caller-chosen**
      (Rule 1's fourth pattern). `upload_state` is the D9 fail-closed machine
-     (`reserved → uploaded → verifying → scan_pending → clean → active`, with
-     `abandoned/failed` reconcilable and `infected/rejected` terminal); with no scanner
+     (`reserved → uploaded → verifying → scan_pending → clean`, with
+     `abandoned/failed` reconcilable and `infected/rejected` terminal — ⚠ there is **NO
+     `active` upload state**: the S6 draft ended the chain on one, borrowing a
+     `documents.status` value the `upload_state` CHECK has never contained; caught at S6 QA
+     against `file_objects_upload_state_check`); with no scanner
      integrated, user uploads rest at the auditable interim state **`unscanned_accepted`**
      (ADR 0114 **O2** is the open PO item to close that). `disposal_state` is the ADR 0121
      lifecycle. ⚠ **`disposed` asserts "metadata row gone", NOT "bytes gone"** — the two are
@@ -373,7 +383,10 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    that signs document bytes MAY read `file_objects` / `document_version_files` inline
    with the service-role client.** Rationale, per ADR
    [0118](./docs/decisions/0118-dm2-s2-command-layer-decisions.md) §1: the DB doors
-   authorize, validate and audit but return **IDs only**, so coordinate resolution has to
+   authorize, validate and audit but return **IDs only** — ⚠ true at DM2's grain, not of
+   every door today: since ADR 0120 D7/D12 `open_printed_document` returns storage
+   coordinates itself (which is exactly why the route below reads no table), while the
+   core-corridor and referral doors still return IDs — so coordinate resolution has to
    happen somewhere server-side; routing it through `src/lib/queries/` would either spread
    resolution across modules or push a service-role client into the shared query layer.
    A direct PostgREST caller of any door therefore gets authorization semantics and

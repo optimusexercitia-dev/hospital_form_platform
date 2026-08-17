@@ -43,10 +43,16 @@
 > service-role client. "No read policy" here means *the door is the boundary*, *not* "unreadable".
 > Written into the canon at S6 as ARCHITECTURE.md Rule 1's **fourth** pattern (ADR 0114 D8).
 >
-> ⚠ **Flags are an APP-LAYER gate, not a security boundary** — measured: **51 of 52** document
-> functions and **ZERO** RLS policies read a flag. Local `seed.sql` turns all six DM flags ON;
-> `db push` never applies the seed, so the remote measured all-OFF. Do not cite "ships OFF" as
-> containment.
+> ⚠ **Flags are an APP-LAYER gate, not a security boundary** — measured: of the 52 document-model
+> functions in `app`/`public`, **51 do NOT read a flag — exactly one does**
+> (`app.compute_due_document_review_notifications`), and **ZERO** RLS policies consult one
+> (`select count(*) from pg_policies where coalesce(qual,'')||coalesce(with_check,'') ~
+> 'feature_enabled';` → 0). Source: **FUP-DM5-REMOTE-STATE-MEASURED** (follow-ups.md), which this
+> block transcribed **INVERTED** ("51 of 52 … read a flag") until the S6 QA — the third writer to
+> describe this control wrong while citing it ([[a-control-described-wrong-by-three-writers-running]]);
+> the conclusion (app-layer gate) only follows from the corrected direction. Local `seed.sql` turns
+> all six DM flags ON; `db push` never applies the seed, so the remote measured all-OFF. Do not cite
+> "ships OFF" as containment.
 >
 > **Still not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5 (which
 > changed no runtime surface — it was operational closure).** Their records are
@@ -171,8 +177,12 @@
 > three decisions on a false premise, withdrawn before any SQL** (the mechanism was already built, under
 > another name, and DM2 had rejected the re-proposed shape *by name*). ⭐ *A durable surface map that lags
 > its own phase is a trap with a long fuse.* **Resolve the VALUE, not the noun**, and when this file and
-> the catalog disagree, **the catalog wins** — always, no exceptions. The full document-surface rewrite is
-> an explicit **DM5·S6** deliverable, not optional cleanup.
+> the catalog disagree, **the catalog wins** — always, no exceptions. ⬛ **S6 delivered this
+> obligation as the measured DM END STATE block at the head of this file (2026-08-17)** — a
+> current-surface summary, **not** the full per-slice rewrite this line used to promise: the
+> DM5·S2/S3/S5 sections remain unwritten, named in that block. Recorded here at S6 QA (finding F6)
+> so the promise and the delivery cannot silently diverge; if the per-slice sections are still
+> wanted, that is now an explicitly unowned item, not an S6 leftover.
 >
 > ⬛ **Also owed at S6 — DONE 2026-08-17**, with two corrections to the note itself:
 > **(a)** the figure was never at `:205` (it had drifted to `:387`) — *a line-number pointer is a

@@ -791,7 +791,9 @@ machine before drawing any conclusion**, and check the count against the plan
 >    against the remote, **then** push. ⚠ `locateVolume()` refuses on a Cloud URL, so that deletion
 >    runs **without** byte-level proof.
 > 3. ⭐ **✅ MEASURED 2026-08-17 — and the premise was WRONG at its grain.** The flags *are* all off
->    on the remote, but **51 of 52** document functions and **zero** RLS policies read a flag: it is
+>    on the remote, but of the 52 document functions **51 read NO flag — exactly one does** (direction
+>    CORRECTED at S6 QA 2026-08-17: this line and two siblings carried it inverted as "51 of 52 …
+>    read a flag"; source FUP-DM5-REMOTE-STATE-MEASURED) and **zero** RLS policies read a flag: it is
 >    an **app-layer** gate, not a DB boundary. **Re-grade on "the remote holds no data and no
 >    users"** (0 orgs / profiles / commissions / cases) — a stronger reason, and a different one that
 >    **expires the moment the pilot loads data**. Full record: **FUP-DM5-REMOTE-STATE-MEASURED**.

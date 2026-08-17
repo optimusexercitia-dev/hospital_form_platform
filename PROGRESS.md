@@ -160,9 +160,10 @@
 > batch's `e2e:prod`, which the PO ruled would ride S5's owed run; **step 4 ✅ PO-RULED 2026-08-17 —
 > the batch's approval closes S5 too** · **FOLLOW-UP BATCH ✅ gate green, PO-approved 2026-08-17**
 > (`fd69d4be`) · **S6 🔵 IN PROGRESS** — opened 2026-08-17 after the pre-S6 follow-up batch
-> (`496fd135`). Build work **done**; gate steps 2–4 **owed**.
+> (`496fd135`). Build work **done**; **step 3 QA ✅ r2 APPROVED 2026-08-17** (r1 ⛔ → fixes → r2);
+> gate steps 2 + 4 **owed**.
 >
-> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done, gate steps 2–4 OWED**
+> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done · step 3 QA ✅ r2 APPROVED · steps 2 + 4 OWED**
 >
 > **Preceded by a pre-S6 follow-up batch (`496fd135`)** — census re-scoped, P4 measured, 478 links
 > repointed. Detail in the follow-ups register and the S5 record.
@@ -193,6 +194,13 @@
 > an HTML anchor, not a bucket. The only live hardcoded bucket literal is `.from('form-assets')`×2 —
 > surviving and out of scope (D13). Every document-model bucket reference is **derived** from
 > `storage_bucket`. ⛔ **Not covered:** `supabase/` SQL was not swept by this pass.
+> ⚠ **Bound disclosure (S6 QA F4):** the 28 reproduces **only** over the 7 hyphenated retired-bucket
+> names — the bare name `attachments` was excluded (it is also a feature-flag key and a module name)
+> and appears **live ×3** as `featureEnabled('attachments')`, which are flag keys, not bucket
+> references (the `case_patient` collision class). The exclusion was right; its silence was the
+> defect. ✅ **The `supabase/` hole was closed by QA at the catalog layer** (the only layer that
+> executes): quote-bounded retired-bucket literals in `pg_get_functiondef` over every `app`+`public`
+> function and in `pg_policies` → **0 and 0**.
 >
 > ⭐⭐ **THE SWEEP'S REAL YIELD — it falsified a canon sentence I had written an hour earlier.**
 > Rule 9's first draft said the exception was **ONE** module and that *"a second would break ADR 0114
@@ -222,10 +230,29 @@
 > so `next build` could not be affected — **it was run anyway rather than argued away**, because
 > *an omission that happens to be harmless is still an omission* (the S5 QA r1 MINOR-1 lesson).
 >
-> ⛔ **Steps 2–4 OWED.** `e2e:prod` not run; **DM5's PHASE QA not run** — and
-> S3/S4/S5 verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
+> **Gate step 3 — ✅ QA r2 APPROVED 2026-08-17**
+> ([review](docs/reviews/dm5-s6-review.md)). **r1 ⛔ CHANGES REQUESTED: six findings,
+> ALL record defects** (the DM5 pattern unbroken — no code change requested in any round):
+> **F1** the END STATE block **INVERTED** its source measurement ("51 of 52 read a flag" — the
+> source says 51 do NOT; fixed in all THREE places it sat) · **F2** §2 ended the `upload_state`
+> machine at `active`, a state the CHECK has **never contained** (`'active'` is `documents.status`) ·
+> **F3** the "servable predicate" claimed `deleted_at is null` — enforced **nowhere** on the byte
+> path · **F4** the sweep's undisclosed bound (above) · **F5** Rule 9's "doors return IDs only" is
+> false for `open_printed_document` since ADR 0120 D7/D12 · **F6** the "full document-surface
+> rewrite" promise left contradicting the delivered END-STATE-block scope. All six **fixed
+> same-day**; QA **re-measured gate step 1 in full** on a fresh reset (pgTAP 194f/6392 · vitest
+> 89f/1304 · lint 5/5 · tsc 0 · census 546/570 · hat 3 · floor 74 · wrapper 41 ⊆ allowlist — every
+> figure reproduced) and independently re-derived **every** measured claim in the S6 diff against
+> the live catalog (all reproduced; census table in the review). ⚠ **The r2 APPROVED is the S6
+> SLICE verdict only.**
+>
+> ⛔ **Steps 2 + 4 OWED.** `e2e:prod` not run; **DM5's PHASE QA not run** — and
+> S3/S4/S5/**S6** verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
 > binds and S6 may not close over it.** 🔴 The supersede-serving collision is **deferred, not
-> closed**. **ADR 0120 D9's Cloud question is PO-deferred to when S6 reaches it.**
+> closed**. **ADR 0120 D9's Cloud question was PO-deferred "to when S6 reaches it" — S6 has now
+> reached it: it MUST be put to the PO at step 4** (with ADR 0114 O1/O2/O4, S1-O3, FUP-DM5-D11,
+> and the two new QA hand-offs: F6's per-slice-sections ownership question and F3's unmeasured
+> `active`+`deleted_at` corner).
 >
 > ### ✅ FOLLOW-UP BATCH — gate GREEN, PO-approved 2026-08-17 (`fd69d4be`) — **added here 2026-08-17; the section had no record of it at all**
 >
