@@ -335,7 +335,20 @@ claim reads as honoured. Whichever is scheduled first, the other must be named i
 completion door is its owner". That assumption was false until the runbook existed, and it is only as
 true as the runbook is actually executed.
 
-### 🟡 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — a mutation-audit arm has been silently erroring since DM1, and its no-op guard FAILS OPEN (owner: backend)
+### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
+
+> **✅ The fail-open half is fixed** — `coalesce(v_qual, '') !~ …`. **Proven, not assumed:**
+> against the live catalog `v_qual is null` is **true**, the old form evaluates to **NULL**
+> so the `if` does not fire and control falls through to `alter policy` on a nonexistent
+> policy (**42704**), and the new form **announces the no-op**. A guard nobody had seen
+> fire has now been seen firing.
+>
+> ⛔ **Deliberately NOT done: silently re-pointing the arm.** The policy
+> `attachments_obj_select_readable` was dropped by DM1, so the arm now honestly reports
+> that it tests nothing. Retargeting it at whatever current policy *looks* similar would
+> make it assert something nobody chose — the successor must be **named** by whoever owns
+> the case-bytes read path today. Downgraded 🟡 → 🔵: it is now legible rather than
+> deceptive.
 
 Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-3. **Pre-existing — NOT S4's doing**, and
 explicitly not charged to it.
@@ -460,7 +473,20 @@ the warning (the log continues to `Seeding data`; that batch failed later on an 
 probe, a delete matching ≥1 row without the opt-in must raise — so either it matched 0 rows there or the
 session already held the GUC. **Not reproduced, and no mechanism invented for it.**
 
-### 🟡 FUP-DM5-MANIFEST-FLAG — `storage-manifest.mjs` silently ignores an unknown flag and falls back to the COMMITTED default path (owner: backend)
+### ⬛ FUP-DM5-MANIFEST-FLAG — ✅ **RESOLVED — and it was ALREADY FIXED when re-checked 2026-08-17** (owner: backend)
+
+> **✅ RESOLVED.** Re-measured before being worked on, and the guard was already live —
+> shipped in S5 (selftest control **C11**) but never marked here. Measured:
+> `capture --manifest /tmp/x.json` prints *"unknown flag "--manifest" for "capture" — that
+> is "verify"/"delete"'s flag"*, refuses to run, and **exits 2** — exactly the remedy this
+> item specified. The committed baseline was **not** touched (`git status` on
+> `supabase/manifests/` clean).
+>
+> ⚠ **A method note worth more than the item.** The first exit-code reading was taken
+> through `| head -5` and came back **0**; the real code is **2**. That is
+> [[gate-summary-can-hide-unrun-tests]]'s sibling — *a pipe reports the PIPE's exit code* —
+> the same mechanism that once masked an `exit 2` as `0` in a mutation sweep. **Never read
+> an exit code through a pipe.**
 
 Filed 2026-08-16 (lead) from a live near-miss during S4. `capture` takes **`--out`**; **`--manifest`** is
 `delete`'s flag. Passing `--manifest <scratch-path>` to `capture` did not error — `argFlag` returned nothing
@@ -516,7 +542,22 @@ document of record); or cascade the print's disposal when its source is deleted;
 an admin view. ⚠ Whichever is chosen, the **`securable_resources` dangling row** needs handling either way —
 a securable with no subject is a latent authorization question, since every kernel arm joins through it.
 
-### 🟡 FUP-DM5-DEAD-CORE-PROJECTION — `src/lib/queries/documents.ts`'s `getDocument` has ZERO importers, and a same-named export shadows it (owner: frontend + backend)
+### ⬛ FUP-DM5-DEAD-CORE-PROJECTION — ✅ **RESOLVED 2026-08-17 by deletion** (owner: frontend + backend)
+
+> **✅ RESOLVED.** `getDocument` deleted from `src/lib/queries/documents.ts`. Verified at
+> every **import site**, not by grepping the symbol: all five detail routes import
+> `getDocument` from `@/lib/queries/controlled-documents`; the only imports from
+> `queries/documents` are `listDocumentsForResource` and `documentVersionAvailability`.
+> `tsc` 0, all five lint gates green after removing the now-unused `DocumentDetail` import.
+>
+> **Deleted rather than kept-and-documented:** keeping it preserves the trap — the next
+> reader has the same 50/50 chance of editing the unreachable copy, which is exactly what
+> happened to ADR 0120 **D18**. ⚠ The D18 filter **survives where it is reachable**:
+> `EXCLUDE_PRINTED_RENDITIONS` is still used by `listDocumentsForResource`.
+>
+> ⭐ **The "check for other same-name pairs" sub-item is discharged by measurement, not by
+> looking:** across `src/lib/queries/*.ts`, `getDocument` was the **only** duplicated
+> export name.
 
 Filed 2026-08-14 (lead) after `tester` found it and the lead re-verified by grep. **No behavioural
 defect — a legibility trap with a live cost already paid.**
@@ -636,7 +677,17 @@ object, not a diagnosis: the hang was never reproduced under observation, and na
 how a real cause gets closed early. Whoever picks this up should start by checking whether the observed
 hangs correlate with `342` being in flight at all.
 
-### 🔵 FUP-DM5-342-PLAN-COMMENT — `342`'s header comment declares plan **44** while the suite runs `plan(59)` (owner: backend)
+### ⬛ FUP-DM5-342-PLAN-COMMENT — ✅ **RESOLVED 2026-08-17**; the comment's own arithmetic already summed to 59 (owner: backend)
+
+> **✅ RESOLVED.** The header now cites the plan (`plan(59) = …`) instead of carrying a
+> free-standing total.
+>
+> ⭐ **The detail the item missed:** the itemised breakdown under that heading **already
+> summed to 59**. Only the leading total was stale — items were appended over three QA
+> rounds without re-adding. So the comment did not merely disagree with the code, it
+> disagreed with **itself**, and a reader who trusted the total would have concluded 15
+> assertions had gone missing. Textbook
+> [[a-comment-is-an-assertion-that-goes-stale-silently]].
 
 Filed 2026-08-14 from DM5·S3 QA **r2** (INFO). `supabase/tests/342_dm5_s3_printed_renditions.sql:21-27`
 documents a plan of 44; the executable `plan(59)` is correct and the suite passes. **Cosmetic today** —

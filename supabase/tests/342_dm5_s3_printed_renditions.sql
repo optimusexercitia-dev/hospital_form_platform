@@ -18,7 +18,13 @@
 -- =============================================================================
 
 begin;
--- 44 = 3 preconditions + 5 coupling + 6 mint + 4 separation + 7 inactive-print
+-- ⚠ The number below must equal the `plan(N)` on the next executable line. It
+-- read 44 while the plan ran 59 (FUP-DM5-342-PLAN-COMMENT) — and the itemisation
+-- itself already summed to 59: only the leading total was stale, because items
+-- were appended without re-adding. The header is the first thing a reader trusts
+-- when judging whether assertions went missing, which is exactly the call
+-- pg_prove's plan line exists to support.
+-- plan(59) = 3 preconditions + 5 coupling + 6 mint + 4 separation + 7 inactive-print
 -- + 2 positive control + 2 structural direction-2 + 3 D18 + 7 write guards
 -- + 2 core-door premise + 3 ACL/population + 5 meeting-print narrowing (S3j)
 -- + 1 guard-5 twin (r1 MINOR-3) + 3 guard-4 sibling-open (r1 MAJOR-1, S3k)

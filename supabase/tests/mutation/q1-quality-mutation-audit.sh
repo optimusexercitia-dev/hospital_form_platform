@@ -144,8 +144,20 @@ begin
       join pg_namespace pn on pn.oid = c.relnamespace
       where pn.nspname = 'storage' and c.relname = 'objects'
         and pol.polname = 'attachments_obj_select_readable';
-      if v_qual !~ 'read_case_deliberation' then
-        raise exception 'MUTATION NO-OP: needle not found -> bytes cut absent from the live policy';
+      -- FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN: `coalesce` is load-bearing, not tidiness.
+      -- The policy `attachments_obj_select_readable` was DROPPED by DM1
+      -- (20260923000100_dm1_drop_attachment_substrate.sql), so `v_qual` is NULL,
+      -- `NULL !~ '...'` evaluates to NULL, the `if` does NOT fire, and control fell
+      -- through to `alter policy` on a nonexistent policy -> 42704. A guard written
+      -- to announce "MUTATION NO-OP" instead failed OPEN into an error, three-valued
+      -- logic eating the one branch that existed to make the failure legible.
+      -- ⚠ This arm is now HONEST but still a NO-OP: it announces rather than errors.
+      -- Re-pointing it at the successor read path (the document-model door that
+      -- replaced the attachment substrate) is a separate, NAMED decision — an arm
+      -- silently retargeted at whatever policy looks similar would assert something
+      -- nobody chose.
+      if coalesce(v_qual, '') !~ 'read_case_deliberation' then
+        raise exception 'MUTATION NO-OP: needle not found -> bytes cut absent from the live policy (policy dropped by DM1; arm awaits a NAMED successor — FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN)';
       end if;
       execute format(
         'alter policy attachments_obj_select_readable on storage.objects using (%s)',

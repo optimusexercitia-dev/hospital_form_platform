@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import type {
   DocumentAvailability,
   DocumentConfidentialityLevel,
-  DocumentDetail,
   DocumentHomeResourceType,
   DocumentListItem,
   DocumentStatus,
@@ -255,26 +254,24 @@ export async function listDocumentsForResource(
   return rows.map((row) => toListItem(row, affordances.get(row.id) ?? false))
 }
 
-/** One document with its version history (versionNumber DESC), or null when
- * absent/not readable (absence and denial are indistinguishable by design). */
-export async function getDocument(documentId: string): Promise<DocumentDetail | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('documents')
-    .select(LIST_SELECT)
-    .eq('id', documentId)
-    // ADR 0120 D18 (PO, extended to the DETAIL projection): a print is not a
-    // content document anywhere. No consumer needs it here — verification goes
-    // through `lookup_printed_document`, bytes through `open_printed_document`.
-    // Same discipline: presentation, not access.
-    .is(EXCLUDE_PRINTED_RENDITIONS, null)
-    .maybeSingle()
-  if (error || !data) return null
-  const row = data as unknown as DocumentRow
-  const affordances = await deleteAffordances(supabase, [row.id])
-  const item = toListItem(row, affordances.get(row.id) ?? false)
-  const versions = [...row.document_versions]
-    .sort((a, b) => b.version_number - a.version_number)
-    .map((v) => toVersionSummary(v, row.status))
-  return { ...item, versions }
-}
+// FUP-DM5-DEAD-CORE-PROJECTION — a `getDocument` used to live here (the Wave-A
+// core `documents` projection). DELETED 2026-08-17: it had ZERO importers, while
+// a same-named export in `@/lib/queries/controlled-documents` is the one all five
+// detail routes actually import (measured at every import site, not by grepping
+// the symbol — a grep for the name returns hits and *looks* answered; only the
+// import site discriminates).
+//
+// ⭐ It had already cost something. ADR 0120 D18's "exclude prints from the detail
+// projection too" was implemented HERE, on the unreachable copy. Harmless — the
+// reachable projection selects `from('controlled_documents')` and a print has no
+// row there, so prints are excluded STRUCTURALLY, by the schema — but the ruling
+// bought nothing, and the record briefly implied the detail path was protected by
+// a filter when it is protected by the shape of the data.
+//
+// Deleted rather than kept-and-documented: keeping it preserves the trap (the next
+// reader has the same 50/50 chance of editing the wrong one), and nothing named a
+// route that would mount it. If a core-documents detail route is ever needed, write
+// it then against that route's real requirements — including its own D18 decision.
+//
+// Swept while here, per the item: `getDocument` was the ONLY duplicated export name
+// across `src/lib/queries/*.ts`.
