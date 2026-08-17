@@ -177,6 +177,65 @@
 > **S1 was WITHDRAWN ENTIRELY** because a capability was believed absent when it had shipped renamed.
 > **No S5 build starts until step 0 lands.**
 >
+> #### backend — S5.D + drill + baselines, delivered 2026-08-17 → [record](docs/progress/dm5-s5-operational-closure.md)
+>
+> ⚠ *(The S5 header above still reads "Step 0 in progress" — stale: step 0 landed `8bbf61aa`, S5.R
+> landed `e5a1418e`. Left for the lead, who owns that line.)*
+>
+> - ✅ **Inherited artifacts reviewed as someone else's, and BOTH carried real defects.** The pgTAP
+>   keystone **had never been executed**: `plan(11)` vs 12 was the smaller half — **the detector
+>   detected ITSELF** (its `pg_temp` helpers carry the door's name in their own bodies; `pg_temp_N`
+>   rows are ordinary `pg_proc` rows), so K2/K3a/K4 were RED **for a reason that is not the property**,
+>   whose natural "fix" is to relax the assertion. Its header also asserted a **red-first observation
+>   that had not happened** — *made true* (real caller in `public` → K4 RED naming it → reverted →
+>   catalog verified → 12/12) rather than deleted, and an unverifiable "FIVE instances" count softened.
+>   `plan(N)` → **`no_plan()`**, with the cost disclosed in-file: it does **not** catch silent
+>   assertion loss, and the compensating control is a **lead-side** gate figure, not an in-file guard.
+> - ✅ **S5.D (PO: document the gap, do NOT build the job).** `actions.ts:277-278`'s present-tense
+>   claim that *"the disposal job + service-only completion door do the verified deletion"* corrected —
+>   false in **both** halves. Gap pinned on both sides (`343_dm5_s5_disposal_gap.sql` +
+>   `disposal-gap.test.ts`), **both observed RED against real mutations**; the TS pin's red names the
+>   file *and* the function. Runbook: **`docs/deployment/phi-disposal-runbook.md`** — ⚠ **owner +
+>   periodicity are PROPOSED and OWED BY THE PO**; until named, the procedure exists but the mitigation
+>   does not, and the reconciler's "the completion door is its owner" premise stays false in practice.
+> - ⛔ **A 4th fix to `storage-manifest.mjs`, lead-ratified: the INDETERMINATE branch was UNREACHABLE
+>   in the state that needs it.** `.list('')` on a bucket whose **row is gone** returns
+>   `{data: [], error: null}` — so *"I could not ask"* and *"I asked and there is nothing"* were the
+>   same value, and the classifier printed the **reassuring** arm (no `DO NOT PROCEED`) **on the
+>   destructive path** for a bucket it never interrogated. Per the lead: **that is the state all eight
+>   retired buckets are in** — not a corner case. Found only because a control (R3d) was built for a
+>   state nobody had observed. `rehearse` **16/16** (14 originals intact), `selftest` **13/13**.
+> - ⛔ **Drill finding — a restore can report SUCCESS and silently lose 67% of RLS.** Replaying
+>   `supabase db dump` into a bare Postgres: `psql` **exit 0**, **490** true errors, **90 of 274
+>   policies** restored, 161 of 165 tables — a database that *looks* restored, missing two thirds of
+>   the security boundary. Confirmed by a 2nd measurement (pre-create 3 empty schemas + 2 stub fns ⇒
+>   errors 490→10, tables and policies to **full parity**). ⚠ **Two false signals aligned**: `psql`
+>   exits 0 without `ON_ERROR_STOP`, and `grep -c '^ERROR'` matches nothing (psql prefixes
+>   `psql:file:line:`) — only the **catalog comparison** exposed it. Byte half executed via `docker cp`
+>   (**245 files / 2,456,666 bytes**, per-bucket parity, **no stack cycle**); an API-based Storage
+>   backup would today capture **0 of 245** files, because it enumerates from `storage.objects` (0
+>   rows). ⚠ **A Storage backup is a PHI export** — 68 PHI-tier files in plaintext, undocumented
+>   anywhere; my copy was deleted after verification.
+> - ✅ **Baselines at a stated N** (`documents=3`, `file_objects=0`; synthetic arm +2000 rolled back),
+>   measured as `authenticated` with real JWT claims because a plan taken as `postgres` bypasses RLS.
+>   **P2 (per-resource panel) 1.3 ms → 364 ms**: Seq Scan with `app.can_read_document(id, uid)`
+>   evaluated **per row** (24 201 buffers / 2001 rows) and **`public.documents` has only its PK index —
+>   nothing on `home_resource_id`.** ⚠ P1's two numbers are **NOT a volume curve** (rows=2 at both;
+>   the synthetic rows are not in the register's population — the drop is cache warming).
+>   **P4 `open_document_version` NOT MEASURED** — `file_objects=0` and the write path is guarded
+>   (*must be born reserved*; `reserved → verifying` rejected); stopped after two attempts rather than
+>   guessing at a state machine.
+> - ✅ **Gate:** pgTAP **194f/6363 PASS** (was 193/6351 — +1 file/+12 = exactly `343`) · vitest
+>   **89f/1304** (was 88/1294 — +1/+10 = exactly the new pin) · lint **5/5 exit 0** · tsc **0**.
+>   ⚠ **The lint baseline was stale — the gate was ALREADY RED at `e5a1418e`** (unused `cap7`,
+>   verified via `git show`); ⭐ and that dead binding was a **missing control**, not a style nit — it
+>   was R6-capture's **sighted twin**, unasserted, so the arm was satisfiable by a tool that verdicts
+>   UNVERIFIED for *every* input. Now pinned. **Authz sweep: NOT APPLICABLE** (no RLS policy, no
+>   `prosecdef` gate, no migration ⇒ no diff to derive a list from) — recorded as that, **not** "clean".
+> - 📋 **Filed, not fixed** (lead ruling): 🟠 **FUP-DM5-NO-ANSWER-VS-NOTHING** (as a **CLASS**) · 🟠
+>   **FUP-DM5-CLOUD-ORPHAN-SURFACE** (S3 endpoint UNPROBED; a **promotion**, not a new question) · 🟠
+>   **FUP-DM5-DISPOSAL-JOB**. ⛔ **13 NOT-COVERED items** in the record — read them before S6.
+>
 > ### ✅ S4 CLOSED 2026-08-17 — legacy bucket retirement — steps 1 ✅ · 2 ✅ · 3 ✅ **APPROVED (r3)** · 4 ✅ PO
 >
 > **All five gate steps closed.** QA r1 ⛔ → r2 ⛔ → **r3 ✅ APPROVED** (0 P0 · 0 MAJOR); PO approved the

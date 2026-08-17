@@ -1321,10 +1321,19 @@ async function cmdRehearse() {
         !/MISSED BY THE MANIFEST/.test(blindUnder.out),
       `exit=${blindUnder.exit} (R3b, same manifest shape WITH the proof, exited 1) surviving_volume_files=${survivedBlind.files}`,
     )
+    // ⭐ `cap7` is the SIGHTED TWIN, and it is asserted rather than merely taken:
+    // it was declared and never used until DM5 S5 (eslint caught it as a dead
+    // binding, which is how the gap surfaced). Without it, R6-capture is satisfied
+    // by a world where `capture` exits 1 and verdicts UNVERIFIED for EVERY input —
+    // i.e. by a tool that can no longer judge anything at all. The arm's claim is
+    // that the ONE variable that changed is whether the proof was available, so
+    // both sides of that variable have to be pinned in the same breath.
     check(
-      'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 1',
-      blindCapture.exit === 1 && blindCapture.manifest.buckets[bucket].verdict === 'UNVERIFIED_NO_LOCAL_PROOF',
-      `exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict}`,
+      'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 1 (vs the SIGHTED twin: CONSISTENT, exit 0)',
+      blindCapture.exit === 1 && blindCapture.manifest.buckets[bucket].verdict === 'UNVERIFIED_NO_LOCAL_PROOF' &&
+        cap7.exit === 0 && cap7.manifest.buckets[bucket].verdict === 'CONSISTENT',
+      `blind: exit=${blindCapture.exit} verdict=${blindCapture.manifest.buckets[bucket].verdict} | ` +
+        `sighted: exit=${cap7.exit} verdict=${cap7.manifest.buckets[bucket].verdict}`,
     )
     // The other direction — the control that DOES survive. Without this, R6
     // reads as "nothing works on Cloud", which is false and would be its own
