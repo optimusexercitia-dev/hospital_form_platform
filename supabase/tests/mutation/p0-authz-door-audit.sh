@@ -130,6 +130,61 @@ classify () {
 
 echo "=== P0 AUTHZ DOOR AUDIT — neutralize each gate, ask the WHOLE SUITE if anyone noticed ==="
 echo "Repo: $ROOT"
+
+# ────────────────────────────────────────────────────────────────────────────────
+# §7.16  PREFLIGHT: NO GATE IS ALREADY SITTING DEGENERATE  (FUP-AUTHZ-HARNESS-TRANSACTIONAL)
+#
+# ⛔ WHY THIS IS NOT THE FILED FIX, AND WHY THE FILED FIX CANNOT BE BUILT.
+# The follow-up proposes making neutralize -> probe -> restore ONE ROLLED-BACK
+# TRANSACTION, on the (correct) ground that Postgres DDL is transactional. That
+# works for a probe issued on the SAME session — and this harness's probe is not
+# one. `run_suite` shells out to `supabase test db`, a SEPARATE PROCESS with its
+# own connections (see the header: "we mutate the LIVE, COMMITTED catalog and run
+# `supabase test db` end-to-end"). A neutralization held inside an uncommitted
+# transaction is INVISIBLE to it, so every case would run against the ORIGINAL
+# gate and be classified COVERED — a sweep that is 100% green and 100% vacuous.
+# That is strictly worse than the bug the fix targets. The commit-then-restore
+# design is REQUIRED by the probe's process boundary, not an oversight.
+#
+# What is achievable is making the failure LOUD instead of silent. Process death
+# can still leave a gate open; it can no longer do so unnoticed, because:
+#   (a) this preflight refuses to start a sweep on a contaminated stack — which
+#       is exactly the manual check that caught the original incident, when
+#       `tester` verified its environment before executing an agreed plan and
+#       found everything it was about to run would have gone green proving
+#       nothing; and
+#   (b) the same query is a PREFLIGHT TO EVERY ARM of p0-authz-invariant.sh, so
+#       the standing §6 gate step sees it too.
+#
+# ⚠ The detector covers all THREE neutralization forms this harness emits —
+# `begin return true; end` (plpgsql), `select true` (language sql, 182 DEFINER
+# functions here), and `begin return; end` (assert_noop). The regex recorded in
+# the follow-up matches only the first.
+# ────────────────────────────────────────────────────────────────────────────────
+DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
+     or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
+     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
+
+degenerate_gates () {
+  psql_c -c "select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+               from pg_proc p
+               join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname in ('app','public') and $DEGENERATE_PREDICATE
+              order by 1;" | grep -vE '^$'
+}
+
+echo "--- preflight: no gate is already sitting degenerate (§7.16) ---"
+PRE_DEGEN=$(degenerate_gates)
+if [ -n "$PRE_DEGEN" ]; then
+  echo "*** PREFLIGHT FAILED: a gate is ALREADY neutralized on this stack:"
+  echo "$PRE_DEGEN" | sed 's/^/      /'
+  echo "    A sweep started here would classify against an already-open door."
+  echo "    Restore it first (pg_proc carries no mtime — the window cannot be dated,"
+  echo "    so any result produced since the last known-good run must be RE-RUN)."
+  exit 2
+fi
+echo "    clean — 0 degenerate bodies (all three neutralization forms)"
+
 echo "--- preflight: capturing GREEN baseline (§7.3 assert the state) ---"
 BASE_OUT=$(run_suite)
 BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')

@@ -895,6 +895,40 @@ when a subagent's turn ends and the process is killed** — which is the documen
 heavy sweep. Because the harness neutralizes **outside** a transaction, **process death = gate left open**,
 silently, with no marker in the catalog.
 
+> ## ⛔ AMENDED 2026-08-17 — **THE FILED FIX CANNOT BE BUILT, AND BUILDING IT WOULD BE WORSE THAN THE BUG.**
+> **Partially resolved by a different mechanism; the item stays OPEN at 🟠 for the residual.**
+>
+> The fix below is correct about Postgres and wrong about *this harness*. A rolled-back transaction
+> makes DDL invisible **outside the session that issued it** — and `p0-authz-door-audit.sh`'s probe is
+> not that session. `run_suite` shells out to **`supabase test db`, a separate process** with its own
+> connections; the script's own header says it "mutate[s] the LIVE, COMMITTED catalog". Held in an
+> uncommitted txn, every case would run against the **original** gate and classify **COVERED** —
+> a sweep that is 100 % green and 100 % **vacuous**. ⭐ *The commit-then-restore design is REQUIRED by
+> the probe's process boundary; it was never an oversight.*
+>
+> **What shipped instead — make the failure LOUD rather than impossible.** Process death can still
+> leave a gate open; it can no longer do so unnoticed.
+> - **Preflight in `p0-authz-door-audit.sh` (§7.16)** — refuses to start a sweep on a contaminated
+>   stack, `exit 2`, naming the function. This is exactly the manual check that caught the original
+>   incident. **Proven able to fire** against a planted unreferenced degenerate function.
+> - **Preflight before EVERY arm of `p0-authz-invariant.sh`** — so the standing §6 gate step sees it.
+>   Deliberately *not* a sixth arm: that would need CLAUDE.md §6 taught a new name, and a left-open
+>   gate should fail **all** the arms it invalidates.
+>
+> ### ⚠⚠ The detector recorded below was blind to TWO of the THREE neutralization forms
+> The regex in this item — `^\s*begin\s+return\s+(true|false)\s*;\s*end` — is **plpgsql-only**. The
+> harness also emits **`select true`** (`language sql`) and **`begin return; end`** (the `assert_noop`
+> void raise-guard). Measured: `app` + `public` hold **182 SECURITY DEFINER `language sql`** functions,
+> and `'select true' ~ <that regex>` is **false**. So the query that bounded the original blast radius
+> to *"exactly one hit"* — a **correct** result for that incident, which was plpgsql — **could not have
+> seen a SQL-language gate at all.** ⭐ *An enumeration bounded by a SYNTAX rather than the PROPERTY,
+> living inside the safety net.* All three forms are now covered, and the detector was proven able to
+> find 2 constructed instances before being trusted at 0.
+>
+> **Residual, why this stays open:** nothing yet *restores* automatically after process death — the
+> guards detect, they do not repair. A committed marker row written in the same transaction as the
+> neutralization (so the two can never disagree) would let the next run self-heal; not built.
+
 **The fix (not built): make neutralize → probe → restore a single rolled-back transaction.** Postgres DDL
 is transactional, so a `CREATE OR REPLACE FUNCTION` inside a rolled-back `begin` leaves **no residue** —
 `backend-assurance` proved this rather than assuming it: md5 of `pg_get_functiondef` before, gate replaced
@@ -916,7 +950,28 @@ is process death mid-run, which subagent turn boundaries make routine. Related:
 [[mutation-harness-must-prove-its-rollback-first]] — the same class, previously recorded, where a sweep
 left a gate open and `| tail` masked exit 2 as 0.
 
-### 🟡 FUP-AUTHZ-ALLOWLIST-ROT — nothing validates that floor-allowlist entries name a LIVE door (owner: lead + backend; filed 2026-08-14, DM5 S2)
+### ⬛ FUP-AUTHZ-ALLOWLIST-ROT — ✅ **RESOLVED 2026-08-17.** A resolve-in-`pg_proc` check now runs inside `ARM=floor`; it found **SIX** stale entries where this item named one (owner: lead + backend; filed 2026-08-14, DM5 S2)
+
+> **✅ RESOLVED 2026-08-17.** `ARM=floor` now anti-joins every allowlist signature against
+> `pg_proc` and fails `RC=1` on any that does not resolve. **Proven red-first**: the first run
+> exited **1** listing six entries; after the fix, `EXIT=0 · INVARIANT HOLDS` with the offender
+> count unchanged at **74**, all still allowlisted.
+>
+> ⭐ **This item named one specimen; the property-bounded check found six** — the phase's dominant
+> class ([[enumeration-boundary-is-a-syntax-not-a-property]]) recurring inside the follow-up list
+> itself. The six split cleanly, and the split is the interesting part:
+> - **ABSENT** (door dropped, entry is pure rot): `add_referral_reply_attachment` ·
+>   `get_referral_attachment_path` · `get_referral_snapshot_document_path`.
+> - **RE-SIGNATURED** (door LIVE under new params, and **called**): `decline_referral` (gained
+>   `p_decline_reason_code`) · `set_template_collects_patient` (`p_template_id` →
+>   `p_template_version_id`) · `update_controlled_document` (gained three params).
+>
+> **All six were removed, none replaced.** The three live doors are not in the offender set under
+> their real signatures, so they need no exemption — and per the `set_primary_subject` precedent
+> already in the file, *an allowlist entry for a door that IS called suppresses the floor arm's only
+> question about it.* If one later stops being called, the arm **should** fire and a human should
+> justify it then. ⚠ Note the second-order rot this exposes: a re-signatured entry keeps its original
+> **justification comment**, which now describes a door shape that no longer exists.
 
 `supabase/tests/mutation/authz-neverclled-door-allowlist.txt` keys entries on the **full identity
 signature**, and `p0-authz-invariant.sh:229` consumes it with

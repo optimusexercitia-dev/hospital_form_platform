@@ -145,6 +145,67 @@ skipped_from_findings () {
 RC=0
 
 # ════════════════════════════════════════════════════════════════════════════════
+# PREFLIGHT (runs before EVERY arm) — NO GATE IS SITTING DEGENERATE
+#
+# FUP-AUTHZ-HARNESS-TRANSACTIONAL. During DM5 S2 `app.can_write_document` — the
+# gate for every document write across all eight home types — sat live on the
+# shared stack with the body `begin return true; end`. An unconditional allow,
+# left by a mutation harness whose EXIT trap does not fire when a subagent's
+# process is killed.
+#
+# ⭐ WHY THIS LIVES HERE AND NOT IN A NEW ARM. Every existing arm tests a gate
+# that EXISTS: `policy` asks whether anything notices when a gate is opened,
+# `census` whether anything ever asked, `floor` whether the door is called,
+# `hat` whether it reads memberships hatless, `wrapper` covers prosecdef=f. A
+# gate that has been REPLACED BY A CONSTANT is invisible to all five, because
+# neutralizing an already-neutralized gate changes nothing. Running the check as
+# a preflight to every arm makes it unskippable without inventing a sixth arm
+# name that CLAUDE.md §6 would then have to be taught.
+#
+# ⚠⚠ THE FILED DETECTOR WAS BLIND TO TWO OF THE THREE NEUTRALIZATION FORMS.
+# The regex recorded in the follow-up is plpgsql-only:
+#     ^\s*begin\s+return\s+(true|false)\s*;\s*end
+# but p0-authz-door-audit.sh neutralizes in THREE forms — `begin return true;
+# end` (plpgsql), `select true` (language sql), and `begin return; end` (void
+# raise-guards, the assert_noop direction). Measured on this catalog: `app` +
+# `public` hold 182 SECURITY DEFINER functions in `language sql`, and
+# `'select true' ~ <filed regex>` is FALSE. So the query that bounded the
+# original incident's blast radius to "exactly one hit" — a correct result for
+# that incident, which was plpgsql — could not have seen a SQL-language gate at
+# all. An enumeration bounded by a SYNTAX rather than the PROPERTY, sitting in
+# the safety net itself. All three forms are covered below.
+#
+# Proven able to fire before being trusted: with two degenerate functions
+# constructed in a rolled-back txn (one `language sql`, one void), this returns
+# 2; against the clean catalog it returns none.
+# ════════════════════════════════════════════════════════════════════════════════
+DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
+     or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
+     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
+
+check_no_degenerate_gates () {
+  local hits
+  hits=$(psql_c -c "
+    select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||') ['||l.lanname||
+           case when p.prosecdef then ', DEFINER' else '' end||']'
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      join pg_language l on l.oid = p.prolang
+     where n.nspname in ('app','public') and $DEGENERATE_PREDICATE
+     order by 1;")
+  if [ -n "$(echo "$hits" | grep -vE '^$')" ]; then
+    echo "*** DEGENERATE GATE(S) LIVE ON THIS STACK — a harness left a door open:"
+    echo "$hits" | grep -vE '^$' | sed 's/^/      /'
+    echo "    Every arm below is UNTRUSTWORTHY until these are restored. pg_proc carries"
+    echo "    no mtime, so the window CANNOT be dated from the catalog: any result produced"
+    echo "    since the last known-good run must be RE-RUN, not re-read."
+    RC=1
+    return 1
+  fi
+  return 0
+}
+
+# ════════════════════════════════════════════════════════════════════════════════
 # ARM 1 — BLIND ⊆ ALLOWLIST
 # ════════════════════════════════════════════════════════════════════════════════
 run_arm_policy () {
@@ -237,6 +298,38 @@ run_arm_floor () {
     RC=1
   else
     echo "  OK: every never-called door is on the floor allowlist."
+  fi
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # FUP-AUTHZ-ALLOWLIST-ROT — the allowlist is only ever SUBTRACTED from, so
+  # nothing notices when an entry names a door that no longer exists. Live
+  # specimen at filing: line 41 named `add_referral_reply_attachment(...)`,
+  # dropped by DM4's 20260926000400.
+  #
+  # ⚠ Calibrated: a stale entry is INERT, not dangerous — it can never match a
+  # live offender, so it masks nothing. The failure is LEGIBILITY: a human
+  # reading the file sees a door "accounted for" that does not exist, and the
+  # justification comment outlives the thing it justified.
+  #
+  # ⭐ The signature-keying it rides on is a FEATURE, and DM5 S2 showed why:
+  # when a migration drops a parameter, the listed signature stops matching the
+  # live door, which then surfaces in `unlisted` ⇒ FLOOR VIOLATED, loudly. This
+  # check only covers the rot that same mechanism CANNOT see.
+  # ──────────────────────────────────────────────────────────────────────────
+  local live_sigs stale
+  live_sigs=$(psql_c -c "
+    select p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname in ('app','public');" | sort -u)
+  stale=$(comm -23 <(allow_body "$FLOOR_ALLOW" | sort -u) <(echo "$live_sigs"))
+  if [ -n "$(echo "$stale" | grep -vE '^$')" ]; then
+    echo "  *** ALLOWLIST ROT — entries naming a door that does not exist in pg_proc:"
+    echo "$stale" | grep -vE '^$' | sed 's/^/      /'
+    echo "  Fix: delete the entry, or correct it if the door was renamed. An allowlist"
+    echo "       entry is a claim about a live door; a claim about nothing reads as coverage."
+    RC=1
+  else
+    echo "  OK: every floor-allowlist entry resolves to a live door."
   fi
 }
 
@@ -391,6 +484,10 @@ run_arm_wrapper () {
     echo "$stale" | sed 's/^/      /'
   fi
 }
+
+echo "=== PREFLIGHT: no gate is sitting degenerate (FUP-AUTHZ-HARNESS-TRANSACTIONAL) ==="
+check_no_degenerate_gates && echo "  clean — 0 degenerate bodies in app+public (all three forms)"
+echo
 
 case "$ARM" in
   policy)  run_arm_policy ;;

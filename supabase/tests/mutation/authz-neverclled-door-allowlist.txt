@@ -38,7 +38,22 @@ add_capa_action_evidence(p_action_id uuid, p_kind text, p_title text, p_document
 add_capa_action_task(p_action_id uuid, p_description text)
 add_capa_measure(p_capa_id uuid, p_name text, p_target text, p_definition text)
 add_rca_timeline_entry(p_rca_id uuid, p_occurred_at timestamp with time zone, p_description text)
-add_referral_reply_attachment(p_referral_id uuid, p_title text, p_storage_path text, p_mime_type text, p_size_bytes bigint)
+# ── FUP-AUTHZ-ALLOWLIST-ROT (2026-08-17): SIX entries removed, none replaced. ──
+# Found by the new resolve-in-pg_proc check in ARM=floor, not by reading. The
+# follow-up named ONE specimen; the property-bounded check found six.
+#   ABSENT — no function of that name in any schema (the door was dropped):
+#     add_referral_reply_attachment(...)        DM4, 20260926000400
+#     get_referral_attachment_path(...)         DM4 attachment-path retirement
+#     get_referral_snapshot_document_path(...)  the F-14 signer retirement
+#   RE-SIGNATURED — the door is LIVE under new params, and is CALLED:
+#     decline_referral(...)             gained p_decline_reason_code
+#     set_template_collects_patient(...)  p_template_id -> p_template_version_id
+#     update_controlled_document(...)     gained p_category, p_tags, p_description
+# The three live doors are NOT in the offender set under their real signatures
+# (74 offenders, `unlisted` empty), so they need no exemption — and per the
+# `set_primary_subject` precedent below, an entry for a door that IS called
+# suppresses the floor arm's only question about it. If one of them ever stops
+# being called, the arm SHOULD fire and a human should justify it then.
 archive_event_type(p_id uuid)
 archive_indicator(p_id uuid)
 archive_sentinel_criterion(p_id uuid)
@@ -53,7 +68,6 @@ case_viewer_capabilities(p_case_id uuid)
 cases_extras_enabled()
 conclude_referral(p_referral_id uuid, p_reply_outcome_id uuid, p_result_md text, p_acknowledged_only boolean)
 dashboard_free_text(p_form_id uuid, p_from date, p_to date, p_limit integer)
-decline_referral(p_referral_id uuid, p_note text)
 delete_ad_hoc_case_narrative(p_narrative_id uuid)
 delete_ad_hoc_case_phase(p_phase_id uuid)
 delete_capa_action_evidence(p_evidence_id uuid)
@@ -61,8 +75,6 @@ delete_committee_action_item_checklist(p_id uuid)
 delete_committee_action_item_reminder(p_id uuid)
 delete_rca_evidence(p_evidence_id uuid)
 get_case_meeting_links(p_case_id uuid)
-get_referral_attachment_path(p_attachment_id uuid)
-get_referral_snapshot_document_path(p_shared_item_id uuid)
 indicator_series(p_indicator uuid, p_from text, p_to text)
 interviews_enabled()
 is_nsp_coordinator_of_self(p_hospital_id uuid)
@@ -109,13 +121,11 @@ set_interview_subject_participant(p_subject_id uuid, p_participant_id uuid)
 # pgTAP 321 exercises it (K2 denial, K6a move, K6b HC0F0) and `setPrimarySubject`
 # in src/lib/participants/actions.ts is its product caller. An allowlist entry for a
 # door that IS called suppresses the floor arm's only question about it.
-set_template_collects_patient(p_template_id uuid, p_collects boolean)
 unassign_case_tag(p_case_id uuid, p_tag_id uuid)
 update_capa_measure(p_measure_id uuid, p_name text, p_target text, p_definition text)
 update_committee_action_item(p_id uuid, p_title text, p_description text, p_assigned_to uuid, p_urgency_id uuid, p_due_date date, p_visibility_scope text)
 update_committee_action_item_checklist(p_id uuid, p_title text, p_sort_order integer)
 update_committee_action_item_reminder(p_id uuid, p_is_active boolean)
-update_controlled_document(p_id uuid, p_title text, p_doc_type text, p_review_cycle_months integer)
 update_event_type(p_id uuid, p_label text, p_description text)
 update_indicator(p_id uuid, p_name text, p_kind text, p_direction text, p_data_source text, p_frequency text, p_target_comparator text, p_target_value numeric, p_numerator_label text, p_denominator_label text, p_unit text, p_description_md text, p_lower_warn numeric, p_upper_warn numeric, p_derived_config jsonb)
 update_interview(p_interview_id uuid, p_title text, p_case_phase_id uuid, p_interview_category text, p_confidentiality_level text)
