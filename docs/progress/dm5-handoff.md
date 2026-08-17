@@ -32,7 +32,7 @@ this section used to name is discharged — §10 now records the *outcome* inste
 | ~~**S1** substrate amendment~~ | ⛔ **WITHDRAWN, never built** — D3/D4/D5 struck, replaced by **D11** |
 | **S2** NSP RCA/CAPA evidence | ✅ gate steps 1–2 COMPLETE; four arms DISCHARGED (§3) |
 | **S3** printed renditions | ✅ **COMPLETE — all four steps** (QA **APPROVED r2** `801a2589`). Detail §9, verdict §10 |
-| **S4** retirement (8 buckets) | 🔵 **BUILT; gate steps 1 ✅ + 2 ✅ GREEN, steps 3 (QA) + 4 (PO) OWED.** PO-authorized 2026-08-16. ⚠ **The byte half was a NO-OP** — see §11 |
+| **S4** retirement (8 buckets) | 🔵 **BUILT; steps 1 ✅ 2 ✅, step 3 ⛔ CHANGES REQUESTED (r1), step 4 owed.** Build sound; **both blocking items are RECORD defects.** ⚠ Byte half was a NO-OP, **then the 221 orphans were destroyed outside the gate** — §11 |
 | **S5** operational closure | ⬜ not started — carries a **binding input** (§5) |
 | **S6** canon + exit sweep | ⬜ not started — `backend-state.md`'s document surface is an explicit deliverable |
 
@@ -569,9 +569,15 @@ all five mutated functions byte-identical by `md5(pg_get_functiondef)`, `begin_d
 > definition**, `capture` returned `DEGENERATE BASELINE`, and **`delete --execute` was never run.**
 > - ✅ Closed: the metadata/schema half, durably (six historical migrations recreate the rows on every
 >   reset; the migration + `325` t6/t7 are what make retirement survive that).
-> - ⛔ **NOT closed:** 221 files / 6.93 MB / 15 PHI still on the local volume. **✅ PO RULED 2026-08-17:
->   LEAVE THEM; FUP-DM5-STORAGE-ORPHANS stays OPEN.** Clearing them needs the filesystem (a method D9
->   excludes) and would make the gap *look* closed while the production-facing question is untouched.
+> - ⛔⛔ **CORRECTED 2026-08-17 (QA B1) — the 221 files are GONE, destroyed OUTSIDE the gate.** The lead's
+>   own `supabase stop` + `supabase start` recovery (after killing a mid-flight `db reset` and hitting a
+>   container-name conflict) recreated the storage volume at **`01:06:02Z`**; `walk` now reports
+>   *"(no directory on the volume)"* ×8 and `capture` returns `orphan_keys=0 / CAPTURE CLEAN`. **No
+>   manifest, no count comparison, no audit — 15 of them PHI-tier.** The PO ruling to "leave them" was
+>   **moot when given**, 3h11m later, because the lead briefed it from a 3-hour-old measurement.
+>   FUP-DM5-STORAGE-ORPHANS stays OPEN (now centred on the Cloud question); new
+>   **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**. ⭐ *A rule governing the deliberate path does not constrain
+>   the accidental one — and nothing alarmed.*
 > - ⛔ **NOT rehearsed:** the deploy-time byte sequence has still never run against a populated bucket.
 >   Its correctness rests on **S0's 8/8 self-test**, not on S4. ADR 0120 **D9 now carries an inline
 >   EXECUTION NOTE** saying exactly this. **Do not let S5/S6 read S4's completion as evidence that the

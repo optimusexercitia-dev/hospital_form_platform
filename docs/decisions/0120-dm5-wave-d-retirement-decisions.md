@@ -202,6 +202,22 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 > rows — D9's ordering encoded executably rather than as prose. Detail:
 > [dm5-wave-d-retirement.md](../progress/dm5-wave-d-retirement.md) § S4; open orphan question:
 > **FUP-DM5-STORAGE-ORPHANS**.
+>
+> ⛔⛔ **POSTSCRIPT 2026-08-17, and it bears directly on what D9 does NOT cover.** Roughly an hour
+> after the measurement above, all **221** of those orphaned files (**15 PHI-tier**) were destroyed —
+> **not by this migration and not through this gate.** Recovering a wedged local stack
+> (`supabase stop` + `supabase start`, after a mid-flight `supabase db reset` was killed) recreated the
+> storage volume at `01:06:02Z`; `supabase stop` reported `"backup":true` while doing it. Verified:
+> `walk` → *"(no directory on the volume)"* ×8; `capture` → `orphan_keys=0`, `CAPTURE CLEAN`.
+>
+> **No manifest at disposal time, no `deleted == manifest` comparison, no audit row — i.e. exactly the
+> event this decision exists to prevent, occurring inside the slice that ratified it.** The finding is
+> not that D9 is wrong; D9 governs *deliberate* retirement and did so correctly. The finding is that
+> **D9's scope is the deliberate path, and the accidental path is ungoverned and silent.** Nothing
+> alarmed; it surfaced only because a reviewer refused to inherit a 3-hour-old figure. Tracked as
+> **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** — and it is a live question for the Cloud deploy, where
+> `npm run db:reset:linked` exists and a 20-yr LGPD/ANVISA retention posture makes *"bytes vanished
+> and we cannot say which or when"* a compliance statement rather than a tidiness one.
 
 **D10 — `documents_wave_d` joins the MIN flag pattern at the FIRST residue-producing step.**
 Home/arm-scoped, never blanket — a blanket assert satisfies the new keystone while silently

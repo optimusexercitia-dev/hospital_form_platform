@@ -36,9 +36,36 @@ exactly as S0 designed it to.
 not.** Recorded as such, never as "retirement proven". What *is* proven: the bucket rows and doors are
 gone, and they **stay** gone across `db reset`, which is the half that six historical migrations would
 otherwise silently undo. The deploy-time byte path remains D9's manifest-first sequence, and it is
-meaningful **there** because production *has* metadata rows (census 2026-08-11: 45 objects). The 221
-local orphans stay with **FUP-DM5-STORAGE-ORPHANS**; they are a data-at-rest/disposal-assertion
-problem (Rule 12), not a live exposure — every Storage read path resolves metadata first.
+meaningful **there** because production *has* metadata rows (census 2026-08-11: 45 objects).
+
+> ### ⛔⛔ CORRECTED 2026-08-17 by QA (S4 review B1) — the 221 files are GONE, and they did not go through the gate
+>
+> The sentence that stood here ("the 221 local orphans stay with FUP-DM5-STORAGE-ORPHANS") was **false
+> from about an hour after I wrote the measurement it rests on.** Re-measured independently, twice:
+> `docker volume inspect` → `CreatedAt 2026-08-17T01:06:02Z` (**the volume was destroyed and
+> recreated**); `walk` → *"(no directory on the volume)"* ×8, `TOTAL files=78`, all survivors;
+> `capture` → `orphan_keys=0`, **`CAPTURE CLEAN`** — against a committed manifest from 10 minutes
+> earlier recording **221 / 6,927,804 bytes / 15 PHI**.
+>
+> **I destroyed them.** Recovering a wedged stack — after I killed a mid-flight `supabase db reset` and
+> hit a container-name conflict — I ran **`supabase stop` + `supabase start`**, and the volume was
+> recreated at exactly `01:06:02Z`. `supabase stop` reported `"backup":true` while doing it. ⚠ Which
+> step did it is **not established, and I invent no mechanism** — but it sits inside my recovery
+> sequence and nothing else in the window fits (E2E run 2 started `01:09Z`, after).
+>
+> **Three things follow, and the third is the one that generalises:**
+> 1. **It was a disposal without evidence — 221 files, 15 PHI-tier — inside the slice that ratified
+>    D9.** No manifest at disposal time, no count comparison, no audit. *"The byte half was a no-op"*
+>    is only half true: **the bytes went; they just didn't go through the gate.**
+>    → **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (filed).
+> 2. **The PO ruling ("leave them, keep the FUP open") was MOOT when given** — 3h11m after its subject
+>    ceased to exist — because I briefed it from my own 00:55Z measurement instead of re-measuring at
+>    decision time. Outcome unchanged; the PO was still asked to rule on a fiction. ⭐ **A decision
+>    brief needs a measurement taken at decision time, not the one that motivated the question.**
+> 3. ⭐ **Nothing alarmed.** It surfaced only because a reviewer refused to inherit a figure I had
+>    carried forward for three hours. The whole of this phase's discipline is "don't inherit claims" —
+>    and the claim I failed to re-check was **my own**, which is the one that never looks like an
+>    inheritance.
 
 ### Gate step 1
 
@@ -116,12 +143,27 @@ happens to wrap the file, and `db push` to the remote is a *different* invocatio
 conditional on an undocumented property of the tool that applies it. **The fix removes the dependency
 rather than betting on it.**
 
-⚠ **One thing I could NOT explain, recorded as unexplained rather than rationalised:** in that e2e-path
-run the migration **did not error** after the warning — the log goes straight on to `Seeding data`,
-and the batch's actual failure was an unrelated 502 during container restart. Given probe A, a delete
-matching ≥1 row without the opt-in *must* raise, so either the delete matched **0 rows** in that path
-or the session already carried the GUC. I did not reproduce it (the fix removed the code path), and I
-am not going to invent a mechanism for it — this phase has been burned by confident mechanism stories.
+> ### ⛔ CORRECTED 2026-08-17 by QA (S4 review) — two claims above are WRONG. The fix stands; my causal story did not.
+>
+> 1. **"The E2E gate's reset" framing is false — it is NOT path-specific.** A plain
+>    `npx supabase db reset --local` emits **six** `25P01` warnings, one from `20260921000300` itself.
+>    My standalone reset *did* emit them; I had read it with `tail -25`, which cut them off, and then
+>    wrote up the difference between the two paths as a finding. ⭐ **I turned my own truncated read
+>    into a mechanism.**
+> 2. **My "the opt-in is load-bearing" probe was taken at the WRONG GRAIN** — and it is the probe I
+>    leaned on hardest. It ran against the **post-reset live DB**, where `protect_delete` genuinely
+>    raises `42501`. That is not *migration-apply time*. QA's surviving hypothesis, stated as a
+>    hypothesis: the trigger **is not in force while migrations apply**, because `storage.migrations`
+>    row 55 (`prevent-direct-deletes`) re-executes during the reset. That resolves what I had recorded
+>    as unexplained — the DELETE succeeded because nothing was stopping it, not because the opt-in
+>    somehow took.
+>
+> **What survives unchanged:** the `do`-block form is correct and transaction-safe, QA re-proved the
+> guard refuses (by inserting an object into a resurrected bucket), and the fix removes the dependency
+> on the runner's transaction handling either way. ⭐ *"The guard refuses" and "the guard refuses **at
+> apply time**" are different claims; my probe answered only the first.*
+> → [[a-predicate-quoted-at-the-wrong-grain]], a third instance this phase.
+
 ⚠ **`20260921000300` still carries the original `set local` idiom** and has the same latent
 fragility; it is applied history and was left alone. → **FUP-DM5-SETLOCAL-MIGRATION** (filed).
 
@@ -175,10 +217,17 @@ tool should reject unknown flags.* → **FUP-DM5-MANIFEST-FLAG** (filed).
   run. **The production sequence is therefore still unrehearsed end-to-end.**
 - **Nothing remote was touched**, verified or otherwise. FUP-DM5-STORAGE-ORPHANS' Cloud half stays
   residual.
-- **The 221 local orphan files were left in place — ✅ PO-RULED 2026-08-17, and FUP-DM5-STORAGE-ORPHANS
-  stays OPEN.** Removing them needs the filesystem, a method D9 deliberately excludes; they are
-  unservable dev artifacts, and deleting them would make the gap *look* closed while the real
-  production-facing question (an orphan-visible tool on Cloud) is untouched.
+- ⛔ **The 221 local orphan files were DESTROYED, outside the gate, by my own stack recovery** — see the
+  corrected block above. They were never "left in place"; the PO ruling that said so was moot when
+  given. FUP-DM5-STORAGE-ORPHANS stays OPEN, but its centre of gravity has moved to the Cloud question
+  (no customer-accessible tool may be able to SEE an orphan; the S3-protocol endpoint is still
+  UNPROBED). New: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**.
+- ⚠ **"Four ARMs HOLD" is TRUE and is ZERO COVERAGE of this diff** (QA INFO-3).
+  `p0-authz-invariant.sh:295` bounds the census at `nspname = 'public'`, so the four dropped
+  `storage.objects` policies were **never in any arm's domain**. I reported the arms in a way that
+  implies they exercised something here; they did not. The real coverage for this diff is pgTAP `325`
+  t6/t7/t8 plus the successor assertions — *the arms are orthogonal to it.*
+  ⭐ **A standing gate that passes is not a gate that looked.**
 - `235`/`236` still **create** `case-documents` / `interview-attachments` bucket rows inside their own
   rolled-back transactions. Left deliberately: they are self-sufficient, `u1-mutation-audit.sh` runs
   inside `236`'s transaction, and rewriting an authz fixture to chase a cosmetic is the riskier change.

@@ -68,12 +68,22 @@ export type PhiDisposalReason =
  * dead since DM1 dropped the substrate — verified zero callers across `src/`,
  * `e2e/`, `scripts/` and the catalog before removal.
  *
- * Do not reintroduce a tier→bucket helper here. Bucket choice is now a
- * SERVER-SIDE derivation on the core substrate: `file_objects_bucket_from_tier`
- * CHECK-pins `file_objects.sensitivity_tier` to `documents-standard` /
- * `documents-phi`, and `begin_document_upload` is the only thing that names a
- * bucket. A client-side constant naming a bucket is how the tier and the
- * storage location drift apart. */
+ * Do not reintroduce a tier→bucket helper here. Bucket choice is a SERVER-SIDE
+ * derivation on the core substrate: `file_objects_bucket_from_tier` CHECK-pins
+ * `file_objects.sensitivity_tier` to `documents-standard` / `documents-phi`.
+ * A client-side constant naming a bucket is how the tier and the storage
+ * location drift apart.
+ *
+ * ⚠ Corrected 2026-08-17 (QA, DM5·S4 MINOR-6): this comment previously claimed
+ * `begin_document_upload` was "the only thing that names a bucket". The catalog
+ * says THREE do — `public.begin_document_upload`, `public.reclassify_document`
+ * and `app.printed_rendition_storage_bucket`. Derived, not recalled:
+ *   select n.nspname||'.'||p.proname from pg_proc p
+ *     join pg_namespace n on n.oid = p.pronamespace
+ *    where n.nspname in ('app','public')
+ *      and p.prosrc ~ '''documents-(standard|phi)''';
+ * The point stands — bucket naming is server-side — but "only one" was a
+ * count nobody ran. */
 
 /**
  * Allowed `kind` values per owner_type — the union of today's per-table CHECKs,

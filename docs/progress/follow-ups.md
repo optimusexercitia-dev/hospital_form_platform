@@ -8,7 +8,51 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES — a `supabase stop`/`start` recovery destroyed 221 storage objects (15 PHI-tier) with **no manifest, no count comparison, no audit** (owner: lead + backend)
+
+Filed 2026-08-17 (lead) from QA's DM5·S4 review **B1**. Full measurement, timeline and cause: the
+S4 OUTCOME block under **FUP-DM5-STORAGE-ORPHANS** above.
+
+**The hazard, stated generally:** ADR 0120 **D9** governs *deliberate* retirement — capture, delete by
+key, assert `deleted == manifest`. It says nothing about the **operational** paths that can destroy
+storage bytes as a side effect, and at least one of them does so **silently**: recovering a wedged
+local stack (`supabase stop` + `supabase start`, here after a mid-flight `supabase db reset` was
+killed) recreated the storage volume. `supabase stop` reported `"backup":true` while doing it.
+
+**Why it matters beyond the lost dev files:**
+1. ⭐ **It is the exact event D9 exists to prevent, and it happened inside the slice that ratified D9** —
+   which is the strongest possible evidence that *a rule governing the deliberate path does not
+   constrain the accidental one.*
+2. **It was invisible.** Nothing alarmed. It was found only because a reviewer re-measured a figure the
+   lead had inherited from a manifest 3 hours old. **No gate in this repo would have caught it**, and the
+   lead reported the bytes as present, and had the PO rule on them, long after they were gone.
+3. **Cloud is the real exposure.** `npm run db:reset:linked` exists, and the 20-yr LGPD/ANVISA retention
+   posture means "storage bytes vanished and we cannot say when or which" is a compliance statement, not
+   a tidiness one.
+
+**Candidate resolutions (PO/backend call — deliberately NOT pre-decided):** capture a manifest
+**before** any stack-cycle or destructive CLI step and diff after (cheap, uses S0's existing tool) ·
+document the hazard in `docs/worktrees.md`/the deployment runbook · or accept it for local dev and scope
+the guard to anything touching a data-bearing stack. ⛔ **Do not resolve it by adding a comment saying
+one "should" capture first** — that is the failure mode this phase has now paid for repeatedly.
+
 ### 🟠 FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+
+> **⛔ CORRECTED 2026-08-17 by QA (S4 review).** Two claims in the original filing below were wrong:
+> 1. **It is NOT e2e-path-specific.** A plain `npx supabase db reset --local` emits **six** `25P01`
+>    warnings, one of them from `20260921000300` itself. The lead's standalone reset had simply been
+>    read with `tail -25`, which cut them off.
+> 2. **The lead's "the opt-in is load-bearing" probe was taken at the WRONG GRAIN.** It probed the
+>    **post-reset live DB**, where `protect_delete` genuinely raises `42501` — but that is not
+>    *migration-apply time*. QA's surviving hypothesis (stated as hypothesis, not demonstration): the
+>    trigger **is not in force while migrations apply**, because `storage.migrations` row 55
+>    (`prevent-direct-deletes`) re-executes during the reset. That explains the otherwise-unexplained
+>    fact that the DELETE succeeded despite a no-op opt-in.
+>
+> **The fix still stands and is still correct** — the `do`-block form removes the dependency on the
+> runner's transaction handling either way, and was re-proved by QA. Only the causal story changes.
+> ⭐ *A probe answers the question at the grain you took it; "the guard refuses" and "the guard refuses
+> **at apply time**" are different claims.* → [[a-predicate-quoted-at-the-wrong-grain]]
 
 Filed 2026-08-16 (lead) from a live near-miss in DM5·S4. `supabase db reset` **as invoked by
 `scripts/e2e-prod-gate.sh`** emitted `WARNING (25P01): SET LOCAL can only be used in transaction blocks`
@@ -264,16 +308,38 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 >
 > - ✅ **What S4 did close:** the metadata/schema half — 8 bucket rows + the last 4 policies retired by
 >   migration `20260927000400`, pinned by `325` t6/t7 (+t8 control) so it survives `db reset`.
-> - ⛔ **What remains open, and why this item is NOT resolved:** the 221 local orphan files are still on the
->   volume. They are unreachable through the D9 gate **by definition**, so closing this needs either a
->   filesystem action (a method D9 deliberately excludes) or acceptance that local dev volumes accumulate
->   orphans across resets.
->   **✅ PO RULED 2026-08-17: LEAVE THEM; this follow-up stays OPEN.** Rationale accepted: they are
->   unservable (every Storage read path resolves metadata first) and are local dev artifacts, so a
->   filesystem deletion would buy tidiness at the cost of using a method D9 excludes — and would make the
->   gap *look* closed while the real, production-facing question (an orphan-visible tool on Cloud) is
->   untouched. ⭐ **Keeping the item open is the point: it is the honest record of a gap, not a task
->   nobody did.**
+> - ⛔⛔ **CORRECTED 2026-08-17 by QA (S4 review B1) — THE 221 FILES NO LONGER EXIST, AND THEY DID NOT GO
+>   THROUGH THE GATE.** The text this bullet used to carry ("they are still on the volume … PO ruled to
+>   leave them") was **false when it was written**. Measured independently, twice:
+>   `docker volume inspect supabase_storage_…` → `CreatedAt 2026-08-17T01:06:02Z` (the volume object was
+>   **destroyed and recreated**), and `storage-manifest.mjs walk` → *"(no directory on the volume)"* for
+>   **all eight** retirement buckets, `TOTAL files=78`, all in survivor buckets; `capture` →
+>   `orphan_keys=0`, verdict **`CAPTURE CLEAN`** — against a committed manifest taken 10 minutes earlier
+>   on the same stack recording **221 files / 6,927,804 bytes / 15 PHI-tier**.
+>
+>   **Cause — the lead, and it is worth naming precisely.** Timeline (local = UTC−3): manifest
+>   `00:55:57Z` (221 present) → E2E batch 4's reset 502'd `~01:01Z`, lead killed the run and a
+>   **mid-flight `supabase db reset`** → `supabase start` hit a container-name conflict → lead ran
+>   **`supabase stop` + `supabase start`** → **volume recreated `01:06:02Z`**. `supabase stop` reported
+>   `"backup":true` and removed the storage volume regardless. ⚠ Which step of that recovery did it is
+>   **not established and no mechanism is invented here** — but it happened inside the lead's recovery
+>   sequence and nothing else in the window fits. (E2E run 2 started `01:09Z`, *after*.)
+>
+>   ⛔ **This was a disposal WITHOUT EVIDENCE — 221 files, 15 PHI-tier — inside the very slice that
+>   ratified D9.** No manifest at disposal time, no `deleted == manifest` comparison, no audit row. That
+>   is precisely the event D9 exists to prevent. It does not touch S4's schema work, and the bytes were
+>   regenerable local dev artifacts — but *"the byte half was a no-op"* is only half true: **the bytes
+>   went; they just didn't go through the gate.**
+>
+>   ⛔ **The PO ruling of 2026-08-17 ("leave them; keep this open") was MOOT when it was given** — made
+>   **3h11m after** its subject ceased to exist, because the lead re-used a 00:55Z measurement instead of
+>   re-measuring at decision time. Outcome unchanged (nothing to delete either way), but the PO was asked
+>   to rule on a state that no longer existed. ⭐ **A decision brief must carry a measurement taken at
+>   decision time, not the one that motivated the question.**
+>
+> - **This item stays OPEN**, and its centre of gravity has moved: the remaining question was never the
+>   local bytes, it is that **on Cloud there may be no customer-accessible tool that can SEE an orphan**
+>   (the S3-protocol endpoint is still UNPROBED). See also the new **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES**.
 > - ⚠ **`delete --execute` has still never run against a populated bucket.** Its correctness rests on S0's
 >   8/8 self-test, not on an S4 execution — so **the production sequence remains unrehearsed end-to-end**,
 >   even though production is where it is actually meaningful (it has metadata rows: 45 objects at the
