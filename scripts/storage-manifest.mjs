@@ -643,8 +643,90 @@ async function cmdDelete(argv) {
     const census = volumeCensus(loc, Object.keys(m.buckets))
     const left = Object.entries(census).filter(([, p]) => p.present && p.files > 0)
     if (left.length) {
-      console.log('\n⚠ LOCAL PROOF: bytes REMAIN after a matched deletion — these are pre-existing orphans:')
-      for (const [b, p] of left) console.log(`   ${b}: ${p.files} file(s), ${p.bytes} bytes`)
+      // ⭐ DM5 S5 — this used to say, flatly, "these are pre-existing orphans".
+      // It is the single most consequential line this tool prints: it appears
+      // only after a DESTRUCTIVE run, and the two possible causes lead an
+      // operator to OPPOSITE actions. "Pre-existing orphans" reads as *the
+      // deletion was fine, proceed*. But S5.R's R3b measured the other cause:
+      // an UNDER-COUNT manifest deletes every key it lists, the count comparison
+      // MATCHES, and the survivors are keys the manifest never knew about —
+      // still API-VISIBLE, still holding metadata rows, and therefore NOT
+      // orphans at all. That case means *your manifest is incomplete, STOP*.
+      // The two are distinguishable, so the tool must distinguish them rather
+      // than name the reassuring one. Where it cannot tell (the re-list fails),
+      // it says INDETERMINATE instead of guessing.
+      console.log('\n⚠ LOCAL PROOF: bytes REMAIN after a deletion whose count matched its manifest.')
+      let missedTotal = 0
+      let orphanTotal = 0
+      let indeterminate = 0
+      for (const [b, p] of left) {
+        // ⛔ FOUND BY REHEARSAL R3d, and it inverts the premise of this branch.
+        // `.list('')` on a bucket whose ROW IS GONE returns `{data: [], error:
+        // null}` — an EMPTY LIST, not an error. Measured, not assumed: R3d
+        // dropped the bucket row, left one file on the volume, and the first
+        // version of this classifier reported "PRE-EXISTING METADATA-LESS
+        // ORPHANS … not a failure of this deletion" — the REASSURING arm — for a
+        // bucket it could not interrogate at all. "I could not ask" and "I asked
+        // and there is nothing" are the same value here, which is the same
+        // conflation FUP-DM5-ALLOW-ORPHANS-CONFLATION describes one layer up.
+        // So existence is established FIRST, with `getBucket`, which DOES error.
+        if (!(await bucketExists(admin, b))) {
+          indeterminate += 1
+          console.log(
+            `   ${b}: ${p.files} file(s), ${p.bytes} bytes — ⚠ INDETERMINATE: the bucket ROW IS ABSENT, so a ` +
+              'Storage listing returns an empty list whether or not objects once existed. These bytes CANNOT ' +
+              'be classified from the API. Treat as unsafe.',
+          )
+          continue
+        }
+        let apiNow
+        try {
+          apiNow = await listBucketKeys(admin, b)
+        } catch (e) {
+          indeterminate += 1
+          console.log(`   ${b}: ${p.files} file(s), ${p.bytes} bytes — ⚠ INDETERMINATE: could not re-list the bucket (${String(e.message ?? e)}), so these bytes CANNOT be classified. Treat as unsafe.`)
+          continue
+        }
+        const apiSet = new Set(apiNow)
+        const orphaned = p.keys.filter((k) => !apiSet.has(k))
+        missedTotal += apiNow.length
+        orphanTotal += orphaned.length
+        console.log(`   ${b}: ${p.files} file(s), ${p.bytes} bytes on the volume`)
+        if (apiNow.length) {
+          console.log(
+            `       ⛔ ${apiNow.length} key(s) MISSED BY THE MANIFEST — still API-VISIBLE, so they hold metadata ` +
+              'rows and are NOT orphans. The manifest was captured against an incomplete reality.',
+          )
+          for (const k of apiNow.slice(0, 10)) console.log(`          still present: ${k}`)
+          if (apiNow.length > 10) console.log(`          … and ${apiNow.length - 10} more`)
+        }
+        if (orphaned.length) {
+          console.log(
+            `       ${orphaned.length} key(s) are PRE-EXISTING METADATA-LESS ORPHANS — invisible to the API, ` +
+              'so no key can address them; this run neither created nor could delete them.',
+          )
+        }
+      }
+      if (missedTotal || indeterminate) {
+        // The parts are assembled rather than interpolated because the
+        // indeterminate-only case (row absent + bytes present, rehearsal R3d)
+        // otherwise prints "0 key(s) survived that the manifest did not list",
+        // which reads as a reassurance inside a refusal. A refusal whose own
+        // numbers look benign is how a STOP gets ignored.
+        const parts = []
+        if (missedTotal) parts.push(`${missedTotal} key(s) survived that the manifest did not list`)
+        if (indeterminate) parts.push(`${indeterminate} bucket(s) could not be classified at all`)
+        console.log(
+          `\n⛔ DO NOT PROCEED. ${parts.join(' and ')}. ` +
+            'Do NOT retire the bucket row. Re-capture and find out why the manifest was incomplete.',
+        )
+      } else {
+        console.log(
+          `\n⚠ ${orphanTotal} pre-existing orphan key(s) remain. Every manifested key was deleted and none ` +
+            'survived, but these bytes predate this run and are unreachable through the Storage API — a ' +
+            'data-at-rest / disposal-assertion problem (Rule 12, LGPD), not a failure of this deletion.',
+        )
+      }
       process.exitCode = 1
       return
     }
@@ -1006,12 +1088,25 @@ async function cmdRehearse() {
     process.exitCode = saved
     return { exit, manifest: JSON.parse(readFileSync(out, 'utf8')) }
   }
+  // Captures stdout as well as the exit code: the S5 message fix means the WORDING
+  // on the destructive path is itself a pinned property, not just the exit code.
+  // A message proven wrong once and left unpinned comes back.
   const runDelete = async (manifestPath, exec = true) => {
     const saved = process.exitCode
-    await cmdDelete(['--manifest', manifestPath, ...(exec ? ['--execute'] : [])])
+    const lines = []
+    const realLog = console.log
+    console.log = (...a) => {
+      lines.push(a.map(String).join(' '))
+      realLog(...a)
+    }
+    try {
+      await cmdDelete(['--manifest', manifestPath, ...(exec ? ['--execute'] : [])])
+    } finally {
+      console.log = realLog
+    }
     const exit = process.exitCode ?? 0
     process.exitCode = saved
-    return exit
+    return { exit, out: lines.join('\n') }
   }
   const volOf = () => volumeCensus(loc, [bucket])[bucket]
   const metadataRows = () => Number(dbExec(db, `select count(*) from storage.objects where bucket_id = '${bucket}';`).stdout)
@@ -1092,11 +1187,11 @@ async function cmdRehearse() {
     over.buckets[bucket].keys = [...planted, 'ghost/never-existed.bin']
     over.buckets[bucket].keyCount = planted.length + 1
     writeFileSync(tmp('over'), JSON.stringify(over), 'utf8')
-    const overExit = await runDelete(tmp('over'))
+    const over1 = await runDelete(tmp('over'))
     check(
       'R3a delete REFUSES an OVER-COUNT manifest (deleted < manifest ⇒ COUNT MISMATCH)',
-      overExit === 1,
-      `exit=${overExit}`,
+      over1.exit === 1 && /COUNT MISMATCH/.test(over1.out),
+      `exit=${over1.exit}`,
     )
 
     // ---- R3b: an UNDER-COUNT manifest — the control that actually matters ---
@@ -1112,35 +1207,60 @@ async function cmdRehearse() {
     const missed = under.buckets[bucket].keys.pop()
     under.buckets[bucket].keyCount = under.buckets[bucket].keys.length
     writeFileSync(tmp('under'), JSON.stringify(under), 'utf8')
-    const underExit = await runDelete(tmp('under'))
+    const under1 = await runDelete(tmp('under'))
     const survivorsApi = await listBucketKeys(admin, bucket)
     const survivorsVol = volOf()
     check(
       'R3b delete REFUSES an UNDER-COUNT manifest — count MATCHES, bytes survive, exit is still 1',
-      cap4.exit === 0 && underExit === 1 && survivorsVol.files === 1,
-      `exit=${underExit} surviving_volume_files=${survivorsVol.files} surviving_api_keys=${survivorsApi.length}`,
+      cap4.exit === 0 && under1.exit === 1 && survivorsVol.files === 1 && /ALL BUCKETS MATCHED THEIR MANIFEST COUNT/.test(under1.out),
+      `exit=${under1.exit} surviving_volume_files=${survivorsVol.files} surviving_api_keys=${survivorsApi.length}`,
     )
+    // ⭐ The MESSAGE is pinned, not only the state. The old wording called this
+    // survivor a "pre-existing orphan"; it is API-visible, so it has a metadata
+    // row and is a key the manifest MISSED. The two readings send an operator in
+    // opposite directions on a destructive path, so the distinction is asserted.
     check(
-      'R3b-diagnosis the survivor is still API-VISIBLE — it is a MISSED key, not a pre-existing orphan',
-      survivorsApi.length === 1 && survivorsApi[0] === missed,
-      `missed="${missed}" api=[${survivorsApi.join(', ')}]`,
+      'R3b-diagnosis the survivor is API-VISIBLE and is REPORTED as MISSED BY THE MANIFEST, not as an orphan',
+      survivorsApi.length === 1 && survivorsApi[0] === missed &&
+        /MISSED BY THE MANIFEST/.test(under1.out) && /DO NOT PROCEED/.test(under1.out) &&
+        !/PRE-EXISTING METADATA-LESS ORPHANS/.test(under1.out),
+      `missed="${missed}" api=[${survivorsApi.join(', ')}] message_classified_as=${/MISSED BY THE MANIFEST/.test(under1.out) ? 'MISSED' : 'not-missed'}`,
+    )
+
+    // ---- R3c: the classifier's PERMISSIVE TWIN -----------------------------
+    // Without this, R3b is satisfied by a classifier hardwired to shout MISSED.
+    // Genuine metadata-less orphans must still be reported as orphans, and must
+    // NOT trigger "DO NOT PROCEED" — they are a Rule-12 disposal problem, not a
+    // failed deletion, and conflating them would make the loud case ignorable.
+    await replant()
+    const cap4b = await runCapture(tmp('cap4b'))
+    docker(['exec', loc.container, 'sh', '-c',
+      `mkdir -p '${loc.root}/${bucket}/ghosttown/old.bin' && printf 'orphan' > '${loc.root}/${bucket}/ghosttown/old.bin/${randomUUID()}'`])
+    const orphanRun = await runDelete(tmp('cap4b'))
+    check(
+      'R3c the same classifier reports GENUINE metadata-less orphans as orphans, without DO NOT PROCEED',
+      cap4b.exit === 0 && orphanRun.exit === 1 &&
+        /PRE-EXISTING METADATA-LESS ORPHANS/.test(orphanRun.out) &&
+        !/MISSED BY THE MANIFEST/.test(orphanRun.out) && !/DO NOT PROCEED/.test(orphanRun.out),
+      `exit=${orphanRun.exit} classified_as=${/PRE-EXISTING METADATA-LESS ORPHANS/.test(orphanRun.out) ? 'ORPHAN' : 'not-orphan'}`,
     )
 
     // ---- R1x: the PERMISSIVE TWIN — the real sequence, end to end ----------
     await replant()
     const cap5 = await runCapture(tmp('cap5'))
-    const dryExit = await runDelete(tmp('cap5'), false)
+    const dryRun = await runDelete(tmp('cap5'), false)
     const rowsBefore = metadataRows()
-    const execExit = await runDelete(tmp('cap5'), true)
+    const execRun = await runDelete(tmp('cap5'), true)
     const cap6 = await runCapture(tmp('cap6'))
     const b6 = cap6.manifest.buckets[bucket]
     const rowsAfter = metadataRows()
     check(
       'R1x THE SEQUENCE: capture → dry-run → delete --execute → re-capture reads EMPTY',
-      cap5.exit === 0 && dryExit === 0 && execExit === 0 && cap6.exit === 0 &&
+      cap5.exit === 0 && dryRun.exit === 0 && execRun.exit === 0 && cap6.exit === 0 &&
+        /DRY RUN — nothing deleted/.test(dryRun.out) && /LOCAL PROOF: zero bytes remain/.test(execRun.out) &&
         b6.verdict === 'CONSISTENT_EMPTY' && b6.keyCount === 0 && b6.proof.files === 0 &&
         rowsBefore === planted.length && rowsAfter === 0,
-      `capture=${cap5.exit} dry=${dryExit} exec=${execExit} recapture=${cap6.exit} verdict=${b6.verdict} ` +
+      `capture=${cap5.exit} dry=${dryRun.exit} exec=${execRun.exit} recapture=${cap6.exit} verdict=${b6.verdict} ` +
         `vol_files=${b6.proof.files} storage.objects ${rowsBefore}→${rowsAfter}`,
     )
 
@@ -1184,20 +1304,21 @@ async function cmdRehearse() {
     over2.buckets[bucket].keyCount = over2.buckets[bucket].keys.length
     writeFileSync(tmp('over2'), JSON.stringify(over2), 'utf8')
 
-    let blindUnderExit, blindOverExit, blindCapture
+    let blindUnder, blindOver, blindCapture
     try {
       process.env.PATH = noDocker
       if (locateVolume().available) throw new Error('could not force the no-local-proof branch — the arm would be vacuous')
       blindCapture = await runCapture(tmp('cap8'))
-      blindUnderExit = await runDelete(tmp('under2'))
+      blindUnder = await runDelete(tmp('under2'))
     } finally {
       process.env.PATH = realPath
     }
     const survivedBlind = volOf()
     check(
       'R6 ⛔ WITHOUT the local proof an UNDER-COUNT delete reports SUCCESS (exit 0) while a real file SURVIVES',
-      blindUnderExit === 0 && survivedBlind.files === 1,
-      `exit=${blindUnderExit} (R3b, same manifest shape WITH the proof, exited 1) surviving_volume_files=${survivedBlind.files}`,
+      blindUnder.exit === 0 && survivedBlind.files === 1 && /LOCAL PROOF UNAVAILABLE/.test(blindUnder.out) &&
+        !/MISSED BY THE MANIFEST/.test(blindUnder.out),
+      `exit=${blindUnder.exit} (R3b, same manifest shape WITH the proof, exited 1) surviving_volume_files=${survivedBlind.files}`,
     )
     check(
       'R6-capture WITHOUT the local proof, capture cannot judge at all — UNVERIFIED_NO_LOCAL_PROOF, exit 1',
@@ -1210,15 +1331,62 @@ async function cmdRehearse() {
     await replant()
     try {
       process.env.PATH = noDocker
-      blindOverExit = await runDelete(tmp('over2'))
+      blindOver = await runDelete(tmp('over2'))
     } finally {
       process.env.PATH = realPath
     }
     check(
       'R6b the OVER-COUNT refusal SURVIVES without the local proof (the count comparison is API-only)',
-      blindOverExit === 1,
-      `exit=${blindOverExit}`,
+      blindOver.exit === 1 && /COUNT MISMATCH/.test(blindOver.out),
+      `exit=${blindOver.exit}`,
     )
+
+    // ---- R3d: the THIRD classifier arm — INDETERMINATE ---------------------
+    //
+    // ⭐ The S5 message fix has THREE outcomes; R3b and R3c cover two. This is
+    // the third, and it had no control anywhere in this tool. Step 0 named the
+    // state precisely — bucket ROW ABSENT while BYTES REMAIN — as never having
+    // been observed, with no control that constructs it, because `verdictFor()`
+    // short-circuits to BUCKET_ABSENT before it ever consults the volume proof.
+    // It is reachable here: with the row gone, the re-list THROWS, so the
+    // classifier genuinely cannot tell a missed key from an orphan.
+    //
+    // The assertion pins the EXIT CODE next to the wording deliberately. A
+    // frightening message that exits 0 is the same defect one layer down — the
+    // shape this whole message fix exists to remove — so "says INDETERMINATE"
+    // and "exits 1" are asserted as one property, not two.
+    //
+    // The manifest here is the DEGENERATE shape S4 actually produced in
+    // production: `exists: true` with zero keys. So the count comparison MATCHES
+    // (0 deleted of 0 listed) and, once again, only the byte side objects.
+    await replant()
+    const preAbsent = await listBucketKeys(admin, bucket)
+    if (preAbsent.length) await admin.storage.from(bucket).remove(preAbsent)
+    const { error: dbe } = await admin.storage.deleteBucket(bucket)
+    if (dbe) throw new Error(`R3d could not drop the bucket row: ${dbe.message}`)
+    // Bytes planted AFTER the row is gone, so no Storage-service cleanup can
+    // race them away, and no metadata row can exist for them by construction.
+    docker(['exec', loc.container, 'sh', '-c',
+      `mkdir -p '${loc.root}/${bucket}/ghosttown/absent.bin' && printf 'orphan' > '${loc.root}/${bucket}/ghosttown/absent.bin/${randomUUID()}'`])
+    const absentVol = volOf()
+    writeFileSync(tmp('absent'), JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      capturedAt: new Date().toISOString(),
+      buckets: { [bucket]: { exists: true, keyCount: 0, keys: [] } },
+    }), 'utf8')
+    const absentRun = await runDelete(tmp('absent'))
+    check(
+      'R3d INDETERMINATE arm: row ABSENT + bytes PRESENT ⇒ refuses to classify, SAYS so, and the EXIT CODE agrees (1)',
+      absentVol.present && absentVol.files === 1 && absentRun.exit === 1 &&
+        /INDETERMINATE/.test(absentRun.out) && /DO NOT PROCEED/.test(absentRun.out) &&
+        !/PRE-EXISTING METADATA-LESS ORPHANS/.test(absentRun.out) && !/MISSED BY THE MANIFEST/.test(absentRun.out),
+      `exit=${absentRun.exit} volume_files=${absentVol.files} classified_as=` +
+        `${/INDETERMINATE/.test(absentRun.out) ? 'INDETERMINATE' : 'something-else'}`,
+    )
+    // Restore the row so R5's verified teardown runs its normal path rather than
+    // erroring on a missing bucket and reporting a cleanup failure that isn't one.
+    const { error: rce } = await admin.storage.createBucket(bucket, { public: false })
+    if (rce) throw new Error(`R3d could not restore the bucket row for teardown: ${rce.message}`)
   } catch (e) {
     console.error(`\nrehearsal error: ${String(e)}`)
     check('REHEARSAL COMPLETED WITHOUT ERROR', false, String(e))
