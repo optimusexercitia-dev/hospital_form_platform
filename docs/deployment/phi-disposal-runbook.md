@@ -182,6 +182,20 @@ Therefore:
   disposal record. **Say so in the disposal record; do not record "bytes
   destroyed" when what was verified was "metadata row absent."**
 
+> 🔴 **LEAD RULING 2026-08-17 — this is the most serious finding in the whole
+> slice, and it is tracked as FUP-DM5-NO-ANSWER-VS-NOTHING instance 3.** Unlike the
+> tool-output instances of that class, which an operator reads and can second-guess,
+> this one is **persisted** and **asserts a fact to a regulator**: a `disposed` row
+> meaning *"metadata absent, bytes unknown"* is a **false compliance assertion**
+> under LGPD / ANVISA-RDC / CFM 1821 in a 20-year-retention system.
+>
+> ⛔ **And on Cloud it is not merely unchecked — it is unverifiable by the method we
+> have**, because the local volume proof cannot exist there. **So `disposed` can
+> never mean more than "metadata gone" on Cloud unless FUP-DM5-CLOUD-ORPHAN-SURFACE
+> settles that an orphan-visible surface exists, or the door's contract is amended
+> to say what it actually verifies.** Every Cloud disposal record made before then
+> carries a claim the platform cannot substantiate.
+
 ## 5 · Reconciliation
 
 ```bash
@@ -247,13 +261,54 @@ controls, the two byte-side ones do not survive the loss of local proof.
 (`node scripts/storage-manifest.mjs rehearse` — 16 controls, all three classifier
 arms) before running it against Cloud.
 
+## 6b · ⛔ PHI HANDLING FOR THE BACKUP HALF — read BEFORE taking any Storage backup
+
+**A Storage backup is a PHI export.** This is not a caution about a hypothetical: the S5 drill took
+one, and it contained **245 files / 2,456,666 bytes including 68 PHI-tier files, in plaintext**,
+outside every platform control — no RLS, no `open_document_version` door, no PHI-access audit row, no
+signed-URL TTL. That is inherent to the mechanism, not a mistake in it: a whole-volume snapshot is
+Supabase-unaware, which is exactly why it is the only mechanism that can capture orphans.
+
+So the backup half of any drill or recovery **creates the widest PHI egress path this system has**.
+
+### ⚠ Four values the PO must set — PROPOSED NOWHERE, DELIBERATELY
+
+Handled exactly like the owner and periodicity in §1: **these are values, and this document does not
+invent values.**
+
+| | what must be decided | why it cannot be defaulted |
+| --- | --- | --- |
+| **Location** | where a Storage backup may be written | a developer laptop, a scratch directory and an encrypted managed volume are not interchangeable for PHI under LGPD/ANVISA |
+| **Permitted reader set** | who may read it, and how that is enforced | inside the platform this is RLS plus an audited door; on a filesystem copy it is filesystem permissions and nothing else |
+| **Retention** | how long the copy may exist | the platform's 20-year retention governs the *record*, not an operational copy of the bytes; these are different clocks and conflating them is its own error |
+| **Destruction** | how the copy is destroyed, and who verifies it | ⭐ note the recursion: destroying a backup copy has the **same** unverifiability problem as §4 — deleting a file proves the directory entry is gone |
+
+⛔ **Until those four values are set, executing the backup half of this runbook creates an unmanaged
+plaintext PHI copy.** That is the status today. It is stated as a present-tense fact rather than a
+TODO because a TODO is something a reader can defer; this is something a reader must decide before
+running the procedure.
+
+### What is required of the operator in the meantime
+
+- Do **not** take a Storage backup as a routine step. Take it only when an incident requires it, and
+  record that you did.
+- Treat the copy as PHI **at the moment it is created** — not when it is filed somewhere.
+- **Destroy it as soon as its purpose is served**, and record the destruction alongside the run
+  record (§7). The drill's own copy was deleted immediately after verification; that is the standard.
+- Never place it anywhere synced, shared, or backed up onward (cloud sync directories, shared drives,
+  ticket attachments). A PHI export that gets replicated is no longer an export, it is a second system.
+
+Tracked as **FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴).
+
 ## 7 · Records to keep per run
 
 Nothing here writes an operational log automatically, so the run leaves no trace
 unless the operator makes one. Keep, per run: the date, the executor, the step-A
 row count, the per-row outcome (including any `HC0DR` escalation), the step-D
-count, and — explicitly — **whether the byte half was verified or only asserted**
-(§4). The database's own audit trail records `document.disposed` and
+count, — explicitly — **whether the byte half was verified or only asserted**
+(§4), and **if any Storage backup was taken: where it was written, who could read
+it, and when it was destroyed** (§6b). A backup with no destruction record is an
+open PHI export, not a completed step. The database's own audit trail records `document.disposed` and
 `document.retention_override`, which covers *that* a disposal completed and
 *who*; it does not record that the bytes were proven gone.
 

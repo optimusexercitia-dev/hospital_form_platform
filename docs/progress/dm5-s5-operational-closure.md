@@ -394,16 +394,76 @@ A delivered slice is not an absence of gaps.
    the S3 endpoint is UNPROBED and nothing here changed that.
 9. **PITR entitlement for this project is UNDETERMINED** — needs the linked
    project.
-10. **Storage-backup PHI handling is undocumented** (§3c) — a volume snapshot is a
-    plaintext PHI export; where it may live, who may read it, and its retention are
-    written down nowhere. Surfaced, not fixed, not filed as its own follow-up
-    pending the lead's call.
+10. **Storage-backup PHI handling is UNSET** (§3c, §6b) — ✅ now **filed as 🔴
+    FUP-DM5-BACKUP-IS-PHI-EXPORT** and the runbook carries §6b, but the four values
+    (location · reader set · retention · destruction) are **awaiting the PO**.
+    Until they are set, **executing the runbook's backup half creates an unmanaged
+    plaintext PHI copy.** Filed and warned, *not* resolved.
 11. **`no_plan()` gives up per-file protection against silent assertion loss**
     (§1c) — the compensating control is a human comparison at gate time.
 12. **The vitest census is bounded to `src/` + `scripts/`** and excludes test
     files. A caller added under `e2e/`, in a test file, or outside those roots is
     invisible to it. The pgTAP half is bounded to non-temp schemas.
 13. **The three follow-ups are filed, not fixed** — per the lead's ruling.
+
+## 6b · Lead rulings on the handed-over doubts (2026-08-17) — all three recorded
+
+**Ruling 1 — the door's metadata-only absence check IS the NO-ANSWER class, and it ESCALATES to 🔴.**
+Same structure (*"no metadata row"* read as *"no bytes"*), but the worst of the three instances, and
+the reason is not technical: the other two are **tool output an operator reads and can second-guess**;
+this one is a **persisted record asserting a fact to a regulator**. A `disposed` state meaning
+"metadata row absent, bytes unknown" is a **false compliance assertion** under LGPD / ANVISA-RDC /
+CFM 1821 in a 20-year-retention system. ⛔ It compounds with S5.R: on Cloud there is no volume proof,
+so "bytes gone" is not merely unchecked there — it is **unverifiable by the method we have**, and
+**`disposed` can never mean more than "metadata gone" on Cloud** until either
+FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an orphan-visible surface exists, or the door's contract is
+amended to state what it actually verifies. Recorded in the follow-up, and in the runbook §4.
+⭐ The lead ruled that **filing it undecided rather than merging it on my own judgement was the correct
+call** — a severity decision with regulatory weight does not belong inside an implementation slice.
+
+**Ruling 2 — the S3 promotion was RIGHT: keep it promoted, cross-link, do NOT merge downward.** My
+body's "merge downward if you prefer one item" option is **withdrawn**, and both entries now
+cross-link (parent ⇄ promoted item, plus a consumer link from NO-ANSWER instance 3, which is blocked
+on this measurement). The generalisable reasoning, recorded because it outlives this item: *an item
+that can change a verdict does not live inside the parentheses of the verdict it would change* — the
+same defect as ADR 0120's root-cause #3 (*a supersession marker only a raw-file reader can see is not
+a marker*) and the S2 reopen-banner defect (*a marker merely DISTANT is no better than one hidden*).
+
+**Ruling 3 — the PHI-export finding is FILED (🔴), and it changes the runbook.** Filed as
+**FUP-DM5-BACKUP-IS-PHI-EXPORT**, because it is not hypothetical (the drill created one) and because
+⛔ **the runbook as written would instruct a human to create that export** — *a procedure whose correct
+execution produces an undocumented plaintext PHI copy is not a complete procedure.* The runbook gains
+**§6b**, a PHI-handling section for the backup half whose four values — **location · permitted reader
+set · retention · destruction** — are marked **awaiting the PO**, handled exactly as owner/periodicity
+were, and it states as a **present-tense fact** (not a TODO, which a reader can defer) that until they
+are set, executing the backup half creates an unmanaged PHI copy. §7's run record now also requires
+the backup's location, reader set and destruction time.
+
+### Two of §7's doubts adopted as BINDING named gaps — S6 may not close over them
+
+- **P4 `open_document_version` NOT MEASURED.** Lead-ruled: stopping after two attempts rather than
+  guessing at a state machine was correct — **a fabricated baseline is worse than a missing one.**
+  Stays open as a named gap, not a footnote.
+- **The runbook sequence is UNREHEARSED.** It is a procedure, not a proven one. Lead's framing, which
+  is the S4 lesson repeating one layer up: *naming an owner is not a rehearsal, and writing a runbook
+  is not running it.*
+
+### The gate lesson, in the lead's words as well as mine
+
+The lead's independent re-verification at HEAD confirmed lint 5/5, tsc 0, vitest 89f/1304, pgTAP
+194f/6363 on his own fresh reset, and that `public.documents` holds **only** `documents_pkey` — so the
+P2 Seq Scan finding is real, not an artifact of my synthetic volume.
+
+⭐ **He also owned the stale baseline, and the lesson is worth more than the correction:** S5.R was
+reported to the PO as "done and green" on the strength of its **selftest, catalog and volume state** —
+its *functional* claims — **but not its gate**. `cap7` was present at `e5a1418e` and the lint gate was
+red. *Verifying a teammate's functional claims is not verifying its gate claims.*
+
+And the specific reason that matters here: **the lint error was pointing at a missing assertion, not
+at style.** The dead binding was **R6-capture's sighted twin**, unasserted — without it the arm is
+satisfied by a tool that exits 1 and verdicts UNVERIFIED for *every* input, i.e. one that can no
+longer judge anything at all. **That is the argument for why lint is a phase gate and not a formatting
+preference:** an unused binding is frequently a control someone wrote and forgot to assert.
 
 ## 7 · Doubts handed over, not just conclusions
 

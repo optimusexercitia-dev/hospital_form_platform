@@ -8,7 +8,12 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
-### 🟠 FUP-DM5-NO-ANSWER-VS-NOTHING — `storage-manifest.mjs` does not consistently distinguish *"I could not look"* from *"I looked and found nothing"* (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+### 🔴 FUP-DM5-NO-ANSWER-VS-NOTHING — *"I could not look"* is not distinguished from *"I looked and found nothing"* — and one instance persists that confusion as a **regulatory assertion** (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
+
+> **Severity 🔴 by lead ruling 2026-08-17, escalated from 🟠 on instance 3.** The class heading
+> carries the severity of its worst instance. Instances 1–2 are 🟠 (tool output an operator reads and
+> can second-guess); **instance 3 is 🔴** because it is a *persisted record asserting a fact to a
+> regulator* — see below.
 
 Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as two bugs.** Two
 independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
@@ -36,28 +41,58 @@ because a control was built for a state nobody had seen — not by review, and n
 existing 15 controls. And per the lead's ruling it is **not a corner case: it is the state all eight
 retired buckets are in**, and the state a Cloud retirement migration produces by construction.
 
-⚠ **An adjacent third instance, and I am NOT asserting it belongs to this class** — the lead should
-rule. `public.complete_document_disposal`'s absence check reads **`storage.objects`** (metadata), so
-`disposed` proves the metadata row is gone and **not** that the bytes are gone
-(`docs/deployment/phi-disposal-runbook.md` §4). That is arguably a different shape — *"the metadata
-view is not the substrate"* rather than *"no answer read as nothing"* — but the operator-visible
-consequence is identical: a reassuring state reached without the evidence its name implies. If the two
-are one class, the design answer should cover both; if not, the door's half needs its own item.
+**Instance 3 — 🔴 `complete_document_disposal` persists the confusion as a REGULATORY ASSERTION.
+LEAD-RULED 2026-08-17: it IS this class, and it is the worst instance of the three.** The door's
+absence check reads **`storage.objects`** — the metadata table (quoted from the live catalog in
+`docs/deployment/phi-disposal-runbook.md` §4). So `disposed` proves the metadata row is gone and
+**not** that the bytes are gone.
+
+**Why this instance outranks the other two, and the reason is not technical.** Instances 1–2 are
+**tool output an operator reads and can second-guess**. Instance 3 is a **persisted record that
+asserts a fact to a regulator.** A `disposal_state = 'disposed'` row meaning *"metadata row absent,
+bytes unknown"* is a **false compliance assertion** under LGPD / ANVISA-RDC / CFM 1821-2007, inside a
+20-year-retention system, on the one record class whose entire purpose is to evidence that PHI was
+destroyed.
+
+⛔ **And it compounds with S5.R, which is the sentence that makes the severity legible:** on Supabase
+Cloud there is **no volume proof** — `locateVolume()`'s preconditions (`STORAGE_BACKEND=file` plus a
+`supabase_storage` container on the operator's own machine) cannot hold there. So on Cloud "bytes
+gone" is not merely *unchecked*; it is **unverifiable by the method we have**. Which means
+**`disposed` can never mean more than "metadata gone" on Cloud unless something changes** — either
+FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an orphan-visible surface exists, or the door's contract is
+amended to say what it actually verifies. Until one of those happens, every Cloud disposal record
+carries a claim the platform cannot substantiate.
+
+⭐ **Filed undecided rather than merged on backend's own judgement — the lead ruled that was the
+correct call, and it is noted as such.** The alternative (quietly folding it into the class, or
+quietly giving it its own id) would have made a severity decision with regulatory weight inside an
+implementation slice.
 
 ### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
 
 Filed 2026-08-17 (backend, S5.D). Filed explicitly so it **cannot become settled by silence** — the
 current state of knowledge is *"we do not know"*, and that is not the same as *"there is none"*.
 
-⚠ **NOT A NEW QUESTION — a PROMOTION, and it must not be treated as a second copy.** The parenthetical
-*"(no customer-accessible tool may be able to SEE an orphan; S3-protocol endpoint UNPROBED)"* already
-lives inside **FUP-DM5-STORAGE-ORPHANS**' open **Cloud half**. It is promoted to its own id for one
-reason: buried in a parenthetical of an item whose headline reads *"closes empty by measurement"*, it
-is exactly the kind of obligation that gets discharged by association when the parent looks resolved.
-**Neither item is closed by closing the other**; FUP-DM5-STORAGE-ORPHANS keeps its local half and its
-`npm update`/dependency-source lesson, and this item owns the Cloud measurement. If the PO or a
-reviewer would rather keep one item, **merge downward into FUP-DM5-STORAGE-ORPHANS and delete this
-one** — do not leave both alive with divergent bodies.
+⚠ **NOT A NEW QUESTION — a PROMOTION. ✅ LEAD-RULED 2026-08-17: the promotion is RIGHT. KEEP IT
+PROMOTED; CROSS-LINK, DO NOT MERGE DOWNWARD.** The parenthetical *"(no customer-accessible tool may be
+able to SEE an orphan; S3-protocol endpoint UNPROBED)"* still lives inside **FUP-DM5-STORAGE-ORPHANS**'
+open **Cloud half**, under a headline that reads *"closes empty by measurement"*.
+
+**The ruling's reasoning, recorded because it generalises past this item:** *an item that can change a
+verdict does not live inside the parentheses of the verdict it would change.* This is the same defect
+this phase keeps paying for — ADR 0120's own root-cause #3 (*a supersession marker only a raw-file
+reader can see is not a marker*) and the S2 reopen-banner defect (*a marker merely DISTANT is no
+better than one that is hidden*). A buried obligation gets discharged by association the moment its
+parent looks resolved.
+
+**Neither item is closed by closing the other.** FUP-DM5-STORAGE-ORPHANS keeps its local half and its
+`npm update` / dependency-source lesson; this item owns the Cloud measurement. ⛔ An earlier draft of
+this body offered "merge downward if you prefer one item" — **that option is withdrawn by the ruling.**
+
+**Cross-links (both directions, so neither can be read alone):** parent →
+FUP-DM5-STORAGE-ORPHANS (Cloud half). Consumer → **FUP-DM5-NO-ANSWER-VS-NOTHING instance 3 (🔴)**,
+which is *blocked on this measurement*: until it is settled, `disposal_state = 'disposed'` cannot mean
+more than "metadata gone" on Cloud.
 
 **What IS established** (measured, local, S5.R): every byte-side control in `storage-manifest.mjs`
 depends on `locateVolume()`, whose preconditions are `STORAGE_BACKEND=file` **plus** a
@@ -86,6 +121,37 @@ whether the dashboard's Storage explorer reads metadata or the store, and whethe
 ⚠ Until this is settled the deploy runbook must treat the Cloud byte half as **asserted, not
 verified**, and say so in the disposal record — which
 `docs/deployment/phi-disposal-runbook.md` §§4, 6 now does.
+
+### 🔴 FUP-DM5-BACKUP-IS-PHI-EXPORT — a Storage backup is an **unmanaged plaintext PHI export**, and the disposal runbook instructs a human to create one (owner: PO decision, then backend + lead; **Rule 12 / LGPD / ANVISA-RDC**)
+
+Filed 2026-08-17 (backend, S5.D) **on lead ruling — filing was ruled not optional.** ⛔ **Not
+hypothetical: the S5 drill created one.** A `docker cp` of the live storage volume produced **245
+files / 2,456,666 bytes including 68 PHI-tier files, in plaintext, outside every platform control** —
+no RLS, no `open_document_version` door, no PHI-access audit row, no signed-URL TTL, no encryption
+beyond whatever the host filesystem provides. That copy was deleted after verification; **the
+mechanism that made it remains, undocumented.**
+
+**Why it is 🔴 rather than a hygiene note:** every safeguard in Rule 12 — the tightest RLS, the audited
+single door, the tier-keyed TTLs, platform at-rest encryption — governs bytes *inside* the platform.
+A volume snapshot steps around all of them at once, by design, because it is Supabase-unaware (that is
+precisely why it is the only mechanism that captures orphans). The backup is therefore the **widest
+PHI egress path the system has**, and it is the one with **no** documented location, permitted reader
+set, retention period, or destruction step.
+
+⛔ **The operational sting, and the reason this had to be filed before the runbook reaches the PO:**
+`docs/deployment/phi-disposal-runbook.md`'s backup half **instructs a human to create exactly this
+export.** *A procedure whose correct execution produces an undocumented plaintext PHI copy is not a
+complete procedure.* The runbook now carries a **PHI-handling section** whose four values —
+**location · permitted reader set · retention · destruction** — are marked **awaiting the PO**, handled
+exactly like the owner/periodicity values, and it states plainly that **until they are set, executing
+the backup half creates an unmanaged PHI copy.** That warning is deliberately stronger than a TODO.
+
+**What would close this:** the PO sets the four values, the runbook records them, and the destruction
+step is verifiable (a named location + a retention clock someone owns). ⚠ Note the interaction with
+the drill's other finding — the byte half has **no** first-class tooling, so any future automated
+backup will be built on one of these two mechanisms, and whichever is chosen inherits this item.
+Related: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (the same volume, the destructive direction) and
+**FUP-DM5-NO-ANSWER-VS-NOTHING** instance 3 (the same bytes, the *disposal-assertion* direction).
 
 ### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** (owner: PO decision, then backend)
 
@@ -454,6 +520,13 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 ([[detector-that-finds-nothing-must-be-proven-able-to-find-something]]).
 
 ### 🟠 FUP-DM5-STORAGE-ORPHANS — a **LOCAL** DB reset wipes `storage.objects` but NOT the bytes; ⚠ **the REMOTE half was a stale inference and is now demoted to residual** (owner: lead + backend; blocks DM5 step 3 **locally**)
+
+> ⛔ **CROSS-LINK, added by lead ruling 2026-08-17 (DM5·S5): this item's Cloud half is now
+> [FUP-DM5-CLOUD-ORPHAN-SURFACE](#-fup-dm5-cloud-orphan-surface), a separate item.** The S3-endpoint
+> question was a **parenthetical inside this body**, under a headline reading *"closes empty by
+> measurement"* — and *an item that can change a verdict does not live inside the parentheses of the
+> verdict it would change*. **Closing THIS item does NOT close that one**, and this body's
+> "closes empty by measurement" conclusion is about the **retirement-scope, local** question only.
 
 > ### 📌 S4 OUTCOME 2026-08-16 — the local half is now DEMONSTRATED, not predicted, and it is **not closed**
 >
