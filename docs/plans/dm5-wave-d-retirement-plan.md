@@ -128,8 +128,24 @@ bucket rows (verified live 2026-08-14) — fix those fixtures here, before S4 ca
 
 </details>
 
-### S4 — retirement execution (backend) — ✅ **RAN 2026-08-16/17; steps 1 ✅ · 2 ⛔ UNESTABLISHED · 3 r1 ⛔ (fixed, r2 owed) · 4 owed**
+### S4 — retirement execution (backend) — ✅ **COMPLETE 2026-08-17: all FIVE gate steps**
 
+> ✅ **CORRECTED 2026-08-17 (QA S5 INFO-1, lead's own defect).** This heading read *"steps 1 ✅ ·
+> 2 ⛔ UNESTABLISHED · 3 r1 ⛔ (fixed, r2 owed) · 4 owed"* **after all four had closed.** S4's actual
+> close: **step 2 GREEN at `e2e:prod` 1121p/0f/0 did-not-run/18 batches** · **step 3 QA APPROVED at
+> r3** (r1 ⛔ → r2 ⛔ → r3 ✅) · **step 4 PO-approved** · **step 5 recorded** (`phase(DM5·S4)` =
+> `f06ebea5`).
+>
+> ⛔ **Why this was more than an INFO: S6 reads THIS FILE.** A future S6 briefed from here would have
+> been told S4's E2E figure was unestablished and its QA unfinished — the same defect shape as
+> PROGRESS.md's S2 reopen banner, which briefed a teammate that a working slice was broken. **The
+> status a slice closes with must be written into every file the NEXT slice reads, not only into the
+> tracker.** I updated PROGRESS.md's three markers at step 5 and did not sweep the plan.
+>
+> ⚠ Still true and NOT relieved by S4's completion: **the byte half was a no-op and the deploy-time
+> sequence is UNREHEARSED** (owned as S5.R, which has since run locally — see § S5.R and ADR 0120 D9's
+> execution note, including the **fake-local-proof** correction).
+>
 > ✅ **STATUS 2026-08-17 — this section is now a PLAN RECORD, not a brief.** PO authorized on the day;
 > migration `20260927000400` retired the 8 bucket rows + the last 4 policies. ⛔ **The byte half was a
 > NO-OP** — every retirement byte was already a metadata-less orphan, so the D9 gate could not address
