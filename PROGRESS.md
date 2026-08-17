@@ -163,7 +163,7 @@
 > (`496fd135`). Build work **done**; **step 3 QA ✅ r2 APPROVED 2026-08-17** (r1 ⛔ → fixes → r2);
 > gate steps 2 + 4 **owed**.
 >
-> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done · step 3 QA ✅ r2 APPROVED · steps 2 + 4 OWED**
+> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **build done · step 3 QA ✅ r2 APPROVED · ⛔ step 2 RED · step 4 OWED**
 >
 > **Preceded by a pre-S6 follow-up batch (`496fd135`)** — census re-scoped, P4 measured, 478 links
 > repointed. Detail in the follow-ups register and the S5 record.
@@ -246,7 +246,22 @@
 > the live catalog (all reproduced; census table in the review). ⚠ **The r2 APPROVED is the S6
 > SLICE verdict only.**
 >
-> ⛔ **Steps 2 + 4 OWED.** `e2e:prod` not run; **DM5's PHASE QA not run** — and
+> ⛔ **Gate step 2 — RUN, and RED.** `e2e:prod` full run (`REBUILD=1`, 2026-08-17): **1120 passed ·
+> 1 failed · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, the parts summing to **1129
+> collected** — so **no unrun tests**; the [[gate-summary-can-hide-unrun-tests]] shape was looked for
+> and is absent, and batch 8 (exit 127 with 40 tests unrun last time) ran **40/40**. The single
+> failure is **🔴 BUG-DM5-S6-EVID-KBD-1** (Bug Log): `e2e/dm5-nsp-evidence.spec.ts:347` EVID-KBD-1,
+> *"target element was never focused within the tab budget"*, which **failed through its retry**.
+> ⭐ **Characterised in 4 runs at `RETRIES=0`: reproducible 2/2 at the gate's batch-4 composition,
+> green alone (8/8) and as a pair (18/18)** — so it is **composition-dependent, not the flake** its
+> `FUP-E2E-REPEAT-FLAKY` membership claims. ⛔ **Not an S6 regression, measured:** 0 `src/` files and
+> 0 migrations separate the last green run from this red one.
+> ⚠⚠ **The harness exit code was a trap worth recording:** the background job reported **exit 0**
+> because the invocation ended in an `echo`, while the gate itself printed **GATE RED** and
+> `E2E_PROD_EXIT=1`. *Read the gate's own verdict, never the wrapper's status* — the same family as
+> [[gate-summary-can-hide-unrun-tests]], one layer further out.
+>
+> ⛔ **Steps 2 + 4 OWED (step 2 is RED, not merely unrun); DM5's PHASE QA not run** — and
 > S3/S4/S5/**S6** verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
 > binds and S6 may not close over it.** 🔴 The supersede-serving collision is **deferred, not
 > closed**. **ADR 0120 D9's Cloud question was PO-deferred "to when S6 reaches it" — S6 has now
@@ -516,9 +531,45 @@ this obligation after QO·B cut it. Mechanism → [follow-ups.md](docs/progress/
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-### 🔴 OPEN — the three live bugs
+### 🔴 OPEN — the live bugs
 
-⚠ **Heading added 2026-08-14.** These three sat between two "Closed" headings with no heading of their
+**🔴 BUG-DM5-S6-EVID-KBD-1 — `EVID-KBD-1` fails REPRODUCIBLY at batch composition; it is no longer a
+flake, and the "known flaky" label is now wrong** (filed 2026-08-17, S6 gate step 2; owner: `tester`)
+
+- **Spec:** `e2e/dm5-nsp-evidence.spec.ts:347` — *"EVID-KBD-1: keyboard-only — Tab to «Enviar
+  arquivo», fill the dialog by keyboard, submit with Enter, and Tab+Enter to open the result"*.
+  Failure: `keyboard: target element was never focused within the tab budget`
+  (`focusByTabbing`, spec `:293`), then the follow-on `toBeVisible` at `:409`.
+- **The S6 gate run went RED on this one test:** 1120 passed · **1 failed** · 2 flaky · 6 skipped ·
+  **0 did-not-run** · 18 batches. It failed **through** its retry (`RETRIES=1`).
+- ⭐ **Why the existing label must not be reused.** `EVID-KBD-1` is a recorded member of
+  `FUP-E2E-REPEAT-FLAKY`, added at S3's gate and flaky again at S4's — **both times it passed on
+  retry.** It no longer does. *A test that used to be rescued by a retry and now is not has changed
+  behaviour, and "known flaky" would file that change as nothing.*
+- **Measured, 4 runs, `RETRIES=0` throughout — it is composition-dependent, not random:**
+
+  | run | specs | tests | result |
+  |---|---|---|---|
+  | alone | `dm5-nsp-evidence` | 8 | ✅ 8 passed |
+  | pair | `dm4-referral-documents` + `dm5-nsp-evidence` | 18 | ✅ 18 passed |
+  | **batch-4 composition** | the gate's actual 6 | 65 | ⛔ **63 passed, 1 failed** |
+  | **batch-4 composition, again** | same 6 | 65 | ⛔ **63 passed, 1 failed** |
+
+- **Not an S6 regression, and that is measured, not assumed:** the last green run and this red one
+  are separated by **0 `src/` files and 0 migrations** (S6 and the QA commit are both docs-only).
+  Something in *batch composition*, not in the product, moved it over the line.
+- **Leads for whoever takes it** (none verified — offered as starting points, not conclusions):
+  `playwright.config.ts` sets **`fullyParallel: true`**, so scheduling is not strictly file-bound;
+  and the preceding spec's `DM4-TTL-1` **sleeps ~2.1 min by design** (it proves byte doors survive a
+  delay that would expire a render-time credential), which is the kind of thing a tab budget or a
+  cached session can be sensitive to. Shape matches the standing
+  [[playwright-focus-is-not-auto-waiting]] class — *reads like a11y, is timing.*
+- ⛔ **S6 gate step 2 is RED until this is resolved.** Do not re-declare green on the isolated
+  8/8 pass: it does not reproduce the failing condition.
+
+⚠ **Heading added 2026-08-14** (and re-titled 2026-08-17 when a fourth bug landed — *the count was in
+the heading, which is a figure that goes stale the moment it is right*). These sat between two
+"Closed" headings with no heading of their
 own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
 markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
 archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
