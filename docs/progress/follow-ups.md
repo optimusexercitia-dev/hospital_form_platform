@@ -275,8 +275,14 @@ same metadata (the likely explanation, since it speaks the Storage API). It rule
 an orphan-visible surface; the **S3 endpoint remains UNPROBED**.
 
 **4 · ✅ The S4 guard will fire, and that is the designed outcome — but it BLOCKS the next `db push`.**
+⚠ **PRESENT TENSE HERE IS HISTORICAL — read the "✅ RESOLVED the same day" section above first.** The
+7 objects were deleted 2026-08-17, all eight retirement buckets are empty, and `20260927000400` is
+**pushable**. This paragraph is preserved as the measurement that *predicted* the abort correctly;
+it is not a live blocker. ⛔ The **ordering** it states (byte-first, D9) still binds on any future run.
 `20260927000400_dm5_s4_retire_legacy_buckets.sql` Block 1 counts `storage.objects` per bucket and
-`raise exception`s naming the bucket and count. It is one of only **two** local-only migrations, so
+`raise exception`s naming the bucket and count. It is the **earliest of FIVE** local-only migrations
+(⚠ this read *"one of only two"* until re-measured 2026-08-17 — the batch added three more after it:
+`…0928000200`, `…0928000400`, `…0928000500`), so
 the next `db push` **will abort** on `printed-documents (4)` and `controlled-documents (3)`. Nothing to
 fix — the guard is correct and my measurement says exactly when it fires. **Ordering owed (ADR 0120
 D9, byte-first):** `scripts/storage-manifest.mjs capture` → `delete --execute` **against the remote**,
@@ -617,9 +623,12 @@ one "should" capture first** — that is the failure mode this phase has now pai
 >
 > ### ⛔⛔ AND THE IN-PLACE FIX IS NOT AVAILABLE: all four are APPLIED ON THE REMOTE
 > Measured with `supabase migration list --linked`: the remote carries every migration through
-> **`20260927000360`**, i.e. **DM1–DM5·S3 have been pushed**. Only **two** are local-only
-> (S4's `…000400` and the recusal fix `20260928000100`). Editing applied history creates the
-> drift that blocks `db push` — *restore, don't repair*.
+> **`20260927000360`**, i.e. **DM1–DM5·S3 have been pushed**. ⚠ **Re-measured 2026-08-17: FIVE are
+> local-only, not two** — `…0927000400` (S4) · `…0928000100` (recusal) · `…0928000200` (evidence
+> revoke) · `…0928000400` (D4 contract) · `…0928000500` (finalize-atomic); `…0928000300` was the
+> reverted D11 inflow and does not exist. Editing applied history creates the
+> drift that blocks `db push` — *restore, don't repair*. ⛔ **The five local-only ones ARE still
+> editable in place** — the "not available" verdict below applies only to the four APPLIED files.
 >
 > ⚠ **This contradicts `dm5-handoff.md` §13.1, which states "NOTHING PUSHED, no `db push`, no
 > remote reset … remote never touched by DM1–DM5". BOTH halves of that sentence are false** —
@@ -696,6 +705,27 @@ reproduction of the 221 files / 6.93 MB / 15 PHI-tier orphan census, four days a
 > **PO 2026-08-16: DECIDE LATER.** Asked directly at S4 authorization; the PO chose to leave the inline
 > `⏳ CONTESTED` pointer in ADR 0120 D11 and keep this open. Nothing in S4 depended on it. **Still owed
 > before DM5's phase QA at S6** — build it or strike it; do not let S6 close over it silently.
+>
+> ### ⏸ RE-RULED 2026-08-17 — still DECIDE LATER, but the reason has CHANGED and that matters
+>
+> ⛔ **This is no longer "not yet built." It was BUILT (`6181557e`), and the build FAILED THE GATE.**
+> The inflow was reverted at `5b40d62b` because marking a superseded print `disposal_pending` made
+> **every superseded print unservable** — `app.resolve_document_version_bytes:72` refuses on **any**
+> non-`none` `disposal_state`. So the blocker is no longer effort or scheduling; it is a **head-on
+> collision between two ratified ADRs** (0121 D3/D5 vs 0120 D6/D8) at exactly one value,
+> `disposal_reason_category = 'superseded'`.
+>
+> ⭐ **Read this item and `FUP-DM5-SUPERSEDE-SERVING-COLLISION` as ONE deferral seen from two sides** —
+> this is the missing **inflow**, that is the **decision** gating it, and `FUP-DM5-DISPOSAL-JOB` is the
+> missing **outflow**. ⛔ **Do not resolve any of the three alone**: ADR 0121's own argument is that
+> fixing the inflow alone *"would make things look better and destroy nothing"* — a growing pile of
+> `disposal_pending` rows no code path can clear, while D11 reads as honoured.
+>
+> ⚠ **What the D11 keystones did NOT catch, kept because it is the transferable part.** `342`'s S3p
+> block was red-proven **both ways** and stayed GREEN — it asserted the **inflow** (bytes get marked)
+> and never asked whether any **reader** still worked. The blast radius was one join away and no
+> assertion in the slice looked there. → [[a-predicate-quoted-at-the-wrong-grain]] — the check ran, it
+> just was not checking the thing.
 
 Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-4. **Not an S3 bug — an ADR-0120 D11 claim that the
 implementation cannot honour**, so it must be either built or struck from D11.
@@ -772,6 +802,31 @@ future route mounts an unfiltered projection. ⚠ Check for other same-name-diff
 `src/lib/queries/` while there; this one was found by accident.
 
 ### 🔴 FUP-DM5-SUPERSEDE-SERVING-COLLISION — marking superseded bytes for disposal makes the print UNSERVABLE; two ratified ADRs collide at one value (owner: **PO**, then backend)
+
+> ### ⏸ PO RULING 2026-08-17 — **DECIDE LATER; the inflow STAYS REVERTED.** The item remains 🔴 OPEN.
+>
+> Both offered resolutions were **declined for now**: neither widen `app.resolve_document_version_bytes`
+> to pass `disposal_pending` bytes whose reason is `superseded`, nor reinterpret ADR 0121 **D3/D5**'s
+> ratified *"superseding marks bytes"*. The tree stays as `5b40d62b` left it.
+>
+> ⭐ **Why deferring is a real position here and not a punt.** The reverted state is *coherent*: no
+> inflow without an outflow (ADR 0121 **D1** satisfied), no unservable superseded prints, and nothing
+> in production depends on D11. The two open options are **not symmetric** — widening a PHI
+> byte-serving gate cannot be un-shipped safely, while the cost of waiting is a `disposal_state` that
+> stays `none` on superseded prints, which harms nobody today.
+> → [[keystone-measured-what-i-built-not-what-breaks]]: *a narrowing can be wrong and safe; a widening
+> cannot.*
+>
+> ⛔ **A DEFERRAL IS NOT A CLOSURE, and three things follow from that.**
+> 1. **This item stays 🔴 and S6 may NOT close over it.** It is not discharged by DM5 completing.
+> 2. **D11 cannot be rebuilt until this is decided** — it is the blocker, and ADR 0121 D3/D5 are
+>    ratified text currently **not implemented**, which the ADR must keep saying out loud.
+> 3. ⚠ **`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` is the same deferral seen from the other side** —
+>    superseded print bytes still never retire. Do not read that item as independently open work.
+>
+> ⚠ **The condition that would force this decision:** anything that makes superseded prints accumulate
+> at volume, or a retention/erasure obligation landing on them. Re-put it to the PO then, not on a
+> schedule.
 
 Filed 2026-08-17 (lead), **found by the Phase Gate, not by review**, after the D11 inflow was
 built, keystoned, red-proven and committed. `312` t38 — *"a revoked document still SERVES"* —
@@ -976,6 +1031,86 @@ backstop). ⚠ Re-derive whether it is *still* blind from the live catalog befor
 [[a-rename-orphans-a-name-keyed-verdict]] applies — a name-keyed verdict does not follow a body edit.
 
 </details>
+
+### 🟡 FUP-ROTATION-BREAKS-LINKS — **every §6-step-5 rotation silently 404s its own links; 474 are broken today** (owner: lead)
+
+Filed 2026-08-17 (lead), **measured, not inferred** — a link-resolution sweep over the four rotation
+destinations after this pass's own rotation.
+
+**The mechanism, and it is structural rather than careless.** PROGRESS.md sits at the **repo root**,
+so its links are root-relative (`](docs/decisions/0120-….md)`). Every rotation destination lives in
+**`docs/progress/`**. The §6 step-5 protocol says to preserve the block **verbatim** — and a verbatim
+copy of a root-relative link **404s from one directory down**. ⛔ **The protocol's own correctness
+requirement is what breaks the links.**
+
+**Measured, per destination** (broken relative links, excluding this pass's appends, which were
+repointed):
+
+| destination | broken |
+|---|---|
+| `phase-status-archive.md` | **167** |
+| `qa-verdicts-archive.md` | **154** |
+| `decisions-log.md` | **144** |
+| `dm5-wave-d-retirement.md` | **9** |
+| **total** | **474** |
+
+⭐ **Why this is worth a follow-up and not a cleanup commit.** These files are the *destination of
+every rotation* — the place the live file points a reader when it says *"detail lives in the
+record."* A 404 there means the rotation **moved the text out of reach while reading as though it
+archived it**, which is the same shape as this phase's dominant class: an action performed
+(*rotated*) recorded as the state achieved (*preserved and reachable*).
+→ [[a-records-claim-about-an-external-system-goes-stale-silently]]
+
+⚠ **This pass reproduced the defect before catching it** — 77 fresh broken links across three
+archives, found only because a link check ran *after* the rotation rather than being part of it.
+They are fixed (`](docs/…)` → `](../…)`); the 474 above are the pre-existing backlog.
+
+**Remedy, in order of value:**
+1. ⭐ **Make the transform part of the rotation recipe** in `docs/lead-playbook.md` §§4–5 — one
+   `](docs/` → `](../` pass after the append, *before* the cut. Cheap, and it stops the growth.
+2. A one-off sweep to repair the 474. ⚠ **Mechanical but not blind** — a few links legitimately point
+   at root files (`CLAUDE.md`, `PROGRESS.md`) and need `../../`, so the transform is two rules, not one.
+3. ⛔ **Do NOT "fix" this by rewriting links in PROGRESS.md itself** — they are correct *there*. The
+   defect belongs to the copy, not the source.
+
+⚠ **The verification claim needs the same care.** Four rotation headings in this pass originally read
+*"preserved byte-for-byte, `cmp`-verified"*, which stopped being true the moment the links were
+repointed. All four now state exactly what holds: **prose verbatim, link targets repointed.**
+*An almost-true verification claim is the thing this whole register exists to catch.*
+
+### 🟡 FUP-VACUOUS-COVERAGE-1 — two PHI-remediation tests that **NEVER RUN**, and `lint:vacuous` is structurally unable to catch them (owner: tester + backend)
+
+> ### ⛔ BODY WRITTEN 2026-08-17 — this item had **NO body in this file** for its entire life
+>
+> Until now its single line in PROGRESS.md's head list *was* the whole record, and that line carried
+> its own warning: *"THIS LINE IS THE ONLY RECORD — do not compress or cut it believing a body
+> exists."* ⭐ **It was found exactly the way that warning anticipated** — by a pre-rotation check that
+> asked, for all 54 head entries, *"does this have a body?"* rather than assuming the head list was a
+> summary of something. **53 did. This one did not.** A rotation that compressed the head list without
+> that check would have deleted the item outright while looking like tidying.
+> → [[enumeration-boundary-is-a-syntax-not-a-property]]
+>
+> ⚠ Context also survives in `docs/reviews/vacuous-assertion-audit.md` and
+> `docs/progress/bug-log-archive.md`, but neither is the follow-up register, so neither would have
+> kept the item *open* — they record it as history, not as work.
+
+**The finding.** `e2e/phi-remediation.spec.ts` **REM-8** and **REM-9** skip on **every** run: there is
+no seeded RCA for `EV-0001`, and the only CAPA has a `NULL source_event_id` (both catalog-verified).
+
+⛔ **Why the lint gate can never help here — this is the point of the item.** They are *honest*
+`test.skip()`s, not silent greens. `lint:vacuous` (`scripts/check-vacuous-assertions.mjs`) exists to
+catch **a test that goes GREEN having asserted nothing**; a test that never runs is **outside that
+property**. So the gate is working as designed and the coverage hole is invisible to it —
+**two different failures that both end in "the suite is green and the behaviour is untested."**
+⭐ Filed *because* the audit that produced the gate noticed the gate's own boundary.
+
+**Why it is its own item and not a drive-by.** Closing it means new fixture work against `seed.sql`,
+which is **a contract with ~900 tests** — the shared-fixture hazard in
+[[shared-fixture-cannot-satisfy-two-specs]]. Adding a seeded RCA for `EV-0001` and a CAPA with a real
+`source_event_id` changes counts other specs assert on.
+
+⚠ **Whoever closes this must show the two tests RUN and can FAIL** — un-skipping them and observing
+green proves nothing on its own, which is the same class the parent audit was about.
 
 ### 🟡 FUP-PGTAP-WORKER-DEADLOCK — `npm run test:db` intermittently deadlocks a `pg_prove` worker (owner: backend)
 
@@ -1443,7 +1578,45 @@ DML, being a table constraint; that is the third of the three locks and the reas
 is safe today.
 </details>
 
-### 🟠 FUP-DM4-RECUSAL — a RECUSED coordinator can freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline = the `documents_wave_c` flag-on date**)
+### ⬛ FUP-DM4-RECUSAL — ✅ **RESOLVED 2026-08-17 (local catalog); ⚠ NOT YET ON THE REMOTE** — a RECUSED coordinator could freeze a case's PHI documents into a referral, around the exclusion perimeter (owner: lead + PO + backend; **deadline was the `documents_wave_c` flag-on date**)
+
+> ### ✅ RESOLUTION 2026-08-17 — `32054942`, migration `20260928000100`, ADR [0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md)
+>
+> ⛔ **This header read `🟠` open until 2026-08-17 — a full day after the fix landed, in the file that
+> is the authority for what is open.** Nothing in the entry below had been touched. Recording it here
+> rather than silently rewriting: a closed security obligation that still reads OPEN costs the next
+> session a re-investigation, and the same rot in the opposite direction ships a hole.
+> → [[a-records-claim-about-an-external-system-goes-stale-silently]].
+>
+> **The PO overturned the 2026-08-14 Phase-19 deferral** (ADR 0122 **D1**): the deadline was always
+> the `documents_wave_c` flag-on date, and — as QA's standing caveat below demanded — **a plane that
+> only WIDENS cannot close an under-inclusive gate.** So it was closed by a **narrowing** arm, which
+> is what the caveat required.
+>
+> **What was built.** A `app.can_read_case(v_referral.source_case_id, auth.uid())` arm raising
+> `HC0DM`, placed **ABOVE the `p_kind` dispatch** — deliberately not inside the `document` arm where
+> the item was filed, because the **narrative** arm freezes `case_narratives.body_md` with the
+> identical omission and a guard in the reported arm would have left its sibling open
+> (that is `FUP-DM5-SIBLING-GUARD-DIFF`, applied rather than merely filed).
+>
+> **Evidence, red-first against the pre-migration catalog:** `340` R1–R4 green, **R5/R6 RED with
+> `caught: HC077 / wanted: HC0DM`** — and that `HC077` *is* the finding, the recused coordinator
+> reaching past every gate into the arm's own content lookup. Plan 76 → 82, all green after.
+>
+> **✅ Lead-verified from the LIVE CATALOG 2026-08-17, not from the commit message**
+> (`pg_get_functiondef`, per the CLAUDE.md §graphify SQL exception): the guard is at body line 24,
+> the `p_kind` dispatch at line 29 — the ordering the fix depends on is real, and
+> `public.add_referral_shared_item` is `prosecdef=true`.
+>
+> ⚠⚠ **THE ONE THING THIS DOES NOT YET COVER — and it is the half the deadline was about.**
+> `20260928000100` is **LOCAL-ONLY**. `supabase migration list --linked` (measured 2026-08-17) shows
+> the remote current through **`20260927000360`**, so **the recused-coordinator hole is still OPEN on
+> the remote.** It closes there on `db push`, which is itself gated behind S4's `20260927000400`.
+> **Do not read this ⬛ as "safe in production."** The deadline condition is unchanged: this must be
+> on the remote before `documents_wave_c` is ever enabled there.
+
+<details>
+<summary>Original filing (2026-08-14) — kept in full; the gap, the PO's first ruling, and QA's binding caveat</summary>
 
 Filed 2026-08-14 at DM4 QA r1 (**MAJOR-3**). **Found by `qa`, demonstrated LIVE** in a rolled-back
 transaction — not inferred from reading code.
@@ -1479,6 +1652,12 @@ freeze door, **proven by a negative twin**, and the FUP is closed only against t
 ⚠ **Before `documents_wave_c` is ever enabled in production, this must be resolved or explicitly
 re-ratified by the PO.** Name it in Phase 19's scope in
 [accreditation-track.md](../phases/accreditation-track.md) so D16 cannot land without meeting it.
+
+</details>
+
+> ⭐ **The caveat above was met on its own terms, and that is why this closed rather than deferred.**
+> It demanded a *narrowing* arm proven by a negative twin; it got one (R5/R6 red-first). ⚠ Its final
+> paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
 
 ### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
 

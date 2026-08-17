@@ -166,3 +166,38 @@
 | 2026-07-01 | **Answer-Model v2** (planned) — uniform answer row + typed scalar cols (`value_number/date/time`) + instance-ready answer key … | [0045](docs/decisions/0045-answer-model-v2.md) |
 | 2026-07-01 | **Forward-compat form capabilities** (planned) — `form_items.parent_item_id` + reserved hooks for repeating groups / file-signature-matrix answers … | [0046](docs/decisions/0046-forward-compat-form-capabilities.md) |
 | _pre-2026-07_ | **35 earlier decision rows (Phases 0–14, 2026-06-11 → 2026-06-25) rotated 2026-08-04** — one line each, plus the verbose form of every one | [decisions-log.md](docs/progress/decisions-log.md) |
+
+---
+
+## ↩ Rotated from PROGRESS.md 2026-08-17 (the §6-step-5 size rotation) — Decisions table rows, VERBATIM
+
+PROGRESS.md's § Decisions had grown to **11.6 KB** of one-line-per-decision rows reaching back to
+2026-07-01. The live file keeps only the **head** of a cross-phase log (CLAUDE.md §7); these 23 rows
+(2026-08-05 and older) are rotated here. ⚠ **Appended BEFORE the cut and `cmp`-verified — then relative links `](docs/…)` were repointed to `](../…)` (23 of them), because a root-relative link copied from PROGRESS.md 404s from `docs/progress/`. Prose verbatim, link targets repointed.** Per the
+same protocol as the S5/S4/S3 rotation.
+
+| Date | Decision | Ref |
+| --- | --- | --- |
+| 2026-08-05 | **AFF — hospital affiliation, CPF identity & the org people directory** (PO) — affiliation becomes a **row** and is a **visibility input, never a capability input** (amends 0048 D7); `profiles.cpf` = the person key; org-wide roster disclosure ratified (amends 0048 D1) | [0097](../decisions/0097-hospital-affiliation-person-identity.md) |
+| 2026-08-04 | **The authz door-blindness invariant becomes a PHASE STEP, diff-scoped** — §6 step 1 gains ARM 2 every phase + a diff-scoped ARM 1 whenever a phase touches an RLS policy or `prosecdef` gate; step 5 must **name the ARM, not the script**. The full ~5 h sweep stays a periodic audit | [0079 Am. 1](../decisions/0079-authz-door-blindness-standing-invariant.md) |
+| 2026-08-04 | **Membership-hardening + Diretor Técnico: the four open items closed** (PO) — T1.0 = atomic replace; **platform_admin may NOT appoint a DT**; build W1→W4 on one branch; `technical_director` ships ON | [0094 Am. 1](../decisions/0094-membership-hardening-and-technical-director.md) |
+| 2026-08-03 | **Phase 16 build plan + 4 planning rulings** (PO) — CAPA evidence arm = hospital-match + `can_read_capa`; commission-owned frameworks commission-scoped SELECT; visible hospital nav entry; ONA skeleton PO-validated | [0093 Am. 1](../decisions/0093-phase-16-standards-crosswalk-replan.md) |
+| 2026-08-03 | **Phase 16 replanned + re-gates the pilot** (PO) — skeleton-only framework packs (licensing); ONA `level` dimension; evidence enum +`charter`+`ethics_procedure`; worst-wins rollup; `hospital_readiness` re-gated off `is_admin` (the noun rule) | [0093](../decisions/0093-phase-16-standards-crosswalk-replan.md) |
+| 2026-07-27 | **Flexible-Forms FF-1…FF-5 pulled pre-pilot** (PO) — all five gate the pilot deploy | [0086](../decisions/0086-flexible-forms-pre-pilot.md) |
+| 2026-07-27 | **FF-1 Repeating Groups rulings** (PO) — nesting **capped at depth 1, schema-enforced**; conditions resolve **inside-out** | [0087](../decisions/0087-ff1-repeating-groups.md) |
+| 2026-07-23 | **Case custom fields** — template-defined, **non-PHI** administrative descriptors on cases | [0083](../decisions/0083-case-custom-fields.md) |
+| 2026-07-16 | **`manage_case_access` — KEEP (confirmed, PO)** | [0078 D1/A16](../decisions/0078-authorization-capability-model.md) |
+| 2026-07-16 | **Meeting family — ACCEPT AS-IS (exclusion-perimeter residual)** — a coordinator recused from case X can conclude a multi-case meeting discussing X | [handoff §5](../progress/authz-handoff.md) |
+| 2026-07-16 | **ADR 0078 A5 perf gate PASSED — no migration.** Resolver parity-or-faster + strictly linear on realistic (2005-case) data | [0078 D2/A5](../decisions/0078-authorization-capability-model.md) |
+| 2026-07-12 | **Pre-pilot release scope expansion** — pulled 12 initiatives (Phases 20–21, Referrals v2, Interviews v2, Ethics E1–E3, action-items …) | [0071](../decisions/0071-pre-pilot-release-scope-expansion.md) |
+| 2026-07-12 | **Referrals v2 — Dialogue & Governance** — adopt the two-way `referral_messages` thread + defer 12 items | [0037-A1](../decisions/0037-inter-committee-case-referrals.md) |
+| 2026-07-10 | **Pre-Pilot Foundations Program** — one collision-free plan sequencing F0→F1→F2→F3→F-cleanup | [program](../plans/pre-pilot-foundations-program.md) |
+| 2026-07-09 | **Case subject generalization → participants/roles/professional-registry/case-types** (E0 foundation for Ethics) | [0064](../decisions/0064-case-subject-generalization-participants.md) |
+| 2026-07-09 | **Centralized-attachments substrate refinement** (14e) — single authorizing owner + `attachment_references`/`_subjects` | [0063](../decisions/0063-centralized-attachments-substrate.md) |
+| 2026-07-08 | **Administrativo delegated-capability role** — per-commission appointment + a curated, finite capability menu | [0061](../decisions/0061-administrativo-delegated-role.md) |
+| 2026-07-06 | **Coolify as the pre-Phase-9 dev/staging deployment target** — Dockerfile-only (Traefik replaces the planned Caddy/compose) | [0059](../decisions/0059-coolify-deployment-target.md) |
+| 2026-07-05 | **Phase 15/17 revision + pre-pilot re-sequencing** — build order **15 → 17 → 16**; 18–21 post-pilot | [0057](../decisions/0057-indicators-doc-control-replan.md) |
+| 2026-07-06 | **Phase 15 derived-measurement compute** — `compute_derived_measurement` replicates the `dashboard_distributions` mechanics | [0058](../decisions/0058-derived-measurement-compute.md) |
+| 2026-07-02 | **Action-items fold + `visibility_scope` + case-access expiry** — scope-aware hub `SELECT` via `can_read_action_item` | [0050](../decisions/0050-action-items-fold-visibility-scope-case-access-expiry.md) |
+| 2026-07-01 | **Answer-Model v2** — uniform answer row + typed scalar cols + instance-ready answer key | [0045](../decisions/0045-answer-model-v2.md) |
+| 2026-07-01 | **Forward-compat form capabilities** — `form_items.parent_item_id` + reserved hooks | [0046](../decisions/0046-forward-compat-form-capabilities.md) |

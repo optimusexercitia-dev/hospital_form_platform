@@ -773,10 +773,15 @@ machine before drawing any conclusion**, and check the count against the plan
 >
 > ## ⛔⛔ FIRST: §13.1's HEAD row was FALSE IN BOTH HALVES. DM1–DM5·S3 ARE LIVE ON THE REMOTE.
 > Measured (`supabase migration list --linked`): the remote carries everything through
-> **`20260927000360`**. Only **two** migrations are local-only — S4's retirement
-> `20260927000400` and the recusal fix `20260928000100`. **Do not rely on any "nothing
-> pushed" statement anywhere in this file or PROGRESS.md.** Three consequences, and two of
-> them outrank the whole batch:
+> **`20260927000360`**. ⚠ **RE-MEASURED 2026-08-17 (later): the local-only set is FIVE, not two —
+> this line said "two" and was itself already stale when written, because the batch it introduces
+> added three more migrations after it.** The set, from `migration list --linked`:
+> **`20260927000400`** (S4 retirement) · **`20260928000100`** (recusal) · **`20260928000200`**
+> (evidence-table revoke) · **`20260928000400`** (D4 evidence contract) · **`20260928000500`**
+> (finalize-atomic). ⚠ **`20260928000300` does not exist** — it was the D11 inflow, reverted at
+> `5b40d62b`; a gap in the sequence is expected here and is not a missing file.
+> **Do not rely on any "nothing pushed" statement anywhere in this file or PROGRESS.md.**
+> Three consequences, and two of them outrank the whole batch:
 > 1. **Applied migrations may NOT be edited in place** — that is the drift that blocks `db push`.
 > 2. **S4's retirement never reached the remote** — ✅ **now quantified.** All 12 bucket rows are
 >    live there and **two hold objects**: `printed-documents` **4** (three PHI-tier) +

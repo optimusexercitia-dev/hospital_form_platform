@@ -1,11 +1,52 @@
 # ADR 0121 — Disposal lifecycle: inflow, outflow, and what `disposed` asserts
 
-- **Status:** ✅ **ACCEPTED 2026-08-17.** Drafted the same day from PO rulings taken at the
+> ## ⛔⛔ AMENDMENT 1 (2026-08-17, later the same day) — **ACCEPTED ≠ IMPLEMENTED. Only D4 shipped.**
+>
+> This ADR was written as one lifecycle and is **not in force as one.** Read this before quoting any
+> decision below as describing the system.
+>
+> | decision | ratified | in the tree today |
+> |---|---|---|
+> | **D3 / D5** — superseding marks bytes for disposal (the **inflow**) | ✅ | ⛔ **BUILT, THEN REVERTED** (`6181557e` → `5b40d62b`) |
+> | **D2** — the cron **outflow** that completes a disposal | ✅ | ⛔ **DOES NOT EXIST** (`FUP-DM5-DISPOSAL-JOB`, 🟠, blocking pre-pilot) |
+> | **D4** — what `disposed` asserts (`byte_proof` + `metadata_source`) | ✅ | ✅ **SHIPPED** (`20260928000400`) — independently correct, purely additive |
+>
+> **Why the inflow was reverted, and it was the Phase Gate that caught it, not review.** `312` t38 —
+> *"a revoked document still SERVES"* — died with `documento descartado`.
+> **`app.resolve_document_version_bytes:72` refuses on `disposal_state <> 'none'` — ANY non-`none`
+> state**, so marking a superseded print `disposal_pending` **stopped its PDF opening the instant the
+> document was re-issued.** That collides head-on with **ADR 0120 D6/D8**: a print's states change what
+> the overlay STAMPS, never its reachability. ⭐ **The collision is exactly one value wide and both
+> sides are right** — refusing to serve is correct for `subject_request` and `retention_expired`, wrong
+> for `superseded`.
+>
+> ⏸ **PO RULING 2026-08-17: DECIDE LATER; the inflow stays reverted.** Both resolutions were declined
+> for now — widening `app.resolve_document_version_bytes` for `superseded`, or reinterpreting D3/D5.
+> ⭐ *Widening a PHI byte-serving gate is not a change to make unilaterally, which is why this reverted
+> rather than patched: a narrowing can be wrong and safe, a widening cannot.*
+> Tracked as **`FUP-DM5-SUPERSEDE-SERVING-COLLISION`** (🔴, **open**) — **D11 cannot be rebuilt until
+> it is decided, and DM5·S6 may not close over it.**
+>
+> ⚠ **So the three follow-ups the Context line says this ADR "closes" are NOT closed.**
+> `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` and `FUP-DM5-DISPOSAL-JOB` are both still open; only the
+> `NO-ANSWER` instance-3 half moved, via D4. ⛔ **The two are the same deferral seen from opposite
+> sides** — inflow and outflow — and the ADR's own argument for why they must not be resolved
+> separately (the ⭐ note below) is *why* deferring both together is coherent rather than a schedule slip.
+>
+> ⚠ **Still owed whenever the job lands:** a **keystone for D4** (its behaviour is verified by a
+> rolled-back probe recorded in the commit, which is a measurement, **not** a regression gate) and a
+> rewrite of `343_dm5_s5_disposal_gap.sql`, whose **K6b asserts "no scheduler exists at all"** — true
+> today, a **false pin** the day D2 ships. **Rewrite 343 in the same slice as D2, not after.**
+
+- **Status:** ✅ **ACCEPTED 2026-08-17** — ⚠ **partially implemented; see Amendment 1 above. D3/D5
+  reverted, D2 never built, D4 shipped.** Drafted the same day from PO rulings taken at the
   DM5 follow-up-batch open; **D2 and D4 — the two rulings this ADR does not merely record —
   were RATIFIED BY THE PO as proposed**, unblocking the build. D4 was ratified in its
   *record-what-was-verified* form, not the stronger *block-disposal-without-byte-proof*
   variant that was offered alongside it.
-- **Context:** closes three follow-ups that are one lifecycle, not three bugs —
+- **Context:** ⚠ **This line describes the ADR's INTENT, not its effect — none of the three
+  follow-ups below is closed today (Amendment 1).** It addresses three follow-ups that are one
+  lifecycle, not three bugs —
   `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` (no inflow),
   `FUP-DM5-DISPOSAL-JOB` (no outflow), and instance 3 of
   `FUP-DM5-NO-ANSWER-VS-NOTHING` (the record asserts more than the door verifies).

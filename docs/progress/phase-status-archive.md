@@ -103,3 +103,105 @@ task table, findings and narrative. "Still open" points at the live sections fur
 - **Case Access Control & "Meus Casos"** (flag `case_access`) + dialog/attribution refinement — ✅ 2026-06-19 → [case-access.md](docs/progress/case-access.md)
 - **Case Narratives** (feature-flagged) — QA CHANGES REQUESTED 2026-06-19 → [case-narratives.md](docs/progress/case-narratives.md)
 
+
+---
+
+## ↩ Rotated from PROGRESS.md 2026-08-17 (the §6-step-5 size rotation) — the CLOSED-work blocks of § Current Phase Tasks, VERBATIM
+
+PROGRESS.md was **152 KB** at the start of this pass against CLAUDE.md §7's "well under 60 KB"
+target. § Current Phase Tasks is supposed to hold **the current phase**; these blocks held DM4, DM3,
+DM2, the "Recently completed" table and the ad-hoc completed-work list — **all closed, all with their
+own records.** ⚠ **Appended BEFORE the cut and `cmp`-verified — then relative links `](docs/…)` were
+repointed to `](../…)`, since a root-relative link copied from PROGRESS.md 404s from `docs/progress/`
+(46 did). Prose verbatim, link targets repointed.** Same protocol as the S5/S4/S3 and
+Decisions rotations in this pass.
+
+⛔ **Every row below still points at a live record under `docs/progress/`** — this rotation moved
+the INDEX, it did not archive the work. The "Still open" columns were live when written; check the
+follow-up register, not these cells, for current state.
+
+### ⬛ DM4 — Wave C: referrals — ✅ PO-approved 2026-08-14, rotated at the DM5 open
+
+> `phase(DM4)` = `7b6896eb`. Gate: pgTAP **191f/6231** · registry 391==391 · lint 5/5 · vitest 1264 ·
+> arms 4/4 HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f/0 did-not-run**, baseline 89/89 ·
+> QA **APPROVED r2**, no binding condition. ⭐ The byte round trip + the DERIVATION proof are the
+> phase's real artifacts. **Detail → [dm4-referrals.md](../progress/dm4-referrals.md)**.
+>
+> **Still open, do not assume closed:** 🔴 **FUP-PGTAP-VACUOUS** ·
+> 🟡 FUP-DM4-PRODROW. Census blind class: ⚠ the figure is **141** at HEAD / 142 pre-DM4 — **neither
+> 146 nor 150 reproduces**; cite the query beside the number.
+>
+> ⬛ **FUP-DM4-RECUSAL ✅ CLOSED 2026-08-17** — was listed here as *"an open SECURITY obligation …
+> PO-deferred to Phase 19 D16"*. The PO **overturned** that deferral (ADR 0122): the deadline was
+> always the `documents_wave_c` flag-on date, and the old note's own argument — *a widening-only plane
+> cannot close an under-inclusive gate* — is precisely **why** it could not wait for Phase 19. Closed
+> by a **narrowing** `can_read_case` arm above the `p_kind` dispatch (`20260928000100`, `340` 76→82,
+> R5/R6 red-first). ⚠⚠ **Remote is NOT covered — that migration is local-only.**
+### ⬛ DM3 + DM2 — rotated 2026-08-14 (the DM4 Record step); detail in `docs/progress/`
+
+> Both phases are ✅ COMPLETE and PO-approved; their summary blocks lived here after their own
+> Record steps and are rotated now that DM4 has closed. **The linked records are the authority.**
+>
+> - **DM3 — Wave B: controlled documents** · PO-approved 2026-08-14 · `phase(DM3)` = `1f5156e` ·
+> 11 migrations `20260925000100`–`001100` · pgTAP `330` · gate: pgTAP **190f/6152** · all four arms
+> HOLD · `e2e:prod` GREEN · QA **APPROVED r2** → [dm3-controlled-documents.md](../progress/dm3-controlled-documents.md)
+> - **DM2 — orchestration + Wave A** · PO-approved 2026-08-13 · `phase(DM2)` = `4c6f7d9` ·
+> migrations `20260924000100`–`000800` · ADRs **0117** (+Amdt 1) / **0118** · gate: pgTAP **189f/6097** ·
+> `e2e:prod` GREEN · QA **APPROVED r2** → [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md)
+>
+> ⚠ Two DM3 findings that are **not** DM4-superseded and must not be re-learned: the M1 **backfill
+> that masked a broken CREATE path** (every create raised 23503 for a whole phase, invisible to every
+> incremental run — only the mandatory fresh reset saw it), and the flag that **gated the last step
+> of a corridor instead of the corridor** (flag OFF still PUT real bytes). ⚠ **Ethics letters home on
+> the `case` securable resource, NEVER `controlled_document`** — else `HC0D6` refuses the enforcing
+> label and the D15 ceiling silently vanishes.
+### ⬛ Recently completed — detail in `docs/progress/`; verbose form rotated 2026-08-14
+
+One line each. Gate numbers are in the **Phase Status** table above; the linked record carries the task
+table, findings and narrative. The verbose "Still open" prose rotated **verbatim** →
+[phase-status-archive.md](../progress/phase-status-archive.md) § B; every id below is live in this
+file's **Bug Log** / **Follow-ups**.
+
+| Work | Done | Record | Still open |
+| --- | --- | --- | --- |
+| **REG·KIND** — one Registro vocabulary for cases and referrals; `referral_note_types` (table + policies + trigger + reorder RPC + 4 actions + dialog) **DROPPED**, type REQUIRED default `note`, one source `src/lib/cases/registro-kinds.ts`. **No flag — structural** | 2026-08-12 | ADR [0110](../decisions/0110-shared-registro-kind-vocabulary.md) · `20260920000100`+`…000200` | ⚠ **NO tester pass, NO QA review** (steps 2–4 unrun by PO direction). ✅ PUSHED + `db push` DONE |
+| **RDR** — referral detail page redesign (minimal header + fact rail, Registros internos, messenger Diálogo, 5-group case-access door) · QA APPROVED r1 | 2026-08-12 | [record](../progress/referral-detail-redesign.md) · ADR [0109](../decisions/0109-referral-registros-and-case-access-summary.md) | 🔴 **A11 corrected by mutation: the Rule 7 defense is the ABSENCE of `rehype-raw`**, not `rehype-sanitize` · the door-sweep harness skips `_`-prefixed names (`p0-authz-door-audit.sh:176`) ⇒ swept 4-of-5; affects every future phase |
+| **ETH·E4** — ethics participant seating & professional identity (participants-lane writers, roster UI, T5 vocabulary admin) · QA APPROVED r3 | 2026-08-11 | [record](../progress/eth-e4-participant-seating.md) · ADR [0108](../decisions/0108-eth-e4-participant-seating.md) | Closes FUP-ETH-1 + FUP-FF5-2 + FUP-ETH-CPF-1. Open: FUP-ETH-A11Y-1 · FUP-E2E-SERVER-DEAD-1 · FUP-ETH-ROLES-1 |
+| **ACT** — "act as" strict role assumption S0–S4 (hat bound to the session via the `active_role` JWT claim; **unflagged**) · QA APPROVED | 2026-08-10 | [record](../progress/act-as-role-assumption.md) · ADRs [0106](../decisions/0106-act-as-role-assumption.md)/[0107](../decisions/0107-act-s4-hat-blind-sweep-and-allowlist.md) | ✅ both deploy debts discharged (remote `db push` + Cloud auth hook); the remote is cut over. FUP-ACT-DISPOSE-UI (pilot gate, item 0) · FUP-ACT-CAPA-ASSIGN · FUP-ACT-HATLESS-AUDIT |
+| **PDF·P2** — PDF printing: Meetings (ata); A7 full-sight conjunction + A8 presence-derived PHI labeling came from QA's r1 BLOCKER → the PO "Package A" ruling · QA APPROVED r2 | 2026-08-08 | [record](../progress/pdf-p2-meetings.md) · ADR [0104](../decisions/0104-pdf-document-printing-module.md) A7/A8/A9 | FUP-PDF-2..4 · **Gotenberg up, `document_printing` ON permanently** (PO, supersedes 0104's ships-OFF clause). Scope HELD: kind-sites = exactly 3 (the A8 trio) — a 4th = leak |
+| **QO·B** — Quality-office oversight, Phase B (content wall + UI coherence) · QA APPROVED r2 | 2026-08-09 | [record](../progress/quality-office-oversight-phase-b.md) | BUG-QOB-004 · FUP-QOB-1 + FUP-QOB-2 (PO ratification package, parked) |
+| **PDF·P1** — PDF printing: Forms + full skeleton · QA APPROVED r2 | 2026-08-08 | [record](../progress/pdf-p1-forms-skeleton.md) | FUP-PDF-2..4 |
+| **QO·FUP** — FUP-QO close-out (F1–F9) · QA APPROVED r2 | 2026-08-07 | [record](../progress/qo-fup-close-out.md) · ADRs 0101/0102/0103 | FUP-QO-6 · FUP-QO-9 |
+| **QO·A** — Quality-office oversight, Phase A · QA APPROVED r3 | 2026-08-07 | [record](../progress/quality-office-oversight.md) · ADR [0100](../decisions/0100-quality-office-oversight.md) | FUP-QO-1…6. ⚠ Phase **C** not started — **read the record's closing rule first**: *conferring a capability bit requires enumerating its consumers* |
+| **MIN** — Meeting audio → generated ata; flag `audio_minutes` **OFF** (`seed.sql` forces ON locally, so a flag-OFF spec must toggle it itself) · QA APPROVED r2 | 2026-08-06 | [record](../progress/min-audio-minutes.md) | FUP-MIN-CUTOVER |
+| **AFF** — Hospital affiliation, person identity & the org people directory · QA APPROVED r2 | 2026-08-06 | [record](../progress/hospital-affiliation-person-identity.md) · ADRs [0097](../decisions/0097-hospital-affiliation-person-identity.md)/[0098](../decisions/0098-aff-w1-substrate-shape-decisions.md) | FUP-AFF-1…4 (**FUP-AFF-1 = the standing trap: never cite `ARM=census` for AFF's doors**) · BUG-BOOTSTRAP-001 |
+| **Membership hardening + Diretor Técnico** (ADR 0094) — W1→W4, DT flag ON | 2026-08-05 | [record](../progress/membership-hardening-technical-director.md) | — |
+| **Case-type assignment** (ADR 0088) | 2026-08-05 | [record](../progress/case-type-assignment.md) | — |
+| **PCI + TV** — Process/Case Integrity & Template Versioning · QA APPROVED r2 | 2026-08-05 | [record](../progress/process-case-integrity-and-template-versioning.md) | FUP-PCITV-1 |
+
+### Completed work (archived to docs/progress/)
+
+> Phases with their own Phase Status row are NOT re-listed — that row + its `docs/progress/*.md` link is
+> the durable pointer. This list holds only ad-hoc/out-of-phase work with no row of its own. Verbose
+> form rotated 2026-08-14 → [phase-status-archive.md](../progress/phase-status-archive.md) § C.
+
+- **AUDIT-INVOKER-WRAPPER + BUG-REFNOTE-001** (ad-hoc; ADR [0113](../decisions/0113-referral-door-return-shape.md) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) **Am. 7**) — REFNOTE filed as 4 doors, the catalog said **23**; ARM 5 added because all prior sweeps begin `and p.prosecdef`, leaving 88 `public` INVOKER functions in **no arm's domain** — census **452 → 540**. ⚠ **BLIND ≠ vulnerable in that class.** ✅ 2026-08-12. ⚠ **Not QA-reviewed.** → [record](../progress/authz-invoker-wrapper.md)
+- **Case-corrections relocation + process-builder layout** (ad-hoc, pure frontend) — ✅ 2026-08-03, `2613120`+`0c1ae4c`. ⚠ **Not QA-reviewed**; spec-locator re-scoping needs `tester` sign-off; the process-builder half has **no E2E coverage at all** (pre-existing). _This line is the durable record._
+- **MEM — single `memberships` collapse** (ADR [0075](../decisions/0075-memberships-collapse-write-path-split.md)) — ✅ 2026-07-13 → [record](../progress/s1-substrate.md)
+- **SUP — supersession correction engine** (ADR [0074](../decisions/0074-supersession-correction-model.md)) — ✅ 2026-07-13 → [record](../progress/s1-substrate.md)
+- **Case "Reuniões" panel** (ad-hoc, pure frontend) — ✅ 2026-07-12, `fbe215f`. _This line is the durable record._
+- **BUG-AMV2-002 — choice-default publish regression** — ✅ 2026-07-11, `c8e951b` → [record](../progress/answer-model-v2.md)
+- **UI/layout fixes batch + base-branch triage** — ✅ 2026-07-08 → [record](../progress/ui-batch-2026-07.md)
+- **Meeting actual-occurrence time** (ADR [0062](../decisions/0062-meeting-actual-occurrence-time.md)) — ✅ 2026-07-08, QA APPROVED → [record](../progress/meeting-held-time.md)
+- **Form-Builder Enhancements batch** — ✅ 2026-07-07, QA APPROVED; BUG-FBE-005…009 fixed → [record](../progress/adjustments-batch.md)
+- **Shared Action-Items Hub** (ADR 0050) — ✅ 2026-07-02, all three QA-APPROVED → [record](../progress/action-items-hub.md)
+- **Layout-adjustments batch** — ✅ 2026-07-02 → [record](../progress/layout-adjustments-2026-07.md)
+- **`case_phase_results`** — ✅ 2026-06-23 → [record](../progress/case-phase-results.md)
+- **Form Builder Enhancements** — ✅ 2026-06-23 → [record](../progress/form-builder-enhancements.md)
+- **`case_patient`** (third PHI module; ADR 0038) — ✅ 2026-06-22 → [record](../progress/case-patient.md)
+- **Case Access Control & "Meus Casos"** — ✅ 2026-06-19 → [record](../progress/case-access.md)
+- **Case Narratives** — QA CHANGES REQUESTED 2026-06-19 → [record](../progress/case-narratives.md)
+
+---
+
+
