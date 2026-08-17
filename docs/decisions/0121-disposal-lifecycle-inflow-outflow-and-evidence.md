@@ -1,8 +1,10 @@
 # ADR 0121 — Disposal lifecycle: inflow, outflow, and what `disposed` asserts
 
-- **Status:** PROPOSED — drafted 2026-08-17 from PO rulings taken the same day at the
-  DM5 follow-up-batch open. ⛔ **Nothing below may be built until the PO ratifies D2 and
-  D4**, which are the two rulings this ADR does not merely record.
+- **Status:** ✅ **ACCEPTED 2026-08-17.** Drafted the same day from PO rulings taken at the
+  DM5 follow-up-batch open; **D2 and D4 — the two rulings this ADR does not merely record —
+  were RATIFIED BY THE PO as proposed**, unblocking the build. D4 was ratified in its
+  *record-what-was-verified* form, not the stronger *block-disposal-without-byte-proof*
+  variant that was offered alongside it.
 - **Context:** closes three follow-ups that are one lifecycle, not three bugs —
   `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` (no inflow),
   `FUP-DM5-DISPOSAL-JOB` (no outflow), and instance 3 of

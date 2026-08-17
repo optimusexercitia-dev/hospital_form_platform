@@ -205,6 +205,40 @@ exposure.** What they are is **permanently outside the disposal lifecycle**: eve
 off `file_objects`, and there is no row — so nothing can ever mark, complete, or evidence their
 destruction. PHI-tier bytes that the platform's own retirement machinery cannot see.
 
+### ✅ RESOLVED the same day — the 7 objects are DELETED and the push is unblocked
+
+**PO-authorized 2026-08-17** (*"a remote database reset, including the S3 bucket, is acceptable — no
+active users"*). ⚠ **The offered tool was declined and the reason matters:** a `db:reset:linked`
+drops DB rows but **leaves storage objects behind** — that is the CLI-version-dependent orphaning
+hazard in [[remote-reset-storage-orphan-is-cli-version-dependent]], and almost certainly **how this
+state was created in the first place**. Resetting would have *recreated* the orphan condition, not
+cleared it. The bytes had to go through the **Storage API**.
+
+**Executed:** `supabase storage rm` per object, **by explicit path** — never a recursive/positional
+sweep ([[a-positional-cleanup-eats-seed-rows]]). 7/7 reported deleted.
+
+⚠ **The first attempt deleted NOTHING and reported success.** The CLI prompts
+`Confirm deleting files in bucket …? [y/N]`, stdin is null in this environment, and the loop still
+exited 0 — the exit code belonged to the pipeline, not the deletion. Caught by re-listing **before**
+believing it (still 4 + 3), then re-run with `--yes`. Textbook
+[[your-own-measurement-goes-stale-like-any-other]]: *"nothing failed" ≠ "nothing ran"*.
+
+**Verified on BOTH surfaces after the fact**, which is the runbook's mandatory count-vs-census step:
+CLI `ls -r` → `printed-documents` **0**, `controlled-documents` **0**; and `storage.objects` → the
+only bucket with rows anywhere is `form-assets` (**38**). ⇒ **all EIGHT S4 retirement buckets are
+empty**, so the Block-1 data guard now passes and `20260927000400` can be pushed.
+
+**Still open, deliberately not swept up:** `form-assets` holds **38** objects against **0**
+commissions — equally stranded, but a RETAINED bucket (ADR 0114 D13), outside the document model,
+and not blocking anything. Deleting it was not authorized by scope and is a separate decision.
+
+⭐ **A cheap CLOUD-ORPHAN-SURFACE sub-probe fell out of this for free.** That item names
+*"whether `supabase storage ls --linked --experimental` differs from a `storage.objects` query"* as a
+secondary probe. Both were run here, before and after: **they agreed exactly, in both states.**
+⛔ That does **not** settle the item — agreement is equally consistent with the CLI simply reading the
+same metadata (the likely explanation, since it speaks the Storage API). It rules the CLI **out** as
+an orphan-visible surface; the **S3 endpoint remains UNPROBED**.
+
 **4 · ✅ The S4 guard will fire, and that is the designed outcome — but it BLOCKS the next `db push`.**
 `20260927000400_dm5_s4_retire_legacy_buckets.sql` Block 1 counts `storage.objects` per bucket and
 `raise exception`s naming the bucket and count. It is one of only **two** local-only migrations, so
