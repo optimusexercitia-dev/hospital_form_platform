@@ -274,8 +274,30 @@ export async function setDocumentConfidentiality(
   return error ? { ok: false, error: errCode(error) } : { ok: true }
 }
 
-/** Requests disposition (D10): reads fail closed immediately; the disposal
- * job + service-only completion door do the verified deletion. */
+/**
+ * Requests disposition (D10). The RPC flips `documents.status` and every bound
+ * `file_objects.disposal_state` to `disposal_pending`, so reads DO fail closed
+ * immediately — that half is real and enforced in the DB.
+ *
+ * ⛔ NOTHING COMPLETES IT. The byte deletion does not happen. This comment
+ * previously read "the disposal job + service-only completion door do the
+ * verified deletion" — present tense, and false in both halves: there is no
+ * disposal job (no `pg_cron`, no scheduler, no route handler, no CI cron), and
+ * `complete_document_disposal` has exactly ONE caller in this repo —
+ * `reclassifyDocument` below, an unrelated copy-then-retire lane. A row parked in
+ * `disposal_pending` by THIS function keeps its PHI bytes on the substrate
+ * indefinitely until a human deletes the Storage object and calls the completion
+ * door by hand.
+ *
+ * The manual mitigation is `docs/deployment/phi-disposal-runbook.md`. The gap is
+ * pinned executably on BOTH sides, because neither side can see the other:
+ * `supabase/tests/343_dm5_s5_disposal_gap.sql` (catalog) and
+ * `./disposal-gap.test.ts` (this layer, where the job would most plausibly be
+ * built). If either goes red, the job may now exist — read those files' headers
+ * before touching anything, and correct THIS comment in the same change.
+ *
+ * ADR 0120 · FUP-DM5-DISPOSAL-JOB · Rule 12 (LGPD / ANVISA-RDC / CFM 1821).
+ */
 export async function requestDocumentDisposition(
   documentId: string,
   reason: DocumentDispositionReason,
