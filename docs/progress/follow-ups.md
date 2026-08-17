@@ -8,6 +8,49 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### ⬛ Resolved — rotated 2026-08-13 (the DM2 Record step): **FUP-DM1-CEILING** (D15 ceiling, DM2·S1 + S4) · **FUP-DM1-E2E** (6+1 specs rewritten, DM2·S4) · **FUP-DM1-DISPOSE** (`dispose_case_phi` arm restored, DM2·S2) — each verified independently, not accepted from a report → [follow-ups-archive.md](./follow-ups-archive.md)
 
+### 🟡 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — a mutation-audit arm has been silently erroring since DM1, and its no-op guard FAILS OPEN (owner: backend)
+
+Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-3. **Pre-existing — NOT S4's doing**, and
+explicitly not charged to it.
+
+`supabase/tests/mutation/q1-quality-mutation-audit.sh:140-153` (`open_bytes_cut`) targets policy
+**`attachments_obj_select_readable`** on `storage.objects`. The catalog has **0** such policies —
+dropped by `20260923000100_dm1_drop_attachment_substrate.sql` (**DM1**, weeks before S4).
+
+⭐ **The interesting part is the guard, not the staleness.** The arm protects itself with
+`if v_qual !~ 'read_case_deliberation' then raise …` — intended to announce a no-op. With the policy
+absent, `v_qual` is **NULL**, `NULL !~ '…'` evaluates to **NULL**, the `if` does not fire, and control
+falls through to `alter policy` on a nonexistent policy → **`42704`**. *A guard written to announce
+"MUTATION NO-OP" instead fails open into an error* — three-valued logic eating the one branch that
+existed to make the failure legible. Same family as
+[[guards-that-read-right-but-fail-open]] and [[a-silent-return-hides-a-live-defect]].
+
+**Fix:** re-point the arm at a live policy (or retire it with a named successor), and make the guard
+NULL-safe (`coalesce(v_qual,'') !~ …`). Then prove it can announce a no-op — a guard nobody has seen
+fire is not a guard.
+
+### 🟠 FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT — after `…000400` applies, the retirement tool has no Cloud-visible arm left (owner: backend; **input to S5/S6 + the deploy runbook**)
+
+Filed 2026-08-17 (lead) from QA's DM5·S4 review MINOR-5. **Scoped to the new half only** —
+FUP-DM5-STORAGE-ORPHANS is separately open and not re-litigated here.
+
+Post-migration, `storage-manifest.mjs capture` over the retired scope prints **`CAPTURE CLEAN`**. The
+tool is honest — its volume proof *did* fire for absent buckets in the committed S4 manifest — but two
+operational consequences are written down nowhere:
+
+1. **Once `20260927000400` has applied, the only arm that can still see a surviving byte is the volume
+   `walk`, which is `STORAGE_BACKEND=file` and therefore LOCAL-ONLY.** On Cloud, post-migration, the
+   retirement tooling has **no arm at all** that can see one.
+2. ⭐ **The migration's guard cannot enforce the ordering it documents, in the case that matters.** It
+   refuses when `storage.objects` rows remain — but an *orphaned* bucket satisfies "no rows" perfectly.
+   So the guard enforces byte-first ordering exactly when the bytes are still tracked, and is silent
+   precisely when they are not. **The guard is real and it is not a proof of emptiness.**
+
+**Why it matters:** this is the ordering that runs at deploy, against a bucket set that *does* have
+metadata rows — so the guard will do its job there. The gap is the residual: nothing can confirm
+afterwards, on Cloud, that no byte survived. Record it in the deploy runbook rather than discovering it
+during the deploy.
+
 ### 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES — a `supabase stop`/`start` recovery destroyed 221 storage objects (15 PHI-tier) with **no manifest, no count comparison, no audit** (owner: lead + backend)
 
 Filed 2026-08-17 (lead) from QA's DM5·S4 review **B1**. Full measurement, timeline and cause: the

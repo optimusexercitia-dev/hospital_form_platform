@@ -358,9 +358,12 @@ v2 §5's twelve items stand. **Added:**
 3. **`interview-attachments` + `case-documents` buckets** (§1.4) — in scope, or Stage E?
    ⬛ *Answered in substance 2026-08-12 (FUP-F2-BUCKETS):* `interview-attachments` sealed (0
    policies; pinned by pgTAP `325` t2) and `meeting-attachments` RETIRED outright
-   (`20260921000300`; pinned by `325` t1/t3). `case-documents` remains live BY DESIGN while
-   `getReferralDocumentUrl` still signs from it — that half travels with the open item in
-   [f2-attachments.md](./f2-attachments.md) § *Open risks*.
+   (`20260921000300`; pinned by `325` t1/t3). ⛔ **CORRECTED 2026-08-17 (DM5·S4): the sentence that
+   stood here — "`case-documents` remains live BY DESIGN while `getReferralDocumentUrl` still signs
+   from it" — is false twice over.** DM4 (`20260926000400`) retired the signer, and DM5·S4
+   (`20260927000400`) retired the **bucket row and its policies**. `case-documents` does not exist;
+   all eight legacy buckets are gone, pinned by `325` t6/t7 with t8 as the survivor control. The
+   travelling half in [f2-attachments.md](./f2-attachments.md) § *Open risks* is discharged with it.
 4. **`case_tag_report`** (§3.6·B) — PHI-free governance aggregate, or case content?
 5. **`professional_profiles.user_id` `ON DELETE SET NULL`** (§1.7) — B7 blocking.
 6. **`administrativo`'s `assign_case_phases`** (§1.5) — contradicts O8.

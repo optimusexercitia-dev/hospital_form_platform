@@ -73,8 +73,16 @@ same host). The agent does not operate Coolify; hand this list to the operator:
 
 ## Operational notes
 
-- **Nothing to back up** — the sidecar is stateless; all documents live in the
-  `printed-documents` Storage bucket (never deleted; 20-yr posture, D15).
+- **Nothing to back up** — the sidecar is stateless; printed documents live in
+  Storage, never deleted (20-yr posture, D15).
+  ⚠ **CORRECTED 2026-08-17 (DM5·S4).** This line named the **`printed-documents`
+  bucket, which no longer exists** — migration `20260927000400` retired its row
+  and its policies. Since DM5·S3 a print's bytes are a `file_objects` row in
+  **`documents-standard` / `documents-phi`**, chosen server-side by
+  `file_objects_bucket_from_tier` from the print's `contains_phi`. Do not restore
+  the old name; **resolve the bucket from the catalog, never from this file** —
+  a deployment runbook asserting a dead bucket under a 20-yr retention claim is
+  the worst place for a stale noun.
 - **Failure mode:** renderer down ⇒ mints fail cleanly in pt-BR, downloads and
   verification KEEP WORKING (they never touch the renderer).
 - The renderer receives PHI-bearing HTML from P3 onward: never point

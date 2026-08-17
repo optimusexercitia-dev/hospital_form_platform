@@ -62,7 +62,11 @@ const BUCKETS = ['documents-standard', 'documents-phi']
  *
  * Until DM5 this script covered 2 of 12 buckets, which meant a CLEAN verdict
  * said nothing at all about the ten buckets holding the platform's remaining
- * bytes. It cannot classify these the way it classifies the core two: legacy
+ * bytes. (⚠ Historical: DM5 S4 retired 8 of those 12 — only `documents-standard`,
+ * `documents-phi`, `form-assets` and `meeting-audio` still exist. The "12" below
+ * describes the pre-S4 world this widening was written for; the retired names are
+ * kept deliberately so a stale bucket resurfacing is still classified, not ignored.)
+ * It cannot classify these the way it classifies the core two: legacy
  * objects have no `file_objects` row to be judged against, so there is no
  * (upload_state, disposal_state) pair to reason from. What it CAN assert — and
  * what the retirement actually needs — is the census: after S4 every one of

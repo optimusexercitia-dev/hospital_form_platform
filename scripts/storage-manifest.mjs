@@ -10,6 +10,10 @@
  * the bytes survive it. Measured at DM5 step 0 on the local stack:
  * `storage.objects` = 0 rows against 699 objects / 7,023,687 bytes on the
  * volume, 198 of them PHI-tier, with `list` returning `[]` for all 12 buckets.
+ * (⚠ Historical figures, and the bucket count with them: DM5 S4 retired 8 of
+ * those 12 — `documents-standard`, `documents-phi`, `form-assets` and
+ * `meeting-audio` survive. RETIREMENT_BUCKETS below is retained deliberately so
+ * a resurrected bucket is still enumerated rather than silently skipped.)
  * Run after a reset, the old method proves emptiness against a truncated table,
  * deletes nothing, and reports success while PHI bytes persist.
  *
