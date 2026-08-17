@@ -5232,6 +5232,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          disposal_evidence: Json | null
           disposal_reason_category: string | null
           disposal_state: string
           disposed_at: string | null
@@ -5250,6 +5251,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          disposal_evidence?: Json | null
           disposal_reason_category?: string | null
           disposal_state?: string
           disposed_at?: string | null
@@ -5268,6 +5270,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          disposal_evidence?: Json | null
           disposal_reason_category?: string | null
           disposal_state?: string
           disposed_at?: string | null
@@ -11350,7 +11353,7 @@ export type Database = {
         }
       }
       complete_document_disposal: {
-        Args: { p_file_object_id: string }
+        Args: { p_byte_proof?: string; p_file_object_id: string }
         Returns: undefined
       }
       complete_document_reclassification: {

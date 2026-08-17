@@ -276,13 +276,13 @@ select ok(
 -- built expecting an operational caller with service-role reach. None exists.
 -- ---------------------------------------------------------------------------
 select ok(
-  not has_function_privilege('authenticated', 'public.complete_document_disposal(uuid)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.complete_document_disposal(uuid)', 'EXECUTE'),
+  not has_function_privilege('authenticated', 'public.complete_document_disposal(uuid, text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.complete_document_disposal(uuid, text)', 'EXECUTE'),
   'K7a no user-facing role can execute the completion door — it is not reachable from a request path'
 );
 
 select ok(
-  has_function_privilege('service_role', 'public.complete_document_disposal(uuid)', 'EXECUTE'),
+  has_function_privilege('service_role', 'public.complete_document_disposal(uuid, text)', 'EXECUTE'),
   'K7b permissive twin: service_role CAN execute it — the ACL is not simply denying everyone'
 );
 
