@@ -229,19 +229,63 @@ It is evidence that the metadata and the Storage API agree with each other.
 
 ## 6 · ⚠ Cloud caveats — do NOT gate a Cloud run on `capture`'s exit code
 
-Both caveats below were measured in the S5.R rehearsal, not inferred.
+**Provenance, per claim, because an earlier version of this section claimed
+"measured, not inferred" for all of it and one half was neither.** (b) is
+**measured** (rehearsal arms R6 / R6b, local). (a)'s exit-code behaviour is
+**measured**; (a)'s **Cloud** consequence is an **INFERENCE** from source, and it
+has **never been executed against Cloud.** Labelled per paragraph below.
 
-**(a) `capture`'s exit code is meaningless on Cloud, and the flag that "fixes"
-it is worse.** The local volume proof requires `STORAGE_BACKEND=file` plus a
-`supabase_storage` Docker container on the operator's own machine. Neither can
-hold for a Cloud project, so **every** bucket verdicts
-`UNVERIFIED_NO_LOCAL_PROOF` and `capture` exits **1** — on a perfectly healthy
-project. The only route to exit 0 is `--allow-orphans`, and that flag **also
-silences genuine orphan verdicts**: it conflates *"I could not look"* with *"I
-looked and found something"*, so buying a green exit code buys blindness to the
-finding you actually care about (FUP-DM5-NO-ANSWER-VS-NOTHING). **Read
-`manifest.residuals` and the per-bucket verdict column. Never automate on the
-exit code or the "CAPTURE CLEAN" headline.**
+**(a) The danger on Cloud is not a MISSING proof — it is a FAKE one.**
+
+⛔ **The sentence that used to be here was false, and it was false in the most
+likely operator configuration.** It said the proof requires `STORAGE_BACKEND=file`
+plus a `supabase_storage` container *"on the operator's own machine"* and that
+**"neither can hold for a Cloud project"** — conflating two conditions at
+different grains. The backend is a property **of the project**; the running
+container is a property **of the operator's machine**. A developer machine with
+`supabase start` up — the normal state for anyone who can run this repo's gates —
+satisfies the container condition **while the client points at Cloud.**
+
+**Source-level fact (certain):** `locateVolume()` finds the container **by name
+pattern via `docker ps`** and derives the root from that container's own env. It
+is never given the project URL, and nothing cross-checks the two — the manifest
+prints `supabaseUrl` and `localProof.container` side by side and compares neither.
+
+**Inference (NOT executed against Cloud, and it must not be recorded as though it
+were):** an operator running this tool against Cloud from a machine with a local
+stack up would get `localProof.available = true`, a census of the **wrong
+project's** volume, and — for any manifest bucket absent locally — a printed
+**byte-level assurance for a Cloud deletion that was never checked.** *No proof
+refuses visibly; a proof about the wrong bytes passes.* That is strictly worse
+than losing the proof.
+
+✅ **NOW GUARDED IN THE TOOL, so this is no longer left to operator discipline.**
+`locateVolume()` refuses when `NEXT_PUBLIC_SUPABASE_URL` is not a local origin
+while a local container is running, and downgrades the proof to unavailable with
+the reason printed. Measured 2026-08-17 with a Cloud URL against a running local
+stack:
+
+```
+⚠ LOCAL PROOF UNAVAILABLE — the Storage client points at https://<ref>.supabase.co,
+which is not a local origin, while a local supabase_storage container is running.
+REFUSING to attribute this machine's volume to that project: the container is found
+by name via `docker ps` and has NO project affinity, so the census would be a
+byte-level proof about the WRONG bytes.
+```
+
+The guard lives in `locateVolume()` itself, so **every** subcommand inherits it,
+and both polarities are pinned by selftest **C17** (every local origin local,
+every remote/malformed origin not).
+
+**So the exit-code rule, correctly stated:** `UNVERIFIED_NO_LOCAL_PROOF` and exit
+**1** for every bucket is what a Cloud run yields **when no local stack is
+running** — and now also when one *is*, because the guard downgrades it. Either
+way the only route to exit 0 is `--allow-orphans`, which **also silences genuine
+orphan verdicts**: it conflates *"I could not look"* with *"I looked and found
+something"*, so buying a green exit code buys blindness to the finding you care
+about (FUP-DM5-NO-ANSWER-VS-NOTHING). **Read `manifest.residuals` and the
+per-bucket verdict column. Never automate on the exit code or the "CAPTURE CLEAN"
+headline.**
 
 **(b) The count comparison alone cannot certify the under-count class.** A
 manifest that lists 4 of 5 present keys deletes all 4, and reports `deleted=4
@@ -253,10 +297,24 @@ survives** (rehearsal arm R6, measured). The **over-count** refusal does transfe
 intact, because it is a Storage-API-only comparison (R6b). So of D9's four
 controls, the two byte-side ones do not survive the loss of local proof.
 
+**(c) A bucket whose bytes are gone while its metadata survives.** ⛔ Until
+2026-08-17 this verdicted `CONSISTENT_EMPTY` → **CAPTURE CLEAN → exit 0**, and it
+was **non-monotonic**: losing *some* of a bucket's bytes was dirty (exit 1), losing
+*all* of them was clean (exit 0) — the worse state reported better. That is what a
+storage-volume loss with the database intact produces. **Fixed** (it is now
+`MISSING_BYTES`, dirty) and pinned by rehearsal **R7** with its permissive twin,
+plus selftest **C14/C15**. Named here because it is the direction an operator is
+least likely to suspect: the metadata still advertises the PHI file as present and
+servable, and `document-reconciliation.mjs` lists from that same API, so it cannot
+see it either.
+
 **Practical consequence for a Cloud disposal run:** treat the byte half as
 *asserted, not verified*, and record it that way. Rehearse the sequence locally
-(`node scripts/storage-manifest.mjs rehearse` — 16 controls, all three classifier
-arms) before running it against Cloud.
+(`node scripts/storage-manifest.mjs rehearse` — **18 controls**) before running it
+against Cloud. ⚠ And note what the local rehearsal does **not** cover: it runs
+against a local stack by construction, so it cannot exercise the Cloud paths above
+— the guard in (a) is what makes the "LOCAL stack only" domain enforceable rather
+than advisory.
 
 ## 6b · ⛔ PHI HANDLING FOR THE BACKUP HALF — read BEFORE taking any Storage backup
 
@@ -283,16 +341,36 @@ a synced directory **silently replicates 68 PHI-tier files to a third-party clou
 platform would notice** — no RLS, no audit row, no alert. The platform cannot defend a path it does
 not know about. Before writing anything, confirm the destination is not inside a sync root:
 
+Paste this as a **function** and call it. ⛔ Three defects in the first version of
+this snippet, all found by QA r1, all of which made it *look* like a check:
+`exit 1` inside a pasted snippet **kills the operator's interactive shell** (so it
+gets deleted rather than fixed); the git half only **echoed** and never failed, so
+"inside the repo" was advisory while OneDrive was fatal, with **no visible
+difference**; and the patterns were **case-sensitive**, so a lowercased path
+matched nothing.
+
 ```bash
-# The destination must NOT be under any of these. Check the ACTUAL resolved path.
-echo "$BACKUP_DIR"
-case "$BACKUP_DIR" in
-  *OneDrive*|*Dropbox*|*iCloud*|*"Google Drive"*|*Creative\ Cloud*)
-    echo "⛔ REFUSE: destination is inside a sync root"; exit 1;;
-esac
-# Also confirm it is not inside the repo working tree:
-git -C "$BACKUP_DIR" rev-parse --show-toplevel 2>/dev/null && echo "⛔ REFUSE: inside a git work tree"
+phi_backup_dir_ok() {                      # returns 1 — never exits your shell
+  d=$(cd "$1" 2>/dev/null && pwd -P) || { echo "⛔ REFUSE: no such directory: $1"; return 1; }
+  # Case-INSENSITIVE match, and the resolved physical path (`pwd -P`), so a
+  # symlink into a sync root cannot slip past.
+  lower=$(printf '%s' "$d" | tr '[:upper:]' '[:lower:]')
+  for s in onedrive dropbox icloud "google drive" "creative cloud" nextcloud \
+           syncthing pcloud box\ sync mega tresorit "yandex.disk" seadrive; do
+    case "$lower" in *"$s"*) echo "⛔ REFUSE: '$d' is inside a sync root ($s)"; return 1;; esac
+  done
+  if git -C "$d" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "⛔ REFUSE: '$d' is inside a git work tree"; return 1   # now FAILS, not echoes
+  fi
+  echo "✅ '$d' is acceptable — record this exact path in the run log"
+}
+
+phi_backup_dir_ok "$BACKUP_DIR" || echo "STOP — do not write PHI here"
 ```
+
+⚠ **The list is not exhaustive and cannot be.** A sync client with a custom folder
+name defeats it. The check is a floor, not a proof — if you are unsure whether a
+directory is synced, **look in the sync client**, not only here.
 
 ### ⭐ Why retention is SHORT — read this before "fixing" 30 days upward
 
@@ -339,9 +417,21 @@ EMPTY archive that reports success:**
    state achieved — and it is why step 3 is not optional.*
 
 ```bash
-# 3. VERIFY THE ARCHIVE — mandatory. Compare against the census from step 1.
-7z l -p "$BACKUP_DIR/storage-<date>.7z" | tail -3     # file count must match `walk`
+# 3. VERIFY THE ARCHIVE — mandatory, and the two sides must have the SAME
+#    denominator by construction. Compare the archive against a count taken over
+#    the SAME tree the archive was built from:
+docker exec supabase_storage_<ref> sh -c "find /mnt/stub -type f | wc -l"   # source of truth
+7z l -p "$BACKUP_DIR/storage-<date>.7z" | tail -3                          # must match it
 ```
+
+⚠ **Do NOT compare the archive against `walk`'s TOTAL** — QA r1 caught this. `walk`
+counts over `ALL_KNOWN_BUCKETS` (12 names), while the archive contains **everything
+under `/mnt/stub`**. Today the two agree (**245 = 245**, measured) *only because*
+the volume root happens to hold nothing but the four survivor directories. Add a
+thirteenth bucket, or any stray directory, and the numbers diverge for a perfectly
+benign reason — **and a mandatory verification whose two numbers can disagree
+harmlessly is a verification that will be waived.** The `find` form above has the
+same denominator as the archive by construction, so it cannot drift.
 
 A backup whose file count has not been compared to the census is **not** a verified backup, and under
 the retention rule above it may **not** be used to justify destroying the previous one.
@@ -393,11 +483,28 @@ policies to full parity). A bare-Postgres target is not a valid restore test.
 gone; it does **not** prove the bytes are unrecoverable — the same substitution of an observable proxy
 for the property that matters. The PO's encryption decision resolves it:
 
-1. **Destroy the KEY first.** Cryptographic erasure is the act that counts: residual ciphertext is
-   unrecoverable without the key **regardless of what the filesystem did with the blocks**.
+⛔ **But the load-bearing act needs a MECHANISM, or the log line attests to nothing.** QA r1: the
+first version of this section said only *"key stored separately"* and *"Destroy the KEY first"* — so
+the mandated line *"key destroyed"* had **no verifiable referent**, which re-instantiates the very
+class it resolves, one level down. **Choose ONE custody mode before you take the backup, record which,
+and use its log wording. They are not interchangeable.**
+
+| custody mode | how it is destroyed | what the log line may claim |
+| --- | --- | --- |
+| **A · Passphrase typed at the `-p` prompt and never written down** (the default for a same-day drill) | nothing to destroy — it only ever existed in the operator's head and the process's memory | ⛔ **NOT** "key destroyed". Log: *"no key copy existed to destroy (passphrase never persisted); recoverability of the archive ends with the operator's memory of it."* ⚠ This mode makes the archive **unrecoverable by anyone else** — never use it for a backup someone else may need to restore. |
+| **B · Keyfile at a stated path** (e.g. `age` identity file, or a passphrase in a file) | delete the keyfile, and record the path | *"keyfile `<path>` deleted (directory entry removed; block-level residue not claimed). Any residual ciphertext is unrecoverable without it."* |
+| **C · Password-manager entry** (named vault + entry title) | delete the entry **and** empty that tool's trash/deleted-items | ⚠ *"entry `<vault>/<title>` deleted and its trash emptied."* **This inherits the manager's sync, backup and undelete semantics** — a synced vault may retain it server-side or in another device's cache, so it is **exactly as unverifiable as `rm` was** unless you can confirm the tool's retention behaviour. Say which you confirmed. |
+
+Then, in order:
+
+1. **Destroy the KEY first**, by the mode you chose above. Cryptographic erasure is the act that
+   counts: residual ciphertext is unrecoverable without the key **regardless of what the filesystem
+   did with the blocks**.
 2. **Then delete the archive.** This is hygiene, not the proof.
-3. **Log BOTH, and state what each one proves** — "key destroyed (renders any residual ciphertext
-   unrecoverable)" and "archive deleted (directory entry removed; block-level residue not claimed)".
+3. **Log BOTH, and state what each one proves** — the key line in the exact wording its custody mode
+   permits (table above), and *"archive deleted (directory entry removed; block-level residue not
+   claimed)"*. **Never write a line that asserts an act that did not occur** — that is the defect
+   here, not the phrasing.
 
 That form is deliberately more honest than a `shred` claim, which we could not verify on this platform
 anyway (and which is meaningless on copy-on-write filesystems, SSDs with wear levelling, and any
