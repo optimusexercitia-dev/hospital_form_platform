@@ -107,8 +107,13 @@ begin;
 -- discovered: `plan(N)` catches SILENT ASSERTION LOSS — delete a `select ok(…)`
 -- and it says "planned 12, ran 11". `no_plan()` does NOT: a deleted assertion
 -- just makes this file smaller, with no complaint from the file itself. The
--- compensating control is the phase gate's SUITE-WIDE total (194 files / 6351
--- PASS before this file), which moves if an assertion vanishes anywhere — but
+-- compensating control is the phase gate's SUITE-WIDE total — measured on a fresh
+-- reset 2026-08-17: **193 files / 6351 PASS before this file, 194 / 6363 with it**
+-- (+1 file, +12 assertions, which is exactly this file) — a figure that moves if
+-- an assertion vanishes anywhere. ⚠ The first version of this very comment said
+-- "194 files / 6351 … before this file", a hybrid true of NEITHER state: the
+-- defect this file exists to pin, committed inside the file that pins it, caught
+-- by re-deriving the numbers instead of re-reading the sentence. But
 -- that is a LEAD-SIDE FIGURE compared by a human at gate time, NOT an in-file
 -- guard, and it is weaker than a per-file plan. The trade accepted here is:
 -- protect the file's ability to go red for ONE named reason (its whole purpose)
