@@ -10,10 +10,25 @@ in [deferred-backlog.md](./deferred-backlog.md).
 
 ### 🔴 FUP-DM5-NO-ANSWER-VS-NOTHING — *"I could not look"* is not distinguished from *"I looked and found nothing"* — and one instance persists that confusion as a **regulatory assertion** (owner: backend + lead; **a design-level blind spot, filed as a CLASS**)
 
-> **Severity 🔴 by lead ruling 2026-08-17, escalated from 🟠 on instance 3.** The class heading
-> carries the severity of its worst instance. Instances 1–2 are 🟠 (tool output an operator reads and
-> can second-guess); **instance 3 is 🔴** because it is a *persisted record asserting a fact to a
-> regulator* — see below.
+> # ⭐ THE CLASS, IN ONE SENTENCE
+>
+> ## **An ACTION PERFORMED is recorded as the STATE ACHIEVED.**
+>
+> Every instance substitutes an **observable proxy** for the **property that actually matters**, and
+> every one fails in the **reassuring** direction. Reframed by lead ruling 2026-08-17 once the fourth
+> instance made the shape unmistakable — *four scattered instances are four bugs; one sentence is a
+> thing you can recognise in a design review, **before** someone builds the fifth.*
+>
+> | # | the action performed | recorded as the state achieved |
+> | --- | --- | --- |
+> | 1 | `--allow-orphans` — *I could not look* | *I looked and found nothing* |
+> | 2 | `.list('')` — absence of a **bucket** | absence of **keys** |
+> | 3 | `complete_document_disposal` — **metadata row** gone | **bytes** gone |
+> | 4 | destruction — file **unlinked** | bytes **unrecoverable** |
+>
+> **Severity 🔴** (lead ruling 2026-08-17, escalated from 🟠 on instance 3): the class heading carries
+> the severity of its worst instance. Instances 1–2 are 🟠 — tool output an operator reads and can
+> second-guess. **Instance 3 is 🔴**: a *persisted record asserting a fact to a regulator*.
 
 Filed 2026-08-17 (backend, S5.D) — **lead-ruled to be filed as a class, not as two bugs.** Two
 independent instances in one tool, in unrelated code paths, found days apart by different means. Filed
@@ -67,6 +82,29 @@ carries a claim the platform cannot substantiate.
 correct call, and it is noted as such.** The alternative (quietly folding it into the class, or
 quietly giving it its own id) would have made a severity decision with regulatory weight inside an
 implementation slice.
+
+**Instance 4 — 🟠 destruction: a file UNLINKED recorded as bytes UNRECOVERABLE. ✅ RESOLVED in the
+runbook by the PO's encryption decision.** Found while writing the mitigation for instance 3 — *inside
+the fix for the previous instance*, which is itself the argument for having a class statement rather
+than four separate tickets. `rm` proves the **directory entry** is gone; it proves nothing about the
+blocks, and less than nothing on copy-on-write filesystems, SSDs with wear levelling, or any volume
+that has ever been snapshotted. **Resolution (PO, 2026-08-17): destroy the KEY first, then delete the
+archive.** Cryptographic erasure is the load-bearing act — residual ciphertext is unrecoverable
+without the key regardless of what the filesystem did — and deleting the archive is hygiene, not
+proof. The log records **both, stating what each one proves.** That is deliberately more honest than a
+`shred` claim, which could not be verified on this platform anyway. Written into
+`docs/deployment/phi-disposal-runbook.md` §6b.
+
+⭐ **The sharpened statement immediately earned itself — a fifth instance was caught BEFORE it shipped,
+which is exactly the use the lead named.** While verifying the runbook's encrypt-at-creation pipeline
+(2026-08-17): `docker exec … tar -cf - -C /mnt stub` **fails on Git Bash for Windows** — MSYS path
+translation rewrites `-C /mnt` to `C:/Program Files/Git/mnt`, tar exits 1 having written **0 bytes** —
+and with stderr suppressed the encryptor consumes the empty stream and 7-Zip prints **"Everything is
+Ok"**. The action was performed (a backup command ran and reported success); the state was **not**
+achieved (a valid, well-formed, entirely **empty** encrypted archive). Recognised as this class on
+sight rather than shipped as a command, and the runbook now carries both the working invocation and a
+**mandatory** count-vs-census verification step. **Not filed as a 5th open instance — it never
+reached the document.**
 
 ### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
 
@@ -141,15 +179,35 @@ set, retention period, or destruction step.
 ⛔ **The operational sting, and the reason this had to be filed before the runbook reaches the PO:**
 `docs/deployment/phi-disposal-runbook.md`'s backup half **instructs a human to create exactly this
 export.** *A procedure whose correct execution produces an undocumented plaintext PHI copy is not a
-complete procedure.* The runbook now carries a **PHI-handling section** whose four values —
-**location · permitted reader set · retention · destruction** — are marked **awaiting the PO**, handled
-exactly like the owner/periodicity values, and it states plainly that **until they are set, executing
-the backup half creates an unmanaged PHI copy.** That warning is deliberately stronger than a TODO.
+complete procedure.*
 
-**What would close this:** the PO sets the four values, the runbook records them, and the destruction
-step is verifiable (a named location + a retention clock someone owns). ⚠ Note the interaction with
-the drill's other finding — the byte half has **no** first-class tooling, so any future automated
-backup will be built on one of these two mechanisms, and whichever is chosen inherits this item.
+✅ **RESOLVED IN THE RUNBOOK — PO set all five values 2026-08-17** (§6b): **encryption** (encrypted
+archive, `age` / 7z-AES, **encrypted AT CREATION** so bytes are never plaintext on disk at any point —
+explicitly *not* "`docker cp` then encrypt", which leaves a plaintext window; key stored separately) ·
+**location** (outside the repo **and** outside any synced folder, with a **mandatory** sync-root check,
+because a copy into a synced directory silently replicates 68 PHI-tier files to a third-party cloud
+and nothing in the platform would notice) · **reader set** (the accountable owner alone, pre-pilot;
+never attached to an issue or support ticket) · **retention** (until the next backup is *verified
+good*, max 30 days, whichever first — exactly one recovery point at a time) · **destruction** (key
+first, then archive — instance 4 above).
+
+⭐ **The retention rationale is written into the runbook, because the obvious reading inverts it:** the
+20-year LGPD/ANVISA/CFM obligation belongs to the **system of record, not to backup copies.** A backup
+kept 20 years satisfies nothing and creates two decades of PHI liability in a second location with no
+RLS, no audit and no access control. **Short backup retention is a safety property, not a
+compromise** — stated explicitly so a future reader does not "fix" 30 days up to 20 years believing
+they are improving compliance.
+
+⚠ **"Verified good" is defined as CATALOG-COMPARED, never `psql` exit 0**, and the runbook cites this
+program's own drill as the reason (exit 0, **490** real errors, **90 of 274** policies restored). The
+retention rule authorises destroying the only other copy, so the phrase carries the weight of the
+whole rule and may not rest on a signal already proven false.
+
+**What remains before this can close:** the **literal destination path** is recorded in the run log at
+first execution (the *rule* is decided; the path is per-machine), and the first monthly run must
+actually exercise the procedure — see the UNREHEARSED gap. ⚠ Note the interaction with the drill's
+other finding — the byte half has **no** first-class tooling, so any future automated backup will be
+built on one of these two mechanisms, and whichever is chosen inherits this item.
 Related: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (the same volume, the destructive direction) and
 **FUP-DM5-NO-ANSWER-VS-NOTHING** instance 3 (the same bytes, the *disposal-assertion* direction).
 
@@ -170,8 +228,12 @@ installed, the `cron` schema does not exist, there is no `.github/workflows/`, a
 a single process with no scheduler.
 
 **Mitigation shipped instead of a job:** `docs/deployment/phi-disposal-runbook.md` (manual procedure +
-reconciliation), whose **owner and periodicity are still PROPOSED and owed by the PO** — until those
-are named, the procedure exists but the mitigation does not. The gap is pinned executably on both
+reconciliation). ✅ **Owner and periodicity SET by the PO 2026-08-17**: accountable owner = **the PO
+(repo owner)** — deliberately not a DPO role, since naming a role that may not be staffed pre-pilot is
+the same as naming no owner — executor = **whoever holds service-role reach** (ACL-forced, not a
+choice), periodicity = **monthly, plus out-of-band on any data-subject request**. ⚠ The mitigation is
+now real *on paper*; it becomes real *in practice* only when the monthly run actually happens, and the
+sequence is still **UNREHEARSED**. The gap is pinned executably on both
 sides so it cannot rot: `supabase/tests/343_dm5_s5_disposal_gap.sql` (catalog) and
 `src/lib/documents/disposal-gap.test.ts` (TS, where the job would most plausibly be built and where
 pgTAP is blind). Both were observed RED against real mutations before being trusted green.

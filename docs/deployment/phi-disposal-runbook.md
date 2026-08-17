@@ -35,29 +35,26 @@ So **this document is the mechanism.** Two consequences that are easy to miss:
    red, an automated completion path may now exist — **read their headers before
    changing anything, and retire this runbook in the same change.**
 
-## 1 · ⚠ OWNER AND PERIODICITY — PROPOSED, AWAITING PO CONFIRMATION
+## 1 · OWNER AND PERIODICITY — ✅ DECIDED (PO, 2026-08-17)
 
-**These two values are the only things in this document that are not measured.
-They are proposals. Do not treat them as settled.** Everything else here was
-verified against the live catalog or executed; these cannot be, because they are
-organizational facts, not technical ones. Same handling as ADR 0114 O1/O2.
+**Set by the PO. These are decisions, not proposals.**
 
-| | Proposal | Rationale | Status |
-| --- | --- | --- | --- |
-| **Accountable owner** | The controller's **DPO / encarregado de dados** | A PHI disposal is a controller obligation, not an infrastructure task. Whoever answers for the deletion to a data subject or a regulator should own that it happened. | ⚠ **PO to confirm the named individual** |
-| **Executor** | A **named technical operator** with service-role / Cloud-dashboard reach | Not a choice — a constraint. `complete_document_disposal` grants EXECUTE to `postgres` and `service_role` only, never `authenticated`, so no user-facing role can complete a disposal however it is delegated in the org chart. | ⚠ **PO to name the individual** |
-| **Periodicity** | **Weekly**, plus an out-of-band run on any `subject_request`-category disposal | Weekly bounds worst-case byte retention after an approved disposal to ~7 days. Subject-initiated requests plausibly carry a tighter statutory response window than routine retention expiry, so they should not wait for the weekly slot. | ⚠ **PO to confirm, ideally with counsel — the interval and any statutory deadline are legal determinations, not engineering ones** |
+| | Decision |
+| --- | --- |
+| **Accountable owner** | **The PO (repo owner).** ⭐ Deliberately *not* a DPO / encarregado role: naming a DPO pre-pilot names a role that may not be staffed, and **an unstaffed owner is the same as no owner.** Revisit when the role is actually filled. |
+| **Executor** | **Whoever holds service-role reach.** Not a choice — an ACL constraint: `complete_document_disposal` grants EXECUTE to `postgres` and `service_role` only, never `authenticated`, so no user-facing role can complete a disposal however it is delegated in the org chart. |
+| **Periodicity** | **Monthly**, plus **out-of-band on any data-subject request.** A DSR does not wait for the monthly slot. |
 
-**Why the accountable owner and the executor are proposed as different people:**
-the ACL forces the executor to hold service-role reach, and service-role reach
-bypasses RLS entirely. Concentrating "decides what is destroyed" and "can destroy
-anything" in one person removes the only separation available here. If the PO
-prefers a single owner, that is a legitimate call — but it should be a decision,
-not a default.
+Note the two roles may currently be the same person; that is a consequence of
+pre-pilot scale, not a design goal. The separation to preserve, whenever staffing
+allows, is that service-role reach bypasses RLS entirely — so "decides what is
+destroyed" and "can destroy anything" are worth splitting once there is more than
+one candidate.
 
-**If the PO does not confirm these values, this runbook is incomplete**, and the
-reconciler's premise (§0.1) stays false in practice even though the procedure
-exists on paper. A procedure with no named owner is not a mitigation.
+⭐ **This runbook, with these values set, is now the operational owner that
+`scripts/document-reconciliation.mjs` assumes exists** (§0.1). That premise was
+false until this document; it is true only for as long as the monthly run actually
+happens.
 
 ## 2 · Preconditions (all verified against the live catalog)
 
@@ -271,32 +268,140 @@ Supabase-unaware, which is exactly why it is the only mechanism that can capture
 
 So the backup half of any drill or recovery **creates the widest PHI egress path this system has**.
 
-### ⚠ Four values the PO must set — PROPOSED NOWHERE, DELIBERATELY
+### ✅ DECIDED (PO, 2026-08-17) — the five values
 
-Handled exactly like the owner and periodicity in §1: **these are values, and this document does not
-invent values.**
+| | Decision |
+| --- | --- |
+| **Encryption** | **Encrypted archive** (`age`, or **7z-AES** with encrypted headers), **encrypted AT CREATION** so the bytes are **never plaintext on disk at any point**. ⛔ *Not* "`docker cp` then encrypt" — that leaves a plaintext window, and a window is all an incident needs. The **key is stored separately from the archive.** |
+| **Location** | **Outside the repository AND outside any synced folder** (OneDrive, Dropbox, iCloud, Google Drive). Exact path recorded in the run log at first execution — see the sync check below, which is mandatory. |
+| **Permitted reader set** | **The accountable owner alone** (§1), pre-pilot. Not shared, not uploaded, **not attached to an issue or a support ticket.** |
+| **Retention** | **Until the next backup is verified good, and never more than 30 days** — whichever comes first. **Exactly one recovery point at a time.** |
+| **Destruction** | **Destroy the KEY first, then delete the archive.** Log both, and what each one proves. See "Destruction" below. |
 
-| | what must be decided | why it cannot be defaulted |
+⛔ **The sync check is mandatory, and it is not paranoia.** A `docker cp` (or an archive written) into
+a synced directory **silently replicates 68 PHI-tier files to a third-party cloud, and nothing in this
+platform would notice** — no RLS, no audit row, no alert. The platform cannot defend a path it does
+not know about. Before writing anything, confirm the destination is not inside a sync root:
+
+```bash
+# The destination must NOT be under any of these. Check the ACTUAL resolved path.
+echo "$BACKUP_DIR"
+case "$BACKUP_DIR" in
+  *OneDrive*|*Dropbox*|*iCloud*|*"Google Drive"*|*Creative\ Cloud*)
+    echo "⛔ REFUSE: destination is inside a sync root"; exit 1;;
+esac
+# Also confirm it is not inside the repo working tree:
+git -C "$BACKUP_DIR" rev-parse --show-toplevel 2>/dev/null && echo "⛔ REFUSE: inside a git work tree"
+```
+
+### ⭐ Why retention is SHORT — read this before "fixing" 30 days upward
+
+**The 20-year LGPD / ANVISA-RDC / CFM 1821 obligation belongs to the SYSTEM OF RECORD, not to backup
+copies.** A backup retained for 20 years satisfies **nothing** and creates two decades of plaintext-
+equivalent PHI liability in a second location with **no RLS, no audit trail, and no access control**.
+
+**Short backup retention is a SAFETY property, not a compromise.** It is written here explicitly
+because the obvious reading inverts it: a future reader who sees "30 days" beside a 20-year retention
+regime will be tempted to "fix" the inconsistency by raising it, and would be making the system
+materially less safe while believing they were improving compliance. **The two clocks are different
+clocks.** Do not reconcile them.
+
+### Taking the backup — encrypted at creation
+
+```bash
+# 1. Census FIRST — this is the number the archive will be verified against.
+node scripts/storage-manifest.mjs walk        # e.g. TOTAL files=245 bytes=2456666
+
+# 2. Stream tar straight into the encryptor. No plaintext intermediate ever exists.
+#    (7-Zip: -si reads stdin, -mhe=on encrypts the file NAMES too — paths are PHI-adjacent.
+#     Use the interactive -p prompt: a password on the command line leaks to shell history
+#     and to the process list.)
+docker exec supabase_storage_<ref> sh -c "cd /mnt && tar -cf - stub" \
+  | 7z a -si -p -mhe=on "$BACKUP_DIR/storage-$(date +%Y%m%d).7z"
+
+#    age equivalent, if installed:
+# docker exec supabase_storage_<ref> sh -c "cd /mnt && tar -cf - stub" \
+#   | age -p > "$BACKUP_DIR/storage-$(date +%Y%m%d).tar.age"
+```
+
+⛔ **Two traps in that one command, both measured on 2026-08-17, both of which produce a VALID,
+EMPTY archive that reports success:**
+
+1. **Use the `sh -c "cd /mnt && …"` form.** The apparently equivalent
+   `docker exec … tar -cf - -C /mnt stub` **fails on Git Bash for Windows**: MSYS path translation
+   rewrites `-C /mnt` to `C:/Program Files/Git/mnt`, and tar exits 1 having written **0 bytes**
+   (`tar: can't change directory to 'C:/Program Files/Git/mnt'`). Alternatively set
+   `MSYS_NO_PATHCONV=1`.
+2. **Never suppress tar's stderr in this pipeline.** With `2>/dev/null` the failure above is silent,
+   the encryptor happily consumes an empty stream, and 7-Zip prints **"Everything is Ok"**. You would
+   hold an encrypted, well-formed, entirely empty backup, created by a command that reported success.
+   *That is this program's `FUP-DM5-NO-ANSWER-VS-NOTHING` class — an action performed recorded as the
+   state achieved — and it is why step 3 is not optional.*
+
+```bash
+# 3. VERIFY THE ARCHIVE — mandatory. Compare against the census from step 1.
+7z l -p "$BACKUP_DIR/storage-<date>.7z" | tail -3     # file count must match `walk`
+```
+
+A backup whose file count has not been compared to the census is **not** a verified backup, and under
+the retention rule above it may **not** be used to justify destroying the previous one.
+
+### ⛔ "VERIFIED GOOD" MEANS CATALOG-COMPARED — never an exit code
+
+The retention rule ("keep until the next backup is **verified good**") authorises **destroying the
+only other copy**. So the word carries the weight of the whole rule, and it must not be satisfied by a
+signal already proven false.
+
+**The citation is this project's own drill, 2026-08-17.** A `supabase db dump` replayed into a bare
+database:
+
+| signal | said | truth |
 | --- | --- | --- |
-| **Location** | where a Storage backup may be written | a developer laptop, a scratch directory and an encrypted managed volume are not interchangeable for PHI under LGPD/ANVISA |
-| **Permitted reader set** | who may read it, and how that is enforced | inside the platform this is RLS plus an audited door; on a filesystem copy it is filesystem permissions and nothing else |
-| **Retention** | how long the copy may exist | the platform's 20-year retention governs the *record*, not an operational copy of the bytes; these are different clocks and conflating them is its own error |
-| **Destruction** | how the copy is destroyed, and who verifies it | ⭐ note the recursion: destroying a backup copy has the **same** unverifiability problem as §4 — deleting a file proves the directory entry is gone |
+| `psql` exit code | **0** | 490 statements failed |
+| `grep -c '^ERROR'` | **0** | psql prefixes `psql:file:line:` — the anchor matches nothing |
+| catalog comparison | — | **90 of 274 RLS policies restored**, 161 of 165 tables |
 
-⛔ **Until those four values are set, executing the backup half of this runbook creates an unmanaged
-plaintext PHI copy.** That is the status today. It is stated as a present-tense fact rather than a
-TODO because a TODO is something a reader can defer; this is something a reader must decide before
-running the procedure.
+An operator who replays a dump, sees exit 0, and destroys the previous backup would have destroyed a
+good copy on the strength of a signal that was wrong twice over. **`psql` does not fail on statement
+errors without `ON_ERROR_STOP`, and a restored database missing two thirds of its RLS is not a
+database — it is a data leak wearing one.**
 
-### What is required of the operator in the meantime
+So, for the DB half, "verified good" is **this comparison**, run against the restored copy and the
+source, with **every row equal**:
 
-- Do **not** take a Storage backup as a routine step. Take it only when an incident requires it, and
-  record that you did.
-- Treat the copy as PHI **at the moment it is created** — not when it is filed somewhere.
-- **Destroy it as soon as its purpose is served**, and record the destruction alongside the run
-  record (§7). The drill's own copy was deleted immediately after verification; that is the standard.
-- Never place it anywhere synced, shared, or backed up onward (cloud sync directories, shared drives,
-  ticket attachments). A PHI export that gets replicated is no longer an export, it is a second system.
+```sql
+select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+         where n.nspname='public' and c.relkind='r')                                  as tables,
+       (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+         where n.nspname='public' and c.relkind='r' and c.relrowsecurity)             as rls_enabled,
+       (select count(*) from pg_policies where schemaname='public')                   as policies,
+       (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+         where n.nspname in ('public','app'))                                         as functions,
+       (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+         where n.nspname in ('public','app') and p.prosecdef)                         as definers,
+       (select count(*) from pg_trigger where not tgisinternal)                        as triggers;
+```
+
+Restore into a **scratch database**, never over the live one, and note the drill's other finding: the
+dump only restores faithfully onto a target where `auth`, `storage` and `extensions` already exist
+(pre-creating them plus stub `auth.uid()`/`auth.role()` took errors 490 → 10 and both tables and
+policies to full parity). A bare-Postgres target is not a valid restore test.
+
+### Destruction — cryptographic erasure is the load-bearing act
+
+⭐ **This resolves the recursion that §4 exposes.** Deleting a file proves the **directory entry** is
+gone; it does **not** prove the bytes are unrecoverable — the same substitution of an observable proxy
+for the property that matters. The PO's encryption decision resolves it:
+
+1. **Destroy the KEY first.** Cryptographic erasure is the act that counts: residual ciphertext is
+   unrecoverable without the key **regardless of what the filesystem did with the blocks**.
+2. **Then delete the archive.** This is hygiene, not the proof.
+3. **Log BOTH, and state what each one proves** — "key destroyed (renders any residual ciphertext
+   unrecoverable)" and "archive deleted (directory entry removed; block-level residue not claimed)".
+
+That form is deliberately more honest than a `shred` claim, which we could not verify on this platform
+anyway (and which is meaningless on copy-on-write filesystems, SSDs with wear levelling, and any
+volume that has ever been snapshotted).
 
 Tracked as **FUP-DM5-BACKUP-IS-PHI-EXPORT** (🔴).
 

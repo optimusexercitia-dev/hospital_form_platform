@@ -394,11 +394,12 @@ A delivered slice is not an absence of gaps.
    the S3 endpoint is UNPROBED and nothing here changed that.
 9. **PITR entitlement for this project is UNDETERMINED** — needs the linked
    project.
-10. **Storage-backup PHI handling is UNSET** (§3c, §6b) — ✅ now **filed as 🔴
-    FUP-DM5-BACKUP-IS-PHI-EXPORT** and the runbook carries §6b, but the four values
-    (location · reader set · retention · destruction) are **awaiting the PO**.
-    Until they are set, **executing the runbook's backup half creates an unmanaged
-    plaintext PHI copy.** Filed and warned, *not* resolved.
+10. **Storage-backup PHI handling** (§3c, §6b) — ✅ **RESOLVED**: filed as 🔴
+    FUP-DM5-BACKUP-IS-PHI-EXPORT and **all five values set by the PO 2026-08-17**
+    (encryption at creation · location outside repo *and* sync roots · reader set ·
+    30-day retention · key-first destruction). ⚠ **Residual:** the *literal*
+    destination path is per-machine and is recorded in the run log at first
+    execution, and **the procedure has never been executed** (see item 6).
 11. **`no_plan()` gives up per-file protection against silent assertion loss**
     (§1c) — the compensating control is a human comparison at gate time.
 12. **The vitest census is bounded to `src/` + `scripts/`** and excludes test
@@ -433,11 +434,61 @@ a marker*) and the S2 reopen-banner defect (*a marker merely DISTANT is no bette
 **FUP-DM5-BACKUP-IS-PHI-EXPORT**, because it is not hypothetical (the drill created one) and because
 ⛔ **the runbook as written would instruct a human to create that export** — *a procedure whose correct
 execution produces an undocumented plaintext PHI copy is not a complete procedure.* The runbook gains
-**§6b**, a PHI-handling section for the backup half whose four values — **location · permitted reader
-set · retention · destruction** — are marked **awaiting the PO**, handled exactly as owner/periodicity
-were, and it states as a **present-tense fact** (not a TODO, which a reader can defer) that until they
-are set, executing the backup half creates an unmanaged PHI copy. §7's run record now also requires
-the backup's location, reader set and destruction time.
+**§6b**, a PHI-handling section for the backup half. §7's run record now also requires the backup's
+location, reader set and destruction time.
+
+## 6c · ✅ PO DECISIONS FILLED IN (2026-08-17) — nothing in the runbook is a proposal any more
+
+Every value the runbook previously flagged is now decided and written as decided; every "awaiting the
+PO" / "PROPOSED" marker beside a decided value has been removed here, in the runbook, in the
+follow-ups and in the PROGRESS index (a stale marker beside a decided value is the currency defect
+this phase has hit repeatedly).
+
+| value | decision |
+| --- | --- |
+| Accountable owner | **the PO (repo owner)** — deliberately *not* a DPO role: naming a role that may not be staffed pre-pilot is the same as naming no owner |
+| Executor | **whoever holds service-role reach** — ACL-forced, not a choice |
+| Periodicity | **monthly**, plus **out-of-band on a data-subject request** |
+| Retention | **until the next backup is verified good, max 30 days**, whichever first — exactly one recovery point |
+| Encryption | **encrypted archive, encrypted AT CREATION** (`age` / 7z-AES) so bytes are never plaintext on disk at any point; key stored **separately** |
+| Location | **outside the repo AND outside any synced folder**, with a mandatory sync-root check |
+| Reader set | **the accountable owner alone**, pre-pilot; never attached to an issue or ticket |
+| Destruction | **key first, then archive** — log both, stating what each proves |
+
+**Two of these needed more than transcription.**
+
+⭐ **The retention rationale is written in, because the obvious reading inverts it.** The 20-year
+obligation belongs to the **system of record, not to backup copies**; a 20-year backup satisfies
+nothing and creates two decades of PHI liability in a second location with no RLS, no audit, no access
+control. **Short backup retention is a safety property, not a compromise** — said explicitly so a
+future reader does not "fix" 30 days upward believing they improve compliance.
+
+⛔ **"Verified good" is defined as CATALOG-COMPARED, never `psql` exit 0**, with this slice's own drill
+as the citation (exit 0 · 490 real errors · 90 of 274 policies). The retention rule authorises
+destroying the only other copy, so the phrase carries the weight of the whole rule; the runbook now
+carries the exact comparison query and the requirement to restore into a scratch database that already
+has `auth`/`storage`/`extensions`.
+
+⚠ **One slot could not be filled and was NOT invented:** the *literal* destination path. The PO decided
+the **rule** (outside the repo, outside every sync root); the path itself is per-machine, so the
+runbook records it in the run log at first execution and ships a mandatory sync-root check instead of
+a guessed path.
+
+### Instance 4, and a fifth caught before it shipped
+
+Instance 4 (destruction: a file **unlinked** recorded as bytes **unrecoverable**) is filed, and
+resolved by the PO's encryption decision — cryptographic erasure is the load-bearing act; deleting the
+archive is hygiene. Found *inside the fix for instance 3*, which is the argument for the class
+statement existing at all.
+
+⭐ **The reframed statement earned itself within the hour.** Verifying the encrypt-at-creation
+pipeline: `docker exec … tar -cf - -C /mnt stub` **fails on Git Bash** (MSYS rewrites `-C /mnt` to
+`C:/Program Files/Git/mnt`; tar exits 1, **0 bytes**), and with stderr suppressed the encryptor
+consumes the empty stream and 7-Zip prints **"Everything is Ok"** — a valid, well-formed, entirely
+**empty** encrypted backup from a command that reported success. *An action performed recorded as the
+state achieved*, recognised on sight instead of shipped. The runbook carries the working invocation,
+the reason, and a **mandatory** count-vs-census verification. Not filed as a 5th open instance — it
+never reached the document.
 
 ### Two of §7's doubts adopted as BINDING named gaps — S6 may not close over them
 
