@@ -794,6 +794,34 @@ machine before drawing any conclusion**, and check the count against the plan
 >    **reconciler**-orphans (metadata row, no `file_objects` row). That item is about **byte**-orphans
 >    (no metadata row at all) — invisible to every query run here. **S3 endpoint still UNPROBED.**
 >
+> ## ⛔⛔ OPEN OBLIGATION — ADR 0121 **D1 IS CURRENTLY VIOLATED IN-TREE**. READ FIRST.
+>
+> **The D11 INFLOW SHIPPED WITHOUT THE OUTFLOW.** `20260928000300` now marks a superseded
+> print's bytes `disposal_pending / superseded`, and **`20260928000400`** gives `disposed`
+> its evidence contract — but **the D2 job that actually deletes bytes DOES NOT EXIST YET.**
+>
+> ADR 0121 **D1** is explicit that these ship together *"or neither ships"*, for the exact
+> reason now live in the tree: an inflow with no outflow converts silent retention into a
+> **growing pile of `disposal_pending` rows nothing can clear**, while D11 reads as honoured.
+> The FUP's own words: *"Fixing D11 alone would make things look better and destroy nothing."*
+>
+> **Contained, for now, and only by circumstance** — nothing is pushed, `document_printing`
+> and every `documents_*` flag are OFF on the remote (measured), and the remote holds no data.
+> ⚠ That containment is **not** a design property and expires the moment either changes.
+>
+> ⛔ **BLOCKING: `20260928000300` must NOT reach the remote before the D2 job exists.**
+> Either build the job (ADR 0121 D2, **PO-RATIFIED** — `pg_cron` → `pg_net` → HMAC-authenticated
+> route in the existing app, ADR 0099 D10 pattern) **or revert the inflow.** Do not push a
+> half-lifecycle.
+>
+> **Also owed on what already shipped:** a keystone for D4. Its behaviour is verified only by
+> a rolled-back **probe** recorded in the commit (`STATE=disposed
+> BYTE_PROOF=unavailable_on_platform META_ABSENT=true SOURCE=storage.objects`) plus the closed
+> vocabulary rejecting a bogus proof — that is a measurement, **not** a regression gate.
+> And **`343_dm5_s5_disposal_gap.sql` now documents a gap that is half-closed**: its K6b still
+> asserts *"no scheduler exists at all"*, which is TRUE today and becomes a **false pin** the
+> moment the job lands. Rewrite 343 in the same slice as D2, not after.
+>
 > ## ✅ CLOSED in this batch
 > **FUP-DM4-RECUSAL** (`32054942`, ADR **0122** — PO overturned the Phase-19 deferral; guard
 > ABOVE the dispatch, **both** arms, `340` plan 76→82 all green, red-first proven) ·
