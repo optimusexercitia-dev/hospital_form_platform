@@ -36,7 +36,7 @@ begin;
 -- 130 → 128: DM3 removes K8c (the ethics parked-seam refusal, discharged by
 -- ADR 0114 Amendment 2 / D17) and its now-unused ethics flag precondition.
 -- K8a/K8b and their preconditions are untouched — see the K8c note below.
-select plan(128);
+select plan(130);
 
 -- Flag preconditions asserted, never assumed (authz-handoff §7.3).
 select is(app.feature_enabled('case_referrals'), true,
@@ -595,6 +595,45 @@ update public.file_objects set upload_state = 'clean'
  where id = '32800000-0000-0000-0000-00000000f101';
 insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
 values ('32800000-0000-0000-0000-00000000e101', '32800000-0000-0000-0000-00000000f101', 'source');
+
+-- ---------------------------------------------------------------------------
+-- K17 — FUP-DM5-DVF-FILEOBJ: one `file_object` backs at most ONE version file.
+-- Ruled 2026-08-18 (DM-FUP TRIAGE #4), migration 20260928000600. Before it, the
+-- table's ONLY unique constraint was (document_version_id, rendition_kind) and
+-- 1:1 rested on caller discipline alone. Disposal acts on `file_objects`, so a
+-- shared object lets one row's disposal silently destroy another row's bytes.
+--
+-- ⭐ K17b is the point of this pair. K17a alone would be the mistake this repo
+-- keeps making — asserting that a thing EXISTS rather than that it REFUSES.
+-- Two vacuity traps are dodged deliberately:
+--   1. The duplicate binds a DIFFERENT `document_version_id`, so the PRE-EXISTING
+--      (document_version_id, rendition_kind) constraint CANNOT be what refuses.
+--      Reuse the same version and this pin passes for the old reason and would
+--      stay green if 20260928000600 were reverted.
+--   2. It runs as the SUPERUSER, not `authenticated`. FUP-DM5-GRANTS revoked
+--      direct write on this table, so as `authenticated` the insert dies at
+--      42501 (permission) and never reaches the constraint — a green pin
+--      proving only that the grant is revoked.
+-- ---------------------------------------------------------------------------
+insert into public.document_versions (id, document_id, version_number, created_by)
+values ('32800000-0000-0000-0000-00000000e102', '32800000-0000-0000-0000-00000000d101',
+        2, '00000000-0000-0000-0000-000000000002');
+
+select is(
+  (select count(*)::int from pg_constraint
+    where conrelid = 'public.document_version_files'::regclass
+      and conname = 'document_version_files_file_object_uniq'
+      and contype = 'u'),
+  1,
+  'K17a the file_object uniqueness constraint exists on document_version_files');
+
+select throws_ok(
+  $q$ insert into public.document_version_files (document_version_id, file_object_id, rendition_kind)
+      values ('32800000-0000-0000-0000-00000000e102',
+              '32800000-0000-0000-0000-00000000f101', 'preview') $q$,
+  '23505',
+  null,
+  'K17b …and it REFUSES a second version binding the same file_object (differential: a new version + a new rendition_kind, so only the NEW constraint can fire)');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002'::uuid, false, 'staff_admin');
 set local role authenticated;

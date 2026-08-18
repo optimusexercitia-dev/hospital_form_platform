@@ -4264,7 +4264,7 @@ export type Database = {
           {
             foreignKeyName: "document_version_files_file_object_id_fkey"
             columns: ["file_object_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "file_objects"
             referencedColumns: ["id"]
           },
