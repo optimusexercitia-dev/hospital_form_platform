@@ -1992,6 +1992,25 @@ were 56 of them). Any detector built here must be **dry-run against a hand-class
 
 ### 🟠 FUP-DM5-STORAGE-ORPHANS — a **LOCAL** DB reset wipes `storage.objects` but NOT the bytes; ⚠ **the REMOTE half was a stale inference and is now demoted to residual** (owner: lead + backend; blocks DM5 step 3 **locally**)
 
+> ## ⭐ MECHANISM MEASURED 2026-08-18 — the guard exists, and TRUNCATE walks past it
+>
+> `storage.objects` carries a platform trigger **`storage.protect_delete`** (statement-level, on
+> DELETE): a bare `DELETE` raises **`42501`** — *"Direct deletion from storage tables is not allowed.
+> Use the Storage API instead"*, hint *"This prevents accidental data loss from orphaned objects."*
+> So the casual path into this item's failure mode **is already blocked**, by Supabase, by default.
+>
+> ⛔ **`TRUNCATE` is not.** Measured on the local stack: upload an object → `TRUNCATE storage.objects`
+> succeeds, rows gone, **byte still on disk** (`/mnt/stub/stub/<bucket>/<name>/<version>`). TRUNCATE
+> fires no DELETE trigger, so no statement-level guard can see it. That is the shape of every
+> orphaning event this item is about: resets, truncates, schema drop/recreate — the **bulk and
+> structural** operations, never a stray per-row delete.
+>
+> ⇒ Restates the item's scope precisely: *routine per-object work is protected; bulk operations are
+> not, and no trigger can protect them.* The grant half is closed under FUP-PCITV-1 item 3
+> (`20260928000900`); the platform tables keep the grant and that is accepted in writing there.
+> ⚠ Also note `/var/lib/storage` is **not** the storage root (`FILE_STORAGE_BACKEND_PATH=/mnt`) — a
+> `find` against the wrong root returns a false *"the byte is gone"*.
+
 > ⛔ **CROSS-LINK, added by lead ruling 2026-08-17 (DM5·S5): this item's Cloud half is now
 > [FUP-DM5-CLOUD-ORPHAN-SURFACE](#-fup-dm5-cloud-orphan-surface), a separate item.** The S3-endpoint
 > question was a **parenthetical inside this body**, under a headline reading *"closes empty by
@@ -3339,7 +3358,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 | - | --- | ---- |
 | 1 | ⬛ | ~~**`ARM=census` never run**~~ **CLOSED 2026-08-05** — the arm landed with the membership-hardening merge and was run against the merged catalog. It found real debt, not nothing: `process_template_versions_{select,staff_admin_write}` carry **no verdict from any sweep**. TV swept and keystoned the six CHILD policies on `process_template_{phases,narratives,outcomes}` (`dcc5a4d`) and not its own PARENT table's two — *a new door must inherit every sibling arm*, one level up. Registered as `gate:` debt in `authz-unswept-backlog.txt`. The ghost-check also named all five `validate_template_*` signatures ADR 0096 re-keyed to `p_template_version_id`. |
 | 2 | ⬛ | ~~**TV backfill never exercised** — rehearsal + snapshot blocking before `db push`.~~ **CLOSED (PO, 2026-08-05): the remote is EMPTY**, so the backfill meets 0 rows there exactly as it does locally. Not blocking. See the Phase Status caveat for the mechanism (which recurs) and for the unverified-premise error that produced this row. |
-| 3 | 🟡 | **Revoke residue** — `authenticated` still holds `TRUNCATE` on **66 tables**; TRUNCATE bypasses RLS entirely. Unreachable via PostgREST *today*. ⚠ This phase set its own standard by **refusing the "unreachable" argument** in `20260906000600`, so it should be swept or accepted **in writing** — not left implicit. |
+| 3 | ⬛ | ~~**Revoke residue**~~ **CLOSED 2026-08-18 — swept (first-party) AND accepted in writing (platform), which is exactly the disjunction this item demanded.** `20260928000900` revoked TRUNCATE from anon+authenticated on **63** postgres-owned tables (0 remain); pinned by pgTAP `191` §5, property-bounded by OWNERSHIP so a new first-party schema is covered on creation, with a two-direction falsifiability control. ⛔ The platform half (`storage.*`, `net.*`) **cannot be revoked by us** — see the block below. |
 | 4 | ⬛ | ~~**BUG-RCA-001**~~ **CLOSED 2026-08-05** — PO ruled the interview's date is the **earliest session's `scheduled_start`**; fixed, PostgREST-verified, and the ruling pinned by `rca.test.ts` (5 cases, mutation-proven per arm). See the Bug Log. |
 | 5 | 🟢 | Audit mesh **2 of 7** trigger arms keystoned (`20260906000200`). |
 | 6 | 🟢 | The `is_commission_admin_of` disjunct in the 6 new tenant-isolation keystones is **unexercised** — no org-admin persona exists in the test bootstrap. Adding one lifts several suites at once. |
@@ -3348,6 +3367,49 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 
 | 9 | ⬛ | ~~**`296` suite-number COLLISION between branches.**~~ **CLOSED 2026-08-05** — resolved during the merge, not before it: the branch had committed by then, so it came through as a two-file collision on one number. Renumbered to `supabase/tests/298_authz_p0_isolation.sql`, with the Batch-4 runner in `p0b-isolation-mutation-audit.sh` following it. (A third collision was then created and caught in the same session — `299_hospital_content_door_noun_rule.sql` was first written as `284_`, which `284_accreditation_hospital_readiness.sql` already held. Check the directory before picking a number.) |
 | 10 | 🟢 | **PROGRESS.md is 105 KB against the <60 KB target** (CLAUDE.md §7 — every spawn pays for it). This phase's rotation took it from 111.6 KB, so the trend is right but the gap is not closed. Next rotation should take the `📋 Remaining pre-pilot work` and closed-bug sections. |
+
+> ### ⬛ Item 3 (revoke residue) — CLOSED 2026-08-18, and the platform half is an ACCEPTANCE, not a sweep
+>
+> **Swept.** `20260928000900_revoke_truncate_residue.sql` — TRUNCATE revoked from `anon` +
+> `authenticated` on the **63** postgres-owned tables that still held it (the residue
+> `20260711000100` left behind when it flipped the *default* but did not sweep existing tables).
+> Pinned by pgTAP **`191` §5**, all 194 files / 6406 assertions green.
+>
+> ⭐ **Why this grant was worth more than its 🟡.** The item graded it on RLS bypass. The bigger
+> consequence went unnamed: **TRUNCATE fires no DELETE trigger**, so it also walks past every
+> statement-level `AFTER DELETE` guard — including `storage.protect_delete`. Measured 2026-08-18:
+> a bare `DELETE` on `storage.objects` raises `42501`; a `TRUNCATE` succeeds, and the bytes stay on
+> disk as orphans. Combined with [the Cloud orphan probe](cloud-orphan-probe-2026-08-18.md) of the
+> same day, the blast radius is *"every byte in every bucket orphaned, and then unobservable on
+> Cloud forever"* — not *"rows lost, restorable"*.
+>
+> ⛔ **ACCEPTED IN WRITING — the platform residue is not ours to revoke.** `storage.objects`,
+> `storage.buckets`, `storage.buckets_analytics` (owner `supabase_storage_admin`) and the `net.*`
+> tables (owner `supabase_admin`) grant TRUNCATE to `anon` and `authenticated`. **We cannot change
+> that**, and the way it fails is the trap:
+>
+> | statement, run as `postgres` on Cloud | result |
+> | --- | --- |
+> | `revoke truncate on public.<table> from authenticated` | privilege `t` → **`f`** |
+> | `revoke truncate on storage.objects from authenticated` | **no error**, privilege `t` → **`t`** |
+>
+> Postgres does not error when the caller is not entitled to revoke — it warns and no-ops. ⭐ *A
+> migration that swept "everywhere it could" would have gone green on `db push` having hardened
+> nothing on the half that mattered, and been recorded as complete.* The first probe I ran asked
+> only whether the statement errored and answered **"REVOKE WOULD SUCCEED"** for `storage.objects`;
+> only re-measuring the **privilege itself** exposed the no-op. Same family as
+> [[guards-that-read-right-but-fail-open]] — and the reason `20260928000900` re-derives the set from
+> the catalog after its loop instead of counting statements executed.
+>
+> The scope is therefore the deterministic first-party one. A local superuser *can* revoke on
+> `storage`, so an opportunistic sweep would also have made local and Cloud diverge — green locally,
+> unchanged in production.
+>
+> **Residual risk, stated plainly:** not reachable today. PostgREST exposes no TRUNCATE verb, and
+> `anon` / `authenticated` / `service_role` are all **NOLOGIN**, so an API key is not a database
+> credential. It needs a direct connection as a client role, which nothing issues. `service_role`
+> keeps TRUNCATE deliberately — it is the trusted server-only role that already bypasses RLS, and
+> anything holding that key can delete everything through the API anyway.
 
 **Landed, no longer a recommendation:** the PostgREST **embed sweep** built during this phase now
 lives in the repo at **`scripts/extract-embeds.mjs`** + **`scripts/probe-embeds.mjs`** (moved out of

@@ -10,6 +10,9 @@
 --           works; a DEFINER door (audit_write via an instrumented mutation) still writes.
 --   §2 C-2: a freshly-created public table has NO authenticated privilege until granted;
 --           service_role keeps the default.
+--   §5 TRUNCATE residue: NO first-party table grants TRUNCATE to anon/authenticated
+--           (property-bounded by OWNERSHIP, so a new schema is covered automatically),
+--           proven falsifiable by a control that re-grants it.
 --   §3 C-4: a member of commission A calling log_audit_access with a commission-B entity
 --           raises 42501; the entitled entity-scoped + export + PHI-door paths still emit;
 --           allow-list ⊆ dispatch map (completeness); auth.uid() resolves in the DEFINER
@@ -18,7 +21,9 @@
 begin;
 -- 26 → 27: S2 rewrote §4 (the verb left the registry — FINDING 1a) and added
 -- the zero-mint pin 3.15.
-select plan(27);
+-- 27 → 31: §5 pins the TRUNCATE-residue sweep (20260928000900 / FUP-PCITV-1 item 3),
+-- with a vacuity control proving the detector can go red.
+select plan(31);
 
 -- HARD REQUIREMENT (QA-B-1): the C-4 PHI-door + .viewed assertions need these flags
 -- (audit_write early-returns without audit_trail; the PHI doors gate on patient_safety).
@@ -289,6 +294,72 @@ reset role;
 select is(
   (select count(*)::int from public.audit_log where entity_id = (select id from att)),
   0, '3.15: zero audit rows from the refused registry attempts');
+
+-- ============================================================================
+-- §5: TRUNCATE residue — no FIRST-PARTY table grants TRUNCATE to a client role.
+--     Migration 20260928000900 · FUP-PCITV-1 item 3.
+--
+-- TRUNCATE bypasses RLS, so this grant sits outside Architecture Rule 1. It also
+-- bypasses statement-level AFTER DELETE guards (TRUNCATE fires no DELETE trigger),
+-- which is how it orphans storage bytes past `storage.protect_delete`.
+--
+-- TEMP tables are excluded by `relpersistence <> 't'` — the PROPERTY, not a `pg_temp%`
+-- name pattern. This is not a convenience narrowing: pgTAP's own `__tcache__` is a temp
+-- table it grants broadly, and a temp table lives in one session's private schema owned
+-- by that session's user, while anon/authenticated are NOLOGIN and can never hold a
+-- session. There is no persistent security surface there. Excluding it keeps the pin
+-- about the thing that actually persists.
+--
+-- Bounded by OWNERSHIP, not by a schema name list: `relowner = postgres` is "ours".
+-- A table added to a brand-new first-party schema is therefore inside this pin on the
+-- day it is created, which a name list would not achieve.
+-- §1.4 (audit_log has no TRUNCATE for authenticated) is now a special case of 5.1 —
+-- it is kept because it names the table the C-1 lock is actually about.
+-- ============================================================================
+
+-- Returns the offending table NAMES, not a count. A failure reading `have: 1 want: 0`
+-- sends the next reader hunting; one reading `have: {public.foo}` is already diagnosed.
+create or replace function pg_temp.truncate_residue() returns text[] language sql stable as $fn$
+  select coalesce(array_agg(n.nspname || '.' || c.relname order by n.nspname, c.relname), '{}'::text[])
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where c.relkind in ('r', 'p')
+    and c.relpersistence <> 't'
+    and c.relowner = 'postgres'::regrole
+    and (has_table_privilege('anon', c.oid, 'TRUNCATE')
+      or has_table_privilege('authenticated', c.oid, 'TRUNCATE'));
+$fn$;
+
+select is(pg_temp.truncate_residue(), '{}'::text[],
+  '5.1: NO postgres-owned table grants TRUNCATE to anon or authenticated');
+
+-- VACUITY CONTROL. 5.1 asserts an absence, and an absence passes just as happily when
+-- the detector is broken — a wrong owner filter, a typo'd privilege name, a query that
+-- matches nothing. Re-grant the privilege on a real table and require the SAME function
+-- to see it. Without this arm, 5.1 is a green light that has never been shown able to
+-- turn red. (The grant is rolled back with the suite.)
+create table public._truncate_residue_control (id int);
+grant truncate on public._truncate_residue_control to authenticated;
+select is(pg_temp.truncate_residue(), '{public._truncate_residue_control}'::text[],
+  '5.2: CONTROL — re-granting TRUNCATE on one table makes 5.1''s detector report it (detector is falsifiable)');
+revoke truncate on public._truncate_residue_control from authenticated;
+select is(pg_temp.truncate_residue(), '{}'::text[],
+  '5.3: CONTROL — revoking it returns the detector to empty (both directions move)');
+drop table public._truncate_residue_control;
+
+-- The platform-owned residue is NOT asserted here. `storage.*` and `net.*` grant
+-- TRUNCATE to the client roles and we cannot revoke them: on Cloud that REVOKE returns
+-- without error and changes nothing (measured 2026-08-18, privilege t -> t). Pinning a
+-- non-zero count would anchor a control on a defect and go red the day Supabase fixes
+-- it. What IS pinned is the boundary: the residue must stay OUTSIDE our own tables.
+select ok(
+  not exists (
+    select 1 from pg_class c
+    where c.relkind in ('r', 'p')
+      and c.relpersistence <> 't'
+      and c.relowner = 'postgres'::regrole
+      and has_table_privilege('anon', c.oid, 'TRUNCATE')),
+  '5.4: anon specifically holds TRUNCATE on no first-party table');
 
 select * from finish();
 rollback;
