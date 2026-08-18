@@ -6,7 +6,9 @@ for it. It holds the shared, stable rules and points to the docs that carry deta
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** — binding architecture rules + canonical
   schema (authoritative; summarized in §3).
 - **[PHASES.md](./PHASES.md)** — phased plan + per-phase acceptance criteria (§5).
-- **[PROGRESS.md](./PROGRESS.md)** — live phase/status tracker + full backlog (§7).
+- **[PROGRESS.md](./PROGRESS.md)** — **live state ONLY** (§7): current phase, open
+  items, blockers. History → [docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)
+  + the `docs/progress/` archives; contract machine-enforced by `npm run lint:progress`.
 - **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration
   protocol (the single lead session reads it once; teammates get task-specific prompts).
 - **[docs/worktrees.md](./docs/worktrees.md)** — git worktree setup + running parallel
@@ -220,16 +222,18 @@ The full plan + acceptance criteria live in **[PHASES.md](./PHASES.md)** (core
 platform 0–12 + the accreditation-track index). Accreditation track **13–21** detail is
 in **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)** (read
 **[docs/quality-track-context.md](./docs/quality-track-context.md)** first). **Live
-status and the full backlog** — including Phase 22 (Referrals), Phase 23 (Patient
-Identity), and cross-cutting workstreams — live in **PROGRESS.md**. One codebase, one
-schema, one rulebook.
+status lives in PROGRESS.md**; the completed-phase record lives in
+**[docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)** (append-only,
+every phase forever). One codebase, one schema, one rulebook.
 
 **Hard rule:** no phase begins until the previous phase has passed the Phase Gate (§6)
 **and** the human has approved. Backend may run one phase ahead on schema work, but
 nothing merges ahead of its phase.
 
-**Live order and pilot status: PROGRESS.md § "Remaining pre-pilot work"** (the Phase Status
-table alone does not carry sequencing). Phases 18–19 stay post-pilot (ADR 0071).
+**Live order and pilot status: PROGRESS.md § "Now"** (the Phase Status rows alone do not
+carry sequencing). The two 🔴 pilot-gate checks were rotated to
+[docs/progress/dm5-po-decisions.md](./docs/progress/dm5-po-decisions.md) § "Remaining
+pre-pilot work". Phases 18–19 stay post-pilot (ADR 0071).
 
 > ⭐ **Before any authorization / RLS / security-test work, read
 > [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078
@@ -279,8 +283,12 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    to step 1.
 4. **Human approval** — lead presents a summary (built, test results, QA verdict, open
    risks) and **waits** for explicit approval.
-5. **Record** — lead updates PROGRESS.md, **rotates** the completed phase's detail out
-   (mechanics: lead-playbook §§4–5), updates `docs/backend-state.md` if the backend surface
+5. **Record** — lead updates PROGRESS.md and **moves everything the phase completed out
+   of it in the same edit**: the phase row → `docs/progress/phase-ledger.md` (verbatim),
+   task detail → `docs/progress/<phase>.md`, resolved follow-up lines →
+   `follow-ups-archive.md`, closed bugs → `bug-log-archive.md` (mechanics:
+   lead-playbook §§4–5; `npm run lint:progress` REDS on anything completed left behind).
+   Updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
    `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
    *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*, `ARM=hat`
@@ -290,22 +298,34 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
 
 ## 7. Progress Tracking
 
-**PROGRESS.md is the single source of truth for status.** Update it when a task
-starts/finishes, a bug is filed/fixed, a gate step passes, or a decision is made —
-**never report status verbally without writing it there first**. Every teammate updates
-**only their own** rows/sections; the lead owns the phase-status table. **Keep it small
-— every spawn reads it** (target well under 60 KB): the live file holds only the current
-phase + the head of each cross-phase log. The rotation/archive discipline is the lead's
-(mechanics: **lead-playbook**). The durable backend-surface map is
-**`docs/backend-state.md`** — reference it instead of re-deriving the backend each phase.
+**PROGRESS.md is the single source of truth for status, and it holds LIVE STATE ONLY.**
+Update it when a task starts/finishes, a bug is filed/fixed, a gate step passes, or a
+decision is made — **never report status verbally without writing it there first**.
+Every teammate updates **only their own** rows/sections; the lead owns § Now and
+§ Phase Status. **An entry leaves the moment its work merges and is recorded** (§6
+step 5): completed phase rows → **`docs/progress/phase-ledger.md`** (append-only, rows
+never leave *there*), resolved follow-ups → `follow-ups-archive.md`, closed bugs →
+`bug-log-archive.md`. The contract — ≤ 60 KB, no completed rows, no resolved index
+lines, links resolve, every OPEN `FUP-*` line has a body, required sections, LF-only —
+is **machine-enforced by `npm run lint:progress`** (gate 7 of `npm run lint`;
+`scripts/check-progress-doc.mjs`, self-red-proving). Don't satisfy the size cap by
+trimming § Critical FUP or OPEN index lines — rotate *concluded* material. The durable
+backend-surface map is **`docs/backend-state.md`** — reference it instead of
+re-deriving the backend each phase.
+
+**CLAUDE.md review cadence:** a `Stop` hook (`scripts/claude-md-review-signal.mjs`)
+scans each finished session's transcript for correction signals and queues candidates
+in `.claude/claude-md-review-queue.md` (gitignored). Process the queue with the
+**`/review-claude-md`** skill, which proposes diffs — the "always ask before changing
+CLAUDE.md" rule below applies to those proposals too.
 
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **SIX gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **SEVEN gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
-  `lint:set-local`. Each was added after the class it gates shipped a live defect:
+  `lint:set-local` **&&** `lint:progress`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -321,6 +341,10 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
     pre-existing files and must NOT be bumped on a `db push`**, or it grandfathers the files you just
     wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
     control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
+  - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size,
+    no completed rows / resolved index lines, link + FUP-body integrity, LF. Every prior version
+    of that contract lived in prose and each clause was violated while green; the script
+    self-red-proves every checker on each run.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
@@ -345,7 +369,8 @@ npm run db:reset:linked        # reset REMOTE DB + seed (destructive!)
 npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
-                               #   && client-server-imports && vacuous && set-local — all six (§8)
+                               #   && client-server-imports && vacuous && set-local && progress
+                               #   — all seven (§8)
 npm run format:check           # Prettier (npm run format to write)
 npm run test                   # Vitest unit tests (full suite)
 npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1

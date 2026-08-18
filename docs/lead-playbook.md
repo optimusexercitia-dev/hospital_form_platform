@@ -52,13 +52,18 @@ Require plan approval for `backend` on any task touching **migrations or RLS**, 
 
 When a phase passes human approval, the lead:
 
-1. Updates PROGRESS.md (phase → ✅, date, commit hash, link to the review).
-2. **Rotates** the just-completed phase's detail out of the live PROGRESS.md into
-   `docs/progress/` (§5 below), leaving a one-line pointer behind.
+1. Writes the phase's final row (date, commit hash, gate headlines, review link) and
+   **appends it to `docs/progress/phase-ledger.md`** — the row does NOT stay in
+   PROGRESS.md (`lint:progress` reds on a completed row there).
+2. **Moves everything the phase concluded out of PROGRESS.md in the same edit** (§5
+   below): task detail, resolved follow-up index lines, closed bugs, concluded
+   gate/QA/decision rows — each to its archive, leaving pointers only where a live
+   item still references them.
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
 4. Updates `docs/backend-state.md` if the backend surface changed.
-5. Commits with `phase(N): complete — <summary>`. The team stays warm for the next phase.
+5. Runs `npm run lint:progress` (it verifies the contract mechanically) and commits
+   with `phase(N): complete — <summary>`. The team stays warm for the next phase.
 
 **Gate step-1 note (authz sweeps):** after any diff-scoped door-sweep run,
 `git checkout -- docs/reviews/authz-door-audit-findings.md` — a subset run overwrites the
@@ -66,16 +71,20 @@ full-sweep findings file with partial results.
 
 ## 5. PROGRESS.md rotation & archive discipline
 
-**Keep PROGRESS.md small — every spawn reads it** (target a few hundred lines / well
-under ~60 KB). The live file holds only the Phase Status table, the **current** phase's
-task table + lead notes, and the *current head* of each cross-phase log — not the full
-history. At the Record step, rotate:
+**PROGRESS.md is live state only, and the contract is machine-enforced** —
+`npm run lint:progress` (`scripts/check-progress-doc.mjs`, gate 7 of `npm run lint`)
+reds on: the file over 60 KB, a `✅ complete` row in § Phase Status, a resolved line in
+the § Follow-ups index, a broken relative link, an OPEN `FUP-*` index line with no body
+in `follow-ups.md`, a missing required section, or CRLF. So the discipline below is not
+a memory exercise; the gate tells you when it has been skipped. At the Record step, move:
 
+- **Phase row** → `docs/progress/phase-ledger.md`, **verbatim** (append-only; rows
+  never leave *there*). Byte-compare the moved row before deleting the live one.
 - **Phase task detail + per-phase notes** → `docs/progress/phase-N.md` (or a
-  feature-named file); leave a one-line pointer under "Completed work".
+  feature-named file); leave a one-line pointer only if a live item references it.
 - **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
   `docs/progress/bug-log-archive.md`.
-- **Test Run Summary** → keep only the **most recent gate's** rows live; move the rest to
+- **Test Run Summary** → keep only the **most recent gate's** row live; move the rest to
   `docs/progress/test-run-archive.md`.
 - **QA Verdicts** → **one line only**: verdict + date + link to
   `docs/reviews/phase-N-review.md` (which holds the full analysis). Keep only the
@@ -85,10 +94,21 @@ history. At the Record step, rotate:
   feature-name → review-file mapping and the struck loop rows.
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
+  Move concluded rows to `decisions-log.md` at the Record step (append verbatim first).
 - **Follow-ups / Deferred** → PROGRESS.md carries a **one-line index only** (severity ·
   id · title · owner); full bodies of OPEN items live in `docs/progress/follow-ups.md`
-  (rotated 2026-08-08 — update BOTH on any state change). Move resolved items to
-  `docs/progress/follow-ups-archive.md` (out of both files).
+  (update BOTH on any state change — the gate checks the body exists). Move resolved
+  items' index lines to `docs/progress/follow-ups-archive.md` verbatim; NEVER compress
+  or drop an OPEN index line at any file size (§ Critical FUP never rotates at all).
+
+**Rotation mechanics that have failed before, now standing rules:** move content by
+extracting the original bytes (sed/script), never by retyping; byte-compare (`cmp`)
+at the destination before cutting the source; when a file moves into `docs/progress/`,
+rewrite link prefixes mechanically (`](docs/progress/` → `](`, `](docs/X/` → `](../X/`)
+and verify the inverse transform reproduces the original — a verbatim move 404s every
+relative link (474 measured, FUP-ROTATION-BREAKS-LINKS); verify every index entry HAS
+a body before compressing anything; derive what rotates by the PROPERTY (is it
+CLOSED?), never by markup or hand-listing.
 
 Archive files under `docs/progress/` are append-only and never loaded by spawns — detail
 goes there to stay out of every teammate's context. The durable map of what the backend

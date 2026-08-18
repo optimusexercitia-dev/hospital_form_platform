@@ -8,3 +8,11 @@
 # LF anchor fails to match, and `supabase db reset` aborts mid-run. Keep migrations,
 # pgTAP tests, and seed byte-identical to the index (which is already LF).
 *.sql text eol=lf
+
+# Markdown MUST stay LF in the repo AND the working tree — the tracker docs
+# (PROGRESS.md / CLAUDE.md / archives) are read and rewritten by shell tools (awk,
+# sed, node scripts, the lint:progress gate) that see raw bytes. With
+# core.autocrlf=true alone, checkout produces CRLF and every session's toolchain
+# sees different bytes than the repo stores — the LF/CRLF drift class this line
+# retires. eol=lf overrides autocrlf for these files in both directions.
+*.md text eol=lf

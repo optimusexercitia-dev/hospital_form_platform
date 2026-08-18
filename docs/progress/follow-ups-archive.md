@@ -1716,3 +1716,31 @@ document homed on the disposed case, WITH a keystone asserting it (a case with a
 live document → dispose → `open_document_version` refuses + bytes verified absent),
 mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_phi`
 (f) names this FUP; ADR 0116 records the decision.
+
+
+## Index lines rotated from PROGRESS.md 2026-08-18 (live-state restructure)
+
+> The 14 fully-resolved index lines below left `PROGRESS.md § Follow-ups` on
+> 2026-08-18 — under the new contract a resolved entry leaves the live file at the
+> Record step that resolves it (enforced by `npm run lint:progress`). Moved verbatim
+> except the mechanical link transform for this directory (`](docs/progress/` → `](`,
+> `](docs/{decisions,plans,reviews}/` → `](../{decisions,plans,reviews}/`).
+> ⚠ **Their full bodies remain in [follow-ups.md](follow-ups.md) for now** — body
+> rotation out of that file is a separate, later pass; this section is the index of
+> record for the resolved set. Derived by property (every `- ⬛` line, all 14
+> containing RESOLVED/CLOSED), not by hand-listing.
+
+- ⬛ **FUP-DM5-BACKEND-STATE-SLICE-SECTIONS** — ✅ **✅ RESOLVED 2026-08-18 (backend). The four `##` sections (`DM5·S5` · `DM5·S4` · `DM5·S3` · `DM5·S2`) — S4 added the same day on the PO's ruling, so the scope is wider than the item's title…** — backend
+- ⬛ **FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED** — ✅ **✅ RESOLVED 2026-08-18 (`src/lib/documents/actions.ts`): the one lane that deletes bytes now declares `'unavailable_on_platform'` instead of riding the DEFAULT. ⭐ The pin was PROVEN ABLE TO…** — backend
+- ⬛ **FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT** — ✅ **✅ RESOLVED 2026-08-18: `src/lib/attachments/actions.ts` DELETED (6 dead exports, zero importers) and the stale `openAttachment` reference in `queries/case-documents.ts` repointed to the…** — frontend + backend
+- ⬛ **FUP-QOB-3** — ✅ RESOLVED 2026-08-09 (PO): `dispose_event_phi` KEEPS its tenancy arm and referral disposal gets the same backstop back. ⚠ This line sat 🔴 OPEN for six days describing a gap already ruled — PO
+- ⬛ **FUP-DM4-RECUSAL** — ✅ **✅ RESOLVED 2026-08-17 (`32054942`, `20260928000100`, ADR 0122): a `can_read_case` arm above the `p_kind` dispatch, covering both arms; `340` 76→82 red-first. ✅✅ AND NOW LIVE ON THE REMOTE — **
+- ⬛ **FUP-DM5-342-PLAN-COMMENT** — ✅ RESOLVED 2026-08-17 (`24cee179`); ⭐ the itemisation **already summed to 59** — only the leading total was stale, so the comment disagreed with *itself* — backend
+- ⬛ **FUP-DM5-330-WRITE-BLIND** — ✅ RESOLVED 2026-08-17 (`67cac33b`), `330` 57→62. ⭐ Closed **on its own terms**: blindness re-derived from the live catalog and still real — **not** closed on `342`'s coverage, as the item's warning forbade — backend
+- ⬛ **FUP-DM5-FINALIZE-ATOMIC** — ✅ RESOLVED 2026-08-17 (`20260928000500`): bytes + evidence row commit in ONE transaction; `341` 57→67. ⭐ **The obvious keystone was VACUOUS** — one RPC call is one transaction, so any raise rolls back whatever the check order is — backend/lead
+- ⬛ **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — ✅ **CLOSED 2026-08-18** (`20260928000800`, ADR [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md)): guard widened to `superseded` (D1) + the mint KEY-SHARE-locks its source (D3, race **measured**); both remainders answered by D4 (orphans = 0, measured both envs) and D5 (the securable is the disposition anchor — **deleting it is the defect**). `312` 80→85, red-first — backend
+- ⬛ **FUP-DM5-DEAD-CORE-PROJECTION** — ✅ RESOLVED 2026-08-17 (`24cee179`) by DELETION; verified at every **import site**, not by grepping the symbol — frontend/backend
+- ⬛ **FUP-DM5-GRANTS** — ✅ CLOSED 2026-08-17 (`20260928000200`): direct write revoked, the RPCs are now the only writers; `341` 53→57. ⭐ **The fix would have made TWO P0 policies silently BLIND** — `252` now restores the grant in its own rolled-back txn to keep them mutation-proven — backend
+- ⬛ **FUP-DM5-DVF-FILEOBJ** — ✅ **✅ RESOLVED 2026-08-18 (`20260928000600`): `UNIQUE (file_object_id)` makes the 1:1 binding structural instead of a property of caller discipline; pgTAP `328` 128→130, red-first (K17b's…** — backend
+- ⬛ **FUP-DM5-SETLOCAL-MIGRATION** — ✅ **RESOLVED 2026-08-18: the gate is BUILT + WIRED.** — backend
+- ⬛ **FUP-AUTHZ-ALLOWLIST-ROT** — ✅ RESOLVED 2026-08-17 (`4102149b`): `ARM=floor` now anti-joins every allowlist signature against `pg_proc`. **Red-first — it found SIX stale entries where this item named one** — lead/backend

@@ -140,7 +140,8 @@ Probes reverted after every round; `grep MUTATION PROBE` clean and `git diff src
 > from a grep hit on a *comment inside the unwired body* explaining why it was left unwired — the repo's
 > own "text is not truth / resolve the VALUE, not the noun" lesson, reproduced exactly. Comments in the
 > three affected files now state the mechanism as verified from the function bodies.
-
+
+
 
 ## Phase Status rows + gate caveats (rotated verbatim from PROGRESS.md 2026-08-08)
 

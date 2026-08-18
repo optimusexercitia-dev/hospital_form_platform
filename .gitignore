@@ -71,3 +71,6 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 # authz sweep scratch (p0-authz-*-audit.sh WORK dir) — neutralized-function backups and
 # per-case run logs; regenerated every run, and some filenames exceed git.
 .authz-work/
+
+# CLAUDE.md review-cadence queue (Stop hook output) — per-checkout working state, never record
+/.claude/claude-md-review-queue.md
