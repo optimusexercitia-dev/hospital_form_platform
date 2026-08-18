@@ -14,7 +14,11 @@ import type { CaseEventKind } from '@/lib/cases/registro-kinds'
  *     `CaseDocument` shape so existing callers keep compiling. NOTE: case documents
  *     default to the PHI tier, so their blob lives in `attachments-phi` (no direct
  *     signed URL) — `signedUrl` is `null` and `containsPhi` is `true`; download via
- *     the audited `openAttachment(attachmentId)` door (`src/lib/attachments/actions`).
+ *     the audited document door. NOTE: this used to name `openAttachment`
+ *     (`src/lib/attachments/actions`), which was DELETED in the DM5 follow-up
+ *     batch (FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT) — the live byte
+ *     corridor is `openDocumentVersion` → `public.open_document_version` →
+ *     `app.resolve_document_version_bytes`.
  *   - `case_events` — manual free-text working notes (meeting/decision/note).
  *     Fully editable + hard-deletable (not immutable artifacts).
  *
