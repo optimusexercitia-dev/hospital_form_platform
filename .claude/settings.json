@@ -9,10 +9,6 @@
     "ui-ux-pro-max@ui-ux-pro-max-skill": false
   },
   "skillOverrides": {
-    "deploy-to-vercel": "off",
-    "vercel-optimize": "off",
-    "vercel-react-native-skills": "off",
-    "workflow": "off",
     "docx": "user-invocable-only",
     "pdf": "user-invocable-only",
     "pptx": "user-invocable-only",
