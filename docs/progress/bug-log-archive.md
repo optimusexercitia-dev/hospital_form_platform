@@ -2561,3 +2561,49 @@ passed; only the index-0 "starts empty" precondition was violated. **Remediation
 `supabase db reset --local` before the next full run of `pdf-printing.spec.ts` (or before
 `e2e:prod`) clears it; not filed against `backend`, no re-run owed from them. Left OPEN only as a
 record — re-verify (not re-fix) on the next fresh-reset run.
+
+## Bug Log closure narratives rotated from PROGRESS.md 2026-08-18 (the size rotation)
+
+> The bugs themselves are archived above; these are the verbose closure narratives that stayed
+> live in PROGRESS.md after the bodies were rotated. Links repointed to `docs/progress/`-relative.
+> ⛔ Three warnings were deliberately KEPT live in PROGRESS.md rather than moved — see § Bug Log.
+
+**Rotated 2026-08-18 (3)** — **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — ⭐ **closed on its OWN exit criterion,
+which was met on 2026-08-17 and never recorded** → [archive § "Rotated 2026-08-18"](bug-log-archive.md).
+The row said *"re-verify (not re-fix) on the next fresh-reset run"*; that run is in the gate's retained
+logs — `reset-batch-9.log` **20:00**, then `batch-9.log` **20:02** with `ok 54 … pdf-printing.spec.ts:38:7
+› full lifecycle …`, batch `61 passed / 0 failed`. Structural, not luck: `scripts/e2e-prod-gate.sh:50`
+resets **before every batch** and the batch runs `--workers=1`.
+⚠ **Date a log before citing it** — the same directory holds a `batch-9-unrun.log` ("BATCH 9 DID NOT
+RUN — reset failed") listing this very spec, from **2026-08-16**. Reading it as this run would have
+inverted the verdict.
+⛔ **The dev loop is still unhardened** — that half is now **`FUP-E2E-PRINT-POOL-DEVLOOP`** below.
+
+**Rotated 2026-08-18 (2)** — **BUG-DM5-S3-INACTIVE-PRINT-1** — ⭐ **closed by DM5·S3 and never marked**
+(filed 2026-08-14, fix shipped in the same slice) → [archive § "Rotated 2026-08-18"](bug-log-archive.md).
+Verified against the **live catalog**, not the migration text: `public.open_printed_document` composes
+the print door AND `app.resolve_document_version_bytes`, whose **first, unconditional** statement is
+`app.is_active` → `42501` (ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) D12).
+Keystone `342` re-run 2026-08-18: **59/59, plan 59, zero skips**, S3c1/S3c2 carrying the non-vacuity
+controls. ⛔ **Do NOT add `is_active` to `app.can_view_printed_document`** — the print door still admits
+a deactivated account **by decision**, `342` **S3c3 pins that**, and a second copy of the same predicate
+is the *two-locks-that-are-one-lock* trap. The authority is the **conjunction**.
+⭐ **`FUP-DM5-SIBLING-GUARD-DIFF` stays OPEN** — the fix gives no authz arm the ability to see a door
+that OMITS a check its siblings make, and this bug is still its specimen.
+
+**Rotated 2026-08-18** — **BUG-DM5-S6-EVID-KBD-1** (filed, fixed AND verified green all on 2026-08-17,
+DM5·S6 gate step 2; fix `15396276`, RED-first pin `348acf5f`) → [archive § "Rotated 2026-08-18"](bug-log-archive.md).
+Verbatim, `cmp`-verified before the cut, 1 link repointed. ⚠ **It sat under the 🔴 OPEN heading marked
+⬛ for a day** — *a fix commit is not a status edit*, exactly as BUG-DM4-DUP-1 did before it.
+⭐ Its mechanism is the live lead inside **`FUP-E2E-REPEAT-FLAKY`**: a readiness helper that accepted the
+ANCESTOR layout's `<main>` as proof the route's own content had rendered, so `focusByTabbing` spent its
+blind Tab budget against a `loading.tsx` skeleton. ⚠ The archived body is **as filed**: its tail still
+says "gate step 2 is RED" and cites the test at `:347` — it is GREEN, at `:388`.
+
+**Rotated 2026-08-14** — the five bugs closed this phase, each with full repro + mechanism in the
+archive: **BUG-DM5-S2-STUB-1** (11 TS bodies still `throw`; the whole RCA/CAPA workspace 500'd) ·
+**BUG-DM5-S2-WRITE-ARM-1** (`can_write_document` had no `rca`/`capa_action` arm ⇒ `P0002` for
+**everyone**; ⚠ its first probe is **not** valid fix evidence — it ran while the gate was neutralized) ·
+**BUG-DM5-S2-CITATION-TARGETS-1** · **BUG-DM5-CAPA-1** (CAPA evidence upload broken for every user
+since it shipped) · **BUG-DM4-DUP-1** (⚠ it stayed marked 🟠 OPEN here until 2026-08-14 — *a fix commit
+is not a status edit*). Also archived earlier: **BUG-DM2-001/-002/-003** and **BUG-CASEKIND-001**.
