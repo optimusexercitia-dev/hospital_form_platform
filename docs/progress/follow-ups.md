@@ -2292,7 +2292,54 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > It demanded a *narrowing* arm proven by a negative twin; it got one (R5/R6 red-first). ⚠ Its final
 > paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
 
-### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+### 🔴 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+
+> ## ⛔ CENSUS RUN 2026-08-18 (step 1 of TRIAGE #6) — **THE SUBJECT IS GONE, AND IT WAS ERASED, NOT RECONCILED**
+>
+> **The production database is empty.** Every application table 0 rows; `auth.users` 0; all 4 buckets
+> 0 objects. The 2026-08-11 subject of this item — 1 dangling frozen referral path · 3 unreferenced
+> controlled-doc objects · 4 dangling attachment rows · 45 objects / ~0.5 MB — **no longer exists.**
+> Full census with deriving queries: `docs/backend-state.md` § REMOTE CENSUS 2026-08-18.
+>
+> ### ⭐ It did not get reconciled. It got truncated.
+> `pg_stat_all_tables` distinguishes the two, and the distinction is the whole finding:
+> `auth.users` shows **631 inserts, ZERO deletes, ZERO live rows** — a row-level `DELETE` increments
+> `n_tup_del`, so 631-in / none-deleted / none-left is only explicable as **TRUNCATE/reset semantics**.
+> Only **6 of 165** public tables ever recorded a single `DELETE`.
+>
+> **So the PO-sanctioned "cheap path" appears to have already been taken — and TRIAGE #6 had sequenced it
+> LAST, for two independently sufficient reasons.** A bare reset is precisely the unmanifested, uncounted,
+> unaudited byte destruction `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES` flags as ungoverned — the event ADR 0120
+> **D9** exists to prevent, arriving through the accidental door rather than the deliberate one. It also
+> destroyed the pre-existing-orphan surface that `FUP-DM5-CLOUD-ORPHAN-SURFACE` step 2 was to measure.
+>
+> ### ⛔ THEREFORE THIS ITEM DOES NOT CLOSE AS "RECONCILED"
+> The standing instruction on this item is **"reconcile or quarantine explicitly, never invent success."**
+> An empty table satisfies the *letter* of "no dangling rows remain" while satisfying **none** of what was
+> asked: no per-row re-freeze-or-tombstone decision, no manifest, no record of what was destroyed.
+> ⭐ *The absence of the subject is not the discharge of the obligation* — closing this green would be
+> exactly the shape of [[absence-of-a-verdict-is-not-absence-of-coverage]].
+> **Correct disposition: close as `SUBJECT DESTROYED WITHOUT A MANIFEST`** — a different closure, with a
+> different record, and one that leaves the governance defect visible. **PO ruling required.**
+>
+> ### 🔴 A NEW finding this census produced: 49 objects vanished without a DELETE
+> `storage.objects` = **96 inserted / 47 deleted / 0 live**. 47 were deleted properly (consistent with the
+> S4 bucket retirement, whose own `storage.buckets` figures reconcile *exactly*: 16−12=4). The other
+> **49 left no delete record.** Their bytes may survive with nothing pointing at them, and the metadata
+> that would say *what to look for* is gone too — so this is now **permanently unmeasurable from SQL**.
+> Feeds `FUP-DM5-STORAGE-ORPHANS` (Cloud half) and is a second live instance of
+> `FUP-DM5-NO-ANSWER-VS-NOTHING`: **`objects = 0` proves the METADATA is gone, never the BYTES.**
+>
+> ### What this does NOT establish — before anyone reads the above as a conclusion
+> **Not when, and not by whom.** `pg_stat` carries no timestamps, and its counters are not durable
+> evidence (a stats reset clears them; a `DROP`+`CREATE` gives a new relid and fresh counters). The
+> reading above is *consistent with* the numbers; it is not proof, and it is recorded as such.
+>
+> ### Step 2 is NOT blocked by this
+> `FUP-DM5-CLOUD-ORPHAN-SURFACE`'s probe **constructs** its own orphan, so an empty remote is a clean
+> substrate for it — arguably better. What is lost is the chance to measure the *pre-existing* orphans,
+> and that loss is permanent. The probe still answers its real question (*can any customer-accessible
+> tool SEE an orphan on Cloud*) and still needs S3 keys minted by a human.
 
 > ## ⭕ ITS TRIGGER FIRED 2026-08-18 — this is DUE, not deferred
 >
