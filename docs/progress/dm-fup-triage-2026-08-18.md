@@ -75,3 +75,45 @@
 > **C1** the PHI-disposal runbook must run end-to-end **before any real patient record is loaded**
 > (the pilot risk acceptance is *bounded by that rehearsal*), and **C2** Tier 1 of the 407-door
 > sweep is **sized but not counted**.
+
+## PROGRESS.md § State as it stood at rotation (2026-08-18)
+
+> Rotated verbatim from `PROGRESS.md` on 2026-08-18 (same restructure as the blocks
+> above; no link transform was needed — the block contains no relative markdown
+> links). Its concluded measurements live in `docs/backend-state.md` § REMOTE CENSUS
+> 2026-08-18; its standing rules moved to § "Remote discipline — standing rules"
+> there; only the three still-live facts remain in `PROGRESS.md § State`.
+
+## ⛔⛔ State — re-measured **2026-08-18**. This block has now gone stale THREE times; measure, never quote.
+
+_(It has twice carried a confident falsehood in the line a new session reads to decide whether the
+remote is safe to touch — first "NOT pushed, no `db push`" when both were done, then "0 ahead /
+local-only: NONE" while commits and migrations accumulated. →
+[[a-records-claim-about-an-external-system-goes-stale-silently]])_
+
+| fact | measured **2026-08-18** | how |
+|---|---|---|
+| branch / git push | `main`. ✅ **Pushed to `origin/main` 2026-08-18 through `1a15391f`** (the rotation commit). ⛔ **This row states no live count** — any number here is false at the next commit, which is how it has gone stale three times. **Re-measure:** `git rev-list --count origin/main..HEAD` | measured, never quoted |
+| `db push`? | ✅ through **`20260928000500`**, **411** applied | `supabase_migrations.schema_migrations` |
+| local-only migrations | ⚠ **2** — `20260928000600` (DVF unique) · `20260928000700` (active-print guard). **HELD, not blocked** (TRIAGE #11). ⛔⛔ **A GIT PUSH IS NOT A `db push`** — the 2026-08-18 git push did **NOT** put these on the database; the remote is still at `20260928000500` | `ls` vs `schema_migrations` |
+| 🔴 remote DATA | **EMPTY** — every table 0 rows, `auth.users` 0, **0** storage objects in all **4** buckets | census → `docs/backend-state.md` |
+| 🔴 why | **A REMOTE RESET AT `2026-08-17 11:37:35Z`** — `CREATE TABLE IF NOT EXISTS schema_migrations` → all `CREATE EXTENSION` → migrations from `20260711…` **re-applied**. No `TRUNCATE`/`DROP SCHEMA` in the window | `query_logs` |
+| remote buckets | **4** (was 12) — the 8 legacy buckets are **GONE**; S4's retirement IS deployed | `storage.buckets` |
+| recusal PHI fix | ✅ **LIVE** — `prosecdef = t`, `can_read_case` in the body read from `pg_get_functiondef` | `pg_proc` |
+| DM flags | local **all six ON** (from `seed.sql`); **shipped OFF** — `db push` never applies the seed | flag table + remote read |
+
+⛔ **THE CONSEQUENCE THAT SURVIVES:** applied migrations may **NOT** be edited in place — that is the
+drift that blocks a future `db push`. **Nothing at or below `20260928000500` may be touched.** The
+editable window did not move forward; it closed.
+
+⚠ **"Flags ship OFF" is NOT a security boundary.** ✅ The load-bearing half is re-verified 2026-08-18:
+**ZERO RLS policies read a flag** (0 rows over `pg_policies` matching
+`feature_flag|documents_wave|documents_foundation|document_printing|assert_document`). The conclusion
+stands on that half alone — it is an **app-layer** gate. ⛔ The function-count half is **CONTESTED**:
+**6 of 75** document functions read a flag (the DM5 phase QA + `docs/backend-state.md`, independently
+reproduced) — *not* the "51 of 52" this block carried for weeks. ⭐ **The figures disagree because each
+uses a different BOUND, not because one is a typo** → [[enumeration-boundary-is-a-syntax-not-a-property]];
+whoever re-derives it **states the predicate beside the number**.
+
+⭐ **The load-bearing reason the remote is safe today is that it holds no data and no users** — a
+stronger reason than any flag argument, and one that **expires the moment the pilot loads data**.
