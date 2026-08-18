@@ -406,9 +406,30 @@ push ran). **Nothing was mutated.** Every figure below carries its deriving quer
 Only **6 of 165** public tables ever recorded a single `DELETE`
 (`count(*) from pg_stat_user_tables where n_tup_del > 0`). So the emptying was **not** row-by-row.
 
+### ⭐ WHEN — the logs answer it, and they SUPERSEDE the `pg_stat` inference above
+
+`query_logs` retains back to 2026-08-17T10:08, which covers the window. Timeline:
+
+| when (UTC) | evidence | reading |
+| --- | --- | --- |
+| **2026-08-17 11:37:35** | `CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations` → all `CREATE EXTENSION` → then migrations from **`20260711…`** onward being *applied* | **A REMOTE RESET.** Old migrations only re-run if the history table is empty; a plain `db push` skips them. |
+| **2026-08-18 01:19:41** | `execute <unnamed>: -- FUP-DM5-GRANTS …` | the **`db push`** the record already knows about, carrying the head to `20260928000500` |
+
+**No `TRUNCATE` or `DROP SCHEMA` statement appears anywhere in the window** — every text match is a
+migration *body* containing the word. So the emptying was the reset's schema rebuild, not a stray
+statement. ⭐ *The log is primary evidence and the `pg_stat` table above is corroboration; where they
+are read together, the log wins.*
+
 ### ⛔ What this does NOT establish — state it before anyone reads the table above as closure
-- **Not when, and not by whom.** `pg_stat` carries no timestamps; `stats_reset` = 2026-05-22 predates
-  the project's own `created_at`, so it dates nothing here.
+- **Not by whom.** The logs carry the statements, not an operator identity. It was a CLI operation.
+- **Not whether the BYTES went with it.** A reset rebuilds `storage.objects`; it does **not** necessarily
+  delete the objects from the backing store. Whether it orphans them is **CLI-version dependent**
+  → [[remote-reset-storage-orphan-is-cli-version-dependent]]. So the 49 objects that vanished without a
+  `DELETE` are **likely-orphaned bytes**, not confirmed-destroyed ones, and the metadata that would say
+  what to look for is gone. This is `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES` arriving in fact rather than in
+  prospect.
+- **`pg_stat` alone dates nothing** — it has no timestamps, and `stats_reset` = 2026-05-22 predates the
+  project's own `created_at`.
 - **Not that the BYTES are gone.** `storage.objects = 0` proves the **metadata** is gone. The 49 objects
   that disappeared without a `DELETE` are exactly the shape whose bytes may survive with no row pointing
   at them — and the metadata that would say *what to look for* is now gone too, so this is

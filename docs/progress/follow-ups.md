@@ -2307,11 +2307,25 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > `n_tup_del`, so 631-in / none-deleted / none-left is only explicable as **TRUNCATE/reset semantics**.
 > Only **6 of 165** public tables ever recorded a single `DELETE`.
 >
-> **So the PO-sanctioned "cheap path" appears to have already been taken — and TRIAGE #6 had sequenced it
-> LAST, for two independently sufficient reasons.** A bare reset is precisely the unmanifested, uncounted,
-> unaudited byte destruction `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES` flags as ungoverned — the event ADR 0120
-> **D9** exists to prevent, arriving through the accidental door rather than the deliberate one. It also
-> destroyed the pre-existing-orphan surface that `FUP-DM5-CLOUD-ORPHAN-SURFACE` step 2 was to measure.
+> ### ⭐⭐ WHEN — the logs answer it, and the answer EXONERATES everyone while indicting the RECORD
+> `query_logs` retains to 2026-08-17T10:08. At **2026-08-17 11:37:35 UTC**: `CREATE TABLE IF NOT EXISTS
+> supabase_migrations.schema_migrations` → every `CREATE EXTENSION` → then migrations from **`20260711…`**
+> being *applied*. Old migrations only re-run if the history table is empty; a `db push` skips them.
+> **That is a remote reset.** The `db push` the record knows about came *after*, at 2026-08-18 01:19.
+> No `TRUNCATE`/`DROP SCHEMA` statement appears in the window at all.
+>
+> **So the reset preceded TRIAGE #6 by ~14 hours.** Nobody disobeyed the sequencing — ⭐ **TRIAGE #6 was
+> RULED ON STALE FACTS.** It carefully sequenced "the reset must come LAST, because it would destroy the
+> surface step 2 needs", against a remote where the reset had *already happened and the surface was
+> already gone*. The ruling was moot the moment it was written, and nothing in the repo could have said
+> so — this is [[a-records-claim-about-an-external-system-goes-stale-silently]] claiming a **ruling**
+> rather than a status line. *The census-first ordering I then followed was right, but for the wrong
+> reason.*
+>
+> A bare reset is still precisely the unmanifested, uncounted, unaudited byte destruction
+> `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES` flags as ungoverned — the event ADR 0120 **D9** exists to prevent,
+> arriving through the accidental door. That judgement stands; only its tense changes, from *would* to
+> *did*.
 >
 > ### ⛔ THEREFORE THIS ITEM DOES NOT CLOSE AS "RECONCILED"
 > The standing instruction on this item is **"reconcile or quarantine explicitly, never invent success."**
@@ -2325,7 +2339,10 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > ### 🔴 A NEW finding this census produced: 49 objects vanished without a DELETE
 > `storage.objects` = **96 inserted / 47 deleted / 0 live**. 47 were deleted properly (consistent with the
 > S4 bucket retirement, whose own `storage.buckets` figures reconcile *exactly*: 16−12=4). The other
-> **49 left no delete record.** Their bytes may survive with nothing pointing at them, and the metadata
+> **49 left no delete record** — they went with the reset's schema rebuild. ⚠ **A reset rebuilds
+> `storage.objects`; it does not necessarily delete the objects from the backing store, and whether it
+> orphans them is CLI-VERSION DEPENDENT** → [[remote-reset-storage-orphan-is-cli-version-dependent]].
+> So these are **likely-orphaned bytes, not confirmed-destroyed ones**, and the metadata
 > that would say *what to look for* is gone too — so this is now **permanently unmeasurable from SQL**.
 > Feeds `FUP-DM5-STORAGE-ORPHANS` (Cloud half) and is a second live instance of
 > `FUP-DM5-NO-ANSWER-VS-NOTHING`: **`objects = 0` proves the METADATA is gone, never the BYTES.**
