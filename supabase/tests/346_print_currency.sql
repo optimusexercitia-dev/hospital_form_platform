@@ -24,11 +24,16 @@
 -- =============================================================================
 
 begin;
-select plan(17);
+select plan(21);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 create temp table k on commit drop as
   select (v->>'st_x')::uuid as st_x, (v->>'sa_x')::uuid as sa_x,
+         -- A READER-NON-CREATOR: same commission, plain staff. authz-handoff §7
+         -- requires the probe principal be exactly this, never a foreign one —
+         -- a foreign principal would be refused by tenancy and the keystone would
+         -- pass without the door's own gate ever deciding anything.
+         (v->>'st_x2')::uuid as st_x2,
          (v->>'comm_x')::uuid as comm_x, (v->>'ver_u')::uuid as ver_u
   from ctx;
 grant select on k to authenticated;
@@ -224,6 +229,86 @@ select throws_ok(
   'longer HC0DQ but 23503 from the documents -> securable_resources RESTRICT. So the guard '
   'discriminates on status (not "blocks every delete"), AND the FK chain D11 names is measured '
   'rather than asserted');
+reset role;
+
+-- ── 6. THE TWO AUTHZ GATES — BLIND until now, and why the sweep missed them ──
+-- ⭐⭐ `ARM=census` flagged these as UNKNOWN, and the diff-scoped audit it
+-- prescribes returned `BLIND: 0` **vacuously**: that harness enumerates candidate
+-- gates by a NAME PREFIX (`^(is_|can_|has_|…)`) over `bool`-returning functions.
+-- `print_source_state` and `printed_document_currency` match neither — wrong
+-- prefix, and both return TABLE rather than bool. So the remediation was
+-- structurally unable to see them AND reported success. Neutralized by hand:
+-- both gates removed, full suite still PASSED. **Both were genuinely BLIND.**
+--
+-- Neither is an unreachable backstop, so neither is allowlistable: both are
+-- `authenticated`-reachable disclosures.
+create temp table az on commit drop as
+  select '00000000-0000-0000-0000-0000000c0c01'::uuid as resp_mine,   -- created by st_x2
+         '00000000-0000-0000-0000-0000000c0c02'::uuid as resp_other,  -- created by st_x
+         '00000000-0000-0000-0000-0000000c0d01'::uuid as pr_mine,
+         '00000000-0000-0000-0000-0000000c0d02'::uuid as pr_other;
+grant select on az to authenticated;
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
+select az.resp_mine, k.ver_u, k.comm_x, k.st_x2, 'submitted', now(), now() from az, k;
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
+select az.resp_other, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from az, k;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(x), jsonb_build_object('size', 1024, 'mimetype', 'application/pdf')
+from (select pr_mine as x from az union all select pr_other from az) s;
+
+-- Each print is minted BY ITS OWN CREATOR — the only principal the door admits.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select public.mint_printed_document((select pr_mine from az), 'form_response', (select resp_mine from az),
+  'form_response', 1, repeat('ab', 32), 'AZTOKEN1AAAABBBBCCCCDDDDEEEEFFFFG', 'BBBBCC2345', false);
+reset role;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.mint_printed_document((select pr_other from az), 'form_response', (select resp_other from az),
+  'form_response', 1, repeat('ab', 32), 'AZTOKEN2AAAABBBBCCCCDDDDEEEEFFFFG', 'BBBBDD2345', false);
+reset role;
+
+-- ---- public.print_source_state -------------------------------------------
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.print_source_state('form_response', (select resp_other from az))),
+  0,
+  't15 ⭐⭐ BLIND GATE CLOSED — print_source_state: a principal who CANNOT view the source gets '
+  'ZERO ROWS, not an error. An open gate hands any authenticated caller the status / '
+  'correction_open / phase_voided / meeting_disposed of ANY source. The door''s own comment says '
+  '"no row: no oracle" — until now that contract was stated and untested');
+
+select is(
+  (select count(*)::int from public.print_source_state('form_response', (select resp_mine from az))),
+  1,
+  't16 ⭐ THE DIFFERENTIAL: the SAME principal, in the same session, DOES get the row for a source '
+  'he can view. Without this leg t15 is satisfied by a door stubbed to return nothing — which would '
+  'also "pass" while silently removing the feature');
+reset role;
+
+-- ---- public.printed_document_currency ------------------------------------
+-- ⭐ BOTH ids in ONE call, deliberately: that pins PER-ROW filtering. Two separate
+-- calls would be equally satisfied by an all-or-nothing door that refuses whenever
+-- any id is unviewable.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.printed_document_currency(
+     array[(select pr_other from az), (select pr_mine from az)])
+    where id = (select pr_other from az)),
+  0,
+  't17 ⭐⭐ BLIND GATE CLOSED — printed_document_currency: an id the caller CANNOT view is ABSENT '
+  'from the result. An open gate returns currency for arbitrary print ids, leaking existence and '
+  'state across tenants');
+
+select is(
+  (select count(*)::int from public.printed_document_currency(
+     array[(select pr_other from az), (select pr_mine from az)])
+    where id = (select pr_mine from az)),
+  1,
+  't18 ⭐ THE DIFFERENTIAL, SAME CALL, SAME ARRAY: the viewable id IS present. Filtering is per-row, '
+  'not all-or-nothing — and t17 cannot pass by the door simply returning nothing');
 reset role;
 
 select * from finish();

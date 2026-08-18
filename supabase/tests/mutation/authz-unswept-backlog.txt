@@ -321,3 +321,44 @@ public.start_or_resume_response(p_form_version_id uuid)
 public.submit_response(p_response_id uuid)
 public.update_meeting(p_meeting_id uuid, p_title text, p_scheduled_start timestamp with time zone, p_modality text, p_meeting_type_id uuid, p_scheduled_end timestamp with time zone, p_location_text text, p_meeting_url text, p_minutes_md text)
 public.update_template_narrative(p_narrative_id uuid, p_title text, p_instructions text, p_is_expected boolean, p_clear_title boolean, p_clear_instructions boolean)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# helper:  — NOT AN AUTHZ GATE. Introduced 2026-08-18 (ADR 0125/0126 print build).
+#
+# `ARM=census` enumerates every `prosecdef` boolean function, which necessarily
+# catches DERIVATIONS as well as PERMISSIONS. A derivation has no authorization
+# decision to neutralize: there is no gate to open, so "BLIND" is not a verdict it
+# can receive. Listing them bare would misfile them as unswept authz; omitting them
+# re-flags them on every census forever.
+#
+# A `helper:` line asserts TWO things, and both must be true when it is added:
+#   1. the body references NO authz predicate (no can_*/is_*/has_* authorization
+#      call) — verify from `prosrc` in the LIVE catalog, not from the name;
+#   2. its BEHAVIOUR is pinned by a named suite, and that pin has been DRILLED
+#      (neutralize → observe RED) with the drill recorded.
+# ⚠ If a helper later acquires an authz call it STOPS being a helper and must move
+#   into a findings md. The census cannot detect that transition — the reviewer must.
+# ─────────────────────────────────────────────────────────────────────────────
+helper: app.print_source_registers(p_source_kind text, p_source_id uuid)
+#   Derivation: ADR 0125 D1 / 0126 D5+D10 — does this source LOCK, such that
+#   printing it registers? Business rule, not permission; authority is decided by
+#   app.can_view_printed_document in the doors that call it. Pinned by pgTAP 344
+#   over the 20 SHARED vectors (SQL/TS mirror). Drilled: constant-TRUE → RED,
+#   constant-FALSE → RED, meeting disposal conjunct dropped → RED.
+helper: app.print_source_head(p_source_kind text, p_source_id uuid, p_source_revision integer)
+#   Derivation: ADR 0126 D8/D9 — is this source still the HEAD of its series?
+#   Pinned by 344 (fail-closed + the synthetic revision differential) and by 313
+#   t55–t58r over a REAL stored source_revision through the reopen corridor.
+#   Drilled: meeting revision compare → constant-true → RED.
+helper: app.printed_document_is_current(p_id uuid)
+#   Derivation: ADR 0126 D2 — registers AND head. Its `revoked` arm returns NULL
+#   without joining, which is a DISCLOSURE-AVOIDANCE contract (312 t76), not an
+#   authorization decision; the callers gate. Pinned by 346, two-sided and
+#   per-conjunct isolated. Drilled: constant-TRUE → RED, constant-FALSE → RED,
+#   conjunct 1 dropped → RED, conjunct 2 dropped → RED, revoked arm removed → RED.
+#
+# ⛔ NOT listed here, because they ARE authz gates and are now COVERED:
+#   public.print_source_state / public.printed_document_currency — both were
+#   measured BLIND by hand on 2026-08-18 (the diff-scoped audit could not see them:
+#   it enumerates by NAME PREFIX over bool returns, and these match neither). Both
+#   now carry keystones with differentials in 346 t15–t18, each drilled RED.
