@@ -348,6 +348,14 @@ CLAUDE.md" rule below applies to those proposals too.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
+- ⛔ **Prettier does not govern the tracker docs** (`.prettierignore`: `PROGRESS.md`,
+  `CLAUDE.md`, `docs/progress/`). Prettier pads every Markdown table cell to its column's
+  widest, taking PROGRESS.md from 45 KB to **66 KB — 4.8 KB past the 60 KB cap
+  `lint:progress` hard-fails on**: formatting the file *breaks* the gate that governs it.
+  The same padding on CLAUDE.md is context tax on every session + teammate spawn, and
+  `docs/progress/` is excluded so PROGRESS.md's **verbatim** rotations stay byte-identical
+  to their destination. Never add a "check these against Prettier" rule — obeying it is
+  the defect. `npm run format:check` is manual: no hook, no CI, **not** one of the seven gates.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
 - Every form input accessible: labels, keyboard navigation, visible focus. The tester
@@ -371,7 +379,8 @@ npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
                                #   && client-server-imports && vacuous && set-local && progress
                                #   — all seven (§8)
-npm run format:check           # Prettier (npm run format to write)
+npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
+                               #   tracker docs are .prettierignore'd (§8 — breaks lint:progress)
 npm run test                   # Vitest unit tests (full suite)
 npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1
 npx playwright test            # E2E on a dev server (quick loop; needs dev server + seeded DB)
