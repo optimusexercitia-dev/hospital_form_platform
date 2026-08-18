@@ -325,89 +325,15 @@ acceptance, not an engineering call. Detail → [S5 record](docs/progress/dm5-s5
 
 ### 🔴 OPEN — the live bugs
 
-**⬛ BUG-DM5-S6-EVID-KBD-1 — ✅ FIXED + VERIFIED GREEN 2026-08-17** (filed and closed the same day,
-S6 gate step 2; `tester`) — *it was never a flake; the readiness helper was lying one layer above the test*
-
-> **Root cause — a readiness check that could not distinguish the skeleton from the page.**
-> `expectRcaWorkspaceRendered` / `expectCapaWorkspaceRendered` (local to the spec) treated
-> `getByRole('main')` as proof the workspace had rendered. But `<main>` is rendered by the
-> **ancestor layout** ([`nsp/layout.tsx:108`](src/app/o/[org]/nsp/layout.tsx)), which **persists
-> across the `loading.tsx` → `page.tsx` Suspense swap** — so it is already visible while the route
-> still shows bare `<Skeleton>` placeholders with almost nothing focusable. `focusByTabbing` has
-> **no auto-retry** (it is a fixed count of blind Tab presses), so it began counting against a
-> skeleton and exhausted its budget. Every *other* caller in the file is mouse-driven and was
-> immune, because `.click()` auto-retries until its target is actionable — which is why exactly one
-> keyboard-only test was ever hit.
-> ⭐ **This explains all four measurements**: the race is lost only when the data fetch is still
-> pending, so it is load-dependent, not random — green alone, green paired, red once four more files
-> shared the run. The spec's own comment already warned *"never `.focus()` — races RSC streaming"*;
-> the identical race sat one layer up, inside the check that decides when it is safe to start.
-> → [[playwright-focus-is-not-auto-waiting]]
->
-> **Fix** (`e2e/dm5-nsp-evidence.spec.ts` only — `e2e/helpers/documents.ts` has **zero** net diff):
-> both helpers now also wait for the evidence panel's own heading — a signal the skeleton cannot
-> produce — raced via `.or()` against the existing error boundary so a genuine stub regression still
-> fails fast with its specific message instead of a generic timeout.
-> ⛔ **It strengthens a PRECONDITION; it does not weaken an assertion.** `focusByTabbing`, the tab
-> budget, and the keyboard-reachability contract are untouched. **Measured before changing anything:
-> real tab counts were 34 / 1 / 2 / 36 against a budget of 60** — so "the budget was too tight" was
-> *excluded by measurement*, not assumed, and the budget was deliberately not raised. The CAPA twin
-> got the same fix: identical mechanism, no keyboard test yet to expose it, and leaving it is a
-> landmine for whoever writes one.
->
-> **Verified — lead-run, not accepted from the report.** Diff inspected (one file); the three
-> structural claims re-checked independently (`<main>` is in the layout; both `loading.tsx`
-> boundaries exist; the skeleton renders **no** `<main>` of its own); the **five-gate** `npm run
-> lint` run — the tester had only run `npx eslint` + `tsc`, and *that exact gap has produced a false
-> green in this project before*. Then the full `e2e:prod`: **GATE GREEN**, batch 4 **64 passed / 0
-> failed** (was 63/1), `ok 13 … dm5-nsp-evidence.spec.ts:388:5 › EVID-KBD-1`.
-> ⚠ **The test moved `:347` → `:388`** (the fix added helper lines above it), so a line-keyed grep
-> for `:347` returns nothing — which reads exactly like *"the test did not run."*
->
-> **`FUP-E2E-REPEAT-FLAKY`: EVID-KBD-1 is REMOVED** — it has an identified, fixed root cause, not an
-> unexplained flake. The other two members remain, and this run's 2 flaky are exactly those two
-> (`act-role-assumption:157`, `phase2-auth-shell:268`), so EVID-KBD-1 did not merely degrade from
-> failed to flaky. ⭐ **New lead, explicitly unverified:** `phase2-auth-shell.spec.ts` calls a bare
-> `.focus()` shortly after a navigation — the same anti-pattern, and `:268` is one of the two
-> survivors. Possibly the same root cause; **not investigated, offered as a lead, not a finding.**
-
-- **Spec:** `e2e/dm5-nsp-evidence.spec.ts:347` — *"EVID-KBD-1: keyboard-only — Tab to «Enviar
-  arquivo», fill the dialog by keyboard, submit with Enter, and Tab+Enter to open the result"*.
-  Failure: `keyboard: target element was never focused within the tab budget`
-  (`focusByTabbing`, spec `:293`), then the follow-on `toBeVisible` at `:409`.
-- **The S6 gate run went RED on this one test:** 1120 passed · **1 failed** · 2 flaky · 6 skipped ·
-  **0 did-not-run** · 18 batches. It failed **through** its retry (`RETRIES=1`).
-- ⭐ **Why the existing label must not be reused.** `EVID-KBD-1` is a recorded member of
-  `FUP-E2E-REPEAT-FLAKY`, added at S3's gate and flaky again at S4's — **both times it passed on
-  retry.** It no longer does. *A test that used to be rescued by a retry and now is not has changed
-  behaviour, and "known flaky" would file that change as nothing.*
-- **Measured, 4 runs, `RETRIES=0` throughout — it is composition-dependent, not random:**
-
-  | run | specs | tests | result |
-  |---|---|---|---|
-  | alone | `dm5-nsp-evidence` | 8 | ✅ 8 passed |
-  | pair | `dm4-referral-documents` + `dm5-nsp-evidence` | 18 | ✅ 18 passed |
-  | **batch-4 composition** | the gate's actual 6 | 65 | ⛔ **63 passed, 1 failed** |
-  | **batch-4 composition, again** | same 6 | 65 | ⛔ **63 passed, 1 failed** |
-
-- **Not an S6 regression, and that is measured, not assumed:** the last green run and this red one
-  are separated by **0 `src/` files and 0 migrations** (S6 and the QA commit are both docs-only).
-  Something in *batch composition*, not in the product, moved it over the line.
-- **Leads for whoever takes it** (none verified — offered as starting points, not conclusions):
-  `playwright.config.ts` sets **`fullyParallel: true`**, so scheduling is not strictly file-bound;
-  and the preceding spec's `DM4-TTL-1` **sleeps ~2.1 min by design** (it proves byte doors survive a
-  delay that would expire a render-time credential), which is the kind of thing a tab budget or a
-  cached session can be sensitive to. Shape matches the standing
-  [[playwright-focus-is-not-auto-waiting]] class — *reads like a11y, is timing.*
-- ⛔ **S6 gate step 2 is RED until this is resolved.** Do not re-declare green on the isolated
-  8/8 pass: it does not reproduce the failing condition.
-
 ⚠ **Heading added 2026-08-14** (and re-titled 2026-08-17 when a fourth bug landed — *the count was in
 the heading, which is a figure that goes stale the moment it is right*). These sat between two
 "Closed" headings with no heading of their
 own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
 markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
 archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
+⭕ **2026-08-18: back to three** — the fourth (**BUG-DM5-S6-EVID-KBD-1**) closed and rotated below.
+The heading needed no edit, which is the whole point of having taken the count out of it — and the
+rotation itself was bounded by the property this line states: it was the one ⬛ row under a 🔴 heading.
 
 🟠 **BUG-DM5-S3-INACTIVE-PRINT-1 — a DEACTIVATED user keeps print-download authority; the same
 user is refused every content document.** Filed 2026-08-14 (lead) during the S3 contract review.
@@ -475,6 +401,15 @@ E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is i
 gate), but it is on the critical path of the **first production deploy**.
 
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+
+**Rotated 2026-08-18** — **BUG-DM5-S6-EVID-KBD-1** (filed, fixed AND verified green all on 2026-08-17,
+DM5·S6 gate step 2; fix `15396276`, RED-first pin `348acf5f`) → [archive § "Rotated 2026-08-18"](docs/progress/bug-log-archive.md).
+Verbatim, `cmp`-verified before the cut, 1 link repointed. ⚠ **It sat under the 🔴 OPEN heading marked
+⬛ for a day** — *a fix commit is not a status edit*, exactly as BUG-DM4-DUP-1 did before it.
+⭐ Its mechanism is the live lead inside **`FUP-E2E-REPEAT-FLAKY`**: a readiness helper that accepted the
+ANCESTOR layout's `<main>` as proof the route's own content had rendered, so `focusByTabbing` spent its
+blind Tab budget against a `loading.tsx` skeleton. ⚠ The archived body is **as filed**: its tail still
+says "gate step 2 is RED" and cites the test at `:347` — it is GREEN, at `:388`.
 
 **Rotated 2026-08-14** — the five bugs closed this phase, each with full repro + mechanism in the
 archive: **BUG-DM5-S2-STUB-1** (11 TS bodies still `throw`; the whole RCA/CAPA workspace 500'd) ·
@@ -724,7 +659,7 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🟡 **FUP-VACUOUS-COVERAGE-1** — `phi-remediation` REM-8/REM-9 are honest `test.skip()`s that never run, so they are **outside the vacuity property** and `lint:vacuous` can never catch them. ✅ **Body written 2026-08-17** (it had none for its entire life — found by a pre-rotation check of all 54 head entries) — tester/backend
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions), making a mutation sweep over those gates unclassifiable — backend
 - 🟡 **FUP-DM4-PRODROW** — the dangling frozen-snapshot PRODUCTION row + 3 unreferenced objects: reconcile at push/deploy (PO R2). ⚠ Must NOT delete DM4's M3/M4 guards — lead/backend
-- 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** (both flaked again at S6's green gate). ~~`dm5-nsp-evidence:347`~~ **REMOVED 2026-08-17 — root-caused and fixed (BUG-DM5-S6-EVID-KBD-1); it was never a flake.** ⭐ Its mechanism **evidences the long-standing "one root cause, not N flaky tests" guess** — and it sat one layer *above* where the class was being looked for: a readiness check that accepted the ancestor layout's `<main>` as proof of content while the route still showed its `loading.tsx` skeleton. Reproduce at **batch composition** (they pass in isolation — the isolated run is the trap), `RETRIES=0`, and fix the **precondition**, not the budget — lead/tester
+- 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** (both flaked again at S6's green gate). ~~`dm5-nsp-evidence:347`~~ **REMOVED 2026-08-17 — root-caused and fixed (BUG-DM5-S6-EVID-KBD-1 — full record rotated 2026-08-18 → [archive](docs/progress/bug-log-archive.md)); it was never a flake.** ⭐ Its mechanism **evidences the long-standing "one root cause, not N flaky tests" guess** — and it sat one layer *above* where the class was being looked for: a readiness check that accepted the ancestor layout's `<main>` as proof of content while the route still showed its `loading.tsx` skeleton. Reproduce at **batch composition** (they pass in isolation — the isolated run is the trap), `RETRIES=0`, and fix the **precondition**, not the budget — lead/tester
 - 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass** — unassigned
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `pdf-printing.spec.ts:38` empty-state flake; ⚠ mechanism **UNPROVEN** and both evidence artifacts were overwritten by the re-runs. Real fix: the gate script must archive a failing batch's log + `test-results/` **before** any re-run — lead/tester
 - 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling) — lead/PO
