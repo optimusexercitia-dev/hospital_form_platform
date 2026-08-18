@@ -18,11 +18,14 @@ import {
   linkMeetingCase,
   markHeld,
   meetingHref,
+  meetingRevision,
   meetingStatus,
+  reopenMeeting,
   setMeetingVisibilityParticipantsOnly,
   signAttendee,
   signInAs,
   signMeetingToSigned,
+  updateMeetingMinutes,
   CHEFE_CCIH_ID,
   RESPONDENT_STAFF4_EMAIL,
   SEED_ETHICS_CASE_ID,
@@ -675,5 +678,146 @@ test.describe('PDF·P2 — printing (meetings)', () => {
     const resp = await page.request.get(downloadPath)
     expect(resp.status()).toBe(200)
     expect((await resp.body()).subarray(0, 5).toString('latin1')).toBe('%PDF-')
+  })
+
+  /**
+   * ⭐⭐ ADR 0126 D9 — case 5's reopen -> edit -> re-advance -> re-sign round
+   * trip. `reopen_meeting` bumps `meetings.revision`, so a print minted
+   * BEFORE the reopen freezes the PRE-bump revision and stops matching the
+   * instant the reopen returns (`app.print_source_head`'s meeting arm: `print.
+   * source_revision = meetings.revision`).
+   *
+   * 🔴 THE REQUIREMENT THAT MATTERS MOST: assert the RE-MINT SUCCEEDS, not
+   * just that the old print reads not-current. `mint_printed_document` gained
+   * a `p_source_revision` compare-and-mint guard (`HC0DU`) that refuses a
+   * caller sending a stale/defaulted revision — which is exactly what
+   * happened until shortly before this test was written: the server action
+   * never passed it at all (no `DocumentPayload.sourceRevision`, no
+   * `p_source_revision` in the RPC call), so every re-mint of a reopened
+   * meeting failed through the real UI while a pgTAP probe supplying the
+   * argument by hand stayed green throughout.
+   *
+   * ⚠ THE MECHANISM, measured from `src/lib/pdf-mint/actions.ts` (`grep -c
+   * "provider.build("` → 1 — not assumed, not "re-read immediately before
+   * minting"): `provider.build()` is called EXACTLY ONCE, BEFORE the render
+   * (Gotenberg can take seconds, and `reopen_meeting` can fire inside that
+   * window). `sourceRevision` is captured from THAT ONE build and CROSSES
+   * the render window unchanged, reaching the RPC only afterward. The door
+   * then compares it against the value `app.print_source_revision` reads
+   * FRESH, inside its own transaction, at mint time. A build called again
+   * immediately before the RPC — a re-read AFTER the render rather than a
+   * value carried FROM before it — would hand the door its own current
+   * value on every call, making HC0DU vacuous while looking correct. Do not
+   * "simplify" this into a fresh read at mint time; that is the exact
+   * defect the captured-before-render design exists to prevent.
+   *
+   * A keystone proves the DOOR works; this spec is what proves the ACTION
+   * can reach it — a second caller (pgTAP) can satisfy a door the real one
+   * cannot even open.
+   */
+  test('case 5 / D9: reopen -> edit -> re-advance -> re-sign -> RE-MINT succeeds; the new print is current, the old is not', async ({
+    page,
+    browser,
+  }) => {
+    const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+    const meetingId = await createScheduledMeeting(page, token, 'PDF·P2 D9 — reopen round trip')
+    await markHeld(page, token, meetingId)
+    const attendeeId = await signMeetingToSigned(page, token, meetingId, CHEFE_CCIH_ID)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+    expect(await meetingRevision(page, meetingId)).toBe(0)
+
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto(meetingHref(meetingId))
+
+    // Mint #1 at signed/revision 0 — registers FINAL, and, the sole print of
+    // its series so far, reads CURRENT. Positive control that the active arm
+    // DOES render a currency verdict (D4) — via /verificar, since the panel's
+    // own chip renders NOTHING for the ordinary "current" case by design
+    // (asserted separately, in the panel checks below, for the OUTDATED case
+    // the chip DOES render text for).
+    const first = await mintViaDialog(page)
+    await expect(articleForShortCode(page, first.shortCode).getByText('Ativo', { exact: true })).toBeVisible()
+
+    const beforeCtx = await browser.newContext()
+    const beforePage = await beforeCtx.newPage()
+    await beforePage.goto(`/verificar/${first.shortCode}?via=codigo`)
+    await expect(beforePage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
+    await beforeCtx.close()
+
+    // Reopen — signed -> held, revision 0 -> 1, the existing signature revoked.
+    await reopenMeeting(page, token, meetingId)
+    expect(await meetingStatus(page, meetingId)).toBe('held')
+    expect(await meetingRevision(page, meetingId)).toBe(1)
+
+    // Edit while reopened — the realistic reason anyone reopens an ata.
+    await updateMeetingMinutes(page, token, meetingId, 'Ata revisada após reabertura (D9 round trip).')
+
+    // Re-advance and re-sign — the SAME attendee, a FRESH signature row (the
+    // prior one was REVOKED by reopen, not deleted, so the active partial-
+    // unique index no longer blocks a new one for the same attendee).
+    await concludeMeeting(page, token, meetingId)
+    await signAttendee(page, token, attendeeId)
+    expect(await meetingStatus(page, meetingId)).toBe('signed')
+
+    await page.reload()
+
+    // 🔴 The re-mint must SUCCEED through the real UI — this is the assertion
+    // a "the old print merely reads not-current" test would never reach.
+    const second = await mintViaDialog(page)
+    expect(second.shortCode).not.toBe(first.shortCode)
+
+    // Registry status: re-minting supersedes, unchanged mechanism (ADR 0104 D6).
+    await expect(
+      articleForShortCode(page, first.shortCode).getByText('Substituído', { exact: true }),
+    ).toBeVisible()
+    await expect(articleForShortCode(page, second.shortCode).getByText('Ativo', { exact: true })).toBeVisible()
+
+    // Currency (ADR 0126 D2/D9) is a DIFFERENT axis from the status above —
+    // pinned because D3 makes `active`/`superseded` legal alongside either
+    // currency value, so the status chip alone under-specifies the claim.
+    // Two-sided per conjunct, IN THE SAME TEST: the panel's currency chip
+    // renders "Revisão anterior" for the old print and nothing for the new one.
+    const panelFirst = articleForShortCode(page, first.shortCode)
+    const panelSecond = articleForShortCode(page, second.shortCode)
+    await expect(panelFirst.getByText('Revisão anterior', { exact: true })).toBeVisible()
+    await expect(panelSecond.getByText('Revisão anterior', { exact: true })).toHaveCount(0)
+
+    // The same pair, on the PUBLIC page, in words (D4's third term) — the
+    // exact wording this ADR pair reserves for "authentic, but not the
+    // current revision", never reusing "Substituído" (which would assert a
+    // newer print exists — it does, but that is not what this sentence means).
+    const oldCtx = await browser.newContext()
+    const oldPage = await oldCtx.newPage()
+    await oldPage.goto(`/verificar/${first.shortCode}?via=codigo`)
+    await expect(oldPage.getByRole('heading', { name: 'Documento autêntico' })).toBeVisible()
+    await expect(
+      oldPage.getByText('Documento autêntico — emitido de uma revisão que não é mais a atual.', { exact: true }),
+    ).toBeVisible()
+    await expect(oldPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toHaveCount(0)
+    await oldCtx.close()
+
+    const newCtx = await browser.newContext()
+    const newPage = await newCtx.newPage()
+    await newPage.goto(`/verificar/${second.shortCode}?via=codigo`)
+    await expect(newPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
+    await expect(newPage.getByText(/não é mais a atual/i)).toHaveCount(0)
+    await newCtx.close()
+
+    // DB truth: the frozen revision on each row differs by exactly the epoch
+    // bump — the literal value `print_source_head` compares, not inferred
+    // from UI text alone.
+    const printRows = await serviceQuery<{
+      verification_short_code: string
+      source_revision: number
+    }>(
+      page,
+      `printed_documents?source_kind=eq.meeting&source_id=eq.${meetingId}` +
+        `&select=verification_short_code,source_revision&order=minted_at.asc`,
+    )
+    expect(printRows).toHaveLength(2)
+    expect(printRows[0].verification_short_code).toBe(first.shortCode)
+    expect(printRows[0].source_revision).toBe(0)
+    expect(printRows[1].verification_short_code).toBe(second.shortCode)
+    expect(printRows[1].source_revision).toBe(1)
   })
 })

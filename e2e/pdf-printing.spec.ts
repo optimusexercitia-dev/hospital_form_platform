@@ -100,6 +100,12 @@ test.describe('PDF·P1 — printing', () => {
     await expect(anonPage.getByText('Hospital Central A')).toBeVisible()
     await expect(anonPage.getByText('Formulário preenchido')).toBeVisible()
     await expect(anonPage.getByRole('link', { name: /baixar o documento/i })).toHaveCount(0)
+    // ADR 0126 D2/D4 (case 5) — POSITIVE CONTROL for the revoked-arm check
+    // below: while `active`, this print IS the head of its series, so the
+    // door DOES render a currency verdict. Without this, an absence later
+    // could mean "revoked correctly says nothing" or "nothing ever renders
+    // here, for any reason" — indistinguishable without this half.
+    await expect(anonPage.getByText('Esta é a revisão atual do documento.', { exact: true })).toBeVisible()
     await anonContext.close()
 
     // Revoke as chefe.ccih (staff_admin).
@@ -117,12 +123,24 @@ test.describe('PDF·P1 — printing', () => {
 
     const articleAfterRevoke = articleForShortCode(page, shortCode)
     await expect(articleAfterRevoke.getByText('Anulado', { exact: true })).toBeVisible()
+    // ADR 0126 D3/D4 (case 5) — the NEGATIVE half of the pair above: a
+    // revoked print's currency is NOT EVALUATED (the no-join arm), so the
+    // panel chip must render NOTHING about it — not "current", not "outdated"
+    // reused as a euphemism, nothing. `[data-currency]` absent entirely, not
+    // just a specific string, so an unexpected THIRD wording would still fail
+    // this rather than slip through a narrower text check.
+    await expect(articleAfterRevoke.locator('[data-currency]')).toHaveCount(0)
 
     // Re-verify logged out — status flips to anulado.
     const anonContext2 = await browser.newContext()
     const anonPage2 = await anonContext2.newPage()
     await anonPage2.goto(`/verificar/${shortCode}?via=codigo`)
     await expect(anonPage2.getByRole('heading', { name: 'Documento anulado' })).toBeVisible()
+    // Same negative, on the public page: no currency statement at all — ADR
+    // 0126 D3's no-join independence (`312` t76) is exactly what lets this
+    // page still authenticate a document whose source may be long gone, and
+    // asserting a currency verdict here would require the join D3 forbids.
+    await expect(anonPage2.locator('[data-currency]')).toHaveCount(0)
     await anonContext2.close()
 
     // Overlay download still succeeds — canonical bytes with the ANULADO stamp

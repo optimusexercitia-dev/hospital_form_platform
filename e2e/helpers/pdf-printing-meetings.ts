@@ -152,6 +152,44 @@ export async function signAttendee(page: Page, token: string, attendeeId: string
 }
 
 /**
+ * `reopen_meeting(meeting)` — ADR 0126 D9's ONE backwards door on
+ * `meetings.status`: `in_signature`/`signed` -> `held`, revoking every
+ * `signed` `meeting_signatures` row and bumping `meetings.revision` by
+ * exactly 1 (verified against `pg_get_functiondef`, not migration text — the
+ * revision bump has NO other writer). `staff_admin`-gated (`HC033` outside
+ * `in_signature`/`signed`). This is the corridor D9 exists for: a print
+ * minted before this call freezes the PRE-bump revision, so it stops
+ * matching `meetings.revision` the instant this returns — `app.print_source_
+ * head`'s exact mechanism, not something this helper needs to compute.
+ */
+export async function reopenMeeting(page: Page, token: string, meetingId: string): Promise<void> {
+  await rpcOrThrow(page, token, 'reopen_meeting', { p_meeting_id: meetingId })
+}
+
+/**
+ * `update_meeting_minutes(meeting, minutes_md)` — the "edit" leg of D9's
+ * round trip. Requires `scheduled`/`held` (`HC033` otherwise — only reachable
+ * post-`reopen_meeting` for an already-concluded meeting), `staff_admin`-
+ * gated, and does NOT touch `revision` (only `reopen_meeting` does — D9's own
+ * epoch-owner comment: "a second writer would break the epoch").
+ */
+export async function updateMeetingMinutes(
+  page: Page,
+  token: string,
+  meetingId: string,
+  minutesMd: string,
+): Promise<void> {
+  await rpcOrThrow(page, token, 'update_meeting_minutes', { p_meeting_id: meetingId, p_minutes_md: minutesMd })
+}
+
+/** DB-truth read of a meeting's `revision` (service-role, assertions only). */
+export async function meetingRevision(page: Page, meetingId: string): Promise<number> {
+  const rows = await serviceQuery<{ revision: number }>(page, `meetings?id=eq.${meetingId}&select=revision`)
+  expect(rows.length, `meeting ${meetingId} exists`).toBe(1)
+  return rows[0].revision
+}
+
+/**
  * `dispose_meeting_minutes(meeting, reason)` — nulls `minutes_md`, redacts
  * agenda free text, stamps `phi_disposed_at`; touches NEITHER `status` NOR
  * `revision` (ADR 0126 Amendment 1 §F — the exact print-registration conjunct
