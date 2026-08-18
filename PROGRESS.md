@@ -35,13 +35,19 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   2026-08-18 ruled eleven items and shipped five (gate-green: pgTAP 194f/6397 ·
   lint · tsc · vitest 1305 · 4 authz ARMs HOLD; ⛔ `e2e:prod` was NOT part of that
   batch — the standing green is the 2026-08-17 DM5 gate run, 1121p/0f).
+- **✅ DONE 2026-08-18 — the Cloud constructed-orphan probe RAN and settled.** Every
+  measured Cloud surface is **METADATA-BOUND**; Cloud exposes **no orphan-visible
+  surface**, so the byte half is structurally unverifiable there and the runbook's
+  *asserted, not verified* posture is evidenced. `FUP-DM4-PRODROW` is **unblocked** —
+  and its "~49 vanished" figure is **withdrawn** (§ State). Record:
+  [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md);
+  instrument `scripts/cloud-orphan-probe.mjs`.
 - **▶ Next, in order** (PO-sequenced 2026-08-18):
-  1. **Cloud constructed-orphan probe** (needs S3 keys minted in the dashboard) — it
-     settles five items and **`FUP-DM4-PRODROW` blocks on it** (TRIAGE #9), with ~49
-     likely-orphaned remote objects as its subject.
-  2. **C1a** — local end-to-end run of
+  1. **C1a** — local end-to-end run of
      [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md).
-  3. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
+  2. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
+  3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
+     cannot be (TRIAGE #9 already forbids closing it as "reconciled").
 - **⚠ Held, not blocked** (TRIAGE #11): local-only migrations `20260928000600` +
   `20260928000700` are **HELD** from `db push` — the census lifted the safety bar,
   but *a bar lifting is not a reason to act*.
@@ -196,6 +202,8 @@ the archive. The navigation hooks worth keeping live:
 | --- | --- | --- |
 | 2026-08-18 | **PROGRESS.md becomes LIVE-STATE-ONLY, machine-enforced (`lint:progress`, gate 7); completed rows → phase-ledger.md; CLAUDE.md review cadence via Stop hook + `/review-claude-md`** (PO) | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) |
 | 2026-08-18 | **DM-FUP TRIAGE #1 — the Cloud orphan measurement must CONSTRUCT an orphan, not probe for one** (PO) | FUP-DM5-CLOUD-ORPHAN-SURFACE |
+| 2026-08-18 | ✅ **MEASURED — Cloud exposes NO orphan-visible surface; all 5 surfaces METADATA-BOUND, both S3 auth modes.** The Cloud byte half is structurally unverifiable, so the runbook's *asserted, not verified* posture is evidenced. ⛔ Not reassurance: orphan bytes are **unobservable**, not absent | FUP-DM5-CLOUD-ORPHAN-SURFACE ⬛ · [run record](docs/progress/cloud-orphan-probe-2026-08-18.md) |
+| 2026-08-18 | ⛔ **WITHDRAW the "~49 objects vanished with no `DELETE`" figure — the arithmetic compares tuples to objects.** A residual of **60** was manufactured against a true live count of **0** while destroying nothing unaccounted for | FUP-DM4-PRODROW · § State |
 | 2026-08-18 | **DM-FUP TRIAGE #2 — `reclassifyDocument` writes `unavailable_on_platform`** (PO) | FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED |
 | 2026-08-18 | **DM-FUP TRIAGE #3 — Critical FUP C1 SPLITS into C1a (local) + C1b (Cloud); C1 does NOT close on C1a** (PO) | ADR [0121](docs/decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amdt 3** (amended) · **Critical FUP C1** |
 | 2026-08-18 | **DM-FUP TRIAGE #4 — `document_version_files` gets `UNIQUE (file_object_id)`** (PO) | FUP-DM5-DVF-FILEOBJ |
@@ -244,7 +252,7 @@ still awaiting a concluding event stay here:_
 | live fact | concludes when |
 | --- | --- |
 | ⚠ **2 local-only migrations** — `20260928000600` (DVF unique) · `20260928000700` (active-print guard) — **HELD from `db push`** (TRIAGE #11; *a bar lifting is not a reason to act*) | PO lifts the hold (tied to an `e2e:prod` re-run) — or rules it standing |
-| 🔴 **~49 remote storage objects vanished with no `DELETE`** (census forensics), bytes likely orphaned and unenumerable by query | the **Cloud constructed-orphan probe** (§ Now, next action 1) — the same event unblocks `FUP-DM4-PRODROW` |
+| ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⭐ **The remote is safe to touch today ONLY because it holds no data and no users** (census 2026-08-18) — a stronger reason than any flag argument | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
 
 
@@ -301,7 +309,6 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🟠 **FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT** — **once `…000400` applies, `capture` prints `CAPTURE CLEAN` and the only arm that can still see a surviving byte is the volume `walk`, which is `STORAGE_BACKEND=file` local-only ⇒ on Cloud, pos** — backend
 - 🔴 **FUP-DM5-NO-ANSWER-VS-NOTHING** — ⭐ **THE CLASS: an observable PROXY is substituted for the property that actually matters.** — backend/lead
 - 🔴 **FUP-DM5-BACKUP-IS-PHI-EXPORT** — **a Storage backup is an unmanaged plaintext PHI export, and the S5 drill created one (245 files, 68 PHI-tier, no RLS, no audited door, no TTL). The widest PHI egress path the system has. ✅ Al**
-- 🔴 **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ⭕ **ESCALATED 2026-08-18: `FUP-DM4-PRODROW` NOW BLOCKS ON THIS PROBE (PO), and the probe has a REAL subject.** — backend/lead
 - 🟠 **FUP-DM5-DISPOSAL-JOB** — ⭐ **CRITICAL FUP C1, split into C1a (local) + C1b (Cloud) on 2026-08-18; the pilot bound is C1b.**
 - 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend
 - 🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — ✅ **DECIDED 2026-08-18: BUILD IT, at retention expiry** — backend
@@ -313,7 +320,7 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🟡 **FUP-ROTATION-BREAKS-LINKS** — **474 broken relative links across the four rotation destinations, measured 2026-08-17.** — lead
 - 🟡 **FUP-VACUOUS-COVERAGE-1** — **`phi-remediation` REM-8/REM-9 are honest `test.skip()`s that never run, so they are outside the vacuity property and `lint:vacuous` can never catch them. ✅ Body written 2026-08-17 (it had no** — tester/backend
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions), making a mutation sweep over those gates unclassifiable — backend
-- 🔴 **FUP-DM4-PRODROW** — ⛔ **CENSUS RUN 2026-08-18: THE SUBJECT IS GONE — AND IT WAS ERASED, NOT RECONCILED.** — lead/backend
+- 🔴 **FUP-DM4-PRODROW** — ⭕ **UNBLOCKED 2026-08-18: the probe answered its blocker (no Cloud orphan surface), and this item's "~49 vanished" figure is WITHDRAWN as unsound arithmetic.** The subject is still erased, not reconciled — lead/backend
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** — lead/tester
 - 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass** — unassigned
 - 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — **`submittedResponseIds` claims the print fixture pool by POSITION (`order=id.asc`), so a second `npx playwright test e2e/pdf-printing.spec.ts` without a reset reds at `:47`. Mechanism PROVEN…** — tester

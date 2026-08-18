@@ -309,7 +309,46 @@ explicitly because that section's own ruling is *"a buried obligation gets disch
 the moment its parent looks resolved"* — remote contact having been made is exactly the kind of event
 that would otherwise be misread as having settled it.
 
-### 🔴 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
+### ⬛ FUP-DM5-CLOUD-ORPHAN-SURFACE — ✅ **RESOLVED 2026-08-18 by measurement: Cloud exposes NO orphan-visible surface** (owner: backend + lead; **input to the deploy runbook**)
+
+> ## ✅ MEASURED 2026-08-18 — **every Cloud surface is METADATA-BOUND**
+>
+> Full run record: **[cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md)**.
+> Instrument: [`scripts/cloud-orphan-probe.mjs`](../../scripts/cloud-orphan-probe.mjs), run
+> `20260818-072590` against `azkbbhskturikxpgmafq`.
+>
+> An orphan was **constructed** on the linked project per TRIAGE #1 and five surfaces were
+> asked: S3 `ListObjectsV2` under **both** auth modes (session-token *and* dashboard access
+> keys), Storage REST `/object/list`, Storage REST `GET /object`, and
+> `supabase storage ls --linked`. **All five PROVEN** by the before-state control; **all five
+> saw nothing.** The byte was proven still present in the same run (row restored → HTTP 200,
+> correct bytes, `cf-cache: MISS`), so no arm is vacuous.
+>
+> ⇒ The answer is the conservative branch this item hoped against: **ADR 0120 D9's byte-side
+> controls are NOT recoverable on Cloud**, and the Cloud byte half is **structurally
+> unverifiable** — now *measured*, not inferred. The runbook's "asserted, not verified"
+> posture for the Cloud byte half is **correct and evidenced**; nothing can contradict it.
+>
+> ⛔ **"No orphan surface" is not reassurance.** It does not say orphaned bytes are absent —
+> it says they are **unobservable**. That is strictly worse, and it is the settled answer.
+>
+> ⭐ **The human blocker never actually existed.** This item was blocked for its whole life on
+> "S3 access keys must be minted in the dashboard — a human step, not scriptable from here."
+> Supabase's S3 endpoint also accepts **session-token auth** (`access_key_id` = project ref,
+> `secret` = anon key, `session_token` = a JWT), which needs no dashboard step. Keys were
+> minted anyway and both modes measured, because session-token auth respects RLS and would
+> have left a confound. *A blocker recorded as external can be an unchecked assumption.*
+>
+> ⚠ **Two instrument defects were caught by the probe's own controls, in flight** — both now
+> encoded in the script, both generalisable, detail in §5 of the run record:
+> 1. **The proof-of-life contaminated its own subject.** The first run reported
+>    `ORPHAN-VISIBLE` on byte retrieval — a **false positive**: a CDN fronts Cloud GETs, and
+>    the *before-state control GET* primed the cache that then served a 200 for a byte the
+>    origin was already refusing. ⛔ A cache-buster param does **not** defeat it (`HIT`
+>    survived one); only a never-requested path does.
+> 2. **Cleanup could have added to the population it measured.** The API deletes
+>    `<bucket>/<name>/<version>`; restoring an orphan row with an invented `version` reports
+>    success and leaves the file. The `version` is now captured before the delete.
 
 > ## ⭕ ESCALATED 2026-08-18 — **`FUP-DM4-PRODROW` IS NOW BLOCKED ON THIS PROBE (PO ruling), and the probe has a REAL subject**
 >
@@ -2431,6 +2470,36 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
 
 ### 🔴 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+
+> ## ⭕ UNBLOCKED 2026-08-18 — the blocker is answered, and **this item's own headline figure is WITHDRAWN**
+>
+> **1. The blocker is discharged.** `FUP-DM5-CLOUD-ORPHAN-SURFACE`'s constructed-orphan probe
+> ran and settled: **no Cloud surface can see a byte-orphan**
+> ([run record](cloud-orphan-probe-2026-08-18.md)). Per TRIAGE #9 this item tracks *two*
+> questions and the probe answers the **byte** one only — so *"erased, not reconciled"*
+> survives it, and this may still never close as "reconciled": no per-row
+> freeze-or-tombstone decision was ever made and no manifest exists.
+>
+> **2. ⛔ WITHDRAW the "~49 objects vanished with no `DELETE`" figure — the arithmetic is
+> unsound.** It came from `storage.objects` reading *96 inserted / 47 deleted / 0 live*, and
+> that subtraction compares two different units. **Measured on the same table and project,
+> 2026-08-18:** uploading exactly **5** objects moved `n_tup_ins` by **+6**; deleting exactly
+> **5** moved `n_tup_del` by **+5**. Deletes track objects 1:1; **inserts do not** — the
+> storage write path inserts more tuples than objects. After the probe session the counters
+> read **122 ins / 62 del**, a naive residual of **60**, with a true live count of **0**.
+>
+> > ⭐ **A residual of 60 was manufactured while destroying nothing unaccounted for.** The
+> > residual is not a count of anything real. `pg_stat_all_tables` is an approximate
+> > collector view besides — `n_live_tup` read **3** when the true count was **5**.
+>
+> ⚠ **This does NOT rehabilitate the remote.** The production DB *was* reset and *is* empty;
+> and by finding (1) any surviving bytes would be unobservable regardless. What changes is
+> only that the **magnitude** must be re-derived from something other than these counters,
+> and the "~49" must not be cited again. *A figure quoted from a real counter, at the wrong
+> grain, reads exactly like forensics* — the same class as
+> [[a-predicate-quoted-at-the-wrong-grain]], and the correction to it must not repeat
+> [[a-partial-fix-reads-as-a-complete-one]]: the direction is corrected **and** the magnitude
+> is withdrawn rather than restated.
 
 > ## ⛔ CENSUS RUN 2026-08-18 (step 1 of TRIAGE #6) — **THE SUBJECT IS GONE, AND IT WAS ERASED, NOT RECONCILED**
 >

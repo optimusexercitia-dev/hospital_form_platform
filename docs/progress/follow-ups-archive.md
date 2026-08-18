@@ -1744,3 +1744,6 @@ mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_ph
 - ⬛ **FUP-DM5-DVF-FILEOBJ** — ✅ **✅ RESOLVED 2026-08-18 (`20260928000600`): `UNIQUE (file_object_id)` makes the 1:1 binding structural instead of a property of caller discipline; pgTAP `328` 128→130, red-first (K17b's…** — backend
 - ⬛ **FUP-DM5-SETLOCAL-MIGRATION** — ✅ **RESOLVED 2026-08-18: the gate is BUILT + WIRED.** — backend
 - ⬛ **FUP-AUTHZ-ALLOWLIST-ROT** — ✅ RESOLVED 2026-08-17 (`4102149b`): `ARM=floor` now anti-joins every allowlist signature against `pg_proc`. **Red-first — it found SIX stale entries where this item named one** — lead/backend
+
+- ⬛ **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ✅ **RESOLVED 2026-08-18 by measurement: Supabase Cloud exposes NO orphan-visible surface.** All 5 surfaces METADATA-BOUND (both S3 auth modes); the byte was proven still present in the same run, so no arm is vacuous. ⇒ ADR 0120 D9's byte-side controls are NOT recoverable on Cloud. Rotated from PROGRESS.md 2026-08-18. Body: [follow-ups.md](follow-ups.md) · run record: [cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md) — backend/lead
+  <!-- prior PROGRESS.md index line, verbatim: - 🔴 **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ⭕ **ESCALATED 2026-08-18: `FUP-DM4-PRODROW` NOW BLOCKS ON THIS PROBE (PO), and the probe has a REAL subject.** — backend/lead -->
