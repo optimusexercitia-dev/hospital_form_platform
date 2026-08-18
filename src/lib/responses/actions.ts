@@ -68,8 +68,13 @@ const MESSAGES = {
   // discardResponse discriminated failures (standalone draft delete).
   discardNotDraft: 'Apenas rascunhos podem ser descartados.',
   discardCaseBound: 'Esta resposta pertence a um caso e não pode ser descartada aqui.',
-  discardHasActivePrint:
-    'Este rascunho possui um documento emitido ativo. Anule o documento emitido antes de descartar o rascunho.',
+  // ADR 0123 D1: the guard blocks `active` OR `superseded`, so the old wording
+  // ("um documento emitido ativo") named a state narrower than the refusal and
+  // would read as a contradiction to anyone looking at a superseded print.
+  // Names coordination explicitly because plain `staff` genuinely cannot resolve
+  // this alone — `revoke_printed_document` refuses them (D6).
+  discardHasLivePrint:
+    'Este rascunho possui documentos emitidos. A coordenação precisa anulá-los antes que o rascunho possa ser descartado.',
   discarded: 'Rascunho descartado.',
   // supersedeResponseAction discriminated failures (SUP / ADR 0074)
   supersedeNotSubmitted: 'Apenas respostas enviadas podem ser corrigidas.',
@@ -176,11 +181,15 @@ const OVERRIDE_RESULT_REQUIRED = 'HC062'
 /** discard_response discriminated failures (standalone draft delete). */
 const DISCARD_NOT_DRAFT = 'HC065'
 const DISCARD_CASE_BOUND = 'HC066'
-/** FUP-DM5-DANGLING-PRINT: the draft still has an ACTIVE printed document.
- *  Raised by `app.guard_response_active_print` (BEFORE DELETE on responses), so
- *  it covers EVERY delete path, not only this RPC. The paper must be voided
- *  deliberately via revoke first — see migration 20260928000700. */
-const DISCARD_HAS_ACTIVE_PRINT = 'HC069'
+/** FUP-DM5-DANGLING-PRINT: the draft still has a printed document IN CIRCULATION
+ *  — `active` OR `superseded` (ADR 0123 D1; a superseded print still serves bytes
+ *  and answers /verificar, ADR 0120 D6/D8). `revoked` is deliberately permitted
+ *  through (D2). Raised by `app.guard_response_active_print` (BEFORE DELETE on
+ *  responses), so it covers EVERY delete path, not only this RPC. The paper must
+ *  be voided deliberately via revoke first — migrations 20260928000700/000800.
+ *  ⚠ The SQL function keeps its narrower name on purpose: it is keyed into pgTAP
+ *  `312`, the `320` U1 ACL census and the authz findings files. */
+const DISCARD_HAS_LIVE_PRINT = 'HC069'
 /** supersede_response discriminated failures (SUP / ADR 0074, SQLSTATE block HC0H0-HC0H9). */
 const SUPERSEDE_NOT_SUBMITTED = 'HC0H0'
 const SUPERSEDE_CASE_BOUND = 'HC0H1'
@@ -1180,8 +1189,8 @@ export async function discardResponse(responseId: string): Promise<ActionState> 
         return { ok: false, error: MESSAGES.discardNotDraft }
       case DISCARD_CASE_BOUND:
         return { ok: false, error: MESSAGES.discardCaseBound }
-      case DISCARD_HAS_ACTIVE_PRINT:
-        return { ok: false, error: MESSAGES.discardHasActivePrint }
+      case DISCARD_HAS_LIVE_PRINT:
+        return { ok: false, error: MESSAGES.discardHasLivePrint }
       case PG_CHECK_VIOLATION:
         // guard_submitted_response fired (submitted → immutable delete).
         return { ok: false, error: MESSAGES.discardNotDraft }

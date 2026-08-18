@@ -145,8 +145,8 @@
 > could not see it and the next rotation would have dropped it. It has one now.
 >
 > **✅ Shipped** — `BYTE-PROOF-NOT-ATTEMPTED` · `ATTACHMENTS-MODULE` (⚠ `actions.ts` only —
-> `constants.ts` is live) · `DVF-FILEOBJ` (`20260928000600`) · `DANGLING-PRINT` **prevention**
-> (`20260928000700`) · ⬛ **`SETLOCAL-MIGRATION`** — `lint:set-local`, the **6th** lint gate, validated
+> `constants.ts` is live) · `DVF-FILEOBJ` (`20260928000600`) · ⬛ **`DANGLING-PRINT` CLOSED**
+> (`20260928000700` prevention **+ `20260928000800`** widening/race — ADR 0123) · ⬛ **`SETLOCAL-MIGRATION`** — `lint:set-local`, the **6th** lint gate, validated
 > against Postgres's own `25P01` ground truth (4 files / 6 sites, line numbers included).
 > Gates: pgTAP **194f/6397** · lint **6/6** · tsc 0 · vitest **1305** · 4 authz ARMs HOLD.
 > ⛔ **`e2e:prod` NOT run.** All work is **committed** (8 commits, `main`, **unpushed**).
@@ -166,9 +166,16 @@
 > 1. **`20260928000600`/`…000700` are HELD, not blocked** (TRIAGE #11). The census lifted the *safety*
 >    bar — 0 rows, 0 duplicate groups, so `UNIQUE` applies cleanly — but `e2e:prod` has not run and the
 >    remote is empty, so there is no drift pressure. *A bar lifting is not a reason to act.*
-> 2. **`DANGLING-PRINT` stays 🟡 OPEN.** Prevention shipped; **pre-existing orphans are unrepaired and
->    the dangling `securable_resources` row is untouched**. Closing it on the guard alone is the
->    "a partial fix reads as a complete one" class.
+> 2. ⬛ **`DANGLING-PRINT` is now CLOSED (2026-08-18, ADR
+>    [0123](docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md), `20260928000800`)** —
+>    and this row's own warning was right twice over. The guard alone *was* a partial fix, and re-deriving
+>    it found **two more defects the item never named**: the `active`-only predicate opened on
+>    `superseded` (a live page by ADR 0120 D6/D8), and the mint read its source **unlocked**, so a
+>    concurrent discard raced the guard (**measured**: orphan created). Both remainders are answered —
+>    orphans **by measurement** (0 local, 0 remote; the "6 of 9" figure was E2E residue in a since-reset
+>    DB), the securable **by recorded semantics** (D5: deleting it would revoke the print's only
+>    disposition authority). ⚠ **A THIRD defect was found and NOT fixed here** — a draft print is
+>    invisible to every coordinator but its creator → `FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION`.
 > 3. **`C1` is now `C1a` (local) + `C1b` (Cloud)**, and **the pilot bound is C1b** — the runbook says
 >    a local rehearsal cannot exercise the Cloud paths.
 >
@@ -462,7 +469,8 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make** — lead/backend
 - ⬛ **FUP-DM5-330-WRITE-BLIND** — ✅ RESOLVED 2026-08-17 (`67cac33b`), `330` 57→62. ⭐ Closed **on its own terms**: blindness re-derived from the live catalog and still real — **not** closed on `342`'s coverage, as the item's warning forbade — backend
 - ⬛ **FUP-DM5-FINALIZE-ATOMIC** — ✅ RESOLVED 2026-08-17 (`20260928000500`): bytes + evidence row commit in ONE transaction; `341` 57→67. ⭐ **The obvious keystone was VACUOUS** — one RPC call is one transaction, so any raise rolls back whatever the check order is — backend/lead
-- 🟡 **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — ⭕ **PREVENTION SHIPPED 2026-08-18, ITEM STAYS OPEN ON TWO REMAINDERS** — backend
+- ⬛ **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — ✅ **CLOSED 2026-08-18** (`20260928000800`, ADR [0123](docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md)): guard widened to `superseded` (D1) + the mint KEY-SHARE-locks its source (D3, race **measured**); both remainders answered by D4 (orphans = 0, measured both envs) and D5 (the securable is the disposition anchor — **deleting it is the defect**). `312` 80→85, red-first — backend
+- 🟠 **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION** — **NEW 2026-08-18**, found while closing the item above: `can_view_printed_document`'s `staff_admin` arm requires `status='submitted'`, and that predicate **is** the `printed_documents_select` policy ⇒ a print of an `in_progress` draft is visible to **its creator only**. Live today, no deletion involved — lead/PO decision, then backend
 - ⬛ **FUP-DM5-DEAD-CORE-PROJECTION** — ✅ RESOLVED 2026-08-17 (`24cee179`) by DELETION; verified at every **import site**, not by grepping the symbol — frontend/backend
 - ⬛ **FUP-DM5-GRANTS** — ✅ CLOSED 2026-08-17 (`20260928000200`): direct write revoked, the RPCs are now the only writers; `341` 53→57. ⭐ **The fix would have made TWO P0 policies silently BLIND** — `252` now restores the grant in its own rolled-back txn to keep them mutation-proven — backend
 - ⬛ **FUP-DM5-DVF-FILEOBJ** — ✅ **✅ RESOLVED 2026-08-18 (`20260928000600`): `UNIQUE (file_object_id)` makes the 1:1 binding structural instead of a property of caller discipline; pgTAP `328` 128→130, red-first (K17b's…** — backend

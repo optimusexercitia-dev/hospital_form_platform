@@ -1066,7 +1066,56 @@ performs is worse than an ADR that admits the gap. Two honest resolutions, and t
 D11 to say superseded bytes are **retained** and the overlay is the only distinction — then the record is true.
 ⛔ Do **not** resolve it by adding a comment saying retirement "should" happen.
 
-### 🟡 FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — ⭕ **PREVENTION SHIPPED 2026-08-18 (`20260928000700`); STAYS OPEN on pre-existing orphans + the dangling securable** — a print of a DRAFT response outlives its response, invisible to every UI (owner: PO decision, then backend)
+### ⬛ FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — ✅ **CLOSED 2026-08-18** (`20260928000800`, ADR [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md)) — a print of a DRAFT response outlives its response, invisible to every UI (owner: backend)
+
+> ## ✅ CLOSED 2026-08-18 — and re-deriving the shipped fix found TWO MORE DEFECTS
+>
+> Migration `20260928000800`. `312` **80 → 85**, red-first. The item is closed on **four** answers,
+> two of which are to questions it never asked:
+>
+> **D1 — the guard was WRONG, not merely incomplete.** `20260928000700` argued *"Only an ACTIVE print
+> represents a live page."* ⭐ **That sentence is false by this platform's own ruling.** ADR 0120
+> **D6/D8** — established the hard way by the D11 serving collision — says states change the overlay
+> **STAMP, never reachability**: a `superseded` print still serves bytes and still answers
+> `/verificar`. Reachable through supported actions only: mint P1 → re-mint (the mint's own
+> `SUPERSEDE_ACTIVE` flips P1) → coordination revokes the active P2. **Zero actives, one superseded,
+> guard open.** The exit holds: `revoke_printed_document` refuses only `status='revoked'`, so a
+> superseded row can still be voided (`312` t79 pins exactly that).
+> → [[a-partial-fix-reads-as-a-complete-one]] · [[a-comment-is-an-assertion-that-goes-stale-silently]]
+>
+> **D3 — the mint read its source UNLOCKED, and no arm was asking.** The guard is `BEFORE DELETE`;
+> nothing ordered it against a concurrent mint. **Measured**, not reasoned, in a scratch schema:
+> unlocked → *delete succeeds, mint commits after,* **orphan created**; with `for key share` → delete
+> blocks, then the trigger raises; reversed → the locked select returns **zero rows** and the mint
+> aborts on its **existing** `HC0D1`. Works because Postgres takes `LockTupleExclusive` **before**
+> running a `BEFORE DELETE` trigger body. The whole fix is `for key share` on one `select`.
+> ⚠ **Not pinnable behaviourally** — pgTAP is single-session, so `312` t81 pins it **structurally**
+> from `pg_proc`. Weaker, and said out loud rather than papered over: the alternative was a comment.
+>
+> **D4 — pre-existing orphans: the subject was EMPTY.** Measured on **both** environments: production
+> `0` prints / `0` responses / `0` documents / `0` dangling securables; local `0` after reset. ⭐ The
+> item's own *"6 of 9 local prints are `form_response` kind"* was **E2E residue in a since-reset DB**,
+> quoted forward for four days as a population. A reconcile would have had nothing to reconcile.
+> ⛔ **The measurement expires at the pilot** — the set is empty because nothing exists yet; D1+D3 are
+> what keep it empty. → [[your-own-measurement-goes-stale-like-any-other]]
+>
+> **D5 — the dangling securable: the obvious repair was the DEFECT.** Both `app.can_read_document` and
+> `app.can_write_document` open with `documents d join securable_resources s on s.id =
+> d.home_resource_id` and return **false** when the join misses. **Deleting** the orphaned securable
+> would silently revoke `request_document_disposition` for that print — **D11's only outflow** — and
+> leave unreachable bytes with no disposition authority at all. It is **retained by design** as the
+> historical home anchor; the full post-deletion semantics table is ADR 0123 D5.
+>
+> ## ⚠ A THIRD DEFECT WAS FOUND HERE AND DELIBERATELY NOT FIXED HERE
+>
+> `can_view_printed_document`'s `form_response` arm grants its `staff_admin` term only when
+> `status = 'submitted'`, and that predicate **is** the `printed_documents_select` policy — so a print
+> of an `in_progress` draft is invisible to **every coordinator except its creator**, with the source
+> still alive and no deletion involved. Filed as **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION**
+> rather than folded in: closing this item over a new door with no UI caller would have been a
+> [[correct-door-that-nothing-can-reach]].
+>
+> <details><summary>The shipped-prevention record as it stood before closure (superseded)</summary>
 
 > ## ⛔ RULED THEN WITHDRAWN, SAME DAY (2026-08-18) — **option 1 reverses ADR 0104 D7. Nothing was built.**
 >
@@ -1119,11 +1168,13 @@ D11 to say superseded bytes are **retained** and the overlay is the only distinc
 > every functional test — `312` was fully GREEN with the door open.** That is the standing argument for
 > keeping the ACL census in the phase gate. → [[new-door-must-inherit-every-sibling-arm]]
 >
-> ## ⛔ STILL OPEN — two things this ruling does NOT close
+> ## ~~⛔ STILL OPEN — two things this ruling does NOT close~~ ✅ BOTH ANSWERED 2026-08-18 (D4/D5 above)
 >
-> 1. **Pre-existing orphans.** The guard prevents new ones; it repairs none.
-> 2. **The dangling `securable_resources` row** — a securable with no subject, which every kernel arm
->    joins through. Unchanged by this fix, and still owed.
+> 1. ~~**Pre-existing orphans.** The guard prevents new ones; it repairs none.~~ → **D4: the set is
+>    empty in both environments, measured.** Nothing to repair.
+> 2. ~~**The dangling `securable_resources` row** — a securable with no subject, which every kernel arm
+>    joins through. Unchanged by this fix, and still owed.~~ → **D5: retained BY DESIGN.** It is the
+>    print's disposition anchor; ⛔ deleting it is the defect, not the fix.
 >
 > <details><summary>The options as they stood before the re-rule (superseded)</summary>
 >
@@ -1159,6 +1210,8 @@ D11 to say superseded bytes are **retained** and the overlay is the only distinc
 > ⛔ **Cascade-on-delete was declined** — it widens the disposal path, whose only outflow is the manual
 > **unrehearsed** runbook, so it would have created work gated on Critical FUP C1.
 
+</details>
+
 Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-5. **CONFIRMED by probe, not reasoned.**
 
 Mint a print from a **draft** response, then delete the response: the `responses` row goes, its
@@ -1174,6 +1227,68 @@ prints in the local DB are that kind**, so this is the common case, not the exot
 document of record); or cascade the print's disposal when its source is deleted; or surface orphaned prints in
 an admin view. ⚠ Whichever is chosen, the **`securable_resources` dangling row** needs handling either way —
 a securable with no subject is a latent authorization question, since every kernel arm joins through it.
+
+### 🟠 FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION — a print of an `in_progress` draft is visible to its CREATOR ONLY, and the minter can lose the only way out (owner: PO decision, then backend + frontend)
+
+Filed 2026-08-18 (lead) while closing `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` (ADR
+[0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md) **D6**). **Measured from
+the live catalog and from every UI mount, not reasoned.** No deletion is involved — this is live
+today, with the source response perfectly alive.
+
+**The mechanism.** `app.can_view_printed_document`'s `form_response` arm grants its `staff_admin`
+term only when `v_resp.status = 'submitted'`:
+
+```
+return v_resp.created_by = p_uid
+    or (v_resp.status = 'submitted' and app.is_staff_admin_of_for(v_resp.commission_id, p_uid))
+    or app.can_read_correction_response(...) or app.can_access_targeted_response(...)
+```
+
+That same predicate **is** the whole of the `printed_documents_select` policy (verified: it is the
+table's only policy), and `listPrintedDocuments` is a plain table read under it. So for an
+`in_progress` draft, **`created_by = p_uid` is the only arm that can fire** — the print is invisible
+to every other coordinator, to `org_admin`, and to `platform_admin`.
+
+**Why it is not merely cosmetic.** `revoke_printed_document` authorizes on
+`is_staff_admin_of_for(v_row.commission_id, …) or is_tenancy_admin_of_for(…)` — it does **not**
+consult source visibility. So a coordinator **may** revoke a draft print; they simply have no way to
+**discover** its `id`. Authority without discovery is a door with no handle.
+
+**The reachable dead end.** The only UI mount that renders the print panel for an `in_progress`
+response is `…/dashboard/submissions/[responseId]`, gated `access.role === "staff_admin"`
+(`watermark={isSubmitted ? "final" : "draft"}`); the respondent's own `…/respostas/[responseId]`
+**redirects a draft back into the wizard**, and the wizard mounts no panel. So exactly one persona can
+mint a draft print through the product: **a `staff_admin` who is the creator** — who can also revoke,
+so they are fine. ⭐ **But if that person later loses `staff_admin`**, they keep the `created_by` mint
+arm and lose revoke, no other coordinator can see the print, and `HC069` now refuses their discard
+**with no in-product way out**. Same shape for a print minted by direct RPC call by a plain `staff`
+creator, whom the door permits and the UI merely does not offer.
+
+**Options** (PO picks; ⚠ the option list is an assertion too — re-derive before ruling, this item's
+predecessor was withdrawn for exactly that):
+
+1. ⭐ **A read-only governance registry door** — `list_printed_documents_for_governance(commission_id,
+   …)`, `SECURITY DEFINER`, authorized with the **same** coordinator predicate `revoke`/the kernel
+   write arm already use, returning zero-PHI metadata plus a derived `source_exists`. ⛔ **Must NOT**
+   widen `app.can_view_printed_document` (mint/open read it, and it means *current source
+   visibility*), and **must NOT** add a permissive `printed_documents` policy — permissive policies
+   `OR` together, so that would make source panels show documents whose sources the viewer cannot
+   read. ⚠ Needs a UI caller in the same slice or it is a [[correct-door-that-nothing-can-reach]];
+   and per ADR 0079 Am. 3/7 a brand-new gate passes `ARM=policy` **vacuously**, so `ARM=census` is the
+   arm that must see it — plus the explicit ACL (`20260928000700` shipped a DEFINER function with
+   default **PUBLIC EXECUTE**, caught only by the `320` U1 census with `312` fully green).
+2. **Widen the `staff_admin` arm to drafts.** One-line, but it widens *content* sight of unfinished
+   drafts as a side effect — the Phase-7 invariant deliberately hides a foreign member's `in_progress`
+   response, and this predicate is a **parity mirror** of the `responses` read policies, not an
+   improvement on them. A widening cannot be wrong-and-safe.
+3. **"Solicitar anulação"** — a creator-initiated request that notifies coordination with the
+   registry id. Solves the dead end without widening any read, but adds a workflow.
+4. **Never mint from a draft** — ⛔ **refuted**: reverses ADR 0104 **D7**, which is exactly how this
+   item's predecessor got withdrawn. `312` t6/t43 pin draft prints by name.
+
+⚠ Interacts with the product split deferred by ADR 0123 **D7** (`Imprimir prévia`, ephemeral and
+unregistered, vs `Emitir documento`): if previews stop entering the registry, options 1 and 3 shrink
+to the rare case. Rule D7 first, or knowingly build for both.
 
 ### ⬛ FUP-DM5-DEAD-CORE-PROJECTION — ✅ **RESOLVED 2026-08-17 by deletion** (owner: frontend + backend)
 

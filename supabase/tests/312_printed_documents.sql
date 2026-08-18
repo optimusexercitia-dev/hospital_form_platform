@@ -29,7 +29,10 @@ begin;
 -- and +t53pre (the non-vacuity control proving
 -- the print objects EXIST to be hidden — without it t53 counts zero rows in an
 -- empty bucket and passes while proving nothing).
-select plan(80);
+-- 80 -> 85 (ADR 0123): +t77 (the non-vacuity control for the constructed
+-- zero-active state) +t78/+t79/+t80 (the D1 superseded keystone, its exit and
+-- its differential) +t81 (the D3 structural pin on the mint's row lock).
+select plan(85);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -803,6 +806,110 @@ select lives_ok(
   $$delete from public.responses where id = (select resp_prog from r)$$,
   't76 ⭐ THE DIFFERENTIAL: with the print REVOKED the very same delete now SUCCEEDS — the guard discriminates on status = ''active'' and does not merely block all draft deletes. A revoked print keeps its row and bytes on purpose, so /verificar can still tell a paper-holder it is ANULADO (lookup_printed_document never joins responses)');
 reset role;
+
+-- ── 10. ADR 0123 D1/D3 — `superseded` is a live page, and the mint is ordered ─
+-- Migration 20260928000800. Section 9 above pins the ACTIVE case; this pins the
+-- half 000700 got wrong and the half no arm was asking about.
+--
+-- D1: 000700 argued "Only an ACTIVE print represents a live page". ADR 0120
+-- D6/D8 says states change the overlay STAMP, never REACHABILITY — a superseded
+-- print still serves bytes and still answers /verificar. So the ACTIVE-only
+-- guard opened on a reachable state, constructed below entirely from supported
+-- actions: mint -> re-mint (SUPERSEDE_ACTIVE flips P1) -> revoke the active P2.
+--
+-- ⭐⭐ t77 IS THE ASSERTION THAT MAKES t78 A KEYSTONE RATHER THAN A COINCIDENCE.
+-- If the sa_x revoke below silently failed, P2 would still be ACTIVE — and t78
+-- would then go green against the OLD active-only guard, pinning nothing at all.
+-- The whole construction rests on "zero actives remain", so that is asserted
+-- directly rather than inferred from the revoke not having raised.
+-- (Verified red-first: against the 000700 predicate t78 does not merely fail,
+-- the DELETE SUCCEEDS — the orphan is demonstrated, not argued.)
+create temp table r9 on commit drop as
+  select '00000000-0000-0000-0000-00000000d104'::uuid as resp_sup;
+grant select on r9 to authenticated;
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
+select r9.resp_sup, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from r9, k;
+
+create temp table d9 on commit drop as
+  select '00000000-0000-0000-0000-00000000d206'::uuid as doc6,   -- P1: becomes superseded
+         '00000000-0000-0000-0000-00000000d207'::uuid as doc7;   -- P2: re-mint, then revoked
+grant select on d9 to authenticated;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc6),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d9;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc7),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d9;
+
+-- Build the state through the DOORS, never by INSERT: a hand-built fixture
+-- would prove the guard reads a column, not that ordinary use can reach it.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.mint_printed_document(
+  (select doc6 from d9), 'form_response', (select resp_sup from r9),
+  'form_response', 1, repeat('ab', 32),
+  'PDTOKEN6AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'EFGHJK2345', false);
+select public.mint_printed_document(
+  (select doc7 from d9), 'form_response', (select resp_sup from r9),
+  'form_response', 1, repeat('ab', 32),
+  'PDTOKEN7AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'FGHJKL2345', false);
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.revoke_printed_document(
+  (select doc7 from d9), 'minted_in_error', 'anulacao da via em circulacao');
+reset role;
+
+select is(
+  (select array_agg(status order by status)::text
+     from public.printed_documents
+    where source_kind = 'form_response'
+      and source_id = (select resp_sup from r9)),
+  '{revoked,superseded}',
+  't77 ⭐⭐ NON-VACUITY CONTROL: the constructed state really is ZERO ACTIVE + one superseded + one revoked. Without this, a silently-failed revoke leaves P2 active and t78 passes against the old active-only guard, proving nothing');
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$delete from public.responses where id = (select resp_sup from r9)$$,
+  'HC069',
+  null,
+  't78 ⭐ ADR 0123 D1 KEYSTONE: with NO active print but one SUPERSEDED, the creator still cannot discard — a superseded print serves bytes and answers /verificar (ADR 0120 D6/D8), so it is a live page. Against the 000700 predicate this DELETE SUCCEEDS');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$select public.revoke_printed_document(
+      (select doc6 from d9), 'other', 'rascunho de origem sera descartado')$$,
+  't79 ⭐ THE EXIT EXISTS: revoke_printed_document accepts a SUPERSEDED row (it refuses only status = ''revoked''), so D1 adds no dead end it does not also provide a way out of');
+reset role;
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$delete from public.responses where id = (select resp_sup from r9)$$,
+  't80 ⭐ THE DIFFERENTIAL: with BOTH prints revoked the same delete succeeds. Without it t78 is equally satisfied by a guard that blocks every draft delete — the worse bug that reads as a pass (the same trap t76 covers for the active case)');
+reset role;
+
+-- D3 — the mint/delete race. STRUCTURAL, and the weakness is stated rather than
+-- hidden: pgTAP is single-session, so no keystone here can construct the
+-- interleaving that produces the orphan (measured separately in a scratch
+-- schema; recorded in ADR 0123 D3 and in the migration header). This asserts the
+-- lock is still THERE. It cannot fail in the direction that matters most, and it
+-- is kept because the alternative was a comment — and a comment is an assertion
+-- that goes stale silently, where this one reds the suite.
+-- Read from `pg_proc`, never from migration text: seven migrations have redefined
+-- this body and one of them rewrites it at runtime, so the file is not truth.
+select ok(
+  exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname = 'mint_printed_document'
+       and p.prosrc ilike '%from public.responses where id = p_source_id for key share%'),
+  't81 ⭐ ADR 0123 D3: the live mint body still KEY-SHARE-locks its source response before creating the print chain, so a concurrent discard cannot slip between the guard check and the insert');
 
 select * from finish();
 rollback;

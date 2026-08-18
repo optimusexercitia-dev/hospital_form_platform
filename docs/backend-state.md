@@ -487,7 +487,9 @@ all taken; verified by `regexp_matches(prosrc, 'HC06[0-9A-Z]')` over `pg_proc`),
 `discardResponse` (`src/lib/responses/actions.ts`).
 
 **Three properties that are load-bearing, not stylistic:**
-- **`status = 'active'` only.** `lookup_printed_document` — the public `/verificar` door — selects
+- ~~**`status = 'active'` only.**~~ ⛔ **SUPERSEDED by `20260928000800` — see below; the predicate is
+  now `in ('active','superseded')` and the "only ACTIVE is a live page" half of this reasoning was
+  FALSE.** The half that survives: `lookup_printed_document` — the public `/verificar` door — selects
   `from public.printed_documents` and joins only `commissions`/`hospitals`, **never `responses` or
   `securable_resources`**. Public verification therefore SURVIVES an orphan, so a *revoked* print
   must keep its row and bytes so a paper-holder is still told `ANULADO`.
@@ -503,6 +505,37 @@ went **RED at 238**. `312` was **fully green** throughout — a trigger behaves 
 not PUBLIC may also call it. *A test of what the code does cannot see what the code additionally
 permits.* The grants mirror both sibling guards (`public.guard_submitted_response`,
 `app.guard_supersession_coherent`).
+
+### `20260928000800` — `superseded` is a live page, and the mint is ordered against the discard
+
+ADR [0123](decisions/0123-discarding-a-draft-that-has-emitted-documents.md). Closes
+`FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT`. Two catalog changes, no new objects:
+
+1. **`app.guard_response_active_print()` predicate widened** to
+   `status in ('active','superseded')`. Verify with
+   `select prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname='app'
+   and p.proname='guard_response_active_print'` — **never** from the `000700` file text, which is now
+   stale. `prosecdef` and the ACL are unchanged (`{postgres, authenticated, service_role}`, restated
+   in the migration); trigger count on `public.responses` stays **6**.
+   ⚠ **The NAME is deliberately narrower than the behaviour.** It is keyed into pgTAP `312`, the
+   `320` U1 ACL census baseline and the authz findings files; a rename orphans every name-keyed
+   verdict at once. Read the predicate, not the name.
+2. **`public.mint_printed_document` now takes `for key share` on its source read** —
+   `from public.responses where id = p_source_id for key share`. Signature, `prosecdef`, ACL and
+   return type all unchanged, so `pg_get_function_identity_arguments` and the `printed_document_public`
+   projection are untouched. Applied by **in-place rewrite** off `pg_get_functiondef` (the house idiom,
+   cf. `20260709000200`) with the target-match asserted on both sides, plus a read-back post-condition.
+
+**Why the lock is where it is:** the guard is `BEFORE DELETE`, and Postgres acquires
+`LockTupleExclusive` **before** running a `BEFORE DELETE` row trigger's body. So a mint holding
+`KEY SHARE` forces the delete to wait, and the trigger body then re-reads on a fresh snapshot and
+sees the committed print. In the reverse order the locked select returns **zero rows** and the mint
+aborts on its **pre-existing** `HC0D1` — no new code was needed for that direction.
+**Measured** (scratch schema, dropped): unlocked ⇒ orphan created; locked ⇒ no orphan, both orders.
+
+⚠ **`312` t81 pins this STRUCTURALLY, from `pg_proc`, not behaviourally** — pgTAP is single-session
+and cannot construct the interleaving. If a future migration rewrites this body from a full paste,
+the lock disappears silently and t81 is the only thing that reds.
 
 ### App-layer changes in the same batch
 
