@@ -32,7 +32,7 @@ begin;
 -- 80 -> 85 (ADR 0123): +t77 (the non-vacuity control for the constructed
 -- zero-active state) +t78/+t79/+t80 (the D1 superseded keystone, its exit and
 -- its differential) +t81 (the D3 structural pin on the mint's row lock).
-select plan(85);
+select plan(88);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -748,10 +748,14 @@ create temp table ch73 on commit drop as
     (select resp_sub from r), (select sa_x from k)) as ver;
 select throws_ok(
   $$insert into public.printed_documents
-      (id, source_kind, source_id, commission_id, template_key, template_version,
+      (id, source_kind, source_id, source_series_id, commission_id, template_key, template_version,
        content_hash, verification_token, verification_short_code, minted_by,
        document_id, document_version_id)
-    select '00000000-0000-0000-0000-00000000dddd', 'form_response', r.resp_sub, k.comm_x,
+    -- ADR 0126 D1: the index is now keyed on the SERIES, so the probe must supply
+    -- one. `resp_sub` has no `supersedes_id`, so it IS its own series root — the
+    -- collision this test names is therefore unchanged in meaning, and still
+    -- lands on the index rather than on the NOT NULL constraint.
+    select '00000000-0000-0000-0000-00000000dddd', 'form_response', r.resp_sub, r.resp_sub, k.comm_x,
        'form_response', 1, repeat('55', 32),
        'DUPACTIVETOKENAAAABBBBCCCCDDDDEEEE', 'KLMNPQ2345', k.sa_x,
        (select dv.document_id from public.document_versions dv
@@ -910,6 +914,118 @@ select ok(
        and p.proname = 'mint_printed_document'
        and p.prosrc ilike '%from public.responses where id = p_source_id for key share%'),
   't81 ⭐ ADR 0123 D3: the live mint body still KEY-SHARE-locks its source response before creating the print chain, so a concurrent discard cannot slip between the guard check and the insert');
+
+-- ── 11. ADR 0126 D1 — a print belongs to a SERIES, not to a ROW ─────────────
+-- ⭐⭐ THE DIFFERENTIAL THAT PROVES THE RE-KEY FIXED SOMETHING, rather than that
+-- the new index exists. The defect was LIVE and invisible: `start_correction_draft`
+-- inserts a NEW `responses` row carrying `supersedes_id`, so R1 and R2 were
+-- unrelated as far as the registry was concerned and **both could hold an
+-- `active` print at once** — one logical document, two current papers, no
+-- constraint violated.
+--
+-- Under the row-keyed index this block PASSES ITS SETUP and t83 counts 2. Under
+-- the series key the second mint supersedes the first, because both resolve to
+-- the same series root. Verified by drill: re-keying the index back to
+-- `source_id` reds t83.
+create temp table r11 on commit drop as
+  select '00000000-0000-0000-0000-00000000c101'::uuid as resp_r1,
+         '00000000-0000-0000-0000-00000000c102'::uuid as resp_r2,
+         '00000000-0000-0000-0000-00000000c201'::uuid as doc_p1,
+         '00000000-0000-0000-0000-00000000c202'::uuid as doc_p2;
+grant select on r11 to authenticated;
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
+select r11.resp_r1, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r11, k;
+-- The correction successor, pre-linked exactly as `start_correction_draft` /
+-- `supersede_response` pre-link it.
+--
+-- ⚠ THE CLAIMS MUST BE CLEARED FIRST, AND THIS COST A RED. `test_helpers.claims_for`
+-- sets `request.jwt.claims` for the SESSION, and §10 above left `st_x` — a plain
+-- staff member — still in effect. `guard_supersession_coherent`'s standalone arm
+-- reads `auth.uid()` and refuses a non-staff_admin with 42501, so the insert died
+-- on an authority check this fixture never meant to exercise. The DEFINER /
+-- migration path (`auth.uid()` null) is what the guard trusts (ADR 0075) — so say
+-- so in SQL rather than in a comment that was true about the mechanism and false
+-- about the state.
+select set_config('request.jwt.claims', null, true);
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at, supersedes_id)
+select r11.resp_r2, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now(), r11.resp_r1 from r11, k;
+
+select is(
+  app.print_source_series('form_response', (select resp_r2 from r11)),
+  (select resp_r1 from r11),
+  't82 ⭐ SERIES: the successor resolves to the ROOT of the supersedes_id chain, '
+  'not to itself — which is what makes the two prints below collide at all');
+
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_p1),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from r11;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_p2),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from r11;
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.mint_printed_document(
+  (select doc_p1 from r11), 'form_response', (select resp_r1 from r11),
+  'form_response', 1, repeat('ab', 32),
+  'SERIESTOK1AAAABBBBCCCCDDDDEEEEFFFF', 'MNPQRS2345', false);
+select public.mint_printed_document(
+  (select doc_p2 from r11), 'form_response', (select resp_r2 from r11),
+  'form_response', 1, repeat('ab', 32),
+  'SERIESTOK2AAAABBBBCCCCDDDDEEEEFFFF', 'NPQRST2345', false);
+reset role;
+
+select is(
+  (select count(*)::int from public.printed_documents
+    where source_kind = 'form_response'
+      and source_id in ((select resp_r1 from r11), (select resp_r2 from r11))
+      and status = 'active'),
+  1,
+  't83 ⭐ ADR 0126 D1 — THE MINT''s SUPERSESSION KEY: across a CORRECTION CHAIN '
+  'exactly ONE print is active, because SUPERSEDE_ACTIVE now matches on the SERIES. '
+  'Red-proved by reverting that one column swap. ⚠ This does NOT pin the INDEX — '
+  'see t84');
+
+-- ⛔⛔ t84 EXISTS BECAUSE t83 DID NOT PIN WHAT ITS FIRST DRAFT CLAIMED, and the
+-- drill is what said so. Re-keying the index back to `(source_kind, source_id,
+-- template_key)` left the suite GREEN: the mint's SUPERSEDE_ACTIVE already
+-- collapses the chain, so only one active row remains either way. t83's original
+-- text asserted "against the row-keyed index this counts 2" — FALSE. The index
+-- was doing nothing the mint was not already doing.
+--
+-- The discriminating state has to be built where the mint cannot reach: a
+-- TABLE-LEVEL insert of a SECOND active print whose `source_id` differs from the
+-- live one but whose SERIES is the same.
+--   after the two mints: P1(source_id=R1, series=R1, SUPERSEDED)
+--                        P2(source_id=R2, series=R1, ACTIVE)
+--   probe:               P3(source_id=R1, series=R1, ACTIVE)
+--   • series-keyed index -> collides with P2 (same series, both active) -> 23505
+--   • row-keyed index    -> P1 is superseded, so no ACTIVE row has source_id=R1,
+--                           and the insert SUCCEEDS — two current papers for one
+--                           logical document, exactly the live defect D1 closes.
+create temp table ch84 on commit drop as
+  select pg_temp.pd_chain(
+    '00000000-0000-0000-0000-00000000c203'::uuid,
+    (select resp_r1 from r11), (select sa_x from k)) as ver;
+
+select throws_ok(
+  $$insert into public.printed_documents
+      (id, source_kind, source_id, source_series_id, commission_id, template_key,
+       template_version, content_hash, verification_token, verification_short_code,
+       minted_by, document_id, document_version_id)
+    select '00000000-0000-0000-0000-00000000c203', 'form_response',
+       r11.resp_r1, r11.resp_r1, k.comm_x, 'form_response', 1, repeat('66', 32),
+       'SERIESDUPTOKENAAAABBBBCCCCDDDDEEEE', 'PQRSTU2345', k.sa_x,
+       (select dv.document_id from public.document_versions dv
+         where dv.id = (select ver from ch84)),
+       (select ver from ch84)
+    from r11, k$$,
+  '23505', null,
+  't84 ⭐⭐ ADR 0126 D1 INDEX KEYSTONE: a second ACTIVE print for the same SERIES '
+  'is impossible at TABLE level even for the owner, across different source rows. '
+  'This is the assertion the re-key actually buys — red-proved by re-keying the '
+  'index back to source_id, which t83 alone did not notice');
 
 select * from finish();
 rollback;
