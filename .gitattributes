@@ -16,3 +16,8 @@
 # sees different bytes than the repo stores — the LF/CRLF drift class this line
 # retires. eol=lf overrides autocrlf for these files in both directions.
 *.md text eol=lf
+
+# The Prettier ignore file is read by node tooling and hand-edited by sessions on
+# Windows; keep it LF so the working tree matches the index and git stops rewriting
+# it to CRLF on every checkout (Prettier itself tolerates either).
+.prettierignore text eol=lf
