@@ -135,6 +135,20 @@ export interface MeetingDetail extends MeetingListItem {
    * `printSourceRegisters` / `printSourceWatermark`.
    */
   phiDisposed: boolean
+  /**
+   * ADR 0126 D9 — the meeting's monotonic edit EPOCH, bumped only by
+   * `reopen_meeting`. A print stores the revision it was minted from, and HEAD
+   * for a meeting print is the revision match.
+   *
+   * ⚠ THIS IS THE COMPARE-AND-MINT INPUT, and the caller must pass the value it
+   * observed WHEN THE PAYLOAD WAS BUILT — never a fresh read at submit time. The
+   * render is out-of-band (HTML → Gotenberg, seconds) and `reopen_meeting` can
+   * fire mid-corridor; re-reading here would hand `mint_printed_document` its own
+   * current value, so the comparison would always succeed and HC0DU would be
+   * VACUOUS WHILE LOOKING CORRECT. The door's guarantee is only as good as what
+   * the caller actually observed.
+   */
+  revision: number
   /** Free-form minutes narrative (sanitized Markdown, Architecture Rule 7); `null` if empty. */
   minutesMd: string | null
   /** Quorum rule SNAPSHOT taken at conclusion (stable history); `null` before conclusion. */
@@ -369,6 +383,7 @@ interface MeetingDetailRow extends MeetingRow {
   distributed_at: string | null
   cancelled_at: string | null
   phi_disposed_at: string | null
+  revision: number
 }
 
 interface AgendaRow {
@@ -665,7 +680,7 @@ export async function getMeetingDetail(
       `${MEETING_LIST_COLUMNS},
        minutes_md, quorum_rule_type, quorum_value, present_count,
        eligible_member_count, held_at, held_end, concluded_at, concluded_by,
-       distributed_at, cancelled_at, phi_disposed_at`,
+       distributed_at, cancelled_at, phi_disposed_at, revision`,
     )
     .eq('id', meetingId)
     .maybeSingle<MeetingDetailRow>()
@@ -696,6 +711,10 @@ export async function getMeetingDetail(
     distributedAt: data.distributed_at,
     cancelledAt: data.cancelled_at,
     phiDisposed: data.phi_disposed_at !== null,
+    // ⚠ The value AS OBSERVED HERE is what the mint must be given. Capturing it
+    // with the rest of the payload is the whole mechanism: a fresh read at submit
+    // time would hand the door its own current value and make HC0DU vacuous.
+    revision: data.revision,
   }
 }
 
