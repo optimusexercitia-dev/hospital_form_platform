@@ -313,6 +313,37 @@ describe('DM5 S5.D — the disposal-completion gap (TS half)', () => {
     expect(inFile[0].kind).toBe('rpc-call')
   })
 
+  it('FUP-DM5-BYTE-PROOF: the ONE caller declares its byte proof and does not ride the DEFAULT', () => {
+    // Ruled 2026-08-18 (DM-FUP TRIAGE #2). `complete_document_disposal`'s
+    // `p_byte_proof` DEFAULTs to 'not_attempted'; this lane DID attempt the
+    // deletion (the storage remove() three lines above succeeded), so the
+    // default understated it in the ADR 0121 D4 record a regulator reads.
+    //
+    // ⭐ Why the negative half matters more than the positive one: the failure
+    // being pinned is an OMISSION. A test asserting only that the string is
+    // present would go green again the moment someone re-added the argument
+    // anywhere in the file. So this reads the argument list of the ONE census'd
+    // call site and requires the value there.
+    const path = join(REPO, 'src/lib/documents/actions.ts')
+    const text = readFileSync(path, 'utf8')
+    const call = text.slice(text.indexOf(`admin.rpc('${DOOR}'`))
+    const args = call.slice(0, call.indexOf('})') + 2)
+
+    // Guard the slice itself — an indexOf miss yields -1 and slices the WHOLE
+    // file, which would make every assertion below pass for the wrong reason.
+    expect(text).toContain(`admin.rpc('${DOOR}'`)
+    expect(args.length).toBeGreaterThan(0)
+    expect(args.length).toBeLessThan(600)
+
+    expect(args).toContain('p_byte_proof')
+    expect(args).toContain("p_byte_proof: 'unavailable_on_platform'")
+    // Neither of the other two vocabulary values may appear here: 'not_attempted'
+    // is the understatement being fixed, and 'local_volume_verified' would be an
+    // OVERCLAIM — nothing in this lane walks the volume.
+    expect(args).not.toContain('not_attempted')
+    expect(args).not.toContain('local_volume_verified')
+  })
+
   it('census excludes test files, and that exclusion is load-bearing', () => {
     // This very file names the door (assembled, but the exclusion must not be
     // trusted to a coincidence). Pin that test files ARE excluded and that the

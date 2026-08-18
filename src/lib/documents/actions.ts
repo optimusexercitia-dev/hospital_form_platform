@@ -413,8 +413,17 @@ export async function reclassifyDocument(
     .from(oldFile.storage_bucket)
     .remove([oldFile.storage_path])
   if (rmError) return { ok: false, error: 'unknown' }
+  // ADR 0121 D4 byte proof. This lane DID attempt the deletion — the `remove()`
+  // above succeeded — so the `not_attempted` DEFAULT understated it, in the one
+  // record a regulator reads (FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED).
+  // `unavailable_on_platform`, not `local_volume_verified`: nothing here branches
+  // on deployment, so one literal serves both, and only this one is never an
+  // overclaim. Verifying at call time is NOT the fix — a Storage-API list() reads
+  // `storage.objects`, i.e. metadata, so it would manufacture a byte proof out of
+  // the exact proxy FUP-DM5-NO-ANSWER-VS-NOTHING condemns.
   const { error: disposeError } = await admin.rpc('complete_document_disposal', {
     p_file_object_id: r.old_file_object_id,
+    p_byte_proof: 'unavailable_on_platform',
   })
   if (disposeError) return { ok: false, error: errCode(disposeError) }
   return { ok: true }
