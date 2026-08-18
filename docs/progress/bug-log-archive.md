@@ -164,7 +164,7 @@
 
 FF-2's five (BUG-FF2-001…005) and the two out-of-phase fixes it absorbed (BUG-FF1-006 `HC0N2`,
 BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix detail in
-[ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
+[ff-2-matrix-risk-matrix.md](./ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
 (`4ee24c8`) is recorded there too.
 
 #### ✅ BUG-E2E-001 — `mem-memberships-collapse` AC-1 deleted a SEED membership in its own cleanup, poisoning every later batch of the gate · severity **MAJOR (test-suite)** · **CLOSED 2026-07-28** (found + fixed + re-verified by `tester`)
@@ -387,7 +387,7 @@ a `today` dynamic default, publish, fill as a respondent (the field correctly pr
 field's own **"Limpar"** clear button (the real per-field affordance, not a raw `.fill('')`), confirm it
 reads empty, **"Salvar e sair"**, then **"Continuar preenchimento"** back into the same draft.
 
-**Expected** (ADR [0092](docs/decisions/0092-ff4-power-authoring.md) ruling 5 — *"a filler who clears a
+**Expected** (ADR [0092](../decisions/0092-ff4-power-authoring.md) ruling 5 — *"a filler who clears a
 field does not have it refilled behind them"*; pgTAP keystone `default_prefill_idempotent` — *"re-entering
 the draft does not overwrite an edited or cleared answer"*): the field resumes **empty**.
 
@@ -627,7 +627,7 @@ Reproduced in the browser console too (`(src/app/o/[org]/c/[commission]/manage/a
 🔴 **Every Phase 16 screen dead on arrival: all 7 query-layer functions `throw new Error('not implemented')`.** Filed 2026-08-03 (lead), **P0.** `src/lib/queries/accreditation.ts` was committed in Wave 0 as the *contract* (`de2404c`) with throwing bodies, and **its implementation was never scheduled** — Wave 2's backend brief covered migrations and RPCs only. Meanwhile all five routes wired themselves to it:
 `manage/acreditacao/page.tsx` → `listFrameworks` · `[framework]/layout.tsx` → `getStandardTree` + `listFrameworks` + `getReadinessReport` · `[framework]/page.tsx` → `getStandardTree` + `getReadinessReport` · `[framework]/padrao/[standard]/page.tsx` → `getReadinessEvidence` + `getReadinessReport` + `listStandards` · `o/[org]/manage/acreditacao/page.tsx` → `listFrameworks` + `getHospitalReadiness`. **Every one throws.**
 **This is not a frontend defect** — `src/lib/queries/` is backend-owned (CLAUDE.md §4) and frontend correctly refused to touch it, routing `searchEvidenceCandidates` around it instead and saying so. **It is a lead coordination gap**: "commit the contract" was scheduled, "implement the contract" never was.
-⚠ **It survived the entire green bar** — lint (0 warnings + css-vars), typecheck, 895 Vitest, and a real `next build`, all green — because the routes gate on `accreditation` which is seeded **OFF**, so they `notFound()` before ever reaching a query. **The bug is invisible until Migration G flips the flag at the Record step, at which point every screen 500s.** This is the standing [green-bar-misses-the-wired-seam](docs/progress/bug-log-archive.md) pattern exactly — FF-1 shipped three live bugs past lint+tsc+build+457 unit+3919 pgTAP, one of them *actions still throwing `not implemented`*, and only E2E caught it. **Corollary: a flag-gated phase cannot be declared green by a build. The tester must run with the flag ON.**
+⚠ **It survived the entire green bar** — lint (0 warnings + css-vars), typecheck, 895 Vitest, and a real `next build`, all green — because the routes gate on `accreditation` which is seeded **OFF**, so they `notFound()` before ever reaching a query. **The bug is invisible until Migration G flips the flag at the Record step, at which point every screen 500s.** This is the standing [green-bar-misses-the-wired-seam](./bug-log-archive.md) pattern exactly — FF-1 shipped three live bugs past lint+tsc+build+457 unit+3919 pgTAP, one of them *actions still throwing `not implemented`*, and only E2E caught it. **Corollary: a flag-gated phase cannot be declared green by a build. The tester must run with the flag ON.**
 **Fix:** backend implements all 7 against the now-live RPCs, typed off `src/lib/accreditation/types.ts`. Then frontend's prefill (BUG-P16-001) can land.
 
 </details>
@@ -1225,7 +1225,7 @@ says FIXED; the marker is what gets scanned. When a fix lands, move the MARKER i
 > 2026-08-03 batch’s two standing method notes and the "earlier eras" pointer paragraph,
 > moved verbatim. Every bug named here has its full entry earlier in this file.
 
-### Closed — rotated 2026-08-04 · 2026-08-06 → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+### Closed — rotated 2026-08-04 · 2026-08-06 → [bug-log-archive.md](./bug-log-archive.md)
 
 | Bug | Summary | Closed |
 | --- | --- | --- |
@@ -1260,7 +1260,7 @@ Re-deriving **from the boundary** — classify components by `"use client"`, the
 server→client prop block — found the same 2, and *that agreement* is the evidence, not either sweep
 alone. **Resolve hrefs to strings on the server side of the boundary.**
 
-Earlier eras, all closed and rotated → [bug-log-archive.md](docs/progress/bug-log-archive.md):
+Earlier eras, all closed and rotated → [bug-log-archive.md](./bug-log-archive.md):
 **FF-3** (BUG-E2E-001 · BUG-FF3-001/002 · BUG-FF1-008) · **FF-5** (BUG-FF5-001/002 — both passed pgTAP
 4240 + Vitest 851 + tsc + lint + `next build`; **only E2E found them**) · **FF-4** (BUG-FF4-001 — a
 pre-existing answer-model-v2 bug FF-4 surfaced; ⚠ the obvious one-line fix would break Rule 3 SQL↔TS
@@ -1404,8 +1404,8 @@ pt-BR message moved with the arm — *"apenas um administrador da organização 
 the moment the arm went, and is now *"apenas o NSP pode descartar dados do paciente"*.
 `create_referral_draft`'s HC071 text needed no change: it already said "apenas a coordenação da
 comissão de origem", which the cut turns from an overstatement into the truth. Two stale TS
-docblocks fixed in the same wave ([`referrals/actions.ts`](src/lib/referrals/actions.ts),
-[`referral-dispose-dialog.tsx`](src/components/referrals/referral-dispose-dialog.tsx)) — both still
+docblocks fixed in the same wave ([`referrals/actions.ts`](../../src/lib/referrals/actions.ts),
+[`referral-dispose-dialog.tsx`](../../src/components/referrals/referral-dispose-dialog.tsx)) — both still
 asserted `is_admin() OR is_commission_admin_of(...)`, i.e. they were **already** stale by one wave
 (ADR 0078 A35 removed `is_admin()`) and would have been stale by two.
 **Gate:** fresh `db reset` 330=330 · pgTAP **175f/5617 PASS** · the re-anchored `295` §7.6 twin +
@@ -1414,7 +1414,7 @@ green, proving the twin measures a different arm) · restore **byte-identical** 
 `ARM=census` + `ARM=floor` **HOLD** · diff-scoped door sweep **COVERED, 0 BLIND / 0 ERROR**
 (findings file backed up and restored — the scoped run truncated it 393→36 lines, the known
 partial-sweep hazard) · lint 0/0 · tsc · vitest 1194 · `database.ts` content-unchanged.
-▶ **Spawned [FUP-QOB-3](docs/progress/follow-ups.md): `dispose_event_phi` is now the only Rule-12
+▶ **Spawned [FUP-QOB-3](./follow-ups.md): `dispose_event_phi` is now the only Rule-12
 disposal door still granting a bare tenancy admin** — found by the sibling-coherence check, left
 untouched on purpose, needs its own ruling.
 
@@ -1793,7 +1793,7 @@ which is what a filed bug is worth archiving for.
 
 ✅ **BUG-REFNOTE-001 — DEFINER doors returned the unmasked `body_md` past the column GRANT.
 FIXED 2026-08-12** (migration `20260922000100_refnote_referral_door_return_shape.sql`, pgTAP 326,
-ADR [0113](docs/decisions/0113-referral-door-return-shape.md); branch `authz-wrapper-refnote`).
+ADR [0113](../decisions/0113-referral-door-return-shape.md); branch `authz-wrapper-refnote`).
 Filed as **4 doors; the catalog said 23** — the same shape (`RETURNS <table>` re-opening what a
 column-list GRANT closed) held across `case_referral` (15 doors, serving `description_md` +
 `decline_note`), `referral_internal_notes` (6, `body_md`) and `referral_messages` (2, `body`).
@@ -2260,7 +2260,7 @@ register row count**, so a green AC-13 is only meaningful on a fresh reset).
 > what follows is the live file's summary + pointer prose, kept because it carries the "read this before
 > touching X" navigation hooks. The live Bug Log now holds **OPEN bugs only**, per lead-playbook §5.
 
-### Closed this phase → [bug-log-archive.md](docs/progress/bug-log-archive.md) (rotated 2026-08-14)
+### Closed this phase → [bug-log-archive.md](./bug-log-archive.md) (rotated 2026-08-14)
 
 All five carried full repro + mechanism; the durable lessons also live in the phase records.
 
@@ -2278,13 +2278,13 @@ All five carried full repro + mechanism; the durable lessons also live in the ph
 
 ✅ **BUG-DM2-001 / -002 / -003** (DM2·S4, all FIXED 2026-08-13) and **BUG-CASEKIND-001**
 (pre-existing, FIXED 2026-08-12) — rotated with their full "as filed" bodies →
-[bug-log-archive.md](docs/progress/bug-log-archive.md).
+[bug-log-archive.md](./bug-log-archive.md).
 
 _(⚠ A truncated first line of **BUG-DM5-S3-INACTIVE-PRINT-1** was copied here by an over-wide line
 range during the 2026-08-14 rotation and removed immediately. That bug is **OPEN and lives in
 PROGRESS.md** — nothing about it is archived here.)_
 
-### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+### Closed → [bug-log-archive.md](./bug-log-archive.md)
 
 All closed rows (incl. the one-line table, the 2026-08-03 batch’s method notes, and the
 earlier-era pointers) rotated 2026-08-06; each bug’s full entry — repro, fix, lessons — is in
@@ -2311,12 +2311,12 @@ beat `DismissableLayer`'s capture-phase Escape. Its untested residual is live as
 — a residual duplicate; the record itself was rotated at closure 2026-08-10 and every claim in the
 summary was verified present in the archive before deletion. ⚠ **BUG-ACT-ACL-1 closed one instance,
 not the population** — that population is now swept: **AUDIT-INVOKER-WRAPPER closed 2026-08-12**
-(ARM 5; *Completed work* above → [authz-invoker-wrapper.md](docs/progress/authz-invoker-wrapper.md)),
+(ARM 5; *Completed work* above → [authz-invoker-wrapper.md](./authz-invoker-wrapper.md)),
 and `FROMFINDINGS=1 ARM=wrapper` is a standing §6 step-1 gate over it.
 
 **Also 2026-08-12:** **FUP-VACUOUS-AUDIT-1** (closed 2026-08-10) → closing line in
-[follow-ups-archive.md](docs/progress/follow-ups-archive.md); its full record was already
-[docs/reviews/vacuous-assertion-audit.md](docs/reviews/vacuous-assertion-audit.md) and the live
+[follow-ups-archive.md](./follow-ups-archive.md); its full record was already
+[docs/reviews/vacuous-assertion-audit.md](../reviews/vacuous-assertion-audit.md) and the live
 block duplicated it. ⚠ Its output, `lint:vacuous`, is a **standing member of `npm run lint`** —
 see CLAUDE.md §8. **FUP-VACUOUS-COVERAGE-1 stays OPEN above**: REM-8/REM-9 are honest
 `test.skip()`s, outside the vacuity property, so this gate will never catch them.
