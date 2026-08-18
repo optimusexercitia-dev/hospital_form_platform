@@ -46,6 +46,12 @@ sufficient at first; meetings have an extra lifecycle step and there they separa
 | `form_response` | `status = 'submitted'` | `status = 'submitted'` | `in_progress` |
 | `meeting` | `status in ('in_signature','signed','distributed')` | `status in ('signed','distributed')` — `meetingWatermarkFor`, **unchanged** | `scheduled`, `held` |
 
+> ⚠ **Amended 2026-08-18 — the `form_response` row is refined in BOTH columns.** Registration
+> by ADR [0126](./0126-print-series-and-derived-currency.md) D5/D10 (a rejectable correction
+> draft, and a voided phase's response, do not register) and the watermark **in tandem** by
+> **Amendment 2** below — so the two axes re-coincide for `form_response` and D5's fourth cell
+> stays unreachable. `submitted` alone is no longer sufficient for either axis.
+
 ⚠ **`meetingWatermarkFor` is NOT changed.** An `in_signature` ata registers **stamped
 `RASCUNHO`** — permanent, QR-verifiable, and honestly marked as not-yet-approved. Making it
 print `FINAL` would put a lie on the page: the signature footer still renders
@@ -125,6 +131,11 @@ So: **the watermark states whether the content is final; the footer states wheth
 is a record.** Three of the four cells are reachable and the fourth must not become
 reachable — a prévia of a locked source would be a page the platform disclaims while its
 source is immutable. Worth a keystone, not just a sentence.
+
+⚠ **Amendment 2 keeps the fourth cell unreachable after ADR 0126 D5:** the `form_response`
+watermark refines **in tandem** with the lock, so FINAL still implies a registering source.
+Without that tandem move, a submitted-but-rejectable correction draft would have printed
+FINAL with the prévia footer — this cell, reached.
 
 The automatic `contains_phi` confidentiality band (D7's fifth row) is **unchanged** and
 still not suppressible.
@@ -237,3 +248,90 @@ case must not displace the consequential one.
 - Out of scope, named so it is not read as covered: the **lock and watermark predicates** for
   `case` / `interview` (D8 binds the principle and requires both be declared separately;
   it defers each to that kind's provider activation).
+
+## Amendment 1 — two rationales were FALSE as measured; the model moves to ADR 0126 (2026-08-18)
+
+- **Status:** ACCEPTED — PO-ruled 2026-08-18, in the round-2 design review recorded in ADR
+  [0126](./0126-print-series-and-derived-currency.md) (§ Round 2). The *resolution* was PO-ruled in
+  design review 2026-08-18 and lives in ADR 0126, which **amends D1 and D8**. This amendment
+  records only what is wrong *here*.
+- **Method:** found in build planning, then re-measured independently against the live catalog.
+
+### A — D7's "HC069 becomes structurally unreachable" was false FOR THE REASON GIVEN
+
+D7 reasoned from a **snapshot**: only drafts are deletable, drafts will stop registering. But
+`public.reject_correction` does `set_config('app.in_submit_rpc','on')` then
+`update public.responses set status = 'in_progress', submitted_at = null`. A **submitted** response —
+which registers under D1 — therefore returns to editable *after* its print exists, and the corridor
+submit → mint → reject → discard raises HC069. Measured, and the guard fired.
+
+⭐ **The conclusion is now TRUE again, but by construction rather than by luck.** ADR 0126's
+refinement of D1 — *a state a door can walk back out of is not a lock point* — stops a rejectable
+correction draft from registering at all, so no response can simultaneously be a draft and hold a
+registered print. D7's *decision* (retain `guard_response_active_print` and the ADR 0123 D3
+key-share lock) stands throughout, and the `312` §9 table-level rebuild D7 called for **is**
+required after all.
+
+### B — the meetings "lock set ⊇ registering set" argument was false, and an unnamed FK is what holds
+
+`public.reopen_meeting` (DEFINER, `staff_admin`-gated, **no print check**) moves
+`in_signature | signed → held`, which is outside `guard_meeting_status`'s refusal set. The DELETE is
+still refused — but by `documents_home_resource_id_fkey … ON DELETE RESTRICT`, a constraint this ADR
+never names. **The conclusion survives; the reason does not**, and a right conclusion reached through
+a wrong mechanism is not verified — the mechanism is what a later change breaks. Meetings have no
+revision chain, so this reversal is handled by ADR 0126's **derived currency**, not by a new guard.
+
+### C — the two residual paths this ADR carried as "not verified, not claimed"
+
+- **Delete inside a meeting RPC — CLOSED by measurement.** No function in `app` or `public` deletes
+  from `meetings`. ⚠ The sweep must filter `prokind = 'f'`: `pg_get_functiondef` throws on
+  aggregates, so an unfiltered sweep dies on the first one and returns nothing — which reads exactly
+  like a clean result.
+- **Commission-level cascade — still OPEN.** It stays uncovered rather than inheriting the other
+  half's verdict.
+
+### D — the shape, recorded because it is the class and not the instance
+
+Both errors are one mistake: **a property read off the STATE LIST and stated as invariant over
+TIME.** "Only drafts are deletable" and "the lock set is a superset" are each true at any instant and
+false across a transition that walks the lifecycle *backwards*. D1's table enumerated states and
+never asked which transitions between them exist; the platform has **exactly two** backwards doors
+(`reject_correction`, `reopen_meeting` — enumerated by sweeping every writer of the two status
+columns, not by discovery).
+
+⇒ **A lifecycle predicate must be checked against the transition graph, not the state list.** Any
+future rule of the form *"once X, always X"* inherits the same obligation.
+
+## Amendment 2 — the `form_response` watermark moves IN TANDEM with the refined lock (2026-08-18)
+
+- **Status:** ACCEPTED — PO-ruled 2026-08-18 (round-2 design review; the sibling registration
+  rulings are ADR [0126](./0126-print-series-and-derived-currency.md) D10, the review record its
+  § Round 2).
+
+**The defect this closes: ADR 0126 D5 made D5's "unreachable" cell reachable.** D1's watermark
+predicate for `form_response` was `FINAL ⇔ status = 'submitted'`. Once 0126 D5 stopped a
+submitted-but-rejectable correction draft from **registering**, that draft would have printed
+**watermarked FINAL with the prévia footer** — exactly the fourth cell D5 declares *"unreachable by
+design"* and `noFinalEphemeral` (the vector fixture's invariant, asserted by all three consumers)
+pins over every vector. 0126 D7's own warning predicted the shape: the lifecycle grew a step
+between **lock** and **watermark**, and only the lock was re-derived.
+
+**Ruling: the watermark is refined in tandem — the keystone is not weakened.** For `form_response`:
+
+> FINAL ⇔ `status = 'submitted'` **AND NOT** the draft of an open, still-rejectable correction
+> request **AND NOT** attached to a `voided` phase.
+
+A submitted draft of an open correction stamps **RASCUNHO** — 0126 D5's own cost language (*"a
+document under an open, rejectable correction is not settled"*) is the justification — and a voided
+phase's response stamps RASCUNHO for the same reason (0126 D10). The refined watermark and the
+refined registration predicate therefore **re-coincide** for `form_response`. Per D8 they remain
+two declarations; the coincidence is recorded, not exploited.
+
+- The four-cell keystone (D5) **survives intact**: a FINAL `form_response` page again implies a
+  locked, registering source. `meetingWatermarkFor` is still unchanged.
+- The vector fixture gains the dimensions needed to express this (`correction_open`,
+  `phase_voided` — reshaped in the same change, not deferred to the build); `noFinalEphemeral`
+  stays asserted and true.
+- The rejected alternatives: legalizing the FINAL+prévia cell (carves an exception into the
+  keystone that was "worth a keystone, not just a sentence"), and refusing paper entirely for a
+  submitted correction draft (violates D2's protected interest — paper on demand).

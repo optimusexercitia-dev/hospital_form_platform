@@ -735,6 +735,72 @@ claim reads as honoured. Whichever is scheduled first, the other must be named i
 completion door is its owner". That assumption was false until the runbook existed, and it is only as
 true as the runbook is actually executed.
 
+### 🔴 FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE — `dispose_meeting_minutes` **cannot complete** on any locked meeting that has agenda items; its own "bypass the freeze guards" comment is FALSE (owner: backend + PO; **blocks Critical FUP C1a/C1b**, Rule 12 / LGPD Art. 18)
+
+Filed 2026-08-18 (lead) — found by `backend` during the ADR 0125/0126 build while sweeping the writers of
+the content the meeting template renders, and **independently re-measured from the live catalog by the lead
+before filing**. Not the prévia build's subject; filed so it is not carried inside a build that does not own it.
+
+**The mechanism, measured — a comment that asserts a bypass it does not perform.**
+`public.dispose_meeting_minutes` opens with:
+
+```
+perform set_config('app.in_meeting_rpc', 'on', true);  -- bypass the meeting freeze guards
+```
+
+That flag is real and other meeting guards honour it. **`app.guard_meeting_child_lock` does not** — its body
+contains **no reference to `app.in_meeting_rpc` at all** (verified against `pg_get_functiondef`, not the
+migration text). It raises unconditionally:
+
+```
+if v_status in ('in_signature', 'signed', 'distributed', 'cancelled') then
+  raise exception 'o conteúdo desta reunião está bloqueado (%)', v_status using errcode = 'check_violation';
+```
+
+It is installed on **four** child tables: `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`,
+`meeting_closed_sessions`.
+
+**⇒ The disposal door raises partway through its own transaction.** It nulls `minutes_md` first (the parent
+table, which *does* honour the flag), then UPDATEs `meeting_agenda_items` to `[PHI removido]` — and **that**
+statement trips the child lock, rolling the whole call back.
+
+**Constructed, not argued — three probes:**
+
+| Probe | Fixture | Result |
+| ----- | ------- | ------ |
+| **A** | `signed` meeting **with 2 agenda items** | ⛔ **RAISES** `o conteúdo desta reunião está bloqueado (signed)` — disposal impossible |
+| **B** | `signed` meeting, **0 agenda items** | ✅ succeeds; `phi_disposed_at` stamped, status stays `signed` |
+| **C** | as B, `minutes_md` populated first | ✅ succeeds; `minutes_md` → null, `phi_disposed = true`, status still `signed` |
+
+**Why it is 🔴 and not a curiosity.** The meetings that carry agenda content are exactly the meetings that
+carry PHI worth disposing. So the erasure obligation **cannot be discharged on precisely the population it
+exists for**, while succeeding on the empty ones — which means a disposal run over a real tenant would report
+partial success and leave the PHI-bearing minutes intact. Rule 12 / ADR 0035's LGPD + ANVISA/RDC regime makes
+this an obligation, not a feature: **LGPD Art. 18** erasure, and the 20-yr retention regime's expiry path.
+
+⛔ **It blocks Critical FUP C1a/C1b directly.** The disposal runbook
+([`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md)) is the next PO-sequenced item, and a
+rehearsal that only ever exercises agenda-less meetings would go **green while proving nothing about the
+blocking case** — the [[a-detector-that-finds-nothing-must-be-proven-able-to-find-something]] shape, in the
+highest-severity item in the register. **The C1a rehearsal must include a locked meeting WITH agenda items as
+a named fixture**, or its green is not evidence.
+
+**Not yet decided — the fix is a real design question, not a one-liner.** Three shapes, none ruled:
+1. Teach `guard_meeting_child_lock` to honour `app.in_meeting_rpc`, like its siblings. ⚠ **A widening** — it
+   opens every child table to every meeting RPC, and the guard's refusal-inside-RPCs may be load-bearing
+   somewhere it was not measured. A widening cannot be wrong-and-safe.
+2. A narrower flag read only by the child lock and set only by the disposal door.
+3. Redact through a DEFINER path that does not transit the trigger.
+
+**⭐ The class, because the instance is the cheap part.** A **comment asserted a bypass that the guard it
+names does not implement**, and nothing could contradict it — the door's own suite passes on agenda-less
+fixtures, and the runbook was written from the comment. Same family as
+[[a-comment-is-an-assertion-that-goes-stale-silently]] and [[guards-that-read-right-but-fail-open]]: the text
+read correctly and the catalog disagreed. ⚠ Note **which** measurement found it — not a read of the disposal
+function (that is where the false comment lives) but a **property-bounded sweep of every writer of the
+rendered content**, run for an unrelated reason. A sweep bounded by "writers of `meetings`" would have found
+the door and believed its comment.
+
 ### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
 
 > ## ✅ SUCCESSOR NAMED 2026-08-18 (DM-FUP TRIAGE #5) — **`app.resolve_document_version_bytes`**, and the arm moves into Critical FUP C2 Tier 1
@@ -1359,6 +1425,33 @@ Filed 2026-08-18 (lead) on the PO ruling of ADR
 **D7** and amends ADR 0104 **D7** item 4. The nine decisions are in the ADR; this item carries the
 **build**, and specifically the two pieces that are easy to ship green while asserting nothing.
 
+**⭐ Measured 2026-08-18, before any code — two findings that shape the build.**
+
+**(a) Registration is DB-enforced, not app-layer convention.** D7's *"HC069 becomes structurally
+unreachable"* is only STRUCTURAL if `mint_printed_document` itself refuses a non-locked source; if
+only the server action refused, a direct RPC call would still construct the state. Three independent
+anchors agree: D7's own wording, D2 rewriting `t43` (which pins that a draft mint SUCCEEDS), and this
+item's instruction to rebuild §9 by inserting a `printed_documents` row **"bypassing the mint"** —
+you only bypass a door that would otherwise refuse.
+
+**(b) ⛔ But the gate MUST NOT go inside that door as a fourth kind-conditional site.** Measured from
+the live catalog — `mint_printed_document` carries this in its own body:
+
+> ⚠ the REGISTRATION-MIRROR TRIO, site 3 of exactly 3 (template coherence · commission resolution ·
+> PHI capability). **A FOURTH kind-conditional site in this door is the abstraction-leak signal —
+> stop and re-plan, never extend.**
+
+⇒ The lock predicate lands as a **separate kind-dispatch** with its own per-kind CASE and fail-closed
+ELSE (mirroring `app.can_view_printed_document`'s shape), which the door then calls **once,
+kind-agnostically**. That satisfies the trio constraint and **D8** ("every kind MUST declare TWO
+predicates") in the same move — the constraint and the ADR want the same structure. Error code
+`HC0DP` is free (`HC0D1-4`, `HC0D6-9`, `HC0DA-N`, `HC0DR`, `HC0DS` are taken).
+
+⚠ The new dispatch is a **brand-new gate**, so per ADR 0079 Amendment 3 it passes `ARM=policy`
+**vacuously** — `ARM=census` is the arm that must see it — and it enters the catalog with a NULL
+`proacl`, which is the DEFAULT and includes PUBLIC (the class that shipped live in `20260928000700`).
+Explicit REVOKE/GRANT, diffed **from the catalog**.
+
 **Scope, in dependency order.**
 
 1. **The render path** (D4) — HTML → Gotenberg → buffer → **response stream**. The `.upload()` and
@@ -1377,10 +1470,28 @@ Filed 2026-08-18 (lead) on the PO ruling of ADR
    function **beside** `meetingWatermarkFor` — overloading the existing one silently couples the
    two axes back together, which is the thing D1 separates. The dialog already previews the mark,
    so the button label follows the same shape.
+   ⚠ **Round 2 supersedes the `form_response` half of this item:** the discriminator is the
+   **three-conjunct** predicate (0126 D5 + D10) and the watermark refines **in tandem** (0125
+   Amendment 2) — `submitted` alone is neither axis, and both now read
+   `case_correction_requests` + `case_phases`. `meetingWatermarkFor` still unchanged.
 4. **The audit row** (D3) — the prévia emits its own `app.audit_write`, actor + timestamp + source
    + template, no payload. ⭐ **The only half that cannot be added retroactively.**
 5. **Contention** (D9) — same `mintSemaphore`, unchanged at 3 permits; the prévia acquires with a
    materially shorter wait so it is the one that loses under load.
+6. **Round 2 core (0126 D8–D10)** — `meetings.revision` (bumped only by `reopen_meeting`) + the
+   per-kind HEAD dispatch (`form_response`: approved-successor; `meeting`: revision match) + the
+   third registration conjunct (attached phase not `voided`) + the tandem watermark (0125
+   Amendment 2). The predicate/watermark read set now spans `case_correction_requests` +
+   `case_phases` — their writers are swept per 0126's standing method rule.
+7. **`guard_meeting_active_print`** (0126 D11) — BEFORE DELETE symmetric of
+   `guard_response_active_print`, with the t76/t80-shaped differential keystone (print revoked ⇒
+   the same delete succeeds). New gate ⇒ the same `ARM=census` + explicit-ACL discipline as the
+   dispatch above.
+8. **Currency + `/verificar`** (0126 D2/D4/D12) — derived at read, two-sided keystones per
+   conjunct incl. the D9 round-trip and D10 void corridors; the widened anon DEFINER door goes
+   through the diff-scoped 0079 sweep; the `revoked` arm keeps its no-join independence.
+   ⚠ The mint door is **compare-and-mint**: the predicate evaluates inside the RPC's transaction
+   against render-time source state (TOCTOU — 0126 Consequences).
 
 **⛔ The two things that will pass green having asserted nothing.**
 
@@ -1414,13 +1525,14 @@ accreditation answer and nothing pins it today. Keep the RASCUNHO variants in
 `fingerprint.test.ts`. **No data migration** — production holds `0` prints (measured, ADR 0123 D4)
 and local resets.
 
-**Open question carried here, NOT covered:** meetings need no `guard_response_active_print`
-analogue **on the normal path** — measured, `guard_meeting_status` refuses a DELETE for
-`in_signature | signed | distributed | cancelled`, so the lock set is a **superset** of the
-registering set. ⚠ But **two residual paths were not measured**: a delete inside a meeting RPC
-(the guard yields to `app.in_meeting_rpc`) and a commission-level cascade (the trigger's own
-comment asserts it bypasses guards — *a comment is an assertion*). Measure both before declaring
-meetings orphan-safe.
+**Open question carried here — round 2 resolved most of it:** the original "meetings need no
+`guard_response_active_print` analogue" rested on *lock set ⊇ registering set*, which was **FALSE**
+(`reopen_meeting` exits the refusal set — 0125 Amendment 1 §B); today's real anchor is the mint's
+own `documents` row → `securable_resources` **RESTRICT**, owned by the disposal-bound documents
+domain, and **0126 D11 orders `guard_meeting_active_print` + keystone** (scope item 7). Of the two
+residual paths: delete-inside-a-meeting-RPC is **CLOSED by measurement** (0125 Amendment 1 §C —
+filter `prokind = 'f'` when sweeping, or the aggregate throw reads as a clean result); the
+**commission-level cascade is still OPEN** and stays carried here, uninherited.
 
 **Not in scope:** the **lock and watermark predicates** for `case` / `interview` (ADR 0125 D8
 binds the principle — both declared separately, not-locked ⇒ ephemeral — and defers each
@@ -2757,6 +2869,208 @@ metadata rows — which would quietly undermine **DM5's retirement manifest**, w
 "prove zero DB references + zero product callers + zero policies, then empty and delete the bucket
 **via the Storage API only, never `storage.objects` DML**". *An emptiness proof derived from a
 table that was just truncated is not an emptiness proof.* Verify before DM5 relies on it.
+
+### 🟠 FUP-42501-CONFLATES-GRANT-WITH-RLS — 2 of 12 P0-isolation assertions pass on a **table-grant** error, not on the RLS refusal they claim to prove (owner: backend + tester; **a COVERAGE defect, NOT a vulnerability — the tables are protected**)
+
+Filed 2026-08-18 (lead). Surfaced when `backend` hit the same shape building the ADR 0125 D6 keystone
+(`345_previa_audit_door.sql`) and noted it *"generalises to every `throws_ok(…, '42501')` in the tree"*.
+Lead swept the tree and measured the population; **the generalisation is real but much narrower than
+that**, and it lands somewhere that matters.
+
+**⛔ NEUTRALIZE BEFORE ESCALATING — this is not a vulnerability, and the distinction is the whole item.**
+Measured: `authenticated` holds **no INSERT privilege** on `public.rca_evidence` or
+`public.capa_action_evidence`. So those two tables are **protected — more strongly than the test claims**,
+by a missing grant rather than by RLS. Nothing is exposed. What is wrong is the **assertion**, not the
+posture.
+
+**The mechanism.** `42501` is simultaneously
+
+- the correct SQLSTATE for an **RLS / authority** refusal, and
+- Postgres's **generic** `permission denied for table …` code.
+
+So `throws_ok($$ insert into public.X … $$, '42501')` **cannot distinguish** *"RLS refused this
+cross-tenant write"* from *"the role was never granted INSERT on this table at all"*. The assertion is
+satisfied by either, and it reports the first.
+
+**Measured population — the enumeration, not an estimate.** 15 tree-wide hits for `throws_ok` + `42501`;
+**3 are comments, 12 are live assertions**, all in `supabase/tests/252_authz_p0_isolation.sql`
+(lines 114–157), probing 6 `rca_*` and 6 `capa_*` tables. Grant check on all twelve:
+
+| | `authenticated` INSERT | assertion proves |
+| --- | --- | --- |
+| 10 tables (`rca_factors`, `rca_members`, `rca_root_causes`, `rca_timeline_entries`, `rca_why_chains`, `capa_action`, `capa_action_task`, `capa_measure`, `capa_measure_result`, `capa_effectiveness`) | **true** | ✅ RLS — the only thing that can raise `42501` |
+| **`rca_evidence`**, **`capa_action_evidence`** | **false** | ⛔ **the grant.** RLS is never reached |
+
+⇒ **The P0 suite claims cross-tenant isolation on 12 tables and demonstrates it on 10.** An auditor asking
+*"is `rca_evidence` RLS-isolated?"* finds a green P0 assertion and concludes yes; the test never exercised
+RLS.
+
+⭐ **The class is the inverse of the usual one here.** This project's recurring failure is
+[[absence-of-a-verdict-is-not-absence-of-coverage]] — reading a missing verdict as a hole. This is the
+mirror: **a PRESENT green assertion that is not coverage.** The `42501` conflation is what makes it
+invisible, because the test's own expected value is correct.
+
+⚠ **The tree ALREADY KNEW this trap — twice — and it still recurred.** Both are comments, not gates:
+`301_hospital_affiliation_substrate.sql:21` (*"'grant' cannot be proven with `throws_ok(..., '42501')`: a
+miss…"*) and `277_ff4_power_authoring.sql:328`. A hazard documented in prose in two files did not stop a
+third instance being written, or the two live ones surviving. **That is the argument for a mechanical
+check rather than a fourth comment.**
+
+**Fix — `backend`'s own two-part remedy from `345`, which is the model:**
+1. **Grant the probe role what the test is not testing**, so the only thing left that can raise `42501` is
+   the property under test; and/or
+2. **Remove the incidental read entirely** (`345` passes the source id as a literal so no fixture read
+   happens inside the probe at all).
+3. ⭐ **Two-sided is what actually catches it.** `backend`'s deny-leg passed on the fixture's own error and
+   **only the ALLOW leg failing exposed it.** A deny-only keystone is green while asserting nothing about
+   authorization. Every `42501` assertion needs its allow-side twin.
+
+⚠ **Do not "fix" this by granting INSERT on the two tables** — that would be a widening performed to make a
+test honest, trading real protection for a truer assertion. Fix the **assertion**: either probe a role that
+holds the grant, or assert the RLS refusal by a means that cannot be satisfied by a missing privilege.
+
+⛔ **Not fixed in the ADR 0125/0126 build** — different suite, different subject, and it needs the `252`
+owner's judgement about what each probe is meant to prove. `345`'s own instance **is** fixed, with the
+measurement in that file's header.
+
+### 🟠 FUP-SUPERSESSION-BADGE-LANE-BLIND — `resolveSupersessionBadge` mirrors an aggregation rule but drops that rule's OWN lane restriction, so a phase-bound response gets the grain ADR 0126 D8 rejected (owner: frontend + backend; **ADR 0074/0085 axis — NOT the print-currency axis**)
+
+Filed 2026-08-18 (lead). Found by `frontend` during the ADR 0126 Amendment 1 **§K sweep**, and **outside that
+sweep's bound** — §K bounds on `printed_documents.status`; this is ADR 0074's supersession axis. It surfaced
+because the sweep's vocabulary caught the word *"Atual"*, i.e. **by accident, not by coverage**. Measured from
+the files by `frontend` and **re-measured independently by the lead** before filing.
+
+**The derivation, measured** (`src/lib/queries/submissions.ts`):
+
+```
+resolveSupersessionBadge:  'substituido' ⇔ hasSubmittedSuccessor
+                           'atual'       ⇔ isSuccessor
+fed at :432/:433 by        hasSubmittedSuccessor: supersededIds.has(r.id)
+                           isSuccessor:           r.supersedes_id != null
+```
+
+`grep "correction_request|approved|current_response_id"` in that file: **0 hits**. There is no approval join.
+
+**⭐ The precise defect is NOT "wrong grain" — it is a MIRROR that dropped its source's WHERE clause.**
+The function's own comment says the submitted grain is *"the 'latest-in-chain' signal, **mirroring the
+aggregation exclusion**"* — i.e. mirroring `app.submitted_form_responses`. That mirror is **correct**, and
+measured, the aggregation rule it copies is **standalone-only by its own predicate**:
+
+```
+and r.case_phase_id is null                                   -- app.submitted_form_responses
+and not exists (select 1 from responses succ
+                where succ.supersedes_id = r.id and succ.status = 'submitted')
+```
+
+But `listSubmissions` surfaces **both** lanes (`isCasePhase: r.case_phase_id != null`, `:449`) and applies the
+badge unconditionally. So:
+
+- **standalone lane — CORRECT.** Submitted-grain *is* the effectiveness rule there, and it is exactly what
+  ADR 0126 **Amendment 1 §A** ratified for the standalone head lane.
+- **phase-bound lane — WRONG.** ADR 0126 **D8** requires approval-grain: `case_phases.current_response_id`
+  moves **only** in `approve_correction`, and `sync_case_phase_on_submit` returns early for successors with the
+  comment *"approval owns effect-taking"*.
+
+**Consequences on the phase-bound lane, all from D8's own analysis:**
+1. The original flips to **"Substituído"** the moment a correction draft is *submitted* — **before approval**,
+   while `current_response_id` still points at it, so it is still the effective response.
+2. It flips **back** if `reject_correction` walks the draft to `in_progress` — the badge **flaps**, driven by a
+   low-authority act.
+3. A submitted-but-unapproved successor renders **"Atual"**, asserting it is the current one when the phase
+   pointer does not reference it.
+
+**⭐ The differential that makes this a defect rather than a definition.** The **same pill**, one file over at
+`…/manage/cases/[caseId]/fase/[phaseId]/respostas/page.tsx:65`, is fed by
+`corrections.some(r => r.status === "approved")` — **approval grain**, with a comment citing the pointer
+(ADR 0085). **The platform already knows the right grain and uses the wrong one one file away, rendering the
+identical badge.** That is what stops the submitted-grain version reading as an intentional dashboard semantic.
+
+⚠ **Not established, and it must be before any fix:** whether ADR 0074 *deliberately* chose submitted-grain for
+a list whose job is "show me what is in flight". The mirror-comment suggests the intent was aggregation parity,
+not lifecycle truth — which would make the lane restriction an oversight rather than a decision — but that is
+an inference, and this item must not be closed on it. **Read ADR 0074 (and 0085) first.**
+
+⛔ **Deliberately NOT fixed in the prévia build.** Different axis, different ADR, and a fix is a lane-aware
+rewrite of a shared pure function with its own test surface. ⚠ **D8's *disclosure* argument does NOT transfer**
+— that concerned a public page leaking an in-flight correction; this is an internal coordinator surface where a
+`staff_admin` is entitled to see one. Only the **wrong-grain and flapping** halves transfer. Do not import D8's
+severity wholesale.
+
+**⭐⭐ SHARPENED 2026-08-18 (lead, by measurement): the correct predicate ALREADY EXISTS IN TS, in the same
+directory, and ARCHITECTURE.md names it as THE twin — singular.**
+
+`src/lib/queries/dashboard.ts` exports `isDashboardCountable`, which ARCHITECTURE.md Rule 2 (line ~266) calls
+*"the TS twin"* of the choke-point. Its body:
+
+```ts
+return r.status === 'submitted' && r.casePhaseId == null && !r.hasSubmittedSuccessor
+//                                 ^^^^^^^^^^^^^^^^^^^^ the lane conjunct, present here
+```
+
+`resolveSupersessionBadge` sits one file away in the same directory and omits exactly that conjunct. So this is
+**not** "nobody knew the rule" — it is **two TS derivations of one SQL choke-point, of which only one is
+sanctioned and only one is complete.** ARCHITECTURE.md's binding instruction in the same paragraph is
+*"**Any new aggregation path must reuse that choke-point, not re-derive `status = 'submitted'`,** or corrected
+metrics double-count."*
+
+⇒ **This narrows the fix and raises the confidence.** The repair is to make the badge consume the same lane
+test rather than to invent one — and the "maybe ADR 0074 chose submitted-grain deliberately" caveat is now
+**much weaker**, because the deliberate choice is visible in `isDashboardCountable` and it *includes* the lane
+restriction. ⚠ Still read 0074/0085 before ruling: a *display* badge is arguably not an *aggregation* path, and
+that is the one reading under which the omission could be intentional.
+
+**⇒ The class, which is the reusable part:** *a mirror inherits its source's predicate, not just its shape.*
+`app.submitted_form_responses` carries `case_phase_id is null` in the same `where` as the exclusion the badge
+copied; copying one conjunct and not the other produced a rule that is right on one lane and wrong on the other,
+with **one code path and one badge** so nothing distinguishes them. Same family as
+[[a-predicate-quoted-at-the-wrong-grain]], and the direct sibling of ADR 0126 Amendment 1 **§A** — which is the
+*same lane-blindness* found in the print-currency derivation and fixed there.
+
+### 🟡 FUP-LINT-VECTOR-DIMENSION-DRIFT — propose a lint gate over shared SQL↔TS **vector fixtures**: a declared dimension that no vector varies, or a consumer that silently drops one (owner: lead + PO; **a gate change is not a mid-build edit**)
+
+Filed 2026-08-18 (lead) during the ADR 0125/0126 prévia build, on `backend`'s proposal. **Deliberately not
+built in that build** — CLAUDE.md §8's own record is that each of the seven gates was added *after* its class
+shipped a live defect, one at a time and on its own evidence. This one already has its evidence; what it does
+not have is a PO ruling.
+
+**The proposal, in the proposer's words:**
+
+> A lint gate over the shared-vector fixtures that fails when a predicate's declared *input dimensions* and
+> its *asserted rows* diverge: specifically, when a fixture gains a dimension that no vector varies (the flag
+> exists but nothing pins it), or when a consumer's state-mapping function silently drops a dimension the
+> fixture declares (the row passes because the flag never reaches the predicate).
+
+**Both shapes were LIVE in the build that proposed it — this is not a hypothetical:**
+
+1. **A dimension nothing varied.** `print-source-registers-vectors.json` declared `correction_open` /
+   `phase_voided` as `form_response`-only and `meeting_disposed` as `meeting`-only, and the requirement that
+   each predicate **IGNORE** a flag outside its kind was stated **in a comment and asserted by no vector** —
+   every meeting row carried the form_response flags `false`, so the kind-scoping was never exercised in
+   either direction. Found only because the build's task text asked for the pin by name. Fixed by adding 3
+   cross-kind rows.
+2. **A consumer that dropped one.** `frontend`'s `stateOf(v)` mapped three of the fixture's four keys, so the
+   new `form_response + meeting_disposed → registers=true` row **passed on its first run** — the flag never
+   reached the predicate, so the row asserted nothing. ⚠ The tell was *green-on-first-run*, which reads as
+   "already correct" and was in fact "not yet connected". Its mirror row **was** real and also passed, so half
+   the cross-kind pin worked and half was theatre, **under one indistinguishable green bar**.
+
+**Why a gate rather than a rule.** The vector-fixture pattern is what makes a SQL↔TS mirror safe at all — ADR
+0126 D3 rejects "two computations of one property" precisely because they can disagree with nothing going red,
+and the mirror survives that rejection **solely** because the fixture is the thing that reds. A fixture with a
+dimension nothing varies is therefore not a weak test; it is **the mirror's safety property silently absent**.
+Architecture Rule 3 already mandates this pattern for the condition evaluator, so the gate would generalise
+beyond the print derivation rather than serving one feature.
+
+**Prior art to build on:** [`check-vacuous-assertions.mjs`](../../scripts/check-vacuous-assertions.mjs) is the
+precedent for turning "a test that can go green having asserted nothing" into a mechanical gate, and it
+self-red-proves each checker on every run — a new gate should do the same, or it joins the class it audits.
+⚠ Note the existing gate's own scope limit, recorded in `FUP-PGTAP-VACUOUS`: it scans **TS spec files only**.
+A vector fixture is consumed from **both** sides, so this gate must reason about the fixture and its
+consumers, not about one language's test files.
+
+**Not in scope until ruled:** whether it becomes gate 8 of `npm run lint` or a standalone check, and whether it
+is fixture-shape-generic or keyed to a declared manifest. Both are PO calls, and neither should be settled by
+whoever happens to be mid-build.
 
 ### 🟡 FUP-LINT-STALE-SYMBOL-COMMENT — propose a 6th lint gate: a comment naming an identifier that no longer exists (owner: lead + PO; a gate change is not a mid-phase edit)
 
