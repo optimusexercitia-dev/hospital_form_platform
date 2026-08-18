@@ -2281,8 +2281,11 @@ All five carried full repro + mechanism; the durable lessons also live in the ph
 [bug-log-archive.md](./bug-log-archive.md).
 
 _(⚠ A truncated first line of **BUG-DM5-S3-INACTIVE-PRINT-1** was copied here by an over-wide line
-range during the 2026-08-14 rotation and removed immediately. That bug is **OPEN and lives in
-PROGRESS.md** — nothing about it is archived here.)_
+range during the 2026-08-14 rotation and removed immediately. ⛔ **The rest of that sentence went
+FALSE on 2026-08-18**: it read "that bug is OPEN and lives in PROGRESS.md — nothing about it is
+archived here", and the bug is now CLOSED and archived below, under "Rotated 2026-08-18". The
+note is kept, corrected in place, because the truncation it records is still the reason a
+rotation must be bounded by the property and not by a line range.)_
 
 ### Closed → [bug-log-archive.md](./bug-log-archive.md)
 
@@ -2418,3 +2421,72 @@ S6 gate step 2; `tester`) — *it was never a flake; the readiness helper was ly
   [[playwright-focus-is-not-auto-waiting]] class — *reads like a11y, is timing.*
 - ⛔ **S6 gate step 2 is RED until this is resolved.** Do not re-declare green on the isolated
   8/8 pass: it does not reproduce the failing condition.
+
+## Rotated 2026-08-18 — BUG-DM5-S3-INACTIVE-PRINT-1, CLOSED at rotation
+
+> Rotated **verbatim** from PROGRESS.md § Bug Log on **2026-08-18**, having been filed 2026-08-14 and
+> closed by DM5·S3 without the row ever being updated — the third instance in this file of *a fix
+> commit is not a status edit*.
+>
+> **Verified 2026-08-18 against the LIVE CATALOG (`pg_proc`), never the migration text**, which for
+> this repo is stale by design. Four independent checks:
+>
+> 1. **The D12 conjunction is real.** `public.open_printed_document` now calls BOTH
+>    `app.can_view_printed_document` (the print half, which stays this door's own authority) AND
+>    `app.resolve_document_version_bytes` (the kernel half, which raises rather than returning empty).
+> 2. **The `is_active` term bites.** It is the resolver's **first statement, unconditional**:
+>    `if p_uid is null or not app.is_active(p_uid) then raise … 42501`. Not behind an `or` — which is
+>    exactly what made the original defect possible one door over.
+> 3. **The keystone passes, non-vacuously.** `supabase/tests/342_dm5_s3_printed_renditions.sql`,
+>    run 2026-08-18: **59/59, plan 59, zero `skip`/`todo`**. S3c1/S3c2 are the positive controls (the
+>    ACTIVE creator passes *both* halves, so the denials below are not vacuous), S3c5 is the end-to-end
+>    refusal (**42501**), S3c6 proves the refusal mints no audit row, S3c7 is the restore control.
+>    ⚠ **Run-order trap:** `342` alone fails with *"schema test_helpers does not exist"* and reports
+>    `Failed 59/59` — which reads exactly like a broken suite. It needs `00_setup.sql` in the same
+>    invocation: `npx supabase test db supabase/tests/00_setup.sql supabase/tests/342_*.sql --local`.
+> 4. **The byte-path population is closed.** Only `app.resolve_document_version_bytes` and
+>    `public.open_printed_document` expose printed-byte coordinates, and the latter routes through the
+>    former. `lookup_printed_document` and `mint_printed_document` also call the print door but return
+>    **no** storage coordinates (checked against the composite type's columns, not its name).
+>
+> ⛔ **DO NOT "FIX" `app.can_view_printed_document`.** The bug's root claim is **still true, and
+> deliberately so**: the print door still admits a deactivated account, and `342` **S3c3 pins that as a
+> DECIDED state**, not an interim one. Adding `is_active` there would be a second copy of the same
+> predicate installed for cosmetic uniformity — the *two locks that are really one lock* trap. The
+> authority is the **conjunction**, not either half.
+>
+> ⚠ **A method error inside this very verification, recorded because it is the phase's signature
+> failure.** The first population sweep bounded on `pg_get_function_result(oid) ~ 'storage_path'` — a
+> **syntax of the result string** — and so missed **both** byte doors that return `jsonb`
+> (`open_document_version`, `open_referral_snapshot_document`). Re-bounded on the property. The
+> adjacent jsonb door turned out **not** to be a sibling instance: all four authorization arms of
+> `app.can_read_referral_phi` reach `app.is_active` transitively (`hospital_of_commission` is a lookup,
+> not an arm). But that was **measured after the miss, not before it**.
+>
+> ⭐ **The bug's own lesson outlives it.** Nothing in the fix gives any authz arm the ability to see a
+> door that OMITS a check its siblings all make. **`FUP-DM5-SIBLING-GUARD-DIFF` stays OPEN** in
+> PROGRESS.md, and this bug remains its specimen.
+
+🟠 **BUG-DM5-S3-INACTIVE-PRINT-1 — a DEACTIVATED user keeps print-download authority; the same
+user is refused every content document.** Filed 2026-08-14 (lead) during the S3 contract review.
+**Latent, not live:** `document_printing` **ships OFF** (only `seed.sql:2401` forces it on), so
+nothing is exposed in production today — it goes live the day printing is enabled.
+**Mechanism:** `app.can_read_document` guards `app.is_active(p_uid)` **above** its type dispatch,
+so every content document refuses a deactivated caller. `app.can_view_printed_document` has **no
+`is_active` term anywhere in its transitive closure that bites** — its `form_response` arm's
+**first disjunct is the bare column comparison `v_resp.created_by = p_uid`**, so no callee can
+supply the check (`is_staff_admin_of_for` does carry it, but it sits behind an `or`).
+`public.open_printed_document` is `SECURITY DEFINER` — RLS never runs — and its only authorization
+is that one call, so the print's bytes are reachable at `POST /rest/v1/rpc/open_printed_document`
+with a still-valid JWT (`EXECUTE` is granted to `authenticated`; verified from `proacl`).
+**Evidence** (one rolled-back transaction, `7aa170bf`): control with the creator **active** →
+print door `t` (so the probe is not vacuous); deactivate that one profile, change nothing else →
+print door **still `t`**; the core door for the same uid → `f`. Rollback verified afterwards —
+`00000000-…-003` back to `is_active = t`, and the single remaining inactive profile is the seed's
+own `desativado.conta@test.local`. Degenerate-body sweep `0` after the run.
+⭐ **Why it was invisible:** the gap is a *missing* term, and every authz arm asks whether a gate
+is reached or noticed — none asks whether a door omits a check its siblings all make. It is not a
+BLIND-door finding and no arm would ever have raised it.
+**Fix:** ADR 0120 **D12**'s composition (byte door = core door **AND** print door) closes it, which
+is why D12's "strict narrowing" claim is load-bearing rather than decorative. Owned by DM5·S3
+(migration `…000340`); keystone **S3c** is exactly this probe, and it must be **red-first**.

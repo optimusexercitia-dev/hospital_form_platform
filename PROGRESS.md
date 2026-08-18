@@ -331,33 +331,13 @@ the heading, which is a figure that goes stale the moment it is right*). These s
 own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
 markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
 archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
-⭕ **2026-08-18: back to three** — the fourth (**BUG-DM5-S6-EVID-KBD-1**) closed and rotated below.
-The heading needed no edit, which is the whole point of having taken the count out of it — and the
-rotation itself was bounded by the property this line states: it was the one ⬛ row under a 🔴 heading.
-
-🟠 **BUG-DM5-S3-INACTIVE-PRINT-1 — a DEACTIVATED user keeps print-download authority; the same
-user is refused every content document.** Filed 2026-08-14 (lead) during the S3 contract review.
-**Latent, not live:** `document_printing` **ships OFF** (only `seed.sql:2401` forces it on), so
-nothing is exposed in production today — it goes live the day printing is enabled.
-**Mechanism:** `app.can_read_document` guards `app.is_active(p_uid)` **above** its type dispatch,
-so every content document refuses a deactivated caller. `app.can_view_printed_document` has **no
-`is_active` term anywhere in its transitive closure that bites** — its `form_response` arm's
-**first disjunct is the bare column comparison `v_resp.created_by = p_uid`**, so no callee can
-supply the check (`is_staff_admin_of_for` does carry it, but it sits behind an `or`).
-`public.open_printed_document` is `SECURITY DEFINER` — RLS never runs — and its only authorization
-is that one call, so the print's bytes are reachable at `POST /rest/v1/rpc/open_printed_document`
-with a still-valid JWT (`EXECUTE` is granted to `authenticated`; verified from `proacl`).
-**Evidence** (one rolled-back transaction, `7aa170bf`): control with the creator **active** →
-print door `t` (so the probe is not vacuous); deactivate that one profile, change nothing else →
-print door **still `t`**; the core door for the same uid → `f`. Rollback verified afterwards —
-`00000000-…-003` back to `is_active = t`, and the single remaining inactive profile is the seed's
-own `desativado.conta@test.local`. Degenerate-body sweep `0` after the run.
-⭐ **Why it was invisible:** the gap is a *missing* term, and every authz arm asks whether a gate
-is reached or noticed — none asks whether a door omits a check its siblings all make. It is not a
-BLIND-door finding and no arm would ever have raised it.
-**Fix:** ADR 0120 **D12**'s composition (byte door = core door **AND** print door) closes it, which
-is why D12's "strict narrowing" claim is load-bearing rather than decorative. Owned by DM5·S3
-(migration `…000340`); keystone **S3c** is exactly this probe, and it must be **red-first**.
+⭕ **2026-08-18 — TWO rotations out of here in one day**: **BUG-DM5-S6-EVID-KBD-1** (fixed 2026-08-17,
+never marked) and **BUG-DM5-S3-INACTIVE-PRINT-1** (fixed by DM5·S3, never marked). Both were bounded
+by the property this line states, and the heading needed no edit either time — which is the whole
+point of having taken the count out of it. ⛔ **The live count is deliberately NOT restated here.**
+The first version of this note said "back to three" and was stale within the same day, in the one
+paragraph of this file whose subject is that a count goes stale the moment it is right. Count the
+rows below.
 
 🔵 **BUG-DM5-S3-ENV-FIXTURE-POOL-1 — ENVIRONMENT, not a product defect; no code fix owed.** Filed
 2026-08-14 (tester-s3) during the S3 gate-step-2 sweep. `e2e/pdf-printing.spec.ts`'s **full
@@ -401,6 +381,18 @@ E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is i
 gate), but it is on the critical path of the **first production deploy**.
 
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+
+**Rotated 2026-08-18 (2)** — **BUG-DM5-S3-INACTIVE-PRINT-1** — ⭐ **closed by DM5·S3 and never marked**
+(filed 2026-08-14, fix shipped in the same slice) → [archive § "Rotated 2026-08-18"](docs/progress/bug-log-archive.md).
+Verified against the **live catalog**, not the migration text: `public.open_printed_document` composes
+the print door AND `app.resolve_document_version_bytes`, whose **first, unconditional** statement is
+`app.is_active` → `42501` (ADR [0120](docs/decisions/0120-dm5-wave-d-retirement-decisions.md) D12).
+Keystone `342` re-run 2026-08-18: **59/59, plan 59, zero skips**, S3c1/S3c2 carrying the non-vacuity
+controls. ⛔ **Do NOT add `is_active` to `app.can_view_printed_document`** — the print door still admits
+a deactivated account **by decision**, `342` **S3c3 pins that**, and a second copy of the same predicate
+is the *two-locks-that-are-one-lock* trap. The authority is the **conjunction**.
+⭐ **`FUP-DM5-SIBLING-GUARD-DIFF` stays OPEN** — the fix gives no authz arm the ability to see a door
+that OMITS a check its siblings make, and this bug is still its specimen.
 
 **Rotated 2026-08-18** — **BUG-DM5-S6-EVID-KBD-1** (filed, fixed AND verified green all on 2026-08-17,
 DM5·S6 gate step 2; fix `15396276`, RED-first pin `348acf5f`) → [archive § "Rotated 2026-08-18"](docs/progress/bug-log-archive.md).
@@ -644,7 +636,7 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - ⬛ **FUP-DM4-RECUSAL** — ✅ RESOLVED 2026-08-17 (`32054942`, `20260928000100`, ADR 0122): a `can_read_case` arm **above** the `p_kind` dispatch, covering both arms; `340` 76→82 red-first. ✅✅ **AND NOW LIVE ON THE REMOTE — pushed 2026-08-18**, verified against `pg_get_functiondef` (`prosecdef = t`, arm present), not against migration text. ⭕ *This line read "LOCAL ONLY — the PHI path is still open there" for a day; the fix's own follow-up was the last place still saying so* — lead/PO/backend
 - 🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — ✅ **DECIDED 2026-08-18: BUILD IT, at retention expiry** (ADR 0121 **Amdt 2**). D11's clause stands; only its trigger moves. ⛔ **Still not startable, and this is its THIRD distinct blocker** — not "unbuilt" (08-16), not "an undecided collision" (08-17), but **ADR 0121 D1**: inflow and outflow ship together, and the outflow is the manual runbook whose rehearsal is **Critical FUP C1**. ⭐ *A stale blocker reads exactly like a live one* — name the current one whenever this is quoted. Original: D11 says superseded print bytes retire via `disposal_state`; measured, both stay `none` and nothing schedules it — backend
 - ⬛ **FUP-DM5-342-PLAN-COMMENT** — ✅ RESOLVED 2026-08-17 (`24cee179`); ⭐ the itemisation **already summed to 59** — only the leading total was stale, so the comment disagreed with *itself* — backend
-- 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make**; all five test gates that *are* there. Specimen: BUG-DM5-S3-INACTIVE-PRINT-1. Wants a transitive catalog guard-set diff with a positive control — lead/backend
+- 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make**; all five test gates that *are* there. Specimen: BUG-DM5-S3-INACTIVE-PRINT-1 (closed + rotated 2026-08-18 → [archive](docs/progress/bug-log-archive.md); the SPECIMEN outlives the fix). Wants a transitive catalog guard-set diff with a positive control — lead/backend
 - ⬛ **FUP-DM5-330-WRITE-BLIND** — ✅ RESOLVED 2026-08-17 (`67cac33b`), `330` 57→62. ⭐ Closed **on its own terms**: blindness re-derived from the live catalog and still real — **not** closed on `342`'s coverage, as the item's warning forbade — backend
 - ⬛ **FUP-DM5-FINALIZE-ATOMIC** — ✅ RESOLVED 2026-08-17 (`20260928000500`): bytes + evidence row commit in ONE transaction; `341` 57→67. ⭐ **The obvious keystone was VACUOUS** — one RPC call is one transaction, so any raise rolls back whatever the check order is — backend/lead
 - 🟡 **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — a print minted from a **draft** outlives the deleted response: dangling `securable_resources` row, no UI surface, bytes persist — PO, then backend
