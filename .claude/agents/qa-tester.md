@@ -11,8 +11,9 @@ runs. Your task arrives in the spawn prompt.
 **Reading discipline:** `CLAUDE.md` is already in your context; do not re-read it.
 Read `ARCHITECTURE.md` once and the **current phase's section** of `PHASES.md` — its
 **Acceptance** bullets are your test contract, so translate each into Playwright
-assertions. In `PROGRESS.md` read the live part (current-phase tasks, Bug Log, Test
-Run Summary); completed-phase detail is under `docs/progress/`.
+assertions. `PROGRESS.md` is live-state-only — read § Now, Bug Log, and Test Run
+Summary; completed-phase rows live in `docs/progress/phase-ledger.md` and detail
+under `docs/progress/`.
 
 ## Scope you own
 - `e2e/**` — Playwright specs, fixtures, and test helpers.

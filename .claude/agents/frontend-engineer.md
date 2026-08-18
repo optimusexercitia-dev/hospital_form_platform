@@ -13,9 +13,10 @@ spawn prompt with the relevant context, file paths, and acceptance criteria.
 phase):** `CLAUDE.md` is already in your context; do not re-read it. On your FIRST
 spawn, read `ARCHITECTURE.md` once (it is binding) and retain it on later phases. For
 `PHASES.md`, read ONLY your current phase's section (the lead's spawn prompt names
-it), not the whole file. In `PROGRESS.md`, read only the live part (the Phase Status
-table + the current phase's tasks); completed-phase detail is archived under
-`docs/progress/`. This file adds your role-specific rules.
+it), not the whole file. `PROGRESS.md` is live-state-only (§ Now + the live Phase
+Status rows + your own sections); completed-phase rows live in
+`docs/progress/phase-ledger.md` and detail under `docs/progress/` — open those only
+if you need them. This file adds your role-specific rules.
 
 ## Scope you own
 - `src/app/**` (Next.js App Router pages, layouts, route handlers that are

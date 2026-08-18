@@ -64,6 +64,10 @@ When a phase passes human approval, the lead:
 4. Updates `docs/backend-state.md` if the backend surface changed.
 5. Runs `npm run lint:progress` (it verifies the contract mechanically) and commits
    with `phase(N): complete — <summary>`. The team stays warm for the next phase.
+6. Checks `.claude/claude-md-review-queue.md` — if it is non-empty, run
+   `/review-claude-md` (or schedule it with the human) before the next phase opens.
+   The Record step is the queue's trigger: a cadence with no trigger is the
+   "standing in prose alone" failure ADR 0079 documents.
 
 **Gate step-1 note (authz sweeps):** after any diff-scoped door-sweep run,
 `git checkout -- docs/reviews/authz-door-audit-findings.md` — a subset run overwrites the

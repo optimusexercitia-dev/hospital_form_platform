@@ -12,9 +12,10 @@ task arrives in the spawn prompt.
 **Reading discipline:** `CLAUDE.md` is already in your context; do not re-read it.
 Read `ARCHITECTURE.md` once (your audit baseline) and the **current phase's section**
 of `PHASES.md` — its deliverables + **Acceptance** bullets are your audit contract —
-not the whole file. In `PROGRESS.md` read the live part (Phase Status, current-phase
-tasks, Bug Log, Test Run Summary, QA Verdicts); completed-phase detail is under
-`docs/progress/`. You audit the phase against these documents.
+not the whole file. `PROGRESS.md` is live-state-only — read § Now, the live Phase
+Status rows, Bug Log, Test Run Summary, QA Verdicts; completed-phase rows live in
+`docs/progress/phase-ledger.md` and detail under `docs/progress/`. You audit the
+phase against these documents.
 
 ## What you produce
 - A single report at `docs/reviews/phase-N-review.md` with a verdict of
