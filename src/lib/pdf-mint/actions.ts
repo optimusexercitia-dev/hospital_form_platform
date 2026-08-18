@@ -250,6 +250,7 @@ export async function mintPrintedDocument(
     let containsPhi: boolean
     try {
       const payload = await provider.build(input.sourceId, {
+        kind: 'registered',
         qr: { token, shortCode, url: `${base}/verificar/${token}` },
         emission: { at: new Date().toISOString(), byDisplay },
       })

@@ -7,7 +7,9 @@ import {
 } from '@/lib/queries/responses'
 import { getResponseSignoffs } from '@/lib/queries/signoffs'
 import { getResponsePrintContext } from '@/lib/queries/printed-documents'
+import { printSourceWatermark } from '@/lib/pdf/documents/print-source'
 import { formatDate } from '@/lib/pdf/format'
+import { documentProvenance, type MintRenderContext } from '@/lib/pdf/provenance'
 import type {
   DocumentPayload,
   FormResponseDocumentItem,
@@ -27,11 +29,13 @@ import type {
  * instance-overlaid map.
  */
 
-/** Everything the mint action supplies that is not the domain's to know. */
-export interface MintRenderContext {
-  qr: DocumentPayload['qr']
-  emission: DocumentPayload['emission']
-}
+/**
+ * ⚠ `MintRenderContext` MOVED to `@/lib/pdf/provenance` (ADR 0125 D1). It was
+ * declared here and imported by the MEETINGS provider, which made the meetings
+ * domain depend on the forms domain for a type neither owns. Re-exported so the
+ * move is not a breaking rename for any remaining caller.
+ */
+export type { MintRenderContext }
 
 const SIGNOFF_ROLE_LABEL: Record<string, string> = {
   respondent: 'Responsável pelo preenchimento',
@@ -290,10 +294,22 @@ export async function buildFormResponsePayload(
       logoDataUri: null, // no per-hospital logo store yet — enters as data when one exists (D4)
       commissionName: context.commissionName,
     },
-    watermarks: [fill.status === 'submitted' ? 'final' : 'draft'],
+    // ADR 0125 D1 — the ONE shared derivation, no longer an inline rule. The
+    // provenance seam refuses a FINAL mark on an ephemeral page (0125 D5).
+    provenance: documentProvenance(
+      ctx,
+      printSourceWatermark('form_response', {
+        status: fill.status,
+        // ADR 0125 Amendment 2 + ADR 0126 D5/D10 — the watermark moves in TANDEM
+        // with the refined lock, which is what keeps 0125 D5's fourth cell
+        // unreachable. `submitted` alone is neither axis: a still-rejectable
+        // correction draft and a voided phase's response both stamp RASCUNHO
+        // ("not settled"), and neither registers.
+        correctionOpen: context.correctionOpen,
+        phaseVoided: context.phaseVoided,
+      }),
+    ),
     signatures,
-    qr: ctx.qr,
-    emission: ctx.emission,
     containsPhi: false, // forms mint PHI-free only (D9 v1 scope)
     body: {
       kind: 'form_response',

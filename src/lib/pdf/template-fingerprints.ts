@@ -25,6 +25,11 @@ export const TEMPLATE_FINGERPRINTS: Record<
     variants: {
       final_phi_logo:
         '871e8761e70f47c12084609bd69d10e539b4bf1454414b54870dafd78cb6c304',
+      // ADR 0125 D2/D5 — the EPHEMERAL prévia branch: same template, prévia
+      // footer instead of the QR block. Pinned because the page is still read by
+      // a human even though its bytes are never stored. It shares this
+      // template's `version` because it IS this template.
+      previa: 'e47880d58785e3147b8785be2d37fb0c38a0fea7cbbda6485504834edadf9c8c',
     },
   },
   meeting: {

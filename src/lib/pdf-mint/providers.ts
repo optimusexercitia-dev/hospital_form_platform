@@ -1,8 +1,6 @@
-import {
-  buildFormResponsePayload,
-  type MintRenderContext,
-} from '@/lib/forms/pdf-payload'
+import { buildFormResponsePayload } from '@/lib/forms/pdf-payload'
 import { buildMeetingPayload } from '@/lib/meetings/pdf-payload'
+import type { MintRenderContext } from '@/lib/pdf/provenance'
 import { TEMPLATES } from '@/lib/pdf/render'
 import type { DocumentPayload, PrintedDocumentSourceKind } from '@/lib/pdf/types'
 
