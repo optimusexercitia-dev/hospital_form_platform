@@ -122,6 +122,19 @@ export interface MeetingListItem {
 
 /** Full meeting detail (the registry hub). Superset of {@link MeetingListItem}. */
 export interface MeetingDetail extends MeetingListItem {
+  /**
+   * `meetings.phi_disposed_at is not null` — the minutes have been formally
+   * disposed (ADR 0126, the disposal conjunct). Exposed as a BOOLEAN on purpose:
+   * the consumer is a derivation, not a display, and the timestamp is a PHI-
+   * adjacent governance fact the print payload has no use for.
+   *
+   * ⚠ Load-bearing for the print derivations. `dispose_meeting_minutes` nulls
+   * `minutesMd` and redacts the agenda WITHOUT touching `status` — so both meeting
+   * axes must read this, or a disposed ata keeps registering and keeps stamping
+   * FINAL over content that no longer exists. Feeds `meetingDisposed` in
+   * `printSourceRegisters` / `printSourceWatermark`.
+   */
+  phiDisposed: boolean
   /** Free-form minutes narrative (sanitized Markdown, Architecture Rule 7); `null` if empty. */
   minutesMd: string | null
   /** Quorum rule SNAPSHOT taken at conclusion (stable history); `null` before conclusion. */
@@ -355,6 +368,7 @@ interface MeetingDetailRow extends MeetingRow {
   concluded_by: string | null
   distributed_at: string | null
   cancelled_at: string | null
+  phi_disposed_at: string | null
 }
 
 interface AgendaRow {
@@ -651,7 +665,7 @@ export async function getMeetingDetail(
       `${MEETING_LIST_COLUMNS},
        minutes_md, quorum_rule_type, quorum_value, present_count,
        eligible_member_count, held_at, held_end, concluded_at, concluded_by,
-       distributed_at, cancelled_at`,
+       distributed_at, cancelled_at, phi_disposed_at`,
     )
     .eq('id', meetingId)
     .maybeSingle<MeetingDetailRow>()
@@ -681,6 +695,7 @@ export async function getMeetingDetail(
     concludedBy: data.concluded_by,
     distributedAt: data.distributed_at,
     cancelledAt: data.cancelled_at,
+    phiDisposed: data.phi_disposed_at !== null,
   }
 }
 

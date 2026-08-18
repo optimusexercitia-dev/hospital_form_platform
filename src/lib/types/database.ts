@@ -6761,6 +6761,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -6794,6 +6795,7 @@ export type Database = {
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
           quorum_value?: number | null
+          revision?: number
           scheduled_end?: string | null
           scheduled_start: string
           securable_type?: string
@@ -6827,6 +6829,7 @@ export type Database = {
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
           quorum_value?: number | null
+          revision?: number
           scheduled_end?: string | null
           scheduled_start?: string
           securable_type?: string
@@ -11080,6 +11083,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -11546,6 +11550,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -12129,6 +12134,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -12588,6 +12594,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -13176,6 +13183,14 @@ export type Database = {
         Args: { p_actor: string; p_matched?: string; p_org_id: string }
         Returns: undefined
       }
+      log_document_previa: {
+        Args: {
+          p_source_id: string
+          p_source_kind: string
+          p_template_key: string
+        }
+        Returns: undefined
+      }
       lookup_printed_document: {
         Args: { p_credential: string; p_viewer?: string }
         Returns: {
@@ -13242,6 +13257,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -13477,6 +13493,15 @@ export type Database = {
           status: string
           suspected_harm_level: string
           title: string
+        }[]
+      }
+      print_source_state: {
+        Args: { p_source_id: string; p_source_kind: string }
+        Returns: {
+          correction_open: boolean
+          meeting_disposed: boolean
+          phase_voided: boolean
+          status: string
         }[]
       }
       processless_cases_enabled: { Args: never; Returns: boolean }
@@ -14107,6 +14132,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -14754,6 +14780,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -14796,6 +14823,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -16105,6 +16133,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string
@@ -16185,6 +16214,7 @@ export type Database = {
           quorum_met: boolean | null
           quorum_rule_type: string | null
           quorum_value: number | null
+          revision: number
           scheduled_end: string | null
           scheduled_start: string
           securable_type: string

@@ -264,6 +264,14 @@ export interface ResponsePrintContext {
   respondentDisplay: string
   commissionName: string
   hospitalName: string
+  /**
+   * ADR 0126 D10 — an open, still-rejectable correction request exists whose
+   * `draft_response_id` is this response (`case_correction_requests.status in
+   * ('resubmitted','under_review')`, the exact set `reject_correction` accepts).
+   */
+  correctionOpen: boolean
+  /** ADR 0126 D10 — the attached `case_phase` has status `voided`. */
+  phaseVoided: boolean
 }
 
 interface PrintContextRow {
@@ -300,6 +308,27 @@ export async function getResponsePrintContext(
     .maybeSingle<PrintContextRow>()
   if (!data) return null // not source-visible → the mint fails closed upstream
 
+  // ADR 0125 Amendment 2 + ADR 0126 D5/D10 — the two refinement conjuncts the
+  // watermark and the registration predicate both read.
+  //
+  // ⭐ SOURCED FROM THE DEFINER DOOR, NOT FROM AN INLINE JOIN, AND THE DIRECTION
+  // IS THE REASON. Read under the caller's own RLS, a correction request or a
+  // voided phase the caller cannot SEE would come back absent — so the flags
+  // would default false, the page would stamp FINAL, and the failure would be in
+  // the FAIL-OPEN direction: exactly 0125 D5's fourth cell, reached by a
+  // permissions accident rather than a logic error. `public.print_source_state`
+  // resolves them with DEFINER truth *after* gating on
+  // `app.can_view_printed_document`, so the answer is either correct or absent.
+  const { data: derivation } = await supabase
+    .rpc('print_source_state', {
+      p_source_kind: 'form_response',
+      p_source_id: responseId,
+    })
+    .maybeSingle<{ correction_open: boolean; phase_voided: boolean }>()
+  // Absent ⇒ the door refused. Fail closed, exactly as the RLS miss above does:
+  // the mint and the prévia both fail closed upstream on a null context.
+  if (!derivation) return null
+
   const admin = createAdminClient()
   const { data: names } = await admin
     .from('commissions')
@@ -314,6 +343,8 @@ export async function getResponsePrintContext(
     respondentDisplay: data.respondent?.full_name ?? 'Membro da comissão',
     commissionName: names?.name ?? '—',
     hospitalName: names?.hospitals?.name ?? '—',
+    correctionOpen: derivation.correction_open,
+    phaseVoided: derivation.phase_voided,
   }
 }
 
