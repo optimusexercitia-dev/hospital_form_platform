@@ -48,9 +48,11 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   2. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
      cannot be (TRIAGE #9 already forbids closing it as "reconciled").
-- **⚠ Held, not blocked** (TRIAGE #11): local-only migrations `20260928000600` +
-  `20260928000700` are **HELD** from `db push` — the census lifted the safety bar,
-  but *a bar lifting is not a reason to act*.
+- **✅ RESOLVED 2026-08-18 — the migration hold is discharged and the remote is CURRENT.**
+  Remote head **`20260928000900`** / **415** applied (verified post-push). `…000600`/`…000700`
+  turned out to be on the remote already — the "HELD" line was **stale**, the third time that
+  claim has gone stale — and `…000800`/`…000900` were pushed on PO instruction. **0 local-only
+  migrations.** ⛔ Re-measure `schema_migrations`; never re-read a sentence about it.
 - **⚠ Three facts a session must not trip over** (full context in the
   [triage narrative](docs/progress/dm-fup-triage-2026-08-18.md)):
   1. The remote DB is **EMPTY** (reset 2026-08-17 11:37Z) — see § State; the safety
@@ -203,6 +205,7 @@ the archive. The navigation hooks worth keeping live:
 | 2026-08-18 | **PROGRESS.md becomes LIVE-STATE-ONLY, machine-enforced (`lint:progress`, gate 7); completed rows → phase-ledger.md; CLAUDE.md review cadence via Stop hook + `/review-claude-md`** (PO) | ADR [0124](docs/decisions/0124-progress-live-state-contract.md) |
 | 2026-08-18 | **DM-FUP TRIAGE #1 — the Cloud orphan measurement must CONSTRUCT an orphan, not probe for one** (PO) | FUP-DM5-CLOUD-ORPHAN-SURFACE |
 | 2026-08-18 | ✅ **MEASURED — Cloud exposes NO orphan-visible surface; all 5 surfaces METADATA-BOUND, both S3 auth modes.** The Cloud byte half is structurally unverifiable, so the runbook's *asserted, not verified* posture is evidenced. ⛔ Not reassurance: orphan bytes are **unobservable**, not absent | FUP-DM5-CLOUD-ORPHAN-SURFACE ⬛ · [run record](docs/progress/cloud-orphan-probe-2026-08-18.md) |
+| 2026-08-18 | ✅ **`db push` EXECUTED on PO instruction — `…000800` + `…000900` applied; remote head `20260928000900` / 415.** Verified independently, not from the migration's own notice: first-party truncatable **63 → 0**, platform residue `net, storage` unchanged as accepted, and `…000800`'s new DEFINER carries **no PUBLIC** in its ACL | FUP-PCITV-1 item 3 ⬛ · [backend-state.md](docs/backend-state.md) |
 | 2026-08-18 | ✅ **TRUNCATE residue SWEPT (63 first-party tables) and the platform half ACCEPTED IN WRITING** — `20260928000900` + pgTAP `191` §5. ⭐ TRUNCATE fires no DELETE trigger, so it bypasses `storage.protect_delete` as well as RLS; and on Cloud a REVOKE we are not entitled to make returns **no error and changes nothing** (`t`→`t`), so the migration verifies the EFFECT, not the absence of an error | FUP-PCITV-1 item 3 ⬛ · FUP-DM5-STORAGE-ORPHANS |
 | 2026-08-18 | ⛔ **WITHDRAW the "~49 objects vanished with no `DELETE`" figure — the arithmetic compares tuples to objects.** A residual of **60** was manufactured against a true live count of **0** while destroying nothing unaccounted for | FUP-DM4-PRODROW · § State |
 | 2026-08-18 | **DM-FUP TRIAGE #2 — `reclassifyDocument` writes `unavailable_on_platform`** (PO) | FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED |
@@ -252,7 +255,6 @@ still awaiting a concluding event stay here:_
 
 | live fact | concludes when |
 | --- | --- |
-| ⚠ **2 local-only migrations** — `20260928000800` (dangling-print supersede/mint-lock) · `20260928000900` (TRUNCATE-residue revoke). ⛔⛔ **RE-MEASURED 2026-08-18: `…000600`/`…000700` are NOT held — they are ON THE REMOTE.** Remote head is **`20260928000700`** / **413** applied, not `…000500`/411; the HOLD line was stale (3rd time this claim has gone stale). ⇒ the remote still carries the **63-table TRUNCATE residue** until `…000900` is pushed | a PO push decision for `…000800`/`…000900` (re-measure `schema_migrations`, never re-read this row) |
 | ⚠ **Remote storage byte-loss is UNQUANTIFIED — the "~49 vanished" figure is WITHDRAWN 2026-08-18.** `n_tup_ins − n_tup_del` compares two units: 5 uploads move `ins` by **+6**, 5 deletes move `del` by **+5** (measured). And by the probe below, any surviving bytes are **unobservable** anyway | a magnitude re-derived from something other than the `pg_stat` counters — or PO ruling that it cannot be ([FUP-DM4-PRODROW](docs/progress/follow-ups.md)) |
 | ⭐ **The remote is safe to touch today ONLY because it holds no data and no users** (census 2026-08-18) — a stronger reason than any flag argument | **expires at pilot data-load**, when it must be REPLACED by the rehearsed C1b disposal bound (§ Critical FUP C1), never just deleted |
 

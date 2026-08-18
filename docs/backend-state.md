@@ -406,6 +406,17 @@ their home is here because they never conclude._
   writers because each used a different bound — see the correction record at the top
   of this file (75 fns / 6 read a flag).
 
+## Client-role TRUNCATE grants — swept 2026-08-18 (`20260928000900`, FUP-PCITV-1 item 3)
+
+| scope | before | after | note |
+| --- | --- | --- | --- |
+| postgres-owned tables (local **and** remote) | **63** granted TRUNCATE to `authenticated` | **0** | pinned by pgTAP `191` §5, property-bounded by `relowner`, with a two-direction falsifiability control |
+| `storage.*` (3) + `net.*` (2), platform-owned | granted to `anon` **and** `authenticated` | **unchanged** | ⛔ **not revocable by us** — on Cloud the REVOKE returns **no error** and changes nothing (`t`→`t`). Accepted in writing: `docs/progress/follow-ups.md` FUP-PCITV-1 item 3 |
+
+⭐ TRUNCATE fires **no DELETE trigger**, so it bypasses RLS *and* every statement-level guard,
+including `storage.protect_delete`. Verify a grant sweep by re-deriving the set from the catalog —
+never by a clean exit code. `service_role` keeps TRUNCATE deliberately.
+
 ## REMOTE CENSUS 2026-08-18 (read-only, linked `azkbbhskturikxpgmafq`) — **the production DB is EMPTY, and it was emptied by TRUNCATE/reset semantics, not by deletes**
 
 Run under DM-FUP TRIAGE #6 step 1 (read-only census; PRODROW's `⛔ do not query` bar lifted when the
@@ -413,9 +424,9 @@ push ran). **Nothing was mutated.** Every figure below carries its deriving quer
 
 | metric | value | query |
 | --- | --- | --- |
-| migration head | **`20260928000500`** | `select max(version) from supabase_migrations.schema_migrations` |
-| migrations registered | **411** | `count(*)` same table |
-| local migrations *not* on remote | **2** (`…000600`, `…000700`) | local `ls` 413 − 411 |
+| migration head | ⛔ **SUPERSEDED — re-measured 2026-08-18 (later): `20260928000900`.** The `…000500` below was true only at census time | `select max(version) from supabase_migrations.schema_migrations` |
+| migrations registered | ⛔ **SUPERSEDED — 415** (was 411 at census) | `count(*)` same table |
+| local migrations *not* on remote | ⛔ **SUPERSEDED — 0.** `…000600`/`…000700` were pushed between the census and 2026-08-18 (the "HELD" record was stale); `…000800`/`…000900` pushed 2026-08-18 | re-measure, never re-read |
 | every application table | **0 rows** | `organizations · hospitals · commissions · profiles · memberships · forms · responses · cases · documents · document_versions · audit_log` |
 | `auth.users` | **0 live** | `count(*) from auth.users` |
 | storage buckets | **4** (`documents-phi`, `documents-standard`, `form-assets`, `meeting-audio`) | `storage.buckets` |
@@ -477,8 +488,11 @@ are read together, the log wins.*
 
 ## DM follow-up triage — DVF 1:1 + the draft-print delete guard (2026-08-18; DM-FUP TRIAGE #2/#4/#8b; migrations `20260928000600`–`…000700`, **2**; pgTAP `312` 77→80 · `328` 128→130; **LOCAL ONLY — not pushed**)
 
-⛔ **Both migrations are LOCAL-ONLY.** The remote sits at `20260928000500`. `…000600` **may not be
-pushed until the remote is censused for duplicate `file_object_id`** — see its own header.
+⛔ **SUPERSEDED 2026-08-18 — both are ON THE REMOTE.** This paragraph read "LOCAL-ONLY / the remote
+sits at `20260928000500`" and was **false when re-measured**: head `20260928000700`, 413 registered.
+The duplicate-`file_object_id` precondition was met by the census (remote holds 0 rows). ⭐ *This is
+the third time this same "not pushed" claim has gone stale in this document* — the standing rule
+below applies: **re-measure `schema_migrations`, never re-read a sentence about it.**
 
 **Registry closure** — `select count(*) from supabase_migrations.schema_migrations` = **413**, and
 `ls supabase/migrations/*.sql | wc -l` = **413**. Registered == files.
