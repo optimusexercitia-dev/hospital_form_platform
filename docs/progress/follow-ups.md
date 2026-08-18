@@ -1269,6 +1269,29 @@ a securable with no subject is a latent authorization question, since every kern
 
 ### 🟠 FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION — a print of an `in_progress` draft is visible to its CREATOR ONLY, and the minter can lose the only way out (owner: PO decision, then backend + frontend)
 
+> ## ⚠ ANSWERED IN APPROACH 2026-08-18 — ADR [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md). **NOT CLOSED.**
+>
+> The PO ruled the ADR 0123 **D7** product split: registration is **derived from source state at
+> the lock point**, so a still-editable source yields an ephemeral unregistered prévia. Once no
+> `in_progress` response registers, the **`form_response`** arm below always fires for every
+> registered print — the predicate is correct **by construction**.
+>
+> ⚠ **Stated precisely, because the arm below is kind-specific.** ADR 0125 D1 registers meetings
+> from `in_signature`, so it is **not** true that every registered print has a *final* source. It
+> does not matter here: **measured**, `can_view_printed_document`'s **`meeting`** arm is
+> `can_reach_meeting AND can_read_full_meeting_content` — **no `status` term at all** — so it never
+> carried this defect, and an `in_signature` ata is visible to every member who can reach the
+> meeting and read its full content.
+>
+> ⇒ **Option 1 is NOT built** (no `list_printed_documents_for_governance` door — it would have been
+> a door with no subject), **option 2 is not needed** (no widening), **option 3 is not needed** (the
+> dead end disappears: drafts have no prints, so the discard always succeeds). Option 4 stays
+> refuted — 0125 keeps drafts **printable**, it changes only whether the paper enters the registry.
+>
+> ⛔ **Closes only when the prévia ships** (`FUP-PREVIA-SPLIT-BUILD`). Until then the defect below
+> is live exactly as described, and the option list is retained as the record of what was
+> considered — not as work.
+
 Filed 2026-08-18 (lead) while closing `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` (ADR
 [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md) **D6**). **Measured from
 the live catalog and from every UI mount, not reasoned.** No deletion is involved — this is live
@@ -1328,6 +1351,80 @@ predecessor was withdrawn for exactly that):
 ⚠ Interacts with the product split deferred by ADR 0123 **D7** (`Imprimir prévia`, ephemeral and
 unregistered, vs `Emitir documento`): if previews stop entering the registry, options 1 and 3 shrink
 to the rare case. Rule D7 first, or knowingly build for both.
+
+### 🟠 FUP-PREVIA-SPLIT-BUILD — build ADR 0125: the ephemeral `Imprimir prévia` / registered `Emitir documento` split (owner: backend + frontend)
+
+Filed 2026-08-18 (lead) on the PO ruling of ADR
+[0125](../decisions/0125-previa-ephemeral-and-emission-registered.md), which discharges ADR 0123
+**D7** and amends ADR 0104 **D7** item 4. The nine decisions are in the ADR; this item carries the
+**build**, and specifically the two pieces that are easy to ship green while asserting nothing.
+
+**Scope, in dependency order.**
+
+1. **The render path** (D4) — HTML → Gotenberg → buffer → **response stream**. The `.upload()` and
+   the `mint_printed_document` RPC are simply not called. ⛔ **No temporary object at any point** —
+   a "temp upload, delete after" variant is rejected by name in the ADR.
+2. **The prévia footer primitive** (D5) — sibling to
+   [`qr-footer.ts`](../../src/lib/pdf/primitives/qr-footer.ts), which today renders the QR, the
+   `código` **and** `Emitido em … por …` as one block, so dropping the QR drops provenance with it.
+   ⛔ The verb **`Emitido` must not appear** on an unregistered page.
+3. **The action split** (D1) — ⚠ **TWO predicates, and only one of them already exists.** For
+   `form_response` the discriminator is `status = 'submitted'`, which is also the watermark's. For
+   `meeting` it is a **NEW** predicate, `status in ('in_signature','signed','distributed')`, which
+   is **neither** `meetingWatermarkFor` (that stays `signed|distributed` — **do not change it**;
+   an `in_signature` ata registers stamped RASCUNHO on purpose) **nor** the lock set
+   (`cancelled` is locked but excluded by decision). Write it as its own pure, client-importable
+   function **beside** `meetingWatermarkFor` — overloading the existing one silently couples the
+   two axes back together, which is the thing D1 separates. The dialog already previews the mark,
+   so the button label follows the same shape.
+4. **The audit row** (D3) — the prévia emits its own `app.audit_write`, actor + timestamp + source
+   + template, no payload. ⭐ **The only half that cannot be added retroactively.**
+5. **Contention** (D9) — same `mintSemaphore`, unchanged at 3 permits; the prévia acquires with a
+   materially shorter wait so it is the one that loses under load.
+
+**⛔ The two things that will pass green having asserted nothing.**
+
+- **`312` §9 goes VACUOUS** (t74/t76/t80 + the supersede block from line 764). Its fixture is *"mint
+  from a draft, then discard it"*, and that state becomes **unconstructible**: measured,
+  `guard_submitted_response` raises unconditionally on a submitted DELETE and the RLS policy is
+  `responses_delete_own_draft`, so only drafts are deletable. Rebuild the block to **construct** the
+  state at table level (insert `printed_documents` against a draft response directly, bypassing the
+  mint). ⚠ **The differentials must survive the rewrite** — t76/t80's *"the same delete now
+  SUCCEEDS"* is what stops the block being equally satisfied by a guard that blocks every draft
+  delete. Also rewrite **t6** (line 198) and **t43** (line 447), which pin registered draft mints by
+  name. → [[removing-a-subject-breaks-its-assertions-in-two-directions]]
+- **No authz ARM covers the prévia route** (D6). Its authorization is inherited RLS and it is real —
+  verified in the modules, not the comment: `queries/responses.ts` and `queries/meetings.ts` use
+  `createClient()` throughout, so a caller who cannot read the source cannot build the payload. But
+  an app-layer route with no `prosecdef` gate is in **no arm's domain** (the ADR 0079 Am. 7 shape),
+  so nothing goes red if a future edit swaps one of those queries to the admin client. Ships with a
+  **behavioural** keystone — a principal who cannot read the source is refused a prévia — not an arm.
+
+- **The fourth cell must be proven unreachable** (D5). The two axes give four combinations and
+  three are legal; **FINAL + prévia footer** must not exist — a page the platform disclaims whose
+  source is immutable. It is unreachable *by construction* under D1, which is exactly the shape
+  that rots silently: nothing fails if a later edit makes it reachable. Pin it, don't reason it.
+
+**Also in scope:** `pdf-printing-meetings.spec.ts` T2 (mints from a `held` meeting, asserts
+RASCUNHO) stays a **prévia** — `held` is not locked — but needs a **new sibling** covering the
+`in_signature` → **registered RASCUNHO** case, which is where the two axes visibly separate: QR
+footer present, diagonal mark still RASCUNHO. Add one for the supersession chain too (mint at
+`in_signature`, re-mint at `signed`, first flips `SUBSTITUÍDO`) — that chain is the ADR's stated
+accreditation answer and nothing pins it today. Keep the RASCUNHO variants in
+`fingerprint.test.ts`. **No data migration** — production holds `0` prints (measured, ADR 0123 D4)
+and local resets.
+
+**Open question carried here, NOT covered:** meetings need no `guard_response_active_print`
+analogue **on the normal path** — measured, `guard_meeting_status` refuses a DELETE for
+`in_signature | signed | distributed | cancelled`, so the lock set is a **superset** of the
+registering set. ⚠ But **two residual paths were not measured**: a delete inside a meeting RPC
+(the guard yields to `app.in_meeting_rpc`) and a commission-level cascade (the trigger's own
+comment asserts it bypasses guards — *a comment is an assertion*). Measure both before declaring
+meetings orphan-safe.
+
+**Not in scope:** the **lock and watermark predicates** for `case` / `interview` (ADR 0125 D8
+binds the principle — both declared separately, not-locked ⇒ ephemeral — and defers each
+predicate to that kind's provider activation).
 
 ### ⬛ FUP-DM5-DEAD-CORE-PROJECTION — ✅ **RESOLVED 2026-08-17 by deletion** (owner: frontend + backend)
 

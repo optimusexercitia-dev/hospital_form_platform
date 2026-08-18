@@ -109,6 +109,18 @@ door with no caller.
 amends ADR 0104 **D7** and would partly obsolete this guard. Separate ADR, on its own
 evidence.
 
+> ## ⬛ D7 DISCHARGED 2026-08-18 — ADR [0125](./0125-previa-ephemeral-and-emission-registered.md)
+>
+> Ruled: registration is **derived from source state** at the **lock point**, one action —
+> freely-editable ⇒ ephemeral prévia, locked ⇒ registered (for meetings that turns at
+> `in_signature`, so an ata circulating for signature registers while still stamped RASCUNHO).
+> It did partly obsolete this guard, and by more than "partly" — **measured**,
+> `guard_submitted_response` raises unconditionally on a submitted DELETE and the RLS policy is
+> `responses_delete_own_draft`, so **only drafts are deletable**; once drafts stop registering
+> prints, the state HC069 refuses cannot be constructed. D1/D3/D5 below are therefore **retained
+> as backstop semantics** (0125 D7) — nothing here is reverted, and `312` §9 is rebuilt to
+> construct the state at table level so the guard does not go green-and-silent.
+
 ## Consequences
 
 - `app.guard_response_active_print` refuses on `active` **or** `superseded`; its `HC069`

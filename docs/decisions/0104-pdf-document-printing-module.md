@@ -113,6 +113,27 @@ its seam-bug tax is documented. Explicit trigger for revisiting: an unbounded pr
 
 ### D7 — Watermarks are DERIVED-ONLY; four marks
 
+> ## ⚠ D7 ITEM 4 AMENDED 2026-08-18 by ADR [0125](./0125-previa-ephemeral-and-emission-registered.md)
+>
+> *"Completeness does not gate minting"* becomes **"completeness gates REGISTRATION, not
+> PRINTING."** A source that is still freely editable prints on demand as an **ephemeral,
+> unregistered `Imprimir prévia`** — watermarked `RASCUNHO`, no registry row, no bytes, no QR,
+> no `código`, audited but not stored. A **locked** source yields the registered
+> `Emitir documento` exactly as today.
+>
+> ⚠ **The discriminator is the LOCK point, not this item's finality point, and the two differ
+> for meetings.** `guard_meeting_status` already refuses to delete a meeting at `in_signature`
+> and beyond, so an ata circulating for signature **registers** — permanent, hash-pinned,
+> QR-verifiable — while still stamped `RASCUNHO`. **`meetingWatermarkFor` is unchanged**, and a
+> **registered RASCUNHO** is this item's own original position, now confined to sources the
+> platform has already locked. Registration and watermark are two derivations; what they share
+> is that **neither is chosen by the user**, which is this decision's actual principle.
+>
+> ⭐ **This is an amendment, written as one.** The distinction from the withdrawal recorded
+> below: TRIAGE #8 proposed making drafts **unprintable** and did not know D7 existed. ADR 0125
+> keeps drafts printable, changes only whether the paper enters the registry, and says in its own
+> Context that it amends this item. `312` t6/t43 are rewritten under it, not re-run.
+
 > ## ✅ D7 REAFFIRMED 2026-08-18 — **it was nearly reversed by a follow-up that did not know it existed**
 >
 > `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` proposed *"refuse a mint from a non-`submitted` response
