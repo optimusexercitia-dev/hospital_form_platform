@@ -181,3 +181,94 @@ export async function mintViaDialog(page: Page): Promise<{ shortCode: string; do
 export function articleForShortCode(page: Page, shortCode: string) {
   return page.locator('article').filter({ hasText: shortCode })
 }
+
+// ---------------------------------------------------------------------------
+// ADR 0125/0126 print-source split — prévia (ephemeral) vs. Emitir (registered)
+// ---------------------------------------------------------------------------
+
+/** DB-truth: `printed_documents` rows for one source (id.asc) — a prévia must
+ * leave this EMPTY, repeated hits included (ADR 0125 D3/D9: no bytes, no
+ * registry row, ever, ANY number of times). Kind-agnostic — reused for both
+ * `form_response` and `meeting` sources. */
+export async function printedDocumentRowsFor(
+  page: Page,
+  sourceKind: string,
+  sourceId: string,
+): Promise<Array<{ id: string; status: string }>> {
+  return serviceQuery<{ id: string; status: string }>(
+    page,
+    `printed_documents?source_kind=eq.${sourceKind}&source_id=eq.${sourceId}&select=id,status&order=id.asc`,
+  )
+}
+
+/** DB-truth: `audit_log` rows for one (action, entity_type, entity_id), oldest
+ * first — used to pin the prévia's OWN audit event (ADR 0125 D3: the one half
+ * of the split that cannot be added retroactively — an unlogged event is
+ * gone, unlike unstored bytes, which can be re-rendered from the source). */
+export async function auditRowsFor(
+  page: Page,
+  action: string,
+  entityType: string,
+  entityId: string,
+): Promise<
+  Array<{ id: string; actor_id: string | null; occurred_at: string; metadata: Record<string, unknown> | null }>
+> {
+  return serviceQuery<{
+    id: string
+    actor_id: string | null
+    occurred_at: string
+    metadata: Record<string, unknown> | null
+  }>(
+    page,
+    `audit_log?action=eq.${encodeURIComponent(action)}&entity_type=eq.${entityType}` +
+      `&entity_id=eq.${entityId}&select=id,actor_id,occurred_at,metadata&order=occurred_at.asc`,
+  )
+}
+
+/**
+ * Ensures the CALLER'S already-signed-in user has their OWN in_progress CCIH
+ * response, creating one via the real "Preencher" flow if none exists yet
+ * (idempotent server-side — `startOrResumeResponse`'s one-draft-per-user/
+ * version unique index means a re-run resumes rather than duplicating).
+ * Returns the new/resumed response id. Leaves the caller on the wizard route.
+ *
+ * ⚠ Needed because the ONLY seeded in_progress CCIH response belongs to
+ * staff1.ccih, and `getSubmissionDetail` (`src/lib/queries/submissions.ts`)
+ * returns `null` — BY DESIGN, the pre-existing "Phase-7 invariant", its own
+ * comment: *"No row leaks for in_progress foreign responses"* — for a
+ * FOREIGN member's in_progress response even to a `staff_admin` viewing via
+ * the dashboard. That is unrelated to ADR 0125/0126; a prévia fixture must
+ * therefore be the VIEWER'S OWN draft, never a borrowed one.
+ */
+export async function ownInProgressResponseFixture(page: Page): Promise<string> {
+  await page.goto(`/o/${ORG}/c/${CCIH_SLUG}/forms`)
+  const card = page.locator('article').filter({ hasText: 'Checklist de Higienização das Mãos' })
+  await card
+    .getByRole('button', { name: /^preencher$/i })
+    .or(card.getByRole('link', { name: /continuar preenchimento/i }))
+    .click()
+  await page.waitForURL(/\/forms\/[0-9a-f-]{36}\/responder\/[0-9a-f-]{36}/)
+  return page.url().split('/').pop()!.split('?')[0]
+}
+
+/**
+ * Keyboard-only activation of a FOCUSED `target="_blank"` link (the
+ * `PreviaLink`, ADR 0125 D4) — races 'popup' against 'download', the same
+ * pattern `e2e/helpers/document-model.ts`'s `clickAndCapturePopup` uses for a
+ * click, because Chromium's handling of a `Content-Disposition: inline` PDF
+ * (native-viewer popup vs. a plain download) is not fixed across environments.
+ * Assumes the target link ALREADY has focus (drive it there with
+ * `focusByTabbing` first) — this only does the "press Enter" half.
+ */
+export async function keyboardActivateAndCapturePopup(page: Page): Promise<string> {
+  const context = page.context()
+  const downloadPromise = context.waitForEvent('download', { timeout: 8_000 }).catch(() => null)
+  const [popup] = await Promise.all([
+    page.waitForEvent('popup', { timeout: 8_000 }),
+    page.keyboard.press('Enter'),
+  ])
+  const download = await downloadPromise
+  const url = download ? download.url() : popup.url()
+  await popup.close().catch(() => {})
+  return url
+}
