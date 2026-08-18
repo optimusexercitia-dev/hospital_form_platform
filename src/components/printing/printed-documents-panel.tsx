@@ -8,6 +8,7 @@ import {
   MintDocumentButton,
   type MintDocumentAction,
 } from "@/components/printing/mint-document-button";
+import { PreviaLink } from "@/components/printing/previa-link";
 import {
   RevokeDocumentDialog,
   type RevokeDocumentAction,
@@ -24,8 +25,15 @@ import type { PrintedDocumentSourceKind, WatermarkFlag } from "@/lib/pdf/types";
 interface PrintedDocumentsProps {
   sourceKind: PrintedDocumentSourceKind;
   sourceId: string;
-  /** Mark this source would stamp if minted right now (ADR 0104 D7). */
+  /** Mark this source would stamp if printed right now (ADR 0104 D7). */
   watermark: WatermarkFlag;
+  /**
+   * Whether printing this source yields a REGISTERED emission (ADR 0125 D1).
+   * DERIVED by the caller from `printSourceRegisters` — never a user choice, and
+   * never re-derived here: this panel renders whichever affordance the source
+   * state dictates, and the two are mutually exclusive by construction.
+   */
+  registers: boolean;
   /** What a mint would cover, in words — shown in the confirm dialog. */
   scopeLabel: string;
   /**
@@ -68,13 +76,23 @@ export function PrintedDocumentsSection(props: PrintedDocumentsProps) {
             impresso.
           </p>
         </div>
-        <MintDocumentButton
-          sourceKind={props.sourceKind}
-          sourceId={props.sourceId}
-          watermark={props.watermark}
-          scopeLabel={props.scopeLabel}
-          action={props.mintAction}
-        />
+        {/* ADR 0125 D1 — ONE print action, DERIVED from source state. A locked
+            source yields a registered emission; a still-editable one yields an
+            ephemeral prévia, and the user never chooses which. The rejected
+            alternative was both buttons side by side, which would have made
+            "is this a record?" a user decision — ADR 0104 D7's "no free text,
+            no user-composed stamps" defeated by another route. */}
+        {props.registers ? (
+          <MintDocumentButton
+            sourceKind={props.sourceKind}
+            sourceId={props.sourceId}
+            watermark={props.watermark}
+            scopeLabel={props.scopeLabel}
+            action={props.mintAction}
+          />
+        ) : (
+          <PreviaLink sourceKind={props.sourceKind} sourceId={props.sourceId} />
+        )}
       </header>
 
       <Suspense fallback={<PrintedDocumentsSkeleton />}>

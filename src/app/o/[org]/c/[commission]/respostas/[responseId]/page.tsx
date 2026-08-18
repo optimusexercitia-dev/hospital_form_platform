@@ -11,6 +11,11 @@ import { SubmissionDetailView } from "@/components/dashboard/submission-detail-v
 import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
 import { PrintedDocumentsSection } from "@/components/printing/printed-documents-panel";
 import { featureEnabled } from "@/lib/queries/feature-flags";
+import { getResponsePrintContext } from "@/lib/queries/printed-documents";
+import {
+  printSourceRegisters,
+  printSourceWatermark,
+} from "@/lib/pdf/documents/print-source";
 import {
   mintPrintedDocument,
   revokePrintedDocument,
@@ -87,6 +92,28 @@ export default async function MyResponseDetailPage({
     );
   }
 
+  // ADR 0125 D1 + Amendment 2 · ADR 0126 D5/D10 — both print axes from ONE
+  // source-state object, so the panel's two arguments cannot drift apart.
+  //
+  // ⛔ The old `watermark="final"` here was justified as *"Always final: the
+  // redirect above means only a SUBMITTED response reaches here."* That was true
+  // when `submitted` was the whole rule and went FALSE when ADR 0125 Amendment 2
+  // refined it: a submitted draft of an open, still-rejectable correction — and a
+  // submitted response on a `voided` phase — stamp RASCUNHO and do not register.
+  // The redirect still guarantees `submitted`; `submitted` no longer guarantees
+  // either axis.
+  //
+  // ⛔ Fails CLOSED on a null context: non-registering, so paper is still
+  // available (D2) but nothing enters the registry on unconfirmed state.
+  const printContext = printingEnabled
+    ? await getResponsePrintContext(responseId)
+    : null;
+  const printState = {
+    status: detail.status,
+    correctionOpen: printContext?.correctionOpen ?? true,
+    phaseVoided: printContext?.phaseVoided ?? true,
+  };
+
   const imageUrls = await resolveTreeImageUrls(detail.tree);
 
   return (
@@ -135,8 +162,9 @@ export default async function MyResponseDetailPage({
       />
 
       {/* Printed documents (ADR 0104 D11 — mint follows source sight, which is
-          precisely why this screen exists). Always `final`: the redirect above
-          means only a SUBMITTED response reaches here. `canRevoke` stays with
+          precisely why this screen exists). ⚠ Both print axes are DERIVED from
+          `printState` above — the former "always `final`" claim went false under
+          ADR 0125 Amendment 2 and its reasoning is recorded there. `canRevoke` stays with
           `staff_admin` of the owning commission — revocation is a governance
           act, not the minter's undo (D11) — and the server action re-checks it
           regardless, since a hidden button is not a control (Rule 1). */}
@@ -144,7 +172,8 @@ export default async function MyResponseDetailPage({
         <PrintedDocumentsSection
           sourceKind="form_response"
           sourceId={detail.responseId}
-          watermark="final"
+          registers={printSourceRegisters("form_response", printState)}
+          watermark={printSourceWatermark("form_response", printState)}
           scopeLabel={`${detail.formTitle} · versão ${detail.versionNumber}`}
           canRevoke={access.role === "staff_admin"}
           mintAction={mintPrintedDocument}

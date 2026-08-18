@@ -4,6 +4,8 @@ import type {
   WatermarkFlag,
 } from "@/lib/pdf/types";
 
+import type { PrintCurrency } from "./currency";
+
 /**
  * Shared pt-BR vocabulary for the printed-documents surfaces (PDF·P1; ADR 0104).
  *
@@ -188,4 +190,104 @@ export function formatDatePtBrLong(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Currency statements (ADR 0126 D2/D4) — the THIRD fact the page states
+// ---------------------------------------------------------------------------
+
+/**
+ * The pt-BR statement for a document's CURRENCY, or `null` when the page must
+ * say nothing about it.
+ *
+ * ⛔ Currency is stated SEPARATELY from authenticity and from registry status
+ * (ADR 0126 D4: *"The page states authenticity and currency as two separate
+ * facts, because they are."*). These strings therefore never assert
+ * authenticity — that is the status row's job — and never reuse `Substituído`,
+ * which would claim a newer print EXISTS when none does. An auditor who then
+ * asked for the superseding document would be asking for one that was never
+ * emitted.
+ *
+ * ⚠ `notApplicable` returns **`null`, not a sentence**. A `revoked` document
+ * says `Anulado` and says NOTHING about currency (D3 — the revoked arm performs
+ * no join, so there is genuinely nothing to report). Rendering "currency not
+ * assessed" there would invent a fact the door never established.
+ *
+ * ⚠ `Emitido` in the `outdated` string is CORRECT and deliberate: this arm only
+ * ever describes a REGISTERED emission, which is the one act ADR 0125 D5
+ * reserves the verb for.
+ */
+export function printCurrencyStatement(currency: PrintCurrency): string | null {
+  switch (currency.kind) {
+    case "current":
+      return "Esta é a revisão atual do documento.";
+    case "outdated":
+      return "Documento autêntico — emitido de uma revisão que não é mais a atual.";
+    case "notApplicable":
+      return null;
+    case "indeterminate":
+      return "Não foi possível apurar se esta é a revisão atual.";
+    // No default: EXHAUSTIVE over PrintCurrency — a new arm that forgets its
+    // wording is a compile error here, not a blank line on a public page.
+  }
+}
+
+/**
+ * Short chip word for the in-app panel, or `null` when nothing should be shown.
+ *
+ * Only the NON-current states earn a chip. A current document is the ordinary
+ * case and the panel already states its status; adding "atual" to every row
+ * would make the one row that matters harder to find, not easier.
+ */
+export function printCurrencyChipLabel(currency: PrintCurrency): string | null {
+  switch (currency.kind) {
+    case "current":
+      return null;
+    case "outdated":
+      return "Revisão anterior";
+    case "notApplicable":
+      return null;
+    case "indeterminate":
+      return "Atualidade não apurada";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prévia vocabulary (ADR 0125 D1/D2/D5) — the EPHEMERAL half of the split
+// ---------------------------------------------------------------------------
+
+/**
+ * The trigger label for a source that does NOT register (ADR 0125 D1).
+ *
+ * ⛔ `Emitir` is a RESERVED VERB naming the registered act only (D5 +
+ * Consequences), so it must not appear on a still-editable source. ⚠ The
+ * boundary is **lock, not finality**: "Emitir documento" stays CORRECT on an
+ * `in_signature` ata, which is non-final and registers.
+ */
+export const PREVIA_BUTTON_LABEL = "Imprimir prévia";
+
+/**
+ * What a prévia is, in one sentence.
+ *
+ * ⛔ **Deliberately states the CONSEQUENCE, never the CAUSE.** The tempting
+ * shape — "a resposta ainda não foi enviada" / "a ata ainda não entrou em
+ * assinatura" — invents a reason the predicate does not guarantee: a source can
+ * fail to register because it is a draft, because an open correction can still
+ * be rejected, because its phase was voided, because the ata was cancelled, or
+ * because its minutes were disposed. Naming one of them would be right for some
+ * sources and a lie for the rest.
+ *
+ * That is the §K class exactly — copy asserting a cause from an adjacent fact
+ * that used to imply it — so this string asserts only what is true of EVERY
+ * non-registering source.
+ */
+export const PREVIA_HELPER_COPY =
+  "A prévia não é registrada, não recebe código de verificação e não vale como via de registro. Ela sai marcada como RASCUNHO.";
+
+/** The ephemeral render route for one source (ADR 0125 D4) — streamed, never stored. */
+export function previaHref(
+  kind: PrintedDocumentSourceKind,
+  sourceId: string,
+): string {
+  return `/api/previa/${kind}/${sourceId}`;
 }

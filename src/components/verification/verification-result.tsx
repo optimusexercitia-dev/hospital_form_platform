@@ -15,7 +15,9 @@ import {
 import {
   DOCUMENT_KIND_LABELS,
   formatDatePtBrLong,
+  printCurrencyStatement,
 } from "@/components/printing/labels";
+import type { PrintCurrency } from "@/components/printing/currency";
 import type { PrintedDocumentVerification } from "@/lib/queries/printed-documents";
 
 /**
@@ -45,8 +47,21 @@ export type VerificationOutcome =
  */
 export function VerificationResult({
   outcome,
+  currency,
 }: {
   outcome: VerificationOutcome;
+  /**
+   * The document's CURRENCY (ADR 0126 D2/D4) — a fact SEPARATE from
+   * authenticity and from registry status, which is why it is its own prop and
+   * its own rendered block rather than more words in `summary`.
+   *
+   * ⚠ OPTIONAL because the lookup door does not return currency yet
+   * (`lookup_printed_document` has no such column — measured). Omitted, the page
+   * states nothing about currency, which is the honest behaviour: it is better
+   * to be silent than to tell every surveyor "could not determine" on every
+   * document. The page wires this when the door widens.
+   */
+  currency?: PrintCurrency;
 }) {
   const view = describe(outcome);
 
@@ -74,6 +89,10 @@ export function VerificationResult({
         >
           {view.notice}
         </p>
+      ) : null}
+
+      {outcome.state === "found" && currency ? (
+        <CurrencyStatement currency={currency} />
       ) : null}
 
       {outcome.state === "found" ? (
@@ -110,6 +129,48 @@ export function VerificationResult({
         </Link>
       </p>
     </section>
+  );
+}
+
+/**
+ * The CURRENCY statement (ADR 0126 D4) — its own block, deliberately.
+ *
+ * ⛔ Currency and authenticity are two separate facts and the page states them
+ * separately. Folding this into the heading would recreate exactly the defect
+ * removed from the `active` arm above, where registry status was silently
+ * asserting currency.
+ *
+ * Renders NOTHING when the statement is null — a `revoked` document says
+ * "Anulado" and says nothing about currency, because the lookup door performs no
+ * join for that arm (D3) and there is genuinely nothing to report. Inventing a
+ * sentence there would assert a fact the door never established.
+ *
+ * The state is carried by TEXT + ICON, never colour alone: this page is read by
+ * surveyors under whatever conditions the audit happens in, including greyscale
+ * print and screen readers.
+ */
+function CurrencyStatement({ currency }: { currency: PrintCurrency }) {
+  const statement = printCurrencyStatement(currency);
+  if (!statement) return null;
+
+  const icon =
+    currency.kind === "current" ? (
+      <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+    ) : currency.kind === "outdated" ? (
+      <History aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+    ) : (
+      <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+    );
+
+  return (
+    <p
+      data-currency={currency.kind}
+      className="animate-rise-in flex max-w-prose items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-pretty text-foreground"
+      style={{ ["--rise-delay" as string]: "110ms" }}
+    >
+      {icon}
+      <span>{statement}</span>
+    </p>
   );
 }
 
@@ -213,8 +274,14 @@ function describe(outcome: VerificationOutcome): VerificationView {
         tone: "success",
         icon: <CheckCircle2 aria-hidden="true" className="size-7" />,
         heading: "Documento autêntico",
-        summary:
-          "Esta emissão foi gerada pela plataforma e é a emissão vigente deste documento.",
+        // ⛔ This used to end "...e é a emissão vigente deste documento." That
+        // clause was a CURRENCY claim made from the REGISTRY STATUS, and ADR
+        // 0126 D3 makes it unfounded: `status` records deliberate acts only
+        // (re-mint supersession, revocation), while currency is derived at read
+        // time — so a print is legally `active` AND not current. The page now
+        // states authenticity here and currency separately (D4), because they
+        // are two facts and one of them was being asserted without evidence.
+        summary: "Esta emissão foi gerada pela plataforma.",
       };
     case "superseded":
       return {
