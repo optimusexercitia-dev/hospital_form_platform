@@ -60,6 +60,7 @@ const CANONICAL: DocumentPayload = {
     },
   ],
   containsPhi: false,
+  sourceRevision: 0,
   body: {
     kind: 'form_response',
     formTitle: 'Checklist Canônico',
@@ -182,6 +183,7 @@ const MEETING_CANONICAL: DocumentPayload = {
   provenance: MEETING_PROVENANCE,
   signatures: [],
   containsPhi: false,
+  sourceRevision: 0,
   body: {
     kind: 'meeting',
     meetingNumber: 42,

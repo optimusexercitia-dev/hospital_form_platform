@@ -202,6 +202,12 @@ export async function buildMeetingPayload(
     ),
     signatures,
     containsPhi,
+    // ADR 0126 D9 — the revision OBSERVED here, at build time, before the
+    // out-of-band render. `mint_printed_document` compares it against the
+    // source's current value and raises HC0DU if `reopen_meeting` fired
+    // mid-corridor. ⛔ Must never be re-read closer to the mint call: the door
+    // would then compare its own current value against itself.
+    sourceRevision: detail.revision,
     body: {
       kind: 'meeting',
       meetingNumber: detail.meetingNumber,

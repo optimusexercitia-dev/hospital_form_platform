@@ -311,6 +311,13 @@ export async function buildFormResponsePayload(
     ),
     signatures,
     containsPhi: false, // forms mint PHI-free only (D9 v1 scope)
+    // Responses have no revision chain, so the compare is a structural no-op
+    // here — the form_response TOCTOU is closed by re-evaluating the
+    // REGISTRATION predicate inside the mint transaction instead (0126 D5's
+    // gate). ⚠ Declared anyway rather than left to a caller-side default: the
+    // mint action passes this uniformly and must not branch on kind, which
+    // would re-create the abstraction leak the mint door's own body forbids.
+    sourceRevision: 0,
     body: {
       kind: 'form_response',
       formTitle: fill.formTitle,

@@ -291,7 +291,8 @@ export type DocumentBody = FormResponseDocumentBody | MeetingDocumentBody
 // ---------------------------------------------------------------------------
 
 /**
- * Everything a template needs to render one document. Built by the source domain's
+ * Everything a template needs to render one document, PLUS the mint-time facts
+ * observed while building it. Built by the source domain's
  * data provider under the CALLER's session; consumed by `src/lib/pdf/render.ts` and
  * the per-kind template in `src/lib/pdf/documents/`.
  */
@@ -314,5 +315,27 @@ export interface DocumentPayload {
    * header/footer and is NOT suppressible (D7).
    */
   containsPhi: boolean
+  /**
+   * The source's revision AS OBSERVED WHEN THIS PAYLOAD WAS BUILT (ADR 0126 D9 +
+   * Consequences' compare-and-mint). `0` for kinds with no revision chain.
+   *
+   * ⛔ **This is the ONE field here that no template renders, and it is carried
+   * on the payload deliberately — the alternative is a defect.** The render is
+   * out-of-band and takes seconds, and both reversal doors can fire mid-corridor.
+   * `mint_printed_document` compares the revision the caller OBSERVED against the
+   * source's current one and raises `HC0DU` on a mismatch, so a registered hash
+   * can never pin bytes of a state that never coherently registered.
+   *
+   * ⚠ **Re-reading the revision at submit defeats the entire mechanism**: the
+   * door would compare its own current value against itself, the comparison would
+   * always succeed, and `HC0DU` would go VACUOUS WHILE LOOKING CORRECT. Sourcing
+   * it here — from the same read that built the payload — makes that re-read
+   * structurally impossible rather than merely discouraged: the mint action never
+   * queries the source at all, so there is no fresher value for it to reach for.
+   *
+   * This is the same path `containsPhi` already takes, for the same reason: a
+   * fact about the source at build time, needed by the door after the render.
+   */
+  sourceRevision: number
   body: DocumentBody
 }

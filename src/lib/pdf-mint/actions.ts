@@ -269,6 +269,10 @@ export async function mintPrintedDocument(
 
     let pdf: Buffer
     let containsPhi: boolean
+    // The revision the provider OBSERVED while building the payload. Captured
+    // here, beside containsPhi, because both must survive the render window and
+    // reach the door — see the assignment below.
+    let sourceRevision: number
     try {
       const payload = await provider.build(input.sourceId, {
         kind: 'registered',
@@ -280,6 +284,18 @@ export async function mintPrintedDocument(
       // Distinct from `input.includePhi` (the D9 per-mint patient-identifier
       // choice, gated on `provider.phiCapable` above and absent until P3).
       containsPhi = payload.containsPhi
+      // ⛔ ADR 0126 Consequences (compare-and-mint) — READ FROM THE PAYLOAD, and
+      // never re-read from the source here. The render below is out-of-band and
+      // takes seconds; `reopen_meeting` can fire inside that window. The door
+      // compares this observed value against the source's current one and raises
+      // HC0DU on a mismatch, which is the ONLY thing stopping a registered hash
+      // from pinning bytes of a state that never coherently registered.
+      //
+      // ⚠ A fresh read at the mint call would hand the door its own current
+      // value: the comparison would always succeed and HC0DU would go VACUOUS
+      // WHILE LOOKING CORRECT. This action deliberately performs no source query
+      // of its own, so there is no fresher value available to reach for.
+      sourceRevision = payload.sourceRevision
       const html = renderDocumentHtml(payload)
       // D5: semaphore-bounded render; over capacity waits briefly then fails
       // pt-BR — never queues to disk. A timeout mints NOTHING (no upload yet).
@@ -321,6 +337,11 @@ export async function mintPrintedDocument(
         p_verification_token: token,
         p_verification_short_code: shortCode,
         p_contains_phi: containsPhi,
+        // Passed UNIFORMLY for every kind — no branch on `sourceKind`. Responses
+        // carry 0 and the door's kind-dispatch treats the compare as a no-op
+        // there; a caller that branched here would re-create the abstraction
+        // leak `mint_printed_document`'s own body forbids.
+        p_source_revision: sourceRevision,
       },
     )
 
