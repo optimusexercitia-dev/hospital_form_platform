@@ -9,6 +9,8 @@ import {
   type MintDocumentAction,
 } from "@/components/printing/mint-document-button";
 import { PreviaLink } from "@/components/printing/previa-link";
+import { PrintedDocumentCurrencyChip } from "@/components/printing/printed-document-currency-chip";
+import { printCurrencyFrom } from "@/components/printing/currency";
 import {
   RevokeDocumentDialog,
   type RevokeDocumentAction,
@@ -166,6 +168,16 @@ async function PrintedDocumentsList({
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <PrintedDocumentStatusChip status={doc.status} />
+              {/* ADR 0126 D2/D3 — CURRENCY is a SEPARATE fact from registry
+                  status, so it gets its own chip rather than being folded into
+                  the one above. `active` + NOT current is a new legal
+                  combination, and a merged chip would have to hide one of the
+                  two facts in exactly the row that needs attention. Renders
+                  nothing when the print is current (the ordinary case) or
+                  revoked (currency deliberately not evaluated). */}
+              <PrintedDocumentCurrencyChip
+                currency={printCurrencyFrom(doc.status, doc.isCurrent)}
+              />
               <span className="text-sm text-foreground">
                 Emitido em {formatDateTimePtBr(doc.mintedAt)}
               </span>

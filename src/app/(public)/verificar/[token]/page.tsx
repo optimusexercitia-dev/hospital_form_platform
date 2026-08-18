@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { printCurrencyFrom } from "@/components/printing/currency";
 import {
   VerificationResult,
   type VerificationOutcome,
@@ -80,7 +81,22 @@ export default async function VerificacaoResultadoPage({
 
   const outcome = await lookup(key, byShortCode);
 
-  return <VerificationResult outcome={outcome} />;
+  // ADR 0126 D2/D4 — CURRENCY, stated as its own fact beside authenticity and
+  // registry status. Derived at read time (D3), never stamped.
+  //
+  // ⛔ `printCurrencyFrom` is the ONE adapter, and it takes `boolean | null` —
+  // never `undefined`. A `revoked` print reports `null` (the door performs no
+  // source join at all, which is what preserves `312` t76's independence), and
+  // that maps to `notApplicable`: the page says ANULADO and says NOTHING about
+  // currency. A NON-revoked print with a null verdict is a contract violation,
+  // not a deliberate non-evaluation, and maps to `indeterminate` instead — the
+  // two absences must never share a rendering.
+  const currency =
+    outcome.state === "found"
+      ? printCurrencyFrom(outcome.verification.status, outcome.verification.isCurrent)
+      : undefined;
+
+  return <VerificationResult outcome={outcome} currency={currency} />;
 }
 
 /**

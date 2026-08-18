@@ -164,6 +164,9 @@ const sha256Hex = (bytes: Buffer) =>
 function toSummary(
   row: PrintedDocumentDoorRow,
   mintedByDisplay: string,
+  /** Derived by the caller from `printed_document_currency`. `null` = NOT
+   * EVALUATED (the door omitted the id), which is neither `true` nor `false`. */
+  isCurrent: boolean | null,
 ): PrintedDocumentSummary {
   return {
     id: row.id,
@@ -179,11 +182,24 @@ function toSummary(
     revokedAt: row.revoked_at,
     revokedReasonClass: row.revoked_reason_class,
     downloadPath: `/api/documents/${row.id}`,
-    // A JUST-MINTED print is current by construction: the door refused unless the
-    // source satisfied the registration predicate (HC0DP) AND the render-time
-    // revision still matched (HC0DU), both inside the mint transaction. Asserting
-    // it here avoids a round-trip to re-derive a fact the mint just proved.
-    isCurrent: true,
+    // ⛔ DERIVED BY THE CALLER, NEVER ASSERTED HERE. An earlier version hard-coded
+    // `true` on the reasoning that a just-minted print is current by construction
+    // — the door refused unless HC0DP and HC0DU both passed. That is sound for
+    // MEETINGS and WRONG for form_response, measured from the catalog:
+    //   • HC0DP is `app.print_source_registers` — the REGISTRATION conjunct only.
+    //     It carries no head term.
+    //   • HC0DU is the revision compare, which is a structural NO-OP for
+    //     form_response (its revision is always 0).
+    // So NEITHER gate evaluates HEAD for a response, and ADR 0126 D2 row 3 is
+    // reachable: R1 submitted -> correction -> R2 APPROVED moves
+    // `case_phases.current_response_id`, while R1 stays `submitted` and still
+    // registers (the open-correction conjunct keys on requests whose
+    // `draft_response_id` is R1, and R1 was the PREDECESSOR, not the draft).
+    // Minting R1 then reports "current" on a print that is not head.
+    // ⭐ And the category error underneath it: hard-coding `true` is STAMPING
+    // currency at write time, which D3 forbids — currency is derived at read time
+    // and never stamped.
+    isCurrent,
   }
 }
 
@@ -310,7 +326,17 @@ export async function mintPrintedDocument(
 
     if (!rpcError && data) {
       const row = data as unknown as PrintedDocumentDoorRow
-      return { ok: true, document: toSummary(row, byDisplay) }
+      // ADR 0126 D3: currency is DERIVED AT READ TIME, so it is read here rather
+      // than assumed from the mint having succeeded. Same door the panel uses, so
+      // there is one derivation and not two that can disagree.
+      const { data: cur } = await supabase.rpc('printed_document_currency', {
+        p_ids: [row.id],
+      })
+      const isCurrent =
+        ((cur ?? []) as { id: string; is_current: boolean | null }[]).find(
+          (c) => c.id === row.id,
+        )?.is_current ?? null
+      return { ok: true, document: toSummary(row, byDisplay, isCurrent) }
     }
 
     // ALL-OR-NOTHING (D5): the registry refused — the orphan object goes.
