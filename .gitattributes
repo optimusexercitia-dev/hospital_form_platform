@@ -9,6 +9,13 @@
 # pgTAP tests, and seed byte-identical to the index (which is already LF).
 *.sql text eol=lf
 
+# `.psql` is a psql-only artifact (`\ir`-included fixtures, never a pgTAP test —
+# pg_prove globs `*.sql` and would collect it as a planless test and FAIL the run).
+# The extension keeps it out of that glob, which also took it out of the `*.sql`
+# rule above; restate it, or the LF discipline the block above exists for stops
+# at a filename.
+*.psql text eol=lf
+
 # Markdown MUST stay LF in the repo AND the working tree — the tracker docs
 # (PROGRESS.md / CLAUDE.md / archives) are read and rewritten by shell tools (awk,
 # sed, node scripts, the lint:progress gate) that see raw bytes. With
