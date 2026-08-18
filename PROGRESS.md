@@ -301,6 +301,19 @@ a single item, so two PHI-tier obligations were invisible at exactly the place a
 
 **Decision owner: PO** — whether the pilot may proceed over a manual-only disposal path is a risk
 acceptance, not an engineering call. Detail → [S5 record](docs/progress/dm5-s5-operational-closure.md)
+
+> ### ✅ RULED 2026-08-18 — **the pilot MAY proceed, BOUNDED by one rehearsal.** The gate check survives; its question changed.
+>
+> ⛔ **This item is NOT discharged.** What was owed was the *decision*, and it is taken (ADR 0121
+> **Amdt 3**; § Decisions). What remains is the **deliverable**: the runbook must be
+> **executed end-to-end against test data BEFORE any real patient record is loaded** —
+> **[§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list) C1**, which carries the trigger.
+>
+> ⚠ **So re-read the gate check with its new question.** It no longer asks *"may we?"* — it asks
+> **"has the rehearsal happened?"**, and the honest answer today is **no**. `FUP-DM5-BACKUP-IS-PHI-EXPORT`
+> rides the same run (the destination path is owed at first execution).
+> ⭕ *This block described the decision as owed for the whole of the day it was ruled — the stale form
+> sat at the exact place a pilot decision gets made, which is the failure R4 added it here to prevent.*
 § 6 (**20** NOT-COVERED items) + the [disposal runbook](docs/deployment/phi-disposal-runbook.md).
 
 ---
