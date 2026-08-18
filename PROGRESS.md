@@ -465,11 +465,18 @@
 > | fact | measured 2026-08-17 | how |
 > |---|---|---|
 > | branch | `main`, tree clean | `git status` |
-> | pushed? | ✅ **YES** — `origin/main` = `23b1d9cf`, itself a DM5·S5 commit. HEAD `fd69d4be` is **33 ahead** | `git rev-list --left-right --count origin/main...HEAD` |
-> | `db push`? | ✅ **DONE through `20260927000360`** ⇒ **DM1–DM5·S3 are LIVE ON THE REMOTE** | `supabase migration list --linked` |
+> | git pushed? | ✅ **YES** — ⭕ **re-measured 2026-08-17 after the PO pushed**: `origin/main` = **`cd6b9b43`** (the S6 slice-QA commit); HEAD `211a1e65` is **4 ahead**. *(This row said `23b1d9cf` / "33 ahead" until the push — a claim about an EXTERNAL system, stale within hours.)* | `git rev-list --left-right --count origin/main...HEAD` |
+> | `db push`? | ✅ **DONE through `20260927000360`** — **406 applied** ⇒ DM1–DM5·S3 are LIVE ON THE REMOTE. ⛔ **UNCHANGED by the git push** | `supabase migration list --linked` |
 > | local-only migrations | **FIVE**: `20260927000400` (S4 retirement) · `20260928000100` (recusal) · `20260928000200` (evidence revoke) · `20260928000400` (D4 contract) · `20260928000500` (finalize-atomic). ⚠ `…0928000300` **does not exist** — reverted D11 inflow (`5b40d62b`) | same |
 > | DM flags, local | all six **ON** — `documents_foundation`/`wave_a`/`b`/`c`/`d` + `document_printing` | `select key, enabled from app.feature_flags` |
 > | DM flags, shipped | **OFF** — the local ONs come from `seed.sql`, which `db push` never applies; remote measured all-OFF 2026-08-17 | remote read |
+>
+> ⛔⛔ **A GIT PUSH IS NOT A `db push`, and 2026-08-17 is the day that distinction became easy to
+> misread.** The PO pushed 33 commits, so the code — including S4's retirement, the recusal fix and
+> every S6 canon change — is **on `origin/main`**. **None of it is on the DATABASE.** The remote is
+> still at `20260927000360` with the **same five** migrations local-only, independently confirmed by
+> the phase QA (406 applied; 12 buckets, *including all 8 supposedly-retired ones*; 0 storage objects;
+> 0 rows sampled). **Anyone reading "pushed ✅" as "the remote has the retirement" is wrong.**
 >
 > ⛔ **Two consequences that outrank everything else in this section.**
 > 1. **Applied migrations may NOT be edited in place** — that is the drift that blocks `db push`. The
