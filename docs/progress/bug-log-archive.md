@@ -2490,3 +2490,74 @@ BLIND-door finding and no arm would ever have raised it.
 **Fix:** ADR 0120 **D12**'s composition (byte door = core door **AND** print door) closes it, which
 is why D12's "strict narrowing" claim is load-bearing rather than decorative. Owned by DM5·S3
 (migration `…000340`); keystone **S3c** is exactly this probe, and it must be **red-first**.
+
+## Rotated 2026-08-18 — BUG-DM5-S3-ENV-FIXTURE-POOL-1, CLOSED on its own exit criterion
+
+> Rotated **verbatim** from PROGRESS.md § Bug Log on **2026-08-18**. The body below sets its own exit
+> criterion — *"re-verify (not re-fix) on the next fresh-reset run"* — and **that run happened on
+> 2026-08-17 and passed**. The row was never updated: the fourth instance in this file of a defect
+> closing without its status changing.
+>
+> **The evidence, from the gate's own retained logs** (`$TEMP/e2e-prod-gate/`), not from the summary:
+>
+> | file | what it shows |
+> | --- | --- |
+> | `reset-batch-9.log` | **2026-08-17 20:00** — `supabase db reset --local` completed for batch 9 |
+> | `batch-9.log` | **20:02** — 62 tests, **1 worker**; `ok 54 … pdf-printing.spec.ts:38:7 › full lifecycle …` |
+> | batch result | `61 passed`, **0 failures** |
+>
+> `:38` is the test that carries the failing precondition — *"Panel starts empty for this fresh
+> fixture"* is at `:47`, inside it.
+>
+> ⭐ **It is structural, not luck.** `scripts/e2e-prod-gate.sh:50` sets `RESET="${RESET:-1}"` and resets
+> **before every batch**, not once per run, so cross-run contamination cannot reach it; and the batch
+> runs `--workers=1`, so no co-batched spec can race it. The declaring-green gate used the default.
+>
+> ⛔ **BOUND THAT CLAIM AT THE RIGHT GRAIN — it retires THIS mechanism, not this assertion.** Reset-per-
+> batch plus one worker rules out *pool contamination* inside a gate. It does **not** make `:38` gate-
+> proof, and reading it that way would be false: **`FUP-GATE-PDFP1-FLAKE` (OPEN) records the same
+> pre-mint empty-state assertion failing once INSIDE a gate run**, with `server_dead=0`, no connection
+> errors, and — QA's own narrowing — the reset-per-batch and single-worker facts cited there as what
+> *near-refutes* the shared-pool hypothesis for that failure. Its mechanism is still **UNPROVEN** and
+> its evidence artifacts were overwritten by re-runs.
+>
+> ⭐ So the two items are **not duplicates and each is evidence about the other**: this bug is the
+> shared-pool mechanism **proven in a manual, un-reset context**, which gives `FUP-GATE-PDFP1-FLAKE` a
+> candidate it can now name and exclude *for the gate context specifically* — sharpening "unproven",
+> not discharging it.
+>
+> ⚠ **A trap that had to be ruled out to say that.** The same log directory holds a
+> `batch-9-unrun.log` reading *"BATCH 9 DID NOT RUN — reset failed. 62 collected test(s) never
+> executed"* and listing `pdf-printing.spec.ts`. It is dated **2026-08-16** — a different run.
+> Reading it as this run's batch 9 would have inverted the conclusion. *Date a log before citing it.*
+>
+> ⛔ **WHAT IS NOT FIXED, and is now `FUP-E2E-PRINT-POOL-DEVLOOP`.** The gate is safe; the **manual dev
+> loop is not**, and that is where this bug came from. `submittedResponseIds`
+> (`../../e2e/helpers/pdf-printing.ts:133`) claims responses **by position**
+> (`order=id.asc&limit=N`), with no filter for *"has no print yet"*. Two `npx playwright test
+> e2e/pdf-printing.spec.ts` runs without a reset still red the second time, exactly as on 2026-08-14.
+> ⚠ And the obvious hardening is a trap: filtering the pool to un-printed responses **breaks the
+> sibling tests**, which claim indices 1–5 and depend on the position→response mapping staying stable
+> across calls — once the first test mints on index 0, a filtering helper shifts everyone.
+
+🔵 **BUG-DM5-S3-ENV-FIXTURE-POOL-1 — ENVIRONMENT, not a product defect; no code fix owed.** Filed
+2026-08-14 (tester-s3) during the S3 gate-step-2 sweep. `e2e/pdf-printing.spec.ts`'s **full
+lifecycle** test (`submittedResponseIds(page, 1)`, deterministic id-ascending index 0) failed:
+"Panel starts empty for this fresh fixture" found an existing `Anulado` article instead
+(short code `3PDK6XFZML`, download `/api/documents/670b309c-9330-4e76-a563-380459ef7cd2`).
+**Mechanism:** the stack was not actually pristine at run time. `printed_documents` already carried
+9 rows before this session ran anything (verified against the very first catalog query this
+session issued) — `minted_at` **23:22:20–23:23:32**, `revoked_reason` on the earliest row reading
+*"Emissão de teste automatizado — anulação administrativa (sem dados de paciente)"* verbatim from
+this spec's own revoke step, and **zero** `printed_documents` inserts in `seed.sql`. This matches
+PROGRESS.md's own S3 step-2 note directly above ("lead ran the print specs... `pdf-printing` 9/9
+and `pdf-printing-meetings` 4/5") — that prior verification run is what populated the pool, and no
+`supabase db reset` ran between it and this session. The deterministic pool assumes a clean slate;
+a second full run against the same DB generation reuses index 0 and finds it already minted+revoked.
+**Not caused by Task 1's `storage_path` fix or the new D18 test** — this spec file is untouched, and
+the contaminating rows' timestamps precede this session's own mint activity. **Evidence it is not a
+regression:** the same spec's other 8 tests (which claim indices 1–5 plus dedicated fixtures) all
+passed; only the index-0 "starts empty" precondition was violated. **Remediation:** a fresh
+`supabase db reset --local` before the next full run of `pdf-printing.spec.ts` (or before
+`e2e:prod`) clears it; not filed against `backend`, no re-run owed from them. Left OPEN only as a
+record — re-verify (not re-fix) on the next fresh-reset run.

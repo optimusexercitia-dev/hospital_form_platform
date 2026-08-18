@@ -331,35 +331,17 @@ the heading, which is a figure that goes stale the moment it is right*). These s
 own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
 markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
 archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
-⭕ **2026-08-18 — TWO rotations out of here in one day**: **BUG-DM5-S6-EVID-KBD-1** (fixed 2026-08-17,
-never marked) and **BUG-DM5-S3-INACTIVE-PRINT-1** (fixed by DM5·S3, never marked). Both were bounded
-by the property this line states, and the heading needed no edit either time — which is the whole
-point of having taken the count out of it. ⛔ **The live count is deliberately NOT restated here.**
-The first version of this note said "back to three" and was stale within the same day, in the one
-paragraph of this file whose subject is that a count goes stale the moment it is right. Count the
-rows below.
+⭕ **Rotated out of here on 2026-08-18 — each one closed well before its row said so.** A LIST, not a
+count: append to it, and nothing already written goes stale.
 
-🔵 **BUG-DM5-S3-ENV-FIXTURE-POOL-1 — ENVIRONMENT, not a product defect; no code fix owed.** Filed
-2026-08-14 (tester-s3) during the S3 gate-step-2 sweep. `e2e/pdf-printing.spec.ts`'s **full
-lifecycle** test (`submittedResponseIds(page, 1)`, deterministic id-ascending index 0) failed:
-"Panel starts empty for this fresh fixture" found an existing `Anulado` article instead
-(short code `3PDK6XFZML`, download `/api/documents/670b309c-9330-4e76-a563-380459ef7cd2`).
-**Mechanism:** the stack was not actually pristine at run time. `printed_documents` already carried
-9 rows before this session ran anything (verified against the very first catalog query this
-session issued) — `minted_at` **23:22:20–23:23:32**, `revoked_reason` on the earliest row reading
-*"Emissão de teste automatizado — anulação administrativa (sem dados de paciente)"* verbatim from
-this spec's own revoke step, and **zero** `printed_documents` inserts in `seed.sql`. This matches
-PROGRESS.md's own S3 step-2 note directly above ("lead ran the print specs... `pdf-printing` 9/9
-and `pdf-printing-meetings` 4/5") — that prior verification run is what populated the pool, and no
-`supabase db reset` ran between it and this session. The deterministic pool assumes a clean slate;
-a second full run against the same DB generation reuses index 0 and finds it already minted+revoked.
-**Not caused by Task 1's `storage_path` fix or the new D18 test** — this spec file is untouched, and
-the contaminating rows' timestamps precede this session's own mint activity. **Evidence it is not a
-regression:** the same spec's other 8 tests (which claim indices 1–5 plus dedicated fixtures) all
-passed; only the index-0 "starts empty" precondition was violated. **Remediation:** a fresh
-`supabase db reset --local` before the next full run of `pdf-printing.spec.ts` (or before
-`e2e:prod`) clears it; not filed against `backend`, no re-run owed from them. Left OPEN only as a
-record — re-verify (not re-fix) on the next fresh-reset run.
+- **BUG-DM5-S6-EVID-KBD-1** — fixed 2026-08-17, never marked.
+- **BUG-DM5-S3-INACTIVE-PRINT-1** — fixed by DM5·S3, in the slice that filed it, never marked.
+- **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — met its own "re-verify on the next fresh-reset run" criterion
+  on 2026-08-17, never marked.
+
+⛔ **No live bug count appears in this section, deliberately.** Two attempts already went stale inside
+a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
+file whose whole subject is that a count is wrong the moment after it is right. Count the rows below.
 
 🔴 **BUG-BOOTSTRAP-001 — there is no in-app path to create the FIRST `platform_admin`; production
 onboarding has an undocumented manual SQL step.** Filed 2026-08-06 (lead) when the AFF completion
@@ -381,6 +363,17 @@ E2E get `platform@test.local` from `seed.sql`, which is exactly why the gap is i
 gate), but it is on the critical path of the **first production deploy**.
 
 ### Closed → [bug-log-archive.md](docs/progress/bug-log-archive.md)
+
+**Rotated 2026-08-18 (3)** — **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — ⭐ **closed on its OWN exit criterion,
+which was met on 2026-08-17 and never recorded** → [archive § "Rotated 2026-08-18"](docs/progress/bug-log-archive.md).
+The row said *"re-verify (not re-fix) on the next fresh-reset run"*; that run is in the gate's retained
+logs — `reset-batch-9.log` **20:00**, then `batch-9.log` **20:02** with `ok 54 … pdf-printing.spec.ts:38:7
+› full lifecycle …`, batch `61 passed / 0 failed`. Structural, not luck: `scripts/e2e-prod-gate.sh:50`
+resets **before every batch** and the batch runs `--workers=1`.
+⚠ **Date a log before citing it** — the same directory holds a `batch-9-unrun.log` ("BATCH 9 DID NOT
+RUN — reset failed") listing this very spec, from **2026-08-16**. Reading it as this run would have
+inverted the verdict.
+⛔ **The dev loop is still unhardened** — that half is now **`FUP-E2E-PRINT-POOL-DEVLOOP`** below.
 
 **Rotated 2026-08-18 (2)** — **BUG-DM5-S3-INACTIVE-PRINT-1** — ⭐ **closed by DM5·S3 and never marked**
 (filed 2026-08-14, fix shipped in the same slice) → [archive § "Rotated 2026-08-18"](docs/progress/bug-log-archive.md).
@@ -653,6 +646,7 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🟡 **FUP-DM4-PRODROW** — the dangling frozen-snapshot PRODUCTION row + 3 unreferenced objects: reconcile at push/deploy (PO R2). ⚠ Must NOT delete DM4's M3/M4 guards — lead/backend
 - 🟡 **FUP-E2E-REPEAT-FLAKY** — ⭕ **TWO members: `act-role-assumption:157` + `phase2-auth-shell:268`** (both flaked again at S6's green gate). ~~`dm5-nsp-evidence:347`~~ **REMOVED 2026-08-17 — root-caused and fixed (BUG-DM5-S6-EVID-KBD-1 — full record rotated 2026-08-18 → [archive](docs/progress/bug-log-archive.md)); it was never a flake.** ⭐ Its mechanism **evidences the long-standing "one root cause, not N flaky tests" guess** — and it sat one layer *above* where the class was being looked for: a readiness check that accepted the ancestor layout's `<main>` as proof of content while the route still showed its `loading.tsx` skeleton. Reproduce at **batch composition** (they pass in isolation — the isolated run is the trap), `RETRIES=0`, and fix the **precondition**, not the budget — lead/tester
 - 🟡 **FUP-E2E-SERVER-DEAD-1** — the prod-standalone server dies under load in ~3 of 17 batches; `BATCH_TESTS=22` rescues. Infra, never an assertion failure — **but a batch with no verdict is not a pass** — unassigned
+- 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — `submittedResponseIds` claims the print fixture pool **by POSITION** (`order=id.asc`), so a second `npx playwright test e2e/pdf-printing.spec.ts` without a reset reds at `:47`. **Mechanism PROVEN** (ex-BUG-DM5-S3-ENV-FIXTURE-POOL-1, archived). ⭐ **No gate can ever catch it** — `e2e-prod-gate.sh` resets before every batch, so it lands only on a human. ⛔ **Not FUP-GATE-PDFP1-FLAKE** (same assertion, inside a gate, mechanism unproven — neither closes the other). ⚠ **Do NOT "just filter the pool"**: the siblings claim indices 1–5 and a filter shifts them all. Discharge = **two consecutive runs with no reset between, both green** — tester
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `pdf-printing.spec.ts:38` empty-state flake; ⚠ mechanism **UNPROVEN** and both evidence artifacts were overwritten by the re-runs. Real fix: the gate script must archive a failing batch's log + `test-results/` **before** any re-run — lead/tester
 - 🟡 **FUP-LINT-STALE-SYMBOL-COMMENT** — a 6th lint gate for comments naming deleted identifiers. ⚠ **Lead recommendation: do NOT build** (43% coverage ceiling) — lead/PO
 - 🟡 **FUP-DM3-ETHICS-UI** — no affordance attaches an ethics decision letter; DM3 ships the seams API-writable only. Deliberate scope boundary — PO

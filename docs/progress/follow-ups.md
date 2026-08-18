@@ -3109,6 +3109,36 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 
 - 🟡 **FUP-GATE-PDFP1-FLAKE** — `e2e/pdf-printing.spec.ts:38` failed its **pre-mint** empty-state assertion once in the DM2 re-gate's `e2e:prod` run 1, then passed **three** independent ways at `RETRIES=0` (isolation 9/9 · identical-batch re-run 60/61 · full-suite run 2, batch 8 60/0). **Not phase-attributable** — the printing module is outside the DM2 diff and the expected string is intact in source (QA r2). ⚠ **The mechanism is UNPROVEN**: no infra signal (`server_dead=0`, no conn errors), unlike DM1's proven `server_dead` flake. QA narrowed it further — the gate resets the DB **before each batch** and batch 8 ran **1 worker**, and the failing test is the *first* in its file (pool index 0), which near-refutes the shared-fixture-pool hypothesis and leaves an ordinary `toBeVisible` timing flake. ⚠ **Both evidence artifacts are gone**: `test-results/` AND `/tmp/e2e-prod-gate/batch-8.log` were overwritten by the re-runs. **Discharge = catch it once with artifacts preserved, or pin the timing.** Related and arguably the real fix: `scripts/e2e-prod-gate.sh` resolves "re-run to see if it recurs" vs "preserve the evidence" the **wrong way** — a failing batch's log and `test-results/` should be archived before any re-run (QA r2 carry-forward) — lead/tester
 
+> ⭐ **2026-08-18 — a named candidate this item can now EXCLUDE, which is progress on "UNPROVEN" without discharging it.** **BUG-DM5-S3-ENV-FIXTURE-POOL-1** (closed + archived) proved the shared-pool mechanism *in a manual, un-reset context*: 9 pre-existing `printed_documents` rows carrying this spec's own revoke text, against a helper that claims responses by POSITION. ⛔ **That is NOT this item.** QA's narrowing here still holds — the gate resets before each batch and ran 1 worker, so pool contamination cannot be the gate failure's mechanism. What changes is that the candidate is now *named and measured* rather than hand-waved, so a future investigator can exclude it by citation instead of re-deriving it. The dev-loop half is filed separately as **FUP-E2E-PRINT-POOL-DEVLOOP**. ⚠ **Do not close either item on the other's evidence** — same assertion, two different contexts, one proven mechanism and one unproven.
+
+### 🟡 FUP-E2E-PRINT-POOL-DEVLOOP — the print spec's fixture pool is claimed by POSITION, so a second run without a reset reds a human but never CI (owner: tester)
+
+- 🟡 **FUP-E2E-PRINT-POOL-DEVLOOP** — `submittedResponseIds` ([e2e/helpers/pdf-printing.ts:133](../../e2e/helpers/pdf-printing.ts)) claims responses **by position** (`responses?…&order=id.asc&limit=N`) with **no filter for "has no print yet"**. Run `npx playwright test e2e/pdf-printing.spec.ts` twice against the same DB generation and the second run reds at `:47` — *"Panel starts empty for this fresh fixture"* — because index 0 was minted and revoked by the first. **Mechanism proven**, not suspected: BUG-DM5-S3-ENV-FIXTURE-POOL-1 measured 9 pre-existing `printed_documents` rows carrying this spec's own revoke sentence verbatim, against **zero** `printed_documents` inserts in `seed.sql` — tester
+
+> **Why no gate will ever catch this.** `scripts/e2e-prod-gate.sh:50` sets `RESET="${RESET:-1}"` and runs
+> `supabase db reset --local` **before every batch**, and the batch runs `--workers=1`. So the failure is
+> invisible to CI **by construction** and lands only on a human in the quick dev loop — which is exactly
+> how it was first filed, as an apparent product defect during an S3 gate sweep.
+>
+> ⛔ **NOT `FUP-GATE-PDFP1-FLAKE`, and neither closes the other.** That item is the *same assertion*
+> failing **inside a gate**, where the reset-per-batch and single-worker facts are precisely what
+> near-refutes the pool hypothesis; its mechanism is still UNPROVEN. Same line, two contexts, two
+> mechanisms — one measured, one not.
+>
+> ⚠ **THE OBVIOUS FIX IS A TRAP — do not "just filter the pool".** Making `submittedResponseIds` skip
+> already-printed responses **breaks the sibling tests**: they claim indices 1–5 and depend on the
+> position→response mapping being stable across calls, so once the first test mints on index 0 a
+> filtering helper shifts every later claim by one. Shapes that work: a **dedicated fixture** for `:38`
+> alone, leaving the positional helper untouched for the rest; or an **identity-scoped** cleanup that
+> deletes `printed_documents` for exactly the claimed response id — *by identity, never by position*
+> (the standing "a positional cleanup eats seed rows" rule).
+>
+> **Discharge criterion — the fix's own test, not a green suite.** Two consecutive
+> `npx playwright test e2e/pdf-printing.spec.ts` runs **with no reset between them**, both green. The
+> *second* run is the assertion; a single green run proves nothing, because a single run has always
+> passed. And the sibling tests must be green in **both** runs — that is the regression risk the
+> filtering fix would have shipped.
+
 ### 🟡 FUP-329-ABORT-SHAPE — a `329` keystone whose failure ABORTS the file, dropping 41 assertions (owner: backend)
 
 - 🟡 **FUP-329-ABORT-SHAPE** — a `329` keystone whose failure **aborts the file** (drops 41 assertions); it is what makes a mutation sweep over these gates unclassifiable — backend
