@@ -43,6 +43,22 @@ export interface PrintedDocumentSummary {
   revokedReasonClass: string | null
   /** The ONLY sanctioned byte path: the serving route (D8). Never a Storage URL. */
   downloadPath: string
+  /**
+   * ADR 0126 D2/D3/D4 — is this print of the CURRENT REVISION of its source?
+   *
+   * Derived at read time and NEVER stamped: `status` records deliberate acts only
+   * (re-mint supersession, revocation), so a print may legally be
+   * `status = 'active'` AND NOT current — the new combination the panel must express.
+   *
+   * ⛔ `null` means NOT EVALUATED, and it arises for exactly one reason:
+   * `status = 'revoked'`. That is a different fact from `false` (evaluated, and
+   * stale) — collapsing them would tell a paper-holder a revoked page is "not
+   * current" when the honest answer is ANULADO. ⛔ Never coerce `null` to `false`.
+   *
+   * ⚠ The BOUND: this answers "current REVISION", not "a re-render would be
+   * byte-identical". For meetings the two differ by construction.
+   */
+  isCurrent: boolean | null
 }
 
 /**
@@ -61,6 +77,21 @@ export interface PrintedDocumentVerification {
    * Anonymous callers ALWAYS receive null (D10: no anonymous download, no oracle).
    * Feeds the logged-in-viewer link to `/api/documents/<id>`. */
   documentId: string | null
+  /**
+   * ADR 0126 D2/D4/D12 — the currency verdict on the ANONYMOUS verification page.
+   * PO-blessed: currency is the page's product purpose, it names no content,
+   * actor or reason, and refusing it to anonymous callers would blind exactly the
+   * paper-holding surveyor it exists for.
+   *
+   * ⛔ `null` means NOT EVALUATED, arising ONLY for `status = 'revoked'` — where
+   * the door deliberately performs NO source join at all (`312` t76), which is
+   * what lets a paper-holder verify a document whose source was later discarded.
+   * `null` is NOT "stale": an `active` print with `null` here is a contract
+   * violation, not a currency answer. ⛔ Never coerce `null` to `false`.
+   *
+   * ⚠ The BOUND: "current REVISION", never "byte-identical re-render".
+   */
+  isCurrent: boolean | null
 }
 
 /** Lookup key for a verification: the QR token or the typed short code. */
@@ -114,7 +145,24 @@ export async function listPrintedDocuments(
     .order('minted_at', { ascending: false })
     .returns<PrintedDocumentRow[]>()
 
-  return (data ?? []).map((row) => ({
+  const rows = data ?? []
+
+  // ADR 0126 D2/D3 — currency is DERIVED AT READ TIME and never stamped, so it
+  // cannot come from the row above. One BATCH call rather than N: the door
+  // re-gates per row on `can_view_printed_document`, and an id the caller cannot
+  // see is simply ABSENT from the result rather than null — absent and
+  // not-evaluated are different answers and must not be conflated.
+  const currency = new Map<string, boolean | null>()
+  if (rows.length > 0) {
+    const { data: cur } = await supabase.rpc('printed_document_currency', {
+      p_ids: rows.map((r) => r.id),
+    })
+    for (const c of (cur ?? []) as { id: string; is_current: boolean | null }[]) {
+      currency.set(c.id, c.is_current)
+    }
+  }
+
+  return rows.map((row) => ({
     id: row.id,
     sourceKind: row.source_kind as PrintedDocumentSourceKind,
     sourceId: row.source_id,
@@ -128,6 +176,9 @@ export async function listPrintedDocuments(
     revokedAt: row.revoked_at,
     revokedReasonClass: row.revoked_reason_class,
     downloadPath: `/api/documents/${row.id}`,
+    // ⛔ `?? null` is the ABSENT case (the door did not return this id), which is
+    // the same answer as not-evaluated: unknown. It is NOT coerced to `false`.
+    isCurrent: currency.get(row.id) ?? null,
   }))
 }
 
@@ -203,6 +254,8 @@ interface LookupRpcRow {
   source_kind: string | null
   hospital_name: string | null
   document_id: string | null
+  /** ADR 0126 D12. null = NOT EVALUATED, which the door returns only for `revoked`. */
+  is_current: boolean | null
 }
 
 /**
@@ -249,6 +302,9 @@ export async function lookupPrintedDocumentVerification(
     sourceKind: row.source_kind as PrintedDocumentSourceKind,
     hospitalName: row.hospital_name ?? '—',
     documentId: row.document_id,
+    // ADR 0126 D4 — stated as its OWN fact, never inferred from `status`.
+    // null ONLY for `revoked` (the no-join arm); never coerced to false.
+    isCurrent: row.is_current ?? null,
   }
 }
 

@@ -179,6 +179,11 @@ function toSummary(
     revokedAt: row.revoked_at,
     revokedReasonClass: row.revoked_reason_class,
     downloadPath: `/api/documents/${row.id}`,
+    // A JUST-MINTED print is current by construction: the door refused unless the
+    // source satisfied the registration predicate (HC0DP) AND the render-time
+    // revision still matched (HC0DU), both inside the mint transaction. Asserting
+    // it here avoids a round-trip to re-derive a fact the mint just proved.
+    isCurrent: true,
   }
 }
 

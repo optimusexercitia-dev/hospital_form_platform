@@ -13202,6 +13202,7 @@ export type Database = {
         Returns: {
           document_id: string
           hospital_name: string
+          is_current: boolean
           matched: boolean
           minted_at: string
           source_kind: string
@@ -13509,6 +13510,13 @@ export type Database = {
           meeting_disposed: boolean
           phase_voided: boolean
           status: string
+        }[]
+      }
+      printed_document_currency: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+          is_current: boolean
         }[]
       }
       processless_cases_enabled: { Args: never; Returns: boolean }
