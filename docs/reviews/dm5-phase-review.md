@@ -471,3 +471,125 @@ that reproduces nowhere in the block that promises every figure carries its quer
 and a pilot-gate obligation, written precisely to stop this, undischarged.
 
 That is worth one more round.
+
+---
+
+# r2 — ✅ APPROVED
+
+**Date:** 2026-08-17 · **Commit under review:** `ada0574a` · **Diff verified docs-only**: 8 files,
+`ARCHITECTURE.md` · `PROGRESS.md` · `docs/backend-state.md` · `phi-disposal-runbook.md` · three
+`docs/progress/` records · this report. **0 `src/`, 0 `supabase/`** — checked from the diff, which is
+what makes "gate steps 1 and 2 stand unchanged" a fact rather than an assertion.
+
+## Verdict
+
+**✅ APPROVED.** All four BLOCKING findings are fixed and independently re-measured. All four MINORs
+are discharged — two fixed, two filed as follow-ups **with index lines**, which is what R3 was about.
+**3 MINOR carried** (below); none blocking.
+
+The lead asked to be treated as suspect on the axis that produced the defects — *a corrected figure
+that was never re-derived*. So **nothing below is read from the fix; every figure is measured again
+from the live catalog.**
+
+## Re-measured, not read
+
+| fix | what I measured | verdict |
+| --- | --- | --- |
+| **R1** figure | re-ran the block's own regex against the local catalog: **75 total / 6 read a flag**; remote (`azkbbhskturikxpgmafq`): **74 / 6**. The six names in the block match the catalog exactly | ✅ |
+| **R1** assert claim | `begin_document_upload` → `assert_documents_enabled` + waves b/c/d · `open_document_version` → `assert_documents_enabled` · `open_printed_document` → `assert_document_printing_enabled`. All three verified | ✅ (one imprecision — M5) |
+| **R1** query-carrying | both halves now carry inline SQL; the policy half re-measured → **0** | ✅ |
+| **R2** count | §6 heading now reads **20 items**; the out-of-order tail (1–14, 19, 20, 15–18) is disclosed with the recount command inline | ✅ |
+| **R2** pointers | grepped the whole repo for `13 NOT-COVERED` / `13 NOT COVERED`: **zero hits outside this report**, where they are quoting the defect. Both live pointers corrected | ✅ |
+| **R3** index lines | `PROGRESS.md:829` 🔴 `FUP-DM5-SUPERSEDE-SERVING-COLLISION` · `:830` 🟠 `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` — both now carry severity · id · title · owner, placed above `FUP-ACT-DISPOSE-UI` | ✅ |
+| **R4** canon half | `ARCHITECTURE.md` §2 `file_objects` bullet now states **NOTHING COMPLETES A DISPOSAL AUTOMATICALLY**, names D2 as unbuilt, and explains *why* the obvious design fails (Storage API unreachable from SQL, so a pure-SQL `pg_cron` job automates only the half that was never the gap) | ✅ |
+| **R4** pilot-gate half | § Remaining pre-pilot work now carries **item 1**, a 🔴 PILOT-GATE CHECK naming `FUP-DM5-DISPOSAL-JOB`, `FUP-DM5-BACKUP-IS-PHI-EXPORT` and the unrehearsed runbook | ✅ |
+| **R5** | Test Run Summary now carries **3** dated rows incl. both 2026-08-17 gates (green + the kept red); QA Verdicts carries the **S6 slice row** and the **phase row**. The phase row records `⛔ CHANGES REQUESTED (r1)` and **does not pre-write an r2 verdict** — checked, because a record that anticipates its own approval is the shape that ends gates early | ✅ |
+| **M1** | runbook **header**, line 13: *"Status: UNREHEARSED — a BINDING open gap of DM5, not a caveat"*, pointing at the 20 NOT-COVERED items and naming item 18 | ✅ |
+| **M2** | runbook `:24` and `:403` now say **22 controls**, with the 18→22 correction disclosed in place. Re-verified from `scripts/storage-manifest.mjs`: **22** rehearse labels (`R0`…`R9-monotonic`), **18** selftest (`C1`–`C18`) | ✅ |
+| **M3 / M4** | filed as `FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT` (🟡) and `FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED` (🟠), **both with index lines** at `PROGRESS.md:827-828` | ✅ |
+
+**R4's canon half exceeded the ask in a way worth naming:** it records that this **inverts ADR 0099
+D10** (*"a stale row nobody looks at harms nobody"*) — for PHI the stale row **is** the harm. That
+cross-ADR consequence was not in my finding, and it is the sentence that makes the gap legible to
+someone who arrives from the notifications side rather than the documents side.
+
+## Carried MINORs — none blocking, all one-line
+
+**M5 · NEW — the R1 fix's one imprecise clause.** `docs/backend-state.md` now says
+*"`open_referral_snapshot_document` does not [call an `assert_*` gate] — it is the bespoke door
+outside the byte kernel."* **Measured: it does call one** —
+`perform app.assert_referrals_enabled()`, whose body is
+`if not app.feature_enabled('case_referrals') then raise …`. The door is flag-gated; it is simply
+gated by a **referrals-family** assert, which is why it falls outside the census regex
+(`document|printed|disposal|…`) and therefore outside the six. As written, a reader can take it as
+*"the referral snapshot door has no flag gate,"* which is false. **Fix:** "does not call a
+*document-family* assert — it calls `app.assert_referrals_enabled`, outside this census's bound."
+Filed here rather than as a blocker because the paragraph's conclusion is unaffected — but it is the
+same class the fix was written to close, which is why it earns a line instead of silence.
+
+**M6 · CARRIED from r1 §R3, not addressed.** `PROGRESS.md:865` — the `FUP-E2E-REPEAT-FLAKY` index
+line still lists **three** members including `dm5-nsp-evidence:347`. The same file at `:607` now
+carries a dedicated passage headed *"`FUP-E2E-REPEAT-FLAKY`: EVID-KBD-1 is REMOVED — it has an
+identified, fixed root cause, not an [established flake]"*, and at `:254` says the 2 flaky are
+*"exactly the two remaining members."* So the file now states the removal in two places and the
+**index line the register is actually read from** still contradicts both. The r1 fix made this
+sharper, not softer.
+
+**M7 · CARRIED from r1 §R3, not addressed.** `PROGRESS.md:842` still prints the withdrawn headline
+*"⭐ THE CLASS: an ACTION PERFORMED is recorded as the STATE ACHIEVED"* for
+`FUP-DM5-NO-ANSWER-VS-NOTHING`, which `follow-ups.md:17-23` records as **withdrawn at QA r1** for
+mis-describing two of its own six instances. The live headline is *"An observable PROXY is
+substituted for the property that actually matters."* `PROGRESS.md:412` already uses the corrected
+one, so the file carries both.
+
+M6 and M7 were named in r1 under R3 as *"two adjacent staleness items in the same index, same class,
+cheaper to fix."* They are the same defect as R3's blocking core, in the same list, and they were the
+part of the finding that did not carry a blocking marker. That is worth noting as a pattern rather
+than a complaint: **an item's severity marker, not its content, determines whether it gets fixed** —
+so an adjacent observation inside a blocking finding is, in practice, invisible. Two lines, at the
+lead's convenience.
+
+## On the two questions I was asked to be adversarial about
+
+**1 · R1's numbers.** Re-measured independently, twice (r1 and again at r2), on both catalogs. They
+reproduce: **75 / 6** local, **74 / 6** remote, six names exact. The one thing the re-derivation
+surfaced that the fix did not is M5 above. The fix's own framing — *"correcting a claim's DIRECTION
+is not verifying its MAGNITUDE"* — is the right generalization and is worth more than the number.
+
+**2 · `PROGRESS.md` at 119,793 B (measured), against §7's "well under 60 KB" — now ~2× target.**
+You asked, so: **yes, some of what was added is record-shaped, not tracker-shaped**, and it is worth
+saying that the currency was restored by breaking two retention contracts — which is the same shape
+as the defect it fixed (*a table not satisfying its own stated rule*).
+
+- **Test Run Summary** now holds **three** rows plus the kept-RED narrative, against its own stated
+  rule *"Most recent gate only, ONE ROW each."* Keeping the RED beside the GREEN is genuinely
+  valuable — it is why the fix exists and it is the phase's best artifact on
+  composition-dependent failure — but that value is **archive** value.
+  **Recommend:** at step 5, keep the one declaring-green row here; move the RED run's narrative and
+  the 2026-08-14 S3 row to `test-run-archive.md` with a one-line pointer.
+- **QA Verdicts** rows are long-form rationale, against that table's rule *"never restate rationale
+  here or in the archive."*
+  **Recommend:** compress both new rows to verdict + counts + date + link, as the other rows'
+  archived form does. The reasoning is in this file; that is what the link is for.
+- **Everything else added — R4's canon paragraph, the pilot-gate item, the four index lines — belongs
+  exactly where it is** and should not be moved to buy back bytes. The index lines in particular are
+  the fix for R3; rotating them out would re-create it.
+
+⛔ **What I would not do:** treat 119 KB as a number to get down. §7's own banner says the residual is
+a PO call and *"Do not 'fix' it by trimming rows."* The two recommendations above are rotation of
+**narrative**, not removal of **items**, and they recover roughly what this commit added without
+touching a single tracked fact. Not a condition of this approval.
+
+## Scope of r2 — unchanged from r1 except where stated
+
+r2 covers the `ada0574a` fixes **and the phase**. It does **not** cover: gate step 2 (green at
+`15396276`, not re-run by me, and not re-run for this commit — correctly, as the diff touches no
+executable file); the pgTAP suite (not re-run; catalog facts are unaffected by row residue and the
+registry reconciles 411 == 411); or gate step 4, which remains the PO's with the seven items in §6
+undischarged. **The five local-only migrations remain unpushed** — including `20260927000400`, the
+retirement itself — so the retirement is complete on the local catalog and **not applied on the
+remote**, where all eight retired buckets survive over zero objects and zero rows. 🔒 The unrehearsed
+runbook still binds and 🔴 `FUP-DM5-SUPERSEDE-SERVING-COLLISION` is still deferred, not closed;
+**this approval closes over neither.**
+
+**DM5 is APPROVED at gate step 3, phase scope.** Step 4 is next.

@@ -63,8 +63,15 @@
 > The six are `app.assert_document{s,_printing}_enabled` + `assert_documents_wave_{b,c,d}_enabled` +
 > `app.compute_due_document_review_notifications`. ⭐ **Five of the six are the `assert_*` gates the
 > byte doors call at their top** (verified: `begin_document_upload`, `open_document_version`,
-> `open_printed_document` all call one; `open_referral_snapshot_document` does not — it is the
-> bespoke door outside the byte kernel). So the flag check is **concentrated in five assert
+> `open_printed_document` all call one). ⚠ **`open_referral_snapshot_document` IS flag-gated too** —
+> by `app.assert_referrals_enabled()` (→ `feature_enabled('case_referrals')`), a **referrals-family**
+> assert, which is exactly why it falls outside the document-name regex above and outside the six.
+> ⛔ **This sentence read *"`open_referral_snapshot_document` does not"* until the phase QA r2 (M5) —
+> false as written.** The measurement behind it was real but **bounded to the DOCUMENT-family
+> asserts**, and the bound was dropped when the result was written down, turning "does not call a
+> *document* assert" into "has no flag gate". → [[a-predicate-quoted-at-the-wrong-grain]] — *a real
+> filter cited for a conclusion it does not bound reads exactly like a proof*, and it happened here
+> **inside the fix for a defect of the same family**. So the flag check is **concentrated in assert
 > functions**, not scattered — which supports the app-layer conclusion **more strongly** than the
 > figure that used to sit here.
 >
