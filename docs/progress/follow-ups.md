@@ -791,7 +791,48 @@ document the hazard in `docs/worktrees.md`/the deployment runbook · or accept i
 the guard to anything touching a data-bearing stack. ⛔ **Do not resolve it by adding a comment saying
 one "should" capture first** — that is the failure mode this phase has now paid for repeatedly.
 
-### 🟠 FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+### ⬛ FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+
+> ## ✅ RESOLVED 2026-08-18 — the watermark-bounded gate is BUILT, WIRED, and VALIDATED AGAINST GROUND TRUTH
+>
+> `scripts/check-migration-set-local.mjs`, wired as **`lint:set-local`** — the **sixth** gate in the
+> `npm run lint` chain. Current state: **2 migrations above the watermark, 411 grandfathered, 0 findings.**
+>
+> **It is a position scanner, not a regex.** The whole question is *context* — the same eight characters
+> are a defect at top level, correct inside `do $$`, and irrelevant inside a comment or a string. It
+> tracks line comments, **nested** block comments, `''`-escaped strings, quoted identifiers, `$tag$`
+> bodies (consumed whole; `$1` is *not* a quote opener) and explicit `begin`/`commit` depth.
+>
+> ### ⭐ The validation that matters: it reproduces the BEHAVIOUR's answer exactly
+> Swept over **all 413** migrations with the watermark ignored, it returns **4 files / 6 sites** —
+> `20260710000000:40` · `20260711000200:68,73` · `20260921000300:58` · `20260925000300:100,118` — which
+> is *precisely* the set Postgres itself named via its `25P01` warnings during a reset, **line numbers
+> included**, while correctly clearing the other 8 of the 12 files `grep` flags. The ground truth was
+> established by the runtime, independently of this scanner. That is what retires the "syntax finds 12,
+> behaviour finds 4" objection: it is retired **empirically**, not by argument.
+> → [[detector-that-finds-nothing-must-be-proven-able-to-find-something]]
+>
+> ### The positive control the ruling demanded — three layers
+> 1. **23 in-process fixtures**, run before every scan; the gate refuses to report if they fail.
+>    The load-bearing one is *"bare `set local` AFTER a closed do-block"*: a scanner that enters a
+>    dollar quote and never leaves would pass **every file in the repo** silently, and that fixture is
+>    the only one that can catch it.
+> 2. **End-to-end injection**: a bare `set local` appended to an in-scope migration → **RED, exit 1**,
+>    correct file:line. Appended to a *grandfathered* migration → **green** (the watermark bound holds
+>    end-to-end, not just in a unit). Wrapped in `do $$ … $$` in an in-scope file → **green**.
+> 3. **Scope fixtures** pin the boundary itself, including that the watermark file *is* grandfathered
+>    (strictly-above, not at-or-above).
+>
+> ### ⛔ The watermark is a GRANDFATHER LINE — do not bump it on a push
+> Written at length in the script header, because the obvious "maintenance" is the one thing that
+> breaks it. Advancing it after each `db push` would grandfather the files you just wrote, converting
+> a gate that rots toward **stricter** into one that rots toward **weaker** — reversing the exact trade
+> the PO made. It never needs updating.
+>
+> ### One real defect found while validating
+> Importing the module for the all-migrations sweep **executed the CLI block**, which can
+> `process.exit(1)` and kill an importing test run. Guarded with an `import.meta.url` vs `process.argv[1]`
+> main check. Observed, not theorised — the sweep printed the gate's own summary line into my results.
 
 > ## ⛔ THIS ITEM HAD NO PROGRESS.md INDEX LINE UNTIL 2026-08-18 — added that day
 >
