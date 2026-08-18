@@ -371,9 +371,9 @@ local-only: NONE" while commits and migrations accumulated. →
 
 | fact | measured **2026-08-18** | how |
 |---|---|---|
-| branch | `main`, tree clean, **13 commits AHEAD of `origin/main` — UNPUSHED** | `git rev-list --count origin/main..HEAD` |
+| branch / git push | `main`. ✅ **Pushed to `origin/main` 2026-08-18 through `1a15391f`** (the rotation commit). ⛔ **This row states no live count** — any number here is false at the next commit, which is how it has gone stale three times. **Re-measure:** `git rev-list --count origin/main..HEAD` | measured, never quoted |
 | `db push`? | ✅ through **`20260928000500`**, **411** applied | `supabase_migrations.schema_migrations` |
-| local-only migrations | ⚠ **2** — `20260928000600` (DVF unique) · `20260928000700` (active-print guard). **HELD, not blocked** (TRIAGE #11) | `ls` vs remote count |
+| local-only migrations | ⚠ **2** — `20260928000600` (DVF unique) · `20260928000700` (active-print guard). **HELD, not blocked** (TRIAGE #11). ⛔⛔ **A GIT PUSH IS NOT A `db push`** — the 2026-08-18 git push did **NOT** put these on the database; the remote is still at `20260928000500` | `ls` vs `schema_migrations` |
 | 🔴 remote DATA | **EMPTY** — every table 0 rows, `auth.users` 0, **0** storage objects in all **4** buckets | census → `docs/backend-state.md` |
 | 🔴 why | **A REMOTE RESET AT `2026-08-17 11:37:35Z`** — `CREATE TABLE IF NOT EXISTS schema_migrations` → all `CREATE EXTENSION` → migrations from `20260711…` **re-applied**. No `TRUNCATE`/`DROP SCHEMA` in the window | `query_logs` |
 | remote buckets | **4** (was 12) — the 8 legacy buckets are **GONE**; S4's retirement IS deployed | `storage.buckets` |
