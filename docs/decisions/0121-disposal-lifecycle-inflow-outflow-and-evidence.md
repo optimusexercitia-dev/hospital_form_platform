@@ -101,6 +101,28 @@
 > BEFORE any real patient record is loaded.** The acceptance is **not** open-ended and does not
 > survive the pilot admitting real PHI ahead of the rehearsal.
 >
+> ### ⭕ AMENDED 2026-08-18, same day (DM-FUP TRIAGE #3) — **the rehearsal is TWO runs, and the bound is the Cloud one**
+>
+> The condition above says "against test data" without naming a surface, and that underspecification
+> would have discharged it with a local run. **It does not.** Split, both required:
+>
+> - **C1a — local.** Execute the runbook end-to-end against the local stack, once, and record the run.
+>   It debugs the procedure, and it produces the first **backup destination path** that
+>   `FUP-DM5-BACKUP-IS-PHI-EXPORT` is owed at first execution.
+> - **C1b — Cloud.** The same execution against the linked project. ⛔ **This is the run the pilot-risk
+>   acceptance is bounded by.** A green C1a does **not** release the pilot.
+>
+> ⭐ **Why this is not bookkeeping.** The runbook already states, in §6, that a local rehearsal *"runs
+> against a local stack by construction, so it cannot exercise the Cloud paths above"* — and the pilot
+> runs on Cloud. So a local-only rehearsal would have discharged this amendment's **wording** while
+> leaving its **purpose** — observing that the mitigation works on the surface that will hold real PHI —
+> entirely undischarged. *A predicate quoted at the wrong grain reads exactly like a proof*, and it would
+> have done so here in the highest-severity item in the register, inside the amendment written to stop
+> precisely that. → [[a-predicate-quoted-at-the-wrong-grain]]
+>
+> ⚠ **C1a is worth running first anyway** — debugging an unrehearsed 41 KB procedure directly against
+> the production project, with no dry run, was the alternative and was declined.
+>
 > ⭐ **Why the condition is the substance of the ruling, not a caveat on it.** The gap is not that a
 > mitigation is missing — the runbook exists, and its owner, cadence and five backup values were all
 > PO-set on 2026-08-17. The gap is that **the mitigation has never been observed to work.** A

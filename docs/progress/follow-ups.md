@@ -311,6 +311,29 @@ that would otherwise be misread as having settled it.
 
 ### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
 
+> ## ✅ METHOD RULED 2026-08-18 (DM-FUP TRIAGE #1) — **construct an orphan; do not probe for one**
+>
+> ⛔ **This item's own framing was wrong, and in the reassuring direction.** It calls the S3 probe
+> *"the single measurement that would settle it."* As framed it settles nothing: **the remote holds 0
+> objects**, so a read-only probe can show only that the endpoint *answers* — never that it would
+> **reveal** an orphan. A detector run against a population with nothing to find returns clean either
+> way. → [[detector-that-finds-nothing-must-be-proven-able-to-find-something]]
+>
+> **The ruled method, on the LINKED project:**
+> 1. Mint S3 access keys (Project Settings → Storage). *A human step; it is not scriptable from here.*
+> 2. Upload a **synthetic, non-PHI** byte to a scratch path.
+> 3. Delete its `storage.objects` row — this **constructs** the orphan the question is about.
+> 4. Ask the S3 endpoint whether the byte is still listed. **That answer is the measurement.**
+> 5. Clean up, and record the run.
+>
+> ⛔ **A throwaway project was declined.** It answers for a *different* project's storage config, so
+> the result would be an inference about `azkbbhskturikxpgmafq` rather than a measurement of it — the
+> same grain error this record has already been burned by twice.
+>
+> ⚠ **Sequencing, binding:** this probe needs a live, writable remote. `FUP-DM4-PRODROW`'s sanctioned
+> "cheap path" (a remote reset) would **destroy the surface this measurement runs on**, so the reset
+> may not precede it (DM-FUP TRIAGE #6).
+
 Filed 2026-08-17 (backend, S5.D). Filed explicitly so it **cannot become settled by silence** — the
 current state of knowledge is *"we do not know"*, and that is not the same as *"there is none"*.
 
@@ -561,6 +584,26 @@ convention S6 established.
 
 ### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** — ⭐ **Critical FUP C1** (owner: PO; the decision is discharged, the REHEARSAL is not)
 
+> ## ⭕ SPLIT 2026-08-18 (DM-FUP TRIAGE #3) — **C1a (local) + C1b (Cloud); C1 does NOT close on C1a**
+>
+> ADR 0121 Amendment 3 required the runbook be executed *"end-to-end, once, against test data"* — and
+> **named no surface**. That underspecification would have discharged it with a local run. It does not:
+>
+> - **C1a — local.** Run it against the local stack, once, recorded. Debugs the procedure and yields the
+>   first **backup destination path** owed to `FUP-DM5-BACKUP-IS-PHI-EXPORT`.
+> - **C1b — Cloud.** The same run against the linked project. ⛔ **The pilot-risk acceptance is bounded
+>   by C1b.** A green C1a does not release the pilot.
+>
+> ⭐ **Why:** the runbook itself says at §6 that a local rehearsal *"runs against a local stack by
+> construction, so it cannot exercise the Cloud paths above"* — and the pilot runs on Cloud. A local-only
+> rehearsal therefore discharges the amendment's **wording** while leaving its **purpose** undischarged.
+> → [[a-predicate-quoted-at-the-wrong-grain]], in the highest-severity item in the register.
+>
+> ⚠ **Heading title is stale in one figure:** it says *"three inflow doors"*. Measured, the queue has
+> **four SET-form writers** — 3 `authenticated`-reachable plus `complete_document_reclassification`
+> (service-role-only). Left in place because the Critical FUP entry carries the correction; noted here so
+> the two do not disagree silently a second time.
+
 > ### ✅ PO RULING 2026-08-18 — **PILOT RISK ACCEPTED, BOUNDED BY ONE REHEARSAL.** Recorded as **Critical FUP C1**.
 >
 > The pilot **may proceed** over the manual-only PHI-disposal path, **on one binding condition**:
@@ -631,6 +674,28 @@ completion door is its owner". That assumption was false until the runbook exist
 true as the runbook is actually executed.
 
 ### 🔵 FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN — ⚠ **HALF RESOLVED 2026-08-17: the guard no longer fails open; the arm is still a no-op awaiting a NAMED successor** (owner: backend)
+
+> ## ✅ SUCCESSOR NAMED 2026-08-18 (DM-FUP TRIAGE #5) — **`app.resolve_document_version_bytes`**, and the arm moves into Critical FUP C2 Tier 1
+>
+> The item required that the successor be **named, not guessed**. It was **derived from the live
+> catalog**, which is the strongest form of naming available here. The byte corridor:
+>
+> `openDocumentVersion` → `public.open_document_version` / `public.open_printed_document`
+> (`prosecdef = t`, granted to `authenticated`; **thin** — `assert_documents_enabled` + dispatch)
+> → **`app.resolve_document_version_bytes`**, which holds the whole kernel: `app.can_read_document`,
+> `app.can_read_referral_phi`, the D15 ceiling, and the disposal/serving-state refusals
+> (`HC0DD`, `HC0D8`). The app then signs a short-TTL URL with an **admin** client.
+>
+> ⭐ **The item's framing had no target, and that is the finding.** It asks for the arm to be re-pointed
+> at a **policy**. There is **no `storage.objects` SELECT policy on document bytes at all** — the live
+> set is `documents_phi_obj_insert_reserved`, `documents_std_obj_insert_reserved`,
+> `form_assets_insert_staff_admin`, and `form_assets_select_member`, the last being the only SELECT and
+> not a document path. The gate is a **`prosecdef = t` door whose check replaces RLS**, so the arm's
+> class changes from policy-mutation to **door-mutation**. → *`prosecdef` belongs beside `pg_policies`*
+>
+> ⛔ **Therefore it is built inside C2 Tier 1, not as a one-off.** Tier 1's 407-door sweep needs exactly
+> this machinery, as does `FUP-DM5-SIBLING-GUARD-DIFF`; building it three times was declined. ⚠ **Being
+> absorbed is not being closed** — this item keeps its own line and needs its own recorded verdict.
 
 > **✅ The fail-open half is fixed** — `coalesce(v_qual, '') !~ …`. **Proven, not assumed:**
 > against the live catalog `v_qual is null` is **true**, the old form evaluates to **NULL**
@@ -727,6 +792,38 @@ the guard to anything touching a data-bearing stack. ⛔ **Do not resolve it by 
 one "should" capture first** — that is the failure mode this phase has now paid for repeatedly.
 
 ### 🟠 FUP-DM5-SETLOCAL-MIGRATION — `SET LOCAL` in a migration is **not guaranteed to be inside a transaction**; `20260921000300` still relies on it (owner: backend)
+
+> ## ⛔ THIS ITEM HAD NO PROGRESS.md INDEX LINE UNTIL 2026-08-18 — added that day
+>
+> It has a full body here and is named in **five** documents, but `grep SETLOCAL PROGRESS.md` returned
+> **nothing** for its entire life, so the next §6-step-5 rotation would have dropped it silently.
+> ⭐ *A body plus a narrative mention is not an index entry; the index is what a reader greps.* That
+> warning is written twice in the register itself — this is the **third** item to re-earn it.
+>
+> ## ✅ REMEDY RULED 2026-08-18 (DM-FUP TRIAGE #7) — **a WATERMARK-bounded static lint gate, no allowlist**
+>
+> The lead proposed an allowlist of the frozen files and **was wrong**; the PO's instrument is better.
+> Bound the gate by the **frozen watermark** (`20260928000500`) instead: check only migrations *above*
+> it. **Measured: all 12 files containing `set local` sit at or below the watermark. Zero above.** So the
+> gate starts green with **nothing to allowlist** — no entry to rot, no anti-join to maintain.
+>
+> ⭐ **The failure directions are opposite, and that is the whole argument.** A stale **allowlist** rots
+> toward *weaker*: an entry outlives its file and silently skips it (`FUP-AUTHZ-ALLOWLIST-ROT` found six
+> such entries where the filing named one). A stale **watermark** rots toward *stricter*: it starts
+> checking newly-frozen files and reds **loudly**. Given a choice of rot, choose the one that fails loud.
+>
+> **Two consequences:**
+> - Because nothing existing sits above the line, the gate can be a **fast static check inside
+>   `npm run lint`** rather than a slow reset-log check in the Phase Gate. The "syntax finds 12, behaviour
+>   finds 4" objection dissolves — those 12 are excluded by construction, not by judgement.
+> - ⚠ It still needs a **positive control** proving its `do $$` / explicit-`begin` nesting detection can
+>   actually fail. A gate nobody has seen fire is not a gate.
+
+> ⛔ **STALE, CORRECTED 2026-08-18 — read this before the "still editable in place" paragraph below.**
+> That paragraph says *"the five local-only ones ARE still editable in place."* **They are not.** The
+> `db push` executed 2026-08-18 applied all five; the remote is at **`20260928000500`** and **zero
+> local-only migrations remain**. Nothing at or below that version may be edited in place — the editable
+> window did not move forward, it **closed**. → [[a-records-claim-about-an-external-system-goes-stale-silently]]
 
 > **⛔ CORRECTED 2026-08-17 by QA (S4 review).** Two claims in the original filing below were wrong:
 > 1. **It is NOT e2e-path-specific.** A plain `npx supabase db reset --local` emits **six** `25P01`
@@ -905,7 +1002,98 @@ performs is worse than an ADR that admits the gap. Two honest resolutions, and t
 D11 to say superseded bytes are **retained** and the overlay is the only distinction — then the record is true.
 ⛔ Do **not** resolve it by adding a comment saying retirement "should" happen.
 
-### 🟡 FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — a print of a DRAFT response outlives its response, invisible to every UI (owner: PO decision, then backend)
+### 🟡 FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT — ⭕ **PREVENTION SHIPPED 2026-08-18 (`20260928000700`); STAYS OPEN on pre-existing orphans + the dangling securable** — a print of a DRAFT response outlives its response, invisible to every UI (owner: PO decision, then backend)
+
+> ## ⛔ RULED THEN WITHDRAWN, SAME DAY (2026-08-18) — **option 1 reverses ADR 0104 D7. Nothing was built.**
+>
+> **The option list below is wrong, and that is the finding.** It offers *"refuse a mint from a
+> non-`submitted` response (narrowest, and **arguably right — a draft is not a document of record**)"*.
+> ADR [0104](../decisions/0104-pdf-document-printing-module.md) **D7** had already ruled the opposite:
+> the `RASCUNHO` watermark's derivation is *"Source not in final state at mint (**in_progress
+> response**, unapproved minutes, unsigned interview)"*, and D7 item 4 says outright — ***"Completeness
+> does not gate minting — FINAL/RASCUNHO already encodes it."*** Printing a draft is a **designed
+> feature with its own watermark**, not an oversight.
+>
+> pgTAP `312` t6 pins it **by name**: *"creator sees his own in_progress draft (RASCUNHO prints are
+> legal, D7)"*. The ruling would have red-ed that keystone.
+>
+> ⭐ **Where this actually went wrong.** The option list is part of this item's body — written once, by
+> the filer, and then quoted forward as the menu. The lead recommended from it without re-deriving its
+> premise; the PO ruled on the recommendation. **An option list is an assertion, and this one carried a
+> justification an ADR had already refuted.** It was caught only because implementation needed a
+> fixture, and the fixture file stated D7 in a comment.
+> → [[verify-dont-comply]] · [[a-comment-is-an-assertion-that-goes-stale-silently]]
+>
+> ## ✅ RE-RULED AND BUILT 2026-08-18 (#8b) — **option 1 below: refuse the DELETE, not the mint**
+>
+> Migration `20260928000700` — `app.guard_response_active_print`, BEFORE DELETE on `responses`,
+> raising **`HC069`**, mapped to pt-BR in `discardResponse`. ADR 0104 D7 is untouched; drafts still
+> print. pgTAP `312` **77 → 80**, red-first: t74 red **and its delete succeeded**, so the orphan is
+> demonstrated rather than argued.
+>
+> **Three design points, each measured rather than assumed:**
+> - **`status = 'active'` only.** `lookup_printed_document` (the public `/verificar` door) reads
+>   `printed_documents` directly and joins **only** commissions/hospitals — **never `responses`**. So
+>   public verification **survives** an orphan, and a *revoked* print must keep its row and bytes
+>   precisely so a paper-holder is still told `ANULADO`. Orphaning a revoked print is correct.
+> - **A trigger, not an RLS predicate.** Narrowing `responses_delete_own_draft` would refuse
+>   **silently**, as a zero-row delete the caller reads as success.
+> - **`SECURITY DEFINER`, and it is load-bearing.** `printed_documents` carries a SELECT policy; an
+>   invoker read would let a print the deleter cannot see make the guard find nothing and **allow** the
+>   delete → [[guards-that-read-right-but-fail-open]].
+>
+> ⭐ **t76 is the assertion that carries the weight.** After the coordinator revokes, the *same* delete
+> by the *same* principal succeeds. Without it, t74 is equally satisfied by a guard that blocks every
+> draft delete unconditionally — a worse bug that would have read as a pass.
+>
+> ## ⚠ AND THE MIGRATION SHIPPED A PUBLIC-EXECUTABLE DEFINER FUNCTION — caught by a gate, not by review
+>
+> Written without an explicit ACL, the function took Postgres' **default PUBLIC EXECUTE**, and pgTAP
+> `320` U1 (the `FUP-ACL-APP-POPULATION` census) went red at **237 → 238**. A `SECURITY DEFINER`
+> function PUBLIC may call is a live door, not a detail. Fixed with `revoke all … from public` plus
+> grants mirroring both sibling guards. ⭐⭐ **The defect was invisible in the diff, in review, and in
+> every functional test — `312` was fully GREEN with the door open.** That is the standing argument for
+> keeping the ACL census in the phase gate. → [[new-door-must-inherit-every-sibling-arm]]
+>
+> ## ⛔ STILL OPEN — two things this ruling does NOT close
+>
+> 1. **Pre-existing orphans.** The guard prevents new ones; it repairs none.
+> 2. **The dangling `securable_resources` row** — a securable with no subject, which every kernel arm
+>    joins through. Unchanged by this fix, and still owed.
+>
+> <details><summary>The options as they stood before the re-rule (superseded)</summary>
+>
+> ### 🔁 RE-RULE OWED — and the surviving options are NOT the three below
+>
+> D7 removes option 1. It also reframes the defect: **the harm was never that a draft can be printed —
+> it is that the print outlives the DELETED response** as a dangling `securable_resources` row with
+> unreachable bytes. Candidates, with the lead's current recommendation first:
+>
+> 1. ⭐ **Refuse to delete a response that has an active print.** A narrowing on the DELETE path, not the
+>    mint path. Preserves D7 completely, needs **no disposal outflow**, and therefore is **not gated on
+>    Critical FUP C1** — unlike cascade-disposal. The orphan stops being created.
+> 2. **Cascade the print's disposal when its source is deleted.** Handles existing rows too, but widens
+>    the disposal path whose only outflow is the manual unrehearsed runbook ⇒ gated on **C1**.
+> 3. **Surface orphaned prints in an admin view.** Manages orphans rather than preventing them.
+>
+> ⚠ Under **every** candidate, the two follow-on items stand: the **existing** dangling rows, and the
+> dangling **`securable_resources`** row itself — a securable with no subject, which every kernel arm
+> joins through.
+>
+> </details>
+>
+> **Cheap by measurement, not by assumption:** no E2E spec mints from an `in_progress` response, and the
+> print fixture pool is `submittedResponseIds` — submitted-only by construction.
+>
+> ⚠ **Two things the ruling does NOT cover, and they are the follow-on work:**
+> 1. **Existing rows.** 6 of 9 local prints are `form_response` kind; refusing future mints leaves those
+>    where they are. Needs a one-off reconcile.
+> 2. **The dangling `securable_resources` row** — the body below already says this needs handling under
+>    *every* option, because every kernel arm joins through it. A securable with no subject is a latent
+>    authorization question, and the chosen option does not answer it.
+>
+> ⛔ **Cascade-on-delete was declined** — it widens the disposal path, whose only outflow is the manual
+> **unrehearsed** runbook, so it would have created work gated on Critical FUP C1.
 
 Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-5. **CONFIRMED by probe, not reasoned.**
 
@@ -1074,7 +1262,36 @@ radius was one join away and no assertion in the slice looked there.
 **When a change writes a new value into an existing state column, sweep every READER of that
 column before believing the keystone.**
 
-### 🟠 FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED — the disposal evidence records `not_attempted` from the ONE lane that actually deleted the bytes (owner: backend)
+### ⬛ FUP-DM5-BYTE-PROOF-NOT-ATTEMPTED — ✅ **RESOLVED 2026-08-18** — the disposal evidence recorded `not_attempted` from the ONE lane that actually deleted the bytes (owner: backend)
+
+> ## ✅ RULED 2026-08-18 (DM-FUP TRIAGE #2) — **write `unavailable_on_platform`**
+>
+> Fix site: `reclassifyDocument` in [`src/lib/documents/actions.ts`](../../src/lib/documents/actions.ts)
+> — named by SYMBOL, not by line: this cited `:416` when written and the fix's own comment block moved
+> it to `:426` within the hour ([[a-comment-is-an-assertion-that-goes-stale-silently]]). Add
+> `p_byte_proof: 'unavailable_on_platform'` to the `complete_document_disposal` call, plus a pin so
+> nothing silently reverts to the DEFAULT. Vocabulary re-verified from the live catalog
+> (`pg_get_functiondef`, not migration text): `local_volume_verified` · `unavailable_on_platform` ·
+> `not_attempted`.
+>
+> ⭐ **The deciding fact was not in the filing: no app code branches on deployment.** `src/lib/documents/`
+> and `src/lib/supabase/` carry **zero** `STORAGE_BACKEND` / `isLocal` / `NODE_ENV` checks, so ONE literal
+> serves both environments — while the honest answer differs between them (locally the volume is
+> walkable and `local_volume_verified` is earnable; on Cloud it is not). `unavailable_on_platform` is the
+> only value that is never an overclaim in either: it understates locally and is exact on Cloud.
+>
+> **Two alternatives explicitly rejected, and why they are worth naming:**
+> - **Derive it from an env var.** Accurate per environment, but a *misconfigured* env writes a FALSE
+>   proof into the regulator-facing ADR 0121 D4 evidence — failing in the reassuring direction, which is
+>   the entire `FUP-DM5-NO-ANSWER-VS-NOTHING` class.
+> - **⛔ Verify at call time, then write the result.** The intuitive option, and the trap: a Storage-API
+>   `list()` after `remove()` reads **`storage.objects`** — metadata, not the volume. It would manufacture
+>   `local_volume_verified` out of the exact proxy that NO-ANSWER instance 3 exists to condemn. Recorded
+>   here so it is rejected deliberately rather than proposed again later.
+>
+> ⚠ **This ruling may be revisited by `FUP-DM5-CLOUD-ORPHAN-SURFACE`.** If the constructed-orphan probe
+> proves Cloud *does* expose an orphan-visible surface, a fourth vocabulary value gets **earned by that
+> measurement** — it is deliberately not pre-authorized here.
 
 Filed 2026-08-17 at the DM5 **phase** QA (M4), catalog-verified by the lead before filing.
 
@@ -1101,7 +1318,21 @@ proof of byte destruction there (`FUP-DM5-CLOUD-ORPHAN-SURFACE`), so the honest 
 lane-dependent rather than a flat "attempted". **Needs a pgTAP pin either way** — today nothing asserts
 what any lane writes into `byte_proof`.
 
-### 🟡 FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT — the legacy module the retirement phase was named for is still in the tree (owner: frontend + backend)
+### ⬛ FUP-DM5-ATTACHMENTS-MODULE-SURVIVED-RETIREMENT — ✅ **RESOLVED 2026-08-18 by deletion of `actions.ts` ONLY** — the legacy module the retirement phase was named for (owner: frontend + backend)
+
+> ## ⚠ SCOPE NARROWED 2026-08-18 BY MEASUREMENT — **the title over-reaches; do not delete the directory**
+>
+> The item says *"`src/lib/attachments/` survives."* Measured, the directory has **two** files and they
+> have opposite fates:
+> - **`actions.ts` — DELETE.** 6 `'use server'` exports, **zero importers**. The only surviving reference
+>   anywhere is a doc comment at `src/lib/queries/case-documents.ts:17` naming `openAttachment` as the
+>   audited door, which should be corrected in the same pass.
+> - **`constants.ts` — KEEP. It is LIVE**, with 3 importers: `src/lib/queries/attachments.ts`,
+>   `src/lib/queries/interviews.ts`, and transitively `src/lib/queries/meetings.ts` via `listAttachments`.
+>
+> ⭐ Deleting on the title rather than on the measurement would have broken three query modules — the
+> same shape as the defect the item itself describes, where a sweep bounded by the wrong unit misses what
+> it was aimed at.
 
 Filed 2026-08-17 at the DM5 **phase** QA (M3).
 
@@ -1296,6 +1527,16 @@ retain EXECUTE) or a fix that over-reaches will pass the security half while bre
 </details>
 
 ### 🟠 FUP-DM5-SIBLING-GUARD-DIFF — **no authz arm can see a door that OMITS a check its sibling doors all make** (owner: lead + backend; a gate-coverage gap, not a defect)
+
+> ## ⭕ FOLDED INTO CRITICAL FUP C2 TIER 1 — 2026-08-18 (DM-FUP TRIAGE #5)
+>
+> This wants a transitive catalog guard-set diff over `prosecdef` doors. So does C2's 407-door Tier 1
+> sweep, and so does `FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN`'s re-pointed arm
+> (`app.resolve_document_version_bytes`). **One piece of door-mutation machinery, three consumers** —
+> building it three times was declined.
+>
+> ⚠ **Absorption is not closure.** This item keeps its own index line, its own severity, and needs its
+> own recorded verdict; it closes when the diff exists **with a positive control**, not when Tier 1 ships.
 
 Filed 2026-08-14 (lead) on confirming **BUG-DM5-S3-INACTIVE-PRINT-1** (PROGRESS.md).
 
@@ -2011,6 +2252,26 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > paragraph still binds on the **remote**, which does not have the fix — see the resolution box above.
 
 ### 🟡 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
+
+> ## ⭕ ITS TRIGGER FIRED 2026-08-18 — this is DUE, not deferred
+>
+> The body below sets the closure precondition as *"the DM stack pushed, `db push` run, a fresh census."*
+> **The push ran on 2026-08-18.** So its own ⛔ *"do not query or mutate the linked project"* bar — which
+> was scoped to the no-push directive — **lifted at the same moment**. Read-only census is now sanctioned.
+>
+> ## ✅ SEQUENCED 2026-08-18 (DM-FUP TRIAGE #6) — census → probe → then decide. **The remote is NOT reset first.**
+>
+> 1. **Read-only remote census.** The 2026-08-11 figures below are *stale by design*; migration
+>    `20260927000400` has since retired 8 buckets, so the dangling rows may already be gone.
+> 2. **`FUP-DM5-CLOUD-ORPHAN-SURFACE`'s constructed-orphan probe**, which needs a live writable remote.
+> 3. **Then** reconcile-vs-reset, per row, with a manifest, recorded.
+>
+> ⭐ **The finding: the PO-sanctioned "much cheaper closure path" collides with an open item.** The
+> amendment below offers a **remote reset** as the cheap way out. A bare `db:reset:linked` is precisely
+> the unmanifested, uncounted, unaudited byte destruction that `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES`
+> flags as ungoverned — the event ADR 0120 **D9** exists to prevent, arriving through the accidental door
+> instead of the deliberate one. **And it would destroy the surface step 2 needs in order to measure.**
+> Both reasons are independently sufficient to sequence the reset last.
 
 Filed 2026-08-14 at DM4 open, as the recorded half of **PO ruling R2**.
 
@@ -3151,7 +3412,26 @@ un-strand this same obligation after QO·B cut it — the platform has already r
 
 - 🔴 **FUP-ETH-ROLES-1** — **no production bootstrap of `case_participant_roles`.** The ethics role bundle lives ONLY in `supabase/seed.sql`; the sole role-insert in any migration is the lazy `affected_patient` mint inside the patient path. A real org therefore starts with **zero** roles, and since `case_participants.role_id` is NOT NULL, EVERY participant type is a dead end until an org admin authors the vocabulary in T5 — the three role-less external types ratified on 2026-08-11 are one visible instance, not the shape. Decide before the pilot onboards a second org: bootstrap-on-org-create vs. a first-run prompt vs. accept-and-document (found 2026-08-11 while ratifying the PO items; the add-dialog empty state now at least names the remedy) — product + backend
 
-### 🟡 FUP-DM5-DVF-FILEOBJ — latent: the mint creates a FRESH `file_object` and never binds a pre-existing one — ⚠ **and the RECHECK found latency rests on CALLER DISCIPLINE ALONE** (owner: backend)
+### ⬛ FUP-DM5-DVF-FILEOBJ — ✅ **RESOLVED 2026-08-18 (`20260928000600`, `UNIQUE (file_object_id)`); ⛔ LOCAL ONLY — census the remote before `db push`** — latency had rested on CALLER DISCIPLINE ALONE (owner: backend)
+
+> ## ✅ RULED 2026-08-18 (DM-FUP TRIAGE #4) — **add `UNIQUE (file_object_id)`**, in a migration above `20260928000500`
+>
+> Confirmed from the catalog: `document_version_files` carries `UNIQUE (document_version_id,
+> rendition_kind)` and **nothing on `file_object_id`**. All three writers —
+> `complete_document_reclassification`, `complete_document_upload_verification`,
+> `mint_printed_document` — insert a `file_object` they minted in the **same call**, so 1:1 holds today
+> by caller discipline and by nothing else.
+>
+> **Why structural beats a test:** a shared `file_object` means marking one row `disposal_pending`
+> silently destroys **another row's** bytes, and no arm would notice. That is the failure ADR 0121's
+> disposal lifecycle cannot absorb, so the invariant belongs in the schema rather than in a suite that
+> pins current behaviour. The ruling **knowingly forecloses** rendition byte-sharing (a PDF whose
+> `source` and `preview` are one object); the disposal-safety argument was judged worth that price.
+>
+> ⛔ **Census the remote for duplicates BEFORE pushing.** Local is **0 DVF rows / 0 duplicates**, so a
+> green local `db reset` proves **nothing** about push-safety — a constraint migration that passes an
+> empty local DB is exactly the shape that fails `db push` on data.
+> → [[backfill-guard-wrap-data-dependent-migration]]
 
 > **RE-CHECKED 2026-08-17 (the item's own "re-check at S4/S5" instruction).**
 > ✅ **Still latent, for the stated reason:** `mint_printed_document` is the only door that

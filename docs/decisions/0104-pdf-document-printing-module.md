@@ -113,6 +113,30 @@ its seam-bug tax is documented. Explicit trigger for revisiting: an unbounded pr
 
 ### D7 — Watermarks are DERIVED-ONLY; four marks
 
+> ## ✅ D7 REAFFIRMED 2026-08-18 — **it was nearly reversed by a follow-up that did not know it existed**
+>
+> `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` proposed *"refuse a mint from a non-`submitted` response
+> (narrowest, and arguably right — **a draft is not a document of record**)"*. That justification is
+> refuted by this very decision: `RASCUNHO`'s derivation is literally *"in_progress response"*, and
+> item 4 below states **"Completeness does not gate minting."** The proposal was ruled, then
+> **WITHDRAWN the same day, before implementation**, when pgTAP `312` t6 was found pinning D7 by name.
+> **D7 stands unchanged; drafts remain printable.**
+>
+> **What shipped instead (`20260928000700`):** the defect was never the mint — it was that deleting
+> the draft afterwards **orphaned** the print. `app.guard_response_active_print` (BEFORE DELETE on
+> `responses`, `HC069`) refuses to delete a response while its printed document is `active`, so the
+> paper is voided **deliberately** via `revoke_printed_document` rather than as a side effect.
+>
+> ⭐ **Why the guard keys on `active` and not on "any print" — this is a D8 consequence.** Measured:
+> `lookup_printed_document`, the public `/verificar` door, joins only `commissions`/`hospitals` and
+> **never `responses`**. Public verification therefore survives an orphan, so a **revoked** print must
+> KEEP its row and bytes — that is exactly how a holder of the paper is told `ANULADO`. Destroying a
+> revoked print's record would silently make a real page unverifiable.
+>
+> ⚠ *A follow-up's option list is an assertion too.* This one was authored inside the item, quoted
+> forward unchecked, and would have reversed a ratified decision. Re-derive a premise before ruling on
+> it. Full record: PROGRESS.md § Decisions, rows `DM-FUP TRIAGE #8` / `#8b`.
+
 No free text, no user-composed stamps. The data provider computes flags; one shared
 template primitive renders them:
 
