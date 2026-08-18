@@ -118,6 +118,17 @@ begin
     raise exception '342 fixture: the meeting did not become participants_only';
   end if;
 end $$;
+
+-- ADR 0125 D1: `scheduled` is not a lock point and no longer registers, so the
+-- mints below would raise HC0DP. Walk to `in_signature` (the separating state:
+-- registers, still stamped RASCUNHO) through the real transition graph, which
+-- admits no jumps. ⛔ AFTER the attendee insert and the visibility flip:
+-- app.guard_meeting_child_lock refuses meeting_attendees writes once the parent
+-- is in_signature, and it reads no rpc flag.
+select set_config('app.in_meeting_rpc', 'on', true);
+update public.meetings set status = 'held'         where id = (select meet_p from mt);
+update public.meetings set status = 'in_signature' where id = (select meet_p from mt);
+select set_config('app.in_meeting_rpc', 'off', true);
 insert into storage.objects (bucket_id, name, metadata)
 select 'documents-standard', app.printed_rendition_storage_path(pd2),
        jsonb_build_object('size', 4096, 'mimetype', 'application/pdf') from mt;

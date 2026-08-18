@@ -7575,6 +7575,7 @@ export type Database = {
           revoked_reason_class: string | null
           source_id: string
           source_kind: string
+          source_revision: number
           source_series_id: string
           status: string
           superseded_at: string | null
@@ -7598,6 +7599,7 @@ export type Database = {
           revoked_reason_class?: string | null
           source_id: string
           source_kind: string
+          source_revision?: number
           source_series_id: string
           status?: string
           superseded_at?: string | null
@@ -7621,6 +7623,7 @@ export type Database = {
           revoked_reason_class?: string | null
           source_id?: string
           source_kind?: string
+          source_revision?: number
           source_series_id?: string
           status?: string
           superseded_at?: string | null
@@ -13286,6 +13289,7 @@ export type Database = {
           p_id: string
           p_source_id: string
           p_source_kind: string
+          p_source_revision?: number
           p_template_key: string
           p_template_version: number
           p_verification_short_code: string

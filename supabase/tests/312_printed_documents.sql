@@ -32,7 +32,7 @@ begin;
 -- 80 -> 85 (ADR 0123): +t77 (the non-vacuity control for the constructed
 -- zero-active state) +t78/+t79/+t80 (the D1 superseded keystone, its exit and
 -- its differential) +t81 (the D3 structural pin on the mint's row lock).
-select plan(88);
+select plan(90);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -52,10 +52,19 @@ grant select on k to authenticated;
 -- Responses: one submitted + one in_progress draft, both created by st_x in X.
 create temp table r on commit drop as
   select '00000000-0000-0000-0000-00000000d101'::uuid as resp_sub,
-         '00000000-0000-0000-0000-00000000d102'::uuid as resp_prog;
+         '00000000-0000-0000-0000-00000000d102'::uuid as resp_prog,
+         -- ⚠ A SECOND submitted response, existing ONLY for the credential
+         -- probes (t42/t43). They used to mint from the DRAFT, which the
+         -- registration gate now refuses; re-pointing them at `resp_sub` instead
+         -- would have superseded ITS active print and silently broken every later
+         -- assertion about doc1/doc2's status. A probe must not perturb the
+         -- fixture another assertion is reading.
+         '00000000-0000-0000-0000-00000000d10c'::uuid as resp_cred;
 grant select on r to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
 select r.resp_sub, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r, k;
+insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at, submitted_at)
+select r.resp_cred, k.ver_u, k.comm_x, k.st_x, 'submitted', now(), now() from r, k;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
 select r.resp_prog, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from r, k;
 
@@ -432,19 +441,41 @@ select throws_ok(
       (select tok5 from tk), 'ABC', false)$$,
   'HC0D1', null,
   't41 Amendment A: a malformed short code is refused (exact length, unambiguous alphabet)');
+-- ⚠ RE-POINTED to the SUBMITTED response (ADR 0125 D1 + 0126 D5/D10). These two
+-- are about CREDENTIAL handling, not about drafts — but the registration gate now
+-- runs BEFORE the insert, so a draft source raises HC0DP and neither probe would
+-- ever reach the uniqueness constraint it names. Pointing them at a registering
+-- source is what keeps them measuring their own lock. (The format probes t38-t41
+-- above still use the draft on purpose: their checks run BEFORE the gate.)
 select throws_ok(
   $$select public.mint_printed_document(
-      (select doc5 from d), 'form_response', (select resp_prog from r),
+      (select doc5 from d), 'form_response', (select resp_cred from r),
       'form_response', 1, repeat('ef', 32),
       (select tok5 from tk), (select sc1 from tk), false)$$,
   'HC0D4', null,
   't42 Amendment A: a short-code COLLISION raises the distinct retry code (uniqueness is constraint-enforced)');
 select lives_ok(
   $$select public.mint_printed_document(
-      (select doc5 from d), 'form_response', (select resp_prog from r),
+      (select doc5 from d), 'form_response', (select resp_cred from r),
       'form_response', 1, repeat('ef', 32),
       (select tok5 from tk), (select sc5 from tk), false)$$,
-  't43 Amendment A: the retry with fresh credentials succeeds — a RASCUNHO-state mint over the creator''s own draft');
+  't43 Amendment A: the retry with fresh credentials succeeds (registering source)');
+
+-- ⭐⭐ THE ADR 0125 D2 REVERSAL, PINNED. t43 used to read "a RASCUNHO-state mint
+-- over the creator's own draft SUCCEEDS" — ADR 0104 D7's own witness. D2 amends
+-- D7 item 4: completeness now gates REGISTRATION, not PRINTING. The user still
+-- gets paper on demand, as an ephemeral prévia; it just never enters the registry.
+--
+-- ⛔ THIS ASSERTION IS WHY THE GATE IS STRUCTURAL. Without it, "an in_progress
+-- response does not register" would be true only because the UI declines to offer
+-- it — and a direct RPC call would still construct the state D7 calls unreachable.
+select throws_ok(
+  $$select public.mint_printed_document(
+      '00000000-0000-0000-0000-00000000d208', 'form_response', (select resp_prog from r),
+      'form_response', 1, repeat('ef', 32),
+      'DRAFTMINTTOKENAAAABBBBCCCCDDDDEEEE', 'RSTUVW2345', false)$$,
+  'HC0DP', null,
+  't43b ⭐⭐ ADR 0125 D2: minting from an in_progress draft is REFUSED BY THE DOOR (HC0DP), not merely unoffered by the UI — registration is DB-enforced');
 
 -- ── 8. PHI refusal + Amendment B + template coherence (doc4 — NO object) ─────
 select throws_ok(
@@ -787,6 +818,54 @@ select throws_ok(
 --  3. Revocation is performed by sa_x, not st_x: `revoke_printed_document`
 --     refuses plain staff. Using the creator would fail on authority and leave
 --     the print active, making t76 red for a reason unrelated to the guard.
+-- ⭐⭐ REBUILT AT TABLE LEVEL (ADR 0125 D7 / 0126 D5), AND THIS IS THE POINT.
+-- The old fixture was "mint from a draft, then discard it". Under the registration
+-- gate that state is UNCONSTRUCTIBLE THROUGH THE DOOR — t43b above pins the mint
+-- refusing it — so the fixture would have failed, and the tempting repair (delete
+-- the block) would have taken the guard's only coverage with it. The guard is
+-- RETAINED as a backstop (D7: it defends bulk delete, tenant purge, the correction
+-- lifecycle and direct SQL, none of which the product offers yet), so its coverage
+-- has to be retained too — by CONSTRUCTING the state the door will no longer
+-- produce.
+--
+-- `pg_temp.pd_chain` builds the valid D11 substrate chain, so this insert reaches
+-- the guard rather than being refused earlier by
+-- `app.guard_printed_document_binding` with a plausible-but-wrong HC0DA.
+create temp table r9a on commit drop as
+  select '00000000-0000-0000-0000-00000000d209'::uuid as doc_draft;
+grant select on r9a to authenticated;
+insert into storage.objects (bucket_id, name, metadata)
+select 'documents-standard', app.printed_rendition_storage_path(doc_draft),
+       jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from r9a;
+-- ⛔ ORDER IS FORCED, and getting it wrong raises rather than passing quietly:
+-- `pd_chain` inserts a `documents` row homed on the response, and
+-- `documents_home_resource_id_fkey` points at `securable_resources`. For a
+-- form_response that home row is created LAZILY BY THE MINT (ADR 0120 D17.2 —
+-- `responses` deliberately has no trigger), and the mint is exactly what this
+-- block bypasses. So it is created here FIRST, exactly as the mint would.
+insert into public.securable_resources (id, resource_type, organization_id, hospital_id, commission_id)
+select r.resp_prog, 'form_response', c.organization_id, c.hospital_id, c.id
+  from r, public.commissions c where c.id = (select comm_x from k)
+on conflict (id) do nothing;
+create temp table ch9 on commit drop as
+  select pg_temp.pd_chain(
+    (select doc_draft from r9a), (select resp_prog from r), (select sa_x from k)) as ver;
+insert into public.printed_documents
+  (id, source_kind, source_id, source_series_id, source_revision, commission_id,
+   template_key, template_version, content_hash, verification_token,
+   verification_short_code, minted_by, document_id, document_version_id)
+select r9a.doc_draft, 'form_response', r.resp_prog, r.resp_prog, 0, k.comm_x,
+   'form_response', 1, repeat('77', 32),
+   'DRAFTPRINTTOKENAAAABBBBCCCCDDDDEEEE', 'STUVWX2345', k.sa_x,
+   (select dv.document_id from public.document_versions dv where dv.id = (select ver from ch9)),
+   (select ver from ch9)
+from r9a, r, k;
+
+select is(
+  (select status from public.printed_documents where id = (select doc_draft from r9a)),
+  'active',
+  't73b ⭐ NON-VACUITY CONTROL: the table-level print really is ACTIVE. Without it, a construction that silently inserted nothing would make t74 pass on an absent row — the guard never consulted');
+
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select throws_ok(
@@ -800,7 +879,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
   $$select public.revoke_printed_document(
-      (select doc5 from d), 'minted_in_error', 'rascunho descartado pelo autor')$$,
+      (select doc_draft from r9a), 'minted_in_error', 'rascunho descartado pelo autor')$$,
   't75 CONTROL setup: the commission coordinator voids the printed document (plain staff cannot — that is why this leg is sa_x)');
 reset role;
 
@@ -845,19 +924,65 @@ insert into storage.objects (bucket_id, name, metadata)
 select 'documents-standard', app.printed_rendition_storage_path(doc7),
        jsonb_build_object('size', 1024, 'mimetype', 'application/pdf') from d9;
 
--- Build the state through the DOORS, never by INSERT: a hand-built fixture
--- would prove the guard reads a column, not that ordinary use can reach it.
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select public.mint_printed_document(
-  (select doc6 from d9), 'form_response', (select resp_sup from r9),
-  'form_response', 1, repeat('ab', 32),
-  'PDTOKEN6AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'EFGHJK2345', false);
-select public.mint_printed_document(
-  (select doc7 from d9), 'form_response', (select resp_sup from r9),
-  'form_response', 1, repeat('ab', 32),
-  'PDTOKEN7AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'FGHJKL2345', false);
-reset role;
+-- ⭐⭐ THIS BLOCK'S ORIGINAL RATIONALE IS NOW INVERTED, AND SAYING SO IS THE POINT.
+-- It read: "Build the state through the DOORS, never by INSERT: a hand-built
+-- fixture would prove the guard reads a column, not that ordinary use can reach
+-- it." That was right when a draft could mint. Under ADR 0125 D1 + 0126 D5 the
+-- door REFUSES a non-registering source (t43b), so ORDINARY USE CAN NO LONGER
+-- REACH THIS STATE AT ALL — and the old construction does not merely become
+-- unnecessary, it RAISES HC0DP.
+--
+-- ⛔ The trap this avoids: the block would have gone red, and the cheap repair is
+-- to delete it — retiring `app.guard_response_active_print`'s only coverage on
+-- the strength of "it is unreachable anyway". ADR 0125 D7 refuses exactly that:
+-- the guard is RETAINED as a backstop for paths the product does not offer YET
+-- (bulk delete, tenant purge, the correction lifecycle, direct SQL), and retiring
+-- a guard is a widening — which cannot be wrong-and-safe. So the state is
+-- CONSTRUCTED where the door will no longer produce it.
+--
+-- The end state is byte-identical to what the doors used to build: one SUPERSEDED
+-- print and one REVOKED print, ZERO active. The CHECK constraints
+-- (`pd_superseded_has_ts`, `pd_revoked_iff_ts`, `pd_revocation_complete`) are
+-- satisfied explicitly rather than as a side effect of the doors.
+insert into public.securable_resources (id, resource_type, organization_id, hospital_id, commission_id)
+select r9.resp_sup, 'form_response', c.organization_id, c.hospital_id, c.id
+  from r9, public.commissions c where c.id = (select comm_x from k)
+on conflict (id) do nothing;
+
+create temp table ch10a on commit drop as
+  select pg_temp.pd_chain((select doc6 from d9), (select resp_sup from r9), (select sa_x from k)) as ver;
+create temp table ch10b on commit drop as
+  select pg_temp.pd_chain((select doc7 from d9), (select resp_sup from r9), (select sa_x from k)) as ver;
+
+-- P1: the SUPERSEDED page. Inserted already-superseded because the one-active
+-- index (now series-keyed) admits only ONE active row per series — the same
+-- reason the mint's SUPERSEDE_ACTIVE runs before its insert.
+insert into public.printed_documents
+  (id, source_kind, source_id, source_series_id, source_revision, commission_id,
+   template_key, template_version, content_hash, verification_token,
+   verification_short_code, minted_by, document_id, document_version_id,
+   status, superseded_at)
+select d9.doc6, 'form_response', r9.resp_sup, r9.resp_sup, 0, k.comm_x,
+   'form_response', 1, repeat('ab', 32),
+   'PDTOKEN6AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'EFGHJK2345', k.sa_x,
+   (select dv.document_id from public.document_versions dv where dv.id = (select ver from ch10a)),
+   (select ver from ch10a),
+   'superseded', now()
+from d9, r9, k;
+
+-- P2: minted active, then REVOKED THROUGH THE REAL DOOR — the revoke path is not
+-- what this ADR changed, so it stays exercised rather than hand-built.
+insert into public.printed_documents
+  (id, source_kind, source_id, source_series_id, source_revision, commission_id,
+   template_key, template_version, content_hash, verification_token,
+   verification_short_code, minted_by, document_id, document_version_id)
+select d9.doc7, 'form_response', r9.resp_sup, r9.resp_sup, 0, k.comm_x,
+   'form_response', 1, repeat('ab', 32),
+   'PDTOKEN7AAAABBBBCCCCDDDDEEEEFFFFGGGG', 'FGHJKL2345', k.sa_x,
+   (select dv.document_id from public.document_versions dv where dv.id = (select ver from ch10b)),
+   (select ver from ch10b)
+from d9, r9, k;
+
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.revoke_printed_document(

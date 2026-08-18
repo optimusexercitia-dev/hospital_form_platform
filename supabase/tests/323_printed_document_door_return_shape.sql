@@ -62,7 +62,7 @@ select is(app.feature_enabled('document_printing'), true,
 
 -- ── 1. Return TYPE is the granted-column composite (structural pins) ─────────
 select is(
-  pg_get_function_result('public.mint_printed_document(uuid,text,uuid,text,integer,text,text,text,boolean)'::regprocedure),
+  pg_get_function_result('public.mint_printed_document(uuid,text,uuid,text,integer,text,text,text,boolean,integer)'::regprocedure),
   'printed_document_public',
   't2 ⭐ mint door RETURNS printed_document_public, not the full row type');
 select is(
