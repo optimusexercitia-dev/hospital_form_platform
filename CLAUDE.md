@@ -302,10 +302,10 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **FIVE gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **SIX gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
-  `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous`. Each was
-  added after the class it gates shipped a live defect:
+  `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
+  `lint:set-local`. Each was added after the class it gates shipped a live defect:
   - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
     compiles to dead CSS; added after it shipped nine dead motion utilities.
   - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
@@ -314,6 +314,13 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
     a server query module, which **aborts `next build`** while tsc/lint/vitest stay green.
   - `lint:vacuous` (`check-vacuous-assertions.mjs`) — a test that can go GREEN having asserted
     nothing. Record: [docs/reviews/vacuous-assertion-audit.md](./docs/reviews/vacuous-assertion-audit.md).
+  - `lint:set-local` (`check-migration-set-local.mjs`) — a top-level `set local` in a migration,
+    which is a **silent no-op** outside a transaction (Postgres warns `25P01` and continues) and so
+    passes every local gate; where it wraps a data-dependent backfill a fresh reset matches zero rows
+    and hides it. Bounded by a **watermark, not an allowlist** — ⛔ **the watermark grandfathers the 12
+    pre-existing files and must NOT be bumped on a `db push`**, or it grandfathers the files you just
+    wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
+    control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
   eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
@@ -338,7 +345,7 @@ npm run db:reset:linked        # reset REMOTE DB + seed (destructive!)
 npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck   # lint = eslint(0 warnings) && css-vars && memberships-door
-                               #   && client-server-imports && vacuous — all five (§8)
+                               #   && client-server-imports && vacuous && set-local — all six (§8)
 npm run format:check           # Prettier (npm run format to write)
 npm run test                   # Vitest unit tests (full suite)
 npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1

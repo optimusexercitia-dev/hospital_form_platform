@@ -309,7 +309,30 @@ explicitly because that section's own ruling is *"a buried obligation gets disch
 the moment its parent looks resolved"* — remote contact having been made is exactly the kind of event
 that would otherwise be misread as having settled it.
 
-### 🟠 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
+### 🔴 FUP-DM5-CLOUD-ORPHAN-SURFACE — UNSETTLED whether Supabase Cloud exposes ANY orphan-visible surface; the **S3 endpoint is UNPROBED** (owner: backend + lead; **input to the deploy runbook**)
+
+> ## ⭕ ESCALATED 2026-08-18 — **`FUP-DM4-PRODROW` IS NOW BLOCKED ON THIS PROBE (PO ruling), and the probe has a REAL subject**
+>
+> Reverse of the ruling recorded in PRODROW's body — recorded here too so **neither item can be read
+> alone**, per this item's own promotion ruling.
+>
+> **What changed.** The 2026-08-18 remote census found the production DB empty, and the logs dated the
+> cause: a **remote reset at `2026-08-17 11:37:35Z`**. `storage.objects` reads **96 inserted / 47 deleted
+> / 0 live** — the 47 reconcile with the S4 bucket retirement (buckets: 16−12=4, exact), which leaves
+> **~49 objects that vanished with no `DELETE`**.
+>
+> ⭐ **A reset rebuilds `storage.objects`; it does not necessarily delete the bytes behind them, and
+> whether it orphans them is CLI-VERSION DEPENDENT** →
+> [[remote-reset-storage-orphan-is-cli-version-dependent]]. So this item is no longer a hypothetical
+> about a synthetic byte — **there is now a concrete population of ~49 likely-orphaned objects on the
+> production project**, and the metadata that would say what to look for is gone.
+>
+> ⚠ **The TRIAGE #1 method does not change and is not weakened.** It is *still* correct to **construct**
+> an orphan rather than probe for one: the ~49 cannot be enumerated (no rows point at them), so they can
+> confirm the *consequence* but can never serve as the *detector's* positive control. Construct, measure,
+> then ask what the answer implies for the 49.
+>
+> ⛔ **Still blocked on a human step:** S3 access keys must be minted in the Supabase dashboard.
 
 > ## ✅ METHOD RULED 2026-08-18 (DM-FUP TRIAGE #1) — **construct an orphan; do not probe for one**
 >
@@ -2326,6 +2349,19 @@ re-ratified by the PO.** Name it in Phase 19's scope in
 > `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES` flags as ungoverned — the event ADR 0120 **D9** exists to prevent,
 > arriving through the accidental door. That judgement stands; only its tense changes, from *would* to
 > *did*.
+>
+> ### ✅ PO RULING 2026-08-18 — **STAYS OPEN, BLOCKED ON the `FUP-DM5-CLOUD-ORPHAN-SURFACE` C1b probe**
+> The PO declined both closure options (close-as-destroyed, and close-as-resolved). **This item remains
+> OPEN until the constructed-orphan probe settles whether the ~49 objects' bytes survive.** It therefore
+> now tracks **two** questions deliberately — the erased subject *and* the likely-orphaned bytes — kept
+> together rather than split.
+>
+> ⛔ **Carry this forward to whenever it does close:** the *"destroyed, not reconciled"* finding below is
+> **not** something the probe can change. The probe answers the byte question only. Whatever the probe
+> returns, this item may **not** close as *"reconciled"* — no per-row re-freeze-or-tombstone decision was
+> ever made and no manifest exists, and that stays true forever. ⭐ *Recorded here because a blocked item
+> closes on the blocker's verdict, and the half that the blocker does not address is exactly the half that
+> gets discharged by association* — the same defect the promotion ruling above was written to prevent.
 >
 > ### ⛔ THEREFORE THIS ITEM DOES NOT CLOSE AS "RECONCILED"
 > The standing instruction on this item is **"reconcile or quarantine explicitly, never invent success."**
