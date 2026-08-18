@@ -7,7 +7,29 @@
 > Written for someone who was **not here**. Where it says *verify*, verify — this phase punished
 > inherited claims repeatedly, **including six times in the session that built S3** (§9).
 
-## 0. ⭐ START HERE — **§13 is the resume point.** Everything in §§11–12 is discharged history.
+## 0. ⛔⛔ **THIS WHOLE FILE IS DISCHARGED HISTORY AS OF 2026-08-17. DO NOT RESUME FROM IT.**
+
+> **Resume from `PROGRESS.md` § Current Phase Tasks → the 🛑 START HERE block** (seven PO decisions,
+> which are the only thing blocking DM5's closure).
+>
+> **Why this banner exists rather than an edit:** every slice this file briefs is **closed** — S3, S4,
+> S5, the follow-up batch, and **S6** (gate steps 1 ✅ · 2 ✅ GREEN · 3 ✅ phase QA APPROVED r2).
+> §13 called itself "the resume point" and was correct until S6 finished; **a resume pointer goes
+> stale at exactly the moment the work it points at completes**, which is the moment nobody re-reads
+> it. Left unedited so it remains evidence of what was believed when.
+>
+> ⭐ **Two things here are still LIVE and worth reading — nothing else is:**
+> - **§6 — the mutation-harness incident.** ⛔ Read before running ANY mutation harness; a live authz
+>   gate was once left OPEN on the shared stack. Still binding.
+> - **§13.4 / §12's environment traps** — the ~3 hours of self-inflicted stack mistakes (unpiped
+>   `db reset`, `TaskStop` not reaping the process tree, `/tmp/e2e-prod-gate/` retaining dead-run logs).
+>   Still accurate, still expensive to relearn.
+>
+> ⚠ **Stale figures in this file, so a grep does not land falsely:** the "1118 / 1121" e2e numbers are
+> superseded by **1121p / 0f / 2 flaky / 6 skipped / 0 did-not-run** at `15396276`; "two local-only
+> migrations" is **five**; "P4 NOT MEASURED" is **discharged**; "13 NOT-COVERED items" is **20**.
+
+## 0a. (superseded) START HERE — **§13 is the resume point.** Everything in §§11–12 is discharged history.
 
 ✅ **S3 CLOSED** 2026-08-14 · ✅ **S4 CLOSED** 2026-08-17 (all five gate steps, QA **APPROVED r3**,
 PO-approved, `phase(DM5·S4)` = `f06ebea5`) · ✅ **S5 BUILT and QA-APPROVED r2** 2026-08-17.
