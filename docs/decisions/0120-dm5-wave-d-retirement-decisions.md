@@ -73,6 +73,19 @@ exception, **no** DM1-invariant amendment.
 > pre-writing either outcome here would take that choice away. ⚠ Recorded because this is a **20-yr
 > LGPD/ANVISA retention record**: one asserting a control no code performs is worse than one admitting
 > the gap. (Raised as r2-MINOR-1 — the follow-up existed, but *this* is where an auditor reads D11.)
+>
+> ✅ **RULED 2026-08-18 (PO) — build it, but NOT at supersession, and NOT yet.** ADR
+> [0121](0121-disposal-lifecycle-inflow-outflow-and-evidence.md) **Amendment 2** settles the
+> collision that blocked this: the clause above stands — superseded bytes **do** retire through
+> `file_objects.disposal_state` — but the transition is scheduled by the **retention clock**, never by
+> the supersession event. ⭐ The one-line reason: `resolve_document_version_bytes` refuses to serve on
+> *any* non-`none` state, so marking at supersession made every superseded print unservable, colliding
+> with **D6/D8** (state changes what the overlay *stamps*, never reachability). Moving the trigger
+> dissolves the collision without touching a PHI byte-serving gate.
+> ⛔ **Still UNBUILT, and the reason has changed** — no longer an open decision, now **ADR 0121 D1**:
+> the inflow may not ship until the **outflow** does, and the outflow is the manual runbook whose
+> **end-to-end rehearsal is Critical FUP C1**. Until then this clause remains *enabled, not performed*
+> and must keep saying so.
 
 **Why D3–D5 were wrong — four catalog facts, each verified live before the re-ruling:**
 
@@ -257,6 +270,45 @@ sees today's 699 is the local **proof**, not the gate, because it depends on
 >    amendment — a Cloud-specific verification step, or an explicit ratification that the under-count
 >    class is accepted as unverified — is a PO decision at S6. It is recorded here, unresolved, rather
 >    than resolved silently in a runbook.** Full record: `docs/progress/dm5-s5-operational-closure.md`.
+>
+>    ### ✅ RULED 2026-08-18 (PO) — **the under-count class is RATIFIED AS ACCEPTED-UNVERIFIED on Cloud. No Cloud verification step is added.**
+>
+>    D9 is **not** amended with a Cloud-specific verification step. The under-count class —
+>    *a manifest listing 4 of 5 present keys yields `deleted=4 manifest=4 MATCH` and a real file
+>    survives* — is **accepted as unverified on Cloud**, explicitly and in writing, rather than
+>    papered over. ⭐ **This is a ratification of a limit, not a claim that the limit is small.** Two
+>    of D9's four controls do not survive the loss of local proof and **both lost ones are the
+>    byte-side ones**; that remains exactly as measured.
+>
+>    ⛔ **A HARD STOP goes into the runbook, and it is the operative half of this ruling.** The
+>    reachable Cloud failure is **not** "no proof" — it is a **FAKE proof**: `locateVolume()`
+>    (`scripts/storage-manifest.mjs:224`) takes **no arguments** and has **no project affinity**, so an
+>    operator running `capture` against Cloud from a machine with any local Supabase stack up gets a
+>    volume proof computed **against entirely unrelated bytes, presented with the same confidence as a
+>    real one.** *No proof fails visibly and refuses; a proof about the wrong bytes passes.* The
+>    runbook must therefore forbid the combination outright rather than warn about it.
+>
+>    ⚠ **What made this decidable now, and it is a fact about the data, not about the tooling:** the
+>    remote held **0 `storage.objects` rows in all 12 buckets** (re-measured 2026-08-18 immediately
+>    before acting, and independently at the phase review). **The under-count class needs objects to
+>    under-count**, so the retirement ran against a state where the count comparison and the volume
+>    proof agree *trivially*, and D9's weakness could not bite it at all.
+>
+>    ✅ **AND IT HAS NOW RUN.** `20260927000400` was pushed the same day: **8 legacy bucket rows
+>    retired, 4 survive** (`documents-phi`, `documents-standard`, `form-assets`, `meeting-audio`),
+>    **0 objects**, and the four `nsp_evidence`/`capa_evidence` policies dropped with them —
+>    catalog-verified after the run, not read from the migration's own notice. ⭐ **Note which half
+>    mattered:** the migration drops the *policies* as well as the bucket rows; deleting the buckets
+>    through the Storage API would have left four policies orphaned on `storage.objects`.
+>    ⚠ **So "12 buckets" above is a PRE-ACTION measurement and must not be quoted as current.**
+>    ⛔ **That is a property of TODAY's remote, not a general dispensation** — it expires the moment
+>    the pilot loads data, and any later Cloud retirement re-enters the accepted-unverified regime
+>    above. Re-measure at the moment of action; never quote this paragraph as the current state.
+>
+>    ⚠ **Still UNSETTLED and deliberately not closed:** whether Cloud exposes any other orphan-visible
+>    surface. **The S3-compatible endpoint remains UNPROBED**, and probing it is the single
+>    measurement that would change this verdict — `FUP-DM5-CLOUD-ORPHAN-SURFACE` keeps it. Ratifying
+>    the limit does **not** retire the question.
 >
 > The bucket ROWS and their policies were retired by migration `20260927000400`, which deletes
 > **zero bytes** by design and **refuses** to retire a bucket still holding `storage.objects`
@@ -644,3 +696,13 @@ an unverified completion would be the same error twice.
   gate steps) **without** naming either, and the plan has always scoped operational closure to
   **S5** — so the assignment here was pointing at a slice that was never going to do it. *A
   deliverable assigned to the wrong slice disappears when that slice closes cleanly.*
+  ✅ **BOTH RULED 2026-08-18 at the DM5 gate-step-4 docket** (ADR 0114 Open items): **O1** — 20-yr
+  floor on clinical, 5-yr default on governance metadata, with trigger events / per-type tiering /
+  erasure-vs-retention reconciliation **explicitly still open**; **O2** — the acceptance expires
+  *"the day any external user can upload"*, an event rather than a date, with scanner selection
+  deliberately still open. ⛔ **Neither ruling makes a `document_retention` row non-provisional.**
+  ⚠ **And note what this line got wrong for a day:** the DM5 phase review and PROGRESS.md's START
+  HERE both carried **O4** alongside O1/O2 as PO-owed. **O4 was ruled 2026-08-13** (ADR 0118;
+  120 s / 300 s signed-URL TTLs). This section — the review's own cited source — named only O1 and
+  O2, so the review **widened its cited source** and the docket inherited a phantom decision.
+  *An over-wide list of what is owed costs the same review round as an under-wide one.*

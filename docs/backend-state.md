@@ -88,12 +88,25 @@
 > Local `seed.sql` turns all six DM flags ON; `db push` never applies the seed, so the remote
 > measured all-OFF. Do not cite "ships OFF" as containment.
 >
-> **Still not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5 (which
-> changed no runtime surface — it was operational closure).** Their records are
-> [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) and
-> [dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md). Named here rather
-> than left to be discovered, because *an omission that is not listed is the one shape a reader
-> cannot detect.*
+> ⬛ **DISCHARGED 2026-08-18 (`FUP-DM5-BACKEND-STATE-SLICE-SECTIONS`).** This paragraph read *"Still
+> not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5."* All three now
+> exist as `##` sections in the chronological body below, between the **DM5 follow-up batch** and
+> **DM4** sections, every figure re-derived from the LIVE catalog with its query inline. Their
+> narrative records remain [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) and
+> [dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md); the sections are the
+> **surface delta**, the records are the story. ✅ **S4 followed on a second PO ruling the same day**
+> — `## DM5·S4` sits between the S5 and S3 sections — so **all four DM5 slices now have one**, and
+> the asymmetry this paragraph used to name is discharged. *An omission that is not listed is the
+> one shape a reader cannot detect* — which is why naming it got it closed in one round.
+>
+> ⛔ **Writing the four sections found THREE claims in the `###` stamps below that the catalog
+> contradicts** — the S3 migration range (**7**, not 6); *"a trigger on `responses` mints/drops its
+> securable"* (**there is none, and D17.2 refuses one**); and S4's *"`begin_document_upload` is the
+> only thing that names a bucket"* (**three functions, two CHECK constraints and a client-side
+> constant do**, and one of them predates the stamp) — plus **four** figures that were right only
+> under an unstated bound and **one that does not reproduce at all** (S4's "4 / 6 / 4 / 13 other
+> callers", retired). Each is corrected in place below and derived in its section. ⭐ *The stamps
+> warning that the text below them is stale had themselves gone stale.*
 >
 > ### DM5·S4 — the eight legacy storage buckets are RETIRED (`…000400`, 1 migration)
 >
@@ -111,6 +124,12 @@
 >   policies called (`app.can_write_capa` / `can_read_capa` / `can_write_rca` / `can_read_event`) are
 >   **NOT dropped** — unlike DM3's `app.can_read_document_object`, whose only caller was its policy, these
 >   have 4 / 6 / 4 / 13 other callers. *Dropping the door is not dropping the lock.*
+>   ⛔ **FIGURE RETIRED 2026-08-18: "4 / 6 / 4 / 13" does not reproduce under any bound.** Measured
+>   comment-stripped across all non-system schemas: **function** callers `5/5/5/12`, **policy** callers
+>   `8/7/8/11`, combined `13/12/13/23`; the stamp never said which it counted. Two drifts are explained
+>   by a later door, two go the wrong way. ⭐ **The conclusion survives untouched — every count is ≥5**
+>   — and `can_read_document_object` really is gone (`pg_proc` → 0 rows). *Correcting a magnitude is
+>   not correcting a direction; here only the magnitude was wrong.* Derivation: the `## DM5·S4` section.
 > - ⚠ **Retirement is a MIGRATION, not an operational script, and that is load-bearing:** six historical
 >   migrations (baseline · controlled_docs_core · attachments_storage · audio_minutes_schema ·
 >   printed_documents_storage · dm1_document_buckets) recreate all twelve bucket rows on **every**
@@ -133,11 +152,28 @@
 >   See the S4 entry in [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) for what that
 >   did and did not achieve locally.
 > - **Dead TS surface removed:** `ATTACHMENTS_BUCKET` / `ATTACHMENTS_PHI_BUCKET` / `bucketForTier()` in
->   `src/lib/attachments/constants.ts` (verified zero callers). **No client-side constant names a bucket
+>   `src/lib/attachments/constants.ts` (verified zero callers — ✅ re-verified 2026-08-18: only a
+>   `⛔ RETIRED` tombstone comment survives at `:65-75`, no live identifier). **No client-side constant names a bucket
 >   any more** — `begin_document_upload` is the only thing that does, and `file_objects_bucket_from_tier`
 >   CHECK-pins the tier→bucket mapping server-side.
+>   ⛔ **CORRECTED 2026-08-18 — that sentence is false in BOTH halves.** Catalog: **three** functions
+>   name a document-bucket literal (`begin_document_upload`, **`app.printed_rendition_storage_bucket`**
+>   — which landed at **S3, before this stamp was written** — and `reclassify_document`), plus 2 CHECK
+>   constraints and 1 policy per bucket. Client: `MEETING_AUDIO_BUCKET = 'meeting-audio'` **is** a
+>   client-side constant naming a bucket, and `printedRenditionStorageBucket()` returns both document
+>   bucket names as its type. ⭐ **The invariant that does hold, property-bounded:** every
+>   `.storage.from(…)` in `src/` takes a **server-derived variable** or names `form-assets` /
+>   `meeting-audio` (both D13 out-of-scope) — **zero retired-bucket literals, zero document-bucket
+>   literals at a `.from()` site**. `docs/reviews/dm5-s4-review.md:334` says exactly that; **the stamp
+>   is a compression of a correctly-bounded review sentence into a false absolute.** Derivation +
+>   the syntax-bound trap it hides: the `## DM5·S4` section.
 >
-> ### DM5·S3 — printed renditions moved onto the core substrate (`…000300`–`000350`, 6 migrations)
+> ### DM5·S3 — printed renditions moved onto the core substrate (`…000300`–`…000360`, **7** migrations)
+>
+> ⛔ **CORRECTED 2026-08-18: this header said "`…000350`, 6 migrations".** The registry carries
+> **seven** in the interval — `…000360 dm5_s3_r1_mint_unique_violation_discrimination`, the QA-r1
+> fix, is an S3 migration. *A range written at authoring time does not know about the migration the
+> review adds.* Full derivation: the `## DM5·S3` section in the body below.
 >
 > ⚠ **Every `printed_documents` line below this stamp is wrong.** The table is now a **satellite**, not a
 > self-contained registry:
@@ -155,7 +191,13 @@
 >   off the **`printed_documents` FK**, never `kind`.
 > - **`securable_resources_type_check` admits 9 types** (`form_response` added). `tenant_shape` still
 >   carries **TWO** shapes — `responses.commission_id` is NOT NULL, so `form_response` joins the existing
->   full-tenancy arm. A trigger on `responses` mints/drops its securable.
+>   full-tenancy arm. ⛔ **CORRECTED 2026-08-18: this bullet ended *"A trigger on `responses`
+>   mints/drops its securable."* — THERE IS NO SUCH TRIGGER.** `responses` carries 5 user triggers,
+>   none touching `securable_resources`; the row is minted **lazily inside `mint_printed_document`**
+>   (`on conflict (id) do nothing`, targeted, + a `resource_type` re-assert). ADR 0120 **D17.2**
+>   rejects the trigger explicitly — no backfill, and `responses` is the highest-cardinality table in
+>   the product. *The claim did not merely go stale; it asserts the mechanism the design wrote a
+>   paragraph to refuse.* Derivation: the `## DM5·S3` section in the body below.
 > - ⭐ **`app.can_read_document` AND `app.can_write_document` each gained a PRINT ARM**, dispatched on the
 >   `printed_documents` reference **before** the home-type dispatch and **below `app.is_active`**. Read
 >   delegates to `app.can_view_printed_document`; write mirrors `revoke_printed_document`'s authority. This
@@ -193,7 +235,11 @@
 >
 > - `securable_resources_type_check` admits **8** types, not 6 — `rca` and `capa_action` were added, and
 >   `securable_resources_tenant_shape` carries a **second shape** for `capa_action` (org + hospital,
->   **NULL commission** — ADR 0120 D14).
+>   **NULL commission** — ADR 0120 D14). ⚠ **Two bounds added 2026-08-18, both derived:** the type
+>   count is **9 today** (S3 added `form_response`) — read this line as an S2 *delta*, never as
+>   current state; and the second shape does **not** constrain `commission_id` at all (the column is
+>   nullable, the CHECK requires only org+hospital NOT NULL), so **NULL-commission is the INTENT, not
+>   the constraint.** Derivation: the `## DM5·S2` section in the body below.
 > - **`app.can_read_document` AND `app.can_write_document`** both gained `rca` + `capa_action` arms.
 >   ⚠ **The write door was missed for a full slice and refused every user with `P0002`**
 >   (BUG-DM5-S2-WRITE-ARM-1) — *a new home type means enumerating EVERY dispatch on `resource_type`.*
@@ -214,7 +260,9 @@
 > the catalog disagree, **the catalog wins** — always, no exceptions. ⬛ **S6 delivered this
 > obligation as the measured DM END STATE block at the head of this file (2026-08-17)** — a
 > current-surface summary, **not** the full per-slice rewrite this line used to promise: the
-> DM5·S2/S3/S5 sections remain unwritten, named in that block. Recorded here at S6 QA (finding F6)
+> DM5·S2/S3/S5 sections remained unwritten, named in that block. ✅ **They were written 2026-08-18
+> as `FUP-DM5-BACKEND-STATE-SLICE-SECTIONS` (PO-ruled at the DM5 gate-step-4 docket) — three `##`
+> sections in the body below, catalog-derived, every figure carrying its query.** Recorded here at S6 QA (finding F6)
 > so the promise and the delivery cannot silently diverge; if the per-slice sections are still
 > wanted, that is now an explicitly unowned item, not an S6 leftover.
 >
@@ -383,6 +431,481 @@ refuses on `disposal_state <> 'none'` — **any** non-`none` value — so re-iss
 stopped its previous PDF opening, colliding with ADR 0120 D6/D8. **Before writing any new
 value into `file_objects.disposal_state`, diff every reader of that column.** Open PO decision:
 `FUP-DM5-SUPERSEDE-SERVING-COLLISION`.
+
+## DM5·S5 — operational closure: the surface delta is EMPTY, and that is a measured claim (2026-08-17; ADR **0121**; **NO migration**; pgTAP `343`; NO flag)
+
+**Every figure below re-derived 2026-08-18 from the LOCAL catalog** (registry 411 == 411), per the
+DM END STATE convention at the head of this file. This is the **per-slice delta**; the aggregate is
+that block, and it is not restated here.
+
+⭐ **"S5 changed no runtime surface" is itself a figure, so it carries a query.** No version was
+registered between S4's retirement and the follow-up batch — the interval is empty, not merely
+un-named:
+
+```sql
+select count(*) from supabase_migrations.schema_migrations
+ where version > '20260927000400' and version < '20260928000100';   -- 0
+```
+
+⚠ **Bound the claim by the REGISTRY interval, not by a filename pattern.** "No file matches `*s5*`"
+would have been a syntax bound and would have missed a migration named anything else; the interval
+is the property.
+
+**The disposal census — inflow / outflow, and this is where the item's own numbers need a bound.**
+
+```sql
+-- INFLOW: functions that WRITE the pending state (SET-form, not merely mention it)
+select n.nspname||'.'||p.proname, coalesce(array_to_string(p.proacl,' ; '),'(default: PUBLIC)')
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where p.prokind='f' and n.nspname in ('app','public')
+  and pg_get_functiondef(p.oid) ~ 'set\s+disposal_state\s*=\s*''disposal_pending''';
+-- OUTFLOW: same shape, target state 'disposed'
+```
+
+- **Inflow = 4, not 3** — `request_document_disposition` · `dispose_case_phi` ·
+  `dispose_referral_phi` (all three EXECUTE-granted to `authenticated`) **+
+  `complete_document_reclassification`**, whose EXECUTE is `postgres`/`service_role` only.
+  ⚠ **`FUP-DM5-DISPOSAL-JOB` says "three inflow doors" — that is correct *bounded to doors a JWT
+  holder can reach*, and wrong unbounded.** The reclassification lane retires bytes into the same
+  pending state with no user in the loop, so the queue it feeds is wider than the item's figure.
+  *A count without its role bound is not a measurement.*
+- **Outflow = exactly 1**, and it is unreachable from a session:
+  `public.complete_document_disposal(p_file_object_id uuid, p_byte_proof text)`, `prosecdef = t`,
+  `proacl = postgres=X/postgres ; service_role=X/postgres` — **no `authenticated` entry, and the
+  default PUBLIC EXECUTE is revoked**. ⭐ This is the whole of ADR 0121 D1's violation stated in
+  catalog terms: 4 doors write into the queue, 1 door can empty it, and nothing in the deployment
+  calls that door.
+- **No scheduler exists — measured, not assumed:**
+  ```sql
+  select (select count(*) from pg_extension where extname like '%cron%') as cron_ext,   -- 0
+         (select count(*) from pg_namespace where nspname='cron') as cron_schema;        -- 0
+  ```
+  Repo half (filesystem, stated as such — **not** a catalog fact): `.github/` is **absent**, and the
+  root `Dockerfile`'s only process directive is `CMD ["node", "server.js"]` (line 49) — one process,
+  no supervisor, no scheduler. ⛔ **`343_dm5_s5_disposal_gap.sql` (`plan(12)`)
+  pins "no scheduler exists at all" — TRUE today and a FALSE PIN the day ADR 0121 D2 lands.**
+  Rewrite `343` inside D2's slice, never after it.
+- ⚠ **12 functions read `file_objects.disposal_state`** (`pg_get_functiondef(...) ~ 'disposal_state'`
+  over `app`+`public`, `prokind='f'`): `app._referral_reply_documents` ·
+  `app.guard_file_object_transition` · `app.resolve_document_version_bytes` ·
+  `public.add_referral_shared_item` · `complete_document_disposal` ·
+  `complete_document_reclassification` · `dispose_case_phi` · `dispose_referral_phi` ·
+  `get_referral_detail` · `open_referral_snapshot_document` · `reclassify_document` ·
+  `request_document_disposition`. ⭐ **This list IS the executable form of the D11 reverted-inflow
+  lesson** ("diff every reader before writing a new value into that column") — the reader that broke
+  serving, `app.resolve_document_version_bytes`, is item 3 of it.
+- **The path has never been exercised on this stack:** `select count(*) from file_objects` = **0**
+  (and `printed_documents` = 0). So the disposal census above is **structural** — derived from
+  function bodies and ACLs, not from data. ⚠ The measured form of "UNREHEARSED": the C1 rehearsal
+  (`FUP-DM5-DISPOSAL-JOB`, PO-ruled 2026-08-18) is the gate, and no row anywhere contradicts or
+  supports the runbook because no row exists.
+
+**What S5 shipped instead of surface**: the disposal-gap pin (`343`), the operational record
+[dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md), and
+[docs/deployment/phi-disposal-runbook.md](./deployment/phi-disposal-runbook.md). ⛔ **`disposal_state`
+therefore means INTENT, not destruction** (ADR 0121; inverts ADR 0099 D10) — nothing user-, regulator-
+or export-facing may describe it as destruction.
+
+## DM5·S4 — the eight legacy storage buckets are RETIRED (`20260927000400`, **1** migration; ADR 0120 D9; pgTAP `325` `plan(8)` t6/t7/t8)
+
+**Re-derived 2026-08-18 from the LOCAL catalog** (registry 411 == 411), per the DM END STATE
+convention. ⚠ **Deployment, as of the 2026-08-18 push:** local and remote are both at
+`20260928000500`, so the retirement is **LIVE on the remote** (4 buckets there, 0 `storage.objects`).
+Any older "local-only / not pushed" phrasing about S4 is false — do not carry it forward.
+
+**The interval is ONE migration — derived, not assumed:**
+
+```sql
+select version, name from supabase_migrations.schema_migrations
+ where version between '20260927000400' and '20260927999999';   -- 1 row: dm5_s4_retire_legacy_buckets
+```
+
+**The surviving set and every lock on it** (`storage.buckets`, `pg_policy` on `storage.objects` —
+⚠ read `polcmd`: `'a'`=INSERT, `'r'`=SELECT):
+
+```sql
+select id, public from storage.buckets order by id;                        -- 4 rows, all public=false
+select polname, polcmd::text, pg_get_expr(polqual, polrelid) as using_qual,
+       pg_get_expr(polwithcheck, polrelid) as with_check
+  from pg_policy where polrelid = 'storage.objects'::regclass order by polname;
+```
+
+| bucket | scope | its `storage.objects` policies |
+| --- | --- | --- |
+| `documents-phi` | core (ADR 0114 D8) | `documents_phi_obj_insert_reserved` — **INSERT, `WITH CHECK` only, `USING` is NULL** |
+| `documents-standard` | core (D8) | `documents_std_obj_insert_reserved` — INSERT, `WITH CHECK` only |
+| `form-assets` | **out of scope** (D13) | `form_assets_insert_staff_admin` [INSERT] + `form_assets_select_member` [SELECT] |
+| `meeting-audio` | **out of scope** (D13) | **(NO POLICY AT ALL)** |
+
+- **`polcmd` census over all 4 policies: 3 × `'a'` + 1 × `'r'`; ZERO DELETE, ZERO UPDATE, ZERO
+  `FOR ALL`.** That absent pair is the lock — stated per bucket, because the one SELECT policy
+  belongs to `form-assets`, which is outside the document model.
+- ⚠ **`meeting-audio` carries no policy of any kind**, so with RLS on it is deny-by-default for
+  `authenticated`/`anon` and reachable only service-role. A reader who assumes "4 buckets, 4
+  policies, one each" has it wrong in both directions.
+- `storage.objects` grants **`arwdDxtm` to `authenticated` AND to `anon`** (`pg_class.relacl`) —
+  **no grant-level fallback**: every storage protection here is exactly one permissive policy wide.
+
+**The residue sweep — the enumeration that actually proves a retirement, bounded by a PROPERTY.**
+Function bodies (comment-stripped, all non-system schemas), policy expressions, and constraint
+definitions, asked for each historical bucket name as a quoted literal:
+
+```sql
+with names(bn) as (values ('attachments'),('attachments-phi'),('case-documents'),
+    ('interview-attachments'),('nsp-evidence'),('referral-attachments'),('controlled-documents'),
+    ('printed-documents'),('meeting-attachments'),
+    ('documents-standard'),('documents-phi'),('form-assets'),('meeting-audio')),
+fns as (select n.nspname||'.'||p.proname as fq,
+          (select string_agg(regexp_replace(l,'--.*$',''), E'\n')
+             from regexp_split_to_table(pg_get_functiondef(p.oid), E'\n') l) as code
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where p.prokind='f' and n.nspname not in ('pg_catalog','information_schema'))
+select bn,
+  (select count(*) from storage.buckets b where b.id = bn)                                as bucket_row,
+  (select count(*) from fns f where f.code ~ (''''||bn||''''))                            as fn_refs,
+  (select count(*) from pg_policies pol
+     where coalesce(pol.qual,'')||coalesce(pol.with_check,'') ~ (''''||bn||''''))         as policy_refs,
+  (select count(*) from pg_constraint c where pg_get_constraintdef(c.oid) ~ (''''||bn||'''')) as constraint_refs
+from names order by bucket_row desc, bn;
+```
+
+**Result: all NINE retired names score `0 | 0 | 0 | 0`** — `attachments` · `attachments-phi` ·
+`case-documents` · `controlled-documents` · `interview-attachments` · `nsp-evidence` ·
+`printed-documents` · `referral-attachments` (S4's eight) **+ `meeting-attachments`** (retired
+earlier, at F2's `20260921000300`). Survivors: `documents-phi` / `documents-standard` → 3 fn-refs,
+1 policy-ref, 2 constraint-refs each; `form-assets` → 0 fn, 2 policy; `meeting-audio` → 1 fn
+(`public.list_stale_meeting_audio`), 0 policy. **The census sums: 13 historical names = 4 live + 9
+retired.**
+
+⚠ **The DOMAIN of that sweep is record-sourced; only the VERDICT per name is catalog-derived — and
+the domain was under-wide on the first pass.** It began as the DM5 record's twelve and missed
+`meeting-attachments`, which surfaced only from the pgTAP estate. ⛔ **You cannot enumerate the dead
+set from the live catalog: a retired bucket leaves no residue to find.** That asymmetry is exactly
+why retirement had to be a *migration* (six historical migrations recreate the rows on every
+`db reset`) and why the only standing assertion possible is over the **surviving** set.
+
+⛔ **CONTRADICTION — the S4 stamp's "no client-side constant names a bucket any more —
+`begin_document_upload` is the only thing that does" is false in BOTH halves.**
+
+- **Catalog half:** **three** live functions name a document-bucket literal — `public.begin_document_upload`,
+  **`app.printed_rendition_storage_bucket`** and `public.reclassify_document` — plus **2** CHECK
+  constraints (`file_objects_bucket_check`, `file_objects_bucket_from_tier`) and 1 policy per bucket.
+  ⚠ `app.printed_rendition_storage_bucket` landed at **S3** (`…000330`–`…000340`), *before* this
+  stamp was written, so the claim was **false when authored**, not merely aged.
+- **Client half:** `MEETING_AUDIO_BUCKET = 'meeting-audio'` (`src/lib/minutes-jobs/constants.ts:11`)
+  is literally a client-side constant naming a bucket, and
+  `printedRenditionStorageBucket()` (`src/lib/pdf-mint/storage-coordinates.ts:33-38`) returns
+  `'documents-phi' | 'documents-standard'` as its *type*.
+- ⭐ **The invariant that DOES hold, property-bounded** — every `.storage.from(…)` call site in
+  `src/` (multiline search, since the call wraps a line and a single-line regex finds **none** of
+  them): each either takes a **server-derived variable** (`file.storage_bucket`, `row.storage_bucket`,
+  or the door's `bucket`) or names `form-assets` / `meeting-audio`, both D13 out-of-scope. **Zero
+  retired-bucket literals; zero document-bucket literals at a `.from()` site.**
+  `docs/reviews/dm5-s4-review.md:334` states precisely that — **the stamp is a compression of a
+  correctly-bounded review sentence into a false absolute.** The direction survives; the
+  absoluteness does not.
+- ⚠ **My own first sweep of this OVERSTATED it, in the same class it was checking.** Grepping `src/`
+  for the bucket names as string literals returned `'attachments'` ×3 and `"interview-attachments"`
+  ×1 — which on inspection are `featureEnabled('attachments')` (a **feature-flag key**) and a
+  `domId`. *A string-literal bound is a SYNTAX bound; the property is "names a storage bucket".*
+  → [[a-predicate-quoted-at-the-wrong-grain]], and **resolve the VALUE, not the noun.**
+- **Dead TS surface confirmed removed:** `ATTACHMENTS_BUCKET` / `ATTACHMENTS_PHI_BUCKET` /
+  `bucketForTier()` survive only as a `⛔ RETIRED by DM5·S4` tombstone comment at
+  `src/lib/attachments/constants.ts:65-75` — no live identifier matches.
+
+⛔ **FIGURE RETIRED — the stamp's "these have 4 / 6 / 4 / 13 other callers".** It does not reproduce
+under any bound I can construct, and it never carried one:
+
+```sql
+-- comment-stripped, all non-system schemas; functions and policies counted SEPARATELY
+with fns as (select p.proname,
+       (select string_agg(regexp_replace(l,'--.*$',''), E'\n')
+          from regexp_split_to_table(pg_get_functiondef(p.oid), E'\n') l) as code
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where p.prokind='f' and n.nspname not in ('pg_catalog','information_schema'))
+select t, (select count(*) from fns f where f.proname <> t and f.code ~ ('\y'||t||'\s*\(')),
+          (select count(*) from pg_policies pol
+             where coalesce(pol.qual,'')||coalesce(pol.with_check,'') ~ ('\y'||t||'\s*\('))
+from unnest(array['can_write_capa','can_read_capa','can_write_rca','can_read_event']) t;
+```
+
+**Measured: function callers `5 / 5 / 5 / 12`, policy callers `8 / 7 / 8 / 11`, combined
+`13 / 12 / 13 / 23`.** Two of the four drifts have an explanation — `public.complete_evidence_upload_verification`
+(the follow-up batch, *after* this stamp) calls `app.can_write_rca` and `app.can_write_capa`, so
+4→5 twice — but `can_read_capa` (stamp **6**, measured 5) and `can_read_event` (stamp **13**,
+measured 12) are **higher** in the stamp, so no additive story closes it. Comment-stripping changed
+nothing. ⭐ **The CONCLUSION is untouched and in fact stronger: every count is ≥ 5, so dropping the
+door was not dropping the lock.** Contrast `app.can_read_document_object` (DM3's, whose only caller
+*was* its policy): `select count(*) from pg_proc where proname='can_read_document_object'` → **0**,
+it is gone. *Correcting a magnitude is not correcting a direction, and here only the magnitude was wrong.*
+
+**What enforces the retirement going forward — and what does NOT.**
+
+- **`storage.protect_delete()` is role-agnostic** — its whole body tests
+  `coalesce(current_setting('storage.allow_delete_query', true),'false') != 'true'` and raises
+  `42501`. It is wired **BEFORE DELETE, STATEMENT-level** as `protect_objects_delete` on
+  `storage.objects` **and** as `protect_buckets_delete` on `storage.buckets`. ⚠ **The Storage API
+  sets that GUC itself**, so the trigger never fires on an HTTP delete — it guards **direct SQL DML
+  only**, which is the context the retirement migration needed it for.
+- `storage.buckets`: RLS **enabled**, **0 policies**, and `arwdDxtm` granted to `authenticated` and
+  `anon`. Its two triggers are Supabase stock (`enforce_bucket_name_length_trigger`,
+  `protect_buckets_delete`), both owned by the `storage` schema — **none of ours**.
+- ⛔ **NOTHING in the catalog carries the migration's byte-first refusal forward.** The
+  "refuse to retire a bucket that still holds `storage.objects` rows" guard was a one-shot `DO`
+  block; `storage.buckets` has **0 CHECK constraints and 0 triggers of ours**. *A one-shot migration
+  guard is not a standing invariant* — the next retirement inherits nothing and must re-derive it.
+- **The standing pins that DO survive are on `file_objects`, not on storage**:
+  `file_objects_bucket_check` (`storage_bucket ∈ {documents-standard, documents-phi}`) and
+  `file_objects_bucket_from_tier` (tier ⇔ bucket, both directions). Bucket choice is a **server-side
+  derivation**, CHECK-pinned.
+- **Local object counts: 0 in all four buckets** (`storage.objects` grouped by `bucket_id`), matching
+  `file_objects` = 0. The 221 objects the retirement buckets held were destroyed outside the D9 gate
+  by a `supabase stop`/`start` recovery — `FUP-DM5-STACK-CYCLE-DESTROYS-BYTES`.
+
+**The pin, and the one thing it cannot see.** `325_legacy_bucket_policy_pin.sql` (`plan(8)`) is the
+standing assertion: **t6** (no `storage.objects` policy's `qual`/`with_check` text references any of
+the eight — *the derivation dialect is the expression TEXT, never policy names, so an indirect
+reference still matches*), **t7** (all eight bucket rows are gone), and **t8**, an explicit
+**positive control** asserting the four survivors are still present — *a sweep that retired
+everything would satisfy t7 and fail t8*. ⚠ **The pin is keyed to a closed list of names** (the 8 +
+the 4, plus `meeting-attachments` at t3/t4), so a **name outside that list** — a new bucket, or one
+resurrected under another name — passes all of it. There is **no assertion anywhere in the pgTAP
+estate on the TOTAL bucket count**: the complete set of lines touching `storage.buckets` is **7,
+across 5 files** (`200` ×1 · `235` ×1 · `236` ×1 · `325` ×3 · `328` ×1); **two of the seven are
+fixture `insert`s** (`235`, `236`), and each of the five actual reads is name-keyed. ⛔ **I nearly filed that
+as a coverage gap before reading t6–t8** — the pin is real, well-controlled, and complete for every
+name anyone has used. *Absence of a verdict is not absence of coverage; neutralize before escalating.*
+
+## DM5·S3 — printed renditions moved onto the core substrate (`20260927000300`–`…000360`, **7** migrations; ADR 0120 D6/D7/D11/D12/D13/D17; pgTAP `342` `plan(59)`)
+
+**Re-derived 2026-08-18 from the LOCAL catalog.** ⛔ **The DM END STATE stamp for S3 says
+"`…000300`–`…000350`, 6 migrations" — the registry says SEVEN**, `…000360
+dm5_s3_r1_mint_unique_violation_discrimination` (the QA-r1 fix) is an S3 migration and the range end
+is `…000360`:
+
+```sql
+select version, name from supabase_migrations.schema_migrations
+ where version between '20260927000300' and '20260927000399' order by version;   -- 7 rows
+```
+
+⭐ *A range written at authoring time does not know about the migration the review adds* — bound the
+enumeration by the registry interval, never by the range someone typed into a header.
+
+**`printed_documents` is a satellite — the shape, measured:**
+
+```sql
+select a.attname, a.attnotnull, coalesce(array_to_string(a.attacl,' ; '),'(no column ACL)')
+from pg_attribute a where a.attrelid='public.printed_documents'::regclass
+  and a.attnum>0 and not a.attisdropped order by a.attnum;                  -- 20 columns
+select conname, pg_get_constraintdef(oid) from pg_constraint
+ where conrelid='public.printed_documents'::regclass order by contype, conname;
+```
+
+- **20 columns; 17 carry an `authenticated=r` COLUMN grant; 3 withhold it** — `verification_token`,
+  `revoked_reason`, `revoked_by`. ⚠ **The table-level ACL has no `authenticated` entry at all**
+  (`postgres` + `service_role` only), so column grants are the *entire* read surface — a new column
+  is invisible to PostgREST until it gets its own GRANT (the `case_referral` column-grant rule).
+- **`document_id` + `document_version_id`: both NOT NULL, both UNIQUE**
+  (`printed_documents_document_uniq`, `printed_documents_document_version_uniq`), plus the composite
+  FK `printed_documents_version_document_fk (document_version_id, document_id) → document_versions(id,
+  document_id) ON DELETE RESTRICT` — the two coordinates cannot disagree.
+- **`storage_path` is GONE and so is `pd_storage_path_derived`** — both re-verified as absent
+  (`count(*) = 0` against `pg_attribute` / `pg_constraint`), not merely unmentioned.
+- ⚠ **The `printed_document_public` composite is NOT ≡ the GRANT, and is not meant to be.** Derived
+  as a set difference rather than counted by hand:
+  ```sql
+  with granted as (select a.attname from pg_attribute a
+      where a.attrelid='public.printed_documents'::regclass and a.attnum>0 and not a.attisdropped
+        and has_column_privilege('authenticated','public.printed_documents',a.attname,'SELECT')),
+       proj as (select a.attname from pg_attribute a join pg_class c on c.oid=a.attrelid
+      where c.relname='printed_document_public' and a.attnum>0 and not a.attisdropped)
+  select (select count(*) from granted), (select count(*) from proj),
+         (select string_agg(attname,', ') from (select * from granted except select * from proj) d);
+  -- 17 | 15 | document_id, document_version_id      (projected-but-not-granted: none)
+  ```
+  **`mint_printed_document` and `revoke_printed_document` return `printed_document_public`, which
+  omits S3's two new columns** — so the REFNOTE invariant *composite ≡ column GRANT* (pgTAP `326`
+  t1–t3, the referral composites) **does NOT extend to this composite.** Anyone adding a column here
+  must decide the grant and the projection **separately**; assuming the referral rule applies is the
+  mistake this bullet exists to stop.
+
+⛔ **CORRECTION — `responses` has NO securable trigger, and the design deliberately refuses one.**
+The DM END STATE S3 stamp says *"A trigger on `responses` mints/drops its securable."* The catalog
+says otherwise: `responses` carries **5** user triggers (`audit_responses_trg` ·
+`guard_response_version_commission_trg` · `guard_submitted_response_trg` ·
+`guard_supersession_coherent_trg` · `sync_case_phase_on_submit_trg`) and **none** touches
+`securable_resources`; `select count(*) from securable_resources where resource_type='form_response'`
+is **0** on this stack.
+
+```sql
+select t.tgname, p.proname from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+ where t.tgrelid='public.responses'::regclass and not t.tgisinternal order by 1;   -- 5, none securable
+select n.nspname||'.'||p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+ where p.prokind='f' and pg_get_functiondef(p.oid) ~ 'securable_resources'
+   and pg_get_functiondef(p.oid) ~ 'form_response';   -- the real writers
+```
+
+The `form_response` securable is minted **lazily inside `public.mint_printed_document`** —
+`insert into public.securable_resources … on conflict (id) do nothing`, **targeted at `(id)`** (an
+untargeted `do nothing` would swallow a future constraint), followed by a **re-read that asserts the
+stored `resource_type` matches** (`HC0D1`) because the upsert may have lost to a row of a different
+type. The function's own comment states the trigger was **rejected on purpose** (ADR 0120 **D17.2**:
+no backfill, and `responses` is the highest-cardinality table in the product — a 1:1 shadow of it in
+a security registry is the wrong trade). ⭐ *The stamp did not merely go stale; it asserts the exact
+mechanism the design wrote a paragraph to refuse.* → [[a-comment-is-an-assertion-that-goes-stale-silently]]
+
+**Byte path and doors** (`pg_proc`: `prosecdef`, `provolatile`, `proconfig`, `proacl`):
+
+| door | secdef | vol | EXECUTE granted to | result |
+| --- | --- | --- | --- | --- |
+| `app.resolve_document_version_bytes(uuid, text, uuid)` | `t` | `s` | **`postgres` ONLY** | `TABLE(11 cols)` |
+| `public.open_printed_document(uuid)` | `t` | `v` | `postgres`, `service_role`, `authenticated` | `TABLE(storage_bucket, storage_path, status, contains_phi)` |
+| `public.mint_printed_document(9 args, no path param)` | `t` | `v` | `postgres`, `service_role`, `authenticated` | `printed_document_public` |
+| `public.lookup_printed_document(text, uuid)` | `t` | `v` | `postgres`, `service_role` | `TABLE(6 cols)` |
+| `app.can_view_printed_document(text, uuid, uuid)` | `t` | `s` | `postgres`, `authenticated`, `service_role` | `boolean` |
+
+All five pin `search_path = app, public, pg_catalog`. ⚠ **`resolve_document_version_bytes` is
+`postgres`-only — `service_role` is NOT on its ACL**; it is reachable only from inside the two
+DEFINER doors that delegate to it, which is what makes ADR 0120 **D12**'s "one resolver" claim
+structural rather than conventional.
+
+- **Two NEW helpers the stamp does not name**: `app.printed_rendition_storage_bucket(boolean)` and
+  `app.printed_rendition_storage_path(uuid)` — both **INVOKER** (`prosecdef = f`), **IMMUTABLE**,
+  EXECUTE to `postgres` only. They are the single home of the coordinate derivation, called by both
+  `mint_printed_document` and the binding guard, which is why the retired CHECK could be replaced
+  without duplicating the rule.
+- **Write guards, enumerated by PROPERTY** (`body references printed_documents AND raises`):
+  `app.guard_printed_document_version` (**HC0DK**, BEFORE INSERT on `document_versions`) ·
+  `public.soft_delete_document` (**HC0DL**) · `public.request_document_disposition` (**HC0DN**) ·
+  `public.mint_printed_document` · `public.revoke_printed_document`. ⚠ **That property-bounded set is
+  NOT the stamp's curated "five"** — it misses `begin_document_upload` (which refuses
+  `p_resource_type = 'form_response'` with **`P0002`**, before anything is reserved) and
+  `app.guard_printed_document_binding`, whose errcode is **`HC0DA`**, *not* in the `HC0D[KLN]`
+  family — an `HC0D[KLN]` sweep silently omits it. The union is **7** refusal sites.
+  *An enumeration bounded by an error-code family is a syntax bound.*
+- **The print arm's position is measured, not assumed.** In `app.can_read_document`, the dispatch
+  order is `p_uid is null` → **`app.is_active`** → home lookup → **print arm** (relational, on the
+  `printed_documents` FK) → `case v_type when …`. Both kernels expose **8** `when '<type>'` arms
+  (`action_item`, `capa_action`, `case`, `case_referral`, `controlled_document`, `interview`,
+  `meeting`, `rca`); **`form_response` is deliberately not among them** — a print never reaches the
+  home dispatch. ⭐ **`documents.kind` really does carry 0 CHECK constraints**
+  (`select count(*) from pg_constraint where conrelid='public.documents'::regclass and contype='c'
+  and pg_get_constraintdef(oid) ~ 'kind'` → 0), which is why the arm keys off the FK: unchecked text
+  fails **open**.
+- **`securable_resources_type_check` now admits 9 types** (`form_response` added here);
+  `securable_resources_tenant_shape` still carries **two** arms — see the S2 section below for the
+  precise reading of the second one.
+
+⬛ **DISCHARGED 2026-08-18.** This paragraph read *"No `## DM5·S4` section exists by design … named
+so the asymmetry is visible rather than read as an omission."* The PO ruled S4 written the same way;
+**the `## DM5·S4` section is directly above this one**, and all four DM5 slices now have one.
+Kept rather than deleted, because the note is what made the gap addressable in one round — *naming
+an omission is how it stops being invisible*, and a silently-vanished note leaves the next reader
+unable to tell a discharged item from one that was never raised.
+
+## DM5·S2 — NSP RCA/CAPA evidence on the document substrate (`20260927000100`–`…000170`, **8** migrations; ADR 0120 D10/D14; pgTAP `341`)
+
+**Re-derived 2026-08-18 from the LOCAL catalog.** The registry interval reproduces the header exactly
+— 8 versions, `…000100 dm5_s2_securable_types_rca_capa` → `…000170 dm5_s2_wave_d_gates_begin`:
+
+```sql
+select version, name from supabase_migrations.schema_migrations
+ where version between '20260927000100' and '20260927000299' order by version;   -- 8 rows
+```
+
+**The securable arms — and one precision the stamp gets slightly wrong.**
+
+```sql
+select conname, pg_get_constraintdef(oid) from pg_constraint
+ where conrelid='public.securable_resources'::regclass and contype='c';
+```
+
+- `securable_resources_type_check` admits **9** types today. ⚠ **The DM END STATE S2 stamp says
+  "8" — that was true AT S2 and `form_response` was added one slice later by S3.** Read the stamp as
+  a delta, not as a current-state figure; the current figure is 9.
+- `securable_resources_tenant_shape` carries **two** arms: eight types requiring
+  `organization_id`, `hospital_id` **and** `commission_id` NOT NULL, plus a `capa_action` arm
+  requiring **only org + hospital** NOT NULL (ADR 0120 D14). ⛔ **The stamp reads `org + hospital,
+  NULL commission` — the CHECK does not say that.** It places **no** constraint on
+  `commission_id` in that arm, and `commission_id` is a **nullable column**
+  (`pg_attribute.attnotnull = false`), so a `capa_action` securable carrying a non-NULL commission
+  satisfies the constraint. NULL-commission is the **intent**; the constraint enforces only the
+  org+hospital floor. *Resolve the VALUE, not the noun* — anyone hardening this must add the
+  exclusion, not assume it.
+
+**Kernel arms.** `app.can_read_document` and `app.can_write_document` each dispatch **8**
+`when '<type>'` arms and both include `rca` and `capa_action`:
+
+```sql
+select distinct m[1] from pg_proc p,
+     regexp_matches(pg_get_functiondef(p.oid), 'when ''([a-z_]+)''', 'g') m
+ where p.oid = 'app.can_write_document(uuid,uuid)'::regprocedure order by 1;
+```
+
+⚠ **The write arm was missing for a full slice and refused every user with `P0002`**
+(BUG-DM5-S2-WRITE-ARM-1, fixed by `…000160 dm5_s2_write_arm_nsp`) — *a new home type means
+enumerating EVERY dispatch on `resource_type`, both kernels, not the one the feature reads.*
+
+**Doors — `p_storage_path` is gone from all three** (identity arguments, from `pg_proc`, not the
+migration text):
+
+- `public.begin_document_upload(p_resource_type, p_resource_id, p_title, p_description,
+  p_confidentiality_level, p_document_id, p_declared_file_name, p_declared_mime, p_declared_size,
+  p_kind, p_occurred_on)` → `jsonb`
+- `public.add_rca_evidence(p_rca_id, p_kind, p_title, p_document_id, p_external_url,
+  p_citation_target, p_cited_entity_id, p_citation_label)` → **`rca_evidence`**
+- `public.add_capa_action_evidence(p_action_id, p_kind, p_title, p_document_id, p_external_url)` →
+  **`capa_action_evidence`**
+
+⚠ **Both evidence doors return the TABLE ROW TYPE, not a projection composite** — unlike the 23
+referral doors (REFNOTE / ADR 0113). A new column on either evidence table is therefore returned
+automatically, and its exposure is governed by the table GRANT alone. Do not "harmonise" these onto
+`_public` composites without re-reading `341`.
+
+**The Wave-D flag is an APP-LAYER gate, concentrated in one assert with 5 callers:**
+
+```sql
+select n.nspname||'.'||p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname in ('app','public') and p.prokind='f'
+   and pg_get_functiondef(p.oid) ~ 'assert_documents_wave_d_enabled'
+   and p.proname <> 'assert_documents_wave_d_enabled';
+-- add_capa_action_evidence · add_rca_evidence · begin_document_upload
+-- · complete_evidence_upload_verification · mint_printed_document
+```
+
+- In `begin_document_upload` the assert is **arm-scoped** — `if p_resource_type in ('rca',
+  'capa_action') then perform app.assert_documents_wave_d_enabled(); end if;` — mirroring the
+  wave_b/wave_c arms directly above it (ADR 0120 D10: gate the FIRST residue-producing step, and
+  only for this corridor).
+- ⭐ **`finalize_document_upload` is NOT in the caller set** — deliberate, and the query above is
+  what proves it rather than the absence of a mention.
+- The two callers added *after* S2 are `complete_evidence_upload_verification` (follow-up batch) and
+  `mint_printed_document` (S3). ⚠ **The flag is NOT a security boundary** — 0 RLS policies read one;
+  see the DM END STATE block for the full 75/6 census.
+
+**Evidence tables — the current grant, stated precisely.**
+
+```sql
+select relname, coalesce(array_to_string(relacl,' ; '),'(none)') from pg_class
+ where relname in ('rca_evidence','capa_action_evidence');
+select tablename, policyname, cmd from pg_policies
+ where tablename in ('rca_evidence','capa_action_evidence');
+```
+
+- `authenticated=rm/postgres` on both — **`r` (SELECT) + `m` (MAINTAIN); no `a`/`w`/`d`.** ⚠ The
+  DM5 follow-up-batch section above says *"`authenticated` holds SELECT and nothing else"* — the
+  **security conclusion is right** (no INSERT/UPDATE/DELETE; all writes traverse the RPCs) but the
+  ACL is `rm`, not `r`. A sweep asserting the literal string `authenticated=r/postgres` reds on a
+  correct table.
+- Each table keeps **2** policies (`_select` FOR SELECT, `_write` FOR ALL, both `{authenticated}`) —
+  kept as the second lock because `ALTER DEFAULT PRIVILEGES … FOR supabase_admin` would restore the
+  grant on a re-dumped baseline. ⚠ **A `FOR ALL` policy IS also a read policy.**
+- `rca_evidence.cited_document_id` exists (**un-parked** at S2, `…000130 dm5_s2_citation_seam`);
+  `capa_action_evidence` carries `document_id` only.
+
+⚠ **`341_dm5_s2_nsp_evidence_substrate.sql` declares `plan(67)`, but that is the FILE's current
+total, not S2's contribution** — the DM5 follow-up batch added its H1–H4 and J7 blocks to the same
+file. Do not cite it as an S2 figure.
 
 ## DM4 — Wave C: referrals on the document substrate (2026-08-14; ADR 0114 + ADR **0119** D1–D10; migrations `20260926000100`–`…000500`; pgTAP `340`; flag `documents_wave_c` **OFF** — seed forces ON local/E2E; QA APPROVED r2, PO-approved)
 
@@ -1131,7 +1654,7 @@ It does not. Its `do update` list ENDS with `expires_at = excluded.expires_at` �
 **uncoalesced**. That door already extends on re-grant **and NULL-CLEARS**, which is the exact
 shape ADR 0102 §2 refused for the role door, on a door carrying `read_standard_phi` /
 `read_restricted_phi`.
-✅ **RULED INTENDED 2026-08-07 (PO; ADR [0103](decisions/0103-case-access-blank-expiry-is-permanent.md)) —
+✅ **RULED INTENDED 2026-08-07 (PO; ADR [0103](decisions/0103-case-access-null-expiry-is-permanent.md)) —
 FUP-QO-7 resolved.** The uncoalesced `expires_at = excluded.expires_at` **stays**; the door is
 unchanged. The two doors are ruled **oppositely on purpose**, and the deciding fact is the **caller
 population**: the role door has **no** caller that passes an expiry (12 TS sites, all omit it), so a

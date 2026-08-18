@@ -184,11 +184,38 @@ mutation twins.
 
 ## Open items (owned, not forgotten)
 
-- **O1 (PO + legal/clinical):** retention-policy VALUES — trigger events, 20-yr CFM
-  floors, erasure vs. retention reconciliation. Schema lands in DM1; values stay
-  provisional until signed off.
-- **O2 (PO + backend):** scanner selection/integration + operational owner; expiry
-  condition for the `unscanned_accepted` acceptance.
+- **O1 (PO + legal/clinical): ✅ RULED 2026-08-18** — **a 20-year floor on anything
+  clinical; a 5-year default on governance metadata.** The two-tier split is the
+  decision; the tiering rule is *does this document evidence care, or evidence
+  process*. Clinical inherits the **CFM 1821/2007** 20-yr duty and LGPD minimisation
+  cannot shorten it. Governance metadata (committee process, minutes-adjacent
+  artifacts, indicator definitions) carries no such duty, so 5 years is a **default**,
+  not a floor — a specific document type may be assigned longer, never shorter than
+  its own legal basis.
+  ⚠ **Three things this ruling deliberately does NOT settle**, and an implementer may
+  not infer them: the **trigger events** (what starts each clock — issuance, case
+  closure, last access), the **per-type tier assignment** for every document type the
+  product has, and the **erasure-vs-retention reconciliation** when an LGPD Art. 18
+  request lands on a document inside its 20-yr floor. ⭐ That last one is not a gap in
+  the ruling — it is a genuine conflict of laws where retention wins for clinical
+  records, and the *product* obligation is to say so honestly rather than to resolve
+  it in code. Each needs its own ruling before `document_retention` rows stop being
+  provisional. ⛔ **Until then a retention row is still PROVISIONAL, and D5-class
+  blocking (`HC0DR`) still applies** — this ruling supplies the two numbers, not
+  ratification of any particular row.
+- **O2 (PO + backend): ✅ RULED 2026-08-18 — the acceptance now has an EXPIRY, and no
+  scanner is being selected yet.** `unscanned_accepted` is acceptable **while the
+  platform holds no real patient data AND uploads are limited to the internal pilot
+  cohort. It expires the day any external user can upload.**
+  ⭐ **The condition is an event, not a date, on purpose:** a calendar deadline for a
+  risk acceptance expires while the risk is unchanged, and gets extended; this one
+  cannot be met by waiting. **Scanner selection and its operational owner stay open**
+  — deliberately, because the ruling that was owed was the *bound* on the acceptance,
+  not a procurement decision. ⚠ The compensating controls (MIME allow-list, size caps,
+  download-only serving headers) are what make the interim state defensible and must
+  not be relaxed while it is in force. ⛔ **When the condition fires, the flip is a
+  single transition change to strict fail-closed** (D9) — but a scanner must exist by
+  then, so scanner selection becomes blocking at the same moment, not after.
 - **O3 (future ADR): SCHEDULED at Phase 19 — see Amendment 1.** The audience/group/
   scoped-role sharing plane. Its "if/when a feature commits to it" trigger has
   **fired**: Phase 19 (Surveyor Access & Evidence Export) is a committed,

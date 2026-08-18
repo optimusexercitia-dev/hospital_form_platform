@@ -123,3 +123,28 @@ plant their own enforcing fixture.
 - S2 obligations minted: S1-O1 (open-door ceiling pins), S1-O2 (write-side label
   authority + audited classification change), S1-O3, S1-O4 — ledger in the phase
   record.
+
+## S1-O3 — ✅ RULED 2026-08-18 (PO): **uploader visibility is NOT added. The item is CLOSED.**
+
+An unplaced file object stays invisible to everyone, **including the person who uploaded it**. The
+DM1 MAJOR-1 removal stands as the permanent shape, not as an interim one.
+
+⭐ **The ruling is "no", and the reason is that nobody has paid the cost it would buy off.** The
+known consequence of leaving it out is narrow and real: a user whose upload is interrupted between
+`begin_document_upload` and placement holds an orphan they cannot see or retry. **No occurrence has
+been observed, and the pilot is the environment that would surface one.** Adding a visibility path to
+a PHI-capable substrate to pre-empt an unobserved papercut is the wrong trade in that direction.
+
+⚠ **If it is ever revisited, the shape is already constrained and the constraint is the whole
+lesson:** a future uploader arm goes **INSIDE the kernel chain** (`documents_select` →
+`document_versions_select` → `document_placements_select` → `can_read_document_version` →
+`can_read_file_object`), never beside it. DM1's arm was removed precisely because it sat **outside**
+that chain and so would have been silently ungoverned by this ADR's confidentiality ceiling — the
+*"cutting a table does not cut its doors"* class, pre-installed. ⛔ **A re-add outside the chain is
+not a smaller version of this feature; it is the defect that was removed.** ADR 0116 §11 carries the
+removal's full record and its keystone (`328` K13 — an unbound file object is invisible even to its
+own uploader, red-proven by re-adding the arm in a rolled-back transaction).
+
+⭐ **What closing this actually buys:** `328` K13 stops being a pin on an interim state and becomes a
+pin on a **decided** one. Its wording needs no change — but a future reader must not "fix" it as an
+over-narrow assertion, because it is now the specification.

@@ -27,6 +27,12 @@
 > Tracked as **`FUP-DM5-SUPERSEDE-SERVING-COLLISION`** (🔴, **open**) — **D11 cannot be rebuilt until
 > it is decided, and DM5·S6 may not close over it.**
 >
+> ✅ **SUPERSEDED BY AMENDMENT 2 (2026-08-18) — the deferral is DISCHARGED and the collision is
+> RULED.** The PO chose the **reinterpretation**, not the widening: supersession no longer marks bytes
+> at supersession time. Read Amendment 2 before quoting anything above as the current position; the
+> paragraph is kept because *why* the inflow reverted is still the reason the ruling took the shape it
+> did.
+>
 > ⚠ **So the three follow-ups the Context line says this ADR "closes" are NOT closed.**
 > `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` and `FUP-DM5-DISPOSAL-JOB` are both still open; only the
 > `NO-ANSWER` instance-3 half moved, via D4. ⛔ **The two are the same deferral seen from opposite
@@ -38,8 +44,90 @@
 > rewrite of `343_dm5_s5_disposal_gap.sql`, whose **K6b asserts "no scheduler exists at all"** — true
 > today, a **false pin** the day D2 ships. **Rewrite 343 in the same slice as D2, not after.**
 
-- **Status:** ✅ **ACCEPTED 2026-08-17** — ⚠ **partially implemented; see Amendment 1 above. D3/D5
-  reverted, D2 never built, D4 shipped.** Drafted the same day from PO rulings taken at the
+> ## ✅ AMENDMENT 2 (2026-08-18) — **THE COLLISION IS RULED: supersession no longer marks bytes. The trigger moves to RETENTION EXPIRY; the serving gate is NOT touched.**
+>
+> **PO ruling, taken at the DM5 gate-step-4 decision docket.** Of the two resolutions Amendment 1
+> left open, the PO chose **(b), the reinterpretation** — and declined **(a), the widening**, for the
+> reason Amendment 1 already gave: *a narrowing can be wrong and stay safe; a widening cannot.*
+>
+> **The ruling, stated so it can be built:**
+>
+> 1. ⛔ **Supersession does NOT write `disposal_state`.** Re-issuing a document has **no** disposal
+>    consequence at the moment it happens. The `disposal_pending` marking moves to **retention
+>    expiry** — the same clock that governs every other version.
+> 2. ✅ **`app.resolve_document_version_bytes` is UNCHANGED.** Its refusal on *any* non-`none`
+>    `disposal_state` stays exactly as it is, and it is now **correct for every reason value that can
+>    reach it**, because nothing marks a version that is still meant to be servable. ⭐ **This is the
+>    whole point of choosing (b): a PHI byte-serving gate is not widened, so no diff-scoped door sweep
+>    and no new keystone is owed against that gate.**
+> 3. ✅ **ADR 0120 D6/D8 stands undisturbed** — a print's state changes what the overlay **stamps**,
+>    never its reachability. The collision does not need adjudicating because it no longer occurs:
+>    the two decisions were only ever in contact at the supersession *instant*.
+>
+> **What this does to D3 and D5 below — read them through this, not as written:**
+>
+> | | as ratified 2026-08-17 | in force from 2026-08-18 |
+> |---|---|---|
+> | **D3** — the `superseded` reason value | the value **and** its trigger (mark at supersession) | ⚠ **the VOCABULARY survives; the TRIGGER is struck.** D3's actual argument was never about timing — it was that `duplicate` **must not be reused**, because its exemption lane needs a live same-`sha256` sibling on the **same** `documents` row, which ADR 0120 **D13** guarantees a superseded print will never have. That reasoning is untouched and still binding. |
+> | **D5** — a superseded print under a *provisional* retention policy is BLOCKED (`HC0DR`) | evaluated at supersession | ⚠ **the PRINCIPLE survives; the TIMING moves.** A provisional retention policy blocking a disposal is correct wherever it is evaluated — it now simply cannot fire at supersession, because nothing is marked there. |
+>
+> ⚠ **ONE BUILD-TIME DETAIL IS DELIBERATELY LEFT OPEN, and it must not be silently settled:** when
+> the retention clock fires on a superseded version, does the row record
+> `disposal_reason_category = 'superseded'` or `'retention_expired'`? Both are true statements and the
+> regulator-facing meanings differ — `retention_expired` is the *legally operative* reason, while
+> `superseded` preserves *why this version and not the current one*. **The implementing slice decides
+> it explicitly and records the choice here.** It is named rather than resolved because inventing a
+> regulator-facing value in an amendment is the exact class this ADR exists to stop.
+>
+> ⛔⛔ **D1 STILL BINDS, AND IT IS WHAT GATES THE REBUILD.** *Inflow and outflow ship together, in one
+> gate, or neither ships.* This ruling unblocks D11 **as a decision**; it does **not** authorize
+> building the inflow. The outflow that satisfies D1 is **no longer D2's cron job** — the PO ruled at
+> the same docket (see Amendment 3) that the outflow is the **manual runbook**, accepted as a pilot
+> risk **bounded by one end-to-end rehearsal**. ⭐ **So the inflow may be built once that rehearsal has
+> happened, and not before** — otherwise D11 converts silent retention into a growing pile of
+> `disposal_pending` rows that nothing has ever been shown to clear, which is precisely the
+> "reads better than it behaves" failure D1 was written against. Tracked as **Critical FUP C1**.
+>
+> ✅ **`FUP-DM5-SUPERSEDE-SERVING-COLLISION`'s PO half is DISCHARGED.** What remains under that id is
+> **backend implementation work**, not a decision. `FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` — its other
+> side — moves with it and is still not independently actionable.
+
+> ## ✅ AMENDMENT 3 (2026-08-18) — **the outflow is the MANUAL RUNBOOK, accepted as a pilot risk BOUNDED BY ONE REHEARSAL. D2 is not built.**
+>
+> **PO ruling, same docket.** The pilot **may proceed** over the manual-only PHI-disposal path that
+> Amendment 1 records as shipping — **on one binding condition**:
+>
+> ⛔ **`docs/deployment/phi-disposal-runbook.md` must be executed end-to-end, once, against test data,
+> BEFORE any real patient record is loaded.** The acceptance is **not** open-ended and does not
+> survive the pilot admitting real PHI ahead of the rehearsal.
+>
+> ⭐ **Why the condition is the substance of the ruling, not a caveat on it.** The gap is not that a
+> mitigation is missing — the runbook exists, and its owner, cadence and five backup values were all
+> PO-set on 2026-08-17. The gap is that **the mitigation has never been observed to work.** A
+> procedure that has only ever been read is a claim about a procedure. This ADR's own D4 exists
+> because a record asserted more than anything had verified; an unrehearsed runbook is the same defect
+> one layer out, and `FUP-DM5-DISPOSAL-JOB`'s body already says so in its own words: *"real on paper;
+> real in practice only when the monthly run actually happens."*
+>
+> ⚠ **This does NOT ratify D2.** `pg_cron` is still not installed, the cron schema still does not
+> exist, and the D2 design below stays **ratified-but-unbuilt** — kept because it is the design that
+> gets built if and when the manual path proves insufficient, and because Amendment 1's warning
+> survives: **`343_dm5_s5_disposal_gap.sql`'s K6b asserts "no scheduler exists at all"**, which is true
+> today and becomes a **false pin** the day D2 lands. Rewrite `343` in D2's slice, never after.
+>
+> ⚠ **`disposal_state` therefore still means INTENT, not a destruction guarantee** — and that reading
+> is now *ratified*, not merely observed. Anything user-facing, regulator-facing or export-facing must
+> not describe it as destruction. This **inverts ADR 0099 D10** (*"a stale row nobody looks at harms
+> nobody"*): for PHI under LGPD, retention past purpose is itself the violation, so **the stale row IS
+> the harm** — D10's rationale does not transfer, and this ADR's D2 preamble already flagged that
+> inversion before it was ruled on.
+>
+> ✅ Recorded as **Critical FUP C1** in PROGRESS.md, which carries the trigger and the deadline.
+> `FUP-DM5-DISPOSAL-JOB` stays 🟠 **open**: the PO decision is discharged, the rehearsal is not.
+
+- **Status:** ✅ **ACCEPTED 2026-08-17** — ⚠ **partially implemented; see Amendments 1–3 above. D3/D5
+  reverted then RE-RULED (Amdt 2), D2 never built and now superseded as the outflow (Amdt 3), D4
+  shipped.** Drafted the same day from PO rulings taken at the
   DM5 follow-up-batch open; **D2 and D4 — the two rulings this ADR does not merely record —
   were RATIFIED BY THE PO as proposed**, unblocking the build. D4 was ratified in its
   *record-what-was-verified* form, not the stronger *block-disposal-without-byte-proof*
@@ -134,7 +222,11 @@ D10 declined to build for a different feature. ⭐ And D10's own rationale (*"a 
 nobody looks at harms nobody"*) **inverts for PHI**: a `disposal_pending` row that never
 completes means bytes that should have been destroyed still exist.
 
-**D3 — A new `disposal_reason_category` value: `superseded`.** The live CHECK admits
+**D3 — A new `disposal_reason_category` value: `superseded`.**
+⚠ **AMENDED 2026-08-18 (Amdt 2) — the VOCABULARY below stands, the TRIGGER does not.** Supersession
+no longer marks bytes; marking moves to **retention expiry**. The `duplicate`-trap argument that
+follows is the part that is still binding.
+The live CHECK admits
 `{retention_expired, subject_request, entered_in_error, duplicate, other}`. ⚠ **`duplicate`
 is the trap here and it must not be reused.** Its exemption lane requires *evidence* — a
 live, servable, same-`sha256` sibling bound to the **same document**. Under ADR 0120
@@ -176,6 +268,9 @@ matters, and it always fails in the reassuring direction.*
 correct.** Stated so it is not discovered as a bug: once D3 marks superseded bytes
 `disposal_pending`, a bound file under a provisional `document_retention` row raises
 `HC0DR` until ratification. The inflow **marks**; it does not grant an exemption.
+⚠ **AMENDED 2026-08-18 (Amdt 2) — the PRINCIPLE stands, the TIMING moves.** A provisional retention
+policy blocking a disposal is correct wherever it is evaluated; it simply can no longer fire *at
+supersession*, because nothing is marked there any more.
 
 ## Consequences
 
@@ -197,3 +292,7 @@ correct.** Stated so it is not discovered as a bug: once D3 marks superseded byt
 - **ADR 0120 D11 is amended** by D3/D5: superseded bytes are marked for disposal with an
   explicit reason, and their retirement is subject to retention policy like any other.
   D11's inline `⏳ CONTESTED` pointer is discharged.
+  ⚠ **RE-AMENDED 2026-08-18 (Amdt 2): the amendment holds in substance and changes trigger.**
+  Superseded bytes still retire under retention policy with an explicit reason — but the marking
+  happens **when the retention clock fires**, not at supersession. ⛔ D11 remains **unbuilt**, now
+  gated by **D1** on the outflow rehearsal (Amdt 3 / Critical FUP C1) rather than by an open decision.

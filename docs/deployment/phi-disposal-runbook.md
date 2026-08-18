@@ -316,6 +316,39 @@ It is evidence that the metadata and the Storage API agree with each other.
 
 ## 6 · ⚠ Cloud caveats — do NOT gate a Cloud run on `capture`'s exit code
 
+> ### ⛔⛔ HARD STOP — ✅ PO-RATIFIED 2026-08-18 (ADR 0120 D9 amendment). Three refusals, and they are RULES, not cautions.
+>
+> **The under-count class is ACCEPTED AS UNVERIFIED on Cloud.** No Cloud verification step exists,
+> none is being added, and the PO has ratified that limit in writing. What follows is therefore not
+> advice about a weakness the tooling might later close — it is **how you are required to operate
+> inside a limit that is staying.**
+>
+> 1. ⛔ **NEVER run `capture` against a Cloud project from a machine with a local Supabase stack
+>    running.** Stop the local stack first, or run from a machine that has none. ⚠ *The tool already
+>    refuses this (the `locateVolume()` origin guard, pinned by selftest C17) — this rule exists so the
+>    procedure does not DEPEND on that guard.* A guard and a rule protect against different failures:
+>    the guard covers this tool, the rule covers the operator's judgement about every future one.
+> 2. ⛔ **NEVER treat exit 0 or the `CAPTURE CLEAN` headline as a byte-level result on Cloud.** Read
+>    `manifest.residuals` and the per-bucket verdict column. `--allow-orphans` is the only route to
+>    exit 0 and it **silences genuine orphan verdicts** — it buys a green bar by conflating *"I could
+>    not look"* with *"I looked and found nothing"*.
+> 3. ⛔ **NEVER record a Cloud byte deletion as verified.** Record it as **asserted**. ADR 0121 **D4**
+>    already provides the vocabulary — `unavailable on this platform` is a true statement and
+>    `local volume proof` would be a false one.
+>
+> ⭐ **Why the emphasis lands on a FAKE proof rather than a missing one.** A missing proof fails
+> visibly and refuses. A proof computed against the wrong project's bytes **passes, with identical
+> confidence** — and the configuration that produces it (a dev machine with `supabase start` up, a
+> client pointed at Cloud) is the *normal* state for anyone able to run this repo's gates. **The
+> failure mode is not rare; it is the default posture of the person most likely to be doing this.**
+>
+> ⚠ **One fact that made the 2026-08-18 ratification safe and does NOT generalise:** the remote held
+> **0 `storage.objects` rows in all 12 buckets** at that date, and the under-count class needs objects
+> to under-count. The eight legacy buckets were retired the same day against that empty state (remote
+> now: **4 buckets, 0 objects**). ⛔ **Both figures are point-in-time and expire the moment the pilot
+> loads data.** Re-measure before any run; never quote either as current — *a claim about an external
+> system goes stale silently, and this runbook's whole subject is an external system.*
+
 **Provenance, per claim, because an earlier version of this section claimed
 "measured, not inferred" for all of it and one half was neither.** (b) is
 **measured** (rehearsal arms R6 / R6b, local). (a)'s exit-code behaviour is

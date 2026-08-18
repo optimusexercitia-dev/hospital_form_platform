@@ -144,6 +144,10 @@ invisible even to its own uploader), observed RED pre-removal and
 mutation-proven (arm re-added in a rolled-back txn → uploader-visible →
 red). DM2 may add uploader visibility **deliberately** — keystoned, with the
 ceiling interaction considered.
+⛔ **CLOSED 2026-08-18 (PO): it is NOT being added, and `328` K13 is now a pin on a DECIDED state
+rather than an interim one** — see ADR [0117](0117-dm2-s1-confidentiality-ceiling-decisions.md)
+§ S1-O3. The sentence above stays because its *condition* is still the binding one if the question
+ever reopens: inside the kernel chain, keystoned, ceiling considered — never beside it.
 
 **12. Wording correction (QA r1, overstatement 2): the kernel's dispatch is
 the SAME PREDICATE FAMILY as the retired dispatchers, not "the exact set".**

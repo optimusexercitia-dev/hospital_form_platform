@@ -446,7 +446,152 @@ built on one of these two mechanisms, and whichever is chosen inherits this item
 Related: **FUP-DM5-STACK-CYCLE-DESTROYS-BYTES** (the same volume, the destructive direction) and
 **FUP-DM5-NO-ANSWER-VS-NOTHING** instance 3 (the same bytes, the *disposal-assertion* direction).
 
-### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** (owner: PO decision, then backend)
+### ⬛ FUP-DM5-BACKEND-STATE-SLICE-SECTIONS — ✅ **RESOLVED 2026-08-18** — the per-slice `backend-state.md` sections for **S2 / S3 / S5** are written (owner: **backend**)
+
+> ### ✅ RESOLVED 2026-08-18 (backend). Three `##` sections added to `docs/backend-state.md`, in the
+> chronological body between the **DM5 follow-up batch** and **DM4** sections: `## DM5·S5` ·
+> `## DM5·S3` · `## DM5·S2`. Every figure carries its deriving query inline, per the S6 convention.
+>
+> **Derived from the LIVE catalog only** (local stack, read-only; registry **411 == 411**), never
+> from migration text, the slice records, or graphify: `supabase_migrations.schema_migrations`
+> (slice ranges, bounded by the **registry interval**, not a filename pattern) · `pg_proc`
+> (`prosecdef`, `provolatile`, `proconfig`, `proacl`, `pg_get_functiondef`,
+> `pg_get_function_identity_arguments`, `pg_get_function_result`) · `pg_constraint` +
+> `pg_get_constraintdef` · `pg_attribute` (+ `attacl` / `has_column_privilege`) · `pg_class.relacl` ·
+> `pg_trigger` · `pg_policy` / `pg_policies` · `pg_extension` / `pg_namespace` (the no-scheduler
+> proof) · `storage.buckets` / `storage.objects` policies.
+>
+> **Every DM END STATE aggregate figure re-derived and REPRODUCES**: 411==411 · 13 doc-model tables
+> × exactly 1 policy · 38 document-surface doors, 5 of them not EXECUTE-able by `authenticated` ·
+> 4 buckets · 4 `storage.objects` policies (3 INSERT + 1 SELECT) · 165/165 RLS · the flag census
+> **75 functions / 6 read a flag**. No aggregate figure was retired.
+>
+> ⛔ **Writing the sections found FOUR defects in the `###` stamps the aggregate block carries** —
+> corrected in place there, derived in the new sections:
+> 1. **S3 stamp header said "`…000350`, 6 migrations" — the registry says SEVEN** (`…000360
+>    dm5_s3_r1_mint_unique_violation_discrimination`, the QA-r1 fix). *A range typed at authoring
+>    time does not know about the migration the review adds.*
+> 2. ⛔ **S3 stamp: "A trigger on `responses` mints/drops its securable" — THERE IS NO SUCH
+>    TRIGGER.** `responses` carries 5 user triggers, none touching `securable_resources`; the
+>    `form_response` securable is minted **lazily inside `mint_printed_document`**, and the
+>    function's own comment says ADR 0120 **D17.2** rejected the trigger *on purpose*. ⭐ The claim
+>    did not merely go stale — it asserts the exact mechanism the design wrote a paragraph to refuse.
+> 3. **S2 stamp: "`securable_resources_tenant_shape` … `capa_action` (org + hospital, NULL
+>    commission)"** — the CHECK places **no** constraint on `commission_id` and the column is
+>    nullable. **NULL-commission is the INTENT, not the constraint.**
+> 4. **S2 stamp's "admits 8 types" is now 9** (S3 added `form_response`) — true as a delta, wrong as
+>    current state; both bounds now stated.
+>
+> ⚠ **Three more figures were right only under an unstated bound, and the bound is now written down:**
+> **(a)** `FUP-DM5-DISPOSAL-JOB`'s *"three inflow doors"* — there are **4** SET-form writers of
+> `disposal_pending`; 3 are `authenticated`-reachable and the 4th,
+> `complete_document_reclassification`, is service-role-only, so the queue is fed wider than the
+> figure says. **(b)** The DM5 follow-up-batch section's *"`authenticated` holds SELECT and nothing
+> else"* on the evidence tables — the ACL is **`rm`** (SELECT + MAINTAIN); the security conclusion
+> holds (no `a`/`w`/`d`), the literal string does not. **(c)** The S3 stamp's *"FIVE write guards"*
+> is a curated set; the property-bounded enumeration (*body references `printed_documents` AND
+> raises*) returns a **different** five, and the union is **7** — `guard_printed_document_binding`
+> raises **`HC0DA`**, outside the `HC0D[KLN]` family an errcode sweep would use.
+>
+> **Nothing failed to reproduce**; no figure was carried forward undivided. Two figures are stated as
+> *structural* rather than populated: `file_objects` and `printed_documents` both hold **0 rows** on
+> this stack, so the disposal census comes from function bodies and ACLs, not data — the measured
+> form of C1's UNREHEARSED gap.
+>
+> ✅ **S4 ADDED 2026-08-18 on a second PO ruling** — `## DM5·S4` now sits between the S5 and S3
+> sections, so **all four DM5 slices have one**. Derived from: `schema_migrations` (the interval is
+> **1** migration, `20260927000400`, derived not assumed) · `storage.buckets` · `pg_policy` on
+> `storage.objects` (**`polcmd` census: 3 INSERT + 1 SELECT; ZERO DELETE / UPDATE / FOR ALL**) ·
+> `pg_class.relacl` (`arwdDxtm` to `authenticated` **and `anon`**) · `pg_trigger` (`protect_objects_delete` /
+> `protect_buckets_delete`, both **BEFORE DELETE STATEMENT**) · `pg_proc` (`storage.protect_delete`
+> is role-agnostic, verified from the body) · `pg_constraint` (`file_objects_bucket_check` /
+> `_bucket_from_tier`). **Residue sweep: all NINE retired bucket names score 0 across function
+> bodies (comment-stripped), policy expressions and constraint defs. The census sums — 13 historical
+> names = 4 live + 9 retired.**
+>
+> ⛔ **S4 added a THIRD catalog-false stamp claim and the FIRST figure that does not reproduce at all:**
+> **(i)** *"`begin_document_upload` is the only thing that names a bucket"* — three functions do, plus
+> two CHECK constraints and a client-side constant; **`app.printed_rendition_storage_bucket` landed at
+> S3, so the claim was false when authored, not aged.** The correctly-bounded version is in
+> `docs/reviews/dm5-s4-review.md:334` — **the stamp is a compression of it into a false absolute.**
+> **(ii)** ⛔ **"4 / 6 / 4 / 13 other callers" — RETIRED, does not reproduce under any bound**
+> (measured: fn `5/5/5/12`, policy `8/7/8/11`, combined `13/12/13/23`; the stamp never said which it
+> counted, and two of the four drift the wrong way for a later-addition story). ⭐ **Its conclusion
+> survives untouched — every count is ≥5.**
+>
+> ⚠ **Two traps I walked into and had to back out of, both recorded in the section because they are
+> the item's whole point:** **(a)** grepping `src/` for bucket names as **string literals** returned
+> `'attachments'` ×3 and `"interview-attachments"` — which are a **feature-flag key** and a **`domId`**.
+> A string-literal bound is a *syntax* bound. **(b)** I nearly filed "the retirement has no standing
+> pin" — `325_legacy_bucket_policy_pin.sql` t6/t7/t8 pins it thoroughly, **with an explicit positive
+> control** (t8: a sweep that retired *everything* would satisfy t7 and fail t8). *Absence of a
+> verdict is not absence of coverage; neutralize before escalating.* The one true residual: the pin
+> is keyed to a **closed list of names**, and no assertion anywhere reads the **total** bucket count
+> (complete enumeration: 7 lines across 4 files read `storage.buckets`, all name-keyed).
+>
+> ⚠ **The sweep's own domain was under-wide on the first pass** — it began as the DM5 record's twelve
+> names and missed **`meeting-attachments`** (retired earlier at F2's `20260921000300`), which
+> surfaced only from the pgTAP estate. ⛔ **The dead set cannot be enumerated from the live catalog at
+> all** — a retired bucket leaves no residue to find — which is exactly why retirement had to be a
+> migration and why the only standing assertion possible is over the **surviving** set.
+>
+> **Deployment:** as of the **2026-08-18 push** local and remote are both at `20260928000500`; the
+> retirement is LIVE on the remote. The S4 section states that and carries no "local-only" phrasing.
+
+✅ **PO-RULED 2026-08-18: yes, still wanted — written by the `backend` engineer as ONE small task, before DM5 closes.**
+
+⛔ **Filed 2026-08-18 with an ID because it did not have one, and that was the whole risk.** Raised by
+the **S6 QA (F6)**, re-homed by the **DM5 phase QA**, and carried into the gate-step-4 docket as item
+6 — but it existed **only** inside those three documents and the `🛑 START HERE` block, which is
+retired the moment the docket is answered. ⭐ *A body plus a narrative mention is not an index entry;
+the index is what a reader greps* — the exact class as phase-QA finding **R3**, re-earned one item
+later, by an obligation whose stated purpose was *"named explicitly so it cannot die quietly when DM5
+closes."* **Naming a thing in the document that expires is not naming it.**
+
+**Scope.** Three sections in `docs/backend-state.md`, one per slice — **S2** (NSP RCA/CAPA evidence),
+**S3** (prints onto the core substrate), **S5** (operational closure). The DM END STATE block S6
+wrote is the *aggregate*; these are the per-slice surface deltas that let a future session see what
+each slice changed without re-deriving it.
+
+⚠ **Derive every figure from the live catalog, never from the slice records** — those are exactly the
+documents whose staleness this file exists to replace, and this program has already shipped
+`backend-state.md` currency stamps that were themselves stale (*"stale by three slices … registry
+391→407"*, corrected at S6 to a measured **411==411**). Each figure carries its query, per the
+convention S6 established.
+
+### 🟠 FUP-DM5-DISPOSAL-JOB — nothing completes a disposal: `disposal_pending` has three inflow doors and **zero automated outflow** — ⭐ **Critical FUP C1** (owner: PO; the decision is discharged, the REHEARSAL is not)
+
+> ### ✅ PO RULING 2026-08-18 — **PILOT RISK ACCEPTED, BOUNDED BY ONE REHEARSAL.** Recorded as **Critical FUP C1**.
+>
+> The pilot **may proceed** over the manual-only PHI-disposal path, **on one binding condition**:
+>
+> ⛔ **[`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md) must be executed end-to-end,
+> once, against test data, BEFORE any real patient record is loaded.** The acceptance is **not**
+> open-ended and does **not** survive the pilot admitting real PHI ahead of the rehearsal.
+>
+> ⭐ **The condition is the substance of the ruling, not a caveat on it.** The gap was never a missing
+> mitigation — the runbook exists, and its owner, cadence and five backup values were all PO-set on
+> 2026-08-17. The gap is that **the mitigation has never been observed to work.** This item's own body
+> already says it below, in its own words: *"real on paper; real in practice only when the monthly run
+> actually happens."* ⚠ A procedure that has only ever been **read** is a claim about a procedure —
+> the same defect ADR 0121 **D4** exists to stop, one layer out.
+>
+> ⚠ **`disposal_state` therefore means INTENT, not a destruction guarantee — and that reading is now
+> RATIFIED, not merely observed.** Nothing user-facing, regulator-facing or export-facing may describe
+> it as destruction. ⭐ This **inverts ADR 0099 D10** (*"a stale row nobody looks at harms nobody"*):
+> under LGPD, retention past purpose is itself the violation, so for PHI **the stale row IS the harm.**
+>
+> ⚠ **D2 is NOT ratified by this** — `pg_cron` stays uninstalled and the cron schema still does not
+> exist. ADR 0121's D2 design remains ratified-but-unbuilt, kept as what gets built if the manual path
+> proves insufficient. **`343_dm5_s5_disposal_gap.sql`'s K6b still asserts "no scheduler exists at
+> all"** — true today, a **false pin** the day D2 lands; rewrite `343` in D2's slice, never after.
+>
+> ⭐ **The rehearsal also discharges a second obligation:** it produces the first **destination path**
+> for `FUP-DM5-BACKUP-IS-PHI-EXPORT`, which that item owes *at first execution*. Do not run the
+> rehearsal without capturing it.
+>
+> ⛔ **This ruling does NOT close the item.** The PO decision is discharged; the rehearsal is the
+> deliverable, and C1 leaves the Critical list only when the run has **happened and been recorded**.
 
 Filed 2026-08-17 (backend, S5.D), recording the **PO's deliberate deferral** rather than an
 undiscovered defect: at S5.D authorization the PO ruled *document the gap, do NOT build the job* — no
@@ -726,6 +871,24 @@ reproduction of the 221 files / 6.93 MB / 15 PHI-tier orphan census, four days a
 > and never asked whether any **reader** still worked. The blast radius was one join away and no
 > assertion in the slice looked there. → [[a-predicate-quoted-at-the-wrong-grain]] — the check ran, it
 > just was not checking the thing.
+>
+> ### ✅ DECIDED 2026-08-18 — **BUILD IT, at retention expiry. The item is now WORK, not a question.**
+>
+> The PO ruled the collision as **(b)** (ADR 0121 **Amendment 2**): supersession does not mark bytes;
+> the marking moves to the **retention clock**. So D11's clause — *"retires superseded bytes through
+> `file_objects.disposal_state`"* — **stands and gets built**; only its trigger changes. The serving
+> gate is untouched, which is what makes the build cheap and un-scary.
+>
+> ⛔ **Still not startable, and the reason has changed AGAIN — track this, because it is the third
+> distinct blocker this item has had.** Not "unbuilt" (2026-08-16), not "an undecided collision"
+> (2026-08-17), but **ADR 0121 D1**: inflow and outflow ship together or neither ships. The outflow is
+> now the **manual runbook** (0121 Amdt 3), so the gate is its **end-to-end rehearsal — Critical FUP
+> C1**. ⭐ *A stale blocker reads exactly like a live one*, so state which one is current whenever this
+> item is quoted.
+>
+> ⚠ **Two things below are now stale and are corrected, not deleted:** *"the PO picks"* between the two
+> resolutions — picked, build it; and the framing of this as a **decision** — it is an implementation
+> item, and its owner is **backend**.
 
 Filed 2026-08-14 (lead) from `qa`'s DM5·S3 review MINOR-4. **Not an S3 bug — an ADR-0120 D11 claim that the
 implementation cannot honour**, so it must be either built or struck from D11.
@@ -801,32 +964,80 @@ simply delete the D18 filter from it**: if the function survives, the filter mus
 future route mounts an unfiltered projection. ⚠ Check for other same-name-different-module pairs in
 `src/lib/queries/` while there; this one was found by accident.
 
-### 🔴 FUP-DM5-SUPERSEDE-SERVING-COLLISION — marking superseded bytes for disposal makes the print UNSERVABLE; two ratified ADRs collide at one value (owner: **PO**, then backend)
+### 🟠 FUP-DM5-SUPERSEDE-SERVING-COLLISION — ✅ **RULED 2026-08-18: the marking trigger moves to RETENTION EXPIRY; the serving gate is untouched.** Implementation gated on Critical FUP C1 (owner: **backend**; the PO half is discharged)
 
-> ### ⏸ PO RULING 2026-08-17 — **DECIDE LATER; the inflow STAYS REVERTED.** The item remains 🔴 OPEN.
+> ### ✅ PO RULING 2026-08-18 — **RESOLVED AS (b): the marking TRIGGER moves to RETENTION EXPIRY. The serving gate is NOT touched.**
 >
-> Both offered resolutions were **declined for now**: neither widen `app.resolve_document_version_bytes`
-> to pass `disposal_pending` bytes whose reason is `superseded`, nor reinterpret ADR 0121 **D3/D5**'s
-> ratified *"superseding marks bytes"*. The tree stays as `5b40d62b` left it.
+> ⭕ **The PO half of this item is DISCHARGED; what remains under this id is backend implementation
+> work, not a decision.** Severity 🔴 → 🟠, owner PO → backend.
 >
-> ⭐ **Why deferring is a real position here and not a punt.** The reverted state is *coherent*: no
-> inflow without an outflow (ADR 0121 **D1** satisfied), no unservable superseded prints, and nothing
-> in production depends on D11. The two open options are **not symmetric** — widening a PHI
-> byte-serving gate cannot be un-shipped safely, while the cost of waiting is a `disposal_state` that
-> stays `none` on superseded prints, which harms nobody today.
-> → [[keystone-measured-what-i-built-not-what-breaks]]: *a narrowing can be wrong and safe; a widening
-> cannot.*
+> **The ruling.** Option **(b)** — amend ADR 0121 D3/D5 so supersession does **not** mark bytes at
+> supersession time; the `disposal_pending` marking moves to **retention expiry**, the same clock that
+> governs every other version. Option **(a)** — widening `app.resolve_document_version_bytes` to pass
+> `disposal_pending` bytes whose reason is `superseded` — was **declined**, on this item's own
+> argument: *a narrowing can be wrong and stay safe; a widening cannot.*
 >
-> ⛔ **A DEFERRAL IS NOT A CLOSURE, and three things follow from that.**
-> 1. **This item stays 🔴 and S6 may NOT close over it.** It is not discharged by DM5 completing.
-> 2. **D11 cannot be rebuilt until this is decided** — it is the blocker, and ADR 0121 D3/D5 are
->    ratified text currently **not implemented**, which the ADR must keep saying out loud.
-> 3. ⚠ **`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` is the same deferral seen from the other side** —
->    superseded print bytes still never retire. Do not read that item as independently open work.
+> ⭐ **What makes (b) more than a scheduling preference: the collision does not get adjudicated, it
+> stops occurring.** The two ratified decisions were only ever in contact at the supersession
+> *instant*. Move the trigger and `resolve_document_version_bytes` needs no change at all — its refusal
+> on *any* non-`none` state becomes correct for **every** reason value that can reach it, because
+> nothing marks a version still meant to be servable. **No PHI byte-serving gate is widened, so no
+> diff-scoped door sweep and no new keystone is owed against that gate.**
 >
-> ⚠ **The condition that would force this decision:** anything that makes superseded prints accumulate
-> at volume, or a retention/erasure obligation landing on them. Re-put it to the PO then, not on a
-> schedule.
+> **What survives of D3/D5** (recorded in ADR 0121 **Amendment 2**, not restated here): D3's
+> **vocabulary** stands — the `duplicate` trap it was written against (its exemption lane needs a live
+> same-`sha256` sibling on the **same** `documents` row, which ADR 0120 D13 guarantees a superseded
+> print never has) is untouched. D5's **principle** stands; only its evaluation point moves.
+>
+> ⚠ **One build-time detail is deliberately OPEN and must not be settled silently:** at retention
+> expiry, does the row record `disposal_reason_category = 'superseded'` or `'retention_expired'`? Both
+> are true and they mean different things to a regulator. **The implementing slice decides it
+> explicitly and records the choice in ADR 0121.**
+>
+> ⛔ **THE REBUILD IS STILL GATED — by ADR 0121 D1, no longer by an open decision.** *Inflow and
+> outflow ship together or neither ships.* The outflow is now the **manual runbook** (ADR 0121
+> Amendment 3), so **D11 may be built once the runbook has been rehearsed end-to-end — Critical FUP
+> C1 — and not before.** Building the inflow first would convert silent retention into a growing pile
+> of `disposal_pending` rows nothing has ever been shown to clear, while the D11 claim reads as
+> honoured: exactly the "reads better than it behaves" failure D1 exists to prevent.
+>
+> ⚠ **The reverted tree stays reverted until that gate opens.** `5b40d62b` is still the state; this
+> ruling authorizes a *different* build, not the restoration of the old one.
+>
+> <details><summary>Superseded — the 2026-08-17 deferral, kept because its reasoning shaped the ruling</summary>
+>
+> > ### ⏸ PO RULING 2026-08-17 — **DECIDE LATER; the inflow STAYS REVERTED.** The item remains 🔴 OPEN.
+> >
+> > Both offered resolutions were **declined for now**: neither widen `app.resolve_document_version_bytes`
+> > to pass `disposal_pending` bytes whose reason is `superseded`, nor reinterpret ADR 0121 **D3/D5**'s
+> > ratified *"superseding marks bytes"*. The tree stays as `5b40d62b` left it.
+> >
+> > ⭐ **Why deferring is a real position here and not a punt.** The reverted state is *coherent*: no
+> > inflow without an outflow (ADR 0121 **D1** satisfied), no unservable superseded prints, and nothing
+> > in production depends on D11. The two open options are **not symmetric** — widening a PHI
+> > byte-serving gate cannot be un-shipped safely, while the cost of waiting is a `disposal_state` that
+> > stays `none` on superseded prints, which harms nobody today.
+> > → [[keystone-measured-what-i-built-not-what-breaks]]: *a narrowing can be wrong and safe; a widening
+> > cannot.*
+> >
+> > ⛔ **A DEFERRAL IS NOT A CLOSURE, and three things follow from that.**
+> > 1. **This item stays 🔴 and S6 may NOT close over it.** It is not discharged by DM5 completing.
+> > 2. **D11 cannot be rebuilt until this is decided** — it is the blocker, and ADR 0121 D3/D5 are
+> >    ratified text currently **not implemented**, which the ADR must keep saying out loud.
+> > 3. ⚠ **`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` is the same deferral seen from the other side** —
+> >    superseded print bytes still never retire. Do not read that item as independently open work.
+> >
+> > ⚠ **The condition that would force this decision:** anything that makes superseded prints accumulate
+> > at volume, or a retention/erasure obligation landing on them. Re-put it to the PO then, not on a
+> > schedule.
+>
+> </details>
+>
+> ⚠ **Two claims above went stale on 2026-08-18 and are corrected here rather than deleted, because
+> both are the kind a later reader would otherwise quote as current.** *"D11 cannot be rebuilt until
+> this is decided"* — it is decided; the blocker is now **D1's outflow gate** (Critical FUP C1).
+> *"`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES` is the same deferral seen from the other side"* — still
+> true, and the two now move together toward a **build**, not toward a decision.
 
 Filed 2026-08-17 (lead), **found by the Phase Gate, not by review**, after the D11 inflow was
 built, keystoned, red-proven and committed. `312` t38 — *"a revoked document still SERVES"* —
@@ -914,7 +1125,36 @@ export is still a live RPC surface if any client references it), and check the `
 `interviews/actions.ts:798`/`:834`, and it is a *flag key*, **not** a bucket name (the `case_patient`
 name-collision class).
 
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one, and the class is COVERED-BUT-UNPINNED, not blind** (owner: lead + backend)
+### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one, and the class is COVERED-BUT-UNPINNED, not blind** — ⭐ **Critical FUP C2** (owner: lead + backend)
+
+> ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**
+>
+> Recorded as **Critical FUP C2**. The decision that was owed was the **sizing**, and it is taken:
+>
+> **Tier 1 — sweep now, as its own scoped workstream.** The subset of the 407 that **touches PHI or
+> crosses a tenant boundary**. Each swept door gets a **recorded verdict**, so a regression reds and —
+> the actual point — **a NEW door cannot pass by absence.**
+> **Tier 2 — the remainder is DEFERRED** until after the pilot ships and there are real customers.
+>
+> ⛔ **Tier 1's population is DERIVED FROM THE CATALOG AS A PROPERTY, never hand-listed.** This item's
+> own history is the argument: it was filed on an inferred premise that measured **false**, and the
+> phase's dominant failure class is an enumeration bounded by a **syntax or a filename** instead of a
+> property → [[enumeration-boundary-is-a-syntax-not-a-property]]. A hand-picked "PHI-looking" list
+> would reproduce it exactly. **Sizing Tier 1 — deriving the predicate and counting what it returns —
+> is step one and is NOT yet done.** The tier split is ruled; the number is unknown.
+>
+> ⚠ **What this ruling does NOT do, stated because the temptation is structural:** it does not close
+> Tier 2, and it does not let the 3-door sample stand in for either tier. ⛔ **The sample may not be
+> used to close anything** — it establishes that the class is *covered*, which is why this is 🟠 and
+> not 🔴, and nothing more. ⭐ *Absence of a verdict is not absence of coverage* — and the inverse
+> holds too: **presence of coverage is not a verdict.** Nothing today records *why* any of the 407 is
+> safe, so nothing notices when one stops being safe.
+>
+> ⚠ **`assume_role` is still ERROR-shaped, not COVERED**, and it is in Tier 1 by construction
+> (`platform_role` crosses every tenancy boundary there is). Its suite run changed shape — `315`
+> failed tests 5–6 then **aborted** (*"Bad plan… you planned 22, ran 7"*, exit 3). Per the door-audit
+> convention that is **ERROR**, and CLAUDE.md is explicit: **`ERROR` is not a pass.** It must be
+> resolved *within* Tier 1, not inherited as already-swept.
 
 Filed 2026-08-17 (lead) on measuring, rather than trusting, a green `ARM=census`. Re-scoped
 the same day, before opening S6, by measuring the two things the filing had *inferred*.
@@ -2834,7 +3074,7 @@ alone' once meant a thing ran once in three weeks"* (the same failure ADR 0079 w
 **The check, stated so it can be run and can fail:** name a persona who can (a) reach the surface
 hosting the dispose affordance AND (b) pass `dispose_referral_phi`'s own gate. Today **no such
 persona exists** — the two sets are disjoint (catalog-verified; full mechanism in the
-`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](docs/progress/follow-ups.md)). Until one does,
+`FUP-ACT-DISPOSE-UI` body → [follow-ups.md](follow-ups.md)). Until one does,
 subject-erasure is API-only. **Decision owner: PO** —
 *where* the affordance mounts is a product call (NSP surface reaches operators; manage-tier reaches
 tenancy admins); *whether* it must work before pilot is not. ⚠ Precedent that makes this

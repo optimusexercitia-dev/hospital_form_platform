@@ -1600,3 +1600,391 @@ claims (the "two local-only migrations" count, and FUP-DM4-RECUSAL listed as ope
 ```
 | DM | **Document Model Redesign** [0114](../decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](../decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](../decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](../decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](../decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** · [plan](../plans/document-model-redesign.md) | ✅ **DM0–DM4 complete** · 🔵 **DM5 OPEN** (S0 ✅ · ~~S1~~ WITHDRAWN · S2 ✅ · **S3 ✅ COMPLETE, r2 APPROVED** · **S4 ✅ COMPLETE 2026-08-17 — all 5 gate steps, QA APPROVED r3** (r1 ⛔ → r2 ⛔ → r3 ✅; every blocking item across three rounds was a RECORD defect — no code change was ever requested); ⚠ **the byte half was a NO-OP** (rehearsal now owned as **S5.R**, still UNREHEARSED) **and the 221 orphan bytes were DESTROYED OUTSIDE THE GATE by a stack recovery** (PO ratified the local volume disposable 2026-08-17; FUP-DM5-STACK-CYCLE-DESTROYS-BYTES stays open) · **S5 ✅ BUILT + QA APPROVED r2 2026-08-17 — ⏸ NOT CLOSED: gate step 2 (`e2e:prod`) is PO-DEFERRED until the follow-ups are resolved, step 4 owed** (delivered: S5.R rehearsal · S5.D disposal runbook + the gap pinned on BOTH sides · backup/restore drill · EXPLAIN baselines; record [dm5-s5-operational-closure.md](../progress/dm5-s5-operational-closure.md)) · **S6 remains, not started** ) — ⚠ **DM5's phase QA is still owed at S6; S4's AND S5's are SLICE verdicts.** · ✅ **FOLLOW-UP BATCH GATE RUN 2026-08-17** (`4f16ea5f`): registry 412==412 · pgTAP **194f/6392** · lint 5/5 · tsc 0 · vitest 89f/1304 · **4 authz ARMs HOLD** (census 546/570 · hat 3 allowlisted · floor 74 allowlisted · wrapper BLIND 41 ⊆ allowlist) · diff-scoped `ARM=policy` **NOT APPLICABLE, argued + measured** (274 policies unchanged, no policy statement in the diff) · `e2e:prod` **GATE GREEN 1118p/0f/5 flaky/0 did-not-run/18 batches**. ⭐ its `1123 of 1129` coverage line was **checked, not accepted** — every batch reconciles `N/N`, the 6 are skips, **no unrun tests**. ⚠ 4 INFRA re-runs incl. a NEW shape: **batch 8 crashed exit 127 (command not found), 40 tests unrun**, re-run to 40/40. ✅ **PO-APPROVED 2026-08-17 (step 4)** — ⚠ **approved with gate step 3 (QA review) NOT RUN, stated before the approval and accepted**; step 5 recorded (`backend-state.md` updated for the changed surface). ⚠ **PROGRESS.md is 143 KB against the <60 KB target — a rotation is OWED and was deliberately not folded into this commit** ([[progress-md-record-step-rotation-is-chronically-skipped]]) · ⭐ **Resume point for a new session: [dm5-handoff.md](../progress/dm5-handoff.md) §13** | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | ✅ DM4: pgTAP **191f/6231** · 391==391 · vitest 1264 · 4 ARMs HOLD · matrix **18/18 RED-PROVEN** · `e2e:prod` **99p/0f** | ✅ DM4 **APPROVED (r2)** [review](../reviews/dm4-referrals-review.md), no binding condition | ✅ **2026-08-14** (DM4) | 2026-08-14 | `phase(DM4)` on `main`. ⛔⛔ **THE "NOT pushed / no `db push`" CLAIM THAT USED TO SIT HERE IS FALSE — CORRECTED 2026-08-17, MEASURED.** `origin/main` is `23b1d9cf` (a DM5·S5 commit), and `supabase migration list --linked` shows the remote carrying **every migration through `20260927000360`** ⇒ **DM1–DM5·S3 ARE LIVE ON THE REMOTE.** ⚠ **RE-MEASURED 2026-08-17 (later): the local-only set is FIVE, not the "two" this row carried** — `20260927000400` (S4 retirement) · `20260928000100` (recusal) · `20260928000200` (evidence-table revoke) · `20260928000400` (D4 evidence contract) · `20260928000500` (finalize-atomic). ⚠ `20260928000300` **does not exist** — it was the D11 inflow, reverted at `5b40d62b`; the sequence gap is expected. ⭐ *The "two" was already stale when written: the same batch that introduced the correction added three more migrations after it.* ⇒ (a) applied migrations may **NOT** be edited in place; (b) **S4's retirement never reached the remote**, so ADR 0120 **D9**'s byte-first ordering is owed against a **live remote** — ✅ **now quantified 2026-08-17**: all 12 bucket rows live there, `printed-documents` **4** (three PHI-tier) + `controlled-documents` **3**, so S4's data guard **will abort the next `db push`** naming both (correct by design; delete by manifest FIRST); (c) ✅ **REMOTE FLAG STATE MEASURED 2026-08-17 — and the premise was WRONG AT ITS GRAIN.** All **six** DM flags are OFF remotely (not "five"), **but of the 52 document functions 51 read NO flag (exactly one does) and ZERO RLS policies consult one** (direction CORRECTED at S6 QA 2026-08-17 — this row and two siblings carried it inverted; source FUP-DM5-REMOTE-STATE-MEASURED) — it is an **app-layer** gate, not a DB boundary, so it never made a DEFINER door unreachable. **Re-grade on "the remote holds no data and no users"** (0 orgs / profiles / commissions / cases) — stronger, but it **expires when the pilot loads data**. Full record: **FUP-DM5-REMOTE-STATE-MEASURED** in [follow-ups.md](../progress/follow-ups.md). ⛔ Does **not** settle CLOUD-ORPHAN-SURFACE (that is byte-orphans; this read metadata). Records: [DM1](../progress/dm1-substrate-cutover.md)·[DM2](../progress/dm2-orchestration-wave-a.md)·[DM3](../progress/dm3-controlled-documents.md)·[DM4](../progress/dm4-referrals.md)·**[DM5](../progress/dm5-wave-d-retirement.md)**. Open, refreshed 2026-08-17 (full prioritised list + why: **[handoff §13.2](../progress/dm5-handoff.md)**): ⬛ **FUP-DM4-RECUSAL ✅ CLOSED 2026-08-17** (`32054942` · `20260928000100` · ADR [0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md); PO overturned the Phase-19 deferral — a **narrowing** `can_read_case` arm raising `HC0DM` **above** the `p_kind` dispatch, so the sibling *narrative* arm is covered too; `340` plan 76→82, R5/R6 red-first `caught: HC077 / wanted: HC0DM`; lead-verified from `pg_get_functiondef`, guard at body line 24 vs dispatch at 29). ⚠⚠ **NOT ON THE REMOTE — `20260928000100` is local-only, so the hole is still OPEN there and closes only on `db push`. Do not read the ⬛ as "safe in production."** · 🔴 **FUP-DM5-NO-ANSWER-VS-NOTHING** (one class, **6 instances**; *an observable proxy substituted for the property that matters, always failing reassuring*) · 🔴 **FUP-DM5-BACKUP-IS-PHI-EXPORT** (68 PHI-tier files) · 🟠 **FUP-DM5-DISPOSAL-JOB** (**the job does not exist**; runbook-mitigated; blocking pre-pilot) · 🟠 **FUP-DM5-CLOUD-ORPHAN-SURFACE** + 🟠 **FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT** (the count comparison — the only control surviving on Cloud — **passed over a diverged bucket and left a real byte behind**; S3 endpoint UNPROBED) · 🟠 FUP-DM5-STORAGE-ORPHANS (**Cloud half only** — local closed *empty by measurement*) · 🟠 FUP-DM5-STACK-CYCLE-DESTROYS-BYTES · 🟠 SETLOCAL-MIGRATION · ⬛ **FINALIZE-ATOMIC ✅ CLOSED 2026-08-17** (`20260928000500`: `complete_evidence_upload_verification` delegates to the byte verifier and mints the evidence row in ONE transaction; `341` plan 57→67 block J. ⭐ **the obvious keystone was VACUOUS** — one RPC call is one transaction, so any raise rolls back whatever the check order is; J2 CONSTRUCTS the orphan on the old path and J4 shows the identical fixture cannot reach it) · 🟠 SIBLING-GUARD-DIFF · ⬛ **330-WRITE-BLIND ✅ CLOSED 2026-08-17** (`330` plan 57→62 block W; blindness **re-derived** from the live catalog and still real — opening the arm left all 57 green; W3 pins the approver who READS but must not WRITE) · 🔴 D11-SUPERSEDED-NEVER-RETIRES → **superseded by FUP-DM5-SUPERSEDE-SERVING-COLLISION** · 🔴 FUP-PGTAP-VACUOUS · 🔴 FUP-AUTHZ-HARNESS-TRANSACTIONAL · ⬛ **GRANTS ✅ CLOSED 2026-08-17** (`20260928000200` revokes direct write on `rca_evidence`/`capa_action_evidence`; `341` plan 53→57 H1–H4; ⭐ the fix would have made **two P0 policies silently BLIND** — `252` now restores the grant *in its own rolled-back transaction* to keep them mutation-proven; opening both still reds exactly tests 1 and 14) · ⬛ **ADR 0121 ✅ ACCEPTED** (PO ratified D2 cron mechanism + D4 evidence contract 2026-08-17) · ⛔ **D11 INFLOW BUILT THEN ✅ REVERTED** (`5b40d62b` reverts `20260928000300`; `342` back to plan 59). **The gate caught what review did not:** `312` t38 (*"a revoked document still SERVES"*) died `documento descartado` — `app.resolve_document_version_bytes:72` refuses on `disposal_state <> 'none'`, **any** non-`none` state, so marking a superseded print `disposal_pending` **stopped its PDF opening the instant a document was re-issued**, colliding with ADR 0120 **D6/D8** (states change the overlay STAMP, never reachability). ⭐ **The collision is one value wide and both sides are right** — refusing to serve is correct for `subject_request`/`retention_expired`, wrong for `superseded`. ⛔ **PO decision → FUP-DM5-SUPERSEDE-SERVING-COLLISION** (🔴). ⚠ S3p was mutation-proven both ways and stayed GREEN: it asserted the **inflow** and never asked whether any **reader** still worked — the blast radius was one join away · 🔵 **D4 EVIDENCE CONTRACT ✅ BUILT** (`20260928000400`; `disposed` now records `byte_proof` + `metadata_source`, closed vocabulary, ACL restored + asserted after the DROP+CREATE) · ⬛ **ADR 0121 D1 VIOLATION ✅ DISCHARGED 2026-08-17** — the choice it posed (build the D2 job or revert the inflow) was taken as **revert**; the tree no longer carries an inflow with no outflow. ⚠ **The D2 job still does not exist** (`FUP-DM5-DISPOSAL-JOB`, 🟠, blocking pre-pilot) and rebuilding D11 is now blocked on the serving collision above, not on D1. Still owed whenever the job lands: a D4 **keystone** (behaviour is probe-verified, not gated) and a rewrite of `343`, whose K6b *"no scheduler exists at all"* becomes a **false pin** that day · 🟠 **NEW FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** — `ARM=census` printed *"no unswept newcomer"* and passed while the new DEFINER door `complete_evidence_upload_verification` was **absent from the findings md**: the census's DEFINER clause is bounded to `bool` returns, so a `jsonb` command door is outside its domain, while the **door sweep's** domain includes exactly that shape. Coverage, not a vulnerability (service_role-only; `341` J7 pins it) · ⬛ **7 stranded remote objects ✅ DELETED 2026-08-17** (printed-documents 4 incl. 3 PHI-tier + controlled-documents 3; PO-authorized; a remote *reset* was declined as the wrong tool — it leaves storage behind and orphans it; all EIGHT S4 retirement buckets now empty ⇒ `20260927000400` **is pushable**) · ⬛ **form-assets' 38 stranded objects ✅ DELETED 2026-08-17** (PO-authorized; remote storage now **12 buckets / 0 objects**). ⛔ **A hazard came out of it, recorded in the runbook §3 step B:** `supabase storage rm -r ss:///<bucket>` deleted the **BUCKET ITSELF** (restored from `baseline.sql`) — and its RLS policies **survive on `storage.objects`**, so `pg_policies` still shows a healthy policy set for a bucket that no longer exists. Same hour, opposite direction: without `--yes` the command deletes **NOTHING** and still **exits 0** · 🟡 MANIFEST-FLAG/DVF-FILEOBJ/DEAD-CORE-PROJECTION/DANGLING-PRINT/Q1-OPEN-BYTES-CUT · 🟡 FUP-DM4-PRODROW. **PO decisions still owed:** ADR 0114 O1/O2/O4 + S1-O3, FUP-DM5-D11, and whether **ADR 0120 D9** needs a Cloud-verification amendment (open in the ADR, for S6). Census blind class = **141** at HEAD (not 146/150) — cite the query beside the number |
 ```
+
+## ↩ Rotated from PROGRESS.md 2026-08-18 (the §6-step-5 Record) — the ENTIRE live DM5 phase section, VERBATIM
+
+**DM5 closed on 2026-08-18** when the PO ruled all seven gate-step-4 decisions. Per CLAUDE.md §7 and
+the §6 Record step, *"the completed phase's task detail is archived and replaced by a one-line
+pointer"* — this is that archive. It is **34.5 KB**, and it sat inside a **47 KB** section of a
+**146 KB** PROGRESS.md, against §7's *"well under 60 KB"* target.
+
+⚠ **Appended BEFORE the cut and `cmp`-verified byte-identical, then the 19 relative links
+`](docs/…)` were repointed to `](../…)`**, because a root-relative link copied from PROGRESS.md
+**404s from `docs/progress/`**. Prose verbatim, link targets repointed. *(The same pass found **18**
+such links already broken in `test-run-archive.md` from earlier rotations that skipped this step —
+fixed there too. A verbatim rotation that does not repoint is the standing defect in this repo's
+rotation discipline, not a one-off.)*
+
+⛔ **What did NOT rotate, deliberately:** the two live obligations — **Critical FUP C1** (the
+unrehearsed PHI-disposal runbook) and **C2** (the 407-door Tier 1 sweep) — stay in PROGRESS.md §
+Critical FUP, which is never rotated at any size. Nothing in this archive supersedes them.
+
+---
+
+### 🔵 IN PROGRESS — **DM5: Wave D + retirement** (opened 2026-08-14) — the program's FINAL phase
+
+> **Full detail → [dm5-wave-d-retirement.md](../progress/dm5-wave-d-retirement.md)** ·
+> ⛔ **NEXT-SESSION RESUME POINT = the 🛑 START HERE block directly above — but read it for its
+> *"What the next session works in"* list, NOT for the docket, which is ANSWERED as of 2026-08-18.**
+> *(This pointer's target has now changed meaning three times without the pointer changing —
+> **a resume pointer goes stale every time the thing it points at completes**, which is exactly when
+> nobody re-reads it.)* ⚠ **The two live obligations are in
+> [§ Critical FUP](#-critical-fup--the-must-not-be-forgotten-list), not here.**
+> ⚠ **[dm5-handoff.md](../progress/dm5-handoff.md) §13 is now DISCHARGED HISTORY** — it
+> briefs a session resuming **S4/S5**, and every slice it describes as pending is closed. Read it only
+> for the environment traps in §13.4 and the mutation-harness incident in §6. *(This pointer read
+> "§§9–11" until 2026-08-17 and then "§13" until S6 closed — **a resume pointer goes stale every time
+> the thing it points at completes**, which is exactly when nobody re-reads it.)* ·
+> plan [dm5-wave-d-retirement-plan.md](../plans/dm5-wave-d-retirement-plan.md) · ADRs
+> **[0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)** (D1–D18) +
+> **[0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md)** (disposal lifecycle,
+> ACCEPTED) + **[0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md)**
+> (recusal arm) · step 0 [dm5-surface-verification.md](../progress/dm5-surface-verification.md).
+> Window `20260927000100`+ · flag `documents_wave_d` · pgTAP **`341`** (S2) + **`342`** (S3) +
+> **`343`** (S5 disposal gap — ⚠ its **K6b asserts "no scheduler exists at all"**, TRUE today and a
+> **false pin** the day the D2 job lands; rewrite `343` in the same slice, not after).
+> ⚠ The phase narrative — the three mis-pinned catalog facts, the six enumeration-boundary repeats and
+> the S2 close-then-reopen history — rotated to the record **2026-08-14**. **Those lessons are the
+> phase's most valuable artifact; the record, not this section, is where they live.**
+>
+> **Slices:** **S0 ✅** manifest tool (`0e85cbe7`, `9d37ad79`; baseline self-labels **DEGENERATE**, not
+> S4 input) · ~~S1~~ ⛔ **WITHDRAWN, never built** (D3/D4/D5 struck → **D11**) · **S2 ✅** NSP RCA/CAPA
+> evidence · **S3 ✅ COMPLETE — all four gate steps** (2026-08-14) · **S4 ✅ COMPLETE — all five gate
+> steps** (built 2026-08-16 **PO-authorized on the day**, closed 2026-08-17; QA r1 ⛔ → r2 ⛔ → **r3 ✅**)
+> · **S5 ✅ COMPLETE — all five gate steps** (2026-08-17) — operational closure, carrying **S5.R**
+> (byte-path rehearsal, PO-directed same day), **S5.D** (disposal runbook + the gap pinned on both
+> sides), the backup/restore drill and the EXPLAIN baselines. **Step 2 ✅ discharged** by the follow-up
+> batch's `e2e:prod`, which the PO ruled would ride S5's owed run; **step 4 ✅ PO-RULED 2026-08-17 —
+> the batch's approval closes S5 too** · **FOLLOW-UP BATCH ✅ gate green, PO-approved 2026-08-17**
+> (`fd69d4be`) · **S6 🔵 IN PROGRESS** — opened 2026-08-17 after the pre-S6 follow-up batch
+> (`496fd135`). Build work **done**; **step 3 QA ✅ r2 APPROVED 2026-08-17** (r1 ⛔ → fixes → r2);
+> gate steps 2 + 4 **owed**.
+>
+> ### 🔵 S6 — canon rewrite + program exit sweep (opened 2026-08-17) — **steps 1–3 ✅ COMPLETE · step 4 (PO) OWED** — slice QA ✅ r2 · **DM5 PHASE QA ✅ APPROVED r2**
+>
+> **Preceded by a pre-S6 follow-up batch (`496fd135`)** — census re-scoped, P4 measured, 478 links
+> repointed. Detail in the follow-ups register and the S5 record.
+>
+> **Built:**
+> - **ARCHITECTURE.md Rule 1** — the RLS count read *"146/146 as of 2026-07-27"* and was **stale by
+>   19 tables**; now **165/165 measured**, with the deriving SQL inline. Plus **D8's Rule-1
+>   sharpening** as the rule's **fourth** pattern (ADR 0114 D8, owed to the canon since DM1):
+>   **RLS is the boundary for document METADATA; for BYTES it is not the boundary at all** — the two
+>   document buckets carry INSERT policies only, and `open_document_version` is the whole boundary.
+>   *A policy-shaped audit reads "no read policy ⇒ unreadable", which is exactly backwards.*
+> - **ARCHITECTURE.md §2** — the **document model was entirely absent from the canonical schema**
+>   though the program had shipped it. 13 tables added, columns derived from `pg_attribute`, not
+>   migration text.
+> - **ARCHITECTURE.md Rule 9** — the missing documents-module exception, owed since **DM2 QA r1
+>   INFO-4** and carried across four slices. Until now the canon and QA-accepted practice
+>   **contradicted each other**.
+> - **`docs/backend-state.md`** — the currency stamp (*"stale by three slices … registry 391→407"*,
+>   itself stale) replaced by a measured **DM END STATE** block: registry **411==411**, 13 tables /
+>   1 policy each, **38** document doors (5 service-role-only), 4 buckets, `storage.objects` **3
+>   INSERT + 1 SELECT**. The **"census 146 vs 141"** disagreement is resolved — it was a **missing
+>   SCHEMA BOUND**, not a wrong number (**141** `public`, **145** `app`+`public`); the old
+>   *"(273 signatures)"* does not reproduce and is retired. Every figure carries its query.
+>
+> **Exit sweep — bounded by IDENTIFIER (`storage_path`, `storage_bucket`, bucket literals,
+> `createSignedUrl`), never by directory or call syntax: ✅ CLEAN.** All 28 retired-bucket literals
+> in `src/`+`e2e/` are **comments**; the one apparent live hit is `domId: "interview-attachments"`,
+> an HTML anchor, not a bucket. The only live hardcoded bucket literal is `.from('form-assets')`×2 —
+> surviving and out of scope (D13). Every document-model bucket reference is **derived** from
+> `storage_bucket`. ⛔ **Not covered:** `supabase/` SQL was not swept by this pass.
+> ⚠ **Bound disclosure (S6 QA F4):** the 28 reproduces **only** over the 7 hyphenated retired-bucket
+> names — the bare name `attachments` was excluded (it is also a feature-flag key and a module name)
+> and appears **live ×3** as `featureEnabled('attachments')`, which are flag keys, not bucket
+> references (the `case_patient` collision class). The exclusion was right; its silence was the
+> defect. ✅ **The `supabase/` hole was closed by QA at the catalog layer** (the only layer that
+> executes): quote-bounded retired-bucket literals in `pg_get_functiondef` over every `app`+`public`
+> function and in `pg_policies` → **0 and 0**.
+>
+> ⭐⭐ **THE SWEEP'S REAL YIELD — it falsified a canon sentence I had written an hour earlier.**
+> Rule 9's first draft said the exception was **ONE** module and that *"a second would break ADR 0114
+> D8's singularity"*. **Both halves were false.** There are **TWO** signers — `documents/actions.ts`
+> and `referrals/actions.ts` (DM4, ADR-cited in its own header) — and **D8's singularity is a
+> DB-KERNEL property, not a TS-module one**: `open_document_version` and `open_printed_document`
+> both delegate to `app.resolve_document_version_bytes` (D12 composition), while
+> `open_referral_snapshot_document` deliberately does **not**. Conflating the two layers is what
+> produced the false sentence. ⚠ **Consequence that outlives S6:** the referral door sits **outside
+> the byte kernel**, so kernel-level gates do **not** automatically cover it — directly relevant to
+> 🔴 `FUP-DM5-SUPERSEDE-SERVING-COLLISION`, which is a `resolve_document_version_bytes` finding.
+> A **third** signer now needs a ruling; the list is exhaustive by intent.
+>
+> **Gate step 1 — ✅ GREEN (2026-08-17), on a fresh `db reset`:**
+>
+> | check | result |
+> |---|---|
+> | pgTAP | **194 files / 6392 PASS**, exit 0 |
+> | vitest | **89 files / 1304 passed**, exit 0 |
+> | lint (5 chained) | **exit 0** — eslint 0/0, css-vars, memberships-door, client-server-imports, vacuous (185 spec files, 0 findings) |
+> | typecheck | **exit 0** |
+> | `next build` | **exit 0** — compiled, **19/19** static pages |
+> | authz, **named by ARM** | `ARM=census` *has anything ever asked?* **546 live / 570 verdicts** · `ARM=hat` *does a door read `memberships` hatless?* **3, all reasoned-allowlisted** · `ARM=floor` *is every door called?* **74 never-called, all allowlisted, every entry resolves** · `FROMFINDINGS=1 ARM=wrapper` **BLIND 41 ⊆ allowlist** — all four **HOLD** |
+> | diff-scoped `ARM=policy` | **NOT APPLICABLE — measured, not asserted**: **0** migrations, **0** policy statements, **0** `prosecdef` changes in the S6 diff |
+>
+> ⚠ **S6 changed ZERO `src/` files** (diff = `ARCHITECTURE.md` · `PROGRESS.md` · `docs/backend-state.md`),
+> so `next build` could not be affected — **it was run anyway rather than argued away**, because
+> *an omission that happens to be harmless is still an omission* (the S5 QA r1 MINOR-1 lesson).
+>
+> **Gate step 3 — ✅ QA r2 APPROVED 2026-08-17**
+> ([review](../reviews/dm5-s6-review.md)). **r1 ⛔ CHANGES REQUESTED: six findings,
+> ALL record defects** (the DM5 pattern unbroken — no code change requested in any round):
+> **F1** the END STATE block **INVERTED** its source measurement ("51 of 52 read a flag" — the
+> source says 51 do NOT; fixed in all THREE places it sat) · **F2** §2 ended the `upload_state`
+> machine at `active`, a state the CHECK has **never contained** (`'active'` is `documents.status`) ·
+> **F3** the "servable predicate" claimed `deleted_at is null` — enforced **nowhere** on the byte
+> path · **F4** the sweep's undisclosed bound (above) · **F5** Rule 9's "doors return IDs only" is
+> false for `open_printed_document` since ADR 0120 D7/D12 · **F6** the "full document-surface
+> rewrite" promise left contradicting the delivered END-STATE-block scope. All six **fixed
+> same-day**; QA **re-measured gate step 1 in full** on a fresh reset (pgTAP 194f/6392 · vitest
+> 89f/1304 · lint 5/5 · tsc 0 · census 546/570 · hat 3 · floor 74 · wrapper 41 ⊆ allowlist — every
+> figure reproduced) and independently re-derived **every** measured claim in the S6 diff against
+> the live catalog (all reproduced; census table in the review). ⚠ **The r2 APPROVED is the S6
+> SLICE verdict only.**
+>
+> **Gate step 2 — ✅ GREEN 2026-08-17** (second full `e2e:prod`, `REBUILD=1`, after the fix):
+> **1121 passed · 0 failed · 0 infra · 2 flaky · 6 skipped · 0 did-not-run · 18 batches**, the parts
+> summing to exactly **1129 collected** — reconciled **per batch** (`accounted N/N`, `0 did-not-run`
+> in all 18), so **no unrun tests**; the [[gate-summary-can-hide-unrun-tests]] shape was looked for and
+> is absent. **Batch 4 = 64 passed / 0 failed** (was 63/1) and `ok 13 … dm5-nsp-evidence.spec.ts:388:5
+> › EVID-KBD-1`. The **2 flaky are exactly the two remaining `FUP-E2E-REPEAT-FLAKY` members**
+> (`act-role-assumption:157`, `phase2-auth-shell:268`) — EVID-KBD-1 is **not** among them, so it did
+> not merely degrade from failed to flaky. 3 INFRA re-runs, final **0 infra**.
+>
+> ⛔ **The FIRST full run was RED, and that is kept rather than overwritten** — 1120p / **1f** /
+> 2 flaky / 0 did-not-run, failing on **BUG-DM5-S6-EVID-KBD-1** (Bug Log, now ⬛ closed with its root
+> cause). It was characterised over 4 runs at `RETRIES=0` — reproducible **2/2** at batch-4
+> composition, green alone (8/8) and paired (18/18) — which is what proved it a real
+> composition-dependent defect rather than the flake it was filed as. **Not an S6 regression:** 0
+> `src/` files and 0 migrations separated that red run from the preceding green one.
+> ⚠⚠ **Two traps from this step, both worth keeping.** (1) **The harness exit code lied**: the
+> background job reported **exit 0** because the invocation ended in an `echo`, while the gate printed
+> **GATE RED** with `E2E_PROD_EXIT=1` — *read the gate's own verdict, never the wrapper's status.*
+> (2) **A line-keyed grep went stale mid-slice**: the fix moved the test `:347` → `:388`, so searching
+> `:347` in the green log returns **nothing**, which reads exactly like *"the test did not run."*
+>
+> ⛔ **Step 4 OWED; DM5's PHASE QA not run** — and
+> S3/S4/S5/**S6** verdicts are SLICE verdicts authorizing no part of it. 🔒 **The UNREHEARSED runbook still
+> binds and S6 may not close over it.** 🔴 The supersede-serving collision is **deferred, not
+> closed**. **ADR 0120 D9's Cloud question was PO-deferred "to when S6 reaches it" — S6 has now
+> reached it: it MUST be put to the PO at step 4** (with ADR 0114 O1/O2/O4, S1-O3, FUP-DM5-D11,
+> and the two new QA hand-offs: F6's per-slice-sections ownership question and F3's unmeasured
+> `active`+`deleted_at` corner).
+>
+> ### ✅ FOLLOW-UP BATCH — gate GREEN, PO-approved 2026-08-17 (`fd69d4be`) — **added here 2026-08-17; the section had no record of it at all**
+>
+> ⛔ **This block is the section's own headline defect, caught one more time.** 22 commits
+> (`c9c0fb3a`…`fd69d4be`) landed a follow-up batch, a full gate ran GREEN, and the PO approved it —
+> while every marker in this section still read *"S5 ⏸ NOT CLOSED: step 2 PO-DEFERRED, step 4 owed."*
+> The warning six lines below, added the same day, says **a marker moves while the status line does
+> not**; it was written and then immediately re-earned. → [[progress-md-record-step-rotation-is-chronically-skipped]].
+>
+> **Gate at `4f16ea5f`** — ✅ **still valid at HEAD `fd69d4be`: the only commits after it are
+> docs-only** (`git diff --name-only 4f16ea5f..HEAD` = `PROGRESS.md` + 2 `docs/` files, verified, not assumed).
+>
+> | step | figure |
+> |---|---|
+> | 1 — build | registry **412 == 412** · pgTAP **194 files / 6392 PASS** (fresh reset) · lint **5/5** · tsc **0** · vitest **89 files / 1304** |
+> | 1 — authz, **named by ARM, never by script** | `ARM=census` *has anything ever asked?* **546 live / 570 verdicts** · `ARM=hat` *does a door read `memberships` without the caller's hat?* **3, all reasoned-allowlisted** · `ARM=floor` *is every door called?* **74 never-called, all allowlisted, every entry resolves** · `FROMFINDINGS=1 ARM=wrapper` **BLIND 41 ⊆ allowlist** |
+> | 1 — diff-scoped `ARM=policy` | **NOT APPLICABLE — argued and MEASURED, never "clean"**: policies **274** unchanged, no migration in the diff contains a policy statement |
+> | 2 — `e2e:prod` | ✅ **GATE GREEN: 1118 passed · 0 failed · 0 did-not-run · 5 flaky · 6 skipped · 18 batches** |
+> | 3 — QA | ⛔ **NOT RUN** |
+> | 4 — PO | ✅ **APPROVED**, with the step-3 deviation stated *before* the approval and accepted |
+> | 5 — record | ✅ `docs/backend-state.md` updated (the backend surface **did** change) |
+>
+> ⭐ **The coverage line read `1123 of 1129` and was CHECKED, not accepted** — all 18 batches reconcile
+> `accounted N/N` and sum to 1129; the 6 are skips, which the pass/fail/flaky tally excludes. **No
+> unrun tests**; the [[gate-summary-can-hide-unrun-tests]] shape was looked for and is absent.
+> ⚠ **4 INFRA re-runs, one a NEW shape worth the name: batch 8 crashed with exit 127 and no summary
+> at all — 40 tests unrun.** Exit 127 is *command not found*, not a test failure; re-run to 40/40.
+>
+> **Closed by the batch:** ⬛ FUP-DM4-RECUSAL (ADR 0122) · ⬛ FUP-DM5-FINALIZE-ATOMIC · ⬛
+> FUP-DM5-330-WRITE-BLIND · ⬛ FUP-DM5-GRANTS · ⬛ FUP-AUTHZ-ALLOWLIST-ROT · ⬛ FUP-DM5-MANIFEST-FLAG ·
+> ⬛ FUP-DM5-DEAD-CORE-PROJECTION · ⬛ FUP-DM5-342-PLAN-COMMENT. **Reverted:** the D11 inflow
+> (`5b40d62b`). **Two new findings:** 🔴 **FUP-DM5-SUPERSEDE-SERVING-COLLISION** · 🟠
+> **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT**.
+>
+> ⚠ **`ARM=census` PASSED while a brand-new DEFINER door was absent from the findings file.** Its
+> DEFINER clause is bounded to **`bool`** returns and `complete_evidence_upload_verification` returns
+> **`jsonb`**, so the door was in no arm's domain — the *door sweep's* domain includes exactly that
+> shape. Coverage gap, **not** a vulnerability (service_role-only; `341` J7 pins it). This is
+> [[enumeration-boundary-is-a-syntax-not-a-property]] again, and it is why the gate row above names
+> the ARM's **question** rather than the script.
+>
+> ✅ **THE ONE THING THE BATCH LEFT UNSETTLED — ASKED AND RULED 2026-08-17.** The PO ruled the
+> follow-ups be grouped into **one** gate *riding S5's already-owed `e2e:prod`*, so S5's step 2 is
+> discharged by the run above; but the step-4 approval was recorded against **the batch**
+> (`phase(DM5-followups): complete`) and said nothing about S5. Put to the PO rather than assumed in
+> either direction — **ruling: the batch's approval closes S5 as well.** S5 is therefore **COMPLETE,
+> all five gate steps** (1 ✅ · 2 ✅ · 3 ✅ r2 · 4 ✅ · 5 ✅).
+> ⭐ *Worth keeping as method: the ambiguity was invisible from either document alone — the batch
+> record was complete about the batch and silent about what else the approval reached. **An approval's
+> SCOPE is a fact about the approval, and it has to be written down like any other.***
+>
+> ### ✅ S5 CLOSED 2026-08-17 — operational closure — all five gate steps, QA **APPROVED (r2)**
+>
+> **Gate: step 1 ✅ · step 2 ✅** (discharged by the follow-up batch's shared `e2e:prod`, which the PO
+> ruled would ride S5's owed run) **· step 3 ✅ APPROVED (r2) · step 4 ✅ PO-RULED 2026-08-17** — the
+> batch's approval closes S5 too (asked, not assumed; see the ✅ note at the end of the batch block).
+> ⚠ **A SLICE closure — DM5's PHASE QA is still owed at S6**, and S5's r2 authorizes no part of it.
+>
+> **Delivered:** **S5.R** byte-path rehearsal · **S5.D** disposal runbook
+> (`docs/deployment/phi-disposal-runbook.md`; owner = **the PO**, executor = whoever holds
+> service-role reach, **monthly + out-of-band on a data-subject request**) with the gap pinned on
+> **both** sides (`343` + `disposal-gap.test.ts`, both observed RED) · backup/restore drill of DB +
+> Storage together · EXPLAIN baselines. Full record →
+> **[dm5-s5-operational-closure.md](../progress/dm5-s5-operational-closure.md)**; QA r2 review
+> `docs/reviews/dm5-s5-review-r2.md`.
+>
+> 🔒 **Two gaps were adopted as BINDING — ⭕ 2026-08-17 (pre-S6) ONE IS DISCHARGED, ONE STILL BINDS:**
+> ⬛ **P4 `open_document_version` — MEASURED 2026-08-17**, by *meeting* the prerequisite rather than
+> fabricating the row the write path refused: the real `begin → finalize → complete_verification`
+> corridor, then EXPLAIN in a rolled-back transaction. **8.2 ms cold · 3.8–4.0 ms warm · 121 buffers
+> warm**, single-row at stated N, no residue. The original ruling (*a fabricated baseline is worse
+> than a missing one*) is what made this close cleanly. ⚠ **Baseline only — NO volume arm**, so
+> nothing here says how it scales. · 🔒 **The runbook sequence is UNREHEARSED — STILL BINDING, S6
+> may NOT close over it.** *Naming an owner is not a rehearsal, and writing a runbook is not running
+> it* — it needs the PO (its owner) plus service-role reach, so it was never the lead's to discharge.
+> ⛔ **20 NOT-COVERED items** (⭕ **not 13 — recounted at the phase QA 2026-08-17; the "13" was right
+> when written, never updated as r2 residuals were appended, and the appends landed out of numeric
+> order so the tail does not look like a tail**) are enumerated in the record under its binding heading — **read them
+> before S6**, because a close that omits them reads as completeness.
+>
+> ⭐ **The three findings worth more than the slice**, kept here because they are cross-phase and the
+> record is where the detail lives: a **restore onto a bare Postgres reported SUCCESS while losing 67%
+> of RLS** (psql exit 0 · 490 true errors · **90 of 274 policies** — two false signals aligned, and
+> only a *catalog comparison* exposed it) · **a Storage backup IS a PHI export** (68 PHI-tier files in
+> plaintext) · and **`capture` called a destroyed-bytes bucket CLEAN**, non-monotonically — partial
+> byte loss dirty, **total** byte loss clean.
+>
+> ### ✅ S4 CLOSED 2026-08-17 — legacy bucket retirement — all five gate steps, QA **APPROVED (r3)**
+>
+> QA r1 ⛔ → r2 ⛔ → **r3 ✅** (0 P0 · 0 MAJOR); PO approved the slice on the day. ⚠ **A SLICE verdict —
+> DM5's phase QA is still owed at S6, and it authorizes no part of S5.** Built: migration
+> **`20260927000400`** (drops the last 4 retirement-bucket policies + the 8 bucket rows, behind a
+> guard that **refuses** to retire a bucket still holding `storage.objects` rows — D9's byte-first
+> ordering encoded executably) · pgTAP **`325`** 5 → 8. Survivors: `documents-standard`/`documents-phi`
+> + `form-assets`/`meeting-audio`. Detail → **[the DM5 record](../progress/dm5-wave-d-retirement.md)
+> § S4**; reviews [r3](../reviews/dm5-s4-review-r3.md) · [r2](../reviews/dm5-s4-review-r2.md) ·
+> [r1](../reviews/dm5-s4-review.md).
+>
+> ⛔ **THE BYTE HALF WAS A NO-OP, AND IS RECORDED AS THAT — NOT AS "RETIREMENT PROVEN".** Every
+> retirement-bucket byte was already an orphan with no metadata row, so the Storage API — the D9
+> *gate* — could not address one of them; `delete --execute` never ran. What S4 closed is the
+> metadata/schema half. ⛔ **Not relieved by the approval: Cloud is UNVERIFIED in all three rounds,
+> and the deploy-time byte path is UNREHEARSED.**
+>
+> ⭐⭐ **The lesson that outlived the slice: broken assertions fail in OPPOSITE directions and only one
+> direction announces itself.** A reference sweep bounded by one property missed a breakage living in
+> another; pgTAP then returned 4 reds — but **two Rule 6 *"NO update/delete policy"* pins went
+> VACUOUS**, satisfied forever by zero policies, sitting in the passing column of a green suite.
+> **Fixing only what the suite reports would have left two dead pins reading as coverage.**
+> → [[removing-a-subject-breaks-its-assertions-in-two-directions]]
+>
+> ### ✅ S3 CLOSED 2026-08-14 — printed renditions onto the substrate — all four gate steps, QA **APPROVED (r2)**
+>
+> QA r1 ⛔ (2 MAJOR blocking) → **r2 ✅** (`801a2589`, [review](../reviews/dm5-s3-review.md)) — **every
+> blocking item re-proved by neutralization, not read.** Safety: 8 mutation-bearing runs, every one a
+> rolled-back transaction, degenerate bodies **0** after each. ⛔ **A slice verdict, not the phase
+> gate.** Detail → **[the DM5 record](../progress/dm5-wave-d-retirement.md) § S3**.
+>
+> ⭐ **The corridor EXECUTES — the one thing no static gate could say.** `pdf-printing` **9/9** and
+> `pdf-printing-meetings` **6/6**: real `%PDF-` bytes, mint → download → public verify → revoke →
+> overlay → re-verify. **S2 passed every static gate while its feature did not work at all.**
+> ⚠ Requires the **Gotenberg sidecar** (`docker start gotenberg-pdf`, `/health` 200 on :3010) **and
+> `--workers=1`** — without it the corridor specs fail as uniform login errors that read as product
+> defects. → [[print-corridor-needs-a-sidecar-no-gate-starts]]
+>
+> ### 📌 Open follow-ups — refreshed 2026-08-17, **this list is the live one**
+>
+> Full text + why each matters: **[follow-ups.md](../progress/follow-ups.md)**; prioritised order
+> with reasoning: **[handoff §13.2](../progress/dm5-handoff.md)**.
+>
+> **🔴** **FUP-DM5-SUPERSEDE-SERVING-COLLISION** — ⏸ **PO RULED 2026-08-17: decide later, the D11 inflow
+> STAYS REVERTED.** Both options declined for now (widen `app.resolve_document_version_bytes` for
+> `superseded`, or reinterpret ADR 0121 D3/D5). ⛔ **A deferral is not a closure: the item stays 🔴, S6
+> may NOT close over it, and D11 cannot be rebuilt until it is decided.** ⚠ **`FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES`
+> is this same deferral from the other side** — not independent work. The reverted state is coherent
+> (no inflow without outflow, no unservable prints); *a narrowing can be wrong and safe, a widening
+> cannot* ·
+> **FUP-DM5-NO-ANSWER-VS-NOTHING** (a **CLASS**, 6 instances; *an observable proxy substituted for the
+> property that matters, always failing in the reassuring direction* — instances 4, 5 and 6 were each
+> found **inside the fix for an earlier one**) · **FUP-DM5-BACKUP-IS-PHI-EXPORT** ·
+> **FUP-PGTAP-VACUOUS** (`lint:vacuous` scans TS only; ~6000 pgTAP assertions unscanned, live specimen
+> found) · **FUP-AUTHZ-HARNESS-TRANSACTIONAL** (⛔ **read the record's incident section before running
+> ANY mutation harness** — a live authz gate was left OPEN on the shared stack).
+>
+> **🟠** **FUP-DM5-DISPOSAL-JOB** (**the job does not exist**; blocking pre-pilot; ADR 0121 **D2**'s
+> obvious design does not work — the Storage API is unreachable from SQL, so a pure-SQL `pg_cron` job
+> automates only the half that was never the gap) · **FUP-DM5-CLOUD-ORPHAN-SURFACE** +
+> **FUP-DM5-D9-NO-ARM-SEES-A-BYTE-POST-RETIREMENT** (the pair deciding whether the deploy path can be
+> certified at all; **the S3 endpoint is UNPROBED and probing it is the single measurement that could
+> change this**) · **FUP-AUTHZ-COMMAND-DOOR-UNSWEPT** (⭕ **RE-SCOPED 2026-08-17 pre-S6 — its filed
+> premise was FALSE and the finding is bigger than filed.** No jsonb/void command door carries a
+> verdict *anywhere*: the two names cited as proof of a "wider door-sweep domain" occur only in
+> **prose**, which `verdicts_from_findings` — a **table-row** scraper — never reads. Measured:
+> **407** reachable non-trigger command doors sit outside **every** arm's domain, **326** of them
+> RPC-callable. ⭐ **A 3-door neutralization sample found all three COVERED**, so the class is
+> **covered-but-UNPINNED, not blind** — the coverage is real, nothing records it, so nothing
+> notices if it regresses and a NEW door in the class passes by absence. `ARM=census`'s printed
+> claim was narrowed to its true domain. **Sizing the 407-door triage is a PO decision**; ⛔ the
+> 3-door sample may NOT be used to close it) · FUP-DM5-STACK-CYCLE-DESTROYS-BYTES (mechanism still undetermined) · FUP-DM5-STORAGE-ORPHANS
+> (**Cloud half only** — local closed *empty by measurement*) · FUP-DM5-SETLOCAL-MIGRATION (⛔ in-place
+> fix **blocked**, the files are remote-applied; remaining remedy = a lint gate = **a PO decision**) ·
+> FUP-DM5-SIBLING-GUARD-DIFF · FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES (**superseded by** the collision
+> above).
+>
+> **🟡** FUP-ACL-APP-POPULATION (re-scoped: assertion **built**, the 237-function triage remains) ·
+> FUP-DM5-DVF-FILEOBJ (latency rests on **caller discipline, not the schema** — nothing makes
+> `file_object_id` unique) · FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT · FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN
+> (fail-open half fixed; arm still a no-op pending a **NAMED** successor) · FUP-PGTAP-WORKER-DEADLOCK ·
+> FUP-DM4-PRODROW (deferred to deploy).
+>
+> **PO decisions owed, easy to lose:** ADR 0114 **O1** (retention values) · **O2** (scanner +
+> `unscanned_accepted` expiry) · **O4** (signed-URL TTL) · **S1-O3** (uploader visibility) ·
+> **FUP-DM5-D11** ("decide later") · and whether **ADR 0120 D9** needs a Cloud-verification amendment
+> (open in the ADR, for S6). ⛔ **None of these may be invented by an implementer.**
+>
+> ↩ **S5 / S4 / S3 narrative detail rotated 2026-08-17** (§6 step 5) → **[the DM5 record](../progress/dm5-wave-d-retirement.md)
+> § "Rotated from PROGRESS.md 2026-08-17"**, appended and **`cmp`-verified byte-for-byte before the
+> cut** (371 lines) — ⚠ **then one mechanical transform applied after that check: relative links
+> `](../…)` → `](../…)`, because a root-relative link 404s from `docs/progress/`. Prose verbatim,
+> link targets repointed.** ⚠ **An `APPROVED` slice is not an absence of gaps** — rotation *moved* the
+> open lists, it did not settle them.
+>
+
+> ↩ **THE § STATE BLOCK WAS RESTORED LIVE TO PROGRESS.md ON 2026-08-18 AND IS NOT ARCHIVED HERE.**
+> It rotated out with this phase section by mistake, and the mistake is worth naming: **State is
+> cross-phase OPERATIONAL state — branch, `db push`, remote migration level, bucket counts — not
+> completed-phase detail.** Two PROGRESS.md rows still pointed at it, so the rotation created a
+> dangling pointer to the freshest facts in the file. ⭐ *A phase archive is the worst possible home
+> for a claim about an external system: nothing re-reads it, so it goes stale silently* —
+> [[a-records-claim-about-an-external-system-goes-stale-silently]]. **Read PROGRESS.md § State.**
+## ↩ Rotated from PROGRESS.md 2026-08-18 — the SEVEN-DECISION DOCKET as it stood before the rulings, VERBATIM
+
+The gate-step-4 docket that blocked DM5's closure, preserved with its **"why it blocks"** column —
+which is the reasoning each 2026-08-18 ruling answers. **The rulings themselves are in PROGRESS.md
+§ Decisions (the eight `2026-08-18` rows) and in the ADRs**; this is the question, not the answer.
+
+⚠ **The docket was over-wide by one item**, and that is worth keeping visible: row 2 lists ADR 0114
+**O4**, which had been **ruled on 2026-08-13** (ADR 0118 — 120 s / 300 s signed-URL TTLs). ADR 0120's
+open-items section — the phase review's **own cited source** — named only O1 and O2. The review
+widened its source, PROGRESS.md inherited it, and the PO was asked to decide something already
+decided. ⭐ *An over-wide list of what is owed costs the same round as an under-wide one.*
+
+⚠ Appended BEFORE the cut, `cmp`-verified, links repointed `](docs/…)` → `](../…)`.
+
+> <details><summary>The docket as it stood 2026-08-17, before the rulings — kept because the "why it blocks" column is the reasoning each ruling answers</summary>
+
+| # | decision | why it blocks | owner |
+|---|---|---|---|
+| **1** | **ADR [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) D9 — the Cloud question**: amend D9 with a Cloud-specific verification step, **or** explicitly ratify the under-count class as **unverified** | PO-deferred *"to when S6 reaches it"* — **S6 has reached it.** The only control that survives on Cloud is **provably blind** to a both-ways-diverged bucket (constructible in 4 commands). ⚠ The S3 endpoint is **UNPROBED**, and probing it is the single measurement that could change the answer — so deciding blind is a real option, but it must be a *decision*, not a default | PO |
+| **2** | **ADR [0114](../decisions/0114-document-model-redesign.md) O1 / O2 / O4** — retention values · scanner + `unscanned_accepted` expiry · signed-URL TTL | **O2 is the live one**: with no scanner integrated, every user upload currently rests at the interim state `unscanned_accepted`, by PO risk acceptance. That acceptance has no expiry until you set one | PO |
+| **3** | **ADR 0114 S1-O3** — uploader visibility | Open since DM2·S1; a confidentiality-surface question no implementer may answer | PO |
+| **4** | 🔴 **FUP-DM5-D11 / SUPERSEDE-SERVING-COLLISION** — widen `app.resolve_document_version_bytes` to serve `disposal_pending` bytes whose reason is `superseded`, **or** reinterpret ADR [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) D3/D5 | PO ruled **"decide later, the inflow STAYS REVERTED"**. ⛔ **A deferral is not a closure: D11 CANNOT BE REBUILT until this is decided, and no slice may close over it.** *A narrowing can be wrong and safe; a widening cannot* — a PHI byte-serving gate is not widened unilaterally | PO |
+| **5** | **Sizing the 407-door census triage** (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`) | **407** reachable command doors sit outside every authz arm's domain. A 3-door sample found all three **COVERED**, so this is **covered-but-UNPINNED, not blind** — but 407 is too many to classify honestly in one pass, and a backlog of generic reasons is itself a vacuous act. ⛔ **The sample may NOT be used to close it** | PO (+ lead/backend) |
+| **6** | **The unwritten per-slice `backend-state.md` sections** (S2 / S3 / S5) — still wanted, and owned by whom? | Raised by the S6 QA (F6) and re-homed by the phase QA. Named explicitly so the obligation cannot die quietly when DM5 closes | PO |
+| **7** | ⚠ **PILOT RISK ACCEPTANCE — may the pilot proceed over a manual-only, UNREHEARSED PHI-disposal path?** | 🔒 **The binding one.** DM5 ships a **known, runbook-mitigated PHI-disposal gap**: ADR 0121 **D2**'s job **does not exist**, so `disposal_state` records an **intent, not a destruction guarantee**, and bytes that should have been destroyed persist until a human runs the runbook — **which has never been executed end-to-end.** ⭐ This inverts ADR 0099 D10 (*"a stale row nobody looks at harms nobody"*): for PHI **the stale row IS the harm.** Rule 12 / LGPD. **A risk acceptance, not an engineering call** | PO |
+
+> </details>
