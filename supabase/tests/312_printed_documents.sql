@@ -29,7 +29,7 @@ begin;
 -- and +t53pre (the non-vacuity control proving
 -- the print objects EXIST to be hidden — without it t53 counts zero rows in an
 -- empty bucket and passes while proving nothing).
-select plan(77);
+select plan(80);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -757,6 +757,52 @@ select throws_ok(
     from r, k$$,
   '23505', null,
   't73 ⭐ one-active is TABLE-level law (QA MINOR-7): a second active row for the same (source, template) is impossible even for the OWNER — the partial unique index, not the door and not the pin trigger, is the anchor');
+
+-- ── 9. FUP-DM5-DANGLING-PRINT: a draft with an ACTIVE print cannot be deleted ─
+-- Migration 20260928000700 (`app.guard_response_active_print`, BEFORE DELETE on
+-- responses). Re-ruled 2026-08-18 after the first ruling — "refuse the mint from
+-- a non-submitted response" — was WITHDRAWN for reversing ADR 0104 D7. t43 above
+-- is D7's own witness: a RASCUNHO mint over the creator's draft SUCCEEDS. The
+-- defect was never the mint; it was that deleting the draft afterwards orphaned
+-- the print, because `securable_resources` is polymorphic and can carry no FK to
+-- `responses`, so Postgres cannot cascade what it does not know is related.
+--
+-- ⭐ THREE VACUITY TRAPS DODGED DELIBERATELY:
+--  1. t74 runs as the CREATOR under `authenticated`, the one principal whose RLS
+--     (`responses_delete_own_draft`: created_by = uid AND status = 'in_progress')
+--     actually permits this delete. Run it as anyone else and RLS refuses first,
+--     so the pin would go green without the trigger existing at all.
+--  2. t76 is the DIFFERENTIAL, and it is the assertion that carries the weight:
+--     after the print is revoked, the SAME delete by the SAME principal
+--     SUCCEEDS. Without it, t74 is equally satisfied by a guard that blocks
+--     every draft delete unconditionally — a far worse bug that would read as a
+--     pass. It pins that the guard discriminates on `status = 'active'`.
+--  3. Revocation is performed by sa_x, not st_x: `revoke_printed_document`
+--     refuses plain staff. Using the creator would fail on authority and leave
+--     the print active, making t76 red for a reason unrelated to the guard.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$delete from public.responses where id = (select resp_prog from r)$$,
+  'HC069',
+  null,
+  't74 ⭐ FUP-DM5-DANGLING-PRINT: the creator CANNOT discard his own draft while its printed document is ACTIVE — the paper must be voided deliberately, not orphaned as a side effect');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$select public.revoke_printed_document(
+      (select doc5 from d), 'minted_in_error', 'rascunho descartado pelo autor')$$,
+  't75 CONTROL setup: the commission coordinator voids the printed document (plain staff cannot — that is why this leg is sa_x)');
+reset role;
+
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$delete from public.responses where id = (select resp_prog from r)$$,
+  't76 ⭐ THE DIFFERENTIAL: with the print REVOKED the very same delete now SUCCEEDS — the guard discriminates on status = ''active'' and does not merely block all draft deletes. A revoked print keeps its row and bytes on purpose, so /verificar can still tell a paper-holder it is ANULADO (lookup_printed_document never joins responses)');
+reset role;
 
 select * from finish();
 rollback;

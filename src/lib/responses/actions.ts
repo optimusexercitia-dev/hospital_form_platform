@@ -68,6 +68,8 @@ const MESSAGES = {
   // discardResponse discriminated failures (standalone draft delete).
   discardNotDraft: 'Apenas rascunhos podem ser descartados.',
   discardCaseBound: 'Esta resposta pertence a um caso e não pode ser descartada aqui.',
+  discardHasActivePrint:
+    'Este rascunho possui um documento emitido ativo. Anule o documento emitido antes de descartar o rascunho.',
   discarded: 'Rascunho descartado.',
   // supersedeResponseAction discriminated failures (SUP / ADR 0074)
   supersedeNotSubmitted: 'Apenas respostas enviadas podem ser corrigidas.',
@@ -174,6 +176,11 @@ const OVERRIDE_RESULT_REQUIRED = 'HC062'
 /** discard_response discriminated failures (standalone draft delete). */
 const DISCARD_NOT_DRAFT = 'HC065'
 const DISCARD_CASE_BOUND = 'HC066'
+/** FUP-DM5-DANGLING-PRINT: the draft still has an ACTIVE printed document.
+ *  Raised by `app.guard_response_active_print` (BEFORE DELETE on responses), so
+ *  it covers EVERY delete path, not only this RPC. The paper must be voided
+ *  deliberately via revoke first — see migration 20260928000700. */
+const DISCARD_HAS_ACTIVE_PRINT = 'HC069'
 /** supersede_response discriminated failures (SUP / ADR 0074, SQLSTATE block HC0H0-HC0H9). */
 const SUPERSEDE_NOT_SUBMITTED = 'HC0H0'
 const SUPERSEDE_CASE_BOUND = 'HC0H1'
@@ -1173,6 +1180,8 @@ export async function discardResponse(responseId: string): Promise<ActionState> 
         return { ok: false, error: MESSAGES.discardNotDraft }
       case DISCARD_CASE_BOUND:
         return { ok: false, error: MESSAGES.discardCaseBound }
+      case DISCARD_HAS_ACTIVE_PRINT:
+        return { ok: false, error: MESSAGES.discardHasActivePrint }
       case PG_CHECK_VIOLATION:
         // guard_submitted_response fired (submitted → immutable delete).
         return { ok: false, error: MESSAGES.discardNotDraft }
