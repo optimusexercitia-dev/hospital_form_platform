@@ -1747,3 +1747,265 @@ mutation-proven per authz-handoff §7.1. The in-body comment at `dispose_case_ph
 
 - ⬛ **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ✅ **RESOLVED 2026-08-18 by measurement: Supabase Cloud exposes NO orphan-visible surface.** All 5 surfaces METADATA-BOUND (both S3 auth modes); the byte was proven still present in the same run, so no arm is vacuous. ⇒ ADR 0120 D9's byte-side controls are NOT recoverable on Cloud. Rotated from PROGRESS.md 2026-08-18. Body: [follow-ups.md](follow-ups.md) · run record: [cloud-orphan-probe-2026-08-18.md](cloud-orphan-probe-2026-08-18.md) — backend/lead
   <!-- prior PROGRESS.md index line, verbatim: - 🔴 **FUP-DM5-CLOUD-ORPHAN-SURFACE** — ⭕ **ESCALATED 2026-08-18: `FUP-DM4-PRODROW` NOW BLOCKS ON THIS PROBE (PO), and the probe has a REAL subject.** — backend/lead -->
+### ⬛ FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION — ✅ **RESOLVED 2026-08-19: the subject was removed, not the predicate widened (ADR 0126 D5)** — a print of an `in_progress` draft is visible to its CREATOR ONLY, and the minter can lose the only way out (owner: PO decision, then backend + frontend)
+
+> ### ✅ RESOLVED 2026-08-19 — the prévia SHIPPED, and the defect is gone BY CONSTRUCTION.
+>
+> Closed by the ADR 0125/0126 build (branch `feat/previa-split-adr-0125-0126`, QA **APPROVED** r2 —
+> [previa-split-review.md](../reviews/previa-split-review.md)). The mechanism this item described was that
+> `can_view_printed_document`'s **`form_response` arm** grants its `staff_admin` term only at
+> `status = 'submitted'`, so an `in_progress` draft's print was visible to `created_by` and nobody else.
+>
+> ⭐ **It closes by REMOVING THE SUBJECT, not by widening a predicate** (ADR 0126 **D5**): a draft no longer
+> registers at all — `mint_printed_document` refuses it with **`HC0DP`**, DB-enforced, so there is no
+> draft print to be invisible. The `list_printed_documents_for_governance` door was **not built**; nothing
+> was widened; the reachable dead end (a minter who loses `staff_admin`, cannot discover the print, and is
+> refused HC069 on discard) has no state to occur in.
+>
+> ⚠ Option 4 ("never mint from a draft") stays **refuted** as written — 0125 D2 keeps drafts **printable**;
+> what changed is only whether that paper enters the registry.
+>
+> **The option list below is retained as the record of what was considered, not as work.**
+
+> ## ⚠ (superseded — kept for the record) ANSWERED IN APPROACH 2026-08-18 — ADR [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md). **NOT CLOSED.**
+>
+> The PO ruled the ADR 0123 **D7** product split: registration is **derived from source state at
+> the lock point**, so a still-editable source yields an ephemeral unregistered prévia. Once no
+> `in_progress` response registers, the **`form_response`** arm below always fires for every
+> registered print — the predicate is correct **by construction**.
+>
+> ⚠ **Stated precisely, because the arm below is kind-specific.** ADR 0125 D1 registers meetings
+> from `in_signature`, so it is **not** true that every registered print has a *final* source. It
+> does not matter here: **measured**, `can_view_printed_document`'s **`meeting`** arm is
+> `can_reach_meeting AND can_read_full_meeting_content` — **no `status` term at all** — so it never
+> carried this defect, and an `in_signature` ata is visible to every member who can reach the
+> meeting and read its full content.
+>
+> ⇒ **Option 1 is NOT built** (no `list_printed_documents_for_governance` door — it would have been
+> a door with no subject), **option 2 is not needed** (no widening), **option 3 is not needed** (the
+> dead end disappears: drafts have no prints, so the discard always succeeds). Option 4 stays
+> refuted — 0125 keeps drafts **printable**, it changes only whether the paper enters the registry.
+>
+> ⛔ **Closes only when the prévia ships** (`FUP-PREVIA-SPLIT-BUILD`). Until then the defect below
+> is live exactly as described, and the option list is retained as the record of what was
+> considered — not as work.
+
+Filed 2026-08-18 (lead) while closing `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT` (ADR
+[0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md) **D6**). **Measured from
+the live catalog and from every UI mount, not reasoned.** No deletion is involved — this is live
+today, with the source response perfectly alive.
+
+**The mechanism.** `app.can_view_printed_document`'s `form_response` arm grants its `staff_admin`
+term only when `v_resp.status = 'submitted'`:
+
+```
+return v_resp.created_by = p_uid
+    or (v_resp.status = 'submitted' and app.is_staff_admin_of_for(v_resp.commission_id, p_uid))
+    or app.can_read_correction_response(...) or app.can_access_targeted_response(...)
+```
+
+That same predicate **is** the whole of the `printed_documents_select` policy (verified: it is the
+table's only policy), and `listPrintedDocuments` is a plain table read under it. So for an
+`in_progress` draft, **`created_by = p_uid` is the only arm that can fire** — the print is invisible
+to every other coordinator, to `org_admin`, and to `platform_admin`.
+
+**Why it is not merely cosmetic.** `revoke_printed_document` authorizes on
+`is_staff_admin_of_for(v_row.commission_id, …) or is_tenancy_admin_of_for(…)` — it does **not**
+consult source visibility. So a coordinator **may** revoke a draft print; they simply have no way to
+**discover** its `id`. Authority without discovery is a door with no handle.
+
+**The reachable dead end.** The only UI mount that renders the print panel for an `in_progress`
+response is `…/dashboard/submissions/[responseId]`, gated `access.role === "staff_admin"`
+(`watermark={isSubmitted ? "final" : "draft"}`); the respondent's own `…/respostas/[responseId]`
+**redirects a draft back into the wizard**, and the wizard mounts no panel. So exactly one persona can
+mint a draft print through the product: **a `staff_admin` who is the creator** — who can also revoke,
+so they are fine. ⭐ **But if that person later loses `staff_admin`**, they keep the `created_by` mint
+arm and lose revoke, no other coordinator can see the print, and `HC069` now refuses their discard
+**with no in-product way out**. Same shape for a print minted by direct RPC call by a plain `staff`
+creator, whom the door permits and the UI merely does not offer.
+
+**Options** (PO picks; ⚠ the option list is an assertion too — re-derive before ruling, this item's
+predecessor was withdrawn for exactly that):
+
+1. ⭐ **A read-only governance registry door** — `list_printed_documents_for_governance(commission_id,
+   …)`, `SECURITY DEFINER`, authorized with the **same** coordinator predicate `revoke`/the kernel
+   write arm already use, returning zero-PHI metadata plus a derived `source_exists`. ⛔ **Must NOT**
+   widen `app.can_view_printed_document` (mint/open read it, and it means *current source
+   visibility*), and **must NOT** add a permissive `printed_documents` policy — permissive policies
+   `OR` together, so that would make source panels show documents whose sources the viewer cannot
+   read. ⚠ Needs a UI caller in the same slice or it is a [[correct-door-that-nothing-can-reach]];
+   and per ADR 0079 Am. 3/7 a brand-new gate passes `ARM=policy` **vacuously**, so `ARM=census` is the
+   arm that must see it — plus the explicit ACL (`20260928000700` shipped a DEFINER function with
+   default **PUBLIC EXECUTE**, caught only by the `320` U1 census with `312` fully green).
+2. **Widen the `staff_admin` arm to drafts.** One-line, but it widens *content* sight of unfinished
+   drafts as a side effect — the Phase-7 invariant deliberately hides a foreign member's `in_progress`
+   response, and this predicate is a **parity mirror** of the `responses` read policies, not an
+   improvement on them. A widening cannot be wrong-and-safe.
+3. **"Solicitar anulação"** — a creator-initiated request that notifies coordination with the
+   registry id. Solves the dead end without widening any read, but adds a workflow.
+4. **Never mint from a draft** — ⛔ **refuted**: reverses ADR 0104 **D7**, which is exactly how this
+   item's predecessor got withdrawn. `312` t6/t43 pin draft prints by name.
+
+⚠ Interacts with the product split deferred by ADR 0123 **D7** (`Imprimir prévia`, ephemeral and
+unregistered, vs `Emitir documento`): if previews stop entering the registry, options 1 and 3 shrink
+to the rare case. Rule D7 first, or knowingly build for both.
+
+### ⬛ FUP-PREVIA-SPLIT-BUILD — ✅ **RESOLVED 2026-08-19: shipped, QA APPROVED r2** — build ADR 0125: the ephemeral `Imprimir prévia` / registered `Emitir documento` split (owner: backend + frontend)
+
+> ### ✅ RESOLVED 2026-08-19 — SHIPPED. QA **APPROVED** (r2) — [previa-split-review.md](../reviews/previa-split-review.md).
+>
+> Branch `feat/previa-split-adr-0125-0126`, 22 commits. Gate on a fresh reset: pgTAP **197f/6520** · seven
+> lint gates · `tsc` · vitest **1447** · E2E **20/20** (six corridor cases, zero-leftover query) · **all four
+> authz ARMs HOLD** · full 51-door row sweep · **12 new `prosecdef` gates**, catalog-confirmed, none an
+> INVOKER wrapper.
+>
+> **Every scope item landed**, plus ADR 0126's round-2 core (`meetings.revision`, the per-kind HEAD dispatch,
+> the void conjunct, `guard_meeting_active_print`, derived currency, `/verificar`'s third term).
+>
+> ⭐ **Three live defects were found and fixed that this item never anticipated**, each invisible to a green
+> suite and each found by reading the **caller**, not the door:
+> 1. **Re-minting a reopened ata was impossible through the UI** — the action never passed
+>    `p_source_revision`, so it defaulted to `0` and the door raised `HC0DU`. That is precisely the corridor
+>    ADR 0126 **D9** exists to support.
+> 2. **A locked source could be served as a prévia** — the route derived the affordance correctly and the
+>    **door had no registration term at all** (Architecture Rule 1). Fixed DB-side as `HC0DV`.
+> 3. **The panel promised a permanent verifiable record** directly above the prévia link.
+>
+> ⭐ **The lesson this build earned, and the one worth carrying:** *a keystone proves the DOOR works and says
+> nothing about whether the ACTION can reach it — the test is a SECOND CALLER, and a second caller can
+> satisfy a door the real one cannot even open.*
+>
+> **Residue, carried NOT inherited:** the commission-level cascade path (0125's residual pair; its sibling is
+> closed by measurement, 0125 Amendment 1 §C) stays open, and `case`/`interview`'s lock/watermark/series
+> declarations remain deferred to provider activation (0126 D7). Five follow-ups filed during the build, none
+> of them this item's subject: `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` (🔴, blocks C1a/C1b),
+> `FUP-42501-CONFLATES-GRANT-WITH-RLS`, `FUP-SUPERSESSION-BADGE-LANE-BLIND`,
+> `FUP-E2E-SUBMITTED-POOL-UNSCOPED`, `FUP-PREVIA-MINT-FLAG-ASYMMETRY`.
+>
+> **The scope list below is retained as the build record.**
+
+Filed 2026-08-18 (lead) on the PO ruling of ADR
+[0125](../decisions/0125-previa-ephemeral-and-emission-registered.md), which discharges ADR 0123
+**D7** and amends ADR 0104 **D7** item 4. The nine decisions are in the ADR; this item carries the
+**build**, and specifically the two pieces that are easy to ship green while asserting nothing.
+
+**⭐ Measured 2026-08-18, before any code — two findings that shape the build.**
+
+**(a) Registration is DB-enforced, not app-layer convention.** D7's *"HC069 becomes structurally
+unreachable"* is only STRUCTURAL if `mint_printed_document` itself refuses a non-locked source; if
+only the server action refused, a direct RPC call would still construct the state. Three independent
+anchors agree: D7's own wording, D2 rewriting `t43` (which pins that a draft mint SUCCEEDS), and this
+item's instruction to rebuild §9 by inserting a `printed_documents` row **"bypassing the mint"** —
+you only bypass a door that would otherwise refuse.
+
+**(b) ⛔ But the gate MUST NOT go inside that door as a fourth kind-conditional site.** Measured from
+the live catalog — `mint_printed_document` carries this in its own body:
+
+> ⚠ the REGISTRATION-MIRROR TRIO, site 3 of exactly 3 (template coherence · commission resolution ·
+> PHI capability). **A FOURTH kind-conditional site in this door is the abstraction-leak signal —
+> stop and re-plan, never extend.**
+
+⇒ The lock predicate lands as a **separate kind-dispatch** with its own per-kind CASE and fail-closed
+ELSE (mirroring `app.can_view_printed_document`'s shape), which the door then calls **once,
+kind-agnostically**. That satisfies the trio constraint and **D8** ("every kind MUST declare TWO
+predicates") in the same move — the constraint and the ADR want the same structure. Error code
+`HC0DP` is free (`HC0D1-4`, `HC0D6-9`, `HC0DA-N`, `HC0DR`, `HC0DS` are taken).
+
+⚠ The new dispatch is a **brand-new gate**, so per ADR 0079 Amendment 3 it passes `ARM=policy`
+**vacuously** — `ARM=census` is the arm that must see it — and it enters the catalog with a NULL
+`proacl`, which is the DEFAULT and includes PUBLIC (the class that shipped live in `20260928000700`).
+Explicit REVOKE/GRANT, diffed **from the catalog**.
+
+**Scope, in dependency order.**
+
+1. **The render path** (D4) — HTML → Gotenberg → buffer → **response stream**. The `.upload()` and
+   the `mint_printed_document` RPC are simply not called. ⛔ **No temporary object at any point** —
+   a "temp upload, delete after" variant is rejected by name in the ADR.
+2. **The prévia footer primitive** (D5) — sibling to
+   [`qr-footer.ts`](../../src/lib/pdf/primitives/qr-footer.ts), which today renders the QR, the
+   `código` **and** `Emitido em … por …` as one block, so dropping the QR drops provenance with it.
+   ⛔ The verb **`Emitido` must not appear** on an unregistered page.
+3. **The action split** (D1) — ⚠ **TWO predicates, and only one of them already exists.** For
+   `form_response` the discriminator is `status = 'submitted'`, which is also the watermark's. For
+   `meeting` it is a **NEW** predicate, `status in ('in_signature','signed','distributed')`, which
+   is **neither** `meetingWatermarkFor` (that stays `signed|distributed` — **do not change it**;
+   an `in_signature` ata registers stamped RASCUNHO on purpose) **nor** the lock set
+   (`cancelled` is locked but excluded by decision). Write it as its own pure, client-importable
+   function **beside** `meetingWatermarkFor` — overloading the existing one silently couples the
+   two axes back together, which is the thing D1 separates. The dialog already previews the mark,
+   so the button label follows the same shape.
+   ⚠ **Round 2 supersedes the `form_response` half of this item:** the discriminator is the
+   **three-conjunct** predicate (0126 D5 + D10) and the watermark refines **in tandem** (0125
+   Amendment 2) — `submitted` alone is neither axis, and both now read
+   `case_correction_requests` + `case_phases`. `meetingWatermarkFor` still unchanged.
+4. **The audit row** (D3) — the prévia emits its own `app.audit_write`, actor + timestamp + source
+   + template, no payload. ⭐ **The only half that cannot be added retroactively.**
+5. **Contention** (D9) — same `mintSemaphore`, unchanged at 3 permits; the prévia acquires with a
+   materially shorter wait so it is the one that loses under load.
+6. **Round 2 core (0126 D8–D10)** — `meetings.revision` (bumped only by `reopen_meeting`) + the
+   per-kind HEAD dispatch (`form_response`: approved-successor; `meeting`: revision match) + the
+   third registration conjunct (attached phase not `voided`) + the tandem watermark (0125
+   Amendment 2). The predicate/watermark read set now spans `case_correction_requests` +
+   `case_phases` — their writers are swept per 0126's standing method rule.
+7. **`guard_meeting_active_print`** (0126 D11) — BEFORE DELETE symmetric of
+   `guard_response_active_print`, with the t76/t80-shaped differential keystone (print revoked ⇒
+   the same delete succeeds). New gate ⇒ the same `ARM=census` + explicit-ACL discipline as the
+   dispatch above.
+8. **Currency + `/verificar`** (0126 D2/D4/D12) — derived at read, two-sided keystones per
+   conjunct incl. the D9 round-trip and D10 void corridors; the widened anon DEFINER door goes
+   through the diff-scoped 0079 sweep; the `revoked` arm keeps its no-join independence.
+   ⚠ The mint door is **compare-and-mint**: the predicate evaluates inside the RPC's transaction
+   against render-time source state (TOCTOU — 0126 Consequences).
+
+**⛔ The two things that will pass green having asserted nothing.**
+
+- **`312` §9 goes VACUOUS** (t74/t76/t80 + the supersede block from line 764). Its fixture is *"mint
+  from a draft, then discard it"*, and that state becomes **unconstructible**: measured,
+  `guard_submitted_response` raises unconditionally on a submitted DELETE and the RLS policy is
+  `responses_delete_own_draft`, so only drafts are deletable. Rebuild the block to **construct** the
+  state at table level (insert `printed_documents` against a draft response directly, bypassing the
+  mint). ⚠ **The differentials must survive the rewrite** — t76/t80's *"the same delete now
+  SUCCEEDS"* is what stops the block being equally satisfied by a guard that blocks every draft
+  delete. Also rewrite **t6** (line 198) and **t43** (line 447), which pin registered draft mints by
+  name. → [[removing-a-subject-breaks-its-assertions-in-two-directions]]
+- **No authz ARM covers the prévia route** (D6). Its authorization is inherited RLS and it is real —
+  verified in the modules, not the comment: `queries/responses.ts` and `queries/meetings.ts` use
+  `createClient()` throughout, so a caller who cannot read the source cannot build the payload. But
+  an app-layer route with no `prosecdef` gate is in **no arm's domain** (the ADR 0079 Am. 7 shape),
+  so nothing goes red if a future edit swaps one of those queries to the admin client. Ships with a
+  **behavioural** keystone — a principal who cannot read the source is refused a prévia — not an arm.
+
+- **The fourth cell must be proven unreachable** (D5). The two axes give four combinations and
+  three are legal; **FINAL + prévia footer** must not exist — a page the platform disclaims whose
+  source is immutable. It is unreachable *by construction* under D1, which is exactly the shape
+  that rots silently: nothing fails if a later edit makes it reachable. Pin it, don't reason it.
+
+**Also in scope:** `pdf-printing-meetings.spec.ts` T2 (mints from a `held` meeting, asserts
+RASCUNHO) stays a **prévia** — `held` is not locked — but needs a **new sibling** covering the
+`in_signature` → **registered RASCUNHO** case, which is where the two axes visibly separate: QR
+footer present, diagonal mark still RASCUNHO. Add one for the supersession chain too (mint at
+`in_signature`, re-mint at `signed`, first flips `SUBSTITUÍDO`) — that chain is the ADR's stated
+accreditation answer and nothing pins it today. Keep the RASCUNHO variants in
+`fingerprint.test.ts`. **No data migration** — production holds `0` prints (measured, ADR 0123 D4)
+and local resets.
+
+**Open question carried here — round 2 resolved most of it:** the original "meetings need no
+`guard_response_active_print` analogue" rested on *lock set ⊇ registering set*, which was **FALSE**
+(`reopen_meeting` exits the refusal set — 0125 Amendment 1 §B); today's real anchor is the mint's
+own `documents` row → `securable_resources` **RESTRICT**, owned by the disposal-bound documents
+domain, and **0126 D11 orders `guard_meeting_active_print` + keystone** (scope item 7). Of the two
+residual paths: delete-inside-a-meeting-RPC is **CLOSED by measurement** (0125 Amendment 1 §C —
+filter `prokind = 'f'` when sweeping, or the aggregate throw reads as a clean result); the
+**commission-level cascade is still OPEN** and stays carried here, uninherited.
+
+**Not in scope:** the **lock and watermark predicates** for `case` / `interview` (ADR 0125 D8
+binds the principle — both declared separately, not-locked ⇒ ephemeral — and defers each
+predicate to that kind's provider activation).
+
+
+### ⬛ Resolved — rotated 2026-08-19 (the ADR 0125/0126 prévia-split Record step)
+
+- ⬛ **FUP-PREVIA-SPLIT-BUILD** — ✅ **RESOLVED 2026-08-19: SHIPPED, QA APPROVED r2** ([review](../reviews/previa-split-review.md)). Branch `feat/previa-split-adr-0125-0126`, 22 commits. Gate on a fresh reset: pgTAP 197f/6520 · seven lint gates · `tsc` · vitest 1447 · E2E 20/20 · all four authz ARMs HOLD · 12 new `prosecdef` gates, catalog-confirmed. ⭐ Three live defects fixed that this item never anticipated, each invisible to a green suite and each found by reading the CALLER: re-minting a reopened ata was impossible through the UI; a locked source could be served as a prévia (the door had no registration term at all — Architecture Rule 1); the panel promised a permanent verifiable record above the prévia link. **The lesson: a keystone proves the DOOR works and says nothing about whether the ACTION can reach it — the test is a SECOND CALLER.**
+<!-- prior PROGRESS.md index line, verbatim: - 🟠 **FUP-PREVIA-SPLIT-BUILD** — 🔨 **IN BUILD 2026-08-18** (backend contract slice first): build ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) (ephemeral prévia / registered emission). Nine decisions, each measured before ruling. Carries the `312` §9 + t6/t43 rewrite (the fixture goes unconstructible — vacuous-and-green if left alone) and the D6 **behavioural** keystone, because an app-layer route with no `prosecdef` gate is in **no authz ARM's domain** — backend/frontend -->
+- ⬛ **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION** — ✅ **RESOLVED 2026-08-19 by ADR 0126 D5, which removes the SUBJECT rather than widening the predicate.** A draft no longer registers (`HC0DP`, DB-enforced), so there is no draft print to be invisible. The `list_printed_documents_for_governance` door was **not built**; nothing was widened; the reachable dead end (a minter who loses `staff_admin`, cannot discover the print, and is refused HC069 on discard) has no state to occur in. ⚠ Option 4 stays refuted — 0125 D2 keeps drafts printable; only registry entry changed.
+<!-- prior PROGRESS.md index line, verbatim: - 🟠 **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION** — ⚠ **ANSWERED IN APPROACH 2026-08-18 by ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) — NOT closed.** Once no `in_progress` response registers, `can_view_printed_document`'s **`form_response`** arm always fires for every registered print: correct **by construction**, with **no** `list_printed_documents_for_governance` door and **no** widening. ⚠ Not "every registered print has a final source" — 0125 D1 registers meetings from `in_signature`; it doesn't matter because the **`meeting`** arm is `can_reach_meeting AND can_read_full_meeting_content`, **no `status` term at all** (measured), so it never carried this defect. The reachable dead end (minter loses `staff_admin` → cannot discover the print → HC069 refuses the discard) disappears with it. **Closes only when the prévia ships** — backend/frontend -->

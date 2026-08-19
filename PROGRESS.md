@@ -42,83 +42,47 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
   and its "~49 vanished" figure is **withdrawn** (§ State). Record:
   [cloud-orphan-probe-2026-08-18.md](docs/progress/cloud-orphan-probe-2026-08-18.md);
   instrument `scripts/cloud-orphan-probe.mjs`.
-- **🔨 ACTIVE 2026-08-18 — `FUP-PREVIA-SPLIT-BUILD` (ADR 0125 **+ 0126**) is IN BUILD**,
-  on PO instruction to initiate implementation. ⚠ This **jumps the PO-sequenced queue
-  below** by instruction, not by drift — C1a/C2/PRODROW are unstarted and keep their
-  order behind it. Running **backend-contract-first**: the DB half (lock dispatch + door
-  gate + prévia audit RPC + the `312`/`313` keystone rebuild) settles before the pure
-  predicates, the prévia footer, the streaming route and the two UI mounts land.
-  **Team spawned 2026-08-18.** ✅ **LANDED, all lead-verified from the catalog/files, not
-  from reports:** the four `app.print_source_*` dispatches + `public.print_source_state`
-  (`20260928001000`) with `344_print_source_derivations.sql` (68 assertions, vector-driven,
-  red-first **per arm** — 5 arms observed red, harness rollback proven *before* use) ·
-  `public.log_document_previa` (`20260928001100`) · both query widenings
-  (`ResponsePrintContext.correctionOpen/phaseVoided` from the **DEFINER door**, not an
-  inline RLS join — an unseen correction would default `false` and stamp FINAL, fail-OPEN
-  onto 0125 D5's 4th cell; `MeetingDetail.phiDisposed`) · TS predicates + prévia footer +
-  `renderPreviaPdf` + the currency presentation layer. **Gate state: 7 new `prosecdef`
-  gates** (catalog-counted), pgTAP **195f/6474 PASS**, vitest 1418, `tsc`, 7 lint gates.
-  ⛔ **REMAINING: the prévia route handler + D6 behavioural keystone (B6 — the feature both
-  ADRs are named for, and it does NOT exist yet), then B2 series re-key → B3
-  `meetings.revision`+`HC0DP` → B4 `guard_meeting_active_print`+currency → B5 the `312`
-  §9/§10 + `313` rebuild.** `frontend` 8c/8d are BLOCKED on B4/B6 respectively.
-  ⚠ **A fresh-`db reset` pgTAP run is still OWED** — every run so far was on the live local
-  DB. Gate: `tester` T1, then lead-run authz ARMs (**`ARM=census` is the arm that sees the
-  7 new gates**; they pass `ARM=policy` vacuously) + the diff-scoped sweep, then `qa`.
-  ⭐ **Design finding, measured 2026-08-18:** registration is **DB-enforced** (D7's
-  "HC069 structurally unreachable" is structural only if the *door* refuses), but the
-  gate **cannot** go inside `mint_printed_document` as a fourth kind-conditional site —
-  the door's own body forbids exactly that ("REGISTRATION-MIRROR TRIO, site 3 of exactly
-  3 … stop and re-plan, never extend"). It lands as a **separate kind-dispatch** the door
-  calls once, kind-agnostically, which is also what ADR 0125 D8 asks for. Free code:
-  `HC0DP`.
-- **🟣 DESIGN-REVIEWED WITH THE PO 2026-08-18 ×2 → ADR
-  [0126](docs/decisions/0126-print-series-and-derived-currency.md) is **ACCEPTED** (round-2 PO
-  ruling, same day; **0125 Amendments 1+2 ACCEPTED** with it).** ⛔ The backend hold this line
-  carried is **released by the acceptance** — the build resumes on the ratified design,
-  round-2 scope included. Two of ADR 0125's rationales were FALSE as measured (recorded in
-  **0125 Amendment 1**), and the grill that followed changed the *design*, not just the
-  wording. What 0126 rules:
-  1. **A print belongs to a SERIES, not a row.** Measured: `start_correction_draft` inserts
-     a **new** `responses` row, so after one correction **two prints can both be `active`**
-     for one logical document and no constraint objects. `printed_documents_one_active`
-     re-keys to `source_series_id`.
-  2. **Currency is a THIRD derived axis** — `current ⇔ source still registers AND source is
-     still HEAD of its series` — **derived at read time, never stamped**, so a print may be
-     `status='active'` *and not current*. `/verificar` gains a **distinct third term**;
-     reusing `Substituído` would assert a newer print exists when none does.
-  3. ⭐ **D1's lock predicate is REFINED: a state a door can walk back out of is not a lock
-     point.** A rejectable correction draft no longer registers. This deletes **four**
-     problems by removing their shared subject: the un-withdrawable correction, the
-     coordination-invisible print, the governance door, and the auto-revoke question.
-  4. **Auto-revoke is REFUSED on measurement:** `withdraw_correction` admits the corrector
-     while `revoke_printed_document` requires `staff_admin` — automating it is an authority
-     bypass. Auto-supersede was considered and is a **no-op** (the guard blocks `superseded`
-     too).
-  5. ⚠ **0125 D7's conclusion is correct after all — by construction, not for its stated
-     reason** — so the `312` §9 **table-level rebuild is required**, reversing the interim
-     guidance given mid-review. 0125 D8's "two predicates per kind" becomes **three**.
-  6. **Round 2 (D8–D12, ruled 2026-08-18):** HEAD turns at the **approval door** (chain-tip
-     would flap currency on draft creation; ETH·E2 defense rows must stay head) · meetings
-     gain **`revision`**, head = revision match — closing the reopen→edit→re-sign
-     stale-current corridor · a **voided** phase's response neither registers nor stays
-     current (the void door sat outside round 1's two-column sweep — standing rule: every
-     column the derivation READS imports its transition graph) · **`guard_meeting_active_print`**
-     + keystone (the real meeting-orphan anchor is `documents→securable_resources` RESTRICT,
-     owned by the disposal-bound documents domain) · anon `/verificar` currency **blessed**.
-     Watermark moves in tandem (**0125 Am. 2**) so the FINAL+prévia cell stays unreachable —
-     the vector fixture gained `correction_open`/`phase_voided` in the same change (14
-     vectors, sync test green).
-- ⚠ **`FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION` was RE-OPENED and is re-closed by
-  0126 D5.** Measured: `can_read_correction_response` grants only `permitted_corrector`, who
-  **is** `created_by` on the product path — so arms 1 and 3 of `can_view_printed_document`
-  resolve to the **same human** and arm 3 adds **zero** coverage. There was a window in which
-  a registered print was visible to nobody but its creator, entered by the coordinator's own
-  `reject_correction` call, with a **live dead end** attached (`withdraw_correction` →
-  HC069 → the correction cannot be withdrawn). ⛔ It closes only when 0126 D5 ships.
-- **▶ Next, in order** (PO-sequenced 2026-08-18; now behind the 0125 build above):
+- **✅ SHIPPED 2026-08-19 — the `Imprimir prévia` / `Emitir documento` split (ADR
+  [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) +
+  [0126](docs/decisions/0126-print-series-and-derived-currency.md)).** QA **APPROVED** r2
+  ([review](docs/reviews/previa-split-review.md)). Branch `feat/previa-split-adr-0125-0126`,
+  22 commits, **not merged, not pushed** — awaiting the merge call. Gate on a **fresh reset**:
+  pgTAP **197f/6520** · seven lint gates · `tsc` · vitest **1447** · E2E **20/20** (six corridor
+  cases, zero-leftover query) · **all four authz ARMs HOLD** · full 51-door row sweep ·
+  **12 new `prosecdef` gates**, catalog-confirmed, none an INVOKER wrapper.
+  **What it does:** a **locked** source yields a registered emission (QR, hash-pinned,
+  verifiable); anything still editable yields an **ephemeral prévia** (streamed, no bytes at
+  rest, no registry row, its own audit row). **The user never chooses** — and the **door**
+  enforces it (`HC0DP` mint, `HC0DV` prévia), not the UI. Prints belong to a **series**, not a
+  row; **currency is a third derived axis**, read-time and never stamped.
+  ⭐ **Three live defects were found that no ADR anticipated**, each invisible to a green suite
+  and each found by reading the **CALLER**: re-minting a reopened ata was **impossible through
+  the UI** (`p_source_revision` never passed — D9's own corridor); a **locked source could be
+  served as a prévia** (the door had no registration term at all — Rule 1); and the panel
+  **promised a permanent verifiable record** above the prévia link.
+  ⭐⭐ **The lesson, and it is the build's:** *a keystone proves the DOOR works and says nothing
+  about whether the ACTION can reach it — the test is a **second caller**, and a second caller
+  can satisfy a door the real one cannot even open.*
+  ⚠ **ADR 0126 gained Amendment 1 (eleven findings)** — 2 PO-ruled extensions, **4 corrections
+  to claims the ADRs state AS MEASURED**, 4 method rules, 1 live defect on the public page.
+  **Residue, carried NOT inherited:** the commission-level cascade path stays open (its sibling
+  is closed by measurement, 0125 Am. 1 §C), and `case`/`interview`'s lock/watermark/series
+  declarations remain deferred to provider activation (0126 D7).
+- **🆕 Five follow-ups filed during that build, NONE of them its subject, none fixed** — all
+  measured, all with owners: 🔴 `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE` (**blocks C1a/C1b**
+  — `dispose_meeting_minutes` cannot complete on a locked meeting with agenda items; its own
+  "bypass the freeze guards" comment is false) · 🟠 `FUP-42501-CONFLATES-GRANT-WITH-RLS` · 🟠
+  `FUP-SUPERSESSION-BADGE-LANE-BLIND` · 🟡 `FUP-E2E-SUBMITTED-POOL-UNSCOPED` · 🟡
+  `FUP-PREVIA-MINT-FLAG-ASYMMETRY`. Plus 🟡 `FUP-LINT-VECTOR-DIMENSION-DRIFT` (a gate proposal,
+  filed not built).
+- **▶ Next, in order** (PO-sequenced 2026-08-18; **the 0125/0126 build that jumped this queue
+  has SHIPPED**, so these resume their order):
   1. **C1a** — local end-to-end run of
      [`phi-disposal-runbook.md`](docs/deployment/phi-disposal-runbook.md).
+     ⛔ **BLOCKED, newly, by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`** —
+     `dispose_meeting_minutes` **raises** on any locked meeting that has agenda items, i.e.
+     exactly the population carrying PHI. ⚠ **The rehearsal must name a locked meeting WITH
+     agenda items as a fixture**, or it goes green having exercised only the case that works.
   2. **C2 Tier 1 sizing** (absorbs `Q1-OPEN-BYTES-CUT` + `SIBLING-GUARD-DIFF`).
   3. **`FUP-DM4-PRODROW`** — now actionable: re-derive a magnitude, or rule that it
      cannot be (TRIAGE #9 already forbids closing it as "reconciled").
@@ -134,14 +98,17 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
      loads data**.
   2. `DANGLING-PRINT` is **CLOSED** (ADR
      [0123](docs/decisions/0123-discarding-a-draft-that-has-emitted-documents.md));
-     a third defect found during closure is OPEN as
-     `FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION` — **answered in approach**, not
-     closed, by ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md)
-     (registration derived from source state **at the lock point**: still-editable ⇒
-     ephemeral prévia; locked ⇒ registered — for meetings that turns at `in_signature`,
-     which registers **stamped RASCUNHO**, watermark predicate unchanged).
-     ⚠ 0125 also makes **HC069 structurally unreachable**, so `312` §9's keystones go
-     vacuous unless rebuilt table-level — build item: `FUP-PREVIA-SPLIT-BUILD`.
+     a third defect found during closure is now ✅ **CLOSED**
+     (`FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION`, resolved 2026-08-19) — and it closed
+     by **removing the subject**, not by widening a predicate: under ADR
+     [0126](docs/decisions/0126-print-series-and-derived-currency.md) **D5** a draft no
+     longer registers at all (`HC0DP`, DB-enforced), so there is no draft print to be
+     invisible. Registration derives from the **lock point**: still-editable ⇒ ephemeral
+     prévia; locked ⇒ registered — for meetings that turns at `in_signature`, which
+     registers **stamped RASCUNHO**, watermark predicate unchanged.
+     ⚠ **HC069 is genuinely unreachable now**, so `312` §9/§10 were rebuilt **table-level**
+     with the t76/t80 differentials preserved (a rebuild that dropped them would be equally
+     satisfied by a guard refusing every delete).
   3. **C1 split into C1a (local) + C1b (Cloud); the pilot bound is C1b** — a green
      local rehearsal does NOT release the pilot (§ Critical FUP C1).
 - **In-flight worktrees:** `progress-methodology` (this restructure — tracker
@@ -398,8 +365,6 @@ them. ⭐ *A body plus a narrative mention is not an index entry; the index is w
 - 🔵 **FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN** — **⚠ HALF RESOLVED 2026-08-17 (`24cee179`): the fail-open half is fixed and proven; the arm is still a no-op pending a NAMED successor (deliberately not re-pointed — a successor must be named,…** — backend
 - 🟠 **FUP-DM5-D11-SUPERSEDED-NEVER-RETIRES** — ✅ **DECIDED 2026-08-18: BUILD IT, at retention expiry** — backend
 - 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** — **no authz arm can see a door that OMITS a check its siblings all make** — lead/backend
-- 🟠 **FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION** — ⚠ **ANSWERED IN APPROACH 2026-08-18 by ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) — NOT closed.** Once no `in_progress` response registers, `can_view_printed_document`'s **`form_response`** arm always fires for every registered print: correct **by construction**, with **no** `list_printed_documents_for_governance` door and **no** widening. ⚠ Not "every registered print has a final source" — 0125 D1 registers meetings from `in_signature`; it doesn't matter because the **`meeting`** arm is `can_reach_meeting AND can_read_full_meeting_content`, **no `status` term at all** (measured), so it never carried this defect. The reachable dead end (minter loses `staff_admin` → cannot discover the print → HC069 refuses the discard) disappears with it. **Closes only when the prévia ships** — backend/frontend
-- 🟠 **FUP-PREVIA-SPLIT-BUILD** — 🔨 **IN BUILD 2026-08-18** (backend contract slice first): build ADR [0125](docs/decisions/0125-previa-ephemeral-and-emission-registered.md) (ephemeral prévia / registered emission). Nine decisions, each measured before ruling. Carries the `312` §9 + t6/t43 rewrite (the fixture goes unconstructible — vacuous-and-green if left alone) and the D6 **behavioural** keystone, because an app-layer route with no `prosecdef` gate is in **no authz ARM's domain** — backend/frontend
 - 🟡 **FUP-ACL-APP-POPULATION** — the DROP+CREATE → PUBLIC-EXECUTE mechanism has fired **3×**, and the **`app`** schema has no generic net (`100` t19 is `public`-bounded; `320`'s is an 8-name allowlist) — backend
 - 🟡 **FUP-PGTAP-WORKER-DEADLOCK** — `test:db` intermittently deadlocks a `pg_prove` worker; **assurance, not correctness** (a dropped suite is not a passed suite). ⛔ Never pipe the run through `tail` — backend
 - 🟡 **FUP-PGTAP-SAVEPOINT** — ⚠ **DOWNGRADED 🔴→🟡: the original claim was WRONG.** TAP output cannot be rolled back; real only in the degenerate all-assertions-inside case — lead
