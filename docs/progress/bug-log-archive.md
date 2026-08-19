@@ -2607,3 +2607,29 @@ archive: **BUG-DM5-S2-STUB-1** (11 TS bodies still `throw`; the whole RCA/CAPA w
 **BUG-DM5-S2-CITATION-TARGETS-1** · **BUG-DM5-CAPA-1** (CAPA evidence upload broken for every user
 since it shipped) · **BUG-DM4-DUP-1** (⚠ it stayed marked 🟠 OPEN here until 2026-08-14 — *a fix commit
 is not a status edit*). Also archived earlier: **BUG-DM2-001/-002/-003** and **BUG-CASEKIND-001**.
+
+## Rotated 2026-08-19 — PROGRESS.md § Bug Log § OPEN-heading provenance + the 2026-08-18 rotation list
+
+> Rotated **verbatim** from PROGRESS.md § Bug Log › "🔴 OPEN — the live bugs" on **2026-08-19**.
+> Both halves were concluded. The heading it records has existed since 2026-08-14; the three bugs
+> in its list were closed, archived above with full bodies, and already indexed under
+> § "Bug Log closure narratives rotated from PROGRESS.md 2026-08-18" — so the live list was the
+> **third** copy of those three names in the same file, and the second one that was purely an index.
+> ⛔ **One clause deliberately did NOT rotate**: the standing rule *derive a rotation boundary by the
+> PROPERTY (is this CLOSED?), never by markup* stays live in PROGRESS.md, because it constrains
+> every future edit to that section. This block is that rule's **evidence**, not its authority —
+> do not treat the copy below as the live statement of it.
+
+⚠ **Heading added 2026-08-14** (and re-titled 2026-08-17 when a fourth bug landed — *the count was in
+the heading, which is a figure that goes stale the moment it is right*). These sat between two
+"Closed" headings with no heading of their
+own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
+markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
+archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
+⭕ **Rotated out of here on 2026-08-18 — each one closed well before its row said so.** A LIST, not a
+count: append to it, and nothing already written goes stale.
+
+- **BUG-DM5-S6-EVID-KBD-1** — fixed 2026-08-17, never marked.
+- **BUG-DM5-S3-INACTIVE-PRINT-1** — fixed by DM5·S3, in the slice that filed it, never marked.
+- **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — met its own "re-verify on the next fresh-reset run" criterion
+  on 2026-08-17, never marked.

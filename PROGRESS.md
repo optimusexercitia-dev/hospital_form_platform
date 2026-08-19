@@ -137,19 +137,12 @@ in [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md)._
 
 ### 🔴 OPEN — the live bugs
 
-⚠ **Heading added 2026-08-14** (and re-titled 2026-08-17 when a fourth bug landed — *the count was in
-the heading, which is a figure that goes stale the moment it is right*). These sat between two
-"Closed" headings with no heading of their
-own, so an open production blocker (BUG-BOOTSTRAP-001) read as filed under *Closed*. Open bugs use bold
-markers rather than headings, which is exactly why a rotation bounded by heading syntax would have
-archived them — **derive the boundary by the PROPERTY (is this CLOSED?), never by markup.**
-⭕ **Rotated out of here on 2026-08-18 — each one closed well before its row said so.** A LIST, not a
-count: append to it, and nothing already written goes stale.
-
-- **BUG-DM5-S6-EVID-KBD-1** — fixed 2026-08-17, never marked.
-- **BUG-DM5-S3-INACTIVE-PRINT-1** — fixed by DM5·S3, in the slice that filed it, never marked.
-- **BUG-DM5-S3-ENV-FIXTURE-POOL-1** — met its own "re-verify on the next fresh-reset run" criterion
-  on 2026-08-17, never marked.
+⛔ **Derive a rotation boundary by the PROPERTY (is this CLOSED?), never by markup.** Open bugs here
+carry bold markers, not headings, so a sweep bounded by heading syntax archives them; this heading
+exists because without it an open production blocker (BUG-BOOTSTRAP-001) read as filed under
+*Closed*. Its provenance, and the three closed rows that were still listed here after the
+2026-08-18 rotation put them in the archive, rotated 2026-08-19 →
+[archive § "Rotated 2026-08-19"](docs/progress/bug-log-archive.md).
 
 ⛔ **No live bug count appears in this section, deliberately.** Two attempts already went stale inside
 a single day — first the heading, then a note saying "back to three" — in the one paragraph of this
